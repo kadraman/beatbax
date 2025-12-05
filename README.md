@@ -1,0 +1,119 @@
+# BeatBax
+
+BeatBax is a small live-coding language and toolchain for creating retro-console chiptunes.
+This repository contains an MVP implementation focused on the Nintendo Game Boy audio model.
+
+This project is intentionally minimal and zero-dependency for the core parsing/scheduling/export tasks.
+
+## Goals (MVP)
+- Live pattern playback (Day 2)
+- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise)
+- JSON + MIDI + UGE export (UGE deferred)
+- Deterministic tick scheduler
+
+The strict Day 1 scope was:
+- Tokenize + parse the language
+- Build an AST and resolved song model
+- Export validated JSON
+- Unit tests for tokenizer and pattern expansion
+
+This repository contains a Day 1-complete baseline: the tokenizer, parser, pattern expansion, and a validated JSON exporter are implemented and covered by unit tests.
+
+## Quick examples (language)
+
+inst lead  type=pulse1 duty=50 env=12,down
+inst bass  type=pulse2 duty=25 env=10,down
+inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst snare type=noise env=12,down
+
+pat A = C5 E4 G4 C5
+pat B = C3 . G2 .
+
+channel 1 => inst lead pat A bpm=140
+channel 2 => inst bass pat B
+channel 3 => inst wave1 pat A:oct(-1)
+channel 4 => inst snare pat "x . x x"
+
+play
+export json "song.json"
+export midi "song.mid"
+
+The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
+
+## CLI
+
+There is a small CLI entrypoint in `src/cli.ts`.
+
+Common commands (PowerShell examples):
+
+```powershell
+npm run cli -- play songs\example-valid.bax
+npm run cli -- verify songs\example-valid.bax
+npm run cli -- export json songs\example-valid.bax --out songs\example.json
+```
+
+During development you can run the TypeScript CLI directly:
+
+```powershell
+npm run cli:dev -- play songs\example-valid.bax
+```
+
+`npm run cli` builds then runs the compiled `dist/` CLI; the build includes a small post-build step that rewrites import specifiers so the compiled ESM output runs cleanly under Node.
+
+## Export
+
+- `export json <file> [--out <path>]` — validated JSON export (current Day 1 deliverable)
+- `export midi <file> [--out <path>]` — MIDI export placeholder (to be completed in Day 3)
+
+The JSON exporter performs structural validation of the parsed AST and writes a normalized JSON object with metadata.
+
+## Project layout
+
+ - `src/` — TypeScript sources
+   - `parser/` — tokenizer and parser (AST builder)
+   - `patterns/` — pattern expansion + transposition utilities
+   - `audio/` — (Day 2) Game Boy channel emulation and oscillators
+   - `scheduler/` — (Day 2) deterministic tick scheduler
+   - `export/` — json/midi/uge exporters
+   - `cli.ts`, `index.ts` — CLI and program entry
+ - `tests/` — Jest unit tests for tokenizer, patterns, and parser
+ - `songs/` — example .bax song files used by the CLI
+
+## Development
+
+Install dev deps and run tests:
+
+```powershell
+npm install
+npm test
+```
+
+Build and run the CLI:
+
+```powershell
+npm run build
+npm run cli -- export json songs\example-valid.bax --out songs\example.json
+```
+
+Fast dev run (recommended for iteration):
+
+```powershell
+# Fast, no-build iteration — uses `tsx` under the hood
+npm run cli:dev -- export json songs\example-valid.bax --out songs\example.json
+```
+
+## Status / Roadmap
+
+Day 1 (done): tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
+
+Day 2 (in progress / next): deterministic scheduler, WebAudio playback, GB channel emulation (two pulse oscillators, wavetable, noise).
+
+Day 3 (future): full MIDI export, live reload of patterns, CLI polish, mute/solo per channel.
+
+## Contributing
+
+Contributions welcome. Open issues for features, and PRs against `main`. Keep changes small and include tests for parser/expansion behavior.
+
+## License
+
+See `LICENSE` in this repository.

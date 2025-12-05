@@ -1,0 +1,7 @@
+inst lead type=pulse1
+pat A = C4 E4
+
+channel 1 => inst missingInst pat A
+channel 2 => inst lead pat UNKNOWN
+
+play
