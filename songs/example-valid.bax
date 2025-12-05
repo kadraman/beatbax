@@ -1,0 +1,12 @@
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=25 env=10,down
+inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+
+pat A = C5 E4 G4 C5
+pat B = C3 . G2 .
+
+channel 1 => inst lead pat A bpm=140
+channel 2 => inst bass pat B
+channel 3 => inst wave1 pat A:oct(-1)
+
+play
