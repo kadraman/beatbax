@@ -8,6 +8,8 @@
     "beatbax": "dist/cli.js"
   },
   "scripts": {
+    "demo": "npx http-server demo -p 8080",
+    "build:demo": "esbuild demo/boot.ts --bundle --outfile=demo/dist/demo.js --platform=browser --target=es2019 --sourcemap",
     "build": "tsc && node scripts/fix-imports.cjs",
     "watch": "tsc --watch",
     "dev": "tsc --watch & node dist/index.js",
@@ -20,10 +22,12 @@
   },
   "dependencies": {
     "commander": "^12.0.0",
+    "marked": "^5.1.1",
     "midiconvert": "^0.4.7",
     "tone": "^14.8.49"
   },
   "devDependencies": {
+    "esbuild": "^0.18.17",
     "@types/jest": "^29.5.12",
     "@types/node": "^22.7.4",
     "eslint": "^9.14.0",

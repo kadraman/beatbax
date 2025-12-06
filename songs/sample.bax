@@ -1,0 +1,77 @@
+## Sample song for the demo
+## This file illustrates common language features and maps them to 4 Game Boy-like
+## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
+
+# -----------------------------------------------------------------------------
+# Instruments
+# Each `inst` defines a Game Boy-style instrument. Fields:
+#  - `type`: one of `pulse1`, `pulse2`, `wave`, `noise`
+#  - `duty`: duty cycle percentage for pulse channels (controls timbre)
+#  - `env`: envelope strength (attack/decay simplified) and `down`/`up` direction
+#  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
+#
+# The instruments below are chosen to show different channel roles:
+inst leadA type=pulse1 duty=60 env=12,down   # Bright pulse lead, slightly wider duty
+inst leadB type=pulse2 duty=30 env=7         # Narrower pulse (used as temporary override)
+inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]  # Wavetable arpeggio voice
+inst snare type=noise env=12,down            # Snare-like noise for backbeat
+inst hihat type=noise env=5,down             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise env=10,down            # Generic percussion/noise channel
+
+# -----------------------------------------------------------------------------
+# Patterns
+# Patterns are sequences of tokens (notes like C4, rests `.` and identifiers).
+# They may include grouping with `(...)` and repetition with `*N`.
+# Inline tokens like `inst(name)` or `inst(name,N)` temporarily change the
+# instrument for the following notes (temporary override count `N` decrements
+# when non-rest notes are played).
+
+# Melodic pattern for the lead channel.
+# - Uses grouping `(C5 E5 G5 C6) * 2` to repeat the four-note motif twice.
+# - `inst(leadB,2)` is a temporary override: the next two non-rest notes will
+#   use `leadB` (narrower pulse) for tone contrast.
+# - The trailing `.` is a rest to create a small gap before repeating.
+pat A      = (C5 E5 G5 C6) * 2 inst(leadB,2) C6 C6 E5 D5 C5 .
+
+# Alternative, sparser lead pattern. This uses rests to create a rhythmic offset.
+pat A_alt  = (. C5 . E5 . G5 . C6) * 2 .
+
+# Simple walking bass pattern for lower channel (kept sparse to leave room).
+pat B      = C3 . G2 . E2 . C2 .
+
+# Wavetable arpeggio pattern. Each parenthesized group is an arpeggio shape;
+# the `.` at the end inserts a short rest between cycles.
+pat C      = (G4 B4 D5 G5) (F4 A4 C5 F5) (E4 G4 B4 E5) .
+
+# Percussion pattern combining named instrument tokens and temporary overrides.
+# - Tokens like `snare` and `hihat` are treated as named-instrument events by the
+#   scheduler (the playback engine will map those names to `inst` definitions).
+# - `inst(hihat,4)` temporarily makes the next 4 non-rest hits use `hihat`.
+# - `inst(snare,2)` temporarily makes the next 2 non-rest hits use `snare`.
+pat P      = "snare . hihat snare . hihat . hihat inst(hihat,4) hihat hihat inst(snare,2) snare snare"
+
+# Short melodic fill used between phrases.
+pat E      = (C5 C5 C5 C5) * 2 (G4 G4 G4 G4)
+
+# -----------------------------------------------------------------------------
+# Channel routing
+# Map logical channels to instruments and patterns. Each `channel N => ...`
+# line sets the channel ID (1-4) and a default instrument plus the sequence
+# to play. `bpm=` controls tempo for that channel.
+# - Channel 1: Pulse 1 lead (primary melody)
+# - Channel 2: Pulse 2 lead (harmonic/alternate melody)
+# - Channel 3: Wave channel (wavetable arpeggio) transposed down one octave
+# - Channel 4: Noise/percussion channel
+
+channel 1 => inst leadA pat A bpm=160
+channel 2 => inst leadB pat A_alt bpm=160
+channel 3 => inst wave1 pat C:oct(-1) bpm=140
+channel 4 => inst perc  pat P bpm=160
+
+# -----------------------------------------------------------------------------
+# Playback directive
+# The `play` directive starts playback in the demo/player. In the CLI this
+# would trigger immediate rendering or playback; in the demo the UI uses the
+# parsed AST to schedule audio.
+play
+

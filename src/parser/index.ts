@@ -49,6 +49,27 @@ export function parse(source: string): AST {
             octaves += parseInt(mOct[1], 10);
             continue;
           }
+          // support reverse, slow, fast transforms
+          if (/^rev$/i.test(mod)) {
+            expanded = expanded.slice().reverse();
+            continue;
+          }
+          if (/^slow(?:\((\d+)\))?$/i.test(mod)) {
+            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+            const factor = mSlow && mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+            // repeat each token `factor` times
+            const out: string[] = [];
+            for (const t of expanded) for (let r = 0; r < factor; r++) out.push(t);
+            expanded = out;
+            continue;
+          }
+          if (/^fast(?:\((\d+)\))?$/i.test(mod)) {
+            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+            const factor = mFast && mFast[1] ? parseInt(mFast[1], 10) : 2;
+            // take every `factor`th token
+            expanded = expanded.filter((_, idx) => idx % factor === 0);
+            continue;
+          }
           const mTrans = mod.match(/^([+-]?\d+)$/);
           if (mTrans) {
             semitones += parseInt(mTrans[1], 10);
@@ -137,6 +158,30 @@ export function parse(source: string): AST {
             const mOct = mod.match(/^oct\((-?\d+)\)$/i);
             if (mOct) {
               octaves += parseInt(mOct[1], 10);
+              continue;
+            }
+            // pattern-level transforms
+            if (/^rev$/i.test(mod)) {
+              tokensResolved = tokensResolved.slice().reverse();
+              continue;
+            }
+            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+            if (mSlow) {
+              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+              const out: string[] = [];
+              for (const t of tokensResolved) for (let r = 0; r < factor; r++) out.push(t);
+              tokensResolved = out;
+              continue;
+            }
+            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+            if (mFast) {
+              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+              tokensResolved = tokensResolved.filter((_, idx) => idx % factor === 0);
+              continue;
+            }
+            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
+            if (mInst) {
+              ch.inst = mInst[1];
               continue;
             }
             const mTrans = mod.match(/^([+-]?\d+)$/);
