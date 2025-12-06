@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>BeatBax Demo</title>
+  <style>
+    :root{--gap:12px;--panel-bg:#fafafa;--muted:#666}
+    body { font-family: system-ui, Arial; padding: 16px; margin:0; }
+    .layout { display:flex; gap:var(--gap); align-items:stretch; transition:all 300ms ease; }
+    .col { background: white; border-radius:8px; padding:12px; box-shadow:0 6px 18px rgba(0,0,0,0.04); }
+    .left { flex:1 1 100%; min-width:320px; transition: flex-basis 300ms ease, max-width 300ms ease; }
+    .right { flex:0 0 0%; max-width:0%; min-width:0px; overflow:hidden; transition: flex-basis 300ms ease, max-width 300ms ease, opacity 300ms ease; opacity:0 }
+    textarea { width:100%; height:320px; font-family:monospace; font-size:13px; resize:vertical; }
+    .controls { margin-top:8px; }
+    /* Help panel styles */
+    #helpPanel { border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding:12px; }
+    #helpPanel h2, #helpPanel h3 { margin: 6px 0; color: #222; }
+    #helpPanel pre { background: #1e1e1e; color: #e6e6e6; padding: 8px; border-radius: 4px; overflow:auto; }
+    #helpPanel code { background:#f4f4f4; padding:2px 4px; border-radius:3px; font-family: monospace; }
+    #helpPanel a { color: #0366d6; text-decoration: none; }
+    #helpPanel a:hover { text-decoration: underline; }
+    #helpHeader { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px }
+    #helpHeader .left { display:flex; gap:8px; align-items:center }
+    #helpText { max-height:60vh; overflow:auto; }
+    #helpIcon { background:transparent; border:1px solid #ddd; border-radius:6px; padding:4px 8px; cursor:pointer }
+    @media (max-width:900px){
+      .layout{flex-direction:column}
+      .right{max-width:none; width:100%}
+    }
+
+    /* When help is open, split layout 50/50 */
+    .help-open .left { flex-basis:50%; max-width:50%; }
+    .help-open .right { flex-basis:50%; max-width:50%; min-width:260px; opacity:1 }
+  </style>
+</head>
+<body>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <h1 style="margin:0">BeatBax Browser Demo</h1>
+    <button id="helpIcon" title="Help (H)">❔</button>
+  </div>
+  <p style="margin-top:8px; color:var(--muted)">Paste a `.bax` file or select one to load. This demo uses the parser and the browser Player to play audio via WebAudio.</p>
+
+  <div id="layout" class="layout" style="margin-top:12px;">
+    <div class="col left">
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+        <input id="file" type="file" accept=".bax" />
+        <button id="loadExample">Load sample.bax</button>
+        <button id="showHelp">Show Help</button>
+        <button id="helpIcon" title="Help (H)">❔</button>
+      </div>
+
+      <textarea id="src" placeholder="Paste .bax source here..."></textarea>
+  <div class="controls">
+    <button id="play">Play</button>
+    <button id="stop">Stop</button>
+    <button id="apply">Apply & Play</button>
+    <label style="margin-left:12px"><input type="checkbox" id="live"> Live</label>
+    <span id="status"></span>
+  </div>
+      <div id="channelControls" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="col right">
+      <div id="helpPanel" style="border:1px solid #ddd; background:var(--panel-bg);">
+        <div id="helpHeader">
+          <div class="left"><strong>Demo Help</strong>
+            <label style="font-size:12px; color:#333; margin-left:8px">
+              <input id="persistHelp" type="checkbox" style="margin-right:6px;"> Show on load
+            </label>
+          </div>
+          <div>
+            <button id="closeHelp">Close</button>
+          </div>
+        </div>
+        <div id="helpText" style="white-space:pre-wrap; font-family:monospace; font-size:13px; margin:0; padding-right:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./dist/demo.js"></script>
+</body>
+</html>

@@ -1,7 +1,3 @@
-inst lead type=pulse1
-pat A = C4 E4
+// removed: replaced by `sample.bax`
+// This file was cleared by an automated script at user's request.
 
-channel 1 => inst missingInst pat A
-channel 2 => inst lead pat UNKNOWN
-
-play
