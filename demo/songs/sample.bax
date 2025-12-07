@@ -2,6 +2,8 @@
 ## This file illustrates common language features and maps them to 4 Game Boy-like
 ## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
 
+bpm 120
+
 # -----------------------------------------------------------------------------
 # Instruments
 # Each `inst` defines a Game Boy-style instrument. Fields:
@@ -27,31 +29,32 @@ inst perc  type=noise env=10,down            # Generic percussion/noise channel
 # when non-rest notes are played).
 
 # Melodic pattern for the lead channel.
-# - Uses grouping `(C5 E5 G5 C6) * 2` to repeat the four-note motif twice.
-# - `inst(leadB,2)` is a temporary override: the next two non-rest notes will
-#   use `leadB` (narrower pulse) for tone contrast.
-# - The trailing `.` is a rest to create a small gap before repeating.
-pat A      = (C5 E5 G5 C6) * 2 inst(leadB,2) C6 C6 E5 D5 C5 .
+# - Twinkle-style motif arranged into a fixed 16-token pattern (two 8-step phrases).
+pat A      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
-# Alternative, sparser lead pattern. This uses rests to create a rhythmic offset.
-pat A_alt  = (. C5 . E5 . G5 . C6) * 2 .
+# Alternative, sparser lead pattern for variation (16 tokens total).
+pat A_alt  = (. C5 . C5 . G5 . G5 .) * 2
 
-# Simple walking bass pattern for lower channel (kept sparse to leave room).
-pat B      = C3 . G2 . E2 . C2 .
+# Simple bass pattern that follows the root movement of the melody (16 tokens).
+pat B      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
 
-# Wavetable arpeggio pattern. Each parenthesized group is an arpeggio shape;
-# the `.` at the end inserts a short rest between cycles.
-pat C      = (G4 B4 D5 G5) (F4 A4 C5 F5) (E4 G4 B4 E5) .
+# Wavetable arpeggio pattern to add harmonic color under the melody (16 tokens).
+pat C      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 
-# Percussion pattern combining named instrument tokens and temporary overrides.
-# - Tokens like `snare` and `hihat` are treated as named-instrument events by the
-#   scheduler (the playback engine will map those names to `inst` definitions).
-# - `inst(hihat,4)` temporarily makes the next 4 non-rest hits use `hihat`.
-# - `inst(snare,2)` temporarily makes the next 2 non-rest hits use `snare`.
-pat P      = "snare . hihat snare . hihat . hihat inst(hihat,4) hihat hihat inst(snare,2) snare snare"
+# Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
+pat P      = . . snare . . hihat . . . snare . . . . . .
 
-# Short melodic fill used between phrases.
-pat E      = (C5 C5 C5 C5) * 2 (G4 G4 G4 G4)
+# Short melodic fill used between phrases (16 tokens).
+pat E      = (C5 E5 G5 C6) * 4
+
+# -----------------------------------------------------------------------------
+# New shorthand examples
+# You can use `name*4` as a concise shorthand to emit the named instrument
+# hit 4 times in a row (equivalent to `hit(name,4)`). This is useful for
+# percussion stabs where you want immediate repeated hits without inserting
+# explicit note tokens. `inst(name,N)` still acts as a temporary override
+# for the next N non-rest notes.
+pat P2     = snare . . . snare . . . hihat . . . . . . .
 
 # -----------------------------------------------------------------------------
 # Channel routing
@@ -63,10 +66,27 @@ pat E      = (C5 C5 C5 C5) * 2 (G4 G4 G4 G4)
 # - Channel 3: Wave channel (wavetable arpeggio) transposed down one octave
 # - Channel 4: Noise/percussion channel
 
-channel 1 => inst leadA pat A bpm=160
-channel 2 => inst leadB pat A_alt bpm=160
-channel 3 => inst wave1 pat C:oct(-1) bpm=140
-channel 4 => inst perc  pat P bpm=160
+## Example sequencing: create separate sequences per part and map to channels
+# Each channel consumes its own sequence. This keeps parts independent and
+# lets you modify/loop them separately in the tracker or live UI.
+
+# Lead sequence (primary melody)
+seq lead = A A_alt E A
+
+# Bass sequence (low-end walking bass)
+seq bass = B B B B
+
+# Wave sequence (wavetable arpeggios)
+seq wave = C C C
+
+# Drums/percussion sequence
+seq drums = P P2 P P
+
+## Map channels to their separate sequences.
+channel 1 => inst leadA seq lead bpm=120
+channel 2 => inst leadB seq bass:oct(-1)
+channel 3 => inst wave1 seq wave:oct(-1)
+channel 4 => inst perc  seq drums
 
 # -----------------------------------------------------------------------------
 # Playback directive
@@ -74,4 +94,21 @@ channel 4 => inst perc  pat P bpm=160
 # would trigger immediate rendering or playback; in the demo the UI uses the
 # parsed AST to schedule audio.
 play
+
+# -----------------------------------------------------------------------------
+# Speed examples (commented)
+#
+# You can set a master BPM at the top of the file and then use `speed` on a
+# per-channel basis to play that channel at a multiple of the master tempo.
+# These lines are commented out so they won't conflict with the active
+# channel mappings above — uncomment to try them in the demo.
+
+# # channel mapping using master BPM
+# channel 1 => inst leadA seq lead
+# # channel 2 plays twice as fast as the master (2x)
+# channel 2 => inst leadB seq bass speed=2x
+# # channel 3 uses master tempo (wavetable)
+# channel 3 => inst wave1 seq wave
+# # channel 4 percussion at master tempo
+# channel 4 => inst perc  seq drums
 

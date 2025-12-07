@@ -31,6 +31,25 @@ This short tutorial shows how to write a small `.bax` song, run the browser demo
 - `:slow(N)` — repeat each token N times (default 2)
 - `:fast(N)` — take every Nth token (default 2)
 
+**Tempo & Per-Channel Speed**
+
+- Set a master tempo with a top-level directive: `bpm 120` or `bpm=120`.
+- Per-channel multipliers: use `speed=2` or `speed=2x` on a channel to play
+  that channel at a multiple of the master BPM. Example: `speed=2x` plays
+  twice as fast as the master tempo.
+
+Example:
+```
+# Use master tempo 120 BPM
+bpm 120
+
+# Channel 1 uses master BPM (120)
+channel 1 => inst leadA seq lead
+
+# Channel 2 runs twice as fast (240 BPM effective)
+channel 2 => inst leadB seq bass speed=2x
+```
+
 **Example pattern snippet**
 ```
 inst leadA type=pulse1 duty=60 env=12,down

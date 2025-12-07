@@ -10,10 +10,14 @@ function createPulsePeriodicWave(ctx, duty = 0.5) {
   const real = new Float32Array(size);
   const imag = new Float32Array(size);
   const maxHarm = 200;
+  // coerce duty to finite number
+  let d = Number(duty);
+  if (!Number.isFinite(d)) d = 0.5;
+  d = Math.max(0, Math.min(1, d));
   for (let n = 1; n <= maxHarm && n < size; n++) {
-    const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+    const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * d);
     real[n] = 0;
-    imag[n] = a;
+    imag[n] = Number.isFinite(a) ? a : 0;
   }
   return ctx.createPeriodicWave(real, imag, { disableNormalization: true });
 }

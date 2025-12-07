@@ -17,7 +17,7 @@ The strict Day 1 scope was:
 - Export validated JSON
 - Unit tests for tokenizer and pattern expansion
 
-This repository contains a Day 1-complete baseline: the tokenizer, parser, pattern expansion, and a validated JSON exporter are implemented and covered by unit tests.
+This repository contains a Day 1-complete baseline: the tokenizer, parser, pattern expansion, a resolver that builds an Intermediate Song Model (ISM), and a validated JSON exporter. All core parsing and expansion behavior is covered by unit tests.
 
 ## Quick examples (language)
 
@@ -39,6 +39,13 @@ export json "song.json"
 export midi "song.mid"
 
 The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
+
+Recent additions (still Day‑1 scope — authoring & export):
+
+- Top-level `bpm` directive and per-channel `speed` multipliers: use `bpm 120` and `channel 2 => ... speed=2x` to run a channel at a multiple of the master tempo.
+- `hit(name,N)` shorthand and `name*4` percussion shorthand: useful for immediate repeated hits (also `inst(name,N)` will emit immediate hits when there are no following note events).
+- Resolver improvements: sequence references with modifiers (e.g. `seqName:oct(-1)`) are expanded correctly when channels reference sequences.
+- Demo UI: per-channel scheduling indicators and counters, and an effective-BPM display have been added to help debug timing and speed multipliers.
 
 ## CLI
 
@@ -106,7 +113,7 @@ npm run cli:dev -- export json songs\example-valid.bax --out songs\example.json
 
 Day 1 (done): tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
 
-Day 2 (in progress / next): deterministic scheduler, WebAudio playback, GB channel emulation (two pulse oscillators, wavetable, noise).
+Day 2 (in progress / next): deterministic scheduler, WebAudio playback refinements, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `src/audio/playback.ts` and the demo (`demo/`) exercises it.
 
 Day 3 (future): full MIDI export, live reload of patterns, CLI polish, mute/solo per channel.
 

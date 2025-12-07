@@ -1,24 +1,19 @@
 export * from './tokenizer';
 
 import { expandPattern, transposePattern } from '../patterns/expand';
-
-/** AST shape for parsed source (minimal for now). */
-export type AST = {
-  pats: Record<string, string[]>;
-  insts: Record<string, Record<string, string>>;
-  channels: Array<{ id: number; inst?: string; pat?: string | string[]; bpm?: number }>;
-  // future: insts, channels, bpm, etc.
-};
+import { AST, SeqMap, ChannelNode } from './ast';
 
 /**
  * Parse source text and build a minimal AST. Currently this parser
  * focuses on resolving `pat` definitions into expanded token arrays
- * using `expandPattern` and collecting `inst` and `channel` entries.
+ * using `expandPattern` and collecting `inst`, `seq` and `channel` entries.
  */
 export function parse(source: string): AST {
   const pats: Record<string, string[]> = {};
   const insts: Record<string, Record<string, string>> = {};
-  const channels: Array<{ id: number; inst?: string; pat?: string | string[]; bpm?: number }> = [];
+  const seqs: SeqMap = {};
+  const channels: ChannelNode[] = [];
+  let topBpm: number | undefined = undefined;
 
   // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
   const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
@@ -112,6 +107,16 @@ export function parse(source: string): AST {
     insts[name] = props;
   }
 
+  // Parse seq definitions: seq NAME = PATPAT...
+  const reSeq = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*(.+)$/gm;
+  while ((m = reSeq.exec(source)) !== null) {
+    const name = m[1];
+    const rhs = m[2].trim();
+    // split by whitespace to preserve modifiers like A:inst(bass)
+    const parts = rhs.match(/[^\s]+/g) || [];
+    seqs[name] = parts;
+  }
+
   // Parse channel definitions: channel N => ...
   const reChan = /^\s*channel\s+(\d+)\s*=>\s*(.+)$/gm;
   while ((m = reChan.exec(source)) !== null) {
@@ -119,7 +124,7 @@ export function parse(source: string): AST {
     const rhs = m[2].trim();
     // Simple tokenization of RHS
     const tokens = rhs.split(/\s+/);
-    const ch: { id: number; inst?: string; pat?: string | string[]; bpm?: number } = { id };
+    const ch: { id: number; inst?: string; pat?: string | string[]; bpm?: number; speed?: number } = { id };
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       if (t === 'inst' && tokens[i + 1]) {
@@ -131,6 +136,12 @@ export function parse(source: string): AST {
         let patSpec = (patRef.startsWith('"') || patRef.startsWith("'")) ? patRef.replace(/^['"]|['"]$/g, '') : patRef;
         ch.pat = patSpec;
         i++;
+      } else if (t === 'seq' && tokens[i + 1]) {
+        // channel may point to a sequence name instead of a single pattern
+        const seqRef = tokens[i + 1];
+        let seqSpec = (seqRef.startsWith('"') || seqRef.startsWith("'")) ? seqRef.replace(/^['"]|['"]$/g, '') : seqRef;
+        ch.pat = seqSpec; // leave as string; resolver will expand sequences
+        i++;
       } else if (t.startsWith('bpm=')) {
         const v = t.slice(4);
         const n = parseInt(v, 10);
@@ -140,6 +151,17 @@ export function parse(source: string): AST {
         const v = tokens[i + 1];
         const n = parseInt(v, 10);
         if (!isNaN(n)) { ch.bpm = n; i++; }
+      } else if (t.startsWith('speed=')) {
+        let v = t.slice(6);
+        // support syntax like '2x' or '1.5x'
+        v = String(v).replace(/x$/i, '');
+        const n = parseFloat(v);
+        if (!isNaN(n)) ch.speed = n;
+      } else if (t === 'speed' && tokens[i + 1]) {
+        let v = tokens[i + 1];
+        v = String(v).replace(/x$/i, '');
+        const n = parseFloat(v);
+        if (!isNaN(n)) { ch.speed = n; i++; }
       }
     }
     // If pat refers to a named pattern, resolve to expanded tokens if available
@@ -207,7 +229,14 @@ export function parse(source: string): AST {
     channels.push(ch);
   }
 
-  return { pats, insts, channels };
+  // Parse top-level bpm directive: `bpm 160` or `bpm=160`
+  const reBpm = /^\s*bpm\s*(?:=)?\s*(\d+)$/gim;
+  while ((m = reBpm.exec(source)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (!isNaN(n)) topBpm = n;
+  }
+
+  return { pats, insts, seqs, channels, bpm: topBpm };
 }
 
 export default {
