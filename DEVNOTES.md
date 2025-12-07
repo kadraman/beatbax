@@ -8,6 +8,7 @@ High level
   - `src/parser/` — tokenizer and parser that produce a minimal AST: `pats`, `insts`, `channels`.
   - `src/patterns/` — `expandPattern` and `transposePattern` utilities.
   - `src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
+  - `src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
   - `demo/` — browser demo UI that uses the real parser and Player for live playback.
 
 Scheduler & timing

@@ -1,5 +1,7 @@
 # BeatBax
 
+[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Publish](https://github.com/kadraman/beatbax/actions/workflows/publish.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/publish.yml)
+
 BeatBax is a small live-coding language and toolchain for creating retro-console chiptunes.
 This repository contains an MVP implementation focused on the Nintendo Game Boy audio model.
 
@@ -21,10 +23,10 @@ This repository contains a Day 1-complete baseline: the tokenizer, parser, patte
 
 ## Quick examples (language)
 
-inst lead  type=pulse1 duty=50 env=12,down
-inst bass  type=pulse2 duty=25 env=10,down
+inst lead  type=pulse1 duty=50 env=gb:12,down,1
+inst bass  type=pulse2 duty=25 env=gb:10,down,1
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst snare type=noise env=12,down
+inst snare type=noise env=gb:12,down,1
 
 pat A = C5 E4 G4 C5
 pat B = C3 . G2 .
@@ -124,3 +126,22 @@ Contributions welcome. Open issues for features, and PRs against `main`. Keep ch
 ## License
 
 See `LICENSE` in this repository.
+
+## Scheduler example (public API)
+
+Import the scheduler factory from the package (or from `dist/` after build). The factory chooses a RAF-driven loop in browser environments by default.
+
+```ts
+// ESM import from published package
+import createScheduler from 'beatbax/scheduler';
+
+// audioContext is a WebAudio AudioContext instance
+const sched = createScheduler(audioContext, { useRaf: true });
+sched.start();
+sched.schedule(audioContext.currentTime + 0.1, () => {
+  // play a scheduled note or trigger event
+});
+
+// Types are exported for TS consumers
+import type { TickSchedulerOptions } from 'beatbax/scheduler';
+```
