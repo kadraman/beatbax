@@ -22,11 +22,15 @@ function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
 
   // Synthesize a band-limited pulse by adding harmonics
   const maxHarm = 200;
+  // coerce duty to a finite number and clamp
+  let d = Number(duty);
+  if (!Number.isFinite(d)) d = 0.5;
+  d = Math.max(0, Math.min(1, d));
   for (let n = 1; n <= maxHarm; n++) {
     const k = n;
-    const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
+    const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * d);
     real[k] = 0;
-    imag[k] = a;
+    imag[k] = Number.isFinite(a) ? a : 0;
   }
   return ctx.createPeriodicWave(real, imag, { disableNormalization: true });
 }
@@ -80,6 +84,8 @@ export class Player {
   private activeNodes: Array<{ node: any; chId: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
+  // Optional hook called whenever a token is scheduled. Useful for tests.
+  public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number }) => void;
 
   constructor(ctx?: AudioContext) {
     const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
@@ -91,14 +97,32 @@ export class Player {
   async playAST(ast: AST) {
     // simple model: iterate channels and schedule tokens sequentially
     // each token is one tick; tick duration derived from BPM
+    // Ensure AudioContext is resumed on user gesture (fixes browser autoplay policies)
+    try {
+      if (this.ctx && typeof (this.ctx as any).resume === 'function') {
+        // only resume if suspended
+        try {
+          const st = (this.ctx as any).state;
+          if (st === 'suspended') await (this.ctx as any).resume();
+        } catch (e) {
+          // ignore resume errors
+        }
+      }
+    } catch (e) {}
     for (const ch of ast.channels || []) {
       const instsMap = (ast.insts || {});
       let currentInst = instsMap[ch.inst || ''];
-      const tokens: string[] = Array.isArray(ch.pat) ? ch.pat : ['.'];
+      // tokens may be an array of strings (pre-resolution) or event objects (resolved ISM)
+      const tokens: any[] = Array.isArray(ch.pat) ? ch.pat : ['.'];
       // temporary inline override state
       let tempInst: any = null;
       let tempRemaining = 0;
-      const bpm = ch.bpm || this.bpmDefault;
+      // Determine effective BPM: channel.bpm overrides; otherwise use channel.speed * ast.bpm if present;
+      // finally fall back to player default.
+      let bpm: number;
+      if (typeof (ch as any).bpm === 'number') bpm = (ch as any).bpm;
+      else if (typeof (ch as any).speed === 'number' && ast && typeof ast.bpm === 'number') bpm = ast.bpm * (ch as any).speed;
+      else bpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : this.bpmDefault;
       const secondsPerBeat = 60 / bpm;
       const tickSeconds = secondsPerBeat / 4; // 16th note resolution
 
@@ -106,6 +130,27 @@ export class Player {
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const t = startTime + i * tickSeconds;
+
+        // If token is a resolved event object, prefer its instProps
+        if (token && typeof token === 'object' && token.type) {
+          // token is an event object produced by resolver
+          if (token.type === 'rest') {
+            // nothing to schedule
+          } else if (token.type === 'named') {
+            const instProps = token.instProps || instsMap[token.instrument] || null;
+            // schedule named instrument event (like snare) using instProps if available
+            this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, tickSeconds);
+          } else if (token.type === 'note') {
+            const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
+            this.scheduleToken(ch.id, instProps, instsMap, token.token, t, tickSeconds);
+            // decrement temporary override only for note events
+            if (tempRemaining > 0) {
+              tempRemaining -= 1;
+              if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
+            }
+          }
+          continue;
+        }
 
         // inline instrument token handling: inst(name) or inst(name,N)
         const mInstInline = typeof token === 'string' && token.match(/^inst\(([^,()\s]+)(?:,(\d+))?\)$/i);
@@ -124,7 +169,7 @@ export class Player {
           continue;
         }
 
-        // choose which instrument to use for this token
+        // choose which instrument to use for this token (string token path)
         const useInst = tempRemaining > 0 && tempInst ? tempInst : currentInst;
 
         // schedule the token with the selected instrument
@@ -152,6 +197,12 @@ export class Player {
       // If the referenced instrument is noise, schedule it immediately on this tick
       if (alt.type && String(alt.type).toLowerCase().includes('noise')) {
         try { console.log('[beatbax] scheduling named noise', { chId, token, time, dur }); } catch (e) {}
+        // Invoke test hook so UI indicators/counters receive this scheduling
+        try {
+          if (typeof (this as any).onSchedule === 'function') {
+            (this as any).onSchedule({ chId, inst: alt, token, time, dur });
+          }
+        } catch (e) { /* swallow */ }
         this.scheduler.schedule(time, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
@@ -165,6 +216,13 @@ export class Player {
       inst = alt;
     }
     if (!inst) return; // nothing to play
+
+    // Invoke test hook if present so tests can assert scheduling parameters
+    try {
+      if (typeof (this as any).onSchedule === 'function') {
+        (this as any).onSchedule({ chId, inst, token, time, dur });
+      }
+    } catch (e) { /* swallow hook errors */ }
 
     // Note may be a note name like C5 or 'x' for drum hit. Try to resolve MIDI
     const m = token.match(/^([A-G][#B]?)(-?\d+)$/i);

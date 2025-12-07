@@ -1,5 +1,6 @@
 import { parse } from '../src/parser';
 import Player from '../src/audio/playback';
+import { resolveSong } from '../src/song/resolver';
 import { marked } from 'marked';
 
 // Demo: wire real parser + Player to UI
@@ -167,14 +168,26 @@ playBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'Parsing...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
+    // Resolve AST into ISM so Player receives resolved event objects
+    const resolved = resolveSong(ast as any);
     try { console.log('[beatbax] parsed AST', ast); } catch (e) {}
     currentAST = ast;
     status && (status.textContent = 'Starting AudioContext...');
     if (!player) player = new Player();
     // expose the runtime player for debugging (inspect via `window.__beatbax_player`)
     (window as any).__beatbax_player = player;
+    attachScheduleHook(player);
     renderChannelControls(ast);
-    await player.playAST(ast);
+    // DEBUG: print resolved ISM so we can inspect per-channel events in console
+    try { console.log('[beatbax] resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0); } catch (e) {}
+    try {
+      if ((resolved as any).channels) {
+        for (const ch of (resolved as any).channels) {
+          try { console.log('[beatbax] resolved channel', ch.id, 'events=', (ch.events || ch.pat || []).length); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
   } catch (e: any) {
     console.error(e);
@@ -214,7 +227,18 @@ applyBtn?.addEventListener('click', async () => {
     renderChannelControls(ast);
     if (!player) player = new Player();
     (window as any).__beatbax_player = player;
-    await player.playAST(ast);
+    attachScheduleHook(player);
+    // Resolve AST into ISM before playback so sequences are expanded
+    const resolved = resolveSong(ast as any);
+    try { console.log('[beatbax] resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0); } catch (e) {}
+    try {
+      if ((resolved as any).channels) {
+        for (const ch of (resolved as any).channels) {
+          try { console.log('[beatbax] resolved channel', ch.id, 'events=', (ch.events || ch.pat || []).length); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
   } catch (e: any) {
     console.error(e);
@@ -242,7 +266,18 @@ const liveApply = debounce(async () => {
     renderChannelControls(ast);
     if (!player) player = new Player();
     (window as any).__beatbax_player = player;
-    await player.playAST(ast);
+    attachScheduleHook(player);
+    // Resolve AST so sequence references are expanded for playback
+    const resolved = resolveSong(ast as any);
+    try { console.log('[beatbax] resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0); } catch (e) {}
+    try {
+      if ((resolved as any).channels) {
+        for (const ch of (resolved as any).channels) {
+          try { console.log('[beatbax] resolved channel', ch.id, 'events=', (ch.events || ch.pat || []).length); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    await player.playAST(resolved as any);
     status && (status.textContent = 'Playing (live)');
   } catch (e: any) {
     console.error(e);
@@ -267,8 +302,23 @@ function renderChannelControls(ast: any) {
     row.style.alignItems = 'center';
     row.style.gap = '8px';
     row.style.marginTop = '6px';
+    const indicator = document.createElement('div');
+    indicator.id = `ch-ind-${ch.id}`;
+    indicator.style.width = '12px';
+    indicator.style.height = '12px';
+    indicator.style.borderRadius = '6px';
+    indicator.style.background = 'transparent';
+    indicator.style.border = '1px solid #666';
+    indicator.style.marginRight = '6px';
+    indicator.style.transition = 'background 120ms ease';
     const label = document.createElement('div');
     label.textContent = `Channel ${ch.id}`;
+    const count = document.createElement('div');
+    count.id = `ch-count-${ch.id}`;
+    count.textContent = '0';
+    count.style.minWidth = '24px';
+    count.style.textAlign = 'center';
+    count.style.marginLeft = '6px';
     const mute = document.createElement('button');
     mute.textContent = 'Mute';
     const solo = document.createElement('button');
@@ -285,7 +335,20 @@ function renderChannelControls(ast: any) {
       try { console.log('[beatbax] toggle solo', { ch: ch.id, solo: player.solo }); } catch (e) {}
       updateButtons();
     });
+    row.appendChild(indicator);
     row.appendChild(label);
+    // BPM display
+    const bpmEl = document.createElement('div');
+    bpmEl.id = `ch-bpm-${ch.id}`;
+    bpmEl.style.minWidth = '64px';
+    bpmEl.style.textAlign = 'right';
+    bpmEl.style.marginLeft = '8px';
+    // compute effective BPM: channel.bpm > (ast.bpm * speed) > ast.bpm > default 120
+    const masterBpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
+    const effBpm = (typeof ch.bpm === 'number') ? ch.bpm : ((typeof (ch as any).speed === 'number') ? Math.round(masterBpm * (ch as any).speed) : masterBpm);
+    bpmEl.textContent = `BPM: ${effBpm}`;
+    row.appendChild(bpmEl);
+    row.appendChild(count);
     row.appendChild(mute);
     row.appendChild(solo);
     container.appendChild(row);
@@ -300,9 +363,38 @@ function renderChannelControls(ast: any) {
       } else {
         row.style.opacity = '1';
       }
+      // update BPM display in case master bpm changed or speed was applied
+      try {
+        const b = document.getElementById(`ch-bpm-${ch.id}`);
+        if (b) {
+          const master = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
+          const effective = (typeof ch.bpm === 'number') ? ch.bpm : ((typeof (ch as any).speed === 'number') ? Math.round(master * (ch as any).speed) : master);
+          b.textContent = `BPM: ${effective}`;
+        }
+      } catch (e) {}
     }
     updateButtons();
   }
+}
+
+function attachScheduleHook(p: any) {
+  if (!p) return;
+  (p as any).onSchedule = (args: { chId: number; inst?: any; token?: string; time?: number; dur?: number }) => {
+    try { console.log('[beatbax] onSchedule', args); } catch (e) {}
+    try {
+      const el = document.getElementById(`ch-ind-${args.chId}`);
+      if (!el) return;
+      el.style.background = 'lime';
+      setTimeout(() => { try { el.style.background = ''; } catch (e) {} }, 120);
+      try {
+        const c = document.getElementById(`ch-count-${args.chId}`);
+        if (c) {
+          const n = parseInt(c.textContent || '0', 10) || 0;
+          c.textContent = String(n + 1);
+        }
+      } catch (e) {}
+    } catch (e) {}
+  };
 }
 
 // On initial load, try to fetch help and show it by default
