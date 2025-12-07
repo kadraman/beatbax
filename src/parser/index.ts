@@ -236,7 +236,14 @@ export function parse(source: string): AST {
     if (!isNaN(n)) topBpm = n;
   }
 
-  return { pats, insts, seqs, channels, bpm: topBpm };
+  // Parse top-level chip directive: `chip gameboy` or `chip=gameboy`
+  let chipName: string | undefined = undefined;
+  const reChip = /^\s*chip\s*(?:=)?\s*([A-Za-z_][A-Za-z0-9_\-]*)/gim;
+  while ((m = reChip.exec(source)) !== null) {
+    chipName = m[1];
+  }
+
+  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName };
 }
 
 export default {

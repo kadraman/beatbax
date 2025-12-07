@@ -21,6 +21,7 @@ export interface AST {
   seqs: SeqMap;
   channels: ChannelNode[];
   bpm?: number;
+  chip?: string;
 }
 
 export default AST;

@@ -1,6 +1,6 @@
 PROJECT:
 
-Build a 3-day MVP of a Strudel-like live-coding language for Game Boy chiptune.
+Build a 3-day MVP of a live-coding language for Game Boy chiptune.
 
 
 
