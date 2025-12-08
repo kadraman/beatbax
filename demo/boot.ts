@@ -1,7 +1,26 @@
 import { parse } from '../src/parser';
 import Player from '../src/audio/playback';
 import { resolveSong } from '../src/song/resolver';
-import { marked } from 'marked';
+// Use a dynamic browser-loaded `marked` if available. We avoid bundling Node 'marked'
+// so the demo can be built with esbuild without resolving Node-only exports.
+
+async function ensureMarked(): Promise<any> {
+  // If a global `marked` is already present (e.g., loaded via CDN), use it.
+  if ((window as any).marked) return (window as any).marked;
+  // Otherwise, attempt to inject a CDN script tag and wait for it to load.
+  return new Promise((resolve, reject) => {
+    try {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+      s.async = true;
+      s.onload = () => resolve((window as any).marked || null);
+      s.onerror = (e) => reject(new Error('Failed to load marked from CDN'));
+      document.head.appendChild(s);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
 
 // Demo: wire real parser + Player to UI
 const fileInput = document.getElementById('file') as HTMLInputElement;
@@ -83,8 +102,14 @@ async function loadHelpFromText(text: string) {
   }).join('\n');
   // Use marked to render Markdown to HTML
   try {
-    const html = marked.parse(cleaned || '');
-    helpText.innerHTML = html || '<div>No help comments found in sample.</div>';
+    const mk = await ensureMarked();
+    const parser = mk || (window as any).marked;
+    if (parser && typeof parser.parse === 'function') {
+      const html = parser.parse(cleaned || '');
+      helpText.innerHTML = html || '<div>No help comments found in sample.</div>';
+    } else {
+      helpText.textContent = cleaned || 'No help comments found in sample.';
+    }
   } catch (e) {
     helpText.textContent = cleaned || 'No help comments found in sample.';
   }

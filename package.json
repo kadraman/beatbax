@@ -16,7 +16,7 @@
   },
   "scripts": {
     "demo": "npx http-server demo -p 8080",
-    "build:demo": "esbuild demo/boot.ts --bundle --outfile=demo/dist/demo.js --platform=browser --target=es2019 --sourcemap",
+    "build:demo": "esbuild demo/boot.ts --bundle --outfile=demo/dist/demo.js --platform=browser --target=es2019 --sourcemap --external:marked",
     "build": "tsc && node scripts/fix-imports.cjs && node scripts/check-dist.cjs",
     "prepublishOnly": "npm run build",
     "watch": "tsc --watch",

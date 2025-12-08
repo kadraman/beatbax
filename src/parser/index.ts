@@ -124,7 +124,7 @@ export function parse(source: string): AST {
     const rhs = m[2].trim();
     // Simple tokenization of RHS
     const tokens = rhs.split(/\s+/);
-    const ch: { id: number; inst?: string; pat?: string | string[]; bpm?: number; speed?: number } = { id };
+    const ch: { id: number; inst?: string; pat?: string | string[]; speed?: number } = { id };
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       if (t === 'inst' && tokens[i + 1]) {
@@ -143,14 +143,21 @@ export function parse(source: string): AST {
         ch.pat = seqSpec; // leave as string; resolver will expand sequences
         i++;
       } else if (t.startsWith('bpm=')) {
+        // Channel-level `bpm` is not supported. Fail fast with a parse error
+        // to guide users to use top-level `bpm` or sequence transforms instead.
         const v = t.slice(4);
         const n = parseInt(v, 10);
-        if (!isNaN(n)) ch.bpm = n;
-      } else if (t.startsWith('bpm')) {
-        // bpm 140
+        throw new Error(
+          `channel ${id}: channel-level 'bpm' is not supported (found 'bpm=${v}'). ` +
+          `Use a top-level 'bpm' directive or sequence transforms (fast/slow) instead.`
+        );
+      } else if (t === 'bpm') {
+        // legacy form: 'bpm 140' on the channel line
         const v = tokens[i + 1];
-        const n = parseInt(v, 10);
-        if (!isNaN(n)) { ch.bpm = n; i++; }
+        throw new Error(
+          `channel ${id}: channel-level 'bpm' is not supported (found 'bpm ${v}'). ` +
+          `Use a top-level 'bpm' directive or sequence transforms (fast/slow) instead.`
+        );
       } else if (t.startsWith('speed=')) {
         let v = t.slice(6);
         // support syntax like '2x' or '1.5x'

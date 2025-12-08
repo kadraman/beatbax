@@ -26,7 +26,6 @@ export type ChannelEvent = NoteEvent | RestEvent | NamedInstrumentEvent;
 
 export interface ChannelModel {
   id: number;
-  bpm?: number;
   speed?: number;
   events: ChannelEvent[];
   defaultInstrument?: string;

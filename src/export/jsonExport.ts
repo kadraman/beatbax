@@ -56,7 +56,7 @@ function validateSongModel(song: any) {
 					}
 				}
 			}
-			if (ch.bpm !== undefined && typeof ch.bpm !== 'number') errors.push(`channel ${ch.id} bpm must be a number`);
+			if (ch.bpm !== undefined) errors.push(`channel ${ch.id} contains a top-level bpm which is not supported; use top-level 'bpm' or sequence transforms (fast/slow) instead`);
 		}
 	}
 
