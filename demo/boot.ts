@@ -343,9 +343,9 @@ function renderChannelControls(ast: any) {
     bpmEl.style.minWidth = '64px';
     bpmEl.style.textAlign = 'right';
     bpmEl.style.marginLeft = '8px';
-    // compute effective BPM: channel.bpm > (ast.bpm * speed) > ast.bpm > default 120
+    // compute effective BPM: master BPM multiplied by channel `speed` (no channel-level bpm)
     const masterBpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
-    const effBpm = (typeof ch.bpm === 'number') ? ch.bpm : ((typeof (ch as any).speed === 'number') ? Math.round(masterBpm * (ch as any).speed) : masterBpm);
+    const effBpm = (typeof (ch as any).speed === 'number') ? Math.round(masterBpm * (ch as any).speed) : masterBpm;
     bpmEl.textContent = `BPM: ${effBpm}`;
     row.appendChild(bpmEl);
     row.appendChild(count);
@@ -368,7 +368,7 @@ function renderChannelControls(ast: any) {
         const b = document.getElementById(`ch-bpm-${ch.id}`);
         if (b) {
           const master = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
-          const effective = (typeof ch.bpm === 'number') ? ch.bpm : ((typeof (ch as any).speed === 'number') ? Math.round(master * (ch as any).speed) : master);
+          const effective = (typeof (ch as any).speed === 'number') ? Math.round(master * (ch as any).speed) : master;
           b.textContent = `BPM: ${effective}`;
         }
       } catch (e) {}
