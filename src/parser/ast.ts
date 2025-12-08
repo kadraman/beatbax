@@ -9,7 +9,6 @@ export interface ChannelNode {
   id: number;
   inst?: string;
   pat?: string | string[];
-  bpm?: number;
   speed?: number;
 }
 

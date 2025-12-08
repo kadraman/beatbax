@@ -89,11 +89,11 @@ export class Player {
       // temporary inline override state
       let tempInst: any = null;
       let tempRemaining = 0;
-      // Determine effective BPM: channel.bpm overrides; otherwise use channel.speed * ast.bpm if present;
-      // finally fall back to player default.
+      // Determine effective BPM: do NOT support per-channel absolute BPM.
+      // Use optional per-channel `speed` multiplier applied to the top-level `ast.bpm`.
+      // Fall back to player default if no top-level BPM provided.
       let bpm: number;
-      if (typeof (ch as any).bpm === 'number') bpm = (ch as any).bpm;
-      else if (typeof (ch as any).speed === 'number' && ast && typeof ast.bpm === 'number') bpm = ast.bpm * (ch as any).speed;
+      if (typeof (ch as any).speed === 'number' && ast && typeof ast.bpm === 'number') bpm = ast.bpm * (ch as any).speed;
       else bpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : this.bpmDefault;
       const secondsPerBeat = 60 / bpm;
       const tickSeconds = secondsPerBeat / 4; // 16th note resolution

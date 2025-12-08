@@ -130,21 +130,4 @@ Contributions welcome. Open issues for features, and PRs against `main`. Keep ch
 
 See `LICENSE` in this repository.
 
-## Scheduler example (public API)
-
-Import the scheduler factory from the package (or from `dist/` after build). The factory chooses a RAF-driven loop in browser environments by default.
-
-```ts
-// ESM import from published package
-import createScheduler from 'beatbax/scheduler';
-
-// audioContext is a WebAudio AudioContext instance
-const sched = createScheduler(audioContext, { useRaf: true });
-sched.start();
-sched.schedule(audioContext.currentTime + 0.1, () => {
-  // play a scheduled note or trigger event
-});
-
-// Types are exported for TS consumers
-import type { TickSchedulerOptions } from 'beatbax/scheduler';
-```
+For a short scheduler API example and notes, see `docs/scheduler.md`.

@@ -7,7 +7,7 @@ describe('song.resolver', () => {
       pat A = C4 D4
       pat B = E4
       seq main = A B:oct(-1)
-      channel 3 => inst wave1 seq main bpm=140
+      channel 3 => inst wave1 seq main
     `;
     const ast = parse(src);
     const song = resolveSong(ast as any);
@@ -15,7 +15,8 @@ describe('song.resolver', () => {
     // tokens should be: A tokens, B transposed down one octave
     const tokens = ch.events.map(e => (e.type === 'note' ? e.token : '.'));
     expect(tokens).toEqual(['C4', 'D4', 'E3']);
-    expect(ch.bpm).toBe(140);
+    // channel-level bpm is deprecated; effective tempo should be controlled
+    // via top-level `bpm` or sequence transforms. Parser will ignore channel bpm.
   });
 
   test('instrument precedence: sequence-level override then pattern temporary override', () => {
@@ -26,7 +27,7 @@ describe('song.resolver', () => {
 
       pat P = C4 inst(temp,1) D4 E4
       seq s = P:inst(seqi)
-      channel 1 => inst lead seq s bpm=110
+      channel 1 => inst lead seq s
     `;
     const ast = parse(src);
     const song = resolveSong(ast as any);
@@ -44,7 +45,7 @@ describe('song.resolver', () => {
       inst lead type=pulse1
       inst temp type=pulse2
       pat Q = inst(temp,2) C4 . D4 E4
-      channel 2 => inst lead pat Q bpm=120
+      channel 2 => inst lead pat Q
     `;
     const ast = parse(src);
     const song = resolveSong(ast as any);

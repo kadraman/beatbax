@@ -51,6 +51,9 @@ Game Boy channels (fixed 4):
 
 Language surface (required):
 - Top-level `chip` directive to select the audio backend (default: `gameboy`)
+- Top-level `bpm` directive to set tempo (default: `120`)
+- Top-level `time` or `stepsPerBar` directive to set beats per bar (both supported; default: `4`)
+- Top-level `ticksPerStep` directive to set tick resolution per step (default: `16`)
 - `inst` definitions for instruments (Game Boy instrument fields)
 - `pat` definitions containing note/rest/instrument-change tokens and temporary overrides `inst(name,N)`
 - `seq` definitions with pattern order and transforms (`A:inst(bass)` style)
@@ -70,6 +73,9 @@ SYNTAX BASELINE
 
 chip gameboy
 
+bpm 120
+time 4
+
 inst lead  type=pulse1 duty=50 env=12,down
 inst bass  type=pulse2 duty=25 env=10,down
 inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
@@ -82,7 +88,7 @@ pat FILL = inst sn C6 C6 inst(hat,2) C6 C6
 seq main  = A B A FILL A
 seq intro = A:inst(bass) B
 
-channel 1 => inst lead  seq main  bpm=140
+channel 1 => inst lead  seq main
 channel 2 => inst bass  seq main:oct(-1)
 channel 3 => inst wave1 seq intro
 channel 4 => inst sn    seq fill

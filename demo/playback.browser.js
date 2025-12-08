@@ -70,7 +70,9 @@ export class Player {
     for (const ch of (ast.channels || [])) {
       const inst = (ast.insts || {})[ch.inst || ''];
       const tokens = Array.isArray(ch.pat) ? ch.pat : ['.'];
-      const bpm = ch.bpm || this.bpmDefault;
+      const masterBpm = (ast && ast.bpm) || this.bpmDefault;
+      const speed = (typeof ch.speed === 'number' && Number.isFinite(ch.speed)) ? ch.speed : 1;
+      const bpm = masterBpm * speed;
       const secondsPerBeat = 60 / bpm;
       const tickSeconds = secondsPerBeat / 4;
       const startTime = this.ctx.currentTime + 0.1;

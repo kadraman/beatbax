@@ -18,7 +18,7 @@ export function resolveSong(ast: AST): SongModel {
   const channels: ChannelModel[] = [];
 
   for (const ch of ast.channels || []) {
-    const chModel: ChannelModel = { id: ch.id, bpm: ch.bpm, speed: ch.speed, events: [], defaultInstrument: ch.inst };
+    const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
 
     // Determine source tokens: channel may reference a pattern name, sequence name, or already have token array
     let tokens: string[] = [];
@@ -210,7 +210,7 @@ export function resolveSong(ast: AST): SongModel {
   // Also populate `pat` on each channel with the resolved event list for
   // backward-compatible playback (Player expects `ch.pat` to hold tokens
   // or event objects). This keeps both `events` and `pat` available.
-  const channelsOut = channels.map(c => ({ id: c.id, bpm: c.bpm, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
+  const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
 
   return { pats, insts, seqs: expandedSeqs, channels: channelsOut } as unknown as SongModel;
 }
