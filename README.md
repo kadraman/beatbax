@@ -31,7 +31,10 @@ inst snare type=noise env=gb:12,down,1
 pat A = C5 E4 G4 C5
 pat B = C3 . G2 .
 
-channel 1 => inst lead pat A bpm=140
+# Set a top-level tempo instead of per-channel BPM
+bpm 140
+
+channel 1 => inst lead pat A
 channel 2 => inst bass pat B
 channel 3 => inst wave1 pat A:oct(-1)
 channel 4 => inst snare pat "x . x x"
