@@ -9,6 +9,8 @@ jobs:
   build-test-publish:
     name: Build, Test, and Publish
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,8 +31,8 @@ jobs:
         run: npm test --silent
 
       - name: Publish to npm (only if NPM_TOKEN provided)
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        if: ${{ env.NPM_TOKEN != '' }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
         run: |
           npm publish --access public
