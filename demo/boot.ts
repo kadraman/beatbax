@@ -41,6 +41,18 @@ const persistKey = 'beatbax.helpPersist';
 let player: any = null;
 let currentAST: any = null;
 
+// Insert CSS for active indicator state so blinking is visible and robust
+try {
+  const styleId = 'beatbax-demo-indicator-style';
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement('style');
+    s.id = styleId;
+    s.textContent = `
+      .ch-ind-active { background: lime !important; box-shadow: 0 0 6px rgba(0,255,0,0.9) !important; border-color: #6f6 !important; }
+    `;
+    document.head.appendChild(s);
+  }
+} catch (e) {}
 // If a `song` query param is provided, fetch and load it, optionally autoplay if `autoplay=1`.
 async function autoLoadFromQuery() {
   try {
@@ -55,6 +67,12 @@ async function autoLoadFromQuery() {
     if (srcArea) srcArea.value = t;
     // Also load help/comments extracted from the sample file and apply persisted visibility
     try { await loadHelpFromText(t); applyPersistedShow(); } catch (e) {}
+    // Parse and render channel controls so indicators are present before playback
+    try {
+      const ast = parse(t);
+      currentAST = ast;
+      renderChannelControls(ast);
+    } catch (e) {}
     if (autoplay === '1') {
       // simulate Play button press
       playBtn?.click();
@@ -72,6 +90,12 @@ fileInput?.addEventListener('change', async (ev) => {
   if (!f) return;
   const txt = await f.text();
   if (srcArea) srcArea.value = txt;
+  // Render channel controls for the newly loaded source so indicators appear
+  try {
+    const ast = parse(txt);
+    currentAST = ast;
+    renderChannelControls(ast);
+  } catch (e) {}
 });
 
 document.getElementById('loadExample')?.addEventListener('click', async () => {
@@ -81,6 +105,12 @@ document.getElementById('loadExample')?.addEventListener('click', async () => {
     if (srcArea) srcArea.value = t;
     // Refresh help panel with the loaded sample and apply persisted visibility
     try { await loadHelpFromText(t); applyPersistedShow(); } catch (e) {}
+    // Render channel controls for the example so indicators are visible immediately
+    try {
+      const ast = parse(t);
+      currentAST = ast;
+      renderChannelControls(ast);
+    } catch (e) {}
   } catch (e) {
     if (srcArea) srcArea.value = 'Could not load example from ../songs/sample.bax';
   }
@@ -402,15 +432,45 @@ function renderChannelControls(ast: any) {
   }
 }
 
+// TODO: Investigate indicator blink issue
+// NOTE: `onSchedule` logs show scheduled events (e.g. {chId:1, token:'C5', ...})
+// but the DOM indicator `ch-ind-N` is not reliably flashing in some browsers.
+// Action items to consider:
+//  - Verify `chId` values always match the rendered DOM ids
+//  - Ensure CSS/class toggling isn't being overridden by other styles
+//  - Consider hooking into actual audio node `start`/`onended` events so
+//    the indicator reflects audible node lifecycle instead of schedule time
+//  - If buffered/offline rendering is used, drive UI from playback callbacks
+// Leaving this TODO here so we can track further investigation.
 function attachScheduleHook(p: any) {
   if (!p) return;
   (p as any).onSchedule = (args: { chId: number; inst?: any; token?: string; time?: number; dur?: number }) => {
     try { console.log('[beatbax] onSchedule', args); } catch (e) {}
     try {
+      // Determine whether this scheduled item represents an actual audible
+      // event (note/hit) and not a control token like `inst(...)` or rest.
+      const token = (args && args.token) ? String(args.token) : '';
+      let shouldLight = false;
+      if (token) {
+        const t = token.trim();
+        if (t === '.' || /^inst\(/i.test(t) || /^rest$/i.test(t)) {
+          shouldLight = false;
+        } else {
+          // treat anything else (note names like C5, named instruments, or hits) as audible
+          shouldLight = true;
+        }
+      } else if (args && args.inst && args.inst.type) {
+        // If no token string but an instrument object is present, assume it's audible
+        shouldLight = /pulse|wave|noise/i.test(String(args.inst.type));
+      }
+
+      if (!shouldLight) return;
+
       const el = document.getElementById(`ch-ind-${args.chId}`);
       if (!el) return;
-      el.style.background = 'lime';
-      setTimeout(() => { try { el.style.background = ''; } catch (e) {} }, 120);
+      // Toggle a CSS class for the active state (clear after short timeout)
+      el.classList.add('ch-ind-active');
+      setTimeout(() => { try { el.classList.remove('ch-ind-active'); } catch (e) {} }, 180);
       try {
         const c = document.getElementById(`ch-count-${args.chId}`);
         if (c) {

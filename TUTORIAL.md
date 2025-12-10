@@ -1,6 +1,6 @@
 # BeatBax — Quick Tutorial
 
-This short tutorial shows how to write a small `.bax` song, run the browser demo, and export the result. It focuses on the Day‑2 MVP features: two pulse channels, a wavetable channel, a noise channel, deterministic scheduling, and live playback from parsed text.
+This tutorial shows how to write `.bax` songs, use the CLI for playback and export, and work with the browser demo. BeatBax is a complete live-coding language for Game Boy-style chiptunes with deterministic playback and multiple export formats.
 
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
@@ -9,8 +9,10 @@ This short tutorial shows how to write a small `.bax` song, run the browser demo
 **Language Quick Reference**
 
 - inst definitions: define instruments and their params.
-  - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1`
+  - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`
   - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable)
+  - `gm` (optional): General MIDI program number (0-127). When present the MIDI
+    exporter emits a Program Change for the corresponding track using this value.
 
 - pat definitions: pattern tokens (notes, rests, named tokens, inline inst changes).
   - Notes: `C4`, `G#5`, `A3` — scientific pitch notation.
@@ -52,7 +54,7 @@ channel 2 => inst leadB seq bass speed=2x
 
 **Example pattern snippet**
 ```
-inst leadA type=pulse1 duty=60 env=gb:12,down,1
+inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
 inst sn type=noise env=gb:10,down,1
 
 pat A = (C5 E5 G5 C6) * 2 inst(sn,2) C6 C6 .
@@ -65,7 +67,56 @@ channel 4 => inst sn pat P
 
 This plays the motif on channel 1, temporarily substituting the `sn` noise instrument for the next two non‑rest hits.
 
-Running the demo (local)
+## Using the CLI
+
+BeatBax provides a command-line interface for playback, validation, and export.
+
+### Play a song
+
+```powershell
+npm run cli -- play songs\sample.bax
+```
+
+This parses the song and starts WebAudio playback (requires a browser environment or Node with audio support).
+
+### Verify/validate a song
+
+```powershell
+npm run cli -- verify songs\sample.bax
+```
+
+Checks the song for parsing errors and basic validation issues (undefined instruments, empty patterns, etc.).
+
+### Export formats
+
+BeatBax supports three export formats:
+
+**JSON** (Intermediate Song Model):
+```powershell
+npm run cli -- export json songs\sample.bax --out output.json
+```
+
+**MIDI** (4-track Standard MIDI File):
+```powershell
+npm run cli -- export midi songs\sample.bax --out output.mid
+```
+
+**UGE** (hUGETracker v6 format for Game Boy):
+```powershell
+npm run cli -- export uge songs\sample.bax --out output.uge
+```
+
+The UGE files can be opened in hUGETracker or processed with uge2source.exe for Game Boy ROM development.
+
+### Development mode
+
+For faster iteration without rebuilding:
+
+```powershell
+npm run cli:dev -- play songs\sample.bax
+```
+
+## Running the demo (local)
 
 1. Build the demo bundle (TypeScript -> browser):
 
@@ -84,16 +135,28 @@ npm run demo
 - Paste or load a `.bax` file into the editor and click `Play` / `Apply & Play`.
 - `Live` checkbox: when enabled, edits are applied (debounced) automatically.
 - Per‑channel `Mute` / `Solo` controls appear after applying a song.
-- Help panel: click the ❔ icon or the Show Help button (H / ? toggles the panel). The help panel surfaces the commented documentation inside `songs/sample.bax`.
+- Help panel: click the ❓ icon or the Show Help button (H / ? toggles the panel). The help panel surfaces the commented documentation inside `songs/sample.bax`.
 
-Exports & CLI (planned / partial)
-- The parser and export pipeline include JSON and MIDI export commands (see `src/export/`). The CLI wiring is present under `src/cli.ts` and `index.ts`. Use `npm run cli` or the `beatbax` CLI after building.
-
-Troubleshooting
+## Troubleshooting
 - If audio is silent in your browser, verify your browser supports WebAudio and that the demo did not throttle audio (autoplay policies may require a user gesture).
 - You can inspect `window.__beatbax_player` in the console for runtime diagnostics.
 
 That's all — for developer notes, see `DEVNOTES.md`.
+
+## Importing UGE Files
+
+BeatBax includes a UGE reader that can parse hUGETracker v6 files:
+
+```typescript
+import { readUGEFile } from 'beatbax/import';
+
+const ugeSong = await readUGEFile('path/to/song.uge');
+console.log(ugeSong.songName, ugeSong.artist);
+console.log('Instruments:', ugeSong.dutyInstruments.length);
+console.log('Patterns:', ugeSong.patterns.length);
+```
+
+The UGE reader provides full access to instrument tables, pattern data, order lists, and song metadata. See `src/import/uge/uge.reader.ts` for the complete API.
 
 ## Buffered Rendering (Performance mode)
 

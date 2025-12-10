@@ -85,8 +85,21 @@ export async function exportJSON(songOrPath: any, maybePath?: string) {
 
 	// If caller passed an AST (pats + seqs + insts + channels), resolve into ISM
 	try {
-		// Heuristic: ASTs will have `seqs` and `pats` and `insts` keys
-		if (song && typeof song === 'object' && song.pats && song.insts && song.seqs) {
+		// Heuristic: Check if this is an AST (needs resolution) or already-resolved SongModel
+		// AST channels will have pat as string or array of strings
+		// SongModel channels will have pat as array of event objects (or events array populated)
+		let isAST = false;
+		if (song && typeof song === 'object' && song.pats && song.insts && song.seqs &&
+			Array.isArray(song.channels) && song.channels.length > 0) {
+			const firstCh = song.channels[0];
+			if (typeof firstCh.pat === 'string') {
+				isAST = true;
+			} else if (Array.isArray(firstCh.pat) && firstCh.pat.length > 0 && typeof firstCh.pat[0] === 'string') {
+				isAST = true;
+			}
+		}
+		
+		if (isAST) {
 			// resolve into SongModel
 			song = resolveSong(song);
 		}

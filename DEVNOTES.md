@@ -1,6 +1,6 @@
-# BeatBax — Developer Notes (Day‑2 MVP)
+# BeatBax — Developer Notes (MVP Complete)
 
-This document captures architecture, implementation details, and testing notes for the Day‑2 MVP: a small live‑coding language that targets a Game‑Boy‑like 4‑channel sound model and a deterministic WebAudio scheduler.
+This document captures architecture, implementation details, and testing notes for the completed MVP: a live-coding language targeting a Game Boy 4-channel sound model with deterministic scheduling, WebAudio playback, and multiple export formats.
 
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
@@ -9,6 +9,8 @@ High level
   - `src/patterns/` — `expandPattern` and `transposePattern` utilities.
   - `src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
   - `src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
+  - `src/export/` — JSON, MIDI, and UGE exporters with validation.
+  - `src/import/` — UGE reader for importing hUGETracker v6 files.
   - `demo/` — browser demo UI that uses the real parser and Player for live playback.
 
 Scheduler & timing
@@ -38,9 +40,12 @@ Instrument semantics
 
 Testing
 - Unit tests are under `tests/`. The project uses `jest` with `ts-jest`.
-- Parser & expansion tests: assert `expandPattern` and parser modifiers behave correctly (transposes, slow/fast, rev).
-- Playback-level tests: we added `tests/playback-expand.test.ts` that stubs the player's scheduler to capture scheduled events and assert that `inst(name,N)` overrides are applied correctly. This verifies the expansion→scheduling boundary.
-- The resolver now supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
+- 25 test suites with 81 tests covering:
+  - Parser & expansion tests: assert `expandPattern` and parser modifiers behave correctly (transposes, slow/fast, rev).
+  - Playback-level tests: `tests/playback-expand.test.ts` stubs the player's scheduler to capture scheduled events and assert that `inst(name,N)` overrides are applied correctly.
+  - Export tests: `tests/ugeExport.test.ts`, `tests/midiExport.test.ts`, and `tests/cli-export-uge.integration.test.ts` validate output formats.
+  - Import tests: `tests/ugeReader.test.ts` validates UGE file parsing.
+- The resolver supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
 
 Design tradeoffs & future work
@@ -61,10 +66,66 @@ Files of interest (quick map)
 - `demo/boot.ts` — demo wiring, help panel and layout.
 - `tests/` — parser tests, tokenizer tests, and playback tests.
 
-If you want, I can:
-- Extract a pure `resolveEvents(ast)` function for easier testing and produce an event model to drive both scheduler and tests.
-- Make the noise LFSR bit‑exact to a reference GB implementation.
-- Add additional unit tests that validate exact scheduled times (by mocking `AudioContext.currentTime`) and event durations.
+## Export Formats
+
+The engine supports three export formats:
+
+### JSON Export
+- Outputs the Intermediate Song Model (ISM) with full validation
+- Includes metadata, instruments, patterns, and per-channel event streams
+- Used for tooling integration and round-trip testing
+
+### MIDI Export
+- Generates Type-1 Standard MIDI Files with 4 tracks (one per GB channel)
+- Maps pulse1/pulse2/wave to melodic tracks with Program Change messages
+- Routes noise channel to MIDI channel 10 (GM percussion) with appropriate drum key mappings
+- Preserves timing and instrument changes
+- See "Recommended General MIDI mappings" below for instrument mapping details
+
+### UGE Export
+- Generates valid hUGETracker v6 binary files
+- Includes instrument table, pattern data, order lists, and channel routing
+- Compatible with hUGETracker and uge2source.exe for Game Boy development
+- Handles envelope encoding, duty cycles, wavetables, and noise parameters
+- See `docs/uge-v6-spec.md` and `DEVNOTES-UGE-IMPLEMENTATION.md` for format details
+
+## Per-Channel Controls
+
+The `Player` class in `src/audio/playback.ts` implements mute and solo controls:
+- `toggleChannelMute(chId: number)` — mute/unmute a specific channel
+- `toggleChannelSolo(chId: number)` — solo/unsolo a channel (silences all others)
+- The `muted` Set and `solo` property track state and are checked during scheduling
+
+## Recommended General MIDI mappings
+
+When exporting to MIDI, the exporter maps Game Boy-style instruments to General MIDI programs by
+default. You can also explicitly set `gm=<0-127>` on an `inst` definition to force a Program Change
+value in exported MIDI files. Example:
+
+```
+inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
+```
+
+Recommended defaults used by the exporter (tweak to taste):
+
+- `pulse1` (primary lead): GM 80–81 (Lead 1 / Lead 2)
+- `pulse2` (secondary / bass): GM 34 (Electric Bass)
+- `wave` (wavetable / pad): GM 81/82 (Lead / Saw)
+- `noise` (percussion): routed to GM percussion channel (MIDI channel 10 / index 9);
+  named tokens are mapped to drum keys (e.g. `snare` -> 38, `hihat` -> 42, `kick` -> 36)
+
+If `gm` is omitted the exporter falls back to the defaults above. Adding explicit `gm=` values is
+recommended when exporting to DAWs so instrument timbres are predictable.
+
+## Future Enhancements
+
+Possible extensions beyond MVP:
+- Extract a pure `resolveEvents(ast)` function for easier testing
+- Make the noise LFSR bit-exact to a reference GB implementation
+- Additional chip backends (C64 SID, NES APU, Genesis YM2612)
+- Advanced timing validation tests (mocking `AudioContext.currentTime`)
+- Live hot-reload of patterns during playback
 
 ---
-These notes are intended to make it quick to continue development and testing of the Day‑2 MVP.
+
+All MVP deliverables are complete. These notes document the architecture for continued development.

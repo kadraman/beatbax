@@ -1,8 +1,9 @@
 import { Command } from "commander";
 import { playFile } from "./index";
-import { exportJSON, exportMIDI } from "./export";
+import { exportJSON, exportMIDI, exportUGE } from "./export";
 import { readFileSync } from 'fs';
 import { parse } from './parser';
+import { resolveSong } from './song/resolver';
 
 const program = new Command();
 
@@ -64,13 +65,14 @@ program
 
 program
   .command("export")
-  .argument("<format>", "json | midi")
+  .argument("<format>", "json | midi | uge")
   .argument("<file>")
   .option('-o, --out <path>', 'Output file path (overrides default)')
   .action(async (format, file, options) => {
-    // Read and parse the source file, then export the resolved song model
+    // Read and parse the source file, then resolve to a SongModel for export
     const src = readFileSync(file, 'utf8');
-    const song = parse(src);
+    const ast = parse(src);
+    const song = resolveSong(ast);
     // Commander will pass `options` as the third parameter when options are defined.
     // Commander sometimes passes extra positional args; be resilient:
     // - If `options` is a string, treat it as an explicit outPath
@@ -94,7 +96,12 @@ program
     }
 
     if (format === "json") await exportJSON(song, outPath);
-    if (format === "midi") await exportMIDI(song, outPath);
+    else if (format === "midi") await exportMIDI(song, outPath);
+    else if (format === "uge") await exportUGE(song, outPath);
+    else {
+      console.error('Unknown export format:', format);
+      process.exitCode = 2;
+    }
   });
 
 program.parse();

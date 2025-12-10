@@ -18,5 +18,9 @@ Examples
 - `seq lead = A A_alt E A` — main melody
 - `seq drums = P P2 P P` — drum parts using named hits and `hit()`/`inst()` shorthands
 
+GM program numbers
+- Instruments may include an optional `gm=<0-127>` attribute to select a General MIDI program
+  when exporting to MIDI. Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`.
+
 See `sample.bax` for a working example that maps these sequences to the
 four Game Boy-like channels used by the demo player.
