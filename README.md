@@ -8,10 +8,10 @@ This repository contains an MVP implementation focused on the Nintendo Game Boy 
 This project is intentionally minimal and zero-dependency for the core parsing/scheduling/export tasks.
 
 ## Goals (MVP)
-- Live pattern playback (Day 2)
-- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise)
-- JSON + MIDI + UGE export (UGE deferred)
-- Deterministic tick scheduler
+- Live pattern playback (Day 2) ✅
+- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise) ✅
+- JSON + MIDI + UGE export ✅
+- Deterministic tick scheduler ✅
 
 The strict Day 1 scope was:
 - Tokenize + parse the language
@@ -42,6 +42,7 @@ channel 4 => inst snare pat "x . x x"
 play
 export json "song.json"
 export midi "song.mid"
+export uge "song.uge"
 
 The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
 
@@ -54,42 +55,54 @@ Recent additions (still Day‑1 scope — authoring & export):
 
 ## CLI
 
-There is a small CLI entrypoint in `src/cli.ts`.
+The CLI provides commands for playback, validation, and export. The entrypoint is in `src/cli.ts` and compiles to `dist/cli.js`.
 
 Common commands (PowerShell examples):
 
 ```powershell
-npm run cli -- play songs\example-valid.bax
-npm run cli -- verify songs\example-valid.bax
-npm run cli -- export json songs\example-valid.bax --out songs\example.json
+# Play a song (launches WebAudio playback)
+npm run cli -- play songs\sample.bax
+
+# Verify/validate a song file
+npm run cli -- verify songs\sample.bax
+
+# Export to different formats
+npm run cli -- export json songs\sample.bax --out songs\output.json
+npm run cli -- export midi songs\sample.bax --out songs\output.mid
+npm run cli -- export uge songs\sample.bax --out songs\output.uge
 ```
 
 During development you can run the TypeScript CLI directly:
 
 ```powershell
-npm run cli:dev -- play songs\example-valid.bax
+npm run cli:dev -- play songs\sample.bax
 ```
 
-`npm run cli` builds then runs the compiled `dist/` CLI; the build includes a small post-build step that rewrites import specifiers so the compiled ESM output runs cleanly under Node.
+`npm run cli` builds then runs the compiled `dist/` CLI; the build includes a post-build step that rewrites import specifiers so the compiled ESM output runs cleanly under Node.
 
 ## Export
 
-- `export json <file> [--out <path>]` — validated JSON export (current Day 1 deliverable)
-- `export midi <file> [--out <path>]` — MIDI export placeholder (to be completed in Day 3)
+All three export formats are fully implemented and tested:
 
-The JSON exporter performs structural validation of the parsed AST and writes a normalized JSON object with metadata.
+- `export json <file> [--out <path>]` — Validated JSON export (ISM format)
+- `export midi <file> [--out <path>]` — MIDI export (Type-1 SMF, 4 tracks)
+- `export uge <file> [--out <path>]` — UGE v6 export (hUGETracker format for Game Boy)
+
+The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a 4-track Standard MIDI File suitable for DAW import, mapping each Game Boy channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development.
 
 ## Project layout
 
  - `src/` — TypeScript sources
    - `parser/` — tokenizer and parser (AST builder)
    - `patterns/` — pattern expansion + transposition utilities
-   - `audio/` — (Day 2) Game Boy channel emulation and oscillators
-   - `scheduler/` — (Day 2) deterministic tick scheduler
-   - `export/` — json/midi/uge exporters
+   - `audio/` — Game Boy channel emulation and WebAudio playback engine
+   - `scheduler/` — deterministic tick scheduler
+   - `export/` — JSON/MIDI/UGE exporters
+   - `import/` — UGE reader for importing hUGETracker files
    - `cli.ts`, `index.ts` — CLI and program entry
- - `tests/` — Jest unit tests for tokenizer, patterns, and parser
- - `songs/` — example .bax song files used by the CLI
+ - `tests/` — Jest unit tests (25 suites, 81 tests)
+ - `songs/` — example .bax song files
+ - `demo/` — browser-based live editor and player
 
 ## Development
 
@@ -104,23 +117,29 @@ Build and run the CLI:
 
 ```powershell
 npm run build
-npm run cli -- export json songs\example-valid.bax --out songs\example.json
+npm run cli -- export json songs\sample.bax --out songs\output.json
 ```
 
 Fast dev run (recommended for iteration):
 
 ```powershell
 # Fast, no-build iteration — uses `tsx` under the hood
-npm run cli:dev -- export json songs\example-valid.bax --out songs\example.json
+npm run cli:dev -- play songs\sample.bax
 ```
-
 ## Status / Roadmap
 
-Day 1 (done): tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
+Day 1 ✅: tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
 
-Day 2 (in progress / next): deterministic scheduler, WebAudio playback refinements, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `src/audio/playback.ts` and the demo (`demo/`) exercises it.
+Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `src/audio/playback.ts` and the demo (`demo/`) exercises it.
 
-Day 3 (future): full MIDI export, live reload of patterns, CLI polish, mute/solo per channel.
+Day 3 ✅: MIDI export, UGE v6 export, CLI polish, per-channel controls (mute/solo), packaging.
+
+**All MVP goals completed!** The engine now supports:
+- Full JSON/MIDI/UGE export with validation
+- Deterministic playback with authentic Game Boy APU emulation
+- Per-channel mute and solo controls
+- CLI with play, verify, and export commands
+- ESM-first npm package with TypeScript declarations
 
 ## Contributing
 

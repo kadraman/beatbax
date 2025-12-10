@@ -1,5 +1,6 @@
 import { AST } from '../parser/ast';
 import { expandAllSequences } from '../sequences/expand';
+import { transposePattern } from '../patterns/expand';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel';
 import { applyInstrumentToEvent } from '../instruments/instrumentState';
 
@@ -63,7 +64,7 @@ export function resolveSong(ast: AST): SongModel {
           if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
         }
         if (semitones !== 0 || octaves !== 0) {
-          tks = require('../patterns/expand').transposePattern(tks, { semitones, octaves });
+          tks = transposePattern(tks, { semitones, octaves });
         }
         if (instOverride) {
           tks.unshift(`inst(${instOverride})`);
@@ -102,7 +103,7 @@ export function resolveSong(ast: AST): SongModel {
           if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
         }
         if (semitones !== 0 || octaves !== 0) {
-          tks = require('../patterns/expand').transposePattern(tks, { semitones, octaves });
+          tks = transposePattern(tks, { semitones, octaves });
         }
         if (instOverride) tks.unshift(`inst(${instOverride})`);
         tokens = tks;

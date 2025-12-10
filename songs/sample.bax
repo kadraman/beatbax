@@ -18,12 +18,16 @@ bpm 120
 #  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
 #
 # The instruments below are chosen to show different channel roles:
-inst leadA type=pulse1 duty=60 env=gb:12,down,1   # Bright pulse lead, slightly wider duty
-inst leadB type=pulse2 duty=30 env=gb:7,down,1    # Narrower pulse (used as temporary override)
-inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]  # Wavetable arpeggio voice
-inst snare type=noise env=gb:12,down,1            # Snare-like noise for backbeat
-inst hihat type=noise env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
-inst perc  type=noise env=gb:10,down,1            # Generic percussion/noise channel
+# The instruments below are chosen to show different channel roles.
+# You may optionally annotate instruments with a General MIDI program number
+# using `gm=<0-127>`. The exporter will use this value for Program Change
+# messages when exporting MIDI. Example: `inst leadA ... gm=81` (Lead 1).
+inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81   # Bright pulse lead, slightly wider duty (GM 81)
+inst leadB type=pulse2 duty=30 env=gb:7,down,1  gm=34   # Narrower pulse (used as temporary override) (GM 34)
+inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # Wavetable arpeggio voice (GM 82)
+inst sn    type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
+inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise channel
 
 # -----------------------------------------------------------------------------
 # Patterns
@@ -88,7 +92,7 @@ seq wave = C C C
 seq drums = P P2 P P
 
 ## Map channels to their separate sequences.
-channel 1 => inst leadA seq lead bpm=120
+channel 1 => inst leadA seq lead
 channel 2 => inst leadB seq bass:oct(-1)
 channel 3 => inst wave1 seq wave:oct(-1)
 channel 4 => inst perc  seq drums
