@@ -129,3 +129,11 @@ Possible extensions beyond MVP:
 ---
 
 All MVP deliverables are complete. These notes document the architecture for continued development.
+
+### Test lifecycle note
+
+- `npm test` now triggers a build first via npm's `pretest` lifecycle script. This ensures the
+  `dist/` artifacts (used by some integration tests that invoke `node dist/cli.js`) are up-to-date
+  before Jest runs. If you prefer faster local test runs during development, run `jest` directly
+  (or `npm run test:fast` if you add such a script) — CI should keep the `pretest` step to avoid
+  flaky failures caused by stale build artifacts.

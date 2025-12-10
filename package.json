@@ -24,6 +24,7 @@
     "cli": "npm run build && node dist/cli.js",
     "cli:dev": "tsx src/cli.ts",
     "cli:debug": "node --loader ts-node/esm src/cli-dev.ts",
+    "pretest": "npm run build",
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write ."
