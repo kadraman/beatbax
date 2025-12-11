@@ -5,7 +5,7 @@ Complete implementation of a UGE v6 binary file writer for BeatBax. The implemen
 
 ## Implementation Details
 
-### File: `src/export/ugeWriter.ts` (441 lines)
+### File: `packages/engine/src/export/ugeWriter.ts` (441 lines)
 
 #### Key Components:
 
@@ -85,7 +85,7 @@ Routines (variable)
 
 ## Testing
 
-### Unit Tests: `tests/ugeExport.test.ts` (220 lines)
+### Unit Tests: `packages/engine/tests/ugeExport.test.ts` (220 lines)
 - ✅ Export minimal empty song
 - ✅ Export song with single note
 - ✅ Export song with multiple channels (4 GB channels)
@@ -93,7 +93,7 @@ Routines (variable)
 - ✅ Handle notes with octaves (C3-C6)
 - ✅ Handle sharps/flats in note names (C#, D#, F#, etc.)
 
-### Integration Tests: `tests/cli-export-uge.integration.test.ts` (113 lines)
+### Integration Tests: `packages/cli/tests/cli-export-uge.integration.test.ts` (113 lines)
 - ✅ CLI export produces valid UGE v6 file
 - ✅ Exported file can be processed by uge2source.exe (official hUGETracker tool)
 - ✅ Handle output paths with/without .uge extension
@@ -106,9 +106,9 @@ Routines (variable)
 
 ## CLI Integration
 
-Updated `src/cli.ts` to support UGE export:
+Updated `packages/cli/src/cli.ts` to support UGE export:
 ```bash
-node dist/cli.js export uge songs/sample.bax output.uge
+node packages/cli/dist/cli.js export uge songs/sample.bax output.uge
 ```
 
 Output:
@@ -147,13 +147,13 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
 ## Files Modified/Created
 
 1. **Created**:
-   - `src/export/ugeWriter.ts` (441 lines) - Complete UGE v6 writer
-   - `tests/ugeExport.test.ts` (220 lines) - Unit tests
-   - `tests/cli-export-uge.integration.test.ts` (113 lines) - Integration tests
+   - `packages/engine/src/export/ugeWriter.ts` (441 lines) - Complete UGE v6 writer
+   - `packages/engine/tests/ugeExport.test.ts` (220 lines) - Unit tests
+   - `packages/cli/tests/cli-export-uge.integration.test.ts` (113 lines) - Integration tests
 
 2. **Modified**:
-   - `src/export/index.ts` - Added exportUGE export
-   - `src/cli.ts` - Added UGE export command support
+   - `packages/engine/src/export/index.ts` - Added exportUGE export
+   - `packages/cli/src/cli.ts` - Added UGE export command support
 
 ## Next Steps (Optional Enhancements)
 

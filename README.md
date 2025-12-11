@@ -55,7 +55,7 @@ Recent additions (still Day‑1 scope — authoring & export):
 
 ## CLI
 
-The CLI provides commands for playback, validation, and export. The entrypoint is in `src/cli.ts` and compiles to `dist/cli.js`.
+The CLI provides commands for playback, validation, and export. The entrypoint is in `packages/cli/src/cli.ts` and compiles to `packages/cli/dist/cli.js` (the root `bin/beatbax` delegates to the packaged CLI in `packages/cli`).
 
 Common commands (PowerShell examples):
 
@@ -92,7 +92,7 @@ The JSON exporter performs structural validation of the parsed AST and writes a 
 
 ## Project layout
 
- - `src/` — TypeScript sources
+ - `packages/*/src/` — TypeScript sources (packages: `engine`, `cli`, `web-ui`)
    - `parser/` — tokenizer and parser (AST builder)
    - `patterns/` — pattern expansion + transposition utilities
    - `audio/` — Game Boy channel emulation and WebAudio playback engine
@@ -126,11 +126,39 @@ Fast dev run (recommended for iteration):
 # Fast, no-build iteration — uses `tsx` under the hood
 npm run cli:dev -- play songs\sample.bax
 ```
+ 
+### Local linking (developer convenience)
+
+To use the project CLI globally during local development, create a local symlink with npm. From the repository root run:
+
+```powershell
+# build packages first
+npm run build
+
+# Create a global symlink to the root package's bin stub
+npm link
+
+# Now `beatbax` is available globally and uses the local code
+beatbax --help
+```
+
+If you prefer to link only the CLI package instead of the whole repo, you can:
+
+```powershell
+cd packages\cli
+npm link
+cd ../..
+# This will make the `beatbax` command use the local CLI package
+beatbax --help
+```
+
+On Unix systems the `bin/beatbax` file is executable and contains a shebang so the command works after `npm link` or `npm install -g`.
+
 ## Status / Roadmap
 
 Day 1 ✅: tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
 
-Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `src/audio/playback.ts` and the demo (`demo/`) exercises it.
+Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `packages/engine/src/audio/playback.ts` and the demo (`demo/`) exercises it.
 
 Day 3 ✅: MIDI export, UGE v6 export, CLI polish, per-channel controls (mute/solo), packaging.
 

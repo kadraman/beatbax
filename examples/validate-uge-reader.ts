@@ -2,7 +2,7 @@
  * Validation test: Read a self-generated UGE file and verify structure
  */
 
-import { readUGEFile } from '../src/import/uge/uge.reader';
+import { readUGEFile } from '@beatbax/engine';
 import { existsSync } from 'fs';
 
 console.log('=== UGE Reader Validation Test ===\n');

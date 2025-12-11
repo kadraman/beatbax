@@ -27,11 +27,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build packages
         run: npm run build --if-present --silent
 
-      - name: Run tests
-        run: npm test --silent
+      - name: Run package tests
+        run: |
+          npm -w @beatbax/engine test --silent
+          npm -w @beatbax/cli test --silent
 
       - name: Lint (optional)
         if: ${{ runner.os == 'Linux' }}
