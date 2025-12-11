@@ -4,7 +4,8 @@
   "description": "Live-coding language for retro console chiptunes.",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   
   "scripts": {
