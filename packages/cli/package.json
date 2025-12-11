@@ -1,7 +1,6 @@
 {
   "name": "@beatbax/cli",
   "version": "0.2.0",
-  "private": false,
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
@@ -14,7 +13,7 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
   "dependencies": {
-    "@beatbax/engine": "workspace:*",
+    "@beatbax/engine": "file:../engine",
     "commander": "^10.0.0"
   }
 }
