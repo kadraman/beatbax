@@ -1,0 +1,45 @@
+{
+  "name": "@beatbax/engine",
+  "version": "0.2.0",
+  "private": false,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js",
+    "./parser": "./dist/parser/index.js",
+    "./parser/*": "./dist/parser/*.js",
+    "./parser/index": "./dist/parser/index.js",
+    "./parser/index.js": "./dist/parser/index.js",
+    "./export": "./dist/export/index.js",
+    "./export/*": "./dist/export/*.js",
+    "./import": "./dist/import/index.js",
+    "./import/*": "./dist/import/*.js",
+    "./song": "./dist/song/index.js",
+    "./song/*": "./dist/song/*.js",
+    "./audio": "./dist/audio/index.js",
+    "./audio/*": "./dist/audio/*.js",
+    "./chips": "./dist/chips/index.js",
+    "./chips/*": "./dist/chips/*.js",
+    "./patterns": "./dist/patterns/index.js",
+    "./patterns/*": "./dist/patterns/*.js",
+    "./sequences": "./dist/sequences/index.js",
+    "./sequences/*": "./dist/sequences/*.js",
+    "./instruments": "./dist/instruments/index.js",
+    "./instruments/*": "./dist/instruments/*.js",
+    "./scheduler": "./dist/scheduler/index.js",
+    "./scheduler/*": "./dist/scheduler/*.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc --watch",
+    "pretest": "npm run build --if-present",
+    "test": "jest --config ./jest.config.cjs --passWithNoTests"
+  },
+  "dependencies": {},
+  "peerDependencies": {}
+}

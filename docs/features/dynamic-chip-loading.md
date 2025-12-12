@@ -75,12 +75,14 @@ channels[chanId].playNote({ midi, freq, time, dur, inst });
 
 ## Migration Notes
 
-- The parser already emits `ast.chip`. The Player currently validates and defaults to `gameboy`. Implementing this feature requires changes mainly in `src/audio/playback.ts` (chip loader/adapter) and the addition of an optional `src/chips/registry.ts` to support bundlers.
+ The parser already emits `ast.chip`. The Player currently validates and defaults to `gameboy`. Implementing this feature requires changes mainly in `packages/engine/src/audio/playback.ts` (chip loader/adapter) and the addition of an optional `packages/engine/src/chips/registry.ts` to support bundlers.
 
 ## Implementation Plan (High Level)
 
 1. Define adapter interface and a minimal `src/chips/index.ts` that exports a registry for known chips.
 2. Implement dynamic loader in `src/audio/playback.ts` that tries `import()` then falls back to registry.
+ 1. Define adapter interface and a minimal `packages/engine/src/chips/index.ts` that exports a registry for known chips.
+ 2. Implement dynamic loader in `packages/engine/src/audio/playback.ts` that tries `import()` then falls back to registry.
 3. Update Player initialization to create channel adapters from loaded chip module and use them in scheduling logic.
 4. Add tests and documentation in `docs/features/` (this file).
 

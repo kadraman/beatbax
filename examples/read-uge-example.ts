@@ -2,7 +2,7 @@
  * Example usage of the UGE reader
  */
 
-import { readUGEFile, getUGESummary, ugeNoteToString } from '../src/import/uge/uge.reader';
+import { readUGEFile, getUGESummary, ugeNoteToString } from '@beatbax/engine';
 import { existsSync } from 'fs';
 import { join } from 'path';
 

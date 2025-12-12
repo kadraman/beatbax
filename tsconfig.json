@@ -21,6 +21,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/uge/**/*", "src/music/**/*"]
+  "references": [
+    { "path": "./packages/engine" },
+    { "path": "./packages/cli" },
+    { "path": "./apps/web-ui" }
+  ],
+  "include": [],
+  "exclude": ["node_modules", "dist"]
 }
