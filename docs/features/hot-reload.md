@@ -61,7 +61,7 @@ User Edit → Debounce → Parse → Diff → Patch → Scheduler Update
 ### 1. AST Diffing
 
 ```typescript
-// src/runtime/diff.ts
+// packages/engine/src/runtime/diff.ts
 export interface ASTDiff {
   addedInstruments: string[];
   removedInstruments: string[];
@@ -119,7 +119,7 @@ export function diffAST(oldAST: AST, newAST: AST): ASTDiff {
 ### 2. Hot Patch Application
 
 ```typescript
-// src/runtime/hotReload.ts
+// packages/engine/src/runtime/hotReload.ts
 export class HotReloadManager {
   private currentAST: AST | null = null;
   private player: Player;
@@ -286,7 +286,7 @@ export class Player {
 
 ```typescript
 // demo/boot.ts (updated)
-import { HotReloadManager } from '../src/runtime/hotReload';
+import { HotReloadManager } from 'packages/engine/src/runtime/hotReload';
 
 let hotReloadManager: HotReloadManager | null = null;
 
@@ -497,8 +497,8 @@ test('updates pattern without audio glitch', async () => {
 
 ## Implementation Checklist
 
-- [ ] Create `src/runtime/diff.ts` with `diffAST()` function
-- [ ] Create `src/runtime/hotReload.ts` with `HotReloadManager` class
+- [ ] Create `packages/engine/src/runtime/diff.ts` with `diffAST()` function
+- [ ] Create `packages/engine/src/runtime/hotReload.ts` with `HotReloadManager` class
 - [ ] Add `updateInstrument()` method to Player
 - [ ] Add `updatePattern()` method to Player
 - [ ] Add `updateChannelSequence()` method to Player

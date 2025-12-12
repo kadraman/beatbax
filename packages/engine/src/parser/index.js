@@ -1,0 +1,261 @@
+export * from './tokenizer';
+import { expandPattern, transposePattern } from '../patterns/expand';
+/**
+ * Parse source text and build a minimal AST. Currently this parser
+ * focuses on resolving `pat` definitions into expanded token arrays
+ * using `expandPattern` and collecting `inst`, `seq` and `channel` entries.
+ */
+export function parse(source) {
+    const pats = {};
+    const insts = {};
+    const seqs = {};
+    const channels = [];
+    let topBpm = undefined;
+    // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
+    const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
+    let m;
+    while ((m = re.exec(source)) !== null) {
+        const nameSpec = m[1];
+        let rhs = m[2].trim();
+        // If RHS is a quoted string, strip quotes
+        if ((rhs.startsWith('"') && rhs.endsWith('"')) || (rhs.startsWith("'") && rhs.endsWith("'"))) {
+            rhs = rhs.slice(1, -1);
+        }
+        // nameSpec may include modifiers like NAME:oct(-1):+2
+        const parts = nameSpec.split(':');
+        const baseName = parts[0];
+        const mods = parts.slice(1);
+        try {
+            let expanded = expandPattern(rhs);
+            if (mods.length > 0) {
+                // parse modifiers and apply transpose
+                let semitones = 0;
+                let octaves = 0;
+                for (const mod of mods) {
+                    const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+                    if (mOct) {
+                        octaves += parseInt(mOct[1], 10);
+                        continue;
+                    }
+                    // support reverse, slow, fast transforms
+                    if (/^rev$/i.test(mod)) {
+                        expanded = expanded.slice().reverse();
+                        continue;
+                    }
+                    if (/^slow(?:\((\d+)\))?$/i.test(mod)) {
+                        const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+                        const factor = mSlow && mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+                        // repeat each token `factor` times
+                        const out = [];
+                        for (const t of expanded)
+                            for (let r = 0; r < factor; r++)
+                                out.push(t);
+                        expanded = out;
+                        continue;
+                    }
+                    if (/^fast(?:\((\d+)\))?$/i.test(mod)) {
+                        const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+                        const factor = mFast && mFast[1] ? parseInt(mFast[1], 10) : 2;
+                        // take every `factor`th token
+                        expanded = expanded.filter((_, idx) => idx % factor === 0);
+                        continue;
+                    }
+                    const mTrans = mod.match(/^([+-]?\d+)$/);
+                    if (mTrans) {
+                        semitones += parseInt(mTrans[1], 10);
+                        continue;
+                    }
+                    const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
+                    if (mSem) {
+                        semitones += parseInt(mSem[1], 10);
+                        continue;
+                    }
+                }
+                if (semitones !== 0 || octaves !== 0) {
+                    expanded = transposePattern(expanded, { semitones, octaves });
+                }
+            }
+            pats[baseName] = expanded;
+        }
+        catch (err) {
+            pats[baseName] = [rhs];
+        }
+    }
+    // Parse inst definitions: inst NAME key=val key2=val2 ...
+    const reInst = /^\s*inst\s+([A-Za-z_][A-Za-z0-9_\-]*)\s+(.+)$/gm;
+    while ((m = reInst.exec(source)) !== null) {
+        const name = m[1];
+        const rest = m[2].trim();
+        const parts = rest.split(/\s+/);
+        const props = {};
+        for (const p of parts) {
+            const eq = p.indexOf('=');
+            if (eq >= 0) {
+                const k = p.slice(0, eq);
+                const v = p.slice(eq + 1);
+                props[k] = v;
+            }
+            else {
+                // flag or type shorthand
+                props[p] = 'true';
+            }
+        }
+        insts[name] = props;
+    }
+    // Parse seq definitions: seq NAME = PATPAT...
+    const reSeq = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*(.+)$/gm;
+    while ((m = reSeq.exec(source)) !== null) {
+        const name = m[1];
+        const rhs = m[2].trim();
+        // split by whitespace to preserve modifiers like A:inst(bass)
+        const parts = rhs.match(/[^\s]+/g) || [];
+        seqs[name] = parts;
+    }
+    // Parse channel definitions: channel N => ...
+    const reChan = /^\s*channel\s+(\d+)\s*=>\s*(.+)$/gm;
+    while ((m = reChan.exec(source)) !== null) {
+        const id = parseInt(m[1], 10);
+        const rhs = m[2].trim();
+        // Simple tokenization of RHS
+        const tokens = rhs.split(/\s+/);
+        const ch = { id };
+        for (let i = 0; i < tokens.length; i++) {
+            const t = tokens[i];
+            if (t === 'inst' && tokens[i + 1]) {
+                ch.inst = tokens[i + 1];
+                i++;
+            }
+            else if (t === 'pat' && tokens[i + 1]) {
+                const patRef = tokens[i + 1];
+                // allow quoted pattern names
+                let patSpec = (patRef.startsWith('"') || patRef.startsWith("'")) ? patRef.replace(/^['"]|['"]$/g, '') : patRef;
+                ch.pat = patSpec;
+                i++;
+            }
+            else if (t === 'seq' && tokens[i + 1]) {
+                // channel may point to a sequence name instead of a single pattern
+                const seqRef = tokens[i + 1];
+                let seqSpec = (seqRef.startsWith('"') || seqRef.startsWith("'")) ? seqRef.replace(/^['"]|['"]$/g, '') : seqRef;
+                ch.pat = seqSpec; // leave as string; resolver will expand sequences
+                i++;
+            }
+            else if (t.startsWith('bpm=')) {
+                // Channel-level `bpm` is not supported. Fail fast with a parse error
+                // to guide users to use top-level `bpm` or sequence transforms instead.
+                const v = t.slice(4);
+                const n = parseInt(v, 10);
+                throw new Error(`channel ${id}: channel-level 'bpm' is not supported (found 'bpm=${v}'). ` +
+                    `Use a top-level 'bpm' directive or sequence transforms (fast/slow) instead.`);
+            }
+            else if (t === 'bpm') {
+                // legacy form: 'bpm 140' on the channel line
+                const v = tokens[i + 1];
+                throw new Error(`channel ${id}: channel-level 'bpm' is not supported (found 'bpm ${v}'). ` +
+                    `Use a top-level 'bpm' directive or sequence transforms (fast/slow) instead.`);
+            }
+            else if (t.startsWith('speed=')) {
+                let v = t.slice(6);
+                // support syntax like '2x' or '1.5x'
+                v = String(v).replace(/x$/i, '');
+                const n = parseFloat(v);
+                if (!isNaN(n))
+                    ch.speed = n;
+            }
+            else if (t === 'speed' && tokens[i + 1]) {
+                let v = tokens[i + 1];
+                v = String(v).replace(/x$/i, '');
+                const n = parseFloat(v);
+                if (!isNaN(n)) {
+                    ch.speed = n;
+                    i++;
+                }
+            }
+        }
+        // If pat refers to a named pattern, resolve to expanded tokens if available
+        if (typeof ch.pat === 'string') {
+            // support inline modifiers like NAME:oct(-1) or NAME:+2
+            const parts = ch.pat.split(':');
+            const base = parts[0];
+            const mods = parts.slice(1);
+            if (pats[base]) {
+                let tokensResolved = pats[base].slice();
+                if (mods.length > 0) {
+                    // parse modifiers into semitone/octave adjustments
+                    let semitones = 0;
+                    let octaves = 0;
+                    for (const mod of mods) {
+                        const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+                        if (mOct) {
+                            octaves += parseInt(mOct[1], 10);
+                            continue;
+                        }
+                        // pattern-level transforms
+                        if (/^rev$/i.test(mod)) {
+                            tokensResolved = tokensResolved.slice().reverse();
+                            continue;
+                        }
+                        const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+                        if (mSlow) {
+                            const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+                            const out = [];
+                            for (const t of tokensResolved)
+                                for (let r = 0; r < factor; r++)
+                                    out.push(t);
+                            tokensResolved = out;
+                            continue;
+                        }
+                        const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+                        if (mFast) {
+                            const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+                            tokensResolved = tokensResolved.filter((_, idx) => idx % factor === 0);
+                            continue;
+                        }
+                        const mInst = mod.match(/^inst\(([^)]+)\)$/i);
+                        if (mInst) {
+                            ch.inst = mInst[1];
+                            continue;
+                        }
+                        const mTrans = mod.match(/^([+-]?\d+)$/);
+                        if (mTrans) {
+                            semitones += parseInt(mTrans[1], 10);
+                            continue;
+                        }
+                        const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
+                        if (mSem) {
+                            semitones += parseInt(mSem[1], 10);
+                            continue;
+                        }
+                    }
+                    if (semitones !== 0 || octaves !== 0) {
+                        tokensResolved = transposePattern(tokensResolved, { semitones, octaves });
+                    }
+                }
+                ch.pat = tokensResolved;
+            }
+            else {
+                // leave unresolved string (could be inline pattern literal)
+            }
+        }
+        channels.push(ch);
+    }
+    // Parse top-level bpm directive: `bpm 160` or `bpm=160`
+    const reBpm = /^\s*bpm\s*(?:=)?\s*(\d+)$/gim;
+    while ((m = reBpm.exec(source)) !== null) {
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n))
+            topBpm = n;
+    }
+    // Parse top-level chip directive: `chip gameboy` or `chip=gameboy`
+    let chipName = undefined;
+    const reChip = /^\s*chip\s*(?:=)?\s*([A-Za-z_][A-Za-z0-9_\-]*)/gim;
+    while ((m = reChip.exec(source)) !== null) {
+        chipName = m[1];
+    }
+    return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName };
+}
+export default {
+    parse,
+};
+export * from './tokenizer';
+// Future: parser implementation will live here (AST builder, resolver)
+//# sourceMappingURL=index.js.map

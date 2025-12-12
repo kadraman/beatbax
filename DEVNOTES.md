@@ -5,12 +5,12 @@ This document captures architecture, implementation details, and testing notes f
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
 - Key folders:
-  - `src/parser/` — tokenizer and parser that produce a minimal AST: `pats`, `insts`, `channels`.
-  - `src/patterns/` — `expandPattern` and `transposePattern` utilities.
-  - `src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
-  - `src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
-  - `src/export/` — JSON, MIDI, and UGE exporters with validation.
-  - `src/import/` — UGE reader for importing hUGETracker v6 files.
+  - `packages/engine/src/parser/` — tokenizer and parser that produce a minimal AST: `pats`, `insts`, `channels`.
+  - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.
+  - `packages/engine/src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
+  - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
+  - `packages/engine/src/export/` — JSON, MIDI, and UGE exporters with validation.
+  - `packages/engine/src/import/` — UGE reader for importing hUGETracker v6 files.
   - `demo/` — browser demo UI that uses the real parser and Player for live playback.
 
 Scheduler & timing
@@ -91,7 +91,7 @@ The engine supports three export formats:
 
 ## Per-Channel Controls
 
-The `Player` class in `src/audio/playback.ts` implements mute and solo controls:
+The `Player` class in `packages/engine/src/audio/playback.ts` implements mute and solo controls:
 - `toggleChannelMute(chId: number)` — mute/unmute a specific channel
 - `toggleChannelSolo(chId: number)` — solo/unsolo a channel (silences all others)
 - The `muted` Set and `solo` property track state and are checked during scheduling
@@ -133,7 +133,22 @@ All MVP deliverables are complete. These notes document the architecture for con
 ### Test lifecycle note
 
 - `npm test` now triggers a build first via npm's `pretest` lifecycle script. This ensures the
-  `dist/` artifacts (used by some integration tests that invoke `node dist/cli.js`) are up-to-date
+  `packages/*/dist/` artifacts (used by some integration tests that invoke `node packages/cli/dist/cli.js`) are up-to-date
   before Jest runs. If you prefer faster local test runs during development, run `jest` directly
   (or `npm run test:fast` if you add such a script) — CI should keep the `pretest` step to avoid
   flaky failures caused by stale build artifacts.
+
+## Build / tooling note: `.js` import specifiers
+
+- To support Node ESM, the repository now emits compiled ESM files with explicit `.js` extensions
+  in relative import/export specifiers. This is accomplished by rewriting TypeScript source
+  import specifiers before build using `scripts/add-js-extensions.cjs` so the emitted `.js`
+  outputs are already correct for Node consumption.
+- During development and test runs, Jest resolves these `.js` specifiers back to the TypeScript
+  sources using a small custom resolver (`scripts/jest-resolver.cjs`) wired into package
+  `jest.config.cjs` files. This keeps `ts-jest` happy while allowing runtime code to use proper
+  ESM specifiers.
+- If you need to revert to the prior workflow (post-build compiled-file patching), note that
+  `scripts/fix-imports.cjs` is now deprecated and replaced with a no-op stub. Prefer the
+  source-level `.js` approach — it's more reliable and avoids modifying compiled artifacts.
+

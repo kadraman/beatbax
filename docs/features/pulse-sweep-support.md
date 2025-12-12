@@ -62,7 +62,7 @@ inst fall  type=pulse1 duty=25 env=10,down sweep=6,down,2
 Update `InstrumentNode` type:
 
 ```typescript
-// src/parser/ast.ts
+// packages/engine/src/parser/ast.ts
 export interface InstrumentNode {
   name: string;
   type: string; // 'pulse1', 'pulse2', 'wave', 'noise'
@@ -82,7 +82,7 @@ export interface InstrumentNode {
 ### 3. Parser Changes
 
 ```typescript
-// src/parser/parser.ts
+// packages/engine/src/parser/parser.ts
 function parseInstrument(tokens: Token[]): InstrumentNode {
   // ... existing parsing ...
   
@@ -102,7 +102,7 @@ function parseInstrument(tokens: Token[]): InstrumentNode {
 ### 4. Pulse Channel Implementation
 
 ```typescript
-// src/chips/gameboy/pulse.ts
+// packages/engine/src/chips/gameboy/pulse.ts
 export function playPulse(
   ctx: AudioContext,
   freq: number,
@@ -163,7 +163,7 @@ function applySweep(
 ### 5. UGE Export/Import
 
 ```typescript
-// src/export/ugeWriter.ts
+// packages/engine/src/export/ugeWriter.ts
 function writeDutyInstrument(inst: InstrumentNode): Buffer {
   // ... existing fields ...
   
@@ -179,7 +179,7 @@ function writeDutyInstrument(inst: InstrumentNode): Buffer {
   }
 }
 
-// src/import/uge/uge.reader.ts
+// packages/engine/src/import/uge/uge.reader.ts
 function readDutyInstrument(buffer: Buffer, offset: number): InstrumentNode {
   // ... existing fields ...
   
@@ -280,7 +280,7 @@ test('UGE export preserves sweep', () => {
 
 - [ ] Add `sweep` field to `InstrumentNode` type
 - [ ] Update parser to recognize `sweep=time,dir,shift` syntax
-- [ ] Implement `applySweep()` in `src/chips/gameboy/pulse.ts`
+- [ ] Implement `applySweep()` in `packages/engine/src/chips/gameboy/pulse.ts`
 - [ ] Add sweep support to UGE writer
 - [ ] Add sweep support to UGE reader
 - [ ] Write unit tests for sweep parsing
