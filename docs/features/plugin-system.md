@@ -3,7 +3,7 @@ title: Plugin System for Chip Backends
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/4"
 ---
 
 ## Summary

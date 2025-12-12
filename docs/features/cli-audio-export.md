@@ -3,7 +3,7 @@ title: CLI export audio (.bax -> .wav)
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/7"
 ---
 
 **Summary**

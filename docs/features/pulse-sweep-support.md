@@ -3,7 +3,7 @@ title: Pulse Channel Sweep Support
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/2"
 ---
 
 ## Summary
