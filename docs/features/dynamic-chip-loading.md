@@ -1,13 +1,12 @@
-# Dynamic Chip Module Loading (Post-MVP)
-
-**Status:** DEPRECATED - Merged into `plugin-system.md`  
-**See:** [plugin-system.md](./plugin-system.md) for the unified plugin architecture
-
+---
+title: Dynamic Chip Module Loading
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
 ---
 
-**This document is kept for historical reference only. All future work should reference `plugin-system.md`.**
-
----
+**Note:** This document is kept for historical reference; the unified plugin architecture is in `plugin-system.md`.
 
 ## Summary
 

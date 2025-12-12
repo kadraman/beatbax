@@ -1,6 +1,10 @@
-# Pulse Channel Sweep Support
-
-**Status:** Proposed (high-priority enhancement)
+---
+title: Pulse Channel Sweep Support
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
+---
 
 ## Summary
 
