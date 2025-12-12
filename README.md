@@ -126,6 +126,14 @@ Fast dev run (recommended for iteration):
 # Fast, no-build iteration — uses `tsx` under the hood
 npm run cli:dev -- play songs\sample.bax
 ```
+
+Run Demo UI (will be replaced soon):
+```
+npm run demo:build
+npm run demo:run
+```
+
+and the then browse to `http://localhost:8080`.
  
 ### Local linking (developer convenience)
 

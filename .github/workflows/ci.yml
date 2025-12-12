@@ -22,30 +22,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            packages/engine/package-lock.json
-            packages/cli/package-lock.json
-            apps/web-ui/package-lock.json
-
-      #- name: Debug lockfiles (helpful for cache failures)
-      #  run: |
-      #    echo "Node: $(node --version || true)";
-      #    echo "npm: $(npm --version || true)";
-      #    for f in package-lock.json packages/*/package-lock.json apps/*/package-lock.json; do
-       #     if [ -f "$f" ]; then
-       #       echo "FOUND: $f";
-      #      else
-       #       echo "MISSING: $f";
-      #      fi
-      #    done
-
-      - name: Ensure npm supports workspaces
-        run: |
-          echo "Node: $(node --version)";
-          echo "npm before: $(npm --version)";
-          npm install -g npm@9 || true;
-          echo "npm after: $(npm --version)";
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -54,9 +31,7 @@ jobs:
         run: npm run build --if-present --silent
 
       - name: Run package tests
-        run: |
-          npm -w @beatbax/engine test --silent
-          npm -w @beatbax/cli test --silent
+        run: npm test
 
       - name: Lint (optional)
         if: ${{ runner.os == 'Linux' }}

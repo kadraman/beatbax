@@ -1,6 +1,7 @@
 {
   "name": "@beatbax/engine",
   "version": "0.2.0",
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,7 +40,6 @@
     "pretest": "npm run build --if-present",
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
-  "devDependencies": {
-    "@types/node": "^22.7.4"
-  }
+  "dependencies": {},
+  "peerDependencies": {}
 }

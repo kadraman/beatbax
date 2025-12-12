@@ -1,35 +1,39 @@
 {
   "name": "beatbax",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "description": "Live-coding language for retro console chiptunes.",
   "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
+  
   "scripts": {
     "demo:build": "esbuild demo/boot.ts --bundle --outfile=demo/dist/demo.js --platform=browser --target=es2019 --sourcemap --external:marked",
     "demo:run": "npx http-server demo -p 8080",
-    "engine:build": "yarn workspace @beatbax/engine run build",
-    "engine:test": "yarn workspace @beatbax/engine run test",
-    "cli:build": "yarn workspace @beatbax/cli run build",
-    "cli:test": "yarn workspace @beatbax/cli run test",
-    "build": "yarn engine:build && yarn cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs && yarn demo:build",
-    "prepublishOnly": "yarn run build",
+    "engine:build": "npm -w @beatbax/engine run build",
+    "engine:test": "npm -w @beatbax/engine test",
+    "cli:build": "npm -w @beatbax/cli run build",
+    "cli:test": "npm -w @beatbax/cli test",
+
+    "build": "npm run engine:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs && npm run demo:build",
+    "prepublishOnly": "npm run build",
     "watch": "tsc --watch",
-    "dev": "yarn engine:build && yarn workspace @beatbax/engine run dev",
-    "cli": "yarn cli:build && node packages/cli/dist/cli.js",
+    "dev": "npm run engine:build && npm -w @beatbax/engine run dev",
+
+    "cli": "npm run cli:build && node packages/cli/dist/cli.js",
     "cli:dev": "tsx packages/cli/src/cli.ts",
     "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
-    "pretest": "yarn run build",
-    "test": "yarn engine:test && yarn cli:test",
-    "test:packages": "yarn engine:test && yarn cli:test",
+
+    "test": "npm run engine:test && npm run cli:test",
     "bin": "node bin/beatbax",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write ."
   },
-  "bin": "bin/beatbax",
+  "bin": {
+    "beatbax": "bin/beatbax"
+  },
   "dependencies": {
     "commander": "^12.0.0",
     "marked": "^5.1.1",
@@ -43,9 +47,9 @@
     "LICENSE"
   ],
   "devDependencies": {
+    "esbuild": "^0.18.17",
     "@types/jest": "^29.5.12",
     "@types/node": "^22.7.4",
-    "esbuild": "^0.18.17",
     "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.30.0",
@@ -55,6 +59,5 @@
     "ts-node": "^10.9.1",
     "tsx": "^3.12.7",
     "typescript": "^5.6.3"
-  },
-  "packageManager": "yarn@4.12.0"
+  }
 }
