@@ -1,6 +1,10 @@
-# Real-time Pattern Hot Reload
-
-**Status:** Proposed (high-priority developer experience feature)
+---
+title: Real-time Pattern Hot Reload
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
+---
 
 ## Summary
 

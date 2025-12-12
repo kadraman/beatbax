@@ -1,12 +1,12 @@
-# Feature: Plugin System for Chip Backends
+---
+title: Plugin System for Chip Backends
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
+---
 
-**Status:** Planned (Post-MVP)  
-**Priority:** High  
-**Dependencies:** Monorepo refactoring  
-**Tracking Issue:** TBD  
-**Supersedes:** `dynamic-chip-loading.md` (merged into this spec)
-
-## Overview
+## Summary
 
 Create a plugin system that allows chip backends (NES, SID, Genesis, etc.) to be installed and loaded dynamically at runtime. This enables the BeatBax engine to remain lightweight while supporting extensible audio backends through npm packages.
 
