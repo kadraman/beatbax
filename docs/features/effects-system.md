@@ -1,6 +1,10 @@
-# Pattern Effects System
-
-**Status:** Proposed (medium-priority language feature)
+---
+title: Pattern Effects System
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
+---
 
 ## Summary
 

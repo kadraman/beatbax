@@ -1,6 +1,10 @@
-# Monorepo Refactoring (High Priority)
-
-**Status:** Proposed (high-priority post-MVP feature)
+---
+title: Monorepo Refactoring
+status: proposed
+authors: ["kadraman"]
+created: 2025-12-12
+issue: ""
+---
 
 ## Summary
 
@@ -18,7 +22,6 @@ Restructure the BeatBax project into a monorepo architecture that separates conc
 ## Current Structure Issues
 
 - Engine code (`src/`) is mixed with CLI code
- - Engine code (`packages/engine/src/`) is mixed with CLI code
 - Demo (`demo/`) is a separate directory but shares dependencies
 - No clear plugin system or extension points
 - Single `package.json` with all dependencies (dev + prod + UI)
@@ -396,17 +399,17 @@ import { parse, Player } from '@beatbax/engine';
 
 ## Implementation Checklist
 
-- [ ] Create monorepo root `package.json` with workspaces
-- [ ] Move source to `packages/engine/`
-- [ ] Move CLI to `packages/cli/`
+- [X] Create monorepo root `package.json` with workspaces
+- [X] Move source to `packages/engine/`
+- [X] Move CLI to `packages/cli/`
 - [ ] Move demo to `packages/web-ui/`
-- [ ] Update all import paths
+- [X] Update all import paths
 - [ ] Configure build scripts for each package
-- [ ] Update TypeScript configs (references)
-- [ ] Verify all tests pass in new structure
-- [ ] Update CI/CD workflows
+- [X] Update TypeScript configs (references)
+- [X] Verify all tests pass in new structure
+- [X] Update CI/CD workflows
 - [ ] Publish `@beatbax/engine` to npm
-- [ ] Update documentation
+- [X] Update documentation
 - [ ] Create migration guide for users
 - [ ] Set up inter-package linking (workspace references)
 - [ ] Configure Turborepo or Nx (optional)
