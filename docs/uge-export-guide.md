@@ -114,9 +114,9 @@ console.log('✓ Exported UGE file');
 ```
 
 ```typescript
-import { exportUGE } from './src/export/ugeWriter';
-import { parse } from './src/parser';
-import { resolveSong } from './src/song/resolver';
+import { exportUGE } from 'packages/engine/src/export/ugeWriter';
+import { parse } from 'packages/engine/src/parser';
+import { resolveSong } from 'packages/engine/src/song/resolver';
 import { readFileSync } from 'fs';
 
 const source = readFileSync('mysong.bax', 'utf-8');

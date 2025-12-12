@@ -1,7 +1,4 @@
 module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  roots: ['<rootDir>/tests'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setupTests.ts'],
-  // No moduleNameMapper: keep default resolution for tests
+  // Use Jest 'projects' mode to run package-local configs in isolation.
+  projects: ['<rootDir>/packages/engine', '<rootDir>/packages/cli'],
 };

@@ -23,51 +23,76 @@ function copyDtsFiles(srcDir, outDir) {
 }
 
 function verify() {
-  const dist = path.resolve(__dirname, '..', 'dist');
-  const src = path.resolve(__dirname, '..', 'src');
-  if (!fs.existsSync(dist)) {
-    console.error('Error: dist/ directory not found. Did tsc run?');
-    process.exit(2);
-  }
+  const root = path.resolve(__dirname, '..');
+  const packagesDir = path.join(root, 'packages');
 
-  // Copy any source .d.ts files (hand-authored) into dist so consumers get them
-  copyDtsFiles(src, dist);
-
-  const required = [
-    path.join(dist, 'index.d.ts'),
-    path.join(dist, 'index.js'),
-    path.join(dist, 'scheduler', 'index.js'),
-    path.join(dist, 'scheduler', 'index.d.ts')
+  const packagesToCheck = [
+    { name: 'engine', pkgPath: path.join(packagesDir, 'engine') },
+    { name: 'cli', pkgPath: path.join(packagesDir, 'cli') }
   ];
 
   let ok = true;
-  for (const r of required) {
-    if (!fs.existsSync(r)) {
-      console.error('Missing required build output:', path.relative(process.cwd(), r));
+
+  for (const p of packagesToCheck) {
+    const dist = path.join(p.pkgPath, 'dist');
+    const src = path.join(p.pkgPath, 'src');
+
+    if (!fs.existsSync(p.pkgPath)) {
+      console.error(`Package directory not found: ${p.pkgPath}`);
       ok = false;
+      continue;
     }
+
+    if (!fs.existsSync(dist)) {
+      console.error(`Error: ${path.relative(process.cwd(), dist)} not found. Did package build run?`);
+      ok = false;
+      continue;
+    }
+
+    // Copy any source .d.ts files (hand-authored) into dist so consumers get them
+    copyDtsFiles(src, dist);
+
+    // Minimal required files per package
+    const required = [];
+    if (p.name === 'engine') {
+      required.push(path.join(dist, 'index.d.ts'));
+      required.push(path.join(dist, 'index.js'));
+      required.push(path.join(dist, 'scheduler', 'index.js'));
+      required.push(path.join(dist, 'scheduler', 'index.d.ts'));
+    } else if (p.name === 'cli') {
+      required.push(path.join(dist, 'cli.js'));
+      required.push(path.join(dist, 'index.js'));
+    }
+
+    for (const r of required) {
+      if (!fs.existsSync(r)) {
+        console.error('Missing required build output:', path.relative(process.cwd(), r));
+        ok = false;
+      }
+    }
+
+    // Print a short dist tree for this package
+    function list(dir, prefix = '') {
+      const names = fs.readdirSync(dir);
+      for (const n of names) {
+        const pth = path.join(dir, n);
+        const stat = fs.statSync(pth);
+        if (stat.isDirectory()) {
+          console.log(prefix + n + '/');
+          list(pth, prefix + '  ');
+        } else {
+          console.log(prefix + n);
+        }
+      }
+    }
+
+    console.log(`${p.name} dist/ contents:`);
+    list(dist);
   }
 
   if (!ok) process.exit(3);
 
-  // Print a short dist tree
-  function list(dir, prefix = '') {
-    const names = fs.readdirSync(dir);
-    for (const n of names) {
-      const p = path.join(dir, n);
-      const stat = fs.statSync(p);
-      if (stat.isDirectory()) {
-        console.log(prefix + n + '/');
-        list(p, prefix + '  ');
-      } else {
-        console.log(prefix + n);
-      }
-    }
-  }
-
-  console.log('dist/ contents:');
-  list(dist);
-  console.log('Build outputs verified.');
+  console.log('Build outputs verified for packages.');
 }
 
 verify();

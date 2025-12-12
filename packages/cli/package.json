@@ -1,0 +1,20 @@
+{
+  "name": "@beatbax/cli",
+  "version": "0.2.0",
+  "private": false,
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "beatbax": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --enable-source-maps src/cli.js",
+    "pretest": "npm run build --if-present",
+    "test": "jest --config ./jest.config.cjs --passWithNoTests"
+  },
+  "dependencies": {
+    "@beatbax/engine": "^0.2.0",
+    "commander": "^10.0.0"
+  }
+}

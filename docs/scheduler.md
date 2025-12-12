@@ -38,13 +38,13 @@ interface TickSchedulerOptions {
 ## Notes
 
 - **Default behavior**: In browser environments, the scheduler uses `requestAnimationFrame` to drive its polling loop and maintains a small lookahead window so scheduled callbacks are fired with accurate audio timing.
-- **Clearing callbacks**: Use the scheduler's `clear()` or `stop()` methods to cancel scheduled callbacks (see source in `src/scheduler/` for API details).
+- **Clearing callbacks**: Use the scheduler's `clear()` or `stop()` methods to cancel scheduled callbacks (see source in `packages/engine/src/scheduler/` for API details).
 - **Audio timing**: Always pass absolute audio times from `AudioContext.currentTime` rather than wall-clock time — this ensures sample-accurate playback across different environments.
 - **Deterministic**: The scheduler processes events in time order, making playback repeatable and testable.
 
 ## Where it is used
 
-- The scheduler is the timing foundation for the Player (`src/audio/playback.ts`) and powers the demo (`demo/`).
+- The scheduler is the timing foundation for the Player (`packages/engine/src/audio/playback.ts`) and powers the demo (`demo/`).
 - For examples of integration with the Player and how sequences are expanded into timed events, see the demo implementation.
 - All unit tests mock or stub the scheduler to verify timing-dependent behavior without real audio hardware.
 
@@ -59,9 +59,9 @@ interface TickScheduler {
 }
 ```
 
-For a more detailed API reference including exported types and advanced options, see `src/scheduler/README.md` or inspect the TypeScript definitions in `src/scheduler/index.ts`.
+For a more detailed API reference including exported types and advanced options, see `packages/engine/src/scheduler/README.md` or inspect the TypeScript definitions in `packages/engine/src/scheduler/index.ts`.
 
 ## See Also
 
-- [src/scheduler/README.md](../src/scheduler/README.md) - Detailed scheduler API documentation
+- [packages/engine/src/scheduler/README.md](../packages/engine/src/scheduler/README.md) - Detailed scheduler API documentation
 - [DEVNOTES.md](../DEVNOTES.md) - Architecture and implementation notes

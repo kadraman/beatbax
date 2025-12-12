@@ -52,21 +52,21 @@ song.dutyInstruments.forEach(inst => {
 ## Files
 
 ```
-src/import/
+packages/engine/src/import/
 ├── uge/
 │   └── uge.reader.ts  # Core implementation (630+ lines)
 ├── index.ts           # Module exports
 └── README.md          # Usage documentation
 
-tests/
+packages/engine/tests/
 └── ugeReader.test.ts  # Test suite (350+ lines, 15 tests)
 
 examples/
-├── read-uge-example.ts        # Usage example
-└── validate-uge-reader.ts     # Validation script
+├── read-uge-example.ts        # Usage example (imports from `@beatbax/engine`)
+└── validate-uge-reader.ts     # Validation script (imports from `@beatbax/engine`)
 
-src/
-└── cli-uge-inspect.ts # CLI inspection tool
+packages/cli/src/
+└── cli-uge-inspect.ts # CLI inspection tool (now under `packages/cli/src`)
 ```
 
 ## API Reference
@@ -211,7 +211,7 @@ interface SubPatternCell {
 ### Basic Usage
 
 ```bash
-npx tsx src/cli-uge-inspect.ts <file.uge>
+npx tsx packages/cli/src/cli-uge-inspect.ts <file.uge>
 ```
 
 ### Options
@@ -224,10 +224,10 @@ npx tsx src/cli-uge-inspect.ts <file.uge>
 
 ```bash
 # Basic summary
-npx tsx src/cli-uge-inspect.ts songs/chavez.uge
+npx tsx packages/cli/src/cli-uge-inspect.ts songs/chavez.uge
 
 # Show everything
-npx tsx src/cli-uge-inspect.ts songs/chavez.uge -p -o -w
+npx tsx packages/cli/src/cli-uge-inspect.ts songs/chavez.uge -p -o -w
 ```
 
 ## Test Results
@@ -416,4 +416,4 @@ Possible improvements beyond current implementation:
 - [UGE Export Guide](./uge-export-guide.md) - Exporting BeatBax songs to UGE format
 - [UGE v6 Spec](./uge-v6-spec.md) - Complete UGE v6 binary format specification
 - [UGE Writer](./uge-writer.md) - UGE file generation documentation
-- [src/import/README.md](../src/import/README.md) - Import module documentation
+- [packages/engine/src/import/README.md](../packages/engine/src/import/README.md) - Import module documentation

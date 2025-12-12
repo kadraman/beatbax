@@ -156,7 +156,7 @@ console.log('Instruments:', ugeSong.dutyInstruments.length);
 console.log('Patterns:', ugeSong.patterns.length);
 ```
 
-The UGE reader provides full access to instrument tables, pattern data, order lists, and song metadata. See `src/import/uge/uge.reader.ts` for the complete API.
+The UGE reader provides full access to instrument tables, pattern data, order lists, and song metadata. See `packages/engine/src/import/uge/uge.reader.ts` for the complete API.
 
 ## Buffered Rendering (Performance mode)
 

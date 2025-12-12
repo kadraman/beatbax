@@ -1,6 +1,6 @@
-import { parse } from '../src/parser';
-import Player from '../src/audio/playback';
-import { resolveSong } from '../src/song/resolver';
+import { parse } from '@beatbax/engine/parser';
+import Player from '@beatbax/engine/audio/playback';
+import { resolveSong } from '@beatbax/engine/song/resolver';
 // Use a dynamic browser-loaded `marked` if available. We avoid bundling Node 'marked'
 // so the demo can be built with esbuild without resolving Node-only exports.
 

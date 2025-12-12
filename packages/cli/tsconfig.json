@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "baseUrl": "..\\.."
+    ,
+    "paths": {
+      "@beatbax/engine": ["packages/engine/dist/index.d.ts"],
+      "@beatbax/engine/*": ["packages/engine/dist/*"]
+    }
+  },
+  "references": [
+    { "path": "../engine" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
