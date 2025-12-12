@@ -3,7 +3,7 @@ title: Real-time Pattern Hot Reload
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/6"
 ---
 
 ## Summary

@@ -3,7 +3,7 @@ title: Dynamic Chip Module Loading
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/3"
 ---
 
 **Note:** This document is kept for historical reference; the unified plugin architecture is in `plugin-system.md`.
