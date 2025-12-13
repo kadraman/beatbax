@@ -1,6 +1,6 @@
 # BeatBax Browser Demo
 
-This demo lets you paste or load a `.bax` file in the browser and play it using a simplified Player implementation based on the project's WebAudio playback.
+This demo lets you paste or load a `.bax` file in the browser and play it using the project's `Player` implementation from `@beatbax/engine` (WebAudio).
 
 Usage:
 
@@ -23,7 +23,7 @@ python -m http.server 8080 --directory demo
 Notes:
 - The demo parser is intentionally minimal and for demonstration only.
 - Playback uses the browser WebAudio API; playback won't function in Node.
-- Stop is not implemented in this simple demo; refresh the page to reset audio context.
+- The demo uses the engine `Player`, which implements `stop()` and per-channel controls.
  - The demo supports the `chip` directive to select the audio backend. The default
     is `gameboy`. Example at the top of `songs/sample.bax`:
 
