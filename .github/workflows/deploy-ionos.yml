@@ -1,0 +1,46 @@
+name: Build and Deploy to IONOS
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build engine + web-ui
+        run: npm run build:web-ui
+
+      - name: Deploy via SFTP/SCP (if configured)
+        if: ${{ and(ne(secrets.SFTP_HOST, ''), ne(secrets.SFTP_USERNAME, ''), or(ne(secrets.SFTP_PASSWORD, ''), ne(secrets.SFTP_PRIVATE_KEY, ''))) }}
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USERNAME }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          key: ${{ secrets.SFTP_PRIVATE_KEY }}
+          port: 22
+          source: "apps/web-ui/dist/*"
+          target: ${{ secrets.SFTP_REMOTE_DIR }}
+
+      - name: Deploy via FTP/FTPS (if configured)
+        if: ${{ and(ne(secrets.FTP_HOST, ''), ne(secrets.FTP_USERNAME, ''), ne(secrets.FTP_PASSWORD, '')) }}
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: apps/web-ui/dist
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+
+      - name: Deployment summary
+        run: |
+          echo "Deploy step completed. If neither FTP nor SFTP ran, add secrets for SFTP_HOST/FTP_HOST and credentials."

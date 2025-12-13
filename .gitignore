@@ -143,3 +143,8 @@ tmp/**/*
 
 # Temporary test files
 tests/*.js
+
+# web-ui generated / build artifacts
+/apps/web-ui/dist/
+/apps/web-ui/public/engine/
+/apps/web-ui/public/songs/
