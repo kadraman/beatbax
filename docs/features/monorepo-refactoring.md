@@ -22,7 +22,7 @@ Restructure the BeatBax project into a monorepo architecture that separates conc
 ## Current Structure Issues
 
 - Engine code (`src/`) is mixed with CLI code
-- Demo (`demo/`) is a separate directory but shares dependencies
+ - Legacy demo (`demo/`) is a separate directory but the active web UI is `apps/web-ui/` and shares the engine dependency
 - No clear plugin system or extension points
 - Single `package.json` with all dependencies (dev + prod + UI)
 - Difficult to consume BeatBax engine in external projects without pulling in CLI/demo code

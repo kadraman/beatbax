@@ -11,7 +11,7 @@ High level
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
   - `packages/engine/src/export/` — JSON, MIDI, and UGE exporters with validation.
   - `packages/engine/src/import/` — UGE reader for importing hUGETracker v6 files.
-  - `demo/` — browser demo UI that uses the real parser and Player for live playback.
+  - `apps/web-ui/` — browser web UI that uses the real parser and Player for live playback.
 
 Scheduler & timing
 - `Scheduler` queues functions with absolute `AudioContext.currentTime` timestamps and uses a lookahead interval to execute scheduled callbacks deterministically. This is intentionally simple and deterministic for testing.
@@ -63,7 +63,7 @@ Files of interest (quick map)
 - `src/audio/playback.ts` — Player, Scheduler, playPulse/playWavetable/playNoise and helpers.
 - `src/parser/index.ts` — parsing, pattern modifiers, channel resolution.
 - `src/patterns/expand.ts` — expandPattern, transposePattern.
-- `demo/boot.ts` — demo wiring, help panel and layout.
+- `apps/web-ui/src/main.ts` — web UI entry (adapted from the legacy demo boot script).
 - `tests/` — parser tests, tokenizer tests, and playback tests.
 
 ## Export Formats

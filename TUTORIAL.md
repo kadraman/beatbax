@@ -4,7 +4,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
-- `demo/` — browser demo UI that loads and plays `.bax` files.
+- `apps/web-ui/` — browser demo UI that loads and plays `.bax` files.
 
 **Language Quick Reference**
 
@@ -118,17 +118,17 @@ npm run cli:dev -- play songs\sample.bax
 
 ## Running the demo (local)
 
-1. Build the demo bundle (TypeScript -> browser):
+1. Build the web UI bundle (TypeScript -> browser):
 
 ```powershell
-npm run build:demo
+npm run build:web-ui
 ```
 
-2. Serve the `demo/` folder locally and open the demo in a browser:
+2. Run the web UI dev server and open it in a browser:
 
 ```powershell
-npm run demo
-# open http://127.0.0.1:8080
+npm --prefix apps/web-ui run dev
+# open the URL shown by Vite (usually http://127.0.0.1:5173)
 ```
 
 3. Controls in the demo:

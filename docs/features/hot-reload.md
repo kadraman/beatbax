@@ -30,7 +30,7 @@ Enable real-time updates to playing songs without stopping playback. When the us
 ## Problems with Current Implementation
 
 ```typescript
-// demo/boot.ts (current approach)
+// apps/web-ui/src/main.ts (current approach)
 const liveApply = debounce(async () => {
   if (player) player.stop();           // ❌ Hard stop causes glitch
   const ast = parse(src);               // ❌ Full reparse every time
@@ -289,7 +289,7 @@ export class Player {
 ### 4. UI Integration
 
 ```typescript
-// demo/boot.ts (updated)
+// apps/web-ui/src/main.ts (updated)
 import { HotReloadManager } from 'packages/engine/src/runtime/hotReload';
 
 let hotReloadManager: HotReloadManager | null = null;
@@ -334,7 +334,7 @@ const liveApply = debounce(async () => {
 ### 5. Visual Feedback
 
 ```typescript
-// demo/boot.ts
+// apps/web-ui/src/main.ts
 function showPatchIndicator(diff: ASTDiff) {
   // Flash indicator for each changed element
   if (diff.modifiedPatterns.length > 0) {
@@ -558,4 +558,4 @@ None. Hot reload is an opt-in enhancement to the existing live mode.
 
 - [monorepo-refactoring.md](./monorepo-refactoring.md) - Web UI package structure
 - [TUTORIAL.md](../../TUTORIAL.md) - Live coding workflow examples
-- [demo/](../../demo/) - Current demo implementation
+- [apps/web-ui](../../apps/web-ui/) - Current web UI implementation

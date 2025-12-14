@@ -25,18 +25,18 @@ export async function playFile(path: string) {
   } else {
     console.log('Playback not available in this environment. Launching local demo in your browser...');
     try {
-      // Copy the source file into demo/songs so the demo can fetch it
+      // Copy the source file into apps/web-ui/public/songs so the web UI can fetch it
       const pathModule = await import('path');
       const child = await import('child_process');
       const basename = pathModule.basename(path);
-      const outDir = pathModule.join(process.cwd(), 'demo', 'songs');
+      const outDir = pathModule.join(process.cwd(), 'apps', 'web-ui', 'public', 'songs');
       try { mkdirSync(outDir, { recursive: true }); } catch (e) {}
       const outPath = pathModule.join(outDir, basename);
       writeFileSync(outPath, src, 'utf8');
 
       // Start a static server serving the demo directory (npx http-server demo -p 8080)
       try {
-        const server = child.spawn('npx', ['http-server', 'demo', '-p', '8080'], { detached: true, stdio: 'ignore', shell: false });
+        const server = child.spawn('npx', ['http-server', 'apps/web-ui', '-p', '8080'], { detached: true, stdio: 'ignore', shell: false });
         server.unref();
       } catch (e) {
         // ignore server spawn errors — user may run `npm run demo` instead
