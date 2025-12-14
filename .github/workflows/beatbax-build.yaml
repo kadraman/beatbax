@@ -38,7 +38,13 @@ jobs:
           SITE_URL: ${{ inputs.site-url }}
         run: npm ci
 
-      - name: Build Node assets - build site (engine + web-ui)
+      - name: Build Node assets - build engine
+        env:
+          CI: true
+          SITE_URL: ${{ inputs.site-url }}
+        run: npm run engine:build
+
+      - name: Build Node assets - web-ui
         env:
           CI: true
           SITE_URL: ${{ inputs.site-url }}
