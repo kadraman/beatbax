@@ -99,8 +99,8 @@ channel 4 => inst perc  seq drums
 
 # -----------------------------------------------------------------------------
 # Playback directive
-# The `play` directive starts playback in the demo/player. In the CLI this
-# would trigger immediate rendering or playback; in the demo the UI uses the
+# The `play` directive starts playback in the web UI player. In the CLI this
+# would trigger immediate rendering or playback; in the web UI the UI uses the
 # parsed AST to schedule audio.
 play
 

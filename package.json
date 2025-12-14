@@ -10,14 +10,12 @@
   ],
   
   "scripts": {
-    "demo:build": "esbuild demo/boot.ts --bundle --outfile=demo/dist/demo.js --platform=browser --target=es2019 --sourcemap --external:marked",
-    "demo:run": "npx http-server demo -p 8080",
     "engine:build": "npm -w @beatbax/engine run build",
     "engine:test": "npm -w @beatbax/engine test",
     "cli:build": "npm -w @beatbax/cli run build",
     "cli:test": "npm -w @beatbax/cli test",
 
-    "build": "npm run engine:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs && npm run demo:build",
+    "build": "npm run engine:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs",
     "prepublishOnly": "npm run build",
     "watch": "tsc --watch",
     "dev": "npm run engine:build && npm -w @beatbax/engine run dev",

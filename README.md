@@ -102,7 +102,7 @@ The JSON exporter performs structural validation of the parsed AST and writes a 
    - `cli.ts`, `index.ts` — CLI and program entry
  - `tests/` — Jest unit tests (25 suites, 81 tests)
  - `songs/` — example .bax song files
- - `demo/` — browser-based live editor and player
+ - `apps/web-ui/` — browser-based live editor and player
 
 ## Development
 
@@ -127,13 +127,14 @@ Fast dev run (recommended for iteration):
 npm run cli:dev -- play songs\sample.bax
 ```
 
-Run Demo UI (will be replaced soon):
-```
-npm run demo:build
-npm run demo:run
+Run the web UI (local development):
+
+```powershell
+# Development server (apps/web-ui uses Vite)
+npm --prefix apps/web-ui run dev
 ```
 
-and the then browse to `http://localhost:8080`.
+Then browse to `http://localhost:5173` (Vite default) or the URL shown by the dev server.
  
 ### Local linking (developer convenience)
 
@@ -166,7 +167,7 @@ On Unix systems the `bin/beatbax` file is executable and contains a shebang so t
 
 Day 1 ✅: tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
 
-Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `packages/engine/src/audio/playback.ts` and the demo (`demo/`) exercises it.
+Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `packages/engine/src/audio/playback.ts` and the web UI (`apps/web-ui/`) exercises it.
 
 Day 3 ✅: MIDI export, UGE v6 export, CLI polish, per-channel controls (mute/solo), packaging.
 
