@@ -12,4 +12,8 @@
   "dependencies": {
     "@beatbax/engine": "^0.2.0"
   }
+  ,
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
 }
