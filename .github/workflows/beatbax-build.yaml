@@ -38,17 +38,11 @@ jobs:
           SITE_URL: ${{ inputs.site-url }}
         run: npm ci
 
-      - name: Build Node assets - install web-ui dependencies
-        env:
-          CI: true
-          SITE_URL: ${{ inputs.site-url }}
-        run: npm ci --prefix apps/web-ui
-
       - name: Build Node assets - build site (engine + web-ui)
         env:
           CI: true
           SITE_URL: ${{ inputs.site-url }}
-        run: npm run build:site
+        run: npm run build --workspace=apps/web-ui
 
 # Please do not touch the following action
       - name: Store deployment content
