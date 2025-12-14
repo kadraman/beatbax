@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -40,6 +40,8 @@
     "pretest": "npm run build --if-present",
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
-  "dependencies": {},
+  "dependencies": {
+    "standardized-audio-context": "^25.3.0"
+  },
   "peerDependencies": {}
 }

@@ -15,8 +15,21 @@ program
 program
   .command('play')
   .argument('<file>')
-  .action(async (file) => {
-    await playFile(file);
+  .option('--browser', 'Launch browser-based playback (opens web UI)')
+  .option('--no-browser', 'Force headless Node.js playback (no browser window)')
+  .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
+  .option('--sample-rate <hz>', 'Sample rate for headless context', '44100')
+  .option('--render-to <file>', 'Render to WAV file (offline) instead of real-time playback')
+  .option('--duration <seconds>', 'Duration for offline rendering in seconds', '60')
+  .action(async (file, options) => {
+    await playFile(file, {
+      browser: options.browser === true,
+      noBrowser: options.browser === false || options.backend === 'node-webaudio',
+      backend: options.backend,
+      sampleRate: parseInt(options.sampleRate, 10),
+      renderTo: options.renderTo,
+      duration: parseFloat(options.duration)
+    });
   });
 
 program

@@ -60,8 +60,16 @@ The CLI provides commands for playback, validation, and export. The entrypoint i
 Common commands (PowerShell examples):
 
 ```powershell
-# Play a song (launches WebAudio playback)
+# Play a song with browser-based playback
+npm run cli -- play songs\sample.bax --browser
+
+# Play (default behavior - shows message without auto-launching browser)
 npm run cli -- play songs\sample.bax
+
+# Play with headless options (v0.3.0+)
+# Note: Headless playback requires native audio bindings (future feature)
+npm run cli -- play songs\sample.bax --no-browser
+npm run cli -- play songs\sample.bax --render-to output.wav --duration 30
 
 # Verify/validate a song file
 npm run cli -- verify songs\sample.bax
@@ -71,6 +79,19 @@ npm run cli -- export json songs\sample.bax --out songs\output.json
 npm run cli -- export midi songs\sample.bax --out songs\output.mid
 npm run cli -- export uge songs\sample.bax --out songs\output.uge
 ```
+
+### Play Command Options (v0.3.0)
+
+The `play` command now supports browser and headless playback flags:
+
+- `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
+- `--no-browser` — Force headless Node.js playback (no browser window)
+- `--backend <name>` — Audio backend: `auto` (default), `node-webaudio`, `browser`
+- `--sample-rate <hz>` — Sample rate for headless context (default: 44100)
+- `--render-to <file>` — Render to WAV file (offline) instead of real-time playback
+- `--duration <seconds>` — Duration for offline rendering in seconds (default: 60)
+
+**Note:** By default, `play` no longer automatically launches a browser. Use `--browser` to explicitly launch the Vite dev server and open browser-based playback. Headless playback and WAV rendering require native audio bindings not yet available in pure Node.js. The infrastructure is implemented; native backend support is planned as a post-MVP feature. See [docs/features/playback-via-cli-implementation-notes.md](docs/features/playback-via-cli-implementation-notes.md) for details.
 
 During development you can run the TypeScript CLI directly:
 
