@@ -26,8 +26,7 @@ jobs:
           service-host: api-eu.ionos.space
           project-id: 23eae067-573f-41ce-adc3-83e9d6239f7a
           action: retrieve-info
-
-
+          
   build:
     name: build
     needs: retrieve-project
