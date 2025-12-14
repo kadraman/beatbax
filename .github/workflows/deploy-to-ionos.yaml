@@ -17,10 +17,10 @@ on:
         required: true
         type: string
       deployment-ids:
-        require: true
+        required: true
         type: string
   push:
-    path:
+    paths:
       - ./.github/workflows/deploy-to-ionos.yaml
 
 concurrency: ${{ github.ref }}
