@@ -44,8 +44,8 @@ interface TickSchedulerOptions {
 
 ## Where it is used
 
-- The scheduler is the timing foundation for the Player (`packages/engine/src/audio/playback.ts`) and powers the demo (`demo/`).
-- For examples of integration with the Player and how sequences are expanded into timed events, see the demo implementation.
+- The scheduler is the timing foundation for the Player (`packages/engine/src/audio/playback.ts`) and powers the web UI (`apps/web-ui/`).
+ - For examples of integration with the Player and how sequences are expanded into timed events, see the apps/web-ui implementation.
 - All unit tests mock or stub the scheduler to verify timing-dependent behavior without real audio hardware.
 
 ## API Methods
