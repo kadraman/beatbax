@@ -14,15 +14,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: v22.x
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install web-ui dependencies
-        run: npm ci --prefix apps/web-ui
-
       - name: Build site (engine + web-ui)
-        run: npm run build:site
+        run: |
+          npm run engine:build
+          npm run build --workspace=apps/web-ui
 
       - name: Deploy to Cloudflare Pages
         # This uses the official Cloudflare Pages Action. Provide secrets in repository settings:
