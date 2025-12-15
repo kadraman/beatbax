@@ -3,26 +3,21 @@
 [![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Publish](https://github.com/kadraman/beatbax/actions/workflows/publish.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/publish.yml)
 
 BeatBax is a small live-coding language and toolchain for creating retro-console chiptunes.
-This repository contains an MVP implementation focused on the Nintendo Game Boy audio model.
+This repository contains an initial implementation focused on the Nintendo Game Boy audio model.
 
-This project is intentionally minimal and zero-dependency for the core parsing/scheduling/export tasks.
+## Features
+- Live pattern playback
+- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise)
+- JSON + MIDI + UGE export
+- Deterministic tick scheduler
 
-## Goals (MVP)
-- Live pattern playback (Day 2) ✅
-- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise) ✅
-- JSON + MIDI + UGE export ✅
-- Deterministic tick scheduler ✅
-
-The strict Day 1 scope was:
-- Tokenize + parse the language
-- Build an AST and resolved song model
-- Export validated JSON
 - Unit tests for tokenizer and pattern expansion
-
-This repository contains a Day 1-complete baseline: the tokenizer, parser, pattern expansion, a resolver that builds an Intermediate Song Model (ISM), and a validated JSON exporter. All core parsing and expansion behavior is covered by unit tests.
 
 ## Quick examples (language)
 
+The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
+
+```
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
 inst bass  type=pulse2 duty=25 env=gb:10,down,1
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
@@ -43,15 +38,7 @@ play
 export json "song.json"
 export midi "song.mid"
 export uge "song.uge"
-
-The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
-
-Recent additions (still Day‑1 scope — authoring & export):
-
-- Top-level `bpm` directive and per-channel `speed` multipliers: use `bpm 120` and `channel 2 => ... speed=2x` to run a channel at a multiple of the master tempo.
-- `hit(name,N)` shorthand and `name*4` percussion shorthand: useful for immediate repeated hits (also `inst(name,N)` will emit immediate hits when there are no following note events).
-- Resolver improvements: sequence references with modifiers (e.g. `seqName:oct(-1)`) are expanded correctly when channels reference sequences.
-- Demo UI: per-channel scheduling indicators and counters, and an effective-BPM display have been added to help debug timing and speed multipliers.
+```
 
 ## CLI
 
@@ -134,7 +121,7 @@ npm install
 npm test
 ```
 
-Build and run the CLI:
+Run the CLI:
 
 ```powershell
 npm run build
@@ -183,21 +170,6 @@ beatbax --help
 ```
 
 On Unix systems the `bin/beatbax` file is executable and contains a shebang so the command works after `npm link` or `npm install -g`.
-
-## Status / Roadmap
-
-Day 1 ✅: tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
-
-Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `packages/engine/src/audio/playback.ts` and the web UI (`apps/web-ui/`) exercises it.
-
-Day 3 ✅: MIDI export, UGE v6 export, CLI polish, per-channel controls (mute/solo), packaging.
-
-**All MVP goals completed!** The engine now supports:
-- Full JSON/MIDI/UGE export with validation
-- Deterministic playback with authentic Game Boy APU emulation
-- Per-channel mute and solo controls
-- CLI with play, verify, and export commands
-- ESM-first npm package with TypeScript declarations
 
 ## Contributing
 

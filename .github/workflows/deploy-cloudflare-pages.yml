@@ -22,8 +22,8 @@ jobs:
 
       - name: Build site (engine + web-ui)
         run: |
-          npm run engine:build
-          npm run build --workspace=apps/web-ui
+          npm run build
+          npm run web-ui:build
 
       - name: Deploy to Cloudflare Pages
         # This uses the official Cloudflare Pages Action. Provide secrets in repository settings:
