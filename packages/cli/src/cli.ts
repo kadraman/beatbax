@@ -20,15 +20,21 @@ program
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--sample-rate <hz>', 'Sample rate for headless context', '44100')
   .option('--render-to <file>', 'Render to WAV file (offline) instead of real-time playback')
-  .option('--duration <seconds>', 'Duration for offline rendering in seconds', '60')
+  .option('--duration <seconds>', 'Duration for offline rendering in seconds (default: auto-calculated from song length)')
+  .option('--channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" or "4"')
   .action(async (file, options) => {
+    const channels = options.channels 
+      ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
+      : undefined;
+    
     await playFile(file, {
       browser: options.browser === true,
       noBrowser: options.browser === false || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(options.sampleRate, 10),
       renderTo: options.renderTo,
-      duration: parseFloat(options.duration)
+      duration: options.duration ? parseFloat(options.duration) : undefined,
+      channels
     });
   });
 

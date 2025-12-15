@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { parse } from './parser/index.js';
-import { exportJSON, exportMIDI } from './export/index.js';
+import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 
 export interface PlayOptions {
   noBrowser?: boolean;
@@ -9,6 +9,7 @@ export interface PlayOptions {
   sampleRate?: number;
   renderTo?: string;
   duration?: number;
+  channels?: number[]; // Which GB channels to render (1-4)
 }
 
 export async function playFile(path: string, options: PlayOptions = {}) {
@@ -19,19 +20,64 @@ export async function playFile(path: string, options: PlayOptions = {}) {
   const noBrowser = options.noBrowser || options.backend === 'node-webaudio';
   const renderTo = options.renderTo;
 
-  // Attempt headless playback if requested
+  // Attempt headless playback or offline rendering
   if (noBrowser || renderTo) {
-    console.log('\n⚠️  Headless playback feature status:');
-    console.log('CLI flags (--no-browser, --render-to) have been implemented.');
-    console.log('However, pure Node.js audio context requires native bindings.');
-    console.log('\nCurrent limitations:');
-    console.log('• Real-time headless playback: Requires native audio plugin (future feature)');
-    console.log('• Offline WAV rendering: Requires web-audio-api or similar native impl  (future feature)');
-    console.log('\nWorkaround for now:');
-    console.log('Use browser-based playback (default behavior without flags)');
-    console.log('Or run in an environment with native AudioContext support\n');
-    process.exitCode = 1;
-    return;
+    console.log('Rendering song using native PCM renderer...');
+    
+    try {
+      const { resolveSong } = await import('./song/resolver.js');
+      const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
+      
+      const song = resolveSong(ast);
+      const sampleRate = options.sampleRate || 44100;
+      const duration = options.duration;
+      const bpm = ast.bpm || 120;
+      const renderChannels = options.channels;
+      
+      const samples = renderSongToPCM(song, { 
+        sampleRate, 
+        duration,
+        channels: 2, // Use stereo to match browser
+        bpm,
+        renderChannels
+      });
+      
+      if (renderTo) {
+        // Export to WAV file
+        await exportWAV(samples, renderTo, {
+          sampleRate,
+          bitDepth: 16,
+          channels: 2 // Use stereo to match browser
+        });
+        console.log(`✓ Rendered to ${renderTo}`);
+      } else {
+        // Real-time playback via speaker
+        try {
+          // Resolve absolute path to cli module  
+          const path = await import('path');
+          const url = await import('url');
+          const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+          const cliPath = path.resolve(__dirname, '../../cli/dist/nodeAudioPlayer.js');
+          const cliUrl = url.pathToFileURL(cliPath).href;
+          
+          const { playAudioBuffer } = await import(cliUrl);
+          console.log('Playing audio via system speakers...');
+          await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
+          console.log('✓ Playback complete');
+        } catch (err: any) {
+          console.error('Failed to play audio:', err.message);
+          console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
+          console.log('Or use --render-to <file.wav> to export to WAV file instead.');
+          process.exitCode = 1;
+        }
+      }
+      return;
+    } catch (err: any) {
+      console.error('Failed to render song:', err.message);
+      console.error(err.stack);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   // Browser-based playback (requires explicit --browser flag)
@@ -161,5 +207,6 @@ function writeString(view: DataView, offset: number, string: string): void {
   }
 }
 
-export { exportJSON, exportMIDI };
+export { exportJSON, exportMIDI, exportWAV };
+export { renderSongToPCM } from './audio/pcmRenderer.js';
 export * from './import/index.js';

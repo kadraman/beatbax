@@ -53,10 +53,17 @@ npm run cli -- play songs\sample.bax --browser
 # Play (default behavior - shows message without auto-launching browser)
 npm run cli -- play songs\sample.bax
 
-# Play with headless options (v0.3.0+)
-# Note: Headless playback requires native audio bindings (future feature)
+# Play with headless audio playback (v0.3.0+)
 npm run cli -- play songs\sample.bax --no-browser
+
+# Render to WAV file (offline export without playback)
+npm run cli -- play songs\sample.bax --render-to output.wav
+
+# Render with explicit duration (auto-calculated by default)
 npm run cli -- play songs\sample.bax --render-to output.wav --duration 30
+
+# Export individual channels for debugging
+npm run cli -- play songs\sample.bax --render-to ch1.wav --channels 1
 
 # Verify/validate a song file
 npm run cli -- verify songs\sample.bax
@@ -69,16 +76,26 @@ npm run cli -- export uge songs\sample.bax --out songs\output.uge
 
 ### Play Command Options (v0.3.0)
 
-The `play` command now supports browser and headless playback flags:
+The `play` command supports browser and headless playback with PCM rendering:
 
 - `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
-- `--no-browser` — Force headless Node.js playback (no browser window)
-- `--backend <name>` — Audio backend: `auto` (default), `node-webaudio`, `browser`
-- `--sample-rate <hz>` — Sample rate for headless context (default: 44100)
-- `--render-to <file>` — Render to WAV file (offline) instead of real-time playback
-- `--duration <seconds>` — Duration for offline rendering in seconds (default: 60)
+- `--no-browser` — Headless Node.js playback using multi-fallback audio system
+- `--render-to <file>` — Render to WAV file using PCM renderer (stereo, 44100Hz, 16-bit)
+- `--duration <seconds>` — Duration in seconds (default: auto-calculated from song length)
+- `--channels <1-4>` — Export specific Game Boy channel only (1=pulse1, 2=pulse2, 3=wave, 4=noise)
+- `--sample-rate <hz>` — Sample rate for rendering (default: 44100)
 
-**Note:** By default, `play` no longer automatically launches a browser. Use `--browser` to explicitly launch the Vite dev server and open browser-based playback. Headless playback and WAV rendering require native audio bindings not yet available in pure Node.js. The infrastructure is implemented; native backend support is planned as a post-MVP feature. See [docs/features/playback-via-cli-implementation-notes.md](docs/features/playback-via-cli-implementation-notes.md) for details.
+**Audio Playback System:** The CLI uses a hybrid approach with cascading fallbacks:
+1. **speaker** module (optional, best performance if installed)
+2. **play-sound** wrapper (uses system players, works cross-platform)
+3. **PowerShell/afplay/aplay** direct system commands (most reliable fallback)
+
+Install optional dependencies for best audio quality:
+```powershell
+npm install --save-optional speaker play-sound
+```
+
+**PCM Renderer:** WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies. It implements all 4 Game Boy channels with envelope support, duty cycle control, wavetable playback, and LFSR-based noise generation. Output is stereo by default and closely matches browser WebAudio quality.
 
 During development you can run the TypeScript CLI directly:
 
