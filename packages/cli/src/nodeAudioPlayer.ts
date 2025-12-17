@@ -82,7 +82,7 @@ export async function playAudioBuffer(
         channels: options.channels,
         sampleRate: options.sampleRate,
         bitDepth: 16,
-        signed: true,
+        //signed: true,
       });
 
       speaker.on('error', reject);
