@@ -259,7 +259,6 @@ exportWavBtn?.addEventListener('click', async () => {
     const scheduler = (offlinePlayer as any).scheduler;
     if (scheduler && scheduler.queue) {
       // Override tick to process ALL events immediately
-      const originalTick = scheduler.tick;
       scheduler.tick = function() {
         // Process all queued events regardless of time
         while ((this as any).queue && (this as any).queue.length > 0) {

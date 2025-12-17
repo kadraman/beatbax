@@ -15,13 +15,14 @@ program
 program
   .command('play')
   .argument('<file>')
-  .option('--browser', 'Launch browser-based playback (opens web UI)')
-  .option('--no-browser', 'Force headless Node.js playback (no browser window)')
+  .option('-b, --browser', 'Launch browser-based playback (opens web UI)')
+  .option('--headless', 'Force headless Node.js playback (no browser window)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--sample-rate <hz>', 'Sample rate for headless context', '44100')
   .option('--render-to <file>', 'Render to WAV file (offline) instead of real-time playback')
   .option('--duration <seconds>', 'Duration for offline rendering in seconds (default: auto-calculated from song length)')
   .option('--channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" or "4"')
+  .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const channels = options.channels 
       ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
@@ -29,12 +30,13 @@ program
     
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: options.browser === false || options.backend === 'node-webaudio',
+      noBrowser: options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(options.sampleRate, 10),
       renderTo: options.renderTo,
       duration: options.duration ? parseFloat(options.duration) : undefined,
-      channels
+      channels,
+      verbose: options.verbose === true
     });
   });
 
@@ -53,13 +55,33 @@ program
           errors.push(`Channel ${ch.id} references unknown inst '${ch.inst}'`);
         }
         if (typeof ch.pat === 'string') {
-          errors.push(`Channel ${ch.id} references unknown pattern '${ch.pat}'`);
+          // Extract base sequence name (before any transforms like :oct(-1))
+          const baseSeqName = ch.pat.split(':')[0];
+          if (!ast.seqs || !ast.seqs[baseSeqName]) {
+            errors.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'`);
+          }
         }
       }
 
       for (const [name, pat] of Object.entries(ast.pats)) {
         if (!Array.isArray(pat) || pat.length === 0) {
           errors.push(`Pattern '${name}' is empty or malformed`);
+        }
+      }
+
+      // Validate sequences reference valid patterns
+      if (ast.seqs) {
+        for (const [seqName, patRefs] of Object.entries(ast.seqs)) {
+          if (!Array.isArray(patRefs) || patRefs.length === 0) {
+            errors.push(`Sequence '${seqName}' is empty or malformed`);
+          } else {
+            for (const patRef of patRefs) {
+              const basePatName = typeof patRef === 'string' ? patRef.split(':')[0] : patRef;
+              if (typeof basePatName === 'string' && !ast.pats[basePatName]) {
+                errors.push(`Sequence '${seqName}' references unknown pattern '${basePatName}'`);
+              }
+            }
+          }
         }
       }
 

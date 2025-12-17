@@ -1,9 +1,8 @@
 # Playback via CLI - Implementation Notes
 
-## Status: Partial Implementation (v0.3.0)
+## Status: Implemented
 
 ### Implemented
-- ✅ CLI version bumped to 0.3.0
 - ✅ CLI flags added: `--no-browser`, `--backend`, `--sample-rate`, `--render-to`, `--duration`
 - ✅ `createAudioContext()` factory function in playback.ts with dynamic import support
 - ✅ `PlayOptions` interface for typed options

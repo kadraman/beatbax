@@ -150,7 +150,11 @@ export async function playAudioBuffer(
     if (platform === 'win32') {
       // Windows: Use PowerShell with Media.SoundPlayer for synchronous playback
       cmd = 'powershell';
-      args = ['-Command', `(New-Object Media.SoundPlayer '${tempFile}').PlaySync()`];
+      args = [
+        '-Command',
+        '& { param([string]$p) (New-Object Media.SoundPlayer $p).PlaySync() }',
+        tempFile,
+      ];
     } else if (platform === 'darwin') {
       cmd = 'afplay';
       args = [tempFile];

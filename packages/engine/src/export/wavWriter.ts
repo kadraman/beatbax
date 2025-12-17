@@ -83,5 +83,5 @@ export async function exportWAV(samples: Float32Array, outputPath: string, opts:
   const { writeFileSync } = await import('fs');
   const wavBuffer = writeWAV(samples, opts);
   writeFileSync(outputPath, wavBuffer);
-  console.log(`✓ Exported WAV: ${outputPath} (${samples.length} samples, ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch)`);
+  console.log(`[OK] Exported WAV: ${outputPath} (${samples.length} samples, ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch)`);
 }

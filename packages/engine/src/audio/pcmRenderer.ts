@@ -1,4 +1,4 @@
-import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
+import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 
 /**
@@ -333,7 +333,7 @@ function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | '
   const stepDuration = env.period * (1 / 64); // ~15.6ms per period unit
   const currentStep = Math.floor(t / stepDuration);
   
-  let volume = env.initial;
+  let volume: number;
   if (env.direction === 'down') {
     volume = Math.max(0, env.initial - currentStep);
   } else {
