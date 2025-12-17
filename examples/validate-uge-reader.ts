@@ -20,7 +20,7 @@ let failed = 0;
 
 testFiles.forEach(({ path, expectedVersion }) => {
 	if (!existsSync(path)) {
-		console.log(`⚠️  SKIP: ${path} (file not found)`);
+		console.log(`[!] SKIP: ${path} (file not found)`);
 		return;
 	}
 
@@ -68,9 +68,9 @@ console.log(`❌ Failed: ${failed}`);
 console.log('');
 
 if (failed === 0) {
-	console.log('🎉 All validations passed!');
+	console.log('[OK] All validations passed!');
 	process.exit(0);
 } else {
-	console.log('⚠️  Some validations failed');
+	console.log('[!] Some validations failed');
 	process.exit(1);
 }

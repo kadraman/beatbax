@@ -21,9 +21,6 @@ pat bassline = C2 . G2 .
 
 channel 1 => inst lead pat melody
 channel 2 => inst bass pat bassline
-
-play
-export uge "mysong.uge"
 ```
 
 ### 2. Export to UGE
@@ -210,8 +207,6 @@ inst lead type=pulse1 duty=50 env=gb:12,down,1
 pat verse = C4 D4 E4 G4 E4 D4 C4 .
 
 channel 1 => inst lead pat verse
-
-export uge "melody.uge"
 ```
 
 ### Four-Channel Song
@@ -233,8 +228,6 @@ channel 1 => inst lead pat melody
 channel 2 => inst bass pat bassline
 channel 3 => inst arp pat arpeggios
 channel 4 => inst kick pat drums
-
-export uge "fullsong.uge"
 ```
 
 ## Resources

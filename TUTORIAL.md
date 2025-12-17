@@ -121,13 +121,13 @@ npm run cli:dev -- play songs\sample.bax
 1. Build the web UI bundle (TypeScript -> browser):
 
 ```powershell
-npm run build:web-ui
+npm run web-ui:build
 ```
 
 2. Run the web UI dev server and open it in a browser:
 
 ```powershell
-npm --prefix apps/web-ui run dev
+npm run web-ui:dev
 # open the URL shown by Vite (usually http://127.0.0.1:5173)
 ```
 

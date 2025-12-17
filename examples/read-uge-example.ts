@@ -78,4 +78,4 @@ song.wavetables.slice(0, 3).forEach((wave, i) => {
 });
 console.log('');
 
-console.log('✓ Example completed successfully!');
+console.log('[OK] Example completed successfully!');

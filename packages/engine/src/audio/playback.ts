@@ -15,6 +15,40 @@ export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
 export const parseEnvelope = pulseParseEnvelope;
 
+/**
+ * Create an AudioContext suitable for Node.js or browser environments.
+ * In Node.js, dynamically imports standardized-audio-context polyfill.
+ * In browser, uses native AudioContext.
+ */
+export async function createAudioContext(opts: { sampleRate?: number; offline?: boolean; duration?: number } = {}): Promise<any> {
+  // Browser path: use native AudioContext
+  if (typeof window !== 'undefined' && (globalThis as any).AudioContext) {
+    const Ctor = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+    if (opts.offline && opts.duration) {
+      const OfflineAudioContextCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
+      const sampleRate = opts.sampleRate ?? 44100;
+      const lengthInSamples = Math.ceil(opts.duration * sampleRate);
+      return new OfflineAudioContextCtor(2, lengthInSamples, sampleRate);
+    }
+    return new Ctor({ sampleRate: opts.sampleRate });
+  }
+  
+  // Node.js path: dynamically import standardized-audio-context polyfill
+  try {
+    const mod = await import('standardized-audio-context');
+    const { AudioContext, OfflineAudioContext } = mod;
+    if (opts.offline && opts.duration) {
+      const sampleRate = opts.sampleRate ?? 44100;
+      const lengthInSamples = Math.ceil(opts.duration * sampleRate);
+      return new OfflineAudioContext({ numberOfChannels: 2, length: lengthInSamples, sampleRate });
+    }
+    return new AudioContext({ sampleRate: opts.sampleRate ?? 44100 });
+  } catch (error: any) {
+    console.error('Error loading standardized-audio-context:', error);
+    throw new Error(`Failed to create AudioContext. Install standardized-audio-context for Node.js support: npm install standardized-audio-context (${error.message})`);
+  }
+}
+
 function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any) {
   return playPulseImpl(ctx, freq, duty, start, dur, inst, scheduler);
 }

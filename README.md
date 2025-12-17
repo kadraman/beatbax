@@ -2,26 +2,26 @@
 
 [![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Publish](https://github.com/kadraman/beatbax/actions/workflows/publish.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/publish.yml)
 
-BeatBax is a small live-coding language and toolchain for creating retro-console chiptunes.
-This repository contains an MVP implementation focused on the Nintendo Game Boy audio model.
+BeatBax is a live-coding language and toolchain for creating retro-console chiptunes.
+This repository contains an initial implementation focused on the Nintendo Game Boy (DMG-01) APU.
 
-This project is intentionally minimal and zero-dependency for the core parsing/scheduling/export tasks.
+## Features
+A concise feature summary:
 
-## Goals (MVP)
-- Live pattern playback (Day 2) ✅
-- Authentic 4-channel Game Boy sound model (pulse1, pulse2, wave, noise) ✅
-- JSON + MIDI + UGE export ✅
-- Deterministic tick scheduler ✅
+- Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
+- Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
+- Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
+- Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
+- CLI features: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
+- Extensible toolchain: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
 
-The strict Day 1 scope was:
-- Tokenize + parse the language
-- Build an AST and resolved song model
-- Export validated JSON
-- Unit tests for tokenizer and pattern expansion
+## Language examples
 
-This repository contains a Day 1-complete baseline: the tokenizer, parser, pattern expansion, a resolver that builds an Intermediate Song Model (ISM), and a validated JSON exporter. All core parsing and expansion behavior is covered by unit tests.
+Each "song" can be defined in a `.bax` file with the following a minimal example.
 
-## Quick examples (language)
+```
+# Set a top-level tempo instead of per-channel BPM
+bpm 140
 
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
 inst bass  type=pulse2 duty=25 env=gb:10,down,1
@@ -31,56 +31,44 @@ inst snare type=noise env=gb:12,down,1
 pat A = C5 E4 G4 C5
 pat B = C3 . G2 .
 
-# Set a top-level tempo instead of per-channel BPM
-bpm 140
-
 channel 1 => inst lead pat A
 channel 2 => inst bass pat B
 channel 3 => inst wave1 pat A:oct(-1)
 channel 4 => inst snare pat "x . x x"
 
 play
-export json "song.json"
-export midi "song.mid"
-export uge "song.uge"
-
-The language supports `inst` definitions, `pat` definitions (including repeats and groups), channel routing, octave/transpose modifiers, and simple commands (`play`, `export`).
-
-Recent additions (still Day‑1 scope — authoring & export):
-
-- Top-level `bpm` directive and per-channel `speed` multipliers: use `bpm 120` and `channel 2 => ... speed=2x` to run a channel at a multiple of the master tempo.
-- `hit(name,N)` shorthand and `name*4` percussion shorthand: useful for immediate repeated hits (also `inst(name,N)` will emit immediate hits when there are no following note events).
-- Resolver improvements: sequence references with modifiers (e.g. `seqName:oct(-1)`) are expanded correctly when channels reference sequences.
-- Demo UI: per-channel scheduling indicators and counters, and an effective-BPM display have been added to help debug timing and speed multipliers.
+```
 
 ## CLI
 
-The CLI provides commands for playback, validation, and export. The entrypoint is in `packages/cli/src/cli.ts` and compiles to `packages/cli/dist/cli.js` (the root `bin/beatbax` delegates to the packaged CLI in `packages/cli`).
+The CLI provides a number of different sub-commands and options. 
 
-Common commands (PowerShell examples):
+**Important:** On Windows, npm has limitations passing flag arguments through `npm run` scripts. Use direct commands or `bin\beatbax` wrapper instead:
 
+### Play Command Options
+
+The `play` command supports browser and headless playback with PCM rendering:
+
+- `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
+- `--headless` — Headless Node.js playback using multi-fallback audio system
+- `--render-to <file>` — Render to WAV file using PCM renderer (stereo, 44100Hz, 16-bit)
+- `--duration <seconds>` — Duration in seconds (default: auto-calculated from song length)
+- `--channels <1-4>` — Export specific Game Boy channel only (1=pulse1, 2=pulse2, 3=wave, 4=noise)
+- `--sample-rate <hz>` — Sample rate for rendering (default: 44100)
+
+The CLI uses a hybrid approach with cascading fallbacks:
+1. **speaker** module (optional, best performance if installed)
+2. **play-sound** wrapper (uses system players, works cross-platform)
+3. **PowerShell/afplay/aplay** direct system commands (most reliable fallback)
+
+Install optional dependencies for best audio quality:
 ```powershell
-# Play a song (launches WebAudio playback)
-npm run cli -- play songs\sample.bax
-
-# Verify/validate a song file
-npm run cli -- verify songs\sample.bax
-
-# Export to different formats
-npm run cli -- export json songs\sample.bax --out songs\output.json
-npm run cli -- export midi songs\sample.bax --out songs\output.mid
-npm run cli -- export uge songs\sample.bax --out songs\output.uge
+npm install --save-optional speaker play-sound
 ```
 
-During development you can run the TypeScript CLI directly:
+WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies. It implements all 4 Game Boy channels with envelope support, duty cycle control, wavetable playback, and LFSR-based noise generation. Output is stereo by default and closely matches browser WebAudio quality.
 
-```powershell
-npm run cli:dev -- play songs\sample.bax
-```
-
-`npm run cli` builds then runs the compiled `dist/` CLI; the build includes a post-build step that rewrites import specifiers so the compiled ESM output runs cleanly under Node.
-
-## Export
+### Export
 
 All three export formats are fully implemented and tested:
 
@@ -90,19 +78,96 @@ All three export formats are fully implemented and tested:
 
 The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a 4-track Standard MIDI File suitable for DAW import, mapping each Game Boy channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development.
 
+### Examples
+
+```powershell
+# Play with headless audio playback
+node bin/beatbax play songs/sample.bax --headless
+
+# Play with browser-based playback
+node bin/beatbax play songs/sample.bax --browser
+
+# Render to WAV file (offline export without playback)
+node bin/beatbax play songs/sample.bax --render-to output.wav
+
+# Render with explicit duration (auto-calculated by default)
+node bin/beatbax play songs/sample.bax --render-to output.wav --duration 30
+
+# Export individual channels for debugging
+node bin/beatbax play songs/sample.bax --render-to ch1.wav --channels 1
+
+# Verify/validate a song file
+node bin/beatbax verify songs/sample.bax
+
+# Export to different formats
+node bin/beatbax export json songs/sample.bax output.json
+node bin/beatbax export midi songs/sample.bax output.mid
+node bin/beatbax export uge songs/sample.bax output.uge
+```
 ## Project layout
 
- - `packages/*/src/` — TypeScript sources (packages: `engine`, `cli`, `web-ui`)
-   - `parser/` — tokenizer and parser (AST builder)
-   - `patterns/` — pattern expansion + transposition utilities
-   - `audio/` — Game Boy channel emulation and WebAudio playback engine
-   - `scheduler/` — deterministic tick scheduler
-   - `export/` — JSON/MIDI/UGE exporters
-   - `import/` — UGE reader for importing hUGETracker files
-   - `cli.ts`, `index.ts` — CLI and program entry
- - `tests/` — Jest unit tests (25 suites, 81 tests)
- - `songs/` — example .bax song files
- - `apps/web-ui/` — browser-based live editor and player
+```
+beatbax/
+├── packages/                    # Monorepo packages
+│   ├── engine/                  # Core BeatBax engine
+│   │   ├── src/
+│   │   │   ├── audio/           # WebAudio playback and PCM renderer
+│   │   │   ├── chips/           # Chip emulation (Game Boy APU)
+│   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
+│   │   │   ├── import/          # UGE file reader
+│   │   │   ├── instruments/     # Instrument state management
+│   │   │   ├── parser/          # Tokenizer and AST parser
+│   │   │   ├── patterns/        # Pattern expansion and transforms
+│   │   │   ├── scheduler/       # Deterministic tick scheduler
+│   │   │   ├── sequences/       # Sequence expansion
+│   │   │   ├── song/            # Song resolver and model
+│   │   │   └── index.ts         # Main engine entry point
+│   │   └── tests/               # Engine unit tests (25 suites)
+│   │
+│   └── cli/                     # Command-line interface
+│       ├── src/
+│       │   ├── cli.ts           # Main CLI implementation
+│       │   ├── cli-dev.ts       # Development CLI runner
+│       │   ├── cli-uge-inspect.ts  # UGE file inspector
+│       │   ├── nodeAudioPlayer.ts  # Node.js audio playback
+│       │   └── index.ts         # CLI exports
+│       └── tests/               # CLI integration tests
+│
+├── apps/                        # Frontend applications
+│   └── web-ui/                  # Browser-based live editor
+│       ├── src/                 # Vite + TypeScript UI
+│       ├── public/              # Static assets and songs
+│       └── scripts/             # Build preparation scripts
+│
+├── bin/                         # Executable wrappers
+│   └── beatbax                  # Main CLI entry point
+│
+├── scripts/                     # Build and tooling scripts
+│   ├── add-js-extensions.cjs    # ESM import fixer
+│   ├── check-dist.cjs           # Build validation
+│   ├── cli-wrapper.js           # CLI argument passthrough
+│   └── link-local-engine.cjs    # Local package linking
+│
+├── docs/                        # Documentation
+│   ├── features/                # Feature specifications
+│   │   ├── cli-audio-export.md
+│   │   ├── dynamic-chip-loading.md
+│   │   ├── effects-system.md
+│   │   ├── hot-reload.md
+│   │   ├── playback-via-cli.md
+│   │   ├── plugin-system.md
+│   │   └── ...
+│   ├── scheduler.md             # Scheduler API docs
+│   ├── uge-export-guide.md      # UGE export guide
+│   ├── uge-reader.md            # UGE import documentation
+│   ├── uge-v6-spec.md           # hUGETracker format spec
+│   └── wav-export-guide.md      # WAV export documentation
+│
+├── songs/                       # Example .bax song files
+├── examples/                    # Code examples and utilities
+├── demo/                        # Legacy demo files
+└── tmp/                         # Temporary build outputs
+```
 
 ## Development
 
@@ -110,24 +175,17 @@ Install dev deps and run tests:
 
 ```powershell
 npm install
+npm build
 npm test
 ```
 
-Build and run the CLI:
+Run the CLI:
 
 ```powershell
-npm run build
-npm run cli -- export json songs\sample.bax --out songs\output.json
+node bin/beatbax
 ```
 
-Fast dev run (recommended for iteration):
-
-```powershell
-# Fast, no-build iteration — uses `tsx` under the hood
-npm run cli:dev -- play songs\sample.bax
-```
-
-Run the web UI (local development):
+Run the Web UI:
 
 ```powershell
 # Development server (apps/web-ui uses Vite)
@@ -163,21 +221,6 @@ beatbax --help
 
 On Unix systems the `bin/beatbax` file is executable and contains a shebang so the command works after `npm link` or `npm install -g`.
 
-## Status / Roadmap
-
-Day 1 ✅: tokenizer, parser, AST, pattern expansion, validated JSON export, unit tests.
-
-Day 2 ✅: deterministic scheduler, WebAudio playback, and GB channel emulation (pulse oscillators, wavetable, noise). The WebAudio Player implementation lives in `packages/engine/src/audio/playback.ts` and the web UI (`apps/web-ui/`) exercises it.
-
-Day 3 ✅: MIDI export, UGE v6 export, CLI polish, per-channel controls (mute/solo), packaging.
-
-**All MVP goals completed!** The engine now supports:
-- Full JSON/MIDI/UGE export with validation
-- Deterministic playback with authentic Game Boy APU emulation
-- Per-channel mute and solo controls
-- CLI with play, verify, and export commands
-- ESM-first npm package with TypeScript declarations
-
 ## Contributing
 
 Contributions welcome. Open issues for features, and PRs against `main`. Keep changes small and include tests for parser/expansion behavior.
@@ -185,5 +228,3 @@ Contributions welcome. Open issues for features, and PRs against `main`. Keep ch
 ## License
 
 See `LICENSE` in this repository.
-
-For a short scheduler API example and notes, see `docs/scheduler.md`.

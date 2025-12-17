@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/cli",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "private": false,
   "type": "module",
   "main": "dist/cli.js",
@@ -14,7 +14,13 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.2.0",
-    "commander": "^10.0.0"
+    "@beatbax/engine": "^0.1.0",
+    "audio-play": "^2.3.1",
+    "commander": "^12.1.0",
+    "play-sound": "^1.1.6",
+    "standardized-audio-context": "^25.3.0"
+  },
+  "optionalDependencies": {
+    "speaker": "^0.5.5"
   }
 }

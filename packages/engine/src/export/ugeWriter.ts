@@ -446,7 +446,7 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
     // Write final binary
     const out = w.toBuffer();
     writeFileSync(outputPath, out);
-    console.log(`✓ Exported UGE v6 file: ${outputPath} (${out.length} bytes)`);
+    console.log(`[OK] Exported UGE v6 file: ${outputPath} (${out.length} bytes)`);
 }
 
 export default exportUGE;
