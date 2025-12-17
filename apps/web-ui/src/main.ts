@@ -9,6 +9,7 @@ const srcArea = document.getElementById('src') as HTMLTextAreaElement | null;
 const playBtn = document.getElementById('play') as HTMLButtonElement | null;
 const stopBtn = document.getElementById('stop') as HTMLButtonElement | null;
 const applyBtn = document.getElementById('apply') as HTMLButtonElement | null;
+const exportWavBtn = document.getElementById('exportWav') as HTMLButtonElement | null;
 const liveCheckbox = document.getElementById('live') as HTMLInputElement | null;
 const status = document.getElementById('status') as HTMLElement | null;
 const showHelpBtn = document.getElementById('showHelp') as HTMLButtonElement | null;
@@ -225,6 +226,137 @@ applyBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'Playing');
   } catch (e: any) { console.error(e); status && (status.textContent = 'Error: ' + (e && e.message ? e.message : String(e))); }
 });
+
+exportWavBtn?.addEventListener('click', async () => {
+  try {
+    status && (status.textContent = 'Rendering WAV...');
+    const src = srcArea ? srcArea.value : '';
+    const ast = parse(src);
+    const resolved = resolveSong(ast as any);
+    
+    // Calculate song duration
+    let maxTicks = 0;
+    for (const ch of resolved.channels || []) {
+      if (ch.events && ch.events.length > maxTicks) {
+        maxTicks = ch.events.length;
+      }
+    }
+    const bpm = (ast as any).bpm || 120;
+    const secondsPerBeat = 60 / bpm;
+    const tickSeconds = secondsPerBeat / 4;
+    const duration = Math.ceil(maxTicks * tickSeconds) + 1;
+    
+    // Create an offline context
+    const OfflineAudioContextCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
+    const sampleRate = 44100;
+    const lengthInSamples = Math.ceil(duration * sampleRate);
+    const offlineCtx = new OfflineAudioContextCtor(2, lengthInSamples, sampleRate);
+    
+    // Create a player
+    const offlinePlayer = new Player(offlineCtx, { buffered: false });
+    
+    // Manually process scheduler queue after playAST schedules events
+    const scheduler = (offlinePlayer as any).scheduler;
+    if (scheduler && scheduler.queue) {
+      // Override tick to process ALL events immediately
+      scheduler.tick = function() {
+        // Process all queued events regardless of time
+        while ((this as any).queue && (this as any).queue.length > 0) {
+          const ev = (this as any).queue.shift();
+          try { 
+            ev.fn(); 
+          } catch (e) { 
+            console.error('Scheduled function error', e); 
+          }
+        }
+      };
+    }
+    
+    // Play the AST (this schedules all events)
+    await offlinePlayer.playAST(resolved);
+    
+    // Force process all scheduled events
+    if (scheduler && typeof scheduler.tick === 'function') {
+      scheduler.tick();
+    }
+    
+    // Render to buffer
+    const audioBuffer = await offlineCtx.startRendering();
+    
+    // Convert to WAV
+    const wav = audioBufferToWav(audioBuffer);
+    const blob = new Blob([wav], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'beatbax-browser-export.wav';
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    status && (status.textContent = 'WAV exported!');
+  } catch (e: any) {
+    console.error('Export error:', e);
+    status && (status.textContent = 'Export error: ' + (e && e.message ? e.message : String(e)));
+  }
+});
+
+// Helper to convert AudioBuffer to WAV file
+function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  
+  const data = new Float32Array(buffer.length * numChannels);
+  for (let i = 0; i < buffer.length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      data[i * numChannels + ch] = buffer.getChannelData(ch)[i];
+    }
+  }
+  
+  const dataLength = data.length * bytesPerSample;
+  const headerLength = 44;
+  const totalLength = headerLength + dataLength;
+  
+  const arrayBuffer = new ArrayBuffer(totalLength);
+  const view = new DataView(arrayBuffer);
+  
+  // RIFF header
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, totalLength - 8, true);
+  writeString(view, 8, 'WAVE');
+  
+  // fmt chunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  
+  // data chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+  
+  let offset = 44;
+  for (let i = 0; i < data.length; i++) {
+    const sample = Math.max(-1, Math.min(1, data[i]));
+    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+    view.setInt16(offset, intSample, true);
+    offset += 2;
+  }
+  
+  return arrayBuffer;
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
 
 function debounce(fn: (...args: any[]) => void, wait = 300) {
   let t: any = null;

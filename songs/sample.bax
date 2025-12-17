@@ -25,7 +25,7 @@ bpm 120
 inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81   # Bright pulse lead, slightly wider duty (GM 81)
 inst leadB type=pulse2 duty=30 env=gb:7,down,1  gm=34   # Narrower pulse (used as temporary override) (GM 34)
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # Wavetable arpeggio voice (GM 82)
-inst sn    type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
+inst snare type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
 inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
 inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise channel
 

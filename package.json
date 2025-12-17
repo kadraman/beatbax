@@ -12,24 +12,25 @@
   "scripts": {
     "engine:build": "npm -w @beatbax/engine run build",
     "engine:test": "npm -w @beatbax/engine test",
+    "engine:dev": "npm -w @beatbax/engine run dev",
     "cli:build": "npm -w @beatbax/cli run build",
     "cli:test": "npm -w @beatbax/cli test",
-
+    "cli:dev": "npm -w @beatbax/cli run dev",
+    "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
+    "web-ui:build": "npm -w @beatbax/web-ui run build",
+    "web-ui:test": "npm -w @beatbax/web-ui test",
+    "web-ui:dev": "npm -w @beatbax/web-ui run dev",
+    
     "build": "npm run engine:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs",
     "prepublishOnly": "npm run build",
     "watch": "tsc --watch",
     "dev": "npm run engine:build && npm -w @beatbax/engine run dev",
-
-    "cli": "npm run cli:build && node packages/cli/dist/cli.js",
-    "cli:dev": "tsx packages/cli/src/cli.ts",
-    "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
-
+    "cli": "node scripts/cli-wrapper.js",
+    "cli:ensure": "npm run cli:build --if-present",
     "test": "npm run engine:test && npm run cli:test",
     "bin": "node bin/beatbax",
     "lint": "eslint . --ext .ts",
-    "format": "prettier --write .",
-    "build:web-ui": "npm --prefix apps/web-ui run build",
-    "build:site": "npm run engine:build && npm run build:web-ui"
+    "format": "prettier --write ."
   },
   "bin": {
     "beatbax": "bin/beatbax"

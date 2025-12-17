@@ -155,7 +155,7 @@ def generate_minimal_uge_v6(output_path):
         for i in range(16):
             write_string(f, "")
 
-    print(f"✓ Generated minimal valid UGE v6 file: {output_path}")
+    print(f"[OK] Generated minimal valid UGE v6 file: {output_path}")
     print(f"  File size: {open(output_path, 'rb').seek(0, 2)} bytes" if open(output_path, 'rb') else "")
 
 if __name__ == '__main__':

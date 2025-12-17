@@ -1,5 +1,17 @@
-import { exportJSON, exportMIDI } from './export/index.js';
-export declare function playFile(path: string): Promise<void>;
-export { exportJSON, exportMIDI };
+import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
+
+export interface PlayOptions {
+  noBrowser?: boolean;
+  browser?: boolean;
+  backend?: 'auto' | 'node-webaudio' | 'browser';
+  sampleRate?: number;
+  renderTo?: string;
+  duration?: number;
+  channels?: number[]; // Which GB channels to render (1-4)
+}
+
+export declare function playFile(path: string, options?: PlayOptions): Promise<void>;
+export { exportJSON, exportMIDI, exportWAV };
+export { renderSongToPCM } from './audio/pcmRenderer.js';
 export * from './import/index.js';
 //# sourceMappingURL=index.d.ts.map
