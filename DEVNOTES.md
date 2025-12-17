@@ -1,4 +1,4 @@
-# BeatBax — Developer Notes (MVP Complete)
+# BeatBax — Developer Notes
 
 This document captures architecture, implementation details, and testing notes for the completed MVP: a live-coding language targeting a Game Boy 4-channel sound model with deterministic scheduling, WebAudio playback, and multiple export formats.
 
@@ -137,6 +137,143 @@ All MVP deliverables are complete. These notes document the architecture for con
   before Jest runs. If you prefer faster local test runs during development, run `jest` directly
   (or `npm run test:fast` if you add such a script) — CI should keep the `pretest` step to avoid
   flaky failures caused by stale build artifacts.
+
+## CLI Audio Playback Implementation
+
+The CLI supports headless audio playback and WAV rendering without browser dependencies. This section documents the implementation architecture and algorithms.
+
+### Architecture Overview
+
+Two rendering paths coexist:
+
+1. **WebAudio Path** (Browser + `--browser` flag)
+   - Real-time scheduling using `TickScheduler` + WebAudio nodes
+   - Chip implementations: `pulse.ts`, `wave.ts`, `noise.ts`
+   - Uses `OscillatorNode`, `AudioBufferSourceNode`, `GainNode`
+   - Handles envelope automation via `AudioParam` scheduling
+
+2. **PCM Rendering Path** (CLI headless + `--render-to`)
+   - Direct sample generation without WebAudio dependency
+   - Implementation: `packages/engine/src/audio/pcmRenderer.ts`
+   - Outputs stereo Float32Array samples at 44100Hz (configurable)
+   - Used by both WAV export and real-time playback
+
+### PCM Renderer Algorithm (`pcmRenderer.ts`)
+
+The PCM renderer processes the Intermediate Song Model (ISM) and generates audio samples directly:
+
+```typescript
+function renderSongToPCM(song: SongModel, opts: RenderOptions): Float32Array {
+  // 1. Calculate duration from song events (auto-detect unless overridden)
+  const maxTicks = Math.max(...song.channels.map(ch => ch.events.length));
+  const duration = opts.duration ?? Math.ceil(maxTicks * tickSeconds) + 1;
+  
+  // 2. Allocate stereo output buffer
+  const buffer = new Float32Array(totalSamples * channels);
+  
+  // 3. Render each channel independently
+  for (const ch of song.channels) {
+    renderChannel(ch, song.insts, buffer, sampleRate, channels, tickSeconds);
+  }
+  
+  // 4. Normalize to prevent clipping
+  normalizeBuffer(buffer);
+  
+  return buffer;
+}
+```
+
+**Per-Channel Rendering:**
+- Iterates through event stream (notes, rests, instrument changes)
+- Resolves instrument state (default, inline swap, temporary override)
+- Dispatches to channel-specific renderer based on instrument type
+
+**Pulse Channel (`renderPulse`):**
+- Generates square wave with configurable duty cycle
+- Applies Game Boy envelope (initial volume, direction, period)
+- Amplitude: `square * envelopeValue * 0.6` (matches browser output)
+
+**Wave Channel (`renderWave`):**
+- Uses 16×4-bit wavetable (GB format: values 0-15)
+- Phase-accurate sample lookup with linear interpolation
+- Normalized to `[-1, 1]` range scaled by 0.6
+
+**Noise Channel (`renderNoise`):**
+- Implements Game Boy LFSR (Linear Feedback Shift Register)
+- Configurable: width (7/15-bit), divisor, shift frequency
+- LFSR frequency: `GB_CLOCK / (divisor * 2^(shift+1))`
+- Output: `(lfsr & 1) ? 1.0 : -1.0` scaled by envelope
+
+**Envelope Calculation:**
+```typescript
+function getEnvelopeValue(time: number, env: Envelope): number {
+  if (!env) return 1.0;
+  const GB_CLOCK = 4194304;
+  const stepPeriod = env.period * (65536 / GB_CLOCK); // ~0.0625s per step
+  const currentStep = Math.floor(time / stepPeriod);
+  
+  if (env.direction === 'down') {
+    return Math.max(0, (env.initial - currentStep)) / 15.0;
+  } else {
+    return Math.min(15, (env.initial + currentStep)) / 15.0;
+  }
+}
+```
+
+### Audio Playback System (`nodeAudioPlayer.ts`)
+
+For real-time headless playback, the CLI uses a multi-tier fallback system:
+
+**Tier 1: speaker module** (optional dependency)
+- Native streaming audio output
+- Best performance and lowest latency
+- Requires native compilation (node-gyp)
+- Falls back automatically if unavailable
+
+**Tier 2: play-sound** (optional dependency)
+- Cross-platform wrapper around system audio players
+- Creates temporary WAV file, invokes system player
+- Works on Windows, macOS, Linux without compilation
+- Currently used as primary playback method
+
+**Tier 3: Direct system commands** (built-in fallback)
+- Windows: PowerShell `Media.SoundPlayer.PlaySync()`
+- macOS: `afplay <file>`
+- Linux: `aplay <file>`
+- Most reliable fallback, always available
+
+**Algorithm:**
+```typescript
+export async function playAudioBuffer(
+  samples: Float32Array,
+  options: { channels: number; sampleRate: number }
+): Promise<void> {
+  try {
+    // Tier 1: Try speaker module (streaming)
+    const Speaker = await import('speaker');
+    // Write samples in chunks with backpressure handling
+    return streamToSpeaker(samples, options);
+  } catch {
+    try {
+      // Tier 2: Try play-sound (temp WAV + system player)
+      const player = (await import('play-sound')).default();
+      const tempFile = createTempWAV(samples, options);
+      return playViaSystem(player, tempFile);
+    } catch {
+      // Tier 3: Direct system command fallback
+      return playViaSystemCommand(samples, options);
+    }
+  }
+}
+```
+
+**WAV Buffer Generation:**
+- Converts Float32 samples to 16-bit signed PCM
+- Writes RIFF/WAVE header with format chunk
+- Interleaves channels for stereo output
+- Clamps samples to `[-1.0, 1.0]` range
+
+This architecture ensures audio works on all platforms without requiring native compilation, while providing optimal performance when native modules are available.
 
 ## Build / tooling note: `.js` import specifiers
 

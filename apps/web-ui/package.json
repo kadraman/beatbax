@@ -7,10 +7,11 @@
     "prepare-engine": "node scripts/prepare-engine.js",
     "dev": "npm run prepare-engine && vite",
     "build": "npm run prepare-engine && vite build",
+    "test": "echo \"No tests specified\" && exit 0",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.2.0"
+    "@beatbax/engine": "^0.1.0"
   }
   ,
   "devDependencies": {
