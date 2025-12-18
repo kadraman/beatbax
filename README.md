@@ -14,14 +14,25 @@ A concise feature summary:
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
 - CLI features: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
 - Extensible toolchain: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
+- User-friendly parser: flexible spacing around `*` operators, warnings for problematic pattern names
+- Flexible tempo control: `bpm` or `cps` (cycles per second) with per-channel speed multipliers
 
 ## Language examples
 
 Each "song" can be defined in a `.bax` file with the following a minimal example.
 
+### Tempo Control
+
+BeatBax supports two tempo specifications:
+
+- **BPM** (beats per minute): `bpm 120` — standard musical tempo
+- **CPS** (cycles per second): `cps 1.0` — for live-coding patterns
+
+The relationship: `1.0 cps ≈ 240 bpm` (since a cycle = 4 beats, 1 cycle/sec × 60 sec × 4 beats = 240 bpm)
+
 ```
-# Set a top-level tempo instead of per-channel BPM
-bpm 140
+# Set a top-level cycles per second of 1.0 - this equates to ~240bpm
+cps 1.0
 
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
 inst bass  type=pulse2 duty=25 env=gb:10,down,1
@@ -38,6 +49,27 @@ channel 4 => inst snare pat "x . x x"
 
 play
 ```
+
+### Parser Features
+
+The BeatBax parser is designed to be forgiving and helpful:
+
+**Flexible spacing around `*` operators:**
+All of these formats work correctly:
+```
+pat Fill = (C5 E5 G5 C6)*4      # No spaces
+pat Fill = (C5 E5 G5 C6) * 4    # Spaces around *
+pat Fill = (C5 E5 G5 C6)* 4     # Space after *
+```
+
+**Pattern name validation:**
+The parser warns if you use single-letter pattern names (A-G) that could be confused with note names:
+```
+pat E = C5 E5 G5 C6  # Warning: might be confused with note E
+pat Fill = C5 E5 G5 C6  # Better: descriptive name
+```
+
+See [`docs/parser-improvements.md`](docs/parser-improvements.md) for complete details.
 
 ## CLI
 

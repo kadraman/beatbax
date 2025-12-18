@@ -19,6 +19,11 @@ Scheduler & timing
 
 Tempo / speed additions
 - A top-level `bpm` directive is now supported in the parser (e.g. `bpm 120`).
+- A top-level `cps` (cycles per second) directive is also supported (e.g. `cps 1.0`).
+  - CPS to BPM conversion: `bpm = cps * 60 * stepsPerCycle` where `stepsPerCycle` defaults to 4
+  - Example: `cps 1.0` with 4 steps per cycle = 240 bpm
+  - `cps 0.5` = 120 bpm, `cps 2.0` = 480 bpm
+  - When both `bpm` and `cps` are specified, `bpm` takes precedence
 - Channels support a `speed` multiplier (e.g. `speed=2` or `speed=2x`) which multiplies the master BPM when channel-level `bpm` is not specified. The Player computes effective BPM for a channel as:
   - `channel.bpm` if present
   - otherwise `ast.bpm * channel.speed` if both exist
@@ -29,6 +34,12 @@ Playback helpers
 - `playPulse(ctx,freq,duty,start,dur,inst)` — creates an `OscillatorNode` with a generated `PeriodicWave` (pulse) and a `GainNode` for envelope. Falls back to `'square'` oscillator if `setPeriodicWave` fails in the environment.
 - `playWavetable(ctx,freq,table,start,dur,inst)` — builds a tiny `AudioBuffer` for one cycle (sampled at 8192 Hz) and uses a looping `AudioBufferSourceNode` with `playbackRate` tuned for frequency.
 - `playNoise(ctx,start,dur,inst)` — produces a deterministic noise buffer using an LFSR-like generator approximating Game Boy noise (width, divisor, shift configurable via `inst` props). It samples the LFSR to create an audio buffer and plays it as a one-shot buffer source.
+
+Parser improvements
+- **Space tolerance**: The parser normalizes spacing around `*` operators, so `(...)* 2`, `(...) *2`, and `(...) * 2` all work correctly. See `packages/engine/src/patterns/expand.ts` for the normalization logic.
+- **Pattern name validation**: Single-letter pattern names (A-G) trigger console warnings to prevent confusion with note names. This helps users avoid silent failures when a pattern reference is misinterpreted as a note token.
+- **Testing**: `tests/parser-space-tolerance.test.ts` covers all spacing variations and pattern name validation scenarios.
+- **Documentation**: See `docs/parser-improvements.md` for complete details, examples, and best practices.
 
 Instrument semantics
 - Channel default instrument: set by `channel N => inst name ...`.
@@ -61,10 +72,11 @@ Developer tips
 
 Files of interest (quick map)
 - `src/audio/playback.ts` — Player, Scheduler, playPulse/playWavetable/playNoise and helpers.
-- `src/parser/index.ts` — parsing, pattern modifiers, channel resolution.
-- `src/patterns/expand.ts` — expandPattern, transposePattern.
+- `src/parser/index.ts` — parsing, pattern modifiers, channel resolution, pattern name validation.
+- `src/patterns/expand.ts` — expandPattern with space normalization, transposePattern.
 - `apps/web-ui/src/main.ts` — web UI entry (adapted from the legacy demo boot script).
-- `tests/` — parser tests, tokenizer tests, and playback tests.
+- `tests/` — parser tests, tokenizer tests, playback tests, and parser-space-tolerance tests.
+- `docs/parser-improvements.md` — complete documentation of parser improvements.
 
 ## Export Formats
 

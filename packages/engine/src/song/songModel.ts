@@ -36,6 +36,7 @@ export interface SongModel {
   insts: Record<string, Record<string, string>>;
   seqs: Record<string, string[]>;
   channels: ChannelModel[];
+  ast?: any; // Reference to original AST for export metadata
 }
 
 export default SongModel;

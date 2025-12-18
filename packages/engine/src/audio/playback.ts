@@ -80,6 +80,16 @@ export class Player {
   }
 
   async playAST(ast: AST) {
+    // Debug logging to see what's being passed - V2
+    console.log('[Player.playAST v2] Received AST with:', {
+      cps: (ast as any).cps,
+      bpm: (ast as any).bpm,
+      stepsPerCycle: (ast as any).stepsPerCycle,
+      hasChannels: !!(ast.channels),
+      channelCount: ast.channels?.length,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       if (this.ctx && typeof (this.ctx as any).resume === 'function') {
         try {
@@ -99,11 +109,14 @@ export class Player {
       const tokens: any[] = Array.isArray(ch.pat) ? ch.pat : ['.'];
       let tempInst: any = null;
       let tempRemaining = 0;
-      let bpm: number;
-      if (typeof (ch as any).speed === 'number' && ast && typeof ast.bpm === 'number') bpm = ast.bpm * (ch as any).speed;
-      else bpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : this.bpmDefault;
-      const secondsPerBeat = 60 / bpm;
-      const tickSeconds = secondsPerBeat / 4;
+      
+      // Calculate timing using CPS (cycles per second) or BPM (backward compat)
+      const cps = ast.cps ?? ((ast.bpm ?? this.bpmDefault) / 60 / 4);
+      const stepsPerCycle = ast.stepsPerCycle ?? 4;
+      console.log('[Player.playAST] Using CPS:', cps, 'stepsPerCycle:', stepsPerCycle, 'tickSeconds:', (1 / cps) / stepsPerCycle);
+      const baseCps = typeof (ch as any).speed === 'number' ? cps * (ch as any).speed : cps;
+      const secondsPerCycle = 1 / baseCps;
+      const tickSeconds = secondsPerCycle / stepsPerCycle;
 
       const startTime = this.ctx.currentTime + 0.1;
       for (let i = 0; i < tokens.length; i++) {

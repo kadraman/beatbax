@@ -10,19 +10,22 @@ export interface RenderOptions {
   sampleRate?: number;
   duration?: number; // in seconds
   channels?: 1 | 2;
-  bpm?: number;
+  cps?: number; // cycles per second (TidalCycles-style)
+  bpm?: number; // backward compatibility
+  stepsPerCycle?: number; // default 4
   renderChannels?: number[]; // Which GB channels to render (1-4), default all
 }
 
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
-  const bpm = opts.bpm ?? 120;
   const renderChannels = opts.renderChannels ?? [1, 2, 3, 4];
   
-  // Calculate duration from song events
-  const secondsPerBeat = 60 / bpm;
-  const tickSeconds = secondsPerBeat / 4;
+  // Calculate duration from song events using CPS (with BPM fallback)
+  const cps = opts.cps ?? ((opts.bpm ?? 120) / 60 / 4);
+  const stepsPerCycle = opts.stepsPerCycle ?? 4;
+  const secondsPerCycle = 1 / cps;
+  const tickSeconds = secondsPerCycle / stepsPerCycle;
   
   let maxTicks = 0;
   for (const ch of song.channels) {

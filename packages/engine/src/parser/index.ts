@@ -15,6 +15,14 @@ export function parse(source: string): AST {
   const channels: ChannelNode[] = [];
   let topBpm: number | undefined = undefined;
 
+  // Validation helper: warn about problematic pattern names
+  const warnProblematicPatternName = (name: string): void => {
+    // Single-letter pattern names (especially A-G) can be confused with notes
+    if (/^[A-Ga-g]$/.test(name)) {
+      console.warn(`[BeatBax Parser] Warning: Pattern name '${name}' is a single letter (A-G) which may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name.toUpperCase()}1'.`);
+    }
+  };
+
   // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
   const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
   let m: RegExpExecArray | null;
@@ -31,6 +39,9 @@ export function parse(source: string): AST {
     const parts = nameSpec.split(':');
     const baseName = parts[0];
     const mods = parts.slice(1);
+
+    // Warn about potentially problematic pattern names
+    warnProblematicPatternName(baseName);
 
     try {
       let expanded = expandPattern(rhs);
@@ -236,11 +247,34 @@ export function parse(source: string): AST {
     channels.push(ch);
   }
 
-  // Parse top-level bpm directive: `bpm 160` or `bpm=160`
+  // Parse top-level cps directive: `cps 0.5` or `cps=0.5`
+  let topCps: number | undefined = undefined;
+  const reCps = /^\s*cps\s*(?:=)?\s*([\d.]+)$/gim;
+  while ((m = reCps.exec(source)) !== null) {
+    const n = parseFloat(m[1]);
+    if (!isNaN(n) && n > 0) topCps = n;
+  }
+
+  // Parse top-level stepsPerCycle directive: `stepsPerCycle 16` or `stepsPerCycle=16`
+  let topStepsPerCycle: number | undefined = undefined;
+  const reSteps = /^\s*stepsPerCycle\s*(?:=)?\s*(\d+)$/gim;
+  while ((m = reSteps.exec(source)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (!isNaN(n) && n > 0) topStepsPerCycle = n;
+  }
+  // Default to 4 steps per cycle if not specified
+  if (topStepsPerCycle === undefined) topStepsPerCycle = 4;
+
+  // Parse top-level bpm directive: `bpm 160` or `bpm=160` (backward compatibility)
   const reBpm = /^\s*bpm\s*(?:=)?\s*(\d+)$/gim;
   while ((m = reBpm.exec(source)) !== null) {
     const n = parseInt(m[1], 10);
     if (!isNaN(n)) topBpm = n;
+  }
+
+  // Convert bpm to cps if only bpm is provided (backward compatibility)
+  if (!topCps && topBpm) {
+    topCps = (topBpm / 60) / 4; // BPM / 60 / 4 = cycles per second
   }
 
   // Parse top-level chip directive: `chip gameboy` or `chip=gameboy`
@@ -250,7 +284,7 @@ export function parse(source: string): AST {
     chipName = m[1];
   }
 
-  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName };
+  return { pats, insts, seqs, channels, cps: topCps, bpm: topBpm, stepsPerCycle: topStepsPerCycle, chip: chipName };
 }
 
 export default {

@@ -75,8 +75,17 @@ export function midiToNote(n: number): string {
  *  item := group ('*' number)? | token ('*' number)?
  *  group := '(' pattern ')'
  *  token := NOTE | '.' | IDENT
+ * 
+ * NOTE: Spaces around '*' are automatically normalized, so both
+ * `(...)* 2`, `(...) *2`, and `(...) * 2` work correctly.
  */
 export function expandPattern(text: string): string[] {
+  // Normalize spaces around '*' to make parsing more forgiving
+  // This handles: "(...) * 2", "(...) *2", "(...)* 2" -> "(...)*2"
+  text = text.replace(/\)\s*\*\s*(\d+)/g, ')*$1');
+  // Also normalize for inline tokens: "C4 * 3" -> "C4*3"
+  text = text.replace(/([^\s\(\)])\s*\*\s*(\d+)/g, '$1*$2');
+  
   // Tokenize by spaces but keep parentheses and *number attached
   const tokens: string[] = [];
   let i = 0;
@@ -95,7 +104,7 @@ export function expandPattern(text: string): string[] {
         j++;
       }
       const group = text.slice(i + 1, j - 1);
-      // check for *N
+      // check for *N (should be normalized by now)
       let k = j;
       let repeat = 1;
       if (text[k] === '*') {

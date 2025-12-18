@@ -19,7 +19,9 @@ export interface AST {
   insts: InstMap;
   seqs: SeqMap;
   channels: ChannelNode[];
-  bpm?: number;
+  cps?: number;           // cycles per second (TidalCycles-style)
+  bpm?: number;           // backward compatibility
+  stepsPerCycle?: number; // steps per cycle (default 4)
   chip?: string;
 }
 

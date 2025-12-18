@@ -33,22 +33,57 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 - `:slow(N)` — repeat each token N times (default 2)
 - `:fast(N)` — take every Nth token (default 2)
 
+**Pattern Syntax (Flexible)**
+
+The parser accepts flexible spacing around repetition operators:
+```
+# All of these work identically:
+pat Fill = (C5 E5 G5 C6)*4
+pat Fill = (C5 E5 G5 C6) * 4
+pat Fill = (C5 E5 G5 C6)* 4
+pat Fill = (C5 E5 G5 C6) *4
+```
+
+**Pattern Naming Best Practices:**
+- Avoid single-letter names (A-G) that match note names
+- Use descriptive names: `Fill`, `Intro`, `Verse`, `Bass1`
+- Single letters outside A-G (like `X`, `Y`, `Z`) are fine
+- The parser will warn if you use problematic names
+
 **Tempo & Per-Channel Speed**
 
-- Set a master tempo with a top-level directive: `bpm 120` or `bpm=120`.
-- Per-channel multipliers: use `speed=2` or `speed=2x` on a channel to play
-  that channel at a multiple of the master BPM. Example: `speed=2x` plays
-  twice as fast as the master tempo.
+BeatBax supports two tempo specifications:
+
+**1. BPM (Beats Per Minute)** — Standard musical tempo:
+```
+bpm 120
+```
+
+**2. CPS (Cycles Per Second)** — Live-coding friendly tempo:
+```
+cps 1.0
+```
+
+**Relationship:** `1.0 cps ≈ 240 bpm`
+- A "cycle" is typically 4 beats
+- 1 cycle/second × 60 seconds/minute × 4 beats/cycle = 240 bpm
+- `cps 0.5` ≈ 120 bpm (half speed)
+- `cps 2.0` ≈ 480 bpm (double speed)
+
+**Per-channel speed multipliers:**
+- Use `speed=2` or `speed=2x` on a channel to play at a multiple of the master tempo
+- Example: `speed=2x` plays twice as fast as the master
+- Works with both `bpm` and `cps` settings
 
 Example:
 ```
-# Use master tempo 120 BPM
-bpm 120
+# Set a top-level cycles per second of 1.0 (~240bpm)
+cps 1.0
 
-# Channel 1 uses master BPM (120)
+# Channel 1 uses master tempo
 channel 1 => inst leadA seq lead
 
-# Channel 2 runs twice as fast (240 BPM effective) using a speed multiplier
+# Channel 2 runs twice as fast using a speed multiplier
 channel 2 => inst leadB seq bass speed=2x
 ```
 

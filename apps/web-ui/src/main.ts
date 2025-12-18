@@ -173,14 +173,22 @@ playBtn?.addEventListener('click', async () => {
     };
     attachScheduleHook(player);
     renderChannelControls(ast);
-    console.log('[web-ui] calling player.playAST');
+    console.log('[web-ui] calling player.playAST with cps=', ast.cps, 'bpm=', ast.bpm);
     if ((resolved as any).channels && (resolved as any).channels.length > 0) {
-      await player.playAST(resolved as any);
+      // Merge AST tempo properties into resolved song for playAST
+      const playbackData = { 
+        ...resolved, 
+        cps: ast.cps, 
+        bpm: ast.bpm, 
+        stepsPerCycle: ast.stepsPerCycle,
+        chip: ast.chip 
+      };
+      await player.playAST(playbackData as any);
     } else {
       console.warn('[web-ui] resolved ISM contains no channels — using fallback test AST to verify audio');
       const testAst: any = {
         chip: 'gameboy',
-        bpm: 120,
+        cps: 0.5,
         insts: { test: { type: 'pulse1', duty: 50, env: 'gb:12,down,1' } },
         channels: [{ id: 1, inst: 'test', pat: ['C5', '.', '.', '.'] }]
       };
@@ -221,8 +229,15 @@ applyBtn?.addEventListener('click', async () => {
     } catch (e) { console.warn('resume failed during apply', e); }
     attachScheduleHook(player);
     const resolved = resolveSong(ast as any);
-    console.log('[web-ui] apply: calling player.playAST');
-    await player.playAST(resolved as any);
+    // Merge AST tempo properties into resolved song for playAST (only if defined)
+    const playbackData: any = { ...resolved };
+    if (ast.cps !== undefined) playbackData.cps = ast.cps;
+    if (ast.bpm !== undefined) playbackData.bpm = ast.bpm;
+    if (ast.stepsPerCycle !== undefined) playbackData.stepsPerCycle = ast.stepsPerCycle;
+    if (ast.chip !== undefined) playbackData.chip = ast.chip;
+    
+    console.log('[web-ui] calling player.playAST with cps=', ast.cps, 'bpm=', ast.bpm, 'stepsPerCycle=', ast.stepsPerCycle);
+    await player.playAST(playbackData);
     status && (status.textContent = 'Playing');
   } catch (e: any) { console.error(e); status && (status.textContent = 'Error: ' + (e && e.message ? e.message : String(e))); }
 });
@@ -241,9 +256,11 @@ exportWavBtn?.addEventListener('click', async () => {
         maxTicks = ch.events.length;
       }
     }
-    const bpm = (ast as any).bpm || 120;
-    const secondsPerBeat = 60 / bpm;
-    const tickSeconds = secondsPerBeat / 4;
+    // Use CPS (cycles per second) with BPM fallback
+    const cps = (ast as any).cps ?? (((ast as any).bpm ?? 120) / 60 / 4);
+    const stepsPerCycle = (ast as any).stepsPerCycle ?? 4;
+    const secondsPerCycle = 1 / cps;
+    const tickSeconds = secondsPerCycle / stepsPerCycle;
     const duration = Math.ceil(maxTicks * tickSeconds) + 1;
     
     // Create an offline context
@@ -272,8 +289,15 @@ exportWavBtn?.addEventListener('click', async () => {
       };
     }
     
+    // Merge AST tempo properties into resolved song (same as Play button, only if defined)
+    const playbackData: any = { ...resolved };
+    if (ast.cps !== undefined) playbackData.cps = ast.cps;
+    if (ast.bpm !== undefined) playbackData.bpm = ast.bpm;
+    if (ast.stepsPerCycle !== undefined) playbackData.stepsPerCycle = ast.stepsPerCycle;
+    if (ast.chip !== undefined) playbackData.chip = ast.chip;
+    
     // Play the AST (this schedules all events)
-    await offlinePlayer.playAST(resolved);
+    await offlinePlayer.playAST(playbackData);
     
     // Force process all scheduled events
     if (scheduler && typeof scheduler.tick === 'function') {

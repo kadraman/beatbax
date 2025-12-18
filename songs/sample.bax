@@ -4,7 +4,8 @@
 
 chip gameboy
 
-bpm 120
+#bpm 240
+cps 1.0
 
 # -----------------------------------------------------------------------------
 # Instruments
@@ -42,7 +43,7 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 pat A      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat A_alt  = (. C5 . C5 . G5 . G5 .) * 2
+pat A_alt  = (. C5 . C5 . G5 . G5) * 2
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat B      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
@@ -53,8 +54,8 @@ pat C      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 # Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
 pat P      = . . snare . . hihat . . . snare . . . . . .
 
-# Short melodic fill used between phrases (16 tokens).
-pat E      = (C5 E5 G5 C6) * 4
+# Short melodic fill used between phrases (16 tokens).  
+pat Fill   = (C5 E5 G5 C6) * 4
 
 # -----------------------------------------------------------------------------
 # New shorthand examples
@@ -80,13 +81,13 @@ pat P2     = snare . . . snare . . . hihat . . . . . . .
 # lets you modify/loop them separately in the tracker or live UI.
 
 # Lead sequence (primary melody)
-seq lead = A A_alt E A
+seq lead = A A_alt Fill A
 
 # Bass sequence (low-end walking bass)
 seq bass = B B B B
 
 # Wave sequence (wavetable arpeggios)
-seq wave = C C C
+seq wave = C C C C
 
 # Drums/percussion sequence
 seq drums = P P2 P P
