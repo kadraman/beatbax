@@ -11,8 +11,13 @@ program
 program
   .command('play')
   .argument('<file>')
-  .action(async (file) => {
-    await playFile(file);
+  .option('--headless', 'Use Node.js audio playback')
+  .option('--browser', 'Use browser-based playback')
+  .action(async (file, options) => {
+    await playFile(file, {
+      noBrowser: options.headless === true,
+      browser: options.browser === true
+    });
   });
 
 program.parse();

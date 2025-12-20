@@ -11,7 +11,7 @@ Create a `.bax` file with your song:
 
 ```
 chip gameboy
-bpm 120
+bpm 128
 
 inst lead type=pulse1 duty=50 env=gb:12,down,1
 inst bass type=pulse2 duty=25 env=gb:10,down,1

@@ -79,7 +79,7 @@ SYNTAX BASELINE
 
 chip gameboy
 
-bpm 120
+bpm 128
 time 4
 
 inst lead  type=pulse1 duty=50 env=12,down

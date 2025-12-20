@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "clean": "rimraf dist",
     "prepare-engine": "node scripts/prepare-engine.js",
     "dev": "npm run prepare-engine && vite",
+    "dev:clean": "npm run prepare-engine && vite --force",
     "build": "npm run prepare-engine && vite build",
     "test": "echo \"No tests specified\" && exit 0",
     "preview": "vite preview"

@@ -64,7 +64,7 @@ function playNoise(ctx: any, start: number, dur: number, inst: any, scheduler?: 
 export class Player {
   private ctx: AudioContext;
   private scheduler: TickScheduler;
-  private bpmDefault = 120;
+  private bpmDefault = 128;
   private activeNodes: Array<{ node: any; chId: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;

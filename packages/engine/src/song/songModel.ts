@@ -36,6 +36,7 @@ export interface SongModel {
   insts: Record<string, Record<string, string>>;
   seqs: Record<string, string[]>;
   channels: ChannelModel[];
+  bpm?: number;
 }
 
 export default SongModel;

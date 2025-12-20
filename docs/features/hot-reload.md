@@ -462,7 +462,7 @@ test('updates pattern without audio glitch', async () => {
   const manager = new HotReloadManager(player);
   
   await manager.update(`
-    bpm 120
+    bpm 128
     inst lead type=pulse1 duty=50
     pat A = C4 C4 C4 C4
     channel 1 => inst lead pat A
@@ -472,7 +472,7 @@ test('updates pattern without audio glitch', async () => {
   // Simulate edit after 2 seconds
   setTimeout(async () => {
     await manager.update(`
-      bpm 120
+      bpm 128
       inst lead type=pulse1 duty=50
       pat A = E4 E4 E4 E4
       channel 1 => inst lead pat A
