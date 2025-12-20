@@ -35,8 +35,7 @@ program
       sampleRate: parseInt(options.sampleRate, 10),
       renderTo: options.renderTo,
       duration: options.duration ? parseFloat(options.duration) : undefined,
-      channels,
-      verbose: options.verbose === true
+      channels
     });
   });
 

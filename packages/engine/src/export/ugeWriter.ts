@@ -106,10 +106,29 @@ class UGEWriter {
     }
 
     /**
+     * Write instrument subpattern cell: 17 bytes
+     * Note(u32) + Unused(u32) + JumpCommand(u32) + EffectCode(u32) + EffectParams(u8)
+     */
+    writeInstrumentSubpatternCell(note: number, jumpCommand: number, effectCode: number, effectParam: number): void {
+        this.writeU32(note);
+        this.writeU32(0); // unused
+        this.writeU32(jumpCommand);
+        this.writeU32(effectCode);
+        this.writeU8(effectParam);
+    }
+
+    /**
      * Write empty pattern cell (rest)
      */
     writeEmptyCell(): void {
         this.writePatternCell(EMPTY_NOTE, 0, 0, 0);
+    }
+
+    /**
+     * Write empty instrument subpattern cell
+     */
+    writeEmptyInstrumentCell(): void {
+        this.writeInstrumentSubpatternCell(EMPTY_NOTE, 0, 0, 0);
     }
 
     toBuffer(): Buffer {
@@ -414,8 +433,7 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
         }
     }
 
-    // ====== Patterns per channel ======
-    const orders: number[] = [];
+    // ====== Build patterns per channel ======
     const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number }>>> = [];
 
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
@@ -423,30 +441,79 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
         const chEvents = (chModel && chModel.events) || [];
         const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel);
         channelPatterns.push(patterns);
-        // build order list: simply 0..(patterns.length-1)
-        orders.push(0);
     }
 
-    // Write order length and orders (minimal)
-    w.writeU32(1);
-    w.writeU32(0);
+    // ====== Song Patterns Section ======
+    // Calculate ticks per row from BPM
+    // hUGETracker uses a Game Boy timer-based system where lower ticks = faster tempo
+    // Formula: BPM = 896 / ticksPerRow (derived from hUGETracker behavior)
+    // Examples: 4 ticks/row ≈ 224 BPM, 7 ticks/row ≈ 128 BPM, 8 ticks/row ≈ 112 BPM
+    // Note: Due to integer tick constraints, exact BPM matching is not always possible
+    // Default: 128 BPM (7 ticks/row) provides exact timing alignment
+    const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
+    const ticksPerRow = Math.max(1, Math.round(896 / bpm));
+    
+    w.writeU32(ticksPerRow); // Initial ticks per row
+    w.writeBool(false); // Timer based tempo enabled (v6)
+    w.writeU32(0); // Timer based tempo divider (v6)
 
-    // Write number of unique patterns and pattern data (concatenate per channel)
-    // For simplicity assume each channel has its own pattern bank
+    // Count total patterns across all channels
+    const allPatterns: Array<{ channelIndex: number; patternIndex: number; cells: Array<{ note: number; instrument: number; effectCode: number; effectParam: number }> }> = [];
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         const patterns = channelPatterns[ch];
-        w.writeU32(patterns.length);
-        for (const pat of patterns) {
-            for (const cell of pat) {
-                w.writePatternCell(cell.note, cell.instrument, cell.effectCode, cell.effectParam);
-            }
+        for (let pi = 0; pi < patterns.length; pi++) {
+            allPatterns.push({
+                channelIndex: ch,
+                patternIndex: pi,
+                cells: patterns[pi],
+            });
         }
+    }
+
+    // Write number of patterns
+    w.writeU32(allPatterns.length);
+
+    // Write pattern data
+    for (let i = 0; i < allPatterns.length; i++) {
+        w.writeU32(i); // Pattern index
+        const pattern = allPatterns[i];
+        for (const cell of pattern.cells) {
+            w.writePatternCell(cell.note, cell.instrument, cell.effectCode, cell.effectParam);
+        }
+    }
+
+    // ====== Song Orders Section ======
+    // Write order lists for 4 channels (Duty1, Duty2, Wave, Noise)
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const patterns = channelPatterns[ch];
+        const orderLength = patterns.length;
+        
+        // Write order length + 1 (off-by-one per UGE spec)
+        w.writeU32(orderLength + 1);
+        
+        // Write order indices (0, 1, 2, ... orderLength-1)
+        let patternIndexOffset = 0;
+        for (let prevCh = 0; prevCh < ch; prevCh++) {
+            patternIndexOffset += channelPatterns[prevCh].length;
+        }
+        for (let i = 0; i < orderLength; i++) {
+            w.writeU32(patternIndexOffset + i);
+        }
+        
+        // Write off-by-one filler
+        w.writeU32(0);
+    }
+
+    // ====== Routines Section ======
+    // Write 16 empty routine strings
+    for (let i = 0; i < NUM_ROUTINES; i++) {
+        w.writeString('');
     }
 
     // Write final binary
     const out = w.toBuffer();
     writeFileSync(outputPath, out);
-    console.log(`[OK] Exported UGE v6 file: ${outputPath} (${out.length} bytes)`);
+    console.log(`[OK] Exported UGE v6 file: ${outputPath} (${out.length} bytes, ${ticksPerRow} ticks/row @ ${bpm} BPM)`);
 }
 
 export default exportUGE;

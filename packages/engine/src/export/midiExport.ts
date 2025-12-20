@@ -81,7 +81,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string) {
 	// Basic SMF parameters
 	const ticksPerQuarter = 480; // PPQ
 	const ticksPerToken = Math.floor(ticksPerQuarter / 4); // assume token = 16th note
-	const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 120;
+	const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
 
 	// Build header: format 1, N tracks = channels.length (clamped to 16)
 	const channels = Array.isArray(song.channels) ? song.channels : [];

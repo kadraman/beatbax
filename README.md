@@ -21,7 +21,7 @@ Each "song" can be defined in a `.bax` file with the following a minimal example
 
 ```
 # Set a top-level tempo instead of per-channel BPM
-bpm 140
+bpm 128
 
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
 inst bass  type=pulse2 duty=25 env=gb:10,down,1
@@ -171,25 +171,25 @@ beatbax/
 
 ## Development
 
-Install dev deps and run tests:
+Install dependencies and run tests:
 
 ```powershell
 npm install
-npm build
+npm run clean-all
+npm run build-all
 npm test
 ```
 
-Run the CLI:
+Run the CLI and play the sample song:
 
 ```powershell
-node bin/beatbax
+npm run cli:dev
 ```
 
-Run the Web UI:
+Run the Web UI and load the sample song:
 
 ```powershell
-# Development server (apps/web-ui uses Vite)
-npm --prefix apps/web-ui run dev
+npm run web-ui:dev
 ```
 
 Then browse to `http://localhost:5173` (Vite default) or the URL shown by the dev server.
@@ -200,7 +200,7 @@ To use the project CLI globally during local development, create a local symlink
 
 ```powershell
 # build packages first
-npm run build
+npm run build-all
 
 # Create a global symlink to the root package's bin stub
 npm link

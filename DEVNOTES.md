@@ -18,7 +18,7 @@ Scheduler & timing
 - Timing unit: the parser resolves BPM per channel; tick resolution is a 16th note (tickSeconds = (60 / bpm) / 4). Each token occupies one tick. Start times are scheduled relative to `AudioContext.currentTime + 0.1`.
 
 Tempo / speed additions
-- A top-level `bpm` directive is now supported in the parser (e.g. `bpm 120`).
+- A top-level `bpm` directive is now supported in the parser (e.g. `bpm 128`).
 - Channels support a `speed` multiplier (e.g. `speed=2` or `speed=2x`) which multiplies the master BPM when channel-level `bpm` is not specified. The Player computes effective BPM for a channel as:
   - `channel.bpm` if present
   - otherwise `ast.bpm * channel.speed` if both exist

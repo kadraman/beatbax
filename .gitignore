@@ -148,3 +148,9 @@ tests/*.js
 /apps/web-ui/dist/
 /apps/web-ui/public/engine/
 /apps/web-ui/public/songs/
+
+# sample source code
+lib
+
+# output files
+output.*
