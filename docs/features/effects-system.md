@@ -39,25 +39,25 @@ Add a comprehensive effects system to BeatBax that enables expressive performanc
 
 ```bax
 # Effect syntax: note<effect:param>
-pat A = C4<vib:4> E4 G4<port:E5> C5<vol:-2>
+pat melody = C4<vib:4> E4 G4<port:E5> C5<vol:-2>
 
 # Multiple effects: note<effect1:param1,effect2:param2>
-pat B = C4<vib:4,vol:+1> E4<arp:047> G4
+pat bass_pat = C4<vib:4,vol:+1> E4<arp:047> G4
 ```
 
 ### Pattern-Level Effect Modifiers
 
 ```bax
 # Apply effect to all notes in pattern
-pat A = C4 E4 G4 C5
-pat B = A:vib(4)        # All notes vibrato at speed 4
-pat C = A:slide(2)      # All notes volume slide -2 per tick
+pat melody = C4 E4 G4 C5
+pat melody_vib = melody:vib(4)        # All notes vibrato at speed 4
+pat melody_slide = melody:slide(2)      # All notes volume slide -2 per tick
 ```
 
 ### Sequence-Level Effect Application
 
 ```bax
-seq main = A B:vib(3) A:port C
+seq main = melody melody_vib melody:port melody_slide
 channel 1 => inst lead seq main
 ```
 
@@ -69,11 +69,11 @@ Periodic pitch modulation (LFO on frequency).
 
 ```bax
 # Syntax: vib:depth or vib:depth,speed
-pat A = C4<vib:4>       # Vibrato depth 4, default speed
-pat B = C4<vib:4,8>     # Vibrato depth 4, speed 8
+pat melody = C4<vib:4>       # Vibrato depth 4, default speed
+pat melody_fast = C4<vib:4,8>     # Vibrato depth 4, speed 8
 
 # Pattern modifier
-pat C = A:vib(4)        # Apply to all notes
+pat melody_vib = melody:vib(4)        # Apply to all notes
 ```
 
 **Parameters:**
@@ -115,11 +115,11 @@ Smooth pitch glide from one note to another.
 
 ```bax
 # Syntax: port:targetNote or port:targetNote,speed
-pat A = C4<port:E4>     # Slide C4→E4 over note duration
-pat B = C4<port:E4,8>   # Slide C4→E4 at speed 8
+pat melody = C4<port:E4>     # Slide C4→E4 over note duration
+pat melody_fast = C4<port:E4,8>   # Slide C4→E4 at speed 8
 
 # Pattern shorthand: note~targetNote
-pat C = C4~E4 E4 G4~C5
+pat melody_slide = C4~E4 E4 G4~C5
 ```
 
 **Parameters:**
@@ -148,12 +148,12 @@ Rapidly cycle through multiple notes to create chord effect.
 
 ```bax
 # Syntax: arp:intervals (up to 3 notes)
-pat A = C4<arp:047>     # C major: C-E-G (0,4,7 semitones)
-pat B = C4<arp:037>     # C minor: C-Eb-G (0,3,7)
-pat C = C4<arp:04>      # Two-note arp: C-E
+pat melody_maj = C4<arp:047>     # C major: C-E-G (0,4,7 semitones)
+pat melody_min = C4<arp:037>     # C minor: C-Eb-G (0,3,7)
+pat melody_two = C4<arp:04>      # Two-note arp: C-E
 
 # Named arpeggios
-pat D = C4<arp:maj> E4<arp:min> G4<arp:dim>
+pat melody_chords = C4<arp:maj> E4<arp:min> G4<arp:dim>
 ```
 
 **Parameters:**
@@ -193,12 +193,12 @@ Gradual volume change over note duration.
 
 ```bax
 # Syntax: vol:delta (signed integer)
-pat A = C4<vol:+2> E4<vol:-3> G4  # Fade in, fade out
-pat B = C4<vol:+1> E4<vol:+1> G4  # Crescendo
+pat melody = C4<vol:+2> E4<vol:-3> G4  # Fade in, fade out
+pat melody_cresc = C4<vol:+1> E4<vol:+1> G4  # Crescendo
 
 # Pattern modifier
-pat C = A:fadeIn        # Convenience: vol:+2 on all notes
-pat D = A:fadeOut       # Convenience: vol:-2 on all notes
+pat melody_fadein = melody:fadeIn        # Convenience: vol:+2 on all notes
+pat melody_fadeout = melody:fadeOut       # Convenience: vol:-2 on all notes
 ```
 
 **Parameters:**
@@ -225,9 +225,9 @@ Gradual pitch shift (like portamento but relative).
 
 ```bax
 # Syntax: bend:semitones or bend:semitones,curve
-pat A = C4<bend:+2>     # Bend up 2 semitones
-pat B = C4<bend:-3>     # Bend down 3 semitones
-pat C = C4<bend:+5,exp> # Exponential curve
+pat melody_up = C4<bend:+2>     # Bend up 2 semitones
+pat melody_down = C4<bend:-3>     # Bend down 3 semitones
+pat melody_exp = C4<bend:+5,exp> # Exponential curve
 ```
 
 **Parameters:**
@@ -240,8 +240,8 @@ Periodic volume modulation (LFO on gain).
 
 ```bax
 # Syntax: trem:depth or trem:depth,speed
-pat A = C4<trem:8>      # Tremolo depth 8, default speed
-pat B = C4<trem:8,6>    # Tremolo depth 8, speed 6
+pat melody = C4<trem:8>      # Tremolo depth 8, default speed
+pat melody_fast = C4<trem:8,6>    # Tremolo depth 8, speed 6
 ```
 
 **Parameters:**
@@ -254,7 +254,7 @@ Simple delay/repeat effect.
 
 ```bax
 # Syntax: echo:time,feedback
-pat A = C4<echo:4,50>   # Echo after 4 ticks, 50% volume
+pat melody = C4<echo:4,50>   # Echo after 4 ticks, 50% volume
 ```
 
 **Parameters:**
@@ -267,8 +267,8 @@ Abruptly stop note after specified ticks.
 
 ```bax
 # Syntax: cut:ticks
-pat A = C4<cut:8> . . . # Note plays for 8 ticks then cuts
-pat B = C4*4<cut:2>     # Staccato: 4 hits, each cut after 2 ticks
+pat melody = C4<cut:8> . . . # Note plays for 8 ticks then cuts
+pat melody_stacc = C4*4<cut:2>     # Staccato: 4 hits, each cut after 2 ticks
 ```
 
 **Parameters:**
@@ -280,8 +280,8 @@ Rapidly restart note at fixed intervals.
 
 ```bax
 # Syntax: retrig:ticks or retrig:ticks,volDelta
-pat A = C4<retrig:4>    # Retrigger every 4 ticks
-pat B = C4<retrig:2,50> # Retrigger every 2 ticks at 50% volume
+pat melody = C4<retrig:4>    # Retrigger every 4 ticks
+pat melody_fast = C4<retrig:2,50> # Retrigger every 2 ticks at 50% volume
 ```
 
 **Parameters:**
@@ -294,13 +294,13 @@ Multiple effects can be applied to a single note:
 
 ```bax
 # Vibrato + volume slide
-pat A = C4<vib:4,vol:+1> E4<vib:6,vol:-1>
+pat melody = C4<vib:4,vol:+1> E4<vib:6,vol:-1>
 
 # Portamento + tremolo
-pat B = C4<port:G4,trem:8>
+pat melody_glide = C4<port:G4,trem:8>
 
 # Arpeggio + echo
-pat C = C4<arp:047,echo:4,50>
+pat melody_arp = C4<arp:047,echo:4,50>
 ```
 
 ## Named Effect Presets
@@ -312,10 +312,10 @@ effect riser = bend:+12,exp
 effect stutter = retrig:2,75
 
 # Apply to notes
-pat A = C4<wobble> E4<riser> G4<stutter>
+pat melody = C4<wobble> E4<riser> G4<stutter>
 
 # Or as pattern modifiers
-pat B = A:wobble
+pat melody_wobble = melody:wobble
 ```
 
 ## Hardware Mapping
@@ -543,8 +543,8 @@ describe('Effect Application', () => {
 test('song with effects exports correctly', async () => {
   const src = `
     inst lead type=pulse1
-    pat A = C4<vib:4> E4<port:G4>
-    channel 1 => inst lead pat A
+    pat melody = C4<vib:4> E4<port:G4>
+    channel 1 => inst lead pat melody
   `;
   
   const ast = parse(src);

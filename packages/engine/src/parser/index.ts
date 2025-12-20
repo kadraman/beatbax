@@ -3,6 +3,17 @@ export * from './tokenizer.js';
 import { expandPattern, transposePattern } from '../patterns/expand.js';
 import { AST, SeqMap, ChannelNode } from './ast.js';
 
+const warnProblematicPatternName = (name: string): void => {
+  const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
+  const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
+
+  if (isSingleLetterNote || isNoteWithOctave) {
+    console.warn(
+      `[BeatBax Parser] Warning: Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`
+    );
+  }
+};
+
 /**
  * Parse source text and build a minimal AST. Currently this parser
  * focuses on resolving `pat` definitions into expanded token arrays
@@ -31,6 +42,8 @@ export function parse(source: string): AST {
     const parts = nameSpec.split(':');
     const baseName = parts[0];
     const mods = parts.slice(1);
+
+    warnProblematicPatternName(baseName);
 
     try {
       let expanded = expandPattern(rhs);

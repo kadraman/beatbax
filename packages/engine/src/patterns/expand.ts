@@ -77,6 +77,10 @@ export function midiToNote(n: number): string {
  *  token := NOTE | '.' | IDENT
  */
 export function expandPattern(text: string): string[] {
+  // Preprocess to normalize spaces around * operators
+  text = text.replace(/\)\s*\*\s*(\d+)/g, ')*$1');
+  text = text.replace(/([^\s\(\)])\s*\*\s*(\d+)/g, '$1*$2');
+
   // Tokenize by spaces but keep parentheses and *number attached
   const tokens: string[] = [];
   let i = 0;
