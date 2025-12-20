@@ -87,12 +87,12 @@ inst bass  type=pulse2 duty=25 env=10,down
 inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 inst sn    type=noise  env=12,down
 
-pat A    = C5 E5 G5 C6
-pat B    = C3 . G2 .
+pat melody = C5 E5 G5 C6
+pat bass_pat = C3 . G2 .
 pat FILL = inst sn C6 C6 inst(hat,2) C6 C6
 
-seq main  = A B A FILL A
-seq intro = A:inst(bass) B
+seq main  = melody bass_pat melody FILL melody
+seq intro = melody:inst(bass) bass_pat
 
 channel 1 => inst lead  seq main
 channel 2 => inst bass  seq main:oct(-1)

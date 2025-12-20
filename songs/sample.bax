@@ -39,22 +39,22 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 
 # Melodic pattern for the lead channel.
 # - Twinkle-style motif arranged into a fixed 16-token pattern (two 8-step phrases).
-pat A      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
+pat melody      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat A_alt  = (. C5 . C5 . G5 . G5 .) * 2
+pat melody_alt  = (. C5 . C5 . G5 . G5 .) * 2
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
-pat B      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
+pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
 
 # Wavetable arpeggio pattern to add harmonic color under the melody (16 tokens).
-pat C      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
+pat arp      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 
 # Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
-pat P      = . . snare . . hihat . . . snare . . . . . .
+pat drums_pat      = . . snare . . hihat . . . snare . . . . . .
 
 # Short melodic fill used between phrases (16 tokens).
-pat E      = (C5 E5 G5 C6) * 4
+pat fill      = (C5 E5 G5 C6) * 4
 
 # -----------------------------------------------------------------------------
 # New shorthand examples
@@ -63,7 +63,7 @@ pat E      = (C5 E5 G5 C6) * 4
 # percussion stabs where you want immediate repeated hits without inserting
 # explicit note tokens. `inst(name,N)` still acts as a temporary override
 # for the next N non-rest notes.
-pat P2     = snare . . . snare . . . hihat . . . . . . .
+pat drums_alt     = snare . . . snare . . . hihat . . . . . . .
 
 # -----------------------------------------------------------------------------
 # Channel routing
@@ -80,16 +80,16 @@ pat P2     = snare . . . snare . . . hihat . . . . . . .
 # lets you modify/loop them separately in the tracker or live UI.
 
 # Lead sequence (primary melody)
-seq lead = A A_alt E A
+seq lead = melody melody_alt fill melody
 
 # Bass sequence (low-end walking bass)
-seq bass = B B B B
+seq bass = bass_pat bass_pat bass_pat bass_pat
 
 # Wave sequence (wavetable arpeggios)
-seq wave = C C C
+seq wave = arp arp arp
 
 # Drums/percussion sequence
-seq drums = P P2 P P
+seq drums = drums_pat drums_alt drums_pat drums_pat
 
 ## Map channels to their separate sequences.
 channel 1 => inst leadA seq lead

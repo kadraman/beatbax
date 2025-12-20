@@ -23,7 +23,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Inline permanent instrument: `inst(name)` — change default instrument for the pattern
 
 - seq / channel: map patterns and instruments to Game Boy channels
-  - Example: `channel 1 => inst leadA pat A` (use top-level `bpm 160` or per-channel `speed`/sequence transforms)
+  - Example: `channel 1 => inst leadA pat melody` (use top-level `bpm 160` or per-channel `speed`/sequence transforms)
   - Channels: 1 (Pulse1), 2 (Pulse2), 3 (Wave), 4 (Noise)
 
 **Transforms (applied at parse/expansion time)**
@@ -57,12 +57,12 @@ channel 2 => inst leadB seq bass speed=2x
 inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
 inst sn type=noise env=gb:10,down,1
 
-pat A = (C5 E5 G5 C6) * 2 inst(sn,2) C6 C6 .
+pat melody = (C5 E5 G5 C6) * 2 inst(sn,2) C6 C6 .
 
 # Use a top-level BPM instead of channel-level bpm
 bpm 160
-channel 1 => inst leadA pat A
-channel 4 => inst sn pat P
+channel 1 => inst leadA pat melody
+channel 4 => inst sn pat drums
 ```
 
 This plays the motif on channel 1, temporarily substituting the `sn` noise instrument for the next two non‑rest hits.
