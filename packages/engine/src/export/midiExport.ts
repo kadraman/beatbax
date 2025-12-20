@@ -56,7 +56,7 @@ function writeChunk(id: string, data: number[]) {
 }
 
 /** Export a resolved song model to MIDI. */
-export async function exportMIDI(songOrPath: any, maybePath?: string) {
+export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}) {
 	let outPath = maybePath as string | undefined;
 
 	// If caller passed just a path string, write an empty MIDI file
@@ -84,7 +84,11 @@ export async function exportMIDI(songOrPath: any, maybePath?: string) {
 	const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
 
 	// Build header: format 1, N tracks = channels.length (clamped to 16)
-	const channels = Array.isArray(song.channels) ? song.channels : [];
+	const allChannels = Array.isArray(song.channels) ? song.channels : [];
+	const channels = options.channels 
+		? allChannels.filter((ch: any) => options.channels!.includes(ch.id))
+		: allChannels;
+	
 	const ntracks = Math.max(1, Math.min(16, channels.length));
 	const header = Buffer.alloc(14);
 	header.write('MThd', 0, 4, 'ascii');
@@ -176,8 +180,13 @@ export async function exportMIDI(songOrPath: any, maybePath?: string) {
 			data.push(0x00, 0xff, 0x51, 0x03, (mpq >> 16) & 0xff, (mpq >> 8) & 0xff, mpq & 0xff);
 		}
 
-		for (let ti = 0; ti < events.length; ti++) {
-			const ev = events[ti];
+		const secondsPerBeat = 60 / bpm;
+		const tickSeconds = secondsPerBeat / 4; // 16th note
+		const maxEvents = options.duration ? Math.floor(options.duration / tickSeconds) : events.length;
+		const truncatedEvents = events.slice(0, maxEvents);
+
+		for (let ti = 0; ti < truncatedEvents.length; ti++) {
+			const ev = truncatedEvents[ti];
 			const currTick = ti * ticksPerToken;
 			let delta = currTick - lastTick;
 			if (delta < 0) delta = 0;

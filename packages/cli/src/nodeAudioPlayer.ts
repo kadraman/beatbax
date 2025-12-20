@@ -164,7 +164,7 @@ export async function playAudioBuffer(
     
     proc.on('error', (err: Error) => {
       try { unlinkSync(tempFile); } catch (e) {}
-      reject(new Error(`Failed to play audio: ${err.message}. Try installing ffplay or use --render-to <file.wav> instead.`));
+      reject(new Error(`Failed to play audio: ${err.message}. Try installing ffplay or use "export wav" instead.`));
     });
 
     proc.on('close', (code: number) => {

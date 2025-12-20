@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 
@@ -7,7 +7,6 @@ export interface PlayOptions {
   browser?: boolean;
   backend?: 'auto' | 'node-webaudio' | 'browser';
   sampleRate?: number;
-  renderTo?: string;
   duration?: number;
   channels?: number[]; // Which GB channels to render (1-4)
   verbose?: boolean;
@@ -21,10 +20,9 @@ export async function playFile(path: string, options: PlayOptions = {}) {
   }
 
   const noBrowser = options.noBrowser || options.backend === 'node-webaudio';
-  const renderTo = options.renderTo;
 
-  // Attempt headless playback or offline rendering
-  if (noBrowser || renderTo) {
+  // Attempt headless playback
+  if (noBrowser) {
     console.log('Rendering song using native PCM renderer...');
     
     try {
@@ -45,34 +43,34 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         renderChannels
       });
       
-      if (renderTo) {
-        // Export to WAV file
-        await exportWAV(samples, renderTo, {
-          sampleRate,
-          bitDepth: 16,
-          channels: 2 // Use stereo to match browser
-        });
-        console.log(`[OK] Rendered to ${renderTo}`);
-      } else {
-        // Real-time playback via speaker
-        try {
-          // Resolve absolute path to cli module  
-          const path = await import('path');
-          const url = await import('url');
-          const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-          const cliPath = path.resolve(__dirname, '../../cli/dist/nodeAudioPlayer.js');
-          const cliUrl = url.pathToFileURL(cliPath).href;
-          
-          const { playAudioBuffer } = await import(cliUrl);
-          console.log('Playing audio via system speakers...');
-          await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
-          console.log('[OK] Playback complete');
-        } catch (err: any) {
-          console.error('Failed to play audio:', err.message);
-          console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
-          console.log('Or use --render-to <file.wav> to export to WAV file instead.');
-          process.exitCode = 1;
+      // Real-time playback via speaker
+      try {
+        // Resolve absolute path to cli module  
+        const path = await import('path');
+        const url = await import('url');
+        const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+        
+        let cliPath = path.resolve(__dirname, '../../cli/dist/nodeAudioPlayer.js');
+        
+        // Fallback for monorepo development where engine might be in node_modules but cli isn't linked
+        if (!existsSync(cliPath)) {
+          const monorepoPath = path.resolve(__dirname, '../../../../packages/cli/dist/nodeAudioPlayer.js');
+          if (existsSync(monorepoPath)) {
+            cliPath = monorepoPath;
+          }
         }
+        
+        const cliUrl = url.pathToFileURL(cliPath).href;
+        
+        const { playAudioBuffer } = await import(cliUrl);
+        console.log('Playing audio via system speakers...');
+        await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
+        console.log('[OK] Playback complete');
+      } catch (err: any) {
+        console.error('Failed to play audio:', err.message);
+        console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
+        console.log('Or use "export wav" to export to WAV file instead.');
+        process.exitCode = 1;
       }
       return;
     } catch (err: any) {

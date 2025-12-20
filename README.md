@@ -47,14 +47,11 @@ The CLI provides a number of different sub-commands and options.
 
 ### Play Command Options
 
-The `play` command supports browser and headless playback with PCM rendering:
+The `play` command supports browser and headless playback:
 
 - `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
 - `--headless` — Headless Node.js playback using multi-fallback audio system
-- `--render-to <file>` — Render to WAV file using PCM renderer (stereo, 44100Hz, 16-bit)
-- `--duration <seconds>` — Duration in seconds (default: auto-calculated from song length)
-- `--channels <1-4>` — Export specific Game Boy channel only (1=pulse1, 2=pulse2, 3=wave, 4=noise)
-- `--sample-rate <hz>` — Sample rate for rendering (default: 44100)
+- `--sample-rate <hz>` — Sample rate for headless playback (default: 44100)
 
 The CLI uses a hybrid approach with cascading fallbacks:
 1. **speaker** module (optional, best performance if installed)
@@ -70,13 +67,14 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 
 ### Export
 
-All three export formats are fully implemented and tested:
+All export formats are fully implemented and tested:
 
-- `export json <file> [--out <path>]` — Validated JSON export (ISM format)
-- `export midi <file> [--out <path>]` — MIDI export (Type-1 SMF, 4 tracks)
-- `export uge <file> [--out <path>]` — UGE v6 export (hUGETracker format for Game Boy)
+- `export json <file> [output] [--out <path>]` — Validated JSON export (ISM format)
+- `export midi <file> [output] [--out <path>] [--duration <seconds>] [--channels <1-4>]` — MIDI export (Type-1 SMF, 4 tracks)
+- `export uge <file> [output] [--out <path>]` — UGE v6 export (hUGETracker format for Game Boy)
+- `export wav <file> [output] [--out <path>] [--duration <seconds>] [--channels <1-4>]` — WAV export (stereo, 44100Hz, 16-bit)
 
-The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a 4-track Standard MIDI File suitable for DAW import, mapping each Game Boy channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development.
+The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a 4-track Standard MIDI File suitable for DAW import, mapping each Game Boy channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development. The WAV exporter uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies.
 
 ### Examples
 
@@ -90,14 +88,14 @@ node bin/beatbax play songs/sample.bax --headless
 # Play with browser-based playback
 node bin/beatbax play songs/sample.bax --browser
 
-# Render to WAV file (offline export without playback)
-node bin/beatbax play songs/sample.bax --render-to output.wav
+# Render to WAV file (offline export)
+node bin/beatbax export wav songs/sample.bax output.wav
 
 # Render with explicit duration (auto-calculated by default)
-node bin/beatbax play songs/sample.bax --render-to output.wav --duration 30
+node bin/beatbax export wav songs/sample.bax output.wav --duration 30
 
 # Export individual channels for debugging
-node bin/beatbax play songs/sample.bax --render-to ch1.wav --channels 1
+node bin/beatbax export wav songs/sample.bax ch1.wav --channels 1
 
 # Verify/validate a song file
 node bin/beatbax verify songs/sample.bax
@@ -106,6 +104,7 @@ node bin/beatbax verify songs/sample.bax
 node bin/beatbax export json songs/sample.bax output.json
 node bin/beatbax export midi songs/sample.bax output.mid
 node bin/beatbax export uge songs/sample.bax output.uge
+node bin/beatbax export wav songs/sample.bax output.wav
 ```
 ## Project layout
 

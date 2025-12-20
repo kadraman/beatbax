@@ -1,6 +1,6 @@
 ---
 title: Playback via CLI
-status: proposed
+status: closed
 authors: ["kadraman"]
 created: 2025-12-14
 issue: "https://github.com/kadraman/beatbax/issues/11"
@@ -31,12 +31,11 @@ New or extended flags for `cli play`:
 - --no-browser         (alias) force headless Node playback
 - --backend <name>     choose backend (default: auto). Supported: node-webaudio, browser
 - --sample-rate <hz>   sample rate for headless context (default 44100)
-- --render-to <file>   render to WAV file (offline) instead of realtime playback
 - --buffer-frames <n>  offline pre-render buffer length in frames (optional)
 
 Examples:
 - Real-time headless playback (auto backend picks node-webaudio): npm run cli -- play songs\sample.bax --no-browser
-- Offline render: npm run cli -- play songs\sample.bax --render-to out.wav --sample-rate 48000
+- Offline render: npm run cli -- export wav songs\sample.bax out.wav --sample-rate 48000
 
 ## Design
 1. Backend selection
@@ -46,7 +45,6 @@ Examples:
    - Add a small factory in src/audio/playback.ts that returns a context usable by engine and Tone.js:
      - Browser: return global AudioContext/webkitAudioContext.
      - Node: dynamic import('standardized-audio-context') and construct AudioContext({ sampleRate }).
-     - Expose OfflineAudioContext creation when `--render-to` is requested.
 3. Integration
    - Ensure Tone or other libs used by engine get the created context (e.g., Tone.context = await createAudioContext()) before creating nodes.
    - Reuse tickScheduler for timing; schedule node creation and AudioParam automation the same as browser path.
@@ -83,7 +81,7 @@ export async function createAudioContext(opts: { sampleRate?: number } = {}) {
 ## Validation & Tests
 - Unit tests:
   - createAudioContext returns an object with AudioContext-like API in Node test env (mock or import polyfill).
-  - CLI flag parsing for --no-browser, --backend, --render-to.
+  - CLI flag parsing for --no-browser, --backend.
 - Integration tests:
   - Offline render of a fixture song produces deterministic WAV matching golden file.
   - Scheduler timing parity between browser and node-webaudio path (compare rendered PCM).

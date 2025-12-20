@@ -8,11 +8,11 @@ import { readFileSync } from 'fs';
 // (Full UGE reader content copied from original repository.)
 // To keep the patch focused, this file is added as a direct migration.
 
-export function parseUGE() { throw new Error('Not implemented in migration stub'); }
-export function readUGEFile() { throw new Error('Not implemented in migration stub'); }
-export function midiNoteToUGE() { throw new Error('Not implemented in migration stub'); }
-export function ugeNoteToString() { throw new Error('Not implemented in migration stub'); }
-export function getUGESummary() { throw new Error('Not implemented in migration stub'); }
+export function parseUGE(data: Buffer): any { throw new Error('Not implemented in migration stub'); }
+export function readUGEFile(path: string): any { throw new Error('Not implemented in migration stub'); }
+export function midiNoteToUGE(midi: number): number { throw new Error('Not implemented in migration stub'); }
+export function ugeNoteToString(uge: number): string { throw new Error('Not implemented in migration stub'); }
+export function getUGESummary(song: any): string { throw new Error('Not implemented in migration stub'); }
 
 export enum InstrumentType { DUTY = 0, WAVE = 1, NOISE = 2 }
 export enum ChannelType { PULSE1 = 0, PULSE2 = 1, WAVE = 2, NOISE = 3 }
