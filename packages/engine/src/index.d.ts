@@ -5,9 +5,9 @@ export interface PlayOptions {
   browser?: boolean;
   backend?: 'auto' | 'node-webaudio' | 'browser';
   sampleRate?: number;
-  renderTo?: string;
   duration?: number;
   channels?: number[]; // Which GB channels to render (1-4)
+  verbose?: boolean;
 }
 
 export declare function playFile(path: string, options?: PlayOptions): Promise<void>;

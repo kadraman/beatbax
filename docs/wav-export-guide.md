@@ -35,19 +35,18 @@ Using the CLI:
 
 ```bash
 # Basic export (auto-calculated duration)
-npm run cli -- play mysong.bax --render-to mysong.wav
+npm run cli -- export wav mysong.bax mysong.wav
 
 # With explicit duration
-npm run cli -- play mysong.bax --render-to mysong.wav --duration 30
+npm run cli -- export wav mysong.bax mysong.wav --duration 30
 
 # Export individual channels for debugging
-npm run cli -- play mysong.bax --render-to channel1.wav --channels 1
+npm run cli -- export wav mysong.bax channel1.wav --channels 1
 ```
 
 Output:
 ```
 ✓ Exported WAV: mysong.wav (793800 samples, 44100Hz, 16-bit, 2ch)
-✓ Rendered to mysong.wav
 ```
 
 ### 3. Use the WAV File
@@ -106,13 +105,13 @@ Each channel contributes equally to left and right channels. Pan control is not 
 
 **Auto-calculated (recommended):**
 ```bash
-npm run cli -- play mysong.bax --render-to output.wav
+npm run cli -- export wav mysong.bax output.wav
 ```
 Duration is calculated from the longest channel's event stream with a 1-second buffer.
 
 **Explicit duration:**
 ```bash
-npm run cli -- play mysong.bax --render-to output.wav --duration 45
+npm run cli -- export wav mysong.bax output.wav --duration 45
 ```
 Useful for:
 - Ensuring consistent duration across multiple exports
@@ -125,16 +124,16 @@ Export individual Game Boy channels for debugging, mixing, or analysis:
 
 ```bash
 # Channel 1: Pulse 1 (lead melody)
-npm run cli -- play mysong.bax --render-to ch1-pulse1.wav --channels 1
+npm run cli -- export wav mysong.bax ch1-pulse1.wav --channels 1
 
 # Channel 2: Pulse 2 (bass/harmony)
-npm run cli -- play mysong.bax --render-to ch2-pulse2.wav --channels 2
+npm run cli -- export wav mysong.bax ch2-pulse2.wav --channels 2
 
 # Channel 3: Wave (wavetable)
-npm run cli -- play mysong.bax --render-to ch3-wave.wav --channels 3
+npm run cli -- export wav mysong.bax ch3-wave.wav --channels 3
 
 # Channel 4: Noise (drums/percussion)
-npm run cli -- play mysong.bax --render-to ch4-noise.wav --channels 4
+npm run cli -- export wav mysong.bax ch4-noise.wav --channels 4
 ```
 
 Use cases:
@@ -165,7 +164,7 @@ Export to all formats in a single workflow:
 npm run cli -- export json mysong.bax mysong.json
 npm run cli -- export midi mysong.bax mysong.mid
 npm run cli -- export uge mysong.bax mysong.uge
-npm run cli -- play mysong.bax --render-to mysong.wav
+npm run cli -- export wav mysong.bax mysong.wav
 ```
 
 ### Programmatic Export
@@ -173,7 +172,7 @@ npm run cli -- play mysong.bax --render-to mysong.wav
 Use the TypeScript API for batch processing or integration:
 
 ```typescript
-import { renderSongToPCM, exportWAV } from '@beatbax/engine/audio/pcmRenderer';
+import { exportWAVFromSong } from '@beatbax/engine/export';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song/resolver';
 import { readFileSync } from 'fs';
@@ -183,17 +182,11 @@ const source = readFileSync('mysong.bax', 'utf-8');
 const ast = parse(source);
 const song = resolveSong(ast);
 
-// Render to PCM samples
-const samples = renderSongToPCM(song, {
+// Render and export to WAV file
+await exportWAVFromSong(song, 'output.wav', {
   sampleRate: 44100,
-  channels: 2,
   duration: undefined, // auto-calculate
-});
-
-// Export to WAV file
-await exportWAV(samples, 'output.wav', {
-  sampleRate: 44100,
-  channels: 2,
+  renderChannels: [1, 2, 3, 4] // all channels
 });
 
 console.log('✓ Exported WAV file');
