@@ -152,7 +152,7 @@ Two rendering paths coexist:
    - Uses `OscillatorNode`, `AudioBufferSourceNode`, `GainNode`
    - Handles envelope automation via `AudioParam` scheduling
 
-2. **PCM Rendering Path** (CLI headless + `--render-to`)
+2. **PCM Rendering Path** (CLI headless + `export wav`)
    - Direct sample generation without WebAudio dependency
    - Implementation: `packages/engine/src/audio/pcmRenderer.ts`
    - Outputs stereo Float32Array samples at 44100Hz (configurable)

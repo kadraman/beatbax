@@ -2,6 +2,8 @@
  * Pure Node.js WAV file writer (no WebAudio dependency)
  * Supports PCM16, PCM24, PCM32 bit depths
  */
+import { SongModel } from '../song/songModel.js';
+import { renderSongToPCM, RenderOptions } from '../audio/pcmRenderer.js';
 
 export interface WavOptions {
   sampleRate: number;
@@ -84,4 +86,22 @@ export async function exportWAV(samples: Float32Array, outputPath: string, opts:
   const wavBuffer = writeWAV(samples, opts);
   writeFileSync(outputPath, wavBuffer);
   console.log(`[OK] Exported WAV: ${outputPath} (${samples.length} samples, ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch)`);
+}
+
+/**
+ * Render a song model to PCM and export as a WAV file.
+ */
+export async function exportWAVFromSong(song: SongModel, outputPath: string, options: RenderOptions & Partial<WavOptions> = {}) {
+  const sampleRate = options.sampleRate || 44100;
+  const samples = renderSongToPCM(song, {
+    ...options,
+    sampleRate,
+    channels: 2 // Always stereo for now to match browser
+  });
+  
+  await exportWAV(samples, outputPath, {
+    sampleRate,
+    bitDepth: options.bitDepth || 16,
+    channels: 2
+  });
 }

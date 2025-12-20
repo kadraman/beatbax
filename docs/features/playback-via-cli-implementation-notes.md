@@ -3,7 +3,8 @@
 ## Status: Implemented
 
 ### Implemented
-- ✅ CLI flags added: `--no-browser`, `--backend`, `--sample-rate`, `--render-to`, `--duration`
+- ✅ CLI flags added: `--no-browser`, `--backend`, `--sample-rate`
+- ✅ `export wav` command for offline rendering
 - ✅ `createAudioContext()` factory function in playback.ts with dynamic import support
 - ✅ `PlayOptions` interface for typed options
 - ✅ WAV file writing helper functions
@@ -19,10 +20,10 @@ The feature infrastructure is complete, but functional headless audio requires n
    - `standardized-audio-context` is a wrapper/polyfill, not a full implementation
    - Cannot output to system audio in pure Node.js
 
-2. **Offline WAV rendering** (`--render-to`):
-   - Requires native OfflineAudioContext implementation
-   - `standardized-audio-context` expects a native context to wrap
-   - Consider alternatives: `web-audio-api` (unmaintained), custom PCM rendering
+2. **Offline WAV rendering** (`export wav`):
+   - Implemented via a custom PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`)
+   - Does not require WebAudio or native bindings
+   - Supports all 4 Game Boy channels, envelopes, and duty cycles
 
 ### Why standardized-audio-context Doesn't Suffice
 ```
@@ -57,7 +58,7 @@ All CLI flags parse correctly and provide helpful error messages:
 node packages/cli/dist/cli.js play --help
 
 # Test flags (will show limitation message)
-node packages/cli/dist/cli.js play songs/sample.bax --render-to output.wav
+node packages/cli/dist/cli.js export wav songs/sample.bax output.wav
 node packages/cli/dist/cli.js play songs/sample.bax --no-browser
 ```
 

@@ -1,8 +1,8 @@
-export declare function parseUGE(): void;
-export declare function readUGEFile(): void;
-export declare function midiNoteToUGE(): void;
-export declare function ugeNoteToString(): void;
-export declare function getUGESummary(): void;
+export declare function parseUGE(data: Buffer): any;
+export declare function readUGEFile(path: string): any;
+export declare function midiNoteToUGE(midi: number): number;
+export declare function ugeNoteToString(uge: number): string;
+export declare function getUGESummary(song: any): string;
 export declare enum InstrumentType {
     DUTY = 0,
     WAVE = 1,

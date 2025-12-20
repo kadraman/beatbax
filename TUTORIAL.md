@@ -105,7 +105,10 @@ npm run cli -- export midi songs\sample.bax --out output.mid
 ```powershell
 npm run cli -- export uge songs\sample.bax --out output.uge
 ```
-
+**WAV** (Offline PCM rendering):
+```powershell
+npm run cli -- export wav songs\sample.bax --out output.wav
+```
 The UGE files can be opened in hUGETracker or processed with uge2source.exe for Game Boy ROM development.
 
 ### Development mode

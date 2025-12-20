@@ -153,4 +153,7 @@ tests/*.js
 lib
 
 # output files
+*.uge
+*.wav
+*.mid
 output.*
