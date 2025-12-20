@@ -17,7 +17,7 @@ export interface RenderOptions {
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
-  const bpm = opts.bpm ?? 120;
+  const bpm = opts.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? [1, 2, 3, 4];
   
   // Calculate duration from song events

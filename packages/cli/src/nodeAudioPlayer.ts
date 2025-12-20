@@ -9,8 +9,6 @@ import { join } from 'path';
 import { spawn } from 'child_process';
 
 // Type declarations for optional dependencies
-// @ts-ignore - audio-play is an optional dependency without types
-declare module 'audio-play';
 // @ts-ignore - play-sound is an optional dependency without types
 declare module 'play-sound';
 
@@ -60,7 +58,6 @@ function createWAVBuffer(samples: Float32Array, sampleRate: number, channels: nu
 /**
  * Play audio with cascading fallback approach.
  * Tries methods in order: speaker → play-sound → system commands
- * (audio-play skipped on Windows as it doesn't output audio reliably)
  * @param samples Interleaved Float32 samples [-1..1]
  * @param options Audio configuration
  */

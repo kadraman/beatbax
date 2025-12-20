@@ -180,7 +180,7 @@ playBtn?.addEventListener('click', async () => {
       console.warn('[web-ui] resolved ISM contains no channels — using fallback test AST to verify audio');
       const testAst: any = {
         chip: 'gameboy',
-        bpm: 120,
+        bpm: 128,
         insts: { test: { type: 'pulse1', duty: 50, env: 'gb:12,down,1' } },
         channels: [{ id: 1, inst: 'test', pat: ['C5', '.', '.', '.'] }]
       };

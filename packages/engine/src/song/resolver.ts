@@ -12,6 +12,7 @@ export function resolveSong(ast: AST): SongModel {
   const pats = ast.pats || {};
   const insts = ast.insts || {};
   const seqs = ast.seqs || {};
+  const bpm = ast.bpm;
 
   // Expand all sequences into flattened token arrays
   const expandedSeqs = expandAllSequences(seqs, pats);
@@ -213,7 +214,7 @@ export function resolveSong(ast: AST): SongModel {
   // or event objects). This keeps both `events` and `pat` available.
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
 
-  return { pats, insts, seqs: expandedSeqs, channels: channelsOut } as unknown as SongModel;
+  return { pats, insts, seqs: expandedSeqs, channels: channelsOut, bpm } as unknown as SongModel;
 }
 
 export default { resolveSong };

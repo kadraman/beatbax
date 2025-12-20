@@ -34,7 +34,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       const song = resolveSong(ast);
       const sampleRate = options.sampleRate || 44100;
       const duration = options.duration;
-      const bpm = ast.bpm || 120;
+      const bpm = ast.bpm || 128;
       const renderChannels = options.channels;
       
       const samples = renderSongToPCM(song, { 

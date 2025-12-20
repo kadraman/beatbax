@@ -35,17 +35,17 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 
 **Tempo & Per-Channel Speed**
 
-- Set a master tempo with a top-level directive: `bpm 120` or `bpm=120`.
+- Set a master tempo with a top-level directive: `bpm 128` or `bpm=128`.
 - Per-channel multipliers: use `speed=2` or `speed=2x` on a channel to play
   that channel at a multiple of the master BPM. Example: `speed=2x` plays
   twice as fast as the master tempo.
 
 Example:
 ```
-# Use master tempo 120 BPM
-bpm 120
+# Use master tempo 128 BPM
+bpm 128
 
-# Channel 1 uses master BPM (120)
+# Channel 1 uses master BPM (128)
 channel 1 => inst leadA seq lead
 
 # Channel 2 runs twice as fast (240 BPM effective) using a speed multiplier
