@@ -1,5 +1,5 @@
 ---
-title: Parser Improvements: Space Tolerance and Pattern Name Validation
+title: Parser Improvements - Space Tolerance and Pattern Name Validation
 status: proposed
 authors: ["kadraman"]
 created: 2025-12-12
@@ -60,12 +60,14 @@ seq lead = A B E D    # Is 'E' a pattern or a note?
 In the sequence expander, if pattern `E` doesn't exist in the patterns map, it is treated as a literal token (note `E`), causing silent failures.
 
 ### Solution
-The parser should warn when single-letter pattern names (A-G, case-insensitive) are used:
+The parser should warn when pattern names that could be confused with notes are used. This includes:
+1. **Single-letter names (A-G)**
+2. **Note-like names with octaves (e.g., C4, Bb1, G-1)**
 
 ```
-[BeatBax Parser] Warning: Pattern name 'E' is a single letter (A-G) 
-which may be confused with a note name. Consider using a more 
-descriptive name like 'E_pattern' or 'E1'.
+[BeatBax Parser] Warning: Pattern name 'E' may be confused with a 
+note name. Consider using a more descriptive name like 'E_pattern' 
+or 'E_pat'.
 ```
 
 Single-letter names outside A-G (like `X`, `Y`, `Z`) should not trigger warnings, as they don't conflict with note names.
@@ -80,6 +82,7 @@ Single-letter names outside A-G (like `X`, `Y`, `Z`) should not trigger warnings
 
 **Problematic pattern names:**
 - `A`, `B`, `C`, `D`, `E`, `F`, `G` (single-letter note names)
+- `C4`, `Bb1`, `G-1` (notes with octaves)
 - `a`, `b`, `c`, etc. (case-insensitive)
 
 ### Implementation
@@ -87,8 +90,11 @@ Single-letter names outside A-G (like `X`, `Y`, `Z`) should not trigger warnings
 
 ```typescript
 const warnProblematicPatternName = (name: string): void => {
-  if (/^[A-Ga-g]$/.test(name)) {
-    console.warn(`[BeatBax Parser] Warning: Pattern name '${name}' is a single letter...`);
+  const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
+  const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
+
+  if (isSingleLetterNote || isNoteWithOctave) {
+    console.warn(`[BeatBax Parser] Warning: Pattern name '${name}' may be confused with a note name...`);
   }
 };
 ```

@@ -28,12 +28,12 @@ inst bass  type=pulse2 duty=25 env=gb:10,down,1
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 inst snare type=noise env=gb:12,down,1
 
-pat A = C5 E4 G4 C5
-pat B = C3 . G2 .
+pat melody = C5 E4 G4 C5
+pat bass_pat = C3 . G2 .
 
-channel 1 => inst lead pat A
-channel 2 => inst bass pat B
-channel 3 => inst wave1 pat A:oct(-1)
+channel 1 => inst lead pat melody
+channel 2 => inst bass pat bass_pat
+channel 3 => inst wave1 pat melody:oct(-1)
 channel 4 => inst snare pat "x . x x"
 
 play
@@ -81,6 +81,9 @@ The JSON exporter performs structural validation of the parsed AST and writes a 
 ### Examples
 
 ```powershell
+# Verify song
+node bin/beatbax verify songs/sample.bax
+
 # Play with headless audio playback
 node bin/beatbax play songs/sample.bax --headless
 

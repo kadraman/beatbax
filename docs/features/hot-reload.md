@@ -432,21 +432,21 @@ function previewChanges(diff: ASTDiff): string {
 // tests/hotReload.test.ts
 describe('Hot Reload', () => {
   test('detects modified patterns', () => {
-    const oldAST = parse('pat A = C4 E4 G4');
-    const newAST = parse('pat A = C4 F4 A4');
+    const oldAST = parse('pat melody = C4 E4 G4');
+    const newAST = parse('pat melody = C4 F4 A4');
     const diff = diffAST(oldAST, newAST);
     
-    expect(diff.modifiedPatterns).toContain('A');
+    expect(diff.modifiedPatterns).toContain('melody');
   });
   
   test('preserves playback state on pattern update', async () => {
     const player = new Player();
     const manager = new HotReloadManager(player);
     
-    await manager.update('pat A = C4 E4\nchannel 1 => inst lead pat A\nplay');
+    await manager.update('pat melody = C4 E4\nchannel 1 => inst lead pat melody\nplay');
     expect(player.isPlaying()).toBe(true);
     
-    await manager.update('pat A = D4 F4\nchannel 1 => inst lead pat A\nplay');
+    await manager.update('pat melody = D4 F4\nchannel 1 => inst lead pat melody\nplay');
     expect(player.isPlaying()).toBe(true); // Still playing!
   });
 });
@@ -464,8 +464,8 @@ test('updates pattern without audio glitch', async () => {
   await manager.update(`
     bpm 128
     inst lead type=pulse1 duty=50
-    pat A = C4 C4 C4 C4
-    channel 1 => inst lead pat A
+    pat melody = C4 C4 C4 C4
+    channel 1 => inst lead pat melody
     play
   `);
   
@@ -474,8 +474,8 @@ test('updates pattern without audio glitch', async () => {
     await manager.update(`
       bpm 128
       inst lead type=pulse1 duty=50
-      pat A = E4 E4 E4 E4
-      channel 1 => inst lead pat A
+      pat melody = E4 E4 E4 E4
+      channel 1 => inst lead pat melody
       play
     `);
   }, 2000);
