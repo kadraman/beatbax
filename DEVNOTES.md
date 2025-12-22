@@ -59,6 +59,64 @@ Developer tips
 - The demo populates per-channel indicators (`ch-ind-N`) and counters (`ch-count-N`) and exposes an `onSchedule` hook that the demo uses to blink indicators. Use the console logs (`[beatbax]`) to trace resolved ISM and scheduling events.
 - To test temporary override semantics, create short patterns using `inst(name,N)` and assert scheduled events via the new playback tests or by examining console diagnostics when running the demo (set `SHOW_CONSOLE=1` for tests or use the browser console for runtime logs).
 
+## Development Workflow
+
+### Making Engine Changes for Web UI
+
+The web UI uses npm workspace links to import the engine, so changes flow through automatically after rebuild:
+
+```powershell
+# Terminal 1: Keep web UI dev server running
+npm run web-ui:dev
+
+# Terminal 2: After making changes to packages/engine/src/
+npm run engine:build
+
+# Terminal 1: Press 'r' + Enter to restart the dev server
+# This forces Vite to re-optimize the @beatbax/engine dependency
+```
+
+**Important:** Do NOT run `link-local-engine.cjs` for web UI development. The workspace link handles this automatically.
+
+**If Vite doesn't pick up changes:**
+```powershell
+cd apps/web-ui
+npm run dev:clean  # Uses --force flag to bypass Vite's dependency cache
+```
+
+### Making Engine Changes for CLI
+
+The CLI requires manual linking after each build:
+
+```powershell
+# After making changes to packages/engine/src/
+npm run engine:build
+node scripts/link-local-engine.cjs  # Copies dist to node_modules/@beatbax/engine
+node bin/beatbax play songs/sample.bax --headless
+```
+
+### Understanding the Build Scripts
+
+**`scripts/link-local-engine.cjs`** (root)
+- Copies `packages/engine/dist` → `node_modules/@beatbax/engine/dist`
+- Used for CLI and Node.js imports
+- Simulates `npm install` for local development
+- Only needed for CLI usage, not web UI
+
+**`apps/web-ui/scripts/prepare-engine.js`**
+- Copies `packages/engine/dist` → `apps/web-ui/public/engine`
+- Also copies `/songs` → `/public/songs`
+- Used for production builds (serves static ESM from `/engine/`)
+- In dev mode, Vite imports from workspace `node_modules` instead
+
+### Vite Dependency Caching
+
+Vite pre-bundles dependencies for performance. When the engine changes:
+1. Vite needs to detect the change and re-optimize
+2. Restarting the dev server (press `r` + Enter) triggers this
+3. The `--force` flag (`npm run dev:clean`) forces re-optimization
+4. Look for "Forced re-optimization of dependencies" in console output
+
 Files of interest (quick map)
 - `src/audio/playback.ts` — Player, Scheduler, playPulse/playWavetable/playNoise and helpers.
 - `src/parser/index.ts` — parsing, pattern modifiers, channel resolution.

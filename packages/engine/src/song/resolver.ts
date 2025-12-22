@@ -179,6 +179,11 @@ export function resolveSong(ast: AST): SongModel {
         continue;
       }
 
+      if (token === '_' || token === '-' || token === 'sustain') {
+        chModel.events.push({ type: 'sustain' } as ChannelEvent);
+        continue;
+      }
+
       // named instrument token (e.g. 'snare') — if it matches an inst name
       if (typeof token === 'string' && insts[token]) {
         let ev: ChannelEvent = { type: 'named', token, instrument: token };
