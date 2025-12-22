@@ -16,7 +16,9 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 
 - pat definitions: pattern tokens (notes, rests, named tokens, inline inst changes).
   - Notes: `C4`, `G#5`, `A3` — scientific pitch notation.
-  - Rests: `.`
+  - Rests: `.` (cuts the previous note).
+  - Sustains: `_` or `-` (extends the previous note).
+  - Duration shorthand: `C4:4` (equivalent to `C4 _ _ _`).
   - Grouping and repeat: `(C5 E5 G5)*2`
   - Named tokens: `snare` or `hihat` (mapped to `inst` entries by scheduler)
   - Inline temporary instrument override: `inst(name,N)` — next N non-rest tokens use `name`
@@ -54,10 +56,11 @@ channel 2 => inst leadB seq bass speed=2x
 
 **Example pattern snippet**
 ```
-inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
+inst leadA type=pulse1 duty=60 env=gb:12,down,7 gm=81
 inst sn type=noise env=gb:10,down,1
 
-pat melody = (C5 E5 G5 C6) * 2 inst(sn,2) C6 C6 .
+# C5:4 plays for 4 ticks; E5 _ _ _ also plays for 4 ticks
+pat melody = C5:4 E5 _ _ _ (G5 C6)*2 inst(sn,2) C6 C6 .
 
 # Use a top-level BPM instead of channel-level bpm
 bpm 160
@@ -105,6 +108,8 @@ npm run cli -- export midi songs\sample.bax --out output.mid
 ```powershell
 npm run cli -- export uge songs\sample.bax --out output.uge
 ```
+*Note: UGE files use a fixed 64-row pattern grid. BeatBax automatically splits longer sequences into multiple 64-row patterns and synchronizes the order list across all 4 channels. For best results, keep your pattern definitions to multiples of 16 or 64 tokens.*
+
 **WAV** (Offline PCM rendering):
 ```powershell
 npm run cli -- export wav songs\sample.bax --out output.wav

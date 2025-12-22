@@ -63,12 +63,22 @@ function renderChannel(
   for (let i = 0; i < ch.events.length; i++) {
     const ev = ch.events[i];
     const time = i * tickSeconds;
-    const dur = tickSeconds;
     
-    if (ev.type === 'rest') {
-      // Silence
+    if (ev.type === 'rest' || ev.type === 'sustain') {
+      // Silence or handled by lookahead
       continue;
     }
+    
+    // Calculate duration by looking ahead for sustains
+    let sustainCount = 0;
+    for (let j = i + 1; j < ch.events.length; j++) {
+      if (ch.events[j].type === 'sustain') {
+        sustainCount++;
+      } else {
+        break;
+      }
+    }
+    const dur = tickSeconds * (1 + sustainCount);
     
     // Resolve instrument
     let instName = ev.instrument || (tempRemaining > 0 ? tempInstName : currentInstName);
@@ -84,6 +94,8 @@ function renderChannel(
       
       if (tempRemaining > 0) {
         tempRemaining--;
+        // Skip temp decrement for sustains? Usually temp overrides apply to N *events*
+        // but if a note is sustained, it's still one event.
         if (tempRemaining <= 0) {
           tempInstName = undefined;
         }

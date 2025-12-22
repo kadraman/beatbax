@@ -1,0 +1,44 @@
+# BeatBax Sustain & Duration Demo
+# This song demonstrates how to create long notes and precise rhythms.
+
+chip gameboy
+bpm 128
+
+# --- Instruments ---
+# Using a longer envelope period (7) so the note doesn't decay too fast
+inst lead  type=pulse1 duty=50 env=10,down,7
+inst bass  type=pulse2 duty=25 env=12,down,7
+inst kick  type=noise  env=15,down,1 width=7  # Short punchy noise
+inst snare type=noise  env=12,down,3          # Longer noise
+
+# --- Patterns ---
+
+# 1. Using the :duration shorthand (NOTE:TICKS)
+# C5:4 means "Play C5 and sustain it for 4 ticks total"
+pat melody = C5:4 E5:4 G5:2 F5:2 E5:4
+
+# 2. Using explicit sustain tokens (_ or -)
+# C3 _ _ _ is exactly the same as C3:4
+pat bassline = C3 _ _ _ G2 _ _ _ C3 _ G2 _ C3 _ _ _
+
+# 3. Using rests (.) to cut notes
+# In BeatBax, a rest (.) sends a "Note Cut" to trackers like hUGETracker.
+# This is useful for staccato notes or percussion.
+pat drums = kick . snare . kick kick snare .
+
+# --- Sequences ---
+seq main = melody bassline drums
+
+# --- Channels ---
+# Channel 1: Lead melody with long sustained notes
+channel 1 => inst lead seq melody
+
+# Channel 2: Bassline using explicit sustain tokens
+channel 2 => inst bass seq bassline
+
+# Channel 4: Percussion using rests for sharp cuts
+channel 4 => inst kick seq drums
+
+# --- Commands ---
+# You can play this song using: node bin/beatbax play songs/sustain_demo.bax --headless
+# Or export it: node bin/beatbax export wav songs/sustain_demo.bax demo.wav
