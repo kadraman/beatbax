@@ -452,7 +452,7 @@ function eventsToPatterns(
 /**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
-export async function exportUGE(song: SongModel, outputPath: string): Promise<void> {
+export async function exportUGE(song: SongModel, outputPath: string, opts?: { debug?: boolean }): Promise<void> {
     const w = new UGEWriter();
 
     // ====== Header ======
@@ -582,7 +582,7 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
         // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
-        console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
+        if (opts && opts.debug) console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
         const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts);
         channelPatterns.push(patterns);
     }
@@ -625,8 +625,8 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
     // Write number of patterns
     w.writeU32(allPatterns.length);
 
-    console.log(`[DEBUG] Total patterns: ${allPatterns.length}`);
-    console.log(`[DEBUG] Pattern breakdown: Ch1=${channelPatterns[0].length}, Ch2=${channelPatterns[1].length}, Ch3=${channelPatterns[2].length}, Ch4=${channelPatterns[3].length}, +blank=1`);
+    if (opts && opts.debug) console.log(`[DEBUG] Total patterns: ${allPatterns.length}`);
+    if (opts && opts.debug) console.log(`[DEBUG] Pattern breakdown: Ch1=${channelPatterns[0].length}, Ch2=${channelPatterns[1].length}, Ch3=${channelPatterns[2].length}, Ch4=${channelPatterns[3].length}`);
 
     // Write pattern data
     for (let i = 0; i < allPatterns.length; i++) {
@@ -635,16 +635,16 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
         const ch = pattern.channelIndex;
         
         // Debug all channel patterns
-        if (ch >= 0 && ch < NUM_CHANNELS) {
-            const nonEmpty = pattern.cells.filter((c, idx) => c.note !== EMPTY_NOTE || c.instrument !== 0);
-            console.log(`[DEBUG] Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
-            if (nonEmpty.length <= 20) {
-                console.log(`[DEBUG]   Non-empty cells:`, nonEmpty.map((c) => {
-                    const rowIdx = pattern.cells.indexOf(c);
-                    return `row${rowIdx}:note=${c.note},inst=${c.instrument}`;
-                }).join('; '));
+            if (ch >= 0 && ch < NUM_CHANNELS) {
+                const nonEmpty = pattern.cells.filter((c, idx) => c.note !== EMPTY_NOTE || c.instrument !== 0);
+                if (opts && opts.debug) console.log(`[DEBUG] Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
+                if (nonEmpty.length <= 20) {
+                    if (opts && opts.debug) console.log(`[DEBUG]   Non-empty cells:`, nonEmpty.map((c) => {
+                        const rowIdx = pattern.cells.indexOf(c);
+                        return `row${rowIdx}:note=${c.note},inst=${c.instrument}`;
+                    }).join('; '));
+                }
             }
-        }
         
         // Write cells with instrument index conversion
         for (const cell of pattern.cells) {
@@ -702,16 +702,16 @@ export async function exportUGE(song: SongModel, outputPath: string): Promise<vo
             patternIndexOffset += channelPatterns[prevCh].length;
         }
         
-        if (ch === 3) {
-            console.log(`[DEBUG] Channel 4 order list: length=${maxOrderLength}, patternIndexOffset=${patternIndexOffset}`);
-        }
+        //if (ch === 3) {
+        //    if (opts && opts.debug) console.log(`[DEBUG] Channel 4 order list: length=${maxOrderLength}, patternIndexOffset=${patternIndexOffset}`);
+        //}
         
         for (let i = 0; i < maxOrderLength; i++) {
             if (i < patterns.length) {
                 const patIdx = patternIndexOffset + i;
-                if (ch === 3) {
-                    console.log(`[DEBUG] Channel 4 order[${i}] = pattern ${patIdx}`);
-                }
+                //if (ch === 3) {
+                //    if (opts && opts.debug) console.log(`[DEBUG] Channel 4 order[${i}] = pattern ${patIdx}`);
+                //}
                 w.writeU32(patIdx);
             } else {
                 // Pad with the blank pattern

@@ -67,7 +67,7 @@ function validateSongModel(song: any) {
  * Export a resolved song model to JSON. Backward-compatible overload: if
  * called with a single string, write a small metadata JSON file.
  */
-export async function exportJSON(songOrPath: any, maybePath?: string) {
+export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { debug?: boolean }) {
 	let song = songOrPath;
 	let outPath = maybePath;
 
@@ -76,7 +76,7 @@ export async function exportJSON(songOrPath: any, maybePath?: string) {
 		const dummy = { exportedAt: new Date().toISOString(), source: songOrPath };
 		outPath = songOrPath.endsWith('.json') ? songOrPath : `${songOrPath}.json`;
 		writeFileSync(outPath, JSON.stringify(dummy, null, 2), 'utf8');
-		console.log('Wrote JSON to', outPath);
+		if (opts && opts.debug) console.log('Wrote JSON to', outPath);
 		return;
 	}
 
@@ -118,5 +118,5 @@ export async function exportJSON(songOrPath: any, maybePath?: string) {
 	};
 
 	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
-	console.log('Wrote validated JSON song to', outPath);
+	if (opts && opts.debug) console.log('Wrote validated JSON song to', outPath);
 }
