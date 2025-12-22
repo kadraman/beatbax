@@ -20,6 +20,34 @@ const warnProblematicPatternName = (name: string): void => {
  * using `expandPattern` and collecting `inst`, `seq` and `channel` entries.
  */
 export function parse(source: string): AST {
+  // Remove inline comments starting with `#` unless inside quotes, brackets,
+  // or parentheses. This keeps comment support consistent across `pat`,
+  // `seq`, and `channel` lines where users may append notes.
+  const stripInlineComments = (s: string): string => {
+    return s.split(/\r?\n/).map(line => {
+      let inS = false;
+      let inD = false;
+      let bracket = 0;
+      let paren = 0;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === "'" && !inD) { inS = !inS; continue; }
+        if (ch === '"' && !inS) { inD = !inD; continue; }
+        if (inS || inD) continue;
+        if (ch === '[') { bracket++; continue; }
+        if (ch === ']') { if (bracket > 0) bracket--; continue; }
+        if (ch === '(') { paren++; continue; }
+        if (ch === ')') { if (paren > 0) paren--; continue; }
+        if (ch === '#' && bracket === 0 && paren === 0) {
+          return line.slice(0, i).trimEnd();
+        }
+      }
+      return line;
+    }).join('\n');
+  };
+
+  const src = stripInlineComments(source);
+
   const pats: Record<string, string[]> = {};
   const insts: Record<string, Record<string, string>> = {};
   const seqs: SeqMap = {};
@@ -29,7 +57,7 @@ export function parse(source: string): AST {
   // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
   const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) {
+  while ((m = re.exec(src)) !== null) {
     const nameSpec = m[1];
     let rhs = m[2].trim();
 
@@ -101,7 +129,7 @@ export function parse(source: string): AST {
 
   // Parse inst definitions: inst NAME key=val key2=val2 ...
   const reInst = /^\s*inst\s+([A-Za-z_][A-Za-z0-9_\-]*)\s+(.+)$/gm;
-  while ((m = reInst.exec(source)) !== null) {
+  while ((m = reInst.exec(src)) !== null) {
     const name = m[1];
     const rest = m[2].trim();
     const parts = rest.split(/\s+/);
@@ -120,19 +148,92 @@ export function parse(source: string): AST {
     insts[name] = props;
   }
 
-  // Parse seq definitions: seq NAME = PATPAT...
-  const reSeq = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*(.+)$/gm;
-  while ((m = reSeq.exec(source)) !== null) {
-    const name = m[1];
-    const rhs = m[2].trim();
+  // Parse seq definitions line-by-line to avoid accidental multiline captures
+  // and provide a clear warning if the RHS is empty.
+  const seqLineRe = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*(.*)$/;
+  const lines = src.split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const lm = lines[li].match(seqLineRe);
+    if (!lm) continue;
+    const name = lm[1];
+    const rhs = lm[2].trim();
+    if (!rhs) {
+      console.warn(
+        `[BeatBax Parser] Warning: sequence '${name}' has no RHS content (empty). ` +
+        `Define patterns after '=' or remove the empty 'seq ${name} =' line.`
+      );
+      seqs[name] = [];
+      continue;
+    }
+
     // split by whitespace to preserve modifiers like A:inst(bass)
-    const parts = rhs.match(/[^\s]+/g) || [];
+    // Tokenize RHS preserving parenthesized groups as single tokens.
+    const tokenize = (s: string): string[] => {
+      const out: string[] = [];
+      let i = 0;
+      let cur = '';
+      let inS = false;
+      let inD = false;
+      while (i < s.length) {
+        const ch = s[i];
+        if (ch === "'" && !inD) { inS = !inS; cur += ch; i++; continue; }
+        if (ch === '"' && !inS) { inD = !inD; cur += ch; i++; continue; }
+        if (inS || inD) { cur += ch; i++; continue; }
+        if (ch === '(') {
+          // flush current
+          if (cur.trim()) { out.push(cur.trim()); cur = ''; }
+          // capture until matching ')'
+          let depth = 1;
+          let j = i + 1;
+          let group = '(';
+          while (j < s.length && depth > 0) {
+            const c2 = s[j];
+            group += c2;
+            if (c2 === '(') depth++;
+            else if (c2 === ')') depth--;
+            j++;
+          }
+          out.push(group.trim());
+          i = j;
+          cur = '';
+          continue;
+        }
+        if (/\s/.test(ch) || ch === ',') {
+          if (cur.trim()) { out.push(cur.trim()); cur = ''; }
+          i++; continue;
+        }
+        cur += ch;
+        i++;
+      }
+      if (cur.trim()) out.push(cur.trim());
+      return out;
+    };
+
+    const rawParts = tokenize(rhs);
+    // Normalize space-separated repetition syntax: `name * 2` -> `name*2`
+    const parts: string[] = [];
+    for (let i = 0; i < rawParts.length; i++) {
+      const p = rawParts[i];
+      if (p === '*' && i > 0 && i + 1 < rawParts.length && /^\d+$/.test(rawParts[i + 1])) {
+        const prev = parts.pop();
+        if (prev) parts.push(`${prev}*${rawParts[i + 1]}`);
+        i++;
+        continue;
+      }
+      // support form where '*' and number are attached as a token (e.g. '*2')
+      if (/^\*\d+$/.test(p) && parts.length > 0) {
+        const prev = parts.pop();
+        parts.push(`${prev}${p}`);
+        continue;
+      }
+      parts.push(p);
+    }
     seqs[name] = parts;
   }
 
   // Parse channel definitions: channel N => ...
   const reChan = /^\s*channel\s+(\d+)\s*=>\s*(.+)$/gm;
-  while ((m = reChan.exec(source)) !== null) {
+  while ((m = reChan.exec(src)) !== null) {
     const id = parseInt(m[1], 10);
     const rhs = m[2].trim();
     // Simple tokenization of RHS
@@ -150,11 +251,18 @@ export function parse(source: string): AST {
         ch.pat = patSpec;
         i++;
       } else if (t === 'seq' && tokens[i + 1]) {
-        // channel may point to a sequence name instead of a single pattern
-        const seqRef = tokens[i + 1];
-        let seqSpec = (seqRef.startsWith('"') || seqRef.startsWith("'")) ? seqRef.replace(/^['"]|['"]$/g, '') : seqRef;
-        ch.pat = seqSpec; // leave as string; resolver will expand sequences
-        i++;
+        // channel may point to one or more sequences. Capture the rest of the
+        // channel RHS as a single sequence specification string so callers
+        // can support comma-separated lists and repetition syntax like "name * 2".
+        const restTokens = tokens.slice(i + 1);
+        const rest = restTokens.join(' ');
+        let seqSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['\"]|['\"]$/g, '') : rest;
+        ch.pat = seqSpec.trim(); // leave as string; resolver will expand sequences
+        // also attach raw token array to help the resolver parse space-separated
+        // sequence lists like: `seq lead lead2` or `seq lead * 2`.
+        (ch as any).seqSpecTokens = restTokens;
+        // consume the rest of the tokens (we've handled them)
+        break;
       } else if (t.startsWith('bpm=')) {
         // Channel-level `bpm` is not supported. Fail fast with a parse error
         // to guide users to use top-level `bpm` or sequence transforms instead.
@@ -251,7 +359,7 @@ export function parse(source: string): AST {
 
   // Parse top-level bpm directive: `bpm 160` or `bpm=160`
   const reBpm = /^\s*bpm\s*(?:=)?\s*(\d+)$/gim;
-  while ((m = reBpm.exec(source)) !== null) {
+  while ((m = reBpm.exec(src)) !== null) {
     const n = parseInt(m[1], 10);
     if (!isNaN(n)) topBpm = n;
   }
@@ -259,7 +367,7 @@ export function parse(source: string): AST {
   // Parse top-level chip directive: `chip gameboy` or `chip=gameboy`
   let chipName: string | undefined = undefined;
   const reChip = /^\s*chip\s*(?:=)?\s*([A-Za-z_][A-Za-z0-9_\-]*)/gim;
-  while ((m = reChip.exec(source)) !== null) {
+  while ((m = reChip.exec(src)) !== null) {
     chipName = m[1];
   }
 

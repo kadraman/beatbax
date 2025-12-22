@@ -88,6 +88,32 @@ Example multi-row form:
         lead2 | bass  | wave2 | drums
     }
 
+## Channel `seq` multi-item syntax
+
+Channels may reference multiple sequences in a single `seq` clause. This file's
+`Song` expansion semantics are compatible with the `channel` syntax extended to
+support the following forms on a channel mapping line:
+
+- Comma-separated lists:
+
+  channel 1 => inst lead seq lead,lead2
+
+- Repetition using `*N` (whitespace tolerant):
+
+  channel 1 => inst lead seq lead * 2
+  channel 1 => inst lead seq lead*2
+
+- Space-separated lists (convenience form):
+
+  channel 1 => inst lead seq lead lead2
+
+Each sequence item may include the same inline modifiers allowed elsewhere
+(`:oct(-1)`, `:inst(name)`, `:slow()`, `:fast()`, `:+2` etc.). When multiple
+items are provided the resolver expands each item in order, applies modifiers to
+that item, and concatenates the resulting token streams for that channel. This
+behavior is consistent with `Song` expansion which concatenates per-slot
+sequence streams for each row into the per-channel ISM.
+
 ## Acceptance criteria
 
 - Parser accepts the new `song` syntax (both short and multi-row).

@@ -1,4 +1,5 @@
-## Sample song for the demo
+## sample.bax
+## BeatBax Sample song
 ## This file illustrates common language features and maps them to 4 Game Boy-like
 ## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
 
@@ -92,10 +93,10 @@ seq wave = arp arp arp
 seq drums = drums_pat drums_alt drums_pat drums_pat
 
 ## Map channels to their separate sequences.
-channel 1 => inst leadA seq lead
-channel 2 => inst leadB seq bass:oct(-1)
-channel 3 => inst wave1 seq wave:oct(-1)
-channel 4 => inst perc  seq drums
+channel 1 => inst leadA seq lead lead
+channel 2 => inst leadB seq bass:oct(-1) base
+channel 3 => inst wave1 seq wave:oct(-1) wave
+channel 4 => inst perc  seq drums drums
 
 # -----------------------------------------------------------------------------
 # Playback directive
@@ -103,21 +104,3 @@ channel 4 => inst perc  seq drums
 # would trigger immediate rendering or playback; in the web UI the UI uses the
 # parsed AST to schedule audio.
 play
-
-# -----------------------------------------------------------------------------
-# Speed examples (commented)
-#
-# You can set a master BPM at the top of the file and then use `speed` on a
-# per-channel basis to play that channel at a multiple of the master tempo.
-# These lines are commented out so they won't conflict with the active
-# channel mappings above — uncomment to try them in the demo.
-
-# # channel mapping using master BPM
-# channel 1 => inst leadA seq lead
-# # channel 2 plays twice as fast as the master (2x)
-# channel 2 => inst leadB seq bass speed=2x
-# # channel 3 uses master tempo (wavetable)
-# channel 3 => inst wave1 seq wave
-# # channel 4 percussion at master tempo
-# channel 4 => inst perc  seq drums
-

@@ -81,17 +81,17 @@ export function writeWAV(samples: Float32Array, opts: WavOptions): Buffer {
   return Buffer.concat([header, pcmData]);
 }
 
-export async function exportWAV(samples: Float32Array, outputPath: string, opts: WavOptions): Promise<void> {
+export async function exportWAV(samples: Float32Array, outputPath: string, opts: WavOptions, metaOpts?: { debug?: boolean }): Promise<void> {
   const { writeFileSync } = await import('fs');
   const wavBuffer = writeWAV(samples, opts);
   writeFileSync(outputPath, wavBuffer);
-  console.log(`[OK] Exported WAV: ${outputPath} (${samples.length} samples, ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch)`);
+  if (metaOpts && metaOpts.debug) console.log(`[OK] Exported WAV: ${outputPath} (${samples.length} samples, ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch)`);
 }
 
 /**
  * Render a song model to PCM and export as a WAV file.
  */
-export async function exportWAVFromSong(song: SongModel, outputPath: string, options: RenderOptions & Partial<WavOptions> = {}) {
+export async function exportWAVFromSong(song: SongModel, outputPath: string, options: RenderOptions & Partial<WavOptions> = {}, metaOpts?: { debug?: boolean }) {
   const sampleRate = options.sampleRate || 44100;
   const samples = renderSongToPCM(song, {
     ...options,
@@ -103,5 +103,5 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
     sampleRate,
     bitDepth: options.bitDepth || 16,
     channels: 2
-  });
+  }, metaOpts);
 }

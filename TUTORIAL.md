@@ -28,6 +28,28 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Example: `channel 1 => inst leadA pat melody` (use top-level `bpm 160` or per-channel `speed`/sequence transforms)
   - Channels: 1 (Pulse1), 2 (Pulse2), 3 (Wave), 4 (Noise)
 
+Extended `seq` syntax examples
+- Multiple sequences on one channel (comma-separated): `seq a,b` — plays `a` then `b`.
+- Repetition: `seq a * 2` or shorthand `a*2` repeats `a` twice.
+- Space-separated list: `seq a b` is a shorthand for multiple items.
+- Parenthesized group repetition: `(a b)*2` repeats the group twice.
+
+Examples:
+```
+# comma-separated and space-separated
+channel 1 => inst leadA seq lead,lead2
+channel 2 => inst bass  seq lead lead2
+
+# repetition and group repetition
+seq bass_repeat = bass_pat*2
+seq arranged = (lead_pat lead_alt)*2 bass_repeat
+channel 3 => inst wave1 seq arranged
+```
+
+Notes:
+- Inline modifiers may be applied per-item, e.g. `lead:inst(leadB):slow(2)`.
+- The parser and CLI validate sequence definitions; empty `seq NAME =` lines are reported as errors by `verify`, and `play`/`export` will abort on such errors.
+
 **Transforms (applied at parse/expansion time)**
 - `:oct(n)` — transpose by octaves
 - `:+N` or `:-N` — semitone transpose
