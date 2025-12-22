@@ -96,7 +96,8 @@ export class Player {
     for (const ch of ast.channels || []) {
       const instsMap = (ast.insts || {});
       let currentInst = instsMap[ch.inst || ''];
-      const tokens: any[] = Array.isArray(ch.pat) ? ch.pat : ['.'];
+      // Use ch.events if available (resolved song model), otherwise fall back to ch.pat (legacy)
+      const tokens: any[] = Array.isArray((ch as any).events) ? (ch as any).events : (Array.isArray(ch.pat) ? ch.pat : ['.']);
       let tempInst: any = null;
       let tempRemaining = 0;
       let bpm: number;
@@ -109,21 +110,37 @@ export class Player {
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const t = startTime + i * tickSeconds;
+        
         if (token && typeof token === 'object' && token.type) {
-          if (token.type === 'rest') {}
-          else if (token.type === 'named') {
-            const instProps = token.instProps || instsMap[token.instrument] || null;
-            this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, tickSeconds);
-          } else if (token.type === 'note') {
-            const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
-            this.scheduleToken(ch.id, instProps, instsMap, token.token, t, tickSeconds);
-            if (tempRemaining > 0) {
-              tempRemaining -= 1;
-              if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
+          if (token.type === 'rest' || token.type === 'sustain') {
+            // Handled by lookahead or ignored
+          } else {
+            // Calculate duration by looking ahead for sustains
+            let sustainCount = 0;
+            for (let j = i + 1; j < tokens.length; j++) {
+              const next = tokens[j];
+              if (next && typeof next === 'object' && next.type === 'sustain') sustainCount++;
+              else if (next === '_' || next === '-') sustainCount++;
+              else break;
+            }
+            const dur = tickSeconds * (1 + sustainCount);
+
+            if (token.type === 'named') {
+              const instProps = token.instProps || instsMap[token.instrument] || null;
+              this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, dur);
+            } else if (token.type === 'note') {
+              const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
+              this.scheduleToken(ch.id, instProps, instsMap, token.token, t, dur);
+              if (tempRemaining > 0) {
+                tempRemaining -= 1;
+                if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
+              }
             }
           }
           continue;
         }
+
+        if (token === '_' || token === '-') continue;
 
         const mInstInline = typeof token === 'string' && token.match(/^inst\(([^,()\s]+)(?:,(\d+))?\)$/i);
         if (mInstInline) {
@@ -140,7 +157,18 @@ export class Player {
         }
 
         const useInst = tempRemaining > 0 && tempInst ? tempInst : currentInst;
-        this.scheduleToken(ch.id, useInst, instsMap, token, t, tickSeconds);
+        
+        // Calculate duration by looking ahead for sustains
+        let sustainCount = 0;
+        for (let j = i + 1; j < tokens.length; j++) {
+          const next = tokens[j];
+          if (next && typeof next === 'object' && next.type === 'sustain') sustainCount++;
+          else if (next === '_' || next === '-') sustainCount++;
+          else break;
+        }
+        const dur = tickSeconds * (1 + sustainCount);
+        
+        this.scheduleToken(ch.id, useInst, instsMap, token, t, dur);
 
         if (tempRemaining > 0 && token !== '.') {
           tempRemaining -= 1;

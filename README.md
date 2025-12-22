@@ -195,6 +195,37 @@ npm run web-ui:dev
 ```
 
 Then browse to `http://localhost:5173` (Vite default) or the URL shown by the dev server.
+
+### Engine development workflow
+
+When making changes to the engine that need to appear in the web UI:
+
+```powershell
+# Terminal 1: Keep the web UI dev server running
+npm run web-ui:dev
+
+# Terminal 2: After making changes to packages/engine/src/
+npm run engine:build
+
+# Back to Terminal 1: Press 'r' + Enter to restart the dev server
+# This forces Vite to re-optimize dependencies and pick up engine changes
+```
+
+**Note:** The web UI uses npm workspace links, so you don't need to run `link-local-engine.cjs` for web UI development. That script is only needed for CLI usage.
+
+**Alternative (if restart doesn't work):**
+```powershell
+cd apps/web-ui
+npm run dev:clean  # Uses --force flag to bypass Vite cache
+```
+
+**For CLI development:**
+```powershell
+# After engine changes
+npm run engine:build
+node scripts/link-local-engine.cjs  # Copies dist to node_modules
+node bin/beatbax play songs/sample.bax --headless
+```
  
 ### Local linking (developer convenience)
 

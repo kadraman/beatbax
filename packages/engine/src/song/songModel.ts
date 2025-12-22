@@ -15,6 +15,10 @@ export interface RestEvent {
   type: 'rest';
 }
 
+export interface SustainEvent {
+  type: 'sustain';
+}
+
 export interface NamedInstrumentEvent {
   type: 'named';
   token: string; // e.g. 'snare' - a named instrument token
@@ -22,7 +26,7 @@ export interface NamedInstrumentEvent {
   instProps?: Record<string, string> | undefined;
 }
 
-export type ChannelEvent = NoteEvent | RestEvent | NamedInstrumentEvent;
+export type ChannelEvent = NoteEvent | RestEvent | SustainEvent | NamedInstrumentEvent;
 
 export interface ChannelModel {
   id: number;

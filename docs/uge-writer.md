@@ -28,6 +28,8 @@ Complete implementation of a UGE v6 binary file writer for BeatBax. The implemen
    - `noteNameToMidiNote()`: Convert note names (C3, C#4, etc.) to MIDI note numbers
    - `resolveInstrumentIndex()`: Map beatbax instrument names to GB instrument indices
    - `eventsToPatternCells()`: Convert beatbax channel events to UGE pattern cells
+     - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (0xC) to ensure sharp termination.
+     - **Sustain Logic**: Sustains (`_`) are exported as empty cells (Note 90), allowing the previous note to continue.
 
 4. **Main Export Function**: `exportUGE(song: SongModel, outputPath: string)`
    - Writes UGE v6 header (version, title, artist, comment)

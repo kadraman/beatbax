@@ -99,10 +99,11 @@ export function expandPattern(text: string): string[] {
         j++;
       }
       const group = text.slice(i + 1, j - 1);
-      // check for *N
+      // check for *N (skip whitespace first)
       let k = j;
+      while (k < text.length && /\s/.test(text[k])) k++;
       let repeat = 1;
-      if (text[k] === '*') {
+      if (k < text.length && text[k] === '*') {
         k++;
         const m = text.slice(k).match(/^\d+/);
         if (m) {
@@ -121,14 +122,24 @@ export function expandPattern(text: string): string[] {
     let j = i;
     while (j < text.length && !/\s/.test(text[j])) j++;
     let atom = text.slice(i, j);
-    // check for *N repeat suffix
-    const m = atom.match(/^(.*)\*(\d+)$/);
-    if (m) {
-      const base = m[1];
-      const count = parseInt(m[2], 10);
-      for (let r = 0; r < count; r++) tokens.push(base);
+    
+    // check for :duration suffix (e.g. C5:4 -> C5 _ _ _)
+    const mDur = atom.match(/^(.*):(\d+)$/);
+    if (mDur) {
+      const base = mDur[1];
+      const count = parseInt(mDur[2], 10);
+      tokens.push(base);
+      for (let r = 1; r < count; r++) tokens.push('_');
     } else {
-      tokens.push(atom);
+      // check for *N repeat suffix
+      const m = atom.match(/^(.*)\*(\d+)$/);
+      if (m) {
+        const base = m[1];
+        const count = parseInt(m[2], 10);
+        for (let r = 0; r < count; r++) tokens.push(base);
+      } else {
+        tokens.push(atom);
+      }
     }
     i = j;
   }
@@ -140,7 +151,7 @@ export function transposePattern(tokens: string[], opts: { semitones?: number; o
   const semitones = (opts.semitones || 0) + (opts.octaves || 0) * 12;
   if (semitones === 0) return tokens.slice();
   return tokens.map(t => {
-    if (t === '.') return t;
+    if (t === '.' || t === '_' || t === '-') return t;
     const midi = noteToMidi(t);
     if (midi === null) return t;
     return midiToNote(midi + semitones);

@@ -42,7 +42,7 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 pat melody      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat melody_alt  = (. C5 . C5 . G5 . G5 .) * 2
+pat melody_alt  = (. C5 . C5 . G5 . G5) * 2
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .

@@ -157,3 +157,4 @@ lib
 *.wav
 *.mid
 output.*
+test.ps1
