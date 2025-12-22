@@ -1,0 +1,51 @@
+## sequence_demo.bax
+## Demonstrates channel `seq` multi-item syntax:
+##  - comma-separated: `seq a,b`
+##  - repetition: `seq a * 2` or `a*2`
+##  - space-separated: `seq a b`
+## Also shows inline modifiers applied to individual items.
+
+chip gameboy
+
+bpm 120
+
+# Instruments
+inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
+inst leadB type=pulse2 duty=30 env=gb:10,down,1 gm=34
+inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82
+inst snare type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
+inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise channel
+
+# Patterns (16 tokens each)
+pat lead_pat  = (C5 E5 G5 C6) (C5 E5 G5 C6)                 # 8 notes
+pat lead_alt  = (C5 C5 . C5 G5 G5 . G5) * 2                 # 16 notes
+pat lead2_pat = C5:4 G5:4 C5:4 C6:4                         # 16 notes
+pat bass_pat  = C3 . G2 . C3 . G2 . C3 . G2 . C3 . G2 .     # 16 notes
+pat wave_pat  = (C4 E4 G4 C5) * 4                           # 16 notes
+pat drums_pat = (snare . hihat . snare . hihat .) * 2       # 16 notes
+pat drums_alt = snare . hihat . snare . hihat . (perc*8)    # 16 notes
+
+# Sequences
+seq lead    = lead_pat*2 lead_alt                           # 32 notes
+seq lead2   = lead2_pat*2                                   # 32 notes
+seq bass    = bass_pat, bass_pat                            # 32 notes
+seq wave    = wave_pat wave_pat                             # 32 notes
+seq drums   = drums_pat drums_alt                           # 32 notes
+
+# Channel mappings demonstrating simple sequence arrangement syntax
+# 1) Comma-separated: plays `lead` then `lead2`
+channel 1 => inst leadA seq lead, lead2
+
+# 2) Repetition: repeats `bass` sequence twice
+channel 2 => inst leadB seq bass*2
+
+# 3) Space-separated list: shorthand for multiple items
+#    also shows a per-item modifier (:oct(-1)) applied to second item
+channel 3 => inst wave1 seq wave:oct(-1) wave:oct(-2)
+
+# 4) Example using immediate named hits / percussion sequence
+channel 4 => inst perc seq drums drums
+
+# Playback directive for interactive demos
+play

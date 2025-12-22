@@ -56,7 +56,7 @@ function writeChunk(id: string, data: number[]) {
 }
 
 /** Export a resolved song model to MIDI. */
-export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}) {
+export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean }) {
 	let outPath = maybePath as string | undefined;
 
 	// If caller passed just a path string, write an empty MIDI file
@@ -71,7 +71,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 		header.writeUInt16BE(480, 12); // ticks per quarter
 		const track = writeChunk('MTrk', [0x00, 0xff, 0x2f, 0x00]);
 		writeFileSync(outPath, Buffer.concat([header, track]));
-		console.log('Wrote empty MIDI to', outPath);
+		if (opts && opts.debug) console.log('Wrote empty MIDI to', outPath);
 		return;
 	}
 
@@ -266,5 +266,5 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 	// Write file
 	const out = Buffer.concat([header, ...trackBuffers]);
 	writeFileSync(outPath, out);
-	console.log('Wrote MIDI to', outPath);
+	if (opts && opts.debug) console.log('Wrote MIDI to', outPath);
 }

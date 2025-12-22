@@ -53,6 +53,8 @@ The `play` command supports browser and headless playback:
 - `--headless` — Headless Node.js playback using multi-fallback audio system
 - `--sample-rate <hz>` — Sample rate for headless playback (default: 44100)
 
+Validation note: the CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
+
 The CLI uses a hybrid approach with cascading fallbacks:
 1. **speaker** module (optional, best performance if installed)
 2. **play-sound** wrapper (uses system players, works cross-platform)

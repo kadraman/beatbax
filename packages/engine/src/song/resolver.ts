@@ -28,89 +28,132 @@ export function resolveSong(ast: AST): SongModel {
       tokens = ch.pat.slice();
     } else if (typeof ch.pat === 'string') {
       const ref = ch.pat;
-      // support modifiers on sequence or pattern references like NAME:oct(-1)
-      const parts = ref.split(':');
-      const base = parts[0];
-      const mods = parts.slice(1);
-
-      if (expandedSeqs[base]) {
-        let tks = expandedSeqs[base].slice();
-        // apply sequence-level modifiers similar to expandSequenceItems
-        let semitones = 0;
-        let octaves = 0;
-        let instOverride: string | null = null;
-        for (const mod of mods) {
-          const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-          if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
-          if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
-          const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-          if (mSlow) {
-            const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-            const outTokens: string[] = [];
-            for (const tt of tks) for (let r = 0; r < factor; r++) outTokens.push(tt);
-            tks = outTokens;
-            continue;
+      // A channel `seq` spec may contain multiple sequence names separated by
+      // commas and repetition syntax like `name * 2`. We support two forms:
+      //  - comma-separated: "lead,lead2"
+      //  - repetition: "lead * 2" or "lead*2"
+      let items: string[];
+      if ((ch as any).seqSpecTokens) {
+        const raw = (ch as any).seqSpecTokens as string[];
+        const joined = raw.join(' ');
+        // split on commas first, then split whitespace-only groups into multiple items
+        items = [];
+        for (const group of joined.split(',')) {
+          const g = group.trim();
+          if (!g) continue;
+          if (g.indexOf('*') >= 0) {
+            // keep repetition syntax intact (e.g. "lead * 2" or "lead*2")
+            items.push(g);
+          } else {
+            // split whitespace-separated names (e.g. "lead lead2")
+            const parts = g.split(/\s+/).map(s => s.trim()).filter(Boolean);
+            items.push(...parts);
           }
-          const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-          if (mFast) {
-            const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-            tks = tks.filter((_, idx) => idx % factor === 0);
-            continue;
-          }
-          const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-          if (mInst) { instOverride = mInst[1]; continue; }
-          const mTrans = mod.match(/^([+-]?\d+)$/);
-          if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
-          const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-          if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
         }
-        if (semitones !== 0 || octaves !== 0) {
-          tks = transposePattern(tks, { semitones, octaves });
-        }
-        if (instOverride) {
-          tks.unshift(`inst(${instOverride})`);
-        }
-        tokens = tks;
-      } else if (pats[base]) {
-        // pattern-level reference with modifiers
-        let tks = pats[base].slice();
-        // apply same modifiers as above
-        let semitones = 0;
-        let octaves = 0;
-        let instOverride: string | null = null;
-        for (const mod of mods) {
-          const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-          if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
-          if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
-          const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-          if (mSlow) {
-            const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-            const outTokens: string[] = [];
-            for (const tt of tks) for (let r = 0; r < factor; r++) outTokens.push(tt);
-            tks = outTokens;
-            continue;
-          }
-          const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-          if (mFast) {
-            const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-            tks = tks.filter((_, idx) => idx % factor === 0);
-            continue;
-          }
-          const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-          if (mInst) { instOverride = mInst[1]; continue; }
-          const mTrans = mod.match(/^([+-]?\d+)$/);
-          if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
-          const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-          if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
-        }
-        if (semitones !== 0 || octaves !== 0) {
-          tks = transposePattern(tks, { semitones, octaves });
-        }
-        if (instOverride) tks.unshift(`inst(${instOverride})`);
-        tokens = tks;
       } else {
-        tokens = [ref];
+        items = ref.indexOf(',') >= 0 ? ref.split(',').map(s => s.trim()).filter(Boolean) : [ref.trim()];
       }
+      const outTokens: string[] = [];
+
+      const expandRefToTokens = (itemRef: string): string[] => {
+        // itemRef may include modifiers after `:` (e.g. name:oct(-1):inst(bass))
+        const parts = itemRef.split(':');
+        const base = parts[0];
+        const mods = parts.slice(1);
+
+        if (expandedSeqs[base]) {
+          let tks = expandedSeqs[base].slice();
+          // apply modifiers (same rules as for single refs)
+          let semitones = 0;
+          let octaves = 0;
+          let instOverride: string | null = null;
+          for (const mod of mods) {
+            const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+            if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
+            if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
+            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+            if (mSlow) {
+              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+              const outArr: string[] = [];
+              for (const tt of tks) for (let r = 0; r < factor; r++) outArr.push(tt);
+              tks = outArr;
+              continue;
+            }
+            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+            if (mFast) {
+              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+              tks = tks.filter((_, idx) => idx % factor === 0);
+              continue;
+            }
+            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
+            if (mInst) { instOverride = mInst[1]; continue; }
+            const mTrans = mod.match(/^([+-]?\d+)$/);
+            if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
+            const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
+            if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
+          }
+          if (semitones !== 0 || octaves !== 0) {
+            tks = transposePattern(tks, { semitones, octaves });
+          }
+          if (instOverride) {
+            tks.unshift(`inst(${instOverride})`);
+          }
+          return tks;
+        }
+
+        if (pats[base]) {
+          let tks = pats[base].slice();
+          let semitones = 0;
+          let octaves = 0;
+          let instOverride: string | null = null;
+          for (const mod of mods) {
+            const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+            if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
+            if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
+            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+            if (mSlow) {
+              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
+              const outArr: string[] = [];
+              for (const tt of tks) for (let r = 0; r < factor; r++) outArr.push(tt);
+              tks = outArr;
+              continue;
+            }
+            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+            if (mFast) {
+              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
+              tks = tks.filter((_, idx) => idx % factor === 0);
+              continue;
+            }
+            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
+            if (mInst) { instOverride = mInst[1]; continue; }
+            const mTrans = mod.match(/^([+-]?\d+)$/);
+            if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
+            const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
+            if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
+          }
+          if (semitones !== 0 || octaves !== 0) {
+            tks = transposePattern(tks, { semitones, octaves });
+          }
+          if (instOverride) tks.unshift(`inst(${instOverride})`);
+          return tks;
+        }
+
+        // fallback: return the raw token so downstream logic can handle it
+        return [itemRef];
+      };
+
+      for (const item of items) {
+        // check repetition like "name * 2" or "name*2"
+        const mRep = item.match(/^(.+?)\s*\*\s*(\d+)$/);
+        const repeat = mRep ? parseInt(mRep[2], 10) : 1;
+        const itemRef = mRep ? mRep[1].trim() : item;
+        for (let r = 0; r < repeat; r++) {
+          const toks = expandRefToTokens(itemRef);
+          outTokens.push(...toks);
+        }
+      }
+
+      tokens = outTokens;
     }
 
     // Instrument state
