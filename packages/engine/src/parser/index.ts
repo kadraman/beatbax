@@ -180,9 +180,8 @@ export function parse(source: string): AST {
         if (ch === '"' && !inS) { inD = !inD; cur += ch; i++; continue; }
         if (inS || inD) { cur += ch; i++; continue; }
         if (ch === '(') {
-          // flush current
-          if (cur.trim()) { out.push(cur.trim()); cur = ''; }
-          // capture until matching ')'
+          // If we have accumulated text (like "P:inst"), keep it and append the parenthesized part
+          // This handles cases like "P:inst(foo)" which should be a single token
           let depth = 1;
           let j = i + 1;
           let group = '(';
@@ -193,9 +192,8 @@ export function parse(source: string): AST {
             else if (c2 === ')') depth--;
             j++;
           }
-          out.push(group.trim());
+          cur += group;
           i = j;
-          cur = '';
           continue;
         }
         if (/\s/.test(ch) || ch === ',') {

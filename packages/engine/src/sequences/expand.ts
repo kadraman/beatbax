@@ -33,7 +33,7 @@ const splitTopLevel = (s: string, sep = ':'): string[] => {
   return out.map(x => x.trim()).filter(Boolean);
 };
 
-export function expandSequenceItems(items: string[], pats: Record<string, string[]>, _missingWarned?: Set<string>): string[] {
+export function expandSequenceItems(items: string[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>): string[] {
   const out: string[] = [];
   const missingWarned = _missingWarned || new Set<string>();
 
@@ -58,12 +58,14 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
     if (mGroup) {
       const inner = mGroup[1].trim();
       const innerParts = inner.match(/[^\s]+/g) || [];
-      tokens = expandSequenceItems(innerParts, pats, missingWarned);
+      tokens = expandSequenceItems(innerParts, pats, insts, missingWarned);
     } else if (pats[realBase]) {
       tokens = pats[realBase].slice();
     } else {
       tokens = [realBase];
-      if (realBase && !missingWarned.has(realBase)) {
+      // Only warn if realBase is not a known pattern AND not a known instrument
+      const isInstrument = insts && insts[realBase];
+      if (realBase && !missingWarned.has(realBase) && !isInstrument) {
         missingWarned.add(realBase);
         console.warn(`[BeatBax Parser] Warning: sequence item '${realBase}' referenced but no pattern named '${realBase}' was found.`);
       }
@@ -114,10 +116,11 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
   return out;
 }
 
-export function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>): Record<string, string[]> {
+export function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>, insts?: Record<string, any>): Record<string, string[]> {
   const res: Record<string, string[]> = {};
   for (const [name, items] of Object.entries(seqs)) {
-    res[name] = expandSequenceItems(items, pats);
+    const expanded = expandSequenceItems(items, pats, insts);
+    res[name] = expanded;
   }
   return res;
 }

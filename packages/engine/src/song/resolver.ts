@@ -15,7 +15,7 @@ export function resolveSong(ast: AST): SongModel {
   const bpm = ast.bpm;
 
   // Expand all sequences into flattened token arrays
-  const expandedSeqs = expandAllSequences(seqs, pats);
+  const expandedSeqs = expandAllSequences(seqs, pats, insts);
 
   const channels: ChannelModel[] = [];
 
@@ -232,6 +232,8 @@ export function resolveSong(ast: AST): SongModel {
         let ev: ChannelEvent = { type: 'named', token, instrument: token };
         ev = applyInstrumentToEvent(insts, ev) as ChannelEvent;
         chModel.events.push(ev);
+        // Update current instrument so subsequent notes use this instrument
+        currentInstName = token;
         // decrement temp only for non-rest
         if (tempRemaining > 0) {
           tempRemaining -= 1;

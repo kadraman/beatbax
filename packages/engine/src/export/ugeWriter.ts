@@ -214,6 +214,7 @@ function writeNoiseInstrument(
     initialVolume: number = 15,
     sweepDir: number = 1, // 0=increase, 1=decrease
     sweepChange: number = 0, // 0-7, envelope period
+    noiseMode: number = 0, // 0=15-bit, 1=7-bit
     lengthEnabled: boolean = true,
     length: number = 8, // Short length for percussion
 ): void {
@@ -230,7 +231,7 @@ function writeNoiseInstrument(
     w.writeU8(0); // unused_d
     w.writeU32(0); // unused_e
     w.writeU32(0); // unused_f
-    w.writeU32(0); // noise_mode / counter_step
+    w.writeU32(noiseMode); // noise_mode: 0=15-bit, 1=7-bit
 
     // Subpattern: ALWAYS write 64 rows
     w.writeBool(false); // subpattern_enabled (set to false by default)
@@ -247,8 +248,11 @@ function writeNoiseInstrument(
  * hUGETracker uses indices 0-72 where 0 = C-3, 12 = C-4, 24 = C-5, etc.
  * This is MIDI note number minus 36 (3 octaves offset).
  * Notes below C-3 are transposed up by octaves to fit in range.
+ * 
+ * @param noteName - Note name like "C4", "D#5"
+ * @param ugeTranspose - Optional transpose in semitones for UGE export only (e.g., +12 = up one octave)
  */
-function noteNameToMidiNote(noteName: string): number {
+function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number {
     const match = noteName.match(/^([A-G]#?)(-?\d+)$/i);
     if (!match) return EMPTY_NOTE;
 
@@ -259,16 +263,28 @@ function noteNameToMidiNote(noteName: string): number {
     
     if (noteIndex === -1) return EMPTY_NOTE;
     
-    // Calculate MIDI note number
-    let midiNote = (octave + 1) * 12 + noteIndex;
+    // Calculate MIDI note number and apply UGE-specific transpose
+    let midiNote = (octave + 1) * 12 + noteIndex + ugeTranspose;
     
-    // Convert to hUGETracker index: MIDI C3 (48) = UGE index 12 = C-4
-    // So UGE index = MIDI note - 36
-    let ugeIndex = midiNote - 36;
+    // Convert to hUGETracker index  
+    // Empirically determined: BeatBax C2 (MIDI 36) should display as C-2 in hUGETracker
+    //   C2 (MIDI 36) → index -12 → gets transposed to valid range
+    //   D4 (MIDI 62) → index 14 → displays as D-4 in hUGETracker
+    // Formula: ugeIndex = MIDI note - 48
+    let ugeIndex = midiNote - 48;
+    
+    // hUGETracker minimum note is C3 (MIDI 48, index 0)
+    const originalIndex = ugeIndex;
     
     // If below range, transpose up by octaves until in range
     while (ugeIndex < 0 && ugeIndex + 12 <= 72) {
         ugeIndex += 12;
+    }
+    
+    // Warn if note was transposed (below C3)
+    if (originalIndex < 0 && ugeIndex >= 0) {
+        const octavesShifted = Math.ceil(Math.abs(originalIndex) / 12);
+        console.warn(`[UGE Export] Note ${noteName} is below hUGETracker minimum (C3). Transposed up ${octavesShifted} octave(s).`);
     }
     
     // If above range, transpose down by octaves until in range
@@ -276,7 +292,7 @@ function noteNameToMidiNote(noteName: string): number {
         ugeIndex -= 12;
     }
     
-    // Valid range is 0-72 (C-3 to C-9)
+    // Valid range is 0-72 (C-3 to C-9 in hUGETracker)
     if (ugeIndex < 0 || ugeIndex > 72) return EMPTY_NOTE;
     
     return ugeIndex;
@@ -362,7 +378,12 @@ function eventsToPatterns(
             };
         } else if (event.type === 'note') {
             const noteEvent = event as NoteEvent;
-            const midiNote = noteNameToMidiNote(noteEvent.token);
+            
+            // Check for uge_transpose in instrument properties
+            const inst = noteEvent.instrument ? instruments[noteEvent.instrument] : undefined;
+            const ugeTranspose = inst?.uge_transpose ? parseInt(inst.uge_transpose, 10) : 0;
+            
+            const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose);
             const instIndex = resolveInstrumentIndex(
                 noteEvent.instrument,
                 noteEvent.instProps,
@@ -496,8 +517,10 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
             const initialVol = env.mode === 'gb' ? (env.initial ?? 15) : 15;
             const sweepDir = env.mode === 'gb' ? (env.direction === 'up' ? 0 : 1) : 1;
             const sweepChange = env.mode === 'gb' ? (env.period ?? 0) : 0;
+            const length = inst.length ? Number(inst.length) : 0;
+            const lengthEnabled = inst.length ? true : false;
 
-            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange);
+            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length);
         } else {
             writeDutyInstrument(w, `DUTY_${i}`, 2, 15, 1, 0);
         }
@@ -509,7 +532,9 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
             const name = waveInsts[i];
             const inst = (song.insts as any)[name];
             // Wave index mapping: use the slot index i
-            writeWaveInstrument(w, name, i);
+            const length = inst.length ? Number(inst.length) : 0;
+            const lengthEnabled = inst.length ? true : false;
+            writeWaveInstrument(w, name, i, 3, lengthEnabled, length);
         } else {
             writeWaveInstrument(w, `WAVE_${i}`, 0);
         }
@@ -524,7 +549,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
             const initialVol = env.mode === 'gb' ? (env.initial ?? 15) : 15;
             const sweepDir = env.mode === 'gb' ? (env.direction === 'up' ? 0 : 1) : 1;
             const sweepChange = env.mode === 'gb' ? (env.period ?? 0) : 0;
-            writeNoiseInstrument(w, name, initialVol, sweepDir, sweepChange);
+            // width parameter: 7=7-bit mode, 15=15-bit mode (default)
+            const width = inst.width ? Number(inst.width) : 15;
+            const noiseMode = width === 7 ? 1 : 0; // 0=15-bit, 1=7-bit
+            const length = inst.length ? Number(inst.length) : 0;
+            const lengthEnabled = inst.length ? true : false;
+            writeNoiseInstrument(w, name, initialVol, sweepDir, sweepChange, noiseMode, lengthEnabled, length);
         } else {
             writeNoiseInstrument(w, `NOISE_${i}`);
         }
