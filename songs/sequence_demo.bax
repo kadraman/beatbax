@@ -48,4 +48,4 @@ channel 3 => inst wave1 seq wave:oct(-1) wave:oct(-2)
 channel 4 => inst perc seq drums drums
 
 # Playback directive for interactive demos
-play
+play auto repeat

@@ -104,6 +104,12 @@ npm run cli -- play songs\sample.bax
 
 This parses the song and starts WebAudio playback (requires a browser environment or Node with audio support).
 
+Note on `play` directive flags:
+- You can add a top-level `play` directive inside a `.bax` file with optional flags `auto` and `repeat`.
+  - `play auto` requests the web UI to start playback when the file is loaded.
+  - `play repeat` requests continuous looping of the song.
+  The web UI will attempt to resume the `AudioContext` for `play auto`, but browsers commonly require a user gesture to enable audible playback; the UI shows a prompt when this occurs.
+
 ### Verify/validate a song
 
 ```powershell

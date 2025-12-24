@@ -42,3 +42,11 @@ channel 4 => inst kick seq drums
 # --- Commands ---
 # You can play this song using: node bin/beatbax play songs/sustain_demo.bax --headless
 # Or export it: node bin/beatbax export wav songs/sustain_demo.bax demo.wav
+
+# -----------------------------------------------------------------------------
+# Playback directive
+# Add `play auto repeat` to request the web UI to auto-start this song when
+# loaded and to loop it. Note: browsers may still require a user gesture to
+# actually resume audio due to autoplay policies; the web UI shows an enable
+# audio prompt when necessary.
+play auto repeat

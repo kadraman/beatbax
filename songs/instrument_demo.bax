@@ -130,7 +130,7 @@ channel 3 => inst wave_sine    seq wave_basic wave_music
 # PLAYBACK
 # =============================================================================
 
-play
+play auto repeat
 
 # =============================================================================
 # USAGE NOTES FOR UGE EXPORT

@@ -103,4 +103,4 @@ channel 4 => inst perc  seq drums drums
 # The `play` directive starts playback in the web UI player. In the CLI this
 # would trigger immediate rendering or playback; in the web UI the UI uses the
 # parsed AST to schedule audio.
-play
+play auto repeat

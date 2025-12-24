@@ -1,7 +1,7 @@
 export * from './tokenizer.js';
 
 import { expandPattern, transposePattern } from '../patterns/expand.js';
-import { AST, SeqMap, ChannelNode } from './ast.js';
+import { AST, SeqMap, ChannelNode, PlayNode } from './ast.js';
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
@@ -369,7 +369,21 @@ export function parse(source: string): AST {
     chipName = m[1];
   }
 
-  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName };
+  // Parse top-level play directive: `play` optionally followed by flags
+  // e.g. `play auto repeat` or `play repeat`
+  let playNode: PlayNode | undefined = undefined;
+  const rePlay = /^\s*play(?:\s+(.+))?$/gim;
+  while ((m = rePlay.exec(src)) !== null) {
+    const flagsRaw = m[1] ? m[1].trim() : '';
+    const flags = flagsRaw ? flagsRaw.split(/\s+/) : [];
+    playNode = {
+      flags,
+      auto: flags.includes('auto'),
+      repeat: flags.includes('repeat'),
+    };
+  }
+
+  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode };
 }
 
 export default {

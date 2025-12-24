@@ -12,6 +12,12 @@ export interface ChannelNode {
   speed?: number;
 }
 
+export interface PlayNode {
+  auto?: boolean;
+  repeat?: boolean;
+  flags?: string[];
+}
+
 export type SeqMap = Record<string, string[]>;
 
 export interface AST {
@@ -21,6 +27,7 @@ export interface AST {
   channels: ChannelNode[];
   bpm?: number;
   chip?: string;
+  play?: PlayNode;
 }
 
 export default AST;
