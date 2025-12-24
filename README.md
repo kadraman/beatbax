@@ -20,7 +20,9 @@ A concise feature summary:
 Each "song" can be defined in a `.bax` file with the following a minimal example.
 
 ```
-# Set a top-level tempo instead of per-channel BPM
+song name "An example song"
+
+chip gameboy
 bpm 128
 
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
@@ -161,12 +163,6 @@ beatbax/
 │
 ├── docs/                        # Documentation
 │   ├── features/                # Feature specifications
-│   │   ├── cli-audio-export.md
-│   │   ├── dynamic-chip-loading.md
-│   │   ├── effects-system.md
-│   │   ├── hot-reload.md
-│   │   ├── playback-via-cli.md
-│   │   ├── plugin-system.md
 │   │   └── ...
 │   ├── scheduler.md             # Scheduler API docs
 │   ├── uge-export-guide.md      # UGE export guide

@@ -478,9 +478,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
 
     // ====== Header ======
     w.writeU32(UGE_VERSION);
-    w.writeShortString(song.pats ? 'BeatBax Song' : 'Untitled');
-    w.writeShortString('BeatBax');
-    w.writeShortString('Exported from BeatBax live-coding engine');
+    const title = (song as any).metadata && (song as any).metadata.name ? (song as any).metadata.name : (song.pats ? 'BeatBax Song' : 'Untitled');
+    const author = (song as any).metadata && (song as any).metadata.artist ? (song as any).metadata.artist : 'BeatBax';
+    const comment = (song as any).metadata && (song as any).metadata.description ? (song as any).metadata.description : 'Exported from BeatBax live-coding engine';
+    w.writeShortString(title);
+    w.writeShortString(author);
+    w.writeShortString(comment);
 
     // ====== Build instrument lists ======
     const dutyInsts: string[] = [];

@@ -28,6 +28,14 @@ export interface AST {
   bpm?: number;
   chip?: string;
   play?: PlayNode;
+  metadata?: SongMetadata;
 }
 
 export default AST;
+
+export interface SongMetadata {
+  name?: string;
+  artist?: string;
+  description?: string;
+  tags?: string[];
+}

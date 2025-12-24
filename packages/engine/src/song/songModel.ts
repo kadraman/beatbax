@@ -41,6 +41,15 @@ export interface SongModel {
   seqs: Record<string, string[]>;
   channels: ChannelModel[];
   bpm?: number;
+  metadata?: SongMetadata;
+  play?: any;
+}
+
+export interface SongMetadata {
+  name?: string;
+  artist?: string;
+  description?: string;
+  tags?: string[];
 }
 
 export default SongModel;

@@ -7,8 +7,12 @@
 ## - Snares on noise channel (7-bit mode, octaves 4-5)
 ## - Hi-hats on noise channel (15-bit mode, octaves 6-7)
 
-chip gameboy
+song name "Percussion Demo"
+song artist "kadraman"
+song description """Demonstration of Game Boy percussion using pulse channel for kicks and noise channel for snares, hi-hats, and toms. Shows percussion best practices for UGE export."""
+song tags "percussion,drums,imported"
 
+chip gameboy
 bpm 140
 time 4
 
@@ -92,9 +96,12 @@ channel 1 => inst kick_punch    seq kick_demo kick_demo
 channel 4 => inst snare_tight   seq snare_demo hh_demo
 
 # =============================================================================
-# PLAYBACK
+# PLAYBACK DIRECTIVE
 # =============================================================================
-
+# Add `play auto repeat` to request the web UI to auto-start this song when
+# loaded and to loop it. Note: browsers may still require a user gesture to
+# actually resume audio due to autoplay policies; the web UI shows an enable
+# audio prompt when necessary.
 play auto repeat
 
 # =============================================================================

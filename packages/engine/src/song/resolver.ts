@@ -264,9 +264,8 @@ export function resolveSong(ast: AST): SongModel {
   // or event objects). This keeps both `events` and `pat` available.
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
 
-  // Preserve top-level playback directives (like `play auto repeat`) so
-  // consumers of the resolved SongModel (e.g. Player) can honor them.
-  return { pats, insts, seqs: expandedSeqs, channels: channelsOut, bpm, play: (ast as any).play } as unknown as SongModel;
+  // Preserve top-level playback directives and metadata so consumers can honor them.
+  return { pats, insts, seqs: expandedSeqs, channels: channelsOut, bpm, play: (ast as any).play, metadata: (ast as any).metadata } as unknown as SongModel;
 }
 
 export default { resolveSong };

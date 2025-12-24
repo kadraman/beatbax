@@ -1,5 +1,11 @@
-# BeatBax Sustain & Duration Demo
-# This song demonstrates how to create long notes and precise rhythms.
+## sustain_demo.bax
+## BeatBax Sustain & Duration Demo
+## This song demonstrates how to create long notes and precise rhythms.
+
+song name "Sustain Demo"
+song artist "kadraman"
+song description """Demo showing sustain and duration tokens, long notes and precise rhythms for BeatBax."""
+song tags "sustain,duration,imported"
 
 chip gameboy
 bpm 128

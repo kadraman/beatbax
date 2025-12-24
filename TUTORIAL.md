@@ -5,6 +5,8 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
 - `apps/web-ui/` — browser demo UI that loads and plays `.bax` files.
+- `songs/metadata_example.bax` — example showing `song` metadata directives (name, artist, description, tags).
+- See `docs/metadata-directives.md` for details on metadata syntax and export mapping.
 
 **Language Quick Reference**
 

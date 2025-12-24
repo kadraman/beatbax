@@ -3,8 +3,12 @@
 ## This file showcases all four channel types with various configurations
 ## to help users understand instrument design and UGE export mapping.
 
-chip gameboy
+song name "Instrument Demo"
+song artist "kadraman"
+song description """Comprehensive demonstration of Game Boy instrument types and parameters. Showcases pulse, wave and noise instruments and UGE mapping."""
+song tags "instruments,example,imported"
 
+chip gameboy
 bpm 120
 time 4
 
