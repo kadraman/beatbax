@@ -48,6 +48,14 @@ Testing
 - The resolver supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
 
+## Hardware Parity and Frequency Logic
+
+BeatBax aims for bit-accurate parity with Game Boy hardware and hUGETracker.
+
+- **Period Tables**: Instead of standard equal temperament (A4=440Hz), the engine uses a hardware-accurate 11-bit period table for Game Boy channels. This table is defined in `packages/engine/src/chips/gameboy/periodTables.ts` and covers 72 notes (6 octaves).
+- **Frequency Calculation**: The `midiToFreq` function in `packages/engine/src/chips/gameboy/apu.ts` maps MIDI notes to these hardware periods. The frequency is then calculated using the Game Boy formula: `f = 131072 / (2048 - period)`. This ensures that playback in the browser or CLI sounds identical to the exported `.UGE` file.
+- **UGE Note Mapping**: hUGETracker's note index 0 (displayed as C3) corresponds to MIDI 36 (C2, ~65.4Hz). The UGE exporter maps BeatBax notes to this index using `ugeIndex = midiNote - 36`.
+
 Design tradeoffs & future work
 - Deterministic scheduler: simple and testable; a production player might require more advanced audio node lifecycle management and lower-latency scheduling strategies.
 - Noise LFSR: implemented deterministically but not bit‑for‑bit identical to a real Game Boy; if bit‑exact emulation is required, refine divisor mapping and the LFSR implementation with canonical references.

@@ -64,8 +64,18 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         
         const { playAudioBuffer } = await import(cliUrl);
         console.log('Playing audio via system speakers...');
-        await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
-        console.log('[OK] Playback complete');
+        if (ast && (ast as any).play && (ast as any).play.repeat) {
+          console.log('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');
+          // Loop playback indefinitely; user may interrupt with Ctrl-C
+          // Play sequentially to avoid overlapping audio
+          while (true) {
+            // eslint-disable-next-line no-await-in-loop
+            await playAudioBuffer(samples, { channels: 2, sampleRate });
+          }
+        } else {
+          await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
+          console.log('[OK] Playback complete');
+        }
       } catch (err: any) {
         console.error('Failed to play audio:', err.message);
         console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');

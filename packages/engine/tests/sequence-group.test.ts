@@ -9,7 +9,7 @@ describe('sequence group repetition', () => {
       seq s = (A B)*2
     `;
     const ast = parse(src);
-    const expanded = expandAllSequences(ast.seqs, ast.pats);
+    const expanded = expandAllSequences(ast.seqs, ast.pats, ast.insts);
     expect(expanded.s).toEqual(['C4','D4','C4','D4']);
   });
 
@@ -20,7 +20,7 @@ describe('sequence group repetition', () => {
       seq s = (A:inst(foo) B)*2
     `;
     const ast = parse(src);
-    const expanded = expandAllSequences(ast.seqs, ast.pats);
+    const expanded = expandAllSequences(ast.seqs, ast.pats, ast.insts);
     // inst(foo) will be emitted before A; expansion should include that token
     expect(expanded.s.slice(0,3)).toEqual(['inst(foo)','C4','D4']);
   });

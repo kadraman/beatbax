@@ -46,6 +46,57 @@ export function parseEnvelope(envStr: any) {
   return res;
 }
 
+export function parseSweep(sweepStr: any) {
+  if (!sweepStr) return null;
+  const parts = String(sweepStr).split(',').map(p => p.trim());
+  if (parts.length < 3) return null;
+  
+  const time = parseInt(parts[0], 10);
+  const dirStr = parts[1].toLowerCase();
+  const direction: 'up' | 'down' = (dirStr === 'down' || dirStr === 'dec' || dirStr === '1') ? 'down' : 'up';
+  const shift = parseInt(parts[2], 10);
+  
+  return { time, direction, shift };
+}
+
+function applySweep(
+  freqParam: AudioParam,
+  initialFreq: number,
+  start: number,
+  dur: number,
+  sweep: { time: number; direction: 'up' | 'down'; shift: number }
+) {
+  const sweepInterval = sweep.time / 128; // 128Hz intervals
+  if (sweepInterval <= 0) return;
+
+  const numSweeps = Math.floor(dur / sweepInterval);
+  let currentReg = registerFromFreq(initialFreq);
+
+  for (let i = 1; i <= numSweeps; i++) {
+    const time = start + (i * sweepInterval);
+    const delta = currentReg >> sweep.shift;
+
+    if (sweep.direction === 'up') {
+      // Pitch UP = Frequency INCREASE = Register INCREASE
+      currentReg += delta;
+    } else {
+      // Pitch DOWN = Frequency DECREASE = Register DECREASE
+      currentReg -= delta;
+    }
+
+    // Hardware constraints
+    if (currentReg < 0) currentReg = 0;
+    if (currentReg > 2047) {
+      // Overflow silences the channel on real hardware
+      freqParam.setValueAtTime(0, time);
+      break;
+    }
+
+    const nextFreq = freqFromRegister(currentReg);
+    freqParam.setValueAtTime(nextFreq, time);
+  }
+}
+
 export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any) {
   const osc = (ctx as any).createOscillator();
   const gain = (ctx as any).createGain();
@@ -58,6 +109,13 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   } catch (e) {
     osc.frequency.value = freq;
   }
+
+  // Apply sweep if present (Game Boy pulse1 only)
+  const sweep = parseSweep(inst && inst.sweep);
+  if (sweep && sweep.time > 0) {
+    applySweep(osc.frequency, freq, start, dur, sweep);
+  }
+
   osc.connect(gain);
   gain.connect((ctx as any).destination);
 

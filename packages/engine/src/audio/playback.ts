@@ -1,5 +1,5 @@
 /**
- * WebAudio-based playback for BeatBax (migrated into engine package).
+ * WebAudio-based playback for BeatBax (engine package).
  */
 
 type AST = any;
@@ -21,7 +21,6 @@ export const parseEnvelope = pulseParseEnvelope;
  * In browser, uses native AudioContext.
  */
 export async function createAudioContext(opts: { sampleRate?: number; offline?: boolean; duration?: number } = {}): Promise<any> {
-  // Browser path: use native AudioContext
   if (typeof window !== 'undefined' && (globalThis as any).AudioContext) {
     const Ctor = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
     if (opts.offline && opts.duration) {
@@ -32,8 +31,7 @@ export async function createAudioContext(opts: { sampleRate?: number; offline?: 
     }
     return new Ctor({ sampleRate: opts.sampleRate });
   }
-  
-  // Node.js path: dynamically import standardized-audio-context polyfill
+
   try {
     const mod = await import('standardized-audio-context');
     const { AudioContext, OfflineAudioContext } = mod;
@@ -69,6 +67,7 @@ export class Player {
   public muted = new Set<number>();
   public solo: number | null = null;
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number }) => void;
+  private _repeatTimer: any = null;
 
   constructor(ctx?: AudioContext, opts: { buffered?: boolean; segmentDuration?: number; bufferedLookahead?: number; maxPreRenderSegments?: number } = {}) {
     const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
@@ -88,15 +87,21 @@ export class Player {
         } catch (e) {}
       }
     } catch (e) {}
+
+    // ensure a clean slate for each playback run
+    try { this.stop(); } catch (e) {}
+
     const chip = (ast && (ast as any).chip) || 'gameboy';
     if (chip !== 'gameboy') {
       throw new Error(`Unsupported chip: ${chip}. Only 'gameboy' is supported at this time.`);
     }
 
+    // Track estimated playback duration (seconds) across channels for repeat scheduling
+    let globalDurationSec = 0;
+
     for (const ch of ast.channels || []) {
       const instsMap = (ast.insts || {});
       let currentInst = instsMap[ch.inst || ''];
-      // Use ch.events if available (resolved song model), otherwise fall back to ch.pat (legacy)
       const tokens: any[] = Array.isArray((ch as any).events) ? (ch as any).events : (Array.isArray(ch.pat) ? ch.pat : ['.']);
       let tempInst: any = null;
       let tempRemaining = 0;
@@ -107,15 +112,17 @@ export class Player {
       const tickSeconds = secondsPerBeat / 4;
 
       const startTime = this.ctx.currentTime + 0.1;
+      // estimate channel duration in seconds from token count and ticks
+      let lastEndTimeForThisChannel = 0;
+
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const t = startTime + i * tickSeconds;
-        
+
         if (token && typeof token === 'object' && token.type) {
           if (token.type === 'rest' || token.type === 'sustain') {
-            // Handled by lookahead or ignored
+            // ignore explicit rest/sustain objects here
           } else {
-            // Calculate duration by looking ahead for sustains
             let sustainCount = 0;
             for (let j = i + 1; j < tokens.length; j++) {
               const next = tokens[j];
@@ -136,6 +143,7 @@ export class Player {
                 if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
               }
             }
+            lastEndTimeForThisChannel = Math.max(lastEndTimeForThisChannel, t + dur);
           }
           continue;
         }
@@ -157,7 +165,7 @@ export class Player {
         }
 
         const useInst = tempRemaining > 0 && tempInst ? tempInst : currentInst;
-        
+
         // Calculate duration by looking ahead for sustains
         let sustainCount = 0;
         for (let j = i + 1; j < tokens.length; j++) {
@@ -167,17 +175,43 @@ export class Player {
           else break;
         }
         const dur = tickSeconds * (1 + sustainCount);
-        
+
         this.scheduleToken(ch.id, useInst, instsMap, token, t, dur);
+        lastEndTimeForThisChannel = Math.max(lastEndTimeForThisChannel, t + dur);
 
         if (tempRemaining > 0 && token !== '.') {
           tempRemaining -= 1;
           if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
         }
       }
+
+      // convert channel end (absolute) into a channel duration relative to startTime
+      const channelDuration = lastEndTimeForThisChannel > 0 ? (lastEndTimeForThisChannel - (this.ctx.currentTime + 0.1)) : (tokens.length * tickSeconds);
+      globalDurationSec = Math.max(globalDurationSec, channelDuration);
     }
 
+    // start the scheduler to begin firing scheduled events
     this.scheduler.start();
+
+    // debug: show estimated global duration for repeat scheduling
+    try { console.debug('[player] estimated globalDurationSec=', globalDurationSec); } catch (e) {}
+
+    // If AST requests repeat/looping, schedule a restart when playback ends
+    try {
+      if (ast && (ast as any).play && (ast as any).play.repeat) {
+        const delayMs = Math.max(10, Math.round(globalDurationSec * 1000) + 50);
+        try { console.debug('[player] scheduling repeat in ms=', delayMs); } catch (e) {}
+        if (this._repeatTimer) clearTimeout(this._repeatTimer);
+        this._repeatTimer = setTimeout(() => {
+          try {
+            try { console.debug('[player] repeat timer fired - restarting playback'); } catch (e) {}
+            this.stop();
+            // replay AST (fire-and-forget)
+            this.playAST(ast).catch((e: any) => { console.error('Repeat playback failed', e); });
+          } catch (e) {}
+        }, delayMs);
+      }
+    } catch (e) {}
   }
 
   private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: string, time: number, dur: number) {
@@ -198,7 +232,7 @@ export class Player {
     }
     if (!inst) return;
     try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst, token, time, dur }); } } catch (e) {}
-    const m = token.match(/^([A-G][#B]?)(-?\d+)$/i);
+    const m = (typeof token === 'string' && token.match(/^([A-G][#B]?)(-?\d+)$/i)) || null;
     if (m) {
       const note = m[1].toUpperCase();
       const octave = parseInt(m[2], 10);
@@ -257,6 +291,10 @@ export class Player {
   }
 
   stop() {
+    if (this._repeatTimer) {
+      try { clearTimeout(this._repeatTimer); } catch (e) {}
+      this._repeatTimer = null;
+    }
     if (this.scheduler) {
       this.scheduler.clear();
       this.scheduler.stop();
@@ -310,3 +348,4 @@ export class Player {
 }
 
 export default Player;
+

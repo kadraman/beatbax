@@ -186,6 +186,8 @@ def parse_duty_instrument(f: BinaryIO, version: int, idx: int) -> Instrument:
     freq_sweep_shift = read_u32(f, f"duty[{idx}].freq_sweep_shift")
     duty_cycle = read_u8(f, f"duty[{idx}].duty_cycle")
 
+    print(f"INST {idx}: {name} | sweep_time={freq_sweep_time} | sweep_dir={sweep_enabled} | sweep_shift={freq_sweep_shift}")
+
     # Two unused u32s
     _ = read_u32(f, f"duty[{idx}].unused_a")
     _ = read_u32(f, f"duty[{idx}].unused_b")
