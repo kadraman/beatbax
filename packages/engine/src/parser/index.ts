@@ -1,7 +1,7 @@
 export * from './tokenizer.js';
 
 import { expandPattern, transposePattern } from '../patterns/expand.js';
-import { AST, SeqMap, ChannelNode, PlayNode } from './ast.js';
+import { AST, SeqMap, ChannelNode, PlayNode, InstMap } from './ast.js';
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
@@ -79,7 +79,7 @@ export function parse(source: string): AST {
   const cleanedSrc = srcTemp;
 
   const pats: Record<string, string[]> = {};
-  const insts: Record<string, Record<string, string>> = {};
+  const insts: InstMap = {};
   const seqs: SeqMap = {};
   const channels: ChannelNode[] = [];
   let topBpm: number | undefined = undefined;
@@ -411,6 +411,16 @@ export function parse(source: string): AST {
       auto: flags.includes('auto'),
       repeat: flags.includes('repeat'),
     };
+  }
+
+  // Validation: Ensure sweep is only used for pulse1 on gameboy
+  if (chipName === 'gameboy' || !chipName) {
+    for (const [name, props] of Object.entries(insts)) {
+      const p = props as any;
+      if (p.sweep && p.type !== 'pulse1') {
+        console.warn(`[BeatBax Parser] Warning: Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
+      }
+    }
   }
 
   return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };

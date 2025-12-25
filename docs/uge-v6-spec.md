@@ -70,9 +70,9 @@
 - `uint8` Initial volume  
 - `uint32` Volume sweep direction (0 = Increase, 1 = Decrease)  
 - `uint8` Volume sweep change  
-- `uint32` Frequency sweep time  
-- `uint32` Sweep enabled (1 = Enabled, 0 = Disabled)  
-- `uint32` Frequency sweep shift  
+- `uint32` Frequency sweep time (0..7)
+- `uint32` Frequency sweep direction (0 = Increase/Up, 1 = Decrease/Down)
+- `uint32` Frequency sweep shift (0..7)
 - `uint8` Duty cycle (0..3 mapping to 12.5/25/50/75%)  
 - `uint32` Unused  
 - `uint32` Unused  

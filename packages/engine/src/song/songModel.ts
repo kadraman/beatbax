@@ -1,6 +1,7 @@
 /**
  * Song model and event types for resolved ISM (Intermediate Song Model).
  */
+import { InstMap } from '../parser/ast.js';
 
 export type NoteToken = string; // e.g. 'C4'
 
@@ -37,7 +38,7 @@ export interface ChannelModel {
 
 export interface SongModel {
   pats: Record<string, string[]>;
-  insts: Record<string, Record<string, string>>;
+  insts: InstMap;
   seqs: Record<string, string[]>;
   channels: ChannelModel[];
   bpm?: number;

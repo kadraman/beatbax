@@ -12,7 +12,13 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 
 - inst definitions: define instruments and their params.
   - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`
-  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable)
+  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable), `sweep` (frequency sweep)
+  - `sweep` (Pulse 1 only): `time,direction,shift`
+    - `time`: 0-7 (0=off, 7=slowest)
+    - `direction`: `up` (pitch up) or `down` (pitch down)
+    - `shift`: 0-7 (amount of change per step)
+    - Example: `inst riser type=pulse1 sweep=5,up,2`
+    - Note: Pitch `up` increases the frequency register, while `down` decreases it, following Game Boy hardware behavior.
   - `gm` (optional): General MIDI program number (0-127). When present the MIDI
     exporter emits a Program Change for the corresponding track using this value.
 

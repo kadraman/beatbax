@@ -17,7 +17,7 @@
 
 import { writeFileSync } from 'fs';
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
-import { parseEnvelope } from '../chips/gameboy/pulse.js';
+import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
 
 // Constants from UGE v6 spec
 const UGE_VERSION = 6;
@@ -147,6 +147,9 @@ function writeDutyInstrument(
     sweepChange: number = 0, // 0-7
     lengthEnabled: boolean = false,
     length: number = 0,
+    freqSweepTime: number = 0,
+    freqSweepDir: number = 0, // 0=up, 1=down
+    freqSweepShift: number = 0,
 ): void {
     w.writeU32(InstrumentType.DUTY);
     w.writeShortString(name);
@@ -155,9 +158,9 @@ function writeDutyInstrument(
     w.writeU8(initialVolume);
     w.writeU32(sweepDir); // volume_sweep_dir (0=Increase, 1=Decrease)
     w.writeU8(sweepChange); // volume_sweep_change
-    w.writeU32(0); // freq_sweep_time
-    w.writeU32(0); // sweep_enabled
-    w.writeU32(0); // freq_sweep_shift
+    w.writeU32(freqSweepTime); // freq_sweep_time
+    w.writeU32(freqSweepDir); // freq_sweep_direction (0=up, 1=down)
+    w.writeU32(freqSweepShift); // freq_sweep_shift
     w.writeU8(duty); // duty_cycle
     w.writeU32(0); // unused_a
     w.writeU32(0); // unused_b
@@ -523,7 +526,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
 
-            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length);
+            const sweep = parseSweep(inst.sweep);
+            const freqSweepTime = sweep ? sweep.time : 0;
+            const freqSweepDir = sweep ? (sweep.direction === 'up' ? 0 : 1) : 0;
+            const freqSweepShift = sweep ? sweep.shift : 0;
+
+            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length, freqSweepTime, freqSweepDir, freqSweepShift);
         } else {
             writeDutyInstrument(w, `DUTY_${i}`, 2, 15, 1, 0);
         }

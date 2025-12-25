@@ -3,7 +3,17 @@
  */
 
 export type PatternMap = Record<string, string[]>;
-export type InstMap = Record<string, Record<string, string>>;
+
+export interface InstrumentNode {
+  type?: string;
+  duty?: string;
+  env?: string;
+  wave?: string;
+  sweep?: string;
+  [key: string]: string | undefined;
+}
+
+export type InstMap = Record<string, InstrumentNode>;
 
 export interface ChannelNode {
   id: number;
