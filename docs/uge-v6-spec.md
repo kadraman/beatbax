@@ -85,6 +85,7 @@
   - `bool` Subpattern enabled  
     - Repeat 64 times:
       - `uint32` Row note (0..72; 90 means unused)
+        - **BeatBax Mapping**: Index 0 corresponds to MIDI 36 (C2, ~65.4Hz).
       - `uint32` Unused
       - `uint32` Jump command value (0 if empty)
       - `uint32` Effect code

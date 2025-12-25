@@ -270,13 +270,12 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     let midiNote = (octave + 1) * 12 + noteIndex + ugeTranspose;
     
     // Convert to hUGETracker index  
-    // Empirically determined: BeatBax C2 (MIDI 36) should display as C-2 in hUGETracker
-    //   C2 (MIDI 36) → index -12 → gets transposed to valid range
-    //   D4 (MIDI 62) → index 14 → displays as D-4 in hUGETracker
-    // Formula: ugeIndex = MIDI note - 48
-    let ugeIndex = midiNote - 48;
+    // hUGETracker's "C3" (index 0) is actually 65.4Hz, which corresponds to MIDI 36 (C2).
+    // To maintain pitch parity, we map MIDI 36 to hUGETracker index 0.
+    // Formula: ugeIndex = MIDI note - 36
+    let ugeIndex = midiNote - 36;
     
-    // hUGETracker minimum note is C3 (MIDI 48, index 0)
+    // hUGETracker minimum note is index 0 (displayed as C3)
     const originalIndex = ugeIndex;
     
     // If below range, transpose up by octaves until in range
