@@ -3,7 +3,7 @@
 
 song name "Sweep Demo"
 song artist "kadraman"
-song description """Sweep demo showcasing frequency sweep on pulse1."
+song description """Sweep demo showcasing frequency sweep on pulse1."""
 song tags "instruments,example,gameboy,sweep"
 
 chip gameboy
@@ -41,7 +41,7 @@ seq no_sweep = demo:inst(plain)
 seq rising_sweep = demo:inst(riser):oct(-2)
 seq falling_sweep = demo:inst(faller)
 
-# Channels - play one aftern another for comparison
+# Channels - play one after another for comparison
 channel 1 => inst plain seq no_sweep rising_sweep falling_sweep
 
 play

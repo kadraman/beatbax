@@ -91,7 +91,7 @@ export class Player {
     // ensure a clean slate for each playback run
     try { this.stop(); } catch (e) {}
 
-    const chip = (ast && (ast as any).chip) || 'gameboy';
+    const chip = ast.chip || 'gameboy';
     if (chip !== 'gameboy') {
       throw new Error(`Unsupported chip: ${chip}. Only 'gameboy' is supported at this time.`);
     }
@@ -198,7 +198,7 @@ export class Player {
 
     // If AST requests repeat/looping, schedule a restart when playback ends
     try {
-      if (ast && (ast as any).play && (ast as any).play.repeat) {
+      if (ast.play?.repeat) {
         const delayMs = Math.max(10, Math.round(globalDurationSec * 1000) + 50);
         try { console.debug('[player] scheduling repeat in ms=', delayMs); } catch (e) {}
         if (this._repeatTimer) clearTimeout(this._repeatTimer);

@@ -2,7 +2,6 @@ import { readFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import { parse } from '../src/parser/index.js';
 import { resolveSong } from '../src/song/resolver.js';
-import { exportJSON } from '../src/export/jsonExport.js';
 import { exportUGE } from '../src/export/ugeWriter.js';
 
 describe('song metadata parsing and export', () => {

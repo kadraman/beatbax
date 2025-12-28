@@ -270,9 +270,8 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     let midiNote = (octave + 1) * 12 + noteIndex + ugeTranspose;
     
     // Convert to hUGETracker index  
-    // hUGETracker's "C3" (index 0) is actually 65.4Hz, which corresponds to MIDI 36 (C2).
-    // To maintain pitch parity, we map MIDI 36 to hUGETracker index 0.
-    // Formula: ugeIndex = MIDI note - 36
+    // hUGETracker's "C3" (index 0) corresponds to MIDI note 36,
+    // which is the note C2 at approximately 65.4 Hz in standard MIDI tuning.
     let ugeIndex = midiNote - 36;
     
     // hUGETracker minimum note is index 0 (displayed as C3)

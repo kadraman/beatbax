@@ -1,11 +1,10 @@
 ## percussion_demo.bax
-## Demonstration of Game Boy percussion using pulse channel for kicks
-## and noise channel for snares, hi-hats, and toms.
+## Demonstration of Game Boy percussion using pulse channel for kicks and noise channel for snares, hi-hats, and toms.
 ##
 ## This file showcases proper percussion techniques following hUGETracker conventions:
 ## - Kick drums on pulse channels (low pitch + fast envelope)
-## - Snares on noise channel (7-bit mode, octaves 4-5)
-## - Hi-hats on noise channel (15-bit mode, octaves 6-7)
+## - Snares on noise channel (7-bit mode, octaves 4-5) for an explosive sound
+## - Hi-hats on noise channel (15-bit mode, octaves 6-7) for a more traditional percussive sound
 
 song name "Percussion Demo"
 song artist "kadraman"
@@ -22,10 +21,9 @@ time 4
 # Kicks work best on pulse channels with low pitch and fast attack
 # Note: period=0 means NO decay, period=1 is fastest decay
 # length parameter controls hardware length counter (0-64, in 1/256th second frames)
-# uge_transpose=+12 allows C2 in web playback but exports as C3 for hUGETracker
-inst kick_punch  type=pulse1 duty=12.5 env=gb:15,down,1 length=16 uge_transpose=+12 gm=35  # Punchy kick (C2→C3)
-inst kick_deep   type=pulse1 duty=12.5 env=gb:15,down,2 length=24 uge_transpose=+12 gm=36  # Deep kick (C2→C3)
-inst kick_soft   type=pulse1 duty=25   env=gb:12,down,1 length=16 uge_transpose=+12 gm=35  # Softer kick (C2→C3)
+inst kick_punch  type=pulse1 duty=12.5 env=gb:15,down,1 length=16 gm=35  # Punchy kick (C2→C3)
+inst kick_deep   type=pulse1 duty=12.5 env=gb:15,down,2 length=24 gm=36  # Deep kick (C2→C3)
+inst kick_soft   type=pulse1 duty=25   env=gb:12,down,1 length=16 gm=35  # Softer kick (C2→C3)
 
 # =============================================================================
 # NOISE CHANNEL INSTRUMENTS
@@ -37,7 +35,7 @@ inst kick_soft   type=pulse1 duty=25   env=gb:12,down,1 length=16 uge_transpose=
 
 # Snare drums (7-bit mode with length control)
 inst snare_tight type=noise width=7  env=gb:13,down,1 length=16  # Tight snare (quick decay, short)
-inst snare_loose type=noise width=7  env=gb:12,down=4 length=32  # Loose snare (longer ring)
+inst snare_loose type=noise width=7  env=gb:12,down,4 length=32  # Loose snare (longer ring)
 inst snare_rim   type=noise width=7  env=gb:8,down,1 length=8    # Rim shot (quiet, very short)
 
 # Hi-hats (15-bit mode with length control)
@@ -64,14 +62,16 @@ pat kick_four    = C2 . . . C2 . . . C2 . . . C2 . . .  # Four on the floor
 pat kick_basic   = C2 . C2 C2 C3 . C2 .                 # Basic rock pattern
 pat kick_synth   = C2 . . C2 . . C3 .                   # Synth pattern
 
-# Snare patterns (mid-range C6 for snare sounds)
-pat snare_backbeat = . . . . C6 . . . . . . . C6 . . .  # Classic backbeat
-pat snare_rolls    = . . . . C6 C6 C6 C6 . . . . C6 C6 C6 C6  # Snare rolls
+# Snare patterns (mid-range C5-C6 for snare sounds)
+# Note: inst(snare_tight) C5 sets the instrument persistently,
+# To change it for just one note, use inst(snare_tight, 1) C5.
+pat snare_backbeat = . . . . inst(snare_tight) C5 . . . . . . . inst(snare_tight) C5 . . .  # Classic backbeat
+pat snare_rolls    = (. . . . inst(snare_tight) C5 C5 C5 inst(snare_rim,1) C5)*2  # Snare rolls
 
 # Hi-hat patterns (mid E6-G6 for closed, high C7-E7 for open)
-pat hh_eighths   = C7 C7 C7 C7 C7 C7 C7 C7               # Straight eighths (closed)
-pat hh_sixteenths = C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7 C7  # 16th notes (closed)
-pat hh_open_close = C7 . C8 . C7 . C8 . C7 . C8 . C7 .  # Closed/open mix (C7=closed, C8=open)
+pat hh_eighths   = hihat_closed * 8               # Straight eighths (closed)
+pat hh_sixteenths = hihat_closed * 16  # 16th notes (closed)
+pat hh_open_close = hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed .  # Closed/open mix (C7=closed, C8=open)
 
 # =============================================================================
 # SEQUENCES
@@ -84,7 +84,7 @@ seq kick_demo = kick_four:inst(kick_punch) kick_basic:inst(kick_deep) kick_synth
 seq snare_demo = snare_backbeat:inst(snare_tight) snare_rolls:inst(snare_rim) snare_backbeat:inst(snare_tight) snare_backbeat:inst(snare_loose)
 
 # Hi-hat demonstrations
-seq hh_demo = hh_eighths:inst(hihat_closed) hh_sixteenths:inst(hihat_closed) hh_open_close:inst(hihat_open) hh_eighths:inst(hihat_pedal)
+seq hh_demo = hh_eighths hh_sixteenths hh_open_close hh_eighths:inst(hihat_pedal)
 
 # =============================================================================
 # CHANNEL ASSIGNMENTS
@@ -93,7 +93,7 @@ seq hh_demo = hh_eighths:inst(hihat_closed) hh_sixteenths:inst(hihat_closed) hh_
 # Channel 4: All other percussion (noise channel)
 
 channel 1 => inst kick_punch    seq kick_demo kick_demo
-channel 4 => inst snare_tight   seq snare_demo hh_demo
+channel 4 => inst snare_tight   seq snare_demo hh_demo snare_rolls
 
 # =============================================================================
 # PLAYBACK DIRECTIVE
@@ -118,8 +118,10 @@ play auto repeat
 #   - Why pulse? Better control over pitch and more "kick-like" sound
 #
 # NOISE CHANNEL MODES:
-#   - width=7  (7-bit LFSR): Metallic, tonal character (snares, toms)
-#   - width=15 (15-bit LFSR): Pure white noise (hi-hats, cymbals, shakers)
+#   - width=7  (7-bit LFSR): Metallic, tonal character (snares, toms).
+#     In .UGE export, this adds an offset of 72 to the note index.
+#     hUGETracker displays these with a '^' symbol (e.g., C-^).
+#   - width=15 (15-bit LFSR): Pure white noise (hi-hats, cymbals, shakers).
 #
 # NOISE CHANNEL OCTAVE LABELING (IMPORTANT):
 #   hUGETracker uses HIGH octave numbers (C-6, C-7) for noise channel.
@@ -128,6 +130,16 @@ play auto repeat
 #   - The usable noise range happens to be mapped to octaves 5-7 in hUGETracker
 #   - Use C6 for snares, hi-hats, and most percussion
 #   - Experiment to find what sounds good - octave numbers are arbitrary!
+#
+# 7-BIT MODE (METALLIC NOISE) & UGE EXPORT:
+#   - When width=7 is used, the exporter shifts the note range into the 
+#     "metallic" region of the hUGETracker note table (indices 72-127).
+#   - This is why you see 'C-^' instead of 'C-3' in hUGETracker. The '^' 
+#     indicates the 7-bit hardware flag is active.
+#   - If a note sounds "wrong" or too high, lower the octave in your .bax file.
+#     For example, C6:inst(snare_tight) is not valid syntax; instead use:
+#     inst(snare_tight, 1) C6  (Temporary override for 1 note)
+#     or just: snare_tight     (Defaults to C3, which exports as C-^ in UGE)
 #
 # ENVELOPE TIPS:
 #   - period=0: Instant attack, constant volume (tight sounds)

@@ -3,11 +3,13 @@ import { registerFromFreq, freqFromRegister } from '../src/chips/gameboy/periodT
 import { parse } from '../src/parser/index';
 
 describe('Pulse Sweep', () => {
-  test('parseSweep handles various formats', () => {
-    expect(parseSweep('10,down,3')).toEqual({ time: 10, direction: 'down', shift: 3 });
-    expect(parseSweep('20,up,5')).toEqual({ time: 20, direction: 'up', shift: 5 });
+  test('parseSweep handles various formats and clamps values', () => {
+    expect(parseSweep('7,down,3')).toEqual({ time: 7, direction: 'down', shift: 3 });
+    expect(parseSweep('10,down,3')).toEqual({ time: 7, direction: 'down', shift: 3 });
+    expect(parseSweep('20,up,5')).toEqual({ time: 7, direction: 'up', shift: 5 });
     expect(parseSweep('5,dec,2')).toEqual({ time: 5, direction: 'down', shift: 2 });
     expect(parseSweep('5,1,2')).toEqual({ time: 5, direction: 'down', shift: 2 });
+    expect(parseSweep('5,up,10')).toEqual({ time: 5, direction: 'up', shift: 7 });
     expect(parseSweep(null)).toBeNull();
     expect(parseSweep('invalid')).toBeNull();
   });

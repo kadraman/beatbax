@@ -50,12 +50,16 @@ export function parseSweep(sweepStr: any) {
   if (!sweepStr) return null;
   const parts = String(sweepStr).split(',').map(p => p.trim());
   if (parts.length < 3) return null;
-  
-  const time = parseInt(parts[0], 10);
+
+  const timeRaw = parseInt(parts[0], 10);
+  const time = Math.max(0, Math.min(7, isNaN(timeRaw) ? 0 : timeRaw));
+
   const dirStr = parts[1].toLowerCase();
   const direction: 'up' | 'down' = (dirStr === 'down' || dirStr === 'dec' || dirStr === '1') ? 'down' : 'up';
-  const shift = parseInt(parts[2], 10);
-  
+
+  const shiftRaw = parseInt(parts[2], 10);
+  const shift = Math.max(0, Math.min(7, isNaN(shiftRaw) ? 0 : shiftRaw));
+
   return { time, direction, shift };
 }
 

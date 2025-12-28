@@ -64,7 +64,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         
         const { playAudioBuffer } = await import(cliUrl);
         console.log('Playing audio via system speakers...');
-        if (ast && (ast as any).play && (ast as any).play.repeat) {
+        if (ast.play?.repeat) {
           console.log('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');
           // Loop playback indefinitely; user may interrupt with Ctrl-C
           // Play sequentially to avoid overlapping audio
