@@ -1,0 +1,19 @@
+## metadata_example.bax
+
+song name "Example Song"
+song artist "kadraman"
+song description """This is an example song demonstrating
+multiline metadata directives for BeatBax.
+It spans multiple lines, preserving newlines."""
+song tags "demo,metadata,example"
+
+chip gameboy
+bpm 128
+
+a = C4 E4 G4 C5
+pat melody = a
+
+inst lead type=pulse1 duty=50 env=12,down
+channel 1 => inst lead seq melody
+
+play

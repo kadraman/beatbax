@@ -3,13 +3,29 @@
  */
 
 export type PatternMap = Record<string, string[]>;
-export type InstMap = Record<string, Record<string, string>>;
+
+export interface InstrumentNode {
+  type?: string;
+  duty?: string;
+  env?: string;
+  wave?: string;
+  sweep?: string;
+  [key: string]: string | undefined;
+}
+
+export type InstMap = Record<string, InstrumentNode>;
 
 export interface ChannelNode {
   id: number;
   inst?: string;
   pat?: string | string[];
   speed?: number;
+}
+
+export interface PlayNode {
+  auto?: boolean;
+  repeat?: boolean;
+  flags?: string[];
 }
 
 export type SeqMap = Record<string, string[]>;
@@ -21,6 +37,15 @@ export interface AST {
   channels: ChannelNode[];
   bpm?: number;
   chip?: string;
+  play?: PlayNode;
+  metadata?: SongMetadata;
 }
 
 export default AST;
+
+export interface SongMetadata {
+  name?: string;
+  artist?: string;
+  description?: string;
+  tags?: string[];
+}

@@ -1,5 +1,11 @@
-# BeatBax Sustain & Duration Demo
-# This song demonstrates how to create long notes and precise rhythms.
+## sustain_demo.bax
+## BeatBax Sustain & Duration Demo
+## This song demonstrates how to create long notes and precise rhythms.
+
+song name "Sustain Demo"
+song artist "kadraman"
+song description """Demo showing sustain and duration tokens, long notes and precise rhythms for BeatBax."""
+song tags "sustain,duration,imported"
 
 chip gameboy
 bpm 128
@@ -42,3 +48,11 @@ channel 4 => inst kick seq drums
 # --- Commands ---
 # You can play this song using: node bin/beatbax play songs/sustain_demo.bax --headless
 # Or export it: node bin/beatbax export wav songs/sustain_demo.bax demo.wav
+
+# -----------------------------------------------------------------------------
+# Playback directive
+# Add `play auto repeat` to request the web UI to auto-start this song when
+# loaded and to loop it. Note: browsers may still require a user gesture to
+# actually resume audio due to autoplay policies; the web UI shows an enable
+# audio prompt when necessary.
+play auto repeat

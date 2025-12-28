@@ -1,5 +1,15 @@
+import { GB_PERIOD_TABLE, freqFromRegister } from './periodTables.js';
+
 /** Utilities for note/frequency conversions used by the Player. */
 export function midiToFreq(midi: number) {
+  // Use hardware-accurate period table for Game Boy parity
+  // GB_PERIOD_TABLE starts at C2 (MIDI 36)
+  const index = midi - 36;
+  if (index >= 0 && index < GB_PERIOD_TABLE.length) {
+    return freqFromRegister(GB_PERIOD_TABLE[index]);
+  }
+  
+  // Fallback to standard equal temperament for notes outside the hardware range
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 

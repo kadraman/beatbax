@@ -1,5 +1,8 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
+import { parseSweep } from '../chips/gameboy/pulse.js';
+import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
+import { InstMap, InstrumentNode } from '../parser/ast.js';
 
 /**
  * Render a song to PCM samples without using WebAudio.
@@ -50,7 +53,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
 
 function renderChannel(
   ch: any,
-  insts: Record<string, Record<string, string>>,
+  insts: InstMap,
   buffer: Float32Array,
   sampleRate: number,
   channels: number,
@@ -116,7 +119,7 @@ function renderChannel(
 
 function renderNoteEvent(
   ev: NoteEvent,
-  inst: Record<string, string>,
+  inst: InstrumentNode,
   buffer: Float32Array,
   startSample: number,
   durationSamples: number,
@@ -145,7 +148,7 @@ function renderNoteEvent(
 
 function renderNamedEvent(
   ev: any,
-  inst: Record<string, string>,
+  inst: InstrumentNode,
   buffer: Float32Array,
   startSample: number,
   durationSamples: number,
@@ -163,7 +166,7 @@ function renderPulse(
   start: number,
   duration: number,
   freq: number,
-  inst: Record<string, string>,
+  inst: InstrumentNode,
   sampleRate: number,
   channels: number
 ) {
@@ -179,11 +182,31 @@ function renderPulse(
   
   const envelope = parseEnvelope(inst.env);
   
+  const sweep = parseSweep(inst.sweep);
+  let currentFreq = freq;
+  let currentReg = registerFromFreq(freq);
+  const sweepIntervalSamples = sweep ? (sweep.time / 128) * sampleRate : 0;
+
   // Generate simple square wave (harmonics were making it sound worse)
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
-    const phase = (t * freq) % 1.0;
-    const square = phase < duty ? 1.0 : -1.0;
+
+    // Apply sweep
+    if (sweep && sweep.time > 0 && sweepIntervalSamples > 0 && i > 0 && i % Math.floor(sweepIntervalSamples) === 0) {
+      const delta = currentReg >> sweep.shift;
+      if (sweep.direction === 'up') currentReg += delta;
+      else currentReg -= delta;
+
+      if (currentReg < 0) currentReg = 0;
+      if (currentReg > 2047) {
+        currentFreq = 0; // Silence
+      } else {
+        currentFreq = freqFromRegister(currentReg);
+      }
+    }
+
+    const phase = (t * currentFreq) % 1.0;
+    const square = currentFreq > 0 ? (phase < duty ? 1.0 : -1.0) : 0;
     
     // Apply envelope
     const envVal = getEnvelopeValue(t, envelope);
@@ -204,7 +227,7 @@ function renderWave(
   start: number,
   duration: number,
   freq: number,
-  inst: Record<string, string>,
+  inst: InstrumentNode,
   sampleRate: number,
   channels: number
 ) {
@@ -230,7 +253,7 @@ function renderNoise(
   buffer: Float32Array,
   start: number,
   duration: number,
-  inst: Record<string, string>,
+  inst: InstrumentNode,
   sampleRate: number,
   channels: number
 ) {

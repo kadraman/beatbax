@@ -1,7 +1,7 @@
 export * from './tokenizer.js';
 
 import { expandPattern, transposePattern } from '../patterns/expand.js';
-import { AST, SeqMap, ChannelNode } from './ast.js';
+import { AST, SeqMap, ChannelNode, PlayNode, InstMap } from './ast.js';
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
@@ -48,8 +48,38 @@ export function parse(source: string): AST {
 
   const src = stripInlineComments(source);
 
+  // Extract song metadata directives (supports single/double-quoted and triple-quoted multiline strings)
+  // Examples:
+  //   song name "Title"
+  //   song artist 'Artist Name'
+  //   song description """Line1
+  //   Line2
+  //   Line3"""
+  //   song tags "tag1, tag2"
+  const metadata: { name?: string; artist?: string; description?: string; tags?: string[] } = {};
+  const songRe = /^\s*song\s+(name|artist|description|tags)\s+(?:"""([\s\S]*?)"""|"([^"]*?)"|'([^']*?)')/gim;
+  let srcTemp = src;
+  srcTemp = srcTemp.replace(songRe, (_full, key: string, triple: string, dbl: string, sgl: string) => {
+    const val = triple ?? dbl ?? sgl ?? '';
+    if (key === 'tags') {
+      const tags = val.split(/[,\n\r]+/).map(t => t.trim()).filter(Boolean);
+      metadata.tags = (metadata.tags || []).concat(tags);
+    } else if (key === 'name') {
+      metadata.name = val;
+    } else if (key === 'artist') {
+      metadata.artist = val;
+    } else if (key === 'description') {
+      metadata.description = val;
+    }
+    // remove directive from source so other regexes don't accidentally match it
+    return '';
+  });
+
+  // Use the cleaned source for the rest of parsing
+  const cleanedSrc = srcTemp;
+
   const pats: Record<string, string[]> = {};
-  const insts: Record<string, Record<string, string>> = {};
+  const insts: InstMap = {};
   const seqs: SeqMap = {};
   const channels: ChannelNode[] = [];
   let topBpm: number | undefined = undefined;
@@ -57,7 +87,7 @@ export function parse(source: string): AST {
   // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
   const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(src)) !== null) {
+  while ((m = re.exec(cleanedSrc)) !== null) {
     const nameSpec = m[1];
     let rhs = m[2].trim();
 
@@ -129,7 +159,7 @@ export function parse(source: string): AST {
 
   // Parse inst definitions: inst NAME key=val key2=val2 ...
   const reInst = /^\s*inst\s+([A-Za-z_][A-Za-z0-9_\-]*)\s+(.+)$/gm;
-  while ((m = reInst.exec(src)) !== null) {
+  while ((m = reInst.exec(cleanedSrc)) !== null) {
     const name = m[1];
     const rest = m[2].trim();
     const parts = rest.split(/\s+/);
@@ -151,7 +181,7 @@ export function parse(source: string): AST {
   // Parse seq definitions line-by-line to avoid accidental multiline captures
   // and provide a clear warning if the RHS is empty.
   const seqLineRe = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*(.*)$/;
-  const lines = src.split(/\r?\n/);
+  const lines = cleanedSrc.split(/\r?\n/);
   for (let li = 0; li < lines.length; li++) {
     const lm = lines[li].match(seqLineRe);
     if (!lm) continue;
@@ -180,9 +210,8 @@ export function parse(source: string): AST {
         if (ch === '"' && !inS) { inD = !inD; cur += ch; i++; continue; }
         if (inS || inD) { cur += ch; i++; continue; }
         if (ch === '(') {
-          // flush current
-          if (cur.trim()) { out.push(cur.trim()); cur = ''; }
-          // capture until matching ')'
+          // If we have accumulated text (like "P:inst"), keep it and append the parenthesized part
+          // This handles cases like "P:inst(foo)" which should be a single token
           let depth = 1;
           let j = i + 1;
           let group = '(';
@@ -193,9 +222,8 @@ export function parse(source: string): AST {
             else if (c2 === ')') depth--;
             j++;
           }
-          out.push(group.trim());
+          cur += group;
           i = j;
-          cur = '';
           continue;
         }
         if (/\s/.test(ch) || ch === ',') {
@@ -233,7 +261,7 @@ export function parse(source: string): AST {
 
   // Parse channel definitions: channel N => ...
   const reChan = /^\s*channel\s+(\d+)\s*=>\s*(.+)$/gm;
-  while ((m = reChan.exec(src)) !== null) {
+  while ((m = reChan.exec(cleanedSrc)) !== null) {
     const id = parseInt(m[1], 10);
     const rhs = m[2].trim();
     // Simple tokenization of RHS
@@ -359,7 +387,7 @@ export function parse(source: string): AST {
 
   // Parse top-level bpm directive: `bpm 160` or `bpm=160`
   const reBpm = /^\s*bpm\s*(?:=)?\s*(\d+)$/gim;
-  while ((m = reBpm.exec(src)) !== null) {
+  while ((m = reBpm.exec(cleanedSrc)) !== null) {
     const n = parseInt(m[1], 10);
     if (!isNaN(n)) topBpm = n;
   }
@@ -367,11 +395,35 @@ export function parse(source: string): AST {
   // Parse top-level chip directive: `chip gameboy` or `chip=gameboy`
   let chipName: string | undefined = undefined;
   const reChip = /^\s*chip\s*(?:=)?\s*([A-Za-z_][A-Za-z0-9_\-]*)/gim;
-  while ((m = reChip.exec(src)) !== null) {
+  while ((m = reChip.exec(cleanedSrc)) !== null) {
     chipName = m[1];
   }
 
-  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName };
+  // Parse top-level play directive: `play` optionally followed by flags
+  // e.g. `play auto repeat` or `play repeat`
+  let playNode: PlayNode | undefined = undefined;
+  const rePlay = /^\s*play(?:\s+(.+))?$/gim;
+  while ((m = rePlay.exec(cleanedSrc)) !== null) {
+    const flagsRaw = m[1] ? m[1].trim() : '';
+    const flags = flagsRaw ? flagsRaw.split(/\s+/) : [];
+    playNode = {
+      flags,
+      auto: flags.includes('auto'),
+      repeat: flags.includes('repeat'),
+    };
+  }
+
+  // Validation: Ensure sweep is only used for pulse1 on gameboy
+  if (chipName === 'gameboy' || !chipName) {
+    for (const [name, props] of Object.entries(insts)) {
+      const p = props as any;
+      if (p.sweep && p.type !== 'pulse1') {
+        console.warn(`[BeatBax Parser] Warning: Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
+      }
+    }
+  }
+
+  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };
 }
 
 export default {

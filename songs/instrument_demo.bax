@@ -1,0 +1,164 @@
+## instrument_demo.bax
+## Comprehensive demonstration of Game Boy instrument types and parameters
+## This file showcases all four channel types with various configurations
+## to help users understand instrument design and UGE export mapping.
+
+song name "Instrument Demo"
+song artist "kadraman"
+song description """Comprehensive demonstration of Game Boy instrument types and parameters. Showcases pulse, wave and noise instruments and UGE mapping."""
+song tags "instruments,example,imported"
+
+chip gameboy
+bpm 120
+time 4
+
+# =============================================================================
+# PULSE CHANNEL INSTRUMENTS (Channels 1 & 2)
+# =============================================================================
+# Pulse channels support duty cycles: 12.5%, 25%, 50%, 75%
+# Envelope format: env=gb:<initial_volume>,<up|down>,<period>
+#   - initial_volume: 0-15 (0=silent, 15=max)
+#   - direction: up or down
+#   - period: 0-7 (0=no change, 1-7=speed of envelope)
+
+# Duty cycle demonstrations - same envelope, different duties
+inst pulse_12  type=pulse1 duty=12.5 env=gb:12,down,1 gm=80  # Thin, hollow sound
+inst pulse_25  type=pulse1 duty=25   env=gb:12,down,1 gm=81  # Classic square wave
+inst pulse_50  type=pulse1 duty=50   env=gb:12,down,1 gm=82  # Balanced, full sound
+inst pulse_75  type=pulse1 duty=75   env=gb:12,down,1 gm=83  # Inverted 25% sound
+
+# Envelope variation demonstrations
+inst pulse_long    type=pulse2 duty=50 env=gb:15,down,2 gm=84  # Medium-slow decay
+inst pulse_pluck   type=pulse2 duty=50 env=gb:15,down,1 gm=85  # Fast pluck/staccato
+inst pulse_swell   type=pulse2 duty=50 env=gb:0,up,3    gm=86  # Swell from silence
+inst pulse_sustain type=pulse2 duty=50 env=gb:15,down,0 gm=87  # No envelope change (constant)
+
+# Musical role instruments
+inst lead_bright type=pulse1 duty=50 env=gb:14,down,2 gm=81  # Bright melodic lead
+inst lead_warm   type=pulse1 duty=75 env=gb:12,down,3 gm=80  # Warmer lead tone
+inst bass_punch  type=pulse2 duty=25 env=gb:15,down,1 uge_transpose=+12 gm=34  # Punchy bass (transpose for UGE)
+inst bass_sub    type=pulse2 duty=12.5 env=gb:13,down,4 uge_transpose=+12 gm=38  # Deep sub-bass (transpose for UGE)
+inst kick_pulse  type=pulse1 duty=12.5 env=gb:15,down,1 length=16 gm=35  # Kick drum (period=1 for fast decay)
+
+# =============================================================================
+# WAVE CHANNEL INSTRUMENTS (Channel 3)
+# =============================================================================
+# Wave channel plays 16 x 4-bit samples (values 0-15)
+# Each waveform creates a different timbre
+
+# Basic waveforms
+inst wave_sine type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] gm=82
+inst wave_saw  type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] gm=81
+inst wave_ramp type=wave wave=[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] gm=81
+inst wave_square type=wave wave=[15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0] gm=80
+
+# Harmonic-rich waveforms
+inst wave_triangle type=wave wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2] gm=82
+inst wave_pulse25  type=wave wave=[15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0] gm=81
+inst wave_pulse12  type=wave wave=[15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=80
+
+# Complex/musical waveforms
+inst wave_organ type=wave wave=[8,12,15,13,8,3,0,2,8,12,15,13,8,3,0,2] gm=16
+inst wave_strings type=wave wave=[0,4,8,11,13,14,13,11,8,4,0,4,8,11,13,14] gm=49
+inst wave_brass type=wave wave=[8,13,15,14,10,5,2,1,8,13,15,14,10,5,2,1] gm=57
+inst wave_bell type=wave wave=[15,14,12,9,6,3,1,0,0,1,3,6,9,12,14,15] gm=14
+
+# Experimental/effect waveforms
+inst wave_metallic type=wave wave=[15,0,12,3,9,6,6,9,3,12,0,15,0,12,3,9] gm=122
+inst wave_distorted type=wave wave=[15,15,10,10,5,5,0,0,0,5,5,10,10,15,15,0] gm=30
+inst wave_noise_like type=wave wave=[8,2,13,5,11,1,14,7,9,4,12,6,10,3,15,0] gm=125
+
+# =============================================================================
+# NOISE CHANNEL INSTRUMENTS (Channel 4)
+# =============================================================================
+# See percussion_demo.bax
+
+# =============================================================================
+# PATTERNS - Demonstrating each instrument type
+# =============================================================================
+
+# Pulse duty cycle comparison (plays same melody with different duties)
+pat duty_demo = C5 E5 G5 E5 C5 E5 G5 .
+
+# Envelope comparison patterns - using sustained notes to hear envelope evolution
+# Each note sustains for 7 ticks, then 1 rest to separate them
+pat env_demo = C5 _ _ _ _ _ _ . E5 _ _ _ _ _ _ . G5 _ _ _ _ _ _ . C6 _ _ _ _ _ _ .
+
+# Wave channel melody showcasing different timbres
+pat wave_melody = C4 D4 E4 F4 G4 A4 B4 C5 C5 B4 A4 G4 F4 E4 D4 C4
+
+# Bass pattern for pulse bass instruments (C2 will be transposed to C3 for UGE export)
+pat bass_line = C2 . C2 . C2 G2 . . C2 . C2 . C2 G2 A2 .
+
+# Bass pattern - mix of short and sustained notes to showcase both attack and envelope decay
+# Uses C2 octave (transposed to C3 for UGE export)
+pat bass_line2 = C2 _ C2 _ _ _ _ . C2 . C2 . G2 _ G2 _ _ _ _ . A2 . G2 . C2 _ _ _ _ _ _ .
+
+# Arpeggio pattern for demonstrating sustained sounds
+pat arp_major = C4 E4 G4 C5 G4 E4 C4 .
+pat arp_minor = C4 Eb4 G4 C5 G4 Eb4 C4 .
+
+# =============================================================================
+# SEQUENCES - Organizing patterns by demonstration type
+# =============================================================================
+
+# Duty cycle demonstration sequence
+seq duty_showcase = duty_demo:inst(pulse_12) duty_demo:inst(pulse_25) duty_demo:inst(pulse_50) duty_demo:inst(pulse_75)
+
+# Envelope demonstration sequence
+seq env_showcase = env_demo:inst(pulse_pluck) env_demo:inst(pulse_long) env_demo:inst(pulse_swell) env_demo:inst(pulse_sustain)
+
+# Wave instrument showcase - basic waveforms
+seq wave_basic = wave_melody:inst(wave_sine) wave_melody:inst(wave_saw) wave_melody:inst(wave_triangle) wave_melody:inst(wave_square)
+
+# Wave instrument showcase - musical waveforms
+seq wave_music = wave_melody:inst(wave_organ) wave_melody:inst(wave_strings) wave_melody:inst(wave_brass) wave_melody:inst(wave_bell)
+
+# Bass line demonstration
+seq bass_demo = bass_line:inst(bass_punch) bass_line2:inst(bass_sub)
+
+# =============================================================================
+# CHANNEL ASSIGNMENTS
+# =============================================================================
+# This arrangement plays different demonstrations in sequence
+# Channel 1: Duty cycle demo → Envelope demo
+# Channel 2: Bass line accompaniment
+# Channel 3: Wave instrument demonstrations
+# Channel 4: See percussion_demo.bax
+
+channel 1 => inst lead_bright  seq duty_showcase env_showcase
+channel 2 => inst bass_punch   seq bass_demo bass_demo bass_demo 
+channel 3 => inst wave_sine    seq wave_basic wave_music
+
+# =============================================================================
+# PLAYBACK
+# =============================================================================
+
+play auto repeat
+
+# =============================================================================
+# USAGE NOTES FOR UGE EXPORT
+# =============================================================================
+# When exported to UGE format:
+# - Pulse instruments map to duty instrument slots (15 available)
+# - Wave instruments map to wave instrument slots (15 available)
+# - Noise instruments map to noise instrument slots (15 available)
+# - Each unique instrument configuration gets its own slot
+# - GM (General MIDI) numbers are used for MIDI export only
+#
+# Tips for effective instrument design:
+# 1. Use duty=12.5 or 25 for thin, cutting leads and basses
+# 2. Use duty=50 for balanced, full-bodied sounds
+# 3. Use duty=75 for thicker, darker tones
+# 4. Short envelopes (period=1-2) for percussive, plucky sounds
+# 5. Long envelopes (period=5-7) for pads and sustained notes
+# 6. Wave channel is great for bass, pads, and unique timbres
+# 7. Kick drums work best on pulse channels (low pitch + fast envelope)
+# 8. Noise channel: use width=7 (metallic) or width=15 (hissy white noise)
+# 9. Noise "notes" are brightness labels, not harmonic pitches:
+#    - Hi-hats: C6-E7 (width=15)
+#    - Snares: D4-D5 (width=7, sweet spots: D4, F4, A#4, D5)
+#    - Toms: C3-B4 (width=7)
+# 10. Envelope period=0 creates constant volume (no decay)
+# 11. Mix different waveforms in wave channel for varied textures
+# 12. Use gm= numbers to improve MIDI export mapping (optional)
