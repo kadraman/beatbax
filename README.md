@@ -20,7 +20,9 @@ A concise feature summary:
 Each "song" can be defined in a `.bax` file with the following a minimal example.
 
 ```
-# Set a top-level tempo instead of per-channel BPM
+song name "An example song"
+
+chip gameboy
 bpm 128
 
 inst lead  type=pulse1 duty=50 env=gb:12,down,1
@@ -52,6 +54,13 @@ The `play` command supports browser and headless playback:
 - `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
 - `--headless` — Headless Node.js playback using multi-fallback audio system
 - `--sample-rate <hz>` — Sample rate for headless playback (default: 44100)
+
+Note on `play` directive flags:
+- Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
+	- `play auto` requests the web UI to start playback when the file is loaded.
+	- `play repeat` requests looping/continuous playback.
+	The web UI will attempt to honor `play auto` but browsers commonly require a user gesture
+	to unlock audible playback; in those cases the UI will prompt the user to enable audio.
 
 Validation note: the CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
 
@@ -154,12 +163,6 @@ beatbax/
 │
 ├── docs/                        # Documentation
 │   ├── features/                # Feature specifications
-│   │   ├── cli-audio-export.md
-│   │   ├── dynamic-chip-loading.md
-│   │   ├── effects-system.md
-│   │   ├── hot-reload.md
-│   │   ├── playback-via-cli.md
-│   │   ├── plugin-system.md
 │   │   └── ...
 │   ├── scheduler.md             # Scheduler API docs
 │   ├── uge-export-guide.md      # UGE export guide

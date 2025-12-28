@@ -5,8 +5,12 @@
 ##  - space-separated: `seq a b`
 ## Also shows inline modifiers applied to individual items.
 
-chip gameboy
+song name "Sequence Demo"
+song artist "kadraman"
+song description """Demonstrates `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
+song tags "sequence,arrangement,imported"
 
+chip gameboy
 bpm 120
 
 # Instruments
@@ -48,4 +52,4 @@ channel 3 => inst wave1 seq wave:oct(-1) wave:oct(-2)
 channel 4 => inst perc seq drums drums
 
 # Playback directive for interactive demos
-play
+play auto repeat

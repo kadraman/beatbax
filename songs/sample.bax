@@ -3,8 +3,12 @@
 ## This file illustrates common language features and maps them to 4 Game Boy-like
 ## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
 
-chip gameboy
+song name "Sample Song"
+song artist "kadraman"
+song description """BeatBax Sample song — illustrates common language features and maps them to 4 Game Boy-like channels (Pulse1, Pulse2, Wave, Noise)."""
+song tags "example,imported,metadata"
 
+chip gameboy
 bpm 128
 
 # -----------------------------------------------------------------------------
@@ -24,7 +28,7 @@ bpm 128
 # using `gm=<0-127>`. The exporter will use this value for Program Change
 # messages when exporting MIDI. Example: `inst leadA ... gm=81` (Lead 1).
 inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81   # Bright pulse lead, slightly wider duty (GM 81)
-inst leadB type=pulse2 duty=30 env=gb:7,down,1  gm=34   # Narrower pulse (used as temporary override) (GM 34)
+inst leadB type=pulse2 duty=30 env=gb:7,down,1 uge_transpose=+12 gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # Wavetable arpeggio voice (GM 82)
 inst snare type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
 inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
@@ -43,7 +47,7 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 pat melody      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat melody_alt  = (. C5 . C5 . G5 . G5) * 2
+pat melody_alt  = (C5 . C5 . G5 . G5 E5) * 2
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
@@ -52,19 +56,19 @@ pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
 pat arp      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 
 # Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
-pat drums_pat      = . . snare . . hihat . . . snare . . . . . .
+pat drums_pat      = (snare . . .) (snare . . .) (snare . . .) (snare . hihat .)
 
 # Short melodic fill used between phrases (16 tokens).
 pat fill      = (C5 E5 G5 C6) * 4
 
 # -----------------------------------------------------------------------------
 # New shorthand examples
-# You can use `name*4` as a concise shorthand to emit the named instrument
+# You can use `name*n` as a concise shorthand to emit the named instrument
 # hit 4 times in a row (equivalent to `hit(name,4)`). This is useful for
 # percussion stabs where you want immediate repeated hits without inserting
 # explicit note tokens. `inst(name,N)` still acts as a temporary override
 # for the next N non-rest notes.
-pat drums_alt     = snare . . . snare . . . hihat . . . . . . .
+pat drums_alt     = (snare . . .)*2 perc . . . . . . .
 
 # -----------------------------------------------------------------------------
 # Channel routing
@@ -90,11 +94,11 @@ seq bass = bass_pat bass_pat bass_pat bass_pat
 seq wave = arp arp arp
 
 # Drums/percussion sequence
-seq drums = drums_pat drums_alt drums_pat drums_pat
+seq drums = drums_pat drums_alt drums_pat drums_alt
 
 ## Map channels to their separate sequences.
 channel 1 => inst leadA seq lead lead
-channel 2 => inst leadB seq bass:oct(-1) base
+channel 2 => inst leadB seq bass bass
 channel 3 => inst wave1 seq wave:oct(-1) wave
 channel 4 => inst perc  seq drums drums
 
@@ -103,4 +107,4 @@ channel 4 => inst perc  seq drums drums
 # The `play` directive starts playback in the web UI player. In the CLI this
 # would trigger immediate rendering or playback; in the web UI the UI uses the
 # parsed AST to schedule audio.
-play
+play auto repeat

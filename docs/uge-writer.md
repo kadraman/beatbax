@@ -25,7 +25,8 @@ Complete implementation of a UGE v6 binary file writer for BeatBax. The implemen
    - **Critical**: Each instrument ALWAYS writes 64 subpattern rows (1088 bytes) regardless of SubpatternEnabled flag
 
 3. **Conversion Functions**:
-   - `noteNameToMidiNote()`: Convert note names (C3, C#4, etc.) to MIDI note numbers
+   - `noteNameToMidiNote()`: Convert note names (C3, C#4, etc.) to MIDI note numbers.
+     - **Note Mapping**: Maps MIDI 36 (C2) to hUGETracker index 0 (displayed as C3) to maintain pitch parity with hardware.
    - `resolveInstrumentIndex()`: Map beatbax instrument names to GB instrument indices
    - `eventsToPatternCells()`: Convert beatbax channel events to UGE pattern cells
      - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (0xC) to ensure sharp termination.

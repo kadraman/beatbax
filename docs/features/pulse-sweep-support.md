@@ -1,6 +1,6 @@
 ---
 title: Pulse Channel Sweep Support
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/2"
@@ -8,7 +8,9 @@ issue: "https://github.com/kadraman/beatbax/issues/2"
 
 ## Summary
 
-Add frequency sweep support to the Game Boy pulse channels (specifically pulse1/channel 1). Sweep is a signature Game Boy audio effect that creates smooth pitch bends by automatically adjusting the frequency over time, commonly used for sound effects and melodic flourishes.
+Add frequency sweep support to the Game Boy pulse1 (channel 1). Sweep is a signature Game Boy audio effect that creates smooth pitch bends by automatically adjusting the frequency over time, commonly used for sound effects and melodic flourishes.
+
+**Scope**: This feature implements the `sweep` directive as a **Game Boy-specific** instrument parameter. Other chip backends (NES, SID, YM2612) will use their own chip-specific modulation directives when implemented.
 
 ## Motivation
 
@@ -17,12 +19,53 @@ Add frequency sweep support to the Game Boy pulse channels (specifically pulse1/
 - **Hardware accuracy**: Pulse1 on real GB hardware has a built-in sweep unit
 - **Compatibility**: UGE files use sweep; proper import/export requires sweep support
 
-## Current State
+## Current State (Implemented)
 
-- Pulse channels support duty cycle and envelope
-- Sweep parameters are defined in the UGE spec but not implemented
-- Parser accepts sweep parameters but they're ignored during playback
-- `src/chips/gameboy/pulse.ts` has no sweep logic
+- ✅ Pulse channels support duty cycle and envelope
+- ✅ Sweep parameters are implemented in the UGE v6 exporter
+- ✅ Parser validates sweep parameters and restricts them to `pulse1`
+- ✅ `src/chips/gameboy/pulse.ts` implements hardware-accurate register-based sweep
+- ✅ `src/audio/pcmRenderer.ts` supports sweep in headless mode
+
+## Architecture Decision: Chip-Specific Directive
+
+After evaluating whether sweep should be a universal or chip-specific directive, we've decided to implement it as **chip-specific** for the following reasons:
+
+### Why Chip-Specific?
+
+1. **Different hardware semantics**: Each chip has distinct pitch modulation mechanisms
+   - Game Boy: Frequency-based sweep with time/direction/shift parameters
+   - NES APU: Period-based sweep with different time units and behavior
+   - C64 SID: Filter cutoff modulation, ring mod, and hard sync (no direct sweep)
+   - YM2612: LFO-based vibrato with rate/depth parameters
+
+2. **Parameter incompatibility**: Time units, direction flags, and shift amounts differ significantly between chips
+
+3. **Hardware accuracy**: Each chip's behavior is unique enough to warrant separate directives
+
+4. **Plugin extensibility**: Chip plugins can define their own modulation parameters without forcing a universal abstraction
+
+### Future Chip Implementations
+
+When other chips are implemented, they will use their own directives:
+
+```bax
+# Game Boy (this implementation)
+inst gbLead type=pulse1 duty=50 sweep=4,up,3
+
+# Future: NES APU
+inst nesLead type=pulse sweep_period=2,down,5
+
+# Future: C64 SID
+inst sidLead type=pulse filter_sweep=200,1200,0.5
+
+# Future: YM2612
+inst ym2Lead type=fm lfo_rate=4.5 lfo_depth=20
+```
+
+### Initial Implementation
+
+This feature implements **only** the Game Boy `sweep` directive for `pulse1` channels. The parser will validate that `sweep` is only used with `chip gameboy` and `type=pulse1`.
 
 ## Game Boy Hardware Sweep
 
@@ -38,10 +81,47 @@ The Game Boy pulse1 channel has a frequency sweep unit controlled by three param
    - 1 = decrease frequency (pitch down)
 
 3. **Sweep Shift** (0-7): Amount of frequency change per step
-   - Formula: `new_freq = old_freq ± (old_freq >> shift)`
+   - Formula: `new_reg = old_reg ± (old_reg >> shift)`
+   - Frequency formula: `f = 131072 / (2048 - X)`
+   - **Pitch UP**: Increase register (`X_new = X_old + (X_old >> shift)`)
+   - **Pitch DOWN**: Decrease register (`X_new = X_old - (X_old >> shift)`)
    - 0 = no change
    - 1 = ±50% per step
    - 7 = ±0.78% per step (subtle)
+
+## Game Boy Hardware Constraints
+
+**Sweep is exclusive to pulse1 (channel 1).** This is a hardware limitation of the Game Boy DMG-01 APU:
+
+| Channel | Type   | Sweep Support |
+|---------|--------|---------------|
+| 1       | Pulse1 | ✅ Yes (hardware sweep unit) |
+| 2       | Pulse2 | ❌ No |
+| 3       | Wave   | ❌ No |
+| 4       | Noise  | ❌ No (LFSR-based, not frequency-based) |
+
+### Invalid Examples
+
+```bax
+# ❌ ERROR: sweep not supported on pulse2
+inst bass type=pulse2 duty=25 sweep=3,down,2
+
+# ❌ ERROR: sweep not supported on wave
+inst lead type=wave wave=[...] sweep=4,up,1
+
+# ❌ ERROR: sweep not supported on noise
+inst kick type=noise env=15,down sweep=2,down,3
+```
+
+### Valid Examples
+
+```bax
+# ✅ OK: sweep on pulse1
+inst riser type=pulse1 duty=50 sweep=5,up,2
+
+# ✅ OK: pulse2 without sweep
+inst bass type=pulse2 duty=25 env=12,down
+```
 
 ## Proposed Implementation
 
@@ -74,7 +154,7 @@ export interface InstrumentNode {
   envelope?: { initial: number; direction: 'up' | 'down' };
   wave?: number[];
   
-  // NEW: Sweep parameters
+  // NEW: Sweep parameters (Game Boy pulse1 only)
   sweep?: {
     time: number;      // 0-7, 0 = disabled
     direction: 'up' | 'down';
@@ -83,16 +163,31 @@ export interface InstrumentNode {
 }
 ```
 
+**Note**: When other chips are added, they will have their own chip-specific modulation fields (e.g., `sweep_period` for NES, `lfo` for YM2612).
+
 ### 3. Parser Changes
 
 ```typescript
 // packages/engine/src/parser/parser.ts
-function parseInstrument(tokens: Token[]): InstrumentNode {
+function parseInstrument(tokens: Token[], chipType: string): InstrumentNode {
   // ... existing parsing ...
   
-  // Parse sweep=time,direction,shift
+  // Parse sweep=time,direction,shift (Game Boy pulse1 only)
   const sweepToken = findParam(tokens, 'sweep');
   if (sweepToken) {
+    // Validate chip-specific usage
+    if (chipType !== 'gameboy') {
+      throw new Error(`sweep directive only valid with 'chip gameboy', not '${chipType}'`);
+    }
+    
+    // CRITICAL: Sweep only valid on pulse1 (hardware limitation)
+    if (inst.type !== 'pulse1') {
+      throw new Error(
+        `sweep only supported on pulse1 channel (got type='${inst.type}'). ` +
+        `Hardware limitation: Game Boy channels 2-4 do not have sweep units.`
+      );
+    }
+    
     const [time, dir, shift] = sweepToken.value.split(',');
     inst.sweep = {
       time: parseInt(time, 10) || 0,
@@ -107,28 +202,6 @@ function parseInstrument(tokens: Token[]): InstrumentNode {
 
 ```typescript
 // packages/engine/src/chips/gameboy/pulse.ts
-export function playPulse(
-  ctx: AudioContext,
-  freq: number,
-  duty: number,
-  start: number,
-  dur: number,
-  inst: any
-): AudioNode[] {
-  const osc = ctx.createOscillator();
-  osc.type = 'square';
-  
-  // Set initial frequency
-  osc.frequency.setValueAtTime(freq, start);
-  
-  // Apply sweep if present
-  if (inst.sweep && inst.sweep.time > 0) {
-    applySweep(ctx, osc.frequency, freq, start, dur, inst.sweep);
-  }
-  
-  // ... existing duty cycle and envelope logic ...
-}
-
 function applySweep(
   ctx: AudioContext,
   freqParam: AudioParam,
@@ -137,29 +210,26 @@ function applySweep(
   dur: number,
   sweep: { time: number; direction: 'up' | 'down'; shift: number }
 ) {
-  // Calculate sweep parameters
-  const sweepInterval = (sweep.time / 128); // Time between shifts in seconds
+  const sweepInterval = sweep.time / 128;
   const numSweeps = Math.floor(dur / sweepInterval);
   
-  let currentFreq = initialFreq;
+  let currentReg = registerFromFreq(initialFreq);
   
-  for (let i = 0; i < numSweeps; i++) {
+  for (let i = 1; i <= numSweeps; i++) {
     const time = start + (i * sweepInterval);
-    
-    // Calculate frequency delta
-    const delta = currentFreq >> sweep.shift;
+    const delta = currentReg >> sweep.shift;
     
     if (sweep.direction === 'up') {
-      currentFreq += delta;
+      currentReg += delta;
     } else {
-      currentFreq -= delta;
+      currentReg -= delta;
     }
     
-    // Clamp to valid range (avoid overflow/underflow)
-    currentFreq = Math.max(8, Math.min(currentFreq, 20000));
+    // Clamp to 11-bit range
+    currentReg = Math.max(0, Math.min(currentReg, 2047));
     
-    // Schedule frequency change
-    freqParam.setValueAtTime(currentFreq, time);
+    const nextFreq = freqFromRegister(currentReg);
+    freqParam.setValueAtTime(nextFreq, time);
   }
 }
 ```
@@ -282,24 +352,26 @@ test('UGE export preserves sweep', () => {
 
 ## Implementation Checklist
 
-- [ ] Add `sweep` field to `InstrumentNode` type
-- [ ] Update parser to recognize `sweep=time,dir,shift` syntax
-- [ ] Implement `applySweep()` in `packages/engine/src/chips/gameboy/pulse.ts`
-- [ ] Add sweep support to UGE writer
-- [ ] Add sweep support to UGE reader
-- [ ] Write unit tests for sweep parsing
-- [ ] Write unit tests for sweep audio generation
-- [ ] Write integration tests for UGE round-trip
-- [ ] Update TUTORIAL.md with sweep examples
-- [ ] Add sweep examples to demo songs
-- [ ] Document sweep behavior in `docs/uge-v6-spec.md`
+- [x] Add `sweep` field to `InstrumentNode` type
+- [x] Update parser to recognize `sweep=time,dir,shift` syntax
+- [x] Implement `applySweep()` in `packages/engine/src/chips/gameboy/pulse.ts`
+- [x] Add sweep support to UGE writer
+- [x] Add sweep support to UGE reader
+- [x] Write unit tests for sweep parsing
+- [x] Write unit tests for sweep audio generation
+- [x] Write integration tests for UGE round-trip
+- [x] Update TUTORIAL.md with sweep examples
+- [x] Add sweep examples to demo songs
+- [x] Document sweep behavior in `docs/uge-v6-spec.md`
 
 ## Compatibility Notes
 
-- **Pulse2**: Hardware does not support sweep, parser should warn if sweep specified on pulse2
-- **Wave/Noise**: Sweep not applicable, ignore silently or warn
-- **UGE v1-5**: Older versions may not have sweep fields, handle gracefully
+- **Pulse2**: Hardware does not support sweep, parser should error if sweep specified on pulse2
+- **Wave/Noise**: Sweep not applicable, parser should error if specified
+- **Other chips**: Parser must validate that `sweep` is only used with `chip gameboy`
+- **UGE v1-5**: Older versions may not have sweep fields, handle gracefully during import
 - **MIDI Export**: Map sweep to pitch bend events in MIDI track
+- **Future chips**: NES will use `sweep_period`, SID will use `filter_sweep`, etc. (separate implementations)
 
 ## Performance Considerations
 

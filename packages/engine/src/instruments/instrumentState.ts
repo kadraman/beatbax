@@ -5,13 +5,14 @@
  * and provides utilities for resolving an instrument reference for an
  * event given the instrument table and optional defaults.
  */
+import { InstMap } from '../parser/ast.js';
 
-export function getInstrumentByName(insts: Record<string, Record<string, string>>, name?: string) {
+export function getInstrumentByName(insts: InstMap, name?: string) {
   if (!name) return undefined;
   return insts[name] || undefined;
 }
 
-export function applyInstrumentToEvent(insts: Record<string, Record<string, string>>, event: any) {
+export function applyInstrumentToEvent(insts: InstMap, event: any) {
   if (!event || !event.instrument) return event;
   const instName = event.instrument;
   const inst = getInstrumentByName(insts, instName);
