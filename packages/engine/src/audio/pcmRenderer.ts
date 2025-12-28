@@ -192,7 +192,8 @@ function renderPulse(
     const t = i / sampleRate;
 
     // Apply sweep
-    if (sweep && sweep.time > 0 && sweepIntervalSamples > 0 && i > 0 && i % Math.floor(sweepIntervalSamples) === 0) {
+    const sweepInterval = Math.floor(sweepIntervalSamples);
+    if (sweep && sweep.time > 0 && sweepInterval > 0 && i > 0 && i % sweepInterval === 0) {
       const delta = currentReg >> sweep.shift;
       if (sweep.direction === 'up') currentReg += delta;
       else currentReg -= delta;
