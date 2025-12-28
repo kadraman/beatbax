@@ -5,12 +5,20 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
 - `apps/web-ui/` — browser demo UI that loads and plays `.bax` files.
+- `songs/metadata_example.bax` — example showing `song` metadata directives (name, artist, description, tags).
+- See `docs/metadata-directives.md` for details on metadata syntax and export mapping.
 
 **Language Quick Reference**
 
 - inst definitions: define instruments and their params.
   - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`
-  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable)
+  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable), `sweep` (frequency sweep)
+  - `sweep` (Pulse 1 only): `time,direction,shift`
+    - `time`: 0-7 (0=off, 7=slowest)
+    - `direction`: `up` (pitch up) or `down` (pitch down)
+    - `shift`: 0-7 (amount of change per step)
+    - Example: `inst riser type=pulse1 sweep=5,up,2`
+    - Note: Pitch `up` increases the frequency register, while `down` decreases it, following Game Boy hardware behavior.
   - `gm` (optional): General MIDI program number (0-127). When present the MIDI
     exporter emits a Program Change for the corresponding track using this value.
 
@@ -103,6 +111,12 @@ npm run cli -- play songs\sample.bax
 ```
 
 This parses the song and starts WebAudio playback (requires a browser environment or Node with audio support).
+
+Note on `play` directive flags:
+- You can add a top-level `play` directive inside a `.bax` file with optional flags `auto` and `repeat`.
+  - `play auto` requests the web UI to start playback when the file is loaded.
+  - `play repeat` requests continuous looping of the song.
+  The web UI will attempt to resume the `AudioContext` for `play auto`, but browsers commonly require a user gesture to enable audible playback; the UI shows a prompt when this occurs.
 
 ### Verify/validate a song
 

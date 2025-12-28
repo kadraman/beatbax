@@ -1,0 +1,47 @@
+## sweep_demo.bax
+## Sweep demo showcasing frequency sweep on pulse1
+
+song name "Sweep Demo"
+song artist "kadraman"
+song description """Sweep demo showcasing frequency sweep on pulse1."""
+song tags "instruments,example,gameboy,sweep"
+
+chip gameboy
+bpm 80
+
+# Listen for:
+# - inst plain: NO sweep (comparison - steady pitch)
+# - inst riser: RISING pitch sweep (raising/siren effect)
+# - inst faller: FALLING pitch sweep (dropping/falling effect)  
+
+# Sweep instruments
+inst plain type=pulse1 duty=50 env=15,down,7
+  # env=15,down,7: Start at max volume, slow decay (period=7)
+  # NO sweep - steady pitch for comparison
+
+inst riser type=pulse1 duty=50 env=15,down,7 sweep=7,up,3
+  # env=15,down,7: Start at max volume, slow decay (period=7)
+  # Sweep parameters: time,direction,shift
+  # sweep=7,up,3: Rising pitch, freq += freq/4 every 54ms
+  # Effect: rising siren/bounce sound
+
+inst faller type=pulse1 duty=50 env=15,down,7 sweep=6,down,5
+  # env=15,down,7: Start at max volume, slow decay (period=7)
+  # Sweep parameters: time,direction,shift
+  # sweep=6,down,5: Falling pitch, freq -= freq/4 every 47ms
+  # Effect: falling siren/bomb drop
+
+# Patterns with LONG notes using :duration syntax
+# C4:16 = hold C4 for 16 ticks (about 2 second at 80 BPM)
+# This gives sweep TIME to change the pitch during the note
+pat demo = C4:16
+
+# Sequences
+seq no_sweep = demo:inst(plain)
+seq rising_sweep = demo:inst(riser):oct(-2)
+seq falling_sweep = demo:inst(faller)
+
+# Channels - play one after another for comparison
+channel 1 => inst plain seq no_sweep rising_sweep falling_sweep
+
+play
