@@ -304,7 +304,7 @@ program
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
   .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
-  .option('-c, --channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" (WAV and MIDI only)')
+  .option('-c, --channels <channels>', 'Comma-separated list of channels to render, e.g., "1,2" (WAV and MIDI only)')
   .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .action(async (format, file, output, options) => {

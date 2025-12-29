@@ -82,11 +82,11 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 All export formats are fully implemented and tested:
 
 - `export json <file> [output] [--out <path>]` — Validated JSON export (ISM format)
-- `export midi <file> [output] [--out <path>] [--duration <seconds>] [--channels <1-4>]` — MIDI export (Type-1 SMF, 4 tracks)
+- `export midi <file> [output] [--out <path>] [--duration <seconds>] [--channels <list>]` — MIDI export (Type-1 SMF)
 - `export uge <file> [output] [--out <path>]` — UGE v6 export (hUGETracker format for Game Boy)
-- `export wav <file> [output] [--out <path>] [--duration <seconds>] [--channels <1-4>]` — WAV export (stereo, 44100Hz, 16-bit)
+- `export wav <file> [output] [--out <path>] [--duration <seconds>] [--channels <list>]` — WAV export (stereo, 44100Hz, 16-bit)
 
-The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a 4-track Standard MIDI File suitable for DAW import, mapping each Game Boy channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development. The WAV exporter uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies.
+The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a multi-track Standard MIDI File suitable for DAW import, mapping each channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development. The WAV exporter uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies.
 
 ### Examples
 
