@@ -265,7 +265,16 @@ export function resolveSong(ast: AST): SongModel {
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
 
   // Preserve top-level playback directives and metadata so consumers can honor them.
-  return { pats, insts, seqs: expandedSeqs, channels: channelsOut, bpm, play: ast.play, metadata: ast.metadata } as unknown as SongModel;
+  return { 
+    pats, 
+    insts, 
+    seqs: expandedSeqs, 
+    channels: channelsOut, 
+    bpm, 
+    chip: ast.chip,
+    play: ast.play, 
+    metadata: ast.metadata 
+  } as unknown as SongModel;
 }
 
 export default { resolveSong };

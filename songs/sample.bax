@@ -44,22 +44,22 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 
 # Melodic pattern for the lead channel.
 # - Twinkle-style motif arranged into a fixed 16-token pattern (two 8-step phrases).
-pat melody      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
+pat melody_pat      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat melody_alt  = (C5 . C5 . G5 . G5 E5) * 2
+pat melody_alt_pat  = (C5 . C5 . G5 . G5 E5) * 2
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
 
 # Wavetable arpeggio pattern to add harmonic color under the melody (16 tokens).
-pat arp      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
+pat arp_pat      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 
 # Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
 pat drums_pat      = (snare . . .) (snare . . .) (snare . . .) (snare . hihat .)
 
 # Short melodic fill used between phrases (16 tokens).
-pat fill      = (C5 E5 G5 C6) * 4
+pat fill_pat      = (C5 E5 G5 C6) * 4
 
 # -----------------------------------------------------------------------------
 # New shorthand examples
@@ -68,7 +68,7 @@ pat fill      = (C5 E5 G5 C6) * 4
 # percussion stabs where you want immediate repeated hits without inserting
 # explicit note tokens. `inst(name,N)` still acts as a temporary override
 # for the next N non-rest notes.
-pat drums_alt     = (snare . . .)*2 perc . . . . . . .
+pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 
 # -----------------------------------------------------------------------------
 # Channel routing
@@ -85,22 +85,22 @@ pat drums_alt     = (snare . . .)*2 perc . . . . . . .
 # lets you modify/loop them separately in the tracker or live UI.
 
 # Lead sequence (primary melody)
-seq lead = melody melody_alt fill melody
+seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat
 
 # Bass sequence (low-end walking bass)
-seq bass = bass_pat bass_pat bass_pat bass_pat
+seq bass_seq = bass_pat bass_pat bass_pat bass_pat
 
 # Wave sequence (wavetable arpeggios)
-seq wave = arp arp arp
+seq wave_seq = arp_pat arp_pat arp_pat
 
 # Drums/percussion sequence
-seq drums = drums_pat drums_alt drums_pat drums_alt
+seq drums_seq = drums_pat drums_alt_pat drums_pat drums_alt_pat
 
 ## Map channels to their separate sequences.
-channel 1 => inst leadA seq lead lead
-channel 2 => inst leadB seq bass bass
-channel 3 => inst wave1 seq wave:oct(-1) wave
-channel 4 => inst perc  seq drums drums
+channel 1 => inst leadA seq lead_seq lead_seq
+channel 2 => inst leadB seq bass_seq:oct(-1) bass_seq:oct(-1)
+channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-1) arp_pat arp_pat
+channel 4 => inst perc  seq drums_seq drums_seq
 
 # -----------------------------------------------------------------------------
 # Playback directive

@@ -61,13 +61,13 @@ The exported WAV can be used in:
 
 ### Audio Specifications
 - **Format**: RIFF WAVE (PCM)
-- **Sample Rate**: 44100 Hz (default, configurable)
-- **Bit Depth**: 16-bit signed integer
+- **Sample Rate**: 44100 Hz (default, configurable via `-r`)
+- **Bit Depth**: 16, 24, or 32-bit signed integer (default: 16, configurable via `-b`)
 - **Channels**: 2 (stereo)
 - **Byte Order**: Little-endian
 - **Encoding**: Linear PCM (no compression)
 
-### File Structure
+### File Structure (Example: 16-bit)
 ```
 RIFF Header (12 bytes):
   - "RIFF" chunk ID
@@ -89,6 +89,8 @@ data Chunk (variable):
   - Data size in bytes
   - Interleaved stereo PCM samples
 ```
+
+For 24-bit and 32-bit exports, the `Byte rate`, `Block align`, and `Bits per sample` fields are adjusted accordingly. 24-bit samples are stored as 3 bytes per sample, and 32-bit samples as 4 bytes per sample.
 
 ### Channel Mapping
 All four Game Boy channels are mixed to stereo:

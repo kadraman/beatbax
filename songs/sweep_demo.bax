@@ -34,14 +34,14 @@ inst faller type=pulse1 duty=50 env=15,down,7 sweep=6,down,5
 # Patterns with LONG notes using :duration syntax
 # C4:16 = hold C4 for 16 ticks (about 2 second at 80 BPM)
 # This gives sweep TIME to change the pitch during the note
-pat demo = C4:16
+pat demo_pat = C4:16
 
 # Sequences
-seq no_sweep = demo:inst(plain)
-seq rising_sweep = demo:inst(riser):oct(-2)
-seq falling_sweep = demo:inst(faller)
+seq no_sweep_seq = demo_pat:inst(plain)
+seq rising_sweep_seq = demo_pat:inst(riser):oct(-2)
+seq falling_sweep_seq = demo_pat:inst(faller)
 
 # Channels - play one after another for comparison
-channel 1 => inst plain seq no_sweep rising_sweep falling_sweep
+channel 1 => inst plain seq no_sweep_seq rising_sweep_seq falling_sweep_seq
 
 play

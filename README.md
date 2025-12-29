@@ -49,11 +49,12 @@ The CLI provides a number of different sub-commands and options.
 
 ### Play Command Options
 
-The `play` command supports browser and headless playback:
+The `play` command supports browser and headless playback. In Node.js, it defaults to **headless playback**.
 
-- `--browser` — Launch browser-based playback (starts Vite dev server for web UI)
-- `--headless` — Headless Node.js playback using multi-fallback audio system
-- `--sample-rate <hz>` — Sample rate for headless playback (default: 44100)
+- `--browser` (or `-b`) — Launch browser-based playback (starts Vite dev server for web UI)
+- `--headless` (or `--no-browser`) — Force headless Node.js playback (default in Node)
+- `--sample-rate <hz>` (or `-r`) — Sample rate for headless playback (default: 44100)
+- `--buffer-frames <n>` — Buffer length in frames for offline rendering (optional)
 
 Note on `play` directive flags:
 - Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
@@ -93,8 +94,8 @@ The JSON exporter performs structural validation of the parsed AST and writes a 
 # Verify song
 node bin/beatbax verify songs/sample.bax
 
-# Play with headless audio playback
-node bin/beatbax play songs/sample.bax --headless
+# Play with headless audio playback (default)
+node bin/beatbax play songs/sample.bax
 
 # Play with browser-based playback
 node bin/beatbax play songs/sample.bax --browser

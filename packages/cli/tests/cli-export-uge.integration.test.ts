@@ -8,9 +8,10 @@ import { execSync } from 'child_process';
 import { readFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-const TEST_OUTPUT_DIR = join(__dirname, '..', '..', 'tmp');
+const TEST_OUTPUT_DIR = join(__dirname, '..', '..', '..', 'tmp');
 const TEST_UGE_PATH = join(TEST_OUTPUT_DIR, 'cli_test.uge');
-const SAMPLE_BAX = join(__dirname, '..', '..', 'songs', 'sample.bax');
+const SAMPLE_BAX = join(__dirname, '..', '..', '..', 'songs', 'sample.bax');
+const CLI_PATH = join(__dirname, '..', 'dist', 'cli.js');
 
 // Ensure tmp directory exists before tests
 beforeAll(() => {
@@ -30,12 +31,12 @@ describe.skip('CLI UGE Export Integration', () => {
   it('should export a valid UGE file from CLI', () => {
     // Run CLI export command
     const output = execSync(
-      `node packages/cli/dist/cli.js export uge "${SAMPLE_BAX}" "${TEST_UGE_PATH}"`,
+      `node "${CLI_PATH}" export uge "${SAMPLE_BAX}" "${TEST_UGE_PATH}"`,
       { encoding: 'utf-8' },
     );
 
     // Check output message
-    expect(output).toContain('Exported UGE v6 file');
+    expect(output).toContain('Exported UGE file');
 
     // Check file exists
     expect(existsSync(TEST_UGE_PATH)).toBe(true);
@@ -62,7 +63,7 @@ describe.skip('CLI UGE Export Integration', () => {
 
     // Export UGE file
     execSync(
-      `node packages/cli/dist/cli.js export uge "${SAMPLE_BAX}" "${TEST_UGE_PATH}"`,
+      `node "${CLI_PATH}" export uge "${SAMPLE_BAX}" "${TEST_UGE_PATH}"`,
       { encoding: 'utf-8' },
     );
 
@@ -90,7 +91,7 @@ describe.skip('CLI UGE Export Integration', () => {
     const outputPathWithoutExt = join(TEST_OUTPUT_DIR, 'cli_test_no_ext');
 
     execSync(
-      `node packages/cli/dist/cli.js export uge "${SAMPLE_BAX}" "${outputPathWithoutExt}"`,
+      `node "${CLI_PATH}" export uge "${SAMPLE_BAX}" "${outputPathWithoutExt}"`,
       { encoding: 'utf-8' },
     );
 

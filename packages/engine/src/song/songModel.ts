@@ -42,6 +42,7 @@ export interface SongModel {
   seqs: Record<string, string[]>;
   channels: ChannelModel[];
   bpm?: number;
+  chip?: string;
   metadata?: SongMetadata;
   play?: any;
 }
