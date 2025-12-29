@@ -1,7 +1,7 @@
 /*
  * Minimal but functional MIDI exporter.
  * - Accepts a resolved SongModel (as produced by `resolveSong`) and writes
- *   a Type-1 SMF with one MIDI track per channel (up to 16 channels, we use 4).
+ *   a Type-1 SMF with one MIDI track per channel (up to 16 channels).
  * - If called with a single string path, writes a small empty MIDI file.
  */
 import { writeFileSync } from 'fs';

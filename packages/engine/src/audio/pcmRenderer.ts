@@ -14,7 +14,7 @@ export interface RenderOptions {
   duration?: number; // in seconds
   channels?: 1 | 2;
   bpm?: number;
-  renderChannels?: number[]; // Which GB channels to render (1-4), default all
+  renderChannels?: number[]; // Which channels to render, default all
   normalize?: boolean;
 }
 
@@ -29,7 +29,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
   const bpm = opts.bpm ?? 128;
-  const renderChannels = opts.renderChannels ?? [1, 2, 3, 4];
+  const renderChannels = opts.renderChannels ?? song.channels.map(c => c.id);
   const normalize = opts.normalize ?? false;
   
   // Calculate duration from song events

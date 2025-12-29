@@ -8,7 +8,7 @@ export interface PlayOptions {
   backend?: 'auto' | 'node-webaudio' | 'browser';
   sampleRate?: number;
   duration?: number;
-  channels?: number[]; // Which GB channels to render (1-4)
+  channels?: number[]; // Which channels to render
   verbose?: boolean;
   bufferFrames?: number;
 }
