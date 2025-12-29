@@ -123,8 +123,15 @@ export class Player {
     // Track estimated playback duration (seconds) across channels for repeat scheduling
     let globalDurationSec = 0;
 
+    // Clone the instrument table to avoid in-place mutations during scheduling/playback
+    // Use structuredClone when available for correctness and performance, fallback to JSON clone.
+    const rootInsts = ast.insts || {};
+    const instsRootClone = (typeof (globalThis as any).structuredClone === 'function')
+      ? (globalThis as any).structuredClone(rootInsts)
+      : JSON.parse(JSON.stringify(rootInsts));
+
     for (const ch of ast.channels || []) {
-      const instsMap = (ast.insts || {});
+      const instsMap = instsRootClone;
       let currentInst = instsMap[ch.inst || ''];
       const tokens: any[] = Array.isArray((ch as any).events) ? (ch as any).events : (Array.isArray(ch.pat) ? ch.pat : ['.']);
       let tempInst: any = null;

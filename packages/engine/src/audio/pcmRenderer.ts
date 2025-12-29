@@ -48,9 +48,13 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const buffer = new Float32Array(totalSamples * channels);
   
   // Render each channel (filter by renderChannels option)
+  // Deep-clone instrument table to avoid in-place mutations during rendering
+  // (some render paths may temporarily modify instrument objects). Cloning
+  // ensures each note render sees a stable, independent instrument object.
+  const instsClone = song.insts ? JSON.parse(JSON.stringify(song.insts)) : {};
   for (const ch of song.channels) {
     if (renderChannels.includes(ch.id)) {
-      renderChannel(ch, song.insts, buffer, sampleRate, channels, tickSeconds);
+      renderChannel(ch, instsClone, buffer, sampleRate, channels, tickSeconds);
     }
   }
   
