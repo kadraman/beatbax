@@ -58,34 +58,34 @@ inst shaker       type=noise width=15 env=gb:4,down,1 length=4    # Shaker (very
 # =============================================================================
 
 # Basic kick patterns (for pulse channel - C2 will be transposed to C3 for UGE export)
-pat kick_four    = C2 . . . C2 . . . C2 . . . C2 . . .  # Four on the floor
-pat kick_basic   = C2 . C2 C2 C3 . C2 .                 # Basic rock pattern
-pat kick_synth   = C2 . . C2 . . C3 .                   # Synth pattern
+pat kick_four_pat    = C2 . . . C2 . . . C2 . . . C2 . . .  # Four on the floor
+pat kick_basic_pat   = C2 . C2 C2 C3 . C2 .                 # Basic rock pattern
+pat kick_synth_pat   = C2 . . C2 . . C3 .                   # Synth pattern
 
 # Snare patterns (mid-range C5-C6 for snare sounds)
 # Note: inst(snare_tight) C5 sets the instrument persistently,
 # To change it for just one note, use inst(snare_tight, 1) C5.
-pat snare_backbeat = . . . . inst(snare_tight) C5 . . . . . . . inst(snare_tight) C5 . . .  # Classic backbeat
-pat snare_rolls    = (. . . . inst(snare_tight) C5 C5 C5 inst(snare_rim,1) C5)*2  # Snare rolls
+pat snare_backbeat_pat = . . . . inst(snare_tight) C5 . . . . . . . inst(snare_tight) C5 . . .  # Classic backbeat
+pat snare_rolls_pat    = (. . . . inst(snare_tight) C5 C5 C5 inst(snare_rim,1) C5)*2  # Snare rolls
 
 # Hi-hat patterns (mid E6-G6 for closed, high C7-E7 for open)
-pat hh_eighths   = hihat_closed * 8               # Straight eighths (closed)
-pat hh_sixteenths = hihat_closed * 16  # 16th notes (closed)
-pat hh_open_close = hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed .  # Closed/open mix (C7=closed, C8=open)
+pat hh_eighths_pat   = hihat_closed * 8               # Straight eighths (closed)
+pat hh_sixteenths_pat = hihat_closed * 16  # 16th notes (closed)
+pat hh_open_close_pat = hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed . hihat_open . hihat_closed .  # Closed/open mix (C7=closed, C8=open)
 
 # =============================================================================
 # SEQUENCES
 # =============================================================================
 
 # Kick demonstrations
-seq kick_demo = kick_four:inst(kick_punch) kick_basic:inst(kick_deep) kick_synth:inst(kick_soft) kick_four:inst(kick_punch) kick_four:inst(kick_soft)
+seq kick_demo_seq = kick_four_pat:inst(kick_punch) kick_basic_pat:inst(kick_deep) kick_synth_pat:inst(kick_soft) kick_four_pat:inst(kick_punch) kick_four_pat:inst(kick_soft)
 
 # Snare demonstrations
-seq snare_demo = snare_backbeat:inst(snare_tight) snare_rolls:inst(snare_rim) snare_backbeat:inst(snare_tight) snare_backbeat:inst(snare_loose)
-seq snare_rolls = snare_rolls:inst(snare_rim)
+seq snare_demo_seq = snare_backbeat_pat:inst(snare_tight) snare_rolls_pat:inst(snare_rim) snare_backbeat_pat:inst(snare_tight) snare_backbeat_pat:inst(snare_loose)
+seq snare_rolls_seq = snare_rolls_pat:inst(snare_rim)
 
 # Hi-hat demonstrations
-seq hh_demo = hh_eighths hh_sixteenths hh_open_close hh_eighths:inst(hihat_pedal)
+seq hh_demo_seq = hh_eighths_pat hh_sixteenths_pat hh_open_close_pat hh_eighths_pat:inst(hihat_pedal)
 
 # =============================================================================
 # CHANNEL ASSIGNMENTS
@@ -93,8 +93,8 @@ seq hh_demo = hh_eighths hh_sixteenths hh_open_close hh_eighths:inst(hihat_pedal
 # Channel 1: Kick drums (pulse channel for punchy low-frequency kicks)
 # Channel 4: All other percussion (noise channel)
 
-channel 1 => inst kick_punch    seq kick_demo kick_demo
-channel 4 => inst snare_tight   seq snare_demo hh_demo snare_rolls
+channel 1 => inst kick_punch    seq kick_demo_seq kick_demo_seq
+channel 4 => inst snare_tight   seq snare_demo_seq hh_demo_seq snare_rolls_seq
 
 # =============================================================================
 # PLAYBACK DIRECTIVE

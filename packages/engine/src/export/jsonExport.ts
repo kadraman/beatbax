@@ -117,5 +117,9 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		song,
 	};
 
+	if (opts && opts.debug) {
+		console.log(`[DEBUG] JSON: version ${outObj.version}, ${song.channels.length} channels`);
+	}
+
 	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
 }

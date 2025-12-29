@@ -156,7 +156,7 @@ program
 
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: options.headless === true || options.browser === false || options.backend === 'node-webaudio',
+      noBrowser: !options.browser || options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(globalOpts.sampleRate, 10),
       bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
@@ -300,7 +300,7 @@ program
   .command('export')
   .description('Export a song to various formats (JSON, MIDI, UGE, WAV)')
   .addArgument(new Argument('<format>', 'Target format').choices(['json', 'midi', 'uge', 'wav']))
-  .argument('[file]', 'Path to the .bax song file')
+  .argument('<file>', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
   .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
@@ -308,11 +308,6 @@ program
   .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .action(async (format, file, output, options) => {
-    if (!file) {
-      console.error(`Error: Missing required argument 'file'.`);
-      console.error(`Usage: beatbax export <format> <file> [output]`);
-      process.exit(1);
-    }
     ensureFileExists(file);
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
@@ -341,8 +336,51 @@ program
     const channels = options.channels 
       ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
       : undefined;
+
+    if (channels) {
+      const chip = ast.chip?.toLowerCase() || 'gameboy';
+      
+      if (chip === 'gameboy') {
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 4) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'gameboy'. Channels must be between 1 and 4.`);
+            process.exit(1);
+          }
+        }
+      } 
+      /* 
+      else if (chip === 'nes') {
+        // NES has 5 channels: Pulse 1, Pulse 2, Triangle, Noise, DMC
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 5) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'nes'. Channels must be between 1 and 5.`);
+            process.exit(1);
+          }
+        }
+      }
+      else if (chip === 'sid') {
+        // C64 SID has 3 channels
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 3) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'sid'. Channels must be between 1 and 3.`);
+            process.exit(1);
+          }
+        }
+      }
+      */
+      else {
+        // For unknown chips, we skip validation or use a generic check
+        if (verbose) console.warn(`[WARN] Skipping channel validation for unknown chip: ${chip}`);
+      }
+    }
+
     const duration = options.duration ? parseFloat(options.duration) : undefined;
-    const bitDepth = options.bitDepth ? parseInt(options.bitDepth, 10) as 16 | 24 | 32 : 16;
+    const bitDepth = options.bitDepth ? parseInt(options.bitDepth, 10) : 16;
+
+    if (![16, 24, 32].includes(bitDepth)) {
+      console.error(`Error: Invalid bit depth '${bitDepth}'. Allowed values are 16, 24, or 32.`);
+      process.exit(1);
+    }
 
     if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
     else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
@@ -352,7 +390,7 @@ program
         duration,
         renderChannels: channels,
         sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
-        bitDepth,
+        bitDepth: bitDepth as 16 | 24 | 32,
         normalize: options.normalize === true
       }, { debug: globalOpts && globalOpts.debug === true });
     }
@@ -363,7 +401,20 @@ program
     }
 
     const stats = statSync(outPath);
-    console.log(`[OK] Exported ${format.toUpperCase()} file: ${outPath} (${stats.size} bytes)`);
+    let debugInfo = '';
+    if (globalOpts && globalOpts.debug) {
+      if (format === 'wav') {
+        const sr = globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100;
+        debugInfo = ` [DEBUG: ${sr}Hz, ${bitDepth}-bit, 2ch]`;
+      } else if (format === 'midi') {
+        debugInfo = ` [DEBUG: ${song.channels.length} tracks]`;
+      } else if (format === 'uge') {
+        debugInfo = ` [DEBUG: v6]`;
+      } else if (format === 'json') {
+        debugInfo = ` [DEBUG: v1]`;
+      }
+    }
+    console.log(`[OK] Exported ${format.toUpperCase()} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
   });
 
 program

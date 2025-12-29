@@ -770,6 +770,9 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
 
     // Write final binary
     const out = w.toBuffer();
+    if (opts && opts.debug) {
+        console.log(`[DEBUG] UGE: ${out.length} bytes written to ${outputPath}`);
+    }
     writeFileSync(outputPath, out);
 }
 
