@@ -1,6 +1,6 @@
 ---
-title: Parser Improvements - Space Tolerance and Pattern Name Validation
-status: proposed
+title: Parser Improvements 1 - Space Tolerance and Pattern Name Validation
+status: closed 
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/14"

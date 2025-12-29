@@ -1,6 +1,6 @@
 ---
 title: Pulse Channel Sweep Support
-status: implemented
+status: close
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/2"
@@ -65,7 +65,7 @@ inst ym2Lead type=fm lfo_rate=4.5 lfo_depth=20
 
 ### Initial Implementation
 
-This feature implements **only** the Game Boy `sweep` directive for `pulse1` channels. The parser will validate that `sweep` is only used with `chip gameboy` and `type=pulse1`.
+This feature implements **only** the Game Boy `sweep` directive for `pulse1` channels. The parser will parse `sweep` into a structured object and will emit a warning when `sweep` is used on non-`pulse1` instruments or non-Game Boy chips; the setting will be preserved so tools can ignore it or use it for backward compatibility.
 
 ## Game Boy Hardware Sweep
 
@@ -100,16 +100,16 @@ The Game Boy pulse1 channel has a frequency sweep unit controlled by three param
 | 3       | Wave   | ❌ No |
 | 4       | Noise  | ❌ No (LFSR-based, not frequency-based) |
 
-### Invalid Examples
+### Invalid/Discouraged Examples (parser will warn)
 
 ```bax
-# ❌ ERROR: sweep not supported on pulse2
+# ❌ WARNING: sweep is not supported on pulse2; parser will warn but preserve value
 inst bass type=pulse2 duty=25 sweep=3,down,2
 
-# ❌ ERROR: sweep not supported on wave
+# ❌ WARNING: sweep is not supported on wave; parser will warn but preserve value
 inst lead type=wave wave=[...] sweep=4,up,1
 
-# ❌ ERROR: sweep not supported on noise
+# ❌ WARNING: sweep is not supported on noise; parser will warn but preserve value
 inst kick type=noise env=15,down sweep=2,down,3
 ```
 
@@ -366,9 +366,9 @@ test('UGE export preserves sweep', () => {
 
 ## Compatibility Notes
 
-- **Pulse2**: Hardware does not support sweep, parser should error if sweep specified on pulse2
-- **Wave/Noise**: Sweep not applicable, parser should error if specified
-- **Other chips**: Parser must validate that `sweep` is only used with `chip gameboy`
+- **Pulse2**: Hardware does not support sweep; the parser will emit a warning if `sweep` is specified on `pulse2` but will preserve the field for backward compatibility.
+- **Wave/Noise**: Sweep not applicable; the parser will emit a warning if specified but will not fail parsing.
+- **Other chips**: Parser will warn when `sweep` is used while `chip` is not `gameboy`.
 - **UGE v1-5**: Older versions may not have sweep fields, handle gracefully during import
 - **MIDI Export**: Map sweep to pitch bend events in MIDI track
 - **Future chips**: NES will use `sweep_period`, SID will use `filter_sweep`, etc. (separate implementations)

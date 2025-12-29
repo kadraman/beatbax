@@ -9,8 +9,10 @@ export interface InstrumentNode {
   duty?: string;
   env?: string;
   wave?: string;
-  sweep?: string;
-  [key: string]: string | undefined;
+  // Sweep may be stored as the original string (backcompat) or as a
+  // structured object produced by the parser: { time, direction, shift }
+  sweep?: string | { time: number; direction: 'up' | 'down'; shift: number } | null;
+  [key: string]: any;
 }
 
 export type InstMap = Record<string, InstrumentNode>;
