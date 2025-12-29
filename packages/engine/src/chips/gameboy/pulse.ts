@@ -48,6 +48,18 @@ export function parseEnvelope(envStr: any) {
 
 export function parseSweep(sweepStr: any) {
   if (!sweepStr) return null;
+
+  // If already an object, validate/clamp and return
+  if (typeof sweepStr === 'object') {
+    const s: any = sweepStr;
+    if (s.time === undefined || s.direction === undefined || s.shift === undefined) return null;
+    const time = Math.max(0, Math.min(7, Number.isFinite(Number(s.time)) ? Number(s.time) : 0));
+    const dirStr = String(s.direction).toLowerCase();
+    const direction: 'up' | 'down' = (dirStr === 'down' || dirStr === 'dec' || dirStr === '1') ? 'down' : 'up';
+    const shift = Math.max(0, Math.min(7, Number.isFinite(Number(s.shift)) ? Number(s.shift) : 0));
+    return { time, direction, shift };
+  }
+
   const parts = String(sweepStr).split(',').map(p => p.trim());
   if (parts.length < 3) return null;
 

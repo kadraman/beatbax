@@ -31,6 +31,13 @@ inst faller type=pulse1 duty=50 env=15,down,7 sweep=6,down,5
   # sweep=6,down,5: Falling pitch, freq -= freq/4 every 47ms
   # Effect: falling siren/bomb drop
 
+# Structured sweep example (explicit object form). Parser accepts both
+# string form and structured object; this demonstrates the structured form. 
+# This instrument uses the structured object.
+inst structured_riser type=pulse1 duty=50 env=15,down,7 sweep={"time":7,"direction":"up","shift":3}
+  # same behavior as `sweep=5,up,2` but stored and parsed as an object
+  # Useful for tools that consume AST directly.
+
 # Patterns with LONG notes using :duration syntax
 # C4:16 = hold C4 for 16 ticks (about 2 second at 80 BPM)
 # This gives sweep TIME to change the pitch during the note
@@ -40,8 +47,9 @@ pat demo_pat = C4:16
 seq no_sweep_seq = demo_pat:inst(plain)
 seq rising_sweep_seq = demo_pat:inst(riser):oct(-2)
 seq falling_sweep_seq = demo_pat:inst(faller)
+seq rising_struct_seq = demo_pat:inst(structured_riser):oct(-2)
 
 # Channels - play one after another for comparison
-channel 1 => inst plain seq no_sweep_seq rising_sweep_seq falling_sweep_seq
+channel 1 => inst plain seq no_sweep_seq rising_sweep_seq falling_sweep_seq rising_struct_seq
 
 play

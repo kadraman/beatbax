@@ -24,7 +24,7 @@ describe('Pulse Sweep', () => {
   test('parser recognizes sweep in instrument definition', () => {
     const src = 'inst test type=pulse1 duty=50 sweep=4,up,2';
     const ast = parse(src);
-    expect(ast.insts['test'].sweep).toBe('4,up,2');
+    expect(ast.insts['test'].sweep).toEqual({ time: 4, direction: 'up', shift: 2 });
   });
 
   test('applySweep register math', () => {

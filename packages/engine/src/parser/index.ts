@@ -2,6 +2,7 @@ export * from './tokenizer.js';
 
 import { expandPattern, transposePattern } from '../patterns/expand.js';
 import { AST, SeqMap, ChannelNode, PlayNode, InstMap } from './ast.js';
+import { parseSweep } from '../chips/gameboy/pulse.js';
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
@@ -169,11 +170,31 @@ export function parse(source: string): AST {
       if (eq >= 0) {
         const k = p.slice(0, eq);
         const v = p.slice(eq + 1);
-        props[k] = v;
+        // If value looks like an object literal, attempt to parse as JSON
+        if (v.startsWith('{') && v.endsWith('}')) {
+          try {
+            props[k] = JSON.parse(v);
+          } catch (e) {
+            // Fall back to raw string if JSON parsing fails
+            props[k] = v;
+          }
+        } else {
+          props[k] = v;
+        }
       } else {
         // flag or type shorthand
         props[p] = 'true';
       }
+    }
+    // Parse sweep into a structured object when possible for safer downstream use.
+    // `props.sweep` may already be an object (from JSON.parse above) or a string.
+    try {
+      if (props.sweep) {
+        const parsed = parseSweep(props.sweep as any);
+        if (parsed) props.sweep = parsed as any;
+      }
+    } catch (e) {
+      // keep original value if parsing fails
     }
     insts[name] = props;
   }
