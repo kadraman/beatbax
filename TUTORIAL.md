@@ -110,7 +110,15 @@ BeatBax provides a command-line interface for playback, validation, and export.
 npm run cli -- play songs\sample.bax
 ```
 
-This parses the song and starts WebAudio playback (requires a browser environment or Node with audio support).
+This parses the song and starts playback. In a Node.js environment, this defaults to **headless playback** (using the native PCM renderer). To launch the browser-based Web UI for playback, use the `--browser` flag.
+
+**Playback Flags:**
+- `--browser` (or `-b`): Launch browser-based playback (opens web UI).
+- `--headless` (or `--no-browser`): Force headless Node.js playback (default in Node).
+- `--backend <auto|browser|node-webaudio>`: Explicitly choose the audio backend.
+- `--sample-rate <hz>` (or `-r`): Set the sample rate (global flag).
+- `--buffer-frames <n>`: Set the buffer size for offline rendering (default: 4096).
+- `--verbose` (or `-v`): Show the parsed AST and detailed logs.
 
 Note on `play` directive flags:
 - You can add a top-level `play` directive inside a `.bax` file with optional flags `auto` and `repeat`.
@@ -128,29 +136,36 @@ Checks the song for parsing errors and basic validation issues (undefined instru
 
 ### Export formats
 
-BeatBax supports three export formats:
+BeatBax supports four export formats. Note that the **format** must be the first argument after `export`.
 
 **JSON** (Intermediate Song Model):
 ```powershell
-npm run cli -- export json songs\sample.bax --out output.json
+npm run cli -- export json songs\sample.bax output.json
 ```
 
 **MIDI** (4-track Standard MIDI File):
 ```powershell
-npm run cli -- export midi songs\sample.bax --out output.mid
+npm run cli -- export midi songs\sample.bax output.mid
 ```
 
 **UGE** (hUGETracker v6 format for Game Boy):
 ```powershell
-npm run cli -- export uge songs\sample.bax --out output.uge
+npm run cli -- export uge songs\sample.bax output.uge
 ```
 *Note: UGE files use a fixed 64-row pattern grid. BeatBax automatically splits longer sequences into multiple 64-row patterns and synchronizes the order list across all 4 channels. For best results, keep your pattern definitions to multiples of 16 or 64 tokens.*
 
 **WAV** (Offline PCM rendering):
 ```powershell
-npm run cli -- export wav songs\sample.bax --out output.wav
+npm run cli -- export wav songs\sample.bax output.wav
 ```
-The UGE files can be opened in hUGETracker or processed with uge2source.exe for Game Boy ROM development.
+*Note: WAV export supports additional flags:*
+- `--duration <seconds>` (or `-d`): Limit the render length.
+- `--bit-depth <16|24|32>` (or `-b`): Set the output bit depth (default: 16).
+- `--channels <1,2,3,4>` (or `-c`): Select specific Game Boy channels to render (e.g., `-c 1,2`).
+- `--normalize`: Scale audio peak to 0.95 (0dBFS equivalent).
+- `--sample-rate <hz>` (or `-r`): Set the sample rate (global flag, e.g., `npm run cli -- -r 48000 export wav ...`).
+
+The CLI validates that the input file exists and that the format is supported before processing. If you omit the output path, a default filename based on the input will be used.
 
 ### Development mode
 
@@ -184,6 +199,8 @@ npm run web-ui:dev
 ## Troubleshooting
 - If audio is silent in your browser, verify your browser supports WebAudio and that the demo did not throttle audio (autoplay policies may require a user gesture).
 - You can inspect `window.__beatbax_player` in the console for runtime diagnostics.
+- Use the `--debug` (or `-D`) flag on the CLI to see full stack traces if a command fails.
+- Use the `--verbose` (or `-v`) flag to see more detailed validation information and the parsed AST.
 
 That's all — for developer notes, see `DEVNOTES.md`.
 

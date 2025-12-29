@@ -60,4 +60,40 @@ describe('pcmRenderer', () => {
       renderSongToPCM(song, { duration: 0.1, sampleRate: 44100 });
     }).not.toThrow();
   });
+
+  test('renderSongToPCM normalization scales samples', () => {
+    const song: SongModel = {
+      pats: {},
+      seqs: {},
+      bpm: 120,
+      insts: {
+        'quietInst': {
+          type: 'pulse1',
+          duty: '0.5',
+          env: '1,down,0', // Very quiet
+        }
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'quietInst',
+          events: [
+            { type: 'note', token: 'C4', instrument: 'quietInst' }
+          ]
+        }
+      ]
+    };
+
+    const samplesNoNorm = renderSongToPCM(song, { duration: 0.1, normalize: false });
+    const samplesNorm = renderSongToPCM(song, { duration: 0.1, normalize: true });
+
+    let maxNoNorm = 0;
+    for (const s of samplesNoNorm) maxNoNorm = Math.max(maxNoNorm, Math.abs(s));
+
+    let maxNorm = 0;
+    for (const s of samplesNorm) maxNorm = Math.max(maxNorm, Math.abs(s));
+
+    expect(maxNorm).toBeCloseTo(0.95, 2);
+    expect(maxNorm).toBeGreaterThan(maxNoNorm);
+  });
 });

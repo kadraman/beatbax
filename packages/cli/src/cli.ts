@@ -1,11 +1,18 @@
-import { Command } from 'commander';
+import { Command, Argument } from 'commander';
 import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
-import { readFileSync } from 'fs';
+import { readFileSync, statSync, existsSync } from 'fs';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song/resolver';
 
 type ValidationResult = { errors: string[]; warnings: string[]; ast: any };
+
+function ensureFileExists(file: string) {
+  if (!existsSync(file)) {
+    console.error(`Error: File not found: ${file}`);
+    process.exit(1);
+  }
+}
 
 function validateSource(src: string): ValidationResult {
   const errors: string[] = [];
@@ -116,21 +123,24 @@ program
 // Global options
 program
   .option('-v, --verbose', 'Enable verbose output for all commands')
-  .option('--debug', 'Enable debug output (print stack traces)');
+  .option('-D, --debug', 'Enable debug output (print stack traces)')
+  .option('-r, --sample-rate <hz>', 'Sample rate for audio operations (playback/export)', '44100');
 
 program
   .command('play')
-  .description('Play a song file (.bax) using browser or headless backends')
+  .description('Play a song file (.bax). Defaults to headless playback in Node.js.')
   .argument('<file>', 'Path to the .bax song file')
   .option('-b, --browser', 'Launch browser-based playback (opens web UI)')
-  .option('--headless', 'Force headless Node.js playback (no browser window)')
+  .option('--headless', 'Force headless Node.js playback (default in Node)')
+  .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
-  .option('--sample-rate <hz>', 'Sample rate for headless context', '44100')
+  .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const globalOpts = program.opts();
     const verbose = options.verbose === true || (globalOpts && globalOpts.verbose === true);
     // Read and validate before starting playback to avoid playing invalid files.
+    ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
     const { errors, warnings } = validateSource(src);
     if (errors.length > 0) {
@@ -146,9 +156,10 @@ program
 
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: options.headless === true || options.backend === 'node-webaudio',
+      noBrowser: options.headless === true || options.browser === false || options.backend === 'node-webaudio',
       backend: options.backend,
-      sampleRate: parseInt(options.sampleRate, 10),
+      sampleRate: parseInt(globalOpts.sampleRate, 10),
+      bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
       verbose: verbose
     });
   });
@@ -160,6 +171,7 @@ program
   .action(async (file) => {
     try {
       const globalOpts = program.opts();
+      ensureFileExists(file);
       const src = readFileSync(file, 'utf8');
       const errors: string[] = [];
       const warnings: string[] = [];
@@ -287,13 +299,21 @@ program
 program
   .command('export')
   .description('Export a song to various formats (JSON, MIDI, UGE, WAV)')
-  .argument('<format>', 'Target format: json | midi | uge | wav')
-  .argument('<file>', 'Path to the .bax song file')
+  .addArgument(new Argument('<format>', 'Target format').choices(['json', 'midi', 'uge', 'wav']))
+  .argument('[file]', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
-  .option('--duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
-  .option('--channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" (WAV and MIDI only)')
+  .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
+  .option('-c, --channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" (WAV and MIDI only)')
+  .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
+  .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .action(async (format, file, output, options) => {
+    if (!file) {
+      console.error(`Error: Missing required argument 'file'.`);
+      console.error(`Usage: beatbax export <format> <file> [output]`);
+      process.exit(1);
+    }
+    ensureFileExists(file);
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
@@ -322,6 +342,7 @@ program
       ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
       : undefined;
     const duration = options.duration ? parseFloat(options.duration) : undefined;
+    const bitDepth = options.bitDepth ? parseInt(options.bitDepth, 10) as 16 | 24 | 32 : 16;
 
     if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
     else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
@@ -329,13 +350,20 @@ program
     else if (format === 'wav') {
       await exportWAVFromSong(song, outPath, {
         duration,
-        renderChannels: channels
+        renderChannels: channels,
+        sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
+        bitDepth,
+        normalize: options.normalize === true
       }, { debug: globalOpts && globalOpts.debug === true });
     }
     else {
       console.error('Unknown export format:', format);
       process.exitCode = 2;
+      return;
     }
+
+    const stats = statSync(outPath);
+    console.log(`[OK] Exported ${format.toUpperCase()} file: ${outPath} (${stats.size} bytes)`);
   });
 
 program
@@ -344,6 +372,7 @@ program
   .argument('<file>', 'Path to the .bax or .uge file')
   .action(async (file) => {
     try {
+      ensureFileExists(file);
       if (file.endsWith('.uge')) {
         const uge = readUGEFile(file);
         const summary = getUGESummary(uge);

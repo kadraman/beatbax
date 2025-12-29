@@ -266,5 +266,4 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 	// Write file
 	const out = Buffer.concat([header, ...trackBuffers]);
 	writeFileSync(outPath, out);
-	if (opts && opts.debug) console.log('Wrote MIDI to', outPath);
 }

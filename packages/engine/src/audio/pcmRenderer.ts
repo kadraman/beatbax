@@ -15,6 +15,7 @@ export interface RenderOptions {
   channels?: 1 | 2;
   bpm?: number;
   renderChannels?: number[]; // Which GB channels to render (1-4), default all
+  normalize?: boolean;
 }
 
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
@@ -22,6 +23,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const channels = opts.channels ?? 1;
   const bpm = opts.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? [1, 2, 3, 4];
+  const normalize = opts.normalize ?? false;
   
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
@@ -45,8 +47,12 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
     }
   }
   
-  // Normalize to prevent clipping
-  normalizeBuffer(buffer);
+  // Normalize to prevent clipping or to maximize volume
+  if (normalize) {
+    normalizeBuffer(buffer, true);
+  } else {
+    normalizeBuffer(buffer, false); // Only scale down if clipping
+  }
   
   return buffer;
 }
@@ -379,17 +385,19 @@ function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | '
   return volume / 15.0;
 }
 
-function normalizeBuffer(buffer: Float32Array): void {
+function normalizeBuffer(buffer: Float32Array, force: boolean): void {
   let max = 0;
   for (let i = 0; i < buffer.length; i++) {
     const abs = Math.abs(buffer[i]);
     if (abs > max) max = abs;
   }
   
-  if (max > 0.95) {
-    const scale = 0.95 / max;
-    for (let i = 0; i < buffer.length; i++) {
-      buffer[i] *= scale;
+  if (max > 0) {
+    if (force || max > 0.95) {
+      const scale = 0.95 / max;
+      for (let i = 0; i < buffer.length; i++) {
+        buffer[i] *= scale;
+      }
     }
   }
 }

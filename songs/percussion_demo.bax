@@ -82,6 +82,7 @@ seq kick_demo = kick_four:inst(kick_punch) kick_basic:inst(kick_deep) kick_synth
 
 # Snare demonstrations
 seq snare_demo = snare_backbeat:inst(snare_tight) snare_rolls:inst(snare_rim) snare_backbeat:inst(snare_tight) snare_backbeat:inst(snare_loose)
+seq snare_rolls = snare_rolls:inst(snare_rim)
 
 # Hi-hat demonstrations
 seq hh_demo = hh_eighths hh_sixteenths hh_open_close hh_eighths:inst(hihat_pedal)

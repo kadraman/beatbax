@@ -118,5 +118,4 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 	};
 
 	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
-	if (opts && opts.debug) console.log('Wrote validated JSON song to', outPath);
 }

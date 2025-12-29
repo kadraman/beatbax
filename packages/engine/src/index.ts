@@ -10,6 +10,7 @@ export interface PlayOptions {
   duration?: number;
   channels?: number[]; // Which GB channels to render (1-4)
   verbose?: boolean;
+  bufferFrames?: number;
 }
 
 export async function playFile(path: string, options: PlayOptions = {}) {
@@ -19,7 +20,10 @@ export async function playFile(path: string, options: PlayOptions = {}) {
     console.log('Parsed song AST:', JSON.stringify(ast, null, 2));
   }
 
-  const noBrowser = options.noBrowser || options.backend === 'node-webaudio';
+  const isNode = typeof window === 'undefined';
+  const noBrowser = options.noBrowser || 
+                    options.backend === 'node-webaudio' || 
+                    (isNode && !options.browser && options.backend !== 'browser');
 
   // Attempt headless playback
   if (noBrowser) {
@@ -93,8 +97,12 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
   // Browser-based playback (requires explicit --browser flag)
   try {
-    const { Player } = await import('./audio/playback.js');
-    const p = new Player();
+    const { Player, createAudioContext } = await import('./audio/playback.js');
+    const ctx = await createAudioContext({
+      sampleRate: options.sampleRate,
+      backend: options.backend
+    });
+    const p = new Player(ctx);
     await p.playAST(ast);
     console.log('[OK] Playback started (WebAudio)');
   } catch (err) {

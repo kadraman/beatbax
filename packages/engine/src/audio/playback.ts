@@ -20,8 +20,18 @@ export const parseEnvelope = pulseParseEnvelope;
  * In Node.js, dynamically imports standardized-audio-context polyfill.
  * In browser, uses native AudioContext.
  */
-export async function createAudioContext(opts: { sampleRate?: number; offline?: boolean; duration?: number } = {}): Promise<any> {
-  if (typeof window !== 'undefined' && (globalThis as any).AudioContext) {
+export interface AudioContextOptions {
+  sampleRate?: number;
+  offline?: boolean;
+  duration?: number;
+  backend?: 'auto' | 'browser' | 'node-webaudio';
+}
+
+export async function createAudioContext(opts: AudioContextOptions = {}): Promise<any> {
+  const backend = opts.backend ?? 'auto';
+
+  // Try browser if requested and available
+  if (backend !== 'node-webaudio' && typeof window !== 'undefined' && (globalThis as any).AudioContext) {
     const Ctor = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
     if (opts.offline && opts.duration) {
       const OfflineAudioContextCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
@@ -32,19 +42,26 @@ export async function createAudioContext(opts: { sampleRate?: number; offline?: 
     return new Ctor({ sampleRate: opts.sampleRate });
   }
 
-  try {
-    const mod = await import('standardized-audio-context');
-    const { AudioContext, OfflineAudioContext } = mod;
-    if (opts.offline && opts.duration) {
-      const sampleRate = opts.sampleRate ?? 44100;
-      const lengthInSamples = Math.ceil(opts.duration * sampleRate);
-      return new OfflineAudioContext({ numberOfChannels: 2, length: lengthInSamples, sampleRate });
+  // Fallback to Node polyfill
+  if (backend !== 'browser') {
+    try {
+      const mod = await import('standardized-audio-context');
+      const { AudioContext, OfflineAudioContext } = mod;
+      if (opts.offline && opts.duration) {
+        const sampleRate = opts.sampleRate ?? 44100;
+        const lengthInSamples = Math.ceil(opts.duration * sampleRate);
+        return new OfflineAudioContext({ numberOfChannels: 2, length: lengthInSamples, sampleRate });
+      }
+      return new AudioContext({ sampleRate: opts.sampleRate ?? 44100 });
+    } catch (error: any) {
+      if (backend === 'node-webaudio') {
+        throw new Error(`Failed to load 'standardized-audio-context'. Is it installed? (${error.message})`);
+      }
+      // If auto, we might just fail later if no context is found
     }
-    return new AudioContext({ sampleRate: opts.sampleRate ?? 44100 });
-  } catch (error: any) {
-    console.error('Error loading standardized-audio-context:', error);
-    throw new Error(`Failed to create AudioContext. Install standardized-audio-context for Node.js support: npm install standardized-audio-context (${error.message})`);
   }
+
+  throw new Error(`No compatible AudioContext found for backend: ${backend}`);
 }
 
 function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any) {
@@ -69,9 +86,16 @@ export class Player {
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number }) => void;
   private _repeatTimer: any = null;
 
-  constructor(ctx?: AudioContext, opts: { buffered?: boolean; segmentDuration?: number; bufferedLookahead?: number; maxPreRenderSegments?: number } = {}) {
-    const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
-    this.ctx = ctx ?? new (Ctor || (globalThis as any).AudioContext)();
+  constructor(ctx?: any, opts: { buffered?: boolean; segmentDuration?: number; bufferedLookahead?: number; maxPreRenderSegments?: number } = {}) {
+    if (!ctx) {
+      const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
+      if (!Ctor) {
+        throw new Error('No AudioContext constructor found. Please provide an AudioContext to the Player constructor or ensure one is available globally.');
+      }
+      this.ctx = new Ctor();
+    } else {
+      this.ctx = ctx;
+    }
     this.scheduler = createScheduler(this.ctx) as TickScheduler;
     if (opts.buffered) {
       (this as any)._buffered = new BufferedRenderer(this.ctx, this.scheduler as any, { segmentDuration: opts.segmentDuration, lookahead: opts.bufferedLookahead, maxPreRenderSegments: opts.maxPreRenderSegments });
