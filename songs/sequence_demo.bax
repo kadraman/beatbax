@@ -23,33 +23,33 @@ inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise ch
 
 # Patterns (16 tokens each)
 pat lead_pat  = (C5 E5 G5 C6) (C5 E5 G5 C6)                 # 8 notes
-pat lead_alt  = (C5 C5 . C5 G5 G5 . G5) * 2                 # 16 notes
+pat lead_alt_pat  = (C5 C5 . C5 G5 G5 . G5) * 2                 # 16 notes
 pat lead2_pat = C5:4 G5:4 C5:4 C6:4                         # 16 notes
 pat bass_pat  = C3 . G2 . C3 . G2 . C3 . G2 . C3 . G2 .     # 16 notes
 pat wave_pat  = (C4 E4 G4 C5) * 4                           # 16 notes
 pat drums_pat = (snare . hihat . snare . hihat .) * 2       # 16 notes
-pat drums_alt = snare . hihat . snare . hihat . (perc*8)    # 16 notes
+pat drums_alt_pat = snare . hihat . snare . hihat . (perc*8)    # 16 notes
 
 # Sequences
-seq lead    = lead_pat*2 lead_alt                           # 32 notes
-seq lead2   = lead2_pat*2                                   # 32 notes
-seq bass    = bass_pat, bass_pat                            # 32 notes
-seq wave    = wave_pat wave_pat                             # 32 notes
-seq drums   = drums_pat drums_alt                           # 32 notes
+seq lead_seq    = lead_pat*2 lead_alt_pat                           # 32 notes
+seq lead2_seq   = lead2_pat*2                                   # 32 notes
+seq bass_seq    = bass_pat, bass_pat                            # 32 notes
+seq wave_seq    = wave_pat wave_pat                             # 32 notes
+seq drums_seq   = drums_pat drums_alt_pat                           # 32 notes
 
 # Channel mappings demonstrating simple sequence arrangement syntax
 # 1) Comma-separated: plays `lead` then `lead2`
-channel 1 => inst leadA seq lead, lead2
+channel 1 => inst leadA seq lead_seq, lead2_seq
 
 # 2) Repetition: repeats `bass` sequence twice
-channel 2 => inst leadB seq bass*2
+channel 2 => inst leadB seq bass_seq*2
 
 # 3) Space-separated list: shorthand for multiple items
 #    also shows a per-item modifier (:oct(-1)) applied to second item
-channel 3 => inst wave1 seq wave:oct(-1) wave:oct(-2)
+channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-2)
 
 # 4) Example using immediate named hits / percussion sequence
-channel 4 => inst perc seq drums drums
+channel 4 => inst perc seq drums_seq drums_seq
 
 # Playback directive for interactive demos
 play auto repeat

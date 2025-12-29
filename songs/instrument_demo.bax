@@ -78,44 +78,44 @@ inst wave_noise_like type=wave wave=[8,2,13,5,11,1,14,7,9,4,12,6,10,3,15,0] gm=1
 # =============================================================================
 
 # Pulse duty cycle comparison (plays same melody with different duties)
-pat duty_demo = C5 E5 G5 E5 C5 E5 G5 .
+pat duty_demo_pat = C5 E5 G5 E5 C5 E5 G5 .
 
 # Envelope comparison patterns - using sustained notes to hear envelope evolution
 # Each note sustains for 7 ticks, then 1 rest to separate them
-pat env_demo = C5 _ _ _ _ _ _ . E5 _ _ _ _ _ _ . G5 _ _ _ _ _ _ . C6 _ _ _ _ _ _ .
+pat env_demo_pat = C5 _ _ _ _ _ _ . E5 _ _ _ _ _ _ . G5 _ _ _ _ _ _ . C6 _ _ _ _ _ _ .
 
 # Wave channel melody showcasing different timbres
-pat wave_melody = C4 D4 E4 F4 G4 A4 B4 C5 C5 B4 A4 G4 F4 E4 D4 C4
+pat wave_melody_pat = C4 D4 E4 F4 G4 A4 B4 C5 C5 B4 A4 G4 F4 E4 D4 C4
 
 # Bass pattern for pulse bass instruments (C2 will be transposed to C3 for UGE export)
-pat bass_line = C2 . C2 . C2 G2 . . C2 . C2 . C2 G2 A2 .
+pat bass_line_pat = C2 . C2 . C2 G2 . . C2 . C2 . C2 G2 A2 .
 
 # Bass pattern - mix of short and sustained notes to showcase both attack and envelope decay
 # Uses C2 octave (transposed to C3 for UGE export)
-pat bass_line2 = C2 _ C2 _ _ _ _ . C2 . C2 . G2 _ G2 _ _ _ _ . A2 . G2 . C2 _ _ _ _ _ _ .
+pat bass_line2_pat = C2 _ C2 _ _ _ _ . C2 . C2 . G2 _ G2 _ _ _ _ . A2 . G2 . C2 _ _ _ _ _ _ .
 
 # Arpeggio pattern for demonstrating sustained sounds
-pat arp_major = C4 E4 G4 C5 G4 E4 C4 .
-pat arp_minor = C4 Eb4 G4 C5 G4 Eb4 C4 .
+pat arp_major_pat = C4 E4 G4 C5 G4 E4 C4 .
+pat arp_minor_pat = C4 Eb4 G4 C5 G4 Eb4 C4 .
 
 # =============================================================================
 # SEQUENCES - Organizing patterns by demonstration type
 # =============================================================================
 
 # Duty cycle demonstration sequence
-seq duty_showcase = duty_demo:inst(pulse_12) duty_demo:inst(pulse_25) duty_demo:inst(pulse_50) duty_demo:inst(pulse_75)
+seq duty_showcase_seq = duty_demo_pat:inst(pulse_12) duty_demo_pat:inst(pulse_25) duty_demo_pat:inst(pulse_50) duty_demo_pat:inst(pulse_75)
 
 # Envelope demonstration sequence
-seq env_showcase = env_demo:inst(pulse_pluck) env_demo:inst(pulse_long) env_demo:inst(pulse_swell) env_demo:inst(pulse_sustain)
+seq env_showcase_seq = env_demo_pat:inst(pulse_pluck) env_demo_pat:inst(pulse_long) env_demo_pat:inst(pulse_swell) env_demo_pat:inst(pulse_sustain)
 
 # Wave instrument showcase - basic waveforms
-seq wave_basic = wave_melody:inst(wave_sine) wave_melody:inst(wave_saw) wave_melody:inst(wave_triangle) wave_melody:inst(wave_square)
+seq wave_basic_seq = wave_melody_pat:inst(wave_sine) wave_melody_pat:inst(wave_saw) wave_melody_pat:inst(wave_triangle) wave_melody_pat:inst(wave_square)
 
 # Wave instrument showcase - musical waveforms
-seq wave_music = wave_melody:inst(wave_organ) wave_melody:inst(wave_strings) wave_melody:inst(wave_brass) wave_melody:inst(wave_bell)
+seq wave_music_seq = wave_melody_pat:inst(wave_organ) wave_melody_pat:inst(wave_strings) wave_melody_pat:inst(wave_brass) wave_melody_pat:inst(wave_bell)
 
 # Bass line demonstration
-seq bass_demo = bass_line:inst(bass_punch) bass_line2:inst(bass_sub)
+seq bass_demo_seq = bass_line_pat:inst(bass_punch) bass_line2_pat:inst(bass_sub)
 
 # =============================================================================
 # CHANNEL ASSIGNMENTS
@@ -126,9 +126,9 @@ seq bass_demo = bass_line:inst(bass_punch) bass_line2:inst(bass_sub)
 # Channel 3: Wave instrument demonstrations
 # Channel 4: See percussion_demo.bax
 
-channel 1 => inst lead_bright  seq duty_showcase env_showcase
-channel 2 => inst bass_punch   seq bass_demo bass_demo bass_demo 
-channel 3 => inst wave_sine    seq wave_basic wave_music
+channel 1 => inst lead_bright  seq duty_showcase_seq env_showcase_seq
+channel 2 => inst bass_punch   seq bass_demo_seq bass_demo_seq bass_demo_seq 
+channel 3 => inst wave_sine    seq wave_basic_seq wave_music_seq
 
 # =============================================================================
 # PLAYBACK

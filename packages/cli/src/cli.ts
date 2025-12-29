@@ -1,11 +1,18 @@
-import { Command } from 'commander';
+import { Command, Argument } from 'commander';
 import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
-import { readFileSync } from 'fs';
+import { readFileSync, statSync, existsSync } from 'fs';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song/resolver';
 
 type ValidationResult = { errors: string[]; warnings: string[]; ast: any };
+
+function ensureFileExists(file: string) {
+  if (!existsSync(file)) {
+    console.error(`Error: File not found: ${file}`);
+    process.exit(1);
+  }
+}
 
 function validateSource(src: string): ValidationResult {
   const errors: string[] = [];
@@ -116,21 +123,24 @@ program
 // Global options
 program
   .option('-v, --verbose', 'Enable verbose output for all commands')
-  .option('--debug', 'Enable debug output (print stack traces)');
+  .option('-D, --debug', 'Enable debug output (print stack traces)')
+  .option('-r, --sample-rate <hz>', 'Sample rate for audio operations (playback/export)', '44100');
 
 program
   .command('play')
-  .description('Play a song file (.bax) using browser or headless backends')
+  .description('Play a song file (.bax). Defaults to headless playback in Node.js.')
   .argument('<file>', 'Path to the .bax song file')
   .option('-b, --browser', 'Launch browser-based playback (opens web UI)')
-  .option('--headless', 'Force headless Node.js playback (no browser window)')
+  .option('--headless', 'Force headless Node.js playback (default in Node)')
+  .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
-  .option('--sample-rate <hz>', 'Sample rate for headless context', '44100')
+  .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const globalOpts = program.opts();
     const verbose = options.verbose === true || (globalOpts && globalOpts.verbose === true);
     // Read and validate before starting playback to avoid playing invalid files.
+    ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
     const { errors, warnings } = validateSource(src);
     if (errors.length > 0) {
@@ -146,9 +156,10 @@ program
 
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: options.headless === true || options.backend === 'node-webaudio',
+      noBrowser: !options.browser || options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
-      sampleRate: parseInt(options.sampleRate, 10),
+      sampleRate: parseInt(globalOpts.sampleRate, 10),
+      bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
       verbose: verbose
     });
   });
@@ -160,6 +171,7 @@ program
   .action(async (file) => {
     try {
       const globalOpts = program.opts();
+      ensureFileExists(file);
       const src = readFileSync(file, 'utf8');
       const errors: string[] = [];
       const warnings: string[] = [];
@@ -287,13 +299,16 @@ program
 program
   .command('export')
   .description('Export a song to various formats (JSON, MIDI, UGE, WAV)')
-  .argument('<format>', 'Target format: json | midi | uge | wav')
+  .addArgument(new Argument('<format>', 'Target format').choices(['json', 'midi', 'uge', 'wav']))
   .argument('<file>', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
-  .option('--duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
-  .option('--channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" (WAV and MIDI only)')
+  .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
+  .option('-c, --channels <channels>', 'Comma-separated list of channels to render (1-4), e.g., "1,2" (WAV and MIDI only)')
+  .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
+  .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .action(async (format, file, output, options) => {
+    ensureFileExists(file);
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
@@ -321,7 +336,51 @@ program
     const channels = options.channels 
       ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
       : undefined;
+
+    if (channels) {
+      const chip = ast.chip?.toLowerCase() || 'gameboy';
+      
+      if (chip === 'gameboy') {
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 4) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'gameboy'. Channels must be between 1 and 4.`);
+            process.exit(1);
+          }
+        }
+      } 
+      /* 
+      else if (chip === 'nes') {
+        // NES has 5 channels: Pulse 1, Pulse 2, Triangle, Noise, DMC
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 5) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'nes'. Channels must be between 1 and 5.`);
+            process.exit(1);
+          }
+        }
+      }
+      else if (chip === 'sid') {
+        // C64 SID has 3 channels
+        for (const c of channels) {
+          if (isNaN(c) || c < 1 || c > 3) {
+            console.error(`Error: Invalid channel number '${c}' for chip 'sid'. Channels must be between 1 and 3.`);
+            process.exit(1);
+          }
+        }
+      }
+      */
+      else {
+        // For unknown chips, we skip validation or use a generic check
+        if (verbose) console.warn(`[WARN] Skipping channel validation for unknown chip: ${chip}`);
+      }
+    }
+
     const duration = options.duration ? parseFloat(options.duration) : undefined;
+    const bitDepth = options.bitDepth ? parseInt(options.bitDepth, 10) : 16;
+
+    if (![16, 24, 32].includes(bitDepth)) {
+      console.error(`Error: Invalid bit depth '${bitDepth}'. Allowed values are 16, 24, or 32.`);
+      process.exit(1);
+    }
 
     if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
     else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
@@ -329,13 +388,33 @@ program
     else if (format === 'wav') {
       await exportWAVFromSong(song, outPath, {
         duration,
-        renderChannels: channels
+        renderChannels: channels,
+        sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
+        bitDepth: bitDepth as 16 | 24 | 32,
+        normalize: options.normalize === true
       }, { debug: globalOpts && globalOpts.debug === true });
     }
     else {
       console.error('Unknown export format:', format);
       process.exitCode = 2;
+      return;
     }
+
+    const stats = statSync(outPath);
+    let debugInfo = '';
+    if (globalOpts && globalOpts.debug) {
+      if (format === 'wav') {
+        const sr = globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100;
+        debugInfo = ` [DEBUG: ${sr}Hz, ${bitDepth}-bit, 2ch]`;
+      } else if (format === 'midi') {
+        debugInfo = ` [DEBUG: ${song.channels.length} tracks]`;
+      } else if (format === 'uge') {
+        debugInfo = ` [DEBUG: v6]`;
+      } else if (format === 'json') {
+        debugInfo = ` [DEBUG: v1]`;
+      }
+    }
+    console.log(`[OK] Exported ${format.toUpperCase()} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
   });
 
 program
@@ -344,6 +423,7 @@ program
   .argument('<file>', 'Path to the .bax or .uge file')
   .action(async (file) => {
     try {
+      ensureFileExists(file);
       if (file.endsWith('.uge')) {
         const uge = readUGEFile(file);
         const summary = getUGESummary(uge);

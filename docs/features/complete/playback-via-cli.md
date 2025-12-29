@@ -28,14 +28,17 @@ Currently `cli play` launches a browser UI to obtain a browser AudioContext. For
 
 ## UX / CLI
 New or extended flags for `cli play`:
-- --no-browser         (alias) force headless Node playback
-- --backend <name>     choose backend (default: auto). Supported: node-webaudio, browser
-- --sample-rate <hz>   sample rate for headless context (default 44100)
-- --buffer-frames <n>  offline pre-render buffer length in frames (optional)
+- `--browser` / `-b`: Launch browser-based playback (opens web UI).
+- `--no-browser` / `--headless`: Force headless Node playback (default in Node).
+- `--backend <name>`: Choose backend (`auto`, `node-webaudio`, `browser`).
+- `--sample-rate <hz>` / `-r`: Sample rate for headless context (default 44100).
+- `--buffer-frames <n>`: Buffer length in frames for offline rendering (optional).
 
 Examples:
-- Real-time headless playback (auto backend picks node-webaudio): npm run cli -- play songs\sample.bax --no-browser
-- Offline render: npm run cli -- export wav songs\sample.bax out.wav --sample-rate 48000
+- Headless playback (default): `npm run cli -- play songs\sample.bax`
+- Force browser playback: `npm run cli -- play songs\sample.bax --browser`
+- Explicit backend: `npm run cli -- play songs\sample.bax --backend node-webaudio`
+- Offline render: `npm run cli -- export wav songs\sample.bax out.wav --sample-rate 48000`
 
 ## Design
 1. Backend selection
