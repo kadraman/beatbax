@@ -15,13 +15,22 @@ export interface RenderOptions {
   channels?: 1 | 2;
   bpm?: number;
   renderChannels?: number[]; // Which GB channels to render (1-4), default all
+  normalize?: boolean;
 }
 
+/**
+ * Renders a complete song to a PCM buffer.
+ * 
+ * @param song The song model containing channels and events.
+ * @param opts Rendering options (sampleRate, channels, bpm, etc.).
+ * @returns A Float32Array containing the interleaved PCM samples.
+ */
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
   const bpm = opts.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? [1, 2, 3, 4];
+  const normalize = opts.normalize ?? false;
   
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
@@ -45,12 +54,26 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
     }
   }
   
-  // Normalize to prevent clipping
-  normalizeBuffer(buffer);
+  // Normalize to prevent clipping or to maximize volume
+  if (normalize) {
+    normalizeBuffer(buffer, true);
+  } else {
+    normalizeBuffer(buffer, false); // Only scale down if clipping
+  }
   
   return buffer;
 }
 
+/**
+ * Renders a single channel's events into the provided buffer.
+ * 
+ * @param ch The channel object containing events.
+ * @param insts The map of available instruments.
+ * @param buffer The target PCM buffer.
+ * @param sampleRate The sample rate for rendering.
+ * @param channels Number of audio channels (1 or 2).
+ * @param tickSeconds Duration of a single tick in seconds.
+ */
 function renderChannel(
   ch: any,
   insts: InstMap,
@@ -117,6 +140,17 @@ function renderChannel(
   }
 }
 
+/**
+ * Renders a specific note event using the appropriate chip-specific renderer.
+ * 
+ * @param ev The note event to render.
+ * @param inst The instrument to use for rendering.
+ * @param buffer The target PCM buffer.
+ * @param startSample The starting sample index in the buffer.
+ * @param durationSamples The duration of the note in samples.
+ * @param sampleRate The sample rate for rendering.
+ * @param channels Number of audio channels.
+ */
 function renderNoteEvent(
   ev: NoteEvent,
   inst: InstrumentNode,
@@ -146,6 +180,17 @@ function renderNoteEvent(
   }
 }
 
+/**
+ * Renders a named event (e.g., percussion hits) using the appropriate renderer.
+ * 
+ * @param ev The named event to render.
+ * @param inst The instrument to use.
+ * @param buffer The target PCM buffer.
+ * @param startSample The starting sample index.
+ * @param durationSamples The duration in samples.
+ * @param sampleRate The sample rate.
+ * @param channels Number of audio channels.
+ */
 function renderNamedEvent(
   ev: any,
   inst: InstrumentNode,
@@ -161,6 +206,18 @@ function renderNamedEvent(
   }
 }
 
+/**
+ * Renders a Game Boy pulse channel (Pulse 1 or Pulse 2).
+ * Supports duty cycle, envelope, and frequency sweep.
+ * 
+ * @param buffer The target PCM buffer.
+ * @param start The starting sample index.
+ * @param duration The duration in samples.
+ * @param freq The base frequency of the note.
+ * @param inst The instrument definition.
+ * @param sampleRate The sample rate.
+ * @param channels Number of audio channels.
+ */
 function renderPulse(
   buffer: Float32Array,
   start: number,
@@ -223,6 +280,18 @@ function renderPulse(
   }
 }
 
+/**
+ * Renders a Game Boy wave channel.
+ * Uses a 16-sample 4-bit wavetable.
+ * 
+ * @param buffer The target PCM buffer.
+ * @param start The starting sample index.
+ * @param duration The duration in samples.
+ * @param freq The frequency of the note.
+ * @param inst The instrument definition containing the wavetable.
+ * @param sampleRate The sample rate.
+ * @param channels Number of audio channels.
+ */
 function renderWave(
   buffer: Float32Array,
   start: number,
@@ -250,6 +319,17 @@ function renderWave(
   }
 }
 
+/**
+ * Renders a Game Boy noise channel.
+ * Uses an LFSR (Linear Feedback Shift Register) to generate noise.
+ * 
+ * @param buffer The target PCM buffer.
+ * @param start The starting sample index.
+ * @param duration The duration in samples.
+ * @param inst The instrument definition containing noise parameters.
+ * @param sampleRate The sample rate.
+ * @param channels Number of audio channels.
+ */
 function renderNoise(
   buffer: Float32Array,
   start: number,
@@ -313,6 +393,12 @@ function renderNoise(
   }
 }
 
+/**
+ * Parses a wavetable definition into an array of 16 4-bit values (0-15).
+ * 
+ * @param wave The wavetable definition (string or array).
+ * @returns An array of 16 numbers representing the wavetable.
+ */
 function parseWaveTable(wave: any): number[] {
   if (typeof wave === 'string') {
     try {
@@ -332,6 +418,13 @@ function parseWaveTable(wave: any): number[] {
   return [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
 }
 
+/**
+ * Parses an envelope definition into its components.
+ * Supports "gb:initial,direction,period" and "initial,direction,period" formats.
+ * 
+ * @param env The envelope definition.
+ * @returns An object containing initial volume, direction, and period.
+ */
 function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; period: number } {
   if (!env) return { initial: 15, direction: 'down', period: 1 };
   
@@ -362,6 +455,13 @@ function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; p
   return { initial: 15, direction: 'down', period: 1 };
 }
 
+/**
+ * Calculates the current envelope volume at a given time.
+ * 
+ * @param t The time in seconds since the start of the note.
+ * @param env The parsed envelope parameters.
+ * @returns The normalized volume value (0.0 to 1.0).
+ */
 function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | 'down'; period: number }): number {
   if (env.period === 0) return env.initial / 15.0;
   
@@ -379,17 +479,26 @@ function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | '
   return volume / 15.0;
 }
 
-function normalizeBuffer(buffer: Float32Array): void {
+/**
+ * Normalizes the audio buffer to a peak of 0.95.
+ * 
+ * @param buffer The audio buffer to normalize.
+ * @param force If true, always normalizes the buffer regardless of current peak level.
+ *              If false, only normalizes if the peak exceeds 0.95 (to prevent clipping).
+ */
+function normalizeBuffer(buffer: Float32Array, force: boolean): void {
   let max = 0;
   for (let i = 0; i < buffer.length; i++) {
     const abs = Math.abs(buffer[i]);
     if (abs > max) max = abs;
   }
   
-  if (max > 0.95) {
-    const scale = 0.95 / max;
-    for (let i = 0; i < buffer.length; i++) {
-      buffer[i] *= scale;
+  if (max > 0) {
+    if (force || max > 0.95) {
+      const scale = 0.95 / max;
+      for (let i = 0; i < buffer.length; i++) {
+        buffer[i] *= scale;
+      }
     }
   }
 }

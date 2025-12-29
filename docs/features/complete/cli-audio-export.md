@@ -1,6 +1,6 @@
 ---
 title: CLI export audio (.bax -> .wav)
-status: proposed
+status: closed
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/7"
@@ -12,7 +12,7 @@ Add a new CLI feature to export a `.bax` (BeatBax script) or exported ISM JSON i
 
 **Goals**
 
-- Add `export audio <input> <output>` to the CLI with options for sample rate, bit depth, channels, and render length.
+- Add `export wav <input> <output>` to the CLI with options for sample rate, bit depth, channels, and render length.
 - Use engine's buffered/offline renderer to produce deterministic PCM samples.
 - Provide a small, dependency-free WAV writer utility in the engine export module for Node usage.
 - Add integration tests to validate WAV header fields and a short smoke test of generated audio content.
@@ -22,7 +22,7 @@ Add a new CLI feature to export a `.bax` (BeatBax script) or exported ISM JSON i
 
 - Basic usage:
 
-  npm run cli -- export audio song.bax song.wav
+  npm run cli -- export wav song.bax song.wav
 
 - Flags:
 
@@ -30,16 +30,16 @@ Add a new CLI feature to export a `.bax` (BeatBax script) or exported ISM JSON i
   --bit-depth, -b    Number (16|24|32, default: 16)
   --channels, -c     Number (1|2, default: 1)
   --duration, -d     Seconds to render (optional; default: full song length)
-  --normalize        Boolean (optional; normalize peak to 0dBFS)
+  --normalize        Boolean (optional; normalize peak to 0.95)
 
 Examples:
 
-  npm run cli -- export audio demo.bax demo.wav --sample-rate 48000 --bit-depth 24
+  npm run cli -- export wav demo.bax demo.wav --sample-rate 48000 --bit-depth 24
 
 **Implementation notes**
 
 - Rendering:
-  - Reuse `engine/audio/bufferedRenderer.ts` (or `audio/playback.ts` offline mode) to render deterministic Float32 PCM frames.
+  - Reuse `engine/audio/pcmRenderer.ts` to render deterministic Float32 PCM frames.
   - Ensure the renderer accepts target sample rate and channel count parameters and returns a Float32Array (interleaved for stereo).
 
 - WAV writer:
@@ -47,12 +47,12 @@ Examples:
   - Keep implementation small and dependency-free. Write simple sample conversion (float -> int) and little-endian framing.
 
 - CLI wiring:
-  - Add a new handler `packages/cli/src/commands/export-audio.ts` that:
-    1. Loads/parses the input `.bax` (or accepts ISM JSON) using existing parser/resolver.
+  - Integrated into `packages/cli/src/cli.ts` under the `export` command:
+    1. Loads/parses the input `.bax` using existing parser/resolver.
     2. Uses the engine's sequence/song resolver to produce an ISM.
-    3. Calls the buffered/offline renderer to render the full song (or the requested duration) to Float32 PCM.
+    3. Calls the `pcmRenderer` to render the full song (or the requested duration) to Float32 PCM.
     4. Optionally normalizes the buffer if `--normalize` is set.
-    5. Uses `wavWriter` to convert to Buffer and writes to disk with `fs.writeFileSync(outputPath, buffer)`.
+    5. Uses `wavWriter` to convert to Buffer and writes to disk.
 
 **Error handling & validations**
 

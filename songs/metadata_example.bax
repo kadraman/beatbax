@@ -11,9 +11,9 @@ chip gameboy
 bpm 128
 
 a = C4 E4 G4 C5
-pat melody = a
+pat melody_pat = a
 
 inst lead type=pulse1 duty=50 env=12,down
-channel 1 => inst lead seq melody
+channel 1 => inst lead seq melody_pat
 
 play
