@@ -8,62 +8,37 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 ## Summary
 
-Add a comprehensive effects system to BeatBax that enables expressive performance techniques like vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers. This document now also includes an explicit mapping plan and exporter guidance for hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other common retro sound chips.
+Add a comprehensive effects system to BeatBax that enables expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers. 
+
+This document now also includes an explicit mapping plan and exporter guidance for initial implementation of gameboy and hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other common retro sound chips.
 
 ## Motivation
 
 - **Expressive sequencing**: Enable musical techniques beyond static notes
 - **Tracker heritage**: Effects are fundamental to tracker-style music composition
-- **Hardware authenticity**: Many effects map directly to Game Boy hardware capabilities
+- **Hardware authenticity**: Many effects map directly to hardware capabilities
 - **Competitive feature**: Essential for serious chip music production
 - **Creative exploration**: Opens new compositional possibilities
 
 ## Current Limitations
 
 - Only static notes with fixed pitch/volume
-- No way to apply vibrato, pitch bends, or volume automation
-- Instrument envelopes are the only dynamic effect
-- Limits expressiveness compared to traditional trackers
-
-## Design Philosophy
-
-1. **Inline syntax**: Effects apply to individual notes without breaking pattern flow
-2. **Named effects**: Readable mnemonics instead of hex codes
-3. **Pattern modifiers**: Apply effects to entire patterns as transforms
-4. **Hardware-aware**: Effects should map cleanly to GB hardware when possible
-5. **Composability**: Multiple effects can be combined
-
-## Proposed Syntax
-
-### Inline Effects (Per-Note)
-
-```bax
-# Effect syntax: note<effect:param>
-pat melody = C4<vib:4> E4 G4<port:E5> C5<vol:-2>
-
-# Multiple effects: note<effect1:param1,effect2:param2>
-pat bass_pat = C4<vib:4,vol:+1> E4<arp:047> G4
-```
-
-### Pattern-Level Effect Modifiers
-
-```bax
-# Apply effect to all notes in pattern
-pat melody = C4 E4 G4 C5
-pat melody_vib = melody:vib(4)        # All notes vibrato at speed 4
-pat melody_slide = melody:slide(2)      # All notes volume slide -2 per tick
-```
-
-### Sequence-Level Effect Application
-
-```bax
-seq main = melody melody_vib melody:port melody_slide
-channel 1 => inst lead seq main
-```
+- No way to apply panning, vibrato, pitch bends, or volume automation
 
 ## Core Effects
 
-(Definitions and implementation sketches retained — vibrato, portamento, arpeggio, volume slide, pitch bend, tremolo, delay/echo, note cut, retrigger)
+Summary: the following core effects will be implemented and exposed in the language/runtime (one-line intent per effect):
+
+- Panning (`pan` / `gb:pan`): stereo position (enum or numeric) with GB NR51 mapping where requested.
+- Vibrato (`vib`): periodic pitch modulation (depth + rate).
+- Portamento / Slide (`port`): smooth pitch glide toward a target note or frequency.
+- Arpeggio (`arp`): rapid cycling between pitch offsets to simulate chords.
+- Volume Slide (`vol`): per-tick gain changes / slides.
+- Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
+- Tremolo (`trem`): periodic amplitude modulation (gain LFO).
+- Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
+- Note Cut (`cut`): cut/gate a note after N ticks.
+- Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
 ## Effect Combinations
 
@@ -78,6 +53,9 @@ pat melody_glide = C4<port:G4,trem:8>
 
 # Arpeggio + echo
 pat melody_arp = C4<arp:047,echo:4,50>
+ 
+# Panning (generic + GB-specific)
+pat stereo = C5<pan=-1.0>:4 E5<pan=0.0>:4 G5<pan=1.0>:4 C6<gb:pan:L>:4
 ```
 
 ## Named Effect Presets
@@ -101,6 +79,7 @@ pat melody_wobble = melody:wobble
 
 | Effect | GB Hardware | Implementation |
 |--------|-------------|----------------|
+| Panning | Game Boy NR51 terminal bits / software panning | NR51 per-channel terminal flags or StereoPannerNode for software targets |
 | Vibrato | Software (freq automation) | AudioParam modulation |
 | Portamento | Software (freq automation) | AudioParam ramp |
 | Arpeggio | Software (note sequencing) | Rapid note switching |
@@ -113,6 +92,7 @@ pat melody_wobble = melody:wobble
 
 | Effect | MIDI Equivalent | CC / Event |
 |--------|-----------------|------------|
+| Panning | Pan/Balance | CC #10 (Pan) |
 | Vibrato | Modulation | CC #1 + Pitch Bend |
 | Portamento | Portamento | CC #5 + Pitch Bend |
 | Arpeggio | Note sequence | Multiple Note On/Off |
@@ -130,6 +110,7 @@ hUGETracker supports limited effects per row. Map BeatBax effects to UGE effect 
 | `port` | Tone portamento (3xx) / slide (1xx/2xx) | Map to tone portamento for target slides |
 | `arp` | Arpeggio (0xy) | Direct mapping for up to 2 offsets; expand for more |
 | `vol` | Volume slide (effect column) | Set volume per row or per tick |
+| `pan` | Not a native per-row effect (NR51 per-channel terminal mapping) | Map `gb:pan` or snapped numeric pans to NR51 bits in UGE output; per-note panning requires baking or channel-expansion |
 | `cut` | Note cut (ECx or UGE-specific) | Cut after x ticks |
 | `retrig` | Retrigger / note delay (EDx/7xx) | Partial support; expand if needed |
 
@@ -192,6 +173,7 @@ Recommendation: Expect lower fidelity for pitch-based LFOs; use cautious quantiz
 Recommendation: YM2612 is one of the more expressive chips in this list; map BeatBax LFOs to YM LFO/envelope features where possible and avoid baking unless you need specific multi-tap echo.
 
 ### General guidance for cross-chip export
+
 - Native mapping where the chip exposes LFOs, envelopes, or slide commands is preferred.
 - Approximation via register automation (rapid period/volume writes) is usually possible but depends on CPU/timing constraints and voice resolution.
 - Baking to samples/instruments is the universal fallback when an effect cannot be faithfully reproduced on target hardware (echo, complex curves, overlapping automations across limited effect columns).
@@ -204,11 +186,27 @@ Recommendation: YM2612 is one of the more expressive chips in this list; map Bea
 export interface NoteToken {
   note: string;        // e.g., "C4"
   effects?: Effect[];  // Array of effects applied to this note
+  pan?: Pan;           // Optional panning information (enum or numeric)
 }
 
 export interface Effect {
   type: 'vib' | 'port' | 'arp' | 'vol' | 'bend' | 'trem' | 'echo' | 'cut' | 'retrig';
   params: (string | number)[];
+}
+
+export type Pan = {
+  // Discrete enum for hardware-like panning (L, R, C)
+  enum?: 'L' | 'R' | 'C';
+  // Continuous panning value in range [-1.0, 1.0]
+  value?: number;
+  // Optional namespace to indicate source (e.g. 'gb' when `gb:pan` used)
+  sourceNamespace?: string;
+};
+
+export interface InstrumentNode {
+  name: string;
+  type: string;
+  pan?: Pan; // instrument-level default panning
 }
 
 export interface PatternNode {
@@ -231,20 +229,50 @@ export interface PatternEffect {
 function parseNote(token: string): NoteToken {
   // Match: C4<vib:4> or C4<vib:4,vol:+1>
   const match = token.match(/^([A-G][#b]?\d+)<(.+)>$/);
-  
+
   if (!match) {
     return { note: token };
   }
-  
+
   const [, note, effectsStr] = match;
-  const effects = parseEffects(effectsStr);
-  
-  return { note, effects };
+  // parseEffects now returns both parsed effects and an optional pan value
+  const { effects, pan } = parseEffects(effectsStr);
+
+  const result: NoteToken = { note, effects };
+  if (pan) result.pan = pan;
+
+  return result;
 }
 
-function parseEffects(str: string): Effect[] {
-  // Split by comma: "vib:4,vol:+1" → ["vib:4", "vol:+1"]
-  return str.split(',').map(parseEffect);
+function parseEffects(str: string): { effects: Effect[]; pan?: Pan } {
+  // Split by comma tokens and parse each in a single pass.
+  const tokens = str.split(',').map(s => s.trim()).filter(Boolean);
+  const effects: Effect[] = [];
+  let pan: Pan | undefined;
+
+  for (const tok of tokens) {
+    // Detect namespaced pan tokens first: gb:pan:L, pan:L, pan=-0.5
+    const panMatch = tok.match(/^(?:(gb):)?pan[:=](-?\d*\.?\d+|L|R|C)$/i);
+    if (panMatch) {
+      const [, ns, val] = panMatch;
+      const up = String(val).toUpperCase();
+      if (up === 'L' || up === 'R' || up === 'C') {
+        pan = { enum: up as 'L'|'R'|'C', sourceNamespace: ns || undefined };
+      } else {
+        const num = Number(val);
+        if (!Number.isNaN(num)) {
+          pan = { value: num, sourceNamespace: ns || undefined };
+        }
+      }
+      // don't push pan into effects array
+      continue;
+    }
+
+    // Otherwise parse as a normal effect token
+    effects.push(parseEffect(tok));
+  }
+
+  return { effects, pan };
 }
 
 function parseEffect(str: string): Effect {
@@ -328,6 +356,14 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
 
 ### Per-effect mapping (BeatBax → hUGETracker)
 
+- Panning (`pan` / `gb:pan`)
+  - hUGETracker mapping: Not a native per-row effect in hUGETracker. For Game Boy-targeted UGE exports, panning is represented by the NR51 terminal/left-right selection (per-channel) rather than a tracker effect opcode.
+  - Export strategy: When `gb:pan` (enum) is present, map `L`/`R`/`C` to NR51 bits and emit those as channel terminal flags in the UGE output (or as channel-level metadata if the UGE container stores terminal bits). When only generic `pan` numeric values are used, deterministically snap to enum (e.g. pan < -0.33 → L, pan > 0.33 → R, otherwise C) and emit a warning about loss of precision.
+  - Per-note panning: If a BeatBax song specifies per-note panning but the UGE format/export target only supports per-channel terminal routing, exporter options are:
+    - Expand/route notes to alternate channels with different NR51 settings (channel-expensive), or
+    - Bake panning into the rendered instrument/sample (recommended for strict stereo results), or
+    - Snap to the channel's current NR51 setting and warn the user.
+  - Fallbacks & strict mode: Provide a `--strict-gb` or similar flag to treat non-enum numeric pans as errors rather than silently snapping. Document and warn for any precision loss or unsupported per-note semantics.
 - Vibrato (`vib`)
   - hUGETracker mapping: 4xy (Vibrato) — 4x = speed, 4y = depth/offset units (tracker units must be scaled).
   - Export strategy: Map BeatBax speed → x (0..15), depth → y (0..15) after scaling/quantization. Re-insert effect on each row as needed.
@@ -367,6 +403,7 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
 
 ### Mapping table (concise)
 
+ - pan(enum,numeric) → NR51 terminal bits (L/R/C) — numeric values snap deterministically to enum (pan < -0.33 → L, pan > 0.33 → R, otherwise C); emit warning on precision loss or provide `--strict-gb` to treat as error
 - vib(depth,speed) → 4xy (x=speed, y=depth) — quantize to 0..15
 - port(target,speed) → 3xx (tone portamento) or 1xx/2xx for relative slides — compute xx from semitone delta and tick duration
 - arp(intervals) → 0xy for 2-3 intervals (x & y are semitone offsets) or expand into rapid notes
@@ -379,36 +416,339 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
 
 ### Exporter pseudocode (TypeScript sketch)
 
-(kept identical to prior pseudocode block; omitted here for brevity in diff)
+```typescript
+// High-level exporter sketch: convert BeatBax ISM -> target formats (UGE, MIDI)
+function exportSong(song: ISong, opts: ExportOptions) {
+  // Resolve per-note pan (inline override -> instrument default -> channel default)
+  for (const ch of song.channels) {
+    for (const ev of ch.events) {
+      if (ev.type === 'note') ev.pan = resolvePan(ev, ch.instrument);
+    }
+  }
+
+  if (opts.format === 'uge') return exportToUGE(song, opts as UGEOptions);
+  if (opts.format === 'midi') return exportToMIDI(song, opts as MIDIOptions);
+  return JSON.stringify(song, null, 2);
+}
+
+function resolvePan(noteEvent: NoteEvent, inst?: InstrumentNode): Pan | undefined {
+  if (noteEvent.pan) return noteEvent.pan;
+  if (inst?.pan) return inst.pan;
+  return undefined;
+}
+
+// UGE export path (Game Boy-focused mapping)
+function exportToUGE(song: ISong, opts: UGEOptions) {
+  const uge = new UGEWriter();
+
+  for (const ch of song.channels) {
+    const channelMeta = { nr51: 0b11 }; // default both
+    for (const ev of ch.events) {
+      if (ev.type !== 'note') { uge.writeEvent(ch.index, ev); continue; }
+
+      const pan = ev.pan;
+      if (pan) {
+        if (pan.enum) {
+          channelMeta.nr51 = mapPanEnumToNR51(pan.enum);
+        } else if (typeof pan.value === 'number') {
+          if (opts.strictGB) throw new Error('numeric pan not allowed in strict GB export');
+          const snapped = snapToGB(pan.value);
+          uge.warn(`snapping pan ${pan.value} -> ${snapped}`);
+          channelMeta.nr51 = mapPanEnumToNR51(snapped);
+        }
+      }
+
+      const ugeEffects = (ev.effects || []).map(e => effectToUGEOpcodes(e, ev, opts)).filter(Boolean);
+      uge.writeNote(ch.index, ev.note, ugeEffects as any);
+    }
+    uge.setChannelTerminalFlags(ch.index, channelMeta.nr51);
+  }
+
+  return uge.finish();
+}
+
+function mapPanEnumToNR51(p: 'L'|'R'|'C') {
+  switch (p) {
+    case 'L': return 0b10; // left only (channel mask bits will be applied per-channel)
+    case 'R': return 0b01; // right only
+    case 'C': return 0b11; // both
+  }
+}
+
+function snapToGB(value: number): 'L'|'C'|'R' {
+  if (value < -0.33) return 'L';
+  if (value > 0.33) return 'R';
+  return 'C';
+}
+
+// MIDI export path
+function exportToMIDI(song: ISong, opts: MIDIOptions) {
+  const midi = new MidiWriter();
+  for (const ch of song.channels) {
+    const track = midi.addTrack();
+    for (const ev of ch.events) {
+      if (ev.type !== 'note') continue;
+      track.addNote(ev.note, ev.ticks);
+
+      if (ev.pan) {
+        const panVal = ev.pan.enum ? enumToPanValue(ev.pan.enum) : Math.round(((ev.pan.value ?? 0) + 1) * 63.5);
+        track.addController(10, panVal, ev.ticks);
+      }
+
+      for (const fx of ev.effects || []) {
+        const midiOps = effectToMIDIEvents(fx);
+        midiOps.forEach(o => track.addEvent(o, ev.ticks));
+      }
+    }
+  }
+  return midi.build();
+}
+
+function enumToPanValue(e: 'L'|'C'|'R') {
+  if (e === 'L') return 0;
+  if (e === 'C') return 64;
+  return 127;
+}
+
+function effectToUGEOpcodes(effect: Effect, ev: NoteEvent, opts: UGEOptions) {
+  switch (effect.type) {
+    case 'vib':
+      // Map depth/speed -> 4xy after quantization
+      return ugeVibrato(effect.params);
+    case 'port':
+      // Tone portamento -> 3xx (or 1xx/2xx for relative)
+      return ugePortamento(effect.params);
+    case 'arp':
+      // Arpeggio -> 0xy (or expand into rapid notes if >2 offsets)
+      return ugeArpeggio(effect.params);
+    case 'vol':
+      // Volume slide -> tracker volume slide opcode
+      return ugeVolumeSlide(effect.params);
+    case 'bend':
+      // Pitch bend -> approximate with portamento/vibrato or bake
+      return ugeBendApprox(effect.params);
+    case 'trem':
+      // Tremolo -> map to tremolo opcode if available, else emulate
+      return ugeTremolo(effect.params);
+    case 'cut':
+      // Note cut -> ECx or UGE-specific cut effect
+      return ugeNoteCut(effect.params);
+    case 'retrig':
+      // Retrigger -> tracker retrig opcode or explicit repeated notes
+      return ugeRetrig(effect.params);
+    case 'echo':
+      // Echo must be baked or emulated with extra channels; signal fallback
+      return null;
+    default:
+      return null;
+  }
+}
+
+function effectToMIDIEvents(effect: Effect) {
+  switch (effect.type) {
+    case 'vib':
+      // Vibrato -> modulation CC + optional pitchbend LFO approximation
+      return [{ type: 'cc', cc: 1, value: effect.params[1] || 64 }];
+    case 'port':
+      // Portamento -> pitch-bend events and portamento CC where supported
+      return [{ type: 'pitchbend', value: portParamsToBend(effect.params) }];
+    case 'arp':
+      // Arpeggio -> expanded note events (handled earlier) — no single MIDI opcode
+      return [];
+    case 'vol':
+      // Volume slide -> CC7 (volume) updates across ticks
+      return [{ type: 'cc', cc: 7, value: effect.params[0] }];
+    case 'bend':
+      // Bend -> pitchbend events (curve approximated by stepped bends)
+      return [{ type: 'pitchbend', value: bendParamsToPitch(effect.params) }];
+    case 'trem':
+      // Tremolo -> CC11 (expression) or modulation CC depending on mapping
+      return [{ type: 'cc', cc: 11, value: effect.params[0] || 64 }];
+    case 'cut':
+      // Cut -> timed Note Off events
+      return [{ type: 'noteoff', delayTicks: effect.params[0] }];
+    case 'retrig':
+      // Retrig -> expanded repeated Note On/Off events
+      return [];
+    case 'echo':
+      // Echo -> no MIDI mapping (must be baked into audio)
+      return [];
+    default:
+      return [];
+  }
+}
+```
 
 ## Testing strategy (Exporter-focused)
 
-(kept as before)
+Goals: verify exporter mappings, deterministic snapping/warnings for `pan`, and fallbacks (bake/channel-expansion) across targets.
 
-## Implementation Checklist (update)
+1) Unit tests (fast, deterministic)
+  - Parser: assert `parseEffects` returns `{ effects, pan }` for examples (`pan:L`, `gb:pan:R`, `pan=-0.5`).
+  - AST: validate `NoteToken.pan` and `InstrumentNode.pan` shapes and `sourceNamespace` propagation.
+  - Snap logic: test `snapToGB()` produces L/C/R for boundary values (e.g. -0.34, -0.33, 0.33, 0.34) and that `--strict-gb` triggers an error path.
+  - Effect mapping quantization: ensure `vib` -> 4xy quantizes depth/speed into 0..15 range for UGE.
+  - Portamento mapping: test `port(target,speed)` -> computed `xx` rates make the port reach the target in expected tick counts.
+  - Arpeggio mapping: verify `arp` with 2 offsets -> `0xy` mapping; 3+ offsets -> exported expansion.
+  - Volume slide mapping: verify `vol` delta/tick -> tracker slide units and MIDI CC7 deltas.
+  - Bend mapping: ensure `bend` produces pitchbend approximations within acceptable error for short bends.
+  - Tremolo mapping: verify `trem` falls back to volume slides or trem opcode and records a bake warning when unsupported.
+  - Cut / Retrig: test `cut` emits correct UGE cut opcode and `retrig` expands to repeated notes when needed.
 
-- [x] Add `Effect` and `NoteToken` types to AST
-- [x] Update parser to recognize `<effect:param>` syntax
-- [x] Implement effect parsing for all core effects
-- [x] Create effect application functions in audio backend
-- [x] Add vibrato implementation
-- [x] Add portamento implementation
-- [x] Add arpeggio implementation
-- [x] Add volume slide implementation
-- [x] Add pitch bend implementation
-- [x] Add tremolo implementation
-- [x] Add note cut implementation
-- [x] Add retrigger implementation
+2) Exporter tests (integration-like, mocked outputs)
+  - UGE writer: export `effect_demo.bax` and assert per-channel NR51 bits appear where expected, and numeric pans produce logged warnings when snapped.
+  - MIDI writer: export a short sequence with `pan` and assert CC#10 events exist with expected values (-1→0..127 mapping).
+  - Regression: ensure existing effect mappings (vib, port, arp, vol, etc.) remain unchanged by pan changes.
+
+3) End-to-end (smoke) tests
+  - Run full parse → resolve → export(UGE/MIDI/JSON) for sample songs; programmatically inspect outputs (UGE binary fields, MIDI track CCs) and fail CI on mismatches.
+
+4) Manual / Visual checks
+  - Provide a `songs/effect_demo.bax` example and a short test runner script to export and open resulting MIDI/UGE in standard tools for QA.
+
+Notes: prefer Jest for unit/integration tests (existing repo uses Jest). Add test fixtures for edge cases (per-note pan on GB targets, multiple conflicting pan sources: instrument vs inline).
+
+## Stereo Panning (`pan`) Additional Implementation Details
+
+### Proposed Syntax
+
+#### Inline Panning (generic)
+
+```bax
+# Enum form (discrete): note-level
+pat A = C4<pan:L> E4<pan:R> G4<pan:C>
+
+# Numeric form (continuous): -1 left, 0 center, +1 right
+pat B = C4<pan=-1.0> E4<pan=0.0> G4<pan=1.0>
+```
+
+#### Inline Game Boy–specific
+
+```bax
+# Force Game Boy NR51 semantics for this token
+pat A = C4<gb:pan:L> D4<gb:pan:R>
+```
+
+#### Instrument Default
+
+```bax
+# Generic instrument default
+inst lead type=pulse1 pan=L
+
+# Numeric instrument default for software targets
+inst pad type=wave pan=0.25
+
+# Game Boy specific default (maps exactly to NR51 bits)
+inst lead type=pulse1 gb:pan=L
+```
+
+Notes on syntax:
+- Accept both inline token-style (e.g. `<pan:L>` or `<pan=-0.5>`) and parameter-style for instrument declarations (e.g. `pan=L` or `pan=0.5`).
+- The namespace prefix `gb:` applies the explicit Game Boy mapping semantics; if omitted, `pan` is treated generically and backends decide how to map it.
+
+### Hardware Mapping (Game Boy)
+
+The Game Boy `NR51` register provides per-channel left/right toggles. For the GB exporter, enum values map exactly to bits:
+
+| Bax Pan | NR51 Left Bit | NR51 Right Bit | Result |
+|---------|---------------|----------------|--------|
+| `L`     | 1             | 0              | Left Only |
+| `R`     | 0             | 1              | Right Only |
+| `C`     | 1             | 1              | Center (Both) |
+
+Numeric-to-GB mapping guidance for exporters:
+- If `gb:pan` is used with a numeric value, exporters SHOULD either reject it (error) or snap deterministically to the nearest enum (recommended snap thresholds e.g. pan < -0.33 -> L, pan > 0.33 -> R, otherwise C). Use a warning or a strict-export flag to control rejection vs snapping.
+- If generic `pan` is numeric and the GB exporter receives it, snap with deterministic thresholds and emit a warning about loss of precision.
+
+### Backends and semantics
+
+- WebAudio/Browser: Prefer continuous numeric pan using StereoPannerNode where supported. Accept enum forms and map `L` -> -1, `C` -> 0, `R` -> +1.
+- Game Boy (UGE exporter): Honor `gb:pan` exactly (map to NR51 bits). For generic `pan` values, map enum forms exactly; map numeric by snapping (document and warn). Provide an option (e.g. `--strict-gb`) to fail on non-enum numeric pans when strict hardware accuracy is required.
+- Other chip exporters: Map `pan` to their native primitives or provide a best-effort mapping. If a target cannot represent panning, exporter should ignore with a warning or implement a software stereo post-process.
+
+### Examples
+
+1) Generic pan used across targets:
+```bax
+inst lead type=pulse1 pan=L
+pat A = C4<pan:L> E4<pan:-0.5> G4<pan=0.5>
+```
+
+2) Force Game Boy hardware NR51 semantics:
+```bax
+inst lead type=pulse1 gb:pan=L
+pat A = C4<gb:pan:C> D4<gb:pan:R>
+```
+
+## Implementation Checklist
+
+- [ ] Add `Effect` and `NoteToken` types to AST
+- [ ] Update parser to recognize `<effect:param>` syntax
+- [ ] Implement effect parsing for all core effects
+- [ ] Create effect application functions in audio backend
+- [ ] Add panning implementation
+- [ ] Add vibrato implementation
+- [ ] Add portamento implementation
+- [ ] Add arpeggio implementation
+- [ ] Add volume slide implementation
+- [ ] Add pitch bend implementation
+- [ ] Add tremolo implementation
+- [ ] Add note cut implementation
+- [ ] Add retrigger implementation
 - [ ] Add pattern-level effect modifiers
 - [ ] Add named effect presets
 - [ ] Map effects to MIDI export
-- [x] Map effects to UGE export (where possible)
+- [ ] Map effects to UGE export (where possible)
 - [ ] Write unit tests for effect parsing
 - [ ] Write unit tests for effect application
 - [ ] Write integration tests
 - [ ] Add effects examples to demo songs
 - [ ] Document effects in TUTORIAL.md
 - [ ] Create effects reference guide
+
+## Implementation Plan — Phased rollout
+
+This section describes a practical, incremental implementation approach. Implementers should complete each phase end-to-end (parser → resolver → playback → export → tests) before moving to the next phase. Keep changes minimal and add unit tests for each slice.
+
+Phase 1 — Effect infrastructure + Panning (priority)
+- Add core effect infrastructure:
+  - AST: `Effect` union, per-note `pan?: Pan` (already specified in AST section).
+  - Parser: update `src/parser/parser.ts` to route effect tokens into `parseEffects()` and surface `pan` separately (see examples above).
+  - Song resolver: propagate `NoteToken.pan` into resolved ISM events in `src/song/resolver.ts`.
+  - Playback: implement panning in `src/audio/playback.ts`:
+    - Browser: wire a `StereoPannerNode` (or GainNode pair fallback) and map numeric [-1..1] to panner value.
+    - Engine/Node: provide a `pan` field in `createBaseNodes()` return value and ensure `scheduleNote()` connects panner between source/gain and destination.
+  - Exporters:
+    - UGE: implement `snapToGB()` helper and map enum/numeric pans to NR51 bits in `packages/engine/src/export/ugeWriter.ts`.
+    - MIDI: emit CC #10 events in `packages/engine/src/export/midiExport.ts` using `enumToPanValue()` mapping.
+  - Tests: add Jest units under `packages/engine/tests/`:
+    - `parser.effects.test.ts` (assert `parseEffects` returns `{ effects, pan }`).
+    - `snap.test.ts` (verify `snapToGB()` thresholds and `--strict-gb` behavior).
+
+Phase 2 onwards — Add one effect at a time (vib, port, arp, vol, bend, trem, cut, retrig, echo)
+- For each effect follow these steps:
+  1. Parser + AST: add token parsing in `parseEffects()` and update `Effect` types.
+  2. Resolver: ensure any pattern-level presets are resolved into per-note `effects` arrays.
+  3. Playback: implement `applyEffect()` handlers in `src/audio/playback.ts` with fallbacks (AudioParam automation, node LFOs, or baked rendering).
+  4. Exporter: add mapping to `packages/engine/src/export/*` for UGE and MIDI:
+     - UGE: compute opcode parameters (quantize to tracker ranges, re-insert per-row as needed).
+     - MIDI: map to CCs/pitchbend/note expansions as documented above.
+  5. Tests: unit tests for parser, mapping quantization tests (UGE numeric ranges), and integration test exporting demo song.
+
+Example phase-specific notes:
+- Vibrato (`vib`) — quantize depth/speed to 0..15 for UGE `4xy`. Add `ugeVibrato()` helper that returns u8 opcodes.
+- Portamento (`port`) — implement `computePortRate()` helper to convert semitone delta + tick-duration → tracker `xx` value.
+- Arpeggio (`arp`) — support both `0xy` mapping and expansion path for >2 offsets; add pattern-expansion tests.
+
+Developer workflow / quick commands
+- Run parser tests only:
+```bash
+pnpm -w test -- packages/engine --testPathPattern parser.effects.test.ts
+```
+- Run full exporter integration for a fixture:
+```bash
+pnpm -w node ./bin/beatbax --export uge songs/effect_demo.bax tmp/out.uge
+```
 
 ## Performance Considerations
 
