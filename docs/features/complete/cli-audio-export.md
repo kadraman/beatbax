@@ -63,7 +63,7 @@ Examples:
 **Tests**
 
 - Add an integration test `packages/cli/tests/export-audio.integration.test.ts` that:
-  - Runs the CLI export command for a short included demo (1–4 seconds).
+- Runs the CLI export command for a short included demo (1-4 seconds).
   - Verifies the produced file exists and reads the WAV header to confirm sample rate, channels, and PCM format.
   - Optionally read a small chunk of PCM samples and check they are not all zero.
 

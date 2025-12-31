@@ -20,7 +20,29 @@ function parsePanSpec(val: any, ns?: string) {
   return undefined;
 }
 
-function parseEffectsInline(str: string) {
+// Helper: determine whether a parsed pan value is effectively empty.
+// We only consider an object "non-empty" if it has its own `enum` or `value` property.
+export function isPanEmpty(pan: any): boolean {
+  if (pan === undefined || pan === null) return true;
+  if (typeof pan === 'object') {
+    const hasEnum = Object.prototype.hasOwnProperty.call(pan, 'enum');
+    const hasValue = Object.prototype.hasOwnProperty.call(pan, 'value');
+    return !(hasEnum || hasValue);
+  }
+  // strings or numbers are considered non-empty pan specifications
+  return false;
+}
+
+export function parseEffectParams(paramsStr: string | undefined): Array<string | number> {
+  if (!paramsStr || !paramsStr.length) return [];
+  return paramsStr
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s !== '')
+    .map(s => (isNaN(Number(s)) ? s : Number(s)));
+}
+
+export function parseEffectsInline(str: string) {
   const parts = str.split(',').map(s => s.trim()).filter(Boolean);
   const effects: Array<{ type: string; params: Array<string | number> }> = [];
   let pan: any = undefined;
@@ -44,7 +66,7 @@ function parseEffectsInline(str: string) {
     if (!m) continue;
     const type = m[1];
     const paramsStr = m[2];
-    const params = paramsStr ? paramsStr.split(',').map(s => s.trim()).map(s => (s === '' ? s : (isNaN(Number(s)) ? s : Number(s)))) : [];
+    const params = parseEffectParams(paramsStr);
     effects.push({ type, params });
   }
   return { effects, pan };
@@ -348,12 +370,12 @@ export function resolveSong(ast: AST): SongModel {
         ev = applyInstrumentToEvent(insts, ev) as any;
 
         // Sequence-level pan override (from :pan() modifier on seq items)
-        if ((!ev.pan || Object.keys(ev.pan).length === 0) && sequencePanOverride) {
+        if (isPanEmpty(ev.pan) && sequencePanOverride) {
           ev.pan = sequencePanOverride;
         }
 
         // If no inline/sequence pan, but instrument has a pan property, use it as default
-        if ((!ev.pan || Object.keys(ev.pan).length === 0) && ev.instProps) {
+        if (isPanEmpty(ev.pan) && ev.instProps) {
           const ip = ev.instProps as any;
           if (ip['gb:pan']) {
             ev.pan = parsePanSpec(ip['gb:pan'], 'gb');

@@ -350,6 +350,7 @@ function eventsToPatterns(
     dutyInsts: string[],
     waveInsts: string[],
     noiseInsts: string[],
+    strictGb: boolean = false,
 ): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> {
     const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> = [];
     
@@ -401,26 +402,16 @@ function eventsToPatterns(
 
             // Determine per-note pan enum (L/C/R)
             let panEnum: 'L'|'R'|'C' = currentPan;
-            if (noteEvent.pan) {
-                const pan: any = noteEvent.pan;
-                if (typeof pan === 'object') {
-                    if (pan.enum) panEnum = pan.enum;
-                    else if (typeof pan.value === 'number') panEnum = (pan.value < -0.33) ? 'L' : (pan.value > 0.33 ? 'R' : 'C');
-                } else if (typeof pan === 'string') {
-                    const up = (pan as any).toUpperCase();
-                    if (up === 'L' || up === 'R' || up === 'C') panEnum = up as any; else { const n = Number(pan); if (!Number.isNaN(n)) panEnum = (n < -0.33) ? 'L' : (n > 0.33 ? 'R' : 'C'); }
-                }
-            } else if (inst && inst['gb:pan']) {
-                const v = String(inst['gb:pan']).toUpperCase(); if (v === 'L' || v === 'R' || v === 'C') panEnum = v as any;
-            } else if (inst && inst['pan'] !== undefined) {
-                const p: any = inst['pan'];
-                if (typeof p === 'object') {
-                    if (p.enum) panEnum = p.enum;
-                    else if (typeof p.value === 'number') panEnum = (p.value < -0.33) ? 'L' : (p.value > 0.33 ? 'R' : 'C');
-                } else if (typeof p === 'string') {
-                    const up = p.toUpperCase(); if (up === 'L' || up === 'R' || up === 'C') panEnum = up as any; else { const n = Number(p); if (!Number.isNaN(n)) panEnum = (n < -0.33) ? 'L' : (n > 0.33 ? 'R' : 'C'); }
-                } else if (typeof p === 'number') {
-                    panEnum = (p < -0.33) ? 'L' : (p > 0.33 ? 'R' : 'C');
+            // Inline note pan -> instrument GB pan -> instrument pan
+            const notePan = convertPanToEnum(noteEvent.pan, strictGb, 'inline');
+            if (notePan) {
+                panEnum = notePan;
+            } else if (inst) {
+                const gbP = convertPanToEnum(inst['gb:pan'], strictGb, 'instrument');
+                if (gbP) panEnum = gbP;
+                else {
+                    const instP = convertPanToEnum(inst['pan'], strictGb, 'instrument');
+                    if (instP) panEnum = instP;
                 }
             }
 
@@ -450,15 +441,11 @@ function eventsToPatterns(
             let namedPan: 'L'|'R'|'C' = currentPan;
             const namedInst = namedEvent.token ? instruments[namedEvent.token] : undefined;
             if (namedInst) {
-                if (namedInst['gb:pan']) {
-                    const v = String(namedInst['gb:pan']).toUpperCase(); if (v === 'L' || v === 'R' || v === 'C') namedPan = v as any;
-                } else if (namedInst['pan'] !== undefined) {
-                const p: any = namedInst['pan'];
-                    if (typeof p === 'object') {
-                        if (p.enum) namedPan = p.enum;
-                        else if (typeof p.value === 'number') namedPan = (p.value < -0.33) ? 'L' : (p.value > 0.33 ? 'R' : 'C');
-                    } else if (typeof p === 'string') { const up = p.toUpperCase(); if (up === 'L' || up === 'R' || up === 'C') namedPan = up as any; else { const n = Number(p); if (!Number.isNaN(n)) namedPan = (n < -0.33) ? 'L' : (n > 0.33 ? 'R' : 'C'); } }
-                    else if (typeof p === 'number') namedPan = (p < -0.33) ? 'L' : (p > 0.33 ? 'R' : 'C');
+                const gbP = convertPanToEnum(namedInst['gb:pan'], strictGb, 'instrument');
+                if (gbP) namedPan = gbP;
+                else {
+                    const nP = convertPanToEnum(namedInst['pan'], strictGb, 'instrument');
+                    if (nP) namedPan = nP;
                 }
             }
             currentPan = namedPan;
@@ -524,6 +511,58 @@ function eventsToPatterns(
 }
 
 /**
+ * Helper: snap numeric pan value to GB enum
+ */
+function snapToGB(value: number): 'L'|'C'|'R' {
+    if (value < -0.33) return 'L';
+    if (value > 0.33) return 'R';
+    return 'C';
+}
+
+function enumToNR51Bits(p: 'L'|'C'|'R', chIndex: number): number {
+    // Hardware-accurate NR51 layout (hUGETracker / Game Boy):
+    // Pulse1 (ch 0): left=0x01, right=0x10
+    // Pulse2 (ch 1): left=0x02, right=0x20
+    // Wave   (ch 2): left=0x04, right=0x40
+    // Noise  (ch 3): left=0x08, right=0x80
+    const LEFT_BITS = [0x01, 0x02, 0x04, 0x08];
+    const RIGHT_BITS = [0x10, 0x20, 0x40, 0x80];
+    const leftBit = LEFT_BITS[chIndex] || 0;
+    const rightBit = RIGHT_BITS[chIndex] || 0;
+    if (p === 'L') return leftBit;
+    if (p === 'R') return rightBit;
+    return leftBit | rightBit;
+}
+
+export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrument'|'inline' = 'inline'): 'L'|'C'|'R'|undefined {
+    if (pan === undefined || pan === null) return undefined;
+    if (typeof pan === 'object') {
+        if (pan.enum) {
+            const up = String(pan.enum).toUpperCase();
+            if (up === 'L' || up === 'R' || up === 'C') return up as any;
+        }
+        if (typeof pan.value === 'number') {
+            if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+            return snapToGB(pan.value);
+        }
+        return undefined;
+    }
+    if (typeof pan === 'number') {
+        if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+        return snapToGB(pan);
+    }
+    const s = String(pan);
+    const up = s.toUpperCase();
+    if (up === 'L' || up === 'R' || up === 'C') return up as any;
+    const n = Number(s);
+    if (!Number.isNaN(n)) {
+        if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+        return snapToGB(n);
+    }
+    return undefined;
+}
+
+/**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
 export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean } = {}): Promise<void> {
@@ -532,66 +571,22 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // ====== Header & NR51 metadata ======
     // Compute NR51 register from channel/instrument pans and encode into comment for compatibility
-    function snapToGB(value: number): 'L'|'C'|'R' {
-        if (value < -0.33) return 'L';
-        if (value > 0.33) return 'R';
-        return 'C';
-    }
-    function enumToNR51Bits(p: 'L'|'C'|'R', chIndex: number): number {
-        // Hardware-accurate NR51 layout (hUGETracker / Game Boy):
-        // Pulse1 (ch 0): left=0x01, right=0x10
-        // Pulse2 (ch 1): left=0x02, right=0x20
-        // Wave   (ch 2): left=0x04, right=0x40
-        // Noise  (ch 3): left=0x08, right=0x80
-        const LEFT_BITS = [0x01, 0x02, 0x04, 0x08];
-        const RIGHT_BITS = [0x10, 0x20, 0x40, 0x80];
-        const leftBit = LEFT_BITS[chIndex] || 0;
-        const rightBit = RIGHT_BITS[chIndex] || 0;
-        if (p === 'L') return leftBit;
-        if (p === 'R') return rightBit;
-        return leftBit | rightBit;
-    }
+
     function resolveChannelPan(chModel: any, insts: any): 'L'|'C'|'R' {
-        // Priority: instrument 'gb:pan' -> instrument 'pan' -> first note with pan enum/value -> center
         if (chModel && chModel.defaultInstrument) {
             const inst = insts && insts[chModel.defaultInstrument];
             if (inst) {
-                if (inst['gb:pan']) {
-                    const v = String(inst['gb:pan']).toUpperCase();
-                    if (v === 'L' || v === 'R' || v === 'C') return v as any;
-                }
-                if (inst['pan'] !== undefined) {
-                    const p = inst['pan'];
-                    if (typeof p === 'object') {
-                        if (p.enum) return p.enum;
-                        if (typeof p.value === 'number') {
-                            if (strictGb) throw new Error('Numeric instrument pan not allowed in strict GB export');
-                            return snapToGB(p.value);
-                        }
-                    }
-                    const vp = String(p).toUpperCase();
-                    if (vp === 'L' || vp === 'R' || vp === 'C') return vp as any;
-                    const vnum = Number(p);
-                    if (!Number.isNaN(vnum)) {
-                        if (strictGb) throw new Error('Numeric instrument pan not allowed in strict GB export');
-                        return snapToGB(vnum);
-                    }
-                }
+                const gbPan = convertPanToEnum(inst['gb:pan'], strictGb, 'instrument');
+                if (gbPan) return gbPan;
+                const instPan = convertPanToEnum(inst['pan'], strictGb, 'instrument');
+                if (instPan) return instPan;
             }
         }
-        // Inspect channel events for any pan tokens (use first occurrence)
         const events = chModel && chModel.events ? chModel.events : [];
         for (const ev of events) {
             if (ev && ev.pan) {
-                const pan = ev.pan;
-                if (pan.enum) return pan.enum;
-                if (typeof pan.value === 'number') {
-                    if (strictGb) throw new Error('Numeric inline pan not allowed in strict GB export');
-                    return snapToGB(pan.value);
-                }
-                if (typeof pan === 'string') {
-                    const up = pan.toUpperCase(); if (up === 'L'||up === 'R'||up === 'C') return up as any; const n = Number(pan); if (!Number.isNaN(n)) { if (strictGb) throw new Error('Numeric inline pan not allowed in strict GB export'); return snapToGB(n); }
-                }
+                const evPan = convertPanToEnum(ev.pan, strictGb, 'inline');
+                if (evPan) return evPan;
             }
         }
         return 'C';
@@ -754,7 +749,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts);
+        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb);
         channelPatterns.push(patterns);
     }
 

@@ -44,6 +44,15 @@ Summary: the following core effects will be implemented and exposed in the langu
 
 Multiple effects can be applied to a single note:
 
+### Inline effect parameter parsing
+
+- Syntax: `effect:arg1,arg2,...` — parameters are comma-separated inside `<>` on a note, or in named `effect` presets.
+- Trimming: whitespace around parameters is trimmed before parsing.
+- Empty parameters (e.g., `fx:1,,2` or consecutive commas) are ignored — they are filtered out and do not become empty-string params.
+- Numeric conversion: parameters that parse as numbers (e.g., `1`, `-0.5`) are converted to numeric values; otherwise they remain strings.
+- Special-cases: `pan` supports `enum` (`L|R|C`) and numeric forms; GB-specific namespaced tokens like `gb:pan:L` are supported.
+- Rationale: removing empty parameters avoids surprising empty-string values being passed to effect handlers and simplifies downstream effect implementations.
+
 ```bax
 # Vibrato + volume slide
 pat melody = C4<vib:4,vol:+1> E4<vib:6,vol:-1>
@@ -359,7 +368,7 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
 - Panning (`pan` / `gb:pan`)
   - hUGETracker mapping: Not a native per-row effect in hUGETracker. For Game Boy-targeted UGE exports, panning is represented by the NR51 terminal/left-right selection (per-channel) rather than a tracker effect opcode.
   - Export strategy: When `gb:pan` (enum) is present, map `L`/`R`/`C` to NR51 bits and emit those as channel terminal flags in the UGE output (or as channel-level metadata if the UGE container stores terminal bits). When only generic `pan` numeric values are used, deterministically snap to enum (e.g. pan < -0.33 → L, pan > 0.33 → R, otherwise C) and emit a warning about loss of precision.
-  - UGE writer implementation notes: the exporter emits NR51 changes into the tracker pattern data as a single `8xx` Set‑Panning effect written on Channel 1 when the computed NR51 mix changes and a note onset occurs (or on the initial row). To reduce redundant edits, the writer tracks the last emitted NR51 state and suppresses re-writes on sustain/rest rows.
+  - UGE writer implementation notes: the exporter emits NR51 changes into the tracker pattern data as a single `8xx` Set-Panning effect written on Channel 1 when the computed NR51 mix changes and a note onset occurs (or on the initial row). To reduce redundant edits, the writer tracks the last emitted NR51 state and suppresses re-writes on sustain/rest rows.
   - Note: the exporter no longer appends an `[NR51=0x..]` debug comment to the UGE file; if you need round-trip metadata include it externally in your build tooling or use JSON export.
   - Per-note panning: If a BeatBax song specifies per-note panning but the UGE format/export target only supports per-channel terminal routing, exporter options are:
     - Expand/route notes to alternate channels with different NR51 settings (channel-expensive), or
@@ -625,7 +634,7 @@ pat A = C4<pan:L> E4<pan:R> G4<pan:C>
 pat B = C4<pan=-1.0> E4<pan=0.0> G4<pan=1.0>
 ```
 
-#### Inline Game Boy–specific
+#### Inline Game Boy-specific
 
 ```bax
 # Force Game Boy NR51 semantics for this token

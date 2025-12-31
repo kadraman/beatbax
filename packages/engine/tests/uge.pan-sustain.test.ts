@@ -5,8 +5,6 @@ import { parse } from '../src/parser/index';
 import { exportJSON } from '../src/export/jsonExport';
 import exportUGE from '../src/export/ugeWriter';
 
-const SONG_PATH = path.resolve(__dirname, '../../../songs/panning_sustain_test.bax');
-
 describe('UGE pan sustain behavior', () => {
   test('does not emit extra 8xx when sustain continues and pan unchanged', async () => {
     // Construct temporary song file

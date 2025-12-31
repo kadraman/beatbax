@@ -99,7 +99,7 @@ All four Game Boy channels are mixed to stereo:
 - Channel 3 (Wave) → Stereo output
 - Channel 4 (Noise) → Stereo output
 
-Each channel contributes equally to left and right channels by default. Pan control is supported: per-note and per-instrument `pan`/`gb:pan` tokens are applied during rendering. The PCM renderer implements equal‑power panning for numeric `pan` values and the WAV export (which uses the PCM renderer) will reflect panning in the stereo output. Note: when exporting to Game Boy-targeted formats (UGE), numeric pans may be snapped to GB terminal enums or rejected with `--strict-gb`.
+Each channel contributes equally to left and right channels by default. Pan control is supported: per-note and per-instrument `pan`/`gb:pan` tokens are applied during rendering. The PCM renderer implements equal-power panning for numeric `pan` values and the WAV export (which uses the PCM renderer) will reflect panning in the stereo output. Note: when exporting to Game Boy-targeted formats (UGE), numeric pans may be snapped to GB terminal enums or rejected with `--strict-gb`.
 
 ## Advanced Usage
 

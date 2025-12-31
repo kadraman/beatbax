@@ -70,6 +70,7 @@ Panning controls stereo position and can be specified in multiple forms:
 - `gb:pan=<L|R|C>` — Game Boy NR51 terminal mapping (exact hardware L/R/C flags)
 - `pan=<num>` or `<pan:num>` — numeric pan in range `[-1.0, 1.0]` (`-1.0` left, `0` center, `1.0` right)
 - Inline note tokens: `C5<pan:-1.0>` or `C6<pan:L>` apply to a single note
+- Effect parameter rules: parameters are comma-separated, trimmed, numeric tokens are converted to numbers (e.g., `1` → `1`), and empty params (consecutive commas or empty entries) are ignored and removed.
 - Sequence-level transforms: `seqname:pan(1.0)` applies numeric pan to an entire sequence occurrence
 
 Notes:
