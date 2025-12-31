@@ -118,6 +118,25 @@ channel 4 => inst sn pat drums
 
 This plays the motif on channel 1, temporarily substituting the `sn` noise instrument for the next two non‑rest hits.
 
+### Wave channel volume example
+
+The Game Boy wave channel exposes a per-instrument output-level selector via `volume=`. This selector is stored as a raw 0..3 value in UGE (0=mute, 1=100%, 2=50%, 3=25%) and maps to the hardware NR32 register as `(value << 5)` — it is not an envelope. Therefore, changing `volume=` while a note is sustaining has no audible effect until the note is retriggered or the instrument is changed.
+
+Example:
+
+```
+# Two wave instruments with different output levels
+inst wave_loud type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=100
+inst wave_soft type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=50
+
+# Play the same pattern twice; the second occurrence is a retrigger so it takes the new level
+pat hold = C4:8
+seq hold_seq = hold:inst(wave_loud) hold:inst(wave_soft)
+channel 3 => seq hold_seq
+```
+
+In this example the first `hold` plays at the loud output level; the second `hold` is retriggered and plays at the softer level.
+
 ## Using the CLI
 
 BeatBax provides a command-line interface for playback, validation, and export.

@@ -1,12 +1,12 @@
 /**
  * UGE v6 binary file writer for hUGETracker.
- * 
+ *
  * This writer exports a beatbax SongModel to a valid UGE v6 file that can be
  * opened in hUGETracker and processed by uge2source.exe.
- * 
+ *
  * Format spec: Based on hUGETracker source (song.pas, HugeDatatypes.pas)
  * Reference implementation: generate_minimal_uge.py (validated with uge2source.exe)
- * 
+ *
  * Key discoveries:
  * - TInstrumentV3 is a packed record with embedded TPattern (64 cells × 17 bytes)
  * - SubpatternEnabled is a semantic flag; bytes are ALWAYS written (1381 bytes per instrument)
@@ -177,6 +177,23 @@ function writeDutyInstrument(
  * Write a minimal wave instrument (TInstrumentV3 with type=1)
  * Total size: 1381 bytes
  */
+export function mapWaveVolumeToUGE(vol: any): number {
+    // Accept numbers or percent strings (e.g. '50%'). Default is 100 => maps to UGE value 1
+    let vNum = 100;
+    if (vol !== undefined && vol !== null) {
+        if (typeof vol === 'string') {
+            const s = vol.trim();
+            vNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
+        } else {
+            vNum = Number(vol);
+        }
+    }
+    if (![0, 25, 50, 100].includes(vNum)) vNum = 100;
+    // UGE mapping: 0=mute, 1=100%, 2=50%, 3=25%
+    const map: Record<number, number> = { 0: 0, 100: 1, 50: 2, 25: 3 };
+    return map[vNum];
+}
+
 function writeWaveInstrument(
     w: UGEWriter,
     name: string,
@@ -196,7 +213,10 @@ function writeWaveInstrument(
     w.writeU32(0); // unused5_u32
     w.writeU32(0); // unused6_u32
     w.writeU8(0); // unused7_u8
-    w.writeU32(volume); // output_level
+    // output_level: per hUGE v6 spec this is a raw selector value (0..3) not a full envelope or percent.
+    // Values: 0=mute, 1=100%, 2=50%, 3=25%. hUGEDriver expands this to NR32 by doing (output_level << 5) when writing to hardware.
+    // Store as u32 for struct alignment in TInstrumentV3.
+    w.writeU32(volume); // output_level (raw 0..3 per hUGE spec)
     w.writeU32(waveIndex); // wave_index
     w.writeU32(0); // counter_step (TStepWidth) - MISSING in previous version
 
@@ -251,7 +271,7 @@ function writeNoiseInstrument(
  * hUGETracker uses indices 0-72 where 0 = C-3, 12 = C-4, 24 = C-5, etc.
  * This is MIDI note number minus 36 (3 octaves offset).
  * Notes below C-3 are transposed up by octaves to fit in range.
- * 
+ *
  * @param noteName - Note name like "C4", "D#5"
  * @param ugeTranspose - Optional transpose in semitones for UGE export only (e.g., +12 = up one octave)
  */
@@ -263,39 +283,39 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     const [, pitch, octaveStr] = match;
     const octave = parseInt(octaveStr, 10);
     const noteIndex = noteNames.indexOf(pitch.toUpperCase());
-    
+
     if (noteIndex === -1) return EMPTY_NOTE;
-    
+
     // Calculate MIDI note number and apply UGE-specific transpose
     let midiNote = (octave + 1) * 12 + noteIndex + ugeTranspose;
-    
-    // Convert to hUGETracker index  
+
+    // Convert to hUGETracker index
     // hUGETracker's "C3" (index 0) corresponds to MIDI note 36,
     // which is the note C2 at approximately 65.4 Hz in standard MIDI tuning.
     let ugeIndex = midiNote - 36;
-    
+
     // hUGETracker minimum note is index 0 (displayed as C3)
     const originalIndex = ugeIndex;
-    
+
     // If below range, transpose up by octaves until in range
     while (ugeIndex < 0 && ugeIndex + 12 <= 72) {
         ugeIndex += 12;
     }
-    
+
     // Warn if note was transposed (below C3)
     if (originalIndex < 0 && ugeIndex >= 0) {
         const octavesShifted = Math.ceil(Math.abs(originalIndex) / 12);
         console.warn(`[UGE Export] Note ${noteName} is below hUGETracker minimum (C3). Transposed up ${octavesShifted} octave(s).`);
     }
-    
+
     // If above range, transpose down by octaves until in range
     while (ugeIndex > 72) {
         ugeIndex -= 12;
     }
-    
+
     // Valid range is 0-72 (C-3 to C-9 in hUGETracker)
     if (ugeIndex < 0 || ugeIndex > 72) return EMPTY_NOTE;
-    
+
     return ugeIndex;
 }
 
@@ -351,18 +371,18 @@ function eventsToPatterns(
     waveInsts: string[],
     noiseInsts: string[],
     strictGb: boolean = false,
-): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> {
-    const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> = [];
-    
+): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
+    const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
+
     // Split events into 64-row patterns
-    let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }> = [];
-    
+    let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }> = [];
+
     // Track the last active pan for this channel so sustain rows inherit it
-    let currentPan: 'L'|'R'|'C' = 'C';
+    let currentPan: 'L' | 'R' | 'C' = 'C';
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
-        
-        let cell: { note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' };
+
+        let cell: { note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' };
 
         if (event.type === 'rest') {
             // Rest = empty cell (no note trigger, no effect) but inherit current pan
@@ -384,11 +404,11 @@ function eventsToPatterns(
             };
         } else if (event.type === 'note') {
             const noteEvent = event as NoteEvent;
-            
+
             // Check for uge_transpose in instrument properties
             const inst = noteEvent.instrument ? instruments[noteEvent.instrument] : undefined;
             const ugeTranspose = inst?.uge_transpose ? parseInt(inst.uge_transpose, 10) : 0;
-            
+
             const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose);
             const instIndex = resolveInstrumentIndex(
                 noteEvent.instrument,
@@ -401,7 +421,7 @@ function eventsToPatterns(
             );
 
             // Determine per-note pan enum (L/C/R)
-            let panEnum: 'L'|'R'|'C' = currentPan;
+            let panEnum: 'L' | 'R' | 'C' = currentPan;
             // Inline note pan -> instrument GB pan -> instrument pan
             const notePan = convertPanToEnum(noteEvent.pan, strictGb, 'inline');
             if (notePan) {
@@ -438,7 +458,7 @@ function eventsToPatterns(
                 noiseInsts,
             );
             // For named events, derive pan from instrument defaults if present
-            let namedPan: 'L'|'R'|'C' = currentPan;
+            let namedPan: 'L' | 'R' | 'C' = currentPan;
             const namedInst = namedEvent.token ? instruments[namedEvent.token] : undefined;
             if (namedInst) {
                 const gbP = convertPanToEnum(namedInst['gb:pan'], strictGb, 'instrument');
@@ -467,16 +487,16 @@ function eventsToPatterns(
                 pan: currentPan,
             };
         }
-        
+
         currentPattern.push(cell);
-        
+
         // When pattern reaches 64 rows, start a new one
         if (currentPattern.length >= PATTERN_ROWS) {
             patterns.push(currentPattern);
             currentPattern = [];
         }
     }
-    
+
     // Add final pattern if it has any rows
     if (currentPattern.length > 0) {
         // Pad to 64 rows
@@ -491,10 +511,10 @@ function eventsToPatterns(
         }
         patterns.push(currentPattern);
     }
-    
+
     // If no patterns, create one empty pattern
     if (patterns.length === 0) {
-        const emptyPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }> = [];
+        const emptyPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }> = [];
         for (let i = 0; i < PATTERN_ROWS; i++) {
             emptyPattern.push({
                 note: EMPTY_NOTE,
@@ -506,20 +526,20 @@ function eventsToPatterns(
         }
         patterns.push(emptyPattern);
     }
-    
+
     return patterns;
 }
 
 /**
  * Helper: snap numeric pan value to GB enum
  */
-function snapToGB(value: number): 'L'|'C'|'R' {
+function snapToGB(value: number): 'L' | 'C' | 'R' {
     if (value < -0.33) return 'L';
     if (value > 0.33) return 'R';
     return 'C';
 }
 
-function enumToNR51Bits(p: 'L'|'C'|'R', chIndex: number): number {
+function enumToNR51Bits(p: 'L' | 'C' | 'R', chIndex: number): number {
     // Hardware-accurate NR51 layout (hUGETracker / Game Boy):
     // Pulse1 (ch 0): left=0x01, right=0x10
     // Pulse2 (ch 1): left=0x02, right=0x20
@@ -534,7 +554,7 @@ function enumToNR51Bits(p: 'L'|'C'|'R', chIndex: number): number {
     return leftBit | rightBit;
 }
 
-export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrument'|'inline' = 'inline'): 'L'|'C'|'R'|undefined {
+export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrument' | 'inline' = 'inline'): 'L' | 'C' | 'R' | undefined {
     if (pan === undefined || pan === null) return undefined;
     if (typeof pan === 'object') {
         if (pan.enum) {
@@ -572,7 +592,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // ====== Header & NR51 metadata ======
     // Compute NR51 register from channel/instrument pans and encode into comment for compatibility
 
-    function resolveChannelPan(chModel: any, insts: any): 'L'|'C'|'R' {
+    function resolveChannelPan(chModel: any, insts: any): 'L' | 'C' | 'R' {
         if (chModel && chModel.defaultInstrument) {
             const inst = insts && insts[chModel.defaultInstrument];
             if (inst) {
@@ -630,6 +650,8 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             }
         }
     }
+    if (opts && opts.debug) console.log(`[DEBUG] Discovered instruments: duty=${dutyInsts.length} wave=${waveInsts.length} noise=${noiseInsts.length}`);
+    if (opts && opts.debug) console.log(`[DEBUG] Wave instrument names: ${JSON.stringify(waveInsts)}`);
 
     // ====== Instruments Section ======
     // Write Duty instruments (15 slots)
@@ -670,9 +692,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             // Wave index mapping: use the slot index i
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
-            writeWaveInstrument(w, name, i, 3, lengthEnabled, length);
+            const ugeVolume = mapWaveVolumeToUGE(inst.volume ?? inst.vol ?? 100);
+            if (opts && opts.debug) console.log(`[DEBUG] Wave instrument '${name}' -> volume (beatbax)=${inst.volume ?? inst.vol ?? 'undefined'} ugeValue=${ugeVolume}`);
+            writeWaveInstrument(w, name, i, ugeVolume, lengthEnabled, length);
         } else {
-            writeWaveInstrument(w, `WAVE_${i}`, 0);
+            // Default placeholder: use default 100% mapping
+            writeWaveInstrument(w, `WAVE_${i}`, 0, mapWaveVolumeToUGE(100));
         }
     }
 
@@ -703,7 +728,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         if (i < waveInsts.length) {
             const name = waveInsts[i];
             const inst = (song.insts as any)[name];
-            
+
             // Parse wave data (can be string or array)
             let waveData: number[] | undefined;
             if (inst.wave) {
@@ -718,7 +743,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     }
                 }
             }
-            
+
             if (waveData && Array.isArray(waveData)) {
                 for (let n = 0; n < Math.min(WAVETABLE_SIZE, waveData.length); n++) {
                     table[n] = Math.max(0, Math.min(15, waveData[n]));
@@ -742,7 +767,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     }
 
     // ====== Build patterns per channel ======
-    const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>>> = [];
+    const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>>> = [];
 
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         // Find channel by ID (1-4)
@@ -755,7 +780,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // Inject global per-row NR51 panning effects (write a single 8xx on channel 1 when value changes)
     // Create a blank pattern for missing channels/patterns
-    const blankPatternWithPan: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan: 'L'|'R'|'C' }> = [];
+    const blankPatternWithPan: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan: 'L' | 'R' | 'C' }> = [];
     for (let i = 0; i < PATTERN_ROWS; i++) {
         blankPatternWithPan.push({ note: EMPTY_NOTE, instrument: 0, effectCode: 0, effectParam: 0, pan: 'C' });
     }
@@ -774,7 +799,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const pat = (orderIdx < patterns.length) ? patterns[orderIdx] : blankPatternWithPan;
                 const cell = pat[row];
                 const p = (cell && cell.pan) ? cell.pan : 'C';
-                nr51Value |= enumToNR51Bits(p as 'L'|'C'|'R', ch);
+                nr51Value |= enumToNR51Bits(p as 'L' | 'C' | 'R', ch);
                 // Note-on detection: a cell with a note != EMPTY_NOTE indicates a note trigger
                 if (cell && typeof cell.note === 'number' && cell.note !== EMPTY_NOTE) {
                     hasNoteOn = true;
@@ -810,7 +835,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Default: 128 BPM (7 ticks/row) provides exact timing alignment
     const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
     const ticksPerRow = Math.max(1, Math.round(896 / bpm));
-    
+
     w.writeU32(ticksPerRow); // Initial ticks per row
     w.writeBool(false); // Timer based tempo enabled (v6)
     w.writeU32(0); // Timer based tempo divider (v6)
@@ -847,19 +872,19 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         w.writeU32(i); // Pattern index
         const pattern = allPatterns[i];
         const ch = pattern.channelIndex;
-        
+
         // Debug all channel patterns
-            if (ch >= 0 && ch < NUM_CHANNELS) {
-                const nonEmpty = pattern.cells.filter((c, idx) => c.note !== EMPTY_NOTE || c.instrument !== 0);
-                if (opts && opts.debug) console.log(`[DEBUG] Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
-                if (nonEmpty.length <= 20) {
-                    if (opts && opts.debug) console.log(`[DEBUG]   Non-empty cells:`, nonEmpty.map((c) => {
-                        const rowIdx = pattern.cells.indexOf(c);
-                        return `row${rowIdx}:note=${c.note},inst=${c.instrument}`;
-                    }).join('; '));
-                }
+        if (ch >= 0 && ch < NUM_CHANNELS) {
+            const nonEmpty = pattern.cells.filter((c, idx) => c.note !== EMPTY_NOTE || c.instrument !== 0);
+            if (opts && opts.debug) console.log(`[DEBUG] Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
+            if (nonEmpty.length <= 20) {
+                if (opts && opts.debug) console.log(`[DEBUG]   Non-empty cells:`, nonEmpty.map((c) => {
+                    const rowIdx = pattern.cells.indexOf(c);
+                    return `row${rowIdx}:note=${c.note},inst=${c.instrument}`;
+                }).join('; '));
             }
-        
+        }
+
         // Write cells with instrument index conversion
         for (const cell of pattern.cells) {
             // Convert absolute instrument index to relative index based on channel type
@@ -906,20 +931,20 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Write order lists for 4 channels (Duty1, Duty2, Wave, Noise)
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         const patterns = channelPatterns[ch];
-        
+
         // Write order length + 1 (off-by-one per UGE spec)
         w.writeU32(maxOrderLength + 1);
-        
+
         // Write order indices
         let patternIndexOffset = 0;
         for (let prevCh = 0; prevCh < ch; prevCh++) {
             patternIndexOffset += channelPatterns[prevCh].length;
         }
-        
+
         //if (ch === 3) {
         //    if (opts && opts.debug) console.log(`[DEBUG] Channel 4 order list: length=${maxOrderLength}, patternIndexOffset=${patternIndexOffset}`);
         //}
-        
+
         for (let i = 0; i < maxOrderLength; i++) {
             if (i < patterns.length) {
                 const patIdx = patternIndexOffset + i;
@@ -932,7 +957,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 w.writeU32(blankPatternIndex);
             }
         }
-        
+
         // Write off-by-one filler
         w.writeU32(0);
     }

@@ -27,7 +27,7 @@ inst wave_quiet type=wave wave=[...] volume=25
 inst wave_mute  type=wave wave=[...] volume=0
 ```
 
-Valid values: `0`, `25`, `50`, `100` (matching GB hardware values)  
+Valid values: `0`, `25`, `50`, `100` (matching GB hardware values)
 Default: `100` (maximum volume for best balance)
 
 ### Alternative Syntax (Percentage)
@@ -65,7 +65,7 @@ In the instrument parsing section (around line 350), add volume parameter parsin
 // For wave instruments
 if (waveMatch) {
   const wave = waveMatch[1].split(',').map(v => parseInt(v.trim(), 10));
-  
+
   // Parse volume parameter
   let volume: 0 | 25 | 50 | 100 = 100;  // Default to 100%
   const volumeMatch = inst.match(/\bvolume=(\d+)/i);
@@ -76,7 +76,7 @@ if (waveMatch) {
     }
     volume = v as 0 | 25 | 50 | 100;
   }
-  
+
   return {
     type: 'wave',
     wave,
@@ -95,21 +95,21 @@ Update wave instrument encoding (around line 180-200):
 ```typescript
 function encodeWaveInstrument(inst: WaveInstrumentProps): Buffer {
   const buf = Buffer.alloc(18);
-  
+
   // Map volume to GB hardware values (0-3)
   const volumeMap = { 0: 0, 25: 1, 50: 2, 100: 3 };
   const volumeValue = volumeMap[inst.volume ?? 100];
-  
+
   // Byte 0: Volume (bits 5-6) + length flag (bit 7)
   buf[0] = (volumeValue << 5) | 0x80;  // 0x80 = use length
-  
+
   // Bytes 2-17: Wave data (16 samples, 4-bit each, packed into bytes)
   for (let i = 0; i < 16; i += 2) {
     const high = (inst.wave[i] & 0xF) << 4;
     const low = inst.wave[i + 1] & 0xF;
     buf[2 + (i / 2)] = high | low;
   }
-  
+
   return buf;
 }
 ```
@@ -123,21 +123,21 @@ The wave channel should apply the volume control during playback:
 ```typescript
 export class GameBoyWaveChannel {
   private globalVolume: number = 1.0;  // 100% by default
-  
+
   setInstrument(inst: WaveInstrumentProps) {
     this.wavetable = inst.wave;
-    
+
     // Map volume to gain multiplier
     const volumeMap = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
     this.globalVolume = volumeMap[inst.volume ?? 100];
   }
-  
+
   tick() {
     // Apply global volume to output
     const rawSample = this.wavetable[this.wavePosition];
     const normalizedSample = (rawSample / 15) * 2 - 1;  // -1 to 1
     const volumeAdjusted = normalizedSample * this.globalVolume;
-    
+
     this.gainNode.gain.value = volumeAdjusted;
     // ... rest of tick logic
   }
@@ -187,20 +187,20 @@ describe('Wave Channel Volume', () => {
       inst w3 type=wave wave=[0,8,15,8] volume=25
       inst w4 type=wave wave=[0,8,15,8] volume=0
     `);
-    
+
     expect(ast.insts.w1.volume).toBe(100);
     expect(ast.insts.w2.volume).toBe(50);
     expect(ast.insts.w3.volume).toBe(25);
     expect(ast.insts.w4.volume).toBe(0);
   });
-  
+
   test('defaults to 100% when not specified', () => {
     const ast = parseScript(`
       inst w type=wave wave=[0,8,15,8]
     `);
     expect(ast.insts.w.volume).toBe(100);
   });
-  
+
   test('rejects invalid volume values', () => {
     expect(() => parseScript(`
       inst w type=wave wave=[0,8,15,8] volume=75
@@ -215,18 +215,18 @@ describe('Wave Volume UGE Export', () => {
       wave: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
       volume: 100
     };
-    
+
     const buf = encodeWaveInstrument(inst);
     expect(buf[0] & 0x60).toBe(0x60);  // Volume bits = 11 (100%)
   });
-  
+
   test('encodes 50% volume', () => {
     const inst: WaveInstrumentProps = {
       type: 'wave',
       wave: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
       volume: 50
     };
-    
+
     const buf = encodeWaveInstrument(inst);
     expect(buf[0] & 0x60).toBe(0x40);  // Volume bits = 10 (50%)
   });
@@ -252,6 +252,10 @@ channel 3 => inst wave1 volume=100 seq main
 ```
 
 **Rejected:** Too inflexible - can't change volume per instrument
+
+### Hardware mapping & retrigger semantics
+
+Important: hUGE stores wave instrument volume as a single 0..3 selector (not an envelope) and maps it directly to NR32 by shifting left 5 (NR32 = volume << 5). This is an output-level selector only — changing the `volume=` for an instrument while a note is sustaining will not affect the currently sounding note; the note must be retriggered or the instrument changed for the new NR32 value to be written to hardware.
 
 ### 2. Per-note volume control
 ```
@@ -287,13 +291,13 @@ Automatically adjust wave volume based on wavetable peak amplitude.
 
 ## Implementation Checklist
 
-- [ ] Add `volume` field to `WaveInstrumentProps` in AST
-- [ ] Implement parser support for `volume=` parameter
-- [ ] Add validation for valid values (0, 25, 50, 100)
-- [ ] Update UGE writer to encode volume correctly
-- [ ] Update wave channel playback to apply global volume
-- [ ] Write unit tests for parsing and encoding
-- [ ] Write integration tests for UGE export
-- [ ] Update documentation with examples
-- [ ] Update `instrument_demo.bax` to demonstrate volume control
-- [ ] Test in hUGETracker to verify correct import
+- [x] Add `volume` field to `WaveInstrumentProps` in AST
+- [x] Implement parser support for `volume=` parameter
+- [x] Add validation for valid values (0, 25, 50, 100)
+- [x] Update UGE writer to encode volume correctly
+- [x] Update wave channel playback to apply global volume
+- [x] Write unit tests for parsing and encoding
+- [x] Write integration tests for UGE export (basic checks)
+- [x] Update documentation with examples
+- [x] Update `instrument_demo.bax` to demonstrate volume control
+- [x] Test in hUGETracker to verify correct import
