@@ -1,0 +1,54 @@
+// Workspace settings: Safe, repo-level settings for formatting, linting and file headers
+{
+  // Formatting & linting
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": null,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "eslint.alwaysShowStatus": true,
+  "prettier.requireConfig": true,
+  // TypeScript (use workspace version)
+  "typescript.tsdk": "node_modules/typescript/lib",
+  // Editor helpers
+  "editor.rulers": [
+    80
+  ],
+  "editor.insertSpaces": true,
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  // Exclude build & node modules for fast search/Explorer
+  "files.exclude": {
+    "node_modules": true,
+    "packages/*/dist": true,
+    "apps/*/dist": true,
+    "tmp": true
+  },
+  "search.exclude": {
+    "node_modules": true,
+    "packages/*/dist": true,
+    "apps/*/dist": true,
+    "tmp": true
+  },
+  // File header (doi.fileheadercomment) — repo-level author/company
+  "fileHeaderComment.parameter": {
+    "*": {
+      "author": "Kevin A. Lee",
+      "company": "kadraman"
+    }
+  },
+  "fileHeaderComment.template": {
+    "*": [
+      "${commentbegin}",
+      "${commentprefix} Copyright (c) ${year} ${author}",
+      "${commentprefix} SPDX-License-Identifier: MIT",
+      "${commentend}"
+    ]
+  }
+}
