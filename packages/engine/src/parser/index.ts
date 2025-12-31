@@ -441,6 +441,23 @@ export function parse(source: string): AST {
       if (p.sweep && p.type !== 'pulse1') {
         console.warn(`[BeatBax Parser] Warning: Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
       }
+
+      // Wave instrument: parse and validate `volume` / `vol` parameter
+      if (p.type && String(p.type).toLowerCase() === 'wave') {
+        const raw = p.volume !== undefined ? p.volume : (p.vol !== undefined ? p.vol : undefined);
+        if (raw === undefined) {
+          // Default to 100% for good balance
+          p.volume = 100;
+        } else {
+          let s = String(raw).trim();
+          if (s.endsWith('%')) s = s.slice(0, -1).trim();
+          const vNum = parseInt(s, 10);
+          if (![0, 25, 50, 100].includes(vNum)) {
+            throw new Error(`Invalid wave volume ${raw} for instrument "${name}". Must be 0, 25, 50, or 100`);
+          }
+          p.volume = vNum;
+        }
+      }
     }
   }
 

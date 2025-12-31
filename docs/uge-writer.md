@@ -18,6 +18,18 @@ Complete implementation of a UGE v6 binary file writer for BeatBax. The implemen
    - `writePatternCell(...)`: Write TCellV2 (17 bytes: note, inst, volume, effect code, effect param)
    - `writeEmptyCell()`: Write rest cell with EMPTY_NOTE (90) and VOLUME_NO_CHANGE (0x00005A00)
 
+Note on Wave instrument volume storage
+
+- hUGETracker stores a single byte (0–3) for wave instrument "volume". This value is an output-level selector (not an envelope) and maps directly to NR32 bits 6–5 when the hUGEDriver writes to hardware by computing `(volume << 5)`.
+
+  Mapping (hUGE value → meaning → NR32 bits → NR32 hex):
+  - `0` — Mute — 00 — 0x00
+  - `1` — 100% — 01 — 0x20
+  - `2` — 50% — 10 — 0x40
+  - `3` — 25% — 11 — 0x60
+
+- The UGE writer stores the raw 0–3 value in the instrument record `output_level` field (u32), and the driver shifts it left 5 when writing NR32; no additional scaling is applied by hUGE.
+
 2. **Instrument Writers**: Functions to write TInstrumentV3 structures (1381 bytes each)
    - `writeDutyInstrument()`: Type 0, duty cycle (12.5%, 25%, 50%, 75%)
    - `writeWaveInstrument()`: Type 1, wavetable index and volume

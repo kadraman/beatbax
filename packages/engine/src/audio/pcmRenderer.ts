@@ -20,7 +20,7 @@ export interface RenderOptions {
 
 /**
  * Renders a complete song to a PCM buffer.
- * 
+ *
  * @param song The song model containing channels and events.
  * @param opts Rendering options (sampleRate, channels, bpm, etc.).
  * @returns A Float32Array containing the interleaved PCM samples.
@@ -31,22 +31,22 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const bpm = opts.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? song.channels.map(c => c.id);
   const normalize = opts.normalize ?? false;
-  
+
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
   const tickSeconds = secondsPerBeat / 4;
-  
+
   let maxTicks = 0;
   for (const ch of song.channels) {
     if (ch.events.length > maxTicks) {
       maxTicks = ch.events.length;
     }
   }
-  
+
   const duration = opts.duration ?? Math.ceil(maxTicks * tickSeconds) + 1; // Add 1 second buffer
   const totalSamples = Math.floor(duration * sampleRate);
   const buffer = new Float32Array(totalSamples * channels);
-  
+
   // Render each channel (filter by renderChannels option)
   // Deep-clone instrument table to avoid in-place mutations during rendering
   // (some render paths may temporarily modify instrument objects). Cloning
@@ -57,20 +57,20 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
       renderChannel(ch, instsClone, buffer, sampleRate, channels, tickSeconds);
     }
   }
-  
+
   // Normalize to prevent clipping or to maximize volume
   if (normalize) {
     normalizeBuffer(buffer, true);
   } else {
     normalizeBuffer(buffer, false); // Only scale down if clipping
   }
-  
+
   return buffer;
 }
 
 /**
  * Renders a single channel's events into the provided buffer.
- * 
+ *
  * @param ch The channel object containing events.
  * @param insts The map of available instruments.
  * @param buffer The target PCM buffer.
@@ -89,16 +89,16 @@ function renderChannel(
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
   let tempRemaining = 0;
-  
+
   for (let i = 0; i < ch.events.length; i++) {
     const ev = ch.events[i];
     const time = i * tickSeconds;
-    
+
     if (ev.type === 'rest' || ev.type === 'sustain') {
       // Silence or handled by lookahead
       continue;
     }
-    
+
     // Calculate duration by looking ahead for sustains
     let sustainCount = 0;
     for (let j = i + 1; j < ch.events.length; j++) {
@@ -109,19 +109,19 @@ function renderChannel(
       }
     }
     const dur = tickSeconds * (1 + sustainCount);
-    
+
     // Resolve instrument
     let instName = ev.instrument || (tempRemaining > 0 ? tempInstName : currentInstName);
     let inst = instName ? insts[instName] : undefined;
-    
+
     if (!inst) continue;
-    
+
     const startSample = Math.floor(time * sampleRate);
     const durationSamples = Math.floor(dur * sampleRate);
-    
+
     if (ev.type === 'note') {
       renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels);
-      
+
       if (tempRemaining > 0) {
         tempRemaining--;
         // Skip temp decrement for sustains? Usually temp overrides apply to N *events*
@@ -133,7 +133,7 @@ function renderChannel(
     } else if (ev.type === 'named') {
       // Named instrument token (like drum hits)
       renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels);
-      
+
       if (tempRemaining > 0) {
         tempRemaining--;
         if (tempRemaining <= 0) {
@@ -146,7 +146,7 @@ function renderChannel(
 
 /**
  * Renders a specific note event using the appropriate chip-specific renderer.
- * 
+ *
  * @param ev The note event to render.
  * @param inst The instrument to use for rendering.
  * @param buffer The target PCM buffer.
@@ -230,7 +230,7 @@ function renderNoteEvent(
 
 /**
  * Renders a named event (e.g., percussion hits) using the appropriate renderer.
- * 
+ *
  * @param ev The named event to render.
  * @param inst The instrument to use.
  * @param buffer The target PCM buffer.
@@ -257,7 +257,7 @@ function renderNamedEvent(
 /**
  * Renders a Game Boy pulse channel (Pulse 1 or Pulse 2).
  * Supports duty cycle, envelope, and frequency sweep.
- * 
+ *
  * @param buffer The target PCM buffer.
  * @param start The starting sample index.
  * @param duration The duration in samples.
@@ -285,9 +285,9 @@ function renderPulse(
       duty = dutyNum > 1 ? dutyNum / 100 : dutyNum; // Handle both 50 and 0.5
     }
   }
-  
+
   const envelope = parseEnvelope(inst.env);
-  
+
   const sweep = parseSweep(inst.sweep);
   let currentFreq = freq;
   let currentReg = registerFromFreq(freq);
@@ -314,7 +314,7 @@ function renderPulse(
 
     const phase = (t * currentFreq) % 1.0;
     const square = currentFreq > 0 ? (phase < duty ? 1.0 : -1.0) : 0;
-    
+
     // Apply envelope
     const envVal = getEnvelopeValue(t, envelope);
     const sample = square * envVal * 0.6; // Match browser amplitude
@@ -334,7 +334,7 @@ function renderPulse(
 /**
  * Renders a Game Boy wave channel.
  * Uses a 16-sample 4-bit wavetable.
- * 
+ *
  * @param buffer The target PCM buffer.
  * @param start The starting sample index.
  * @param duration The duration in samples.
@@ -354,13 +354,26 @@ function renderWave(
   gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
   const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
-  
+
+  // Resolve volume multiplier once (avoid doing parsing/map lookups per-sample)
+  let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
+  let volNum = 100;
+  if (typeof volRaw === 'string') {
+    const s = volRaw.trim();
+    volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
+  } else if (typeof volRaw === 'number') {
+    volNum = volRaw;
+  }
+  const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
+  const volMul = volMulMap[volNum] ?? 1.0;
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
     const phase = (t * freq) % 1.0;
     const idx = Math.floor(phase * waveTable.length) % waveTable.length;
-    const sample = (waveTable[idx] / 15.0 * 2.0 - 1.0) * 0.6; // Match browser amplitude
-    
+
+    const sample = ((waveTable[idx] / 15.0 * 2.0 - 1.0) * 0.6) * volMul; // Apply wave global volume
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
       if (channels === 2) {
@@ -376,7 +389,7 @@ function renderWave(
 /**
  * Renders a Game Boy noise channel.
  * Uses an LFSR (Linear Feedback Shift Register) to generate noise.
- * 
+ *
  * @param buffer The target PCM buffer.
  * @param start The starting sample index.
  * @param duration The duration in samples.
@@ -394,21 +407,21 @@ function renderNoise(
   gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
   const envelope = parseEnvelope(inst.env);
-  
+
   // Game Boy noise parameters
   const width = inst.width ? Number(inst.width) : 15;
   const divisor = inst.divisor ? Number(inst.divisor) : 3;
   const shift = inst.shift ? Number(inst.shift) : 4;
   const GB_CLOCK = 4194304;
-  
+
   // Calculate LFSR frequency (matches browser implementation)
   const div = Math.max(1, Number.isFinite(divisor) ? divisor : 3);
   const lfsrHz = GB_CLOCK / (div * Math.pow(2, (shift || 0) + 1));
-  
+
   let phase = 0;
   let lfsr = 1;
   const is7bit = width === 7;
-  
+
   // LFSR step function (matches browser)
   function stepLFSR(state: number): number {
     const bit = ((state >> 0) ^ (state >> 1)) & 1;
@@ -420,10 +433,10 @@ function renderNoise(
     }
     return state >>> 0;
   }
-  
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
-    
+
     // Update LFSR at proper frequency
     phase += lfsrHz / sampleRate;
     const ticks = Math.floor(phase);
@@ -433,11 +446,11 @@ function renderNoise(
       }
       phase -= ticks;
     }
-    
+
     const noise = (lfsr & 1) ? 1.0 : -1.0;
     const envVal = getEnvelopeValue(t, envelope);
     const sample = noise * envVal * 0.6; // Match browser amplitude
-    
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
       if (channels === 2) {
@@ -452,7 +465,7 @@ function renderNoise(
 
 /**
  * Parses a wavetable definition into an array of 16 4-bit values (0-15).
- * 
+ *
  * @param wave The wavetable definition (string or array).
  * @returns An array of 16 numbers representing the wavetable.
  */
@@ -470,7 +483,7 @@ function parseWaveTable(wave: any): number[] {
   } else if (Array.isArray(wave)) {
     return wave.map(v => Math.max(0, Math.min(15, v)));
   }
-  
+
   // Default sine-like wave
   return [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
 }
@@ -478,16 +491,16 @@ function parseWaveTable(wave: any): number[] {
 /**
  * Parses an envelope definition into its components.
  * Supports "gb:initial,direction,period" and "initial,direction,period" formats.
- * 
+ *
  * @param env The envelope definition.
  * @returns An object containing initial volume, direction, and period.
  */
 function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; period: number } {
   if (!env) return { initial: 15, direction: 'down', period: 1 };
-  
+
   if (typeof env === 'string') {
     const s = env.trim();
-    
+
     // Parse "gb:12,down,1" format
     const gbMatch = s.match(/^gb:\s*(\d{1,2})\s*,\s*(up|down)(?:\s*,\s*(\d+))?$/i);
     if (gbMatch) {
@@ -497,7 +510,7 @@ function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; p
         period: gbMatch[3] ? Math.max(0, Math.min(7, parseInt(gbMatch[3], 10))) : 1
       };
     }
-    
+
     // Parse simple "12,down,1" format
     const parts = s.split(',').map(s => s.trim());
     if (parts.length >= 2) {
@@ -508,37 +521,37 @@ function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; p
       };
     }
   }
-  
+
   return { initial: 15, direction: 'down', period: 1 };
 }
 
 /**
  * Calculates the current envelope volume at a given time.
- * 
+ *
  * @param t The time in seconds since the start of the note.
  * @param env The parsed envelope parameters.
  * @returns The normalized volume value (0.0 to 1.0).
  */
 function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | 'down'; period: number }): number {
   if (env.period === 0) return env.initial / 15.0;
-  
+
   // Game Boy envelope: each step is period * (1/64) seconds
   const stepDuration = env.period * (1 / 64); // ~15.6ms per period unit
   const currentStep = Math.floor(t / stepDuration);
-  
+
   let volume: number;
   if (env.direction === 'down') {
     volume = Math.max(0, env.initial - currentStep);
   } else {
     volume = Math.min(15, env.initial + currentStep);
   }
-  
+
   return volume / 15.0;
 }
 
 /**
  * Normalizes the audio buffer to a peak of 0.95.
- * 
+ *
  * @param buffer The audio buffer to normalize.
  * @param force If true, always normalizes the buffer regardless of current peak level.
  *              If false, only normalizes if the peak exceeds 0.95 (to prevent clipping).
@@ -549,7 +562,7 @@ function normalizeBuffer(buffer: Float32Array, force: boolean): void {
     const abs = Math.abs(buffer[i]);
     if (abs > max) max = abs;
   }
-  
+
   if (max > 0) {
     if (force || max > 0.95) {
       const scale = 0.95 / max;
