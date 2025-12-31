@@ -526,9 +526,9 @@ function eventsToPatterns(
 /**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
-export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGB?: boolean } = {}): Promise<void> {
+export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean } = {}): Promise<void> {
     const w = new UGEWriter();
-    const strictGB = opts && opts.strictGB === true;
+    const strictGb = opts && opts.strictGb === true;
 
     // ====== Header & NR51 metadata ======
     // Compute NR51 register from channel/instrument pans and encode into comment for compatibility
@@ -565,7 +565,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     if (typeof p === 'object') {
                         if (p.enum) return p.enum;
                         if (typeof p.value === 'number') {
-                            if (strictGB) throw new Error('Numeric instrument pan not allowed in strict GB export');
+                            if (strictGb) throw new Error('Numeric instrument pan not allowed in strict GB export');
                             return snapToGB(p.value);
                         }
                     }
@@ -573,7 +573,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     if (vp === 'L' || vp === 'R' || vp === 'C') return vp as any;
                     const vnum = Number(p);
                     if (!Number.isNaN(vnum)) {
-                        if (strictGB) throw new Error('Numeric instrument pan not allowed in strict GB export');
+                        if (strictGb) throw new Error('Numeric instrument pan not allowed in strict GB export');
                         return snapToGB(vnum);
                     }
                 }
@@ -586,22 +586,22 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const pan = ev.pan;
                 if (pan.enum) return pan.enum;
                 if (typeof pan.value === 'number') {
-                    if (strictGB) throw new Error('Numeric inline pan not allowed in strict GB export');
+                    if (strictGb) throw new Error('Numeric inline pan not allowed in strict GB export');
                     return snapToGB(pan.value);
                 }
                 if (typeof pan === 'string') {
-                    const up = pan.toUpperCase(); if (up === 'L'||up === 'R'||up === 'C') return up as any; const n = Number(pan); if (!Number.isNaN(n)) { if (strictGB) throw new Error('Numeric inline pan not allowed in strict GB export'); return snapToGB(n); }
+                    const up = pan.toUpperCase(); if (up === 'L'||up === 'R'||up === 'C') return up as any; const n = Number(pan); if (!Number.isNaN(n)) { if (strictGb) throw new Error('Numeric inline pan not allowed in strict GB export'); return snapToGB(n); }
                 }
             }
         }
         return 'C';
     }
 
-    // Enforce strict GB export rules early (throws if numeric pan is present and strictGB=true)
-    if (strictGB) {
+    // Enforce strict GB export rules early (throws if numeric pan is present and strict mode enabled)
+    if (strictGb) {
         for (let ch = 0; ch < NUM_CHANNELS; ch++) {
             const chModel = song.channels && song.channels.find((c: any) => c.id === ch + 1);
-            // resolveChannelPan will throw if numeric pan is present and strictGB=true
+            // resolveChannelPan will throw if numeric pan is present and strictGb=true
             resolveChannelPan(chModel, song.insts || {});
         }
     }
@@ -785,9 +785,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     hasNoteOn = true;
                 }
             }
-            // Only set panning when NR51 changes AND (we have a note-on here OR this is the initial write)
-            // Only set NR51 when the mix changes AND we have a note-on at this row.
-            // This avoids forcing immediate mix changes on rows where no note starts.
+            // Only set panning when NR51 changes AND we have a note-on at this row (avoids forcing mix changes on rows with no note start).
             if (nr51Value !== lastNr51 && hasNoteOn) {
                 // Write 8xx effect on channel 1 (index 0) for this row
                 if (orderIdx < channelPatterns[0].length) {

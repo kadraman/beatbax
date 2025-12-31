@@ -20,7 +20,7 @@ describe('UGE strict-gb flag', () => {
     const song = JSON.parse(fs.readFileSync(tempJson, 'utf8')).song;
 
     const outUge = path.join(os.tmpdir(), `strict_gb_${Date.now()}.uge`);
-    await expect(exportUGE(song as any, outUge, { debug: false, strictGB: true })).rejects.toThrow('Numeric');
+    await expect(exportUGE(song as any, outUge, { debug: false, strictGb: true })).rejects.toThrow('Numeric');
     try { fs.unlinkSync(tempJson); } catch (e) {}
   });
 
@@ -31,7 +31,7 @@ describe('UGE strict-gb flag', () => {
     const song = JSON.parse(fs.readFileSync(tempJson, 'utf8')).song;
 
     const outUge = path.join(os.tmpdir(), `strict_gb_${Date.now()}.uge`);
-    await exportUGE(song as any, outUge, { debug: false, strictGB: false });
+    await exportUGE(song as any, outUge, { debug: false, strictGb: false });
     expect(fs.existsSync(outUge)).toBeTruthy();
     try { fs.unlinkSync(tempJson); } catch (e) {}
     try { fs.unlinkSync(outUge); } catch (e) {}

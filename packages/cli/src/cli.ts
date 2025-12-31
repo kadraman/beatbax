@@ -385,7 +385,7 @@ program
 
     if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
     else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
-    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, strictGB: (options as any).strictGb === true });
+    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, strictGb: Boolean((options as any).strictGb) });
     else if (format === 'wav') {
       await exportWAVFromSong(song, outPath, {
         duration,

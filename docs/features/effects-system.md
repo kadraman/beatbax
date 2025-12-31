@@ -453,7 +453,7 @@ function exportToUGE(song: ISong, opts: UGEOptions) {
         if (pan.enum) {
           channelMeta.nr51 = mapPanEnumToNR51(pan.enum);
         } else if (typeof pan.value === 'number') {
-          if (opts.strictGB) throw new Error('numeric pan not allowed in strict GB export');
+          if (opts.strictGb) throw new Error('numeric pan not allowed in strict GB export');
           const snapped = snapToGB(pan.value);
           uge.warn(`snapping pan ${pan.value} -> ${snapped}`);
           channelMeta.nr51 = mapPanEnumToNR51(snapped);
