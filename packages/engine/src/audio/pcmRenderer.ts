@@ -155,6 +155,46 @@ function renderChannel(
  * @param sampleRate The sample rate for rendering.
  * @param channels Number of audio channels.
  */
+function panToGains(panSpec: any): { left: number; right: number } {
+  // panSpec may be: { enum:'L'|'R'|'C' } | { value: number } | string | number
+  let p: number | null = null;
+  if (panSpec === undefined || panSpec === null) p = 0;
+  else if (typeof panSpec === 'number') p = Math.max(-1, Math.min(1, panSpec));
+  else if (typeof panSpec === 'string') {
+    const up = panSpec.toUpperCase();
+    if (up === 'L') p = -1;
+    else if (up === 'R') p = 1;
+    else if (up === 'C') p = 0;
+    else {
+      const n = Number(panSpec);
+      p = Number.isNaN(n) ? 0 : Math.max(-1, Math.min(1, n));
+    }
+  } else if (typeof panSpec === 'object') {
+    if (panSpec.enum) {
+      const up = String(panSpec.enum).toUpperCase();
+      p = up === 'L' ? -1 : (up === 'R' ? 1 : 0);
+    } else if (typeof panSpec.value === 'number') {
+      p = Math.max(-1, Math.min(1, panSpec.value));
+    } else p = 0;
+  }
+  // Ensure p is numeric
+  if (p === null) p = 0;
+  // Equal-power panning
+  const angle = ((p + 1) / 2) * (Math.PI / 2);
+  const left = Math.cos(angle);
+  const right = Math.sin(angle);
+  return { left, right };
+}
+
+function resolveEventPan(ev: NoteEvent, inst: InstrumentNode): any {
+  if (ev && (ev as any).pan) return (ev as any).pan;
+  if (inst) {
+    if ((inst as any)['gb:pan']) return (inst as any)['gb:pan'];
+    if ((inst as any)['pan'] !== undefined) return (inst as any)['pan'];
+  }
+  return undefined;
+}
+
 function renderNoteEvent(
   ev: NoteEvent,
   inst: InstrumentNode,
@@ -167,20 +207,24 @@ function renderNoteEvent(
   const token = ev.token;
   const m = token.match(/^([A-G][#B]?)(-?\d+)$/i);
   if (!m) return;
-  
+
   const note = m[1].toUpperCase();
   const octave = parseInt(m[2], 10);
   const midi = noteNameToMidi(note, octave);
   if (midi === null) return;
-  
+
   const freq = midiToFreq(midi);
-  
+
+  // Determine pan gains for stereo rendering
+  let panSpec = resolveEventPan(ev, inst);
+  const gains = panToGains(panSpec);
+
   if (inst.type && inst.type.toLowerCase().includes('pulse')) {
-    renderPulse(buffer, startSample, durationSamples, freq, inst, sampleRate, channels);
+    renderPulse(buffer, startSample, durationSamples, freq, inst, sampleRate, channels, gains);
   } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
-    renderWave(buffer, startSample, durationSamples, freq, inst, sampleRate, channels);
+    renderWave(buffer, startSample, durationSamples, freq, inst, sampleRate, channels, gains);
   } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
-    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels);
+    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
   }
 }
 
@@ -229,7 +273,8 @@ function renderPulse(
   freq: number,
   inst: InstrumentNode,
   sampleRate: number,
-  channels: number
+  channels: number,
+  gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
   // Parse duty - handle various formats
   let duty = 0.5;
@@ -273,12 +318,14 @@ function renderPulse(
     // Apply envelope
     const envVal = getEnvelopeValue(t, envelope);
     const sample = square * envVal * 0.6; // Match browser amplitude
-    
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
-      buffer[bufferIdx] += sample;
-      if (channels === 2 && bufferIdx + 1 < buffer.length) {
-        buffer[bufferIdx + 1] += sample;
+      if (channels === 2) {
+        if (bufferIdx < buffer.length) buffer[bufferIdx] += sample * gains.left;
+        if (bufferIdx + 1 < buffer.length) buffer[bufferIdx + 1] += sample * gains.right;
+      } else {
+        buffer[bufferIdx] += sample; // mono
       }
     }
   }
@@ -303,7 +350,8 @@ function renderWave(
   freq: number,
   inst: InstrumentNode,
   sampleRate: number,
-  channels: number
+  channels: number,
+  gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
   const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
   
@@ -315,9 +363,11 @@ function renderWave(
     
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
-      buffer[bufferIdx] += sample;
-      if (channels === 2 && bufferIdx + 1 < buffer.length) {
-        buffer[bufferIdx + 1] += sample;
+      if (channels === 2) {
+        if (bufferIdx < buffer.length) buffer[bufferIdx] += sample * gains.left;
+        if (bufferIdx + 1 < buffer.length) buffer[bufferIdx + 1] += sample * gains.right;
+      } else {
+        buffer[bufferIdx] += sample; // mono
       }
     }
   }
@@ -340,7 +390,8 @@ function renderNoise(
   duration: number,
   inst: InstrumentNode,
   sampleRate: number,
-  channels: number
+  channels: number,
+  gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
   const envelope = parseEnvelope(inst.env);
   
@@ -389,9 +440,11 @@ function renderNoise(
     
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
-      buffer[bufferIdx] += sample;
-      if (channels === 2 && bufferIdx + 1 < buffer.length) {
-        buffer[bufferIdx + 1] += sample;
+      if (channels === 2) {
+        if (bufferIdx < buffer.length) buffer[bufferIdx] += sample * gains.left;
+        if (bufferIdx + 1 < buffer.length) buffer[bufferIdx + 1] += sample * gains.right;
+      } else {
+        buffer[bufferIdx] += sample; // mono
       }
     }
   }

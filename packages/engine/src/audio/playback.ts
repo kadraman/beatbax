@@ -10,6 +10,7 @@ import { noteNameToMidi, midiToFreq } from '../chips/gameboy/apu.js';
 import TickScheduler from '../scheduler/tickScheduler.js';
 import createScheduler from '../scheduler/index.js';
 import BufferedRenderer from './bufferedRenderer.js';
+import { get as getEffect } from '../effects/index.js';
 
 export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
@@ -168,7 +169,8 @@ export class Player {
               this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, dur);
             } else if (token.type === 'note') {
               const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
-              this.scheduleToken(ch.id, instProps, instsMap, token.token, t, dur);
+              // Pass the full token object so scheduleToken can honour inline pan/effects
+              this.scheduleToken(ch.id, instProps, instsMap, token, t, dur);
               if (tempRemaining > 0) {
                 tempRemaining -= 1;
                 if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
@@ -245,7 +247,7 @@ export class Player {
     } catch (e) {}
   }
 
-  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: string, time: number, dur: number) {
+  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number) {
     if (token === '.') return;
     if (instsMap && typeof token === 'string' && instsMap[token]) {
       const alt = instsMap[token];
@@ -263,7 +265,13 @@ export class Player {
     }
     if (!inst) return;
     try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst, token, time, dur }); } } catch (e) {}
-    const m = (typeof token === 'string' && token.match(/^([A-G][#B]?)(-?\d+)$/i)) || null;
+
+    // token may be a string like "C4" or an object with { type: 'note', token: 'C4', pan, effects }
+    let tokenStr: string = typeof token === 'string' ? token : (token && token.token ? token.token : '');
+    // compute pan if present: inline token pan takes precedence; inst pan as fallback
+    const panVal = (token && token.pan) ? token.pan : (inst && (inst['gb:pan'] || inst['pan']) ? inst['gb:pan'] || inst['pan'] : undefined);
+
+    const m = (typeof tokenStr === 'string' && tokenStr.match(/^([A-G][#B]?)(-?\d+)$/i)) || null;
     if (m) {
       const note = m[1].toUpperCase();
       const octave = parseInt(m[2], 10);
@@ -274,12 +282,16 @@ export class Player {
         const duty = inst.duty ? parseFloat(inst.duty) / 100 : 0.5;
         const buffered = (this as any)._buffered as any;
         if (buffered) {
-          buffered.enqueuePulse(time, freq, duty, dur, inst, chId);
+          // For buffered rendering, attach pan info into queued item for later panning processing
+          buffered.enqueuePulse(time, freq, duty, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playPulse(this.ctx, freq, duty, time, dur, inst, this.scheduler);
+            // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
@@ -287,24 +299,28 @@ export class Player {
         const wav = parseWaveTable(inst.wave);
         const buffered = (this as any)._buffered as any;
         if (buffered) {
-          buffered.enqueueWavetable(time, freq, wav, dur, inst, chId);
+          buffered.enqueueWavetable(time, freq, wav, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, inst, this.scheduler);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
       } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
         const buffered = (this as any)._buffered as any;
         if (buffered) {
-          buffered.enqueueNoise(time, dur, inst, chId);
+          buffered.enqueueNoise(time, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
@@ -315,9 +331,74 @@ export class Player {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
           const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
+          this.tryApplyPan(this.ctx, nodes, panVal);
           for (const n of nodes) this.activeNodes.push({ node: n, chId });
         });
       }
+    }
+  }
+
+  // Apply registered effects for a scheduled note. `effectsArr` may be an array of
+  // objects { type, params } produced by the parser (or legacy arrays). This will
+  // look up handlers in the effects registry and invoke them.
+  private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number) {
+    if (!Array.isArray(effectsArr) || effectsArr.length === 0) return;
+    for (const fx of effectsArr) {
+      try {
+        const name = fx && fx.type ? fx.type : fx;
+        const params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+        const handler = getEffect(name);
+        if (handler) {
+          try { handler(ctx, nodes, params, start, dur); } catch (e) {}
+        }
+      } catch (e) {}
+    }
+  }
+
+
+  // Try to apply per-note panning. `nodes` is the array returned by play* functions
+  // which typically is [oscillatorNode, gainNode]. We attempt to insert a StereoPannerNode
+  // between the gain and the destination when available. `panSpec` may be:
+  //  - an object { enum: 'L'|'R'|'C' } or { value: number }
+  //  - a raw number or string
+  private tryApplyPan(ctx: any, nodes: any[], panSpec: any) {
+    if (!panSpec) return;
+    let p = undefined as number | undefined;
+    if (typeof panSpec === 'number') p = Math.max(-1, Math.min(1, panSpec));
+    else if (typeof panSpec === 'string') {
+      const s = panSpec.toUpperCase();
+      if (s === 'L') p = -1;
+      else if (s === 'R') p = 1;
+      else if (s === 'C') p = 0;
+      else { const n = Number(panSpec); if (!Number.isNaN(n)) p = Math.max(-1, Math.min(1, n)); }
+    } else if (typeof panSpec === 'object') {
+      if (panSpec.value !== undefined) p = Math.max(-1, Math.min(1, Number(panSpec.value)));
+      else if (panSpec.enum) {
+        const s = String(panSpec.enum).toUpperCase(); if (s === 'L') p = -1; else if (s === 'R') p = 1; else p = 0;
+      }
+    }
+    if (p === undefined) return;
+
+    try {
+      const gain = nodes && nodes.length >= 2 ? nodes[1] : null;
+      if (!gain || typeof gain.connect !== 'function') return;
+      const dest = (ctx as any).destination;
+      // create StereoPannerNode if available
+      const createPanner = (ctx as any).createStereoPanner;
+      if (typeof createPanner === 'function') {
+        const panner = (ctx as any).createStereoPanner();
+        try { panner.pan.setValueAtTime(p, (ctx as any).currentTime); } catch (e) { try { (panner as any).pan.value = p; } catch (e2) {} }
+        try { gain.disconnect(dest); } catch (e) {}
+        gain.connect(panner);
+        panner.connect(dest);
+        // also track panner node so stop/cleanup will disconnect it
+        this.activeNodes.push({ node: panner, chId: -1 });
+      } else {
+        // StereoPanner not available — best-effort: do nothing or optionally implement left/right gains
+        // For now, we silently skip (no pan) to avoid complex signal routing.
+      }
+    } catch (e) {
+      // swallow errors — panning is best-effort
     }
   }
 

@@ -4,6 +4,74 @@ import { transposePattern } from '../patterns/expand.js';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
 import { applyInstrumentToEvent } from '../instruments/instrumentState.js';
 
+// Helpers for parsing inline effects and pan specifications
+function parsePanSpec(val: any, ns?: string) {
+  if (val === undefined || val === null) return undefined;
+  const s = String(val).trim();
+  const up = s.toUpperCase();
+  if (up === 'L' || up === 'R' || up === 'C') {
+    return { enum: up as 'L' | 'R' | 'C', sourceNamespace: ns };
+  }
+  // Numeric value
+  const n = Number(s);
+  if (!Number.isNaN(n)) {
+    return { value: Math.max(-1, Math.min(1, n)), sourceNamespace: ns };
+  }
+  return undefined;
+}
+
+// Helper: determine whether a parsed pan value is effectively empty.
+// We only consider an object "non-empty" if it has its own `enum` or `value` property.
+export function isPanEmpty(pan: any): boolean {
+  if (pan === undefined || pan === null) return true;
+  if (typeof pan === 'object') {
+    const hasEnum = Object.prototype.hasOwnProperty.call(pan, 'enum');
+    const hasValue = Object.prototype.hasOwnProperty.call(pan, 'value');
+    return !(hasEnum || hasValue);
+  }
+  // strings or numbers are considered non-empty pan specifications
+  return false;
+}
+
+export function parseEffectParams(paramsStr: string | undefined): Array<string | number> {
+  if (!paramsStr || !paramsStr.length) return [];
+  return paramsStr
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s !== '')
+    .map(s => (isNaN(Number(s)) ? s : Number(s)));
+}
+
+export function parseEffectsInline(str: string) {
+  const parts = str.split(',').map(s => s.trim()).filter(Boolean);
+  const effects: Array<{ type: string; params: Array<string | number> }> = [];
+  let pan: any = undefined;
+  for (const p of parts) {
+    // Detect namespaced pan tokens first: gb:pan:L, pan:L, pan=-0.5
+    const panMatch = p.match(/^(?:(gb):)?pan[:=](-?\d*\.?\d+|L|R|C)$/i);
+    if (panMatch) {
+      const [, ns, val] = panMatch;
+      const up = String(val).toUpperCase();
+      if (up === 'L' || up === 'R' || up === 'C') {
+        pan = { enum: up as 'L'|'R'|'C', sourceNamespace: ns || undefined };
+      } else {
+        const num = Number(val);
+        if (!Number.isNaN(num)) pan = { value: Math.max(-1, Math.min(1, num)), sourceNamespace: ns || undefined };
+      }
+      continue;
+    }
+
+    // Normal effect: type:params
+    const m = p.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(?::(.+))?$/);
+    if (!m) continue;
+    const type = m[1];
+    const paramsStr = m[2];
+    const params = parseEffectParams(paramsStr);
+    effects.push({ type, params });
+  }
+  return { effects, pan };
+}
+
 /**
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
@@ -67,6 +135,7 @@ export function resolveSong(ast: AST): SongModel {
           let semitones = 0;
           let octaves = 0;
           let instOverride: string | null = null;
+          let panOverride: string | undefined = undefined;
           for (const mod of mods) {
             const mOct = mod.match(/^oct\((-?\d+)\)$/i);
             if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
@@ -87,6 +156,8 @@ export function resolveSong(ast: AST): SongModel {
             }
             const mInst = mod.match(/^inst\(([^)]+)\)$/i);
             if (mInst) { instOverride = mInst[1]; continue; }
+            const mPan = mod.match(/^pan\(([^)]*)\)$/i);
+            if (mPan) { panOverride = mPan[1].trim(); continue; }
             const mTrans = mod.match(/^([+-]?\d+)$/);
             if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
             const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
@@ -98,6 +169,10 @@ export function resolveSong(ast: AST): SongModel {
           if (instOverride) {
             tks.unshift(`inst(${instOverride})`);
           }
+          if (panOverride) {
+            tks.unshift(`pan(${panOverride})`);
+            tks.push(`pan()`);
+          }
           return tks;
         }
 
@@ -106,6 +181,7 @@ export function resolveSong(ast: AST): SongModel {
           let semitones = 0;
           let octaves = 0;
           let instOverride: string | null = null;
+          let panOverride: string | undefined = undefined;
           for (const mod of mods) {
             const mOct = mod.match(/^oct\((-?\d+)\)$/i);
             if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
@@ -126,6 +202,8 @@ export function resolveSong(ast: AST): SongModel {
             }
             const mInst = mod.match(/^inst\(([^)]+)\)$/i);
             if (mInst) { instOverride = mInst[1]; continue; }
+            const mPan = mod.match(/^pan\(([^)]*)\)$/i);
+            if (mPan) { panOverride = mPan[1].trim(); continue; }
             const mTrans = mod.match(/^([+-]?\d+)$/);
             if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
             const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
@@ -135,6 +213,10 @@ export function resolveSong(ast: AST): SongModel {
             tks = transposePattern(tks, { semitones, octaves });
           }
           if (instOverride) tks.unshift(`inst(${instOverride})`);
+          if (panOverride) {
+            tks.unshift(`pan(${panOverride})`);
+            tks.push(`pan()`);
+          }
           return tks;
         }
 
@@ -160,6 +242,8 @@ export function resolveSong(ast: AST): SongModel {
     let currentInstName: string | undefined = ch.inst;
     let tempInstName: string | undefined = undefined;
     let tempRemaining = 0;
+    // Sequence-level pan override (applies until reset via pan() token)
+    let sequencePanOverride: any = undefined;
 
     function resolveInstName(name: string | undefined) {
       if (!name) return undefined;
@@ -204,6 +288,26 @@ export function resolveSong(ast: AST): SongModel {
         continue;
       }
 
+      // pan(spec) sets a sequence-level pan override for the following tokens in this occurrence
+      const mPanInline = typeof token === 'string' && token.match(/^pan\(([^)]*)\)$/i);
+      const mPanReset = typeof token === 'string' && token.match(/^pan\(\s*\)$/i);
+      if (mPanReset) {
+        sequencePanOverride = undefined;
+        continue;
+      }
+      if (mPanInline) {
+        const specRaw = (mPanInline[1] || '').trim();
+        if (specRaw) {
+          // support 'gb:R' or 'R' or numeric
+          const mNs = specRaw.match(/^(gb)[:]?(.+)$/i);
+          if (mNs) sequencePanOverride = parsePanSpec(mNs[2], mNs[1]);
+          else sequencePanOverride = parsePanSpec(specRaw);
+        } else {
+          sequencePanOverride = undefined;
+        }
+        continue;
+      }
+
       // Immediate hit syntax: hit(name,N)
       const mHit = typeof token === 'string' && token.match(/^hit\(([^,()\s]+)(?:,(\d+))?\)$/i);
       if (mHit) {
@@ -242,11 +346,44 @@ export function resolveSong(ast: AST): SongModel {
         continue;
       }
 
-      // assume token is a note like C4
+      // assume token is a note like C4 or a note with inline effects: C4<pan:-0.5,vib:4>
       if (typeof token === 'string') {
+        // Extract inline effect block if present
+        const inlineMatch = token.match(/^([^<]+)<(.+)>$/);
+        let baseToken = token;
+        let parsedPan: any = undefined;
+        let parsedEffects: any[] = [];
+        if (inlineMatch) {
+          baseToken = inlineMatch[1];
+          const inner = inlineMatch[2];
+          const parsed = parseEffectsInline(inner);
+          parsedPan = parsed.pan;
+          parsedEffects = parsed.effects || [];
+        }
+
         const useInst = tempInstName || currentInstName;
-        let ev: ChannelEvent = { type: 'note', token, instrument: useInst };
-        ev = applyInstrumentToEvent(insts, ev) as ChannelEvent;
+        let ev: any = { type: 'note', token: baseToken, instrument: useInst };
+        // attach parsed inline pan/effects to event object
+        if (parsedPan) ev.pan = parsedPan;
+        if (parsedEffects && parsedEffects.length) ev.effects = parsedEffects;
+
+        ev = applyInstrumentToEvent(insts, ev) as any;
+
+        // Sequence-level pan override (from :pan() modifier on seq items)
+        if (isPanEmpty(ev.pan) && sequencePanOverride) {
+          ev.pan = sequencePanOverride;
+        }
+
+        // If no inline/sequence pan, but instrument has a pan property, use it as default
+        if (isPanEmpty(ev.pan) && ev.instProps) {
+          const ip = ev.instProps as any;
+          if (ip['gb:pan']) {
+            ev.pan = parsePanSpec(ip['gb:pan'], 'gb');
+          } else if (ip['pan']) {
+            ev.pan = parsePanSpec(ip['pan']);
+          }
+        }
+
         chModel.events.push(ev);
         if (tempRemaining > 0) {
           tempRemaining -= 1;

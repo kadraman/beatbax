@@ -244,3 +244,8 @@ For issues with UGE export:
 2. Check test suite: `npm test`
 3. Validate with uge2source.exe
 4. Open an issue with example `.bax` file and error details
+
+Notes on panning & NR51
+- BeatBax maps `gb:pan` and snapped numeric `pan` values to NR51 terminal bits for UGE export and emits `8xx` Set-Panning effects in pattern data when the mix changes on note onsets.
+- The exporter no longer appends an `[NR51=0x..]` debug tag to the UGE comment; use `export json` for round-trip metadata if required.
+- Use `--strict-gb` with `export uge` to reject numeric pans instead of snapping them.

@@ -152,9 +152,13 @@ tests/*.js
 # sample source code
 lib
 
+# generate tools
+tools
+
 # output files
 *.uge
 *.wav
 *.mid
 output.*
 test.ps1
+songs/effect_demo.bax
