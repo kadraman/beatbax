@@ -1,14 +1,14 @@
 # hUGETracker UGE v6 — Format Specification (implementer guide)
-**Filename suggestion:** `docs/uge-v6-spec.md`  
+**Filename suggestion:** `docs/uge-v6-spec.md`
 
-**Purpose:** definitive reference for parsing/validating `.uge` (hUGETracker v6) files for export from the language runtime.  
+**Purpose:** definitive reference for parsing/validating `.uge` (hUGETracker v6) files for export from the language runtime.
 **Primary source:** hUGETracker manual — "hUGETracker .UGE v5/v6 format spec". :contentReference[oaicite:2]{index=2}
 
 ---
 
 ## Short overview / constraints
-- All numeric types are **little-endian** unless explicitly stated. :contentReference[oaicite:3]{index=3}  
-- The file begins with a `uint32` **version number**. The spec below includes conditional fields depending on version (v5/v6 differences are noted). :contentReference[oaicite:4]{index=4}  
+- All numeric types are **little-endian** unless explicitly stated. :contentReference[oaicite:3]{index=3}
+- The file begins with a `uint32` **version number**. The spec below includes conditional fields depending on version (v5/v6 differences are noted). :contentReference[oaicite:4]{index=4}
 - UGE v6 is the version currently supported/targeted by modern tools (hUGETracker releases and GB Studio compatibility notes). Test with the latest hUGETracker and GB Studio when possible. :contentReference[oaicite:5]{index=5}
 
 ---
@@ -32,10 +32,10 @@
    - `uint32` Version number
    - `shortstring` Song name
    - `shortstring` Song artist
-   - `shortstring` Song comment  
+   - `shortstring` Song comment
    (All 3 shortstrings follow the `shortstring` layout above.) :contentReference[oaicite:8]{index=8}
 
-2. **Duty (Pulse) Instruments** — repeated **15 times** (Duty instruments block)  
+2. **Duty (Pulse) Instruments** — repeated **15 times** (Duty instruments block)
    See “Duty Instruments” section for the exact fields. :contentReference[oaicite:9]{index=9}
 
 3. **Wave Instruments** — repeated **15 times** (Wave instruments block) :contentReference[oaicite:10]{index=10}
@@ -57,32 +57,32 @@
 > The following is a literal translation of the manual's structured spec (use this as the canonical read order). Conditional only-on-v6 fields are marked.
 
 ### Header
-- `uint32` versionNumber  
-- `shortstring` songName  
-- `shortstring` songArtist  
+- `uint32` versionNumber
+- `shortstring` songName
+- `shortstring` songArtist
 - `shortstring` songComment. :contentReference[oaicite:16]{index=16}
 
 ### Duty Instruments (repeat 15 times)
-- `uint32` Type (0 for duty/pulse instruments)  
-- `shortstring` Instrument name  
-- `uint32` Length (pattern length / instrument length)  
-- `bool` Length enabled  
-- `uint8` Initial volume  
-- `uint32` Volume sweep direction (0 = Increase, 1 = Decrease)  
-- `uint8` Volume sweep change  
+- `uint32` Type (0 for duty/pulse instruments)
+- `shortstring` Instrument name
+- `uint32` Length (pattern length / instrument length)
+- `bool` Length enabled
+- `uint8` Initial volume
+- `uint32` Volume sweep direction (0 = Increase, 1 = Decrease)
+- `uint8` Volume sweep change
 - `uint32` Frequency sweep time (0..7)
 - `uint32` Frequency sweep direction (0 = Increase/Up, 1 = Decrease/Down)
 - `uint32` Frequency sweep shift (0..7)
-- `uint8` Duty cycle (0..3 mapping to 12.5/25/50/75%)  
-- `uint32` Unused  
-- `uint32` Unused  
+- `uint8` Duty cycle (0..3 mapping to 12.5/25/50/75%)
+- `uint32` Unused
+- `uint32` Unused
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
-- `uint32` Unused  
+  - `uint32` Unused
+- `uint32` Unused
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
+  - `uint32` Unused
 - *Else (v6 and up):*
-  - `bool` Subpattern enabled  
+  - `bool` Subpattern enabled
     - Repeat 64 times:
       - `uint32` Row note (0..72; 90 means unused)
         - **BeatBax Mapping**: Index 0 corresponds to MIDI 36 (C2, ~65.4Hz).
@@ -98,24 +98,24 @@
 > - The "subpattern" block (v6) stores per-row specifics for the instrument (allowing instruments to embed small sequences of control data). :contentReference[oaicite:17]{index=17}
 
 ### Wave Instruments (repeat 15 times)
-- `uint32` Type (1)  
-- `shortstring` Instrument name  
-- `uint32` Length  
-- `bool` Length enabled  
-- `uint8` Unused  
-- `uint32` Unused  
-- `uint8` Unused  
-- `uint32` Unused  
-- `uint32` Unused  
-- `uint32` Unused  
-- `uint8` Unused  
-- `uint32` Volume  
-- `uint32` Wave index  
+- `uint32` Type (1)
+- `shortstring` Instrument name
+- `uint32` Length
+- `bool` Length enabled
+- `uint8` Unused
+- `uint32` Unused
+- `uint8` Unused
+- `uint32` Unused
+- `uint32` Unused
+- `uint32` Unused
+- `uint8` Unused
+- `uint32` Volume
+- `uint32` Wave index
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
-- `uint32` Unused  
+  - `uint32` Unused
+- `uint32` Unused
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
+  - `uint32` Unused
 - *Else (v6+):*
   - `bool` Subpattern enabled
     - Repeat 64 times:
@@ -129,24 +129,24 @@
     - `int8` Unused
 
 ### Noise Instruments (repeat 15 times)
-- `uint32` Type (2)  
-- `shortstring` Instrument name  
-- `uint32` Length  
-- `bool` Length enabled  
-- `uint8` Initial volume  
-- `uint32` Volume sweep direction (0 = Increase, 1 = Decrease)  
-- `uint8` Volume sweep change  
-- `uint32` Unused  
-- `uint32` Unused  
-- `uint32` Unused  
-- `uint8` Unused  
-- `uint32` Unused  
-- `uint32` Unused  
+- `uint32` Type (2)
+- `shortstring` Instrument name
+- `uint32` Length
+- `bool` Length enabled
+- `uint8` Initial volume
+- `uint32` Volume sweep direction (0 = Increase, 1 = Decrease)
+- `uint8` Volume sweep change
+- `uint32` Unused
+- `uint32` Unused
+- `uint32` Unused
+- `uint8` Unused
+- `uint32` Unused
+- `uint32` Unused
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
-- `uint32` Noise mode (0 = 15 bit, 1 = 7 bit)  
+  - `uint32` Unused
+- `uint32` Noise mode (0 = 15 bit, 1 = 7 bit)
 - *If `versionNumber` < 6:*
-  - `uint32` Unused  
+  - `uint32` Unused
 - *Else (v6+):*
   - `bool` Subpattern enabled
     - Repeat 64 times:
@@ -202,27 +202,27 @@
 ---
 
 ## Validation rules / sanity checks (what your exporter/validator should assert)
-1. **Version** must be >= 5 and <= 6 (for this v6 spec). If writing v6, set versionNumber = 6. Validate consumers' expectations. :contentReference[oaicite:21]{index=21}  
-2. **String lengths**: ensure `shortstring` length byte ≤ 255 and actual bytes ≤ 255.  
-3. **Instrument counts**: exactly 15 entries each for Duty, Wave, Noise.  
-4. **Pattern rows**: exactly 64 rows per pattern; each row's note must be in expected numeric range (0..72, 90 for unused).  
-5. **Wavetable nibble values**: each `uint8` must be 0..15 (nibble).  
-6. **Order length**: remember the spec’s "Order length + 1" storage; verify the writer computes the stored value appropriately. :contentReference[oaicite:22]{index=22}  
-7. **Effect codes & parameters** must fit tracker-defined ranges—validate any effect mapping table you implement corresponds to hUGETracker effect codes (see manual effect reference). :contentReference[oaicite:23]{index=23}  
+1. **Version** must be >= 5 and <= 6 (for this v6 spec). If writing v6, set versionNumber = 6. Validate consumers' expectations. :contentReference[oaicite:21]{index=21}
+2. **String lengths**: ensure `shortstring` length byte ≤ 255 and actual bytes ≤ 255.
+3. **Instrument counts**: exactly 15 entries each for Duty, Wave, Noise.
+4. **Pattern rows**: exactly 64 rows per pattern; each row's note must be in expected numeric range (0..72, 90 for unused).
+5. **Wavetable nibble values**: each `uint8` must be 0..15 (nibble).
+6. **Order length**: remember the spec’s "Order length + 1" storage; verify the writer computes the stored value appropriately. :contentReference[oaicite:22]{index=22}
+7. **Effect codes & parameters** must fit tracker-defined ranges—validate any effect mapping table you implement corresponds to hUGETracker effect codes (see manual effect reference). :contentReference[oaicite:23]{index=23}
 8. **Subpattern blocks**: if writing v6 include the subpattern block for each instrument with the exact 64 rows and fields. If not required, set `Subpattern enabled = false` and fill minimal placeholders as spec requires. :contentReference[oaicite:24]{index=24}
 
 ---
 
 ## Parsing guidance / pseudocode
-1. Read `version` (uint32). Decide code paths for v6-only fields.  
-2. Read header shortstrings (song name/artist/comment).  
-3. Loop 15 times: parse Duty instrument entries (respect `version` conditionals).  
-4. Loop 15 times: parse Wave instrument entries.  
-5. Loop 15 times: parse Noise instrument entries.  
-6. Parse 16 wavetable blocks (32 bytes each).  
-7. Parse song-level values (ticks per row, timer-based tempo flags if v6+, number of patterns).  
-8. For each pattern, read 64 rows -> note/instrument/effect/parameter fields.  
-9. For each of the 4 order blocks, read order length (remember +1), then the index list, then trailing filler.  
+1. Read `version` (uint32). Decide code paths for v6-only fields.
+2. Read header shortstrings (song name/artist/comment).
+3. Loop 15 times: parse Duty instrument entries (respect `version` conditionals).
+4. Loop 15 times: parse Wave instrument entries.
+5. Loop 15 times: parse Noise instrument entries.
+6. Parse 16 wavetable blocks (32 bytes each).
+7. Parse song-level values (ticks per row, timer-based tempo flags if v6+, number of patterns).
+8. For each pattern, read 64 rows -> note/instrument/effect/parameter fields.
+9. For each of the 4 order blocks, read order length (remember +1), then the index list, then trailing filler.
 10. Read 16 routines (strings).
 
 > Implementation tip: implement a **stream-reader** helper that reads typed values in little-endian and exposes `readUint8`, `readUint32`, `readBool`, `readShortString`, `readString`, etc.
@@ -273,6 +273,18 @@ export interface WaveInstrument {
   name: string;
   length: number;
   lengthEnabled: boolean;
+  /**
+   * Output level selector stored as a raw value 0..3 (per hUGE v6 format):
+   *  - 0 = Mute
+   *  - 1 = 100% (maps to NR32 bits 01)
+   *  - 2 = 50%  (maps to NR32 bits 10)
+   *  - 3 = 25%  (maps to NR32 bits 11)
+   *
+   * Note: this is NOT a volume envelope. hUGEDriver converts this to the
+   * NR32 register value by shifting left 5 (NR32 = volume << 5) when writing
+   * to hardware. Changing this value mid-note has no audible effect until
+   * the note is retriggered or the instrument is changed.
+   */
   volume: number;
   waveIndex: number;
   subpatternEnabled?: boolean;

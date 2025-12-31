@@ -162,11 +162,18 @@ interface WaveInstrument {
   name: string;
   length: number;
   lengthEnabled: boolean;
+  /** Raw output-level selector (0..3). See docs for NR32 mapping. */
   volume: number;
   waveIndex: number; // 0-15
   subpatternEnabled: boolean;
   subpattern: SubPatternCell[];
 }
+
+// When importing a UGE file, the reader should interpret `volume` (0..3)
+// as an output-level selector and map it to BeatBax `volume=` semantics
+// for display or round-trip purposes: 1 => 100, 2 => 50, 3 => 25, 0 => 0.
+// Remember: this value is an output selector only and changing it mid-note
+// will not affect an already sounding note unless retriggered.
 
 interface NoiseInstrument {
   type: InstrumentType.noise;

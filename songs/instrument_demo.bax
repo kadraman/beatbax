@@ -51,6 +51,11 @@ inst wave_sine type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] gm=82
 inst wave_saw  type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] gm=81
 inst wave_ramp type=wave wave=[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] gm=81
 inst wave_square type=wave wave=[15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0] gm=80
+# Volume demos for wave channel
+inst wave_loud  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=100 gm=82
+inst wave_soft  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=50 gm=82
+inst wave_quiet type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=25 gm=82
+inst wave_mute  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=0  gm=82
 
 # Harmonic-rich waveforms
 inst wave_triangle type=wave wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2] gm=82
@@ -127,7 +132,7 @@ seq bass_demo_seq = bass_line_pat:inst(bass_punch) bass_line2_pat:inst(bass_sub)
 # Channel 4: See percussion_demo.bax
 
 channel 1 => inst lead_bright  seq duty_showcase_seq env_showcase_seq
-channel 2 => inst bass_punch   seq bass_demo_seq bass_demo_seq bass_demo_seq 
+channel 2 => inst bass_punch   seq bass_demo_seq bass_demo_seq bass_demo_seq
 channel 3 => inst wave_sine    seq wave_basic_seq wave_music_seq
 
 # =============================================================================
