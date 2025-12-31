@@ -36,6 +36,18 @@ Instrument semantics
 - Inline temporary override: `inst(name,N)` sets a temporary `tempInst` that applies to the next N non‑rest tokens. The counter decrements only for tokens that produce sound (rests are ignored). This behavior is implemented in `Player.playAST`.
 - Named tokens: tokens like `snare` or `hihat` are looked up in `insts` at schedule time. If the named instrument is noise, it is scheduled immediately as a noise hit; otherwise the instrument is used for note playback.
 
+## Panning — implementation notes
+- Parsing & AST: `parseEffects` (parser) recognizes `pan` tokens and returns `{ effects, pan }`; inline `pan` tokens are attached to `NoteToken.pan`. The `gb:` namespace propagates to `pan.sourceNamespace`.
+- Sequence-level `:pan(...)` transforms: `expandSequenceItems` injects `pan()` / `pan(...)` tokens around sequence occurrences so the resolver applies a sequence-scoped pan override for that occurrence.
+- Playback (browser & buffered): `effects` registry includes a built-in `pan` handler that uses `StereoPannerNode` when available; `bufferedRenderer` will apply pan handler during offline rendering.
+- PCM renderer: implements equal-power panning for numeric values and uses enum->value mapping for `L`/`C`/`R`.
+- UGE exporter:
+  - Hardware mapping: GB NR51 bits map to hUGETracker's expected layout (Pulse1 left=0x01/right=0x10, Pulse2 left=0x02/right=0x20, Wave left=0x04/right=0x40, Noise left=0x08/right=0x80).
+  - Emission policy: exporter computes per-row NR51 from per-channel pans and writes a single `8xx` Set‑Panning effect on Channel 1 when the NR51 mix changes and a note onset occurs (initial row or rows with note-on). The writer tracks `lastNr51` to avoid redundant writes across sustain/rest rows.
+  - Strict mode / snapping: numeric pans are snapped deterministically to `L/C/R` (pan < -0.33 → L, pan > 0.33 → R, otherwise C) in non-strict exports; `--strict-gb` rejects numeric pans as an error.
+  - Metadata: exporter no longer appends an `[NR51=0x..]` tag to the UGE comment; use JSON export for round-trip metadata if needed.
+- Tests: new tests cover parser pan parsing, sequence-level pan application, buffered/PCM rendering panning behavior, UGE NR51 mapping and emission policy, and regression tests ensuring no redundant 8xx writes on sustain rows.
+
 - Immediate hits / shorthand: `hit(name,N)` emits N immediate named hits. `name*4` shorthand has been added as a concise equivalent to `hit(name,4)`. `inst(name,N)` continues to be a temporary override for upcoming non-rest notes, but as a convenience it now emits immediate hits when there are no future event-producing tokens in the same pattern.
 
 Testing

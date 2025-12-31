@@ -100,6 +100,20 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
     sampleRate,
     channels: 2 // Always stereo for now to match browser
   });
+
+  if (metaOpts && metaOpts.debug) {
+    // Compute simple left/right energy for first 10000 frames to sanity-check panning
+    const frames = Math.min(10000, Math.floor(samples.length / 2));
+    let left = 0, right = 0;
+    for (let i = 0; i < frames; i++) {
+      left += Math.abs(samples[i * 2 + 0]);
+      right += Math.abs(samples[i * 2 + 1]);
+    }
+    console.log(`[DEBUG] WAV pre-write: frames=${frames} leftSum=${left.toFixed(6)} rightSum=${right.toFixed(6)}`);
+    if (Math.abs(left - right) < 1e-9) {
+      console.warn('[WARN] left and right channel energy appear identical — check panning/resolution');
+    }
+  }
   
   await exportWAV(samples, outputPath, {
     sampleRate,

@@ -350,32 +350,37 @@ function eventsToPatterns(
     dutyInsts: string[],
     waveInsts: string[],
     noiseInsts: string[],
-): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number }>> {
-    const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number }>> = [];
+    strictGb: boolean = false,
+): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> {
+    const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>> = [];
     
     // Split events into 64-row patterns
-    let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number }> = [];
+    let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }> = [];
     
+    // Track the last active pan for this channel so sustain rows inherit it
+    let currentPan: 'L'|'R'|'C' = 'C';
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
         
-        let cell: { note: number; instrument: number; effectCode: number; effectParam: number };
+        let cell: { note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' };
 
         if (event.type === 'rest') {
-            // Rest = empty cell (no note trigger, no effect)
+            // Rest = empty cell (no note trigger, no effect) but inherit current pan
             cell = {
                 note: EMPTY_NOTE,
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: currentPan,
             };
         } else if (event.type === 'sustain') {
-            // Sustain = empty cell (90)
+            // Sustain = ongoing note; retain currentPan
             cell = {
                 note: EMPTY_NOTE,
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: currentPan,
             };
         } else if (event.type === 'note') {
             const noteEvent = event as NoteEvent;
@@ -395,11 +400,30 @@ function eventsToPatterns(
                 noiseInsts,
             );
 
+            // Determine per-note pan enum (L/C/R)
+            let panEnum: 'L'|'R'|'C' = currentPan;
+            // Inline note pan -> instrument GB pan -> instrument pan
+            const notePan = convertPanToEnum(noteEvent.pan, strictGb, 'inline');
+            if (notePan) {
+                panEnum = notePan;
+            } else if (inst) {
+                const gbP = convertPanToEnum(inst['gb:pan'], strictGb, 'instrument');
+                if (gbP) panEnum = gbP;
+                else {
+                    const instP = convertPanToEnum(inst['pan'], strictGb, 'instrument');
+                    if (instP) panEnum = instP;
+                }
+            }
+
+            // Update currentPan for subsequent sustain/rest rows
+            currentPan = panEnum;
+
             cell = {
                 note: midiNote,
                 instrument: instIndex, // UGE instruments are 0-based
                 effectCode: 0,
                 effectParam: 0,
+                pan: panEnum,
             };
         } else if (event.type === 'named') {
             // Named instrument (e.g., percussion) - the token IS the instrument name
@@ -413,13 +437,25 @@ function eventsToPatterns(
                 waveInsts,
                 noiseInsts,
             );
-            // For noise channel, use a typical percussion note (48 = good snare/hi-hat frequency)
+            // For named events, derive pan from instrument defaults if present
+            let namedPan: 'L'|'R'|'C' = currentPan;
+            const namedInst = namedEvent.token ? instruments[namedEvent.token] : undefined;
+            if (namedInst) {
+                const gbP = convertPanToEnum(namedInst['gb:pan'], strictGb, 'instrument');
+                if (gbP) namedPan = gbP;
+                else {
+                    const nP = convertPanToEnum(namedInst['pan'], strictGb, 'instrument');
+                    if (nP) namedPan = nP;
+                }
+            }
+            currentPan = namedPan;
             const noteValue = (channelType === GBChannel.NOISE) ? 48 : 60;
             cell = {
                 note: noteValue,
                 instrument: instIndex || 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: namedPan,
             };
         } else {
             // Unknown event type - treat as sustain
@@ -428,6 +464,7 @@ function eventsToPatterns(
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: currentPan,
             };
         }
         
@@ -449,6 +486,7 @@ function eventsToPatterns(
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: 'C',
             });
         }
         patterns.push(currentPattern);
@@ -456,13 +494,14 @@ function eventsToPatterns(
     
     // If no patterns, create one empty pattern
     if (patterns.length === 0) {
-        const emptyPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number }> = [];
+        const emptyPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }> = [];
         for (let i = 0; i < PATTERN_ROWS; i++) {
             emptyPattern.push({
                 note: EMPTY_NOTE,
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
+                pan: 'C',
             });
         }
         patterns.push(emptyPattern);
@@ -472,19 +511,107 @@ function eventsToPatterns(
 }
 
 /**
+ * Helper: snap numeric pan value to GB enum
+ */
+function snapToGB(value: number): 'L'|'C'|'R' {
+    if (value < -0.33) return 'L';
+    if (value > 0.33) return 'R';
+    return 'C';
+}
+
+function enumToNR51Bits(p: 'L'|'C'|'R', chIndex: number): number {
+    // Hardware-accurate NR51 layout (hUGETracker / Game Boy):
+    // Pulse1 (ch 0): left=0x01, right=0x10
+    // Pulse2 (ch 1): left=0x02, right=0x20
+    // Wave   (ch 2): left=0x04, right=0x40
+    // Noise  (ch 3): left=0x08, right=0x80
+    const LEFT_BITS = [0x01, 0x02, 0x04, 0x08];
+    const RIGHT_BITS = [0x10, 0x20, 0x40, 0x80];
+    const leftBit = LEFT_BITS[chIndex] || 0;
+    const rightBit = RIGHT_BITS[chIndex] || 0;
+    if (p === 'L') return leftBit;
+    if (p === 'R') return rightBit;
+    return leftBit | rightBit;
+}
+
+export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrument'|'inline' = 'inline'): 'L'|'C'|'R'|undefined {
+    if (pan === undefined || pan === null) return undefined;
+    if (typeof pan === 'object') {
+        if (pan.enum) {
+            const up = String(pan.enum).toUpperCase();
+            if (up === 'L' || up === 'R' || up === 'C') return up as any;
+        }
+        if (typeof pan.value === 'number') {
+            if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+            return snapToGB(pan.value);
+        }
+        return undefined;
+    }
+    if (typeof pan === 'number') {
+        if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+        return snapToGB(pan);
+    }
+    const s = String(pan);
+    const up = s.toUpperCase();
+    if (up === 'L' || up === 'R' || up === 'C') return up as any;
+    const n = Number(s);
+    if (!Number.isNaN(n)) {
+        if (strictGb) throw new Error(`Numeric ${context === 'instrument' ? 'instrument' : 'inline'} pan not allowed in strict GB export`);
+        return snapToGB(n);
+    }
+    return undefined;
+}
+
+/**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
-export async function exportUGE(song: SongModel, outputPath: string, opts?: { debug?: boolean }): Promise<void> {
+export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean } = {}): Promise<void> {
     const w = new UGEWriter();
+    const strictGb = opts && opts.strictGb === true;
 
-    // ====== Header ======
+    // ====== Header & NR51 metadata ======
+    // Compute NR51 register from channel/instrument pans and encode into comment for compatibility
+
+    function resolveChannelPan(chModel: any, insts: any): 'L'|'C'|'R' {
+        if (chModel && chModel.defaultInstrument) {
+            const inst = insts && insts[chModel.defaultInstrument];
+            if (inst) {
+                const gbPan = convertPanToEnum(inst['gb:pan'], strictGb, 'instrument');
+                if (gbPan) return gbPan;
+                const instPan = convertPanToEnum(inst['pan'], strictGb, 'instrument');
+                if (instPan) return instPan;
+            }
+        }
+        const events = chModel && chModel.events ? chModel.events : [];
+        for (const ev of events) {
+            if (ev && ev.pan) {
+                const evPan = convertPanToEnum(ev.pan, strictGb, 'inline');
+                if (evPan) return evPan;
+            }
+        }
+        return 'C';
+    }
+
+    // Enforce strict GB export rules early (throws if numeric pan is present and strict mode enabled)
+    if (strictGb) {
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const chModel = song.channels && song.channels.find((c: any) => c.id === ch + 1);
+            // resolveChannelPan will throw if numeric pan is present and strictGb=true
+            resolveChannelPan(chModel, song.insts || {});
+        }
+    }
+
+    // Header write
     w.writeU32(UGE_VERSION);
     const title = (song as any).metadata && (song as any).metadata.name ? (song as any).metadata.name : (song.pats ? 'BeatBax Song' : 'Untitled');
     const author = (song as any).metadata && (song as any).metadata.artist ? (song as any).metadata.artist : 'BeatBax';
     const comment = (song as any).metadata && (song as any).metadata.description ? (song as any).metadata.description : 'Exported from BeatBax live-coding engine';
+    // Do not append NR51 debug metadata to the comment — remove NR51 metadata from UGE export
     w.writeShortString(title);
     w.writeShortString(author);
     w.writeShortString(comment);
+
+
 
     // ====== Build instrument lists ======
     const dutyInsts: string[] = [];
@@ -615,15 +742,63 @@ export async function exportUGE(song: SongModel, outputPath: string, opts?: { de
     }
 
     // ====== Build patterns per channel ======
-    const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number }>>> = [];
+    const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L'|'R'|'C' }>>> = [];
 
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts);
+        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb);
         channelPatterns.push(patterns);
+    }
+
+    // Inject global per-row NR51 panning effects (write a single 8xx on channel 1 when value changes)
+    // Create a blank pattern for missing channels/patterns
+    const blankPatternWithPan: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan: 'L'|'R'|'C' }> = [];
+    for (let i = 0; i < PATTERN_ROWS; i++) {
+        blankPatternWithPan.push({ note: EMPTY_NOTE, instrument: 0, effectCode: 0, effectParam: 0, pan: 'C' });
+    }
+
+    // Compute max order length across channels (local variable)
+    const orderLen = Math.max(1, Math.max(...channelPatterns.map(p => p.length)));
+
+    // Keep NR51 state across orders so we don't re-emit the same mix repeatedly
+    let lastNr51: number | null = null;
+    for (let orderIdx = 0; orderIdx < orderLen; orderIdx++) {
+        for (let row = 0; row < PATTERN_ROWS; row++) {
+            let nr51Value = 0;
+            let hasNoteOn = false;
+            for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+                const patterns = channelPatterns[ch];
+                const pat = (orderIdx < patterns.length) ? patterns[orderIdx] : blankPatternWithPan;
+                const cell = pat[row];
+                const p = (cell && cell.pan) ? cell.pan : 'C';
+                nr51Value |= enumToNR51Bits(p as 'L'|'C'|'R', ch);
+                // Note-on detection: a cell with a note != EMPTY_NOTE indicates a note trigger
+                if (cell && typeof cell.note === 'number' && cell.note !== EMPTY_NOTE) {
+                    hasNoteOn = true;
+                }
+            }
+            // Only set panning when NR51 changes AND we have a note-on at this row (avoids forcing mix changes on rows with no note start).
+            if (nr51Value !== lastNr51 && hasNoteOn) {
+                // Write 8xx effect on channel 1 (index 0) for this row
+                if (orderIdx < channelPatterns[0].length) {
+                    channelPatterns[0][orderIdx][row].effectCode = 8;
+                    channelPatterns[0][orderIdx][row].effectParam = nr51Value & 0xFF;
+                } else {
+                    // Ensure pattern exists for channel 1 up to orderIdx
+                    while (channelPatterns[0].length <= orderIdx) {
+                        // clone blank
+                        const newPat = blankPatternWithPan.map(c => ({ ...c }));
+                        channelPatterns[0].push(newPat);
+                    }
+                    channelPatterns[0][orderIdx][row].effectCode = 8;
+                    channelPatterns[0][orderIdx][row].effectParam = nr51Value & 0xFF;
+                }
+                lastNr51 = nr51Value;
+            }
+        }
     }
 
     // ====== Song Patterns Section ======
