@@ -355,22 +355,22 @@ function renderWave(
 ) {
   const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
 
+  // Resolve volume multiplier once (avoid doing parsing/map lookups per-sample)
+  let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
+  let volNum = 100;
+  if (typeof volRaw === 'string') {
+    const s = volRaw.trim();
+    volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
+  } else if (typeof volRaw === 'number') {
+    volNum = volRaw;
+  }
+  const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
+  const volMul = volMulMap[volNum] ?? 1.0;
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
     const phase = (t * freq) % 1.0;
     const idx = Math.floor(phase * waveTable.length) % waveTable.length;
-
-    // Wave instrument volume: accept `volume` or `vol` as number or percent string
-    let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
-    let volNum = 100;
-    if (typeof volRaw === 'string') {
-      const s = volRaw.trim();
-      volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
-    } else if (typeof volRaw === 'number') {
-      volNum = volRaw;
-    }
-    const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
-    const volMul = volMulMap[volNum] ?? 1.0;
 
     const sample = ((waveTable[idx] / 15.0 * 2.0 - 1.0) * 0.6) * volMul; // Apply wave global volume
 

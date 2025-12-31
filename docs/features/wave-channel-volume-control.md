@@ -1,6 +1,6 @@
 ---
 title: Wave Channel Volume Control
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2025-12-23
 issue: "https://github.com/kadraman/beatbax/issues/15"
