@@ -74,6 +74,7 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
     let semitones = 0;
     let octaves = 0;
     let instOverride: string | null = null;
+    let panOverride: string | undefined = undefined;
 
     for (const mod of mods) {
       const mOct = mod.match(/^oct\((-?\d+)\)$/i);
@@ -95,6 +96,8 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
       }
       const mInst = mod.match(/^inst\(([^)]+)\)$/i);
       if (mInst) { instOverride = mInst[1]; continue; }
+      const mPan = mod.match(/^pan\(([^)]*)\)$/i);
+      if (mPan) { panOverride = mPan[1].trim(); continue; }
       const mTrans = mod.match(/^([+-]?\d+)$/);
       if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
       const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
@@ -110,7 +113,13 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
     }
 
     for (let r = 0; r < repeat; r++) {
+      if (panOverride) {
+        out.push(`pan(${panOverride})`);
+      }
       out.push(...tokens);
+      if (panOverride) {
+        out.push('pan()');
+      }
     }
   }
   return out;

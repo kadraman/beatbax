@@ -1,0 +1,56 @@
+## panning_demo.bax
+## Demonstration of panning capabilities - generic and chip specific (gameboy).
+##
+
+song name "Panning Demo"
+song artist "kadraman"
+song description """Demonstration of panning capabilities - generic and chip specific (gameboy)."""
+song tags "panning,gameboy,imported"
+
+# Strict GB export note:
+# - When exporting with `--strict-gb` numeric `pan` values are NOT allowed and will cause an error.
+# - In non-strict exports numeric pans are snapped for GB compatibility:
+#     pan < -0.33  -> gb:pan=L (left)
+#     pan >  0.33  -> gb:pan=R (right)
+#     otherwise    -> gb:pan=C (center)
+# - Use `gb:pan=<L|R|C>` to specify exact NR51 terminal flags.
+chip gameboy
+
+bpm 128
+time 4
+
+# Panning notes:
+# - `gb:pan=<L|R|C>`: Game Boy NR51 terminal mapping (hardware L/R flags). Used for GB-specific exports.
+# - `pan=<num>` or `pan:<num>`: numeric software panning (-1.0 left -> 0 center -> 1.0 right). These may be snapped when exporting to strict GB format.
+# - Inline tokens like `<pan:L>` or `<pan=0.0>` apply to a single note; sequence modifiers `:pan(...)` apply to an entire sequence occurrence.
+inst leadL type=pulse1 gb:pan=L   # lead hard-left via GB NR51
+inst leadR type=pulse1 gb:pan=R   # lead hard-right via GB NR51
+inst arp type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # wavetable arpeggio (uses mixed inline pans below)
+inst bass type=pulse2 gb:pan=L    # bass default left via GB NR51
+inst sn type=noise width=7  env=gb:13,down,1 length=8  # snare (no explicit pan)
+
+pat melody = C5:4 E5:4 G5:4 C6:4 inst(leadR,4) C5:4 E5:4 G5:4 C6:4
+# `arp` demonstrates inline per-note panning forms:
+#  - `pan:L` (enum) -> left, `pan:R` -> right
+#  - `pan=0.0` (numeric) -> explicit numeric pan (0=center)
+#  - `gb:pan:C` -> force GB NR51 center flag for that note
+pat arp = (C6<pan:L> G5<pan=0.0> E4<pan:R> C5<gb:pan:C>)*4
+pat bassline = C3 G2 C3 G2
+# `fill` shows numeric per-note pans: `pan:-1.0` hard-left, `pan:1.0` hard-right (numeric range -1.0..1.0)
+pat fill = inst(sn,2) C5<pan:-1.0> C5<pan:1.0> .
+pat silence = . . . .
+
+seq lead_seq = melody
+# `bass_seq` demonstrates sequence-level pan transforms applied to an entire occurrence:
+#  - `:pan(gb:R)` forces GB NR51 right for that occurrence
+#  - `:pan(1.0)` applies numeric pan=1.0 (right) for that occurrence
+seq bass_seq = bassline bassline:pan(gb:R) bassline bassline:pan(1.0)
+seq arp_seq =  arp arp
+seq drum_seq = fill*4 silence fill*4
+
+channel 1 => inst leadL seq lead_seq
+channel 2 => inst bass seq bass_seq bass_seq
+channel 3 => inst arp seq arp_seq
+channel 4 => inst sn seq drum_seq
+
+play

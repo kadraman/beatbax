@@ -145,6 +145,10 @@ export async function playAudioBuffer(
     let cmd: string, args: string[];
 
     if (platform === 'win32') {
+      // Warn users: PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.
+      // Prefer installing the `speaker` module or using `ffplay`/`afplay` for accurate stereo.
+      console.warn('[WARN] Using PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.');
+      console.warn('[WARN] For accurate stereo playback, install the `speaker` module (npm install --workspace=packages/cli speaker) or ensure `ffplay`/`afplay` is available, or export a WAV and play in a DAW.');
       // Windows: Use PowerShell with Media.SoundPlayer for synchronous playback
       cmd = 'powershell';
       args = [

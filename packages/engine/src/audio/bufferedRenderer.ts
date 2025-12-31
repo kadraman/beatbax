@@ -19,6 +19,50 @@ export class BufferedRenderer {
   private scheduledNodes: Array<{ src: any; gain: any; segStart: number; chId?: number }> = [];
   private maxPreRenderSegments?: number;
 
+  private applyEffectsToNodes(ctx: any, nodes: any[], pan: any, effects: any[] | undefined, start: number, dur: number) {
+    // Apply inline effect array first
+    if (Array.isArray(effects)) {
+      for (const fx of effects) {
+        try {
+          const name = fx && fx.type ? fx.type : fx;
+          const params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+          const handler = (require('../effects/index.js') as any).get(name);
+          if (handler) {
+            try { handler(ctx, nodes, params, start, dur); } catch (e) {}
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Apply pan as fallback if provided and not already covered by an effect
+    if (pan !== undefined && pan !== null) {
+      const handler = (require('../effects/index.js') as any).get('pan');
+      if (handler) {
+        // If pan is object with enum/value, convert to numeric for handler when possible
+        if (typeof pan === 'object') {
+          if (pan.value !== undefined) handler(ctx, nodes, [pan.value], start, dur);
+          else if (pan.enum) {
+            const s = String(pan.enum).toUpperCase();
+            const mapped = s === 'L' ? -1 : (s === 'R' ? 1 : 0);
+            handler(ctx, nodes, [mapped], start, dur);
+          }
+        } else if (typeof pan === 'number') {
+          handler(ctx, nodes, [pan], start, dur);
+        } else if (typeof pan === 'string') {
+          // L/C/R or numeric string
+          const up = pan.toUpperCase();
+          if (up === 'L' || up === 'R' || up === 'C') {
+            const mapped = up === 'L' ? -1 : (up === 'R' ? 1 : 0);
+            handler(ctx, nodes, [mapped], start, dur);
+          } else {
+            const n = Number(pan);
+            if (!Number.isNaN(n)) handler(ctx, nodes, [n], start, dur);
+          }
+        }
+      }
+    }
+  }
+
   constructor(ctx: BaseAudioContext, scheduler: TickScheduler, opts: { segmentDuration?: number; lookahead?: number; maxPreRenderSegments?: number } = {}) {
     this.ctx = ctx;
     this.scheduler = scheduler;
@@ -126,35 +170,54 @@ export class BufferedRenderer {
     return out;
   }
 
-  enqueuePulse(absTime: number, freq: number, duty: number, dur: number, inst: any, chId?: number) {
+  enqueuePulse(absTime: number, freq: number, duty: number, dur: number, inst: any, chId?: number, pan?: any, effects?: any[]) {
     const enq = this.enqueueEvent(absTime, dur, (offlineCtx) => {
       const local = absTime - (this.segmentKeyForTime(absTime));
-      try { playPulseImpl(offlineCtx as any, freq, duty, local, dur, inst); } catch (e) {}
+      try {
+        const nodes = playPulseImpl(offlineCtx as any, freq, duty, local, dur, inst) || [];
+        // apply effects and baked pan inside offline render
+        try { this.applyEffectsToNodes(offlineCtx as any, nodes, pan, effects, local, dur); } catch (e) {}
+      } catch (e) {}
     }, chId);
     if (!enq) {
-      this.scheduler.schedule(absTime, () => { try { playPulseImpl(this.ctx as any, freq, duty, absTime, dur, inst); } catch (_) {} });
+      this.scheduler.schedule(absTime, () => { try {
+        const nodes = playPulseImpl(this.ctx as any, freq, duty, absTime, dur, inst) || [];
+        try { this.applyEffectsToNodes(this.ctx as any, nodes, pan, effects, absTime, dur); } catch (e) {}
+      } catch (_) {} });
     }
     return enq;
   }
 
-  enqueueWavetable(absTime: number, freq: number, table: number[], dur: number, inst: any, chId?: number) {
+  enqueueWavetable(absTime: number, freq: number, table: number[], dur: number, inst: any, chId?: number, pan?: any, effects?: any[]) {
     const enq = this.enqueueEvent(absTime, dur, (offlineCtx) => {
       const local = absTime - (this.segmentKeyForTime(absTime));
-      try { playWavetableImpl(offlineCtx as any, freq, table, local, dur, inst); } catch (e) {}
+      try {
+        const nodes = playWavetableImpl(offlineCtx as any, freq, table, local, dur, inst) || [];
+        try { this.applyEffectsToNodes(offlineCtx as any, nodes, pan, effects, local, dur); } catch (e) {}
+      } catch (e) {}
     }, chId);
     if (!enq) {
-      this.scheduler.schedule(absTime, () => { try { playWavetableImpl(this.ctx as any, freq, table, absTime, dur, inst); } catch (_) {} });
+      this.scheduler.schedule(absTime, () => { try {
+        const nodes = playWavetableImpl(this.ctx as any, freq, table, absTime, dur, inst) || [];
+        try { this.applyEffectsToNodes(this.ctx as any, nodes, pan, effects, absTime, dur); } catch (e) {}
+      } catch (_) {} });
     }
     return enq;
   }
 
-  enqueueNoise(absTime: number, dur: number, inst: any, chId?: number) {
+  enqueueNoise(absTime: number, dur: number, inst: any, chId?: number, pan?: any, effects?: any[]) {
     const enq = this.enqueueEvent(absTime, dur, (offlineCtx) => {
       const local = absTime - (this.segmentKeyForTime(absTime));
-      try { playNoiseImpl(offlineCtx as any, local, dur, inst); } catch (e) {}
+      try {
+        const nodes = playNoiseImpl(offlineCtx as any, local, dur, inst) || [];
+        try { this.applyEffectsToNodes(offlineCtx as any, nodes, pan, effects, local, dur); } catch (e) {}
+      } catch (e) {}
     }, chId);
     if (!enq) {
-      this.scheduler.schedule(absTime, () => { try { playNoiseImpl(this.ctx as any, absTime, dur, inst); } catch (_) {} });
+      this.scheduler.schedule(absTime, () => { try {
+        const nodes = playNoiseImpl(this.ctx as any, absTime, dur, inst) || [];
+        try { this.applyEffectsToNodes(this.ctx as any, nodes, pan, effects, absTime, dur); } catch (e) {}
+      } catch (_) {} });
     }
     return enq;
   }
