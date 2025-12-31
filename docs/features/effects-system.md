@@ -359,6 +359,8 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
 - Panning (`pan` / `gb:pan`)
   - hUGETracker mapping: Not a native per-row effect in hUGETracker. For Game Boy-targeted UGE exports, panning is represented by the NR51 terminal/left-right selection (per-channel) rather than a tracker effect opcode.
   - Export strategy: When `gb:pan` (enum) is present, map `L`/`R`/`C` to NR51 bits and emit those as channel terminal flags in the UGE output (or as channel-level metadata if the UGE container stores terminal bits). When only generic `pan` numeric values are used, deterministically snap to enum (e.g. pan < -0.33 → L, pan > 0.33 → R, otherwise C) and emit a warning about loss of precision.
+  - UGE writer implementation notes: the exporter emits NR51 changes into the tracker pattern data as a single `8xx` Set‑Panning effect written on Channel 1 when the computed NR51 mix changes and a note onset occurs (or on the initial row). To reduce redundant edits, the writer tracks the last emitted NR51 state and suppresses re-writes on sustain/rest rows.
+  - Note: the exporter no longer appends an `[NR51=0x..]` debug comment to the UGE file; if you need round-trip metadata include it externally in your build tooling or use JSON export.
   - Per-note panning: If a BeatBax song specifies per-note panning but the UGE format/export target only supports per-channel terminal routing, exporter options are:
     - Expand/route notes to alternate channels with different NR51 settings (channel-expensive), or
     - Bake panning into the rendered instrument/sample (recommended for strict stereo results), or
@@ -596,7 +598,7 @@ Goals: verify exporter mappings, deterministic snapping/warnings for `pan`, and 
   - Cut / Retrig: test `cut` emits correct UGE cut opcode and `retrig` expands to repeated notes when needed.
 
 2) Exporter tests (integration-like, mocked outputs)
-  - UGE writer: export `effect_demo.bax` and assert per-channel NR51 bits appear where expected, and numeric pans produce logged warnings when snapped.
+  - UGE writer: export an example song (e.g. `songs/panning_demo.bax`) and assert per-channel NR51 bits appear where expected, and numeric pans produce logged warnings when snapped.
   - MIDI writer: export a short sequence with `pan` and assert CC#10 events exist with expected values (-1→0..127 mapping).
   - Regression: ensure existing effect mappings (vib, port, arp, vol, etc.) remain unchanged by pan changes.
 
@@ -604,7 +606,8 @@ Goals: verify exporter mappings, deterministic snapping/warnings for `pan`, and 
   - Run full parse → resolve → export(UGE/MIDI/JSON) for sample songs; programmatically inspect outputs (UGE binary fields, MIDI track CCs) and fail CI on mismatches.
 
 4) Manual / Visual checks
-  - Provide a `songs/effect_demo.bax` example and a short test runner script to export and open resulting MIDI/UGE in standard tools for QA.
+  - Provide short example songs and a small `tools/` runner script to export and open resulting MIDI/UGE in standard tools for QA.
+  - Example QA script: `tools/validate-pan-example.cjs` — exports `songs/panning_demo.bax` to JSON/UGE/WAV and prints a summary of NR51/pan decisions and any snapping warnings.
 
 Notes: prefer Jest for unit/integration tests (existing repo uses Jest). Add test fixtures for edge cases (per-note pan on GB targets, multiple conflicting pan sources: instrument vs inline).
 

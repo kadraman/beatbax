@@ -307,6 +307,7 @@ program
   .option('-c, --channels <channels>', 'Comma-separated list of channels to render, e.g., "1,2" (WAV and MIDI only)')
   .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
+  .option('--strict-gb', 'Fail export when numeric pan values are present (strict Game Boy compatibility)', false)
   .action(async (format, file, output, options) => {
     ensureFileExists(file);
     const globalOpts = program.opts();
@@ -384,7 +385,7 @@ program
 
     if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
     else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
-    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true });
+    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, strictGB: (options as any).strictGb === true });
     else if (format === 'wav') {
       await exportWAVFromSong(song, outPath, {
         duration,

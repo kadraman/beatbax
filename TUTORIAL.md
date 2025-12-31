@@ -65,6 +65,23 @@ Notes:
 - `:slow(N)` — repeat each token N times (default 2)
 - `:fast(N)` — take every Nth token (default 2)
 
+### Panning (stereo)
+Panning controls stereo position and can be specified in multiple forms:
+- `gb:pan=<L|R|C>` — Game Boy NR51 terminal mapping (exact hardware L/R/C flags)
+- `pan=<num>` or `<pan:num>` — numeric pan in range `[-1.0, 1.0]` (`-1.0` left, `0` center, `1.0` right)
+- Inline note tokens: `C5<pan:-1.0>` or `C6<pan:L>` apply to a single note
+- Sequence-level transforms: `seqname:pan(1.0)` applies numeric pan to an entire sequence occurrence
+
+Notes:
+- Browser (WebAudio) playback uses a StereoPannerNode when available for smooth numeric panning.
+- Exporting to hUGETracker (`export uge`) maps `gb:pan` to NR51 bits exactly; numeric `pan` values are snapped (pan < -0.33 → L, pan > 0.33 → R, otherwise C) unless you use the `--strict-gb` flag which rejects numeric pans.
+
+Example:
+```
+pat stereo = C5<pan=-1.0> E5<pan=0.0> G5<pan=1.0> C6<gb:pan:L>
+seq bass_seq = bassline bassline:pan(gb:R) bassline bassline:pan(1.0)
+```
+
 **Tempo & Per-Channel Speed**
 
 - Set a master tempo with a top-level directive: `bpm 128` or `bpm=128`.
@@ -162,6 +179,16 @@ npm run cli -- export wav songs\sample.bax output.wav
 - `--duration <seconds>` (or `-d`): Limit the render length.
 - `--bit-depth <16|24|32>` (or `-b`): Set the output bit depth (default: 16).
 - `--channels <1,2,3,4>` (or `-c`): Select specific Game Boy channels to render (e.g., `-c 1,2`).
+
+**UGE (hUGETracker v6 format)**
+```powershell
+npm run cli -- export uge songs\panning_demo.bax output.uge
+# Use strict GB compatibility check to reject numeric pans instead of snapping:
+npm run cli -- export uge songs\panning_demo.bax output.uge --strict-gb
+```
+Notes:
+- `--strict-gb` treats numeric `pan` values as an error to enforce exact NR51-only semantics for Game Boy exports. In non-strict mode numeric pans are deterministically snapped (pan < -0.33 → L, pan > 0.33 → R, otherwise C).
+- Use `npm run cli -- export json <file>` to get the resolved ISM which includes per-note `pan` fields for inspection.
 - `--normalize`: Scale audio peak to 0.95 (0dBFS equivalent).
 - `--sample-rate <hz>` (or `-r`): Set the sample rate (global flag, e.g., `npm run cli -- -r 48000 export wav ...`).
 

@@ -5,11 +5,24 @@ import { InstMap } from '../parser/ast.js';
 
 export type NoteToken = string; // e.g. 'C4'
 
+export type Pan = {
+  enum?: 'L' | 'R' | 'C';
+  value?: number; // -1.0 .. +1.0
+  sourceNamespace?: string;
+};
+
+export interface Effect {
+  type: string;
+  params: Array<string | number>;
+}
+
 export interface NoteEvent {
   type: 'note';
   token: NoteToken;
   instrument?: string; // instrument name
   instProps?: Record<string, string> | undefined;
+  pan?: Pan;
+  effects?: Effect[];
 }
 
 export interface RestEvent {
