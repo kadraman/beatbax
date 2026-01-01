@@ -61,12 +61,14 @@ function createParserWithTokens(CstParser: any, tokens: any) {
             this.CONSUME(Id);
             this.OPTION(() => {
               this.CONSUME(LParen);
-              this.OPTION(() => this.OR([
-                { ALT: () => this.CONSUME(NumberLiteral) },
-                { ALT: () => this.CONSUME(Id) },
-                { ALT: () => this.CONSUME(StringLiteral) },
-              ]));
-              this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral); });
+              this.OPTION(() => {
+                this.OR([
+                  { ALT: () => this.CONSUME(NumberLiteral) },
+                  { ALT: () => this.CONSUME(Id) },
+                  { ALT: () => this.CONSUME(StringLiteral) },
+                ]);
+                this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral); });
+              });
               this.CONSUME(RParen);
             });
           }

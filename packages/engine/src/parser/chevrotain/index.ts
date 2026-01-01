@@ -3,60 +3,22 @@ import { transform } from './transformer';
 export async function parseWithChevrotain(input: string) {
   // Dynamic import of Chevrotain to avoid raising module resolution errors
   // during normal test runs (when the feature flag is not enabled).
+  // Prefer reusing the shared lexer/token builder so token ordering and
+  // options remain consistent across sync/async parser entrypoints.
+  const lexerModule = await import('./lexer');
+  const built = lexerModule.getBuiltTokens();
+  const { allTokens, StringLiteral, NumberLiteral, Id } = built as any;
   const chev = await import('chevrotain');
-  const { createToken, Lexer, CstParser } = chev as any;
+  const { CstParser } = chev as any;
 
-  const run = (createToken: any, Lexer: any, CstParser: any) => {
-    // Define a minimal set of tokens (mirrors tokens.ts but created at runtime)
-    const WhiteSpace = createToken({ name: 'WhiteSpace', pattern: /\s+/, group: Lexer.SKIPPED });
-    const Comment = createToken({ name: 'Comment', pattern: /#[^\n]*/, group: Lexer.SKIPPED });
-    const Pat = createToken({ name: 'Pat', pattern: /pat/ });
-    const Inst = createToken({ name: 'Inst', pattern: /inst/ });
-    const Seq = createToken({ name: 'Seq', pattern: /seq/ });
-    const Channel = createToken({ name: 'Channel', pattern: /channel/ });
-    const Chip = createToken({ name: 'Chip', pattern: /chip/ });
-    const Bpm = createToken({ name: 'Bpm', pattern: /bpm/ });
-    const Play = createToken({ name: 'Play', pattern: /play/ });
-    const Export = createToken({ name: 'Export', pattern: /export/ });
-    const Id = createToken({ name: 'Id', pattern: /[A-Za-z_][A-Za-z0-9_\-]*/ });
-    const NumberLiteral = createToken({ name: 'NumberLiteral', pattern: /[+-]?\d+/ });
-    const StringLiteral = createToken({ name: 'StringLiteral', pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/ });
-    const Equals = createToken({ name: 'Equals', pattern: /=/ });
-    const Colon = createToken({ name: 'Colon', pattern: /:/ });
-    const LParen = createToken({ name: 'LParen', pattern: /\(/ });
-    const RParen = createToken({ name: 'RParen', pattern: /\)/ });
-    const LBracket = createToken({ name: 'LBracket', pattern: /\[/ });
-    const RBracket = createToken({ name: 'RBracket', pattern: /\]/ });
-    const Comma = createToken({ name: 'Comma', pattern: /,/ });
-    const Dot = createToken({ name: 'Dot', pattern: /\./ });
-
-    const allTokens = [
-      WhiteSpace,
-      Comment,
-      Pat,
-      Inst,
-      Seq,
-      Channel,
-      Chip,
-      Bpm,
-      Play,
-      Export,
-      StringLiteral,
-      NumberLiteral,
-      Id,
-      Equals,
-      Colon,
-      LParen,
-      RParen,
-      LBracket,
-      RBracket,
-      Comma,
-      Dot,
-    ];
-
-    const lexer = new Lexer(allTokens);
+  const run = (built: any) => {
+    const allTokens = built.allTokens;
+    const lexer = new (chev as any).Lexer(allTokens);
     const lexResult = lexer.tokenize(input);
     if (lexResult.errors && lexResult.errors.length) return { errors: lexResult.errors, ast: null };
+
+    // Destructure tokens into locals so grammar can reference them as before
+    const { Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot } = built as any;
 
     // Lightweight parser for initial migration tests
     class BaxParser extends (CstParser as any) {
@@ -131,7 +93,7 @@ export async function parseWithChevrotain(input: string) {
     return { errors: [], ast };
   };
 
-  return run(createToken, Lexer, CstParser);
+  return run(built);
 }
 
 export function parseWithChevrotainSync(input: string) {
@@ -140,59 +102,21 @@ export function parseWithChevrotainSync(input: string) {
   // run the parser synchronously without dynamic import.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const chev = require('chevrotain');
-  const { createToken, Lexer, CstParser } = chev as any;
+  // Reuse lexer builder so token order and options match tokens.ts
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const lexerModule = require('./lexer');
+  const built = lexerModule.getBuiltTokens();
+  const { allTokens } = built as any;
+  const { CstParser } = chev as any;
 
-  const run = (createToken: any, Lexer: any, CstParser: any) => {
-    // Define a minimal set of tokens (mirrors tokens.ts but created at runtime)
-    const WhiteSpace = createToken({ name: 'WhiteSpace', pattern: /\s+/, group: Lexer.SKIPPED });
-    const Comment = createToken({ name: 'Comment', pattern: /#[^\n]*/, group: Lexer.SKIPPED });
-    const Pat = createToken({ name: 'Pat', pattern: /pat/ });
-    const Inst = createToken({ name: 'Inst', pattern: /inst/ });
-    const Seq = createToken({ name: 'Seq', pattern: /seq/ });
-    const Channel = createToken({ name: 'Channel', pattern: /channel/ });
-    const Chip = createToken({ name: 'Chip', pattern: /chip/ });
-    const Bpm = createToken({ name: 'Bpm', pattern: /bpm/ });
-    const Play = createToken({ name: 'Play', pattern: /play/ });
-    const Export = createToken({ name: 'Export', pattern: /export/ });
-    const Id = createToken({ name: 'Id', pattern: /[A-Za-z_][A-Za-z0-9_\-]*/ });
-    const NumberLiteral = createToken({ name: 'NumberLiteral', pattern: /[+-]?\d+/ });
-    const StringLiteral = createToken({ name: 'StringLiteral', pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/ });
-    const Equals = createToken({ name: 'Equals', pattern: /=/ });
-    const Colon = createToken({ name: 'Colon', pattern: /:/ });
-    const LParen = createToken({ name: 'LParen', pattern: /\(/ });
-    const RParen = createToken({ name: 'RParen', pattern: /\)/ });
-    const LBracket = createToken({ name: 'LBracket', pattern: /\[/ });
-    const RBracket = createToken({ name: 'RBracket', pattern: /\]/ });
-    const Comma = createToken({ name: 'Comma', pattern: /,/ });
-    const Dot = createToken({ name: 'Dot', pattern: /\./ });
-
-    const allTokens = [
-      WhiteSpace,
-      Comment,
-      Pat,
-      Inst,
-      Seq,
-      Channel,
-      Chip,
-      Bpm,
-      Play,
-      Export,
-      StringLiteral,
-      NumberLiteral,
-      Id,
-      Equals,
-      Colon,
-      LParen,
-      RParen,
-      LBracket,
-      RBracket,
-      Comma,
-      Dot,
-    ];
-
-    const lexer = new Lexer(allTokens);
+  const run = (built: any) => {
+    const allTokens = built.allTokens;
+    const lexer = new (chev as any).Lexer(allTokens);
     const lexResult = lexer.tokenize(input);
     if (lexResult.errors && lexResult.errors.length) return { errors: lexResult.errors, ast: null };
+
+    // Destructure tokens into locals so grammar can reference them as before
+    const { Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot } = built as any;
 
     // Lightweight parser for initial migration tests
     class BaxParser extends (CstParser as any) {
@@ -267,7 +191,7 @@ export function parseWithChevrotainSync(input: string) {
     return { errors: [], ast };
   };
 
-  return run(createToken, Lexer, CstParser);
+  return run(built);
 }
 
 export default parseWithChevrotain;

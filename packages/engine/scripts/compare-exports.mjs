@@ -55,9 +55,13 @@ async function importEngineDist(modulePath) {
     await exportJSON(a2, out2, { debug: false });
     const j1 = JSON.parse(fs.readFileSync(out1, 'utf8'));
     const j2 = JSON.parse(fs.readFileSync(out2, 'utf8'));
-    // Normalize non-deterministic fields (exportedAt)
-    if (j1 && j1.song) delete j1.exportedAt;
-    if (j2 && j2.song) delete j2.exportedAt;
+    // Normalize non-deterministic fields (exportedAt) — handle top-level and nested placements
+    if (j1 && Object.prototype.hasOwnProperty.call(j1, 'exportedAt')) delete j1.exportedAt;
+    if (j2 && Object.prototype.hasOwnProperty.call(j2, 'exportedAt')) delete j2.exportedAt;
+    // Also normalize nested placement just in case: { song: { exportedAt: ... } }
+    if (j1 && j1.song && Object.prototype.hasOwnProperty.call(j1.song, 'exportedAt')) delete j1.song.exportedAt;
+    if (j2 && j2.song && Object.prototype.hasOwnProperty.call(j2.song, 'exportedAt')) delete j2.song.exportedAt;
+
     const s1 = JSON.stringify(j1, Object.keys(j1).sort(), 2);
     const s2 = JSON.stringify(j2, Object.keys(j2).sort(), 2);
     if (s1 !== s2) {
