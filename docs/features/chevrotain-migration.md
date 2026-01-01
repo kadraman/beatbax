@@ -123,6 +123,7 @@ Rollback strategy: keep legacy `parse()` implemented, allow tests to select pars
 
 - Notes:
   - Some CI/test environments may not be able to import the ESM `chevrotain` package; tests and the local script skip gracefully or warn when `chevrotain` cannot be resolved. Use Node 18+ for best compatibility.
+  - The migration provides both an async `parseWithChevrotain` and a synchronous `parseWithChevrotainSync` to preserve the existing synchronous `parse()` API. `parse()` will prefer the sync variant when available so callers remain unaffected by the migration.
   - See `.github/workflows/chevrotain-parity.yml` for the CI run matrix (build + tests with and without the Chevrotain parser, and parity checks).
 
 ## References
