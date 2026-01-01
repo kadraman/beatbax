@@ -56,17 +56,24 @@ jobs:
 
       - name: Show built Chevrotain parser snippet (diagnostics)
         run: |
-          echo "--- dist parser head ---"
+          echo "--- dist index.js head ---"
           head -n 120 packages/engine/dist/parser/chevrotain/index.js | sed -n '1,200p' || true
-          echo "--- search for patModId/patternId/inlineInstName labels ---"
-          grep -n "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/index.js || true
+          echo "--- dist parser.js head ---"
+          head -n 220 packages/engine/dist/parser/chevrotain/parser.js | sed -n '1,200p' || true
+          echo "--- search for patModId/patternId/inlineInstName labels in dist folder ---"
+          grep -n "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/*.js || true
 
       - name: Verify built parser contains labeled CONSUME tokens
         run: |
-          echo "Verifying built parser contains required labels (patModId|patternId|inlineInstName)..."
-          if ! grep -q "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/index.js ; then
+          echo "Verifying built parser contains required labels (patModId|patternId|inlineInstName) in dist folder..."
+          if ! grep -q "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/*.js ; then
             echo "ERROR: built parser missing labeled consumes; failing early to avoid stale artifacts." >&2
             echo "Tip: ensure TypeScript build emits updated files and packages were rebuilt." >&2
+            echo "Diagnostics: showing top of parser.js and index.js for debugging..." >&2
+            echo "--- parser.js head ---" >&2
+            head -n 200 packages/engine/dist/parser/chevrotain/parser.js | sed -n '1,200p' >&2 || true
+            echo "--- index.js head ---" >&2
+            head -n 200 packages/engine/dist/parser/chevrotain/index.js | sed -n '1,200p' >&2 || true
             exit 1
           fi
 
