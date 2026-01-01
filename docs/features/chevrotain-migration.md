@@ -3,7 +3,7 @@ title: "Chevrotain parser migration"
 status: proposed
 authors: ["maintainer-team"]
 created: 2026-01-01
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/22"
 ---
 
 ## Summary
