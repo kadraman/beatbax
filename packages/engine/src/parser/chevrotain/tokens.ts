@@ -22,7 +22,6 @@ export const tokenSpecs = [
   { name: 'Export', pattern: /export/ },
 
   // literals
-  { name: 'StringLiteral', pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/ },
   { name: 'NumberLiteral', pattern: /[+-]?\d+/ },
   { name: 'Id', pattern: /[A-Za-z_][A-Za-z0-9_\-]*/ },
 
