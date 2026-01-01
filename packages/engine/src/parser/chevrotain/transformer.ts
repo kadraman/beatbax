@@ -209,7 +209,8 @@ export function transform(cst: CstNode | undefined) {
         (ast.metadata.exports as any).push({ format: fmt, dest });
       }
 
-      else if (key === 'channelStmt') {        const eqIdx = tokens.findIndex(t => t.tokenType && t.tokenType.name === 'Equals');
+      else if (key === 'channelStmt') {
+        const eqIdx = tokens.findIndex(t => t.tokenType && t.tokenType.name === 'Equals');
         if (eqIdx < 0) continue;
         const lhs = tokens.slice(0, eqIdx);
         const rhs = tokens.slice(eqIdx + 1);
