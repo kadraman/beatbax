@@ -49,6 +49,16 @@ jobs:
           NODE_OPTIONS: --experimental-vm-modules
         run: npm run engine:test
 
+      - name: Rebuild engine package (ensure dist is up-to-date)
+        run: npm -w @beatbax/engine run build --if-present
+
+      - name: Show built Chevrotain parser snippet (diagnostics)
+        run: |
+          echo "--- dist parser head ---"
+          head -n 120 packages/engine/dist/parser/chevrotain/index.js | sed -n '1,200p' || true
+          echo "--- search for patModId/patternId labels ---"
+          grep -n "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/index.js || true
+
       - name: Run export parity checks
         run: node packages/engine/scripts/compare-exports.mjs
 
