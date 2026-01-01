@@ -31,11 +31,17 @@ jobs:
       - name: Run tests (default parser)
         run: npm run engine:test
 
-      - name: Ensure Chevrotain is available
+      - name: Ensure Chevrotain is available (install + diagnostics)
         run: |
           echo "Checking for chevrotain in workspace..."
-          npm ls chevrotain || npm install chevrotain@^11 --no-save
+          npm ls chevrotain --depth=0 || npm install chevrotain@^11 --no-save
           node -v && npm -v
+          echo "=== Chevrotain package resolution ==="
+          npm ls chevrotain --depth=0 || true
+          echo "=== require() (CommonJS) check ==="
+          node -e "try { const p = require.resolve('chevrotain'); console.log('require.resolve OK ->', p); const chev = require('chevrotain'); console.log('require() OK (CommonJS)'); } catch (err) { console.error('require() failed:', err && err.code ? err.code : (err && err.message) || err); }"
+          echo "=== dynamic import() (ESM) check ==="
+          node -e "import('chevrotain').then(()=>console.log('dynamic import OK (ESM)')).catch(err=>console.error('dynamic import failed:', err && err.code ? err.code : (err && err.message) || err));"
 
       - name: Run tests (Chevrotain parser enabled)
         env:
