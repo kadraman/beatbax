@@ -31,9 +31,16 @@ jobs:
       - name: Run tests (default parser)
         run: npm run engine:test
 
+      - name: Ensure Chevrotain is available
+        run: |
+          echo "Checking for chevrotain in workspace..."
+          npm ls chevrotain || npm install chevrotain@^11 --no-save
+          node -v && npm -v
+
       - name: Run tests (Chevrotain parser enabled)
         env:
           BEATBAX_PARSER: chevrotain
+          NODE_OPTIONS: --experimental-vm-modules
         run: npm run engine:test
 
       - name: Run export parity checks
