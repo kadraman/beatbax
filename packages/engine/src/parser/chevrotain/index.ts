@@ -6,8 +6,7 @@ export async function parseWithChevrotain(input: string) {
   // Prefer reusing the shared lexer/token builder so token ordering and
   // options remain consistent across sync/async parser entrypoints.
   const lexerModule = await import('./lexer');
-  const built = lexerModule.getBuiltTokens();
-  const { allTokens, StringLiteral, NumberLiteral, Id } = built as any;
+  const built = await lexerModule.getBuiltTokensAsync();
   const chev = await import('chevrotain');
   const { CstParser } = chev as any;
 
