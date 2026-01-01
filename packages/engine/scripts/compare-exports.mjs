@@ -3,7 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '..', '..');
+// repoRoot should be the repository root (three levels up from packages/engine/scripts)
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const songsDir = path.resolve(repoRoot, 'songs');
 const outDir = path.resolve(__dirname, '..', '..', 'tmp', 'parity-exports');
 
@@ -17,10 +18,16 @@ async function importEngineDist(modulePath) {
 }
 
 (async () => {
-  const files = fs.readdirSync(songsDir).filter(f => f.endsWith('.bax'));
-  if (files.length === 0) {
-    console.log('No .bax files found in songs/ — skipping parity export checks');
+  let files = [];
+  if (!fs.existsSync(songsDir)) {
+    console.log(`No songs directory found at ${songsDir}; skipping parity export checks`);
     process.exit(0);
+  } else {
+    files = fs.readdirSync(songsDir).filter(f => f.endsWith('.bax'));
+    if (files.length === 0) {
+      console.log('No .bax files found in songs/ — skipping parity export checks');
+      process.exit(0);
+    }
   }
 
   // Import dist exports (assumes `npm run build-all` has been run)
