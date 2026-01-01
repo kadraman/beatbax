@@ -9,14 +9,32 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
   class BaxParser extends CstParser {
     constructor() {
       super(allTokens, { recoveryEnabled: true });
+
+      // Register rules on prototype-method implementations to ensure
+      // parser GAST recording sees valid function references even when
+      // TypeScript downlevels class fields during transpilation.
+      this.RULE('program', this.program);
+      this.RULE('directive', this.directive);
+      this.RULE('songStmt', this.songStmt);
+      this.RULE('exportStmt', this.exportStmt);
+      this.RULE('patStmt', this.patStmt);
+      this.RULE('patMod', this.patMod);
+      this.RULE('patBody', this.patBody);
+      this.RULE('patternItem', this.patternItem);
+      this.RULE('inlineInst', this.inlineInst);
+      this.RULE('instStmt', this.instStmt);
+      this.RULE('seqStmt', this.seqStmt);
+      this.RULE('seqItem', this.seqItem);
+      this.RULE('channelStmt', this.channelStmt);
+
       this.performSelfAnalysis();
     }
 
-    public program = this.RULE('program', () => {
+    public program(): any {
       this.MANY(() => this.SUBRULE(this.directive));
-    });
+    }
 
-    public directive = this.RULE('directive', () => {
+    public directive(): any {
       this.OR([
         { ALT: () => this.SUBRULE(this.patStmt) },
         { ALT: () => this.SUBRULE(this.instStmt) },
@@ -28,21 +46,21 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
       ]);
       // allow trailing id/number/string
       this.OPTION(() => this.CONSUME(Id));
-    });
+    }
 
-    public songStmt = this.RULE('songStmt', () => {
+    public songStmt(): any {
       this.CONSUME(Song);
       this.CONSUME(Id, { LABEL: 'key' });
       this.CONSUME(StringLiteral, { LABEL: 'value' });
-    });
+    }
 
-    public exportStmt = this.RULE('exportStmt', () => {
+    public exportStmt(): any {
       this.CONSUME(Export);
       this.CONSUME(Id, { LABEL: 'format' });
       this.OPTION(() => this.CONSUME(StringLiteral, { LABEL: 'dest' }));
-    });
+    }
 
-    public patStmt = this.RULE('patStmt', () => {
+    public patStmt(): any {
       this.CONSUME(Pat);
       this.CONSUME(Id, { LABEL: 'name' });
       this.OPTION(() => {
@@ -51,9 +69,9 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
       });
       this.CONSUME(Equals);
       this.SUBRULE(this.patBody);
-    });
+    }
 
-    public patMod = this.RULE('patMod', () => {
+    public patMod(): any {
       this.OR([
         { ALT: () => this.CONSUME(NumberLiteral) },
         {
@@ -74,13 +92,13 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
           }
         }
       ]);
-    });
+    }
 
-    public patBody = this.RULE('patBody', () => {
+    public patBody(): any {
       this.AT_LEAST_ONE(() => this.SUBRULE(this.patternItem));
-    });
+    }
 
-    public patternItem = this.RULE('patternItem', () => {
+    public patternItem(): any {
       this.OR([
         { ALT: () => this.CONSUME(Dot) },
         { ALT: () => this.CONSUME(Id, { LABEL: 'patternId' }) },
@@ -95,32 +113,32 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
         { ALT: () => this.SUBRULE(this.inlineInst) },
         { ALT: () => this.CONSUME(StringLiteral) },
       ]);
-    });
+    }
 
-    public inlineInst = this.RULE('inlineInst', () => {
+    public inlineInst(): any {
       this.CONSUME(Inst);
       this.OR([
         { ALT: () => this.CONSUME(Id, { LABEL: 'inlineInstName' }) },
         { ALT: () => { this.CONSUME(LParen); this.CONSUME(Id, { LABEL: 'inlineInstNameParen' }); this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral, { LABEL: 'inlineInstNum' }); }); this.CONSUME(RParen); } }
       ]);
-    });
+    }
 
-    public instStmt = this.RULE('instStmt', () => {
+    public instStmt(): any {
       this.CONSUME(Inst);
       this.CONSUME(Id, { LABEL: 'name' });
       this.CONSUME(Equals);
       // simple key=value pairs; accept Ids and commas
       this.AT_LEAST_ONE(() => this.CONSUME(Id, { LABEL: 'instProp' }));
-    });
+    }
 
-    public seqStmt = this.RULE('seqStmt', () => {
+    public seqStmt(): any {
       this.CONSUME(Seq);
       this.CONSUME(Id, { LABEL: 'name' });
       this.CONSUME(Equals);
       this.AT_LEAST_ONE(() => this.SUBRULE(this.seqItem));
-    });
+    }
 
-    public seqItem = this.RULE('seqItem', () => {
+    public seqItem(): any {
       this.CONSUME(Id, { LABEL: 'seqRef' });
       this.OPTION(() => {
         this.CONSUME(Colon);
@@ -130,9 +148,9 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
         this.CONSUME(Asterisk);
         this.CONSUME(NumberLiteral, { LABEL: 'seqRepeat' });
       });
-    });
+    }
 
-    public channelStmt = this.RULE('channelStmt', () => {
+    public channelStmt(): any {
       this.CONSUME(Channel);
       this.CONSUME(NumberLiteral);
       this.OR([
@@ -140,7 +158,7 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
         { ALT: () => this.CONSUME(Equals) },
       ]);
       this.AT_LEAST_ONE(() => this.CONSUME(Id));
-    });
+    }
   }
 
   return BaxParser;
