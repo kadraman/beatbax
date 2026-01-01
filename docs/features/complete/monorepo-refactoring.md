@@ -1,6 +1,6 @@
 ---
 title: Monorepo Refactoring
-status: proposed
+status: closed
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/9"
@@ -435,16 +435,16 @@ import { parse, Player } from '@beatbax/engine';
 
 ## Risks & Mitigations
 
-**Risk:** Breaking existing users  
+**Risk:** Breaking existing users
 **Mitigation:** Publish as major version bump (0.1.x → 0.2.0), provide migration guide
 
-**Risk:** Increased complexity for contributors  
+**Risk:** Increased complexity for contributors
 **Mitigation:** Comprehensive docs, simplified npm scripts at root level
 
-**Risk:** Build time increases  
+**Risk:** Build time increases
 **Mitigation:** Use Turborepo for caching, parallel builds
 
-**Risk:** Import path confusion  
+**Risk:** Import path confusion
 **Mitigation:** Re-export everything from main `@beatbax/engine` entry point
 
 ## Success Metrics

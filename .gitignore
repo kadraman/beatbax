@@ -162,3 +162,6 @@ tools
 output.*
 test.ps1
 songs/effect_demo.bax
+
+# generate GitHub Issues
+.github/ISSUES
