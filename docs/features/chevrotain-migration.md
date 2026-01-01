@@ -103,8 +103,27 @@ Rollback strategy: keep legacy `parse()` implemented, allow tests to select pars
 - [ ] Implement `transformer.ts` to emit existing AST shape
 - [ ] Add `parseWithChevrotain()` and feature flag wiring in `packages/engine/src/parser/index.ts`
 - [ ] Add unit & integration tests
-- [ ] CI job to run the test matrix with the new parser
-- [ ] Update `DEVNOTES.md` and `docs/features` links
+- [x] CI job to run the test matrix with the new parser (GitHub Actions workflow: `.github/workflows/chevrotain-parity.yml`)
+- [x] Update `DEVNOTES.md` and `docs/features` links — see `DEVNOTES.md` section "Chevrotain parser migration" for usage and testing instructions
+
+
+### How to test locally (short)
+
+- Enable Chevrotain parser for local tests and runs:
+
+  - macOS / Linux (bash/zsh): `BEATBAX_PARSER=chevrotain npm run engine:test`
+  - Windows PowerShell: `$env:BEATBAX_PARSER = 'chevrotain'; npm run engine:test`
+
+- Run the export parity checks (requires a built `dist`):
+
+  1. `npm run build-all`
+  2. `node packages/engine/scripts/compare-exports.mjs`
+
+  The script writes outputs to `tmp/parity-exports/` and exits non-zero when artifacts differ.
+
+- Notes:
+  - Some CI/test environments may not be able to import the ESM `chevrotain` package; tests and the local script skip gracefully or warn when `chevrotain` cannot be resolved. Use Node 18+ for best compatibility.
+  - See `.github/workflows/chevrotain-parity.yml` for the CI run matrix (build + tests with and without the Chevrotain parser, and parity checks).
 
 ## References
 

@@ -1,0 +1,47 @@
+name: Chevrotain parity matrix
+
+on:
+  pull_request:
+    paths:
+      - 'packages/engine/**'
+      - 'docs/features/chevrotain-migration.md'
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    name: Build, test, and parity checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build-all
+
+      - name: Run tests (default parser)
+        run: npm run engine:test
+
+      - name: Run tests (Chevrotain parser enabled)
+        env:
+          BEATBAX_PARSER: chevrotain
+        run: npm run engine:test
+
+      - name: Run export parity checks
+        run: node packages/engine/scripts/compare-exports.mjs
+
+      - name: Upload parity artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-exports
+          path: tmp/parity-exports/**
