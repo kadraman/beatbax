@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/beatbax/ast.schema.json",
+  "title": "BeatBax AST Schema",
+  "type": "object",
+  "required": ["body"],
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node" }
+    }
+  },
+  "definitions": {
+    "node": {
+      "oneOf": [
+        { "$ref": "#/definitions/chip" },
+        { "$ref": "#/definitions/bpm" },
+        { "$ref": "#/definitions/time" },
+        { "$ref": "#/definitions/ticksPerStep" },
+        { "$ref": "#/definitions/inst" },
+        { "$ref": "#/definitions/pat" },
+        { "$ref": "#/definitions/seq" },
+        { "$ref": "#/definitions/channel" },
+        { "$ref": "#/definitions/play" },
+        { "$ref": "#/definitions/export" }
+      ]
+    },
+
+    "chip": {
+      "type": "object",
+      "required": ["nodeType","chip"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "ChipDirective" },
+        "chip": { "type": "string" }
+      }
+    },
+
+    "bpm": {
+      "type": "object",
+      "required": ["nodeType","bpm"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "BpmDirective" },
+        "bpm": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "time": {
+      "type": "object",
+      "required": ["nodeType","time"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "TimeDirective" },
+        "time": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "ticksPerStep": {
+      "type": "object",
+      "required": ["nodeType","ticksPerStep"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "TicksPerStepDirective" },
+        "ticksPerStep": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "inst": {
+      "type": "object",
+      "required": ["nodeType","name","type"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "InstDef" },
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+        "type": { "type": "string" },
+        "params": { "type": "object", "additionalProperties": true }
+      }
+    },
+
+    "token_note": {
+      "type": "object",
+      "required": ["tokenType","pitch"],
+      "additionalProperties": false,
+      "properties": {
+        "tokenType": { "const": "note" },
+        "pitch": { "type": "string", "pattern": "^[A-G](?:#|b)?\\d$" },
+        "length": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "token_rest": {
+      "type": "object",
+      "required": ["tokenType"],
+      "additionalProperties": false,
+      "properties": { "tokenType": { "const": "rest" }, "length": { "type": "integer", "minimum": 1 } }
+    },
+
+    "token_inst_inline": {
+      "type": "object",
+      "required": ["tokenType","name"],
+      "additionalProperties": false,
+      "properties": { "tokenType": { "const": "inst" }, "name": { "type": "string" }, "param": { "oneOf": [ { "type": "string" }, { "type": "number" } ] } }
+    },
+
+    "pat": {
+      "type": "object",
+      "required": ["nodeType","name","tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "PatternDef" },
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+        "tokens": { "type": "array", "items": { "oneOf": [ { "$ref": "#/definitions/token_note" }, { "$ref": "#/definitions/token_rest" }, { "$ref": "#/definitions/token_inst_inline" } ] } }
+      }
+    },
+
+    "seq_item": {
+      "type": "object",
+      "required": ["ref"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "type": "string" },
+        "transforms": { "type": "array", "items": { "oneOf": [ { "type": "string" }, { "type": "object" } ] } }
+      }
+    },
+
+    "seq": {
+      "type": "object",
+      "required": ["nodeType","name","items"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "SequenceDef" },
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/seq_item" } }
+      }
+    },
+
+    "channel": {
+      "type": "object",
+      "required": ["nodeType","channel","seq"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "ChannelDef" },
+        "channel": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "seq": { "type": "string" },
+        "inst": { "type": "string" },
+        "bpm": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "play": {
+      "type": "object",
+      "required": ["nodeType"],
+      "additionalProperties": false,
+      "properties": { "nodeType": { "const": "Play" } }
+    },
+
+    "export": {
+      "type": "object",
+      "required": ["nodeType","format","path"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeType": { "const": "Export" },
+        "format": { "type": "string", "enum": ["json","midi","uge"] },
+        "path": { "type": "string" }
+      }
+    }
+  }
+}
