@@ -131,7 +131,17 @@ export function transform(cst: CstNode | undefined) {
           }
         }
         // parse sweep if present
-        try { if (props.sweep) { const parsed = parseSweep(props.sweep as any); if (parsed) props.sweep = parsed as any; } } catch (e) {}
+        try {
+          if (props.sweep) {
+            const parsed = parseSweep(props.sweep as any);
+            if (parsed) props.sweep = parsed as any;
+          }
+        } catch (e) {
+          // Log a warning to make parsing issues visible during migration and testing.
+          console.warn(`Chevrotain parser: failed to parse sweep for instrument '${name}': ${String(e)}`);
+          // Preserve the original string value and record the parse error for debugging.
+          props.sweepParseError = String(e);
+        }
         ast.insts[name] = props;
       }
 

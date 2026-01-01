@@ -25,16 +25,20 @@ export function parse(source: string): AST {
   if (process.env.BEATBAX_PARSER === 'chevrotain') {
     // Lazy-load the Chevrotain parser to avoid requiring it in environments that
     // don't need it (default test runs, CI, consumers without the feature flag).
-    let parseWithChevrotain: any;
+    let chevModule: any;
     try {
-      // Use a synchronous require so parse() remains synchronous in existing API
-      // (ts-jest compiles modules to CommonJS in tests, enabling require here).
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      parseWithChevrotain = require('./chevrotain/index.js').default;
+      chevModule = require('./chevrotain/index.js');
     } catch (e) {
       throw new Error('Chevrotain parser requested but not available: ' + String(e));
     }
-    const res = parseWithChevrotain(source);
+
+    const parseWithChevrotainSync = chevModule.parseWithChevrotainSync || (chevModule.default && chevModule.default.parseWithChevrotainSync);
+    if (!parseWithChevrotainSync) {
+      throw new Error('Chevrotain parser is only available as an async build in this environment. Please enable a CommonJS build of Chevrotain or call the async parser directly.');
+    }
+
+    const res = parseWithChevrotainSync(source);
     if (res.errors && res.errors.length) {
       throw new Error('Chevrotain parse error: ' + JSON.stringify(res.errors));
     }

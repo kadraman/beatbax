@@ -22,12 +22,9 @@ function createParserWithTokens(CstParser: any, tokens: any) {
         { ALT: () => this.SUBRULE(this.instStmt) },
         { ALT: () => this.SUBRULE(this.seqStmt) },
         { ALT: () => this.SUBRULE(this.channelStmt) },
-      { ALT: () => this.SUBRULE(this.songStmt) },
-      { ALT: () => this.SUBRULE(this.exportStmt) },
-        { ALT: () => this.CONSUME(Chip) },
-        { ALT: () => this.CONSUME(Bpm) },
-        { ALT: () => this.CONSUME(Play) },
-        { ALT: () => this.CONSUME(Export) },
+        { ALT: () => this.SUBRULE(this.songStmt) },
+        { ALT: () => this.SUBRULE(this.exportStmt) },
+        { ALT: () => this.SUBRULE(this.simpleDirective) },
       ]);
       // allow trailing id/number/string
       this.OPTION(() => this.CONSUME(Id));
