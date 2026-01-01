@@ -3,7 +3,7 @@ title: "Instrument Imports"
 status: proposed
 authors: ["kadraman"]
 created: 2026-01-01
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/23"
 ---
 
 ## Summary

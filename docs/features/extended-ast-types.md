@@ -3,7 +3,7 @@ title: Extended AST Types for Instrument Properties
 status: draft
 authors: ["kadraman"]
 created: 2025-12-29
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/24"
 ---
 
 ## Summary

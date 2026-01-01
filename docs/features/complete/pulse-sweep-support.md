@@ -1,6 +1,6 @@
 ---
 title: Pulse Channel Sweep Support
-status: close
+status: closed
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/2"
@@ -76,7 +76,7 @@ The Game Boy pulse1 channel has a frequency sweep unit controlled by three param
    - 1 = 7.8ms per shift
    - 7 = 54.7ms per shift
 
-2. **Sweep Direction** (0-1): 
+2. **Sweep Direction** (0-1):
    - 0 = increase frequency (pitch up)
    - 1 = decrease frequency (pitch down)
 
@@ -153,7 +153,7 @@ export interface InstrumentNode {
   duty?: number;
   envelope?: { initial: number; direction: 'up' | 'down' };
   wave?: number[];
-  
+
   // NEW: Sweep parameters (Game Boy pulse1 only)
   sweep?: {
     time: number;      // 0-7, 0 = disabled
@@ -171,7 +171,7 @@ export interface InstrumentNode {
 // packages/engine/src/parser/parser.ts
 function parseInstrument(tokens: Token[], chipType: string): InstrumentNode {
   // ... existing parsing ...
-  
+
   // Parse sweep=time,direction,shift (Game Boy pulse1 only)
   const sweepToken = findParam(tokens, 'sweep');
   if (sweepToken) {
@@ -179,7 +179,7 @@ function parseInstrument(tokens: Token[], chipType: string): InstrumentNode {
     if (chipType !== 'gameboy') {
       throw new Error(`sweep directive only valid with 'chip gameboy', not '${chipType}'`);
     }
-    
+
     // CRITICAL: Sweep only valid on pulse1 (hardware limitation)
     if (inst.type !== 'pulse1') {
       throw new Error(
@@ -187,7 +187,7 @@ function parseInstrument(tokens: Token[], chipType: string): InstrumentNode {
         `Hardware limitation: Game Boy channels 2-4 do not have sweep units.`
       );
     }
-    
+
     const [time, dir, shift] = sweepToken.value.split(',');
     inst.sweep = {
       time: parseInt(time, 10) || 0,
@@ -212,22 +212,22 @@ function applySweep(
 ) {
   const sweepInterval = sweep.time / 128;
   const numSweeps = Math.floor(dur / sweepInterval);
-  
+
   let currentReg = registerFromFreq(initialFreq);
-  
+
   for (let i = 1; i <= numSweeps; i++) {
     const time = start + (i * sweepInterval);
     const delta = currentReg >> sweep.shift;
-    
+
     if (sweep.direction === 'up') {
       currentReg += delta;
     } else {
       currentReg -= delta;
     }
-    
+
     // Clamp to 11-bit range
     currentReg = Math.max(0, Math.min(currentReg, 2047));
-    
+
     const nextFreq = freqFromRegister(currentReg);
     freqParam.setValueAtTime(nextFreq, time);
   }
@@ -240,7 +240,7 @@ function applySweep(
 // packages/engine/src/export/ugeWriter.ts
 function writeDutyInstrument(inst: InstrumentNode): Buffer {
   // ... existing fields ...
-  
+
   // Sweep fields (pulse1 only)
   if (inst.type === 'pulse1' && inst.sweep) {
     buffer.writeUInt8(inst.sweep.time, offset++);
@@ -256,11 +256,11 @@ function writeDutyInstrument(inst: InstrumentNode): Buffer {
 // packages/engine/src/import/uge/uge.reader.ts
 function readDutyInstrument(buffer: Buffer, offset: number): InstrumentNode {
   // ... existing fields ...
-  
+
   const sweepTime = buffer.readUInt8(offset++);
   const sweepDir = buffer.readUInt8(offset++);
   const sweepShift = buffer.readUInt8(offset++);
-  
+
   if (sweepTime > 0) {
     inst.sweep = {
       time: sweepTime,
@@ -309,16 +309,16 @@ describe('Pulse Sweep', () => {
       shift: 2
     });
   });
-  
+
   test('applies sweep to frequency', () => {
     const ctx = new OfflineAudioContext(1, 44100, 44100);
     const inst = { type: 'pulse1', duty: 50, sweep: { time: 2, direction: 'up', shift: 1 } };
     const nodes = playPulse(ctx, 440, 0.5, 0, 1, inst);
-    
+
     // Verify frequency automation was scheduled
     // (check AudioParam.setValueAtTime calls via mock)
   });
-  
+
   test('disables sweep when time=0', () => {
     const inst = { type: 'pulse1', duty: 50, sweep: { time: 0, direction: 'up', shift: 2 } };
     // Verify no sweep automation is applied
@@ -335,7 +335,7 @@ test('UGE export preserves sweep', () => {
   const ast = parse(src);
   const uge = exportUGE(ast, 'test.uge');
   const reimported = parseUGE(uge);
-  
+
   expect(reimported.instruments[0].sweep).toEqual({
     time: 3,
     direction: 'down',
