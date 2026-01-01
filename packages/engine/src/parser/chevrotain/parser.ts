@@ -3,7 +3,7 @@ import { getBuiltTokens } from './lexer';
 
 // Delay binding to Chevrotain token constructors until runtime so this module can
 // be imported in environments where `chevrotain` may not be available.
-function createParserWithTokens(CstParser: any, tokens: any) {
+export function createParserWithTokens(CstParser: any, tokens: any) {
   const { allTokens, Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Arrow, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot, LAngle, RAngle } = tokens as any;
 
   class BaxParser extends CstParser {
@@ -16,7 +16,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.MANY(() => this.SUBRULE(this.directive));
     });
 
-    private directive = this.RULE('directive', () => {
+    public directive = this.RULE('directive', () => {
       this.OR([
         { ALT: () => this.SUBRULE(this.patStmt) },
         { ALT: () => this.SUBRULE(this.instStmt) },
@@ -30,19 +30,19 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.OPTION(() => this.CONSUME(Id));
     });
 
-    private songStmt = this.RULE('songStmt', () => {
+    public songStmt = this.RULE('songStmt', () => {
       this.CONSUME(Song);
       this.CONSUME(Id, { LABEL: 'key' });
       this.CONSUME(StringLiteral, { LABEL: 'value' });
     });
 
-    private exportStmt = this.RULE('exportStmt', () => {
+    public exportStmt = this.RULE('exportStmt', () => {
       this.CONSUME(Export);
       this.CONSUME(Id, { LABEL: 'format' });
       this.OPTION(() => this.CONSUME(StringLiteral, { LABEL: 'dest' }));
     });
 
-    private patStmt = this.RULE('patStmt', () => {
+    public patStmt = this.RULE('patStmt', () => {
       this.CONSUME(Pat);
       this.CONSUME(Id, { LABEL: 'name' });
       this.OPTION(() => {
@@ -53,7 +53,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.SUBRULE(this.patBody);
     });
 
-    private patMod = this.RULE('patMod', () => {
+    public patMod = this.RULE('patMod', () => {
       this.OR([
         { ALT: () => this.CONSUME(NumberLiteral) },
         {
@@ -76,11 +76,11 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       ]);
     });
 
-    private patBody = this.RULE('patBody', () => {
+    public patBody = this.RULE('patBody', () => {
       this.AT_LEAST_ONE(() => this.SUBRULE(this.patternItem));
     });
 
-    private patternItem = this.RULE('patternItem', () => {
+    public patternItem = this.RULE('patternItem', () => {
       this.OR([
         { ALT: () => this.CONSUME(Dot) },
         { ALT: () => this.CONSUME(Id, { LABEL: 'patternId' }) },
@@ -97,7 +97,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       ]);
     });
 
-    private inlineInst = this.RULE('inlineInst', () => {
+    public inlineInst = this.RULE('inlineInst', () => {
       this.CONSUME(Inst);
       this.OR([
         { ALT: () => this.CONSUME(Id, { LABEL: 'inlineInstName' }) },
@@ -105,7 +105,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       ]);
     });
 
-    private instStmt = this.RULE('instStmt', () => {
+    public instStmt = this.RULE('instStmt', () => {
       this.CONSUME(Inst);
       this.CONSUME(Id, { LABEL: 'name' });
       this.CONSUME(Equals);
@@ -113,14 +113,14 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.AT_LEAST_ONE(() => this.CONSUME(Id, { LABEL: 'instProp' }));
     });
 
-    private seqStmt = this.RULE('seqStmt', () => {
+    public seqStmt = this.RULE('seqStmt', () => {
       this.CONSUME(Seq);
       this.CONSUME(Id, { LABEL: 'name' });
       this.CONSUME(Equals);
       this.AT_LEAST_ONE(() => this.SUBRULE(this.seqItem));
     });
 
-    private seqItem = this.RULE('seqItem', () => {
+    public seqItem = this.RULE('seqItem', () => {
       this.CONSUME(Id, { LABEL: 'seqRef' });
       this.OPTION(() => {
         this.CONSUME(Colon);
@@ -132,7 +132,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       });
     });
 
-    private channelStmt = this.RULE('channelStmt', () => {
+    public channelStmt = this.RULE('channelStmt', () => {
       this.CONSUME(Channel);
       this.CONSUME(NumberLiteral);
       this.OR([
