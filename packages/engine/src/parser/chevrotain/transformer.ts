@@ -186,7 +186,12 @@ export function transform(cst: CstNode | undefined) {
         const valTok = tokens.find(t => t.tokenType && t.tokenType.name === 'StringLiteral');
         if (!keyTok || !valTok) continue;
         let v = valTok.image;
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+        // Support triple-quoted multiline strings ("""...""" or '''...''') as well as single-quoted strings
+        if ((v.startsWith('"""') && v.endsWith('"""')) || (v.startsWith("'''") && v.endsWith("'''"))) {
+          v = v.slice(3, -3);
+        } else if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1);
+        }
         const key = keyTok.image;
         if (key === 'tags') {
           const tags = v.split(/[,\n\r]+/).map((t: string) => t.trim()).filter(Boolean);
