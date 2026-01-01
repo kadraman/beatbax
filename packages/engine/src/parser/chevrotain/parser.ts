@@ -26,6 +26,7 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
       this.RULE('seqStmt', this.seqStmt);
       this.RULE('seqItem', this.seqItem);
       this.RULE('channelStmt', this.channelStmt);
+      this.RULE('simpleDirective', this.simpleDirective);
 
       this.performSelfAnalysis();
     }
@@ -158,6 +159,16 @@ export function createParserWithTokens(CstParser: any, tokens: any) {
         { ALT: () => this.CONSUME(Equals) },
       ]);
       this.AT_LEAST_ONE(() => this.CONSUME(Id));
+    }
+
+    public simpleDirective(): any {
+      this.OR([
+        { ALT: () => this.CONSUME(Chip) },
+        { ALT: () => this.CONSUME(Bpm) },
+        { ALT: () => this.CONSUME(Play) },
+        { ALT: () => this.CONSUME(Export) },
+      ]);
+      this.OPTION(() => this.CONSUME(Id));
     }
   }
 

@@ -19,7 +19,25 @@ export async function parseWithChevrotain(input: string) {
     // Use the canonical parser implementation from parser.ts
     const parserModule = await import('./parser');
     const BaxParser = parserModule.createParserWithTokens(CstParser, built);
-    const parser = new BaxParser();
+
+    // Diagnostic: surface parser prototype shape when instantiation fails in CI
+    try {
+      const protoKeys = Object.getOwnPropertyNames(BaxParser.prototype);
+      console.info('BaxParser.prototype keys:', protoKeys.join(', '));
+    } catch (e) {
+      console.info('Failed to enumerate BaxParser.prototype:', e);
+    }
+
+    let parser;
+    try {
+      parser = new BaxParser();
+    } catch (err: any) {
+      console.error('Failed to instantiate BaxParser:', err && err.message ? err.message : String(err));
+      // Also dump prototype keys for debugging
+      try { console.error('BaxParser.prototype keys (post-error):', Object.getOwnPropertyNames(BaxParser.prototype).join(', ')); } catch (e) { /* ignore */ }
+      throw err;
+    }
+
     parser.input = lexResult.tokens as any;
     const cst = parser.program();
     if (parser.errors && parser.errors.length) return { errors: parser.errors, ast: null };
