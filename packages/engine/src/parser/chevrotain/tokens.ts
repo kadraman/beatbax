@@ -26,12 +26,15 @@ export const tokenSpecs = [
   { name: 'Id', pattern: /[A-Za-z_][A-Za-z0-9_\-]*/ },
 
   // punctuation
+  { name: 'Arrow', pattern: /=>/ },
   { name: 'Equals', pattern: /=/ },
   { name: 'Colon', pattern: /:/ },
   { name: 'LParen', pattern: /\(/ },
   { name: 'RParen', pattern: /\)/ },
   { name: 'LBracket', pattern: /\[/ },
   { name: 'RBracket', pattern: /\]/ },
+  { name: 'LAngle', pattern: /</ },
+  { name: 'RAngle', pattern: />/ },
   { name: 'Comma', pattern: /,/ },
   { name: 'Asterisk', pattern: /\*/ },
   { name: 'Dot', pattern: /\./ },

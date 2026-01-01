@@ -4,7 +4,7 @@ import { getBuiltTokens } from './lexer';
 // Delay binding to Chevrotain token constructors until runtime so this module can
 // be imported in environments where `chevrotain` may not be available.
 function createParserWithTokens(CstParser: any, tokens: any) {
-  const { allTokens, Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot } = tokens as any;
+  const { allTokens, Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Arrow, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot, LAngle, RAngle } = tokens as any;
 
   class BaxParser extends CstParser {
     constructor() {
@@ -84,7 +84,16 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.OR([
         { ALT: () => this.CONSUME(Dot) },
         { ALT: () => this.CONSUME(Id) },
+        { ALT: () => this.CONSUME(NumberLiteral) },
+        { ALT: () => this.CONSUME(LParen) },
+        { ALT: () => this.CONSUME(RParen) },
+        { ALT: () => this.CONSUME(Comma) },
+        { ALT: () => this.CONSUME(Asterisk) },
+        { ALT: () => this.CONSUME(Colon) },
+        { ALT: () => this.CONSUME(LAngle) },
+        { ALT: () => this.CONSUME(RAngle) },
         { ALT: () => this.SUBRULE(this.inlineInst) },
+        { ALT: () => this.CONSUME(StringLiteral) },
       ]);
     });
 
@@ -126,7 +135,10 @@ function createParserWithTokens(CstParser: any, tokens: any) {
     private channelStmt = this.RULE('channelStmt', () => {
       this.CONSUME(Channel);
       this.CONSUME(NumberLiteral);
-      this.CONSUME(Equals);
+      this.OR([
+        { ALT: () => this.CONSUME(Arrow) },
+        { ALT: () => this.CONSUME(Equals) },
+      ]);
       this.AT_LEAST_ONE(() => this.CONSUME(Id));
     });
   }
