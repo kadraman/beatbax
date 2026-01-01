@@ -1,0 +1,20 @@
+chip gameboy
+
+bpm 140
+time 4
+
+inst bass type=pulse2 duty=25 env=10,down
+inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+
+pat bassline = C3 * 4
+pat melody = C5 C5 D5 E5
+
+seq main = bassline melody bassline
+
+channel 1 => inst wave1 seq main
+channel 2 => inst bass seq main
+
+play
+
+export json "sample-bass.json"
+export midi "sample-bass.mid"
