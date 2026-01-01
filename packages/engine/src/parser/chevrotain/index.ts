@@ -18,7 +18,7 @@ export async function parseWithChevrotain(input: string) {
   const Play = createToken({ name: 'Play', pattern: /play/ });
   const Export = createToken({ name: 'Export', pattern: /export/ });
   const Id = createToken({ name: 'Id', pattern: /[A-Za-z_][A-Za-z0-9_\-]*/ });
-  const NumberLiteral = createToken({ name: 'NumberLiteral', pattern: /-?\d+/ });
+  const NumberLiteral = createToken({ name: 'NumberLiteral', pattern: /[+-]?\d+/ });
   const StringLiteral = createToken({ name: 'StringLiteral', pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/ });
   const Equals = createToken({ name: 'Equals', pattern: /=/ });
   const Colon = createToken({ name: 'Colon', pattern: /:/ });
