@@ -58,16 +58,16 @@ function createParserWithTokens(CstParser: any, tokens: any) {
         { ALT: () => this.CONSUME(NumberLiteral) },
         {
           ALT: () => {
-            this.CONSUME(Id);
+            this.CONSUME(Id, { LABEL: 'patModId' });
             this.OPTION(() => {
               this.CONSUME(LParen);
               this.OPTION(() => {
                 this.OR([
                   { ALT: () => this.CONSUME(NumberLiteral) },
-                  { ALT: () => this.CONSUME(Id) },
+                  { ALT: () => this.CONSUME(Id, { LABEL: 'patModArg' }) },
                   { ALT: () => this.CONSUME(StringLiteral) },
                 ]);
-                this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral); });
+                this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral, { LABEL: 'patModCommaNum' }); });
               });
               this.CONSUME(RParen);
             });
@@ -83,7 +83,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
     private patternItem = this.RULE('patternItem', () => {
       this.OR([
         { ALT: () => this.CONSUME(Dot) },
-        { ALT: () => this.CONSUME(Id) },
+        { ALT: () => this.CONSUME(Id, { LABEL: 'patternId' }) },
         { ALT: () => this.CONSUME(NumberLiteral) },
         { ALT: () => this.CONSUME(LParen) },
         { ALT: () => this.CONSUME(RParen) },
@@ -100,8 +100,8 @@ function createParserWithTokens(CstParser: any, tokens: any) {
     private inlineInst = this.RULE('inlineInst', () => {
       this.CONSUME(Inst);
       this.OR([
-        { ALT: () => this.CONSUME(Id) },
-        { ALT: () => { this.CONSUME(LParen); this.CONSUME(Id); this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral); }); this.CONSUME(RParen); } }
+        { ALT: () => this.CONSUME(Id, { LABEL: 'inlineInstName' }) },
+        { ALT: () => { this.CONSUME(LParen); this.CONSUME(Id, { LABEL: 'inlineInstNameParen' }); this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral, { LABEL: 'inlineInstNum' }); }); this.CONSUME(RParen); } }
       ]);
     });
 
@@ -110,7 +110,7 @@ function createParserWithTokens(CstParser: any, tokens: any) {
       this.CONSUME(Id, { LABEL: 'name' });
       this.CONSUME(Equals);
       // simple key=value pairs; accept Ids and commas
-      this.AT_LEAST_ONE(() => this.CONSUME(Id));
+      this.AT_LEAST_ONE(() => this.CONSUME(Id, { LABEL: 'instProp' }));
     });
 
     private seqStmt = this.RULE('seqStmt', () => {
@@ -121,14 +121,14 @@ function createParserWithTokens(CstParser: any, tokens: any) {
     });
 
     private seqItem = this.RULE('seqItem', () => {
-      this.CONSUME(Id);
+      this.CONSUME(Id, { LABEL: 'seqRef' });
       this.OPTION(() => {
         this.CONSUME(Colon);
         this.MANY(() => this.SUBRULE(this.patMod));
       });
       this.OPTION(() => {
         this.CONSUME(Asterisk);
-        this.CONSUME(NumberLiteral);
+        this.CONSUME(NumberLiteral, { LABEL: 'seqRepeat' });
       });
     });
 
