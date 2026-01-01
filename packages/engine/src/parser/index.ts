@@ -21,6 +21,26 @@ const warnProblematicPatternName = (name: string): void => {
  * using `expandPattern` and collecting `inst`, `seq` and `channel` entries.
  */
 export function parse(source: string): AST {
+  // Feature-flag: allow using the Chevrotain-based parser for parity testing.
+  if (process.env.BEATBAX_PARSER === 'chevrotain') {
+    // Lazy-load the Chevrotain parser to avoid requiring it in environments that
+    // don't need it (default test runs, CI, consumers without the feature flag).
+    let parseWithChevrotain: any;
+    try {
+      // Use a synchronous require so parse() remains synchronous in existing API
+      // (ts-jest compiles modules to CommonJS in tests, enabling require here).
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      parseWithChevrotain = require('./chevrotain/index.js').default;
+    } catch (e) {
+      throw new Error('Chevrotain parser requested but not available: ' + String(e));
+    }
+    const res = parseWithChevrotain(source);
+    if (res.errors && res.errors.length) {
+      throw new Error('Chevrotain parse error: ' + JSON.stringify(res.errors));
+    }
+    return res.ast as unknown as AST;
+  }
+
   // Remove inline comments starting with `#` unless inside quotes, brackets,
   // or parentheses. This keeps comment support consistent across `pat`,
   // `seq`, and `channel` lines where users may append notes.
