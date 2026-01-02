@@ -31,6 +31,8 @@ This feature introduces structured AST types for multi-field instrument properti
 3. Emit a single-run warning when parsing CSV-style multi-field props, encouraging migration to structured literals.
 4. Provide a codemod to migrate songs to the new structured form.
 
+Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+
 ## AST Types (suggested)
 
 Add these interfaces to `packages/engine/src/parser/ast.ts`.

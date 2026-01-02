@@ -8,7 +8,7 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 ## Summary
 
-Add a comprehensive effects system to BeatBax that enables expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers. 
+Add a comprehensive effects system to BeatBax that enables expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
 This document now also includes an explicit mapping plan and exporter guidance for initial implementation of gameboy and hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other common retro sound chips.
 
@@ -40,6 +40,8 @@ Summary: the following core effects will be implemented and exposed in the langu
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
+Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+
 ## Effect Combinations
 
 Multiple effects can be applied to a single note:
@@ -62,7 +64,7 @@ pat melody_glide = C4<port:G4,trem:8>
 
 # Arpeggio + echo
 pat melody_arp = C4<arp:047,echo:4,50>
- 
+
 # Panning (generic + GB-specific)
 pat stereo = C5<pan=-1.0>:4 E5<pan=0.0>:4 G5<pan=1.0>:4 C6<gb:pan:L>:4
 ```
@@ -288,7 +290,7 @@ function parseEffect(str: string): Effect {
   // Parse "vib:4" or "port:E4,8"
   const [type, paramsStr] = str.split(':');
   const params = paramsStr ? paramsStr.split(',') : [];
-  
+
   return {
     type: type as any,
     params: params.map(p => isNaN(Number(p)) ? p : Number(p))
@@ -309,18 +311,18 @@ function scheduleNote(
 ): AudioNode[] {
   const midi = noteToMidi(note.note);
   const baseFreq = midiToFreq(midi);
-  
+
   // Create base oscillator/nodes
   const nodes = createBaseNodes(ctx, baseFreq, start, dur, inst);
   const [osc, gain] = nodes;
-  
+
   // Apply effects
   if (note.effects) {
     for (const effect of note.effects) {
       applyEffect(ctx, effect, osc, gain, baseFreq, start, dur, inst);
     }
   }
-  
+
   return nodes;
 }
 

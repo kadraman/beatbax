@@ -26,6 +26,8 @@ Add a runtime mechanism to select and load audio chip backends (e.g., `gameboy`,
 5. Loading should support both ESM dynamic `import()` and a synchronous fallback (for bundlers that prefer static imports).
 6. Keep security/safety in mind: evaluate unknown/third-party chips before loading in privileged/CI contexts.
 
+Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+
 ## Design & API
 
 Public contract (minimal): each chip module folder must export the following:
