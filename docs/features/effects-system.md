@@ -40,11 +40,20 @@ Summary: the following core effects will be implemented and exposed in the langu
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
-Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path remains only as a temporary fallback (opt-out via `BEATBAX_PEGGY_EVENTS=0`).
 
 ## Effect Combinations
 
 Multiple effects can be applied to a single note:
+
+Stateful/routable controls (keep outside the general `Effect` array):
+- Pan/routing (sequence-level `pan()` transform, instrument defaults, channel NR51/MIDI CC #10)
+- Channel/sequence gain trims (mixer-style balance), distinct from per-note volume slides
+- Mute/solo flags (runtime state)
+- Tempo/speed modifiers that affect scheduling (e.g., channel speed multipliers)
+- Chip-level mix toggles (e.g., Game Boy NR50/NR51 master terminals)
+
+All other effects in this doc (vib, port, arp, vol slide, bend, trem, cut, retrig, echo) remain per-note/per-pattern effects.
 
 ### Inline effect parameter parsing
 
@@ -697,10 +706,10 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 ## Implementation Checklist
 
 - [ ] Add `Effect` and `NoteToken` types to AST
-- [ ] Update parser to recognize `<effect:param>` syntax
+- [x] Update parser to recognize `<effect:param>` syntax (Peggy default parser)
 - [ ] Implement effect parsing for all core effects
 - [ ] Create effect application functions in audio backend
-- [ ] Add panning implementation
+- [x] Add panning implementation
 - [ ] Add vibrato implementation
 - [ ] Add portamento implementation
 - [ ] Add arpeggio implementation
@@ -725,6 +734,7 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 This section describes a practical, incremental implementation approach. Implementers should complete each phase end-to-end (parser → resolver → playback → export → tests) before moving to the next phase. Keep changes minimal and add unit tests for each slice.
 
 Phase 1 — Effect infrastructure + Panning (priority)
+- Current status: parser inline effect syntax is live in the default Peggy path; panning is wired through resolver, playback, and exports (GB NR51 + MIDI CC #10). Remaining work focuses on richer effect parsing/application beyond pan.
 - Add core effect infrastructure:
   - AST: `Effect` union, per-note `pan?: Pan` (already specified in AST section).
   - Parser: update `src/parser/parser.ts` to route effect tokens into `parseEffects()` and surface `pan` separately (see examples above).
@@ -749,6 +759,17 @@ Phase 2 onwards — Add one effect at a time (vib, port, arp, vol, bend, trem, c
      - MIDI: map to CCs/pitchbend/note expansions as documented above.
   5. Tests: unit tests for parser, mapping quantization tests (UGE numeric ranges), and integration test exporting demo song.
 
+Recommended Game Boy-first implementation order (highest applicability/coverage first):
+1) Vibrato (`vib`) — maps to GB-friendly pitch mod (export via 4xy), core tracker effect.
+2) Portamento (`port`) — tone slide/glide (3xx/1xx/2xx), common in GB tunes.
+3) Arpeggio (`arp`) — classic tracker chord simulation (0xy); expand longer arps as needed.
+4) Volume Slide (`vol`) — row/tick volume deltas; maps to UGE volume slide.
+5) Tremolo (`trem`) — amplitude LFO; software gain automation.
+6) Pitch Bend (`bend`) — higher-res glide; approximate with portamento sequences.
+7) Note Cut (`cut`) — gate after N ticks; aligns with GB length/gating semantics.
+8) Retrigger (`retrig`) — rapid re-hits within a row; software-only on GB.
+9) Echo/Delay (`echo`) — bake or channel-expensive; add last with clear fallbacks.
+
 Example phase-specific notes:
 - Vibrato (`vib`) — quantize depth/speed to 0..15 for UGE `4xy`. Add `ugeVibrato()` helper that returns u8 opcodes.
 - Portamento (`port`) — implement `computePortRate()` helper to convert semitone delta + tick-duration → tracker `xx` value.
@@ -757,11 +778,11 @@ Example phase-specific notes:
 Developer workflow / quick commands
 - Run parser tests only:
 ```bash
-pnpm -w test -- packages/engine --testPathPattern parser.effects.test.ts
+npm -w test -- packages/engine --testPathPattern parser.effects.test.ts
 ```
 - Run full exporter integration for a fixture:
 ```bash
-pnpm -w node ./bin/beatbax --export uge songs/effect_demo.bax tmp/out.uge
+npm -w node ./bin/beatbax --export uge songs/effect_demo.bax tmp/out.uge
 ```
 
 ## Performance Considerations
