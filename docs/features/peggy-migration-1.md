@@ -1,5 +1,5 @@
 ---
-title: "Migrate .bax parsing to Peggy (keep AST + language stable)"
+title: "Peggy grammar iteration 1: migrate .bax parsing to Peggy (keep AST + language stable)"
 status: completed
 authors: ["kadraman"]
 created: 2026-01-02
@@ -79,7 +79,7 @@ Proposed file layout (initial):
 
 Entry-point wiring:
 - `packages/engine/src/parser/index.ts` continues exporting `parse(source: string): AST`.
-- Parser selection is feature-flagged: set `BEATBAX_PARSER=peggy` (default stays legacy for one deprecation window). All engine tests pass under Peggy.
+- Parser selection: Peggy is the default; set `BEATBAX_PARSER=legacy` to opt into the legacy parser during the deprecation window. All engine tests pass under Peggy.
 
 Parity strategy (implemented):
 - Grammar parses pattern/sequence RHS directly: notes, rests, group/token repeats, duration suffixes, inline `inst`, `inst(name,N)` temporary overrides, quoted token splits, transforms/modifiers, and inline effects like `<pan:...>`.
@@ -137,7 +137,7 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 1. Introduce Peggy grammar and a new `parseWithPeggy()` function. **(Done)**
 2. Add a test matrix that runs parsing-related tests against both implementations. **(Done via env flag + existing suites)**
 3. Fix parity gaps until `BEATBAX_PARSER=peggy` passes the full suite. **(Done)**
-4. Flip the default to Peggy; keep legacy parser for one deprecation window. **(Planned)**
+4. Flip the default to Peggy; keep legacy parser for one deprecation window. **(Done)**
 5. Remove legacy tokenizer/parser once parity and performance are acceptable. **(Planned)**
 
 Rollback:
@@ -152,8 +152,8 @@ Rollback:
 - [x] Add unit tests for grammar and transformer (covered by existing suite under Peggy flag)
 - [x] Add AST parity tests against `songs/*.bax` (covered by full suite + sample songs)
 - [x] Run full test suite with Peggy enabled in CI/local (`BEATBAX_PARSER=peggy`)
-- [ ] Switch default parser to Peggy
-- [ ] Deprecate and remove legacy tokenizer/parser
+- [x] Switch default parser to Peggy
+- [X] Deprecate legacy tokenizer/parser
 
 ## Future Enhancements
 
@@ -362,3 +362,5 @@ Next iteration targets for the grammar:
 - Parse `inst(name,N)` temporary overrides as structured nodes.
 - Parse transforms (`:oct(+1)`, `:rev`, `:slow`, etc.) into structured arrays.
 - Parse pattern event tokens (notes, rests, inline `inst`) directly instead of `RestOfLine`.
+
+These items remain open; see [docs/features/peggy-migration-2.md](docs/features/peggy-migration-2.md) for the detailed plan to complete them and remove the remaining legacy expression path.

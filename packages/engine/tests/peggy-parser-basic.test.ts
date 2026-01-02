@@ -13,6 +13,16 @@ play auto repeat
 `;
 
 describe('peggy parser parity', () => {
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.BEATBAX_PARSER;
+  });
+
+  afterEach(() => {
+    process.env.BEATBAX_PARSER = originalEnv;
+  });
+
   test('parses a simple program equivalently to legacy parser', () => {
     const legacyAst = parseLegacy(sampleSource);
     const peggyAst = parseWithPeggy(sampleSource);
@@ -23,7 +33,6 @@ describe('peggy parser parity', () => {
   test('env flag switches parse implementation', () => {
     process.env.BEATBAX_PARSER = 'peggy';
     const flaggedAst = parse(sampleSource);
-    process.env.BEATBAX_PARSER = undefined;
 
     expect(flaggedAst).toEqual(parseWithPeggy(sampleSource));
   });

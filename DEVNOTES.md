@@ -5,7 +5,7 @@ This document captures architecture, implementation details, and testing notes f
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
 - Key folders:
-  - `packages/engine/src/parser/` — Peggy grammar + generated parser (feature-flagged via `BEATBAX_PARSER=peggy`) plus the legacy tokenizer/parser retained for one deprecation window. Produces the minimal AST: `pats`, `insts`, `channels`.
+  - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser now lives in `parser/legacy/` and can be selected with `BEATBAX_PARSER=legacy` during the deprecation window. Produces the minimal AST: `pats`, `insts`, `channels`.
   - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.
   - `packages/engine/src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
@@ -61,7 +61,7 @@ Testing
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
 
 Parser selection
-- The Peggy parser lives in `packages/engine/src/parser/peggy/` and is selected via `BEATBAX_PARSER=peggy`. The full engine suite now passes under this flag; the legacy parser remains the default until the deprecation window closes.
+- The Peggy parser lives in `packages/engine/src/parser/peggy/` and is the default. Set `BEATBAX_PARSER=legacy` to force the legacy parser during the deprecation window. The full engine suite passes under Peggy.
 
 ## Hardware Parity and Frequency Logic
 
