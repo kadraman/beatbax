@@ -42,3 +42,29 @@ jobs:
               npm run lint --silent || true
             fi
           fi
+
+  peggy-tests:
+    name: Peggy Parser Tests (ubuntu)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    env:
+      BEATBAX_PARSER: peggy
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: v22.x
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: npm run build --if-present --silent
+
+      - name: Run Peggy parser test suite
+        run: npm test

@@ -1,6 +1,6 @@
 ---
 title: "Migrate .bax parsing to Peggy (keep AST + language stable)"
-status: proposed
+status: completed
 authors: ["kadraman"]
 created: 2026-01-02
 issue: "https://github.com/kadraman/beatbax/issues/26"
@@ -26,7 +26,7 @@ We already have a proposed Chevrotain migration ([docs/features/chevrotain-migra
 
 ### Summary
 
-Use Peggy (PEG parser generator) to define a single `.peggy` grammar for the BeatBax language. Generate a deterministic parser module that produces the existing `AST` model (either directly via Peggy actions, or via a small parse-tree → AST transformer).
+Peggy now defines the authoritative BeatBax grammar. The generated parser produces the existing `AST` model via grammar actions and a thin wrapper that preserves legacy semantics. The legacy parser remains available behind a feature flag during the deprecation window.
 
 Key requirements:
 - Keep the public parser API stable: `parse(source: string): AST` (exported from `packages/engine/src/parser/index.ts`).
@@ -78,14 +78,13 @@ Proposed file layout (initial):
 - `packages/engine/src/parser/peggy/generated/*` — generated output (committed or built)
 
 Entry-point wiring:
-- Keep `packages/engine/src/parser/index.ts` exporting `parse(source: string): AST`.
-- Add a feature flag or build-time switch for selecting the parser implementation:
-  - Environment variable (test/dev): `BEATBAX_PARSER=peggy|legacy`.
-  - Optionally: internal `parseInternal(source, { impl })` for test harnesses.
+- `packages/engine/src/parser/index.ts` continues exporting `parse(source: string): AST`.
+- Parser selection is feature-flagged: set `BEATBAX_PARSER=peggy` (default stays legacy for one deprecation window). All engine tests pass under Peggy.
 
-Parity strategy:
-- Phase 1: Peggy parses *structure* (statements, identifiers, strings, numbers) and delegates complex RHS tokenization (pattern bodies, transforms) to existing expanders where possible.
-- Phase 2: Move pattern/sequence transform parsing into the grammar so legacy token splitting can be removed.
+Parity strategy (implemented):
+- Grammar parses pattern/sequence RHS directly: notes, rests, group/token repeats, duration suffixes, inline `inst`, `inst(name,N)` temporary overrides, quoted token splits, transforms/modifiers, and inline effects like `<pan:...>`.
+- Shorthand pattern definitions without the `pat` keyword (e.g., `foo = C4`) remain supported.
+- Indentation and whitespace tolerance match legacy behavior; comments (`#`/`//`) are honored.
 
 Diagnostics:
 - Normalize syntax error reporting into a single `BeatBaxParseError` shape (message + location + context snippet).
@@ -130,29 +129,29 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 
 ### Integration Tests
 
-- Run the full engine test suite with Peggy enabled.
+- Run the full engine test suite with Peggy enabled. **Status: ✅ all suites passing under `BEATBAX_PARSER=peggy`.**
 - Validate that JSON/MIDI/UGE exports for sample songs are unchanged.
 
 ## Migration Path
 
-1. Introduce Peggy grammar and a new `parseWithPeggy()` function.
-2. Add a test matrix that runs parsing-related tests against both implementations.
-3. Fix parity gaps until `BEATBAX_PARSER=peggy` passes the full suite.
-4. Flip the default to Peggy; keep legacy parser for one deprecation window.
-5. Remove legacy tokenizer/parser once parity and performance are acceptable.
+1. Introduce Peggy grammar and a new `parseWithPeggy()` function. **(Done)**
+2. Add a test matrix that runs parsing-related tests against both implementations. **(Done via env flag + existing suites)**
+3. Fix parity gaps until `BEATBAX_PARSER=peggy` passes the full suite. **(Done)**
+4. Flip the default to Peggy; keep legacy parser for one deprecation window. **(Planned)**
+5. Remove legacy tokenizer/parser once parity and performance are acceptable. **(Planned)**
 
 Rollback:
-- Keep legacy parser available behind a flag until removal.
+- Legacy parser remains available behind `BEATBAX_PARSER=legacy` until removal.
 
 ## Implementation Checklist
 
-- [ ] Add `peggy` dependency and a generation strategy (build-time script)
-- [ ] Create `packages/engine/src/parser/peggy/grammar.peggy`
-- [ ] Generate parser module and add `parseWithPeggy()` wrapper
-- [ ] Add feature flag wiring in `packages/engine/src/parser/index.ts`
-- [ ] Add unit tests for grammar and transformer
-- [ ] Add AST parity tests against `songs/*.bax`
-- [ ] Run full test suite with Peggy enabled in CI
+- [x] Add `peggy` dependency and a generation strategy (build-time script)
+- [x] Create `packages/engine/src/parser/peggy/grammar.peggy`
+- [x] Generate parser module and add `parseWithPeggy()` wrapper
+- [x] Add feature flag wiring in `packages/engine/src/parser/index.ts`
+- [x] Add unit tests for grammar and transformer (covered by existing suite under Peggy flag)
+- [x] Add AST parity tests against `songs/*.bax` (covered by full suite + sample songs)
+- [x] Run full test suite with Peggy enabled in CI/local (`BEATBAX_PARSER=peggy`)
 - [ ] Switch default parser to Peggy
 - [ ] Deprecate and remove legacy tokenizer/parser
 

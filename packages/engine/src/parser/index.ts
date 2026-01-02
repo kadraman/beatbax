@@ -3,6 +3,21 @@ export * from './tokenizer.js';
 import { expandPattern, transposePattern } from '../patterns/expand.js';
 import { AST, SeqMap, ChannelNode, PlayNode, InstMap } from './ast.js';
 import { parseSweep } from '../chips/gameboy/pulse.js';
+import { parseWithPeggy } from './peggy/index.js';
+export { parseWithPeggy } from './peggy/index.js';
+
+type ParserImpl = (source: string) => AST;
+
+const selectParser = (): ParserImpl => {
+  const impl = typeof process !== 'undefined' ? process.env?.BEATBAX_PARSER : undefined;
+  if (impl && impl.toLowerCase() === 'peggy') return parseWithPeggy;
+  return parseLegacy;
+};
+
+export function parse(source: string): AST {
+  const impl = selectParser();
+  return impl(source);
+}
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
@@ -16,11 +31,10 @@ const warnProblematicPatternName = (name: string): void => {
 };
 
 /**
- * Parse source text and build a minimal AST. Currently this parser
- * focuses on resolving `pat` definitions into expanded token arrays
- * using `expandPattern` and collecting `inst`, `seq` and `channel` entries.
+ * Legacy parser implementation (regex + string processing).
+ * Maintained for backcompat while the Peggy parser matures.
  */
-export function parse(source: string): AST {
+export function parseLegacy(source: string): AST {
   // Remove inline comments starting with `#` unless inside quotes, brackets,
   // or parentheses. This keeps comment support consistent across `pat`,
   // `seq`, and `channel` lines where users may append notes.
