@@ -1,12 +1,29 @@
 import { parse as peggyParse } from './generated/parser.js';
 import { expandPattern, transposePattern } from '../../patterns/expand.js';
-import { AST, ChannelNode, InstMap, PlayNode, SongMetadata, SeqMap } from '../ast.js';
+import {
+  AST,
+  ChannelNode,
+  InstMap,
+  PatternEvent,
+  PatternEventMap,
+  PlayNode,
+  SequenceItem,
+  SequenceItemMap,
+  SequenceTransform,
+  SeqMap,
+  SourceLocation,
+  SongMetadata,
+} from '../ast.js';
+import {
+  RawSeqItem,
+  RawSeqModifier,
+  isPeggyEventsEnabled,
+  materializeSequenceItems,
+  normalizeSeqItems,
+  parseSeqTransforms,
+  patternEventsToTokens,
+} from '../structured.js';
 import { parseSweep } from '../../chips/gameboy/pulse.js';
-
-interface SourceLocation {
-  start: { offset: number; line: number; column: number };
-  end: { offset: number; line: number; column: number };
-}
 
 interface BaseStmt { nodeType: string; loc?: SourceLocation }
 interface ChipStmt extends BaseStmt { nodeType: 'ChipStmt'; chip: string }
@@ -16,8 +33,8 @@ interface StepsPerBarStmt extends BaseStmt { nodeType: 'StepsPerBarStmt'; stepsP
 interface TicksPerStepStmt extends BaseStmt { nodeType: 'TicksPerStepStmt'; ticksPerStep: number }
 interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string; value: string }
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
-interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsTokens?: string[]; rhs?: string }
-interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsTokens?: string[]; rhs?: string }
+interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
+interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
 interface PlayStmt extends BaseStmt { nodeType: 'PlayStmt'; args: string }
 interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; path: string }
@@ -51,7 +68,6 @@ const warnProblematicPatternName = (name: string): void => {
     );
   }
 };
-
 const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
   const rest = rhs.trim();
   const parts = rest.split(/\s+/);
@@ -85,8 +101,12 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
   insts[name] = props;
 };
 
-const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string[]): { name: string; tokens: string[] } => {
+const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string[], rhsEvents?: PatternEvent[]): { name: string; tokens: string[] } => {
   let tokens = rhsTokens ? rhsTokens.slice() : undefined;
+  if (!tokens && rhsEvents && rhsEvents.length > 0) {
+    tokens = patternEventsToTokens(rhsEvents);
+  }
+
   let rhs = rhsRaw ? rhsRaw.trim() : '';
   if (tokens === undefined) {
     if ((rhs.startsWith('"') && rhs.endsWith('"')) || (rhs.startsWith("'") && rhs.endsWith("'"))) {
@@ -106,7 +126,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
       let semitones = 0;
       let octaves = 0;
       for (const mod of mods) {
-        const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+        const mOct = mod.match(/^oct\(([+-]?\d+)\)$/i);
         if (mOct) {
           octaves += parseInt(mOct[1], 10);
           continue;
@@ -148,64 +168,6 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   } catch (err) {
     return { name: baseName, tokens: [rhs] };
   }
-};
-
-const tokenizeSeqRhs = (rhs: string): string[] => {
-  const tokenize = (s: string): string[] => {
-    const out: string[] = [];
-    let i = 0;
-    let cur = '';
-    let inS = false;
-    let inD = false;
-    while (i < s.length) {
-      const ch = s[i];
-      if (ch === "'" && !inD) { inS = !inS; cur += ch; i++; continue; }
-      if (ch === '"' && !inS) { inD = !inD; cur += ch; i++; continue; }
-      if (inS || inD) { cur += ch; i++; continue; }
-      if (ch === '(') {
-        let depth = 1;
-        let j = i + 1;
-        let group = '(';
-        while (j < s.length && depth > 0) {
-          const c2 = s[j];
-          group += c2;
-          if (c2 === '(') depth++;
-          else if (c2 === ')') depth--;
-          j++;
-        }
-        cur += group;
-        i = j;
-        continue;
-      }
-      if (/\s/.test(ch) || ch === ',') {
-        if (cur.trim()) { out.push(cur.trim()); cur = ''; }
-        i++; continue;
-      }
-      cur += ch;
-      i++;
-    }
-    if (cur.trim()) out.push(cur.trim());
-    return out;
-  };
-
-  const rawParts = tokenize(rhs);
-  const parts: string[] = [];
-  for (let i = 0; i < rawParts.length; i++) {
-    const p = rawParts[i];
-    if (p === '*' && i > 0 && i + 1 < rawParts.length && /^\d+$/.test(rawParts[i + 1])) {
-      const prev = parts.pop();
-      if (prev) parts.push(`${prev}*${rawParts[i + 1]}`);
-      i++;
-      continue;
-    }
-    if (/^\*\d+$/.test(p) && parts.length > 0) {
-      const prev = parts.pop();
-      parts.push(`${prev}${p}`);
-      continue;
-    }
-    parts.push(p);
-  }
-  return parts;
 };
 
 const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>): ChannelNode & { seqSpecTokens?: string[] } => {
@@ -331,6 +293,10 @@ export function parseWithPeggy(source: string): AST {
   const channels: ChannelNode[] = [];
   const metadata: SongMetadata = {};
 
+  const structuredEnabled = isPeggyEventsEnabled();
+  const patternEvents: PatternEventMap | undefined = structuredEnabled ? {} : undefined;
+  const sequenceItems: SequenceItemMap | undefined = structuredEnabled ? {} : undefined;
+
   let topBpm: number | undefined = undefined;
   let chipName: string | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
@@ -364,14 +330,17 @@ export function parseWithPeggy(source: string): AST {
         break;
       }
       case 'PatStmt': {
-        const { name, tokens } = expandPatternSpec(stmt.name, stmt.rhs, stmt.rhsTokens);
+        const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents);
+        if (structuredEnabled && patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
+          patternEvents[name] = stmt.rhsEvents;
+        }
         pats[name] = tokens;
         break;
       }
       case 'SeqStmt': {
-        const rhsTokens = stmt.rhsTokens;
         const rhs = stmt.rhs ? stmt.rhs.trim() : '';
-        if ((!rhsTokens || rhsTokens.length === 0) && !rhs) {
+        const items = normalizeSeqItems(stmt.rhsItems, rhs, stmt.rhsTokens);
+        if (items.length === 0) {
           console.warn(
             `[BeatBax Parser] Warning: sequence '${stmt.name}' has no RHS content (empty). ` +
             `Define patterns after '=' or remove the empty 'seq ${stmt.name} =' line.`
@@ -379,7 +348,10 @@ export function parseWithPeggy(source: string): AST {
           seqs[stmt.name] = [];
           break;
         }
-        seqs[stmt.name] = rhsTokens && rhsTokens.length > 0 ? rhsTokens : tokenizeSeqRhs(rhs);
+        if (structuredEnabled && sequenceItems) {
+          sequenceItems[stmt.name] = items;
+        }
+        seqs[stmt.name] = materializeSequenceItems(items);
         break;
       }
       case 'ChannelStmt': {
@@ -420,5 +392,13 @@ export function parseWithPeggy(source: string): AST {
     }
   }
 
-  return { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };
+  const includeStructured = structuredEnabled;
+
+  const ast: AST = { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };
+  if (includeStructured) {
+    if (patternEvents) ast.patternEvents = patternEvents;
+    if (sequenceItems) ast.sequenceItems = sequenceItems;
+  }
+
+  return ast;
 }

@@ -11,8 +11,28 @@
 
   function repeat(items, n) {
     const out = [];
-    for (let i = 0; i < n; i++) out.push(...items);
+    for (let i = 0; i < n; i++) out.push(...items.map(cloneEvent));
     return out;
+  }
+
+  function cloneEvent(ev) {
+    if (!ev || typeof ev !== 'object') return ev;
+    const c = { ...ev };
+    if (ev.loc) {
+      c.loc = {
+        start: { ...ev.loc.start },
+        end: { ...ev.loc.end },
+      };
+    }
+    return c;
+  }
+
+  function withDuration(evts, dur) {
+    if (!evts || evts.length === 0) return evts;
+    const d = Math.max(1, dur || 1);
+    const copy = evts.map(cloneEvent);
+    copy[0] = { ...copy[0], duration: d };
+    return copy;
   }
 }
 
@@ -101,17 +121,17 @@ InstStmt
 
 PatStmt
   = $("pat" !IdentChar) __ name:PatName _ "=" _ rhs:PatternRhs {
-      return { nodeType: "PatStmt", name, rhsTokens: rhs, loc: loc(location()) };
+      return { nodeType: "PatStmt", name, rhsEvents: rhs, loc: loc(location()) };
     }
 
 PatShorthandStmt
   = !ReservedWord name:Identifier _ "=" _ rhs:PatternRhs {
-      return { nodeType: "PatStmt", name, rhsTokens: rhs, loc: loc(location()) };
+      return { nodeType: "PatStmt", name, rhsEvents: rhs, loc: loc(location()) };
     }
 
 SeqStmt
   = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
-      return { nodeType: "SeqStmt", name, rhsTokens: rhs, loc: loc(location()) };
+      return { nodeType: "SeqStmt", name, rhsItems: rhs, loc: loc(location()) };
     }
 
 ChannelStmt
@@ -185,17 +205,13 @@ PatternToken
   = base:PatternAtom dur:DurationSuffix? {
       const tok = Array.isArray(base) ? base.slice() : [base];
       if (dur && tok.length > 0) {
-        const head = tok[0];
-        const tail = tok.slice(1);
-        const out = [head];
-        for (let i = 1; i < dur; i++) out.push('_');
-        return out.concat(tail);
+        return withDuration(tok, dur);
       }
       return tok;
     }
 
 DurationSuffix
-  = ":" WS0 n:Int { return n; }
+  = (":" / "/") WS0 n:Int { return n; }
 
 PatternAtom
   = NoteWithEffects
@@ -206,39 +222,48 @@ PatternAtom
   / InlineInstToken
   / IdentWithCall
   / QuotedPatternTokens
-  / Identifier { return text(); }
+  / Identifier { return { kind: 'token', value: text(), raw: text(), loc: loc(location()) }; }
 
 NoteWithEffects
-  = note:NoteToken effs:EffectSuffix+ { return note + effs.join(''); }
+  = note:NoteToken effs:EffectSuffix+ { return { kind: 'note', value: note.value, effects: effs, raw: note.raw + effs.join(''), loc: loc(location()) }; }
 
 IdentWithEffects
-  = id:Identifier effs:EffectSuffix+ { return id + effs.join(''); }
+  = id:Identifier effs:EffectSuffix+ { return { kind: 'token', value: id + effs.join(''), raw: id + effs.join(''), loc: loc(location()) }; }
 
 EffectSuffix
   = "<" body:$( (!">" .)* ) ">" { return '<' + body + '>'; }
 
 NoteToken
-  = $([A-Ga-g] [#b]? "-"? [0-9]+)
+  = val:$([A-Ga-g] [#b]? "-"? [0-9]+) { return { kind: 'note', value: val, raw: val, loc: loc(location()) }; }
 
 RestToken
-  = "." { return '.'; }
-  / "_" { return '_'; }
-  / "-" { return '-'; }
+  = "." { return { kind: 'rest', value: '.', raw: '.', loc: loc(location()) }; }
+  / "_" { return { kind: 'rest', value: '_', raw: '_', loc: loc(location()) }; }
+  / "-" { return { kind: 'rest', value: '-', raw: '-', loc: loc(location()) }; }
 
 TempInstToken
-  = $('inst(' (!")" .)* ')')
+  = "inst(" WS0 name:Identifier WS0 "," WS0 dur:Int WS0 ")" {
+      return { kind: 'temp-inst', name, duration: dur, raw: `inst(${name},${dur})`, loc: loc(location()) };
+    }
+  / "inst(" WS0 name:Identifier WS0 ")" {
+      return { kind: 'temp-inst', name, raw: `inst(${name})`, loc: loc(location()) };
+    }
 
 InlineInstToken
   = "inst" WS1 name:Identifier {
-      return `inst ${name}`;
+      return { kind: 'inline-inst', name, raw: `inst ${name}`, loc: loc(location()) };
     }
 
 IdentWithCall
-  = id:Identifier "(" body:$( (!")" .)* )")" { return `${id}(${body})`; }
+  = id:Identifier "(" body:$( (!")" .)* )")" { return { kind: 'token', value: `${id}(${body})`, raw: `${id}(${body})`, loc: loc(location()) }; }
 
 QuotedPatternTokens
   = s:QuotedString {
-      return s.trim().split(/\s+/).filter(Boolean);
+      return s
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(t => ({ kind: 'token', value: t, raw: t }));
     }
 
 // -----------------------------
@@ -274,10 +299,14 @@ SeqTokenRepeat
     }
 
 SeqToken
-  = base:Identifier mods:SeqModifier* { return [base + mods.join('')]; }
+  = base:Identifier mods:SeqModifier* {
+      return [{ name: base, modifiers: mods, raw: base + (mods.length ? mods.map(m => ':' + m.raw).join('') : ''), loc: loc(location()) }];
+    }
 
 SeqModifier
-  = ":" body:SeqModBody { return ':' + body; }
+  = ":" body:SeqModBody {
+      return { raw: body, loc: loc(location()) };
+    }
 
 SeqModBody
   = $(IdentifierWithArgs / Identifier)
