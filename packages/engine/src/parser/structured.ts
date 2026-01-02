@@ -25,9 +25,9 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
   const out: string[] = [];
   for (const ev of events) {
     if (!ev) continue;
+    const raw = ev.raw;
     switch (ev.kind) {
       case 'note': {
-        const raw = (ev as any).raw;
         const base = ev.value ?? raw ?? '';
         const token = ev.effects && ev.effects.length > 0 ? base + ev.effects.join('') : base;
         const dur = ev.duration && ev.duration > 0 ? ev.duration : 1;
@@ -36,7 +36,6 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
         break;
       }
       case 'rest': {
-        const raw = (ev as any).raw;
         const token = ev.value ?? raw ?? '.';
         const dur = ev.duration && ev.duration > 0 ? ev.duration : 1;
         out.push(token);
@@ -44,7 +43,6 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
         break;
       }
       case 'inline-inst': {
-        const raw = (ev as any).raw;
         const name = ev.name ?? raw ?? '';
         out.push(`inst ${name}`.trim());
         break;
@@ -57,7 +55,6 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
         break;
       }
       case 'token': {
-        const raw = (ev as any).raw;
         const token = ev.value ?? raw ?? '';
         if (Array.isArray(token)) {
           out.push(...token);
@@ -67,7 +64,7 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
         break;
       }
       default:
-        if ((ev as any).raw) out.push((ev as any).raw);
+        if (raw) out.push(raw);
         break;
     }
   }

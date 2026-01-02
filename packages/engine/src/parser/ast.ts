@@ -9,12 +9,17 @@ export interface SourceLocation {
 
 export type PatternMap = Record<string, string[]>;
 
+interface BasePatternEvent {
+  raw?: string;
+  loc?: SourceLocation;
+}
+
 export type PatternEvent =
-  | { kind: 'note'; value: string; duration?: number; effects?: string[]; raw?: string; loc?: SourceLocation }
-  | { kind: 'rest'; value: '.' | '_' | '-'; duration?: number; raw?: string; loc?: SourceLocation }
-  | { kind: 'inline-inst'; name: string; raw?: string; loc?: SourceLocation }
-  | { kind: 'temp-inst'; name: string; duration?: number; raw?: string; loc?: SourceLocation }
-  | { kind: 'token'; value: string; raw?: string; loc?: SourceLocation };
+  | (BasePatternEvent & { kind: 'note'; value: string; duration?: number; effects?: string[] })
+  | (BasePatternEvent & { kind: 'rest'; value: '.' | '_' | '-'; duration?: number })
+  | (BasePatternEvent & { kind: 'inline-inst'; name: string })
+  | (BasePatternEvent & { kind: 'temp-inst'; name: string; duration?: number })
+  | (BasePatternEvent & { kind: 'token'; value: string });
 
 export interface SequenceTransform {
   kind:

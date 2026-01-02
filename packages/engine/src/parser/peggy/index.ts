@@ -126,7 +126,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
       let semitones = 0;
       let octaves = 0;
       for (const mod of mods) {
-        const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+        const mOct = mod.match(/^oct\(([+-]?\d+)\)$/i);
         if (mOct) {
           octaves += parseInt(mOct[1], 10);
           continue;
@@ -290,12 +290,12 @@ export function parseWithPeggy(source: string): AST {
   const pats: Record<string, string[]> = {};
   const insts: InstMap = {};
   const seqs: SeqMap = {};
-  const patternEvents: PatternEventMap = {};
-  const sequenceItems: SequenceItemMap = {};
   const channels: ChannelNode[] = [];
   const metadata: SongMetadata = {};
 
   const structuredEnabled = isPeggyEventsEnabled();
+  const patternEvents: PatternEventMap | undefined = structuredEnabled ? {} : undefined;
+  const sequenceItems: SequenceItemMap | undefined = structuredEnabled ? {} : undefined;
 
   let topBpm: number | undefined = undefined;
   let chipName: string | undefined = undefined;
@@ -331,7 +331,7 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'PatStmt': {
         const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents);
-        if (stmt.rhsEvents && stmt.rhsEvents.length > 0) {
+        if (structuredEnabled && patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
           patternEvents[name] = stmt.rhsEvents;
         }
         pats[name] = tokens;
@@ -348,7 +348,9 @@ export function parseWithPeggy(source: string): AST {
           seqs[stmt.name] = [];
           break;
         }
-        sequenceItems[stmt.name] = items;
+        if (structuredEnabled && sequenceItems) {
+          sequenceItems[stmt.name] = items;
+        }
         seqs[stmt.name] = materializeSequenceItems(items);
         break;
       }
@@ -394,8 +396,8 @@ export function parseWithPeggy(source: string): AST {
 
   const ast: AST = { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };
   if (includeStructured) {
-    ast.patternEvents = patternEvents;
-    ast.sequenceItems = sequenceItems;
+    if (patternEvents) ast.patternEvents = patternEvents;
+    if (sequenceItems) ast.sequenceItems = sequenceItems;
   }
 
   return ast;

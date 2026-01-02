@@ -94,7 +94,7 @@ export function resolveSong(ast: AST): SongModel {
     for (const [name, events] of Object.entries(ast.patternEvents)) {
       materialized[name] = patternEventsToTokens(events);
     }
-    pats = { ...pats, ...materialized };
+    pats = { ...pats, ...materialized }; // structured takes precedence on key collision
   }
 
   if (structuredEnabled && ast.sequenceItems) {
@@ -102,7 +102,7 @@ export function resolveSong(ast: AST): SongModel {
     for (const [name, items] of Object.entries(ast.sequenceItems)) {
       materialized[name] = materializeSequenceItems(items);
     }
-    seqs = { ...seqs, ...materialized };
+    seqs = { ...seqs, ...materialized }; // structured takes precedence on key collision
   }
 
   // Expand all sequences into flattened token arrays
