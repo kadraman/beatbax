@@ -76,13 +76,16 @@ const ast = parse(source);
 - Once parity is proven, flip the default to structured events and remove the legacy tokenizer/expression path, along with the gating flag.
 - Finally, delete `packages/engine/src/parser/legacy` and the `BEATBAX_PARSER` override after a short deprecation window.
 
-## Implementation Checklist
-- [ ] Extend Peggy grammar for pattern events and transforms with location metadata.
-- [ ] Add structured AST fields and update schema/docs.
-- [ ] Implement transformer to populate structured tokens and transforms while keeping `rhs` strings during rollout.
-- [ ] Update pattern/sequence expansion to consume structured nodes; keep fallback during parity testing.
-- [ ] Add parity and regression tests for structured parsing vs. legacy outputs.
+### Implementation Checklist
+- [x] Extend Peggy grammar for pattern events and transforms with location metadata.
+- [x] Add structured AST fields and update schema/docs.
+- [x] Implement transformer to populate structured tokens and transforms while keeping `rhs` strings during rollout.
+- [x] Update pattern/sequence expansion to consume structured nodes; keep fallback during parity testing.
+- [x] Add parity and regression tests for structured parsing vs. legacy outputs.
 - [ ] Remove legacy tokenizer/expression code and feature flags once stable.
+
+Notes:
+- Structured fields are gated by `BEATBAX_PEGGY_EVENTS=1` during the rollout window; resolver materializes them into legacy token maps when the flag is enabled.
 
 ## Future Enhancements
 - Error recovery for pattern bodies (multiple diagnostics per line).

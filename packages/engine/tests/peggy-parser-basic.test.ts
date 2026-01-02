@@ -27,7 +27,10 @@ describe('peggy parser parity', () => {
     const legacyAst = parseLegacy(sampleSource);
     const peggyAst = parseWithPeggy(sampleSource);
 
-    expect(peggyAst).toEqual(legacyAst);
+    // Structured fields are additive; parity focuses on legacy-visible fields.
+    const { patternEvents, sequenceItems, ...peggyComparable } = peggyAst as any;
+
+    expect(peggyComparable).toEqual(legacyAst);
   });
 
   test('env flag switches parse implementation', () => {
