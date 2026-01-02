@@ -3,6 +3,11 @@ import { expandAllSequences } from '../sequences/expand.js';
 import { transposePattern } from '../patterns/expand.js';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
 import { applyInstrumentToEvent } from '../instruments/instrumentState.js';
+import {
+  isPeggyEventsEnabled,
+  materializeSequenceItems,
+  patternEventsToTokens,
+} from '../parser/structured.js';
 
 // Helpers for parsing inline effects and pan specifications
 function parsePanSpec(val: any, ns?: string) {
@@ -77,10 +82,28 @@ export function parseEffectsInline(str: string) {
  * instrument overrides according to the language expansion pipeline.
  */
 export function resolveSong(ast: AST): SongModel {
-  const pats = ast.pats || {};
+  const structuredEnabled = isPeggyEventsEnabled();
+
+  let pats = ast.pats || {};
   const insts = ast.insts || {};
-  const seqs = ast.seqs || {};
+  let seqs = ast.seqs || {};
   const bpm = ast.bpm;
+
+  if (structuredEnabled && ast.patternEvents) {
+    const materialized: Record<string, string[]> = {};
+    for (const [name, events] of Object.entries(ast.patternEvents)) {
+      materialized[name] = patternEventsToTokens(events);
+    }
+    pats = { ...pats, ...materialized }; // structured takes precedence on key collision
+  }
+
+  if (structuredEnabled && ast.sequenceItems) {
+    const materialized: Record<string, string[]> = {};
+    for (const [name, items] of Object.entries(ast.sequenceItems)) {
+      materialized[name] = materializeSequenceItems(items);
+    }
+    seqs = { ...seqs, ...materialized }; // structured takes precedence on key collision
+  }
 
   // Expand all sequences into flattened token arrays
   const expandedSeqs = expandAllSequences(seqs, pats, insts);
@@ -402,15 +425,15 @@ export function resolveSong(ast: AST): SongModel {
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
 
   // Preserve top-level playback directives and metadata so consumers can honor them.
-  return { 
-    pats, 
-    insts, 
-    seqs: expandedSeqs, 
-    channels: channelsOut, 
-    bpm, 
+  return {
+    pats,
+    insts,
+    seqs: expandedSeqs,
+    channels: channelsOut,
+    bpm,
     chip: ast.chip,
-    play: ast.play, 
-    metadata: ast.metadata 
+    play: ast.play,
+    metadata: ast.metadata
   } as unknown as SongModel;
 }
 
