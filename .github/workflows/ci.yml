@@ -42,3 +42,28 @@ jobs:
               npm run lint --silent || true
             fi
           fi
+
+  peggy-structured:
+    name: Peggy Structured (BEATBAX_PEGGY_EVENTS)
+    runs-on: ubuntu-latest
+    env:
+      BEATBAX_PEGGY_EVENTS: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: v22.x
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages (structured flag)
+        run: npm run build --if-present --silent
+
+      - name: Run package tests (structured flag)
+        run: npm test
