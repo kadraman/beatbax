@@ -36,6 +36,8 @@
   ],
   "scripts": {
     "clean": "rimraf dist",
+    "generate:peggy": "node ./scripts/generate-peggy-parser.cjs",
+    "prebuild": "npm run generate:peggy",
     "build": "tsc -b",
     "dev": "tsc --watch",
     "pretest": "npm run build --if-present",
@@ -44,5 +46,7 @@
   "dependencies": {
     "standardized-audio-context": "^25.3.0"
   },
-  "peerDependencies": {}
+  "devDependencies": {
+    "peggy": "^4.2.0"
+  }
 }

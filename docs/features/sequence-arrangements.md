@@ -53,6 +53,8 @@ Add a `SongNode`:
 - Recognize `song` declarations and parse either the single-line pipe form or the braced multi-row form.
 - Accept optional `defaults` for a song (e.g. `song main defaults(bpm=100)` or `song main bpm=100 { ... }`).
 
+Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+
 ## Expansion / resolver semantics
 
 1. During resolution, expand each row in order. For each of the 4 slots:

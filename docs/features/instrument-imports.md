@@ -70,6 +70,8 @@ later definitions win.
 - When parsing `.ins` files, validate that only `inst` and `import` nodes are
   present; report a parse-time error for other node kinds.
 
+Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+
 ### Export Changes
 
 - No changes to export formats are required; imports are compile-time only and

@@ -1,0 +1,343 @@
+// BeatBax PEGGY grammar (phase 2)
+// Parses pattern/sequence RHS into structured token arrays.
+
+{
+  function loc(location) {
+    return {
+      start: { offset: location.start.offset, line: location.start.line, column: location.start.column },
+      end:   { offset: location.end.offset,   line: location.end.line,   column: location.end.column }
+    };
+  }
+
+  function repeat(items, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(...items);
+    return out;
+  }
+}
+
+Program
+  = BlankLines stmts:StatementList? BlankLines WS0 {
+      return { nodeType: "Program", body: stmts ?? [] };
+    }
+
+StatementList
+  = head:IndentedStatement tail:(BlankLines IndentedStatement)* {
+      const out = [head];
+      for (const t of tail) out.push(t[1]);
+      return out;
+    }
+
+IndentedStatement
+  = _ stmt:Statement { return stmt; }
+
+Statement
+  = ChipStmt
+  / BpmStmt
+  / TimeStmt
+  / StepsPerBarStmt
+  / TicksPerStepStmt
+  / SongMetaStmt
+  / InstStmt
+  / PatStmt
+  / SeqStmt
+  / PatShorthandStmt
+  / ChannelStmt
+  / PlayStmt
+  / ExportStmt
+
+// -----------------------------
+// Top-level directives
+// -----------------------------
+
+ChipStmt
+  = s:$("chip" !IdentChar) __ name:Identifier {
+      return { nodeType: "ChipStmt", chip: name, loc: loc(location()) };
+    }
+
+BpmStmt
+  = $("bpm" !IdentChar) __ value:Int {
+      return { nodeType: "BpmStmt", bpm: value, loc: loc(location()) };
+    }
+
+TimeStmt
+  = $("time" !IdentChar) __ value:Int {
+      return { nodeType: "TimeStmt", time: value, loc: loc(location()) };
+    }
+
+StepsPerBarStmt
+  = $("stepsPerBar" !IdentChar) __ value:Int {
+      return { nodeType: "StepsPerBarStmt", stepsPerBar: value, loc: loc(location()) };
+    }
+
+TicksPerStepStmt
+  = $("ticksPerStep" !IdentChar) __ value:Int {
+      return { nodeType: "TicksPerStepStmt", ticksPerStep: value, loc: loc(location()) };
+    }
+
+SongMetaStmt
+  = $("song" !IdentChar) __ key:Identifier __ value:MetaString {
+      return { nodeType: "SongMetaStmt", key, value, loc: loc(location()) };
+    }
+
+PlayStmt
+  = $("play" !IdentChar) args:(_ RestOfLine)? {
+      return { nodeType: "PlayStmt", args: args ? args[1] : "", loc: loc(location()) };
+    }
+
+ExportStmt
+  = $("export" !IdentChar) __ fmt:Identifier __ path:MetaString {
+      return { nodeType: "ExportStmt", format: fmt, path, loc: loc(location()) };
+    }
+
+// -----------------------------
+// Definitions
+// -----------------------------
+
+InstStmt
+  = $("inst" !IdentChar) __ name:Identifier __ rhs:RestOfLine {
+      return { nodeType: "InstStmt", name, rhs, loc: loc(location()) };
+    }
+
+PatStmt
+  = $("pat" !IdentChar) __ name:PatName _ "=" _ rhs:PatternRhs {
+      return { nodeType: "PatStmt", name, rhsTokens: rhs, loc: loc(location()) };
+    }
+
+PatShorthandStmt
+  = !ReservedWord name:Identifier _ "=" _ rhs:PatternRhs {
+      return { nodeType: "PatStmt", name, rhsTokens: rhs, loc: loc(location()) };
+    }
+
+SeqStmt
+  = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
+      return { nodeType: "SeqStmt", name, rhsTokens: rhs, loc: loc(location()) };
+    }
+
+ChannelStmt
+  = $("channel" !IdentChar) __ ch:Int __ "=>" __ rhs:RestOfLine {
+      return { nodeType: "ChannelStmt", channel: ch, rhs, loc: loc(location()) };
+    }
+
+// -----------------------------
+// Lexical rules
+// -----------------------------
+
+MetaString
+  = TripleString / QuotedString
+
+TripleString
+  = '"""' chars:TripleChar* '"""' {
+      return chars.join("");
+    }
+
+TripleChar
+  = !'"""' c:. { return c; }
+
+QuotedString
+  = '"' chars:DoubleChar* '"' { return chars.join(""); }
+  / "'" chars:SingleChar* "'" { return chars.join(""); }
+
+DoubleChar
+  = '\\' c:. { return c; }
+  / !'"' c:. { return c; }
+
+SingleChar
+  = '\\' c:. { return c; }
+  / !"'" c:. { return c; }
+
+// -----------------------------
+// Pattern RHS
+// -----------------------------
+
+PatternRhs
+  = head:PatternItem tail:(PatternSep PatternItem)* {
+      const out = [...head];
+      for (const t of tail) out.push(...t[1]);
+      return out;
+    }
+
+PatternSep
+  = (WS1 / Comment)+ WS0
+
+PatternItem
+  = GroupRepeat
+  / TokenRepeat
+
+GroupRepeat
+  = "(" WS0 inner:PatternRhs WS0 ")" rep:RepeatSuffix? {
+      const base = inner;
+      if (!rep) return base;
+      return repeat(base, rep);
+    }
+
+TokenRepeat
+  = tok:PatternToken rep:RepeatSuffix? {
+      const base = tok;
+      if (!rep) return base;
+      return repeat(base, rep);
+    }
+
+RepeatSuffix
+  = WS0 "*" WS0 n:Int { return n; }
+
+PatternToken
+  = base:PatternAtom dur:DurationSuffix? {
+      const tok = Array.isArray(base) ? base.slice() : [base];
+      if (dur && tok.length > 0) {
+        const head = tok[0];
+        const tail = tok.slice(1);
+        const out = [head];
+        for (let i = 1; i < dur; i++) out.push('_');
+        return out.concat(tail);
+      }
+      return tok;
+    }
+
+DurationSuffix
+  = ":" WS0 n:Int { return n; }
+
+PatternAtom
+  = NoteWithEffects
+  / IdentWithEffects
+  / NoteToken
+  / RestToken
+  / TempInstToken
+  / InlineInstToken
+  / IdentWithCall
+  / QuotedPatternTokens
+  / Identifier { return text(); }
+
+NoteWithEffects
+  = note:NoteToken effs:EffectSuffix+ { return note + effs.join(''); }
+
+IdentWithEffects
+  = id:Identifier effs:EffectSuffix+ { return id + effs.join(''); }
+
+EffectSuffix
+  = "<" body:$( (!">" .)* ) ">" { return '<' + body + '>'; }
+
+NoteToken
+  = $([A-Ga-g] [#b]? "-"? [0-9]+)
+
+RestToken
+  = "." { return '.'; }
+  / "_" { return '_'; }
+  / "-" { return '-'; }
+
+TempInstToken
+  = $('inst(' (!")" .)* ')')
+
+InlineInstToken
+  = "inst" WS1 name:Identifier {
+      return `inst ${name}`;
+    }
+
+IdentWithCall
+  = id:Identifier "(" body:$( (!")" .)* )")" { return `${id}(${body})`; }
+
+QuotedPatternTokens
+  = s:QuotedString {
+      return s.trim().split(/\s+/).filter(Boolean);
+    }
+
+// -----------------------------
+// Sequence RHS
+// -----------------------------
+
+SeqRhs
+  = head:SeqItem tail:(SeqSep SeqItem)* {
+      const out = [...head];
+      for (const t of tail) out.push(...t[1]);
+      return out;
+    }
+
+SeqSep
+  = ("," WS0) / (WS1) / (Comment WS0)
+
+SeqItem
+  = SeqGroupRepeat
+  / SeqTokenRepeat
+
+SeqGroupRepeat
+  = "(" WS0 inner:SeqRhs WS0 ")" rep:RepeatSuffix? {
+      const base = inner;
+      if (!rep) return base;
+      return repeat(base, rep);
+    }
+
+SeqTokenRepeat
+  = tok:SeqToken rep:RepeatSuffix? {
+      const base = tok;
+      if (!rep) return base;
+      return repeat(base, rep);
+    }
+
+SeqToken
+  = base:Identifier mods:SeqModifier* { return [base + mods.join('')]; }
+
+SeqModifier
+  = ":" body:SeqModBody { return ':' + body; }
+
+SeqModBody
+  = $(IdentifierWithArgs / Identifier)
+
+IdentifierWithArgs
+  = id:Identifier "(" body:$( (!")" .)* )")" { return id + '(' + body + ')'; }
+
+// -----------------------------
+// Lexical helpers
+// -----------------------------
+
+RestOfLine
+  = s:$( (!Newline .)* ) { return s.trim(); }
+
+Identifier
+  = $([A-Za-z_][A-Za-z0-9_\-]*)
+
+PatName
+  = base:Identifier mods:PatNameMod* {
+      return base + mods.join('');
+    }
+
+PatNameMod
+  = ":" mod:$(PatMod+) { return ':' + mod; }
+
+PatMod
+  = !(WS1 / '=' / Newline) c:. { return c; }
+
+IdentChar
+  = [A-Za-z0-9_\-]
+
+ReservedWord
+  = $("chip" !IdentChar)
+  / $("bpm" !IdentChar)
+  / $("time" !IdentChar)
+  / $("stepsPerBar" !IdentChar)
+  / $("ticksPerStep" !IdentChar)
+  / $("song" !IdentChar)
+  / $("inst" !IdentChar)
+  / $("pat" !IdentChar)
+  / $("seq" !IdentChar)
+  / $("channel" !IdentChar)
+  / $("play" !IdentChar)
+  / $("export" !IdentChar)
+
+Int
+  = digits:$([0-9]+) { return parseInt(digits, 10); }
+
+Newline
+  = "\r\n" / "\n" / "\r"
+
+BlankLines
+  = (_? Newline)*
+
+WS0 = [ \t]*
+WS1 = [ \t]+
+
+_  = (WS1 / Comment)* WS0
+__ = (WS1 / Comment)+ WS0
+
+Comment
+  = "#" (!Newline .)*
+  / "//" (!Newline .)*

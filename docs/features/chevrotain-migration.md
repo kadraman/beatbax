@@ -1,6 +1,6 @@
 ---
 title: "Chevrotain parser migration"
-status: proposed
+status: superseded
 authors: ["maintainer-team"]
 created: 2026-01-01
 issue: "https://github.com/kadraman/beatbax/issues/22"
@@ -8,22 +8,20 @@ issue: "https://github.com/kadraman/beatbax/issues/22"
 
 ## Summary
 
-Replace the current ad-hoc regex/tokenizer parser for `.bax` files with a Chevrotain-based parser (lexer + CST) and a small CST→AST transformer. This improves grammar clarity, error reporting, extensibility, and TypeScript ergonomics while preserving the existing AST and export pipelines.
+Superseded by the Peggy migration: Peggy is now the default parser and the legacy regex/tokenizer parser is only available via `BEATBAX_PARSER=legacy`. This document remains for historical context; there is no active plan to pursue Chevrotain.
 
 ## Problem Statement
 
-The current parser implementation in `packages/engine/src/parser` relies heavily on regular expressions and hand-written tokenization. This results in:
+Closed: the Peggy parser already replaces the legacy parser and addresses the issues below. Chevrotain is no longer being evaluated for this project.
+
 - scattered parsing logic, hard-to-maintain ad-hoc token handling
 - limited and inconsistent error messages (poor line/column info)
 - fragile handling of nested/quoted constructs and comment stripping
 - expensive future changes when adding more language features (transforms, nested directives)
 
-## Proposed Solution
+## Proposed Solution (superseded)
 
-Use Chevrotain (a TypeScript-friendly, high-performance parser library) to implement:
-- a well-defined token vocabulary (lexer)
-- a clear CST grammar for directives (`chip`, `bpm`, `inst`, `pat`, `seq`, `channel`, `play`, `export`, metadata)
-- a deterministic CST→AST transformer that produces the existing `AST` shape (`pats`, `insts`, `seqs`, `channels`, `bpm`, `chip`, `play`, `metadata`) and preserves backwards compatibility for downstream modules (expanders, scheduler, exporters)
+No longer pursued. The Peggy implementation is the authoritative grammar and default parser; see [peggy-migration.md](peggy-migration.md) for the active spec.
 
 ### Summary
 
