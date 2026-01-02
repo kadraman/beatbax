@@ -1,0 +1,20 @@
+chip gameboy
+
+bpm 120
+time 4
+
+inst lead type=pulse1 duty=50 env=12,down
+inst sn type=noise env=8,down
+
+pat melody = C5 E5 G5 C6
+pat fill   = inst sn C6 C6 inst(sn,2) C6 C6
+
+seq main = melody fill melody
+
+channel 1 => inst lead seq main
+channel 4 => inst sn seq main
+
+play
+
+export json "sample-simple.json"
+export uge  "sample-simple.uge"

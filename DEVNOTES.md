@@ -60,6 +60,32 @@ Testing
 - The resolver supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
 
+## Chevrotain parser migration (usage & testing)
+
+A Chevrotain-based lexer + CST parser and CST→AST transformer are implemented behind the `BEATBAX_PARSER` feature flag. Follow these notes to test and validate parity with the legacy parser.
+
+Local test runs
+- Run the engine test suite with Chevrotain enabled:
+  - macOS / Linux (bash/zsh): `BEATBAX_PARSER=chevrotain npm run engine:test`
+  - Windows PowerShell: `$env:BEATBAX_PARSER = 'chevrotain'; npm run engine:test`
+- Note: some environments (older Node versions or strict ESM setups) may not be able to import the `chevrotain` package. Tests are written to skip Chevrotain-specific assertions if the package cannot be resolved; prefer Node 18+ for reliable behavior.
+
+Export parity checks
+- The repository includes a helper script that exports artifacts (JSON, MIDI, UGE) from both parsers and compares outputs:
+  1. `npm run build-all` (ensure `packages/engine/dist` exists)
+  2. `node packages/engine/scripts/compare-exports.mjs`
+- Output location: `tmp/parity-exports/` (files named `<song>.legacy.json` / `<song>.chev.json`, etc.)
+- The script exits non-zero when mismatches are detected — designed to be used in CI.
+
+CI
+- A GitHub Actions workflow `.github/workflows/chevrotain-parity.yml` runs on PRs and on-demand; it:
+  - checks out the repository, installs deps, builds artifacts
+  - runs tests with the default parser and with `BEATBAX_PARSER=chevrotain`
+  - runs export parity checks and uploads `tmp/parity-exports/` artifacts on failure
+
+Troubleshooting
+- If parity checks fail, inspect `tmp/parity-exports/` and attach mismatching artifacts to a PR for debugging. Binary diffs for MIDI/UGE and normalized JSON diffs are useful when triaging differences.
+
 ## Hardware Parity and Frequency Logic
 
 BeatBax aims for bit-accurate parity with Game Boy hardware and hUGETracker.

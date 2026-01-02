@@ -1,0 +1,88 @@
+name: Chevrotain parity matrix
+
+on:
+  pull_request:
+    paths:
+      - 'packages/engine/**'
+      - 'docs/features/chevrotain-migration.md'
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    name: Build, test, and parity checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build-all
+
+      - name: Run tests (default parser)
+        run: npm run engine:test
+
+      - name: Ensure Chevrotain is available (install + diagnostics)
+        run: |
+          echo "Checking for chevrotain in workspace..."
+          npm ls chevrotain --depth=0 || npm install chevrotain@^11 --no-save
+          node -v && npm -v
+          echo "=== Chevrotain package resolution ==="
+          npm ls chevrotain --depth=0 || true
+          echo "=== require() (CommonJS) check ==="
+          node -e "try { const p = require.resolve('chevrotain'); console.log('require.resolve OK ->', p); const chev = require('chevrotain'); console.log('require() OK (CommonJS)'); } catch (err) { console.error('require() failed:', err && err.code ? err.code : (err && err.message) || err); }"
+          echo "=== dynamic import() (ESM) check ==="
+          node -e "import('chevrotain').then(()=>console.log('dynamic import OK (ESM)')).catch(err=>console.error('dynamic import failed:', err && err.code ? err.code : (err && err.message) || err));"
+
+      - name: Run tests (Chevrotain parser enabled)
+        env:
+          BEATBAX_PARSER: chevrotain
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npm run engine:test
+
+      - name: Clean and rebuild engine package (ensure dist is fresh)
+        run: |
+          npm -w @beatbax/engine run clean --if-present
+          npm -w @beatbax/engine run build --if-present
+
+      - name: Show built Chevrotain parser snippet (diagnostics)
+        run: |
+          echo "--- dist index.js head ---"
+          head -n 120 packages/engine/dist/parser/chevrotain/index.js | sed -n '1,200p' || true
+          echo "--- dist parser.js head ---"
+          head -n 220 packages/engine/dist/parser/chevrotain/parser.js | sed -n '1,200p' || true
+          echo "--- search for patModId/patternId/inlineInstName labels in dist folder ---"
+          grep -n "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/*.js || true
+
+      - name: Verify built parser contains labeled CONSUME tokens
+        run: |
+          echo "Verifying built parser contains required labels (patModId|patternId|inlineInstName) in dist folder..."
+          if ! grep -q "patModId\|patternId\|inlineInstName" packages/engine/dist/parser/chevrotain/*.js ; then
+            echo "ERROR: built parser missing labeled consumes; failing early to avoid stale artifacts." >&2
+            echo "Tip: ensure TypeScript build emits updated files and packages were rebuilt." >&2
+            echo "Diagnostics: showing top of parser.js and index.js for debugging..." >&2
+            echo "--- parser.js head ---" >&2
+            head -n 200 packages/engine/dist/parser/chevrotain/parser.js | sed -n '1,200p' >&2 || true
+            echo "--- index.js head ---" >&2
+            head -n 200 packages/engine/dist/parser/chevrotain/index.js | sed -n '1,200p' >&2 || true
+            exit 1
+          fi
+
+      - name: Run export parity checks
+        run: node packages/engine/scripts/compare-exports.mjs
+
+      - name: Upload parity artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-exports
+          path: tmp/parity-exports/**

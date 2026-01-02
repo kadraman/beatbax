@@ -1,0 +1,191 @@
+import type { IToken } from 'chevrotain';
+import { getBuiltTokens } from './lexer';
+
+// Delay binding to Chevrotain token constructors until runtime so this module can
+// be imported in environments where `chevrotain` may not be available.
+export function createParserWithTokens(CstParser: any, tokens: any) {
+  const { allTokens, Pat, Inst, Seq, Channel, Chip, Song, Bpm, Play, Export, Id, StringLiteral, NumberLiteral, Arrow, Equals, Colon, LParen, RParen, Comma, Asterisk, Dot, LAngle, RAngle } = tokens as any;
+
+  class BaxParser extends CstParser {
+    constructor() {
+      super(allTokens, { recoveryEnabled: true });
+
+      // Register rules on prototype-method implementations to ensure
+      // parser GAST recording sees valid function references even when
+      // TypeScript downlevels class fields during transpilation.
+      this.RULE('program', this.program);
+      this.RULE('directive', this.directive);
+      this.RULE('songStmt', this.songStmt);
+      this.RULE('exportStmt', this.exportStmt);
+      this.RULE('patStmt', this.patStmt);
+      this.RULE('patMod', this.patMod);
+      this.RULE('patBody', this.patBody);
+      this.RULE('patternItem', this.patternItem);
+      this.RULE('inlineInst', this.inlineInst);
+      this.RULE('instStmt', this.instStmt);
+      this.RULE('seqStmt', this.seqStmt);
+      this.RULE('seqItem', this.seqItem);
+      this.RULE('channelStmt', this.channelStmt);
+      this.RULE('simpleDirective', this.simpleDirective);
+
+      this.performSelfAnalysis();
+    }
+
+    public program(): any {
+      this.MANY(() => this.SUBRULE(this.directive));
+    }
+
+    public directive(): any {
+      this.OR([
+        { ALT: () => this.SUBRULE(this.patStmt) },
+        { ALT: () => this.SUBRULE(this.instStmt) },
+        { ALT: () => this.SUBRULE(this.seqStmt) },
+        { ALT: () => this.SUBRULE(this.channelStmt) },
+        { ALT: () => this.SUBRULE(this.songStmt) },
+        { ALT: () => this.SUBRULE(this.exportStmt) },
+        { ALT: () => this.SUBRULE(this.simpleDirective) },
+      ]);
+      // allow trailing id/number/string
+      this.OPTION(() => this.CONSUME(Id));
+    }
+
+    public songStmt(): any {
+      this.CONSUME(Song);
+      this.CONSUME(Id, { LABEL: 'key' });
+      this.CONSUME(StringLiteral, { LABEL: 'value' });
+    }
+
+    public exportStmt(): any {
+      this.CONSUME(Export);
+      this.CONSUME(Id, { LABEL: 'format' });
+      this.OPTION(() => this.CONSUME(StringLiteral, { LABEL: 'dest' }));
+    }
+
+    public patStmt(): any {
+      this.CONSUME(Pat);
+      this.CONSUME(Id, { LABEL: 'name' });
+      this.OPTION(() => {
+        this.CONSUME(Colon);
+        this.MANY(() => this.SUBRULE(this.patMod));
+      });
+      this.CONSUME(Equals);
+      this.SUBRULE(this.patBody);
+    }
+
+    public patMod(): any {
+      this.OR([
+        { ALT: () => this.CONSUME(NumberLiteral) },
+        {
+          ALT: () => {
+            this.CONSUME(Id, { LABEL: 'patModId' });
+            this.OPTION(() => {
+              this.CONSUME(LParen);
+              this.OPTION(() => {
+                this.OR([
+                  { ALT: () => this.CONSUME(NumberLiteral) },
+                  { ALT: () => this.CONSUME(Id, { LABEL: 'patModArg' }) },
+                  { ALT: () => this.CONSUME(StringLiteral) },
+                ]);
+                this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral, { LABEL: 'patModCommaNum' }); });
+              });
+              this.CONSUME(RParen);
+            });
+          }
+        }
+      ]);
+    }
+
+    public patBody(): any {
+      this.AT_LEAST_ONE(() => this.SUBRULE(this.patternItem));
+    }
+
+    public patternItem(): any {
+      this.OR([
+        { ALT: () => this.CONSUME(Dot) },
+        { ALT: () => this.CONSUME(Id, { LABEL: 'patternId' }) },
+        { ALT: () => this.CONSUME(NumberLiteral) },
+        { ALT: () => this.CONSUME(LParen) },
+        { ALT: () => this.CONSUME(RParen) },
+        { ALT: () => this.CONSUME(Comma) },
+        { ALT: () => this.CONSUME(Asterisk) },
+        { ALT: () => this.CONSUME(Colon) },
+        { ALT: () => this.CONSUME(LAngle) },
+        { ALT: () => this.CONSUME(RAngle) },
+        { ALT: () => this.SUBRULE(this.inlineInst) },
+        { ALT: () => this.CONSUME(StringLiteral) },
+      ]);
+    }
+
+    public inlineInst(): any {
+      this.CONSUME(Inst);
+      this.OR([
+        { ALT: () => this.CONSUME(Id, { LABEL: 'inlineInstName' }) },
+        { ALT: () => { this.CONSUME(LParen); this.CONSUME(Id, { LABEL: 'inlineInstNameParen' }); this.OPTION(() => { this.CONSUME(Comma); this.CONSUME(NumberLiteral, { LABEL: 'inlineInstNum' }); }); this.CONSUME(RParen); } }
+      ]);
+    }
+
+    public instStmt(): any {
+      this.CONSUME(Inst);
+      this.CONSUME(Id, { LABEL: 'name' });
+      this.CONSUME(Equals);
+      // simple key=value pairs; accept Ids and commas
+      this.AT_LEAST_ONE(() => this.CONSUME(Id, { LABEL: 'instProp' }));
+    }
+
+    public seqStmt(): any {
+      this.CONSUME(Seq);
+      this.CONSUME(Id, { LABEL: 'name' });
+      this.CONSUME(Equals);
+      this.AT_LEAST_ONE(() => this.SUBRULE(this.seqItem));
+    }
+
+    public seqItem(): any {
+      this.CONSUME(Id, { LABEL: 'seqRef' });
+      this.OPTION(() => {
+        this.CONSUME(Colon);
+        this.MANY(() => this.SUBRULE(this.patMod));
+      });
+      this.OPTION(() => {
+        this.CONSUME(Asterisk);
+        this.CONSUME(NumberLiteral, { LABEL: 'seqRepeat' });
+      });
+    }
+
+    public channelStmt(): any {
+      this.CONSUME(Channel);
+      this.CONSUME(NumberLiteral);
+      this.OR([
+        { ALT: () => this.CONSUME(Arrow) },
+        { ALT: () => this.CONSUME(Equals) },
+      ]);
+      this.AT_LEAST_ONE(() => this.CONSUME(Id));
+    }
+
+    public simpleDirective(): any {
+      this.OR([
+        { ALT: () => this.CONSUME(Chip) },
+        { ALT: () => this.CONSUME(Bpm) },
+        { ALT: () => this.CONSUME(Play) },
+        { ALT: () => this.CONSUME(Export) },
+      ]);
+      this.OPTION(() => this.CONSUME(Id));
+    }
+  }
+
+  return BaxParser;
+}
+
+export function parseCst(tokens: IToken[]) {
+  // To avoid top-level dependency on Chevrotain, require it only when parsing.
+  // This keeps the module import-safe in test environments where Chevrotain
+  // may not be resolvable by the module loader.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const chev = require('chevrotain');
+  const { CstParser } = chev as any;
+  const builtTokens = getBuiltTokens();
+  const BaxParser = createParserWithTokens(CstParser, builtTokens);
+  const parser = new BaxParser();
+  parser.input = tokens as any;
+  const cst = parser.program();
+  return { cst, errors: parser.errors };
+}
