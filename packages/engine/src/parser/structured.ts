@@ -12,10 +12,17 @@ export const isPeggyEventsEnabled = (): boolean => {
   try {
     const env = typeof process !== 'undefined' && (process as any)?.env ? (process as any).env : undefined;
     const val = env?.BEATBAX_PEGGY_EVENTS ?? env?.beatbax_peggy_events;
-    if (!val) return false;
+    if (val === undefined || val === null) return true; // default on
     const s = String(val).toLowerCase();
+    if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
     return s === '1' || s === 'true' || s === 'yes' || s === 'on';
-  } catch {
+  } catch (err) {
+    // Surface unexpected environment access failures instead of silently disabling the flag.
+    try {
+      console.warn('[BeatBax Parser] Warning: failed to read BEATBAX_PEGGY_EVENTS env', err);
+    } catch {
+      /* ignore logging failures */
+    }
     return false;
   }
 };

@@ -47,7 +47,7 @@ const ast = parse(source);
 - Preserve identifier rules, comments, and whitespace tolerance to maintain parity; improve diagnostics by attaching locations to new nodes.
 - Update the Peggy wrapper to populate both legacy `rhs` fields and new structured arrays until the rollout is complete.
 - Parse duration suffixes (e.g., `C4/2`).
-- For unknown transforms during migration: fail fast.
+- For unknown transforms during migration: collect them as `unknown` and continue (no hard failure during rollout).
 - Keep the `rhs` string lbut mark it deprecated.
 
 ### CLI Changes
@@ -72,8 +72,8 @@ const ast = parse(source);
 - End-to-end tests for `verify`, `export json/midi/uge`, and playback to ensure ISM output matches pre-change baselines.
 
 ## Migration Path
-- Stage structured parsing behind a temporary flag (e.g., `BEATBAX_PEGGY_EVENTS=1`) while legacy expansion remains available for rollback.
-- Once parity is proven, flip the default to structured events and remove the legacy tokenizer/expression path, along with the gating flag.
+- Structured parsing is now the default. Use `BEATBAX_PEGGY_EVENTS=0` (or `false`/`off`/`no`) as a temporary opt-out while legacy expansion remains available for rollback.
+- Once confidence is high, remove the temporary opt-out and delete the legacy tokenizer/expression path.
 - Finally, delete `packages/engine/src/parser/legacy` and the `BEATBAX_PARSER` override after a short deprecation window.
 
 ### Implementation Checklist
@@ -82,10 +82,10 @@ const ast = parse(source);
 - [x] Implement transformer to populate structured tokens and transforms while keeping `rhs` strings during rollout.
 - [x] Update pattern/sequence expansion to consume structured nodes; keep fallback during parity testing.
 - [x] Add parity and regression tests for structured parsing vs. legacy outputs.
-- [ ] Remove legacy tokenizer/expression code and feature flags once stable.
+- [ ] Enable structured fields by default and move legacy tokenizer/expression code behind feature flags once stable.
 
-Notes:
-- Structured fields are gated by `BEATBAX_PEGGY_EVENTS=1` during the rollout window; resolver materializes them into legacy token maps when the flag is enabled.
+- Note: Unknown transforms are intentionally collected as `unknown` (no fail-fast) during rollout.
+- Structured fields are enabled by default; set `BEATBAX_PEGGY_EVENTS=0` to temporarily disable them. Resolver materializes structured data into legacy token maps when enabled.
 
 ## Future Enhancements
 - Error recovery for pattern bodies (multiple diagnostics per line).
