@@ -13,10 +13,13 @@ issue: "<LINK_TO_GITHUB_ISSUE>"
 ## Proposed Solution
 ### Summary
 ### Example Syntax
+### Example Usage
 
 ## Implementation Plan
 ### AST Changes
 ### Parser Changes
+### CLI Changes
+### Web UI Changes
 ### Export Changes
 ### Documentation Updates
 
@@ -26,7 +29,11 @@ issue: "<LINK_TO_GITHUB_ISSUE>"
 
 ## Migration Path
 
-## Implementation checklist
+## Implementation Checklist
+
+## Future Enhancements
+
+## Open Questions
 
 ## References
 
