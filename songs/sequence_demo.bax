@@ -37,6 +37,14 @@ seq bass_seq    = bass_pat, bass_pat                            # 32 notes
 seq wave_seq    = wave_pat wave_pat                             # 32 notes
 seq drums_seq   = drums_pat drums_alt_pat                           # 32 notes
 
+# Planned arrangement syntax (proposed):
+# arrange main = {
+#   lead_seq  | bass_seq | wave_seq  | drums_seq
+#   lead2_seq | bass_seq | wave_seq2 | drums_seq
+# }
+#
+# Note: arrangement syntax is not yet implemented in the parser; channel mappings below remain the runnable example.
+
 # Channel mappings demonstrating simple sequence arrangement syntax
 # 1) Comma-separated: plays `lead` then `lead2`
 channel 1 => inst leadA seq lead_seq, lead2_seq

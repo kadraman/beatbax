@@ -31,7 +31,7 @@ This feature introduces structured AST types for multi-field instrument properti
 3. Emit a single-run warning when parsing CSV-style multi-field props, encouraging migration to structured literals.
 4. Provide a codemod to migrate songs to the new structured form.
 
-Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
+Only make updates to the default parser (Peggy grammar) — do not touch the legacy tokenizer. Structured parsing is now the default pipeline; target `packages/engine/src/parser/peggy/grammar.peggy` and `packages/engine/src/parser/peggy/index.ts` for changes. The legacy tokenizer remains only as a temporary fallback (opt-out via env).
 
 ## AST Types (suggested)
 
@@ -110,11 +110,12 @@ inst lead type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} swe
 
 ## Implementation Notes
 
-1. Parser: update `packages/engine/src/parser/index.ts` to detect object-literal props and CSV props, JSON.parse object-literals, and convert CSV to structured objects using dedicated parsers (e.g. `parseEnvelope`, `parseSweep`, `parseNoise`).
+1. Parser (Peggy): update `packages/engine/src/parser/peggy/grammar.peggy` and `packages/engine/src/parser/peggy/index.ts` to detect object-literal props and CSV props, JSON.parse object-literals, and convert CSV to structured objects using dedicated parsers (e.g. `parseEnvelope`, `parseSweep`, `parseNoise`).
 2. AST: add the interfaces above to `packages/engine/src/parser/ast.ts`. Keep unions for a transitional period.
 3. Consumers: update renderers, UGE writer/reader, and exporters to prefer structured objects. If they encounter a string, rely on the parser having already normalized it where possible.
 4. Tests: add unit tests for parsing structured literals and CSV normalization; add integration tests asserting rendering parity.
 5. Codemod: add a small Node script under `scripts/` that rewrites files or outputs diffs for review.
+6. Status: not implemented yet in code; consider landing this before additional effects work so effects can rely on normalized instrument defaults (env/pan/etc.) without mixed string/object handling.
 
 ## Testing Strategy
 
