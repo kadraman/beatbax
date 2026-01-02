@@ -5,7 +5,7 @@ This document captures architecture, implementation details, and testing notes f
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
 - Key folders:
-  - `packages/engine/src/parser/` — tokenizer and parser that produce a minimal AST: `pats`, `insts`, `channels`.
+  - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser now lives in `parser/legacy/` and can be selected with `BEATBAX_PARSER=legacy` during the deprecation window. Produces the minimal AST: `pats`, `insts`, `channels`.
   - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.
   - `packages/engine/src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
@@ -59,6 +59,9 @@ Testing
   - Import tests: `tests/ugeReader.test.ts` validates UGE file parsing.
 - The resolver supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
+
+Parser selection
+- The Peggy parser lives in `packages/engine/src/parser/peggy/` and is the default. Set `BEATBAX_PARSER=legacy` to force the legacy parser during the deprecation window. The full engine suite passes under Peggy.
 
 ## Hardware Parity and Frequency Logic
 
@@ -245,18 +248,18 @@ function renderSongToPCM(song: SongModel, opts: RenderOptions): Float32Array {
   // 1. Calculate duration from song events (auto-detect unless overridden)
   const maxTicks = Math.max(...song.channels.map(ch => ch.events.length));
   const duration = opts.duration ?? Math.ceil(maxTicks * tickSeconds) + 1;
-  
+
   // 2. Allocate stereo output buffer
   const buffer = new Float32Array(totalSamples * channels);
-  
+
   // 3. Render each channel independently
   for (const ch of song.channels) {
     renderChannel(ch, song.insts, buffer, sampleRate, channels, tickSeconds);
   }
-  
+
   // 4. Normalize to prevent clipping
   normalizeBuffer(buffer);
-  
+
   return buffer;
 }
 ```
@@ -289,7 +292,7 @@ function getEnvelopeValue(time: number, env: Envelope): number {
   const GB_CLOCK = 4194304;
   const stepPeriod = env.period * (65536 / GB_CLOCK); // ~0.0625s per step
   const currentStep = Math.floor(time / stepPeriod);
-  
+
   if (env.direction === 'down') {
     return Math.max(0, (env.initial - currentStep)) / 15.0;
   } else {
