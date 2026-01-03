@@ -17,6 +17,15 @@ export function applyInstrumentToEvent(insts: InstMap, event: any) {
   const instName = event.instrument;
   const inst = getInstrumentByName(insts, instName);
   // attach resolved instrument object under `instProps` for downstream consumers
+  // Accept alternate property `envelope` (long form) and map it to `env`
+  // so downstream renderers that expect `env` continue to work.
+  if (inst && typeof inst === 'object') {
+    const p = { ...(inst as any) } as any;
+    if (p.envelope !== undefined && p.env === undefined) {
+      p.env = p.envelope;
+    }
+    return { ...event, instProps: p, instrument: instName };
+  }
   return { ...event, instProps: inst, instrument: instName };
 }
 

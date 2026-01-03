@@ -14,12 +14,12 @@ chip gameboy
 bpm 120
 
 # Instruments
-inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81
-inst leadB type=pulse2 duty=30 env=gb:10,down,1 gm=34
+inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81
+inst leadB type=pulse2 duty=30 env={"level":10,"direction":"down","period":1,"format":"gb"} gm=34
 inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82
-inst snare type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
-inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
-inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise channel
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
+inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
 
 # Patterns (16 tokens each)
 pat lead_pat  = (C5 E5 G5 C6) (C5 E5 G5 C6)                 # 8 notes

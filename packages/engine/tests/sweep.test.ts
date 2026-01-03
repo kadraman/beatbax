@@ -27,6 +27,27 @@ describe('Pulse Sweep', () => {
     expect(ast.insts['test'].sweep).toEqual({ time: 4, direction: 'up', shift: 2 });
   });
 
+  test('parser accepts JSON literal for sweep', () => {
+    const src = 'inst test type=pulse1 duty=50 sweep={"time":4,"direction":"up","shift":2}';
+    const ast = parse(src);
+    expect(ast.insts['test'].sweep).toEqual({ time: 4, direction: 'up', shift: 2 });
+  });
+
+  test('parseSweep accepts object with string fields and clamps negatives', () => {
+    expect(parseSweep({ time: '4', direction: 'up', shift: '2' })).toEqual({ time: 4, direction: 'up', shift: 2 });
+    expect(parseSweep({ time: -5, direction: 'down', shift: -3 })).toEqual({ time: 0, direction: 'down', shift: 0 });
+  });
+
+  test('parseSweep returns null for incomplete object inputs', () => {
+    expect(parseSweep({ time: 3, direction: 'up' } as any)).toBeNull();
+    expect(parseSweep({})).toBeNull();
+  });
+
+  test('parseSweep tolerates whitespace in CSV', () => {
+    expect(parseSweep(' 4 , up , 2 ')).toEqual({ time: 4, direction: 'up', shift: 2 });
+    expect(parseSweep(' -1 , down , -2 ')).toEqual({ time: 0, direction: 'down', shift: 0 });
+  });
+
   test('applySweep register math', () => {
     // This test verifies the logic we implemented in pulse.ts and pcmRenderer.ts
     // Game Boy: f = 131072 / (2048 - X)

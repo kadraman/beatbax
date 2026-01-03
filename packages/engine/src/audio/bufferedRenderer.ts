@@ -66,7 +66,11 @@ export class BufferedRenderer {
   constructor(ctx: BaseAudioContext, scheduler: TickScheduler, opts: { segmentDuration?: number; lookahead?: number; maxPreRenderSegments?: number } = {}) {
     this.ctx = ctx;
     this.scheduler = scheduler;
-    this.segmentDur = opts.segmentDuration || 0.5;
+    // Allow overriding segment duration via options or environment for debugging/exports
+    const envSegRaw = typeof process !== 'undefined' && (process.env && process.env.BEATBAX_SEGMENT_DUR) ? process.env.BEATBAX_SEGMENT_DUR : undefined;
+    const envSeg = typeof envSegRaw !== 'undefined' ? Number(envSegRaw) : undefined;
+    const envSegNum = (typeof envSeg === 'number' && Number.isFinite(envSeg) && envSeg > 0) ? envSeg : undefined;
+    this.segmentDur = (typeof opts.segmentDuration === 'number') ? opts.segmentDuration : (envSegNum ?? 0.5);
     this.lookahead = opts.lookahead || 0.25;
     this.maxPreRenderSegments = opts.maxPreRenderSegments;
   }

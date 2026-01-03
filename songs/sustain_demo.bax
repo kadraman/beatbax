@@ -12,10 +12,10 @@ bpm 128
 
 # --- Instruments ---
 # Using a longer envelope period (7) so the note doesn't decay too fast
-inst lead  type=pulse1 duty=50 env=10,down,7
-inst bass  type=pulse2 duty=25 env=12,down,7
-inst kick  type=noise  env=15,down,1 width=7  # Short punchy noise
-inst snare type=noise  env=12,down,3          # Longer noise
+inst lead  type=pulse1 duty=50 env={"level":10,"direction":"down","period":7}
+inst bass  type=pulse2 duty=25 env={"level":12,"direction":"down","period":7}
+inst kick  type=noise  env={"level":15,"direction":"down","period":1} width=7  # Short punchy noise
+inst snare type=noise  env={"level":12,"direction":"down","period":3}          # Longer noise
 
 # --- Patterns ---
 
