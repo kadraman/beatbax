@@ -13,7 +13,7 @@ bpm 128
 a = C4 E4 G4 C5
 pat melody_pat = a
 
-inst lead type=pulse1 duty=50 env=12,down
+inst lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":0}
 channel 1 => inst lead seq melody_pat
 
 play

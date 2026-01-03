@@ -21,7 +21,24 @@ export function parseEnvelope(envStr: any) {
   if (!envStr) {
     return { mode: 'adsr', attack: 0.001, decay: 0.05, sustainLevel: 0.6, release: 0.02 };
   }
-  if (typeof envStr === 'object') return envStr;
+  // If an object is provided, accept ADSR objects as-is but
+  // normalize known Game Boy-style object shapes (backwards/alternate formats).
+  if (typeof envStr === 'object') {
+    const obj: any = envStr;
+    const isGbFormat = (obj.format && String(obj.format).toLowerCase() === 'gb') ||
+      (obj.mode && String(obj.mode).toLowerCase() === 'gb') ||
+      typeof obj.level !== 'undefined' || typeof obj.initial !== 'undefined';
+    if (isGbFormat) {
+      const initialRaw = obj.initial ?? obj.level ?? obj.value;
+      const initial = Math.max(0, Math.min(15, Number.isFinite(Number(initialRaw)) ? Number(initialRaw) : 15));
+      const dirStr = (obj.direction ?? obj.dir ?? 'down');
+      const direction = String(dirStr).toLowerCase() === 'up' ? 'up' : 'down';
+      const periodRaw = obj.period ?? obj.step ?? obj.periodRaw ?? 1;
+      const period = Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
+      return { mode: 'gb', initial, direction, period };
+    }
+    return obj;
+  }
   const s = String(envStr).trim();
   const gbPrefixed = s.match(/^gb:\s*(\d{1,2})\s*,\s*(up|down)(?:\s*,\s*(\d+))?$/i);
   const parts = s.split(',').map(p => p.trim()).filter(Boolean);
