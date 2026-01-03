@@ -1,7 +1,7 @@
 **AST Schema**
 
 - **Schema**: [schema/ast.schema.json](schema/ast.schema.json#L1)
--- **Validator (CLI)**: [bin/validate-ast.cjs](bin/validate-ast.cjs#L1)
+-- **Validator (CLI)**: [scripts/validate-ast.cjs](scripts/validate-ast.cjs#L1)
 
 Usage:
 
@@ -14,7 +14,7 @@ npm install --save-dev ajv
 2. Validate an AST JSON file:
 
 ```bash
-node bin/validate-ast.cjs path/to/ast.json
+node scripts/validate-ast.cjs path/to/ast.json
 # or, after `npm link` or installing the package globally:
 validate-ast path/to/ast.json
 ```
