@@ -16,7 +16,6 @@ function parseWav(buf) {
   if (buf.toString('ascii',0,4) !== 'RIFF' || buf.toString('ascii',8,12) !== 'WAVE') throw new Error('Not a WAV');
   const fmtIdx = findChunk(buf, 'fmt ');
   if (fmtIdx < 0) throw new Error('fmt chunk not found');
-  const fmtSize = buf.readUInt32LE(fmtIdx+4);
   const audioFormat = buf.readUInt16LE(fmtIdx+8);
   const numChannels = buf.readUInt16LE(fmtIdx+10);
   const sampleRate = buf.readUInt32LE(fmtIdx+12);

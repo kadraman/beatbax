@@ -29,7 +29,7 @@ function compare(x,y,path) {
       return;
     }
     const keys = new Set([...Object.keys(x || {}), ...Object.keys(y || {})]);
-    for (const k of keys) compare(x ? x[k] : undefined, y ? y[k] : undefined, path ? path + '.' + k : k);
+    for (const k of keys) compare(x[k], y ? y[k] : undefined, path ? path + '.' + k : k);
     return;
   }
   if (x !== y) diffs.push({path, a:x, b:y});

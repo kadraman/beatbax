@@ -116,7 +116,7 @@ inst lead type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} swe
 3. Consumers: renderers, UGE writer/reader, and exporters were updated to prefer and accept structured objects. The PCM renderer and playback code accept structured `EnvelopeAST` objects directly; exporters (UGE/MIDI/JSON) also consume the normalized AST.
 4. Tests: add unit tests for parsing structured literals and CSV normalization; add integration tests asserting rendering parity.
 5. Codemod: add a small Node script under `scripts/` that rewrites files or outputs diffs for review.
-6. Status: not implemented yet in code; consider landing this before additional effects work so effects can rely on normalized instrument defaults (env/pan/etc.) without mixed string/object handling.
+6. Status: implemented — parser normalization, helpers, renderer/exporter support, tests, and a codemod are present in the codebase. The feature has been landed and verified; optional follow-ups include CI parity checks and a codemod README.
 
 ## Testing Strategy
 

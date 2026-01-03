@@ -12,7 +12,7 @@ bpm 80
 # Listen for:
 # - inst plain: NO sweep (comparison - steady pitch)
 # - inst riser: RISING pitch sweep (raising/siren effect)
-# - inst faller: FALLING pitch sweep (dropping/falling effect)  
+# - inst faller: FALLING pitch sweep (dropping/falling effect)
 
 # Sweep instruments
 inst plain type=pulse1 duty=50 env={"level":15,"direction":"down","period":7}
@@ -32,10 +32,10 @@ inst faller type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} s
   # Effect: falling siren/bomb drop
 
 # Structured sweep example (explicit object form). Parser accepts both
-# string form and structured object; this demonstrates the structured form. 
+# string form and structured object; this demonstrates the structured form.
 # This instrument uses the structured object.
 inst structured_riser type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} sweep={"time":7,"direction":"up","shift":3}
-  # same behavior as `sweep={"time":5,"direction":"up","shift":2} but stored and parsed as an object
+  # same behavior as `sweep={"time":7,"direction":"up","shift":3}` but stored and parsed as an object
   # Useful for tools that consume AST directly.
 
 # Patterns with LONG notes using :duration syntax

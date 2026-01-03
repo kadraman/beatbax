@@ -39,7 +39,6 @@ describe('pcmRenderer envelope compatibility', () => {
     } as SongModel;
 
     const opts = { duration: 0.5, sampleRate: 22050, channels: 2 } as any;
-    const pcmStr = renderSongToPCM(song, opts);
 
     // Now render where both channels use the same instrument name but different envs
     const songA: SongModel = JSON.parse(JSON.stringify(song));

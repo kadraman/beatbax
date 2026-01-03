@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 
 if (process.argv.length < 5) {
   console.error('Usage: node make_diff_wav.cjs <new.wav> <orig.wav> <out_diff.wav>');
@@ -17,7 +16,6 @@ if (newBuf.length < 44 || origBuf.length < 44) {
 }
 
 const headerNew = newBuf.slice(0,44);
-const headerOrig = origBuf.slice(0,44);
 
 const dataNew = newBuf.slice(44);
 const dataOrig = origBuf.slice(44);

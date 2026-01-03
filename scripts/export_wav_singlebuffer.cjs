@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 const fs = require('fs');
-const path = require('path');
 (async ()=>{
   const args = process.argv.slice(2);
   if (args.length < 1) {

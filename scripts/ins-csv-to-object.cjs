@@ -94,7 +94,7 @@ function noiseReplace(val, vendorParam) {
   const parts = s.split(',').map(p => p.trim()).filter(Boolean);
   if (!parts[0] || !/^\d+$/.test(parts[0])) return null;
   const clockShift = parseInt(parts[0], 10);
-  const widthMode = parts[1] ? (parts[1] == '7' ? 7 : parts[1] == '15' ? 15 : undefined) : undefined;
+  const widthMode = parts[1] ? (parts[1] === '7' ? 7 : parts[1] === '15' ? 15 : undefined) : undefined;
   const divisor = parts[2] ? parseInt(parts[2], 10) : undefined;
   const out = {};
   if (!Number.isNaN(clockShift)) out.clockShift = clockShift;
