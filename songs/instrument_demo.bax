@@ -22,23 +22,23 @@ time 4
 #   - period: 0-7 (0=no change, 1-7=speed of envelope)
 
 # Duty cycle demonstrations - same envelope, different duties
-inst pulse_12  type=pulse1 duty=12.5 env=gb:12,down,1 gm=80  # Thin, hollow sound
-inst pulse_25  type=pulse1 duty=25   env=gb:12,down,1 gm=81  # Classic square wave
-inst pulse_50  type=pulse1 duty=50   env=gb:12,down,1 gm=82  # Balanced, full sound
-inst pulse_75  type=pulse1 duty=75   env=gb:12,down,1 gm=83  # Inverted 25% sound
+inst pulse_12  type=pulse1 duty=12.5 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=80  # Thin, hollow sound
+inst pulse_25  type=pulse1 duty=25   env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81  # Classic square wave
+inst pulse_50  type=pulse1 duty=50   env={"level":12,"direction":"down","period":1,"format":"gb"} gm=82  # Balanced, full sound
+inst pulse_75  type=pulse1 duty=75   env={"level":12,"direction":"down","period":1,"format":"gb"} gm=83  # Inverted 25% sound
 
 # Envelope variation demonstrations
-inst pulse_long    type=pulse2 duty=50 env=gb:15,down,2 gm=84  # Medium-slow decay
-inst pulse_pluck   type=pulse2 duty=50 env=gb:15,down,1 gm=85  # Fast pluck/staccato
-inst pulse_swell   type=pulse2 duty=50 env=gb:0,up,3    gm=86  # Swell from silence
-inst pulse_sustain type=pulse2 duty=50 env=gb:15,down,0 gm=87  # No envelope change (constant)
+inst pulse_long    type=pulse2 duty=50 env={"level":15,"direction":"down","period":2,"format":"gb"} gm=84  # Medium-slow decay
+inst pulse_pluck   type=pulse2 duty=50 env={"level":15,"direction":"down","period":1,"format":"gb"} gm=85  # Fast pluck/staccato
+inst pulse_swell   type=pulse2 duty=50 env={"level":0,"direction":"up","period":3,"format":"gb"}    gm=86  # Swell from silence
+inst pulse_sustain type=pulse2 duty=50 env={"level":15,"direction":"down","period":0,"format":"gb"} gm=87  # No envelope change (constant)
 
 # Musical role instruments
-inst lead_bright type=pulse1 duty=50 env=gb:14,down,2 gm=81  # Bright melodic lead
-inst lead_warm   type=pulse1 duty=75 env=gb:12,down,3 gm=80  # Warmer lead tone
-inst bass_punch  type=pulse2 duty=25 env=gb:15,down,1 uge_transpose=+12 gm=34  # Punchy bass (transpose for UGE)
-inst bass_sub    type=pulse2 duty=12.5 env=gb:13,down,4 uge_transpose=+12 gm=38  # Deep sub-bass (transpose for UGE)
-inst kick_pulse  type=pulse1 duty=12.5 env=gb:15,down,1 length=16 gm=35  # Kick drum (period=1 for fast decay)
+inst lead_bright type=pulse1 duty=50 env={"level":14,"direction":"down","period":2,"format":"gb"} gm=81  # Bright melodic lead
+inst lead_warm   type=pulse1 duty=75 env={"level":12,"direction":"down","period":3,"format":"gb"} gm=80  # Warmer lead tone
+inst bass_punch  type=pulse2 duty=25 env={"level":15,"direction":"down","period":1,"format":"gb"} gm=34  # Punchy bass (transpose for UGE)
+inst bass_sub    type=pulse2 duty=12.5 env={"level":13,"direction":"down","period":4,"format":"gb"} gm=38  # Deep sub-bass (transpose for UGE)
+inst kick_pulse  type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":1,"format":"gb"} length=16 gm=35  # Kick drum (period=1 for fast decay)
 
 # =============================================================================
 # WAVE CHANNEL INSTRUMENTS (Channel 3)

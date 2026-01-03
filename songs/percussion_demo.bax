@@ -21,9 +21,9 @@ time 4
 # Kicks work best on pulse channels with low pitch and fast attack
 # Note: period=0 means NO decay, period=1 is fastest decay
 # length parameter controls hardware length counter (0-64, in 1/256th second frames)
-inst kick_punch  type=pulse1 duty=12.5 env=gb:15,down,1 length=16 gm=35  # Punchy kick (C2→C3)
-inst kick_deep   type=pulse1 duty=12.5 env=gb:15,down,2 length=24 gm=36  # Deep kick (C2→C3)
-inst kick_soft   type=pulse1 duty=25   env=gb:12,down,1 length=16 gm=35  # Softer kick (C2→C3)
+inst kick_punch  type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":1,"format":"gb"} length=16 gm=35  # Punchy kick (C2→C3)
+inst kick_deep   type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":2,"format":"gb"} length=24 gm=36  # Deep kick (C2→C3)
+inst kick_soft   type=pulse1 duty=25   env={"level":12,"direction":"down","period":1,"format":"gb"} length=16 gm=35  # Softer kick (C2→C3)
 
 # =============================================================================
 # NOISE CHANNEL INSTRUMENTS
@@ -31,27 +31,27 @@ inst kick_soft   type=pulse1 duty=25   env=gb:12,down,1 length=16 gm=35  # Softe
 # Noise channel uses LFSR (Linear Feedback Shift Register) for pseudo-random noise
 # Notes in hUGETracker are "brightness labels", not harmonic pitches
 # They map to NR43 register values (shift + divider combinations)
-# Use width=7 for metallic/tonal, width=15 for pure white noise
+# Use gb:width=7 for metallic/tonal, gb:width=15 for pure white noise
 
 # Snare drums (7-bit mode with length control)
-inst snare_tight type=noise width=7  env=gb:13,down,1 length=16  # Tight snare (quick decay, short)
-inst snare_loose type=noise width=7  env=gb:12,down,4 length=32  # Loose snare (longer ring)
-inst snare_rim   type=noise width=7  env=gb:8,down,1 length=8    # Rim shot (quiet, very short)
+inst snare_tight type=noise gb:width=7 env={"level":13,"direction":"down","period":1,"format":"gb"} length=16  # Tight snare (quick decay, short)
+inst snare_loose type=noise gb:width=7 env={"level":12,"direction":"down","period":4,"format":"gb"} length=32  # Loose snare (longer ring)
+inst snare_rim   type=noise gb:width=7 env={"level":8,"direction":"down","period":1,"format":"gb"} length=8    # Rim shot (quiet, very short)
 
 # Hi-hats (15-bit mode with length control)
-inst hihat_closed type=noise width=15 env=gb:6,down,1 length=8   # Closed hi-hat (very short)
-inst hihat_open   type=noise width=15 env=gb:7,down,3 length=32  # Open hi-hat (longer ring)
-inst hihat_pedal  type=noise width=15 env=gb:5,down,1 length=12  # Pedal hi-hat (short)
+inst hihat_closed type=noise gb:width=15 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8   # Closed hi-hat (very short)
+inst hihat_open   type=noise gb:width=15 env={"level":7,"direction":"down","period":3,"format":"gb"} length=32  # Open hi-hat (longer ring)
+inst hihat_pedal  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=12  # Pedal hi-hat (short)
 
 # Toms (7-bit mode with length control)
-inst tom_low  type=noise width=7 env=gb:14,down,5 length=48  # Low tom (long ring)
-inst tom_mid  type=noise width=7 env=gb:13,down,4 length=40  # Mid tom
-inst tom_high type=noise width=7 env=gb:12,down,3 length=32  # High tom (shorter)
+inst tom_low  type=noise gb:width=7 env={"level":14,"direction":"down","period":5,"format":"gb"} length=48  # Low tom (long ring)
+inst tom_mid  type=noise gb:width=7 env={"level":13,"direction":"down","period":4,"format":"gb"} length=40  # Mid tom
+inst tom_high type=noise gb:width=7 env={"level":12,"direction":"down","period":3,"format":"gb"} length=32  # High tom (shorter)
 
 # Cymbals and effects (with appropriate length)
-inst crash_cymbal type=noise width=15 env=gb:15,down,6 length=64  # Crash (long, loud)
-inst ride_cymbal  type=noise width=15 env=gb:9,down,5 length=48   # Ride (medium decay)
-inst shaker       type=noise width=15 env=gb:4,down,1 length=4    # Shaker (very quiet, very short)
+inst crash_cymbal type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64  # Crash (long, loud)
+inst ride_cymbal  type=noise gb:width=15 env={"level":9,"direction":"down","period":5,"format":"gb"} length=48   # Ride (medium decay)
+inst shaker       type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4    # Shaker (very quiet, very short)
 
 # =============================================================================
 # PATTERNS - Various drum patterns
@@ -114,15 +114,15 @@ play auto repeat
 # KICK DRUMS (Pulse Channel recommended):
 #   - Use pulse channels (pulse1 or pulse2)
 #   - duty=12.5 or 25 for tight punch
-#   - env=gb:15,down,0 or gb:15,down,1 (fast attack, instant/short decay)
+#   - env={"level":15,"direction":"down","period":0,"format":"gb"} or gb:15,down,1 (fast attack, instant/short decay)
 #   - Play at C3-C4 for deep bass frequencies (C3 is hUGETracker minimum)
 #   - Why pulse? Better control over pitch and more "kick-like" sound
 #
 # NOISE CHANNEL MODES:
-#   - width=7  (7-bit LFSR): Metallic, tonal character (snares, toms).
+#   - gb:width=7  (7-bit LFSR): Metallic, tonal character (snares, toms).
 #     In .UGE export, this adds an offset of 72 to the note index.
 #     hUGETracker displays these with a '^' symbol (e.g., C-^).
-#   - width=15 (15-bit LFSR): Pure white noise (hi-hats, cymbals, shakers).
+#   - gb:width=15 (15-bit LFSR): Pure white noise (hi-hats, cymbals, shakers).
 #
 # NOISE CHANNEL OCTAVE LABELING (IMPORTANT):
 #   hUGETracker uses HIGH octave numbers (C-6, C-7) for noise channel.
@@ -133,9 +133,9 @@ play auto repeat
 #   - Experiment to find what sounds good - octave numbers are arbitrary!
 #
 # 7-BIT MODE (METALLIC NOISE) & UGE EXPORT:
-#   - When width=7 is used, the exporter shifts the note range into the 
+#   - When gb:width=7 is used, the exporter shifts the note range into the
 #     "metallic" region of the hUGETracker note table (indices 72-127).
-#   - This is why you see 'C-^' instead of 'C-3' in hUGETracker. The '^' 
+#   - This is why you see 'C-^' instead of 'C-3' in hUGETracker. The '^'
 #     indicates the 7-bit hardware flag is active.
 #   - If a note sounds "wrong" or too high, lower the octave in your .bax file.
 #     For example, C6:inst(snare_tight) is not valid syntax; instead use:

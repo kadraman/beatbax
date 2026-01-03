@@ -47,12 +47,34 @@ export interface SequenceItem {
 export interface InstrumentNode {
   type?: string;
   duty?: string;
-  env?: string;
   wave?: string | number[];
   // Sweep may be stored as the original string (backcompat) or as a
   // structured object produced by the parser: { time, direction, shift }
-  sweep?: string | { time: number; direction: 'up' | 'down'; shift: number } | null;
+  // `env` may be a legacy CSV string (e.g. "15,down,7") or a normalized object
+  // of type `EnvelopeAST`. Parsers will prefer producing `EnvelopeAST`.
+  env?: string | EnvelopeAST | null;
+  // Noise can be provided as CSV or as a normalized object
+  noise?: string | NoiseAST | null;
+  sweep?: string | SweepAST | null;
   [key: string]: any;
+}
+
+export interface EnvelopeAST {
+  level: number; // 0..15
+  direction: 'up' | 'down' | 'none';
+  period: number; // envelope timing period (ticks)
+}
+
+export interface SweepAST {
+  time: number; // 0..7
+  direction: 'up' | 'down' | 'none';
+  shift: number; // 0..7
+}
+
+export interface NoiseAST {
+  clockShift?: number;
+  widthMode?: 7 | 15;
+  divisor?: number;
 }
 
 // Strongly-typed helper for Wave instruments

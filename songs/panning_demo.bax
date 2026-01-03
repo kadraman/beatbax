@@ -27,7 +27,7 @@ inst leadL type=pulse1 gb:pan=L   # lead hard-left via GB NR51
 inst leadR type=pulse1 gb:pan=R   # lead hard-right via GB NR51
 inst arp type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # wavetable arpeggio (uses mixed inline pans below)
 inst bass type=pulse2 gb:pan=L    # bass default left via GB NR51
-inst sn type=noise width=7  env=gb:13,down,1 length=8  # snare (no explicit pan)
+inst sn type=noise gb:width=7  env={"level":13,"direction":"down","period":1,"format":"gb"} length=8  # snare (no explicit pan)
 
 pat melody = C5:4 E5:4 G5:4 C6:4 inst(leadR,4) C5:4 E5:4 G5:4 C6:4
 # `arp` demonstrates inline per-note panning forms:
