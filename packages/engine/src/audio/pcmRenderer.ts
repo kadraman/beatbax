@@ -498,6 +498,23 @@ function parseWaveTable(wave: any): number[] {
 function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; period: number } {
   if (!env) return { initial: 15, direction: 'down', period: 1 };
 
+  // Accept structured envelope objects produced by the parser (EnvelopeAST)
+  if (typeof env === 'object') {
+    const obj: any = env;
+    const isGbFormat = (obj.format && String(obj.format).toLowerCase() === 'gb') ||
+      (obj.mode && String(obj.mode).toLowerCase() === 'gb') ||
+      typeof obj.initial !== 'undefined' || typeof obj.level !== 'undefined' || typeof obj.value !== 'undefined';
+    if (isGbFormat) {
+      const initialRaw = obj.initial ?? obj.level ?? obj.value;
+      const initial = Math.max(0, Math.min(15, Number.isFinite(Number(initialRaw)) ? Number(initialRaw) : 15));
+      const dirStr = (obj.direction ?? obj.dir ?? 'down');
+      const direction = String(dirStr).toLowerCase() === 'up' ? 'up' : 'down';
+      const periodRaw = obj.period ?? obj.step ?? 1;
+      const period = Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
+      return { initial, direction, period };
+    }
+  }
+
   if (typeof env === 'string') {
     const s = env.trim();
 

@@ -15,27 +15,27 @@ bpm 80
 # - inst faller: FALLING pitch sweep (dropping/falling effect)  
 
 # Sweep instruments
-inst plain type=pulse1 duty=50 env=15,down,7
-  # env=15,down,7: Start at max volume, slow decay (period=7)
+inst plain type=pulse1 duty=50 env={"level":15,"direction":"down","period":7}
+  # env={"level":15,"direction":"down","period":7} Start at max volume, slow decay (period=7)
   # NO sweep - steady pitch for comparison
 
-inst riser type=pulse1 duty=50 env=15,down,7 sweep=7,up,3
-  # env=15,down,7: Start at max volume, slow decay (period=7)
+inst riser type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} sweep={"time":7,"direction":"up","shift":3}
+  # env={"level":15,"direction":"down","period":7} Start at max volume, slow decay (period=7)
   # Sweep parameters: time,direction,shift
-  # sweep=7,up,3: Rising pitch, freq += freq/4 every 54ms
+  # sweep={"time":7,"direction":"up","shift":3} Rising pitch, freq += freq/4 every 54ms
   # Effect: rising siren/bounce sound
 
-inst faller type=pulse1 duty=50 env=15,down,7 sweep=6,down,5
-  # env=15,down,7: Start at max volume, slow decay (period=7)
+inst faller type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} sweep={"time":6,"direction":"down","shift":5}
+  # env={"level":15,"direction":"down","period":7} Start at max volume, slow decay (period=7)
   # Sweep parameters: time,direction,shift
-  # sweep=6,down,5: Falling pitch, freq -= freq/4 every 47ms
+  # sweep={"time":6,"direction":"down","shift":5} Falling pitch, freq -= freq/4 every 47ms
   # Effect: falling siren/bomb drop
 
 # Structured sweep example (explicit object form). Parser accepts both
 # string form and structured object; this demonstrates the structured form. 
 # This instrument uses the structured object.
-inst structured_riser type=pulse1 duty=50 env=15,down,7 sweep={"time":7,"direction":"up","shift":3}
-  # same behavior as `sweep=5,up,2` but stored and parsed as an object
+inst structured_riser type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} sweep={"time":7,"direction":"up","shift":3}
+  # same behavior as `sweep={"time":5,"direction":"up","shift":2} but stored and parsed as an object
   # Useful for tools that consume AST directly.
 
 # Patterns with LONG notes using :duration syntax

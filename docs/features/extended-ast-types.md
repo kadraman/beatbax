@@ -21,8 +21,9 @@ This feature introduces structured AST types for multi-field instrument properti
 
 ## Current State
 
-- `sweep` already has a hybrid implementation: parser accepts CSV and a structured object literal and normalizes it. This project seeks parity for other multi-field props.
-- Many songs in the repo and the wild use CSV forms like `env=15,down,7` which must remain playable.
+- `sweep` already has a hybrid implementation: parser accepts CSV and a structured object literal and normalizes it. Parity for other multi-field props has been implemented for `env` (envelope) as well.
+- The Peggy parser now normalizes the long-form key `envelope` to the canonical `env` on parse, and will coerce CSV-style `env=15,down,7` into a structured `EnvelopeAST` object. A single-run deprecation warning is emitted when CSV forms are encountered.
+- Existing songs using CSV forms remain playable; renderers and exporters were updated to accept the structured AST shape to guarantee parity with legacy exports.
 
 ## Proposal
 
@@ -110,9 +111,9 @@ inst lead type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} swe
 
 ## Implementation Notes
 
-1. Parser (Peggy): update `packages/engine/src/parser/peggy/grammar.peggy` and `packages/engine/src/parser/peggy/index.ts` to detect object-literal props and CSV props, JSON.parse object-literals, and convert CSV to structured objects using dedicated parsers (e.g. `parseEnvelope`, `parseSweep`, `parseNoise`).
+1. Parser (Peggy): update `packages/engine/src/parser/peggy/grammar.peggy` and `packages/engine/src/parser/peggy/index.ts` to detect object-literal props and CSV props, JSON.parse object-literals, and convert CSV to structured objects using dedicated parsers (e.g. `parseEnvelope`, `parseSweep`, `parseNoise`). The runtime now normalizes the long-form key `envelope` → `env` during parsing.
 2. AST: add the interfaces above to `packages/engine/src/parser/ast.ts`. Keep unions for a transitional period.
-3. Consumers: update renderers, UGE writer/reader, and exporters to prefer structured objects. If they encounter a string, rely on the parser having already normalized it where possible.
+3. Consumers: renderers, UGE writer/reader, and exporters were updated to prefer and accept structured objects. The PCM renderer and playback code accept structured `EnvelopeAST` objects directly; exporters (UGE/MIDI/JSON) also consume the normalized AST.
 4. Tests: add unit tests for parsing structured literals and CSV normalization; add integration tests asserting rendering parity.
 5. Codemod: add a small Node script under `scripts/` that rewrites files or outputs diffs for review.
 6. Status: not implemented yet in code; consider landing this before additional effects work so effects can rely on normalized instrument defaults (env/pan/etc.) without mixed string/object handling.
@@ -129,13 +130,14 @@ inst lead type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} swe
 
 ## Developer Checklist
 
-- [ ] Add `EnvelopeAST`, `NoiseAST`, `SweepAST` to `packages/engine/src/parser/ast.ts`
-- [ ] Add `parseEnvelope`, `parseNoise` helpers in appropriate modules
-- [ ] Update parser to detect and normalize object-literals and CSVs
-- [ ] Emit deprecation warnings when CSV forms are parsed
-- [ ] Add codemod under `scripts/` with `--dry-run`/`--apply`
-- [ ] Add unit and integration tests
-- [ ] Audit renderers/exporters to use structured AST shapes
+- [x] Add `EnvelopeAST`, `NoiseAST`, `SweepAST` to `packages/engine/src/parser/ast.ts`
+- [x] Add `parseEnvelope`, `parseNoise` helpers in appropriate modules (`packages/engine/src/chips/gameboy/pulse.ts` and friends)
+- [x] Update parser to detect and normalize object-literals and CSVs (`packages/engine/src/parser/peggy/index.ts` — includes `envelope` → `env` normalization)
+- [x] Emit deprecation warnings when CSV forms are parsed (single-run warning)
+- [x] Add codemod under `scripts/` with `--dry-run`/`--apply`
+- [x] Add unit and integration tests (includes `tests/pcmEnvelopeCompat.test.ts` and GB envelope unit tests)
+- [x] Audit renderers/exporters to use structured AST shapes (PCM renderer, UGE writer, MIDI/JSON exporters updated)
+- [x] Run full test suite and verify single-buffer WAV export parity as part of release verification
 
 ## See Also
 

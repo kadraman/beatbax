@@ -25,6 +25,97 @@ import {
 } from '../structured.js';
 import { parseSweep } from '../../chips/gameboy/pulse.js';
 
+// Reset per-parse run; `parseWithPeggy` will reset this at start of each parse.
+let _csvNormalizationWarned = false;
+
+const isInstNormalizationEnabled = (): boolean => {
+  try {
+    const env = typeof process !== 'undefined' && (process as any)?.env ? (process as any).env : undefined;
+    const val = env?.BEATBAX_PEGGY_NORMALIZE_INST_PROPS ?? env?.beatbax_peggy_normalize_inst_props;
+    if (val === undefined || val === null) return false; // default off for parity
+    const s = String(val).toLowerCase();
+    if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
+    return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+  } catch {
+    return false;
+  }
+};
+
+function parseEnvelopeValue(v: any, vendorParam?: string): any | null {
+  if (v == null) return null;
+  // Already an object
+  if (typeof v === 'object') {
+    const level = Number(v.level ?? v.l ?? v[0]);
+    const dir = (v.direction || v.dir || v[1] || 'none');
+    const period = Number(v.period ?? v.p ?? v[2] ?? 0);
+    if (!Number.isNaN(level)) {
+      const direction = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'none';
+      const out: any = { level: Math.max(0, Math.min(15, Math.floor(level))), direction, period: Math.max(0, Math.floor(period)) };
+      if (vendorParam) out.format = vendorParam;
+      return out;
+    }
+    return null;
+  }
+
+  // CSV-ish string like "15,down,7" or just "10,down"
+  if (typeof v === 'string') {
+    let s = v.trim();
+    // detect vendor prefix on value (e.g., 'gb:12,down,1')
+    let vendor = vendorParam || null;
+    const pref = s.match(/^([a-z]+):/i);
+    if (pref) { vendor = String(pref[1]).toLowerCase(); s = s.replace(/^[a-z]+:/i, '').trim(); }
+    if (s.indexOf(',') >= 0) {
+      const parts = s.split(',').map(p => p.trim()).filter(Boolean);
+      const level = parts[0] ? parseInt(parts[0], 10) : NaN;
+      const dir = parts[1] ? parts[1].toLowerCase() : 'none';
+      const period = parts[2] ? parseInt(parts[2], 10) : 0;
+      if (!Number.isNaN(level)) {
+        if (!_csvNormalizationWarned) {
+          console.warn(`[BeatBax Parser] Deprecated: env=${s} parsed and normalized to object. Prefer env={"level":${level},"direction":"${dir}","period":${period}}`);
+          _csvNormalizationWarned = true;
+        }
+        const direction = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'none';
+        const out: any = { level: Math.max(0, Math.min(15, Math.floor(level))), direction, period: Math.max(0, Math.floor(period)) };
+        if (vendor) out.format = vendor;
+        return out;
+      }
+    }
+  }
+  return null;
+}
+
+function parseNoiseValue(v: any, vendorParam?: string): any | null {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const out = Object.assign({}, v);
+    if (vendorParam) out.format = vendorParam;
+    return out;
+  }
+  if (typeof v === 'string') {
+    let s = v.trim();
+    let vendor = vendorParam || null;
+    const pref = s.match(/^([a-z]+):/i);
+    if (pref) { vendor = String(pref[1]).toLowerCase(); s = s.replace(/^[a-z]+:/i, '').trim(); }
+    if (s.indexOf(',') >= 0) {
+      const parts = s.split(',').map(p => p.trim()).filter(Boolean);
+      const clockShift = parts[0] ? parseInt(parts[0], 10) : undefined;
+      const widthMode = parts[1] ? Number(parts[1]) : undefined;
+      const divisor = parts[2] ? parseInt(parts[2], 10) : undefined;
+      if (!_csvNormalizationWarned) {
+        console.warn(`[BeatBax Parser] Deprecated: noise=${s} parsed and normalized to object.`);
+        _csvNormalizationWarned = true;
+      }
+      const out: any = {};
+      if (!Number.isNaN(clockShift)) out.clockShift = clockShift;
+      if (widthMode === 7 || widthMode === 15) out.widthMode = widthMode as 7 | 15;
+      if (!Number.isNaN(divisor)) out.divisor = divisor;
+      if (vendor) out.format = vendor;
+      return out;
+    }
+  }
+  return null;
+}
+
 interface BaseStmt { nodeType: string; loc?: SourceLocation }
 interface ChipStmt extends BaseStmt { nodeType: 'ChipStmt'; chip: string }
 interface BpmStmt extends BaseStmt { nodeType: 'BpmStmt'; bpm: number }
@@ -72,11 +163,20 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
   const rest = rhs.trim();
   const parts = rest.split(/\s+/);
   const props: Record<string, any> = {};
+  const vendors: Record<string, string | null> = {};
   for (const p of parts) {
     const eq = p.indexOf('=');
     if (eq >= 0) {
-      const k = p.slice(0, eq);
-      const v = p.slice(eq + 1);
+      let k: string = p.slice(0, eq);
+      let v: string = p.slice(eq + 1);
+      // detect vendor prefix on key (e.g. gb:env or gb:width)
+      const km = String(k).match(/^([a-z]+):(.*)$/i);
+      if (km) {
+        vendors[km[2]] = String(km[1]).toLowerCase();
+        k = km[2];
+      } else {
+        vendors[k] = null;
+      }
       if (v.startsWith('{') && v.endsWith('}')) {
         try {
           props[k] = JSON.parse(v);
@@ -90,14 +190,80 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
       props[p] = 'true';
     }
   }
+  // Preserve previous behavior: always parse/normalize `sweep` (backcompat).
   try {
     if (props.sweep) {
+      // strip vendor prefix on sweep value if present before parsing
+      if (typeof props.sweep === 'string') {
+        const m = String(props.sweep).match(/^([a-z]+):/i);
+        if (m) props.sweep = String(props.sweep).replace(/^[a-z]+:/i, '');
+      }
       const parsed = parseSweep(props.sweep as any);
       if (parsed) props.sweep = parsed as any;
     }
   } catch (e) {
     // keep original value
   }
+
+  // Normalize long-form `envelope` => `env` so the AST uses the canonical key.
+  try {
+    if (props.envelope && props.env === undefined) {
+      props.env = props.envelope;
+      delete props.envelope;
+    }
+  } catch (e) {
+    // keep original
+  }
+
+  // Only normalize `env` and `noise` when Peggy structured events are enabled
+  // and explicit instrument normalization flag is set (default off to preserve parity).
+  if (isPeggyEventsEnabled() && isInstNormalizationEnabled()) {
+    try {
+      if (props.env) {
+        const vendor = vendors['env'] ?? null;
+        const parsed = parseEnvelopeValue(props.env as any, vendor ?? undefined);
+        if (parsed) props.env = parsed;
+      }
+    } catch (e) {
+      // keep original
+    }
+
+    try {
+      if (props.noise) {
+        const vendor = vendors['noise'] ?? null;
+        const parsed = parseNoiseValue(props.noise as any, vendor ?? undefined);
+        if (parsed) props.noise = parsed;
+      }
+    } catch (e) {
+      // keep original
+    }
+    // Handle `width` vendor prefix on key/value (e.g., gb:width=7 or width=gb:7)
+    try {
+      if (props.width) {
+        const vendor = vendors['width'] ?? null;
+        if (typeof props.width === 'string') {
+          let s = props.width;
+          const m = String(s).match(/^([a-z]+):/i);
+          if (m) {
+            const vf = String(m[1]).toLowerCase();
+            s = s.replace(/^[a-z]+:/i, '').trim();
+            const n = parseInt(s, 10);
+            if (!Number.isNaN(n)) props.width = { value: n, format: vf };
+          } else if (vendor) {
+            const n = parseInt(s, 10);
+            if (!Number.isNaN(n)) props.width = { value: n, format: vendor };
+          } else if (/^\d+$/.test(s)) {
+            props.width = parseInt(s, 10);
+          }
+        } else if (typeof props.width === 'object' && vendor) {
+          props.width.format = props.width.format || vendor;
+        }
+      }
+    } catch (e) {
+      // keep original
+    }
+  }
+
   insts[name] = props;
 };
 
@@ -286,6 +452,8 @@ const parsePlay = (args: string): PlayNode => {
 };
 
 export function parseWithPeggy(source: string): AST {
+  // reset per-parse-run warning flag
+  _csvNormalizationWarned = false;
   const program = peggyParse(source, {}) as ProgramNode;
   const pats: Record<string, string[]> = {};
   const insts: InstMap = {};

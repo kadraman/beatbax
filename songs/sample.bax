@@ -17,8 +17,8 @@ bpm 128
 #  - `type`: one of `pulse1`, `pulse2`, `wave`, `noise`
 #  - `duty`: duty cycle percentage for pulse channels (controls timbre)
 #  - `env`: envelope. Use Game Boy-style envelope syntax `gb:<initial>,<up|down>,<period>`
-#      e.g. `env=gb:12,down,1` sets initial vol=12 (0-15), direction down, period=1
-#      For backwards compatibility legacy forms like `env=12,down` are accepted
+#      e.g. `env={"level":12,"direction":"down","period":1,"format":"gb"} sets initial vol=12 (0-15), direction down, period=1
+#      For backwards compatibility legacy forms like `env={"level":12,"direction":"none","period":0} are accepted
 #      but the `gb:` prefix or three-token form (`12,down,1`) is recommended.
 #  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
 #
@@ -27,12 +27,12 @@ bpm 128
 # You may optionally annotate instruments with a General MIDI program number
 # using `gm=<0-127>`. The exporter will use this value for Program Change
 # messages when exporting MIDI. Example: `inst leadA ... gm=81` (Lead 1).
-inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81   # Bright pulse lead, slightly wider duty (GM 81)
-inst leadB type=pulse2 duty=30 env=gb:7,down,1 uge_transpose=+12 gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
+inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81   # Bright pulse lead, slightly wider duty (GM 81)
+inst leadB type=pulse2 duty=30 env={"level":7,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # Wavetable arpeggio voice (GM 82)
-inst snare type=noise  env=gb:12,down,1            # Snare-like noise for backbeat
-inst hihat type=noise  env=gb:5,down,1             # Short hi-hat hits (faster, lower env)
-inst perc  type=noise  env=gb:10,down,1            # Generic percussion/noise channel
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
+inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
 
 # -----------------------------------------------------------------------------
 # Patterns
