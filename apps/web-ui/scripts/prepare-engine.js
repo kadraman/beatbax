@@ -20,6 +20,9 @@ function copyRecursive(src, dest) {
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
+    // Skip copying legacy parser/expression bundle into the demo public engine
+    // so browser builds don't include the deprecated code by default.
+    if (entry.name === 'legacy') continue;
     if (entry.isDirectory()) copyRecursive(srcPath, destPath);
     else fs.copyFileSync(srcPath, destPath);
   }
@@ -31,6 +34,16 @@ if (!fs.existsSync(engineDist)) {
   console.warn('Engine dist not found at', engineDist, '\nRun `npm --prefix packages/engine run build` first.');
   process.exitCode = 0;
 } else {
+  // Remove legacy directory from previous copies to avoid shipping deprecated code
+  const legacyTarget = path.join(target, 'parser', 'legacy');
+  if (fs.existsSync(legacyTarget)) {
+    try {
+      fs.rmSync(legacyTarget, { recursive: true, force: true });
+      console.log('Removed legacy parser from previous public copy:', legacyTarget);
+    } catch (e) {
+      // ignore errors and continue copying
+    }
+  }
   copyRecursive(engineDist, target);
   console.log('Copied engine dist ->', target);
 }

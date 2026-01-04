@@ -185,8 +185,8 @@ This migration should be strictly non-breaking at the language and AST levels. I
 
 This is an intentionally minimal starter grammar. It aims to parse the *structure* of a `.bax` file into a simple statement list that can be transformed into the existing BeatBax AST.
 
-Notes:
-- Pattern bodies and sequence RHS are initially captured as raw text. This allows us to reuse existing logic for tokenization/expansion in early phases.
+- Notes:
+- Pattern bodies and sequence `rhs` were initially captured as raw text to preserve legacy behavior. This approach is now deprecated: the Peggy grammar emits structured fields (`rhsEvents` for patterns and `rhsItems` for sequences). The legacy `rhs` string remains temporarily for compatibility during rollout; prefer consuming structured fields directly.
 - Comments use `# ...` to end-of-line.
 - Strings support single, double, and triple quotes for metadata.
 
@@ -281,25 +281,29 @@ ExportStmt
 
 InstStmt
   = $("inst" !IdentChar) __ name:Identifier __ rhs:RestOfLine {
-      // `rhs` is a raw string like: "type=pulse1 duty=50 env=12,down"
+      // (Deprecated) In earlier iterations `rhs` was a raw string like: "type=pulse1 duty=50 env=12,down".
+      // The Peggy parser can emit structured instrument fields; prefer parsing those instead of consuming `rhs` directly.
       return { nodeType: "InstStmt", name, rhs, loc: loc(location()) };
     }
 
 PatStmt
   = $("pat" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
-      // `rhs` is a raw string like: "C5 E5 G5 C6" or "inst sn C6 C6"
+      // (Deprecated) `rhs` was a raw string like: "C5 E5 G5 C6" or "inst sn C6 C6".
+      // Newer parser iterations produce `rhsEvents` (structured pattern tokens); consume those when available.
       return { nodeType: "PatStmt", name, rhs, loc: loc(location()) };
     }
 
 SeqStmt
   = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
-      // `rhs` is a raw string like: "melody bass_pat melody:oct(-1)"
+      // (Deprecated) `rhs` was a raw string like: "melody bass_pat melody:oct(-1)".
+      // Prefer `rhsItems` (structured sequence items) emitted by the Peggy grammar.
       return { nodeType: "SeqStmt", name, rhs, loc: loc(location()) };
     }
 
 ChannelStmt
   = $("channel" !IdentChar) __ ch:Int __ "=>" __ rhs:RestOfLine {
-      // `rhs` is a raw string like: "inst lead seq main:oct(-1)"
+      // (Deprecated) `rhs` was a raw string like: "inst lead seq main:oct(-1)".
+      // Newer parsers may provide structured channel specs; prefer parsing those where possible.
       return { nodeType: "ChannelStmt", channel: ch, rhs, loc: loc(location()) };
     }
 

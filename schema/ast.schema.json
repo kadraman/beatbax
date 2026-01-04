@@ -111,7 +111,12 @@
       "properties": {
         "nodeType": { "const": "PatternDef" },
           "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "tokens": { "type": "array", "items": { "oneOf": [ { "$ref": "#/definitions/token_note" }, { "$ref": "#/definitions/token_rest" }, { "$ref": "#/definitions/token_inst_inline" } ] } }
+        "tokens": { "type": "array", "items": { "oneOf": [ { "$ref": "#/definitions/token_note" }, { "$ref": "#/definitions/token_rest" }, { "$ref": "#/definitions/token_inst_inline" } ] } },
+        "rhs": {
+          "type": "string",
+          "description": "Deprecated: original RHS string from legacy parser. Use `tokens` (structured events) instead.",
+          "deprecated": true
+        }
       }
     },
 
@@ -132,7 +137,12 @@
       "properties": {
         "nodeType": { "const": "SequenceDef" },
           "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "items": { "type": "array", "items": { "$ref": "#/definitions/seq_item" } }
+        "items": { "type": "array", "items": { "$ref": "#/definitions/seq_item" } },
+        "rhs": {
+          "type": "string",
+          "description": "Deprecated: legacy RHS string representation. Use `items` (structured sequence items) instead.",
+          "deprecated": true
+        }
       }
     },
 
