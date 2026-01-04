@@ -1,6 +1,6 @@
 ---
 title: Sequence Arrangement
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/10"
