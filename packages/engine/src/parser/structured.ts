@@ -4,6 +4,7 @@ import {
   SequenceTransform,
   SourceLocation,
 } from './ast.js';
+import { warn } from '../util/diag.js';
 
 export interface RawSeqModifier { raw: string; loc?: SourceLocation }
 export interface RawSeqItem { name: string; modifiers: RawSeqModifier[]; raw?: string; loc?: SourceLocation }
@@ -19,7 +20,7 @@ export const isPeggyEventsEnabled = (): boolean => {
   } catch (err) {
     // Surface unexpected environment access failures instead of silently disabling the flag.
     try {
-      console.warn('[BeatBax Parser] Warning: failed to read BEATBAX_PEGGY_EVENTS env', err);
+      warn('parser', 'failed to read BEATBAX_PEGGY_EVENTS env');
     } catch {
       /* ignore logging failures */
     }

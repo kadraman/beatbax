@@ -61,6 +61,7 @@ Statement
   / InstStmt
   / PatStmt
   / SeqStmt
+  / ArrangeStmt
   / PatShorthandStmt
   / ChannelStmt
   / PlayStmt
@@ -133,6 +134,45 @@ SeqStmt
   = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:SeqRhs {
       return { nodeType: "SeqStmt", name, rhsItems: rhs, loc: loc(location()) };
     }
+
+ArrangeStmt
+  = $("arrange" !IdentChar) __ name:Identifier _ defaults:ArrangeDefaults? _ "=" _ rhs:ArrangeShortRhs {
+      return { nodeType: "ArrangeStmt", name, arrangements: rhs, defaults: defaults ?? null, loc: loc(location()) };
+    }
+  / $("arrange" !IdentChar) __ name:Identifier _ defaults:ArrangeDefaults? _ ("=" WS0)? "{" WS0 inner:$( (!"}" .)* ) WS0 "}" {
+      const raw = (inner || '').trim();
+      const lines = raw
+        .split(/[\r\n]+|,/) // split on newlines or commas
+        .map(s => s.trim())
+        .filter(Boolean);
+      const rows = lines.map(l => {
+        return l.split('|').map(s => {
+          const t = s.trim();
+          if (t === '.' || t === '-') return null;
+          if ((t.startsWith('"') || t.startsWith("'")) && t.length >= 2) return t.slice(1, -1);
+          return t;
+        });
+      });
+      return { nodeType: "ArrangeStmt", name, arrangements: rows, defaults: defaults ?? null, loc: loc(location()) };
+    }
+
+ArrangeDefaults
+  = "defaults" WS0 "(" WS0 body:$( (!")" .)* ) WS0 ")" { return body.trim(); }
+
+ArrangeShortRhs
+  = head:ArrangeSlot tail:(WS0 "|" WS0 ArrangeSlot)* {
+      const row = [head];
+      for (const t of tail) row.push(t[3]);
+      return [row];
+    }
+
+// ArrangeRows/ArrangeRow handled via inner capture and JS post-processing above
+
+ArrangeSlot
+  = "." { return null; }
+  / "-" { return null; }
+  / s:QuotedString { return s; }
+  / id:Identifier { return id; }
 
 ChannelStmt
   = $("channel" !IdentChar) __ ch:Int __ "=>" __ rhs:RestOfLine {

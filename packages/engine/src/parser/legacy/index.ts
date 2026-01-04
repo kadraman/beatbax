@@ -1,15 +1,15 @@
 import { expandPattern, transposePattern } from '../../patterns/expand.js';
 import { AST, SeqMap, ChannelNode, PlayNode, InstMap } from '../ast.js';
 import { parseSweep } from '../../chips/gameboy/pulse.js';
+import { warn } from '../../util/diag.js';
+import { applyModsToTokens } from '../../expand/refExpander.js';
 
 const warnProblematicPatternName = (name: string): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
   const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
 
   if (isSingleLetterNote || isNoteWithOctave) {
-    console.warn(
-      `[BeatBax Parser] Warning: Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`
-    );
+    warn('parser', `Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`);
   }
 };
 
@@ -29,13 +29,31 @@ export function parseLegacy(source: string): AST {
       let paren = 0;
       for (let i = 0; i < line.length; i++) {
         const ch = line[i];
-        if (ch === "'" && !inD) { inS = !inS; continue; }
-        if (ch === '"' && !inS) { inD = !inD; continue; }
+        if (ch === "'" && !inD) {
+          inS = !inS;
+          continue;
+        }
+        if (ch === '"' && !inS) {
+          inD = !inD;
+          continue;
+        }
         if (inS || inD) continue;
-        if (ch === '[') { bracket++; continue; }
-        if (ch === ']') { if (bracket > 0) bracket--; continue; }
-        if (ch === '(') { paren++; continue; }
-        if (ch === ')') { if (paren > 0) paren--; continue; }
+        if (ch === '[') {
+          bracket++;
+          continue;
+        }
+        if (ch === ']') {
+          if (bracket > 0) bracket--;
+          continue;
+        }
+        if (ch === '(') {
+          paren++;
+          continue;
+        }
+        if (ch === ')') {
+          if (paren > 0) paren--;
+          continue;
+        }
         if (ch === '#' && bracket === 0 && paren === 0) {
           return line.slice(0, i).trimEnd();
         }
@@ -43,24 +61,15 @@ export function parseLegacy(source: string): AST {
       return line;
     }).join('\n');
   };
-
   const src = stripInlineComments(source);
-
   // Extract song metadata directives (supports single/double-quoted and triple-quoted multiline strings)
-  // Examples:
-  //   song name "Title"
-  //   song artist 'Artist Name'
-  //   song description """Line1
-  //   Line2
-  //   Line3"""
-  //   song tags "tag1, tag2"
-  const metadata: { name?: string; artist?: string; description?: string; tags?: string[] } = {};
+  const metadata: any = {};
   const songRe = /^\s*song\s+(name|artist|description|tags)\s+(?:"""([\s\S]*?)"""|"([^"]*?)"|'([^']*?)')/gim;
   let srcTemp = src;
-  srcTemp = srcTemp.replace(songRe, (_full, key: string, triple: string, dbl: string, sgl: string) => {
+  srcTemp = srcTemp.replace(songRe, (_full: any, key: any, triple: any, dbl: any, sgl: any) => {
     const val = triple ?? dbl ?? sgl ?? '';
     if (key === 'tags') {
-      const tags = val.split(/[\,\n\r]+/).map(t => t.trim()).filter(Boolean);
+      const tags = String(val).split(/[\,\n\r]+/).map((t: string) => t.trim()).filter(Boolean);
       metadata.tags = (metadata.tags || []).concat(tags);
     } else if (key === 'name') {
       metadata.name = val;
@@ -69,19 +78,14 @@ export function parseLegacy(source: string): AST {
     } else if (key === 'description') {
       metadata.description = val;
     }
-    // remove directive from source so other regexes don't accidentally match it
     return '';
   });
-
-  // Use the cleaned source for the rest of parsing
   const cleanedSrc = srcTemp;
-
   const pats: Record<string, string[]> = {};
-  const insts: InstMap = {};
-  const seqs: SeqMap = {};
-  const channels: ChannelNode[] = [];
+  const insts: Record<string, any> = {};
+  const seqs: Record<string, string[]> = {};
+  const channels: any[] = [];
   let topBpm: number | undefined = undefined;
-
   // Match lines like: pat NAME[:mod...]* = ... (capture RHS to EOL)
   const re = /^\s*pat\s+([A-Za-z_][A-Za-z0-9_\-]*(?::[^\s=]+)*)\s*=\s*(.+)$/gm;
   let m: RegExpExecArray | null;
@@ -206,10 +210,7 @@ export function parseLegacy(source: string): AST {
     const name = lm[1];
     const rhs = lm[2].trim();
     if (!rhs) {
-      console.warn(
-        `[BeatBax Parser] Warning: sequence '${name}' has no RHS content (empty). ` +
-        `Define patterns after '=' or remove the empty 'seq ${name} =' line.`
-      );
+      warn('parser', `sequence '${name}' has no RHS content (empty). Define patterns after '=' or remove the empty 'seq ${name} =' line.`);
       seqs[name] = [];
       continue;
     }
@@ -345,57 +346,9 @@ export function parseLegacy(source: string): AST {
       const base = parts[0];
       const mods = parts.slice(1);
       if (pats[base]) {
-        let tokensResolved = pats[base].slice();
-        if (mods.length > 0) {
-          // parse modifiers into semitone/octave adjustments
-          let semitones = 0;
-          let octaves = 0;
-          for (const mod of mods) {
-            const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-            if (mOct) {
-              octaves += parseInt(mOct[1], 10);
-              continue;
-            }
-            // pattern-level transforms
-            if (/^rev$/i.test(mod)) {
-              tokensResolved = tokensResolved.slice().reverse();
-              continue;
-            }
-            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-            if (mSlow) {
-              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-              const out: string[] = [];
-              for (const t of tokensResolved) for (let r = 0; r < factor; r++) out.push(t);
-              tokensResolved = out;
-              continue;
-            }
-            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-            if (mFast) {
-              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-              tokensResolved = tokensResolved.filter((_, idx) => idx % factor === 0);
-              continue;
-            }
-            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-            if (mInst) {
-              ch.inst = mInst[1];
-              continue;
-            }
-            const mTrans = mod.match(/^([+-]?\d+)$/);
-            if (mTrans) {
-              semitones += parseInt(mTrans[1], 10);
-              continue;
-            }
-            const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-            if (mSem) {
-              semitones += parseInt(mSem[1], 10);
-              continue;
-            }
-          }
-          if (semitones !== 0 || octaves !== 0) {
-            tokensResolved = transposePattern(tokensResolved, { semitones, octaves });
-          }
-        }
-        ch.pat = tokensResolved;
+        const res = applyModsToTokens(pats[base].slice(), mods);
+        if (res.instOverride) ch.inst = res.instOverride;
+        ch.pat = res.tokens;
       } else {
         // leave unresolved string (could be inline pattern literal)
       }
@@ -436,7 +389,7 @@ export function parseLegacy(source: string): AST {
     for (const [name, props] of Object.entries(insts)) {
       const p = props as any;
       if (p.sweep && p.type !== 'pulse1') {
-        console.warn(`[BeatBax Parser] Warning: Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
+        warn('parser', `Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
       }
 
       // Wave instrument: parse and validate `volume` / `vol` parameter

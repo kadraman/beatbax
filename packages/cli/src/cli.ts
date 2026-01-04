@@ -124,6 +124,7 @@ program
 program
   .option('-v, --verbose', 'Enable verbose output for all commands')
   .option('-D, --debug', 'Enable debug output (print stack traces)')
+  .option('--strict', 'Fail on warnings (non-zero exit)')
   .option('-r, --sample-rate <hz>', 'Sample rate for audio operations (playback/export)', '44100');
 
 program
@@ -189,6 +190,20 @@ program
       }
 
       const ast = parse(src);
+      // Run the resolver to materialize sequences/channels and collect any
+      // resolver warnings (e.g. arrange expansion issues). `play` calls
+      // the resolver during playback, but `verify` previously did not,
+      // so run it here to ensure the same diagnostics appear.
+      const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+      try {
+        resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
+      } catch (resErr: any) {
+        const globalOpts = program.opts();
+        if (globalOpts && globalOpts.debug) console.error('Resolver error:', resErr && resErr.stack ? resErr.stack : resErr);
+        else console.error('Resolver error:', resErr && resErr.message ? resErr.message : resErr);
+        process.exitCode = 2;
+        return;
+      }
       // merge any pre-scan warnings with runtime validations
 
       const extractSeqBaseNames = (ch: any): string[] => {
@@ -272,15 +287,32 @@ program
           }
         }
       }
+      // Merge parser-level warnings and resolver warnings
+      const allWarnings: string[] = warnings.slice();
+      for (const rw of resolverWarnings) {
+        const filePart = rw.file ? rw.file : file;
+        const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
+        const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
+        const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
+        if (linePart !== undefined) parts.push(`line=${linePart}`);
+        if (colPart !== undefined) parts.push(`column=${colPart}`);
+        allWarnings.push(parts.join(', '));
+      }
+
       if (errors.length > 0) {
         console.error(`Validation failed for ${file}:`);
         for (const e of errors) console.error('  -', e);
         process.exitCode = 2;
-      } else if (warnings.length > 0) {
+      } else if (allWarnings.length > 0) {
         console.warn(`Validation warnings for ${file}:`);
-        for (const w of warnings) console.warn('  -', w);
-        console.log(`OK: ${file} parsed (with warnings)`);
-        process.exitCode = 0;
+        for (const w of allWarnings) console.warn('  -', w);
+        if (globalOpts && globalOpts.strict) {
+          console.error('Strict mode enabled: failing due to warnings');
+          process.exitCode = 2;
+        } else {
+          console.log(`OK: ${file} parsed (with warnings)`);
+          process.exitCode = 0;
+        }
       } else {
         console.log(`OK: ${file} parsed and basic validation passed`);
         process.exitCode = 0;
@@ -320,27 +352,59 @@ program
       process.exitCode = 2;
       return;
     }
-    if (warnings.length > 0 && (options as any).verbose || verbose) {
-      console.warn(`Validation warnings for ${file}:`);
-      for (const w of warnings) console.warn('  -', w);
+    // Collect resolver warnings during export so we can honor --strict globally
+    const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+    try {
+      const shouldShowParserWarnings = (warnings.length > 0 && ((options as any).verbose || verbose));
+      if (shouldShowParserWarnings) {
+        console.warn(`Validation warnings for ${file}:`);
+        for (const w of warnings) console.warn('  -', w);
+      }
+      const resolved = resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
+      // merge resolver warnings into combined list for possible strict handling
+      const allWarnings: string[] = [];
+      for (const rw of resolverWarnings) {
+        const filePart = rw.file ? rw.file : file;
+        const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
+        const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
+        const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
+        if (linePart !== undefined) parts.push(`line=${linePart}`);
+        if (colPart !== undefined) parts.push(`column=${colPart}`);
+        allWarnings.push(parts.join(', '));
+      }
+      if (allWarnings.length > 0 && ((options as any).verbose || verbose)) {
+        console.warn(`Validation warnings for ${file}:`);
+        for (const w of allWarnings) console.warn('  -', w);
+      }
+      if (allWarnings.length > 0 && program.opts() && program.opts().strict) {
+        console.error('Strict mode enabled: failing due to warnings');
+        process.exitCode = 2;
+        return;
+      }
+      var song = resolved;
+    } catch (resErr: any) {
+      const globalOpts = program.opts();
+      if (globalOpts && globalOpts.debug) console.error('Resolver error:', resErr && resErr.stack ? resErr.stack : resErr);
+      else console.error('Resolver error:', resErr && resErr.message ? resErr.message : resErr);
+      process.exitCode = 2;
+      return;
     }
-    const song = resolveSong(ast);
 
     let outPath = output || options.out;
-    
+
     // If no output path provided, generate one based on input filename and format
     if (!outPath) {
       const ext = format === 'json' ? '.json' : (format === 'midi' ? '.mid' : (format === 'uge' ? '.uge' : '.wav'));
       outPath = file.replace(/\.[^/.]+$/, "") + ext;
     }
 
-    const channels = options.channels 
+    const channels = options.channels
       ? options.channels.split(',').map((c: string) => parseInt(c.trim(), 10))
       : undefined;
 
     if (channels) {
       const chip = ast.chip?.toLowerCase() || 'gameboy';
-      
+
       if (chip === 'gameboy') {
         for (const c of channels) {
           if (isNaN(c) || c < 1 || c > 4) {
@@ -348,8 +412,8 @@ program
             process.exit(1);
           }
         }
-      } 
-      /* 
+      }
+      /*
       else if (chip === 'nes') {
         // NES has 5 channels: Pulse 1, Pulse 2, Triangle, Noise, DMC
         for (const c of channels) {
