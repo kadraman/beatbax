@@ -110,6 +110,17 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
   // Expand all sequences into flattened token arrays
   const expandedSeqs = expandAllSequences(seqs, pats, insts);
 
+  // Helper to consistently emit resolver warnings via opts.onWarn if it's a
+  // function, otherwise fall back to the diagnostic helper.
+  const emitResolverWarn = (message: string, loc?: any) => {
+    const meta = { file: opts && opts.filename ? opts.filename : undefined, loc };
+    if (opts && typeof opts.onWarn === 'function') {
+      opts.onWarn({ component: 'resolver', message, file: meta.file, loc: meta.loc });
+    } else {
+      diagWarn('resolver', message, meta);
+    }
+  };
+
   const channels: ChannelModel[] = [];
 
   // use shared expander
@@ -118,13 +129,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
   const channelSources = (() => {
     if (ast.arranges && Object.keys(ast.arranges).length > 0) {
       if (ast.channels && ast.channels.length > 0) {
-        const msg = 'Both `arrange` and `channel` mappings present; using `arrange` and ignoring `channel` mappings.';
-        const meta = { file: opts && opts.filename ? opts.filename : undefined, loc: undefined };
-        if (opts && typeof opts.onWarn === 'function') {
-          opts.onWarn({ component: 'resolver', message: msg, file: meta.file, loc: meta.loc });
-        } else {
-          diagWarn('resolver', msg, meta);
-        }
+        emitResolverWarn('Both `arrange` and `channel` mappings present; using `arrange` and ignoring `channel` mappings.', undefined);
       }
       // choose 'main' arrange if present, otherwise first arrange
       const keys = Object.keys(ast.arranges!);
@@ -156,13 +161,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
           // If expansion produced a single raw token equal to the slot and the base
           // name doesn't exist as a sequence or pattern, emit a warning.
           if (toks.length === 1 && toks[0] === slot && !expandedSeqs[base] && !pats[base]) {
-            const msg = `arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`;
-            const meta = { file: opts && opts.filename ? opts.filename : undefined, loc: arr.loc };
-            if (opts && typeof opts.onWarn === 'function') {
-              opts.onWarn({ component: 'resolver', message: msg, file: meta.file, loc: meta.loc });
-            } else {
-              diagWarn('resolver', msg, meta);
-            }
+            emitResolverWarn(`arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`, arr.loc);
             continue;
           }
           concatenated.push(...toks);

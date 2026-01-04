@@ -16,6 +16,7 @@ describe('Arrange edge cases - defaults', () => {
     // the note should carry the instrument applied by arrange default
     const ev = ch1.events[0] as any;
     expect(ev.token).toBe('C4');
-    expect(ev.instrument === 'lead' || ev.instrument === 'leadInst' || ev.instrument === undefined).toBeTruthy();
+    // arrange default should apply the 'lead' instrument to this slot
+    expect(ev.instrument).toBe('lead');
   });
 });

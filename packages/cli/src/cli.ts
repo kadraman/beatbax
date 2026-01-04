@@ -113,6 +113,14 @@ function validateSource(src: string): ValidationResult {
   return { errors, warnings, ast };
 }
 
+// Helper to consistently extract an error message string from thrown errors.
+function extractErrorMessage(err: any, preferStack = false): string {
+  if (!err) return String(err);
+  if (preferStack && err && (err as any).stack) return String((err as any).stack);
+  if (err && (err as any).message) return String((err as any).message);
+  try { return String(err); } catch (_) { return '[unserializable error]'; }
+}
+
 const program = new Command();
 
 program
@@ -199,8 +207,7 @@ program
         resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
       } catch (resErr: any) {
         const globalOpts = program.opts();
-        if (globalOpts && globalOpts.debug) console.error('Resolver error:', resErr && resErr.stack ? resErr.stack : resErr);
-        else console.error('Resolver error:', resErr && resErr.message ? resErr.message : resErr);
+        console.error('Resolver error:', extractErrorMessage(resErr, globalOpts && globalOpts.debug));
         process.exitCode = 2;
         return;
       }
@@ -319,11 +326,7 @@ program
       }
     } catch (err: any) {
       const globalOpts = program.opts();
-      if (globalOpts && globalOpts.debug) {
-        console.error('Error parsing file:', err && err.stack ? err.stack : err);
-      } else {
-        console.error('Error parsing file:', err && err.message ? err.message : err);
-      }
+      console.error('Error parsing file:', extractErrorMessage(err, globalOpts && globalOpts.debug));
       process.exitCode = 2;
     }
   });
@@ -354,6 +357,9 @@ program
     }
     // Collect resolver warnings during export so we can honor --strict globally
     const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+    // `song` will be populated by the resolver below; declare it in the outer
+    // scope so it is available after the try/catch for export steps.
+    let song: any = undefined;
     try {
       const shouldShowParserWarnings = (warnings.length > 0 && ((options as any).verbose || verbose));
       if (shouldShowParserWarnings) {
@@ -381,11 +387,10 @@ program
         process.exitCode = 2;
         return;
       }
-      var song = resolved;
+      song = resolved;
     } catch (resErr: any) {
       const globalOpts = program.opts();
-      if (globalOpts && globalOpts.debug) console.error('Resolver error:', resErr && resErr.stack ? resErr.stack : resErr);
-      else console.error('Resolver error:', resErr && resErr.message ? resErr.message : resErr);
+      console.error('Resolver error:', extractErrorMessage(resErr, globalOpts && globalOpts.debug));
       process.exitCode = 2;
       return;
     }
@@ -500,11 +505,7 @@ program
       }
     } catch (err: any) {
       const globalOpts = program.opts();
-      if (globalOpts && globalOpts.debug) {
-        console.error('Failed to inspect file:', err && err.stack ? err.stack : err);
-      } else {
-        console.error('Failed to inspect file:', err && err.message ? err.message : err);
-      }
+      console.error('Failed to inspect file:', extractErrorMessage(err, globalOpts && globalOpts.debug));
       process.exitCode = 2;
     }
   });
