@@ -7,6 +7,7 @@ export interface TickSchedulerOptions {
   setInterval?: (handler: (...args: any[]) => void, timeout?: number, ...args: any[]) => any;
   clearInterval?: (id: any) => void;
 }
+import { error } from '../util/diag.js';
 
 export class TickScheduler {
   private ctx: any;
@@ -75,7 +76,7 @@ export class TickScheduler {
     const cutoff = now + this.lookahead;
     while (this.queue.length && this.queue[0].time <= cutoff) {
       const ev = this.queue.shift()!;
-      try { ev.fn(); } catch (e) { console.error('Scheduled function error', e); }
+      try { ev.fn(); } catch (e) { error('scheduler', 'Scheduled function error: ' + (e && (e as any).message ? (e as any).message : String(e))); }
     }
   }
 }

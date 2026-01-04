@@ -25,25 +25,32 @@ song name "An example song"
 chip gameboy
 bpm 128
 
-inst lead  type=pulse1 duty=50 env=gb:12,down,1
-inst bass  type=pulse2 duty=25 env=gb:10,down,1
+# Instruments for pulse, wave and noise
+inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
+inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst snare type=noise env=gb:12,down,1
+inst snare type=noise env={"level":12,"direction":"down","period":1,"format":"gb"}
 
+# Patterns of notes
 pat melody = C5 E4 G4 C5
 pat bass_pat = C3 . G2 .
+pat drum_pat = "snare . snare snare"
 
-channel 1 => inst lead pat melody
-channel 2 => inst bass pat bass_pat
-channel 3 => inst wave1 pat melody:oct(-1)
-channel 4 => inst snare pat "x . x x"
+# Sequences of patterns with default instruments
+seq lead_seq  = melody:inst(lead) melody:inst(lead)
+seq bass_seq  = bass_pat:inst(bass)*2
+seq wave_seq  = melody:oct(-1):inst(wave1) melody:oct(-2):inst(wave1)
+seq drums_seq = drum_pat*2
 
-play
+# Arrangements of sequences via slots that map to sound chip channels
+arrange main = lead_seq | bass_seq | wave_seq | drums_seq
+
+play auto repeat
 ```
 
 ## CLI
 
-The CLI provides a number of different sub-commands and options. 
+The CLI provides a number of different sub-commands and options.
 
 **Important:** On Windows, npm has limitations passing flag arguments through `npm run` scripts. Use direct commands or `bin\beatbax` wrapper instead:
 
@@ -232,7 +239,7 @@ npm run engine:build
 node scripts/link-local-engine.cjs  # Copies dist to node_modules
 node bin/beatbax play songs/sample.bax --headless
 ```
- 
+
 ### Local linking (developer convenience)
 
 To use the project CLI globally during local development, create a local symlink with npm. From the repository root run:
