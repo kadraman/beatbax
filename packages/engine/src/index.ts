@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
+import { warn, error } from './util/diag.js';
 
 export interface PlayOptions {
   noBrowser?: boolean;
@@ -21,41 +22,41 @@ export async function playFile(path: string, options: PlayOptions = {}) {
   }
 
   const isNode = typeof window === 'undefined';
-  const noBrowser = options.noBrowser || 
-                    options.backend === 'node-webaudio' || 
+  const noBrowser = options.noBrowser ||
+                    options.backend === 'node-webaudio' ||
                     (isNode && !options.browser && options.backend !== 'browser');
 
   // Attempt headless playback
   if (noBrowser) {
     console.log('Rendering song using native PCM renderer...');
-    
+
     try {
       const { resolveSong } = await import('./song/resolver.js');
       const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
-      
+
       const song = resolveSong(ast);
       const sampleRate = options.sampleRate || 44100;
       const duration = options.duration;
       const bpm = ast.bpm || 128;
       const renderChannels = options.channels;
-      
-      const samples = renderSongToPCM(song, { 
-        sampleRate, 
+
+      const samples = renderSongToPCM(song, {
+        sampleRate,
         duration,
         channels: 2, // Use stereo to match browser
         bpm,
         renderChannels
       });
-      
+
       // Real-time playback via speaker
       try {
-        // Resolve absolute path to cli module  
+        // Resolve absolute path to cli module
         const path = await import('path');
         const url = await import('url');
         const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-        
+
         let cliPath = path.resolve(__dirname, '../../cli/dist/nodeAudioPlayer.js');
-        
+
         // Fallback for monorepo development where engine might be in node_modules but cli isn't linked
         if (!existsSync(cliPath)) {
           const monorepoPath = path.resolve(__dirname, '../../../../packages/cli/dist/nodeAudioPlayer.js');
@@ -63,9 +64,9 @@ export async function playFile(path: string, options: PlayOptions = {}) {
             cliPath = monorepoPath;
           }
         }
-        
+
         const cliUrl = url.pathToFileURL(cliPath).href;
-        
+
         const { playAudioBuffer } = await import(cliUrl);
         console.log('Playing audio via system speakers...');
         if (ast.play?.repeat) {
@@ -81,15 +82,15 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           console.log('[OK] Playback complete');
         }
       } catch (err: any) {
-        console.error('Failed to play audio:', err.message);
+        error('engine', 'Failed to play audio: ' + (err && err.message ? err.message : String(err)));
         console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
         console.log('Or use "export wav" to export to WAV file instead.');
         process.exitCode = 1;
       }
       return;
     } catch (err: any) {
-      console.error('Failed to render song:', err.message);
-      console.error(err.stack);
+      error('engine', 'Failed to render song: ' + (err && err.message ? err.message : String(err)));
+      if (err && err.stack) error('engine', String(err.stack));
       process.exitCode = 1;
       return;
     }
@@ -125,15 +126,15 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         console.log('Starting Vite dev server...');
         try {
           const isWindows = process.platform === 'win32';
-          const server = child.spawn('npm', ['run', 'dev'], { 
+          const server = child.spawn('npm', ['run', 'dev'], {
             cwd: viteDir,
-            detached: true, 
+            detached: true,
             stdio: 'ignore',
             shell: true  // Required on Windows to find npm in PATH
           });
           server.unref();
         } catch (e) {
-          console.warn('Failed to start Vite server:', e);
+          warn('engine', 'Failed to start Vite server: ' + (e && (e as any).message ? (e as any).message : String(e)));
         }
 
         // Give Vite a moment to start, then open browser
@@ -148,8 +149,8 @@ export async function playFile(path: string, options: PlayOptions = {}) {
             else if (platform === 'darwin') cmd = `open "${url}"`;
             else cmd = `xdg-open "${url}"`;
             try {
-              child.exec(cmd, (err: any) => { 
-                if (err) console.error('Failed to open browser:', err);
+              child.exec(cmd, (err: any) => {
+                if (err) error('engine', 'Failed to open browser: ' + (err && err.message ? err.message : String(err)));
                 resolve(null);
               });
             } catch (e) {
@@ -159,7 +160,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           }, 2000);
         });
       } catch (err) {
-        console.error('Failed to launch browser-based playback:', err);
+        error('engine', 'Failed to launch browser-based playback: ' + (err && (err as any).message ? (err as any).message : String(err)));
         console.log('Please run manually: cd apps/web-ui && npm run dev');
       }
     } else {

@@ -4,6 +4,7 @@
  */
 import { SongModel } from '../song/songModel.js';
 import { renderSongToPCM, RenderOptions } from '../audio/pcmRenderer.js';
+import { warn } from '../util/diag.js';
 
 export interface WavOptions {
   sampleRate: number;
@@ -44,7 +45,7 @@ function floatTo32BitPCM(samples: Float32Array): Buffer {
 
 export function writeWAV(samples: Float32Array, opts: WavOptions): Buffer {
   const { sampleRate, bitDepth, channels } = opts;
-  
+
   let pcmData: Buffer;
   if (bitDepth === 16) pcmData = floatTo16BitPCM(samples);
   else if (bitDepth === 24) pcmData = floatTo24BitPCM(samples);
@@ -111,10 +112,10 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
     }
     console.log(`[DEBUG] WAV pre-write: frames=${frames} leftSum=${left.toFixed(6)} rightSum=${right.toFixed(6)}`);
     if (Math.abs(left - right) < 1e-9) {
-      console.warn('[WARN] left and right channel energy appear identical — check panning/resolution');
+      warn('export', 'left and right channel energy appear identical — check panning/resolution');
     }
   }
-  
+
   await exportWAV(samples, outputPath, {
     sampleRate,
     bitDepth: options.bitDepth || 16,

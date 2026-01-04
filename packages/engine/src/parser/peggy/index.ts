@@ -24,6 +24,8 @@ import {
   patternEventsToTokens,
 } from '../structured.js';
 import { parseSweep } from '../../chips/gameboy/pulse.js';
+import { warn } from '../../util/diag.js';
+import { applyModsToTokens } from '../../expand/refExpander.js';
 
 // Reset per-parse run; `parseWithPeggy` will reset this at start of each parse.
 let _csvNormalizationWarned = false;
@@ -71,7 +73,7 @@ function parseEnvelopeValue(v: any, vendorParam?: string): any | null {
       const period = parts[2] ? parseInt(parts[2], 10) : 0;
       if (!Number.isNaN(level)) {
         if (!_csvNormalizationWarned) {
-          console.warn(`[BeatBax Parser] Deprecated: env=${s} parsed and normalized to object. Prefer env={"level":${level},"direction":"${dir}","period":${period}}`);
+          warn('parser', `Deprecated: env=${s} parsed and normalized to object. Prefer env={"level":${level},"direction":"${dir}","period":${period}}`);
           _csvNormalizationWarned = true;
         }
         const direction = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'none';
@@ -96,13 +98,13 @@ function parseNoiseValue(v: any, vendorParam?: string): any | null {
     let vendor = vendorParam || null;
     const pref = s.match(/^([a-z]+):/i);
     if (pref) { vendor = String(pref[1]).toLowerCase(); s = s.replace(/^[a-z]+:/i, '').trim(); }
-    if (s.indexOf(',') >= 0) {
+      if (s.indexOf(',') >= 0) {
       const parts = s.split(',').map(p => p.trim()).filter(Boolean);
       const clockShift = parts[0] ? parseInt(parts[0], 10) : undefined;
       const widthMode = parts[1] ? Number(parts[1]) : undefined;
       const divisor = parts[2] ? parseInt(parts[2], 10) : undefined;
       if (!_csvNormalizationWarned) {
-        console.warn(`[BeatBax Parser] Deprecated: noise=${s} parsed and normalized to object.`);
+        warn('parser', `Deprecated: noise=${s} parsed and normalized to object.`);
         _csvNormalizationWarned = true;
       }
       const out: any = {};
@@ -126,6 +128,7 @@ interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string;
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
 interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
+interface ArrangeStmt extends BaseStmt { nodeType: 'ArrangeStmt'; name: string; arrangements: (string | null)[][]; defaults?: string | null }
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
 interface PlayStmt extends BaseStmt { nodeType: 'PlayStmt'; args: string }
 interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; path: string }
@@ -140,6 +143,7 @@ type Statement =
   | InstStmt
   | PatStmt
   | SeqStmt
+  | ArrangeStmt
   | ChannelStmt
   | PlayStmt
   | ExportStmt;
@@ -154,9 +158,7 @@ const warnProblematicPatternName = (name: string): void => {
   const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
 
   if (isSingleLetterNote || isNoteWithOctave) {
-    console.warn(
-      `[BeatBax Parser] Warning: Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`
-    );
+    warn('parser', `Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`);
   }
 };
 const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
@@ -386,55 +388,9 @@ const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>
     const base = parts[0];
     const mods = parts.slice(1);
     if (pats[base]) {
-      let tokensResolved = pats[base].slice();
-      if (mods.length > 0) {
-        let semitones = 0;
-        let octaves = 0;
-        for (const mod of mods) {
-          const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-          if (mOct) {
-            octaves += parseInt(mOct[1], 10);
-            continue;
-          }
-          if (/^rev$/i.test(mod)) {
-            tokensResolved = tokensResolved.slice().reverse();
-            continue;
-          }
-          const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-          if (mSlow) {
-            const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-            const out: string[] = [];
-            for (const t2 of tokensResolved) for (let r = 0; r < factor; r++) out.push(t2);
-            tokensResolved = out;
-            continue;
-          }
-          const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-          if (mFast) {
-            const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-            tokensResolved = tokensResolved.filter((_, idx) => idx % factor === 0);
-            continue;
-          }
-          const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-          if (mInst) {
-            ch.inst = mInst[1];
-            continue;
-          }
-          const mTrans = mod.match(/^([+-]?\d+)$/);
-          if (mTrans) {
-            semitones += parseInt(mTrans[1], 10);
-            continue;
-          }
-          const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-          if (mSem) {
-            semitones += parseInt(mSem[1], 10);
-            continue;
-          }
-        }
-        if (semitones !== 0 || octaves !== 0) {
-          tokensResolved = transposePattern(tokensResolved, { semitones, octaves });
-        }
-      }
-      ch.pat = tokensResolved;
+      const res = applyModsToTokens(pats[base].slice(), mods);
+      if (res.instOverride) ch.inst = res.instOverride;
+      ch.pat = res.tokens;
     }
   }
 
@@ -451,6 +407,32 @@ const parsePlay = (args: string): PlayNode => {
   };
 };
 
+const parseArrangeDefaults = (raw: string | null | undefined): any => {
+  if (!raw) return undefined;
+  const out: any = {};
+  // support comma-separated or space-separated key=value pairs
+  const parts = String(raw).split(/[\,\s]+/).map(p => p.trim()).filter(Boolean);
+  for (const p of parts) {
+    const eq = p.indexOf('=');
+    if (eq >= 0) {
+      const k = p.slice(0, eq).trim();
+      const v = p.slice(eq + 1).trim();
+      if (/^bpm$/i.test(k)) {
+        const n = parseInt(v, 10);
+        out.bpm = !Number.isNaN(n) ? n : v;
+      } else if (/^speed$/i.test(k)) {
+        const n = parseFloat(String(v).replace(/x$/i, ''));
+        out.speed = !Number.isNaN(n) ? n : v;
+      } else if (/^inst$/i.test(k)) {
+        out.inst = v;
+      } else {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
+};
+
 export function parseWithPeggy(source: string): AST {
   // reset per-parse-run warning flag
   _csvNormalizationWarned = false;
@@ -459,6 +441,7 @@ export function parseWithPeggy(source: string): AST {
   const insts: InstMap = {};
   const seqs: SeqMap = {};
   const channels: ChannelNode[] = [];
+  const arrs: Record<string, any> = {};
   const metadata: SongMetadata = {};
 
   const structuredEnabled = isPeggyEventsEnabled();
@@ -509,10 +492,7 @@ export function parseWithPeggy(source: string): AST {
         const rhs = stmt.rhs ? stmt.rhs.trim() : '';
         const items = normalizeSeqItems(stmt.rhsItems, rhs, stmt.rhsTokens);
         if (items.length === 0) {
-          console.warn(
-            `[BeatBax Parser] Warning: sequence '${stmt.name}' has no RHS content (empty). ` +
-            `Define patterns after '=' or remove the empty 'seq ${stmt.name} =' line.`
-          );
+          warn('parser', `sequence '${stmt.name}' has no RHS content (empty). Define patterns after '=' or remove the empty 'seq ${stmt.name} =' line.`);
           seqs[stmt.name] = [];
           break;
         }
@@ -520,6 +500,12 @@ export function parseWithPeggy(source: string): AST {
           sequenceItems[stmt.name] = items;
         }
         seqs[stmt.name] = materializeSequenceItems(items);
+        break;
+      }
+      case 'ArrangeStmt': {
+        // stmt.arrangements is an array of rows; each row is an array of slot names or null
+        const parsedDefaults = parseArrangeDefaults((stmt as any).defaults ?? null);
+        arrs[stmt.name] = { name: stmt.name, arrangements: (stmt as any).arrangements || [], defaults: parsedDefaults, loc: stmt.loc };
         break;
       }
       case 'ChannelStmt': {
@@ -540,7 +526,7 @@ export function parseWithPeggy(source: string): AST {
     for (const [name, props] of Object.entries(insts)) {
       const p = props as any;
       if (p.sweep && p.type !== 'pulse1') {
-        console.warn(`[BeatBax Parser] Warning: Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
+        warn('parser', `Instrument '${name}' has a 'sweep' property but is not type 'pulse1'. Sweep is only supported on Pulse 1.`);
       }
 
       if (p.type && String(p.type).toLowerCase() === 'wave') {
@@ -562,7 +548,7 @@ export function parseWithPeggy(source: string): AST {
 
   const includeStructured = structuredEnabled;
 
-  const ast: AST = { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, play: playNode, metadata };
+  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, play: playNode, metadata };
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;
     if (sequenceItems) ast.sequenceItems = sequenceItems;

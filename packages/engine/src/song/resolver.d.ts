@@ -4,7 +4,15 @@ import { SongModel } from './songModel.js';
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
  */
-export declare function resolveSong(ast: AST): SongModel;
+export declare function resolveSong(ast: AST, opts?: {
+    filename?: string;
+    onWarn?: (d: {
+        component: string;
+        message: string;
+        file?: string;
+        loc?: any;
+    }) => void;
+}): SongModel;
 declare const _default: {
     resolveSong: typeof resolveSong;
 };

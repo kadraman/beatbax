@@ -1,5 +1,6 @@
 ## sequence_demo.bax
-## Demonstrates channel `seq` multi-item syntax:
+## Demonstrates sequencing via 'arrange' and channel `seq` multi-item syntax:
+##  - arrange with slots
 ##  - comma-separated: `seq a,b`
 ##  - repetition: `seq a * 2` or `a*2`
 ##  - space-separated: `seq a b`
@@ -7,8 +8,8 @@
 
 song name "Sequence Demo"
 song artist "kadraman"
-song description """Demonstrates `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
-song tags "sequence,arrangement,imported"
+song description """Demonstrates `arrange` and `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
+song tags "sequence,arrangement"
 
 chip gameboy
 bpm 120
@@ -22,42 +23,43 @@ inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb
 inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
 
 # Patterns (16 tokens each)
-pat lead_pat  = (C5 E5 G5 C6) (C5 E5 G5 C6)                 # 8 notes
+pat lead_pat  = (C5 E5 G5 C6) (C5 E5 G5 C6)                     # 8 notes
 pat lead_alt_pat  = (C5 C5 . C5 G5 G5 . G5) * 2                 # 16 notes
-pat lead2_pat = C5:4 G5:4 C5:4 C6:4                         # 16 notes
-pat bass_pat  = C3 . G2 . C3 . G2 . C3 . G2 . C3 . G2 .     # 16 notes
-pat wave_pat  = (C4 E4 G4 C5) * 4                           # 16 notes
-pat drums_pat = (snare . hihat . snare . hihat .) * 2       # 16 notes
+pat lead2_pat = C5:4 G5:4 C5:4 C6:4                             # 16 notes
+pat bass_pat  = C3 . G2 . C3 . G2 . C3 . G2 . C3 . G2 .         # 16 notes
+pat wave_pat  = (C4 E4 G4 C5) * 4                               # 16 notes
+pat drums_pat = (snare . hihat . snare . hihat .) * 2           # 16 notes
 pat drums_alt_pat = snare . hihat . snare . hihat . (perc*8)    # 16 notes
 
 # Sequences
-seq lead_seq    = lead_pat*2 lead_alt_pat                           # 32 notes
+seq lead_seq    = lead_pat*2 lead_alt_pat                       # 32 notes
 seq lead2_seq   = lead2_pat*2                                   # 32 notes
 seq bass_seq    = bass_pat, bass_pat                            # 32 notes
 seq wave_seq    = wave_pat wave_pat                             # 32 notes
-seq drums_seq   = drums_pat drums_alt_pat                           # 32 notes
+seq drums_seq   = drums_pat drums_alt_pat                       # 32 notes
 
-# Planned arrangement syntax (proposed):
-# arrange main = {
-#   lead_seq  | bass_seq | wave_seq  | drums_seq
-#   lead2_seq | bass_seq | wave_seq2 | drums_seq
-# }
-#
-# Note: arrangement syntax is not yet implemented in the parser; channel mappings below remain the runnable example.
+# Arrangement demonstrating slots with defaults
+arrange main defaults(inst=leadA|leadB|wave1|perc) {
+   lead_seq  | bass_seq | wave_seq | drums_seq
+   lead2_seq | bass_seq | wave_seq:oct(-1) | drums_seq
+}
 
-# Channel mappings demonstrating simple sequence arrangement syntax
+# Notes on mapping and compatibility
+# Prefer `arrange` blocks (above) for multi-channel, multi-row song layout.
+# `arrange` is expanded early in the pipeline: defaults and per-slot
+# modifiers (e.g. `:oct(-1)`, `:inst(name)`, `:slow()`) are applied at
+# expansion time and flow into the per-channel ISM. Existing `channel`
+# mappings are supported for backward compatibility but are considered
+# a legacy/fallback mechanism. Example `channel` forms (for reference):
 # 1) Comma-separated: plays `lead` then `lead2`
-channel 1 => inst leadA seq lead_seq, lead2_seq
-
+#    channel 1 => inst leadA seq lead_seq, lead2_seq
 # 2) Repetition: repeats `bass` sequence twice
-channel 2 => inst leadB seq bass_seq*2
-
+#    channel 2 => inst leadB seq bass_seq*2
 # 3) Space-separated list: shorthand for multiple items
 #    also shows a per-item modifier (:oct(-1)) applied to second item
-channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-2)
-
+#    channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-2)
 # 4) Example using immediate named hits / percussion sequence
-channel 4 => inst perc seq drums_seq drums_seq
+#    channel 4 => inst perc seq drums_seq drums_seq
 
 # Playback directive for interactive demos
 play auto repeat

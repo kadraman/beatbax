@@ -4,6 +4,10 @@ This document captures architecture, implementation details, and testing notes f
 
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
+  - `arrange` expansion: the parser supports a first-class `arrange` construct which is
+    expanded early in the pipeline. Per-arrange defaults and per-slot modifiers (e.g.
+    `:inst(name)`, `:oct(-1)`) are applied during expansion and produce the per-channel
+    ISM directly. Existing `channel` mappings remain supported as a legacy/fallback.
 - Key folders:
   - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser now lives in `parser/legacy/` and can be selected with `BEATBAX_PARSER=legacy` during the deprecation window. Produces the minimal AST: `pats`, `insts`, `channels`.
   - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.

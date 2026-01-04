@@ -1,4 +1,6 @@
 import { transposePattern } from '../patterns/expand.js';
+import { warn } from '../util/diag.js';
+import { applyModsToTokens } from '../expand/refExpander.js';
 
 /**
  * Expand sequence definitions into flat token arrays by resolving pattern
@@ -67,59 +69,15 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
       const isInstrument = insts && insts[realBase];
       if (realBase && !missingWarned.has(realBase) && !isInstrument) {
         missingWarned.add(realBase);
-        console.warn(`[BeatBax Parser] Warning: sequence item '${realBase}' referenced but no pattern named '${realBase}' was found.`);
+        warn('sequences', `sequence item '${realBase}' referenced but no pattern named '${realBase}' was found.`);
       }
     }
 
-    let semitones = 0;
-    let octaves = 0;
-    let instOverride: string | null = null;
-    let panOverride: string | undefined = undefined;
-
-    for (const mod of mods) {
-      const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-      if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
-      if (/^rev$/i.test(mod)) { tokens = tokens.slice().reverse(); continue; }
-      const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-      if (mSlow) {
-        const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-        const outTokens: string[] = [];
-        for (const t of tokens) for (let r = 0; r < factor; r++) outTokens.push(t);
-        tokens = outTokens;
-        continue;
-      }
-      const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-      if (mFast) {
-        const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-        tokens = tokens.filter((_, idx) => idx % factor === 0);
-        continue;
-      }
-      const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-      if (mInst) { instOverride = mInst[1]; continue; }
-      const mPan = mod.match(/^pan\(([^)]*)\)$/i);
-      if (mPan) { panOverride = mPan[1].trim(); continue; }
-      const mTrans = mod.match(/^([+-]?\d+)$/);
-      if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
-      const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-      if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
-    }
-
-    if (semitones !== 0 || octaves !== 0) {
-      tokens = transposePattern(tokens, { semitones: semitones, octaves: octaves });
-    }
-
-    if (instOverride) {
-      out.push(`inst(${instOverride})`);
-    }
+    const res = applyModsToTokens(tokens, mods);
+    tokens = res.tokens;
 
     for (let r = 0; r < repeat; r++) {
-      if (panOverride) {
-        out.push(`pan(${panOverride})`);
-      }
       out.push(...tokens);
-      if (panOverride) {
-        out.push('pan()');
-      }
     }
   }
   return out;

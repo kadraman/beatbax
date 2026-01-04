@@ -8,6 +8,7 @@ import { playWavetable as playWavetableImpl, parseWaveTable } from '../chips/gam
 import { playNoise as playNoiseImpl } from '../chips/gameboy/noise.js';
 import { noteNameToMidi, midiToFreq } from '../chips/gameboy/apu.js';
 import TickScheduler from '../scheduler/tickScheduler.js';
+import { error } from '../util/diag.js';
 import createScheduler from '../scheduler/index.js';
 import BufferedRenderer from './bufferedRenderer.js';
 import { get as getEffect } from '../effects/index.js';
@@ -240,7 +241,7 @@ export class Player {
             try { console.debug('[player] repeat timer fired - restarting playback'); } catch (e) {}
             this.stop();
             // replay AST (fire-and-forget)
-            this.playAST(ast).catch((e: any) => { console.error('Repeat playback failed', e); });
+            this.playAST(ast).catch((e: any) => { error('player', 'Repeat playback failed: ' + (e && e.message ? e.message : String(e))); });
           } catch (e) {}
         }, delayMs);
       }

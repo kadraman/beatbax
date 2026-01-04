@@ -18,6 +18,7 @@
 import { writeFileSync } from 'fs';
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
+import { warn } from '../util/diag.js';
 
 // Constants from UGE v6 spec
 const UGE_VERSION = 6;
@@ -305,7 +306,7 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     // Warn if note was transposed (below C3)
     if (originalIndex < 0 && ugeIndex >= 0) {
         const octavesShifted = Math.ceil(Math.abs(originalIndex) / 12);
-        console.warn(`[UGE Export] Note ${noteName} is below hUGETracker minimum (C3). Transposed up ${octavesShifted} octave(s).`);
+        warn('export', `Note ${noteName} is below hUGETracker minimum (C3). Transposed up ${octavesShifted} octave(s).`);
     }
 
     // If above range, transpose down by octaves until in range
@@ -739,7 +740,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     try {
                         waveData = JSON.parse(inst.wave);
                     } catch (e) {
-                        console.warn(`[WARN] Failed to parse wave data for ${name}: ${inst.wave}`);
+                        warn('export', `Failed to parse wave data for ${name}: ${inst.wave}`);
                     }
                 }
             }
