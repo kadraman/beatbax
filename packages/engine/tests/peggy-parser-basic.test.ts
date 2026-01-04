@@ -1,5 +1,6 @@
-import { parseLegacy, parse } from '../src/parser';
+import { parse } from '../src/parser';
 import { parseWithPeggy } from '../src/parser/peggy';
+import { parseLegacy } from '../src/parser/legacy';
 
 const sampleSource = `
 chip gameboy

@@ -99,12 +99,12 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
     pats = { ...pats, ...materialized }; // structured takes precedence on key collision
   }
 
-  if (structuredEnabled && ast.sequenceItems) {
-    const materialized: Record<string, string[]> = {};
-    for (const [name, items] of Object.entries(ast.sequenceItems)) {
-      materialized[name] = materializeSequenceItems(items);
-    }
-    seqs = { ...seqs, ...materialized }; // structured takes precedence on key collision
+  // Prefer structured `sequenceItems` (if present) so downstream expanders
+  // can handle structured transforms/tokens directly. We don't fully
+  // materialize them here; expanders accept either string[] or
+  // structured SequenceItem[] and will materialize as needed.
+  if (ast.sequenceItems) {
+    seqs = { ...seqs, ...ast.sequenceItems as any };
   }
 
   // Expand all sequences into flattened token arrays
