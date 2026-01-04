@@ -1,4 +1,5 @@
 import { AST } from '../parser/ast.js';
+import { warn as diagWarn } from '../util/diag.js';
 import { expandAllSequences } from '../sequences/expand.js';
 import { transposePattern } from '../patterns/expand.js';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
@@ -8,6 +9,7 @@ import {
   materializeSequenceItems,
   patternEventsToTokens,
 } from '../parser/structured.js';
+import { expandRefToTokens } from '../expand/refExpander.js';
 
 // Helpers for parsing inline effects and pan specifications
 function parsePanSpec(val: any, ns?: string) {
@@ -81,13 +83,13 @@ export function parseEffectsInline(str: string) {
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
  */
-export function resolveSong(ast: AST): SongModel {
+export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
   const structuredEnabled = isPeggyEventsEnabled();
 
   let pats = ast.pats || {};
   const insts = ast.insts || {};
   let seqs = ast.seqs || {};
-  const bpm = ast.bpm;
+  let bpm = ast.bpm;
 
   if (structuredEnabled && ast.patternEvents) {
     const materialized: Record<string, string[]> = {};
@@ -108,9 +110,72 @@ export function resolveSong(ast: AST): SongModel {
   // Expand all sequences into flattened token arrays
   const expandedSeqs = expandAllSequences(seqs, pats, insts);
 
+  // Helper to consistently emit resolver warnings via opts.onWarn if it's a
+  // function, otherwise fall back to the diagnostic helper.
+  const emitResolverWarn = (message: string, loc?: any) => {
+    const meta = { file: opts && opts.filename ? opts.filename : undefined, loc };
+    if (opts && typeof opts.onWarn === 'function') {
+      opts.onWarn({ component: 'resolver', message, file: meta.file, loc: meta.loc });
+    } else {
+      diagWarn('resolver', message, meta);
+    }
+  };
+
   const channels: ChannelModel[] = [];
 
-  for (const ch of ast.channels || []) {
+  // use shared expander
+
+  // Support `arrange` AST: if present prefer it over channel mappings.
+  const channelSources = (() => {
+    if (ast.arranges && Object.keys(ast.arranges).length > 0) {
+      if (ast.channels && ast.channels.length > 0) {
+        emitResolverWarn('Both `arrange` and `channel` mappings present; using `arrange` and ignoring `channel` mappings.', undefined);
+      }
+      // choose 'main' arrange if present, otherwise first arrange
+      const keys = Object.keys(ast.arranges!);
+      const selected = keys.includes('main') ? 'main' : keys[0];
+      const arr = (ast.arranges as any)[selected];
+      // If the arrange supplies a bpm default, prefer it for this resolved song
+      if (arr.defaults && arr.defaults.bpm != null) {
+        const nb = Number(arr.defaults.bpm);
+        if (!Number.isNaN(nb)) bpm = nb;
+      }
+      const rows: (string | null)[][] = arr.arrangements || [];
+      // support per-column instrument defaults encoded as a '|' separated string
+      let arrangeInstList: string[] | null = null;
+      if (arr.defaults && arr.defaults.inst && typeof arr.defaults.inst === 'string' && arr.defaults.inst.indexOf('|') >= 0) {
+        arrangeInstList = String(arr.defaults.inst).split('|').map(s => s.trim());
+      }
+      const maxSlots = rows.reduce((m, r) => Math.max(m, r.length), 0);
+      const channelNodes: any[] = [];
+      for (let i = 0; i < maxSlots; i++) {
+        const concatenated: string[] = [];
+        for (const row of rows) {
+          const slot = row[i];
+          if (!slot) continue;
+          // do not insert inline `inst(...)` tokens here; per-column defaults are applied
+          // via the synthesized channel's `inst` property (handled below)
+          // expand the referenced sequence into tokens (if available), supporting transforms
+          const toks = expandRefToTokens(slot, expandedSeqs, pats);
+          const base = String(slot).split(':')[0];
+          // If expansion produced a single raw token equal to the slot and the base
+          // name doesn't exist as a sequence or pattern, emit a warning.
+          if (toks.length === 1 && toks[0] === slot && !expandedSeqs[base] && !pats[base]) {
+            emitResolverWarn(`arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`, arr.loc);
+            continue;
+          }
+          concatenated.push(...toks);
+        }
+        const instForCol = arrangeInstList ? (arrangeInstList[i] || undefined) : (arr.defaults && arr.defaults.inst ? arr.defaults.inst : undefined);
+        const speedForCol = arr.defaults && arr.defaults.speed ? arr.defaults.speed : undefined;
+        channelNodes.push({ id: i + 1, pat: concatenated, inst: instForCol, speed: speedForCol });
+      }
+      return channelNodes;
+    }
+    return ast.channels || [];
+  })();
+
+  for (const ch of channelSources) {
     const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
 
     // Determine source tokens: channel may reference a pattern name, sequence name, or already have token array
@@ -142,110 +207,11 @@ export function resolveSong(ast: AST): SongModel {
           }
         }
       } else {
-        items = ref.indexOf(',') >= 0 ? ref.split(',').map(s => s.trim()).filter(Boolean) : [ref.trim()];
+        items = ref.indexOf(',') >= 0 ? ref.split(',').map((s: string) => s.trim()).filter(Boolean) : [ref.trim()];
       }
       const outTokens: string[] = [];
 
-      const expandRefToTokens = (itemRef: string): string[] => {
-        // itemRef may include modifiers after `:` (e.g. name:oct(-1):inst(bass))
-        const parts = itemRef.split(':');
-        const base = parts[0];
-        const mods = parts.slice(1);
 
-        if (expandedSeqs[base]) {
-          let tks = expandedSeqs[base].slice();
-          // apply modifiers (same rules as for single refs)
-          let semitones = 0;
-          let octaves = 0;
-          let instOverride: string | null = null;
-          let panOverride: string | undefined = undefined;
-          for (const mod of mods) {
-            const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-            if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
-            if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
-            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-            if (mSlow) {
-              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-              const outArr: string[] = [];
-              for (const tt of tks) for (let r = 0; r < factor; r++) outArr.push(tt);
-              tks = outArr;
-              continue;
-            }
-            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-            if (mFast) {
-              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-              tks = tks.filter((_, idx) => idx % factor === 0);
-              continue;
-            }
-            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-            if (mInst) { instOverride = mInst[1]; continue; }
-            const mPan = mod.match(/^pan\(([^)]*)\)$/i);
-            if (mPan) { panOverride = mPan[1].trim(); continue; }
-            const mTrans = mod.match(/^([+-]?\d+)$/);
-            if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
-            const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-            if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
-          }
-          if (semitones !== 0 || octaves !== 0) {
-            tks = transposePattern(tks, { semitones, octaves });
-          }
-          if (instOverride) {
-            tks.unshift(`inst(${instOverride})`);
-          }
-          if (panOverride) {
-            tks.unshift(`pan(${panOverride})`);
-            tks.push(`pan()`);
-          }
-          return tks;
-        }
-
-        if (pats[base]) {
-          let tks = pats[base].slice();
-          let semitones = 0;
-          let octaves = 0;
-          let instOverride: string | null = null;
-          let panOverride: string | undefined = undefined;
-          for (const mod of mods) {
-            const mOct = mod.match(/^oct\((-?\d+)\)$/i);
-            if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
-            if (/^rev$/i.test(mod)) { tks = tks.slice().reverse(); continue; }
-            const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-            if (mSlow) {
-              const factor = mSlow[1] ? parseInt(mSlow[1], 10) : 2;
-              const outArr: string[] = [];
-              for (const tt of tks) for (let r = 0; r < factor; r++) outArr.push(tt);
-              tks = outArr;
-              continue;
-            }
-            const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-            if (mFast) {
-              const factor = mFast[1] ? parseInt(mFast[1], 10) : 2;
-              tks = tks.filter((_, idx) => idx % factor === 0);
-              continue;
-            }
-            const mInst = mod.match(/^inst\(([^)]+)\)$/i);
-            if (mInst) { instOverride = mInst[1]; continue; }
-            const mPan = mod.match(/^pan\(([^)]*)\)$/i);
-            if (mPan) { panOverride = mPan[1].trim(); continue; }
-            const mTrans = mod.match(/^([+-]?\d+)$/);
-            if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
-            const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
-            if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
-          }
-          if (semitones !== 0 || octaves !== 0) {
-            tks = transposePattern(tks, { semitones, octaves });
-          }
-          if (instOverride) tks.unshift(`inst(${instOverride})`);
-          if (panOverride) {
-            tks.unshift(`pan(${panOverride})`);
-            tks.push(`pan()`);
-          }
-          return tks;
-        }
-
-        // fallback: return the raw token so downstream logic can handle it
-        return [itemRef];
-      };
 
       for (const item of items) {
         // check repetition like "name * 2" or "name*2"
@@ -253,7 +219,7 @@ export function resolveSong(ast: AST): SongModel {
         const repeat = mRep ? parseInt(mRep[2], 10) : 1;
         const itemRef = mRep ? mRep[1].trim() : item;
         for (let r = 0; r < repeat; r++) {
-          const toks = expandRefToTokens(itemRef);
+          const toks = expandRefToTokens(itemRef, expandedSeqs, pats);
           outTokens.push(...toks);
         }
       }

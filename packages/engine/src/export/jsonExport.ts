@@ -5,6 +5,7 @@
 import { writeFileSync } from 'fs';
 import { resolveSong } from '../song/resolver.js';
 import { SongModel } from '../song/songModel.js';
+import { error } from '../util/diag.js';
 
 /**
  * Validate a parsed song model (AST) for basic correctness.
@@ -98,15 +99,14 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 				isAST = true;
 			}
 		}
-		
+
 		if (isAST) {
 			// resolve into SongModel
 			song = resolveSong(song);
 		}
 		validateSongModel(song);
 	} catch (err: any) {
-		console.error('Validation error:');
-		console.error(err.message || err);
+		error('export', 'Validation error: ' + (err && (err as any).message ? (err as any).message : String(err)));
 		throw err;
 	}
 
