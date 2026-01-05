@@ -1,11 +1,10 @@
-import { AST } from '../parser/ast.js';
+import { AST, SequenceItem } from '../parser/ast.js';
 import { warn as diagWarn } from '../util/diag.js';
 import { expandAllSequences } from '../sequences/expand.js';
 import { transposePattern } from '../patterns/expand.js';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
 import { applyInstrumentToEvent } from '../instruments/instrumentState.js';
 import {
-  isPeggyEventsEnabled,
   materializeSequenceItems,
   patternEventsToTokens,
 } from '../parser/structured.js';
@@ -84,14 +83,12 @@ export function parseEffectsInline(str: string) {
  * instrument overrides according to the language expansion pipeline.
  */
 export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
-  const structuredEnabled = isPeggyEventsEnabled();
-
   let pats = ast.pats || {};
   const insts = ast.insts || {};
-  let seqs = ast.seqs || {};
+  let seqs: Record<string, string[] | SequenceItem[]> = { ...(ast.seqs || {}) };
   let bpm = ast.bpm;
 
-  if (structuredEnabled && ast.patternEvents) {
+  if (ast.patternEvents) {
     const materialized: Record<string, string[]> = {};
     for (const [name, events] of Object.entries(ast.patternEvents)) {
       materialized[name] = patternEventsToTokens(events);
@@ -99,12 +96,15 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
     pats = { ...pats, ...materialized }; // structured takes precedence on key collision
   }
 
-  if (structuredEnabled && ast.sequenceItems) {
-    const materialized: Record<string, string[]> = {};
-    for (const [name, items] of Object.entries(ast.sequenceItems)) {
-      materialized[name] = materializeSequenceItems(items);
-    }
-    seqs = { ...seqs, ...materialized }; // structured takes precedence on key collision
+  // Prefer structured `sequenceItems` (if present) so downstream expanders
+  // can handle structured transforms/tokens directly. We don't fully
+  // materialize them here; expanders accept either string[] or
+  // structured SequenceItem[] and will materialize as needed.
+  if (ast.sequenceItems) {
+    // `ast.sequenceItems` contains structured `SequenceItem[]` entries.
+    // Merge into `seqs` while preserving the possibility that values
+    // may be either `string[]` (expanded) or `SequenceItem[]` (structured).
+    seqs = { ...seqs, ...ast.sequenceItems };
   }
 
   // Expand all sequences into flattened token arrays

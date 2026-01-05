@@ -1,4 +1,3 @@
-export * from './tokenizer.js';
 import { AST } from './ast.js';
 /**
  * Parse source text and build a minimal AST. Currently this parser
@@ -10,5 +9,6 @@ declare const _default: {
     parse: typeof parse;
 };
 export default _default;
-export * from './tokenizer.js';
+//# sourceMappingURL=index.d.ts.map
+// Note: tokenizer re-exports removed — legacy tokenizer is deprecated/removed.
 //# sourceMappingURL=index.d.ts.map

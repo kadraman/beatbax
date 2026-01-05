@@ -35,6 +35,8 @@ Notes:
 - Each slot may be a sequence name or empty (use `.` or `-` to indicate silence when desired).
 - Rows are ordered and play sequentially; each row's n slots play in parallel across channels 1..n.
 
+- Deprecation note: legacy `rhs` string fields (pattern/sequence RHS) are deprecated. Prefer structured `tokens` on `PatternDef` and structured `items` on `SequenceDef` when authoring or consuming ASTs. See `docs/ast-schema.md` and `schema/ast.schema.json` for details.
+
 ## AST changes
 
 Introduce a first-class arrangement construct (`arrange` keyword preferred to avoid collision with `song` metadata directives) that contains ordered rows of n-slot sequence arrangements. Each row is played in parallel across n channels and rows concatenate in time. Sequences may carry defaults (inst, bpm, speed, transforms) that are applied during expansion rather than at final channel mapping time.
