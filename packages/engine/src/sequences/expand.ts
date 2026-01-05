@@ -1,6 +1,8 @@
 import { transposePattern } from '../patterns/expand.js';
 import { warn } from '../util/diag.js';
 import { applyModsToTokens } from '../expand/refExpander.js';
+import { SequenceItem } from '../parser/ast.js';
+import { materializeSequenceItems } from '../parser/structured.js';
 
 /**
  * Expand sequence definitions into flat token arrays by resolving pattern
@@ -35,11 +37,27 @@ const splitTopLevel = (s: string, sep = ':'): string[] => {
   return out.map(x => x.trim()).filter(Boolean);
 };
 
-export function expandSequenceItems(items: string[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>): string[] {
+export function expandSequenceItems(items: (string | SequenceItem)[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>): string[] {
   const out: string[] = [];
   const missingWarned = _missingWarned || new Set<string>();
 
-  for (const it of items) {
+  // Normalize items to a string[] early so the rest of the expansion logic
+  // can operate on a consistent type. If items are structured SequenceItem
+  // objects, materialize them first.
+  let itemStrs: string[];
+  // Ensure `items` is a non-empty array before accessing `items[0]`.
+  // Using `Array.isArray` avoids false positives for non-array objects.
+  if (Array.isArray(items) && items.length > 0 && typeof items[0] === 'object') {
+    try {
+      itemStrs = materializeSequenceItems(items as SequenceItem[]);
+    } catch (e) {
+      itemStrs = (items as any[]).map(String);
+    }
+  } else {
+    itemStrs = (items as any) as string[];
+  }
+
+  for (const it of itemStrs) {
     if (!it || it.trim() === '') continue;
     const parts = splitTopLevel(it, ':');
     const base = parts[0];
@@ -83,10 +101,11 @@ export function expandSequenceItems(items: string[], pats: Record<string, string
   return out;
 }
 
-export function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>, insts?: Record<string, any>): Record<string, string[]> {
+export function expandAllSequences(seqs: Record<string, string[] | SequenceItem[]>, pats: Record<string, string[]>, insts?: Record<string, any>): Record<string, string[]> {
   const res: Record<string, string[]> = {};
   for (const [name, items] of Object.entries(seqs)) {
-    const expanded = expandSequenceItems(items, pats, insts);
+    // items may be an array of strings or structured SequenceItem objects
+    const expanded = expandSequenceItems(items as any, pats, insts);
     res[name] = expanded;
   }
   return res;

@@ -8,7 +8,7 @@ issue: "https://github.com/kadraman/beatbax/issues/22"
 
 ## Summary
 
-Superseded by the Peggy migration: Peggy is now the default parser and the legacy regex/tokenizer parser is only available via `BEATBAX_PARSER=legacy`. This document remains for historical context; there is no active plan to pursue Chevrotain.
+Superseded by the Peggy migration: Peggy is now the default parser and the legacy regex/tokenizer parser has been removed. This document remains for historical context; there is no active plan to pursue Chevrotain.
 
 ## Problem Statement
 

@@ -79,7 +79,7 @@ Proposed file layout (initial):
 
 Entry-point wiring:
 - `packages/engine/src/parser/index.ts` continues exporting `parse(source: string): AST`.
-- Parser selection: Peggy is the default; set `BEATBAX_PARSER=legacy` to opt into the legacy parser during the deprecation window. All engine tests pass under Peggy.
+- Parser selection: Peggy is the default; the legacy parser has been removed after migration. All engine tests pass under Peggy.
 
 Parity strategy (implemented):
 - Grammar parses pattern/sequence RHS directly: notes, rests, group/token repeats, duration suffixes, inline `inst`, `inst(name,N)` temporary overrides, quoted token splits, transforms/modifiers, and inline effects like `<pan:...>`.
@@ -129,29 +129,25 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 
 ### Integration Tests
 
-- Run the full engine test suite with Peggy enabled. **Status: ✅ all suites passing under `BEATBAX_PARSER=peggy`.**
+ - Run the full engine test suite with Peggy enabled. **Status: ✅ all suites passing under Peggy.**
 - Validate that JSON/MIDI/UGE exports for sample songs are unchanged.
 
-## Migration Path
+### Migration Path
 
 1. Introduce Peggy grammar and a new `parseWithPeggy()` function. **(Done)**
-2. Add a test matrix that runs parsing-related tests against both implementations. **(Done via env flag + existing suites)**
-3. Fix parity gaps until `BEATBAX_PARSER=peggy` passes the full suite. **(Done)**
-4. Flip the default to Peggy; keep legacy parser for one deprecation window. **(Done)**
-5. Remove legacy tokenizer/parser once parity and performance are acceptable. **(Planned)**
-
-Rollback:
-- Legacy parser remains available behind `BEATBAX_PARSER=legacy` until removal.
+2. Add a test matrix that runs parsing-related tests against the Peggy implementation. **(Done)**
+3. Fix parity gaps until Peggy passes the full suite. **(Done)**
+4. Flip the default to Peggy and remove the legacy parser. **(Done)**
+5. Remove legacy tokenizer/parser once parity and performance are acceptable. **(Completed)**
 
 ## Implementation Checklist
 
 - [x] Add `peggy` dependency and a generation strategy (build-time script)
 - [x] Create `packages/engine/src/parser/peggy/grammar.peggy`
 - [x] Generate parser module and add `parseWithPeggy()` wrapper
-- [x] Add feature flag wiring in `packages/engine/src/parser/index.ts`
-- [x] Add unit tests for grammar and transformer (covered by existing suite under Peggy flag)
 - [x] Add AST parity tests against `songs/*.bax` (covered by full suite + sample songs)
-- [x] Run full test suite with Peggy enabled in CI/local (`BEATBAX_PARSER=peggy`)
+- [x] Add unit tests for grammar and transformer (covered by existing suite)
+- [x] Run full test suite with Peggy enabled in CI/local
 - [x] Switch default parser to Peggy
 - [X] Deprecate legacy tokenizer/parser
 
@@ -185,8 +181,8 @@ This migration should be strictly non-breaking at the language and AST levels. I
 
 This is an intentionally minimal starter grammar. It aims to parse the *structure* of a `.bax` file into a simple statement list that can be transformed into the existing BeatBax AST.
 
-Notes:
-- Pattern bodies and sequence RHS are initially captured as raw text. This allows us to reuse existing logic for tokenization/expansion in early phases.
+- Notes:
+- Pattern bodies and sequence `rhs` were initially captured as raw text to preserve legacy behavior. This approach is now deprecated: the Peggy grammar emits structured fields (`rhsEvents` for patterns and `rhsItems` for sequences). The legacy `rhs` string remains temporarily for compatibility during rollout; prefer consuming structured fields directly.
 - Comments use `# ...` to end-of-line.
 - Strings support single, double, and triple quotes for metadata.
 
@@ -281,25 +277,29 @@ ExportStmt
 
 InstStmt
   = $("inst" !IdentChar) __ name:Identifier __ rhs:RestOfLine {
-      // `rhs` is a raw string like: "type=pulse1 duty=50 env=12,down"
+      // (Deprecated) In earlier iterations `rhs` was a raw string like: "type=pulse1 duty=50 env=12,down".
+      // The Peggy parser can emit structured instrument fields; prefer parsing those instead of consuming `rhs` directly.
       return { nodeType: "InstStmt", name, rhs, loc: loc(location()) };
     }
 
 PatStmt
   = $("pat" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
-      // `rhs` is a raw string like: "C5 E5 G5 C6" or "inst sn C6 C6"
+      // (Deprecated) `rhs` was a raw string like: "C5 E5 G5 C6" or "inst sn C6 C6".
+      // Newer parser iterations produce `rhsEvents` (structured pattern tokens); consume those when available.
       return { nodeType: "PatStmt", name, rhs, loc: loc(location()) };
     }
 
 SeqStmt
   = $("seq" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
-      // `rhs` is a raw string like: "melody bass_pat melody:oct(-1)"
+      // (Deprecated) `rhs` was a raw string like: "melody bass_pat melody:oct(-1)".
+      // Prefer `rhsItems` (structured sequence items) emitted by the Peggy grammar.
       return { nodeType: "SeqStmt", name, rhs, loc: loc(location()) };
     }
 
 ChannelStmt
   = $("channel" !IdentChar) __ ch:Int __ "=>" __ rhs:RestOfLine {
-      // `rhs` is a raw string like: "inst lead seq main:oct(-1)"
+      // (Deprecated) `rhs` was a raw string like: "inst lead seq main:oct(-1)".
+      // Newer parsers may provide structured channel specs; prefer parsing those where possible.
       return { nodeType: "ChannelStmt", channel: ch, rhs, loc: loc(location()) };
     }
 
