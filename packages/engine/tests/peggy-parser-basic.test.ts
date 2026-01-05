@@ -1,6 +1,5 @@
 import { parse } from '../src/parser';
 import { parseWithPeggy } from '../src/parser/peggy';
-import { parseLegacy } from '../src/parser/legacy';
 
 const sampleSource = `
 chip gameboy
@@ -24,20 +23,10 @@ describe('peggy parser parity', () => {
     process.env.BEATBAX_PARSER = originalEnv;
   });
 
-  test('parses a simple program equivalently to legacy parser', () => {
-    const legacyAst = parseLegacy(sampleSource);
+  test('parse() delegates to Peggy parser', () => {
     const peggyAst = parseWithPeggy(sampleSource);
-
-    // Structured fields are additive; parity focuses on legacy-visible fields.
-    const { patternEvents, sequenceItems, ...peggyComparable } = peggyAst as any;
-
-    expect(peggyComparable).toEqual(legacyAst);
-  });
-
-  test('env flag switches parse implementation', () => {
-    process.env.BEATBAX_PARSER = 'peggy';
-    const flaggedAst = parse(sampleSource);
-
-    expect(flaggedAst).toEqual(parseWithPeggy(sampleSource));
+    const topAst = parse(sampleSource);
+    // Structured fields are additive; ensure top-level parse uses Peggy implementation
+    expect(topAst).toEqual(peggyAst);
   });
 });

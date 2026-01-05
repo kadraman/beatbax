@@ -12,16 +12,13 @@ channel 1 => inst lead seq chorus
 
 describe('Peggy structured parsing', () => {
   const originalParser = process.env.BEATBAX_PARSER;
-  const originalEvents = process.env.BEATBAX_PEGGY_EVENTS;
 
   beforeAll(() => {
-    process.env.BEATBAX_PEGGY_EVENTS = '1';
     process.env.BEATBAX_PARSER = 'peggy';
   });
 
   afterAll(() => {
     process.env.BEATBAX_PARSER = originalParser;
-    process.env.BEATBAX_PEGGY_EVENTS = originalEvents;
   });
 
   test('emits structured patternEvents and sequenceItems', () => {

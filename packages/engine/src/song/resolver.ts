@@ -5,7 +5,6 @@ import { transposePattern } from '../patterns/expand.js';
 import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
 import { applyInstrumentToEvent } from '../instruments/instrumentState.js';
 import {
-  isPeggyEventsEnabled,
   materializeSequenceItems,
   patternEventsToTokens,
 } from '../parser/structured.js';
@@ -84,14 +83,12 @@ export function parseEffectsInline(str: string) {
  * instrument overrides according to the language expansion pipeline.
  */
 export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
-  const structuredEnabled = isPeggyEventsEnabled();
-
   let pats = ast.pats || {};
   const insts = ast.insts || {};
   let seqs = ast.seqs || {};
   let bpm = ast.bpm;
 
-  if (structuredEnabled && ast.patternEvents) {
+  if (ast.patternEvents) {
     const materialized: Record<string, string[]> = {};
     for (const [name, events] of Object.entries(ast.patternEvents)) {
       materialized[name] = patternEventsToTokens(events);
