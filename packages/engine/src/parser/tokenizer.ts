@@ -11,7 +11,7 @@ function legacyRemoved(): never {
 export function tokenize(_input: string): Token[] { legacyRemoved(); }
 
 export class Tokenizer {
-	constructor(_source?: string) { legacyRemoved(); }
+  constructor(_source?: string) { legacyRemoved(); }
 }
 
 export const TokenType = {} as any;

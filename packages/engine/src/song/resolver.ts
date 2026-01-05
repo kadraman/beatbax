@@ -1,4 +1,4 @@
-import { AST } from '../parser/ast.js';
+import { AST, SequenceItem } from '../parser/ast.js';
 import { warn as diagWarn } from '../util/diag.js';
 import { expandAllSequences } from '../sequences/expand.js';
 import { transposePattern } from '../patterns/expand.js';
@@ -85,7 +85,7 @@ export function parseEffectsInline(str: string) {
 export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
   let pats = ast.pats || {};
   const insts = ast.insts || {};
-  let seqs = ast.seqs || {};
+  let seqs: Record<string, string[] | SequenceItem[]> = { ...(ast.seqs || {}) };
   let bpm = ast.bpm;
 
   if (ast.patternEvents) {
@@ -101,7 +101,10 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
   // materialize them here; expanders accept either string[] or
   // structured SequenceItem[] and will materialize as needed.
   if (ast.sequenceItems) {
-    seqs = { ...seqs, ...ast.sequenceItems as any };
+    // `ast.sequenceItems` contains structured `SequenceItem[]` entries.
+    // Merge into `seqs` while preserving the possibility that values
+    // may be either `string[]` (expanded) or `SequenceItem[]` (structured).
+    seqs = { ...seqs, ...ast.sequenceItems };
   }
 
   // Expand all sequences into flattened token arrays

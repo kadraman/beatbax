@@ -45,7 +45,9 @@ export function expandSequenceItems(items: (string | SequenceItem)[], pats: Reco
   // can operate on a consistent type. If items are structured SequenceItem
   // objects, materialize them first.
   let itemStrs: string[];
-  if (items && items.length > 0 && typeof items[0] === 'object') {
+  // Ensure `items` is a non-empty array before accessing `items[0]`.
+  // Using `Array.isArray` avoids false positives for non-array objects.
+  if (Array.isArray(items) && items.length > 0 && typeof items[0] === 'object') {
     try {
       itemStrs = materializeSequenceItems(items as SequenceItem[]);
     } catch (e) {
