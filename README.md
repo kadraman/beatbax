@@ -1,9 +1,13 @@
+<p align="center"><img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/></p>
+
+
+
 # BeatBax
 
 [![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Publish](https://github.com/kadraman/beatbax/actions/workflows/publish.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/publish.yml)
 
-BeatBax is a live-coding language and toolchain for creating retro-console chiptunes.
-This repository contains an initial implementation focused on the Nintendo Game Boy (DMG-01) APU.
+**BeatBax** is a live-coding language and toolchain for creating retro-console chiptunes.
+Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2A03) APUs.
 
 ## Features
 A concise feature summary:
@@ -17,7 +21,7 @@ A concise feature summary:
 
 ## Language examples
 
-Each "song" can be defined in a `.bax` file with the following a minimal example.
+Each "song" can be defined in a `.bax` file with the following a minimal example:
 
 ```
 song name "An example song"
@@ -48,27 +52,30 @@ arrange main = lead_seq | bass_seq | wave_seq | drums_seq
 play auto repeat
 ```
 
+There are a large number of examples in the [songs](songs\) directory.
+
 ## CLI
 
 The CLI provides a number of different sub-commands and options.
 
-**Important:** On Windows, npm has limitations passing flag arguments through `npm run` scripts. Use direct commands or `bin\beatbax` wrapper instead:
+>On Windows, npm has limitations passing flag arguments through `npm run` scripts. Use direct commands or the `bin\beatbax` wrapper instead:
 
 ### Play Command Options
 
 The `play` command supports browser and headless playback. In Node.js, it defaults to **headless playback**.
 
-- `--browser` (or `-b`) — Launch browser-based playback (starts Vite dev server for web UI)
-- `--headless` (or `--no-browser`) — Force headless Node.js playback (default in Node)
-- `--sample-rate <hz>` (or `-r`) — Sample rate for headless playback (default: 44100)
-- `--buffer-frames <n>` — Buffer length in frames for offline rendering (optional)
+- `--browser` (or `-b`) - Launch browser-based playback (starts Vite dev server for Web UI)
+- `--headless` (or `--no-browser`) - Force headless Node.js playback (default in Node)
+- `--backend <name>` — Audio backend (choices: `auto` (default), `node-webaudio`, `browser`)
+- `--sample-rate <hz>` (or `-r`) - Sample rate for headless playback (default: 44100)
+- `--buffer-frames <n>` - Buffer length in frames for offline rendering (optional)
 
 Note on `play` directive flags:
 - Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
 	- `play auto` requests the web UI to start playback when the file is loaded.
-	- `play repeat` requests looping/continuous playback.
-	The web UI will attempt to honor `play auto` but browsers commonly require a user gesture
-	to unlock audible playback; in those cases the UI will prompt the user to enable audio.
+	- `play repeat` requests looping playback.
+
+Please note: The web UI will attempt to honor `play auto` but browsers commonly require a user gesture to unlock audible playback; in those cases the UI will prompt the user to enable audio.
 
 Validation note: the CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
 
@@ -134,14 +141,20 @@ beatbax/
 │   │   ├── src/
 │   │   │   ├── audio/           # WebAudio playback and PCM renderer
 │   │   │   ├── chips/           # Chip emulation (Game Boy APU)
+│   │   │   ├── effects/         # Inline effect parsing and helpers
+│   │   │   ├── expand/          # Reference/token expansion helpers
 │   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
 │   │   │   ├── import/          # UGE file reader
 │   │   │   ├── instruments/     # Instrument state management
-│   │   │   ├── parser/          # Tokenizer and AST parser
+│   │   │   ├── parser/          # Parser and structured parse helpers
+│   │   │   │   ├── peggy/       # Peggy grammar + generated parser
+│   │   │   │   ├── structured.ts# Helpers to materialize structured AST nodes
+│   │   │   │   └── tokenizer.ts # Legacy tokenizer stub (removed runtime impl)
 │   │   │   ├── patterns/        # Pattern expansion and transforms
 │   │   │   ├── scheduler/       # Deterministic tick scheduler
 │   │   │   ├── sequences/       # Sequence expansion
 │   │   │   ├── song/            # Song resolver and model
+│   │   │   ├── util/            # Utility helpers (diag, parsing helpers)
 │   │   │   └── index.ts         # Main engine entry point
 │   │   └── tests/               # Engine unit tests (25 suites)
 │   │
