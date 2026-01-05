@@ -1,6 +1,6 @@
 ---
 title: "Peggy grammar iteration 2: structured patterns and transforms"
-status: proposed
+status: closed
 authors: ["kadraman"]
 created: 2026-01-02
 issue: "https://github.com/kadraman/beatbax/issues/26"
