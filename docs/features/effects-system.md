@@ -40,7 +40,7 @@ Summary: the following core effects will be implemented and exposed in the langu
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
-Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path remains only as a temporary fallback (opt-out via `BEATBAX_PEGGY_EVENTS=0`).
+Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path has been removed after the Peggy migration.
 
 ## Effect Combinations
 

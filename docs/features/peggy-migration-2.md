@@ -72,9 +72,7 @@ const ast = parse(source);
 - End-to-end tests for `verify`, `export json/midi/uge`, and playback to ensure ISM output matches pre-change baselines.
 
 ## Migration Path
-- Structured parsing is now the default. Use `BEATBAX_PEGGY_EVENTS=0` (or `false`/`off`/`no`) as a temporary opt-out while legacy expansion remains available for rollback.
-- Once confidence is high, remove the temporary opt-out and delete the legacy tokenizer/expression path.
-- Finally, delete `packages/engine/src/parser/legacy` and the `BEATBAX_PARSER` override after a short deprecation window.
+ - Structured parsing is now the default. The legacy tokenizer/expression path has been removed and downstream code should consume structured fields directly.
 
 ### Implementation Checklist
 - [x] Extend Peggy grammar for pattern events and transforms with location metadata.
@@ -82,10 +80,21 @@ const ast = parse(source);
 - [x] Implement transformer to populate structured tokens and transforms while keeping `rhs` strings during rollout.
 - [x] Update pattern/sequence expansion to consume structured nodes; keep fallback during parity testing.
 - [x] Add parity and regression tests for structured parsing vs. legacy outputs.
-- [ ] Enable structured fields by default and move legacy tokenizer/expression code behind feature flags once stable.
+- [x] Enable structured fields by default and move legacy tokenizer/expression code behind feature flags once stable.
 
 - Note: Unknown transforms are intentionally collected as `unknown` (no fail-fast) during rollout.
-- Structured fields are enabled by default; set `BEATBAX_PEGGY_EVENTS=0` to temporarily disable them. Resolver materializes structured data into legacy token maps when enabled.
+ - Structured fields are enabled by default; resolver materializes structured data into legacy token maps when enabled.
+
+#### Remaining Tasks (explicit rollout steps)
+
+- [x] Flip rollout flag: make structured Peggy events the default. (Files: `packages/engine/src/parser/*`)
+- [x] Gate legacy tokenizer: move legacy tokenizer/expression code behind a feature flag and ensure it is tree-shakeable from browser bundles (e.g. `packages/engine/src/parser/legacy`).
+- [x] Remove fallback code paths: update transformer/resolver/expanders to consume structured `tokens`/`transforms` unconditionally and remove `rhs`-to-token materializer, leaving a small compatibility shim only for opt-out mode. (Files: `engine/src/patterns/expand.ts`, `engine/src/sequences/expand.ts`, `engine/src/song/resolver.ts`)
+- [x] Clean up AST/schema/docs: mark `rhs` deprecated in `schema/ast.schema.json` and update `docs/ast-schema.md`, `docs/features/peggy-migration-2.md`, and `docs/features/sequence-arrangements.md` to document structured fields as first-class.
+- [x] Tests & parity validation: update unit tests/snapshots for structured AST shapes, run parity/integration tests across `songs/*.bax` and `tmp/*.bax`, and confirm ISM parity with legacy outputs.
+- [x] CI and release: update CI matrix to run with structured events enabled by default and retain a short-lived opt-out job; add release notes documenting the deprecation window.
+- [x] Packaging & bundles: ensure demo/browser builds exclude legacy expression bundle by default and verify ESM/type exports remain consistent.
+- [x] Final removal: after a deprecation window and successful rollout, delete legacy parser code and remove `BEATBAX_PEGGY_EVENTS` handling and related docs.
 
 ## Future Enhancements
 - Error recovery for pattern bodies (multiple diagnostics per line).

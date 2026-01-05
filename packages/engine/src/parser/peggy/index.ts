@@ -17,7 +17,6 @@ import {
 import {
   RawSeqItem,
   RawSeqModifier,
-  isPeggyEventsEnabled,
   materializeSequenceItems,
   normalizeSeqItems,
   parseSeqTransforms,
@@ -217,9 +216,8 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
     // keep original
   }
 
-  // Only normalize `env` and `noise` when Peggy structured events are enabled
-  // and explicit instrument normalization flag is set (default off to preserve parity).
-  if (isPeggyEventsEnabled() && isInstNormalizationEnabled()) {
+  // Normalize `env` and `noise` when explicit instrument normalization flag is set.
+  if (isInstNormalizationEnabled()) {
     try {
       if (props.env) {
         const vendor = vendors['env'] ?? null;
@@ -444,9 +442,10 @@ export function parseWithPeggy(source: string): AST {
   const arrs: Record<string, any> = {};
   const metadata: SongMetadata = {};
 
-  const structuredEnabled = isPeggyEventsEnabled();
-  const patternEvents: PatternEventMap | undefined = structuredEnabled ? {} : undefined;
-  const sequenceItems: SequenceItemMap | undefined = structuredEnabled ? {} : undefined;
+  // Structured Peggy events are enabled by default; always provide containers
+  // for structured fields so the parser populates them during parse.
+  const patternEvents: PatternEventMap | undefined = {};
+  const sequenceItems: SequenceItemMap | undefined = {};
 
   let topBpm: number | undefined = undefined;
   let chipName: string | undefined = undefined;
@@ -482,7 +481,7 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'PatStmt': {
         const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents);
-        if (structuredEnabled && patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
+        if (patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
           patternEvents[name] = stmt.rhsEvents;
         }
         pats[name] = tokens;
@@ -496,7 +495,7 @@ export function parseWithPeggy(source: string): AST {
           seqs[stmt.name] = [];
           break;
         }
-        if (structuredEnabled && sequenceItems) {
+        if (sequenceItems) {
           sequenceItems[stmt.name] = items;
         }
         seqs[stmt.name] = materializeSequenceItems(items);
@@ -546,7 +545,7 @@ export function parseWithPeggy(source: string): AST {
     }
   }
 
-  const includeStructured = structuredEnabled;
+  const includeStructured = true;
 
   const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, play: playNode, metadata };
   if (includeStructured) {

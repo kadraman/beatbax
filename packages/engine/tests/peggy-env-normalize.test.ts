@@ -1,18 +1,14 @@
 import { parseWithPeggy } from '../src/parser/peggy';
 
 describe('Peggy CSV normalization for instrument properties', () => {
-  const originalParser = process.env.BEATBAX_PARSER;
-  const originalEvents = process.env.BEATBAX_PEGGY_EVENTS;
-
+  // Peggy is the only supported parser now; parser selection via
+  // `BEATBAX_PARSER` is removed. Enable the normalization feature
+  // explicitly for these tests and clean it up after.
   beforeAll(() => {
-    process.env.BEATBAX_PEGGY_EVENTS = '1';
-    process.env.BEATBAX_PARSER = 'peggy';
     process.env.BEATBAX_PEGGY_NORMALIZE_INST_PROPS = '1';
   });
 
   afterAll(() => {
-    process.env.BEATBAX_PARSER = originalParser;
-    process.env.BEATBAX_PEGGY_EVENTS = originalEvents;
     delete process.env.BEATBAX_PEGGY_NORMALIZE_INST_PROPS;
   });
 

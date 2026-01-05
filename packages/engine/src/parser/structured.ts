@@ -9,24 +9,10 @@ import { warn } from '../util/diag.js';
 export interface RawSeqModifier { raw: string; loc?: SourceLocation }
 export interface RawSeqItem { name: string; modifiers: RawSeqModifier[]; raw?: string; loc?: SourceLocation }
 
-export const isPeggyEventsEnabled = (): boolean => {
-  try {
-    const env = typeof process !== 'undefined' && (process as any)?.env ? (process as any).env : undefined;
-    const val = env?.BEATBAX_PEGGY_EVENTS ?? env?.beatbax_peggy_events;
-    if (val === undefined || val === null) return true; // default on
-    const s = String(val).toLowerCase();
-    if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
-    return s === '1' || s === 'true' || s === 'yes' || s === 'on';
-  } catch (err) {
-    // Surface unexpected environment access failures instead of silently disabling the flag.
-    try {
-      warn('parser', 'failed to read BEATBAX_PEGGY_EVENTS env');
-    } catch {
-      /* ignore logging failures */
-    }
-    return false;
-  }
-};
+// Structured events are enabled by default. The legacy opt-out environment
+// variable (`BEATBAX_PEGGY_EVENTS`) has been removed as part of the Peggy
+// migration; downstream code should assume structured fields exist when
+// present on the AST.
 
 export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
   if (!events) return [];
