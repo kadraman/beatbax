@@ -386,10 +386,49 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
     - Bake panning into the rendered instrument/sample (recommended for strict stereo results), or
     - Snap to the channel's current NR51 setting and warn the user.
   - Fallbacks & strict mode: Provide a `--strict-gb` or similar flag to treat non-enum numeric pans as errors rather than silently snapping. Document and warn for any precision loss or unsupported per-note semantics.
+  
 - Vibrato (`vib`)
-  - hUGETracker mapping: 4xy (Vibrato) — 4x = speed, 4y = depth/offset units (tracker units must be scaled).
-  - Export strategy: Map BeatBax speed → x (0..15), depth → y (0..15) after scaling/quantization. Re-insert effect on each row as needed.
-  - Fallback: If BeatBax uses custom LFO shapes or higher resolution, bake into sample or approximate with rapid pitch changes.
+  - hUGETracker mapping: `4xy` (Vibrato) — tracker `4x` is the speed, `4y` is the depth/magnitude (both 0..15 in tracker units). BeatBax maps into these 4-bit fields after scaling/quantization.
+  - Parameters (BeatBax `vib`):
+    - `depth` (required): nominal vibrato extent (musical units, normalized by exporter to tracker depth units).
+    - `rate` (required): vibrato speed (Hz-like semantic in the language surface; mapped to tracker speed `x` after quantization).
+    - `shape` (optional): LFO shape selector (e.g. `sine`, `triangle`, `square`). When present, backends choose closest approximation; trackers only accept simple vibrato so shape may be approximated or baked.
+    - `durationRows` (optional, 4th param): length in pattern *rows* for which vibrato is active. This value is normalized in the song resolver to seconds and exposed on the effect as `fx.durationSec` so audio backends can stop/decay vibrato at the correct time.
+  - Language examples:
+
+```bax
+pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
+```
+
+  - Runtime/Resolver semantics:
+    - The resolver converts row-based durations to seconds once during expansion and sets `effect.durationSec` (property name: `fx.durationSec`) on the parsed effect object. All audio backends consult `fx.durationSec` rather than reinterpreting rows themselves.
+    - This single normalization point keeps scheduling deterministic and avoids duplicate row→time conversions in audio code and exporters.
+
+  - Backend usage:
+    - WebAudio path: `src/effects/index.ts` implements vibrato by modulating `OscillatorNode.frequency` (or equivalent frequency target) using an LFO; it uses `fx.durationSec` to stop/decay the LFO at the correct end-of-note time.
+    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies the same `fx.durationSec` window when synthesizing per-sample frequency modulation so rendered WAVs match live playback.
+
+  - UGE/hUGETracker export behavior:
+    - BeatBax maps `rate` → tracker speed nibble `x` (0..15) and `depth` → nibble `y` (0..15) after deterministic scaling/quantization. The exporter emits `4xy` on the note row.
+    - Because tracker effects are only active on the row they are written to, the UGE exporter re-inserts the `4xy` vibrato effect on sustain rows as needed so the vibrato persists while a note sustains.
+    - When `durationRows` (4th param) is present, the exporter uses that to compute the global row where vibrato should stop; this is also used to drive the deterministic note-cut injection described below.
+
+  - Fallbacks:
+    - If the BeatBax vibrato requires higher resolution (complex shapes or sub-tick timing) than the tracker can express, the exporter will either approximate with repeated `4xy` rows, expand into finer-grained pitch steps, or recommend baking the effect into the instrument/sample for faithful reproduction.
+
+  - Implementation references:
+    - Resolver: `src/song/resolver.ts` — row→seconds normalization; `fx.durationSec` field.
+    - WebAudio vibrato: `src/effects/index.ts`.
+    - PCM renderer vibrato: `src/audio/pcmRenderer.ts`.
+    - UGE writer mapping & note-cut injection: `packages/engine/dist/export/ugeWriter.js` (and runtime copy in `node_modules/@beatbax/engine/dist/export/ugeWriter.js`).
+
+  - Testing & demo:
+    - Example/demo song: `songs/effect_demo.bax` includes `vib` usages and is used by the test harness and CLI export verification.
+
+  - Notes on exporter visibility and note cuts:
+    - hUGETracker (and many trackers) do not always render a visible note termination if the exported data only sets volume to 0. To guarantee a visible cut in the tracker UI and playback semantics, the UGE exporter performs a deterministic per-note post-process and injects a single extended-group `E0x` (extended note-cut) at the computed end-of-note global row. This explicit `E0x` forces the tracker to render the cut and matches author intent from BeatBax scripts.
+    - The exporter sets volume to `0` on the same row as a safety/fallback for players that prefer volume gating; the `E0x` injection is the reliable signal for hUGETracker-style editors.
+    - The UGE writer contains gated debug logging for these operations; enable with the CLI `--debug` flag to see mapping, computed global rows, and injected `E` entries during export.
 
 - Portamento (`port`)
   - hUGETracker mapping: Prefer `3xx` (tone portamento) to slide toward the target note using per-tick rate xx. Use `1xx`/`2xx` (slide up/down) for relative slide steps if needed.
