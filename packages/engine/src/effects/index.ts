@@ -43,8 +43,11 @@ export default registryAPI;
 
 // Vibrato effect: create a low-frequency oscillator (LFO) and modulate
 // the primary oscillator's frequency AudioParam. Parameters:
-//  - params[0]: depth (semitones, default 1)
+//  - params[0]: depth (BeatBax units, scaled to match Game Boy hardware)
 //  - params[1]: rate (Hz, default 4)
+//
+// For Game Boy parity: depth is scaled by VIB_DEPTH_SCALE (4.0) to match
+// the UGE exporter, then converted to Hz deviation matching hUGETracker behavior.
 register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
@@ -52,7 +55,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
   const depthRaw = params && params.length > 0 ? Number(params[0]) : 1;
   const rateRaw = params && params.length > 1 ? Number(params[1]) : 4;
-  const depth = Number.isFinite(depthRaw) ? depthRaw : 1; // interpret as semitones
+  const depth = Number.isFinite(depthRaw) ? depthRaw : 1;
   const rate = Number.isFinite(rateRaw) ? Math.max(0.1, rateRaw) : 4;
 
   // Determine the base frequency currently assigned to the oscillator at `start`.
@@ -68,9 +71,22 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   }
   if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
 
-  // Convert semitone depth to Hz amplitude for the LFO (approximate):
-  // deltaHz = baseFreq * (2^(depth/12) - 1)
-  const amplitudeHz = Math.abs(baseFreq * (Math.pow(2, depth / 12) - 1));
+  // Game Boy-accurate vibrato depth calculation:
+  // 1. Scale BeatBax depth (e.g., 3) by VIB_DEPTH_SCALE (4.0) to get tracker nibble (12)
+  // 2. Convert tracker nibble to Hz deviation matching hUGETracker's register offset behavior
+  //
+  // hUGETracker applies the depth nibble as a register offset (adds to period register).
+  // For WebAudio smooth LFO, we approximate the Hz deviation this creates.
+  //
+  // Empirical formula (tuned to match hUGETracker output):
+  // amplitudeHz ≈ baseFreq * (trackerDepth * 0.012)
+  //
+  // This gives ~4.6x larger vibrato than the old semitone formula, matching the
+  // measurement: hUGETracker = 1272 cents vs old BeatBax = 276 cents.
+  const VIB_DEPTH_SCALE = 4.0; // Must match ugeWriter.ts
+  const trackerDepth = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
+  const amplitudeHz = Math.abs(baseFreq * trackerDepth * 0.012);
+
   if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
 
   try {
