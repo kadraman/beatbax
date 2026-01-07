@@ -55,6 +55,16 @@ function writeChunk(id: string, data: number[]) {
 	return Buffer.concat([header, len, body]);
 }
 
+function pushMetaText(data: number[], delta: number, text: string) {
+	const dbytes = vlq(delta);
+	for (const b of dbytes) data.push(b);
+	const txt = Buffer.from(text, 'utf8');
+	data.push(0xff, 0x01);
+	const lenBytes = vlq(txt.length);
+	for (const b of lenBytes) data.push(b);
+	for (const byte of txt) data.push(byte);
+}
+
 /** Export a resolved song model to MIDI. */
 export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean }) {
 	let outPath = maybePath as string | undefined;
@@ -85,10 +95,10 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 
 	// Build header: format 1, N tracks = channels.length (clamped to 16)
 	const allChannels = Array.isArray(song.channels) ? song.channels : [];
-	const channels = options.channels 
+	const channels = options.channels
 		? allChannels.filter((ch: any) => options.channels!.includes(ch.id))
 		: allChannels;
-	
+
 	const ntracks = Math.max(1, Math.min(16, channels.length));
 	const header = Buffer.alloc(14);
 	header.write('MThd', 0, 4, 'ascii');
@@ -198,6 +208,22 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 
 			if (ev.type === 'note' || ev.type === 'named') {
 				const token = String(ev.token || '');
+
+				// If this event has vibrato effects, emit a MIDI text meta event describing it
+				if (Array.isArray(ev.effects)) {
+					for (const fx of ev.effects) {
+						if (fx && String(fx.type).toLowerCase() === 'vib') {
+							const depth = (Array.isArray(fx.params) && fx.params.length > 0) ? fx.params[0] : undefined;
+							const rate = (Array.isArray(fx.params) && fx.params.length > 1) ? fx.params[1] : undefined;
+							const shape = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
+							pushMetaText(data, delta, `vib:depth=${depth !== undefined ? depth : ''},rate=${rate !== undefined ? rate : ''},shape=${shape !== undefined ? shape : ''}`);
+							// reset delta since we consumed it for the meta event
+							lastTick = currTick;
+							delta = 0;
+							break;
+						}
+					}
+				}
 
 				// determine instrument name for this event (fallback to channel default)
 				const instName = ev.instrument || (ch && ch.defaultInstrument) || undefined;

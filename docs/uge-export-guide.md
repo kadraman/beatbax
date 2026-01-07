@@ -125,6 +125,26 @@ await exportUGE(song, 'output.uge');
 
 ## Validation
 
+## Vibrato (vib) mapping
+
+When exporting BeatBax songs for Game Boy, the BeatBax `vib` effect is conservatively mapped into hUGETracker's compact `4xy` vibrato effect so the exported `.uge` behaves sensibly in tracker/driver toolchains.
+
+- **Mapping rule:** BeatBax vibrato rate → `x` (rate nibble), depth → `y` (depth nibble) using a tuned scale factor. Export uses `VIB_DEPTH_SCALE = 4.0` to convert BeatBax depth units into the `y` nibble.
+- **Placement:** The exporter places the `4xy` command on the same pattern row where the originating note occurs. The original Game Boy NR51 routing is preserved when possible.
+- **Renderer parity:** The offline renderer in the engine (`packages/engine/src/audio/pcmRenderer.ts`) has a Game-Boy-specific emulation mode that reproduces hUGEDriver-style vibrato (mask-activated register offsets) for better audible parity with exported `.uge` playback.
+- **Tuned constants:** The engine's calibration sweep identified a practical best-fit set used in source builds: `vibDepthScale=4.0`, `regBaseFactor=0.04`, `regUnit=1`.
+- **Calibration tools:** Re-run or inspect the calibration and measurement tools in `scripts/compare_vib.cjs` and `scripts/auto_calibrate_vib.mjs` if you need to refine parity for specific material.
+
+Example: export and analyze a song with vibrato
+
+```bash
+# export UGE then render WAV for analysis (example)
+npm run cli -- export uge songs/effect_demo.bax tmp/effect_demo.uge
+node scripts/auto_calibrate_vib.mjs songs/effect_demo.bax tmp/auto_cal --sampleRate 44100
+```
+
+See `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/audio/pcmRenderer.ts` for implementation details.
+
 Validate exported UGE files with the official hUGETracker tools:
 
 ### Using uge2source.exe

@@ -40,11 +40,10 @@ function validateSource(src: string): ValidationResult {
       const names: string[] = [];
       if (!ch2 || !ch2.pat) return names;
       if (Array.isArray(ch2.pat)) {
-        for (const it of ch2.pat) {
-          if (typeof it === 'string') names.push(it.split(':')[0]);
+          // `ch.pat` is already expanded into inline pattern tokens (notes/rests).
+          // These are not sequence references, so don't treat them as such.
+          return [];
         }
-        return names.filter(Boolean);
-      }
       const rawTokens: string[] | undefined = (ch2 as any).seqSpecTokens;
       if (rawTokens && rawTokens.length > 0) {
         const joined = rawTokens.join(' ');
@@ -217,11 +216,9 @@ program
         const names: string[] = [];
         if (!ch || !ch.pat) return names;
         if (Array.isArray(ch.pat)) {
-          for (const it of ch.pat) {
-            if (typeof it === 'string') names.push(it.split(':')[0]);
+            // `ch.pat` is inline tokens; no external sequence names to extract.
+            return [];
           }
-          return names.filter(Boolean);
-        }
         // If parser attached raw seqSpecTokens (space-preserved), prefer them
         const rawTokens: string[] | undefined = (ch as any).seqSpecTokens;
         if (rawTokens && rawTokens.length > 0) {

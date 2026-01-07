@@ -110,11 +110,35 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		throw err;
 	}
 
+	// Prepare a shallow-cloned song to append human-friendly effect metadata
+	const clonedSong = JSON.parse(JSON.stringify(song));
+	// For each note event, attach `effectMeta` array with parsed parameter names for known effects
+	for (const ch of (clonedSong.channels || [])) {
+		if (!Array.isArray(ch.events)) continue;
+		for (const ev of ch.events) {
+			if (!ev || !Array.isArray(ev.effects) || ev.effects.length === 0) continue;
+			ev.effectMeta = ev.effectMeta || [];
+			for (const fx of ev.effects) {
+				if (!fx || !fx.type) continue;
+				const t = String(fx.type).toLowerCase();
+				if (t === 'vib') {
+					const depth = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : undefined;
+					const rate = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
+					const shape = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
+					ev.effectMeta.push({ type: 'vib', depth: Number.isFinite(depth) ? depth : undefined, rate: Number.isFinite(rate) ? rate : undefined, shape: shape });
+				} else {
+					// Generic passthrough for unknown effects
+					ev.effectMeta.push({ type: fx.type, params: fx.params });
+				}
+			}
+		}
+	}
+
 	// Write normalized JSON with metadata
 	const outObj = {
 		exportedAt: new Date().toISOString(),
 		version: 1,
-		song,
+		song: clonedSong,
 	};
 
 	if (opts && opts.debug) {
