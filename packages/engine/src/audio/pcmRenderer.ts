@@ -1,8 +1,29 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
-import { parseSweep } from '../chips/gameboy/pulse.js';
+import { parseSweep, parseEnvelope as parsePulseEnvelope } from '../chips/gameboy/pulse.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
+
+// How many GB period-register units correspond to one tracker vibrato depth unit (y).
+// hUGE appears to treat the tracker `y` as raw register offset units; tune this
+// multiplier to convert tracker depth (0..15) into GB register steps.
+const RENDER_REG_PER_TRACKER_UNIT = 1;
+// Fraction of base register to scale tracker units by (empirical). This
+// multiplies the tracker `y` value by a portion of the base period register
+// to produce a register offset similar to how hUGEDriver maps depth.
+const RENDER_REG_PER_TRACKER_BASE_FACTOR = 0.04;
+// Exporter-side vibrato depth scaling (used when exporting to UGE).
+// Keep in sync with packages/engine/src/export/ugeWriter.ts VIB_DEPTH_SCALE
+const EXPORTER_VIB_DEPTH_SCALE = 4.0;
+
+// Apply hUGEDriver-style period modification: add `offset` to the low 8 bits
+// of the GB period register (NR13 low byte), clamp to valid 11-bit range.
+function applyHugeDriverOffset(baseReg: number, offset: number): number {
+  // hUGEDriver adds the low-nibble depth to the 16-bit period value.
+  const sum = baseReg + offset;
+  // Clamp to 11-bit GB period range (0..2047)
+  return Math.max(0, Math.min(2047, Math.round(sum)));
+}
 
 /**
  * Render a song to PCM samples without using WebAudio.
@@ -16,6 +37,12 @@ export interface RenderOptions {
   bpm?: number;
   renderChannels?: number[]; // Which channels to render, default all
   normalize?: boolean;
+  // Calibration overrides (optional): if provided they override the
+  // compile-time constants to allow automated calibration without editing
+  // source files.
+  vibDepthScale?: number;
+  regPerTrackerBaseFactor?: number;
+  regPerTrackerUnit?: number;
 }
 
 /**
@@ -52,9 +79,25 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   // (some render paths may temporarily modify instrument objects). Cloning
   // ensures each note render sees a stable, independent instrument object.
   const instsClone = song.insts ? JSON.parse(JSON.stringify(song.insts)) : {};
+  const isGameBoy = (song.chip || 'gameboy').toLowerCase() === 'gameboy';
+  const vibDepthScale = typeof opts.vibDepthScale === 'number' ? opts.vibDepthScale : EXPORTER_VIB_DEPTH_SCALE;
+  const regPerTrackerBaseFactor = typeof opts.regPerTrackerBaseFactor === 'number' ? opts.regPerTrackerBaseFactor : RENDER_REG_PER_TRACKER_BASE_FACTOR;
+  const regPerTrackerUnit = typeof opts.regPerTrackerUnit === 'number' ? opts.regPerTrackerUnit : RENDER_REG_PER_TRACKER_UNIT;
+
   for (const ch of song.channels) {
     if (renderChannels.includes(ch.id)) {
-      renderChannel(ch, instsClone, buffer, sampleRate, channels, tickSeconds);
+      renderChannel(
+        ch,
+        instsClone,
+        buffer,
+        sampleRate,
+        channels,
+        tickSeconds,
+        isGameBoy,
+        vibDepthScale,
+        regPerTrackerBaseFactor,
+        regPerTrackerUnit
+      );
     }
   }
 
@@ -84,7 +127,11 @@ function renderChannel(
   buffer: Float32Array,
   sampleRate: number,
   channels: number,
-  tickSeconds: number
+  tickSeconds: number,
+  isGameBoy: boolean,
+  vibDepthScale: number,
+  regPerTrackerBaseFactor: number,
+  regPerTrackerUnit: number
 ) {
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
@@ -99,16 +146,22 @@ function renderChannel(
       continue;
     }
 
-    // Calculate duration by looking ahead for sustains
-    let sustainCount = 0;
-    for (let j = i + 1; j < ch.events.length; j++) {
-      if (ch.events[j].type === 'sustain') {
-        sustainCount++;
-      } else {
-        break;
+    // Calculate duration: prefer explicit duration on the event (e.g., C4:64),
+    // otherwise look ahead for sustain tokens (_) to extend the note.
+    let dur: number;
+    if (typeof ev.duration === 'number' && ev.duration > 0) {
+      dur = tickSeconds * ev.duration;
+    } else {
+      let sustainCount = 0;
+      for (let j = i + 1; j < ch.events.length; j++) {
+        if (ch.events[j].type === 'sustain') {
+          sustainCount++;
+        } else {
+          break;
+        }
       }
+      dur = tickSeconds * (1 + sustainCount);
     }
-    const dur = tickSeconds * (1 + sustainCount);
 
     // Resolve instrument
     let instName = ev.instrument || (tempRemaining > 0 ? tempInstName : currentInstName);
@@ -119,8 +172,13 @@ function renderChannel(
     const startSample = Math.floor(time * sampleRate);
     const durationSamples = Math.floor(dur * sampleRate);
 
+    // Debug: log first note duration for channel 1 to diagnose headless vs browser
+    try {
+        // diagnostic removed
+    } catch (e) {}
+
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels);
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -132,7 +190,7 @@ function renderChannel(
       }
     } else if (ev.type === 'named') {
       // Named instrument token (like drum hits)
-      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels);
+      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -202,8 +260,16 @@ function renderNoteEvent(
   startSample: number,
   durationSamples: number,
   sampleRate: number,
-  channels: number
+  channels: number,
+  tickSeconds: number,
+  isGameBoy: boolean,
+  vibDepthScale: number,
+  regPerTrackerBaseFactor: number,
+  regPerTrackerUnit: number
 ) {
+  try {
+    // removed debug logging
+  } catch (e) {}
   const token = ev.token;
   const m = token.match(/^([A-G][#B]?)(-?\d+)$/i);
   if (!m) return;
@@ -214,15 +280,47 @@ function renderNoteEvent(
   if (midi === null) return;
 
   const freq = midiToFreq(midi);
+  // Align frequency to Game Boy period table like the WebAudio path does
+  const alignedFreq = freqFromRegister(registerFromFreq(freq));
 
   // Determine pan gains for stereo rendering
   let panSpec = resolveEventPan(ev, inst);
   const gains = panToGains(panSpec);
 
   if (inst.type && inst.type.toLowerCase().includes('pulse')) {
-    renderPulse(buffer, startSample, durationSamples, freq, inst, sampleRate, channels, gains);
+    renderPulse(
+      buffer,
+      startSample,
+      durationSamples,
+      alignedFreq,
+      inst,
+      sampleRate,
+      channels,
+      gains,
+      ev.effects,
+      tickSeconds,
+      isGameBoy,
+      vibDepthScale,
+      regPerTrackerBaseFactor,
+      regPerTrackerUnit
+    );
   } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
-    renderWave(buffer, startSample, durationSamples, freq, inst, sampleRate, channels, gains);
+    renderWave(
+      buffer,
+      startSample,
+      durationSamples,
+      alignedFreq,
+      inst,
+      sampleRate,
+      channels,
+      gains,
+      ev.effects,
+      tickSeconds,
+      isGameBoy,
+      vibDepthScale,
+      regPerTrackerBaseFactor,
+      regPerTrackerUnit
+    );
   } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
     renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
   }
@@ -246,7 +344,12 @@ function renderNamedEvent(
   startSample: number,
   durationSamples: number,
   sampleRate: number,
-  channels: number
+  channels: number,
+  tickSeconds: number,
+  isGameBoy: boolean,
+  _vibDepthScale?: number,
+  _regPerTrackerBaseFactor?: number,
+  _regPerTrackerUnit?: number
 ) {
   // Named events are typically noise-based percussion
   if (inst.type && inst.type.toLowerCase().includes('noise')) {
@@ -275,18 +378,23 @@ function renderPulse(
   sampleRate: number,
   channels: number,
   gains: { left: number; right: number } = { left: 1, right: 1 }
+  , effects?: any[], tickSeconds?: number, isGameBoy?: boolean,
+  vibDepthScale?: number,
+  regPerTrackerBaseFactor?: number,
+  regPerTrackerUnit?: number
 ) {
+  // removed debug logging
   // Parse duty - handle various formats
   let duty = 0.5;
-  if (inst.duty) {
+    if (inst.duty) {
     const dutyStr = String(inst.duty);
     const dutyNum = parseFloat(dutyStr);
     if (!isNaN(dutyNum)) {
       duty = dutyNum > 1 ? dutyNum / 100 : dutyNum; // Handle both 50 and 0.5
     }
   }
-
-  const envelope = parseEnvelope(inst.env);
+  const envelope = parsePulseEnvelope(inst.env);
+  const durSec = duration / sampleRate;
 
   const sweep = parseSweep(inst.sweep);
   let currentFreq = freq;
@@ -294,8 +402,35 @@ function renderPulse(
   const sweepIntervalSamples = sweep ? (sweep.time / 128) * sampleRate : 0;
 
   // Generate simple square wave (harmonics were making it sound worse)
+  // Vibrato params (depth in register-units, rate in Hz). Support 4th param = duration in rows.
+  let vibDepth = 0;
+  let vibRate = 0;
+  let vibDurationSec: number | undefined = undefined;
+  if (Array.isArray(effects)) {
+    for (const fx of effects) {
+      try {
+        if (fx && fx.type === 'vib') {
+          const p = fx.params || [];
+          vibDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          vibRate = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
+          // Prefer resolver-provided durationSec, else fall back to 4th param as rows
+          if (typeof fx.durationSec === 'number') {
+            vibDurationSec = Number(fx.durationSec);
+          } else {
+            const durRows = typeof p[3] !== 'undefined' ? Number(p[3]) : undefined;
+            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
+              vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
+
+    // normal rendering loop
 
     // Apply sweep
     const sweepInterval = Math.floor(sweepIntervalSamples);
@@ -312,12 +447,79 @@ function renderPulse(
       }
     }
 
-    const phase = (t * currentFreq) % 1.0;
-    const square = currentFreq > 0 ? (phase < duty ? 1.0 : -1.0) : 0;
+    // Apply vibrato. If rendering for a Game Boy target, emulate hUGEDriver's
+    // step-based vibrato: on discrete tracker ticks, add/subtract the depth
+    // nibble (converted to register units) to the period register. Otherwise
+    // fall back to the smoother, phase-LFO approach used historically.
+    let effFreq = currentFreq;
+    if (vibDepth !== 0 && vibRate > 0 && currentFreq > 0) {
+      // per-note state for vibrato
+      if ((renderPulse as any).__vibState === undefined) (renderPulse as any).__vibState = {};
+      const noteKey = String(start);
+      let state = (renderPulse as any).__vibState[noteKey];
+      if (!state) {
+        state = { counter: 0, dir: 1, lastTick: -1, currentOffset: 0 };
+        (renderPulse as any).__vibState[noteKey] = state;
+      }
+
+      const globalTime = (start + i) / sampleRate;
+      const tickSec = typeof tickSeconds === 'number' ? tickSeconds : (60 / 128) / 4;
+      const tickIndex = Math.floor(globalTime / tickSec);
+
+      if (typeof vibDurationSec === 'undefined' || (i / sampleRate) < vibDurationSec) {
+        // Initialize phase on first use
+        if (state.phase === undefined) state.phase = 0;
+
+        // Advance phase smoothly at sample rate (not per tick)
+        state.phase += (2 * Math.PI * vibRate) / sampleRate;
+
+        if (isGameBoy) {
+          // Game Boy vibrato using smooth LFO (matching WebAudio implementation):
+          // Convert BeatBax depth -> tracker nibble -> Hz deviation
+          const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+          // Empirically tuned to match hUGETracker: use 0.048 multiplier for PCM renderer
+          // (4x the WebAudio value due to different signal path characteristics)
+          const lfo = Math.sin(state.phase);
+          const amplitudeHz = currentFreq * trackerDepth * 0.048;
+          effFreq = currentFreq + (lfo * amplitudeHz);
+        } else {
+          // Non-GB path: register-based vibrato (backwards-compatible)
+          if (tickIndex !== state.lastTick) {
+            state.lastTick = tickIndex;
+            state.counter++;
+          }
+          const lfo = Math.sin(state.phase || 0);
+          const baseReg = currentReg;
+          const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+          const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
+          const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
+          const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
+          effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+        }
+      }
+    }
+
+    // Synthesize pulse using partials matching WebAudio `createPulsePeriodicWave`:
+    // amplitude for harmonic k: a_k = (2 / (k * PI)) * sin(k * PI * duty)
+    let sample = 0;
+    if (effFreq > 0) {
+      const nyquist = sampleRate / 2;
+      const maxHarmByNyq = Math.floor(nyquist / effFreq);
+      const maxHarm = Math.min(200, Math.max(1, maxHarmByNyq));
+      // Sum harmonics
+      let weightSum = 0;
+      for (let k = 1; k <= maxHarm; k++) {
+        const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
+        weightSum += Math.abs(a);
+        sample += a * Math.sin(2 * Math.PI * k * effFreq * t);
+      }
+      // Normalize by total harmonic weight to keep level similar across duties/frequencies
+      if (weightSum > 0) sample = sample / weightSum;
+    }
 
     // Apply envelope
-    const envVal = getEnvelopeValue(t, envelope);
-    const sample = square * envVal * 0.6; // Match browser amplitude
+    const envVal = getEnvelopeValue(t, envelope, durSec);
+    sample = sample * envVal;
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -329,6 +531,8 @@ function renderPulse(
       }
     }
   }
+
+  // end
 }
 
 /**
@@ -351,11 +555,17 @@ function renderWave(
   inst: InstrumentNode,
   sampleRate: number,
   channels: number,
-  gains: { left: number; right: number } = { left: 1, right: 1 }
+  gains: { left: number; right: number } = { left: 1, right: 1 },
+  effects?: any[],
+  tickSeconds?: number,
+  isGameBoy?: boolean,
+  vibDepthScale?: number,
+  regPerTrackerBaseFactor?: number,
+  regPerTrackerUnit?: number
 ) {
   const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
 
-  // Resolve volume multiplier once (avoid doing parsing/map lookups per-sample)
+  // Resolve volume multiplier
   let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
   let volNum = 100;
   if (typeof volRaw === 'string') {
@@ -367,12 +577,96 @@ function renderWave(
   const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
   const volMul = volMulMap[volNum] ?? 1.0;
 
+  // Vibrato params
+  let vibDepth = 0;
+  let vibRate = 0;
+  let vibDurationSec: number | undefined = undefined;
+  if (Array.isArray(effects)) {
+    for (const fx of effects) {
+      try {
+        if (fx && fx.type === 'vib') {
+          const p = fx.params || [];
+          vibDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          vibRate = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
+          if (typeof fx.durationSec === 'number') vibDurationSec = Number(fx.durationSec);
+          else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
+            const durRows = Number(p[3]);
+            if (!Number.isNaN(durRows)) vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
-    const phase = (t * freq) % 1.0;
-    const idx = Math.floor(phase * waveTable.length) % waveTable.length;
+    let effFreq = freq;
 
-    const sample = ((waveTable[idx] / 15.0 * 2.0 - 1.0) * 0.6) * volMul; // Apply wave global volume
+    if (vibDepth !== 0 && vibRate > 0 && freq > 0) {
+      if ((renderWave as any).__vibState === undefined) (renderWave as any).__vibState = {};
+      const noteKey = String(start);
+      let state = (renderWave as any).__vibState[noteKey];
+      if (!state) {
+        state = { counter: 0, lastTick: -1, currentOffset: 0 } as any;
+        (renderWave as any).__vibState[noteKey] = state;
+      }
+
+      const globalTime = (start + i) / sampleRate;
+      const tickSec = typeof tickSeconds === 'number' ? tickSeconds : (60 / 128) / 4;
+      const tickIndex = Math.floor(globalTime / tickSec);
+
+      if (typeof vibDurationSec === 'undefined' || t < vibDurationSec) {
+        if (tickIndex !== state.lastTick) {
+          state.lastTick = tickIndex;
+          state.counter++;
+          if (isGameBoy) {
+            const speedNibble = Math.max(0, Math.min(15, Math.round(vibRate || 0)));
+            const depthNibble = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+            const mask = speedNibble & 0x0f;
+            if (mask === 0 || (state.counter & mask) === 0) state.currentOffset = depthNibble;
+            else state.currentOffset = 0;
+
+            const baseReg = registerFromFreq(freq);
+            const effReg = applyHugeDriverOffset(baseReg, state.currentOffset || 0);
+            effFreq = freqFromRegister(effReg);
+          } else {
+            if (state.phase === undefined) state.phase = 0;
+            state.phase += vibRate;
+            const lfo = Math.sin(state.phase || 0);
+            const baseReg = registerFromFreq(freq);
+            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
+            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
+            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
+            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+          }
+        } else {
+          if (isGameBoy) {
+            const baseReg = registerFromFreq(freq);
+            const effReg = applyHugeDriverOffset(baseReg, state.currentOffset || 0);
+            effFreq = freqFromRegister(effReg);
+          } else {
+            if (state.phase === undefined) state.phase = 0;
+            const lfo = Math.sin(state.phase || 0);
+            const baseReg = registerFromFreq(freq);
+            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
+            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
+            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
+            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+          }
+        }
+      }
+    }
+
+    const phase = (t * effFreq) % 1.0;
+    const tablePos = phase * waveTable.length;
+    const i0 = Math.floor(tablePos) % waveTable.length;
+    const i1 = (i0 + 1) % waveTable.length;
+    const frac = tablePos - Math.floor(tablePos);
+    const v0 = (waveTable[i0] / 15.0) * 2.0 - 1.0;
+    const v1 = (waveTable[i1] / 15.0) * 2.0 - 1.0;
+    const sample = ((v0 * (1 - frac) + v1 * frac) * volMul);
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -406,7 +700,9 @@ function renderNoise(
   channels: number,
   gains: { left: number; right: number } = { left: 1, right: 1 }
 ) {
-  const envelope = parseEnvelope(inst.env);
+  const envelope = parsePulseEnvelope(inst.env);
+
+  const durSec = duration / sampleRate;
 
   // Game Boy noise parameters
   const width = inst.width ? Number(inst.width) : 15;
@@ -448,8 +744,8 @@ function renderNoise(
     }
 
     const noise = (lfsr & 1) ? 1.0 : -1.0;
-    const envVal = getEnvelopeValue(t, envelope);
-    const sample = noise * envVal * 0.6; // Match browser amplitude
+    const envVal = getEnvelopeValue(t, envelope, durSec);
+    const sample = noise * envVal * 0.85; // slightly higher base to better match WebAudio output
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -495,75 +791,62 @@ function parseWaveTable(wave: any): number[] {
  * @param env The envelope definition.
  * @returns An object containing initial volume, direction, and period.
  */
-function parseEnvelope(env: any): { initial: number; direction: 'up' | 'down'; period: number } {
-  if (!env) return { initial: 15, direction: 'down', period: 1 };
+// Use the same envelope parsing as the WebAudio path (pulse.parseEnvelope)
+// and approximate ADSR/GB behavior in sample domain for parity.
+function getEnvelopeValue(t: number, envObj: any, dur?: number): number {
+  if (!envObj) return 1;
+  // GB-style envelope
+  if (envObj.mode === 'gb' || typeof envObj.initial !== 'undefined' && typeof envObj.period !== 'undefined') {
+    const initial = envObj.initial ?? envObj.level ?? 15;
+    const period = envObj.period ?? envObj.step ?? 1;
+    if (period === 0) return Math.max(0, Math.min(1, (initial / 15)));
+    const stepDuration = period * (1 / 64); // same as WebAudio path
+    const currentStep = Math.floor(t / stepDuration);
+    let volume = envObj.direction === 'up' ? Math.min(15, (initial + currentStep)) : Math.max(0, (initial - currentStep));
+    return Math.max(0, Math.min(1, volume / 15));
+  }
 
-  // Accept structured envelope objects produced by the parser (EnvelopeAST)
-  if (typeof env === 'object') {
-    const obj: any = env;
-    const isGbFormat = (obj.format && String(obj.format).toLowerCase() === 'gb') ||
-      (obj.mode && String(obj.mode).toLowerCase() === 'gb') ||
-      typeof obj.initial !== 'undefined' || typeof obj.level !== 'undefined' || typeof obj.value !== 'undefined';
-    if (isGbFormat) {
-      const initialRaw = obj.initial ?? obj.level ?? obj.value;
-      const initial = Math.max(0, Math.min(15, Number.isFinite(Number(initialRaw)) ? Number(initialRaw) : 15));
-      const dirStr = (obj.direction ?? obj.dir ?? 'down');
-      const direction = String(dirStr).toLowerCase() === 'up' ? 'up' : 'down';
-      const periodRaw = obj.period ?? obj.step ?? 1;
-      const period = Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
-      return { initial, direction, period };
+  // ADSR-like envelope (mode 'adsr' or parsed ADSR object)
+  const env: any = envObj;
+  const attack = Math.max(0, env.attack ?? 0.001);
+  const decay = Math.max(0.001, env.decay ?? 0.05);
+  const sustain = Math.max(0, Math.min(1, env.sustainLevel ?? env.sustain ?? 0.5));
+  const release = Math.max(0.001, env.release ?? 0.02);
+  const attackLevel = env.attackLevel ?? 1.0;
+
+  if (t < 0) return 0.0001;
+  if (t < attack) {
+    // exponential-like attack to better match WebAudio gain scheduling
+    const tau = Math.max(attack, 1e-6) / 5;
+    const x = 1 - Math.exp(-t / tau);
+    return 0.0001 + (attackLevel - 0.0001) * x;
+  }
+
+  // value at attack
+  const vAtAttack = attackLevel;
+  const tAfterAttack = t - attack;
+
+  // decay phase: exponential approach from vAtAttack to sustain with time constant = decay
+  if (tAfterAttack < decay) {
+    const x = tAfterAttack;
+    return sustain + (vAtAttack - sustain) * Math.exp(-x / decay);
+  }
+
+  // sustain phase
+  let current = sustain;
+
+  // handle release if duration provided
+  if (typeof dur === 'number') {
+    const relStart = Math.max(0, dur - release);
+    if (t >= relStart) {
+      const vAtRelStart = (relStart <= attack) ? (relStart <= 0 ? 0.0001 : (0.0001 + (attackLevel - 0.0001) * (relStart / attack))) :
+        (sustain + (vAtAttack - sustain) * Math.exp(-(relStart - attack) / decay));
+      const relT = t - relStart;
+      return Math.max(0.0001, 0.0001 + (vAtRelStart - 0.0001) * Math.exp(-relT / release));
     }
   }
 
-  if (typeof env === 'string') {
-    const s = env.trim();
-
-    // Parse "gb:12,down,1" format
-    const gbMatch = s.match(/^gb:\s*(\d{1,2})\s*,\s*(up|down)(?:\s*,\s*(\d+))?$/i);
-    if (gbMatch) {
-      return {
-        initial: Math.max(0, Math.min(15, parseInt(gbMatch[1], 10))),
-        direction: gbMatch[2].toLowerCase() as 'up' | 'down',
-        period: gbMatch[3] ? Math.max(0, Math.min(7, parseInt(gbMatch[3], 10))) : 1
-      };
-    }
-
-    // Parse simple "12,down,1" format
-    const parts = s.split(',').map(s => s.trim());
-    if (parts.length >= 2) {
-      return {
-        initial: parseInt(parts[0]) || 15,
-        direction: parts[1] === 'up' ? 'up' : 'down',
-        period: parts[2] ? parseInt(parts[2]) : 1
-      };
-    }
-  }
-
-  return { initial: 15, direction: 'down', period: 1 };
-}
-
-/**
- * Calculates the current envelope volume at a given time.
- *
- * @param t The time in seconds since the start of the note.
- * @param env The parsed envelope parameters.
- * @returns The normalized volume value (0.0 to 1.0).
- */
-function getEnvelopeValue(t: number, env: { initial: number; direction: 'up' | 'down'; period: number }): number {
-  if (env.period === 0) return env.initial / 15.0;
-
-  // Game Boy envelope: each step is period * (1/64) seconds
-  const stepDuration = env.period * (1 / 64); // ~15.6ms per period unit
-  const currentStep = Math.floor(t / stepDuration);
-
-  let volume: number;
-  if (env.direction === 'down') {
-    volume = Math.max(0, env.initial - currentStep);
-  } else {
-    volume = Math.min(15, env.initial + currentStep);
-  }
-
-  return volume / 15.0;
+  return current;
 }
 
 /**
