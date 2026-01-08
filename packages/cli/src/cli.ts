@@ -179,8 +179,14 @@ program
   .action(async (file) => {
     try {
       const globalOpts = program.opts();
+      const verbose = globalOpts && globalOpts.verbose === true;
       ensureFileExists(file);
       const src = readFileSync(file, 'utf8');
+
+      if (verbose) {
+        console.log(`Verifying: ${file}`);
+        console.log('  Parsing source...');
+      }
       const errors: string[] = [];
       const warnings: string[] = [];
 
@@ -197,6 +203,18 @@ program
       }
 
       const ast = parse(src);
+
+      if (verbose) {
+        console.log('  Source parsed successfully');
+        console.log(`  AST structure:`);
+        console.log(`    - Patterns: ${Object.keys(ast.pats || {}).length}`);
+        console.log(`    - Sequences: ${Object.keys(ast.seqs || {}).length}`);
+        console.log(`    - Instruments: ${Object.keys(ast.insts || {}).length}`);
+        console.log(`    - Channels: ${(ast.channels || []).length}`);
+        if (ast.bpm) console.log(`    - Tempo: ${ast.bpm} BPM`);
+        console.log('  Running resolver...');
+      }
+
       // Run the resolver to materialize sequences/channels and collect any
       // resolver warnings (e.g. arrange expansion issues). `play` calls
       // the resolver during playback, but `verify` previously did not,
@@ -314,10 +332,16 @@ program
           console.error('Strict mode enabled: failing due to warnings');
           process.exitCode = 2;
         } else {
+          if (verbose) {
+            console.log('Verification complete: Valid with warnings');
+          }
           console.log(`OK: ${file} parsed (with warnings)`);
           process.exitCode = 0;
         }
       } else {
+        if (verbose) {
+          console.log('Verification complete: All checks passed');
+        }
         console.log(`OK: ${file} parsed and basic validation passed`);
         process.exitCode = 0;
       }
@@ -449,9 +473,9 @@ program
       process.exit(1);
     }
 
-    if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true });
-    else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true });
-    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, strictGb: Boolean((options as any).strictGb) });
+    if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
+    else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
+    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true, strictGb: Boolean((options as any).strictGb) });
     else if (format === 'wav') {
       await exportWAVFromSong(song, outPath, {
         duration,
@@ -459,7 +483,7 @@ program
         sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
         bitDepth: bitDepth as 16 | 24 | 32,
         normalize: options.normalize === true
-      }, { debug: globalOpts && globalOpts.debug === true });
+      }, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
     }
     else {
       console.error('Unknown export format:', format);

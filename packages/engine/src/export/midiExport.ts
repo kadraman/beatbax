@@ -66,8 +66,9 @@ function pushMetaText(data: number[], delta: number, text: string) {
 }
 
 /** Export a resolved song model to MIDI. */
-export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean }) {
+export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean; verbose?: boolean }) {
 	let outPath = maybePath as string | undefined;
+	const verbose = opts && opts.verbose === true;
 
 	// If caller passed just a path string, write an empty MIDI file
 	if (typeof songOrPath === 'string' && !maybePath) {
@@ -87,6 +88,10 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 
 	const song = songOrPath;
 	if (!outPath) outPath = 'song.mid';
+
+	if (verbose) {
+		console.log(`Exporting to MIDI (Standard MIDI File): ${outPath}`);
+	}
 
 	// Basic SMF parameters
 	const ticksPerQuarter = 480; // PPQ
@@ -294,5 +299,25 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 	if (opts && opts.debug) {
 		console.log(`[DEBUG] MIDI: ${ntracks} tracks, ${ticksPerQuarter} PPQ`);
 	}
+
+	if (verbose) {
+		console.log(`  MIDI configuration:`);
+		console.log(`    - Format: Type 1 (multi-track)`);
+		console.log(`    - Tracks: ${ntracks} (1 per channel)`);
+		console.log(`    - Tempo: ${bpm} BPM`);
+		console.log(`    - Resolution: ${ticksPerQuarter} PPQ`);
+		if (options.channels) {
+			console.log(`    - Channels exported: ${options.channels.join(', ')}`);
+		}
+		if (options.duration) {
+			console.log(`    - Duration: ${options.duration}s`);
+		}
+	}
+
 	writeFileSync(outPath, out);
+
+	if (verbose) {
+		const sizeKB = (out.length / 1024).toFixed(2);
+		console.log(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+	}
 }

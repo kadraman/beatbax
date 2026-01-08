@@ -68,9 +68,10 @@ function validateSongModel(song: any) {
  * Export a resolved song model to JSON. Backward-compatible overload: if
  * called with a single string, write a small metadata JSON file.
  */
-export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { debug?: boolean }) {
+export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { debug?: boolean; verbose?: boolean }) {
 	let song = songOrPath;
 	let outPath = maybePath;
+	const verbose = opts && opts.verbose === true;
 
 	if (typeof songOrPath === 'string' && !maybePath) {
 		// legacy call: exportJSON(filePath)
@@ -83,6 +84,10 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 
 	if (!outPath) outPath = 'song.json';
 	else if (!outPath.toLowerCase().endsWith('.json')) outPath = `${outPath}.json`;
+
+	if (verbose) {
+		console.log(`Exporting to JSON (ISM format): ${outPath}`);
+	}
 
 	// If caller passed an AST (pats + seqs + insts + channels), resolve into ISM
 	try {
@@ -145,5 +150,20 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		console.log(`[DEBUG] JSON: version ${outObj.version}, ${song.channels.length} channels`);
 	}
 
+	if (verbose) {
+		console.log(`  Song structure:`);
+		console.log(`    - Channels: ${song.channels.length}`);
+		console.log(`    - Patterns: ${Object.keys(song.pats || {}).length}`);
+		console.log(`    - Instruments: ${Object.keys(song.insts || {}).length}`);
+		if (song.bpm) console.log(`    - Tempo: ${song.bpm} BPM`);
+	}
+
 	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
+
+	if (verbose) {
+		const { statSync } = await import('fs');
+		const stats = statSync(outPath);
+		const sizeKB = (stats.size / 1024).toFixed(2);
+		console.log(`Export complete: ${stats.size.toLocaleString()} bytes (${sizeKB} KB) written`);
+	}
 }

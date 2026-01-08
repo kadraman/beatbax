@@ -36,6 +36,50 @@ Output:
 ✓ Exported UGE v6 file: mysong.uge (68086 bytes)
 ```
 
+#### CLI Options
+
+**Verbose Output** - Get detailed progress information:
+```bash
+npm run cli -- export uge mysong.bax mysong.uge --verbose
+```
+
+Output:
+```
+Exporting to UGE v6 format: mysong.uge
+Processing instruments...
+  Instruments exported:
+    - Duty: 2/15 slots (lead, bass)
+    - Wave: 1/15 slots (arp)
+    - Noise: 1/15 slots (kick)
+Building patterns for 4 channels...
+Applying effects and post-processing...
+  Pattern structure:
+    - Channel 1: 2 patterns (128 rows total)
+    - Channel 2: 2 patterns (128 rows total)
+    - Channel 3: 1 pattern (64 rows total)
+    - Channel 4: 1 pattern (64 rows total)
+  Effects applied:
+    - Vibrato: 3 notes
+    - Note cuts: 2 occurrences
+  Tempo: 128 BPM (7 ticks/row in UGE)
+Writing binary output...
+Export complete: 68,086 bytes (66.49 KB) written
+File ready for hUGETracker v6
+```
+
+**Debug Output** - Get detailed internal diagnostics:
+```bash
+npm run cli -- export uge mysong.bax mysong.uge --debug
+```
+
+Debug output includes:
+- Instrument discovery and mapping
+- Wave instrument volume calculations
+- Per-channel event counts
+- Pattern cell construction
+- Effect encoding and placement
+- Binary layout verification
+
 ### 3. Use in hUGETracker
 
 Open the exported `.uge` file in hUGETracker:
@@ -106,7 +150,18 @@ const src = readFileSync('mysong.bax', 'utf8');
 const ast = parse(src);
 const song = resolveSong(ast);
 
+// Basic export
 await exportUGE(song, 'mysong.uge');
+
+// Export with verbose output
+await exportUGE(song, 'mysong.uge', { verbose: true });
+
+// Export with debug diagnostics
+await exportUGE(song, 'mysong.uge', { debug: true });
+
+// Export with strict GB mode (reject numeric panning)
+await exportUGE(song, 'mysong.uge', { strictGb: true });
+
 console.log('✓ Exported UGE file');
 ```
 

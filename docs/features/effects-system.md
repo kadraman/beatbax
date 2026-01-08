@@ -126,13 +126,18 @@ hUGETracker supports limited effects per row. Map BeatBax effects to UGE effect 
 
 | BeatBax | UGE Effect | Notes |
 |---------|------------|-------|
-| `vib` | Not supported natively (use vibrato 4xy if available) | Approximate with pitch automation or tracker vibrato |
+| `vib` | Vibrato (4xy) | Exported with tuned depth/rate mapping; use `--verbose` to see effect counts |
 | `port` | Tone portamento (3xx) / slide (1xx/2xx) | Map to tone portamento for target slides |
 | `arp` | Arpeggio (0xy) | Direct mapping for up to 2 offsets; expand for more |
 | `vol` | Volume slide (effect column) | Set volume per row or per tick |
-| `pan` | Not a native per-row effect (NR51 per-channel terminal mapping) | Map `gb:pan` or snapped numeric pans to NR51 bits in UGE output; per-note panning requires baking or channel-expansion |
-| `cut` | Note cut (ECx or UGE-specific) | Cut after x ticks |
+| `pan` | NR51 per-channel terminal mapping (8xx effect) | Map `gb:pan` or snapped numeric pans to NR51 bits in UGE output; per-note panning requires baking or channel-expansion |
+| `cut` | Note cut (E0x extended effect) | Cut after x ticks; explicit cuts shown in effect column |
 | `retrig` | Retrigger / note delay (EDx/7xx) | Partial support; expand if needed |
+
+**Export Options**:
+- Use `--verbose` flag to see detailed effect statistics (vibrato count, note cut count) during export
+- Use `--debug` flag to see internal effect encoding and placement diagnostics
+- Use `--strict-gb` flag to enforce enum-only panning (reject numeric pan values)
 
 ## Applicability to Other Sound Chips
 

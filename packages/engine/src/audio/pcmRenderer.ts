@@ -467,55 +467,34 @@ function renderPulse(
       const tickIndex = Math.floor(globalTime / tickSec);
 
       if (typeof vibDurationSec === 'undefined' || (i / sampleRate) < vibDurationSec) {
-        if (tickIndex !== state.lastTick) {
-          state.lastTick = tickIndex;
-          state.counter++;
-          if (isGameBoy) {
-            // Exact hUGEDriver behavior:
-            // - Speed nibble = high nibble of combined 4xy byte (we derive from vibRate)
-            // - Depth nibble = low nibble of combined 4xy byte (we derive from vibDepth)
-            const speedNibble = Math.max(0, Math.min(15, Math.round(vibRate || 0)));
-            const depthNibble = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const mask = speedNibble & 0x0f; // use nibble directly like hUGEDriver
+        // Initialize phase on first use
+        if (state.phase === undefined) state.phase = 0;
 
-            // Activate when (counter & mask) === 0. mask===0 => true every tick.
-            if (mask === 0 || (state.counter & mask) === 0) {
-              state.currentOffset = depthNibble; // hUGEDriver adds the nibble to the 16-bit period
-            } else {
-              state.currentOffset = 0;
-            }
+        // Advance phase smoothly at sample rate (not per tick)
+        state.phase += (2 * Math.PI * vibRate) / sampleRate;
 
-            const baseReg = currentReg;
-            const effReg = applyHugeDriverOffset(baseReg, state.currentOffset as number);
-            effFreq = freqFromRegister(effReg);
-            } else {
-            // Non-GB path: smoother, phase-LFO behavior (backwards-compatible)
-            if (state.phase === undefined) state.phase = 0;
-            state.phase += vibRate; // advance by vibRate per tracker tick
-            const lfo = Math.sin(state.phase || 0);
-            const baseReg = currentReg;
-            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
-            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
-            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
-            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
-          }
+        if (isGameBoy) {
+          // Game Boy vibrato using smooth LFO (matching WebAudio implementation):
+          // Convert BeatBax depth -> tracker nibble -> Hz deviation
+          const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+          // Empirically tuned to match hUGETracker: use 0.048 multiplier for PCM renderer
+          // (4x the WebAudio value due to different signal path characteristics)
+          const lfo = Math.sin(state.phase);
+          const amplitudeHz = currentFreq * trackerDepth * 0.048;
+          effFreq = currentFreq + (lfo * amplitudeHz);
         } else {
-          // within the same tick: reuse previous offset/frequency
-          if (isGameBoy) {
-            const baseReg = currentReg;
-            const effReg = applyHugeDriverOffset(baseReg, (state.currentOffset as number) || 0);
-            effFreq = freqFromRegister(effReg);
-          } else {
-            if (state.phase === undefined) state.phase = 0;
-            const lfo = Math.sin(state.phase || 0);
-            const baseReg = currentReg;
-            const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
-            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
-            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
-            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+          // Non-GB path: register-based vibrato (backwards-compatible)
+          if (tickIndex !== state.lastTick) {
+            state.lastTick = tickIndex;
+            state.counter++;
           }
+          const lfo = Math.sin(state.phase || 0);
+          const baseReg = currentReg;
+          const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+          const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
+          const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
+          const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
+          effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
         }
       }
     }
