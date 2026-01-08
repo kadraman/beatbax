@@ -1,0 +1,35 @@
+## Demo: Vibrato (vib) effect examples
+## Exercises inline `vib` parameters and vibrato on different instruments
+## Play: node bin/beatbax play songs/vib_effect_demo.bax --headless
+
+chip gameboy
+
+bpm 140
+time 4
+
+## Instruments
+inst lead  type=pulse1 duty=75 env=1,down
+inst bass  type=pulse2 duty=25 env=10,down
+inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst sn    type=noise  env=12,down
+
+## Simple melody showcasing inline vibrato: <vib:depth,rate>
+pat vib_melody = C5<vib:3,6,,2>:8 D5<vib:4,8,,4>:8 E5<vib:2,10,,4>:8 G5<vib:6,5,,2>:8
+
+## Repeated wobble using inline vib (no named preset)
+pat wobble_line = C5<vib:4,6> . C5<vib:4,6> . E5<vib:4,6> . G5<vib:4,6> .
+
+## Bassline with faster vibrato applied inline
+pat vib_bass = C3<vib:8,3> . G2<vib:8,3> . C3<vib:8,3> . G2<vib:8,3>
+
+## Pattern combining wave instrument with a longer vib on sustained notes
+pat wave_vib = inst wave1 C5<vib:6,4>:8 . .
+
+seq main = vib_melody #wobble_line vib_bass wave_vib
+
+channel 1 => inst lead seq main
+#channel 2 => inst bass seq main:oct(-1)
+#channel 3 => inst wave1 seq main
+#channel 4 => inst sn   seq main
+
+play

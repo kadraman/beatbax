@@ -347,7 +347,13 @@ export class Player {
     for (const fx of effectsArr) {
       try {
         const name = fx && fx.type ? fx.type : fx;
-        const params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+        // Prefer resolver-provided durationSec when available; inject into params[3]
+        let params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+        if (fx && typeof fx.durationSec === 'number') {
+          const pcopy = Array.isArray(params) ? params.slice() : [];
+          pcopy[3] = fx.durationSec;
+          params = pcopy;
+        }
         const handler = getEffect(name);
         if (handler) {
           try { handler(ctx, nodes, params, start, dur); } catch (e) {}

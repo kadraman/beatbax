@@ -47,6 +47,172 @@ enum InstrumentType {
     NOISE = 2,
 }
 
+// Vibrato depth scaling applied when encoding 4xy for UGE export.
+// Some trackers and synths use different depth units; tune this to match hUGE.
+const VIB_DEPTH_SCALE = 4.0;
+
+function encodeVibParam(rate: number, depth: number): number {
+    const d = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
+    const r = Math.max(0, Math.min(15, Math.round(rate)));
+    return ((r & 0xf) << 4) | (d & 0xf);
+}
+
+// ============================================================================
+// Effect Handler System - Extensible architecture for UGE effect conflicts
+// ============================================================================
+
+interface UGECell {
+    note: number;
+    instrument: number;
+    effectCode: number;
+    effectParam: number;
+    pan?: 'L' | 'R' | 'C';
+    volume?: number;
+}
+
+interface EffectRequest {
+    type: string;
+    code: number;
+    param: number;
+    duration: number; // Number of rows this effect should span (including note row)
+    priority: number;
+    isGlobal: boolean; // True for effects like panning (8xx) that affect all channels
+}
+
+interface EffectHandler {
+    type: string;
+    priority: number;
+
+    /**
+     * Parse effect from NoteEvent and return an EffectRequest.
+     * Returns null if this handler doesn't apply to the given effect.
+     */
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null;
+
+    /**
+     * Check if this effect can coexist with another effect on the same row.
+     * Since UGE only allows one effect per row, this is typically false unless
+     * one effect can be moved to a different row (e.g., vibrato to sustain).
+     */
+    canCoexist(other: EffectRequest): boolean;
+
+    /**
+     * Apply this effect to a cell. Returns true if applied successfully.
+     */
+    apply(cell: UGECell, request: EffectRequest): boolean;
+}
+
+// Vibrato effect handler (4xy)
+const VibratoHandler: EffectHandler = {
+    type: 'vib',
+    priority: 10,
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        if (String(name).toLowerCase() !== 'vib') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        const depthRaw = params.length > 0 ? Number(params[0]) : 0;
+        const rateRaw = params.length > 1 ? Number(params[1]) : 4;
+
+        // Parse duration from 4th param or durationSec
+        let durationRows = sustainCount + 1; // Default: full note length
+        if (params && params.length > 3 && Number.isFinite(Number(params[3]))) {
+            durationRows = Math.max(1, Math.round(Number(params[3])));
+        } else if ((fx as any).paramsStr && typeof (fx as any).paramsStr === 'string') {
+            const rawParts = (fx as any).paramsStr.split(',').map((s: string) => s.trim());
+            if (rawParts.length > 3) {
+                const p3 = Number(rawParts[3]);
+                if (Number.isFinite(p3)) durationRows = Math.max(1, Math.round(p3));
+            }
+        } else if ((fx as any).durationSec && Number.isFinite((fx as any).durationSec)) {
+            durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
+        }
+
+        const depth = Math.max(0, Math.min(15, Math.round(depthRaw)));
+        const rate = Math.max(0, Math.min(15, Math.round(rateRaw)));
+        const param = encodeVibParam(rate, depth);
+
+        return {
+            type: 'vib',
+            code: 4,
+            param: param & 0xff,
+            duration: Math.min(durationRows, sustainCount + 1), // Clamp to note length
+            priority: this.priority,
+            isGlobal: false,
+        };
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        // Vibrato can be delayed to sustain rows if panning takes priority on note row
+        return other.type === 'pan' && other.isGlobal;
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        return true;
+    },
+};
+
+// Note Cut effect handler (ECx)
+const NoteCutHandler: EffectHandler = {
+    type: 'cut',
+    priority: 20, // Highest priority - always applied
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = (fx.type || fx).toString().toLowerCase();
+        if (name !== 'cut') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        const p0 = params.length > 0 ? Number(params[0]) : 0;
+        const cutParam = Number.isFinite(p0) ? Math.max(0, Math.min(15, Math.round(p0))) : 0;
+
+        return {
+            type: 'cut',
+            code: 0xE,
+            param: ((0 & 0xF) << 4) | (cutParam & 0xF), // Extended effect E0x
+            duration: 1, // Applied only on last sustain row
+            priority: this.priority,
+            isGlobal: false,
+        };
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        return false; // Note cut always wins, applied at end of note
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        if (cell.volume === undefined) cell.volume = 0;
+        return true;
+    },
+};
+
+// Effect handler registry - add new handlers here as effects are implemented
+const EFFECT_HANDLERS: EffectHandler[] = [
+    NoteCutHandler,  // Priority 20 - always wins
+    VibratoHandler,  // Priority 10
+    // Future: ArpeggioHandler (priority 15), SlideHandler (priority 12), etc.
+];
+
+/**
+ * Resolve effect conflicts for a single row. Returns the highest-priority
+ * effect that should be applied, or null if no effects apply.
+ */
+function resolveEffectConflict(requests: EffectRequest[]): EffectRequest | null {
+    if (requests.length === 0) return null;
+    if (requests.length === 1) return requests[0];
+
+    // Sort by priority (descending)
+    const sorted = [...requests].sort((a, b) => b.priority - a.priority);
+
+    // Return highest priority effect
+    // Future enhancement: check handler.canCoexist() for multi-effect support
+    return sorted[0];
+}
+
 /**
  * Binary buffer writer with helper methods for UGE format.
  */
@@ -372,14 +538,33 @@ function eventsToPatterns(
     waveInsts: string[],
     noiseInsts: string[],
     strictGb: boolean = false,
+    songBpm?: number,
+    desiredVibMap?: Map<number, number>,
 ): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
     const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
 
     // Split events into 64-row patterns
     let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }> = [];
 
+    // Compute engine tick length (seconds per pattern row) from song BPM so
+    // we can convert any `durationSec` normalized by the resolver back into
+    // a row count when exporting to tracker rows. Prefer an explicit `songBpm`
+    // passed from the exporter.
+    const bpmForTicks = (typeof songBpm === 'number' && Number.isFinite(songBpm)) ? songBpm : 128;
+    const tickSeconds = (60 / bpmForTicks) / 4; // same semantics used by resolver
+
     // Track the last active pan for this channel so sustain rows inherit it
     let currentPan: 'L' | 'R' | 'C' = 'C';
+    // Rows where we should force a note cutoff by setting volume=0 on the empty cell
+    const endCutRows = new Set<number>();
+    // Map of target global row -> cut parameter (ticks) to write as ECx
+    const cutParamMap: Map<number, number> = new Map();
+    // Track active per-channel vibrato so we can repeat it on sustain rows.
+    // `remainingRows` is optional; if present it counts sustain rows left AFTER the note row.
+    let activeVib: { code: number; param: number; remainingRows?: number } | null = null;
+    // Map of note globalRow -> desired durationRows (including the note row)
+    if (!desiredVibMap) desiredVibMap = new Map();
+    let prevEventType: string | null = null;
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
 
@@ -387,24 +572,116 @@ function eventsToPatterns(
 
         if (event.type === 'rest') {
             // Rest = empty cell (no note trigger, no effect) but inherit current pan
+            // If this rest immediately follows a note or sustain, emit an explicit
+            // Note Cut effect so trackers show the termination.
+            let effCode = 0;
+            let effParam = 0;
+            if (prevEventType === 'note' || prevEventType === 'sustain') {
+                // Emit as extended effect group E0x (note cut). Sub-effect=0, param=0
+                effCode = 0xE;
+                effParam = (0 << 4) | (0 & 0xF);
+            }
             cell = {
                 note: EMPTY_NOTE,
                 instrument: 0,
-                effectCode: 0,
-                effectParam: 0,
+                effectCode: effCode,
+                effectParam: effParam,
                 pan: currentPan,
             };
         } else if (event.type === 'sustain') {
-            // Sustain = ongoing note; retain currentPan
+            // Sustain = ongoing note; retain currentPan. If a vibrato was active on the
+            // previous note row, repeat that effect on this sustain row until the note ends
+            // or until an explicit vib duration has expired.
+            let effCode = 0;
+            let effParam = 0;
+            if (activeVib) {
+                // If remainingRows is undefined, vib continues for full note (until note ends).
+                if (typeof activeVib.remainingRows === 'undefined' || activeVib.remainingRows > 0) {
+                    effCode = activeVib.code;
+                    effParam = activeVib.param;
+                }
+            }
             cell = {
                 note: EMPTY_NOTE,
                 instrument: 0,
-                effectCode: 0,
-                effectParam: 0,
+                effectCode: effCode,
+                effectParam: effParam,
                 pan: currentPan,
             };
+            // Decrement remainingRows if present
+            if (activeVib && typeof activeVib.remainingRows === 'number') {
+                activeVib.remainingRows = Math.max(0, activeVib.remainingRows - 1);
+                if (activeVib.remainingRows === 0) {
+                    // Once expired, clear activeVib so further sustains don't repeat it
+                    activeVib = null;
+                }
+            }
         } else if (event.type === 'note') {
             const noteEvent = event as NoteEvent;
+
+            // Compute sustain length (count following sustain events)
+            let sustainCount = 0;
+            try {
+                for (let k = i + 1; k < events.length; k++) {
+                    const ne = events[k];
+                    if (ne && (ne as any).type === 'sustain') sustainCount++;
+                    else break;
+                }
+
+                // Mark cut rows if:
+                // 1. The note has an explicit cut effect, OR
+                // 2. The note is followed only by rests/empty cells until pattern boundary
+                //    (to prevent bleeding into next pattern)
+                let hasExplicitCut = false;
+                let cutParam: number | undefined = undefined;
+                if (Array.isArray(noteEvent.effects) && noteEvent.effects.length > 0) {
+                    for (const fx of noteEvent.effects) {
+                        if (!fx) continue;
+                        const name = (fx.type || fx).toString().toLowerCase();
+                        const params = fx.params || (Array.isArray(fx) ? fx : []);
+                        if (name === 'cut') {
+                            hasExplicitCut = true;
+                            const p0 = params.length > 0 ? Number(params[0]) : NaN;
+                            if (Number.isFinite(p0)) {
+                                cutParam = Math.max(0, Math.min(255, Math.round(p0)));
+                                break;
+                            }
+                        }
+                        if (cutParam === undefined && params && params.length > 3) {
+                            const p3 = Number(params[3]);
+                            if (Number.isFinite(p3)) cutParam = Math.max(0, Math.min(255, Math.round(p3)));
+                        }
+                    }
+                }
+
+                const targetRow = i + sustainCount; // last sustain or same note row
+
+                // Check if this note is followed only by rests until the next pattern boundary
+                // (to prevent note bleed across pattern loops)
+                let needsAutoCut = false;
+                if (!hasExplicitCut) {
+                    const patternBoundary = Math.ceil((targetRow + 1) / PATTERN_ROWS) * PATTERN_ROWS;
+                    let hasNonRestAfter = false;
+                    for (let j = targetRow + 1; j < patternBoundary && j < events.length; j++) {
+                        const laterEvent = events[j];
+                        if (laterEvent && (laterEvent as any).type !== 'rest') {
+                            hasNonRestAfter = true;
+                            break;
+                        }
+                    }
+                    // If no non-rest events until pattern boundary, add auto-cut to prevent bleed
+                    if (!hasNonRestAfter && targetRow + 1 < patternBoundary) {
+                        needsAutoCut = true;
+                    }
+                }
+
+                // Add to endCutRows/cutParamMap if explicit cut or auto-cut needed
+                if (hasExplicitCut || needsAutoCut) {
+                    endCutRows.add(targetRow);
+                    if (typeof cutParam === 'undefined' || cutParam === null) cutParam = 0;
+                    cutParamMap.set(targetRow, cutParam);
+                }
+            } catch (e) {}
 
             // Check for uge_transpose in instrument properties
             const inst = noteEvent.instrument ? instruments[noteEvent.instrument] : undefined;
@@ -439,6 +716,7 @@ function eventsToPatterns(
             // Update currentPan for subsequent sustain/rest rows
             currentPan = panEnum;
 
+            // Base cell
             cell = {
                 note: midiNote,
                 instrument: instIndex, // UGE instruments are 0-based
@@ -446,6 +724,46 @@ function eventsToPatterns(
                 effectParam: 0,
                 pan: panEnum,
             };
+
+            // Parse all effects using the extensible handler system
+            activeVib = null;
+            const effectRequests: EffectRequest[] = [];
+
+            if (Array.isArray(noteEvent.effects) && noteEvent.effects.length > 0) {
+                for (const fx of noteEvent.effects) {
+                    if (!fx) continue;
+
+                    // Try each handler to parse this effect
+                    for (const handler of EFFECT_HANDLERS) {
+                        const request = handler.parse(fx, noteEvent, sustainCount, tickSeconds);
+                        if (request) {
+                            effectRequests.push(request);
+                            break; // Each effect handled by only one handler
+                        }
+                    }
+                }
+            }
+
+            // Resolve conflicts and apply the winning effect to note row
+            const winningEffect = resolveEffectConflict(effectRequests);
+            if (winningEffect && winningEffect.type !== 'cut') {
+                // Apply effect (cuts are handled separately at end of note)
+                const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
+                if (handler) {
+                    handler.apply(cell, winningEffect);
+
+                    // Track active vibrato for sustain rows
+                    if (winningEffect.type === 'vib') {
+                        const remainingRows = Math.max(0, winningEffect.duration - 1);
+                        activeVib = {
+                            code: winningEffect.code,
+                            param: winningEffect.param,
+                            remainingRows
+                        };
+                        desiredVibMap.set(i, winningEffect.duration);
+                    }
+                }
+            }
         } else if (event.type === 'named') {
             // Named instrument (e.g., percussion) - the token IS the instrument name
             const namedEvent = event as any; // NamedInstrumentEvent
@@ -489,6 +807,29 @@ function eventsToPatterns(
             };
         }
 
+        // If exporter computed a cutParam for this exact global row, write
+        // an explicit Note Cut effect (ECx) on this cell so trackers display it.
+        if (cutParamMap.has(i)) {
+            const cp = cutParamMap.get(i) || 0;
+            const nib = Math.max(0, Math.min(15, cp & 0xff));
+            cell.effectCode = 0xE; // Extended effect group
+            cell.effectParam = ((0 & 0xF) << 4) | (nib & 0xF); // E0x -> sub=0 (cut), param=nib
+            (cell as any).volume = 0; // also set explicit zero volume as a fallback
+        }
+
+        // If this row was marked as an explicit cut, and the cell is empty,
+        // emit an explicit Note Cut effect (0xC) so trackers show the cut in
+        // the effect column. Also keep volume=0 as a fallback for players
+        // that prefer the volume field.
+        if (endCutRows.has(i) && cell.note === EMPTY_NOTE) {
+            cell.effectCode = 0xE; // Extended effect group
+            cell.effectParam = ((0 & 0xF) << 4) | (0 & 0xF); // E00 = immediate cut
+            (cell as any).volume = 0; // fallback: explicit zero volume
+        }
+
+        // Update prevEventType for next iteration
+        prevEventType = event && (event as any).type ? (event as any).type : null;
+
         currentPattern.push(cell);
 
         // When pattern reaches 64 rows, start a new one
@@ -500,15 +841,28 @@ function eventsToPatterns(
 
     // Add final pattern if it has any rows
     if (currentPattern.length > 0) {
-        // Pad to 64 rows
-        while (currentPattern.length < PATTERN_ROWS) {
-            currentPattern.push({
+        // Pad to 64 rows. If padding extends past the last event, the global
+        // event index for padded rows starts at `events.length` — honor
+        // `endCutRows` for these padded rows so explicit cuts at song end are
+        // emitted.
+        const existing = currentPattern.length;
+        const padCount = PATTERN_ROWS - existing;
+        for (let j = 0; j < padCount; j++) {
+            const globalRow = events.length + j; // global event index for this padded row
+            const isCut = endCutRows.has(globalRow);
+            const cell: any = {
                 note: EMPTY_NOTE,
                 instrument: 0,
                 effectCode: 0,
                 effectParam: 0,
                 pan: 'C',
-            });
+            };
+            if (isCut) {
+                cell.effectCode = 0xC;
+                cell.effectParam = 0x00;
+                cell.volume = 0;
+            }
+            currentPattern.push(cell);
         }
         patterns.push(currentPattern);
     }
@@ -586,9 +940,14 @@ export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrume
 /**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
-export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean } = {}): Promise<void> {
+export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean } = {}): Promise<void> {
     const w = new UGEWriter();
     const strictGb = opts && opts.strictGb === true;
+    const verbose = opts && opts.verbose === true;
+
+    if (verbose) {
+        console.log(`Exporting to UGE v6 format: ${outputPath}`);
+    }
 
     // ====== Header & NR51 metadata ======
     // Compute NR51 register from channel/instrument pans and encode into comment for compatibility
@@ -653,6 +1012,16 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     }
     if (opts && opts.debug) console.log(`[DEBUG] Discovered instruments: duty=${dutyInsts.length} wave=${waveInsts.length} noise=${noiseInsts.length}`);
     if (opts && opts.debug) console.log(`[DEBUG] Wave instrument names: ${JSON.stringify(waveInsts)}`);
+
+    if (verbose) {
+        console.log('Processing instruments...');
+        if (dutyInsts.length > 0 || waveInsts.length > 0 || noiseInsts.length > 0) {
+            console.log(`  Instruments exported:`);
+            if (dutyInsts.length > 0) console.log(`    - Duty: ${dutyInsts.length}/15 slots (${dutyInsts.join(', ')})`);
+            if (waveInsts.length > 0) console.log(`    - Wave: ${waveInsts.length}/15 slots (${waveInsts.join(', ')})`);
+            if (noiseInsts.length > 0) console.log(`    - Noise: ${noiseInsts.length}/15 slots (${noiseInsts.join(', ')})`);
+        }
+    }
 
     // ====== Instruments Section ======
     // Write Duty instruments (15 slots)
@@ -770,13 +1139,112 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // ====== Build patterns per channel ======
     const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>>> = [];
 
+    if (verbose) {
+        console.log('Building patterns for 4 channels...');
+    }
+
+    // Shared map of desired vibrato durations (globalRow -> rows)
+    const desiredVibMap: Map<number, number> = new Map();
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb);
+        // share `desiredVibMap` across channels so later passes can inspect desired vib rows
+        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap);
         channelPatterns.push(patterns);
+    }
+
+    // ====== Unified Post-Processing Pass ======
+    // Single pass to handle: explicit note cuts, vibrato duration enforcement, and effect conflicts
+
+    // Track statistics for verbose output
+    let cutCount = 0;
+    let vibCount = 0;
+
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
+        const chEvents = (chModel && chModel.events) || [];
+        const patterns = channelPatterns[ch] || [];
+
+        for (let i = 0; i < chEvents.length; i++) {
+            const ev = chEvents[i];
+            if (!ev || (ev as any).type !== 'note') continue;
+
+            const noteEvent = ev as NoteEvent;
+
+            // Count sustain rows following this note
+            let sustainCount = 0;
+            for (let k = i + 1; k < chEvents.length; k++) {
+                const ne = chEvents[k];
+                if (ne && (ne as any).type === 'sustain') sustainCount++;
+                else break;
+            }
+
+            const lastSustainRow = i + sustainCount;
+
+            // 1. Apply explicit note cut effects ONLY if the note has a cut effect
+            // (Implicit cuts are handled during pattern building when a rest follows a note)
+            const cutEffect = noteEvent.effects?.find((fx: any) => {
+                const name = (fx.type || fx).toString().toLowerCase();
+                return name === 'cut';
+            });
+
+            if (cutEffect) {
+                const request = NoteCutHandler.parse(cutEffect, noteEvent, sustainCount, 0);
+                if (request) {
+                    const patIdx = Math.floor(lastSustainRow / PATTERN_ROWS);
+                    const rowIdx = lastSustainRow % PATTERN_ROWS;
+                    if (patterns[patIdx] && patterns[patIdx][rowIdx]) {
+                        NoteCutHandler.apply(patterns[patIdx][rowIdx], request);
+                        cutCount++;
+                    }
+                }
+            }
+
+            // 2. Enforce vibrato duration (trim any effects beyond requested duration)
+            const desiredDuration = desiredVibMap.get(i);
+            if (typeof desiredDuration === 'number' && desiredDuration > 0) {
+                vibCount++;
+                // Last row that should have vibrato is i + desiredDuration - 1
+
+                // Clear any vibrato effects beyond the desired duration
+                for (let rowOffset = desiredDuration; rowOffset <= sustainCount; rowOffset++) {
+                    const globalRow = i + rowOffset;
+                    const patIdx = Math.floor(globalRow / PATTERN_ROWS);
+                    const rowIdx = globalRow % PATTERN_ROWS;
+
+                    if (patterns[patIdx] && patterns[patIdx][rowIdx] && patterns[patIdx][rowIdx].effectCode === 4) {
+                        patterns[patIdx][rowIdx].effectCode = 0;
+                        patterns[patIdx][rowIdx].effectParam = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    if (verbose) {
+        console.log('Applying effects and post-processing...');
+
+        // Pattern statistics
+        let totalRows = 0;
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            totalRows += channelPatterns[ch].reduce((sum, pat) => sum + pat.length, 0);
+        }
+
+        console.log('  Pattern structure:');
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const patterns = channelPatterns[ch];
+            const rowCount = patterns.reduce((sum, pat) => sum + pat.length, 0);
+            console.log(`    - Channel ${ch + 1}: ${patterns.length} pattern${patterns.length !== 1 ? 's' : ''} (${rowCount} rows total)`);
+        }
+
+        // Effect statistics
+        if (vibCount > 0 || cutCount > 0) {
+            console.log('  Effects applied:');
+            if (vibCount > 0) console.log(`    - Vibrato: ${vibCount} note${vibCount !== 1 ? 's' : ''}`);
+            if (cutCount > 0) console.log(`    - Note cuts: ${cutCount} occurrence${cutCount !== 1 ? 's' : ''}`);
+        }
     }
 
     // Inject global per-row NR51 panning effects (write a single 8xx on channel 1 when value changes)
@@ -791,6 +1259,10 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // Keep NR51 state across orders so we don't re-emit the same mix repeatedly
     let lastNr51: number | null = null;
+    // Track which global rows we wrote NR51 to and whether the pan came from
+    // an explicit source in the `.bax` (instrument or inline). Key = globalRow
+    // (orderIdx*PATTERN_ROWS + row)
+    const nr51Writes: Map<number, { value: number; explicit: boolean }> = new Map();
     for (let orderIdx = 0; orderIdx < orderLen; orderIdx++) {
         for (let row = 0; row < PATTERN_ROWS; row++) {
             let nr51Value = 0;
@@ -808,23 +1280,69 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             }
             // Only set panning when NR51 changes AND we have a note-on at this row (avoids forcing mix changes on rows with no note start).
             if (nr51Value !== lastNr51 && hasNoteOn) {
-                // Write 8xx effect on channel 1 (index 0) for this row
-                if (orderIdx < channelPatterns[0].length) {
-                    channelPatterns[0][orderIdx][row].effectCode = 8;
-                    channelPatterns[0][orderIdx][row].effectParam = nr51Value & 0xFF;
-                } else {
+                // Skip emitting the default NR51 mix (0xFF) as a tracker write; it
+                // often collides with per-note effects and is unnecessary to emit.
+                if ((nr51Value & 0xFF) === 0xFF) {
+                    continue; // Skip default NR51 mix
+                }
+                // Attempt to write 8xx effect on channel 1 (index 0) for this row.
+                // If the target cell already contains a non-zero effect (e.g. vib=4xy),
+                // do not overwrite it — prefer preserving per-note effects. Only
+                // update `lastNr51` when we actually write the 8xx effect.
+                // Skip writing NR51 if any channel already has a vib (4xy) on this row
+                let anyVibOnRow = false;
+                for (let chCheck = 0; chCheck < NUM_CHANNELS; chCheck++) {
+                    const pats = channelPatterns[chCheck] || [];
+                    const p = (orderIdx < pats.length) ? pats[orderIdx] : blankPatternWithPan;
+                    const c = p[row];
+                    if (c && c.effectCode === 4) { anyVibOnRow = true; break; }
+                }
+                if (anyVibOnRow) {
+                    continue; // Skip NR51 when vibrato already present
+                }
+                if (orderIdx >= channelPatterns[0].length) {
                     // Ensure pattern exists for channel 1 up to orderIdx
                     while (channelPatterns[0].length <= orderIdx) {
-                        // clone blank
                         const newPat = blankPatternWithPan.map(c => ({ ...c }));
                         channelPatterns[0].push(newPat);
                     }
-                    channelPatterns[0][orderIdx][row].effectCode = 8;
-                    channelPatterns[0][orderIdx][row].effectParam = nr51Value & 0xFF;
                 }
-                lastNr51 = nr51Value;
+                const targetCell = channelPatterns[0][orderIdx][row];
+                // Determine whether this NR51 change is driven by any explicit pan
+                // present in the source `.bax` for the channels at this global row.
+                const globalRow = orderIdx * PATTERN_ROWS + row;
+                let anyExplicit = false;
+                    for (let ch2 = 0; ch2 < NUM_CHANNELS; ch2++) {
+                    const chModel = song.channels && song.channels.find((c: any) => c.id === ch2 + 1);
+                    if (!chModel) continue;
+                    const ev = chModel.events && chModel.events[globalRow];
+                    if (ev && (ev as any).pan) { anyExplicit = true; break; }
+                    // instrument-level pan defaults are explicit if present on the instrument
+                    if (chModel.defaultInstrument) {
+                        const inst = (song.insts as any) && (song.insts as any)[chModel.defaultInstrument];
+                        if (inst && (inst['gb:pan'] || inst['pan'])) { anyExplicit = true; break; }
+                    }
+                }
+                if (targetCell && (!targetCell.effectCode || targetCell.effectCode === 0)) {
+                    targetCell.effectCode = 8;
+                    targetCell.effectParam = nr51Value & 0xFF;
+                    lastNr51 = nr51Value;
+                    nr51Writes.set(globalRow, { value: nr51Value & 0xFF, explicit: anyExplicit });
+                } else {
+                    if (opts && opts.debug) {
+                        try { console.log('[DEBUG] Skipping NR51 write due to existing effect on ch1 row', { orderIdx, row, existingEffect: targetCell && targetCell.effectCode }); } catch (e) {}
+                    }
+                }
             }
         }
+    }
+
+    // Debug: dump NR51 writes map so we can inspect which rows were written
+    if (opts && opts.debug) {
+        try {
+            const rows = Array.from(nr51Writes.entries()).map(([k, v]) => ({ globalRow: k, value: v.value, explicit: v.explicit }));
+            console.log('[DEBUG] NR51 writes:', JSON.stringify(rows, null, 2));
+        } catch (e) { }
     }
 
     // ====== Song Patterns Section ======
@@ -836,6 +1354,11 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Default: 128 BPM (7 ticks/row) provides exact timing alignment
     const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
     const ticksPerRow = Math.max(1, Math.round(896 / bpm));
+
+    if (verbose) {
+        const actualBpm = Math.round(896 / ticksPerRow);
+        console.log(`  Tempo: ${bpm} BPM (${ticksPerRow} ticks/row in UGE${actualBpm !== bpm ? `, actual: ~${actualBpm} BPM` : ''})`);
+    }
 
     w.writeU32(ticksPerRow); // Initial ticks per row
     w.writeBool(false); // Timer based tempo enabled (v6)
@@ -854,6 +1377,8 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         }
     }
 
+    // (debug forced E08 removed)
+
     // Add a blank pattern for padding shorter channels
     const blankPatternCells = [];
     for (let i = 0; i < PATTERN_ROWS; i++) {
@@ -862,11 +1387,175 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     const blankPatternIndex = allPatterns.length;
     allPatterns.push({ channelIndex: -1, patternIndex: -1, cells: blankPatternCells });
 
+    // FINAL ENFORCEMENT PASS: ensure vibrato (4xy) appears for exactly the
+    // requested number of rows (note + dr - 1) per-note. This operates on
+    // `allPatterns` which are the final pattern buffers to be serialized.
+    try {
+        if (opts && opts.debug) {
+            try { console.log('[DEBUG] finalEnforcement start', { nr51Writes: Array.from(nr51Writes.entries()), desiredVibMap: Array.from(desiredVibMap.entries()) }); } catch(e) {}
+        }
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
+            const chEvents = (chModel && chModel.events) || [];
+            for (let i = 0; i < chEvents.length; i++) {
+                const ev = chEvents[i];
+                if (!ev || (ev as any).type !== 'note') continue;
+                const noteEvent = ev as NoteEvent;
+                // find vib effect on this note
+                let vibFx: any = null;
+                if (Array.isArray(noteEvent.effects)) {
+                    for (const fx of noteEvent.effects) {
+                        if (!fx) continue;
+                        if (String((fx as any).type || fx).toLowerCase() === 'vib') { vibFx = fx; break; }
+                    }
+                }
+                if (!vibFx) continue;
+
+                // parse requested duration (rows) from positional param, paramsStr, or durationSec
+                let dr: number | undefined = undefined;
+                const params = vibFx.params || [];
+                if (params && params.length > 3 && Number.isFinite(Number(params[3]))) {
+                    dr = Number(params[3]);
+                } else if (vibFx.paramsStr && typeof vibFx.paramsStr === 'string') {
+                    const parts = vibFx.paramsStr.split(',').map((s: string) => s.trim());
+                    if (parts.length > 3) {
+                        const p3 = Number(parts[3]); if (Number.isFinite(p3)) dr = p3;
+                    }
+                } else if (vibFx.durationSec && Number.isFinite(vibFx.durationSec)) {
+                    const bpmForTicks = (typeof song.bpm === 'number' && Number.isFinite(song.bpm)) ? song.bpm : 128;
+                    const tickSeconds = (60 / bpmForTicks) / 4;
+                    dr = Math.max(0, Math.round(vibFx.durationSec / tickSeconds));
+                }
+                if (typeof dr === 'undefined' || dr <= 0) continue;
+
+                // compute sustainCount
+                let sustainCount = 0;
+                for (let k = i + 1; k < chEvents.length; k++) {
+                    const ne = chEvents[k]; if (ne && (ne as any).type === 'sustain') sustainCount++; else break;
+                }
+
+                // determine vib param
+                const depthRaw = params.length > 0 ? Number(params[0]) : 0;
+                const rateRaw = params.length > 1 ? Number(params[1]) : 4;
+                const depth = Number.isFinite(depthRaw) ? Math.max(0, Math.min(15, Math.round(depthRaw))) : 0;
+                const rate = Number.isFinite(rateRaw) ? Math.max(0, Math.min(15, Math.round(rateRaw))) : 4;
+                const param = encodeVibParam(rate, depth);
+
+                const globalStart = i;
+                const allowedEnd = globalStart + dr - 1; // inclusive
+                const actualEnd = globalStart + sustainCount; // inclusive
+
+                // if NR51 explicit and non-default on note row, we will preserve it
+                const notePatIdx = Math.floor(globalStart / PATTERN_ROWS);
+                const noteRowIdx = globalStart % PATTERN_ROWS;
+                const noteCell = (allPatterns.find(p => p.channelIndex === ch && p.patternIndex === notePatIdx) || { cells: [] }).cells[noteRowIdx];
+                const nrInfo = nr51Writes.get(globalStart);
+                const nrWasExplicit = nrInfo ? nrInfo.explicit : false;
+                const nrValue = nrInfo ? nrInfo.value : null;
+                const nrIsDefault = (nrValue === 0xFF);
+                const preserveNoteNR51 = !!noteCell && noteCell.effectCode === 8 && nrWasExplicit && !nrIsDefault;
+                if (opts && opts.debug) {
+                    try { console.log('[DEBUG] finalEnforce note check', { ch, globalStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
+                }
+
+                // enforce: set the note-row vibrato first (deterministic)
+                // overwrite default/implicit NR51 but preserve explicit non-default NR51
+                if (!preserveNoteNR51) {
+                    const patIdx = Math.floor(globalStart / PATTERN_ROWS);
+                    const rowIdx = globalStart % PATTERN_ROWS;
+                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
+                    if (patObj) {
+                        const cell = patObj.cells[rowIdx];
+                        if (cell) {
+                            cell.effectCode = 4;
+                            cell.effectParam = param & 0xff;
+                        }
+                    }
+                }
+
+                // enforce: for g in [globalStart+1 .. min(allowedEnd, actualEnd)] set 4xy=param
+                for (let g = globalStart + 1; g <= Math.min(allowedEnd, actualEnd); g++) {
+                    const patIdx = Math.floor(g / PATTERN_ROWS);
+                    const rowIdx = g % PATTERN_ROWS;
+                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
+                    if (!patObj) continue;
+                    const cell = patObj.cells[rowIdx];
+                    if (!cell) continue;
+                    cell.effectCode = 4;
+                    cell.effectParam = param & 0xff;
+                }
+
+                // clear any 4xy beyond allowedEnd up to actualEnd
+                for (let g = Math.max(allowedEnd + 1, globalStart + 1); g <= actualEnd; g++) {
+                    const patIdx = Math.floor(g / PATTERN_ROWS);
+                    const rowIdx = g % PATTERN_ROWS;
+                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
+                    if (!patObj) continue;
+                    const cell = patObj.cells[rowIdx];
+                    if (!cell) continue;
+                    if (cell.effectCode === 4) {
+                        cell.effectCode = 0; cell.effectParam = 0;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        if (opts && opts.debug) {
+            console.log('[DEBUG] final vib enforcement failed', e && (e as any).stack ? (e as any).stack : e);
+        }
+    }
+
+    // NOTE: vib->cut heuristic removed. We rely on per-note post-process above
+    // that injects a single extended `E0x` at the computed end-of-note row
+    // (patterns[patIdx][rowIdx]) so cuts are deterministic and occur only once.
+
     // Write number of patterns
+    // Debug: inspect patterns before serialization
+    if (opts && opts.debug) {
+        try {
+            console.log('[DEBUG] Dumping first 3 allPatterns entries (showing up to 16 rows each)');
+            for (let pi = 0; pi < Math.min(3, allPatterns.length); pi++) {
+                const p = allPatterns[pi];
+                console.log(`[DEBUG] allPatterns[${pi}] -> channel=${p.channelIndex} pattern=${p.patternIndex} rows=${p.cells.length}`);
+                for (let r = 0; r < Math.min(16, p.cells.length); r++) {
+                    const c = p.cells[r] as any;
+                    console.log(` [DEBUG] pat${pi} row${r}: note=${c.note} inst=${c.instrument} vol=${typeof c.volume==='number'?c.volume:'undef'} eff=0x${(c.effectCode||0).toString(16)} effp=0x${(c.effectParam||0).toString(16)}`);
+                }
+            }
+        } catch (e) {
+            console.log('[DEBUG] Pattern dump failed', e && (e as any).stack ? (e as any).stack : e);
+        }
+
+        // Debug: count EC (note-cut) occurrences before writing
+        let ecCount = 0;
+        for (const p of allPatterns) {
+            for (let r = 0; r < p.cells.length; r++) {
+                const c = p.cells[r];
+                if (c && c.effectCode === 0xC) ecCount++;
+            }
+        }
+        console.log('[DEBUG] Pre-serialize EC count:', ecCount);
+    }
+
     w.writeU32(allPatterns.length);
 
     if (opts && opts.debug) console.log(`[DEBUG] Total patterns: ${allPatterns.length}`);
     if (opts && opts.debug) console.log(`[DEBUG] Pattern breakdown: Ch1=${channelPatterns[0].length}, Ch2=${channelPatterns[1].length}, Ch3=${channelPatterns[2].length}, Ch4=${channelPatterns[3].length}`);
+
+    // Focused debug: show effect codes for first 16 rows of each channel for quick verification
+    if (opts && opts.debug) {
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const patterns = channelPatterns[ch] || [];
+            const pat = patterns[0] || new Array(PATTERN_ROWS).fill({ note: EMPTY_NOTE, instrument: 0, effectCode: 0, effectParam: 0 });
+            const rowsToShow = Math.min(16, pat.length);
+            const entries = [];
+            for (let r = 0; r < rowsToShow; r++) {
+                const c: any = pat[r];
+                entries.push({ row: r, note: c.note, eff: `0x${(c.effectCode||0).toString(16)}`, effp: `0x${(c.effectParam||0).toString(16)}` });
+            }
+            console.log(`[DEBUG] Channel ${ch+1} first ${rowsToShow} rows:`, JSON.stringify(entries));
+        }
+    }
 
     // Write pattern data
     for (let i = 0; i < allPatterns.length; i++) {
@@ -887,7 +1576,13 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         }
 
         // Write cells with instrument index conversion
-        for (const cell of pattern.cells) {
+        for (let rowIdx = 0; rowIdx < pattern.cells.length; rowIdx++) {
+            const cell = pattern.cells[rowIdx];
+
+            if (opts && opts.debug && cell && cell.effectCode === 0xC) {
+                console.log(`[DEBUG] Writing Note Cut in pattern ${i} ch ${ch} row ${rowIdx}`);
+            }
+
             // Convert absolute instrument index to relative index based on channel type
             // UGE pattern cells use 1-based indices (1-15) within each instrument type
             // 0 means "no instrument" (use previous/default)
@@ -916,7 +1611,20 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     }
                 }
             }
-            w.writePatternCell(cell.note, relativeInstrument, cell.effectCode, cell.effectParam);
+            let volume = (typeof (cell as any).volume === 'number') ? (cell as any).volume : undefined;
+            // If exporter previously set volume=0 to force a cut, ensure an explicit
+            // Note Cut effect is written too so tracker UIs show the cut in the
+            // effect column. Prefer explicit effect when volume==0.
+            if (typeof volume === 'number' && volume === 0 && (!cell.effectCode || cell.effectCode === 0)) {
+                // write as extended effect group E00 (immediate cut) when volume explicitly zero
+                cell.effectCode = 0xE;
+                cell.effectParam = ((0 & 0xF) << 4) | (0 & 0xF);
+            }
+            if (typeof volume === 'number') {
+                w.writePatternCell(cell.note, relativeInstrument, cell.effectCode, cell.effectParam, volume);
+            } else {
+                w.writePatternCell(cell.note, relativeInstrument, cell.effectCode, cell.effectParam);
+            }
         }
     }
 
@@ -975,6 +1683,13 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         console.log(`[DEBUG] UGE: ${out.length} bytes written to ${outputPath}`);
     }
     writeFileSync(outputPath, out);
+
+    if (verbose) {
+        console.log('Writing binary output...');
+        const sizeKB = (out.length / 1024).toFixed(2);
+        console.log(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+        console.log(`File ready for hUGETracker v6`);
+    }
 }
 
 export default exportUGE;

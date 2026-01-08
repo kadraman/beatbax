@@ -25,7 +25,14 @@ export class BufferedRenderer {
       for (const fx of effects) {
         try {
           const name = fx && fx.type ? fx.type : fx;
-          const params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+          // If resolver attached a normalized duration in seconds, prefer that
+          let params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
+          if (fx && typeof fx.durationSec === 'number') {
+            // shallow copy so we don't mutate original parsed params
+            const pcopy = Array.isArray(params) ? params.slice() : [];
+            pcopy[3] = fx.durationSec;
+            params = pcopy;
+          }
           const handler = (require('../effects/index.js') as any).get(name);
           if (handler) {
             try { handler(ctx, nodes, params, start, dur); } catch (e) {}
