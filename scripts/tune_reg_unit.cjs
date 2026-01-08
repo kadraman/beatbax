@@ -22,8 +22,26 @@ function compare() {
   const mA = out.match(/RESULT A:\s*([\s\S]*?)\nRESULT B:/);
   const mB = out.match(/RESULT B:\s*([\s\S]*?)\nVIB RATE/);
   if (!mA || !mB) return null;
-  const a = eval('(' + mA[1] + ')');
-  const b = eval('(' + mB[1] + ')');
+  function safeParse(raw) {
+    const s = String(raw).trim();
+    // Try strict JSON first
+    try { return JSON.parse(s); } catch (e) {}
+
+    // Fallback: convert a JS object-literal-ish string into valid JSON
+    try {
+      let t = s;
+      // Convert single-quoted strings to double-quoted JSON strings
+      t = t.replace(/'([^']*)'/g, function(_, p) { return JSON.stringify(p); });
+      // Quote unquoted object keys: { key: -> { "key":
+      t = t.replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
+      return JSON.parse(t);
+    } catch (e) {
+      throw new Error('Failed to parse comparison output as JSON: ' + e.message);
+    }
+  }
+
+  const a = safeParse(mA[1]);
+  const b = safeParse(mB[1]);
   return { a, b };
 }
 

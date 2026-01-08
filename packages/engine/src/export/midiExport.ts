@@ -223,7 +223,6 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							const shape = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
 							pushMetaText(data, delta, `vib:depth=${depth !== undefined ? depth : ''},rate=${rate !== undefined ? rate : ''},shape=${shape !== undefined ? shape : ''}`);
 							// reset delta since we consumed it for the meta event
-							lastTick = currTick;
 							delta = 0;
 							break;
 						}

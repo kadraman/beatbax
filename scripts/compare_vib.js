@@ -3,12 +3,8 @@ function readWav(p){
   const b = fs.readFileSync(p);
   if (b.toString('ascii',0,4) !== 'RIFF') throw new Error('Not RIFF');
   const fmtIdx = b.indexOf(Buffer.from('fmt '));
-  const fmtChunkSize = b.readUInt32LE(fmtIdx+4);
-  const audioFormat = b.readUInt16LE(fmtIdx+8);
   const numChannels = b.readUInt16LE(fmtIdx+10);
   const sampleRate = b.readUInt32LE(fmtIdx+12);
-  const byteRate = b.readUInt32LE(fmtIdx+16);
-  const blockAlign = b.readUInt16LE(fmtIdx+20);
   const bitsPerSample = b.readUInt16LE(fmtIdx+22);
   const dataIdx = b.indexOf(Buffer.from('data'));
   const dataSize = b.readUInt32LE(dataIdx+4);

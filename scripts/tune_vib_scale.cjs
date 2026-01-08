@@ -22,8 +22,22 @@ function compare() {
   const mA = out.match(/RESULT A:\s*([\s\S]*?)\nRESULT B:/);
   const mB = out.match(/RESULT B:\s*([\s\S]*?)\nVIB RATE/);
   if (!mA || !mB) return null;
-  const a = eval('(' + mA[1] + ')');
-  const b = eval('(' + mB[1] + ')');
+  function safeParse(raw) {
+    const s = String(raw).trim();
+    try { return JSON.parse(s); } catch (e) {}
+
+    try {
+      let t = s;
+      t = t.replace(/'([^']*)'/g, function(_, p) { return JSON.stringify(p); });
+      t = t.replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
+      return JSON.parse(t);
+    } catch (e) {
+      throw new Error('Failed to parse comparison output as JSON: ' + e.message);
+    }
+  }
+
+  const a = safeParse(mA[1]);
+  const b = safeParse(mB[1]);
   return { a, b };
 }
 

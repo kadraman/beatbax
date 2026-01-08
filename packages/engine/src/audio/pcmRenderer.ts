@@ -386,7 +386,7 @@ function renderPulse(
   // removed debug logging
   // Parse duty - handle various formats
   let duty = 0.5;
-  if (inst.duty) {600211
+    if (inst.duty) {
     const dutyStr = String(inst.duty);
     const dutyNum = parseFloat(dutyStr);
     if (!isNaN(dutyNum)) {

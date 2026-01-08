@@ -1161,7 +1161,6 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Track statistics for verbose output
     let cutCount = 0;
     let vibCount = 0;
-    let autoCutCount = 0;
 
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
@@ -1207,7 +1206,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             const desiredDuration = desiredVibMap.get(i);
             if (typeof desiredDuration === 'number' && desiredDuration > 0) {
                 vibCount++;
-                const vibEndRow = i + desiredDuration - 1; // Last row that should have vibrato
+                // Last row that should have vibrato is i + desiredDuration - 1
 
                 // Clear any vibrato effects beyond the desired duration
                 for (let rowOffset = desiredDuration; rowOffset <= sustainCount; rowOffset++) {
@@ -1524,7 +1523,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 }
             }
         } catch (e) {
-            console.log('[DEBUG] Pattern dump failed', e && (e as any) && (e as any).stack ? (e as any).stack : e);
+            console.log('[DEBUG] Pattern dump failed', e && (e as any).stack ? (e as any).stack : e);
         }
 
         // Debug: count EC (note-cut) occurrences before writing
