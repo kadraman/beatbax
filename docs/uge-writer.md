@@ -44,13 +44,18 @@ Note on Wave instrument volume storage
      - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (0xC) to ensure sharp termination.
      - **Sustain Logic**: Sustains (`_`) are exported as empty cells (Note 90), allowing the previous note to continue.
 
-4. **Main Export Function**: `exportUGE(song: SongModel, outputPath: string)`
+4. **Main Export Function**: `exportUGE(song: SongModel, outputPath: string, opts?: { debug?: boolean; strictGb?: boolean; verbose?: boolean })`
    - Writes UGE v6 header (version, title, artist, comment)
    - Writes 45 instruments (15 duty + 15 wave + 15 noise)
    - Writes 16 wavetables (16 × 32 nibbles)
    - Writes patterns section (timing settings + pattern data)
    - Writes order lists for 4 channels
    - Writes 16 routine strings
+
+   **Options**:
+   - `debug?: boolean` - Enable detailed diagnostic output for troubleshooting (instrument mapping, pattern cells, effect encoding)
+   - `verbose?: boolean` - Enable user-friendly progress messages (instrument counts, pattern structure, file size)
+   - `strictGb?: boolean` - Reject numeric panning values (only allow enum L/R/C)
 
 ## File Format Compliance
 
@@ -130,6 +135,36 @@ Output:
 ```
 ✓ Exported UGE v6 file: output.uge (68086 bytes)
 ```
+
+### Verbose and Debug Output
+
+**Verbose Mode** (`--verbose`) - User-friendly progress information:
+```bash
+node bin/beatbax export uge songs/sample.bax output.uge --verbose
+```
+
+Provides:
+- Export destination and format
+- Instrument counts per type (duty, wave, noise)
+- Pattern structure (channels, pattern count, row counts)
+- Effect statistics (vibrato, note cuts)
+- Tempo and timing settings
+- File size in bytes and KB
+- Completion status
+
+**Debug Mode** (`--debug`) - Internal diagnostics for developers:
+```bash
+node bin/beatbax export uge songs/sample.bax output.uge --debug
+```
+
+Provides:
+- Instrument discovery details
+- Wave volume calculations
+- Per-channel event counts
+- Pattern cell contents
+- Effect encoding parameters
+- NR51 panning bit calculations
+- Binary structure verification
 
 ## Key Discoveries & Lessons Learned
 

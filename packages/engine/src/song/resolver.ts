@@ -49,10 +49,15 @@ export function parseEffectParams(paramsStr: string | undefined): Array<string |
 }
 
 export function parseEffectsInline(str: string) {
-  const parts = str.split(',').map(s => s.trim()).filter(Boolean);
-  const effects: Array<{ type: string; params: Array<string | number> }> = [];
+  // Keep empty parts so positional empty parameters are preserved (e.g. "vib:3,6,,8")
+  const rawParts = str.split(',').map(s => s.trim());
+  const effects: Array<{ type: string; params: Array<string | number>; paramsStr?: string }> = [];
   let pan: any = undefined;
-  for (const p of parts) {
+
+  // Group parts so that effect parameters following a `type:...` are attached
+  // to that effect until the next part that contains a colon (start of next effect).
+  let currentEffect: { type: string; paramsStr?: string } | null = null;
+  for (const p of rawParts) {
     // Detect namespaced pan tokens first: gb:pan:L, pan:L, pan=-0.5
     const panMatch = p.match(/^(?:(gb):)?pan[:=](-?\d*\.?\d+|L|R|C)$/i);
     if (panMatch) {
@@ -64,16 +69,28 @@ export function parseEffectsInline(str: string) {
         const num = Number(val);
         if (!Number.isNaN(num)) pan = { value: Math.max(-1, Math.min(1, num)), sourceNamespace: ns || undefined };
       }
+      // finalize any pending effect before continuing
+      if (currentEffect) {
+        effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr) });
+        currentEffect = null;
+      }
       continue;
     }
 
-    // Normal effect: type:params
-    const m = p.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(?::(.+))?$/);
-    if (!m) continue;
-    const type = m[1];
-    const paramsStr = m[2];
-    const params = parseEffectParams(paramsStr);
-    effects.push({ type, params });
+    const m = p.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(?::(.*))?$/);
+      if (m && m[1]) {
+      // If this part starts a new effect (contains a type), finalize previous and start new
+      if (currentEffect) {
+        effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr), paramsStr: currentEffect.paramsStr });
+      }
+      currentEffect = { type: m[1], paramsStr: m[2] };
+    } else if (currentEffect) {
+      // This part is an additional parameter for the current effect
+      currentEffect.paramsStr = (currentEffect.paramsStr ? (currentEffect.paramsStr + ',' + p) : p);
+    }
+  }
+  if (currentEffect) {
+    effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr), paramsStr: currentEffect.paramsStr });
   }
   return { effects, pan };
 }
@@ -348,6 +365,31 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
           const parsed = parseEffectsInline(inner);
           parsedPan = parsed.pan;
           parsedEffects = parsed.effects || [];
+          // Normalize vib 4th positional param (rows) into seconds and attach as durationSec
+          try {
+            const bpmVal = (typeof bpm === 'number' && Number.isFinite(bpm)) ? bpm : 128;
+            const tickSeconds = (60 / bpmVal) / 4; // same tick semantics used elsewhere
+            for (const fx of parsedEffects) {
+              if (!fx) continue;
+              const name = String((fx as any).type || fx).toLowerCase();
+              if (name === 'vib') {
+                // Use the raw params string to preserve positional empties
+                const raw = (fx as any).paramsStr;
+                if (raw && typeof raw === 'string') {
+                  const rawParts = raw.split(',').map((s: string) => s.trim());
+                  const durField = rawParts.length > 3 ? rawParts[3] : undefined;
+                  if (typeof durField !== 'undefined' && durField !== '') {
+                    const dr = Number(durField);
+                    if (Number.isFinite(dr) && dr > 0) {
+                      (fx as any).durationSec = Math.max(0, Math.floor(dr) * tickSeconds);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // best-effort normalization; ignore failures
+          }
         }
 
         const useInst = tempInstName || currentInstName;

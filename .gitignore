@@ -149,6 +149,8 @@ tests/*.js
 /apps/web-ui/public/engine/
 /apps/web-ui/public/songs/
 
+/packages/engine/tmp/
+
 # sample source code
 lib
 

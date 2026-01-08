@@ -36,6 +36,50 @@ Output:
 ✓ Exported UGE v6 file: mysong.uge (68086 bytes)
 ```
 
+#### CLI Options
+
+**Verbose Output** - Get detailed progress information:
+```bash
+npm run cli -- export uge mysong.bax mysong.uge --verbose
+```
+
+Output:
+```
+Exporting to UGE v6 format: mysong.uge
+Processing instruments...
+  Instruments exported:
+    - Duty: 2/15 slots (lead, bass)
+    - Wave: 1/15 slots (arp)
+    - Noise: 1/15 slots (kick)
+Building patterns for 4 channels...
+Applying effects and post-processing...
+  Pattern structure:
+    - Channel 1: 2 patterns (128 rows total)
+    - Channel 2: 2 patterns (128 rows total)
+    - Channel 3: 1 pattern (64 rows total)
+    - Channel 4: 1 pattern (64 rows total)
+  Effects applied:
+    - Vibrato: 3 notes
+    - Note cuts: 2 occurrences
+  Tempo: 128 BPM (7 ticks/row in UGE)
+Writing binary output...
+Export complete: 68,086 bytes (66.49 KB) written
+File ready for hUGETracker v6
+```
+
+**Debug Output** - Get detailed internal diagnostics:
+```bash
+npm run cli -- export uge mysong.bax mysong.uge --debug
+```
+
+Debug output includes:
+- Instrument discovery and mapping
+- Wave instrument volume calculations
+- Per-channel event counts
+- Pattern cell construction
+- Effect encoding and placement
+- Binary layout verification
+
 ### 3. Use in hUGETracker
 
 Open the exported `.uge` file in hUGETracker:
@@ -106,7 +150,18 @@ const src = readFileSync('mysong.bax', 'utf8');
 const ast = parse(src);
 const song = resolveSong(ast);
 
+// Basic export
 await exportUGE(song, 'mysong.uge');
+
+// Export with verbose output
+await exportUGE(song, 'mysong.uge', { verbose: true });
+
+// Export with debug diagnostics
+await exportUGE(song, 'mysong.uge', { debug: true });
+
+// Export with strict GB mode (reject numeric panning)
+await exportUGE(song, 'mysong.uge', { strictGb: true });
+
 console.log('✓ Exported UGE file');
 ```
 
@@ -124,6 +179,26 @@ await exportUGE(song, 'output.uge');
 ```
 
 ## Validation
+
+## Vibrato (vib) mapping
+
+When exporting BeatBax songs for Game Boy, the BeatBax `vib` effect is conservatively mapped into hUGETracker's compact `4xy` vibrato effect so the exported `.uge` behaves sensibly in tracker/driver toolchains.
+
+- **Mapping rule:** BeatBax vibrato rate → `x` (rate nibble), depth → `y` (depth nibble) using a tuned scale factor. Export uses `VIB_DEPTH_SCALE = 4.0` to convert BeatBax depth units into the `y` nibble.
+- **Placement:** The exporter places the `4xy` command on the same pattern row where the originating note occurs. The original Game Boy NR51 routing is preserved when possible.
+- **Renderer parity:** The offline renderer in the engine (`packages/engine/src/audio/pcmRenderer.ts`) has a Game-Boy-specific emulation mode that reproduces hUGEDriver-style vibrato (mask-activated register offsets) for better audible parity with exported `.uge` playback.
+- **Tuned constants:** The engine's calibration sweep identified a practical best-fit set used in source builds: `vibDepthScale=4.0`, `regBaseFactor=0.04`, `regUnit=1`.
+- **Calibration tools:** Re-run or inspect the calibration and measurement tools in `scripts/compare_vib.cjs` and `scripts/auto_calibrate_vib.mjs` if you need to refine parity for specific material.
+
+Example: export and analyze a song with vibrato
+
+```bash
+# export UGE then render WAV for analysis (example)
+npm run cli -- export uge songs/effect_demo.bax tmp/effect_demo.uge
+node scripts/auto_calibrate_vib.mjs songs/effect_demo.bax tmp/auto_cal --sampleRate 44100
+```
+
+See `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/audio/pcmRenderer.ts` for implementation details.
 
 Validate exported UGE files with the official hUGETracker tools:
 
