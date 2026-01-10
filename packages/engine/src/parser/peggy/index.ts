@@ -125,6 +125,7 @@ interface StepsPerBarStmt extends BaseStmt { nodeType: 'StepsPerBarStmt'; stepsP
 interface TicksPerStepStmt extends BaseStmt { nodeType: 'TicksPerStepStmt'; ticksPerStep: number }
 interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string; value: string }
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
+interface EffectStmt extends BaseStmt { nodeType: 'EffectStmt'; name: string; rhs?: string }
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
 interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
 interface ArrangeStmt extends BaseStmt { nodeType: 'ArrangeStmt'; name: string; arrangements: (string | null)[][]; defaults?: string | null }
@@ -140,6 +141,7 @@ type Statement =
   | TicksPerStepStmt
   | SongMetaStmt
   | InstStmt
+  | EffectStmt
   | PatStmt
   | SeqStmt
   | ArrangeStmt
@@ -438,6 +440,7 @@ export function parseWithPeggy(source: string): AST {
   const pats: Record<string, string[]> = {};
   const insts: InstMap = {};
   const seqs: SeqMap = {};
+  const effects: Record<string, string> = {};
   const channels: ChannelNode[] = [];
   const arrs: Record<string, any> = {};
   const metadata: SongMetadata = {};
@@ -477,6 +480,12 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'InstStmt': {
         parseInstRhs(stmt.name, stmt.rhs, insts);
+        break;
+      }
+      case 'EffectStmt': {
+        // store raw RHS for named effect presets (e.g. `effect wobble = vib:4,6`)
+        const rhs = (stmt as any).rhs ? String((stmt as any).rhs).trim() : '';
+        if (rhs) effects[stmt.name] = rhs;
         break;
       }
       case 'PatStmt': {
@@ -548,6 +557,7 @@ export function parseWithPeggy(source: string): AST {
   const includeStructured = true;
 
   const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, play: playNode, metadata };
+  if (Object.keys(effects).length) (ast as any).effects = effects;
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;
     if (sequenceItems) ast.sequenceItems = sequenceItems;

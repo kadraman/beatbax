@@ -86,12 +86,34 @@ effect wobble = vib:8,4
 effect riser = bend:+12,exp
 effect stutter = retrig:2,75
 
-# Apply to notes
+# Apply to notes (inline preset expansion is supported)
 pat melody = C4<wobble> E4<riser> G4<stutter>
 
-# Or as pattern modifiers
+# Or as pattern modifiers (apply preset to every note in a pattern)
 pat melody_wobble = melody:wobble
 ```
+
+### Preset format and precedence
+
+- Definition: `effect <name> = <rhs>` where `<rhs>` is one or more effect tokens separated by whitespace. Each token follows the inline effect syntax (e.g. `vib:8,4`, `vol:+1`, `gb:pan:L`). The parser currently stores the preset RHS on the AST (as a raw RHS string) and the resolver expands presets where needed.
+- Application: applying a preset via `pat:name` or `pattern:name` appends the preset's effects to each note in the referenced pattern as if they were inline effects (e.g. `C4<wobble>` → `C4<vib:8,4>`). Inline usage `C4<wobble>` is also supported — the resolver expands inline preset names into the preset's RHS during resolution.
+- Precedence rule (implemented): inline effects explicitly written on a note take precedence over preset effects of the same type. When a preset is applied and a note already contains an inline effect of the same `type`, the inline effect is kept and the preset's effect of that `type` is skipped. Other preset effects are appended in their original order.
+- Examples:
+
+```bax
+# preset provides a vib
+effect wobble = vib:8,4
+
+# inline vib wins; preset vib is not duplicated
+pat a = C4<vib:3>
+seq s = a:wobble
+
+# preset effects apply when inline absent
+pat b = C4
+seq t = b:wobble
+```
+
+- Parameterized presets (e.g. `wobble(6)`) are not currently supported. If you need parameterization, request it and the grammar/resolver can be extended.
 
 ## Hardware Mapping
 
@@ -240,6 +262,12 @@ export interface PatternNode {
   effects?: PatternEffect[];  // Pattern-wide effects
 }
 
+// Top-level named effect presets (stored on the AST)
+export interface EffectsMap {
+  // key: preset name, value: raw RHS string (e.g. 'vib:4,8,sine,4')
+  [presetName: string]: string;
+}
+
 export interface PatternEffect {
   type: string;
   params: any[];
@@ -311,6 +339,14 @@ function parseEffect(str: string): Effect {
   };
 }
 ```
+
+Additionally, the Peggy grammar and parser now recognize an `EffectStmt` top-level directive of the form:
+
+```peg
+EffectStmt = "effect" __ name:Identifier _ "=" _ rhs:RestOfLine
+```
+
+The parser attaches named presets to the AST (see `EffectsMap` above) and the resolver expands presets either when they are applied as sequence/pattern modifiers or when used inline (e.g. `C4<wobble>`). Precedence rules (inline wins) are applied during resolution.
 
 ## Playback Implementation
 

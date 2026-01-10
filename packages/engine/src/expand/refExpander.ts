@@ -5,8 +5,35 @@ export interface ModResult {
   instOverride?: string | null;
   panOverride?: string | undefined;
 }
+function extractEffectType(effectPart: string): string {
+  if (!effectPart) return '';
+  const parts = String(effectPart).split(':').map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 3) return parts[1].toLowerCase(); // e.g. gb:pan:L -> pan
+  return parts[0].toLowerCase();
+}
 
-export function applyModsToTokens(tokensIn: string[], mods: string[]): ModResult {
+function mergeEffectsIntoToken(token: string, presetRhs: string): string {
+  if (!presetRhs || typeof token !== 'string') return token;
+  const m = token.match(/^([^<]+)(<([^>]*)>)?$/);
+  if (!m) return token;
+  const base = m[1];
+  const existing = m[3] || '';
+  const existingParts = existing.split(',').map(s => s.trim()).filter(Boolean);
+  const presetParts = String(presetRhs).split(/\s+/).map(s => s.trim()).filter(Boolean);
+  const keep: string[] = existingParts.slice();
+  const existingTypes = new Set(existingParts.map(p => extractEffectType(p)));
+  for (const pp of presetParts) {
+    const type = extractEffectType(pp);
+    if (!existingTypes.has(type)) {
+      keep.push(pp);
+      existingTypes.add(type);
+    }
+  }
+  if (keep.length === 0) return base;
+  return `${base}<${keep.join(',')}>`;
+}
+
+export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>): ModResult {
   let tokens = tokensIn.slice();
   let semitones = 0;
   let octaves = 0;
@@ -14,6 +41,19 @@ export function applyModsToTokens(tokensIn: string[], mods: string[]): ModResult
   let panOverride: string | undefined = undefined;
 
   for (const mod of mods) {
+    // Named effect preset: if `mod` matches a preset name, apply its RHS
+    // as per-note inline effects (append to each note token unless the
+    // note already has an inline effect of the same type).
+    if (presets && Object.prototype.hasOwnProperty.call(presets, mod)) {
+      const presetRhs = presets[mod];
+      tokens = tokens.map(t => {
+        if (typeof t !== 'string') return t;
+        // don't apply to rests or sustain tokens
+        if (t === '.' || t === '_' || t === '-') return t;
+        return mergeEffectsIntoToken(t, presetRhs);
+      });
+      continue;
+    }
     const mOct = mod.match(/^oct\((-?\d+)\)$/i);
     if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
     if (/^rev$/i.test(mod)) { tokens = tokens.slice().reverse(); continue; }
@@ -51,18 +91,18 @@ export function applyModsToTokens(tokensIn: string[], mods: string[]): ModResult
   return { tokens, instOverride, panOverride };
 }
 
-export function expandRefToTokens(itemRef: string, expandedSeqs: Record<string, string[]>, pats: Record<string, string[]>): string[] {
+export function expandRefToTokens(itemRef: string, expandedSeqs: Record<string, string[]>, pats: Record<string, string[]>, presets?: Record<string, string>): string[] {
   const parts = itemRef.split(':');
   const base = parts[0];
   const mods = parts.slice(1);
 
   if (expandedSeqs[base]) {
-    const res = applyModsToTokens(expandedSeqs[base].slice(), mods);
+    const res = applyModsToTokens(expandedSeqs[base].slice(), mods, presets);
     return res.tokens;
   }
 
   if (pats[base]) {
-    const res = applyModsToTokens(pats[base].slice(), mods);
+    const res = applyModsToTokens(pats[base].slice(), mods, presets);
     return res.tokens;
   }
 
