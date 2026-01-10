@@ -22,6 +22,10 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - `gm` (optional): General MIDI program number (0-127). When present the MIDI
     exporter emits a Program Change for the corresponding track using this value.
 
+- effect presets: define reusable named effect RHS strings that can be applied
+  inline or as a sequence/pattern modifier. Syntax: `effect name = vib:4,8,sine,4`.
+  Example: `pat melody = C4<wobble> seq lead => pat melody:wobble`.
+
 - pat definitions: pattern tokens (notes, rests, named tokens, inline inst changes).
   - Notes: `C4`, `G#5`, `A3` — scientific pitch notation.
   - Rests: `.` (cuts the previous note).

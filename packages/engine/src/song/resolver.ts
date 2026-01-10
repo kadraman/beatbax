@@ -125,7 +125,36 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
   }
 
   // Expand all sequences into flattened token arrays
-  const expandedSeqs = expandAllSequences(seqs, pats, insts);
+  const expandedSeqs = expandAllSequences(seqs, pats, insts, ast.effects as any);
+
+  // Helper: expand inline effect presets found inside `<...>` by looking up
+  // named presets from `ast.effects`. If an inline effect is a bare name
+  // that matches a preset and has no explicit params, replace it with the
+  // preset's parsed effects (but do not override other explicit inline
+  // effects of the same type — explicit inline params take precedence).
+  const expandInlinePresets = (effectsArr: Array<{ type: string; params: any[]; paramsStr?: string }> | undefined) => {
+    if (!effectsArr || !ast.effects) return effectsArr || [];
+    const presets: Record<string, string> = ast.effects as any;
+    // Collect types that were explicitly provided with params in the inline list
+    const explicitTypes = new Set<string>();
+    for (const e of effectsArr) {
+      if (e.params && e.params.length > 0) explicitTypes.add(e.type);
+    }
+
+    const out: Array<{ type: string; params: any[]; paramsStr?: string }> = [];
+    for (const e of effectsArr) {
+      // If this effect name matches a preset and has no params, expand it
+      if (presets[e.type] && (!e.params || e.params.length === 0)) {
+        const presetParsed = parseEffectsInline(presets[e.type]);
+        for (const pe of presetParsed.effects) {
+          if (!explicitTypes.has(pe.type)) out.push(pe as any);
+        }
+      } else {
+        out.push(e);
+      }
+    }
+    return out;
+  };
 
   // Helper to consistently emit resolver warnings via opts.onWarn if it's a
   // function, otherwise fall back to the diagnostic helper.
@@ -173,7 +202,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
           // do not insert inline `inst(...)` tokens here; per-column defaults are applied
           // via the synthesized channel's `inst` property (handled below)
           // expand the referenced sequence into tokens (if available), supporting transforms
-          const toks = expandRefToTokens(slot, expandedSeqs, pats);
+          const toks = expandRefToTokens(slot, expandedSeqs, pats, ast.effects as any);
           const base = String(slot).split(':')[0];
           // If expansion produced a single raw token equal to the slot and the base
           // name doesn't exist as a sequence or pattern, emit a warning.
@@ -236,7 +265,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
         const repeat = mRep ? parseInt(mRep[2], 10) : 1;
         const itemRef = mRep ? mRep[1].trim() : item;
         for (let r = 0; r < repeat; r++) {
-          const toks = expandRefToTokens(itemRef, expandedSeqs, pats);
+          const toks = expandRefToTokens(itemRef, expandedSeqs, pats, ast.effects as any);
           outTokens.push(...toks);
         }
       }
@@ -352,6 +381,8 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
         continue;
       }
 
+      
+
       // assume token is a note like C4 or a note with inline effects: C4<pan:-0.5,vib:4>
       if (typeof token === 'string') {
         // Extract inline effect block if present
@@ -364,32 +395,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
           const inner = inlineMatch[2];
           const parsed = parseEffectsInline(inner);
           parsedPan = parsed.pan;
-          parsedEffects = parsed.effects || [];
-          // Normalize vib 4th positional param (rows) into seconds and attach as durationSec
-          try {
-            const bpmVal = (typeof bpm === 'number' && Number.isFinite(bpm)) ? bpm : 128;
-            const tickSeconds = (60 / bpmVal) / 4; // same tick semantics used elsewhere
-            for (const fx of parsedEffects) {
-              if (!fx) continue;
-              const name = String((fx as any).type || fx).toLowerCase();
-              if (name === 'vib') {
-                // Use the raw params string to preserve positional empties
-                const raw = (fx as any).paramsStr;
-                if (raw && typeof raw === 'string') {
-                  const rawParts = raw.split(',').map((s: string) => s.trim());
-                  const durField = rawParts.length > 3 ? rawParts[3] : undefined;
-                  if (typeof durField !== 'undefined' && durField !== '') {
-                    const dr = Number(durField);
-                    if (Number.isFinite(dr) && dr > 0) {
-                      (fx as any).durationSec = Math.max(0, Math.floor(dr) * tickSeconds);
-                    }
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            // best-effort normalization; ignore failures
-          }
+          parsedEffects = expandInlinePresets(parsed.effects || []);
         }
 
         const useInst = tempInstName || currentInstName;
