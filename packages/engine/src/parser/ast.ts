@@ -118,6 +118,7 @@ export interface AST {
   pats: PatternMap;
   insts: InstMap;
   seqs: SeqMap;
+  effects?: Record<string, string>;
   patternEvents?: PatternEventMap;
   sequenceItems?: SequenceItemMap;
   channels: ChannelNode[];

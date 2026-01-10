@@ -37,7 +37,7 @@ const splitTopLevel = (s: string, sep = ':'): string[] => {
   return out.map(x => x.trim()).filter(Boolean);
 };
 
-export function expandSequenceItems(items: (string | SequenceItem)[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>): string[] {
+export function expandSequenceItems(items: (string | SequenceItem)[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>, presets?: Record<string, string>): string[] {
   const out: string[] = [];
   const missingWarned = _missingWarned || new Set<string>();
 
@@ -91,7 +91,7 @@ export function expandSequenceItems(items: (string | SequenceItem)[], pats: Reco
       }
     }
 
-    const res = applyModsToTokens(tokens, mods);
+    const res = applyModsToTokens(tokens, mods, presets);
     tokens = res.tokens;
 
     for (let r = 0; r < repeat; r++) {
@@ -101,11 +101,11 @@ export function expandSequenceItems(items: (string | SequenceItem)[], pats: Reco
   return out;
 }
 
-export function expandAllSequences(seqs: Record<string, string[] | SequenceItem[]>, pats: Record<string, string[]>, insts?: Record<string, any>): Record<string, string[]> {
+export function expandAllSequences(seqs: Record<string, string[] | SequenceItem[]>, pats: Record<string, string[]>, insts?: Record<string, any>, presets?: Record<string, string>): Record<string, string[]> {
   const res: Record<string, string[]> = {};
   for (const [name, items] of Object.entries(seqs)) {
     // items may be an array of strings or structured SequenceItem objects
-    const expanded = expandSequenceItems(items as any, pats, insts);
+    const expanded = expandSequenceItems(items as any, pats, insts, undefined, presets);
     res[name] = expanded;
   }
   return res;

@@ -4,8 +4,8 @@
  * semitone transposition, and inst(name) override which is emitted as an
  * `inst(name)` token preceding the pattern tokens).
  */
-export declare function expandSequenceItems(items: string[], pats: Record<string, string[]>): string[];
-export declare function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>): Record<string, string[]>;
+export declare function expandSequenceItems(items: string[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>, presets?: Record<string, string>): string[];
+export declare function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>, insts?: Record<string, any>, presets?: Record<string, string>): Record<string, string[]>;
 declare const _default: {
     expandSequenceItems: typeof expandSequenceItems;
     expandAllSequences: typeof expandAllSequences;

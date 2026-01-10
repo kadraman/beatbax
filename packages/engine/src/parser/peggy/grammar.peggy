@@ -59,6 +59,7 @@ Statement
   / TicksPerStepStmt
   / SongMetaStmt
   / InstStmt
+  / EffectStmt
   / PatStmt
   / SeqStmt
   / ArrangeStmt
@@ -118,6 +119,11 @@ ExportStmt
 InstStmt
   = $("inst" !IdentChar) __ name:Identifier __ rhs:RestOfLine {
       return { nodeType: "InstStmt", name, rhs, loc: loc(location()) };
+    }
+
+EffectStmt
+  = $("effect" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
+      return { nodeType: "EffectStmt", name, rhs, loc: loc(location()) };
     }
 
 PatStmt
@@ -389,6 +395,7 @@ ReservedWord
   / $("pat" !IdentChar)
   / $("seq" !IdentChar)
   / $("channel" !IdentChar)
+  / $("effect" !IdentChar)
   / $("play" !IdentChar)
   / $("export" !IdentChar)
 
