@@ -1,5 +1,5 @@
 ## Demo: Vibrato (vib) effect examples
-## Exercises inlin## Exercises inline `vib` parameters and vibrato on different instruments
+## Exercises inline `vib` parameters and vibrato on different instruments
 ## Play: node bin/beatbax play songs/vib_effect_demo.bax --headless
 
 chip gameboy

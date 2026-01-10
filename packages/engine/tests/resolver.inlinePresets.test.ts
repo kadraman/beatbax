@@ -1,7 +1,5 @@
 import { parse } from '../src/parser/index.js';
 import { resolveSong } from '../src/song/resolver.js';
-import fs from 'fs';
-import path from 'path';
 
 test('inline preset name expands to preset RHS', () => {
   const src = 'effect wobble = vib:4,8,sine,4\npat p = C5<wobble>\nchannel 1 => inst lead pat p\n';
