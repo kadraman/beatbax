@@ -14,7 +14,7 @@ function ensureFileExists(file: string) {
   }
 }
 
-function validateSource(src: string): ValidationResult {
+function validateSource(src: string, filename?: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -28,7 +28,14 @@ function validateSource(src: string): ValidationResult {
     );
   }
 
-  const ast = parse(src);
+  let ast: any;
+  try {
+    ast = parse(src);
+  } catch (parseErr: any) {
+    const formattedError = filename ? formatParseError(parseErr, filename) : extractErrorMessage(parseErr);
+    errors.push(formattedError);
+    return { errors, warnings, ast: null as any };
+  }
 
   // Validate channels and instruments
   for (const ch of ast.channels || []) {
@@ -120,6 +127,23 @@ function extractErrorMessage(err: any, preferStack = false): string {
   try { return String(err); } catch (_) { return '[unserializable error]'; }
 }
 
+// Helper to format parse errors with file location information
+function formatParseError(err: any, filename: string): string {
+  if (!err) return `Error parsing ${filename}: Unknown error`;
+
+  const message = err.message || String(err);
+
+  // Check if this is a Peggy parser error with location information
+  if (err.location && err.location.start) {
+    const line = err.location.start.line;
+    const column = err.location.start.column;
+    return `Error parsing ${filename} at line ${line}, column ${column}: ${message}`;
+  }
+
+  // Fallback for other errors
+  return `Error parsing ${filename}: ${message}`;
+}
+
 const program = new Command();
 
 program
@@ -150,7 +174,7 @@ program
     // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings } = validateSource(src);
+    const { errors, warnings } = validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e);
@@ -202,7 +226,14 @@ program
         );
       }
 
-      const ast = parse(src);
+      let ast: any;
+      try {
+        ast = parse(src);
+      } catch (parseErr: any) {
+        console.error(formatParseError(parseErr, file));
+        process.exitCode = 2;
+        return;
+      }
 
       if (verbose) {
         console.log('  Source parsed successfully');
@@ -369,7 +400,7 @@ program
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings, ast } = validateSource(src);
+    const { errors, warnings, ast } = validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e);
