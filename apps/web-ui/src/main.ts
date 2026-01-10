@@ -2,6 +2,25 @@ import { parse } from '@beatbax/engine/parser';
 import Player from '@beatbax/engine/audio/playback';
 import { resolveSong } from '@beatbax/engine/song/resolver';
 
+// Helper to format parse errors with file location information
+function formatParseError(err: any, filename?: string): string {
+  if (!err) return `Parse error: Unknown error`;
+  
+  const message = err.message || String(err);
+  
+  // Check if this is a Peggy parser error with location information
+  if (err.location && err.location.start) {
+    const line = err.location.start.line;
+    const column = err.location.start.column;
+    const prefix = filename ? filename : 'source';
+    return `Parse error in ${prefix} at line ${line}, column ${column}: ${message}`;
+  }
+  
+  // Fallback for other errors
+  const prefix = filename ? ` in ${filename}` : '';
+  return `Parse error${prefix}: ${message}`;
+}
+
 // Core demo wiring (adapted from demo/boot.ts)
 console.log('[web-ui] main module loaded');
 const fileInput = document.getElementById('file') as HTMLInputElement | null;
@@ -190,7 +209,8 @@ playBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'Playing');
   } catch (e: any) {
     console.error('[web-ui] Play handler error', e);
-    status && (status.textContent = 'Error: ' + (e && e.message ? e.message : String(e)));
+    const errorMsg = formatParseError(e);
+    status && (status.textContent = errorMsg);
   }
 });
 
@@ -224,7 +244,11 @@ applyBtn?.addEventListener('click', async () => {
     console.log('[web-ui] apply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
-  } catch (e: any) { console.error(e); status && (status.textContent = 'Error: ' + (e && e.message ? e.message : String(e))); }
+  } catch (e: any) { 
+    console.error(e); 
+    const errorMsg = formatParseError(e);
+    status && (status.textContent = errorMsg);
+  }
 });
 
 exportWavBtn?.addEventListener('click', async () => {
@@ -296,7 +320,8 @@ exportWavBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'WAV exported!');
   } catch (e: any) {
     console.error('Export error:', e);
-    status && (status.textContent = 'Export error: ' + (e && e.message ? e.message : String(e)));
+    const errorMsg = formatParseError(e);
+    status && (status.textContent = errorMsg);
   }
 });
 
