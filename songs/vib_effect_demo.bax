@@ -13,6 +13,13 @@ inst bass  type=pulse2 duty=25 env=10,down
 inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 inst sn    type=noise  env=12,down
 
+## Named preset: `wobble` defines a reusable vibrato preset
+## (demonstrates applying the preset via `:wobble` and inline `<wobble>`)
+effect wobble = vib:4,8,sine,4
+
+## Simple melody - no effects
+pat no_effect_pat = C5:4 . C5:4 . E5:4 . G5:4 .
+
 ## Simple melody showcasing inline vibrato: <vib:depth,rate>
 pat vib_melody = C5<vib:3,6,,2>:8 D5<vib:4,8,,4>:8 E5<vib:2,10,,4>:8 G5<vib:6,5,,2>:8
 
@@ -25,11 +32,12 @@ pat vib_bass = C3<vib:8,3> . G2<vib:8,3> . C3<vib:8,3> . G2<vib:8,3>
 ## Pattern combining wave instrument with a longer vib on sustained notes
 pat wave_vib = inst wave1 C5<vib:6,4>:8 . .
 
-seq main = vib_melody #wobble_line vib_bass wave_vib
+## Wobble effect applied to first and last note via named preset
+pat inline_effect_pat = C5<wobble>:4 . C5:4 . E5:4 . G5<wobble>:4 .
 
-channel 1 => inst lead seq main
-#channel 2 => inst bass seq main:oct(-1)
-#channel 3 => inst wave1 seq main
-#channel 4 => inst sn   seq main
+## change/uncomment the various sequences as required
+seq wobble_seq = vib_melody # no_effect_pat:wobble inline_effect_pat vib_melody:wobble inline_effect_pat:wobble
+
+channel 1 => inst lead seq wobble_seq
 
 play
