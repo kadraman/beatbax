@@ -131,6 +131,10 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 					const rate = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
 					const shape = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
 					ev.effectMeta.push({ type: 'vib', depth: Number.isFinite(depth) ? depth : undefined, rate: Number.isFinite(rate) ? rate : undefined, shape: shape });
+				} else if (t === 'port' || t === 'portamento') {
+					const speed = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : undefined;
+					const duration = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
+					ev.effectMeta.push({ type: 'port', speed: Number.isFinite(speed) ? speed : undefined, duration: Number.isFinite(duration) ? duration : undefined });
 				} else {
 					// Generic passthrough for unknown effects
 					ev.effectMeta.push({ type: fx.type, params: fx.params });

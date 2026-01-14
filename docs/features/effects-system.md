@@ -480,8 +480,47 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - The UGE writer contains gated debug logging for these operations; enable with the CLI `--debug` flag to see mapping, computed global rows, and injected `E` entries during export.
 
 - Portamento (`port`)
-  - hUGETracker mapping: Prefer `3xx` (tone portamento) to slide toward the target note using per-tick rate xx. Use `1xx`/`2xx` (slide up/down) for relative slide steps if needed.
-  - Export strategy: Convert target note to pitch delta units used by hUGETracker and compute xx per-tick to reach target in the desired time. If the BeatBax port uses curves, approximate by stepping xx values across rows or bake when precise curve is required.
+  - hUGETracker mapping: `3xx` (tone portamento) — slides toward the target note/frequency using per-tick rate xx (0-255). BeatBax maps this effect after calculating semitone deltas and timing.
+  - Parameters (BeatBax `port`):
+    - `speed` (required): portamento speed in tracker units (0-255). Higher values = faster slide.
+  - Language examples:
+
+```bax
+pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
+```
+
+  - **Legato behavior (v0.1.0+)**: Notes with portamento automatically use **legato mode** — the envelope continues without retriggering, creating a smooth slide between pitches. This matches tracker semantics where tone portamento (3xx) does not retrigger the note.
+    - Example: `C4:4 C5<port:12>:4 C6:4` produces ONE continuous note that slides from C4 → C5 → C6, with envelope retriggering only on C6 (which has no portamento).
+    - The `:4` duration specifies how long each pitch is held, while `<port:12>` controls the slide speed.
+    - **Envelope sustain**: The envelope from the first note is sustained at its current level for all subsequent legato notes, preventing volume decay during slides.
+    - Example with decay envelope: `inst lead duty=50 env=15,down` + `C4:4 C5<port:12>:4 C6<port:12>:4` will start with envelope attack/decay on C4, then sustain at that level while sliding to C5 and C6.
+
+  - Runtime/Resolver semantics:
+    - WebAudio path: `src/effects/index.ts` implements portamento by scheduling exponential frequency ramps on `OscillatorNode.frequency` (or equivalent). State is tracked per-channel (Map<channelId, lastFreq>) to support slides across rests.
+    - State management: `clearEffectState()` is called on playback stop to prevent frequency state from persisting across playback sessions.
+    - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies portamento with cubic smoothstep easing and tracks per-channel state for seamless slides across rests.
+
+  - UGE/hUGETracker export behavior:
+    - BeatBax maps `speed` directly to the tracker's `xx` parameter (0-255) and emits `3xx` on note rows.
+    - First-note handling: The exporter skips portamento on the first note of a pattern (using `hasSeenNote` flag) because there's no previous frequency to slide from.
+    - Empty cell handling: Rest, sustain, padding, and empty pattern cells use `instrument: -1` (converted to `relativeInstrument: 0` in UGE) to prevent instrument changes from interfering with portamento effects.
+    - Transpose compatibility: The pattern transpose utility (`transposePattern`) correctly handles notes with effects (e.g., `E3<port:8>` → `E2<port:8>`) by extracting the note, transposing it, and reconstructing the token with effects intact.
+
+  - Implementation references:
+    - WebAudio portamento: `packages/engine/src/effects/index.ts` — frequency ramps and state management.
+    - PCM renderer portamento: `packages/engine/src/audio/pcmRenderer.ts` — cubic smoothstep easing.
+    - UGE writer mapping: `packages/engine/src/export/ugeWriter.ts` — PortamentoHandler, first-note skipping, empty cell fixes.
+    - Pattern transpose fix: `packages/engine/src/patterns/expand.ts` — effect-aware transposition.
+
+  - Testing & demo:
+    - Demo song: `songs/effects/port_effect_demo.bax` includes varied portamento speeds, bass patterns with octave modifiers, and comprehensive effect combinations.
+    - Validated behaviors: Runtime playback (WebAudio), PCM rendering (WAV export), UGE export (hUGETracker v6), and transpose operations all working correctly.
+
+  - Known limitations and fixes applied:
+    - ✅ Fixed: Portamento state no longer persists across playback sessions (clearEffectState on stop).
+    - ✅ Fixed: First note in patterns no longer receives portamento effect in UGE export.
+    - ✅ Fixed: Transpose operations now handle notes with inline effects correctly.
+    - ✅ Fixed: Empty UGE cells (rest/sustain/padding/empty patterns) use instrument: -1 to prevent interference.
 
 - Arpeggio (`arp`)
   - hUGETracker mapping: `0xy` (Arpeggio). The tracker cycles between base note, +x, +y semitones. hUGETracker supports 2 offsets; longer arpeggios must be expanded.
@@ -799,7 +838,7 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [ ] Create effect application functions in audio backend
 - [x] Add panning implementation
 - [ ] Add vibrato implementation
-- [ ] Add portamento implementation
+- [x] Add portamento implementation
 - [ ] Add arpeggio implementation
 - [ ] Add volume slide implementation
 - [ ] Add pitch bend implementation

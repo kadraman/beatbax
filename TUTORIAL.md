@@ -89,6 +89,61 @@ pat stereo = C5<pan=-1.0> E5<pan=0.0> G5<pan=1.0> C6<gb:pan:L>
 seq bass_seq = bassline bassline:pan(gb:R) bassline bassline:pan(1.0)
 ```
 
+### Portamento (pitch slide)
+Portamento creates a smooth pitch glide between notes, commonly used in bass lines and melodic phrases.
+
+**Syntax**
+- `<port:speed>` — slide to the current note's pitch from the previous note's pitch (legato, no retrigger)
+- `speed`: portamento speed (0-255, higher = faster slide)
+
+**Behavior**
+- Portamento slides from the last played frequency to the target note's frequency
+- **Legato mode**: Notes with portamento do NOT retrigger the envelope, creating one continuous sound
+- State is tracked per-channel, so portamento works correctly across rests and sustains
+- First note in a pattern never receives portamento (no previous pitch to slide from)
+- The duration (`:N`) specifies how long the pitch is held, while `<port:speed>` controls slide speed
+
+**Examples**
+```bax
+# Basic portamento bass line (each portamento note continues the previous envelope)
+inst bass type=pulse2 duty=25 env=10,down
+pat port_bass = C3 . E3<port:8> . G3<port:8> . C4<port:8> .
+
+# Continuous legato slide (ONE note sliding through pitches)
+pat legato_slide = C4:4 C5<port:12>:4 C6<port:12>:4 C5<port:12>:4
+
+# Varying portamento speeds
+pat melody = C4 E4<port:4> G4<port:8> C5<port:16>
+
+# Portamento with octave transpose
+pat bass_line = C3 . E3<port:8> . G3<port:8> .
+seq bass_seq = bass_line:oct(-1)  # Transposes correctly with effects
+
+# Fast portamento for glide effects
+pat glide = C4 C5<port:32> C4<port:32> C5<port:32>
+```
+
+**Export behavior**
+- **UGE (hUGETracker)**: Exports as `3xx` (tone portamento) effect with speed mapped directly to `xx` parameter
+- **MIDI**: Exports as text metadata in track events
+- **JSON**: Includes `port` effect with `speed` parameter in the ISM
+- **WAV**: Rendered with cubic smoothstep easing for natural-sounding pitch curves
+
+**Common patterns**
+```bax
+# Smooth bass slides
+pat bass1 = C2 . E2<port:6> . G2<port:6> . C3<port:6> .
+pat bass2 = C2 . C3<port:12> C2<port:12> .
+
+# Melodic portamento (slower for expressiveness)
+pat lead = C5 . E5<port:4> . G5<port:4> . E5<port:4> .
+
+# Fast glissando effect
+pat gliss = C4 G4<port:32> C5<port:32> G5<port:32>
+```
+
+See `songs/effects/port_effect_demo.bax` for a complete working example.
+
 **Tempo & Per-Channel Speed**
 
 - Set a master tempo with a top-level directive: `bpm 128` or `bpm=128`.

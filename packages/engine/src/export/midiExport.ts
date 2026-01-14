@@ -214,15 +214,21 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 			if (ev.type === 'note' || ev.type === 'named') {
 				const token = String(ev.token || '');
 
-				// If this event has vibrato effects, emit a MIDI text meta event describing it
+				// If this event has effects (vibrato, portamento), emit MIDI text meta events describing them
 				if (Array.isArray(ev.effects)) {
 					for (const fx of ev.effects) {
-						if (fx && String(fx.type).toLowerCase() === 'vib') {
+						const fxType = String(fx.type).toLowerCase();
+						if (fxType === 'vib') {
 							const depth = (Array.isArray(fx.params) && fx.params.length > 0) ? fx.params[0] : undefined;
 							const rate = (Array.isArray(fx.params) && fx.params.length > 1) ? fx.params[1] : undefined;
 							const shape = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
 							pushMetaText(data, delta, `vib:depth=${depth !== undefined ? depth : ''},rate=${rate !== undefined ? rate : ''},shape=${shape !== undefined ? shape : ''}`);
-							// reset delta since we consumed it for the meta event
+							delta = 0;
+							break;
+						} else if (fxType === 'port') {
+							const speed = (Array.isArray(fx.params) && fx.params.length > 0) ? fx.params[0] : undefined;
+							const duration = (Array.isArray(fx.params) && fx.params.length > 1) ? fx.params[1] : undefined;
+							pushMetaText(data, delta, `port:speed=${speed !== undefined ? speed : ''},duration=${duration !== undefined ? duration : ''}`);
 							delta = 0;
 							break;
 						}

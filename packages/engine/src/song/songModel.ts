@@ -23,6 +23,7 @@ export interface NoteEvent {
   instProps?: Record<string, string> | undefined;
   pan?: Pan;
   effects?: Effect[];
+  legato?: boolean; // true if note should not retrigger envelope (portamento/legato)
 }
 
 export interface RestEvent {

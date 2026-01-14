@@ -34,9 +34,15 @@ register('pan', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   }
 });
 
+// Clear all effect state (called when playback stops/resets)
+export const clearEffectState = () => {
+  portamentoLastFreq.clear();
+};
+
 export const registryAPI: EffectRegistry = {
   register,
   get,
+  clearEffectState,
 };
 
 export default registryAPI;
@@ -111,4 +117,64 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     // Best-effort only; if the environment doesn't support oscillator-based modulation
     // or connections fail, silently skip vibrato.
   }
+});
+
+// Portamento effect: smoothly slide the oscillator frequency from the previous
+// note's pitch to the current note's pitch. Parameters:
+//  - params[0]: speed (0-255, where higher = faster slide)
+//
+// For Game Boy: speed parameter maps to hUGETracker's 3xx tone portamento,
+// where higher values mean faster pitch transitions.
+//
+// Implementation: We track the last frequency per channel (not per oscillator)
+// so portamento works correctly across rests and pattern boundaries.
+const portamentoLastFreq = new Map<number, number>();
+
+register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number) => {
+  if (!nodes || nodes.length === 0) return;
+  const osc = nodes[0];
+  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+
+  const speedRaw = params && params.length > 0 ? Number(params[0]) : 16;
+  const speed = Number.isFinite(speedRaw) ? Math.max(1, Math.min(255, speedRaw)) : 16;
+
+  // Get the target frequency (the current note's pitch)
+  let targetFreq = osc.frequency.value;
+  if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
+
+  // Get the previous note's frequency for this channel
+  // Use channel ID (defaults to 0 if not provided for backward compatibility)
+  const channelKey = chId ?? 0;
+  const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
+
+  // Speed scaling: higher speed = shorter portamento time
+  // Map speed [1..255] to portamento duration
+  // Lower speed = longer slide, higher speed = shorter slide
+  const portDuration = Math.max(0.001, (256 - speed) / 256 * dur * 0.6);
+
+  try {
+    // Cancel any existing frequency automation
+    osc.frequency.cancelScheduledValues(start);
+    // Set starting frequency (previous note or current if first note)
+    osc.frequency.setValueAtTime(lastFreq, start);
+
+    if (Math.abs(targetFreq - lastFreq) > 1) {
+      // Only apply portamento if there's a significant frequency difference
+      const safeTarget = Math.max(20, Math.min(20000, targetFreq));
+      try {
+        // Exponential ramp sounds more musical for pitch changes
+        osc.frequency.exponentialRampToValueAtTime(safeTarget, start + portDuration);
+      } catch (e) {
+        // Fallback to linear if exponential fails (e.g., if lastFreq is too close to 0)
+        osc.frequency.linearRampToValueAtTime(safeTarget, start + portDuration);
+      }
+      // Hold target frequency for remainder of note
+      osc.frequency.setValueAtTime(safeTarget, start + portDuration);
+    }
+  } catch (e) {
+    // Best effort - skip portamento if automation fails
+  }
+
+  // Store this frequency for the next note on this channel
+  portamentoLastFreq.set(channelKey, targetFreq);
 });

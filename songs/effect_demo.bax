@@ -1,0 +1,57 @@
+chip gameboy
+
+# Top-level directives
+#  - `chip <name>`: select audio backend (default: gameboy).
+#  - `bpm <n>`: tempo in beats per minute (default: 120).
+#  - `time` / `stepsPerBar`, `ticksPerStep`: see docs for advanced timing.
+
+bpm 128
+
+
+# Instruments
+#  - `inst <name> type=<pulse1|pulse2|wave|noise>`: define instrument.
+#  - Common fields: `env=<n[,up|down]>` (envelope strength and direction),
+#    `pan=<L|R|C|numeric>` (default channel pan), `duty=<percent>` (for pulses),
+#    `wave=[...]` (for wave channel), etc.
+inst lead type=pulse1 env=15,up duty=75
+
+# Patterns and tokens
+#  - `pat <name> = <tokens>` where tokens are notes (C3..B8), rests `.`,
+#    sustain `_`/`-`, named hits `hit(name,N)`, inline inst changes `inst(name,N)`,
+#    and inline effect blocks using `<...>` after a note or token.
+#  - Inline pan examples: `C4<pan:-1.0>` or `C4<pan:L>` or namespaced `C4<gb:pan:R>`.
+
+# Inline effects: general form inside angle brackets is comma-separated parts:
+#   <effectA:params, effectB:params, pan:...>
+#  - Positional parameters are preserved, so you can include empty slots
+#    to skip a parameter (e.g. `vib:3,6,,4`).
+
+# `vib` (vibrato) parameters
+#  Syntax: `vib:depth,rate[,shape][,durationRows]`
+#   - `depth` (required when present): numeric amount of pitch modulation
+#     (higher = stronger vibrato). Typical small integers (e.g. 1–7) are common.
+#   - `rate` (optional): numeric speed of vibrato (units are engine-specific;
+#     exported to UGE/MIDI as the vibrato rate). If omitted, a default rate
+#     may be used by the player/exporter.
+#   - `shape` (optional): optional waveform/shape identifier (string or number).
+#     Leave empty if you want to provide a `durationRows` but keep `shape` default.
+#   - `durationRows` (optional, positional 4th param): number of pattern rows
+#     the vibrato should explicitly last. If omitted the vibrato continues for
+#     the full note (or until a sustain/stop). The resolver converts this to
+#     seconds using the current `bpm` and the engine's tick resolution.
+#  Examples:
+#   - `C4<vib:3,5>`        => depth=3, rate=5, default shape, full-note duration
+#   - `C4<vib:3,6,,4>`     => depth=3, rate=6, default shape, duration=4 rows
+#   - `C4<vib:4>`          => depth=4 only (rate/shape unspecified)
+#
+# Notes on implementation/exports:
+#  - The parser preserves positional empty parameters so `vib:3,6,,4` keeps
+#    the empty 3rd slot. The resolver normalizes a 4th positional param to a
+#    `durationSec` on the effect object (based on `bpm`).
+#  - When exporting to hUGETracker (`.UGE`) the engine maps `vib` into the
+#    appropriate tracker effect (e.g. UGE 4xy mapping). MIDI export emits
+#    a text meta event describing `vib` parameters.
+
+pat vib_pat = C4<vib:2,2,,4>:8 D4<vib:3,1,,4>:8
+
+channel 1 => inst lead pat vib_pat

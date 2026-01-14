@@ -52,6 +52,24 @@ Instrument semantics
   - Metadata: exporter no longer appends an `[NR51=0x..]` tag to the UGE comment; use JSON export for round-trip metadata if needed.
 - Tests: new tests cover parser pan parsing, sequence-level pan application, buffered/PCM rendering panning behavior, UGE NR51 mapping and emission policy, and regression tests ensuring no redundant 8xx writes on sustain rows.
 
+## Portamento — implementation notes
+- Parsing & AST: `parseEffects` recognizes `port` tokens with speed parameter (0-255). Inline `port` effects are attached to `NoteToken.effects`.
+- Runtime semantics:
+  - WebAudio playback: `src/effects/index.ts` implements frequency automation using exponential ramps. Per-channel state tracking (Map<channelId, lastFreq>) enables smooth slides across rests.
+  - State management: `clearEffectState()` function clears all effect state on playback stop to prevent frequency persistence across sessions.
+  - PCM renderer: `src/audio/pcmRenderer.ts` applies cubic smoothstep easing for portamento with per-channel state tracking for consistent behavior across rests.
+- UGE exporter:
+  - Effect mapping: Maps to hUGETracker's `3xx` (tone portamento) opcode with speed parameter directly mapped to `xx` (0-255).
+  - First-note handling: Uses `hasSeenNote` flag to skip portamento on the first note of a pattern (no previous frequency to slide from).
+  - Empty cell handling: Rest, sustain, padding, and empty pattern cells use `instrument: -1` (converted to `relativeInstrument: 0`) to prevent unwanted instrument changes that interfere with portamento.
+- Pattern operations: `transposePattern` utility correctly handles notes with inline effects by extracting the note, transposing it, and reconstructing the token with effects intact (e.g., `E3<port:8>` → `E2<port:8>`).
+- Testing: Comprehensive demo in `songs/effects/port_effect_demo.bax` validates WebAudio playback, PCM rendering, UGE export, and transpose operations.
+- Fixed issues:
+  - Portamento state persistence across playback sessions (now cleared on stop).
+  - First-note portamento in UGE exports (now skipped correctly).
+  - Transpose only affecting first note when effects present (now handles all notes).
+  - Empty UGE cells having instrument values that interfered with effects (now use -1).
+
 - Immediate hits / shorthand: `hit(name,N)` emits N immediate named hits. `name*4` shorthand has been added as a concise equivalent to `hit(name,4)`. `inst(name,N)` continues to be a temporary override for upcoming non-rest notes, but as a convenience it now emits immediate hits when there are no future event-producing tokens in the same pattern.
 
 Testing
