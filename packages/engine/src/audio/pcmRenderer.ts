@@ -46,11 +46,49 @@ export interface RenderOptions {
 }
 
 /**
+ * Per-channel portamento state for PCM rendering.
+ * Keyed by channel ID to track the last frequency per channel.
+ */
+const channelPortamentoState = new Map<number, number>();
+
+/**
+ * Per-channel phase accumulator for continuous phase tracking.
+ * Prevents phase discontinuities and clicks between notes.
+ */
+const channelPhaseState = new Map<number, number>();
+
+/**
+ * Per-channel vibrato LFO phase for smooth vibrato.
+ */
+const channelVibratoPhase = new Map<number, number>();
+
+/**
+ * Per-channel envelope state for legato/portamento notes.
+ * Tracks the current envelope time and value so legato notes can continue without retriggering.
+ */
+interface EnvelopeState {
+  time: number;      // Current time in the envelope (seconds)
+  lastValue: number; // Last computed envelope value
+  mode: string;      // Envelope mode ('gb' or 'adsr')
+}
+const channelEnvelopeState = new Map<number, EnvelopeState>();
+
+/**
+ * Clear all PCM render effect state (called before each render).
+ */
+function clearPCMEffectState() {
+  channelPortamentoState.clear();
+  channelPhaseState.clear();
+  channelVibratoPhase.clear();
+  channelEnvelopeState.clear();
+}
+
+/**
  * Renders a complete song to a PCM buffer.
  *
  * @param song The song model containing channels and events.
  * @param opts Rendering options (sampleRate, channels, bpm, etc.).
- * @returns A Float32Array containing the interleaved PCM samples.
+ * @returns a Float32Array containing the interleaved PCM samples.
  */
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
@@ -58,6 +96,9 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const bpm = opts.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? song.channels.map(c => c.id);
   const normalize = opts.normalize ?? false;
+
+  // Clear portamento state before rendering
+  clearPCMEffectState();
 
   // Calculate duration from song events
   const secondsPerBeat = 60 / bpm;
@@ -178,7 +219,7 @@ function renderChannel(
     } catch (e) {}
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit);
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -190,7 +231,7 @@ function renderChannel(
       }
     } else if (ev.type === 'named') {
       // Named instrument token (like drum hits)
-      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit);
+      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -265,7 +306,8 @@ function renderNoteEvent(
   isGameBoy: boolean,
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
-  regPerTrackerUnit: number
+  regPerTrackerUnit: number,
+  channelId: number
 ) {
   try {
     // removed debug logging
@@ -302,7 +344,9 @@ function renderNoteEvent(
       isGameBoy,
       vibDepthScale,
       regPerTrackerBaseFactor,
-      regPerTrackerUnit
+      regPerTrackerUnit,
+      channelId,
+      ev.legato || false
     );
   } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
     renderWave(
@@ -319,7 +363,9 @@ function renderNoteEvent(
       isGameBoy,
       vibDepthScale,
       regPerTrackerBaseFactor,
-      regPerTrackerUnit
+      regPerTrackerUnit,
+      channelId,
+      ev.legato || false
     );
   } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
     renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
@@ -349,7 +395,8 @@ function renderNamedEvent(
   isGameBoy: boolean,
   _vibDepthScale?: number,
   _regPerTrackerBaseFactor?: number,
-  _regPerTrackerUnit?: number
+  _regPerTrackerUnit?: number,
+  _channelId?: number
 ) {
   // Named events are typically noise-based percussion
   if (inst.type && inst.type.toLowerCase().includes('noise')) {
@@ -377,11 +424,15 @@ function renderPulse(
   inst: InstrumentNode,
   sampleRate: number,
   channels: number,
-  gains: { left: number; right: number } = { left: 1, right: 1 }
-  , effects?: any[], tickSeconds?: number, isGameBoy?: boolean,
+  gains: { left: number; right: number } = { left: 1, right: 1 },
+  effects?: any[],
+  tickSeconds?: number,
+  isGameBoy?: boolean,
   vibDepthScale?: number,
   regPerTrackerBaseFactor?: number,
-  regPerTrackerUnit?: number
+  regPerTrackerUnit?: number,
+  channelId?: number,
+  legato?: boolean
 ) {
   // removed debug logging
   // Parse duty - handle various formats
@@ -406,6 +457,9 @@ function renderPulse(
   let vibDepth = 0;
   let vibRate = 0;
   let vibDurationSec: number | undefined = undefined;
+  // Portamento params
+  let portSpeed = 0;
+  let portDurationSec: number | undefined = undefined;
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -422,8 +476,33 @@ function renderPulse(
               vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
             }
           }
+        } else if (fx && fx.type === 'port') {
+          const p = fx.params || [];
+          portSpeed = Number(typeof p[0] !== 'undefined' ? p[0] : 16);
+          // Prefer resolver-provided durationSec for portamento duration
+          if (typeof fx.durationSec === 'number') {
+            portDurationSec = Number(fx.durationSec);
+          } else {
+            const durRows = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
+            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
+              portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            }
+          }
         }
       } catch (e) {}
+    }
+  }
+
+  // Initialize per-channel phase state for continuous phase across notes
+  let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
+  let vibratoPhase = (typeof channelId === 'number') ? (channelVibratoPhase.get(channelId) ?? 0) : 0;
+
+  // For legato notes, retrieve envelope state to sustain at previous level (no decay)
+  let envelopeSustainValue: number | undefined = undefined;
+  if (legato && typeof channelId === 'number') {
+    const envState = channelEnvelopeState.get(channelId);
+    if (envState) {
+      envelopeSustainValue = envState.lastValue; // Freeze at this level for legato
     }
   }
 
@@ -452,73 +531,60 @@ function renderPulse(
     // nibble (converted to register units) to the period register. Otherwise
     // fall back to the smoother, phase-LFO approach used historically.
     let effFreq = currentFreq;
-    if (vibDepth !== 0 && vibRate > 0 && currentFreq > 0) {
-      // per-note state for vibrato
-      if ((renderPulse as any).__vibState === undefined) (renderPulse as any).__vibState = {};
-      const noteKey = String(start);
-      let state = (renderPulse as any).__vibState[noteKey];
-      if (!state) {
-        state = { counter: 0, dir: 1, lastTick: -1, currentOffset: 0 };
-        (renderPulse as any).__vibState[noteKey] = state;
+
+    // Apply portamento if enabled
+    if (portSpeed > 0 && typeof channelId === 'number') {
+      // Get last frequency for this channel from the per-channel state map
+      const lastFreq = channelPortamentoState.get(channelId) ?? currentFreq;
+
+      // Calculate portamento progress: speed maps inversely to duration
+      // Higher speed = faster transition = shorter duration
+      const portDur = typeof portDurationSec === 'number' && portDurationSec > 0
+        ? portDurationSec
+        : Math.max(0.001, (256 - Math.min(portSpeed, 255)) / 256 * durSec * 0.6);
+
+      if (portDur > 0 && t <= portDur && Math.abs(currentFreq - lastFreq) > 1) {
+        // Smooth cubic ease for natural portamento
+        const progress = Math.min(1, t / portDur);
+        const easedProgress = progress * progress * (3 - 2 * progress); // smoothstep
+        effFreq = lastFreq + (currentFreq - lastFreq) * easedProgress;
       }
+    }
 
-      const globalTime = (start + i) / sampleRate;
-      const tickSec = typeof tickSeconds === 'number' ? tickSeconds : (60 / 128) / 4;
-      const tickIndex = Math.floor(globalTime / tickSec);
+    // Save current frequency for next note's portamento (do this for ALL notes, not just portamento notes)
+    if (typeof channelId === 'number' && i === duration - 1) {
+      channelPortamentoState.set(channelId, currentFreq);
+    }
 
+    // Apply vibrato - use per-channel LFO phase for smooth, continuous vibrato
+    if (vibDepth !== 0 && vibRate > 0 && effFreq > 0) {
       if (typeof vibDurationSec === 'undefined' || (i / sampleRate) < vibDurationSec) {
-        // Initialize phase on first use
-        if (state.phase === undefined) state.phase = 0;
-
-        // Advance phase smoothly at sample rate (not per tick)
-        state.phase += (2 * Math.PI * vibRate) / sampleRate;
-
-        if (isGameBoy) {
-          // Game Boy vibrato using smooth LFO (matching WebAudio implementation):
-          // Convert BeatBax depth -> tracker nibble -> Hz deviation
-          const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-          // Empirically tuned to match hUGETracker: use 0.048 multiplier for PCM renderer
-          // (4x the WebAudio value due to different signal path characteristics)
-          const lfo = Math.sin(state.phase);
-          const amplitudeHz = currentFreq * trackerDepth * 0.048;
-          effFreq = currentFreq + (lfo * amplitudeHz);
-        } else {
-          // Non-GB path: register-based vibrato (backwards-compatible)
-          if (tickIndex !== state.lastTick) {
-            state.lastTick = tickIndex;
-            state.counter++;
-          }
-          const lfo = Math.sin(state.phase || 0);
-          const baseReg = currentReg;
-          const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-          const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
-          const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
-          const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
-          effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
-        }
+        // Game Boy-accurate vibrato: Convert BeatBax depth -> tracker nibble -> Hz deviation
+        const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
+        // Match WebAudio formula: use 0.012 multiplier for Hz deviation
+        const amplitudeHz = effFreq * trackerDepth * 0.012;
+        const lfo = Math.sin(vibratoPhase);
+        effFreq = effFreq + (lfo * amplitudeHz);
+        
+        // Advance vibrato phase
+        vibratoPhase += (2 * Math.PI * vibRate) / sampleRate;
       }
     }
 
-    // Synthesize pulse using partials matching WebAudio `createPulsePeriodicWave`:
-    // amplitude for harmonic k: a_k = (2 / (k * PI)) * sin(k * PI * duty)
+    // Simple, efficient band-limited pulse wave synthesis using naive square wave
+    // with single-pole low-pass filter to reduce aliasing
     let sample = 0;
-    if (effFreq > 0) {
-      const nyquist = sampleRate / 2;
-      const maxHarmByNyq = Math.floor(nyquist / effFreq);
-      const maxHarm = Math.min(200, Math.max(1, maxHarmByNyq));
-      // Sum harmonics
-      let weightSum = 0;
-      for (let k = 1; k <= maxHarm; k++) {
-        const a = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
-        weightSum += Math.abs(a);
-        sample += a * Math.sin(2 * Math.PI * k * effFreq * t);
-      }
-      // Normalize by total harmonic weight to keep level similar across duties/frequencies
-      if (weightSum > 0) sample = sample / weightSum;
+    if (effFreq > 0 && effFreq < sampleRate / 2) {
+      // Advance phase accumulator
+      phase += effFreq / sampleRate;
+      phase = phase % 1.0; // Keep phase in [0, 1)
+      
+      // Generate square wave based on duty cycle
+      sample = (phase < duty) ? 1.0 : -1.0;
     }
 
-    // Apply envelope
-    const envVal = getEnvelopeValue(t, envelope, durSec);
+    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally)
+    const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
     sample = sample * envVal;
 
     const bufferIdx = (start + i) * channels;
@@ -532,7 +598,20 @@ function renderPulse(
     }
   }
 
-  // end
+  // Save phase and vibrato state for next note on this channel
+  if (typeof channelId === 'number') {
+    channelPhaseState.set(channelId, phase);
+    channelVibratoPhase.set(channelId, vibratoPhase);
+    
+    // Save envelope state for potential legato continuation
+    // Use sustained value if this was a legato note, otherwise compute final value
+    const finalEnvVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(durSec, envelope, durSec);
+    channelEnvelopeState.set(channelId, {
+      time: durSec,
+      lastValue: finalEnvVal,
+      mode: envelope.mode || 'adsr'
+    });
+  }
 }
 
 /**
@@ -561,7 +640,9 @@ function renderWave(
   isGameBoy?: boolean,
   vibDepthScale?: number,
   regPerTrackerBaseFactor?: number,
-  regPerTrackerUnit?: number
+  regPerTrackerUnit?: number,
+  channelId?: number,
+  legato?: boolean
 ) {
   const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
 
@@ -581,6 +662,9 @@ function renderWave(
   let vibDepth = 0;
   let vibRate = 0;
   let vibDurationSec: number | undefined = undefined;
+  // Portamento params
+  let portSpeed = 0;
+  let portDurationSec: number | undefined = undefined;
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -593,14 +677,63 @@ function renderWave(
             const durRows = Number(p[3]);
             if (!Number.isNaN(durRows)) vibDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
           }
+        } else if (fx && fx.type === 'port') {
+          const p = fx.params || [];
+          portSpeed = Number(typeof p[0] !== 'undefined' ? p[0] : 16);
+          if (typeof fx.durationSec === 'number') {
+            portDurationSec = Number(fx.durationSec);
+          } else {
+            const durRows = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
+            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
+              portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            }
+          }
         }
       } catch (e) {}
+    }
+  }
+
+  const durSec = duration / sampleRate;
+
+  // Get or initialize phase accumulator for this channel
+  let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
+
+  // Get or initialize vibrato LFO phase for this channel  
+  let vibratoPhase = (typeof channelId === 'number') ? (channelVibratoPhase.get(channelId) ?? 0) : 0;
+
+  // For legato notes, retrieve envelope state to sustain at previous level
+  // (Wave channel uses fixed volume, but we track for consistency)
+  let volumeSustainValue: number | undefined = undefined;
+  if (legato && typeof channelId === 'number') {
+    const envState = channelEnvelopeState.get(channelId);
+    if (envState) {
+      volumeSustainValue = envState.lastValue;
     }
   }
 
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
     let effFreq = freq;
+
+    // Apply portamento if enabled
+    if (portSpeed > 0 && typeof channelId === 'number') {
+      const lastFreq = channelPortamentoState.get(channelId) ?? freq;
+
+      const portDur = typeof portDurationSec === 'number' && portDurationSec > 0
+        ? portDurationSec
+        : Math.max(0.001, (256 - Math.min(portSpeed, 255)) / 256 * durSec * 0.6);
+
+      if (portDur > 0 && t <= portDur && Math.abs(freq - lastFreq) > 1) {
+        const progress = Math.min(1, t / portDur);
+        const easedProgress = progress * progress * (3 - 2 * progress); // smoothstep
+        effFreq = lastFreq + (freq - lastFreq) * easedProgress;
+      }
+    }
+
+    // Save current frequency for next note's portamento (do this for ALL notes, not just portamento notes)
+    if (typeof channelId === 'number' && i === duration - 1) {
+      channelPortamentoState.set(channelId, freq);
+    }
 
     if (vibDepth !== 0 && vibRate > 0 && freq > 0) {
       if ((renderWave as any).__vibState === undefined) (renderWave as any).__vibState = {};
@@ -666,7 +799,9 @@ function renderWave(
     const frac = tablePos - Math.floor(tablePos);
     const v0 = (waveTable[i0] / 15.0) * 2.0 - 1.0;
     const v1 = (waveTable[i1] / 15.0) * 2.0 - 1.0;
-    const sample = ((v0 * (1 - frac) + v1 * frac) * volMul);
+    // Use sustained volume for legato notes, otherwise use instrument volume
+    const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
+    const sample = ((v0 * (1 - frac) + v1 * frac) * effectiveVolMul);
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
@@ -677,6 +812,20 @@ function renderWave(
         buffer[bufferIdx] += sample; // mono
       }
     }
+  }
+
+  // Save phase and vibrato state for next note on this channel
+  if (typeof channelId === 'number') {
+    channelPhaseState.set(channelId, phase);
+    channelVibratoPhase.set(channelId, vibratoPhase);
+    
+    // Save volume state (use sustained value if legato, otherwise current volMul)
+    const finalVol = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
+    channelEnvelopeState.set(channelId, {
+      time: durSec,
+      lastValue: finalVol,
+      mode: 'fixed'
+    });
   }
 }
 

@@ -190,11 +190,56 @@ const NoteCutHandler: EffectHandler = {
     },
 };
 
+// Portamento effect handler (3xx - Tone portamento)
+const PortamentoHandler: EffectHandler = {
+    type: 'port',
+    priority: 12,
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        if (String(name).toLowerCase() !== 'port') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        // port: speed parameter (0-255, determines how fast the pitch slides)
+        const speedRaw = params.length > 0 ? Number(params[0]) : 16;
+        const speed = Math.max(0, Math.min(255, Math.round(speedRaw)));
+
+        // Parse duration if specified
+        let durationRows = sustainCount + 1; // Default: full note length
+        if (params && params.length > 1 && Number.isFinite(Number(params[1]))) {
+            durationRows = Math.max(1, Math.round(Number(params[1])));
+        } else if ((fx as any).durationSec && Number.isFinite((fx as any).durationSec)) {
+            durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
+        }
+
+        return {
+            type: 'port',
+            code: 3,
+            param: speed & 0xff,
+            duration: Math.min(durationRows, sustainCount + 1),
+            priority: this.priority,
+            isGlobal: false,
+        };
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        // Portamento can be delayed to sustain rows if panning takes priority
+        return other.type === 'pan' && other.isGlobal;
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        return true;
+    },
+};
+
 // Effect handler registry - add new handlers here as effects are implemented
 const EFFECT_HANDLERS: EffectHandler[] = [
-    NoteCutHandler,  // Priority 20 - always wins
-    VibratoHandler,  // Priority 10
-    // Future: ArpeggioHandler (priority 15), SlideHandler (priority 12), etc.
+    NoteCutHandler,      // Priority 20 - always wins
+    PortamentoHandler,   // Priority 12
+    VibratoHandler,      // Priority 10
+    // Future: ArpeggioHandler (priority 15), etc.
 ];
 
 /**
@@ -565,6 +610,8 @@ function eventsToPatterns(
     // Map of note globalRow -> desired durationRows (including the note row)
     if (!desiredVibMap) desiredVibMap = new Map();
     let prevEventType: string | null = null;
+    // Track if we've seen the first note yet (to skip portamento on first note)
+    let hasSeenNote = false;
     for (let i = 0; i < events.length; i++) {
         const event = events[i];
 
@@ -583,7 +630,7 @@ function eventsToPatterns(
             }
             cell = {
                 note: EMPTY_NOTE,
-                instrument: 0,
+                instrument: -1, // No instrument change on rest cells
                 effectCode: effCode,
                 effectParam: effParam,
                 pan: currentPan,
@@ -603,7 +650,7 @@ function eventsToPatterns(
             }
             cell = {
                 note: EMPTY_NOTE,
-                instrument: 0,
+                instrument: -1, // No instrument change on sustain cells
                 effectCode: effCode,
                 effectParam: effParam,
                 pan: currentPan,
@@ -733,6 +780,12 @@ function eventsToPatterns(
                 for (const fx of noteEvent.effects) {
                     if (!fx) continue;
 
+                    // Skip portamento on the first note (nothing to slide from)
+                    const fxName = (fx.type || fx).toString().toLowerCase();
+                    if (fxName === 'port' && !hasSeenNote) {
+                        continue; // Don't add portamento effect to first note
+                    }
+
                     // Try each handler to parse this effect
                     for (const handler of EFFECT_HANDLERS) {
                         const request = handler.parse(fx, noteEvent, sustainCount, tickSeconds);
@@ -743,6 +796,9 @@ function eventsToPatterns(
                     }
                 }
             }
+
+            // Mark that we've seen a note
+            hasSeenNote = true;
 
             // Resolve conflicts and apply the winning effect to note row
             const winningEffect = resolveEffectConflict(effectRequests);
@@ -852,7 +908,7 @@ function eventsToPatterns(
             const isCut = endCutRows.has(globalRow);
             const cell: any = {
                 note: EMPTY_NOTE,
-                instrument: 0,
+                instrument: -1, // No instrument on padding rows
                 effectCode: 0,
                 effectParam: 0,
                 pan: 'C',
@@ -873,7 +929,7 @@ function eventsToPatterns(
         for (let i = 0; i < PATTERN_ROWS; i++) {
             emptyPattern.push({
                 note: EMPTY_NOTE,
-                instrument: 0,
+                instrument: -1, // No instrument on empty pattern rows
                 effectCode: 0,
                 effectParam: 0,
                 pan: 'C',
@@ -1588,7 +1644,10 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             // 0 means "no instrument" (use previous/default)
             let relativeInstrument = cell.instrument;
             if (ch >= 0 && ch < NUM_CHANNELS) {
-                if (ch === 0 || ch === 1) {
+                // If instrument is -1 (rest/sustain cell), use 0 to indicate no instrument change
+                if (cell.instrument === -1) {
+                    relativeInstrument = 0;
+                } else if (ch === 0 || ch === 1) {
                     // Duty channels: absolute index 0-14 → relative 1-15
                     if (cell.instrument >= 0 && cell.instrument < NUM_DUTY_INSTRUMENTS) {
                         relativeInstrument = cell.instrument + 1;

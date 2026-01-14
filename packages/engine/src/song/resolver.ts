@@ -429,6 +429,13 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
         if (parsedPan) ev.pan = parsedPan;
         if (parsedEffects && parsedEffects.length) {
           ev.effects = normalizeEffectDurations(parsedEffects, bpm || 120, 16);
+          // Set legato=true if note has portamento effect (prevents envelope retrigger)
+          const hasPortamento = ev.effects.some((fx: any) => 
+            fx && (fx.type === 'port' || (typeof fx === 'string' && fx.toLowerCase() === 'port'))
+          );
+          if (hasPortamento) {
+            ev.legato = true;
+          }
         }
 
         ev = applyInstrumentToEvent(insts, ev) as any;

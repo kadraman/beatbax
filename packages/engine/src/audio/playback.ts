@@ -11,7 +11,7 @@ import TickScheduler from '../scheduler/tickScheduler.js';
 import { error } from '../util/diag.js';
 import createScheduler from '../scheduler/index.js';
 import BufferedRenderer from './bufferedRenderer.js';
-import { get as getEffect } from '../effects/index.js';
+import { get as getEffect, clearEffectState } from '../effects/index.js';
 
 export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
@@ -291,7 +291,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playPulse(this.ctx, freq, duty, time, dur, inst, this.scheduler);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -306,7 +306,7 @@ export class Player {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, inst, this.scheduler);
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -320,7 +320,7 @@ export class Player {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -342,7 +342,7 @@ export class Player {
   // Apply registered effects for a scheduled note. `effectsArr` may be an array of
   // objects { type, params } produced by the parser (or legacy arrays). This will
   // look up handlers in the effects registry and invoke them.
-  private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number) {
+  private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number, chId?: number) {
     if (!Array.isArray(effectsArr) || effectsArr.length === 0) return;
     for (const fx of effectsArr) {
       try {
@@ -356,7 +356,7 @@ export class Player {
         }
         const handler = getEffect(name);
         if (handler) {
-          try { handler(ctx, nodes, params, start, dur); } catch (e) {}
+          try { handler(ctx, nodes, params, start, dur, chId); } catch (e) {}
         }
       } catch (e) {}
     }
@@ -418,6 +418,10 @@ export class Player {
       this.scheduler.clear();
       this.scheduler.stop();
     }
+
+    // Clear effect state (e.g., portamento frequency tracking)
+    clearEffectState();
+
     for (const entry of this.activeNodes) {
       try { if (entry.node && typeof entry.node.stop === 'function') entry.node.stop(); } catch (e) {}
       try { if (entry.node && typeof entry.node.disconnect === 'function') entry.node.disconnect(); } catch (e) {}
