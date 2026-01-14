@@ -122,7 +122,7 @@ export function expandPattern(text: string): string[] {
     let j = i;
     while (j < text.length && !/\s/.test(text[j])) j++;
     let atom = text.slice(i, j);
-    
+
     // check for :duration suffix (e.g. C5:4 -> C5 _ _ _)
     const mDur = atom.match(/^(.*):(\d+)$/);
     if (mDur) {
@@ -152,6 +152,21 @@ export function transposePattern(tokens: string[], opts: { semitones?: number; o
   if (semitones === 0) return tokens.slice();
   return tokens.map(t => {
     if (t === '.' || t === '_' || t === '-') return t;
+
+    // Extract note from tokens with effects: E3<port:8> -> E3, <port:8>
+    const effectMatch = t.match(/^([^<]+)(<.+>)?$/);
+    if (effectMatch) {
+      const notePart = effectMatch[1];
+      const effectPart = effectMatch[2] || '';
+
+      const midi = noteToMidi(notePart);
+      if (midi === null) return t; // Not a note, return unchanged
+
+      const transposedNote = midiToNote(midi + semitones);
+      return transposedNote + effectPart; // Reconstruct with effects
+    }
+
+    // Fallback: try direct transpose
     const midi = noteToMidi(t);
     if (midi === null) return t;
     return midiToNote(midi + semitones);

@@ -5,9 +5,9 @@ import { resolveSong } from '@beatbax/engine/song/resolver';
 // Helper to format parse errors with file location information
 function formatParseError(err: any, filename?: string): string {
   if (!err) return `Parse error: Unknown error`;
-  
+
   const message = err.message || String(err);
-  
+
   // Check if this is a Peggy parser error with location information
   if (err.location && err.location.start) {
     const line = err.location.start.line;
@@ -15,7 +15,7 @@ function formatParseError(err: any, filename?: string): string {
     const prefix = filename ? filename : 'source';
     return `Parse error in ${prefix} at line ${line}, column ${column}: ${message}`;
   }
-  
+
   // Fallback for other errors
   const prefix = filename ? ` in ${filename}` : '';
   return `Parse error${prefix}: ${message}`;
@@ -244,8 +244,8 @@ applyBtn?.addEventListener('click', async () => {
     console.log('[web-ui] apply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
-  } catch (e: any) { 
-    console.error(e); 
+  } catch (e: any) {
+    console.error(e);
     const errorMsg = formatParseError(e);
     status && (status.textContent = errorMsg);
   }
@@ -257,7 +257,7 @@ exportWavBtn?.addEventListener('click', async () => {
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
     const resolved = resolveSong(ast as any);
-    
+
     // Calculate song duration
     let maxTicks = 0;
     for (const ch of resolved.channels || []) {
@@ -269,16 +269,16 @@ exportWavBtn?.addEventListener('click', async () => {
     const secondsPerBeat = 60 / bpm;
     const tickSeconds = secondsPerBeat / 4;
     const duration = Math.ceil(maxTicks * tickSeconds) + 1;
-    
+
     // Create an offline context
     const OfflineAudioContextCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
     const sampleRate = 44100;
     const lengthInSamples = Math.ceil(duration * sampleRate);
     const offlineCtx = new OfflineAudioContextCtor(2, lengthInSamples, sampleRate);
-    
+
     // Create a player
     const offlinePlayer = new Player(offlineCtx, { buffered: false });
-    
+
     // Manually process scheduler queue after playAST schedules events
     const scheduler = (offlinePlayer as any).scheduler;
     if (scheduler && scheduler.queue) {
@@ -287,26 +287,26 @@ exportWavBtn?.addEventListener('click', async () => {
         // Process all queued events regardless of time
         while ((this as any).queue && (this as any).queue.length > 0) {
           const ev = (this as any).queue.shift();
-          try { 
-            ev.fn(); 
-          } catch (e) { 
-            console.error('Scheduled function error', e); 
+          try {
+            ev.fn();
+          } catch (e) {
+            console.error('Scheduled function error', e);
           }
         }
       };
     }
-    
+
     // Play the AST (this schedules all events)
     await offlinePlayer.playAST(resolved);
-    
+
     // Force process all scheduled events
     if (scheduler && typeof scheduler.tick === 'function') {
       scheduler.tick();
     }
-    
+
     // Render to buffer
     const audioBuffer = await offlineCtx.startRendering();
-    
+
     // Convert to WAV
     const wav = audioBufferToWav(audioBuffer);
     const blob = new Blob([wav], { type: 'audio/wav' });
@@ -316,7 +316,7 @@ exportWavBtn?.addEventListener('click', async () => {
     a.download = 'beatbax-browser-export.wav';
     a.click();
     URL.revokeObjectURL(url);
-    
+
     status && (status.textContent = 'WAV exported!');
   } catch (e: any) {
     console.error('Export error:', e);
@@ -332,26 +332,26 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
   const bitDepth = 16;
   const bytesPerSample = bitDepth / 8;
   const blockAlign = numChannels * bytesPerSample;
-  
+
   const data = new Float32Array(buffer.length * numChannels);
   for (let i = 0; i < buffer.length; i++) {
     for (let ch = 0; ch < numChannels; ch++) {
       data[i * numChannels + ch] = buffer.getChannelData(ch)[i];
     }
   }
-  
+
   const dataLength = data.length * bytesPerSample;
   const headerLength = 44;
   const totalLength = headerLength + dataLength;
-  
+
   const arrayBuffer = new ArrayBuffer(totalLength);
   const view = new DataView(arrayBuffer);
-  
+
   // RIFF header
   writeString(view, 0, 'RIFF');
   view.setUint32(4, totalLength - 8, true);
   writeString(view, 8, 'WAVE');
-  
+
   // fmt chunk
   writeString(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
@@ -361,11 +361,11 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
   view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitDepth, true);
-  
+
   // data chunk
   writeString(view, 36, 'data');
   view.setUint32(40, dataLength, true);
-  
+
   let offset = 44;
   for (let i = 0; i < data.length; i++) {
     const sample = Math.max(-1, Math.min(1, data[i]));
@@ -373,7 +373,7 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
     view.setInt16(offset, intSample, true);
     offset += 2;
   }
-  
+
   return arrayBuffer;
 }
 

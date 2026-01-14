@@ -1,0 +1,25 @@
+## Demo: Portamento (port) effect examples
+## Exercises inline `port` parameters and portamento on different instruments
+## Play: node bin/beatbax play songs/effects/portamento.bax
+
+chip gameboy
+
+bpm 140
+time 4
+
+## Instruments
+inst lead  type=pulse1 duty=75 env=10,up
+#inst lead  type=pulse1 duty=50 env={"level":14,"direction":"up","period":2,"format":"gb"} sweep={"time":7,"direction":"up","shift":3}
+
+effect slide = port:16
+
+## Simple melody - no effects
+pat no_effect = C4:4 C5:4 C6:4 C5:4
+
+pat legato_slide = C4:4 C5<port:12>:4 C6<port:12>:4 C5<port:12>:4
+seq main_seq  = legato_slide
+
+## channels
+channel 1 => inst lead  seq main_seq
+
+play
