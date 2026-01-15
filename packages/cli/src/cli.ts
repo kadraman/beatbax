@@ -1,9 +1,12 @@
 import { Command, Argument } from 'commander';
 import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
+import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { readFileSync, statSync, existsSync } from 'fs';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song/resolver';
+
+const { getUGEDetailedJSON } = engineImports as any;
 
 type ValidationResult = { errors: string[]; warnings: string[]; ast: any };
 
@@ -543,17 +546,49 @@ program
   .command('inspect')
   .description('Inspect a .bax or .uge file and print its structure or metadata')
   .argument('<file>', 'Path to the .bax or .uge file')
-  .action(async (file) => {
+  .option('-j, --json', 'Output detailed JSON (default is summary)')
+  .action(async (file, options) => {
     try {
       ensureFileExists(file);
       if (file.endsWith('.uge')) {
         const uge = readUGEFile(file);
-        const summary = getUGESummary(uge);
-        console.log(summary);
+        if (options.json) {
+          console.log(getUGEDetailedJSON(uge));
+        } else {
+          const summary = getUGESummary(uge);
+          console.log(summary);
+        }
       } else {
         const src = readFileSync(file, 'utf8');
         const ast = parse(src);
-        console.log(JSON.stringify(ast, null, 2));
+        if (options.json) {
+          console.log(JSON.stringify(ast, null, 2));
+        } else {
+          // Print summary for .bax files
+          const chip = ast.chip || 'gameboy';
+          const bpm = ast.bpm || 120;
+          const patterns = Object.keys(ast.pats || {}).length;
+          const sequences = Object.keys(ast.seqs || {}).length;
+          const instruments = Object.keys(ast.insts || {}).length;
+          const channels = (ast.channels || []).length;
+
+          console.log(`=== BeatBax Song ===`);
+          console.log(`Chip: ${chip}`);
+          console.log(`Tempo: ${bpm} BPM`);
+          console.log(`Patterns: ${patterns}`);
+          console.log(`Sequences: ${sequences}`);
+          console.log(`Instruments: ${instruments}`);
+          console.log(`Channels: ${channels}`);
+
+          const metadata = (ast as any).metadata;
+          if (metadata) {
+            console.log(`\nMetadata:`);
+            if (metadata.name) console.log(`  Name: ${metadata.name}`);
+            if (metadata.artist) console.log(`  Artist: ${metadata.artist}`);
+            if (metadata.description) console.log(`  Description: ${metadata.description}`);
+            if (metadata.tags) console.log(`  Tags: ${metadata.tags.join(', ')}`);
+          }
+        }
       }
     } catch (err: any) {
       const globalOpts = program.opts();

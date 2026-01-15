@@ -232,6 +232,39 @@ npm run cli -- verify songs\sample.bax
 
 Checks the song for parsing errors and basic validation issues (undefined instruments, empty patterns, etc.).
 
+### Inspect files
+
+The `inspect` command provides a quick way to view file structure:
+
+**For .bax files:**
+```powershell
+# Text summary (default)
+node bin/beatbax inspect songs\sample.bax
+# Shows: chip, tempo, pattern/sequence/instrument counts, metadata
+
+# Full AST in JSON format
+node bin/beatbax inspect songs\sample.bax --json
+```
+
+**For .uge files:**
+```powershell
+# Text summary (default)
+node bin/beatbax inspect songs\example.uge
+# Shows: version, title, BPM, pattern/instrument counts
+
+# Detailed JSON breakdown
+node bin/beatbax inspect songs\example.uge --json
+# Includes: patterns with note names (C5, E5, etc.),
+#           instruments with human-readable fields,
+#           wavetables in hex format, orders, statistics
+```
+
+The inspect command is useful for:
+- Verifying UGE exports (check that your .bax → .uge export looks correct)
+- Understanding hUGETracker file structure
+- Debugging instrument and pattern data
+- Extracting metadata from existing community UGE files
+
 ### Export formats
 
 BeatBax supports four export formats. Note that the **format** must be the first argument after `export`.
