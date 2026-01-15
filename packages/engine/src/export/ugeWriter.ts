@@ -1643,7 +1643,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             // UGE pattern cells use 1-based indices (1-15) within each instrument type
             // 0 means "no instrument" (use previous/default)
             let relativeInstrument = cell.instrument;
-            if (ch >= 0 && ch < NUM_CHANNELS) {
+            
+            // HUGETracker convention: when an effect is present, the instrument field should be blank (0)
+            // This prevents instrument re-triggering when effects like portamento are active
+            if (cell.effectCode && cell.effectCode !== 0) {
+                relativeInstrument = 0;
+            } else if (ch >= 0 && ch < NUM_CHANNELS) {
                 // If instrument is -1 (rest/sustain cell), use 0 to indicate no instrument change
                 if (cell.instrument === -1) {
                     relativeInstrument = 0;
