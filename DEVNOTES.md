@@ -14,8 +14,38 @@ High level
   - `packages/engine/src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
   - `packages/engine/src/export/` — JSON, MIDI, and UGE exporters with validation.
-  - `packages/engine/src/import/` — UGE reader for importing hUGETracker v6 files.
+  - `packages/engine/src/import/` — UGE reader for importing hUGETracker v1-v6 files with helper functions.
   - `apps/web-ui/` — browser web UI that uses the real parser and Player for live playback.
+
+## UGE Reader — implementation notes
+- Module: `packages/engine/src/import/uge/uge.reader.ts`
+- Supports hUGETracker versions 1-6 with backward compatibility
+- **Binary parsing**: Uses custom BinaryReader class for sequential buffer reading
+  - Tracks offset automatically
+  - Little-endian format
+  - Pascal-style string reading (length prefix)
+- **Pattern cells**: 17 bytes per cell (note, instrument, volume, effectCode, effectParam)
+  - Note index: 0-71 (C3-B8), 90=rest, 91=cut
+  - Instrument: 0-14 relative index, 15=no change
+  - Effects: 0x00-0x0F with 8-bit parameter
+- **Instrument structures**:
+  - Duty/Wave: 1381 bytes (v6), 1325 bytes (v5)
+  - Noise: 1137 bytes
+  - Fields: envelope, sweep, duty cycle, wavetable, subpattern data
+- **Helper functions**:
+  - `parseUGE(buffer)` — parse binary data into structured object
+  - `readUGEFile(path)` — convenience function for file I/O
+  - `getUGESummary(uge)` — text summary for CLI
+  - `getUGEDetailedJSON(uge)` — comprehensive JSON with formatted data
+  - `midiNoteToUGE(midi)` / `ugeNoteToString(idx)` — note conversion utilities
+- **CLI integration**: `inspect` command supports both summary and JSON output modes
+  - `beatbax inspect file.uge` — shows version, title, BPM, counts
+  - `beatbax inspect file.uge --json` — detailed breakdown with note names, hex wavetables
+- **Use cases**:
+  - Debugging UGE exports (verify pattern data, instrument encoding)
+  - Analyzing community hUGETracker files
+  - Round-trip testing (export → inspect → validate)
+  - Format conversion workflows
 
 Scheduler & timing
 - `Scheduler` queues functions with absolute `AudioContext.currentTime` timestamps and uses a lookahead interval to execute scheduled callbacks deterministically. This is intentionally simple and deterministic for testing.
@@ -74,13 +104,22 @@ Instrument semantics
 
 Testing
 - Unit tests are under `tests/`. The project uses `jest` with `ts-jest`.
-- 25 test suites with 81 tests covering:
+- 25+ test suites with 81+ tests covering:
   - Parser & expansion tests: assert `expandPattern` and parser modifiers behave correctly (transposes, slow/fast, rev).
   - Playback-level tests: `tests/playback-expand.test.ts` stubs the player's scheduler to capture scheduled events and assert that `inst(name,N)` overrides are applied correctly.
   - Export tests: `tests/ugeExport.test.ts`, `tests/midiExport.test.ts`, and `tests/cli-export-uge.integration.test.ts` validate output formats.
-  - Import tests: `tests/ugeReader.test.ts` validates UGE file parsing.
+  - Import tests: `tests/ugeReader.test.ts` validates UGE file parsing for v1, v5, and v6 files (self-generated and community files).
+  - Inspect command tests: validate both summary and JSON output modes for .bax and .uge files.
 - The resolver supports resolving sequence references with modifiers (e.g. `seqName:oct(-1)`) when channels reference sequences; tests cover these cases.
 - Console logs are muted during tests by `tests/setupTests.ts` — set `SHOW_CONSOLE=1` if you want console diagnostics during test runs.
+
+**UGE Reader Testing:**
+- Tests cover v1, v5, and v6 format parsing
+- Validates instrument table extraction (duty, wave, noise)
+- Pattern cell parsing with note, effect, and instrument data
+- Order list and routine parsing
+- Helper function correctness (note conversion, formatting)
+- Round-trip testing: export .bax → .uge, then re-read with reader
 
 Parser selection
 - The Peggy parser lives in `packages/engine/src/parser/peggy/` and is the default. The legacy parser has been removed after the Peggy migration. The full engine suite passes under Peggy.
