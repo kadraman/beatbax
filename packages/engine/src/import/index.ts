@@ -8,6 +8,7 @@ export {
   midiNoteToUGE,
   ugeNoteToString,
   getUGESummary,
+  getUGEDetailedJSON,
   InstrumentType,
   ChannelType,
   type SubPatternCell,

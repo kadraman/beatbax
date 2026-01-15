@@ -91,6 +91,41 @@ npm install --save-optional speaker play-sound
 
 WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies. It implements all 4 Game Boy channels with envelope support, duty cycle control, wavetable playback, and LFSR-based noise generation. Output is stereo by default and closely matches browser WebAudio quality.
 
+### Inspect
+
+Inspect `.bax` or `.uge` files and view their structure:
+
+- `inspect <file>` — Show a text summary (default)
+- `inspect <file> --json` (or `-j`) — Output detailed JSON structure
+
+**For .bax files:**
+```powershell
+# Text summary
+node bin/beatbax inspect songs/sample.bax
+# Output: chip, tempo, pattern/sequence/instrument counts, metadata
+
+# Detailed JSON (full AST)
+node bin/beatbax inspect songs/sample.bax --json
+```
+
+**For .uge files:**
+```powershell
+# Text summary
+node bin/beatbax inspect songs/example.uge
+# Output: version, title, BPM, pattern/instrument counts
+
+# Detailed JSON breakdown
+node bin/beatbax inspect songs/example.uge --json
+# Output: patterns with note names, instruments with readable fields,
+#         wavetables in hex, orders, routines, statistics
+```
+
+The inspect command is useful for:
+- Debugging exports (verify UGE files after export)
+- Understanding hUGETracker file structure
+- Extracting metadata from existing UGE files
+- Validating pattern and instrument data
+
 ### Export
 
 All export formats are fully implemented and tested:
