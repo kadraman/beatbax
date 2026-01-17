@@ -429,12 +429,16 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
   - Fallbacks & strict mode: Provide a `--strict-gb` or similar flag to treat non-enum numeric pans as errors rather than silently snapping. Document and warn for any precision loss or unsupported per-note semantics.
 
 - Vibrato (`vib`)
-  - hUGETracker mapping: `4xy` (Vibrato) — tracker `4x` is the speed, `4y` is the depth/magnitude (both 0..15 in tracker units). BeatBax maps into these 4-bit fields after scaling/quantization.
+  - hUGETracker mapping: `4xy` (Vibrato) — `x` is the **waveform selector** (0-15, selects which internal vibrato waveform hUGETracker uses), `y` is the **depth** (0-15, vibrato amplitude). The vibrato speed/rate is controlled by hUGETracker's internal LFO timing, not encoded in the effect parameter.
   - Parameters (BeatBax `vib`):
-    - `depth` (required): nominal vibrato extent (musical units, normalized by exporter to tracker depth units).
-    - `rate` (required): vibrato speed (Hz-like semantic in the language surface; mapped to tracker speed `x` after quantization).
-    - `shape` (optional): LFO shape selector (e.g. `sine`, `triangle`, `square`). When present, backends choose closest approximation; trackers only accept simple vibrato so shape may be approximated or baked.
-    - `durationRows` (optional, 4th param): length in pattern *rows* for which vibrato is active. This value is normalized in the song resolver to seconds and exposed on the effect as `fx.durationSec` so audio backends can stop/decay vibrato at the correct time.
+    - `depth` (1st param, required): vibrato amplitude (0-15 after quantization) → mapped to `y` nibble in `4xy`.
+    - `rate` (2nd param, required): vibrato speed in Hz-like units. **Note:** This controls BeatBax playback timing but is NOT exported to UGE (hUGETracker's LFO speed is internal).
+    - `waveform` (3rd param, optional): LFO shape selector. Can be a **name** or **number** (0-15). Mapped to `x` nibble in `4xy` for hUGETracker waveform selection. Default: `none` (0).
+      - **Official hUGETracker waveform names (0-F):** `none` (0), `square` (1), `triangle` (2), `sawUp` (3), `sawDown` (4), `stepped` (5), `gated` (6), `gatedSlow` (7), `pulsedExtreme` (8), `hybridTrillStep` (9), `hybridTriangleStep` (10), `hybridSawUpStep` (11), `longStepSawDown` (12), `hybridStepLongPause` (13), `slowPulse` (14), `subtlePulse` (15)
+      - **Common aliases (backward compat):** `sine`/`sin` → 2 (triangle - smoothest waveform, closest to sine), `tri` → 2, `sqr`/`pulse` → 1, `saw`/`sawtooth` → 3, `ramp` → 4, `noise`/`random` → 5
+      - **Note:** hUGETracker has no true sine wave; `sine` maps to `triangle` which provides smooth, musical vibrato
+      - Unknown names default to `none` (0)
+    - `durationRows` (4th param, optional): length in pattern *rows* for which vibrato is active. Normalized to seconds as `fx.durationSec` for audio backends.
   - Language examples:
 
 ```bax
@@ -450,9 +454,11 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies the same `fx.durationSec` window when synthesizing per-sample frequency modulation so rendered WAVs match live playback.
 
   - UGE/hUGETracker export behavior:
-    - BeatBax maps `rate` → tracker speed nibble `x` (0..15) and `depth` → nibble `y` (0..15) after deterministic scaling/quantization. The exporter emits `4xy` on the note row.
-    - Because tracker effects are only active on the row they are written to, the UGE exporter re-inserts the `4xy` vibrato effect on sustain rows as needed so the vibrato persists while a note sustains.
+    - BeatBax maps `waveform` (3rd param) to tracker waveform nibble `x` (0..15) and `depth` (1st param) to nibble `y` (0..15). The exporter emits `4xy` on BOTH the note row and the first sustain row.
+    - **Updated behavior (v0.1.0+):** Vibrato now appears on the note row itself (providing immediate modulation from note trigger) AND continues on the subsequent sustain row. This provides more immediate vibrato effect and matches user expectations for expressive modulation.
+    - Because tracker effects are only active on the row they are written to, the UGE exporter repeats the `4xy` vibrato effect on the first sustain row to ensure continuity.
     - When `durationRows` (4th param) is present, the exporter uses that to compute the global row where vibrato should stop; this is also used to drive the deterministic note-cut injection described below.
+    - Previous behavior note: Earlier versions applied vibrato only to sustain rows (starting one row after the note). This has been changed to provide immediate modulation.
 
   - Fallbacks:
     - If the BeatBax vibrato requires higher resolution (complex shapes or sub-tick timing) than the tracker can express, the exporter will either approximate with repeated `4xy` rows, expand into finer-grained pitch steps, or recommend baking the effect into the instrument/sample for faithful reproduction.

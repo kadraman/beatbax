@@ -94,6 +94,44 @@ Instrument semantics
   - Empty cell handling: Rest, sustain, padding, and empty pattern cells use `instrument: -1` (converted to `relativeInstrument: 0`) to prevent unwanted instrument changes that interfere with portamento.
 - Pattern operations: `transposePattern` utility correctly handles notes with inline effects by extracting the note, transposing it, and reconstructing the token with effects intact (e.g., `E3<port:8>` → `E2<port:8>`).
 - Testing: Comprehensive demo in `songs/effects/port_effect_demo.bax` validates WebAudio playback, PCM rendering, UGE export, and transpose operations.
+
+## Vibrato (`vib`) Implementation
+
+- Syntax: `C5<vib:depth,rate,waveform,duration>` where:
+  - `depth` (1st param, required): vibrato amplitude 0-15 → mapped to `y` nibble in UGE `4xy`
+  - `rate` (2nd param, required): vibrato speed (Hz-like units for BeatBax playback, not exported to UGE)
+  - `waveform` (3rd param, optional): LFO shape selector (name or 0-15) → mapped to `x` nibble in UGE `4xy`. Default: `none` (0)
+  - `durationRows` (4th param, optional): length in pattern rows for vibrato effect
+
+- Waveform mapping: BeatBax supports 16 official hUGETracker waveform names (0-F) plus common aliases:
+  - Official names: `none`, `square`, `triangle`, `sawUp`, `sawDown`, `stepped`, `gated`, `gatedSlow`, `pulsedExtreme`, `hybridTrillStep`, `hybridTriangleStep`, `hybridSawUpStep`, `longStepSawDown`, `hybridStepLongPause`, `slowPulse`, `subtlePulse`
+  - Common aliases: `sine`/`sin` → 2 (triangle), `tri` → 2, `sqr`/`pulse` → 1, `saw`/`sawtooth` → 3, `ramp` → 4, `noise`/`random` → 5
+  - Note: hUGETracker has no true sine wave; `sine` maps to `triangle` for smooth, musical vibrato
+  - Function: `mapWaveformName()` in `ugeWriter.ts` handles name-to-number conversion with case-insensitive matching
+
+- Parsing & AST: `parseEffects` recognizes `vib` tokens with up to 4 parameters. Inline `vib` effects are attached to `NoteToken.effects`.
+
+- Playback:
+  - WebAudio: `src/effects/index.ts` implements frequency modulation using LFO on `OscillatorNode.frequency`
+  - PCM renderer: `src/audio/pcmRenderer.ts` applies per-sample frequency modulation
+  - Both use `fx.durationSec` (computed from `durationRows` by resolver) for timing
+
+- UGE export behavior:
+  - **Key change (v0.1.0+):** Vibrato now appears on BOTH the note row AND the first sustain row (instead of only sustain rows)
+  - Rationale: Provides immediate vibrato effect from note trigger, matching user expectations for expressive modulation
+  - Implementation: Modified note event processing in `ugeWriter.ts` to apply vibrato handler to note row cell, while keeping `activeVib` state for one additional sustain row
+  - Post-processing: Updated enforcement loop in `ugeWriter.ts` to start from note row (`globalStart`) instead of first sustain row (`globalStart+1`)
+  - Effect mapping: Maps to hUGETracker's `4xy` (vibrato) opcode where `x`=waveform (0-15), `y`=depth (0-15)
+  - First note behavior: Vibrato is applied to all notes including the first note (no special-case skipping)
+  - Duration handling: When `durationRows` is specified, vibrato spans exactly that many rows starting from the note row
+
+- Testing: Demo song `songs/effects/vibrato.bax` validates WebAudio playback, PCM rendering, and UGE export with various waveforms
+
+- Fixed issues:
+  - ✅ Parser bug where waveform names (e.g., `square`) were treated as separate effects due to optional colon in regex
+  - ✅ Updated regex in `parseEffectsInline()` to require colon for new effect identification
+  - ✅ Removed post-processing code that cleared vibrato from note rows
+  - ✅ All 16 official hUGETracker waveform names now supported with correct mappings
 - Fixed issues:
   - Portamento state persistence across playback sessions (now cleared on stop).
   - First-note portamento in UGE exports (now skipped correctly).
