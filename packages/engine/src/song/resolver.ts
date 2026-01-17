@@ -77,9 +77,10 @@ export function parseEffectsInline(str: string) {
       continue;
     }
 
-    const m = p.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(?::(.*))?$/);
-      if (m && m[1]) {
-      // If this part starts a new effect (contains a type), finalize previous and start new
+    // Check if this part starts a new effect (contains a colon)
+    const m = p.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):(.*)$/);
+    if (m && m[1]) {
+      // This part has a colon, so it's a new effect type:params
       if (currentEffect) {
         effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr), paramsStr: currentEffect.paramsStr });
       }
@@ -88,6 +89,7 @@ export function parseEffectsInline(str: string) {
       // This part is an additional parameter for the current effect
       currentEffect.paramsStr = (currentEffect.paramsStr ? (currentEffect.paramsStr + ',' + p) : p);
     }
+    // If no colon and no currentEffect, this part is orphaned - ignore it
   }
   if (currentEffect) {
     effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr), paramsStr: currentEffect.paramsStr });

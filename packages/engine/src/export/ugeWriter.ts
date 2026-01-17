@@ -51,10 +51,54 @@ enum InstrumentType {
 // Some trackers and synths use different depth units; tune this to match hUGE.
 const VIB_DEPTH_SCALE = 4.0;
 
-function encodeVibParam(rate: number, depth: number): number {
+// Map waveform names to hUGETracker waveform selector values (0-15)
+// Official hUGETracker vibrato waveform names:
+// 0=none, 1=square, 2=triangle, 3=sawUp, 4=sawDown, 5=stepped, 6=gated, 7=gatedSlow,
+// 8=pulsedExtreme, 9=hybridTrillStep, A=hybridTriangleStep, B=hybridSawUpStep,
+// C=longStepSawDown, D=hybridStepLongPause, E=slowPulse, F=subtlePulse
+function mapWaveformName(value: string | number): number {
+    if (typeof value === 'number') return value;
+
+    const name = String(value).toLowerCase().trim();
+    const waveformMap: Record<string, number> = {
+        // Official hUGETracker waveform names (0-F)
+        'none': 0,
+        'square': 1,
+        'triangle': 2,
+        'sawup': 3,
+        'sawdown': 4,
+        'stepped': 5,
+        'gated': 6,
+        'gatedslow': 7,
+        'pulsedextreme': 8,
+        'hybridtrillstep': 9,
+        'hybridtrianglestep': 10,
+        'hybridsawupstep': 11,
+        'longstepsawdown': 12,
+        'hybridsteplongpause': 13,
+        'slowpulse': 14,
+        'subtlepulse': 15,
+
+        // Common aliases for backward compatibility
+        'sine': 2,         // Maps to triangle (closest smooth waveform to sine)
+        'sin': 2,
+        'tri': 2,          // Short for triangle
+        'sqr': 1,          // Short for square
+        'pulse': 1,        // Alias for square
+        'saw': 3,          // Default to sawUp
+        'sawtooth': 3,
+        'ramp': 4,         // Ramp down (sawDown)
+        'noise': 5,        // Maps to stepped (choppy)
+        'random': 5,
+    };
+
+    return waveformMap[name] ?? 0; // Default to none (0) if unknown
+}
+
+function encodeVibParam(waveform: number, depth: number): number {
     const d = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-    const r = Math.max(0, Math.min(15, Math.round(rate)));
-    return ((r & 0xf) << 4) | (d & 0xf);
+    const w = Math.max(0, Math.min(15, Math.round(waveform)));
+    return ((w & 0xf) << 4) | (d & 0xf);
 }
 
 // ============================================================================
@@ -113,7 +157,9 @@ const VibratoHandler: EffectHandler = {
 
         const params = fx.params || (Array.isArray(fx) ? fx : []);
         const depthRaw = params.length > 0 ? Number(params[0]) : 0;
-        const rateRaw = params.length > 1 ? Number(params[1]) : 4;
+        // Default to triangle (2) if waveform is missing, empty, or falsy
+        const waveformParam = (params.length > 2 && params[2]) ? params[2] : 2;
+        const waveformRaw = mapWaveformName(waveformParam); // 3rd param: waveform name or number
 
         // Parse duration from 4th param or durationSec
         let durationRows = sustainCount + 1; // Default: full note length
@@ -130,8 +176,8 @@ const VibratoHandler: EffectHandler = {
         }
 
         const depth = Math.max(0, Math.min(15, Math.round(depthRaw)));
-        const rate = Math.max(0, Math.min(15, Math.round(rateRaw)));
-        const param = encodeVibParam(rate, depth);
+        const waveform = Math.max(0, Math.min(15, Math.round(waveformRaw)));
+        const param = encodeVibParam(waveform, depth);
 
         return {
             type: 'vib',
@@ -803,20 +849,26 @@ function eventsToPatterns(
             // Resolve conflicts and apply the winning effect to note row
             const winningEffect = resolveEffectConflict(effectRequests);
             if (winningEffect && winningEffect.type !== 'cut') {
-                // Apply effect (cuts are handled separately at end of note)
-                const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
-                if (handler) {
-                    handler.apply(cell, winningEffect);
-
-                    // Track active vibrato for sustain rows
-                    if (winningEffect.type === 'vib') {
-                        const remainingRows = Math.max(0, winningEffect.duration - 1);
-                        activeVib = {
-                            code: winningEffect.code,
-                            param: winningEffect.param,
-                            remainingRows
-                        };
-                        desiredVibMap.set(i, winningEffect.duration);
+                // For vibrato, apply to BOTH note row AND the next sustain row
+                if (winningEffect.type === 'vib') {
+                    // Apply to note row
+                    const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
+                    if (handler) {
+                        handler.apply(cell, winningEffect);
+                    }
+                    // Also keep it active for the next sustain row
+                    // remainingRows=1 means it will be applied to exactly one more row
+                    activeVib = {
+                        code: winningEffect.code,
+                        param: winningEffect.param,
+                        remainingRows: 1
+                    };
+                    desiredVibMap.set(i, 2); // vibrato appears on 2 rows total
+                } else {
+                    // Apply non-vibrato effects to note row (portamento, etc.)
+                    const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
+                    if (handler) {
+                        handler.apply(cell, winningEffect);
                     }
                 }
             }
@@ -1465,9 +1517,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                         if (String((fx as any).type || fx).toLowerCase() === 'vib') { vibFx = fx; break; }
                     }
                 }
-                if (!vibFx) continue;
-
-                // parse requested duration (rows) from positional param, paramsStr, or durationSec
+                if (!vibFx) continue;                // parse requested duration (rows) from positional param, paramsStr, or durationSec
                 let dr: number | undefined = undefined;
                 const params = vibFx.params || [];
                 if (params && params.length > 3 && Number.isFinite(Number(params[3]))) {
@@ -1492,10 +1542,12 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
                 // determine vib param
                 const depthRaw = params.length > 0 ? Number(params[0]) : 0;
-                const rateRaw = params.length > 1 ? Number(params[1]) : 4;
+                // Default to triangle (2) if waveform is missing, empty, or falsy
+                const waveformParam = (params.length > 2 && params[2]) ? params[2] : 2;
+                const waveformRaw = mapWaveformName(waveformParam); // 3rd param: waveform name or number
                 const depth = Number.isFinite(depthRaw) ? Math.max(0, Math.min(15, Math.round(depthRaw))) : 0;
-                const rate = Number.isFinite(rateRaw) ? Math.max(0, Math.min(15, Math.round(rateRaw))) : 4;
-                const param = encodeVibParam(rate, depth);
+                const waveform = Number.isFinite(waveformRaw) ? Math.max(0, Math.min(15, Math.round(waveformRaw))) : 0;
+                const param = encodeVibParam(waveform, depth);
 
                 const globalStart = i;
                 const allowedEnd = globalStart + dr - 1; // inclusive
@@ -1514,31 +1566,24 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     try { console.log('[DEBUG] finalEnforce note check', { ch, globalStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
                 }
 
-                // enforce: set the note-row vibrato first (deterministic)
-                // overwrite default/implicit NR51 but preserve explicit non-default NR51
-                if (!preserveNoteNR51) {
-                    const patIdx = Math.floor(globalStart / PATTERN_ROWS);
-                    const rowIdx = globalStart % PATTERN_ROWS;
-                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
-                    if (patObj) {
-                        const cell = patObj.cells[rowIdx];
-                        if (cell) {
-                            cell.effectCode = 4;
-                            cell.effectParam = param & 0xff;
-                        }
-                    }
-                }
+                // Updated behavior: vibrato appears on BOTH note row AND first sustain row
+                // This provides immediate vibrato effect starting from the note trigger
+                // No need to clear vibrato from note row anymore
 
-                // enforce: for g in [globalStart+1 .. min(allowedEnd, actualEnd)] set 4xy=param
-                for (let g = globalStart + 1; g <= Math.min(allowedEnd, actualEnd); g++) {
+                // enforce: for g in [globalStart .. min(allowedEnd, actualEnd)] set 4xy=param
+                // Note: starting from globalStart (note row) instead of globalStart+1
+                for (let g = globalStart; g <= Math.min(allowedEnd, actualEnd); g++) {
                     const patIdx = Math.floor(g / PATTERN_ROWS);
                     const rowIdx = g % PATTERN_ROWS;
                     const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
                     if (!patObj) continue;
                     const cell = patObj.cells[rowIdx];
                     if (!cell) continue;
-                    cell.effectCode = 4;
-                    cell.effectParam = param & 0xff;
+                    // Only apply if no conflicting effect already set (e.g., panning on note row)
+                    if (cell.effectCode === 0 || cell.effectCode === 4) {
+                        cell.effectCode = 4;
+                        cell.effectParam = param & 0xff;
+                    }
                 }
 
                 // clear any 4xy beyond allowedEnd up to actualEnd
@@ -1643,12 +1688,22 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             // UGE pattern cells use 1-based indices (1-15) within each instrument type
             // 0 means "no instrument" (use previous/default)
             let relativeInstrument = cell.instrument;
-            
-            // HUGETracker convention: when an effect is present, the instrument field should be blank (0)
-            // This prevents instrument re-triggering when effects like portamento are active
-            if (cell.effectCode && cell.effectCode !== 0) {
-                relativeInstrument = 0;
-            } else if (ch >= 0 && ch < NUM_CHANNELS) {
+
+            // HUGETracker convention: when portamento or similar effects are present on a note,
+            // the instrument field should be blank (0) to prevent re-triggering.
+            // However, we DO want to set instruments on:
+            // - Rows with effects but NO note (sustain rows with vibrato, etc.)
+            // - First note of a song (needs instrument to trigger)
+            // So only clear instrument when there's BOTH a note AND an effect code.
+            if (cell.effectCode && cell.effectCode !== 0 && cell.note !== EMPTY_NOTE) {
+                // Only clear instrument for specific effects that should not retrigger instruments
+                // For now, only portamento (3) should clear the instrument on notes
+                if (cell.effectCode === 3) {
+                    relativeInstrument = 0;
+                }
+            }
+
+            if (ch >= 0 && ch < NUM_CHANNELS) {
                 // If instrument is -1 (rest/sustain cell), use 0 to indicate no instrument change
                 if (cell.instrument === -1) {
                     relativeInstrument = 0;
