@@ -1,6 +1,6 @@
 ## Demo: Vibrato (vib) effect examples
-## Exercises inline `vib` parameters and vibrato on different instruments
-## Play: node bin/beatbax play songs/effects/vibrato_demo.bax --browser
+## Exercises inline `vib` parameters and vibrato
+## Play: node bin/beatbax play songs/effects/vibrato.bax
 
 chip gameboy
 
@@ -8,23 +8,20 @@ bpm 140
 time 4
 
 ## Instruments
-inst lead  type=pulse1 duty=75 env=15,up
-inst bass  type=pulse2 duty=25 env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst sn    type=noise  env=12,down
+inst lead  type=pulse1 duty=75 env=10,up
+#inst lead  type=pulse1 duty=50 env={"level":14,"direction":"up","period":2,"format":"gb"} sweep={"time":7,"direction":"up","shift":3}
 
 ## Named preset: `wobble` defines a reusable vibrato preset
-## (demonstrates applying the preset via `:wobble` and inline `<wobble>`)
 effect wobble = vib:4,8,sine,4
 
 ## Simple melody - no effects
 pat no_effect_pat = C5:4 . C5:4 . E5:4 . G5:4 .
 
-## Simple melody showcasing inline vibrato: <vib:depth,rate>
-pat vib_melody = C5<vib:3,6,,2>:8 D5<vib:4,8,,4>:8 E5<vib:2,10,,4>:8 G5<vib:6,5,,2>:8
+## Simple melody showcasing inline vibrato: <vib:depth,rate,waveform,duration>
+pat vib_melody = C5<vib:6,5,square,2>:8 D5<vib:3,6,sine,2>:8 E5<vib:4,8,square,4>:8 F5<vib:2,10,sine,4>:8
 
 ## Repeated wobble using inline vib (no named preset)
-pat wobble_line = C5<vib:4,6> . C5<vib:4,6> . E5<vib:4,6> . G5<vib:4,6> .
+pat wobble_line = C5<vib:4,6> . D5<vib:4,6> . E5<vib:4,6> . G5<vib:4,6> .
 
 ## Bassline with faster vibrato applied inline
 pat vib_bass = C3<vib:8,3> . G2<vib:8,3> . C3<vib:8,3> . G2<vib:8,3>
@@ -36,8 +33,9 @@ pat wave_vib = inst wave1 C5<vib:6,4>:8 . .
 pat inline_effect_pat = C5<wobble>:4 . C5:4 . E5:4 . G5<wobble>:4 .
 
 ## change/uncomment the various sequences as required
-seq wobble_seq = vib_melody no_effect_pat:wobble inline_effect_pat vib_melody:wobble inline_effect_pat:wobble
+seq main_seq = vib_melody #no_effect_pat:wobble inline_effect_pat vib_melody:wobble inline_effect_pat:wobble
 
-channel 1 => inst lead seq wobble_seq
+## channels
+channel 1 => inst lead seq main_seq
 
 play

@@ -144,6 +144,50 @@ pat gliss = C4 G4<port:32> C5<port:32> G5<port:32>
 
 See `songs/effects/port_effect_demo.bax` for a complete working example.
 
+## Vibrato (`vib`) Effect
+
+Vibrato adds periodic pitch modulation to notes for expressive, musical variation:
+
+```bax
+# Basic vibrato: depth and rate
+pat melody = C5<vib:6,5> E5<vib:4,8> G5<vib:3,10>
+
+# With waveform name (smooth sine-like vibrato)
+pat smooth_vib = C5<vib:6,5,sine> D5<vib:4,6,triangle>
+
+# With waveform name and duration (2 rows)
+pat short_vib = C5<vib:6,5,square,2>:8 D5<vib:3,6,sine,2>:8
+
+# Named preset for reusable vibrato
+effect wobble = vib:4,8,sine,4
+pat preset_demo = C5<wobble> E5<wobble>
+```
+
+**Parameters:**
+1. `depth` (required): Vibrato amplitude, 0-15 (higher = wider pitch variation)
+2. `rate` (required): Vibrato speed in Hz-like units (higher = faster modulation)
+3. `waveform` (optional): LFO shape - name or number 0-15. Default: `none` (0)
+   - Common waveforms: `sine` (smooth), `square` (stepped), `triangle` (smooth), `saw` (rising/falling)
+   - See `/docs/features/effects-system.md` for complete list of 16 official hUGETracker waveforms
+4. `durationRows` (optional): Length in pattern rows. Default: full note duration
+
+**Export behavior:**
+- **UGE (hUGETracker)**: Exports as `4xy` (vibrato) where `x`=waveform (0-15), `y`=depth (0-15)
+  - Vibrato appears on BOTH the note row AND the first sustain row for immediate modulation
+  - Note: hUGETracker has no true sine wave; `sine` maps to `triangle` (waveform 2) for smooth vibrato
+- **MIDI**: Vibrato encoded as pitch bend messages with modulation
+- **JSON**: Includes `vib` effect with all parameters in the ISM
+
+**Waveform aliases:** The parser recognizes common aliases:
+- `sine`, `sin` → 2 (triangle - smoothest available)
+- `square`, `sqr`, `pulse` → 1
+- `triangle`, `tri` → 2
+- `saw`, `sawtooth` → 3
+- `ramp` → 4 (sawtooth down)
+- `noise`, `random` → 5
+
+See `songs/effects/vibrato.bax` for a complete working example.
+
 **Tempo & Per-Channel Speed**
 
 - Set a master tempo with a top-level directive: `bpm 128` or `bpm=128`.
