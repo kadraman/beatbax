@@ -1,4 +1,5 @@
 import { EffectHandler, EffectRegistry } from './types.js';
+import { warn } from '../util/diag.js';
 
 const registry = new Map<string, EffectHandler>();
 
@@ -199,9 +200,14 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
 
   // Parse semitone offsets from parameters (filter out non-numeric values)
-  const offsets = (params || [])
-    .map(p => Number(p))
-    .filter(n => Number.isFinite(n) && n >= 0);
+  const rawOffsets = (params || []).map(p => Number(p));
+  const negativeOffsets = rawOffsets.filter(n => Number.isFinite(n) && n < 0);
+
+  if (negativeOffsets.length > 0) {
+    warn('effect', `Arpeggio effect contains negative offsets [${negativeOffsets.join(', ')}]. hUGETracker's 0xy format only supports offsets 0-15. Negative offsets will be ignored.`);
+  }
+
+  const offsets = rawOffsets.filter(n => Number.isFinite(n) && n >= 0);
 
   if (offsets.length === 0) return;
 
@@ -215,7 +221,7 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   // For Speed=7 (7 ticks per row) with 3-note arpeggio:
   //   Root → +x → +y → Root → +x → +y → Root (7 notes)
   // This rapid cycling creates the chord illusion.
-  
+
   // Chip frame rates (Hz) - based on TV standards and hardware specs
   // Note: Defaults reflect the dominant market/scene for each chip:
   // - C64: 50 Hz (PAL) because the European demoscene/SID music community was dominant
@@ -228,7 +234,7 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     'megadrive': 60,    // Alias for Genesis
     'pcengine': 60,     // PC Engine: ~60 Hz (Japan/NA markets)
   };
-  
+
   const chipType = ((ctx as any)._chipType || 'gameboy').toLowerCase();
   const frameRate = CHIP_FRAME_RATES[chipType] || 60; // Default to 60 Hz
   const stepDuration = 1 / frameRate;
@@ -245,8 +251,8 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     // Formula: freq = baseFreq * 2^(semitones / 12)
     const frequencies = allOffsets.map(offset => baseFreq * Math.pow(2, offset / 12));
 
-    // Schedule frequency changes at 60Hz (one step per Game Boy frame)
-    // Each note in the arpeggio lasts exactly one frame (~16.667ms)
+    // Schedule frequency changes at the chip's native frame rate (e.g., 60Hz for Game Boy, 50Hz for C64)
+    // Each note in the arpeggio lasts exactly one frame (e.g., ~16.667ms at 60Hz, ~20ms at 50Hz)
     let currentTime = start;
     const endTime = start + dur;
 
@@ -255,10 +261,10 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       for (let i = 0; i < frequencies.length && currentTime < endTime; i++) {
         const freq = frequencies[i];
         const safeFreq = Math.max(20, Math.min(20000, freq));
-        
+
         // Schedule this frequency to start at currentTime
         osc.frequency.setValueAtTime(safeFreq, currentTime);
-        currentTime += stepDuration; // Advance by one GB frame (1/60 second)
+        currentTime += stepDuration; // Advance by one chip frame (1/frameRate second)
       }
     }
 

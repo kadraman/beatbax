@@ -120,7 +120,8 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   // (some render paths may temporarily modify instrument objects). Cloning
   // ensures each note render sees a stable, independent instrument object.
   const instsClone = song.insts ? JSON.parse(JSON.stringify(song.insts)) : {};
-  const isGameBoy = (song.chip || 'gameboy').toLowerCase() === 'gameboy';
+  const chipType = (song.chip || 'gameboy').toLowerCase();
+  const isGameBoy = chipType === 'gameboy';
   const vibDepthScale = typeof opts.vibDepthScale === 'number' ? opts.vibDepthScale : EXPORTER_VIB_DEPTH_SCALE;
   const regPerTrackerBaseFactor = typeof opts.regPerTrackerBaseFactor === 'number' ? opts.regPerTrackerBaseFactor : RENDER_REG_PER_TRACKER_BASE_FACTOR;
   const regPerTrackerUnit = typeof opts.regPerTrackerUnit === 'number' ? opts.regPerTrackerUnit : RENDER_REG_PER_TRACKER_UNIT;
@@ -134,6 +135,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
         sampleRate,
         channels,
         tickSeconds,
+        chipType,
         isGameBoy,
         vibDepthScale,
         regPerTrackerBaseFactor,
@@ -169,6 +171,7 @@ function renderChannel(
   sampleRate: number,
   channels: number,
   tickSeconds: number,
+  chipType: string,
   isGameBoy: boolean,
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
@@ -219,7 +222,7 @@ function renderChannel(
     } catch (e) {}
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -303,6 +306,7 @@ function renderNoteEvent(
   sampleRate: number,
   channels: number,
   tickSeconds: number,
+  chipType: string,
   isGameBoy: boolean,
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
@@ -341,6 +345,7 @@ function renderNoteEvent(
       gains,
       ev.effects,
       tickSeconds,
+      chipType,
       isGameBoy,
       vibDepthScale,
       regPerTrackerBaseFactor,
@@ -427,6 +432,7 @@ function renderPulse(
   gains: { left: number; right: number } = { left: 1, right: 1 },
   effects?: any[],
   tickSeconds?: number,
+  chipType?: string,
   isGameBoy?: boolean,
   vibDepthScale?: number,
   regPerTrackerBaseFactor?: number,
@@ -573,7 +579,7 @@ function renderPulse(
         const amplitudeHz = effFreq * trackerDepth * 0.012;
         const lfo = Math.sin(vibratoPhase);
         effFreq = effFreq + (lfo * amplitudeHz);
-        
+
         // Advance vibrato phase
         vibratoPhase += (2 * Math.PI * vibRate) / sampleRate;
       }
@@ -581,14 +587,22 @@ function renderPulse(
 
     // Apply arpeggio - rapid pitch cycling
     if (arpOffsets.length > 0 && effFreq > 0) {
-      // hUGETracker cycles arpeggio at Game Boy frame rate (60 Hz)
-      // Arpeggio always includes the root note first: Root → +x → +y → Root → ...
-      const GB_FRAME_RATE = 60; // Hz
-      const cycleDuration = 1 / GB_FRAME_RATE; // ~16.667ms per step
-      
+      // Chip-specific frame rates (Hz) - must match effects/index.ts CHIP_FRAME_RATES
+      // C64: 50 Hz (PAL), Game Boy/NES/Genesis: 60 Hz (NTSC or global standard)
+      const CHIP_FRAME_RATES: Record<string, number> = {
+        'gameboy': 60,
+        'nes': 60,
+        'c64': 50,
+        'genesis': 60,
+        'megadrive': 60,
+        'pcengine': 60,
+      };
+      const frameRate = CHIP_FRAME_RATES[chipType || 'gameboy'] || 60; // Default to 60 Hz
+      const cycleDuration = 1 / frameRate; // e.g., ~16.667ms at 60Hz, ~20ms at 50Hz
+
       // Build arpeggio cycle: [0 (root), ...offsets]
       const allOffsets = [0, ...arpOffsets];
-      
+
       const offsetIndex = Math.floor((t % (cycleDuration * allOffsets.length)) / cycleDuration);
       const semitoneOffset = allOffsets[offsetIndex % allOffsets.length] || 0;
       // Apply frequency shift: freq * 2^(semitones / 12)
@@ -602,7 +616,7 @@ function renderPulse(
       // Advance phase accumulator
       phase += effFreq / sampleRate;
       phase = phase % 1.0; // Keep phase in [0, 1)
-      
+
       // Generate square wave based on duty cycle
       sample = (phase < duty) ? 1.0 : -1.0;
     }
@@ -626,7 +640,7 @@ function renderPulse(
   if (typeof channelId === 'number') {
     channelPhaseState.set(channelId, phase);
     channelVibratoPhase.set(channelId, vibratoPhase);
-    
+
     // Save envelope state for potential legato continuation
     // Use sustained value if this was a legato note, otherwise compute final value
     const finalEnvVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(durSec, envelope, durSec);
@@ -722,7 +736,7 @@ function renderWave(
   // Get or initialize phase accumulator for this channel
   let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
 
-  // Get or initialize vibrato LFO phase for this channel  
+  // Get or initialize vibrato LFO phase for this channel
   let vibratoPhase = (typeof channelId === 'number') ? (channelVibratoPhase.get(channelId) ?? 0) : 0;
 
   // For legato notes, retrieve envelope state to sustain at previous level
@@ -842,7 +856,7 @@ function renderWave(
   if (typeof channelId === 'number') {
     channelPhaseState.set(channelId, phase);
     channelVibratoPhase.set(channelId, vibratoPhase);
-    
+
     // Save volume state (use sustained value if legato, otherwise current volMul)
     const finalVol = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
     channelEnvelopeState.set(channelId, {

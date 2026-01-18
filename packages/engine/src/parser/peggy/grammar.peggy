@@ -271,10 +271,10 @@ PatternAtom
   / Identifier { return { kind: 'token', value: text(), raw: text(), loc: loc(location()) }; }
 
 NoteWithEffects
-  = note:NoteToken effs:EffectSuffix+ { return { kind: 'note', value: note.value, effects: effs, raw: note.raw + effs.join(''), loc: loc(location()) }; }
+  = note:NoteToken effs:EffectSuffix+ { return { kind: 'note', value: note.value, effects: effs, raw: note.raw + effs.map(e => `<${e}>`).join(''), loc: loc(location()) }; }
 
 IdentWithEffects
-  = id:Identifier effs:EffectSuffix+ { return { kind: 'token', value: id + effs.join(''), raw: id + effs.join(''), loc: loc(location()) }; }
+  = id:Identifier effs:EffectSuffix+ { return { kind: 'token', value: id + effs.map(e => `<${e}>`).join(''), raw: id + effs.map(e => `<${e}>`).join(''), loc: loc(location()) }; }
 
 EffectSuffix
   = "<" body:$( (!">" .)* ) ">" { return body; }

@@ -389,8 +389,8 @@ function peg$parse(input, options) {
     };
   var peg$f38 = function(n) { return n; };
   var peg$f39 = function() { return { kind: 'token', value: text(), raw: text(), loc: loc(location()) }; };
-  var peg$f40 = function(note, effs) { return { kind: 'note', value: note.value, effects: effs, raw: note.raw + effs.join(''), loc: loc(location()) }; };
-  var peg$f41 = function(id, effs) { return { kind: 'token', value: id + effs.join(''), raw: id + effs.join(''), loc: loc(location()) }; };
+  var peg$f40 = function(note, effs) { return { kind: 'note', value: note.value, effects: effs, raw: note.raw + effs.map(e => `<${e}>`).join(''), loc: loc(location()) }; };
+  var peg$f41 = function(id, effs) { return { kind: 'token', value: id + effs.map(e => `<${e}>`).join(''), raw: id + effs.map(e => `<${e}>`).join(''), loc: loc(location()) }; };
   var peg$f42 = function(body) { return body; };
   var peg$f43 = function(val) { return { kind: 'note', value: val, raw: val, loc: loc(location()) }; };
   var peg$f44 = function() { return { kind: 'rest', value: '.', raw: '.', loc: loc(location()) }; };

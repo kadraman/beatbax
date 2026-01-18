@@ -1,5 +1,5 @@
 ## Demo: Arpeggio (arp) effect examples
-## Exercises inline `arp` parameters and portamento
+## Exercises inline `arp` parameters and reuseable arp presets
 ## Play: node bin/beatbax play songs/effects/arpeggio.bax
 
 chip gameboy
@@ -9,7 +9,7 @@ bpm 140
 inst lead  type=pulse1 duty=75 env=10,up
 #inst lead  type=pulse1 duty=50 env={"level":14,"direction":"up","period":2,"format":"gb"} sweep={"time":7,"direction":"up","shift":3}
 
-## Named presets: `minor` and `major` define reuseable arpeggio presets
+## Named presets: `minor` and `major` define reusable arpeggio presets
 effect arpMinor = arp:3,7
 effect arpMajor = arp:4,7
 effect arpMinorPlusOct = arp:3,12

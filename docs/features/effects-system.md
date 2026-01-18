@@ -532,13 +532,13 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - **Status**: ✅ **IMPLEMENTED** (WebAudio, PCM renderer, UGE export)
   - **Implementation**: Cycles through pitch offsets at the chip's native frame rate to simulate chords.
   - **Syntax**: `<arp:3,7>` for semitone offsets, or named presets like `<arpMinor>`.
-  - **Behavior**: 
+  - **Behavior**:
     - Always includes root note (offset 0) first in the cycle: Root → +x → +y → Root → ...
     - Cycles at chip-specific frame rate (60 Hz for Game Boy, 50 Hz for C64 PAL, etc.)
     - For `arp:3,7` (minor chord), plays: C → Eb → G → C → ... at 60 Hz
     - Each step lasts ~16.667ms at 60 Hz, creating the chord illusion
   - **hUGETracker mapping**: `0xy` (Arpeggio). The tracker cycles between base note, +x, +y semitones at frame rate.
-  - **Export strategy**: 
+  - **Export strategy**:
     - UGE: Maps first 2 offsets to x/y nibbles. 3+ note arps trigger a warning (only first 2 exported).
     - MIDI: Not directly representable; could expand to rapid note sequence.
     - Sustains across full note duration in UGE export (effect applied to all sustain rows).
@@ -547,11 +547,11 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - PCM renderer: Calculates frequency per sample based on frame-rate cycling through offsets.
     - Base frequency stored in `oscillator._baseFreq` to avoid timing issues with scheduled values.
     - Chip frame rates: Game Boy 60Hz, NES 60Hz, C64 50Hz (PAL default), Genesis 60Hz, PC Engine 60Hz.
-  
+
   - Testing & demo:
     - Demo song: `songs/effects/arpeggio.bax` includes minor/major chord presets and 4-note arpeggios.
     - Validated behaviors: WebAudio playback, CLI/PCM rendering, UGE export with sustain, correct pitch cycling.
-  
+
   - Known limitations:
     - UGE export limited to 2 offsets (3-note arpeggios including root).
     - Wave channel (BufferSource) doesn't support arpeggio in WebAudio (frequency modulation not available).
@@ -909,7 +909,7 @@ pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
 - Supports 2-4 note arpeggios
 - UGE export limitation: only first 2 offsets are exported to hUGETracker's `0xy` effect
 
-**Implementation:** Rapidly cycles oscillator frequency at 16Hz through the specified pitch offsets, creating the illusion of simultaneous notes playing.
+**Implementation:** Rapidly cycles oscillator frequency at the chip's native frame rate through the specified pitch offsets, creating the illusion of simultaneous notes playing. Frame rates: 60 Hz for Game Boy/NES/Genesis, 50 Hz for C64 (PAL). Each arpeggio step lasts one frame (~16.667ms at 60Hz, ~20ms at 50Hz).
 
 **Hardware Mapping:**
 - **Game Boy:** Software effect via frequency automation (no native hardware arpeggio)
