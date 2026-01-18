@@ -120,6 +120,7 @@ function parseNoiseValue(v: any, vendorParam?: string): any | null {
 interface BaseStmt { nodeType: string; loc?: SourceLocation }
 interface ChipStmt extends BaseStmt { nodeType: 'ChipStmt'; chip: string }
 interface BpmStmt extends BaseStmt { nodeType: 'BpmStmt'; bpm: number }
+interface VolumeStmt extends BaseStmt { nodeType: 'VolumeStmt'; volume: number }
 interface TimeStmt extends BaseStmt { nodeType: 'TimeStmt'; time: number }
 interface StepsPerBarStmt extends BaseStmt { nodeType: 'StepsPerBarStmt'; stepsPerBar: number }
 interface TicksPerStepStmt extends BaseStmt { nodeType: 'TicksPerStepStmt'; ticksPerStep: number }
@@ -136,6 +137,7 @@ interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; 
 type Statement =
   | ChipStmt
   | BpmStmt
+  | VolumeStmt
   | TimeStmt
   | StepsPerBarStmt
   | TicksPerStepStmt
@@ -452,6 +454,7 @@ export function parseWithPeggy(source: string): AST {
 
   let topBpm: number | undefined = undefined;
   let chipName: string | undefined = undefined;
+  let topVolume: number | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
 
   for (const stmt of program.body) {
@@ -472,6 +475,10 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'BpmStmt': {
         topBpm = stmt.bpm;
+        break;
+      }
+      case 'VolumeStmt': {
+        topVolume = Math.max(0, Math.min(1, (stmt as VolumeStmt).volume));
         break;
       }
       case 'ChipStmt': {
@@ -556,7 +563,7 @@ export function parseWithPeggy(source: string): AST {
 
   const includeStructured = true;
 
-  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, play: playNode, metadata };
+  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata };
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;

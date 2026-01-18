@@ -66,22 +66,23 @@ export async function createAudioContext(opts: AudioContextOptions = {}): Promis
   throw new Error(`No compatible AudioContext found for backend: ${backend}`);
 }
 
-function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any) {
-  return playPulseImpl(ctx, freq, duty, start, dur, inst, scheduler);
+function playPulse(ctx: any, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+  return playPulseImpl(ctx, freq, duty, start, dur, inst, scheduler, destination);
 }
 
-function playWavetable(ctx: any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any) {
-  return playWavetableImpl(ctx, freq, table, start, dur, inst, scheduler);
+function playWavetable(ctx: any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+  return playWavetableImpl(ctx, freq, table, start, dur, inst, scheduler, destination);
 }
 
-function playNoise(ctx: any, start: number, dur: number, inst: any, scheduler?: any) {
-  return playNoiseImpl(ctx, start, dur, inst, scheduler);
+function playNoise(ctx: any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+  return playNoiseImpl(ctx, start, dur, inst, scheduler, destination);
 }
 
 export class Player {
   private ctx: AudioContext;
   private scheduler: TickScheduler;
   private bpmDefault = 128;
+  private masterGain: GainNode | null = null;
   private activeNodes: Array<{ node: any; chId: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
@@ -116,6 +117,15 @@ export class Player {
 
     // ensure a clean slate for each playback run
     try { this.stop(); } catch (e) {}
+
+    // Create or update master gain node
+    // Default to 1.0 (matches hUGETracker behavior - no attenuation)
+    const masterVolume = ast.volume !== undefined ? ast.volume : 1.0;
+    if (!this.masterGain) {
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.connect(this.ctx.destination);
+    }
+    this.masterGain.gain.setValueAtTime(masterVolume, this.ctx.currentTime);
 
     const chip = ast.chip || 'gameboy';
     if (chip !== 'gameboy') {
@@ -260,7 +270,7 @@ export class Player {
         this.scheduler.schedule(time, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const nodes = playNoise(this.ctx, time, dur, alt);
+          const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this.masterGain || undefined);
           for (const n of nodes) this.activeNodes.push({ node: n, chId });
         });
         return;
@@ -292,7 +302,7 @@ export class Player {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
-            const nodes = playPulse(this.ctx, freq, duty, time, dur, inst, this.scheduler);
+            const nodes = playPulse(this.ctx, freq, duty, time, dur, inst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
@@ -308,7 +318,7 @@ export class Player {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
-            const nodes = playWavetable(this.ctx, freq, wav, time, dur, inst, this.scheduler);
+            const nodes = playWavetable(this.ctx, freq, wav, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
@@ -322,7 +332,7 @@ export class Player {
           this.scheduler.schedule(time, () => {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
-            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
+            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
@@ -334,7 +344,7 @@ export class Player {
         this.scheduler.schedule(time, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
+          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
           this.tryApplyPan(this.ctx, nodes, panVal);
           for (const n of nodes) this.activeNodes.push({ node: n, chId });
         });
