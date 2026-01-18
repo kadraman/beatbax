@@ -23,8 +23,13 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
     exporter emits a Program Change for the corresponding track using this value.
 
 - effect presets: define reusable named effect RHS strings that can be applied
-  inline or as a sequence/pattern modifier. Syntax: `effect name = vib:4,8,sine,4`.
-  Example: `pat melody = C4<wobble> seq lead => pat melody:wobble`.
+  inline or as a sequence/pattern modifier. Syntax: `effect name = vib:4,8,sine,4` or `effect arpMinor = arp:3,7`.
+  Example: `pat melody = C4<wobble>`, `C4<arpMinor>:4`, or `seq lead => pat melody:wobble`.
+  - Arpeggio effect (`arp`): Cycles through semitone offsets at chip frame rate (60Hz for Game Boy) to simulate chords.
+    - Syntax: `<arp:3,7>` for minor chord (root → +3 → +7 → root...)
+    - Always includes root note (offset 0) in the cycle
+    - Example presets: `effect arpMinor = arp:3,7`, `effect arpMajor = arp:4,7`, `effect arpMajor7 = arp:4,7,11`
+    - UGE export: supports up to 2 offsets (3 notes including root)
 
 - pat definitions: pattern tokens (notes, rests, named tokens, inline inst changes).
   - Notes: `C4`, `G#5`, `A3` — scientific pitch notation.

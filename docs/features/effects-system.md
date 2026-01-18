@@ -529,8 +529,33 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - ✅ Fixed: Empty UGE cells (rest/sustain/padding/empty patterns) use instrument: -1 to prevent interference.
 
 - Arpeggio (`arp`)
-  - hUGETracker mapping: `0xy` (Arpeggio). The tracker cycles between base note, +x, +y semitones. hUGETracker supports 2 offsets; longer arpeggios must be expanded.
-  - Export strategy: For 3-step arps encoded as 047, map digits to x/y (take first two non-zero intervals into x/y). For 3+ note arps, expand into rapid note subdivisions (pattern-level expansion) or use multiple channels if available.
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio, PCM renderer, UGE export)
+  - **Implementation**: Cycles through pitch offsets at the chip's native frame rate to simulate chords.
+  - **Syntax**: `<arp:3,7>` for semitone offsets, or named presets like `<arpMinor>`.
+  - **Behavior**: 
+    - Always includes root note (offset 0) first in the cycle: Root → +x → +y → Root → ...
+    - Cycles at chip-specific frame rate (60 Hz for Game Boy, 50 Hz for C64 PAL, etc.)
+    - For `arp:3,7` (minor chord), plays: C → Eb → G → C → ... at 60 Hz
+    - Each step lasts ~16.667ms at 60 Hz, creating the chord illusion
+  - **hUGETracker mapping**: `0xy` (Arpeggio). The tracker cycles between base note, +x, +y semitones at frame rate.
+  - **Export strategy**: 
+    - UGE: Maps first 2 offsets to x/y nibbles. 3+ note arps trigger a warning (only first 2 exported).
+    - MIDI: Not directly representable; could expand to rapid note sequence.
+    - Sustains across full note duration in UGE export (effect applied to all sustain rows).
+  - **Implementation details**:
+    - WebAudio: Schedules frequency changes via `setValueAtTime` at chip frame rate intervals.
+    - PCM renderer: Calculates frequency per sample based on frame-rate cycling through offsets.
+    - Base frequency stored in `oscillator._baseFreq` to avoid timing issues with scheduled values.
+    - Chip frame rates: Game Boy 60Hz, NES 60Hz, C64 50Hz (PAL default), Genesis 60Hz, PC Engine 60Hz.
+  
+  - Testing & demo:
+    - Demo song: `songs/effects/arpeggio.bax` includes minor/major chord presets and 4-note arpeggios.
+    - Validated behaviors: WebAudio playback, CLI/PCM rendering, UGE export with sustain, correct pitch cycling.
+  
+  - Known limitations:
+    - UGE export limited to 2 offsets (3-note arpeggios including root).
+    - Wave channel (BufferSource) doesn't support arpeggio in WebAudio (frequency modulation not available).
+    - Arpeggio speed tied to chip frame rate, not customizable per-note.
 
 - Volume Slide (`vol`)
   - hUGETracker mapping: Volume slide effect (`Dxy` or tracker-specific Jxy-like opcodes; hUGETracker supports volume slide per tick — check manual for exact code used in UGE v6 pattern fields).
@@ -845,7 +870,6 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Add panning implementation
 - [ ] Add vibrato implementation
 - [x] Add portamento implementation
-- [ ] Add arpeggio implementation
 - [ ] Add volume slide implementation
 - [ ] Add pitch bend implementation
 - [ ] Add tremolo implementation
@@ -862,7 +886,42 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [ ] Document effects in TUTORIAL.md
 - [ ] Create effects reference guide
 
-## Implementation Plan — Phased rollout
+### Arp (Arpeggio)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Inline effect with explicit parameters
+pat melody = C4<arp:0,4,7>:4 E4<arp:0,3,7>:4
+
+# Named effect presets
+effect arpMinor = arp:3,7          # Minor triad (root + minor 3rd + perfect 5th)
+effect arpMajor = arp:4,7          # Major triad (root + major 3rd + perfect 5th)
+effect arpMajor7 = arp:4,7,11      # Major 7th chord (4 notes)
+
+# Apply preset to notes
+pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
+```
+
+**Parameters:**
+- Semitone offsets from base note (e.g., `0,4,7` for major triad, `0,3,7` for minor triad)
+- Supports 2-4 note arpeggios
+- UGE export limitation: only first 2 offsets are exported to hUGETracker's `0xy` effect
+
+**Implementation:** Rapidly cycles oscillator frequency at 16Hz through the specified pitch offsets, creating the illusion of simultaneous notes playing.
+
+**Hardware Mapping:**
+- **Game Boy:** Software effect via frequency automation (no native hardware arpeggio)
+- **UGE Export:** Maps to `0xy` effect (x=offset1, y=offset2). Warns if >2 offsets provided.
+- **MIDI Export:** Expands into rapid note sequences
+
+**Known Issues (Fixed in v0.1.0):**
+- ✅ Parser grammar fix: `EffectSuffix` now returns effect content without angle brackets
+- ✅ Token reconstruction fix: `patternEventsToTokens` wraps effects in `<>` when converting to strings
+- ✅ Preset expansion fix: `parseEffectsInline` now treats bare identifiers (e.g., `arpMinor`) as effect names with empty params, allowing preset lookup
+
+## Implementation Checklist
 
 This section describes a practical, incremental implementation approach. Implementers should complete each phase end-to-end (parser → resolver → playback → export → tests) before moving to the next phase. Keep changes minimal and add unit tests for each slice.
 

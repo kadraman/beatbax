@@ -460,6 +460,8 @@ function renderPulse(
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
+  // Arpeggio params - semitone offsets
+  let arpOffsets: number[] = [];
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -488,6 +490,12 @@ function renderPulse(
               portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
             }
           }
+        } else if (fx && fx.type === 'arp') {
+          const p = fx.params || [];
+          // Parse semitone offsets - filter out non-numeric values
+          arpOffsets = p
+            .map((x: any) => Number(x))
+            .filter((n: number) => Number.isFinite(n) && n >= 0);
         }
       } catch (e) {}
     }
@@ -569,6 +577,22 @@ function renderPulse(
         // Advance vibrato phase
         vibratoPhase += (2 * Math.PI * vibRate) / sampleRate;
       }
+    }
+
+    // Apply arpeggio - rapid pitch cycling
+    if (arpOffsets.length > 0 && effFreq > 0) {
+      // hUGETracker cycles arpeggio at Game Boy frame rate (60 Hz)
+      // Arpeggio always includes the root note first: Root → +x → +y → Root → ...
+      const GB_FRAME_RATE = 60; // Hz
+      const cycleDuration = 1 / GB_FRAME_RATE; // ~16.667ms per step
+      
+      // Build arpeggio cycle: [0 (root), ...offsets]
+      const allOffsets = [0, ...arpOffsets];
+      
+      const offsetIndex = Math.floor((t % (cycleDuration * allOffsets.length)) / cycleDuration);
+      const semitoneOffset = allOffsets[offsetIndex % allOffsets.length] || 0;
+      // Apply frequency shift: freq * 2^(semitones / 12)
+      effFreq = effFreq * Math.pow(2, semitoneOffset / 12);
     }
 
     // Simple, efficient band-limited pulse wave synthesis using naive square wave

@@ -280,12 +280,64 @@ const PortamentoHandler: EffectHandler = {
     },
 };
 
+// Arpeggio effect handler (0xy - Arpeggio)
+const ArpeggioHandler: EffectHandler = {
+    type: 'arp',
+    priority: 15, // Higher priority than vibrato, lower than note cut
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        if (String(name).toLowerCase() !== 'arp') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        
+        // Parse semitone offsets - filter out non-numeric values
+        const offsets = params
+            .map((p: any) => Number(p))
+            .filter((n: number) => Number.isFinite(n) && n >= 0 && n <= 15);
+
+        if (offsets.length === 0) return null;
+
+        // hUGETracker 0xy supports only 2 offsets (x and y nibbles, both 0-15)
+        // If user provides more than 2 offsets, we'll take the first 2 and warn
+        const offset1 = offsets.length > 0 ? offsets[0] : 0;
+        const offset2 = offsets.length > 1 ? offsets[1] : 0;
+
+        // Encode as 0xy where x=first offset, y=second offset
+        const param = ((offset1 & 0xF) << 4) | (offset2 & 0xF);
+
+        // Store metadata for warning if >2 offsets provided
+        const hasExtraOffsets = offsets.length > 2;
+
+        return {
+            type: 'arp',
+            code: 0,
+            param: param & 0xff,
+            duration: sustainCount + 1, // Full note duration
+            priority: this.priority,
+            isGlobal: false,
+            ...(hasExtraOffsets && { _extraOffsets: offsets.slice(2) }), // Metadata for warning
+        } as any;
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        // Arpeggio cannot coexist with other note-level effects
+        return false;
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        return true;
+    },
+};
+
 // Effect handler registry - add new handlers here as effects are implemented
 const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
+    ArpeggioHandler,     // Priority 15
     PortamentoHandler,   // Priority 12
     VibratoHandler,      // Priority 10
-    // Future: ArpeggioHandler (priority 15), etc.
 ];
 
 /**
@@ -653,6 +705,8 @@ function eventsToPatterns(
     // Track active per-channel vibrato so we can repeat it on sustain rows.
     // `remainingRows` is optional; if present it counts sustain rows left AFTER the note row.
     let activeVib: { code: number; param: number; remainingRows?: number } | null = null;
+    // Track active per-channel arpeggio so we can repeat it on sustain rows.
+    let activeArp: { code: number; param: number; remainingRows?: number } | null = null;
     // Map of note globalRow -> desired durationRows (including the note row)
     if (!desiredVibMap) desiredVibMap = new Map();
     let prevEventType: string | null = null;
@@ -682,9 +736,9 @@ function eventsToPatterns(
                 pan: currentPan,
             };
         } else if (event.type === 'sustain') {
-            // Sustain = ongoing note; retain currentPan. If a vibrato was active on the
+            // Sustain = ongoing note; retain currentPan. If a vibrato or arpeggio was active on the
             // previous note row, repeat that effect on this sustain row until the note ends
-            // or until an explicit vib duration has expired.
+            // or until an explicit duration has expired.
             let effCode = 0;
             let effParam = 0;
             if (activeVib) {
@@ -692,6 +746,12 @@ function eventsToPatterns(
                 if (typeof activeVib.remainingRows === 'undefined' || activeVib.remainingRows > 0) {
                     effCode = activeVib.code;
                     effParam = activeVib.param;
+                }
+            } else if (activeArp) {
+                // If remainingRows is undefined, arp continues for full note (until note ends).
+                if (typeof activeArp.remainingRows === 'undefined' || activeArp.remainingRows > 0) {
+                    effCode = activeArp.code;
+                    effParam = activeArp.param;
                 }
             }
             cell = {
@@ -707,6 +767,13 @@ function eventsToPatterns(
                 if (activeVib.remainingRows === 0) {
                     // Once expired, clear activeVib so further sustains don't repeat it
                     activeVib = null;
+                }
+            }
+            if (activeArp && typeof activeArp.remainingRows === 'number') {
+                activeArp.remainingRows = Math.max(0, activeArp.remainingRows - 1);
+                if (activeArp.remainingRows === 0) {
+                    // Once expired, clear activeArp so further sustains don't repeat it
+                    activeArp = null;
                 }
             }
         } else if (event.type === 'note') {
@@ -820,6 +887,7 @@ function eventsToPatterns(
 
             // Parse all effects using the extensible handler system
             activeVib = null;
+            activeArp = null;
             const effectRequests: EffectRequest[] = [];
 
             if (Array.isArray(noteEvent.effects) && noteEvent.effects.length > 0) {
@@ -836,6 +904,12 @@ function eventsToPatterns(
                     for (const handler of EFFECT_HANDLERS) {
                         const request = handler.parse(fx, noteEvent, sustainCount, tickSeconds);
                         if (request) {
+                            // Warn if arpeggio has more than 2 offsets (UGE 0xy only supports 2)
+                            if (request.type === 'arp' && (request as any)._extraOffsets) {
+                                const extraOffsets = (request as any)._extraOffsets;
+                                const totalOffsets = 2 + extraOffsets.length; // 2 encoded + extras
+                                warn('export', `Arpeggio with ${totalOffsets} offsets detected. hUGETracker 0xy only supports 2 offsets. Extra offsets [${extraOffsets.join(', ')}] will be ignored in UGE export.`);
+                            }
                             effectRequests.push(request);
                             break; // Each effect handled by only one handler
                         }
@@ -864,8 +938,21 @@ function eventsToPatterns(
                         remainingRows: 1
                     };
                     desiredVibMap.set(i, 2); // vibrato appears on 2 rows total
+                } else if (winningEffect.type === 'arp') {
+                    // Apply arpeggio to note row AND all sustain rows (arpeggio lasts for full note duration)
+                    const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
+                    if (handler) {
+                        handler.apply(cell, winningEffect);
+                    }
+                    // Set activeArp to continue on all sustain rows
+                    // sustainCount is the number of sustain events following this note
+                    activeArp = {
+                        code: winningEffect.code,
+                        param: winningEffect.param,
+                        remainingRows: sustainCount // Apply to ALL sustain rows
+                    };
                 } else {
-                    // Apply non-vibrato effects to note row (portamento, etc.)
+                    // Apply non-vibrato, non-arpeggio effects to note row (portamento, etc.)
                     const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
                     if (handler) {
                         handler.apply(cell, winningEffect);

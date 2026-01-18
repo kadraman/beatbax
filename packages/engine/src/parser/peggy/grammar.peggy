@@ -277,7 +277,7 @@ IdentWithEffects
   = id:Identifier effs:EffectSuffix+ { return { kind: 'token', value: id + effs.join(''), raw: id + effs.join(''), loc: loc(location()) }; }
 
 EffectSuffix
-  = "<" body:$( (!">" .)* ) ">" { return '<' + body + '>'; }
+  = "<" body:$( (!">" .)* ) ">" { return body; }
 
 NoteToken
   = val:$([A-Ga-g] [#b]? "-"? [0-9]+) { return { kind: 'note', value: val, raw: val, loc: loc(location()) }; }
