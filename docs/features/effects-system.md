@@ -170,7 +170,7 @@ Notes on terminology:
 - "Channels" indicates how many hardware voices are available; heavy emulation (e.g., echo via extra channels) may be impractical for limited-voice chips.
 
 ### Commodore 64 — SID (MOS 6581 / 8580)
-- Vibrato: Native — SID has oscillator pitch modulation via external LFO/envelope control; vibrato can be achieved with hardware LFO or rapid frequency writes.
+- **Vibrato (`vib`):** ✅ **IMPLEMENTED** — Native on SID via hardware LFO; BeatBax implements software LFO for Game Boy with calibrated depth/rate mapping to hUGETracker 4xy effect.
 - Portamento: Native/Approx — common to implement via portamento routines or rapid frequency ramps.
 - Arpeggio: Approx — typically implemented by rapid pitch changes (note-sequencing); supported in trackers.
 - Volume Slide / Tremolo: Native/Approx — SID supports filter/envelope manipulation and LFOs, so tremolo can be done with hardware routing or software volume writes.
@@ -863,28 +863,71 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 
 ## Implementation Checklist
 
-- [ ] Add `Effect` and `NoteToken` types to AST
+- [x] Add `Effect` and `NoteToken` types to AST
 - [x] Update parser to recognize `<effect:param>` syntax (Peggy default parser)
-- [ ] Implement effect parsing for all core effects
-- [ ] Create effect application functions in audio backend
+- [x] Implement effect parsing for all core effects
+- [x] Create effect application functions in audio backend
 - [x] Add panning implementation
-- [ ] Add vibrato implementation
+- [x] Add vibrato implementation (WebAudio + PCM renderer + UGE export)
 - [x] Add portamento implementation
+- [x] Add arpeggio implementation
 - [ ] Add volume slide implementation
 - [ ] Add pitch bend implementation
 - [ ] Add tremolo implementation
-- [ ] Add note cut implementation
+- [x] Add note cut implementation (UGE export)
 - [ ] Add retrigger implementation
-- [ ] Add pattern-level effect modifiers
-- [ ] Add named effect presets
-- [ ] Map effects to MIDI export
-- [ ] Map effects to UGE export (where possible)
-- [ ] Write unit tests for effect parsing
-- [ ] Write unit tests for effect application
-- [ ] Write integration tests
-- [ ] Add effects examples to demo songs
+- [x] Add pattern-level effect modifiers
+- [x] Add named effect presets
+- [x] Map effects to MIDI export (pan, partial vib/port/vol/bend/trem/cut)
+- [x] Map effects to UGE export (pan, vib, port, arp, cut implemented)
+- [x] Write unit tests for effect parsing
+- [x] Write unit tests for effect application
+- [x] Write integration tests (uge.vib.test.ts, uge.arp.test.ts, etc.)
+- [x] Add effects examples to demo songs (effect_demo.bax, panning_demo.bax)
 - [ ] Document effects in TUTORIAL.md
 - [ ] Create effects reference guide
+
+### Vibrato (`vib`)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Inline vibrato with depth and rate
+pat melody = C4<vib:3,6> E4<vib:4,8,sine,4>
+
+# Named vibrato presets
+effect wobble = vib:8,4
+effect subtle = vib:2,5,triangle
+
+# Apply preset to notes
+pat vibrato_melody = C4<wobble>:4 E4<subtle>:4
+```
+
+**Parameters:**
+- `depth` (1st param, required): vibrato amplitude (0-15 after quantization)
+- `rate` (2nd param, required): vibrato speed in Hz-like units
+- `waveform` (3rd param, optional): LFO shape selector - name or number (0-15). Default: `none` (0)
+  - Official waveforms: `none`, `square`, `triangle`, `sawUp`, `sawDown`, `stepped`, `gated`, etc.
+  - Common aliases: `sine`→triangle (closest to sine), `tri`→triangle, `sqr`→square, `saw`→sawUp
+- `durationRows` (4th param, optional): length in pattern rows for which vibrato is active
+
+**Implementation:** Creates a low-frequency oscillator that modulates the oscillator frequency at the specified depth and rate. The resolver converts row-based durations to seconds (`fx.durationSec`) for deterministic timing across all backends.
+
+**Hardware Mapping:**
+- **Game Boy:** Software effect via AudioParam frequency modulation with chip-specific frame rate (60 Hz)
+- **UGE Export:** Maps to `4xy` effect (x=waveform, y=depth). Vibrato appears on both note row and first sustain row.
+- **MIDI Export:** Maps to Modulation CC #1 + pitch bend approximation
+
+**Calibration:** Vibrato depth calibrated to match hUGEDriver exports within ~10.68 cents difference (175.70 cents vs 186.38 cents reference).
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts`
+- PCM renderer: `packages/engine/src/audio/pcmRenderer.ts`
+- UGE export: `packages/engine/src/export/ugeWriter.ts` (VibratoHandler)
+- Tests: `packages/engine/tests/uge.vib.test.ts`
+
+---
 
 ### Arp (Arpeggio)
 
