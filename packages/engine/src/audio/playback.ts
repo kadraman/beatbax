@@ -132,6 +132,9 @@ export class Player {
       ? (globalThis as any).structuredClone(rootInsts)
       : JSON.parse(JSON.stringify(rootInsts));
 
+    // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
+    (this.ctx as any)._chipType = ast.chip || 'gameboy';
+
     for (const ch of ast.channels || []) {
       const instsMap = instsRootClone;
       let currentInst = instsMap[ch.inst || ''];
@@ -167,11 +170,11 @@ export class Player {
 
             if (token.type === 'named') {
               const instProps = token.instProps || instsMap[token.instrument] || null;
-              this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, dur);
+              this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, dur, tickSeconds);
             } else if (token.type === 'note') {
               const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
               // Pass the full token object so scheduleToken can honour inline pan/effects
-              this.scheduleToken(ch.id, instProps, instsMap, token, t, dur);
+              this.scheduleToken(ch.id, instProps, instsMap, token, t, dur, tickSeconds);
               if (tempRemaining > 0) {
                 tempRemaining -= 1;
                 if (tempRemaining <= 0) { tempInst = null; tempRemaining = 0; }
@@ -210,7 +213,7 @@ export class Player {
         }
         const dur = tickSeconds * (1 + sustainCount);
 
-        this.scheduleToken(ch.id, useInst, instsMap, token, t, dur);
+        this.scheduleToken(ch.id, useInst, instsMap, token, t, dur, tickSeconds);
         lastEndTimeForThisChannel = Math.max(lastEndTimeForThisChannel, t + dur);
 
         if (tempRemaining > 0 && token !== '.') {
@@ -248,7 +251,7 @@ export class Player {
     } catch (e) {}
   }
 
-  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number) {
+  private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
     if (token === '.') return;
     if (instsMap && typeof token === 'string' && instsMap[token]) {
       const alt = instsMap[token];
@@ -291,7 +294,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playPulse(this.ctx, freq, duty, time, dur, inst, this.scheduler);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -306,7 +309,7 @@ export class Player {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, inst, this.scheduler);
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -320,7 +323,7 @@ export class Player {
             if (this.solo !== null && this.solo !== chId) return;
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler);
-            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId);
+            this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -342,7 +345,7 @@ export class Player {
   // Apply registered effects for a scheduled note. `effectsArr` may be an array of
   // objects { type, params } produced by the parser (or legacy arrays). This will
   // look up handlers in the effects registry and invoke them.
-  private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number, chId?: number) {
+  private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number, chId?: number, tickSeconds?: number) {
     if (!Array.isArray(effectsArr) || effectsArr.length === 0) return;
     for (const fx of effectsArr) {
       try {
@@ -356,7 +359,7 @@ export class Player {
         }
         const handler = getEffect(name);
         if (handler) {
-          try { handler(ctx, nodes, params, start, dur, chId); } catch (e) {}
+          try { handler(ctx, nodes, params, start, dur, chId, tickSeconds); } catch (e) {}
         }
       } catch (e) {}
     }

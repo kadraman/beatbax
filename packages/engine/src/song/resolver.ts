@@ -88,8 +88,14 @@ export function parseEffectsInline(str: string) {
     } else if (currentEffect) {
       // This part is an additional parameter for the current effect
       currentEffect.paramsStr = (currentEffect.paramsStr ? (currentEffect.paramsStr + ',' + p) : p);
+    } else {
+      // Bare identifier with no colon - treat as an effect type with no params (preset name)
+      const bareMatch = p.match(/^[a-zA-Z_][a-zA-Z0-9_-]*$/);
+      if (bareMatch) {
+        currentEffect = { type: p, paramsStr: '' };
+      }
     }
-    // If no colon and no currentEffect, this part is orphaned - ignore it
+    // Otherwise orphaned - ignore it
   }
   if (currentEffect) {
     effects.push({ type: currentEffect.type, params: parseEffectParams(currentEffect.paramsStr), paramsStr: currentEffect.paramsStr });
