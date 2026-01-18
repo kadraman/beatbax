@@ -180,7 +180,35 @@ await exportUGE(song, 'output.uge');
 
 ## Validation
 
-## Vibrato (vib) mapping
+## Effects Mapping
+
+### Arpeggio (arp) mapping
+
+BeatBax `arp` effect exports to hUGETracker's `0xy` arpeggio effect, cycling through pitch offsets at the Game Boy frame rate (60 Hz).
+
+- **Syntax:** `<arp:3,7>` defines semitone offsets from the root note
+- **Cycle behavior:** Always includes root (offset 0): Root → +x → +y → Root → ...
+  - Example: `arp:3,7` (C minor) cycles C → Eb → G → C at 60 Hz
+  - Each step lasts ~16.667ms, creating a chord illusion
+- **Mapping rule:** First 2 offsets map to x and y nibbles of `0xy` effect code
+  - `arp:3,7` → `0x37` (offset +3 in x nibble, +7 in y nibble)
+  - `arp:4,7` → `0x47` (major chord)
+- **Limitations:** 
+  - UGE format supports only 2 offsets (3 notes including root)
+  - Arpeggios with 3+ offsets (e.g., `arp:4,7,11`) emit a warning and only export first 2
+- **Sustain behavior:** Arpeggio effect applies to note onset row AND all sustain rows for full note duration
+- **Implementation:** See `packages/engine/src/export/ugeWriter.ts` (ArpeggioHandler, activeArp tracking)
+
+Example presets:
+```bax
+effect arpMinor = arp:3,7
+effect arpMajor = arp:4,7
+effect arpMajor7 = arp:4,7,11  # Warning: only 4,7 exported to UGE
+
+pat chords = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMinor>:4
+```
+
+### Vibrato (vib) mapping
 
 When exporting BeatBax songs for Game Boy, the BeatBax `vib` effect is conservatively mapped into hUGETracker's compact `4xy` vibrato effect so the exported `.uge` behaves sensibly in tracker/driver toolchains.
 

@@ -1,0 +1,212 @@
+{
+  "exportedAt": "2026-01-18T16:44:27.966Z",
+  "version": 1,
+  "song": {
+    "pats": {
+      "invalid_arp": [
+        "arp(-2,4,7)",
+        "C5",
+        "arp(-1,3,7)",
+        "E5"
+      ],
+      "valid_arp": [
+        "arp(0,4,7)",
+        "C5",
+        "arp(0,3,7)",
+        "E5"
+      ]
+    },
+    "insts": {
+      "lead": {
+        "type": "pulse1",
+        "duty": "50",
+        "env": "12,down"
+      }
+    },
+    "seqs": {
+      "demo": [
+        "arp(-2,4,7)",
+        "C5",
+        "arp(-1,3,7)",
+        "E5",
+        "arp(0,4,7)",
+        "C5",
+        "arp(0,3,7)",
+        "E5"
+      ]
+    },
+    "channels": [
+      {
+        "id": 1,
+        "events": [
+          {
+            "type": "note",
+            "token": "arp(-2,4,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "C5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(-1,3,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "E5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(0,4,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "C5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(0,3,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "E5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          }
+        ],
+        "defaultInstrument": "lead",
+        "pat": [
+          {
+            "type": "note",
+            "token": "arp(-2,4,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "C5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(-1,3,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "E5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(0,4,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "C5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "arp(0,3,7)",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          },
+          {
+            "type": "note",
+            "token": "E5",
+            "instrument": "lead",
+            "instProps": {
+              "type": "pulse1",
+              "duty": "50",
+              "env": "12,down"
+            }
+          }
+        ]
+      }
+    ],
+    "bpm": 120,
+    "chip": "gameboy",
+    "metadata": {}
+  }
+}

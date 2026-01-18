@@ -138,9 +138,13 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   try {
     const reg = registerFromFreq(freq);
     const aligned = freqFromRegister(reg);
-    osc.frequency.value = aligned;
+    // Use setValueAtTime instead of .value to avoid canceling later automations
+    osc.frequency.setValueAtTime(aligned, start);
+    // Store the base frequency for effects to use (since .value is not reliable before start time)
+    (osc as any)._baseFreq = aligned;
   } catch (e) {
-    osc.frequency.value = freq;
+    osc.frequency.setValueAtTime(freq, start);
+    (osc as any)._baseFreq = freq;
   }
 
   // Apply sweep if present (Game Boy pulse1 only)

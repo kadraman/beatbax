@@ -1,4 +1,5 @@
 import { EffectHandler, EffectRegistry } from './types.js';
+import { warn } from '../util/diag.js';
 
 const registry = new Map<string, EffectHandler>();
 
@@ -177,4 +178,99 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 
   // Store this frequency for the next note on this channel
   portamentoLastFreq.set(channelKey, targetFreq);
+});
+
+// Arpeggio effect: rapidly cycle through pitch offsets to simulate chords.
+// Parameters:
+//  - params[0..N]: semitone offsets from the base note (e.g., 0, 4, 7 for major triad)
+//
+// hUGETracker's 0xy effect uses 2 nibbles to encode 2 offsets (x and y).
+// BeatBax supports 3-4 note arpeggios by accepting multiple comma-separated offsets.
+// For UGE export: only the first 2 offsets are exported (3-note arpeggio); if more
+// offsets are provided, a warning is shown.
+//
+// Implementation: Cycle through pitch offsets at 60Hz (Game Boy frame rate).
+// Each arpeggio step lasts exactly 1 frame (~16.667ms), independent of BPM.
+// For a note spanning 7 ticks (Speed=7) with a 3-note arpeggio:
+//   Plays 7 notes in ~117ms: Root → +x → +y → Root → +x → +y → Root
+// This rapid cycling creates the illusion of hearing a chord.
+register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number) => {
+  if (!nodes || nodes.length === 0) return;
+  const osc = nodes[0];
+  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+
+  // Parse semitone offsets from parameters (filter out non-numeric values)
+  const rawOffsets = (params || []).map(p => Number(p));
+  const negativeOffsets = rawOffsets.filter(n => Number.isFinite(n) && n < 0);
+
+  if (negativeOffsets.length > 0) {
+    warn('effect', `Arpeggio effect contains negative offsets [${negativeOffsets.join(', ')}]. hUGETracker's 0xy format only supports offsets 0-15. Negative offsets will be ignored.`);
+  }
+
+  const offsets = rawOffsets.filter(n => Number.isFinite(n) && n >= 0);
+
+  if (offsets.length === 0) return;
+
+  // Get the base frequency (the current note's pitch)
+  // Use _baseFreq if available (stored by playPulse), otherwise fallback to .value
+  let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
+  if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
+
+  // Arpeggio timing: advances at the chip's native frame rate.
+  // Each tick = 1 frame, independent of BPM or musical tempo.
+  // For Speed=7 (7 ticks per row) with 3-note arpeggio:
+  //   Root → +x → +y → Root → +x → +y → Root (7 notes)
+  // This rapid cycling creates the chord illusion.
+
+  // Chip frame rates (Hz) - based on TV standards and hardware specs
+  // Note: Defaults reflect the dominant market/scene for each chip:
+  // - C64: 50 Hz (PAL) because the European demoscene/SID music community was dominant
+  // - Others: 60 Hz (NTSC) due to Japanese/North American market dominance or global standard
+  const CHIP_FRAME_RATES: Record<string, number> = {
+    'gameboy': 60,      // Game Boy: ~59.73 Hz (global standard, not TV-dependent)
+    'nes': 60,          // NES: ~60 Hz NTSC (North American market dominant)
+    'c64': 50,          // C64 SID: 50 Hz PAL (European demoscene/music dominant)
+    'genesis': 60,      // Sega Genesis: ~60 Hz NTSC (NA/Japan markets)
+    'megadrive': 60,    // Alias for Genesis
+    'pcengine': 60,     // PC Engine: ~60 Hz (Japan/NA markets)
+  };
+
+  const chipType = ((ctx as any)._chipType || 'gameboy').toLowerCase();
+  const frameRate = CHIP_FRAME_RATES[chipType] || 60; // Default to 60 Hz
+  const stepDuration = 1 / frameRate;
+
+  try {
+    // Cancel any existing frequency automation
+    osc.frequency.cancelScheduledValues(start);
+
+    // hUGETracker arpeggio always includes the root note first
+    // For offsets [3, 7], the cycle is: Root (0) → +3 → +7 → Root → ...
+    const allOffsets = [0, ...offsets];
+
+    // Calculate frequencies for each offset
+    // Formula: freq = baseFreq * 2^(semitones / 12)
+    const frequencies = allOffsets.map(offset => baseFreq * Math.pow(2, offset / 12));
+
+    // Schedule frequency changes at the chip's native frame rate (e.g., 60Hz for Game Boy, 50Hz for C64)
+    // Each note in the arpeggio lasts exactly one frame (e.g., ~16.667ms at 60Hz, ~20ms at 50Hz)
+    let currentTime = start;
+    const endTime = start + dur;
+
+    // Schedule the arpeggio cycle for the entire note duration
+    while (currentTime < endTime) {
+      for (let i = 0; i < frequencies.length && currentTime < endTime; i++) {
+        const freq = frequencies[i];
+        const safeFreq = Math.max(20, Math.min(20000, freq));
+
+        // Schedule this frequency to start at currentTime
+        osc.frequency.setValueAtTime(safeFreq, currentTime);
+        currentTime += stepDuration; // Advance by one chip frame (1/frameRate second)
+      }
+    }
+
+    // Hold the last frequency until the end of the note
+    // (Don't reset to base - let it naturally transition)
+  } catch (e) {
+    // Best effort - skip arpeggio if automation fails
+  }
 });

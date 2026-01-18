@@ -23,7 +23,7 @@ export const patternEventsToTokens = (events?: PatternEvent[]): string[] => {
     switch (ev.kind) {
       case 'note': {
         const base = ev.value ?? raw ?? '';
-        const token = ev.effects && ev.effects.length > 0 ? base + ev.effects.join('') : base;
+        const token = ev.effects && ev.effects.length > 0 ? base + ev.effects.map(e => `<${e}>`).join('') : base;
         const dur = ev.duration && ev.duration > 0 ? ev.duration : 1;
         out.push(token);
         for (let i = 1; i < dur; i++) out.push('_');

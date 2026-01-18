@@ -3,9 +3,7 @@
 ## Play: node bin/beatbax play songs/effects/vibrato.bax
 
 chip gameboy
-
 bpm 140
-time 4
 
 ## Instruments
 inst lead  type=pulse1 duty=75 env=10,up
