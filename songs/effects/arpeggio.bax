@@ -1,0 +1,35 @@
+## Demo: Arpeggio (arp) effect examples
+## Exercises inline `arp` parameters and reuseable arp presets
+## Play: node bin/beatbax play songs/effects/arpeggio.bax
+
+chip gameboy
+bpm 140
+
+## Instruments
+inst lead  type=pulse1 duty=75 env=10,up
+#inst lead  type=pulse1 duty=50 env={"level":14,"direction":"up","period":2,"format":"gb"} sweep={"time":7,"direction":"up","shift":3}
+
+## Named presets: `minor` and `major` define reusable arpeggio presets
+effect arpMinor = arp:3,7
+effect arpMajor = arp:4,7
+effect arpMinorPlusOct = arp:3,12
+effect arpMajorPlusOct = arp:4,12
+effect arpMajor7 = arp:4,7,11
+effect arpMinor7 = arp:3,7,10
+effect arpDominant7 = arp:4,7,10
+
+## Simple melody - no effects
+pat no_effect_pat = C4:4 F4:4 G4:4 C5:4
+
+## Simple melody showcasing minor arpeggio (3 note "chord" hugetracker compatible)
+pat minor_arp_pat = C4<arpMinor>:4 F4<arpMinor>:4 G4<arpMinor>:4 C5<arpMinor>:4
+
+## Simple melody showcasing C major progression (4 note "chord")
+pat major_arp_pat = C4<arpMajor7>:4 A3<arpMinor7>:4 D4<arpMinor7>:4 G3<arpDominant7>:4
+
+seq main_seq  = minor_arp_pat major_arp_pat
+
+## channels
+channel 1 => inst lead  seq main_seq
+
+play
