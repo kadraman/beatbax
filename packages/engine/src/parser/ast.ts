@@ -125,6 +125,7 @@ export interface AST {
   arranges?: Record<string, ArrangeNode>;
   bpm?: number;
   chip?: string;
+  volume?: number;
   play?: PlayNode;
   metadata?: SongMetadata;
 }

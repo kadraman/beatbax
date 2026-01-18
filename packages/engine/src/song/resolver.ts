@@ -488,6 +488,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
     channels: channelsOut,
     bpm,
     chip: ast.chip,
+    volume: ast.volume,
     play: ast.play,
     metadata: ast.metadata
   } as unknown as SongModel;

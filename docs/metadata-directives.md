@@ -1,13 +1,39 @@
-# Song Metadata Directives
+# Song Metadata and Global Directives
 
-BeatBax supports top-level `song` metadata directives inside `.bax` files to capture human-readable information about a song and to map those fields into export formats (JSON, UGE, WAV metadata where applicable).
+BeatBax supports top-level directives inside `.bax` files to:
+1. Configure global playback settings (`chip`, `bpm`, `volume`, `time`)
+2. Capture human-readable song metadata (`song name`, `song artist`, etc.)
 
-Supported directives
+## Global Playback Directives
 
-- `song name "Title"` — the canonical song title.
-- `song artist "Artist Name"` — the performing/composer metadata.
-- `song description "..."` — a short description. Supports triple-quoted multiline strings.
-- `song tags "tag1, tag2"` — comma- or newline-separated tags.
+- **`chip <name>`** — Selects the audio backend (currently only `gameboy` is supported)
+- **`bpm <number>`** — Sets the tempo in beats per minute (default: `120`)
+- **`volume <float>`** — Sets master output volume, range `0.0` to `1.0` (default: `1.0`)
+  - See [volume-directive.md](volume-directive.md) for details
+- **`time <number>`** or **`stepsPerBar <number>`** — Sets beats per bar (default: `4`)
+- **`ticksPerStep <number>`** — Sets tick resolution per step (default: `16`)
+
+### Example
+
+```
+chip gameboy
+bpm 140
+volume 0.5
+time 4
+
+inst lead type=pulse1 duty=75 env=15,up
+pat melody = C5 E5 G5 C6
+seq main = melody
+channel 1 => inst lead seq main
+play
+```
+
+## Song Metadata Directives
+
+- **`song name "Title"`** — the canonical song title.
+- **`song artist "Artist Name"`** — the performing/composer metadata.
+- **`song description "..."`** — a short description. Supports triple-quoted multiline strings.
+- **`song tags "tag1, tag2"`** — comma- or newline-separated tags.
 
 Multiline strings
 

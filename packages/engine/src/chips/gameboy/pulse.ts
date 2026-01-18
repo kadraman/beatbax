@@ -130,7 +130,7 @@ function applySweep(
   }
 }
 
-export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any) {
+export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
   const osc = (ctx as any).createOscillator();
   const gain = (ctx as any).createGain();
   const pw = createPulsePeriodicWave(ctx, duty);
@@ -154,7 +154,7 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   }
 
   osc.connect(gain);
-  gain.connect((ctx as any).destination);
+  gain.connect(destination || (ctx as any).destination);
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
