@@ -1,7 +1,7 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 import { parseEnvelope } from './pulse.js';
 
-export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any) {
+export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
   const sampleRate = 8192;
   const cycleLen = (table && table.length) ? table.length : 16;
   const buf = ctx.createBuffer(1, cycleLen, sampleRate);
@@ -22,7 +22,7 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
 
   const gain = ctx.createGain();
   src.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(destination || ctx.destination);
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;

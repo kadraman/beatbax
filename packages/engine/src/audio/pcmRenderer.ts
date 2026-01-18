@@ -144,6 +144,14 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
     }
   }
 
+  // Apply master volume (default 1.0 matches hUGETracker behavior - no attenuation)
+  const masterVolume = song.volume !== undefined ? song.volume : 1.0;
+  if (masterVolume !== 1.0) {
+    for (let i = 0; i < buffer.length; i++) {
+      buffer[i] *= masterVolume;
+    }
+  }
+
   // Normalize to prevent clipping or to maximize volume
   if (normalize) {
     normalizeBuffer(buffer, true);

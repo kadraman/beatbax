@@ -2,7 +2,7 @@
 import { parseEnvelope } from './pulse.js';
 import { GB_CLOCK } from './periodTables.js';
 
-export function playNoise(ctx: BaseAudioContext | any, start: number, dur: number, inst: any, scheduler?: any) {
+export function playNoise(ctx: BaseAudioContext | any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
   const sr = ctx.sampleRate;
   const len = Math.ceil(Math.min(1, dur + 0.05) * sr);
   const buf = ctx.createBuffer(1, len, sr);
@@ -44,7 +44,7 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
   src.buffer = buf;
   const gain = ctx.createGain();
   src.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(destination || ctx.destination);
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;

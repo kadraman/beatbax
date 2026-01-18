@@ -54,6 +54,7 @@ IndentedStatement
 Statement
   = ChipStmt
   / BpmStmt
+  / VolumeStmt
   / TimeStmt
   / StepsPerBarStmt
   / TicksPerStepStmt
@@ -80,6 +81,11 @@ ChipStmt
 BpmStmt
   = $("bpm" !IdentChar) __ value:Int {
       return { nodeType: "BpmStmt", bpm: value, loc: loc(location()) };
+    }
+
+VolumeStmt
+  = $("volume" !IdentChar) __ value:Float {
+      return { nodeType: "VolumeStmt", volume: value, loc: loc(location()) };
     }
 
 TimeStmt
@@ -401,6 +407,9 @@ ReservedWord
 
 Int
   = digits:$([0-9]+) { return parseInt(digits, 10); }
+
+Float
+  = digits:$(([0-9]+ "." [0-9]*) / ("." [0-9]+) / [0-9]+) { return parseFloat(digits); }
 
 Newline
   = "\r\n" / "\n" / "\r"

@@ -28,6 +28,7 @@ song name "An example song"
 
 chip gameboy
 bpm 128
+# volume 1.0  # Master volume (default: 1.0, matches hUGETracker)
 
 # Instruments for pulse, wave and noise
 inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
