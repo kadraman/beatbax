@@ -290,7 +290,7 @@ const ArpeggioHandler: EffectHandler = {
         if (String(name).toLowerCase() !== 'arp') return null;
 
         const params = fx.params || (Array.isArray(fx) ? fx : []);
-        
+
         // Parse semitone offsets - filter out non-numeric values
         const offsets = params
             .map((p: any) => Number(p))
@@ -332,12 +332,83 @@ const ArpeggioHandler: EffectHandler = {
     },
 };
 
+// Volume Slide effect handler (Dxy - Volume Slide)
+const VolumeSlideHandler: EffectHandler = {
+    type: 'volSlide',
+    priority: 8,
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        const nameStr = String(name).toLowerCase();
+        if (nameStr !== 'volslide') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        // volSlide: delta parameter (signed: +N = slide up, -N = slide down)
+        const deltaRaw = params.length > 0 ? Number(params[0]) : 0;
+        const delta = Number.isFinite(deltaRaw) ? deltaRaw : 0;
+
+        if (delta === 0) return null; // No volume change
+
+        // hUGETracker Axy operates per-frame (~60Hz), so volume changes happen very fast.
+        // Scale BeatBax delta values down for smoother, more audible fades:
+        // - Divide by 4 to convert "musical" slide amounts to frame-rate slide speeds
+        // - Ensure minimum of 1 for any non-zero delta (to avoid no-op)
+        // - Clamp to hardware range 0-15
+        // Example: volSlide:+8 → A20 (2 per frame = ~0.1s for 15→0 fade)
+        //          volSlide:+4 → A10 (1 per frame = ~0.25s fade)
+        let slideUp = 0;
+        let slideDown = 0;
+
+        if (delta > 0) {
+            // Positive delta = slide up
+            const scaledDelta = Math.max(1, Math.round(Math.abs(delta) / 4));
+            slideUp = Math.min(15, scaledDelta);
+        } else if (delta < 0) {
+            // Negative delta = slide down
+            const scaledDelta = Math.max(1, Math.round(Math.abs(delta) / 4));
+            slideDown = Math.min(15, scaledDelta);
+        }
+
+        // Encode as Axy where x=slide up, y=slide down
+        const param = ((slideUp & 0xF) << 4) | (slideDown & 0xF);
+
+        // Parse duration if specified
+        let durationRows = sustainCount + 1; // Default: full note length
+        if (params && params.length > 1 && Number.isFinite(Number(params[1]))) {
+            durationRows = Math.max(1, Math.round(Number(params[1])));
+        } else if ((fx as any).durationSec && Number.isFinite((fx as any).durationSec)) {
+            durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
+        }
+
+        return {
+            type: 'volSlide',  // Must match handler type
+            code: 0xA,  // Axy = Volume Slide (not 0xD which is pattern break)
+            param: param & 0xff,
+            duration: Math.min(durationRows, sustainCount + 1),
+            priority: this.priority,
+            isGlobal: false,
+        };
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        // Volume slide can be delayed if higher priority effects take note row
+        return other.type === 'pan' && other.isGlobal;
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        return true;
+    },
+};
+
 // Effect handler registry - add new handlers here as effects are implemented
 const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
     ArpeggioHandler,     // Priority 15
     PortamentoHandler,   // Priority 12
     VibratoHandler,      // Priority 10
+    VolumeSlideHandler,  // Priority 8
 ];
 
 /**
@@ -402,6 +473,8 @@ class UGEWriter {
         for (let i = 0; i < bytes.length; i++) {
             this.buffer.push(bytes[i]);
         }
+        // Add null terminator as per UGE spec
+        this.buffer.push(0);
     }
 
     /**
@@ -618,13 +691,14 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
         warn('export', `Note ${noteName} is below hUGETracker minimum (C3). Transposed up ${octavesShifted} octave(s).`);
     }
 
-    // If above range, transpose down by octaves until in range
-    while (ugeIndex > 72) {
-        ugeIndex -= 12;
+    // If above range, clamp to maximum value and warn
+    if (ugeIndex > 72) {
+        warn('export', `Note ${noteName} (index ${ugeIndex}) is above hUGETracker maximum (72). Clamped to C-9.`);
+        ugeIndex = 72;
     }
 
     // Valid range is 0-72 (C-3 to C-9 in hUGETracker)
-    if (ugeIndex < 0 || ugeIndex > 72) return EMPTY_NOTE;
+    if (ugeIndex < 0) return EMPTY_NOTE;
 
     return ugeIndex;
 }
@@ -845,7 +919,15 @@ function eventsToPatterns(
 
             // Check for uge_transpose in instrument properties
             const inst = noteEvent.instrument ? instruments[noteEvent.instrument] : undefined;
-            const ugeTranspose = inst?.uge_transpose ? parseInt(inst.uge_transpose, 10) : 0;
+            let ugeTranspose = inst?.uge_transpose ? parseInt(inst.uge_transpose, 10) : 0;
+
+            // For noise channels, NO automatic transpose by default
+            // User should write notes in the actual range they want (C2-C8)
+            // which will map to hUGETracker indices 0-72 (C-3 to C-9 in tracker notation)
+            // If a custom transpose is needed, use uge_transpose in the instrument
+            if (channelType === GBChannel.NOISE && !inst?.uge_transpose) {
+                ugeTranspose = 0; // No automatic transpose for noise
+            }
 
             const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose);
             const instIndex = resolveInstrumentIndex(
@@ -952,7 +1034,7 @@ function eventsToPatterns(
                         remainingRows: sustainCount // Apply to ALL sustain rows
                     };
                 } else {
-                    // Apply non-vibrato, non-arpeggio effects to note row (portamento, etc.)
+                    // Apply non-vibrato, non-arpeggio effects to note row (portamento, volslide, etc.)
                     const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
                     if (handler) {
                         handler.apply(cell, winningEffect);
@@ -983,7 +1065,10 @@ function eventsToPatterns(
                 }
             }
             currentPan = namedPan;
-            const noteValue = (channelType === GBChannel.NOISE) ? 48 : 60;
+            // Default note value when instrument name is used without an explicit note
+            // For noise: use 60 (C7 in MIDI, maps to index 24 in hUGETracker - mid range)
+            // For tonal channels: use 60 (C5 in MIDI)
+            const noteValue = (channelType === GBChannel.NOISE) ? 60 : 60;
             cell = {
                 note: noteValue,
                 instrument: instIndex || 0,
@@ -1233,8 +1318,17 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
             const env = parseEnvelope(inst.env);
             const initialVol = env.mode === 'gb' ? (env.initial ?? 15) : 15;
-            const sweepDir = env.mode === 'gb' ? (env.direction === 'up' ? 0 : 1) : 1;
-            const sweepChange = env.mode === 'gb' ? (env.period ?? 0) : 0;
+            // Map direction: 'flat' means no sweep (period=0), up=0, down=1
+            let sweepDir = 1; // default to down
+            let sweepChange = 0;
+            if (env.mode === 'gb') {
+                if (env.direction === 'flat') {
+                    sweepChange = 0; // No sweep change for flat
+                } else {
+                    sweepDir = env.direction === 'up' ? 0 : 1;
+                    sweepChange = env.period ?? 0;
+                }
+            }
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
 
@@ -1273,8 +1367,17 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             const inst = (song.insts as any)[name];
             const env = parseEnvelope(inst.env);
             const initialVol = env.mode === 'gb' ? (env.initial ?? 15) : 15;
-            const sweepDir = env.mode === 'gb' ? (env.direction === 'up' ? 0 : 1) : 1;
-            const sweepChange = env.mode === 'gb' ? (env.period ?? 0) : 0;
+            // Map direction: 'flat' means no sweep (period=0), up=0, down=1
+            let sweepDir = 1; // default to down
+            let sweepChange = 0;
+            if (env.mode === 'gb') {
+                if (env.direction === 'flat') {
+                    sweepChange = 0; // No sweep change for flat
+                } else {
+                    sweepDir = env.direction === 'up' ? 0 : 1;
+                    sweepChange = env.period ?? 0;
+                }
+            }
             // width parameter: 7=7-bit mode, 15=15-bit mode (default)
             const width = inst.width ? Number(inst.width) : 15;
             const noiseMode = width === 7 ? 1 : 0; // 0=15-bit, 1=7-bit

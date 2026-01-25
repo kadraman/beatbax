@@ -33,7 +33,7 @@ Summary: the following core effects will be implemented and exposed in the langu
 - Vibrato (`vib`): periodic pitch modulation (depth + rate).
 - Portamento / Slide (`port`): smooth pitch glide toward a target note or frequency.
 - Arpeggio (`arp`): rapid cycling between pitch offsets to simulate chords.
-- Volume Slide (`vol`): per-tick gain changes / slides.
+- Volume Slide (`volSlide`): per-tick gain changes / slides.
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
 - Tremolo (`trem`): periodic amplitude modulation (gain LFO).
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
@@ -66,7 +66,7 @@ All other effects in this doc (vib, port, arp, vol slide, bend, trem, cut, retri
 
 ```bax
 # Vibrato + volume slide
-pat melody = C4<vib:4,vol:+1> E4<vib:6,vol:-1>
+pat melody = C4<vib:4,volSlide:+1> E4<vib:6,volSlide:-1>
 
 # Portamento + tremolo
 pat melody_glide = C4<port:G4,trem:8>
@@ -95,7 +95,7 @@ pat melody_wobble = melody:wobble
 
 ### Preset format and precedence
 
-- Definition: `effect <name> = <rhs>` where `<rhs>` is one or more effect tokens separated by whitespace. Each token follows the inline effect syntax (e.g. `vib:8,4`, `vol:+1`, `gb:pan:L`). The parser currently stores the preset RHS on the AST (as a raw RHS string) and the resolver expands presets where needed.
+- Definition: `effect <name> = <rhs>` where `<rhs>` is one or more effect tokens separated by whitespace. Each token follows the inline effect syntax (e.g. `vib:8,4`, `volSlide:+1`, `gb:pan:L`). The parser currently stores the preset RHS on the AST (as a raw RHS string) and the resolver expands presets where needed.
 - Application: applying a preset via `pat:name` or `pattern:name` appends the preset's effects to each note in the referenced pattern as if they were inline effects (e.g. `C4<wobble>` → `C4<vib:8,4>`). Inline usage `C4<wobble>` is also supported — the resolver expands inline preset names into the preset's RHS during resolution.
 - Precedence rule (implemented): inline effects explicitly written on a note take precedence over preset effects of the same type. When a preset is applied and a note already contains an inline effect of the same `type`, the inline effect is kept and the preset's effect of that `type` is skipped. Other preset effects are appended in their original order.
 - Examples:
@@ -151,7 +151,7 @@ hUGETracker supports limited effects per row. Map BeatBax effects to UGE effect 
 | `vib` | Vibrato (4xy) | Exported with tuned depth/rate mapping; use `--verbose` to see effect counts |
 | `port` | Tone portamento (3xx) / slide (1xx/2xx) | Map to tone portamento for target slides |
 | `arp` | Arpeggio (0xy) | Direct mapping for up to 2 offsets; expand for more |
-| `vol` | Volume slide (effect column) | Set volume per row or per tick |
+| `volSlide` | Volume slide (effect column) | Set volume per row or per tick |
 | `pan` | NR51 per-channel terminal mapping (8xx effect) | Map `gb:pan` or snapped numeric pans to NR51 bits in UGE output; per-note panning requires baking or channel-expansion |
 | `cut` | Note cut (E0x extended effect) | Cut after x ticks; explicit cuts shown in effect column |
 | `retrig` | Retrigger / note delay (EDx/7xx) | Partial support; expand if needed |
@@ -280,7 +280,7 @@ export interface PatternEffect {
 ```typescript
 // src/parser/parser.ts
 function parseNote(token: string): NoteToken {
-  // Match: C4<vib:4> or C4<vib:4,vol:+1>
+  // Match: C4<vib:4> or C4<vib:4,volSlide:+1>
   const match = token.match(/^([A-G][#b]?\d+)<(.+)>$/);
 
   if (!match) {
@@ -557,7 +557,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - Wave channel (BufferSource) doesn't support arpeggio in WebAudio (frequency modulation not available).
     - Arpeggio speed tied to chip frame rate, not customizable per-note.
 
-- Volume Slide (`vol`)
+- Volume Slide (`volSlide`)
   - hUGETracker mapping: Volume slide effect (`Dxy` or tracker-specific Jxy-like opcodes; hUGETracker supports volume slide per tick — check manual for exact code used in UGE v6 pattern fields).
   - Export strategy: Translate BeatBax delta per tick into the tracker's per-tick volume slide units. If simultaneous master volume changes are needed, may also emit `5xx` when appropriate.
 
@@ -587,7 +587,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
 - vib(depth,speed) → 4xy (x=speed, y=depth) — quantize to 0..15
 - port(target,speed) → 3xx (tone portamento) or 1xx/2xx for relative slides — compute xx from semitone delta and tick duration
 - arp(intervals) → 0xy for 2-3 intervals (x & y are semitone offsets) or expand into rapid notes
-- vol(delta) → volume slide opcode (tracker-specific) — convert delta/tick → slide units
+- volSlide(delta) → volume slide opcode (tracker-specific) — convert delta/tick → slide units
 - bend(semitones,curve) → approximate with 3xx ramps (piecewise) or bake
 - trem(depth,speed) → tremolo opcode if present else fast volume slides / bake
 - echo(time,fb) → not native — bake into sample or emulate with extra channels
@@ -871,7 +871,7 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Add vibrato implementation (WebAudio + PCM renderer + UGE export)
 - [x] Add portamento implementation
 - [x] Add arpeggio implementation
-- [ ] Add volume slide implementation
+- [x] Add volume slide implementation (WebAudio + PCM renderer + UGE export + MIDI export)
 - [ ] Add pitch bend implementation
 - [ ] Add tremolo implementation
 - [x] Add note cut implementation (UGE export)
@@ -964,7 +964,80 @@ pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
 - ✅ Token reconstruction fix: `patternEventsToTokens` wraps effects in `<>` when converting to strings
 - ✅ Preset expansion fix: `parseEffectsInline` now treats bare identifiers (e.g., `arpMinor`) as effect names with empty params, allowing preset lookup
 
-## Implementation Checklist
+---
+
+### Volume Slide (`vol`)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Inline volume slide with delta
+pat melody = C4<volSlide:+3>:4 E4<volSlide:-3>:4
+
+# Stepped volume slide (delta, step count)
+pat stepped = C4<volSlide:+2,8>:8 E4<volSlide:-2,8>:8
+
+# Named volume slide presets
+effect fadeIn  = volSlide:+5
+effect fadeOut = volSlide:-5
+effect fastFadeOut = volSlide:-8
+
+# Apply preset to notes
+pat fade_melody = C4<fadeIn>:4 E4<fadeOut>:4
+
+# IMPORTANT: Using volSlide with low-volume instruments
+# When using instruments with very low initial volume (env=0 or env=1), ensure:
+# 1. Sufficient volume headroom for the slide to become audible
+# 2. Longer note durations to allow the slide to complete
+# 3. Instrument overrides apply to all notes needing the same starting volume
+inst lead_in  type=pulse1 env=1,flat    # Start near-silent for fade-ins
+pat fade_in = inst(lead_in,2) C4<volSlide:+14>:12 . C4<volSlide:+14,4>:12
+
+# Note re-triggering on monophonic channels:
+# Identical consecutive pitches (e.g., C4 C4) blend into one continuous note
+# Insert a rest (.) between same-pitch notes to force re-trigger and hear distinct slides
+pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest forces re-trigger
+```
+
+**Parameters:**
+- Delta (1st param, required): volume change rate (signed)
+  - Positive values = fade in / crescendo
+  - Negative values = fade out / decrescendo
+  - Typical range: ±1 to ±10 (±1 = ±10% gain change per note)
+- Steps (2nd param, optional): number of discrete steps for the slide
+  - If omitted: smooth linear ramp over note duration
+  - If provided: stepped volume changes at tick intervals
+
+**Implementation:** Applies linear gain automation to the GainNode. For smooth slides, uses `linearRampToValueAtTime`. For stepped slides, uses `setValueAtTime` at each tick interval.
+
+**Hardware Mapping:**
+- **Game Boy:** Software gain automation via GainNode (no native hardware volume slide)
+- **UGE Export:** Maps to `Dxy` effect (x=slide up speed 0-15, y=slide down speed 0-15)
+  - Positive delta maps to x nibble (slide up)
+  - Negative delta maps to y nibble (slide down)
+- **MIDI Export:** Maps to Volume CC #7 with scaled delta
+
+**Scaling:**
+- Internal gain values: 0.0 to 1.0
+- BeatBax delta values: ±10 typical range
+- Conversion: delta ±1 = ±10% gain change
+- MIDI scaling: delta ±10 → volume change ±64 (around midpoint 64)
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts` (vol handler)
+- PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (volDelta, volSteps)
+- UGE export: `packages/engine/src/export/ugeWriter.ts` (VolumeSlideHandler)
+- MIDI export: `packages/engine/src/export/midiExport.ts` (CC #7)
+- Demo: `songs/effects/vol_slide_demo.bax`
+
+**Known behaviors:**
+- Volume slides stack with envelope automation (envelope applied first, then volume slide)
+- Start volume defaults to 0.5 (50%) for smooth slides
+- Clamped to valid range [0.0, 1.0] to prevent distortion
+- Stepped slides require `tickSeconds` parameter (provided by resolver)
+
+---
 
 This section describes a practical, incremental implementation approach. Implementers should complete each phase end-to-end (parser → resolver → playback → export → tests) before moving to the next phase. Keep changes minimal and add unit tests for each slice.
 

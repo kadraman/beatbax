@@ -1,0 +1,70 @@
+## Demo: Volume Slide (volSlide) effect example
+## Exercises inline `volSlide` parameters and vibrato
+## Play: node bin/beatbax play songs/effects/volume_slide.bax
+
+chip gameboy
+bpm 120
+
+## Instruments
+## Note: Using moderate initial volumes (env=10 for lead, volume=50 for pad)
+## to allow headroom for volume slides in both directions (+/- deltas)
+inst lead     type=pulse1 duty=50 env=8,flat    # For normal play
+inst lead_in  type=pulse1 duty=50 env=4,flat    # For fade-ins
+inst lead_out type=pulse1 duty=50 env=12,flat   # For fade-outs
+
+inst bass type=pulse2 duty=25 env=5,flat   # Start at 80% - good range for slides
+inst pad  type=wave   wave=[0,3,6,9,12,15,12,9,6,3,0,3,6,9,12,15] volume=50  # Start at 50% - room for swells
+inst perc type=noise  env=8,down            # Start at 53% - moderate percussion
+
+## Named volume slide presets
+effect fadeIn  = volSlide:+5
+effect fadeOut = volSlide:-5
+effect fastFadeOut = volSlide:-8
+effect subtleFade = volSlide:+4
+
+## Pattern 1: Basic fade in (positive delta)
+pat melody_in = C4<volSlide:+12>:8 E4<volSlide:+12>:8 G4<volSlide:+12>:8 C5<volSlide:+12>:8
+
+## Pattern 2: Basic fade out (negative delta)
+pat melody_out = C5<volSlide:-3>:8 G4<volSlide:-3>:8 E4<volSlide:-3>:8 C4<volSlide:-3>:8
+
+## Pattern 3: Using named effect presets
+pat fade_demo = C4<fadeIn>:4 E4:4 G4<fadeOut>:4 C5<fastFadeOut>:4
+
+## Pattern 4: Stepped volume slide (with step count)
+## Fewer steps (4) over longer duration (16 ticks) makes steps more audible
+## Uses lead_in for fade-in (C4) and lead_out for fade-out (E4)
+pat stepped = inst(lead_in,1) C4<volSlide:+,4>:16 inst(lead_out,1) E4<volSlide:-8,4>:16
+
+## Pattern 4b: Comparing smooth vs stepped slides
+## First note: smooth fade (1 param), Second note: stepped fade (2 params)
+pat compare = inst(lead_in,2) C4<volSlide:+14>:12 . C4<volSlide:+14,4>:12 inst(lead_out,2) C4<volSlide:-12>:12 . C4<volSlide:-12,4>:12
+
+## Pattern 5: Combination with other effects
+pat combo = C4<vib:3,6,volSlide:+3>:4 E4<port:12,volSlide:-2>:4 G4<arp:3,7,volSlide:+4>:4
+
+## Pattern 6: Bass with fade
+pat bass_pat = C2<volSlide:+8>:4 C2<volSlide:-8>:4 G2<volSlide:+3>:4 G2<volSlide:-3>:4
+
+## Pattern 7: Pad with gentle swell
+pat pad_swell = C3<subtleFade>:8 E3<volSlide:-2>:8
+
+## Pattern 8: Percussion with decay reinforcement
+pat perc_pat = C7<volSlide:-6>:2 . .  C7<volSlide:-12>:2 . .
+
+## Sequences
+seq intro  = melody_in:inst(lead_in) melody_out:inst(lead_out)
+seq chorus = fade_demo stepped compare
+seq bridge = combo*2
+seq outro  = melody_out:inst(lead_out)
+seq bass_loop = bass_pat*8
+seq pad_loop = pad_swell*8
+seq perc_loop = perc_pat*16
+
+# Channel assignments
+channel 1 => inst lead seq intro outro
+channel 2 => inst bass seq bass_loop
+channel 3 => inst pad  seq pad_loop
+channel 4 => inst perc seq perc_loop
+
+play

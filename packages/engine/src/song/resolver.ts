@@ -301,7 +301,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
         const repeat = mRep ? parseInt(mRep[2], 10) : 1;
         const itemRef = mRep ? mRep[1].trim() : item;
         for (let r = 0; r < repeat; r++) {
-          const toks = expandRefToTokens(itemRef, expandedSeqs, pats, ast.effects as any);
+          const toks = expandRefToTokens(itemRef, expandedSeqs, pats, ast.effects as any, ch.loc);
           outTokens.push(...toks);
         }
       }

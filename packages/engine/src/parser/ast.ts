@@ -92,6 +92,7 @@ export interface ChannelNode {
   inst?: string;
   pat?: string | string[];
   speed?: number;
+  loc?: SourceLocation;
 }
 
 export interface PlayNode {

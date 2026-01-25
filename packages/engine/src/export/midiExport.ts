@@ -214,7 +214,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 			if (ev.type === 'note' || ev.type === 'named') {
 				const token = String(ev.token || '');
 
-				// If this event has effects (vibrato, portamento), emit MIDI text meta events describing them
+				// If this event has effects (vibrato, portamento, volume slide), emit MIDI text meta events or CCs describing them
 				if (Array.isArray(ev.effects)) {
 					for (const fx of ev.effects) {
 						const fxType = String(fx.type).toLowerCase();
@@ -229,6 +229,25 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							const speed = (Array.isArray(fx.params) && fx.params.length > 0) ? fx.params[0] : undefined;
 							const duration = (Array.isArray(fx.params) && fx.params.length > 1) ? fx.params[1] : undefined;
 							pushMetaText(data, delta, `port:speed=${speed !== undefined ? speed : ''},duration=${duration !== undefined ? duration : ''}`);
+							delta = 0;
+							break;
+						} else if (fxType === 'volSlide') {
+							// Volume slide: emit MIDI CC #7 (Volume) event
+							const deltaVal = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : 0;
+							const steps = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
+							// Map BeatBax delta (±10 typical range) to MIDI volume (0-127)
+							// Start at mid-volume (64), apply scaled delta
+							const startVol = 64;
+							const scaledDelta = Math.round(deltaVal * 6.4); // Scale ±10 to ±64
+							const targetVol = Math.max(0, Math.min(127, startVol + scaledDelta));
+
+							// Emit initial CC#7 for volume change
+							const dbytes = vlq(delta);
+							for (const b of dbytes) data.push(b);
+							data.push(0xB0 | midiChannel, 0x07, targetVol & 0x7f);
+
+							// Add text meta event for reference
+							pushMetaText(data, 0, `volSlide:delta=${deltaVal},steps=${steps !== undefined ? steps : 'smooth'}`);
 							delta = 0;
 							break;
 						}
