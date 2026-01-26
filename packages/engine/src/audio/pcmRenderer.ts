@@ -643,10 +643,10 @@ function renderPulse(
     sample = sample * envVal;
 
     // Apply volume slide if enabled
-    let volSlideGain = 1.0;
     if (volDelta !== 0) {
       // Extract baseline from instrument envelope initial volume (0-15 on GB, normalized to 0-1)
       let baseline = 1.0;
+      let volSlideGain: number;
       if (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number') {
         baseline = Math.max(0, Math.min(1, envelope.initial / 15));
       }
@@ -895,7 +895,7 @@ function renderWave(
     if (volDelta !== 0) {
       // Use wave instrument volume as baseline (already normalized to 0-1 in volMul)
       const baseline = effectiveVolMul;
-      let volSlideGain = 1.0;
+      let volSlideGain: number;
       if (volSteps !== undefined && typeof tickSeconds === 'number') {
         // Stepped volume slide: divide note duration into discrete steps
         const stepDuration = durSec / volSteps;

@@ -231,7 +231,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							pushMetaText(data, delta, `port:speed=${speed !== undefined ? speed : ''},duration=${duration !== undefined ? duration : ''}`);
 							delta = 0;
 							break;
-						} else if (fxType === 'volSlide') {
+						} else if (fxType === 'volslide') {
 							// Volume slide: emit MIDI CC #7 (Volume) event
 							const deltaVal = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : 0;
 							const steps = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
