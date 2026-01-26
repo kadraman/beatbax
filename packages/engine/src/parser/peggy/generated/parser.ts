@@ -4441,6 +4441,9 @@ function peg$parse(input, options) {
     s4 = peg$currPos;
     peg$silentFails++;
     s5 = peg$parseNewline();
+    if (s5 === peg$FAILED) {
+      s5 = peg$parseComment();
+    }
     peg$silentFails--;
     if (s5 === peg$FAILED) {
       s4 = undefined;
@@ -4473,6 +4476,9 @@ function peg$parse(input, options) {
       s4 = peg$currPos;
       peg$silentFails++;
       s5 = peg$parseNewline();
+      if (s5 === peg$FAILED) {
+        s5 = peg$parseComment();
+      }
       peg$silentFails--;
       if (s5 === peg$FAILED) {
         s4 = undefined;

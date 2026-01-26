@@ -340,9 +340,9 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 };
 
-const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>): ChannelNode & { seqSpecTokens?: string[] } => {
+const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>, loc?: SourceLocation): ChannelNode & { seqSpecTokens?: string[] } => {
   const tokens = rhs.split(/\s+/);
-  const ch: { id: number; inst?: string; pat?: string | string[]; speed?: number; seqSpecTokens?: string[] } = { id };
+  const ch: { id: number; inst?: string; pat?: string | string[]; speed?: number; seqSpecTokens?: string[]; loc?: SourceLocation } = { id, loc };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === 'inst' && tokens[i + 1]) {
@@ -524,7 +524,7 @@ export function parseWithPeggy(source: string): AST {
         break;
       }
       case 'ChannelStmt': {
-        channels.push(parseChannelRhs(stmt.channel, stmt.rhs.trim(), pats));
+        channels.push(parseChannelRhs(stmt.channel, stmt.rhs.trim(), pats, stmt.loc));
         break;
       }
       case 'PlayStmt': {

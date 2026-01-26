@@ -31,24 +31,32 @@ export function parseEnvelope(envStr: any) {
     if (isGbFormat) {
       const initialRaw = obj.initial ?? obj.level ?? obj.value;
       const initial = Math.max(0, Math.min(15, Number.isFinite(Number(initialRaw)) ? Number(initialRaw) : 15));
-      const dirStr = (obj.direction ?? obj.dir ?? 'down');
-      const direction = String(dirStr).toLowerCase() === 'up' ? 'up' : 'down';
+      const dirStr = String(obj.direction ?? obj.dir ?? 'down').toLowerCase();
+      let direction: 'up' | 'down' | 'flat' = 'down';
+      if (dirStr === 'up') direction = 'up';
+      else if (dirStr === 'flat') direction = 'flat';
+      else direction = 'down';
       const periodRaw = obj.period ?? obj.step ?? obj.periodRaw ?? 1;
-      const period = Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
+      const period = (direction === 'flat') ? 0 : Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
       return { mode: 'gb', initial, direction, period };
     }
     return obj;
   }
   const s = String(envStr).trim();
-  const gbPrefixed = s.match(/^gb:\s*(\d{1,2})\s*,\s*(up|down)(?:\s*,\s*(\d+))?$/i);
+  const gbPrefixed = s.match(/^gb:\s*(\d{1,2})\s*,\s*(up|down|flat)(?:\s*,\s*(\d+))?$/i);
   const parts = s.split(',').map(p => p.trim()).filter(Boolean);
-  const gbThree = parts.length >= 3 && /^\d{1,2}$/.test(parts[0]) && /^(up|down)$/i.test(parts[1]);
-  const gb = gbPrefixed || (gbThree ? parts : null);
+  const gbThree = parts.length >= 3 && /^\d{1,2}$/.test(parts[0]) && /^(up|down|flat)$/i.test(parts[1]);
+  const gbTwo = parts.length >= 2 && /^\d{1,2}$/.test(parts[0]) && /^(up|down|flat)$/i.test(parts[1]);
+  const gb = gbPrefixed || (gbThree ? parts : (gbTwo ? parts : null));
   if (gb) {
     const initial = Math.max(0, Math.min(15, parseInt((gbPrefixed ? gb[1] : parts[0]) as any, 10)));
-    const direction = (gbPrefixed ? gb[2] : parts[1]).toLowerCase() === 'up' ? 'up' : 'down';
+    const directionStr = (gbPrefixed ? gb[2] : parts[1]).toLowerCase();
+    let direction: 'up' | 'down' | 'flat' = 'down';
+    if (directionStr === 'up') direction = 'up';
+    else if (directionStr === 'flat') direction = 'flat';
+    else direction = 'down';
     const periodRaw = gbPrefixed ? gb[3] : parts[2];
-    const period = Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
+    const period = (direction === 'flat') ? 0 : Math.max(0, Math.min(7, Number.isFinite(Number(periodRaw)) ? Number(periodRaw) : 1));
     return { mode: 'gb', initial, direction, period };
   }
 

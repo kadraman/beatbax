@@ -8,7 +8,20 @@ import { resolveSong } from '@beatbax/engine/song/resolver';
 
 const { getUGEDetailedJSON } = engineImports as any;
 
-type ValidationResult = { errors: string[]; warnings: string[]; ast: any };
+interface SourceLocation {
+  start: { offset: number; line: number; column: number };
+  end: { offset: number; line: number; column: number };
+}
+
+type ValidationIssue = { message: string; loc?: SourceLocation };
+type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
+
+function formatLocation(loc?: SourceLocation): string {
+  if (!loc || !loc.start) return '';
+  const line = loc.start.line;
+  const col = loc.start.column || 0;
+  return ` (line ${line}, column ${col})`;
+}
 
 function ensureFileExists(file: string) {
   if (!existsSync(file)) {
@@ -18,17 +31,17 @@ function ensureFileExists(file: string) {
 }
 
 function validateSource(src: string, filename?: string): ValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
+  const errors: ValidationIssue[] = [];
+  const warnings: ValidationIssue[] = [];
 
   // Pre-scan for empty `seq NAME =` lines — treat as errors.
   const seqEmptyRe = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*$/gm;
   let mm: RegExpExecArray | null;
   while ((mm = seqEmptyRe.exec(src)) !== null) {
-    errors.push(
-      `Sequence '${mm[1]}' has no RHS content (empty). ` +
+    errors.push({
+      message: `Sequence '${mm[1]}' has no RHS content (empty). ` +
         `Define patterns after '=' or remove the empty 'seq ${mm[1]} =' line.`
-    );
+    });
   }
 
   let ast: any;
@@ -36,14 +49,14 @@ function validateSource(src: string, filename?: string): ValidationResult {
     ast = parse(src);
   } catch (parseErr: any) {
     const formattedError = filename ? formatParseError(parseErr, filename) : extractErrorMessage(parseErr);
-    errors.push(formattedError);
+    errors.push({ message: formattedError });
     return { errors, warnings, ast: null as any };
   }
 
   // Validate channels and instruments
   for (const ch of ast.channels || []) {
     if (ch.inst && !ast.insts[ch.inst]) {
-      errors.push(`Channel ${ch.id} references unknown inst '${ch.inst}'`);
+      errors.push({ message: `Channel ${ch.id} references unknown inst '${ch.inst}'`, loc: ch.loc });
     }
     // collect sequence base names referenced by channel
     const extractSeqBaseNames = (ch2: any): string[] => {
@@ -87,7 +100,7 @@ function validateSource(src: string, filename?: string): ValidationResult {
     const bases = extractSeqBaseNames(ch);
     for (const baseSeqName of bases) {
       if (!ast.seqs || !ast.seqs[baseSeqName]) {
-        warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'`);
+        warnings.push({ message: `Channel ${ch.id} references unknown sequence '${baseSeqName}'`, loc: ch.loc });
       }
     }
   }
@@ -95,7 +108,7 @@ function validateSource(src: string, filename?: string): ValidationResult {
   // Validate patterns
   for (const [name, pat] of Object.entries(ast.pats || {})) {
     if (!Array.isArray(pat) || (pat as any[]).length === 0) {
-      errors.push(`Pattern '${name}' is empty or malformed`);
+      errors.push({ message: `Pattern '${name}' is empty or malformed` });
     }
   }
 
@@ -103,7 +116,7 @@ function validateSource(src: string, filename?: string): ValidationResult {
   if (ast.seqs) {
     for (const [seqName, patRefs] of Object.entries(ast.seqs)) {
       if (!Array.isArray(patRefs) || (patRefs as any[]).length === 0) {
-        errors.push(`Sequence '${seqName}' is empty or malformed`);
+        errors.push({ message: `Sequence '${seqName}' is empty or malformed` });
       } else {
         for (const patRef of patRefs as any[]) {
           let basePatName = typeof patRef === 'string' ? patRef.split(':')[0] : patRef;
@@ -111,7 +124,7 @@ function validateSource(src: string, filename?: string): ValidationResult {
             const mRep = basePatName.match(/^(.+?)\*(\d+)$/);
             if (mRep) basePatName = mRep[1];
             if (!ast.pats[basePatName]) {
-              warnings.push(`Sequence '${seqName}' references unknown pattern '${basePatName}'`);
+              warnings.push({ message: `Sequence '${seqName}' references unknown pattern '${basePatName}'` });
             }
           }
         }
@@ -180,13 +193,13 @@ program
     const { errors, warnings } = validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
-      for (const e of errors) console.error('  -', e);
+      for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
       process.exitCode = 2;
       return;
     }
     if (warnings.length > 0 && verbose) {
       console.warn(`Validation warnings for ${file}:`);
-      for (const w of warnings) console.warn('  -', w);
+      for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
     }
 
     await playFile(file, {
@@ -306,12 +319,14 @@ program
 
       for (const ch of ast.channels) {
         if (ch.inst && !ast.insts[ch.inst]) {
-          errors.push(`Channel ${ch.id} references unknown inst '${ch.inst}'`);
+          const loc = ch.loc ? formatLocation(ch.loc) : '';
+          errors.push(`Channel ${ch.id} references unknown inst '${ch.inst}'${loc}`);
         }
         const bases = extractSeqBaseNames(ch);
         for (const baseSeqName of bases) {
           if (!ast.seqs || !ast.seqs[baseSeqName]) {
-            warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'`);
+            const loc = ch.loc ? formatLocation(ch.loc) : '';
+            warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'${loc}`);
           }
         }
       }
@@ -406,7 +421,7 @@ program
     const { errors, warnings, ast } = validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
-      for (const e of errors) console.error('  -', e);
+      for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
       process.exitCode = 2;
       return;
     }
@@ -419,7 +434,7 @@ program
       const shouldShowParserWarnings = (warnings.length > 0 && ((options as any).verbose || verbose));
       if (shouldShowParserWarnings) {
         console.warn(`Validation warnings for ${file}:`);
-        for (const w of warnings) console.warn('  -', w);
+        for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
       }
       const resolved = resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
       // merge resolver warnings into combined list for possible strict handling

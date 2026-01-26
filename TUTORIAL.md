@@ -39,6 +39,9 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Grouping and repeat: `(C5 E5 G5)*2`
   - Named tokens: `snare` or `hihat` (mapped to `inst` entries by scheduler)
   - Inline temporary instrument override: `inst(name,N)` — next N non-rest tokens use `name`
+    - **Important:** The count `N` applies to the next N *non-rest* tokens (notes/sustains only)
+    - Rests (`.`) do NOT consume from the count; use this to apply the same instrument to multiple notes separated by rests
+    - Example: `inst(lead_in,2) C4 . C4` — both C4 notes use `lead_in`, the rest doesn't count
   - Inline permanent instrument: `inst(name)` — change default instrument for the pattern
 
 - seq / channel: map patterns and instruments to Game Boy channels
@@ -75,6 +78,35 @@ Notes:
 - `:rev` — reverse pattern
 - `:slow(N)` — repeat each token N times (default 2)
 - `:fast(N)` — take every Nth token (default 2)
+
+**Noise Channel Note Mapping (for UGE Export)**
+
+When exporting to hUGETracker (`.uge` format), the Game Boy noise channel uses a **1:1 note mapping** with no automatic transpose:
+
+- C2 → index 0 (C-3 in hUGETracker = lowest noise)
+- C5 → index 24 (C-5 in hUGETracker = mid-range)
+- C6 → index 36 (C-6 in hUGETracker)
+- C7 → index 48 (C-7 in hUGETracker = bright percussion)
+- C9 → index 72 (C-9 in hUGETracker = maximum)
+
+**Writing percussion patterns:**
+```bax
+# Write notes in the exact octave range you want in hUGETracker
+inst kick  type=noise env=gb:12,down,1 width=15  # Use C2-C3 (deep)
+inst snare type=noise env=gb:10,down,2 width=7   # Use C5-C6 (mid)
+inst hat   type=noise env=gb:8,down,1 width=7    # Use C7-C8 (bright)
+
+# These notes export directly: C2→0, C5→24, C7→48
+pat drums = C2 . C5 . C7 C7 C2 C5
+```
+
+**Custom transpose override:**
+```bax
+# Shift all notes up 1 octave (12 semitones) for this instrument
+inst shifted_kick type=noise env=gb:12,down,1 uge_transpose=12
+```
+
+See `songs/percussion_demo.bax` for a complete working example.
 
 ### Panning (stereo)
 Panning controls stereo position and can be specified in multiple forms:
@@ -192,6 +224,75 @@ pat preset_demo = C5<wobble> E5<wobble>
 - `noise`, `random` → 5
 
 See `songs/effects/vibrato.bax` for a complete working example.
+
+## Volume Slide (`volSlide`) Effect
+
+Volume slide creates smooth or stepped volume changes over the duration of a note, enabling fade-ins, fade-outs, and dynamic volume automation:
+
+```bax
+# Basic volume slide: positive for fade-in, negative for fade-out
+pat fade_in  = C4<volSlide:+6>:8 E4<volSlide:+6>:8 G4<volSlide:+6>:8
+pat fade_out = C5<volSlide:-3>:8 G4<volSlide:-3>:8 E4<volSlide:-3>:8
+
+# Stepped volume slide (delta, step count)
+# Second parameter creates audible steps instead of smooth ramp
+pat stepped = C4<volSlide:+8,4>:16 E4<volSlide:-8,4>:16
+
+# Named presets for reusable volume slides
+effect fadeIn  = volSlide:+5
+effect fadeOut = volSlide:-5
+pat preset_demo = C4<fadeIn>:4 E4<fadeOut>:4
+
+# Combining with other effects
+pat combo = C4<vib:3,6,volSlide:+3>:4 E4<port:12,volSlide:-2>:4
+```
+
+**Parameters:**
+1. `delta` (required): Volume change rate (signed integer)
+   - Positive values = fade in / crescendo
+   - Negative values = fade out / decrescendo
+   - Typical range: ±1 to ±15 (units are relative gain changes)
+2. `steps` (optional): Number of discrete steps for the slide
+   - If omitted: smooth linear ramp over note duration
+   - If provided: stepped volume changes create audible "terracing"
+
+**Important considerations:**
+
+1. **Low-volume instruments:** When using instruments with very low initial volume (e.g., `env=0` or `env=1`):
+   - Start from `env=1` instead of `env=0` to avoid complete silence
+   - Use larger delta values (+10 to +15) to become audible quickly
+   - Use longer note durations (:12 or :16) to allow the slide to complete
+   - Apply `inst(name,N)` to cover ALL notes that need the same starting volume
+   
+   ```bax
+   # Good: starts near-silent but audible, fades in over 12 ticks
+   inst lead_in type=pulse1 env=1,flat
+   pat fade = inst(lead_in,2) C4<volSlide:+14>:12 . C4<volSlide:+14,4>:12
+   ```
+
+2. **Note re-triggering:** On monophonic channels (all Game Boy channels), identical consecutive pitches blend into one continuous note:
+   - Insert a rest (`.`) between same-pitch notes to force re-trigger
+   - Different pitches automatically re-trigger
+   
+   ```bax
+   # Without rest: blends into one 16-tick note
+   pat blend = C4<volSlide:+4>:8 C4<volSlide:+4>:8  # Sounds like one note
+   
+   # With rest: two distinct notes with separate volume slides
+   pat separate = C4<volSlide:+4>:8 . C4<volSlide:+4>:8  # Two distinct fades
+   ```
+
+3. **Instrument override count:** The `inst(name,N)` count applies only to non-rest tokens:
+   - Rests (`.`) do NOT consume from the count
+   - Example: `inst(lead_in,2) C4 . C4` applies `lead_in` to both C4 notes
+
+**Export behavior:**
+- **UGE (hUGETracker)**: Exports as volume slide effect (tracker-specific opcode)
+- **MIDI**: Exports as CC #7 (volume) automation
+- **JSON**: Includes `volSlide` effect with delta and steps parameters in the ISM
+- **WAV**: Rendered with linear or stepped gain automation
+
+See `songs/effects/volume_slide.bax` for a complete working example.
 
 **Tempo & Per-Channel Speed**
 

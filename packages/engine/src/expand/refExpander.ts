@@ -1,4 +1,6 @@
 import { transposePattern } from '../patterns/expand.js';
+import { warn } from '../util/diag.js';
+import type { SourceLocation } from '../parser/ast.js';
 
 export interface ModResult {
   tokens: string[];
@@ -33,7 +35,7 @@ function mergeEffectsIntoToken(token: string, presetRhs: string): string {
   return `${base}<${keep.join(',')}>`;
 }
 
-export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>): ModResult {
+export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>, loc?: SourceLocation): ModResult {
   let tokens = tokensIn.slice();
   let semitones = 0;
   let octaves = 0;
@@ -79,6 +81,9 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
     if (mTrans) { semitones += parseInt(mTrans[1], 10); continue; }
     const mSem = mod.match(/^semitone\((-?\d+)\)$/i) || mod.match(/^st\((-?\d+)\)$/i) || mod.match(/^trans\((-?\d+)\)$/i);
     if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
+    
+    // Unknown transform - emit warning
+    warn('transforms', `Unknown transform '${mod}' will be ignored. Supported transforms: oct(N), rev, slow(N), fast(N), inst(name), pan(value), semitone(N)/st(N)/trans(N), +N/-N. For repetition, use pattern*N syntax instead of :rep(N).`, { loc });
   }
 
   if (semitones !== 0 || octaves !== 0) {
@@ -91,18 +96,18 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
   return { tokens, instOverride, panOverride };
 }
 
-export function expandRefToTokens(itemRef: string, expandedSeqs: Record<string, string[]>, pats: Record<string, string[]>, presets?: Record<string, string>): string[] {
+export function expandRefToTokens(itemRef: string, expandedSeqs: Record<string, string[]>, pats: Record<string, string[]>, presets?: Record<string, string>, loc?: SourceLocation): string[] {
   const parts = itemRef.split(':');
   const base = parts[0];
   const mods = parts.slice(1);
 
   if (expandedSeqs[base]) {
-    const res = applyModsToTokens(expandedSeqs[base].slice(), mods, presets);
+    const res = applyModsToTokens(expandedSeqs[base].slice(), mods, presets, loc);
     return res.tokens;
   }
 
   if (pats[base]) {
-    const res = applyModsToTokens(pats[base].slice(), mods, presets);
+    const res = applyModsToTokens(pats[base].slice(), mods, presets, loc);
     return res.tokens;
   }
 
