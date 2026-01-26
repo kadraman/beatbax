@@ -1066,9 +1066,9 @@ function eventsToPatterns(
             }
             currentPan = namedPan;
             // Default note value when instrument name is used without an explicit note
-            // For noise: use 60 (C7 in MIDI, maps to index 24 in hUGETracker - mid range)
-            // For tonal channels: use 60 (C5 in MIDI)
-            const noteValue = (channelType === GBChannel.NOISE) ? 60 : 60;
+            // For noise: use MIDI 60 (C4/middle C) → hUGETracker index 24 (mid range)
+            // For tonal channels: use MIDI 60 (C4/middle C) → hUGETracker index 24
+            const noteValue = 24; // hUGETracker index (MIDI 60 - 36 = 24)
             cell = {
                 note: noteValue,
                 instrument: instIndex || 0,

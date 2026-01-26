@@ -281,12 +281,18 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 //  - params[0]: delta per tick or step (+N = fade in, -N = fade out)
 //  - params[1]: (optional) number of steps/ticks for the slide
 //
-// hUGETracker's Dxy effect: x = slide up speed (0-15), y = slide down speed (0-15)
+// hUGETracker's Axy effect: x = slide up speed (0-15), y = slide down speed (0-15)
 // BeatBax uses signed delta: positive = slide up, negative = slide down
 //
 // Implementation: Apply linear gain ramp from instrument's envelope initial volume
 // to target volume over the note duration. For per-tick slides, apply stepped automation.
 // The baseline is derived from the instrument's envelope initial volume (0-15 on Game Boy).
+//
+// ARCHITECTURAL LIMITATION: This implementation cancels existing gain automation on the
+// same GainNode used for envelope automation, effectively disabling instrument envelopes
+// when volume slide is active. To properly support stacking with envelopes, this should
+// use a separate gain stage (additional GainNode in the audio graph after envelope gain)
+// or apply volume slide via an independent parameter/node without canceling automation.
 register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
   if (!nodes || nodes.length < 2) return;
   const gain = nodes[1];
@@ -313,25 +319,22 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
   let baselineGain = 1.0;
   if (inst && inst.env) {
     try {
-      console.log('[volSlide] inst.env before parsing:', inst.env);
       // Parse envelope to get initial volume (handles both string and object formats)
       const env = parseEnvelope(inst.env);
-      console.log('[volSlide] parsed env:', env);
       if (env && env.mode === 'gb' && typeof env.initial === 'number') {
         baselineGain = Math.max(0, Math.min(1, env.initial / 15)); // Normalize to [0, 1]
-        console.log('[volSlide] baselineGain calculated:', baselineGain, 'from initial:', env.initial);
       }
     } catch (e) {
       // Fall back to 1.0 if parsing fails
-      console.error('[volSlide] parseEnvelope failed:', e);
+      warn('effects', `Volume slide: envelope parsing failed for channel ${chId || '?'}, using default baseline`);
       baselineGain = 1.0;
     }
-  } else {
-    console.log('[volSlide] No instrument or envelope, using default baseline 1.0');
   }
 
   try {
-    // Cancel any existing gain automation to avoid conflicts
+    // LIMITATION: Canceling scheduled values wipes envelope automation on this GainNode.
+    // Volume slides currently REPLACE envelopes rather than stacking with them.
+    // To fix: use a separate gain stage or avoid cancelScheduledValues.
     if (typeof gainParam.cancelScheduledValues === 'function') {
       gainParam.cancelScheduledValues(start);
     }

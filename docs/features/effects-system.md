@@ -558,7 +558,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - Arpeggio speed tied to chip frame rate, not customizable per-note.
 
 - Volume Slide (`volSlide`)
-  - hUGETracker mapping: Volume slide effect (`Dxy` or tracker-specific Jxy-like opcodes; hUGETracker supports volume slide per tick — check manual for exact code used in UGE v6 pattern fields).
+  - hUGETracker mapping: Volume slide effect (`Axy` where x=slide up speed 0-15, y=slide down speed 0-15). Note: `Dxy` is pattern break in ProTracker/hUGETracker, not volume slide.
   - Export strategy: Translate BeatBax delta per tick into the tracker's per-tick volume slide units. If simultaneous master volume changes are needed, may also emit `5xx` when appropriate.
 
 - Pitch Bend (`bend`)
@@ -966,7 +966,7 @@ pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
 
 ---
 
-### Volume Slide (`vol`)
+### Volume Slide (`volSlide`)
 
 **Status:** ✅ Implemented (v0.1.0+)
 
@@ -1013,7 +1013,7 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 
 **Hardware Mapping:**
 - **Game Boy:** Software gain automation via GainNode (no native hardware volume slide)
-- **UGE Export:** Maps to `Dxy` effect (x=slide up speed 0-15, y=slide down speed 0-15)
+- **UGE Export:** Maps to `Axy` effect (x=slide up speed 0-15, y=slide down speed 0-15)
   - Positive delta maps to x nibble (slide up)
   - Negative delta maps to y nibble (slide down)
 - **MIDI Export:** Maps to Volume CC #7 with scaled delta
@@ -1029,12 +1029,13 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 - PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (volDelta, volSteps)
 - UGE export: `packages/engine/src/export/ugeWriter.ts` (VolumeSlideHandler)
 - MIDI export: `packages/engine/src/export/midiExport.ts` (CC #7)
-- Demo: `songs/effects/vol_slide_demo.bax`
+- Demo: `songs/effects/volume_slide_demo.bax`
 
 **Known behaviors:**
-- Volume slides stack with envelope automation (envelope applied first, then volume slide)
-- Start volume defaults to 0.5 (50%) for smooth slides
-- Clamped to valid range [0.0, 1.0] to prevent distortion
+- **Volume slides REPLACE existing gain automation** (calls `cancelScheduledValues` which wipes envelope automation on the same GainNode). Volume slide and envelope cannot currently coexist - volume slide disables the envelope.
+  - **Architectural fix needed**: Use a separate gain stage (additional GainNode) for volume slides to stack with envelopes properly.
+- Start volume (baseline) is derived from instrument envelope initial volume (0-15 GB range → 0.0-1.0), defaults to 1.0 (full volume) if no envelope
+- Target gain clamped to [0.001, 1.5] allowing volume boosts above baseline up to 1.5x (headroom for fade-ins)
 - Stepped slides require `tickSeconds` parameter (provided by resolver)
 
 ---
@@ -1071,7 +1072,7 @@ Recommended Game Boy-first implementation order (highest applicability/coverage 
 1) Vibrato (`vib`) — maps to GB-friendly pitch mod (export via 4xy), core tracker effect.
 2) Portamento (`port`) — tone slide/glide (3xx/1xx/2xx), common in GB tunes.
 3) Arpeggio (`arp`) — classic tracker chord simulation (0xy); expand longer arps as needed.
-4) Volume Slide (`vol`) — row/tick volume deltas; maps to UGE volume slide.
+4) Volume Slide (`volSlide`) — row/tick volume deltas; maps to UGE volume slide.
 5) Tremolo (`trem`) — amplitude LFO; software gain automation.
 6) Pitch Bend (`bend`) — higher-res glide; approximate with portamento sequences.
 7) Note Cut (`cut`) — gate after N ticks; aligns with GB length/gating semantics.
