@@ -18,6 +18,7 @@ A concise feature summary:
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
 - CLI features: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
 - Extensible toolchain: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
+- **Noise channel**: Direct 1:1 note mapping to hUGETracker (C2→index 0, C7→index 48), no automatic transpose
 
 ## Language examples
 

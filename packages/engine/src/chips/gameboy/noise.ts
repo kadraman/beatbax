@@ -2,7 +2,7 @@
 import { parseEnvelope } from './pulse.js';
 import { GB_CLOCK } from './periodTables.js';
 
-export function playNoise(ctx: BaseAudioContext | any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+export function playNoise(ctx: BaseAudioContext | any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode, skipEnvelope?: boolean) {
   const sr = ctx.sampleRate;
   const len = Math.ceil(Math.min(1, dur + 0.05) * sr);
   const buf = ctx.createBuffer(1, len, sr);
@@ -48,7 +48,10 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
-  if (env && env.mode === 'gb') {
+  // Skip envelope automation if skipEnvelope flag is set (e.g., when volume effects are present)
+  if (skipEnvelope) {
+    g.setValueAtTime(0.8, start);
+  } else if (env && env.mode === 'gb') {
     const initialVol = (env.initial ?? 15) / 15;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
     if (env.period && env.period > 0) {

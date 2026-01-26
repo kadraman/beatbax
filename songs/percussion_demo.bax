@@ -5,6 +5,14 @@
 ## - Kick drums on pulse channels (low pitch + fast envelope)
 ## - Snares on noise channel (7-bit mode, octaves 4-5) for an explosive sound
 ## - Hi-hats on noise channel (15-bit mode, octaves 6-7) for a more traditional percussive sound
+##
+## NOTE MAPPING FOR UGE EXPORT:
+## - Pulse channels: Notes map directly (C2 in BeatBax → index 0 in hUGETracker = C-3)
+## - Noise channel: NO automatic transpose applied
+##   - C2 → index 0 (C-3 in hUGETracker notation)
+##   - C5 → index 24 (C-5 in hUGETracker notation)
+##   - C7 → index 48 (C-7 in hUGETracker notation)
+##   Write notes in the range you want to hear in hUGETracker
 
 song name "Percussion Demo"
 song artist "kadraman"
@@ -32,6 +40,13 @@ inst kick_soft   type=pulse1 duty=25   env={"level":12,"direction":"down","perio
 # Notes in hUGETracker are "brightness labels", not harmonic pitches
 # They map to NR43 register values (shift + divider combinations)
 # Use gb:width=7 for metallic/tonal, gb:width=15 for pure white noise
+#
+# UGE EXPORT NOTE MAPPING:
+# BeatBax notes export 1:1 to hUGETracker indices (NO automatic transpose)
+# - C2 = index 0 (lowest noise sound)
+# - C5 = index 24 (mid-range)
+# - C7 = index 48 (high)
+# Write notes in the exact octave range you want in hUGETracker
 
 # Snare drums (7-bit mode with length control)
 inst snare_tight type=noise gb:width=7 env={"level":13,"direction":"down","period":1,"format":"gb"} length=16  # Tight snare (quick decay, short)

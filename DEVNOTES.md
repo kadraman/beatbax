@@ -95,6 +95,34 @@ Instrument semantics
 - Pattern operations: `transposePattern` utility correctly handles notes with inline effects by extracting the note, transposing it, and reconstructing the token with effects intact (e.g., `E3<port:8>` → `E2<port:8>`).
 - Testing: Comprehensive demo in `songs/effects/port_effect_demo.bax` validates WebAudio playback, PCM rendering, UGE export, and transpose operations.
 
+## Noise Channel Note Mapping (UGE Export)
+
+**Status**: ✅ Implemented (2026-01-25)
+
+The Game Boy noise channel doesn't use traditional musical pitches—notes control the LFSR shift and divisor parameters. Early versions applied an automatic +36 semitone transpose during UGE export, mapping C2→index 36, but this caused notes to be clamped at the maximum index (72), appearing as "???" in hUGETracker.
+
+**Current behavior (v0.1.0+)**:
+- **1:1 mapping**: Notes export directly to hUGETracker indices with NO automatic transpose
+  - C2 → index 0 (C-3 in hUGETracker notation)
+  - C5 → index 24 (C-5, mid-range percussion)
+  - C6 → index 36 (C-6)
+  - C7 → index 48 (C-7, bright percussion)  
+  - C9 → index 72 (C-9, maximum)
+- **Recommendation**: Use C5-C7 for typical percussion sounds (snares, hi-hats)
+- **Override**: Add `uge_transpose=N` to instrument definition for custom offsets
+- **Default note value**: When instrument name appears without explicit note (e.g., `hihat * 8`), defaults to MIDI note 60 (C7) → index 24
+
+**Implementation**:
+- `packages/engine/src/export/ugeWriter.ts` lines 918-928: Removed automatic transpose logic
+- `packages/engine/src/export/ugeWriter.ts` line 1070: Changed default note from 36 to 60
+- `docs/uge-export-guide.md`: Updated "Noise Channel Note Mapping" section
+- `songs/percussion_demo.bax`: Added header comments with mapping examples
+
+**Files modified**:
+- `ugeWriter.ts`: Removed +36 transpose, updated default note value
+- `uge-export-guide.md`: Complete rewrite of noise mapping section
+- `percussion_demo.bax`: Documentation with C2-C9 mapping table
+
 ## Vibrato (`vib`) Implementation
 
 - Syntax: `C5<vib:depth,rate,waveform,duration>` where:
