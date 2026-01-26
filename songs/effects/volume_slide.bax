@@ -34,7 +34,7 @@ pat fade_demo = C4<fadeIn>:4 E4:4 G4<fadeOut>:4 C5<fastFadeOut>:4
 ## Pattern 4: Stepped volume slide (with step count)
 ## Fewer steps (4) over longer duration (16 ticks) makes steps more audible
 ## Uses lead_in for fade-in (C4) and lead_out for fade-out (E4)
-pat stepped = inst(lead_in,1) C4<volSlide:+,4>:16 inst(lead_out,1) E4<volSlide:-8,4>:16
+pat stepped = inst(lead_in,1) C4<volSlide:+8,4>:16 inst(lead_out,1) E4<volSlide:-8,4>:16
 
 ## Pattern 4b: Comparing smooth vs stepped slides
 ## First note: smooth fade (1 param), Second note: stepped fade (2 params)
