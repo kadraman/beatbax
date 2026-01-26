@@ -32,7 +32,7 @@ export function parseEnvelope(envStr: any) {
       const initialRaw = obj.initial ?? obj.level ?? obj.value;
       const initial = Math.max(0, Math.min(15, Number.isFinite(Number(initialRaw)) ? Number(initialRaw) : 15));
       const dirStr = String(obj.direction ?? obj.dir ?? 'down').toLowerCase();
-      let direction: 'up' | 'down' | 'flat' = 'down';
+      let direction: 'up' | 'down' | 'flat';
       if (dirStr === 'up') direction = 'up';
       else if (dirStr === 'flat') direction = 'flat';
       else direction = 'down';
@@ -51,7 +51,7 @@ export function parseEnvelope(envStr: any) {
   if (gb) {
     const initial = Math.max(0, Math.min(15, parseInt((gbPrefixed ? gb[1] : parts[0]) as any, 10)));
     const directionStr = (gbPrefixed ? gb[2] : parts[1]).toLowerCase();
-    let direction: 'up' | 'down' | 'flat' = 'down';
+    let direction: 'up' | 'down' | 'flat';
     if (directionStr === 'up') direction = 'up';
     else if (directionStr === 'flat') direction = 'flat';
     else direction = 'down';
