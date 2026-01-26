@@ -13,6 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
+- **Effects system**: Panning, vibrato, portamento, arpeggio, and volume slides with UGE/MIDI export
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
@@ -37,9 +38,14 @@ inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"fo
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 inst snare type=noise env={"level":12,"direction":"down","period":1,"format":"gb"}
 
-# Patterns of notes
-pat melody = C5 E4 G4 C5
-pat bass_pat = C3 . G2 .
+# Named effect presets (v0.1.0+)
+effect wobble = vib:8,4              # Vibrato with depth 8, rate 4
+effect fadeIn = volSlide:+5          # Volume fade in
+effect arpMajor = arp:4,7            # Major chord arpeggio
+
+# Patterns of notes with inline effects
+pat melody = C5<wobble> E4<fadeIn> G4<arpMajor> C5
+pat bass_pat = C3 . G2<port:C4,50> .  # Portamento glide to C4
 pat drum_pat = "snare . snare snare"
 
 # Sequences of patterns with default instruments
@@ -53,6 +59,15 @@ arrange main = lead_seq | bass_seq | wave_seq | drums_seq
 
 play auto repeat
 ```
+
+**Effects System (v0.1.0+):**
+- `pan` / `gb:pan` - Stereo panning (numeric -1.0 to 1.0 or GB enum L/C/R)
+- `vib` - Vibrato (pitch modulation with depth, rate, waveform)
+- `port` - Portamento (smooth pitch glides)
+- `arp` - Arpeggio (chord simulation via rapid note cycling)
+- `volSlide` - Volume slides (dynamic volume automation)
+
+See `songs/effects/` for detailed examples of each effect.
 
 There are a large number of examples in the [songs](songs\) directory.
 
@@ -178,7 +193,7 @@ beatbax/
 │   │   ├── src/
 │   │   │   ├── audio/           # WebAudio playback and PCM renderer
 │   │   │   ├── chips/           # Chip emulation (Game Boy APU)
-│   │   │   ├── effects/         # Inline effect parsing and helpers
+│   │   │   ├── effects/         # Effects system (pan, vib, port, arp, volSlide)
 │   │   │   ├── expand/          # Reference/token expansion helpers
 │   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
 │   │   │   ├── import/          # UGE file reader
