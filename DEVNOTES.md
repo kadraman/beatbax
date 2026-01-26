@@ -95,6 +95,86 @@ Instrument semantics
 - Pattern operations: `transposePattern` utility correctly handles notes with inline effects by extracting the note, transposing it, and reconstructing the token with effects intact (e.g., `E3<port:8>` → `E2<port:8>`).
 - Testing: Comprehensive demo in `songs/effects/port_effect_demo.bax` validates WebAudio playback, PCM rendering, UGE export, and transpose operations.
 
+## Arpeggio (`arp`) Implementation
+
+**Syntax**: `<arp:n1,n2,...>` where each `n` is a semitone offset from the root note
+
+**Parameters:**
+  - Semitone offsets (variadic, 1-15 values): Each parameter adds a note to the arpeggio cycle
+  - Example: `<arp:3,7>` → cycles [0, +3, +7] (root, minor third, perfect fifth)
+  - The root note (offset 0) is always included automatically
+
+**Runtime semantics:**
+  - WebAudio playback: `src/effects/index.ts` implements rapid note cycling at chip frame rate (60Hz for Game Boy)
+  - Per-channel state tracking: `arpeggioState` Map stores current index and interval ID for each channel
+  - Cycle behavior: Rotates through [root, +n1, +n2, ...] continuously until note ends or new note/effect occurs
+  - State management: `clearEffectState()` clears all arpeggio intervals on playback stop
+
+**Export behavior:**
+  - UGE exporter: Maps to hUGETracker's `0xy` (arpeggio) opcode
+    - Maximum 2 offsets supported (3 notes total including root)
+    - `x` = first semitone offset (nibble 0-15)
+    - `y` = second semitone offset (nibble 0-15)
+    - Example: `<arp:3,7>` → `037` (minor chord)
+  - MIDI exporter: Expands arpeggio into rapid note sequence at 60Hz cycle rate
+  - PCM renderer: Applies arpeggio by cycling frequencies at chip frame boundaries
+
+**Named presets:**
+  - Common chord patterns can be defined as effect presets:
+    ```bax
+    effect arpMinor = arp:3,7
+    effect arpMajor = arp:4,7
+    effect arpMajor7 = arp:4,7,11
+    effect arpDim = arp:3,6
+    ```
+  - Usage: `C4<arpMinor>` or `C4<arpMajor>:4`
+
+- Testing: Demo song `songs/effects/arpeggio.bax` validates WebAudio playback, PCM rendering, UGE export, and MIDI export with various chord types
+
+## Volume Slide (`volSlide`) Implementation
+
+**Syntax**: `<volSlide:delta>` or `<volSlide:delta,steps>`
+
+**Parameters:**
+  - `delta` (required, signed integer): Volume change rate per frame
+    - Positive: fade in / crescendo
+    - Negative: fade out / decrescendo
+    - Typical range: ±1 to ±15
+  - `steps` (optional, positive integer): Number of discrete steps for terraced slides
+    - If omitted: smooth linear ramp over note duration
+    - If provided: stepped volume changes creating audible "stairs"
+
+**Runtime semantics:**
+  - WebAudio playback: `src/effects/index.ts` uses `AudioParam.linearRampToValueAtTime` for smooth slides
+  - **Architectural limitation**: Volume slide calls `cancelScheduledValues()` which **disables instrument envelope automation**
+    - This is necessary to prevent conflicts between envelope and volume slide automation
+    - Instruments with active envelopes will have envelope disabled when volume slide is applied
+  - PCM renderer: `src/audio/pcmRenderer.ts` applies manual gain ramping over note duration with optional step quantization
+  - Per-channel state: Tracks `volSlideGain` for proper initialization on each note
+
+**Export behavior:**
+  - UGE exporter: Maps to hUGETracker's `Axy` (volume slide) opcode
+    - `x` nibble: Up/down direction (0=down, 1=up)
+    - `y` nibble: Speed/magnitude (0-15)
+    - Conversion: `x = (delta > 0) ? 1 : 0; y = Math.min(15, Math.abs(delta))`
+    - Example: `<volSlide:+6>` → `A16` (up, speed 6)
+    - Example: `<volSlide:-3>` → `A03` (down, speed 3)
+  - MIDI exporter: Uses CC7 (Volume) messages with linear interpolation over note duration
+  - Named events: Volume slide on named percussion events uses hUGETracker index 24 (C3 equivalent)
+
+**Common patterns:**
+  - Fade-in from silence: `inst low type=pulse1 env=1,flat` + `C4<volSlide:+14>:12`
+  - Fade-out: `C5<volSlide:-5>:8`
+  - Terraced slides: `C4<volSlide:+8,4>:16` (4 audible steps)
+  - Combined effects: `C4<vib:3,6,volSlide:+3>` (vibrato + crescendo)
+
+**Important notes:**
+  - Low-volume instruments: Start from `env=1` instead of `env=0` to avoid complete silence
+  - Note re-triggering: Insert rests (`.`) between identical pitches to force re-trigger on monophonic channels
+  - Envelope conflict: Volume slide cancels envelope automation (architectural limitation)
+
+- Testing: Demo song `songs/effects/volume_slide.bax` validates WebAudio playback, PCM rendering, UGE export, MIDI export, and stepped vs smooth behavior
+
 ## Noise Channel Note Mapping (UGE Export)
 
 **Status**: ✅ Implemented (2026-01-25)
