@@ -1,16 +1,24 @@
 ---
 title: Pattern Effects System
-status: proposed
+status: partially-implemented
 authors: ["kadraman"]
 created: 2025-12-12
+updated: 2026-01-26
 issue: "https://github.com/kadraman/beatbax/issues/5"
 ---
 
 ## Summary
 
-Add a comprehensive effects system to BeatBax that enables expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
+BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-This document now also includes an explicit mapping plan and exporter guidance for initial implementation of gameboy and hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other common retro sound chips.
+**Current Implementation (v0.1.0+):** Five core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
+- ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
+- ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
+- ✅ **Portamento** - Smooth pitch glides between notes
+- ✅ **Arpeggio** - Rapid note cycling for chord simulation
+- ✅ **Volume Slide** - Dynamic volume automation over time
+
+This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
 ## Motivation
 
@@ -20,20 +28,34 @@ This document now also includes an explicit mapping plan and exporter guidance f
 - **Competitive feature**: Essential for serious chip music production
 - **Creative exploration**: Opens new compositional possibilities
 
-## Current Limitations
+## Implementation Status
 
-- Only static notes with fixed pitch/volume
-- No way to apply panning, vibrato, pitch bends, or volume automation
+**Implemented (v0.1.0+):**
+- ✅ Panning (stereo position, GB NR51, MIDI CC #10)
+- ✅ Vibrato (pitch modulation with depth/rate/waveform)
+- ✅ Portamento (smooth pitch glide)
+- ✅ Arpeggio (chord simulation via rapid note cycling)
+- ✅ Volume Slide (per-tick gain automation)
+- ✅ Named effect presets with expansion
+- ✅ UGE export for pan, vib, port, arp, volSlide
+- ✅ MIDI export for all implemented effects
+
+**Remaining Limitations:**
+- Pitch Bend, Tremolo, Echo, Note Cut, and Retrigger not yet implemented
+- Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
 
 ## Core Effects
 
-Summary: the following core effects will be implemented and exposed in the language/runtime (one-line intent per effect):
+Summary: the following core effects are available in the language/runtime:
 
+**✅ Implemented (v0.1.0+):**
 - Panning (`pan` / `gb:pan`): stereo position (enum or numeric) with GB NR51 mapping where requested.
 - Vibrato (`vib`): periodic pitch modulation (depth + rate).
 - Portamento / Slide (`port`): smooth pitch glide toward a target note or frequency.
 - Arpeggio (`arp`): rapid cycling between pitch offsets to simulate chords.
 - Volume Slide (`volSlide`): per-tick gain changes / slides.
+
+**⏳ Planned (not yet implemented):**
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
 - Tremolo (`trem`): periodic amplitude modulation (gain LFO).
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
@@ -519,7 +541,7 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - Pattern transpose fix: `packages/engine/src/patterns/expand.ts` — effect-aware transposition.
 
   - Testing & demo:
-    - Demo song: `songs/effects/port_effect_demo.bax` includes varied portamento speeds, bass patterns with octave modifiers, and comprehensive effect combinations.
+    - Demo song: `songs/effects/portamento.bax` demonstrates varied portamento speeds and pitch glides.
     - Validated behaviors: Runtime playback (WebAudio), PCM rendering (WAV export), UGE export (hUGETracker v6), and transpose operations all working correctly.
 
   - Known limitations and fixes applied:
@@ -867,14 +889,14 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Update parser to recognize `<effect:param>` syntax (Peggy default parser)
 - [x] Implement effect parsing for all core effects
 - [x] Create effect application functions in audio backend
-- [x] Add panning implementation
+- [x] Add panning implementation (WebAudio + UGE + MIDI)
 - [x] Add vibrato implementation (WebAudio + PCM renderer + UGE export)
-- [x] Add portamento implementation
-- [x] Add arpeggio implementation
+- [x] Add portamento implementation (WebAudio + UGE + MIDI)
+- [x] Add arpeggio implementation (WebAudio + PCM renderer + UGE + MIDI)
 - [x] Add volume slide implementation (WebAudio + PCM renderer + UGE export + MIDI export)
 - [ ] Add pitch bend implementation
 - [ ] Add tremolo implementation
-- [x] Add note cut implementation (UGE export)
+- [x] Add note cut implementation (UGE export only)
 - [ ] Add retrigger implementation
 - [x] Add pattern-level effect modifiers
 - [x] Add named effect presets
@@ -883,9 +905,96 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Write unit tests for effect parsing
 - [x] Write unit tests for effect application
 - [x] Write integration tests (uge.vib.test.ts, uge.arp.test.ts, etc.)
-- [x] Add effects examples to demo songs (effect_demo.bax, panning_demo.bax)
+- [x] Add effects examples to demo songs (songs/effects/*.bax)
 - [ ] Document effects in TUTORIAL.md
 - [ ] Create effects reference guide
+
+---
+
+## Implemented Effects Reference
+
+### Panning (`pan`)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Numeric panning (-1.0 = left, 0.0 = center, 1.0 = right)
+pat stereo = C5<pan=-1.0>:4 E5<pan=0.0>:4 G5<pan=1.0>:4
+
+# GB-specific enum panning (L/C/R maps to NR51 terminal bits)
+pat gb_pan = C4<gb:pan:L>:4 E4<gb:pan:C>:4 G4<gb:pan:R>:4
+
+# Named panning presets
+effect left = pan=-1.0
+effect center = pan=0.0
+effect right = pan=1.0
+
+# Apply preset to patterns
+pat melody_left = melody:left
+```
+
+**Parameters:**
+- Numeric: `-1.0` to `1.0` where `-1.0` = full left, `0.0` = center, `1.0` = full right
+- GB enum: `L` (left), `C` (center/both), `R` (right)
+- Namespace: Use `gb:pan:L/C/R` for explicit Game Boy terminal mapping
+
+**Implementation:** Creates a `StereoPannerNode` (or GainNode pair fallback) in WebAudio. Supports both smooth panning (-1 to +1) and discrete GB terminal routing (L/R/C).
+
+**Hardware Mapping:**
+- **Game Boy:** Maps to NR51 terminal bits (per-channel L/R/both routing)
+  - Numeric values snap to nearest enum: `pan < -0.33` → L, `pan > 0.33` → R, else C
+- **UGE Export:** Maps to NR51 channel routing (8xx effect or channel flags)
+- **MIDI Export:** Maps to Pan CC #10 (0 = left, 64 = center, 127 = right)
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts` (pan handler)
+- UGE export: `packages/engine/src/export/ugeWriter.ts` (NR51 terminal mapping)
+- MIDI export: `packages/engine/src/export/midiExport.ts` (CC #10)
+**Demo:** `songs/panning_demo.bax`
+
+---
+
+### Portamento (`port`)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Inline portamento with target note and speed
+pat slide = C4<port:G4,50>:8 G4<port:C5,30>:8
+
+# Named portamento presets
+effect slowGlide = port:+12,20   # Slide up 1 octave slowly
+effect fastGlide = port:-5,80    # Slide down 5 semitones quickly
+
+# Apply preset to notes
+pat gliding = C4<slowGlide>:8 E4<fastGlide>:8
+```
+
+**Parameters:**
+- `target` (1st param, required): Target note name (e.g., `G4`) or semitone offset (e.g., `+12`, `-5`)
+- `speed` (2nd param, optional): Portamento speed (0-255, higher = faster). Default varies by implementation.
+
+**Implementation:** Applies smooth frequency ramp from current note to target note using `AudioParam.exponentialRampToValueAtTime` (or linear fallback). The slide occurs over the note duration.
+
+**Hardware Mapping:**
+- **Game Boy:** Software effect via frequency automation (no native hardware portamento)
+- **UGE Export:** Maps to `3xx` effect (tone portamento) with calculated speed parameter
+- **MIDI Export:** Maps to Portamento CC #5 + Pitch Bend events
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts` (port handler)
+- UGE export: `packages/engine/src/export/ugeWriter.ts` (PortamentoHandler)
+- MIDI export: `packages/engine/src/export/midiExport.ts` (CC #5 + pitch bend)
+- Demo: `songs/effects/portamento.bax`
+
+**Known Behaviors:**
+- Tracks last frequency per channel to enable relative portamento across note boundaries
+- Exponential ramp used when available for more musical pitch glide
+- State cleared on playback stop via `clearEffectState()`
+
+---
 
 ### Vibrato (`vib`)
 
@@ -926,6 +1035,7 @@ pat vibrato_melody = C4<wobble>:4 E4<subtle>:4
 - PCM renderer: `packages/engine/src/audio/pcmRenderer.ts`
 - UGE export: `packages/engine/src/export/ugeWriter.ts` (VibratoHandler)
 - Tests: `packages/engine/tests/uge.vib.test.ts`
+- Demo: `songs/effects/vibrato.bax`
 
 ---
 
@@ -963,6 +1073,14 @@ pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
 - ✅ Parser grammar fix: `EffectSuffix` now returns effect content without angle brackets
 - ✅ Token reconstruction fix: `patternEventsToTokens` wraps effects in `<>` when converting to strings
 - ✅ Preset expansion fix: `parseEffectsInline` now treats bare identifiers (e.g., `arpMinor`) as effect names with empty params, allowing preset lookup
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts` (arp handler)
+- PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (arpeggio frequency cycling)
+- UGE export: `packages/engine/src/export/ugeWriter.ts` (ArpeggioHandler)
+- MIDI export: `packages/engine/src/export/midiExport.ts` (note expansion)
+- Tests: `packages/engine/tests/uge.arp.test.ts`
+- Demo: `songs/effects/arpeggio.bax`
 
 ---
 
@@ -1025,11 +1143,11 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 - MIDI scaling: delta ±10 → volume change ±64 (around midpoint 64)
 
 **Implementation Files:**
-- WebAudio: `packages/engine/src/effects/index.ts` (vol handler)
+- WebAudio: `packages/engine/src/effects/index.ts` (volSlide handler)
 - PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (volDelta, volSteps)
 - UGE export: `packages/engine/src/export/ugeWriter.ts` (VolumeSlideHandler)
 - MIDI export: `packages/engine/src/export/midiExport.ts` (CC #7)
-- Demo: `songs/effects/volume_slide_demo.bax`
+- Demo: `songs/effects/volume_slide.bax`
 
 **Known behaviors:**
 - **Volume slides REPLACE existing gain automation** (calls `cancelScheduledValues` which wipes envelope automation on the same GainNode). Volume slide and envelope cannot currently coexist - volume slide disables the envelope.
@@ -1091,7 +1209,7 @@ npm -w test -- packages/engine --testPathPattern parser.effects.test.ts
 ```
 - Run full exporter integration for a fixture:
 ```bash
-npm -w node ./bin/beatbax --export uge songs/effect_demo.bax tmp/out.uge
+npm -w node ./bin/beatbax --export uge songs/effects/vibrato.bax tmp/out.uge
 ```
 
 ## Performance Considerations
