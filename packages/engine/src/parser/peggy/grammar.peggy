@@ -371,7 +371,7 @@ IdentifierWithArgs
 // -----------------------------
 
 RestOfLine
-  = s:$( (!Newline .)* ) { return s.trim(); }
+  = s:$( (!(Newline / Comment) .)* ) { return s.trim(); }
 
 Identifier
   = $([A-Za-z_][A-Za-z0-9_\-]*)

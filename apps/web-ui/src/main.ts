@@ -38,8 +38,169 @@ const closeHelpBtn = document.getElementById('closeHelp') as HTMLButtonElement |
 const helpIcon = document.getElementById('helpIcon') as HTMLButtonElement | null;
 const layoutEl = document.getElementById('layout') as HTMLDivElement | null;
 const persistCheckbox = document.getElementById('persistHelp') as HTMLInputElement | null;
+const warningsPanel = document.getElementById('warnings') as HTMLDivElement | null;
+const warningsList = document.getElementById('warningsList') as HTMLDivElement | null;
+const clearWarningsBtn = document.getElementById('clearWarnings') as HTMLButtonElement | null;
 let player: any = null;
 let currentAST: any = null;
+
+// Warning display functions
+function showWarnings(warnings: Array<{ component: string; message: string; file?: string; loc?: any }>) {
+  console.log('[web-ui] showWarnings called with', warnings.length, 'warnings');
+  console.log('[web-ui] warningsPanel:', !!warningsPanel, 'warningsList:', !!warningsList);
+  
+  if (!warningsPanel || !warningsList) {
+    console.warn('[web-ui] Warning elements not found in DOM');
+    return;
+  }
+  if (warnings.length === 0) {
+    warningsPanel.style.display = 'none';
+    return;
+  }
+  
+  warningsList.innerHTML = '';
+  for (const w of warnings) {
+    const div = document.createElement('div');
+    div.style.marginBottom = '4px';
+    
+    let locStr = '';
+    if (w.loc && w.loc.start) {
+      const line = w.loc.start.line;
+      const col = w.loc.start.column || 0;
+      locStr = ` (line ${line}, col ${col})`;
+    }
+    
+    div.textContent = `[${w.component}] ${w.message}${locStr}`;
+    warningsList.appendChild(div);
+  }
+  
+  console.log('[web-ui] Setting warningsPanel display to block');
+  warningsPanel.style.display = 'block';
+}
+
+function clearWarnings() {
+  if (warningsPanel) warningsPanel.style.display = 'none';
+  if (warningsList) warningsList.innerHTML = '';
+}
+
+clearWarningsBtn?.addEventListener('click', clearWarnings);
+
+// Validation function (similar to CLI)
+function validateAST(ast: any): Array<{ component: string; message: string; loc?: any }> {
+  const warnings: Array<{ component: string; message: string; loc?: any }> = [];
+  
+  // Valid transform names
+  const validTransforms = new Set(['oct', 'inst', 'rev', 'slow', 'fast']);
+  
+  // Validate channels
+  for (const ch of ast.channels || []) {
+    // Check instrument references
+    if (ch.inst && !ast.insts[ch.inst]) {
+      warnings.push({ 
+        component: 'validation', 
+        message: `Channel ${ch.id} references unknown inst '${ch.inst}'`,
+        loc: ch.loc
+      });
+    }
+    
+    // Extract sequence names from channel and validate transforms
+    const extractSeqNames = (channel: any): string[] => {
+      const names: string[] = [];
+      if (!channel || !channel.pat) return names;
+      if (Array.isArray(channel.pat)) return []; // inline pattern tokens
+      
+      const rawTokens: string[] | undefined = (channel as any).seqSpecTokens;
+      if (rawTokens && rawTokens.length > 0) {
+        const joined = rawTokens.join(' ');
+        for (const group of joined.split(',')) {
+          const g = group.trim();
+          if (!g) continue;
+          if (g.indexOf('*') >= 0) {
+            const m = g.match(/^(.+?)\s*\*\s*(\d+)$/);
+            const itemRef = m ? m[1].trim() : g;
+            const base = itemRef.split(':')[0];
+            if (base) names.push(base);
+            
+            // Check transforms in the itemRef
+            if (itemRef.indexOf(':') >= 0) {
+              const transformParts = itemRef.split(':').slice(1);
+              for (const transform of transformParts) {
+                const transformName = transform.trim().split('(')[0];
+                if (transformName && !validTransforms.has(transformName)) {
+                  warnings.push({
+                    component: 'transforms',
+                    message: `Unknown transform '${transformName}' on '${g}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
+                    loc: ch.loc
+                  });
+                }
+              }
+            }
+          } else {
+            const parts = g.split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
+            for (const p of parts) {
+              names.push(p.split(':')[0]);
+              
+              // Check transforms in each part
+              if (p.indexOf(':') >= 0) {
+                const transformParts = p.split(':').slice(1);
+                for (const transform of transformParts) {
+                  const transformName = transform.trim().split('(')[0];
+                  if (transformName && !validTransforms.has(transformName)) {
+                    warnings.push({
+                      component: 'transforms',
+                      message: `Unknown transform '${transformName}' on '${p}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
+                      loc: ch.loc
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+        return names.filter(Boolean);
+      }
+      
+      const spec = String(channel.pat).trim();
+      for (const group of spec.split(',')) {
+        const g = group.trim();
+        if (!g) continue;
+        const mRep = g.match(/^(.+?)\s*\*\s*(\d+)$/);
+        const itemRef = mRep ? mRep[1].trim() : g;
+        const base = itemRef.split(':')[0];
+        if (base) names.push(base);
+        
+        // Check transforms in string format
+        if (itemRef.indexOf(':') >= 0) {
+          const transformParts = itemRef.split(':').slice(1);
+          for (const transform of transformParts) {
+            const transformName = transform.trim().split('(')[0];
+            if (transformName && !validTransforms.has(transformName)) {
+              warnings.push({
+                component: 'transforms',
+                message: `Unknown transform '${transformName}' on '${g}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
+                loc: ch.loc
+              });
+            }
+          }
+        }
+      }
+      return names.filter(Boolean);
+    };
+    
+    const seqNames = extractSeqNames(ch);
+    for (const seqName of seqNames) {
+      if (!ast.seqs || !ast.seqs[seqName]) {
+        warnings.push({
+          component: 'validation',
+          message: `Channel ${ch.id} references unknown sequence '${seqName}'`,
+          loc: ch.loc
+        });
+      }
+    }
+  }
+  
+  return warnings;
+}
 
 // quick debug: report that DOM nodes were found
 try {
@@ -158,6 +319,9 @@ document.getElementById('loadExample')?.addEventListener('click', async () => {
 
 playBtn?.addEventListener('click', async () => {
   console.log('[web-ui] Play handler start');
+  clearWarnings();
+  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+  
   try {
     status && (status.textContent = 'Parsing...');
     const src = srcArea ? srcArea.value : '';
@@ -165,13 +329,22 @@ playBtn?.addEventListener('click', async () => {
     const ast = parse(src);
     console.log('[web-ui] parsed AST', ast && typeof ast === 'object' ? Object.keys(ast) : typeof ast);
     console.log('[web-ui] source preview:\n', String(src).slice(0, 800));
-    const resolved = resolveSong(ast as any);
+    
+    // Validate AST and collect warnings
+    const validationWarnings = validateAST(ast);
+    warnings.push(...validationWarnings);
+    
+    const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
     console.log('[web-ui] resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
     if ((resolved as any).channels) {
       for (const ch of (resolved as any).channels) {
         console.log('[web-ui] channel', ch.id, 'events=', (ch.events || ch.pat || []).length);
       }
     }
+    
+    // Show warnings if any
+    showWarnings(warnings);
+    
     currentAST = ast;
     status && (status.textContent = 'Starting AudioContext...');
     if (!player) player = new Player();
@@ -223,12 +396,20 @@ stopBtn?.addEventListener('click', () => {
 });
 
 applyBtn?.addEventListener('click', async () => {
+  clearWarnings();
+  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+  
   try {
     const p2 = (window as any).__beatbax_player || player;
     if (p2 && typeof p2.stop === 'function') p2.stop();
     status && (status.textContent = 'Applying...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
+    
+    // Validate AST and collect warnings
+    const validationWarnings = validateAST(ast);
+    warnings.push(...validationWarnings);
+    
     currentAST = ast;
     renderChannelControls(ast);
     if (!player) player = new Player();
@@ -240,7 +421,11 @@ applyBtn?.addEventListener('click', async () => {
       }
     } catch (e) { console.warn('resume failed during apply', e); }
     attachScheduleHook(player);
-    const resolved = resolveSong(ast as any);
+    const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
+    
+    // Show warnings if any
+    showWarnings(warnings);
+    
     console.log('[web-ui] apply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
@@ -393,11 +578,19 @@ function debounce(fn: (...args: any[]) => void, wait = 300) {
 
 const liveApply = debounce(async () => {
   if (!liveCheckbox || !liveCheckbox.checked) return;
+  clearWarnings();
+  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+  
   try {
     if (player) player.stop();
     status && (status.textContent = 'Applying (live)...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
+    
+    // Validate AST and collect warnings
+    const validationWarnings = validateAST(ast);
+    warnings.push(...validationWarnings);
+    
     currentAST = ast;
     renderChannelControls(ast);
     if (!player) player = new Player();
@@ -409,7 +602,11 @@ const liveApply = debounce(async () => {
       }
     } catch (e) { console.warn('resume failed during live apply', e); }
     attachScheduleHook(player);
-    const resolved = resolveSong(ast as any);
+    const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
+    
+    // Show warnings if any
+    showWarnings(warnings);
+    
     console.log('[web-ui] liveApply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing (live)');

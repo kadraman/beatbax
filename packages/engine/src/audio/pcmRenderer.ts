@@ -476,6 +476,9 @@ function renderPulse(
   let portDurationSec: number | undefined = undefined;
   // Arpeggio params - semitone offsets
   let arpOffsets: number[] = [];
+  // Volume slide params
+  let volDelta = 0;
+  let volSteps: number | undefined = undefined;
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -510,6 +513,12 @@ function renderPulse(
           arpOffsets = p
             .map((x: any) => Number(x))
             .filter((n: number) => Number.isFinite(n) && n >= 0);
+        } else if (fx && fx.type === 'volSlide') {
+          const p = fx.params || [];
+          volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          volSteps = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
+          if (!Number.isFinite(volDelta)) volDelta = 0;
+          if (volSteps !== undefined && !Number.isFinite(volSteps)) volSteps = undefined;
         }
       } catch (e) {}
     }
@@ -633,6 +642,30 @@ function renderPulse(
     const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
     sample = sample * envVal;
 
+    // Apply volume slide if enabled
+    let volSlideGain = 1.0;
+    if (volDelta !== 0) {
+      // Extract baseline from instrument envelope initial volume (0-15 on GB, normalized to 0-1)
+      let baseline = 1.0;
+      if (envelope && envelope.mode === 'gb' && typeof envelope.initial === 'number') {
+        baseline = Math.max(0, Math.min(1, envelope.initial / 15));
+      }
+
+      if (volSteps !== undefined && typeof tickSeconds === 'number') {
+        // Stepped volume slide: divide note duration into discrete steps
+        const stepDuration = durSec / volSteps;
+        const currentStep = Math.min(volSteps, Math.floor(t / stepDuration));
+        // Scale delta across steps: ±1 = ±20% gain change per note
+        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * currentStep / volSteps / 5)));
+      } else {
+        // Smooth volume slide: linear ramp over note duration
+        const progress = Math.min(1, t / durSec);
+        // Scale delta: ±1 = ±20% gain change per note, starting from envelope initial volume
+        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * progress / 5)));
+      }
+      sample = sample * volSlideGain;
+    }
+
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
       if (channels === 2) {
@@ -711,6 +744,9 @@ function renderWave(
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
+  // Volume slide params
+  let volDelta = 0;
+  let volSteps: number | undefined = undefined;
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -734,6 +770,12 @@ function renderWave(
               portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
             }
           }
+        } else if (fx && fx.type === 'volSlide') {
+          const p = fx.params || [];
+          volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          volSteps = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
+          if (!Number.isFinite(volDelta)) volDelta = 0;
+          if (volSteps !== undefined && !Number.isFinite(volSteps)) volSteps = undefined;
         }
       } catch (e) {}
     }
@@ -847,7 +889,27 @@ function renderWave(
     const v1 = (waveTable[i1] / 15.0) * 2.0 - 1.0;
     // Use sustained volume for legato notes, otherwise use instrument volume
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
-    const sample = ((v0 * (1 - frac) + v1 * frac) * effectiveVolMul);
+    let sample = ((v0 * (1 - frac) + v1 * frac) * effectiveVolMul);
+
+    // Apply volume slide if enabled
+    if (volDelta !== 0) {
+      // Use wave instrument volume as baseline (already normalized to 0-1 in volMul)
+      const baseline = effectiveVolMul;
+      let volSlideGain = 1.0;
+      if (volSteps !== undefined && typeof tickSeconds === 'number') {
+        // Stepped volume slide: divide note duration into discrete steps
+        const stepDuration = durSec / volSteps;
+        const currentStep = Math.min(volSteps, Math.floor(t / stepDuration));
+        // Scale delta across steps: ±1 = ±20% gain change per note
+        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * currentStep / volSteps / 5)));
+      } else {
+        // Smooth volume slide
+        const progress = Math.min(1, t / durSec);
+        // Scale delta: ±1 = ±20% gain change per note, starting from wave instrument volume
+        volSlideGain = Math.max(0, Math.min(1.5, baseline + (volDelta * progress / 5)));
+      }
+      sample = sample * volSlideGain;
+    }
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
