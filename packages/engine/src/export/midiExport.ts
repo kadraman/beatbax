@@ -231,6 +231,16 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							pushMetaText(data, delta, `port:speed=${speed !== undefined ? speed : ''},duration=${duration !== undefined ? duration : ''}`);
 							delta = 0;
 							break;
+						} else if (fxType === 'trem') {
+							// Tremolo: emit MIDI CC #11 (Expression) meta event
+							// Note: MIDI doesn't have native tremolo, so we document it via text meta event
+							// Some DAWs can interpret Expression CC for amplitude modulation
+							const depth = (Array.isArray(fx.params) && fx.params.length > 0) ? fx.params[0] : undefined;
+							const rate = (Array.isArray(fx.params) && fx.params.length > 1) ? fx.params[1] : undefined;
+							const waveform = (Array.isArray(fx.params) && fx.params.length > 2) ? fx.params[2] : undefined;
+							pushMetaText(data, delta, `trem:depth=${depth !== undefined ? depth : ''},rate=${rate !== undefined ? rate : ''},waveform=${waveform !== undefined ? waveform : 'sine'}`);
+							delta = 0;
+							break;
 						} else if (fxType === 'volslide') {
 							// Volume slide: emit MIDI CC #7 (Volume) event
 							const deltaVal = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : 0;

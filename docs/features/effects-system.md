@@ -11,12 +11,13 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-**Current Implementation (v0.1.0+):** Five core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
+**Current Implementation (v0.1.0+):** Six core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
 - ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
 - ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
 - ✅ **Portamento** - Smooth pitch glides between notes
 - ✅ **Arpeggio** - Rapid note cycling for chord simulation
 - ✅ **Volume Slide** - Dynamic volume automation over time
+- ✅ **Tremolo** - Amplitude modulation with configurable depth, rate, and waveforms
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
@@ -36,12 +37,14 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ Portamento (smooth pitch glide)
 - ✅ Arpeggio (chord simulation via rapid note cycling)
 - ✅ Volume Slide (per-tick gain automation)
+- ✅ Tremolo (amplitude modulation with depth/rate/waveform)
 - ✅ Named effect presets with expansion
-- ✅ UGE export for pan, vib, port, arp, volSlide
+- ✅ UGE export for pan, vib, port, arp, volSlide (trem: meta-event only)
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
-- Pitch Bend, Tremolo, Echo, Note Cut, and Retrigger not yet implemented
+- Pitch Bend, Echo, Note Cut, and Retrigger not yet implemented
+- Tremolo exports to MIDI as meta-event (no native UGE support)
 - Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
 
 ## Core Effects
@@ -54,10 +57,10 @@ Summary: the following core effects are available in the language/runtime:
 - Portamento / Slide (`port`): smooth pitch glide toward a target note or frequency.
 - Arpeggio (`arp`): rapid cycling between pitch offsets to simulate chords.
 - Volume Slide (`volSlide`): per-tick gain changes / slides.
+- Tremolo (`trem`): periodic amplitude modulation (gain LFO with depth, rate, and waveform).
 
 **⏳ Planned (not yet implemented):**
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
-- Tremolo (`trem`): periodic amplitude modulation (gain LFO).
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
@@ -895,7 +898,7 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Add arpeggio implementation (WebAudio + PCM renderer + UGE + MIDI)
 - [x] Add volume slide implementation (WebAudio + PCM renderer + UGE export + MIDI export)
 - [ ] Add pitch bend implementation
-- [ ] Add tremolo implementation
+- [x] Add tremolo implementation (WebAudio + PCM renderer + MIDI export)
 - [x] Add note cut implementation (UGE export only)
 - [ ] Add retrigger implementation
 - [x] Add pattern-level effect modifiers
@@ -1155,6 +1158,93 @@ pat compare = inst(lead_in,2) C4<volSlide:+4>:8 . C4<volSlide:+4,16>:8  # Rest f
 - Start volume (baseline) is derived from instrument envelope initial volume (0-15 GB range → 0.0-1.0), defaults to 1.0 (full volume) if no envelope
 - Target gain clamped to [0.001, 1.5] allowing volume boosts above baseline up to 1.5x (headroom for fade-ins)
 - Stepped slides require `tickSeconds` parameter (provided by resolver)
+
+---
+
+### Tremolo (`trem`)
+
+**Status:** ✅ Implemented (v0.1.0+)
+
+**Syntax:**
+```bax
+# Basic tremolo with depth and rate
+pat shimmer = C4<trem:6,4>:4 E4<trem:8,6>:4 G4<trem:10,8>:4
+
+# Different waveform shapes
+pat waveforms =
+  C4<trem:8,6,sine>:4      # Smooth sine wave (default)
+  E4<trem:8,6,triangle>:4  # Linear triangle wave
+  G4<trem:8,6,square>:4    # Hard on/off square wave
+  C5<trem:8,6,saw>:4       # Sawtooth ramp
+
+# Named tremolo presets
+effect shimmer = trem:6,4,sine
+effect pulse = trem:10,8,square
+effect slow_wave = trem:4,2,triangle
+
+# Apply preset to notes
+pat atmospheric = C4<shimmer>:4 E4<pulse>:4 G4<slow_wave>:4
+
+# Combining tremolo with other effects
+pat combo = C4<vib:3,6,trem:6,4>:4       # Vibrato + tremolo
+pat stereo_trem = C5<pan:-1.0,trem:10,8>:4  # Panning + tremolo
+```
+
+**Parameters:**
+- `depth` (1st param, required): Tremolo amplitude (0-15)
+  - 0 = no effect
+  - 15 = maximum amplitude modulation (±50% volume)
+  - Typical range: 4-12 for musical tremolo
+- `rate` (2nd param, optional): Tremolo speed in Hz (default: 6)
+  - 1-4 Hz: Slow, gentle shimmer
+  - 5-10 Hz: Medium tremolo
+  - 10+ Hz: Fast pulsing effect
+- `waveform` (3rd param, optional): LFO shape (default: `sine`)
+  - `sine`: Smooth, natural tremolo
+  - `triangle`: Linear volume ramp
+  - `square`: Hard on/off pulsing
+  - `saw` / `sawtooth`: Ramp waveform
+- `duration` (4th param, optional): Duration in pattern rows (defaults to full note length)
+
+**Implementation:** Creates an LFO oscillator connected to a GainNode which modulates the amplitude. The LFO oscillates at the specified rate and uses the selected waveform shape.
+
+**Hardware Mapping:**
+- **Game Boy:** Software effect via GainNode modulation (no native hardware tremolo)
+- **UGE Export:** No native tremolo effect in hUGETracker - exported as meta-event only
+  - Can be approximated manually with volume column automation
+- **MIDI Export:** Maps to Expression CC #11 as meta-event
+  - MIDI doesn't have native tremolo, so it's documented via text meta event
+
+**Scaling:**
+- Depth: 0-15 maps to 0-50% amplitude modulation
+  - depth 15 = ±50% volume variation (0.5× to 1.5× baseline)
+  - depth 8 = ±27% volume variation
+  - depth 4 = ±13% volume variation
+- Rate: Direct Hz value (1-20 Hz typical range)
+- Waveform: Maps to OscillatorNode.type
+
+**Implementation Files:**
+- WebAudio: `packages/engine/src/effects/index.ts` (trem handler)
+- PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (tremDepth, tremRate, tremWaveform)
+- MIDI export: `packages/engine/src/export/midiExport.ts` (meta-event)
+- Demo: `songs/effects/tremolo.bax`
+
+**Known behaviors:**
+- Tremolo modulates volume around the current baseline gain value
+- Works on pulse and wave channels (not yet implemented for noise)
+- Can be combined with other effects like vibrato, panning, and portamento
+- Different waveforms create distinct musical characters:
+  - Sine: Classic smooth tremolo (organs, strings)
+  - Square: Gated/pulsing effect (synthesizers)
+  - Triangle: Linear ramping (experimental)
+  - Sawtooth: Ramp-up/down effect (special FX)
+
+**Use Cases:**
+- Atmospheric pads and sustained notes
+- Simulating rotary speaker (Leslie) effects
+- Adding movement to static tones
+- Creating "shimmer" or "pulse" textures
+- Combining with vibrato for rich modulation
 
 ---
 

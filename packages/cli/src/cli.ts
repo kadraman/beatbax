@@ -62,11 +62,9 @@ function validateSource(src: string, filename?: string): ValidationResult {
     const extractSeqBaseNames = (ch2: any): string[] => {
       const names: string[] = [];
       if (!ch2 || !ch2.pat) return names;
-      if (Array.isArray(ch2.pat)) {
-          // `ch.pat` is already expanded into inline pattern tokens (notes/rests).
-          // These are not sequence references, so don't treat them as such.
-          return [];
-        }
+
+      // If parser attached raw seqSpecTokens (space-preserved), prefer them
+      // even if ch.pat is already expanded to an array
       const rawTokens: string[] | undefined = (ch2 as any).seqSpecTokens;
       if (rawTokens && rawTokens.length > 0) {
         const joined = rawTokens.join(' ');
@@ -85,6 +83,13 @@ function validateSource(src: string, filename?: string): ValidationResult {
         }
         return names.filter(Boolean);
       }
+
+      // ch.pat is inline tokens (array), no external sequence names
+      if (Array.isArray(ch2.pat)) {
+        return [];
+      }
+
+      // Fallback: ch.pat is a string like "lead" or "lead*2" or "lead,lead2"
       const spec = String(ch2.pat).trim();
       for (const group of spec.split(',')) {
         const g = group.trim();
@@ -100,7 +105,15 @@ function validateSource(src: string, filename?: string): ValidationResult {
     const bases = extractSeqBaseNames(ch);
     for (const baseSeqName of bases) {
       if (!ast.seqs || !ast.seqs[baseSeqName]) {
-        warnings.push({ message: `Channel ${ch.id} references unknown sequence '${baseSeqName}'`, loc: ch.loc });
+        // Check if it's actually a pattern name (common mistake)
+        if (ast.pats && ast.pats[baseSeqName]) {
+          warnings.push({
+            message: `Channel ${ch.id} references '${baseSeqName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseSeqName}' or use comma-separated patterns with channel directive.`,
+            loc: ch.loc
+          });
+        } else {
+          warnings.push({ message: `Channel ${ch.id} references unknown sequence '${baseSeqName}'`, loc: ch.loc });
+        }
       }
     }
   }
@@ -244,7 +257,46 @@ program
 
       let ast: any;
       try {
+        // Capture parser warnings that are normally sent to console.warn
+        const originalWarn = console.warn;
+        const parserWarnings: Array<{ message: string; loc?: string }> = [];
+        console.warn = (msg: string) => {
+          if (typeof msg === 'string' && msg.startsWith('[WARN]')) {
+            // Extract message and optional location info
+            // Format: [WARN] [component] message line=X, column=Y
+            const fullMatch = msg.match(/^\[WARN\]\s*\[([^\]]+)\]\s*(.+)$/);
+            if (fullMatch) {
+              const fullText = fullMatch[2].trim();
+              // Check for location at the end (format: "message line=X, column=Y")
+              const locMatch = fullText.match(/^(.+?)\s+line=(\d+),\s*column=(\d+)$/);
+              if (locMatch) {
+                const message = locMatch[1].trim();
+                const line = locMatch[2];
+                const col = locMatch[3];
+                parserWarnings.push({ message, loc: ` (line ${line}, column ${col})` });
+              } else {
+                // No location info, just the message
+                parserWarnings.push({ message: fullText, loc: '' });
+              }
+            } else {
+              parserWarnings.push({ message: msg, loc: '' });
+            }
+          } else {
+            originalWarn(msg);
+          }
+        };
+
         ast = parse(src);
+
+        // Restore original console.warn
+        console.warn = originalWarn;
+
+        // Add parser warnings to the warnings array
+        if (parserWarnings.length > 0) {
+          for (const pw of parserWarnings) {
+            warnings.push(pw.message + pw.loc);
+          }
+        }
       } catch (parseErr: any) {
         console.error(formatParseError(parseErr, file));
         process.exitCode = 2;
@@ -280,11 +332,9 @@ program
       const extractSeqBaseNames = (ch: any): string[] => {
         const names: string[] = [];
         if (!ch || !ch.pat) return names;
-        if (Array.isArray(ch.pat)) {
-            // `ch.pat` is inline tokens; no external sequence names to extract.
-            return [];
-          }
+
         // If parser attached raw seqSpecTokens (space-preserved), prefer them
+        // even if ch.pat is already expanded to an array
         const rawTokens: string[] | undefined = (ch as any).seqSpecTokens;
         if (rawTokens && rawTokens.length > 0) {
           const joined = rawTokens.join(' ');
@@ -302,6 +352,11 @@ program
             }
           }
           return names.filter(Boolean);
+        }
+
+        // ch.pat is inline tokens (array), no external sequence names
+        if (Array.isArray(ch.pat)) {
+          return [];
         }
 
         // Fallback: ch.pat is a string like "lead" or "lead*2" or "lead,lead2"
@@ -326,7 +381,12 @@ program
         for (const baseSeqName of bases) {
           if (!ast.seqs || !ast.seqs[baseSeqName]) {
             const loc = ch.loc ? formatLocation(ch.loc) : '';
-            warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'${loc}`);
+            // Check if it's actually a pattern name (common mistake)
+            if (ast.pats && ast.pats[baseSeqName]) {
+              warnings.push(`Channel ${ch.id} references '${baseSeqName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseSeqName}' or use comma-separated patterns with channel directive.${loc}`);
+            } else {
+              warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'${loc}`);
+            }
           }
         }
       }
@@ -358,6 +418,32 @@ program
           }
         }
       }
+
+      // Validate arrange blocks reference valid sequences
+      if (ast.arranges) {
+        for (const [arrangeName, arrangeNode] of Object.entries(ast.arranges)) {
+          const rows = (arrangeNode as any).arrangements || [];
+          for (const row of rows) {
+            if (!Array.isArray(row)) continue;
+            for (const slot of row) {
+              if (!slot || slot === '.' || slot === '-') continue;
+              // Extract base name without transforms
+              const baseName = String(slot).split(':')[0].trim();
+              // Check if it's a sequence or pattern reference
+              if (!ast.seqs || !ast.seqs[baseName]) {
+                const loc = (arrangeNode as any).loc ? formatLocation((arrangeNode as any).loc) : '';
+                // Check if it's actually a pattern name (common mistake)
+                if (ast.pats && ast.pats[baseName]) {
+                  warnings.push(`Arrange '${arrangeName}' references '${baseName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseName}'${loc}`);
+                } else {
+                  warnings.push(`Arrange '${arrangeName}' references unknown sequence '${baseName}'${loc}`);
+                }
+              }
+            }
+          }
+        }
+      }
+
       // Merge parser-level warnings and resolver warnings
       const allWarnings: string[] = warnings.slice();
       for (const rw of resolverWarnings) {

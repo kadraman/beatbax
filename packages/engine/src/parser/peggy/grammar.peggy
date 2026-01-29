@@ -159,7 +159,16 @@ ArrangeStmt
         .filter(Boolean);
       const rows = lines.map(l => {
         return l.split('|').map(s => {
-          const t = s.trim();
+          // Strip inline comments (# or //) from each slot
+          let slotText = s;
+          const commentIdx = Math.min(
+            slotText.indexOf('#') >= 0 ? slotText.indexOf('#') : Infinity,
+            slotText.indexOf('//') >= 0 ? slotText.indexOf('//') : Infinity
+          );
+          if (commentIdx < Infinity) {
+            slotText = slotText.substring(0, commentIdx);
+          }
+          const t = slotText.trim();
           if (t === '.' || t === '-') return null;
           if ((t.startsWith('"') || t.startsWith("'")) && t.length >= 2) return t.slice(1, -1);
           return t;
