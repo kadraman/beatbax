@@ -210,7 +210,7 @@ Instrument semantics
   - UGE exporter: No native tremolo effect in hUGETracker
     - Exported as MIDI meta-event only (not written to UGE file)
     - Can be approximated manually with volume column automation in hUGETracker
-  - MIDI exporter: Maps to Expression CC #11 as text meta event
+  - MIDI exporter: Documented via text meta event (no CC automation)
     - Format: `trem:depth=N,rate=N,waveform=NAME`
     - MIDI doesn't have native tremolo, so it's documented via text meta event
   - WAV export: Fully rendered into PCM audio with accurate LFO modulation

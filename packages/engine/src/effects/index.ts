@@ -384,13 +384,13 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
 //  - params[0]: depth (0-15, where 15 = maximum amplitude modulation)
 //  - params[1]: rate (Hz, speed of the tremolo oscillation, default 6)
 //  - params[2]: waveform (optional, default 'sine')
-//  - params[3]: durationRows (optional, normalized to seconds by caller)
+//  - params[3]: duration in seconds (normalized from durationRows by resolver)
 //
 // Similar to vibrato but modulates volume instead of pitch. This creates a pulsating
 // or "shimmering" effect commonly used for atmospheric sounds, sustained notes,
 // and adding movement to static tones.
 //
-// MIDI export: Maps to CC #11 (Expression) for volume modulation
+// MIDI export: Documented via text meta event (MIDI has no native tremolo)
 // UGE export: Can be approximated with volume column automation or effect commands
 register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length < 2) return;
@@ -421,7 +421,7 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 
   try {
     // Get the current baseline gain (from envelope or default)
-    let baselineGain = 1.0;
+    let baselineGain: number;
     try {
       if (typeof gain.gain.getValueAtTime === 'function') {
         baselineGain = gain.gain.getValueAtTime(start);

@@ -256,40 +256,37 @@ program
       }
 
       let ast: any;
-      try {
-        // Capture parser warnings that are normally sent to console.warn
-        const originalWarn = console.warn;
-        const parserWarnings: Array<{ message: string; loc?: string }> = [];
-        console.warn = (msg: string) => {
-          if (typeof msg === 'string' && msg.startsWith('[WARN]')) {
-            // Extract message and optional location info
-            // Format: [WARN] [component] message line=X, column=Y
-            const fullMatch = msg.match(/^\[WARN\]\s*\[([^\]]+)\]\s*(.+)$/);
-            if (fullMatch) {
-              const fullText = fullMatch[2].trim();
-              // Check for location at the end (format: "message line=X, column=Y")
-              const locMatch = fullText.match(/^(.+?)\s+line=(\d+),\s*column=(\d+)$/);
-              if (locMatch) {
-                const message = locMatch[1].trim();
-                const line = locMatch[2];
-                const col = locMatch[3];
-                parserWarnings.push({ message, loc: ` (line ${line}, column ${col})` });
-              } else {
-                // No location info, just the message
-                parserWarnings.push({ message: fullText, loc: '' });
-              }
+      // Capture parser warnings that are normally sent to console.warn
+      const originalWarn = console.warn;
+      const parserWarnings: Array<{ message: string; loc?: string }> = [];
+      console.warn = (msg: string) => {
+        if (typeof msg === 'string' && msg.startsWith('[WARN]')) {
+          // Extract message and optional location info
+          // Format: [WARN] [component] message line=X, column=Y
+          const fullMatch = msg.match(/^\[WARN\]\s*\[([^\]]+)\]\s*(.+)$/);
+          if (fullMatch) {
+            const fullText = fullMatch[2].trim();
+            // Check for location at the end (format: "message line=X, column=Y")
+            const locMatch = fullText.match(/^(.+?)\s+line=(\d+),\s*column=(\d+)$/);
+            if (locMatch) {
+              const message = locMatch[1].trim();
+              const line = locMatch[2];
+              const col = locMatch[3];
+              parserWarnings.push({ message, loc: ` (line ${line}, column ${col})` });
             } else {
-              parserWarnings.push({ message: msg, loc: '' });
+              // No location info, just the message
+              parserWarnings.push({ message: fullText, loc: '' });
             }
           } else {
-            originalWarn(msg);
+            parserWarnings.push({ message: msg, loc: '' });
           }
-        };
+        } else {
+          originalWarn(msg);
+        }
+      };
 
+      try {
         ast = parse(src);
-
-        // Restore original console.warn
-        console.warn = originalWarn;
 
         // Add parser warnings to the warnings array
         if (parserWarnings.length > 0) {
@@ -298,9 +295,13 @@ program
           }
         }
       } catch (parseErr: any) {
+        console.warn = originalWarn;
         console.error(formatParseError(parseErr, file));
         process.exitCode = 2;
         return;
+      } finally {
+        // Always restore original console.warn
+        console.warn = originalWarn;
       }
 
       if (verbose) {

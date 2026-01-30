@@ -160,11 +160,11 @@ seq t = b:wobble
 | Effect | MIDI Equivalent | CC / Event |
 |--------|-----------------|------------|
 | Panning | Pan/Balance | CC #10 (Pan) |
-| Vibrato | Modulation | CC #1 + Pitch Bend |
-| Portamento | Portamento | CC #5 + Pitch Bend |
+| Vibrato | Modulation | Text Meta Event |
+| Portamento | Portamento | Text Meta Event |
 | Arpeggio | Note sequence | Multiple Note On/Off |
 | Volume Slide | Volume automation | CC #7 |
-| Tremolo | Expression | CC #11 |
+| Tremolo | Expression | Text Meta Event |
 | Pitch Bend | Pitch Wheel | Pitch Bend events |
 
 ### UGE Export
@@ -1212,7 +1212,7 @@ pat stereo_trem = C5<pan:-1.0,trem:10,8>:4  # Panning + tremolo
 - **Game Boy:** Software effect via GainNode modulation (no native hardware tremolo)
 - **UGE Export:** No native tremolo effect in hUGETracker - exported as meta-event only
   - Can be approximated manually with volume column automation
-- **MIDI Export:** Maps to Expression CC #11 as meta-event
+- **MIDI Export:** Documented via text meta event (no native MIDI tremolo)
   - MIDI doesn't have native tremolo, so it's documented via text meta event
 
 **Scaling:**

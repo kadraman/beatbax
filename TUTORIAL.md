@@ -328,7 +328,7 @@ pat combo = C4<vib:3,6,trem:6,4>:4 E4<port:12,trem:8,6>:4 G4<trem:8,6,volSlide:+
 - **WebAudio/WAV**: Full tremolo rendering with accurate LFO modulation via GainNode
 - **UGE (hUGETracker)**: Exported as meta-event only (no native tremolo effect in hUGETracker)
   - Can be approximated manually in tracker with volume column automation
-- **MIDI**: Exported as CC #11 (Expression) automation for tremolo-like effect
+- **MIDI**: Documented via text meta event (MIDI has no native tremolo)
 - **JSON**: Includes `trem` effect with all parameters in the ISM
 
 **Waveforms:**
