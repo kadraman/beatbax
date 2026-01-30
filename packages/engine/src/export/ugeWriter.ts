@@ -903,8 +903,9 @@ function eventsToPatterns(
                             break;
                         }
                     }
-                    // If no non-rest events until pattern boundary, add auto-cut to prevent bleed
-                    if (!hasNonRestAfter && targetRow + 1 < patternBoundary) {
+                    // If no non-rest events until pattern boundary OR end of channel, add auto-cut to prevent bleed
+                    // Also add auto-cut if this is the very last event in the channel
+                    if (!hasNonRestAfter) {
                         needsAutoCut = true;
                     }
                 }
