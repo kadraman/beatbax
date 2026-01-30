@@ -156,12 +156,12 @@ interface ProgramNode {
   body: Statement[];
 }
 
-const warnProblematicPatternName = (name: string): void => {
+const warnProblematicPatternName = (name: string, loc?: SourceLocation | null): void => {
   const isSingleLetterNote = /^[A-Ga-g]$/.test(name);
   const isNoteWithOctave = /^[A-Ga-g][#b]?-?\d+$/.test(name);
 
   if (isSingleLetterNote || isNoteWithOctave) {
-    warn('parser', `Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`);
+    warn('parser', `Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`, { loc });
   }
 };
 const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
@@ -271,7 +271,7 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
   insts[name] = props;
 };
 
-const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string[], rhsEvents?: PatternEvent[]): { name: string; tokens: string[] } => {
+const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string[], rhsEvents?: PatternEvent[], loc?: SourceLocation | null): { name: string; tokens: string[] } => {
   let tokens = rhsTokens ? rhsTokens.slice() : undefined;
   if (!tokens && rhsEvents && rhsEvents.length > 0) {
     tokens = patternEventsToTokens(rhsEvents);
@@ -288,7 +288,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   const baseName = parts[0];
   const mods = parts.slice(1);
 
-  warnProblematicPatternName(baseName);
+  warnProblematicPatternName(baseName, loc);
 
   try {
     let expanded = tokens ?? expandPattern(rhs);
@@ -496,7 +496,7 @@ export function parseWithPeggy(source: string): AST {
         break;
       }
       case 'PatStmt': {
-        const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents);
+        const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents, stmt.loc);
         if (patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
           patternEvents[name] = stmt.rhsEvents;
         }

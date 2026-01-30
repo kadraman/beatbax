@@ -13,7 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
-- **Effects system**: Panning, vibrato, portamento, arpeggio, and volume slides with UGE/MIDI export
+- **Effects system**: Panning, vibrato, portamento, arpeggio, volume slides, and tremolo with UGE/MIDI/WAV export
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
@@ -66,6 +66,7 @@ play auto repeat
 - `port` - Portamento (smooth pitch glides)
 - `arp` - Arpeggio (chord simulation via rapid note cycling)
 - `volSlide` - Volume slides (dynamic volume automation)
+- `trem` - Tremolo (amplitude modulation with depth, rate, waveform)
 
 See `songs/effects/` for detailed examples of each effect.
 
@@ -193,7 +194,7 @@ beatbax/
 │   │   ├── src/
 │   │   │   ├── audio/           # WebAudio playback and PCM renderer
 │   │   │   ├── chips/           # Chip emulation (Game Boy APU)
-│   │   │   ├── effects/         # Effects system (pan, vib, port, arp, volSlide)
+│   │   │   ├── effects/         # Effects system (pan, vib, port, arp, volSlide, trem)
 │   │   │   ├── expand/          # Reference/token expansion helpers
 │   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
 │   │   │   ├── import/          # UGE file reader

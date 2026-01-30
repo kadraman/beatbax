@@ -471,6 +471,11 @@ function renderPulse(
   let vibDepth = 0;
   let vibRate = 0;
   let vibDurationSec: number | undefined = undefined;
+  // Tremolo params (depth 0-15, rate in Hz, waveform, duration)
+  let tremDepth = 0;
+  let tremRate = 0;
+  let tremWaveform: string | undefined = undefined;
+  let tremDurationSec: number | undefined = undefined;
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
@@ -505,6 +510,20 @@ function renderPulse(
             const durRows = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
             if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
               portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            }
+          }
+        } else if (fx && fx.type === 'trem') {
+          const p = fx.params || [];
+          tremDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          tremRate = Number(typeof p[1] !== 'undefined' ? p[1] : 6);
+          tremWaveform = typeof p[2] !== 'undefined' ? String(p[2]).toLowerCase() : 'sine';
+          // Prefer resolver-provided durationSec, else fall back to 4th param as rows
+          if (typeof fx.durationSec === 'number') {
+            tremDurationSec = Number(fx.durationSec);
+          } else {
+            const durRows = typeof p[3] !== 'undefined' ? Number(p[3]) : undefined;
+            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
+              tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
             }
           }
         } else if (fx && fx.type === 'arp') {
@@ -642,6 +661,40 @@ function renderPulse(
     const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
     sample = sample * envVal;
 
+    // Apply tremolo if enabled (amplitude modulation)
+    if (tremDepth > 0 && tremRate > 0) {
+      if (typeof tremDurationSec === 'undefined' || t < tremDurationSec) {
+        // Tremolo depth: 0-15 maps to 0-50% amplitude modulation
+        const modulationDepth = (tremDepth / 15) * 0.5; // 0 to 0.5 (±50% max)
+
+        // Generate LFO waveform
+        let lfo = 0;
+        const tremPhase = (t * tremRate * 2 * Math.PI);
+        switch (tremWaveform) {
+          case 'square':
+            lfo = Math.sin(tremPhase) >= 0 ? 1 : -1;
+            break;
+          case 'sawtooth':
+          case 'saw':
+            lfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
+            break;
+          case 'triangle':
+            const sawLfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
+            lfo = 2 * Math.abs(sawLfo) - 1;
+            break;
+          case 'sine':
+          default:
+            lfo = Math.sin(tremPhase);
+            break;
+        }
+
+        // Apply tremolo: modulate amplitude around baseline
+        // lfo ranges from -1 to +1, modulationDepth is fraction of baseline
+        const tremGain = 1.0 + (lfo * modulationDepth);
+        sample = sample * tremGain;
+      }
+    }
+
     // Apply volume slide if enabled
     if (volDelta !== 0) {
       // Extract baseline from instrument envelope initial volume (0-15 on GB, normalized to 0-1)
@@ -741,6 +794,11 @@ function renderWave(
   let vibDepth = 0;
   let vibRate = 0;
   let vibDurationSec: number | undefined = undefined;
+  // Tremolo params
+  let tremDepth = 0;
+  let tremRate = 0;
+  let tremWaveform: string | undefined = undefined;
+  let tremDurationSec: number | undefined = undefined;
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
@@ -769,6 +827,16 @@ function renderWave(
             if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
               portDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
             }
+          }
+        } else if (fx && fx.type === 'trem') {
+          const p = fx.params || [];
+          tremDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          tremRate = Number(typeof p[1] !== 'undefined' ? p[1] : 6);
+          tremWaveform = typeof p[2] !== 'undefined' ? String(p[2]).toLowerCase() : 'sine';
+          if (typeof fx.durationSec === 'number') tremDurationSec = Number(fx.durationSec);
+          else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
+            const durRows = Number(p[3]);
+            if (!Number.isNaN(durRows)) tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
           }
         } else if (fx && fx.type === 'volSlide') {
           const p = fx.params || [];
@@ -890,6 +958,34 @@ function renderWave(
     // Use sustained volume for legato notes, otherwise use instrument volume
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
     let sample = ((v0 * (1 - frac) + v1 * frac) * effectiveVolMul);
+
+    // Apply tremolo if enabled (amplitude modulation)
+    if (tremDepth > 0 && tremRate > 0) {
+      if (typeof tremDurationSec === 'undefined' || t < tremDurationSec) {
+        const modulationDepth = (tremDepth / 15) * 0.5;
+        let lfo = 0;
+        const tremPhase = (t * tremRate * 2 * Math.PI);
+        switch (tremWaveform) {
+          case 'square':
+            lfo = Math.sin(tremPhase) >= 0 ? 1 : -1;
+            break;
+          case 'sawtooth':
+          case 'saw':
+            lfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
+            break;
+          case 'triangle':
+            const sawLfo = 2 * ((tremPhase / (2 * Math.PI)) % 1) - 1;
+            lfo = 2 * Math.abs(sawLfo) - 1;
+            break;
+          case 'sine':
+          default:
+            lfo = Math.sin(tremPhase);
+            break;
+        }
+        const tremGain = 1.0 + (lfo * modulationDepth);
+        sample = sample * tremGain;
+      }
+    }
 
     // Apply volume slide if enabled
     if (volDelta !== 0) {

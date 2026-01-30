@@ -175,6 +175,66 @@ Instrument semantics
 
 - Testing: Demo song `songs/effects/volume_slide.bax` validates WebAudio playback, PCM rendering, UGE export, MIDI export, and stepped vs smooth behavior
 
+## Tremolo (`trem`) Implementation
+
+**Syntax**: `<trem:depth,rate>` or `<trem:depth,rate,waveform>` or `<trem:depth,rate,waveform,duration>`
+
+**Parameters:**
+  - `depth` (required, 0-15): Tremolo amplitude modulation
+    - 0 = no effect
+    - 15 = maximum amplitude modulation (±50% volume)
+    - Typical range: 4-12 for musical tremolo
+  - `rate` (optional, Hz): Tremolo speed (default: 6 Hz)
+    - 1-4 Hz: Slow, gentle shimmer
+    - 5-10 Hz: Medium tremolo
+    - 10+ Hz: Fast pulsing effect
+  - `waveform` (optional, string): LFO shape (default: `sine`)
+    - `sine`: Smooth, natural tremolo
+    - `triangle`: Linear volume ramp
+    - `square`: Hard on/off pulsing
+    - `saw` / `sawtooth`: Ramp waveform
+  - `duration` (optional, rows): Duration in pattern rows (defaults to full note length)
+
+**Runtime semantics:**
+  - WebAudio playback: `src/effects/index.ts` creates LFO oscillator connected to GainNode for amplitude modulation
+    - Uses OscillatorNode with specified waveform type
+    - LFO amplitude = baseline gain × (depth / 15) × 0.5 (±50% max modulation)
+    - Modulation depth scales from 0% (depth=0) to ±50% (depth=15)
+  - PCM renderer: `src/audio/pcmRenderer.ts` applies manual LFO waveform generation per sample
+    - Generates sine, triangle, square, or sawtooth waveforms based on phase accumulation
+    - Applies tremolo gain multiplier: `1.0 + (lfo × modulationDepth)`
+    - Supports pulse and wave channels (not yet implemented for noise)
+  - Per-channel state: Uses per-sample phase calculation for consistent tremolo across note boundaries
+
+**Export behavior:**
+  - UGE exporter: No native tremolo effect in hUGETracker
+    - Exported as MIDI meta-event only (not written to UGE file)
+    - Can be approximated manually with volume column automation in hUGETracker
+  - MIDI exporter: Documented via text meta event (no CC automation)
+    - Format: `trem:depth=N,rate=N,waveform=NAME`
+    - MIDI doesn't have native tremolo, so it's documented via text meta event
+  - WAV export: Fully rendered into PCM audio with accurate LFO modulation
+
+**Common patterns:**
+  - Atmospheric shimmer: `C4<trem:6,4,sine>:8` (gentle sine wave tremolo)
+  - Pulsing effect: `C4<trem:10,8,square>:4` (hard on/off square wave)
+  - Combined modulation: `C4<vib:3,6,trem:6,4>` (vibrato + tremolo for rich movement)
+  - Stereo tremolo: `C5<pan:-1.0,trem:10,8>` (panning + tremolo)
+
+**Named presets:**
+  - `effect shimmer = trem:6,4,sine` - Gentle shimmer effect
+  - `effect pulse = trem:10,8,square` - Hard pulsing
+  - `effect slow_wave = trem:4,2,triangle` - Slow wave modulation
+
+**Use cases:**
+  - Atmospheric pads and sustained notes
+  - Simulating rotary speaker (Leslie) effects
+  - Adding movement to static tones
+  - Creating "shimmer" or "pulse" textures
+  - Combining with vibrato for rich modulation
+
+- Testing: Demo song `songs/effects/tremolo.bax` validates WebAudio playback, PCM rendering, and MIDI export with various waveforms
+
 ## Noise Channel Note Mapping (UGE Export)
 
 **Status**: ✅ Implemented (2026-01-25)
@@ -186,7 +246,7 @@ The Game Boy noise channel doesn't use traditional musical pitches—notes contr
   - C2 → index 0 (C-3 in hUGETracker notation)
   - C5 → index 24 (C-5, mid-range percussion)
   - C6 → index 36 (C-6)
-  - C7 → index 48 (C-7, bright percussion)  
+  - C7 → index 48 (C-7, bright percussion)
   - C9 → index 72 (C-9, maximum)
 - **Recommendation**: Use C5-C7 for typical percussion sounds (snares, hi-hats)
 - **Override**: Add `uge_transpose=N` to instrument definition for custom offsets
