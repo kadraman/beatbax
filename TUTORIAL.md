@@ -263,7 +263,7 @@ pat combo = C4<vib:3,6,volSlide:+3>:4 E4<port:12,volSlide:-2>:4
    - Use larger delta values (+10 to +15) to become audible quickly
    - Use longer note durations (:12 or :16) to allow the slide to complete
    - Apply `inst(name,N)` to cover ALL notes that need the same starting volume
-   
+
    ```bax
    # Good: starts near-silent but audible, fades in over 12 ticks
    inst lead_in type=pulse1 env=1,flat
@@ -273,11 +273,11 @@ pat combo = C4<vib:3,6,volSlide:+3>:4 E4<port:12,volSlide:-2>:4
 2. **Note re-triggering:** On monophonic channels (all Game Boy channels), identical consecutive pitches blend into one continuous note:
    - Insert a rest (`.`) between same-pitch notes to force re-trigger
    - Different pitches automatically re-trigger
-   
+
    ```bax
    # Without rest: blends into one 16-tick note
    pat blend = C4<volSlide:+4>:8 C4<volSlide:+4>:8  # Sounds like one note
-   
+
    # With rest: two distinct notes with separate volume slides
    pat separate = C4<volSlide:+4>:8 . C4<volSlide:+4>:8  # Two distinct fades
    ```
@@ -293,6 +293,51 @@ pat combo = C4<vib:3,6,volSlide:+3>:4 E4<port:12,volSlide:-2>:4
 - **WAV**: Rendered with linear or stepped gain automation
 
 See `songs/effects/volume_slide.bax` for a complete working example.
+
+## Tremolo (`trem`) Effect
+
+Tremolo creates periodic amplitude (volume) modulation, adding rhythmic pulsation or shimmer to notes:
+
+```bax
+# Basic tremolo: depth and rate
+pat shimmer = C4<trem:6,4>:8 E4<trem:8,6>:8 G4<trem:10,8>:8
+
+# With waveform name (different modulation shapes)
+pat varied = C4<trem:8,6,sine>:4 E4<trem:8,6,square>:4 G4<trem:8,6,triangle>:4
+
+# With waveform and duration (2 rows)
+pat short_trem = C5<trem:10,8,square,2>:8 E5<trem:6,4,sine,2>:8
+
+# Named presets for reusable tremolo
+effect shimmer = trem:6,4,sine
+effect pulse = trem:10,8,square
+pat preset_demo = C4<shimmer>:4 E4<pulse>:4
+
+# Combining with other effects
+pat combo = C4<vib:3,6,trem:6,4>:4 E4<port:12,trem:8,6>:4 G4<trem:8,6,volSlide:+3>:4
+```
+
+**Parameters:**
+1. `depth` (required): Tremolo amplitude, 0-15 (higher = more pronounced volume variation)
+   - Maps to 0-50% volume modulation internally
+2. `rate` (required): Tremolo speed in Hz (higher = faster pulsation)
+3. `waveform` (optional): LFO shape - `sine`, `triangle`, `square`, or `saw`. Default: `sine`
+4. `durationRows` (optional): Length in pattern rows. Default: full note duration
+
+**Export behavior:**
+- **WebAudio/WAV**: Full tremolo rendering with accurate LFO modulation via GainNode
+- **UGE (hUGETracker)**: Exported as meta-event only (no native tremolo effect in hUGETracker)
+  - Can be approximated manually in tracker with volume column automation
+- **MIDI**: Documented via text meta event (MIDI has no native tremolo)
+- **JSON**: Includes `trem` effect with all parameters in the ISM
+
+**Waveforms:**
+- `sine` - Smooth, natural tremolo (default)
+- `triangle` - Linear rise/fall volume modulation
+- `square` - Hard on/off pulsation (gate effect)
+- `saw` - Asymmetric ramping volume changes
+
+See `songs/effects/tremolo.bax` for a complete working example.
 
 **Tempo & Per-Channel Speed**
 

@@ -164,12 +164,13 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
     return out;
   };
 
-  // Helper: normalize effect durations (especially vibrato rows-to-seconds conversion)
+  // Helper: normalize effect durations (especially vibrato/tremolo rows-to-seconds conversion)
   const normalizeEffectDurations = (effects: any[], bpm: number, ticksPerStep: number = 16) => {
     if (!effects || !effects.length) return effects;
-    
+
     return effects.map(effect => {
-      if (effect.type === 'vib' && effect.params && effect.params.length >= 4) {
+      // Both vibrato and tremolo support durationRows as params[3]
+      if ((effect.type === 'vib' || effect.type === 'trem') && effect.params && effect.params.length >= 4) {
         try {
           const durationRows = Number(effect.params[3]);
           if (!Number.isNaN(durationRows) && durationRows > 0) {
@@ -177,7 +178,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
             const stepsPerRow = ticksPerStep / 4; // assuming 4/4 time
             const beatsPerSecond = bpm / 60;
             const durationSec = (durationRows / stepsPerRow) / beatsPerSecond;
-            
+
             return {
               ...effect,
               params: [...effect.params.slice(0, 3), effect.params[3]],
@@ -438,7 +439,7 @@ export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: {
         if (parsedEffects && parsedEffects.length) {
           ev.effects = normalizeEffectDurations(parsedEffects, bpm || 120, 16);
           // Set legato=true if note has portamento effect (prevents envelope retrigger)
-          const hasPortamento = ev.effects.some((fx: any) => 
+          const hasPortamento = ev.effects.some((fx: any) =>
             fx && (fx.type === 'port' || (typeof fx === 'string' && fx.toLowerCase() === 'port'))
           );
           if (hasPortamento) {

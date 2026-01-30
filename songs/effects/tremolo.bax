@@ -1,0 +1,65 @@
+## Demo: Tremolo (trem) effect examples
+## Demonstrates amplitude modulation (tremolo) with various depths, rates, and waveforms
+## Play: node bin/beatbax play songs/effects/tremolo.bax
+
+chip gameboy
+bpm 120
+
+## Instruments
+inst lead type=pulse1 duty=50 env=12,flat
+inst bass type=pulse2 duty=25 env=10,flat
+inst pad type=pulse1 duty=50 env=15,flat
+inst wave1 type=wave wave=[0,3,6,9,12,15,12,9,6,3,0,3,6,9,12,15] volume=100
+
+## Named tremolo presets
+effect shimmer = trem:6,4,sine
+effect pulse = trem:10,8,square
+effect slow_wave = trem:4,2,triangle
+
+## Patterns demonstrating tremolo parameters
+
+## Basic tremolo with different depths
+pat depth_demo = C4<trem:3,6>:4 E4<trem:8,6>:4 G4<trem:12,6>:4 C5<trem:15,6>:4
+
+## Different tremolo rates (speed)
+pat rate_demo = C4<trem:8,2>:4 E4<trem:8,6>:4 G4<trem:8,12>:4 C5<trem:8,20>:4
+
+## Different waveform shapes
+pat waveform_demo = C4<trem:8,6,sine>:4 E4<trem:8,6,triangle>:4 G4<trem:8,6,square>:4 C5<trem:8,6,saw>:4
+
+## Named preset usage
+pat preset_demo = C4<shimmer>:4 E4<pulse>:4 G4<slow_wave>:4 C5<shimmer>:4
+pat preset_demo2 = C4<shimmer>:4 E4<pulse>:4 G4<slow_wave>:4 C4<shimmer>:4
+
+## Combining tremolo with other effects
+pat combo_demo = C4<vib:3,6,trem:6,4>:4 E4<port:12,trem:8,6>:4 G4<trem:8,6,volSlide:+3>:4 C5<pan:-1.0,trem:10,8>:4
+
+## Sustained notes with tremolo for atmospheric pads
+pat pad_sustain = C3<trem:6,3,sine>:16 . . G3<trem:8,4,triangle>:16 . .
+
+## Bass with tremolo
+pat bass_trem = C2<trem:10,8>:2 . C2<trem:10,8>:2 . F2<trem:10,8>:2 . F2<trem:10,8>:2 .
+
+## Rest pattern to match lead_seq duration
+pat rest_long = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+## Sequences
+seq lead_seq = depth_demo rate_demo waveform_demo preset_demo
+seq lead_seq2 = depth_demo rate_demo waveform_demo preset_demo2
+
+seq pad_seq = pad_sustain*2
+seq bass_seq = bass_trem*5
+seq rest_seq = rest_long*4
+
+## Channels - demonstrates tremolo on different channels
+#channel 1 => inst lead seq lead_seq
+#channel 2 => inst pad seq pad_seq
+#channel 3 => inst bass seq bass_seq
+
+## Arrange - demonstrates tremolo on different channels
+arrange main defaults(inst=lead|pad|bass|.)  {
+  lead_seq  | rest_seq | rest_seq | .
+  lead_seq2 | pad_seq  | bass_seq | .
+}
+
+play

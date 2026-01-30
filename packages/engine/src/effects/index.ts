@@ -348,23 +348,23 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
       // steps more audible in WebAudio which has inherent smoothing
       const stepDuration = dur / steps;
       const scaleFactor = 3; // More aggressive scaling for stepped slides
-      
+
       // Set initial value and hold it until first step
       gainParam.setValueAtTime(baselineGain, start);
-      
+
       for (let i = 1; i <= steps; i++) {
         const stepTime = start + (i * stepDuration);
         // Calculate volume for this step: evenly distribute delta across steps
         const stepGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta * i / steps / scaleFactor)));
-        
+
         // Hold previous value right up to step boundary
         const prevGain = i === 1 ? baselineGain : Math.max(0.001, Math.min(1.5, baselineGain + (delta * (i-1) / steps / scaleFactor)));
         gainParam.setValueAtTime(prevGain, stepTime - 0.00001);
-        
+
         // Jump to new value at step boundary
         gainParam.setValueAtTime(stepGain, stepTime);
       }
-      
+
       // Hold final value until note end
       const finalGain = Math.max(0.001, Math.min(1.5, baselineGain + (delta / scaleFactor)));
       gainParam.setValueAtTime(finalGain, start + dur);
@@ -377,5 +377,91 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
     }
   } catch (e) {
     warn('effects', `Volume slide failed for channel ${chId || '?'}: ${e}`);
+  }
+});
+// Tremolo effect: create a low-frequency oscillator (LFO) and modulate the gain
+// (amplitude) to create volume oscillation. Parameters:
+//  - params[0]: depth (0-15, where 15 = maximum amplitude modulation)
+//  - params[1]: rate (Hz, speed of the tremolo oscillation, default 6)
+//  - params[2]: waveform (optional, default 'sine')
+//  - params[3]: duration in seconds (normalized from durationRows by resolver)
+//
+// Similar to vibrato but modulates volume instead of pitch. This creates a pulsating
+// or "shimmering" effect commonly used for atmospheric sounds, sustained notes,
+// and adding movement to static tones.
+//
+// MIDI export: Documented via text meta event (MIDI has no native tremolo)
+// UGE export: Can be approximated with volume column automation or effect commands
+register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
+  if (!nodes || nodes.length < 2) return;
+  const gain = nodes[1];
+  if (!gain || !gain.gain || typeof gain.gain.setValueAtTime !== 'function') return;
+
+  const depthRaw = params && params.length > 0 ? Number(params[0]) : 4;
+  const rateRaw = params && params.length > 1 ? Number(params[1]) : 6;
+  const waveform = params && params.length > 2 ? String(params[2]).toLowerCase() : 'sine';
+
+  const depth = Number.isFinite(depthRaw) ? Math.max(0, Math.min(15, depthRaw)) : 4;
+  const rate = Number.isFinite(rateRaw) ? Math.max(0.1, rateRaw) : 6;
+
+  // Map waveform names to OscillatorNode types
+  // Support same waveform aliases as vibrato for consistency
+  const waveformMap: Record<string, OscillatorType> = {
+    'sine': 'sine',
+    'triangle': 'triangle',
+    'square': 'square',
+    'sawtooth': 'sawtooth',
+    'saw': 'sawtooth',
+  };
+  const oscType: OscillatorType = waveformMap[waveform] || 'sine';
+
+  // Calculate tremolo amplitude as a fraction of the current gain
+  // depth 0 = no effect, depth 15 = ±50% gain modulation (0.5 to 1.5x)
+  const modulationDepth = (depth / 15) * 0.5; // 0 to 0.5 (±50% max)
+
+  try {
+    // Get the current baseline gain (from envelope or default)
+    let baselineGain: number;
+    try {
+      if (typeof gain.gain.getValueAtTime === 'function') {
+        baselineGain = gain.gain.getValueAtTime(start);
+      } else {
+        baselineGain = gain.gain.value || 1.0;
+      }
+    } catch (e) {
+      baselineGain = gain.gain.value || 1.0;
+    }
+    if (!Number.isFinite(baselineGain) || baselineGain <= 0) baselineGain = 1.0;
+
+    // Create LFO for tremolo
+    const lfo = (ctx as any).createOscillator();
+    const lfoGain = (ctx as any).createGain();
+
+    lfo.type = oscType;
+    try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
+
+    // LFO amplitude = baselineGain * modulationDepth
+    // This will modulate the gain between (baseline - amplitude) and (baseline + amplitude)
+    const amplitude = baselineGain * modulationDepth;
+    try { lfoGain.gain.setValueAtTime(amplitude, start); } catch (_) { lfoGain.gain.value = amplitude; }
+
+    // Connect LFO -> lfoGain -> gain.gain (modulate the volume)
+    lfo.connect(lfoGain);
+    try {
+      lfoGain.connect(gain.gain);
+    } catch (e) {
+      // Some implementations require different connection approach
+      try { (lfoGain as any).connect(gain.gain); } catch (e2) {}
+    }
+
+    try { lfo.start(start); } catch (e) { try { lfo.start(); } catch (_) {} }
+
+    // Duration handling: use params[3] if provided (normalized seconds), otherwise use note duration
+    const tremDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
+    const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec + 0.05) : (start + dur + 0.05);
+    try { lfo.stop(stopAt); } catch (e) {}
+  } catch (e) {
+    // Best-effort only; if the environment doesn't support oscillator-based modulation
+    // or connections fail, silently skip tremolo.
   }
 });
