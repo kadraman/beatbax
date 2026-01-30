@@ -1205,6 +1205,8 @@ pat stereo_trem = C5<pan:-1.0,trem:10,8>:4  # Panning + tremolo
   - `square`: Hard on/off pulsing
   - `saw` / `sawtooth`: Ramp waveform
 - `duration` (4th param, optional): Duration in pattern rows (defaults to full note length)
+  - Normalized to seconds by the resolver as `fx.durationSec` for audio backends
+  - The resolver converts row-based durations to seconds during expansion
 
 **Implementation:** Creates an LFO oscillator connected to a GainNode which modulates the amplitude. The LFO oscillates at the specified rate and uses the selected waveform shape.
 

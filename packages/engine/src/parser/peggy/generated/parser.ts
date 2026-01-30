@@ -338,15 +338,41 @@ function peg$parse(input, options) {
         .filter(Boolean);
       const rows = lines.map(l => {
         return l.split('|').map(s => {
-          // Strip inline comments (# or //) from each slot
+          // Strip inline comments (# or //) from each slot, but only outside quotes
           let slotText = s;
-          const commentIdx = Math.min(
-            slotText.indexOf('#') >= 0 ? slotText.indexOf('#') : Infinity,
-            slotText.indexOf('//') >= 0 ? slotText.indexOf('//') : Infinity
-          );
-          if (commentIdx < Infinity) {
-            slotText = slotText.substring(0, commentIdx);
+          let inQuote = false;
+          let quoteChar = '';
+          let commentStart = -1;
+          
+          for (let i = 0; i < slotText.length; i++) {
+            const ch = slotText[i];
+            const next = slotText[i + 1];
+            
+            // Track quote state
+            if (!inQuote && (ch === '"' || ch === "'")) {
+              inQuote = true;
+              quoteChar = ch;
+            } else if (inQuote && ch === quoteChar) {
+              inQuote = false;
+              quoteChar = '';
+            }
+            
+            // Look for comment markers only outside quotes
+            if (!inQuote) {
+              if (ch === '#') {
+                commentStart = i;
+                break;
+              } else if (ch === '/' && next === '/') {
+                commentStart = i;
+                break;
+              }
+            }
           }
+          
+          if (commentStart >= 0) {
+            slotText = slotText.substring(0, commentStart);
+          }
+          
           const t = slotText.trim();
           if (t === '.' || t === '-') return null;
           if ((t.startsWith('"') || t.startsWith("'")) && t.length >= 2) return t.slice(1, -1);
