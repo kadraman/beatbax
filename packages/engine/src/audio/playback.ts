@@ -404,13 +404,15 @@ export class Player {
     try {
       const gain = nodes && nodes.length >= 2 ? nodes[1] : null;
       if (!gain || typeof gain.connect !== 'function') return;
-      const dest = (ctx as any).destination;
+      // Determine the actual destination (masterGain if available, otherwise ctx.destination)
+      const dest = this.masterGain || (ctx as any).destination;
       // create StereoPannerNode if available
       const createPanner = (ctx as any).createStereoPanner;
       if (typeof createPanner === 'function') {
         const panner = (ctx as any).createStereoPanner();
         try { panner.pan.setValueAtTime(p, (ctx as any).currentTime); } catch (e) { try { (panner as any).pan.value = p; } catch (e2) {} }
-        try { gain.disconnect(dest); } catch (e) {}
+        // Disconnect from all destinations (handles both masterGain and ctx.destination cases)
+        try { gain.disconnect(); } catch (e) {}
         gain.connect(panner);
         panner.connect(dest);
         // also track panner node so stop/cleanup will disconnect it

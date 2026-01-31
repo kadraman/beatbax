@@ -24,7 +24,8 @@ register('pan', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   if (typeof createPanner === 'function') {
     const panner = (ctx as any).createStereoPanner();
     try { panner.pan.setValueAtTime(Number.isFinite(pVal) ? pVal : 0, start); } catch (e) { try { (panner as any).pan.value = pVal; } catch (e2) {} }
-    g.disconnect((ctx as any).destination);
+    // Disconnect from all destinations (handles both masterGain and ctx.destination cases)
+    try { g.disconnect(); } catch (e) {}
     g.connect(panner);
     panner.connect((ctx as any).destination);
     if (hasEnd) {
@@ -463,5 +464,64 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
     // or connections fail, silently skip tremolo.
+  }
+});
+
+// Note Cut effect: cuts/gates a note after N ticks
+// Parameters:
+//  - params[0]: ticks (required, number of ticks after which to cut the note)
+//  - tickSeconds: (optional function argument, injected by caller - seconds per tick)
+//
+// Cuts notes early by ramping gain to zero. Since oscillator.stop() can only be called
+// once and is already scheduled during note creation, we use gain automation to silence
+// the note at the cut time.
+//
+// UGE export: Maps to E0x (cut after x ticks, where x=0-F)
+// MIDI export: Documented via text meta event, or emit Note Off earlier than scheduled
+register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number) => {
+  if (!nodes || nodes.length === 0) return;
+  if (!params || params.length === 0) return;
+
+  const ticksRaw = Number(params[0]);
+  if (ticksRaw === undefined || !Number.isFinite(ticksRaw) || ticksRaw <= 0) return;
+
+  const ticks = Math.max(0, ticksRaw);
+
+  // Use provided tickSeconds if available, otherwise estimate from duration
+  // Typical default: 16 ticks per beat at 120 BPM = 0.03125s per tick
+  const tickDuration = tickSeconds || 0.03125;
+  const cutDelay = ticks * tickDuration;
+
+  // Ensure cut time doesn't exceed note duration
+  const cutTime = Math.min(start + cutDelay, start + dur);
+
+  // Cut by ramping gain to zero - this works even though oscillator.stop() was already called
+  for (const node of nodes) {
+    if (!node) continue;
+    if (node.gain && typeof node.gain.setValueAtTime === 'function') {
+      try {
+        // Get current gain value or use default
+        let currentGain: number;
+        try {
+          if (typeof node.gain.getValueAtTime === 'function') {
+            currentGain = node.gain.getValueAtTime(cutTime - 0.001) || 1.0;
+          } else {
+            currentGain = node.gain.value || 1.0;
+          }
+        } catch (e) {
+          currentGain = node.gain.value || 1.0;
+        }
+
+        // Cancel any scheduled values after cut time and ramp to zero
+        node.gain.cancelScheduledValues(cutTime);
+        node.gain.setValueAtTime(currentGain, cutTime);
+        node.gain.exponentialRampToValueAtTime(0.0001, cutTime + 0.005);
+      } catch (e) {
+        // Fallback: try linear ramp
+        try {
+          node.gain.linearRampToValueAtTime(0, cutTime + 0.005);
+        } catch (e2) {}
+      }
+    }
   }
 });

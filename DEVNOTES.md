@@ -74,6 +74,10 @@ Instrument semantics
 - Parsing & AST: `parseEffects` (parser) recognizes `pan` tokens and returns `{ effects, pan }`; inline `pan` tokens are attached to `NoteToken.pan`. The `gb:` namespace propagates to `pan.sourceNamespace`.
 - Sequence-level `:pan(...)` transforms: `expandSequenceItems` injects `pan()` / `pan(...)` tokens around sequence occurrences so the resolver applies a sequence-scoped pan override for that occurrence.
 - Playback (browser & buffered): `effects` registry includes a built-in `pan` handler that uses `StereoPannerNode` when available; `bufferedRenderer` will apply pan handler during offline rendering.
+  - **Fixed (2026-01-31):** Panning now works correctly in web browser by calling `gain.disconnect()` without arguments to disconnect from ALL destinations (including `masterGain`) before inserting `StereoPannerNode`. Previously, the code tried to disconnect from `ctx.destination` specifically, which failed when `masterGain` was used, causing hard pan (`gb:pan=L/R`) to not work properly in the browser.
+  - Implementation details:
+    - `playback.ts` (`Player.tryApplyPan`): Uses `gain.disconnect()` and determines the correct destination as `masterGain || ctx.destination` to support both standalone and web UI contexts.
+    - `effects/index.ts` (shared pan handler): Uses `gain.disconnect()` and connects to `ctx.destination` (appropriate for BufferedRenderer and other contexts that don't use masterGain).
 - PCM renderer: implements equal-power panning for numeric values and uses enum->value mapping for `L`/`C`/`R`.
 - UGE exporter:
   - Hardware mapping: GB NR51 bits map to hUGETracker's expected layout (Pulse1 left=0x01/right=0x10, Pulse2 left=0x02/right=0x20, Wave left=0x04/right=0x40, Noise left=0x08/right=0x80).
@@ -234,6 +238,25 @@ Instrument semantics
   - Combining with vibrato for rich modulation
 
 - Testing: Demo song `songs/effects/tremolo.bax` validates WebAudio playback, PCM rendering, and MIDI export with various waveforms
+
+## Noise Channel Gain Balancing
+
+**Status**: ✅ Fixed (2026-01-31)
+
+**Issue**: In web browser playback, the noise channel was significantly louder than pulse channels, creating an unbalanced mix. The CLI/PCM renderer had correct balance.
+
+**Root cause**: The WebAudio implementation in `noise.ts` used a hardcoded gain multiplier of `0.8`, while pulse channels used full-scale envelope values (`0-1` range from `/15` normalization). The pulse waveform (created via Fourier series with `disableNormalization: true`) has naturally lower amplitude than the noise buffer's `±1.0` samples, making the noise channel disproportionately loud.
+
+**Fix**: Reduced noise channel gain from `0.8` to `0.3` in all WebAudio code paths:
+- Raw LFSR buffer samples: `sampleVal * 0.3` (was `0.8`)
+- Game Boy envelope values: `(cur / 15) * 0.3` (was `0.8`)
+- Fallback gain settings: `0.3` (was `0.8`)
+- Skip-envelope mode: `0.3` (was `0.8`)
+
+**Files modified**:
+- `packages/engine/src/chips/gameboy/noise.ts`: All gain values reduced to 0.3
+
+**Result**: Noise channel now balances correctly with pulse channels in web browser, matching the CLI mixing behavior.
 
 ## Noise Channel Note Mapping (UGE Export)
 

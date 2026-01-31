@@ -37,7 +37,7 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
       phase -= ticks;
     }
     const sampleVal = (lfsr & 1) ? 1 : -1;
-    data[i] = sampleVal * 0.8;
+    data[i] = sampleVal * 0.3;
   }
 
   const src = ctx.createBufferSource();
@@ -50,7 +50,7 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
   const g = gain.gain;
   // Skip envelope automation if skipEnvelope flag is set (e.g., when volume effects are present)
   if (skipEnvelope) {
-    g.setValueAtTime(0.8, start);
+    g.setValueAtTime(0.3, start);
   } else if (env && env.mode === 'gb') {
     const initialVol = (env.initial ?? 15) / 15;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
@@ -58,11 +58,11 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
       const maxSteps = Math.max(1, Math.floor(dur / stepPeriod));
       const vals: number[] = [];
       let cur = env.initial ?? 15;
-      vals.push((cur / 15) * 0.8);
+      vals.push((cur / 15) * 0.3);
       for (let s = 1; s <= maxSteps; s++) {
         if (env.direction === 'up') cur = Math.min(15, cur + 1);
         else cur = Math.max(0, cur - 1);
-        vals.push((cur / 15) * 0.8);
+        vals.push((cur / 15) * 0.3);
         if (cur === 0 || cur === 15) break;
       }
       const curve = new Float32Array(vals);
@@ -97,11 +97,11 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
         }
       }
     } else {
-      g.gain.setValueAtTime(0.8, start);
+      g.gain.setValueAtTime(0.3, start);
       g.gain.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
     }
   } else {
-    g.gain.setValueAtTime(0.8, start);
+    g.gain.setValueAtTime(0.3, start);
     g.gain.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
   }
 
