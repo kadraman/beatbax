@@ -11,13 +11,14 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-**Current Implementation (v0.1.0+):** Six core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
+**Current Implementation (v0.1.0+):** Seven core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
 - ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
 - ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
 - ✅ **Portamento** - Smooth pitch glides between notes
 - ✅ **Arpeggio** - Rapid note cycling for chord simulation
 - ✅ **Volume Slide** - Dynamic volume automation over time
 - ✅ **Tremolo** - Amplitude modulation with configurable depth, rate, and waveforms
+- ✅ **Note Cut** - Gate notes after N ticks for staccato/percussive effects
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
