@@ -470,7 +470,7 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 // Note Cut effect: cuts/gates a note after N ticks
 // Parameters:
 //  - params[0]: ticks (required, number of ticks after which to cut the note)
-//  - params[1]: tickSeconds (optional, injected by caller - seconds per tick)
+//  - tickSeconds: (optional function argument, injected by caller - seconds per tick)
 //
 // Cuts notes early by ramping gain to zero. Since oscillator.stop() can only be called
 // once and is already scheduled during note creation, we use gain automation to silence
@@ -482,7 +482,7 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   if (!nodes || nodes.length === 0) return;
   if (!params || params.length === 0) return;
 
-  const ticksRaw = params && params.length > 0 ? Number(params[0]) : undefined;
+  const ticksRaw = Number(params[0]);
   if (ticksRaw === undefined || !Number.isFinite(ticksRaw) || ticksRaw <= 0) return;
 
   const ticks = Math.max(0, ticksRaw);
@@ -501,7 +501,7 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     if (node.gain && typeof node.gain.setValueAtTime === 'function') {
       try {
         // Get current gain value or use default
-        let currentGain = 1.0;
+        let currentGain: number;
         try {
           if (typeof node.gain.getValueAtTime === 'function') {
             currentGain = node.gain.getValueAtTime(cutTime - 0.001) || 1.0;

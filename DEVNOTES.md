@@ -75,7 +75,9 @@ Instrument semantics
 - Sequence-level `:pan(...)` transforms: `expandSequenceItems` injects `pan()` / `pan(...)` tokens around sequence occurrences so the resolver applies a sequence-scoped pan override for that occurrence.
 - Playback (browser & buffered): `effects` registry includes a built-in `pan` handler that uses `StereoPannerNode` when available; `bufferedRenderer` will apply pan handler during offline rendering.
   - **Fixed (2026-01-31):** Panning now works correctly in web browser by calling `gain.disconnect()` without arguments to disconnect from ALL destinations (including `masterGain`) before inserting `StereoPannerNode`. Previously, the code tried to disconnect from `ctx.destination` specifically, which failed when `masterGain` was used, causing hard pan (`gb:pan=L/R`) to not work properly in the browser.
-  - Implementation: Both `playback.ts` (`tryApplyPan`) and `effects/index.ts` (pan handler) now use `gain.disconnect()` and properly determine the correct destination (`masterGain || ctx.destination`).
+  - Implementation details:
+    - `playback.ts` (`Player.tryApplyPan`): Uses `gain.disconnect()` and determines the correct destination as `masterGain || ctx.destination` to support both standalone and web UI contexts.
+    - `effects/index.ts` (shared pan handler): Uses `gain.disconnect()` and connects to `ctx.destination` (appropriate for BufferedRenderer and other contexts that don't use masterGain).
 - PCM renderer: implements equal-power panning for numeric values and uses enum->value mapping for `L`/`C`/`R`.
 - UGE exporter:
   - Hardware mapping: GB NR51 bits map to hUGETracker's expected layout (Pulse1 left=0x01/right=0x10, Pulse2 left=0x02/right=0x20, Wave left=0x04/right=0x40, Noise left=0x08/right=0x80).

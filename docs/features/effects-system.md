@@ -153,7 +153,7 @@ seq t = b:wobble
 | Arpeggio | Software (note sequencing) | Rapid note switching |
 | Volume Slide | Envelope + software | GainNode automation |
 | Tremolo | Software (gain automation) | GainNode modulation |
-| Note Cut | Length counter | ✅ Stop AudioNode early |
+| Note Cut | Length counter | ✅ GainNode ramp to zero (oscillator continues) |
 | Retrigger | Software | Create multiple AudioNodes |
 
 ### MIDI Export
@@ -601,13 +601,14 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
 
 - Note Cut (`cut`)
   - **Status**: ✅ **IMPLEMENTED** (WebAudio playback)
-  - **Implementation**: Stops all audio nodes (oscillators and gain) early to create staccato/gated effects.
+  - **Implementation**: Gates notes by ramping gain to zero after a specified number of ticks, creating staccato/gated effects.
   - **Syntax**: `<cut:N>` where N is the number of ticks after which to cut the note.
   - **Behavior**:
-    - Schedules early stop time at `start + (N × tickSeconds)`
+    - Schedules gain automation at cut time: `start + (N × tickSeconds)`
     - Cuts are capped at note duration (won't extend beyond note end)
-    - Oscillators are stopped via `.stop(cutTime)`
-    - Gain nodes are ramped to zero for smooth cutoff
+    - Uses gain automation: `cancelScheduledValues()` → `setValueAtTime()` → `exponentialRampToValueAtTime(0.0001, cutTime + 5ms)`
+    - Oscillators continue to their originally scheduled stop time (only gain is automated)
+    - This approach allows cut to work even when oscillator.stop() was already scheduled
   - **hUGETracker mapping**: E0x extended effect (cut after x ticks, where x=0-F)
   - **Export strategy**: Map BeatBax ticks to tracker's tick/row model and emit cut effect with quantized tick count.
   - **Implementation files**:

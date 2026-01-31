@@ -1,5 +1,5 @@
 ## Demo: Note Cut (cut) effect examples
-## Exercisis inline 'cut' effect which gates notes after N ticks
+## Exercises inline 'cut' effect which gates notes after N ticks
 ## Play: node bin/beatbax play songs/effects/notecut.bax
 
 chip gameboy

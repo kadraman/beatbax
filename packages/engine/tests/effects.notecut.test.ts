@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { register, get } from '../src/effects/index.js';
+import { get } from '../src/effects/index.js';
 
 describe('Note Cut Effect', () => {
   it('should register cut effect handler', () => {
@@ -38,7 +38,7 @@ describe('Note Cut Effect', () => {
 
     // Should schedule gain automation at cutTime = start + (4 ticks * 0.03125s) = 1.125s
     const expectedCutTime = 1.125;
-    
+
     // Check that cancelScheduledValues was called
     const cancelCalls = gainCalls.filter(c => c.method === 'cancelScheduledValues');
     expect(cancelCalls.length).toBe(1);
@@ -87,7 +87,7 @@ describe('Note Cut Effect', () => {
 
     // Should cap at note end time (start + dur = 1.5s)
     const expectedCutTime = start + dur; // 1.5s
-    
+
     const cancelCalls = gainCalls.filter(c => c.method === 'cancelScheduledValues');
     expect(cancelCalls.length).toBe(1);
     expect(cancelCalls[0].time).toBeLessThanOrEqual(start + dur);
@@ -127,7 +127,7 @@ describe('Note Cut Effect', () => {
     // Positive ticks - should work
     handler({}, nodes, [1], 1.0, 1.0, 1, 0.03125);
     expect(gainCalls.length).toBeGreaterThan(0);
-    
+
     // Check cut time is correct: 1.0 + (1 tick * 0.03125) = 1.03125
     const cancelCalls = gainCalls.filter(c => c.method === 'cancelScheduledValues');
     expect(cancelCalls.length).toBe(1);
