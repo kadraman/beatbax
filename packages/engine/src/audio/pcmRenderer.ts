@@ -476,6 +476,9 @@ function renderPulse(
   let tremRate = 0;
   let tremWaveform: string | undefined = undefined;
   let tremDurationSec: number | undefined = undefined;
+  // Note cut params (ticks after which to cut the note)
+  let cutTicks = 0;
+  let cutEnabled = false;
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
@@ -538,6 +541,13 @@ function renderPulse(
           volSteps = typeof p[1] !== 'undefined' ? Number(p[1]) : undefined;
           if (!Number.isFinite(volDelta)) volDelta = 0;
           if (volSteps !== undefined && !Number.isFinite(volSteps)) volSteps = undefined;
+        } else if (fx && fx.type === 'cut') {
+          const p = fx.params || [];
+          const ticks = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          if (Number.isFinite(ticks) && ticks > 0) {
+            cutTicks = Math.max(0, ticks);
+            cutEnabled = true;
+          }
         }
       } catch (e) {}
     }
@@ -660,6 +670,25 @@ function renderPulse(
     // Apply envelope (sustain at previous level for legato notes, otherwise compute normally)
     const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
     sample = sample * envVal;
+
+    // Apply note cut if enabled (fade out quickly after cut time)
+    if (cutEnabled && typeof tickSeconds === 'number') {
+      const cutTimeSec = cutTicks * tickSeconds;
+      if (t >= cutTimeSec) {
+        // Apply very fast exponential fade (5ms) to match WebAudio behavior
+        const fadeDuration = 0.005; // 5ms fade to match browser
+        const fadeTime = t - cutTimeSec;
+        if (fadeTime < fadeDuration) {
+          // Exponential fade: start at 1.0, ramp to 0.0001 over fadeDuration
+          const fadeProgress = fadeTime / fadeDuration;
+          const cutGain = Math.pow(0.0001, fadeProgress); // Exponential curve
+          sample = sample * cutGain;
+        } else {
+          // After fade completes, full silence
+          sample = 0;
+        }
+      }
+    }
 
     // Apply tremolo if enabled (amplitude modulation)
     if (tremDepth > 0 && tremRate > 0) {
