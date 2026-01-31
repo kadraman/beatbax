@@ -1,0 +1,43 @@
+## Demo: Note Cut (cut) effect examples
+## Exercisis inline 'cut' effect which gates notes after N ticks
+## Play: node bin/beatbax play songs/effects/notecut.bax
+
+chip gameboy
+bpm 120
+
+## Instruments
+inst lead type=pulse1 duty=50 env=15,flat pan=L
+inst bass type=pulse2 duty=25 env=12,flat pan=R
+inst perc type=noise env=12,down
+
+## Define reusable cut presets
+effect shortcut = cut:2    # Cut after 2 ticks (very short)
+effect medcut = cut:4      # Cut after 4 ticks (medium)
+effect longcut = cut:8     # Cut after 8 ticks (longer)
+
+## Pattern with different cut lengths - use longer notes to hear the effect
+pat melody = C5<cut:2>:8 E5<cut:4>:8 G5<cut:8>:8 C6<cut:12>:8
+
+## Pattern showing extreme cuts for testing
+pat extreme = C5:8 C5<cut:1>:8 E5:8 E5<cut:2>:8
+pat staccato = C4<cut:2> . E4<cut:2> . G4<cut:2> . C5<cut:2> .
+
+## Full note vs cut notes comparison
+pat compare = C5:4 C5<cut:2>:4 E5:4 E5<cut:4>:4
+
+## Percussion with tight cuts
+pat drums = C7<cut:1> . C7<cut:1> . C7<cut:2> . C7<cut:1> .
+
+## Combined with other effects
+pat combo = C5<vib:4,cut:6>:4 E5<pan:-1.0,cut:4>:4 G5<trem:8,cut:8>:4
+
+## Sequences
+seq main = melody extreme staccato compare combo
+seq drum_seq = drums*12
+
+## Channels
+channel 1 => inst lead seq main
+channel 2 => inst bass seq main:oct(-1)
+channel 4 => inst perc seq drum_seq
+
+play

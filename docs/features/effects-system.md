@@ -38,12 +38,13 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ Arpeggio (chord simulation via rapid note cycling)
 - ✅ Volume Slide (per-tick gain automation)
 - ✅ Tremolo (amplitude modulation with depth/rate/waveform)
+- ✅ Note Cut (gate notes after N ticks)
 - ✅ Named effect presets with expansion
-- ✅ UGE export for pan, vib, port, arp, volSlide (trem: meta-event only)
+- ✅ UGE export for pan, vib, port, arp, volSlide, cut (trem: meta-event only)
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
-- Pitch Bend, Echo, Note Cut, and Retrigger not yet implemented
+- Pitch Bend, Echo, and Retrigger not yet implemented
 - Tremolo exports to MIDI as meta-event (no native UGE support)
 - Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
 
@@ -58,11 +59,11 @@ Summary: the following core effects are available in the language/runtime:
 - Arpeggio (`arp`): rapid cycling between pitch offsets to simulate chords.
 - Volume Slide (`volSlide`): per-tick gain changes / slides.
 - Tremolo (`trem`): periodic amplitude modulation (gain LFO with depth, rate, and waveform).
+- Note Cut (`cut`): cut/gate a note after N ticks.
 
 **⏳ Planned (not yet implemented):**
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
-- Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
 Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path has been removed after the Peggy migration.
@@ -152,7 +153,7 @@ seq t = b:wobble
 | Arpeggio | Software (note sequencing) | Rapid note switching |
 | Volume Slide | Envelope + software | GainNode automation |
 | Tremolo | Software (gain automation) | GainNode modulation |
-| Note Cut | Length counter | Stop AudioNode early |
+| Note Cut | Length counter | ✅ Stop AudioNode early |
 | Retrigger | Software | Create multiple AudioNodes |
 
 ### MIDI Export
@@ -599,8 +600,24 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - Export strategy (recommended): Bake delay/echo into the instrument sample (rendered waveform) OR emulate by duplicating notes across spare channels at reduced volume with delay offsets (very limited and channel-expensive). Exporter should warn when `echo` is used and offer the bake option.
 
 - Note Cut (`cut`)
-  - hUGETracker mapping: Note cut/cut after N ticks is supported by tracker commands (e.g., `ECx` style or UGE-specific cut effect). Use the UGE note cut effect code (see UGE v6 spec / manual).
-  - Export strategy: Map BeatBax ticks to tracker's tick/row model and emit cut effect with quantized tick count.
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio playback)
+  - **Implementation**: Stops all audio nodes (oscillators and gain) early to create staccato/gated effects.
+  - **Syntax**: `<cut:N>` where N is the number of ticks after which to cut the note.
+  - **Behavior**:
+    - Schedules early stop time at `start + (N × tickSeconds)`
+    - Cuts are capped at note duration (won't extend beyond note end)
+    - Oscillators are stopped via `.stop(cutTime)`
+    - Gain nodes are ramped to zero for smooth cutoff
+  - **hUGETracker mapping**: E0x extended effect (cut after x ticks, where x=0-F)
+  - **Export strategy**: Map BeatBax ticks to tracker's tick/row model and emit cut effect with quantized tick count.
+  - **Implementation files**:
+    - WebAudio: `packages/engine/src/effects/index.ts` (cut handler)
+    - Demo: `songs/effects/notecut.bax`
+  - **Use cases**:
+    - Staccato articulation (short, detached notes)
+    - Rhythmic gating patterns
+    - Percussive effects on melodic instruments
+    - Creating space in dense arrangements
 
 - Retrigger (`retrig`)
   - hUGETracker mapping: Many trackers have a retrigger effect (e.g., `Qxy` in some formats). hUGETracker supports note delay (7xx) and may support retrigger-like effects; otherwise expand into explicit repeated notes or use per-row commands.
