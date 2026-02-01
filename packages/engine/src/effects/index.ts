@@ -525,3 +525,37 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     }
   }
 });
+// Retrigger effect: retriggering/restarting a note at regular tick intervals
+// Parameters:
+//  - params[0]: interval (required, ticks between each retrigger)
+//  - params[1]: volumeDelta (optional, volume change per retrigger, e.g., -2 for fadeout)
+//  - tickSeconds: (optional function argument, injected by caller - seconds per tick)
+//
+// Creates a rhythmic stuttering effect by scheduling multiple note restarts.
+// Common uses: drum rolls, glitchy effects, volume-decaying retrigs.
+//
+// Note: This effect requires special handling in playback.ts since it needs to
+// schedule additional AudioNodes, not just modify the existing ones.
+// The handler here stores retrigger metadata that playback.ts will read.
+//
+// UGE export: Not supported - hUGETracker has no native retrigger effect
+// MIDI export: Not currently implemented (future enhancement: could emit multiple Note On events)
+register('retrig', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number) => {
+  if (!params || params.length === 0) return;
+
+  const interval = Number(params[0]);
+  if (!Number.isFinite(interval) || interval <= 0) return;
+
+  const volumeDelta = params.length > 1 ? Number(params[1]) : 0;
+  const tickDuration = tickSeconds || 0.03125;
+
+  // Store retrigger metadata on the nodes array for playback.ts to read
+  // This is a signal that additional note events need to be scheduled
+  (nodes as any).__retrigger = {
+    interval,
+    volumeDelta,
+    tickDuration,
+    start,
+    dur,
+  };
+});

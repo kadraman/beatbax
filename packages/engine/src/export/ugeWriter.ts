@@ -403,6 +403,8 @@ const VolumeSlideHandler: EffectHandler = {
 };
 
 // Effect handler registry - add new handlers here as effects are implemented
+// Note: Retrigger is NOT included - hUGETracker has no native retrigger effect
+// Retrigger is WebAudio-only and cannot be exported to UGE
 const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
     ArpeggioHandler,     // Priority 15
@@ -783,6 +785,8 @@ function eventsToPatterns(
     let activeArp: { code: number; param: number; remainingRows?: number } | null = null;
     // Map of note globalRow -> desired durationRows (including the note row)
     if (!desiredVibMap) desiredVibMap = new Map();
+    // Track if any retrigger effects are encountered (for warning)
+    let hasRetrigEffects = false;
     let prevEventType: string | null = null;
     // Track if we've seen the first note yet (to skip portamento on first note)
     let hasSeenNote = false;
@@ -977,8 +981,14 @@ function eventsToPatterns(
                 for (const fx of noteEvent.effects) {
                     if (!fx) continue;
 
-                    // Skip portamento on the first note (nothing to slide from)
+                    // Track retrigger effects for warning
                     const fxName = (fx.type || fx).toString().toLowerCase();
+                    if (fxName === 'retrig') {
+                        hasRetrigEffects = true;
+                        continue; // Skip retrigger - not supported in UGE
+                    }
+
+                    // Skip portamento on the first note (nothing to slide from)
                     if (fxName === 'port' && !hasSeenNote) {
                         continue; // Don't add portamento effect to first note
                     }
@@ -1162,6 +1172,9 @@ function eventsToPatterns(
         }
         patterns.push(emptyPattern);
     }
+
+    // Store retrigger warning flag on the patterns array for caller to check
+    (patterns as any).__hasRetrigEffects = hasRetrigEffects;
 
     return patterns;
 }
@@ -1444,6 +1457,8 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // Shared map of desired vibrato durations (globalRow -> rows)
     const desiredVibMap: Map<number, number> = new Map();
+    let hasRetrigEffectsInSong = false; // Track if any channel has retrigger effects
+
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
         // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
@@ -1452,6 +1467,16 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         // share `desiredVibMap` across channels so later passes can inspect desired vib rows
         const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap);
         channelPatterns.push(patterns);
+
+        // Check if this channel has retrigger effects
+        if ((patterns as any).__hasRetrigEffects) {
+            hasRetrigEffectsInSong = true;
+        }
+    }
+
+    // Emit warning if retrigger effects were found
+    if (hasRetrigEffectsInSong) {
+        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use WebAudio playback for retrigger support.');
     }
 
     // ====== Unified Post-Processing Pass ======

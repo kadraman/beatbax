@@ -349,10 +349,14 @@ const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>
       ch.inst = tokens[i + 1];
       i++;
     } else if (t === 'pat' && tokens[i + 1]) {
-      const patRef = tokens[i + 1];
-      let patSpec = (patRef.startsWith('"') || patRef.startsWith("'")) ? patRef.replace(/^['"]|['"]$/g, '') : patRef;
-      ch.pat = patSpec;
-      i++;
+      // Support both single pattern and multiple patterns after 'pat'
+      // e.g., "pat melody" or "pat intro verse chorus"
+      const restTokens = tokens.slice(i + 1);
+      const rest = restTokens.join(' ');
+      let patSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['"]|['"]$/g, '') : rest;
+      ch.pat = patSpec.trim();
+      ch.seqSpecTokens = restTokens;
+      break;
     } else if (t === 'seq' && tokens[i + 1]) {
       const restTokens = tokens.slice(i + 1);
       const rest = restTokens.join(' ');
