@@ -45,7 +45,10 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Inline permanent instrument: `inst(name)` — change default instrument for the pattern
 
 - seq / channel: map patterns and instruments to Game Boy channels
-  - Example: `channel 1 => inst leadA pat melody` (use top-level `bpm 160` or per-channel `speed`/sequence transforms)
+  - **Full syntax with explicit seq**: `seq myseq = pat1 pat2` then `channel 1 => inst leadA seq myseq`
+  - **Shorthand with seq keyword**: `channel 1 => inst leadA seq pat1 pat2` (inline pattern list)
+  - **Shorthand with pat keyword**: `channel 1 => inst leadA pat pat1 pat2` (same as seq, more explicit)
+  - **Single pattern shorthand**: `channel 1 => inst leadA pat melody` (omit list, just one pattern)
   - Channels: 1 (Pulse1), 2 (Pulse2), 3 (Wave), 4 (Noise)
 
 Note: For multi-channel arrangements prefer using the `arrange` construct. `arrange` blocks are expanded early so per-arrange defaults and per-slot modifiers (for example `:inst(name)` or `:oct(-1)`) are applied during expansion and flow into the per-channel ISM. `channel` mappings continue to work for backward compatibility but are considered a legacy/fallback for compact examples and single-channel usage.
@@ -338,6 +341,145 @@ pat combo = C4<vib:3,6,trem:6,4>:4 E4<port:12,trem:8,6>:4 G4<trem:8,6,volSlide:+
 - `saw` - Asymmetric ramping volume changes
 
 See `songs/effects/tremolo.bax` for a complete working example.
+
+## Note Cut (`cut`) Effect
+
+Note cut (also called "note gate") terminates a note after a specified number of ticks, creating staccato and percussive articulation:
+
+```bax
+# Basic note cut: stop note after N ticks
+pat staccato = C4<cut:4>:8 E4<cut:6>:8 G4<cut:3>:8 C5<cut:8>:8
+
+# Named presets for common articulations
+effect short = cut:2
+effect medium = cut:4
+effect long = cut:8
+
+pat articulated = C4<short>:4 E4<medium>:4 G4<long>:4
+
+# Combining with other effects
+pat combo = C4<vib:4,6,cut:8>:8 E4<cut:4,volSlide:+2>:8 G4<arp:4,7,cut:6>:8
+```
+
+**Parameters:**
+1. `ticks` (required): Number of ticks after note onset before cutting (0-255)
+   - Lower values = shorter, more percussive notes
+   - Higher values = longer sustain before cut
+
+**Behavior:**
+- Cuts note by setting gain to 0 after the specified tick delay
+- Works with all channel types (pulse1, pulse2, wave, noise)
+- Useful for creating rhythmic patterns and percussive effects
+- Especially effective with `flat` or `sustain` envelopes
+
+**Export behavior:**
+- **WebAudio/WAV**: Full note cut rendering via scheduled GainNode automation
+- **UGE (hUGETracker)**: Exports as `E0x` Note Cut effect (x = ticks)
+- **MIDI**: Documented via text meta event
+- **JSON**: Includes `cut` effect with `ticks` parameter in the ISM
+
+**Common patterns:**
+```bax
+# Percussive staccato melody
+inst stab type=pulse1 duty=50 env=gb:12,flat,1
+pat stabby = C5<cut:2> . E5<cut:2> . G5<cut:2> . C6<cut:2> .
+
+# Rhythmic gating pattern
+inst gate type=pulse2 duty=25 env=gb:10,flat,1
+pat gated = C4<cut:4>:8 C4<cut:3>:8 C4<cut:6>:8 C4<cut:2>:8
+
+# Drum-like melodic hits
+inst kick type=pulse1 duty=12 env=gb:15,down,1
+pat kicks = C2<cut:4> . C2<cut:3> . C2<cut:6> C2<cut:4>
+```
+
+See `songs/effects/notecut.bax` for a complete working example.
+
+## Retrigger (`retrig`) Effect
+
+**Status: WebAudio-only, not supported in UGE export**
+
+Retrigger creates rhythmic stuttering by repeatedly restarting a note at regular intervals with optional volume fadeout:
+
+```bax
+# Basic retrigger: interval in ticks
+pat stutter = C4<retrig:4>:16 E4<retrig:8>:16 G4<retrig:2>:16
+
+# With volume fadeout (experimental, works best with down envelopes)
+pat fade_stutter = C4<retrig:4,-2>:16 E4<retrig:6,-1>:16
+
+# Named presets for common retrigger patterns
+effect fast_stutter = retrig:2
+effect drum_roll = retrig:4
+effect slow_pulse = retrig:8
+
+pat demo = C4<fast_stutter>:16 E4<drum_roll>:16 G4<slow_pulse>:16
+
+# Combining with other effects
+pat combo = C4<retrig:4,pan:-1.0>:16 E4<retrig:6,vib:4,6>:16
+```
+
+**Parameters:**
+1. `interval` (required): Number of ticks between each retrigger (1-255)
+   - Lower values = faster stuttering (2-4 for glitchy effects)
+   - Higher values = slower pulsing (6-12 for drum rolls)
+2. `volumeDelta` (optional): Volume change per retrigger in Game Boy envelope units (-15 to +15)
+   - Negative values create fadeout (e.g., -2, -3, -5)
+   - Positive values create fadein (e.g., +2, +3)
+   - Normalized internally: value/15 (e.g., -2 → -0.133 per retrigger)
+   - Example: `<retrig:4,-2>` with 8 retrigs = 8 × -0.133 ≈ -1.064 (full fadeout)
+   - Works best with `down` or other decaying envelopes; may be subtle with `flat` envelopes
+
+**Behavior:**
+- Schedules multiple note restarts at regular intervals
+- Each retrigger creates a full envelope restart
+- Retriggering stops when reaching note duration
+- Compatible with other effects (pan, vib, etc.)
+- Prevents infinite recursion by filtering out retrig effect from retriggered notes
+
+**Export behavior:**
+- **WebAudio playback**: Fully supported with all features
+- **PCM renderer (CLI)**: Not yet supported, use `--browser` flag for CLI playback
+- **UGE (hUGETracker)**: **NOT SUPPORTED** - hUGETracker has no native retrigger effect
+  - When exporting songs with retrigger to UGE, a warning will be displayed
+  - Retrigger effects will be omitted from the output
+  - Warning: `[WARN] [export] Retrigger effects detected in song but cannot be exported to UGE`
+- **MIDI**: Exports as text metadata
+- **JSON**: Includes `retrig` effect with all parameters in the ISM
+
+**Limitations:**
+- Volume fadeout may not be audible with `flat` envelopes
+- PCM renderer does not support retrigger (use browser playback)
+- Cannot be exported to UGE format (no hUGETracker equivalent)
+
+**Workaround for UGE export:**
+Expand retrigger into multiple note events manually:
+```bax
+# Instead of retrigger effect:
+pat auto_retrig = C4<retrig:4>:16
+
+# Use explicit notes for UGE compatibility:
+pat manual_retrig = C4:4 C4:4 C4:4 C4:4
+```
+
+**Common patterns:**
+```bax
+# Fast glitchy stutter (2-tick intervals)
+pat glitch = C5<retrig:2>:16 E5<retrig:2>:12 G5<retrig:2>:8
+
+# Drum roll effect (4-tick intervals)
+pat roll = C4<retrig:4>:32 C4<retrig:4>:32
+
+# Slow pulsing bass (8-tick intervals)
+pat pulse_bass = C2<retrig:8>:32 E2<retrig:8>:32 G2<retrig:8>:32
+
+# With volume fadeout for echo-like decay
+pat echo_stutter = C5<retrig:6,-1>:32
+```
+
+See `songs/effects/retrigger.bax` for a complete working example.
+
+**Important:** Remember that retrigger effects will trigger a warning when exporting to UGE format and will not be included in the exported file.
 
 **Tempo & Per-Channel Speed**
 

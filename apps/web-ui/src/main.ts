@@ -48,7 +48,7 @@ let currentAST: any = null;
 function showWarnings(warnings: Array<{ component: string; message: string; file?: string; loc?: any }>) {
   console.log('[web-ui] showWarnings called with', warnings.length, 'warnings');
   console.log('[web-ui] warningsPanel:', !!warningsPanel, 'warningsList:', !!warningsList);
-  
+
   if (!warningsPanel || !warningsList) {
     console.warn('[web-ui] Warning elements not found in DOM');
     return;
@@ -57,23 +57,23 @@ function showWarnings(warnings: Array<{ component: string; message: string; file
     warningsPanel.style.display = 'none';
     return;
   }
-  
+
   warningsList.innerHTML = '';
   for (const w of warnings) {
     const div = document.createElement('div');
     div.style.marginBottom = '4px';
-    
+
     let locStr = '';
     if (w.loc && w.loc.start) {
       const line = w.loc.start.line;
       const col = w.loc.start.column || 0;
       locStr = ` (line ${line}, col ${col})`;
     }
-    
+
     div.textContent = `[${w.component}] ${w.message}${locStr}`;
     warningsList.appendChild(div);
   }
-  
+
   console.log('[web-ui] Setting warningsPanel display to block');
   warningsPanel.style.display = 'block';
 }
@@ -88,27 +88,27 @@ clearWarningsBtn?.addEventListener('click', clearWarnings);
 // Validation function (similar to CLI)
 function validateAST(ast: any): Array<{ component: string; message: string; loc?: any }> {
   const warnings: Array<{ component: string; message: string; loc?: any }> = [];
-  
+
   // Valid transform names
   const validTransforms = new Set(['oct', 'inst', 'rev', 'slow', 'fast']);
-  
+
   // Validate channels
   for (const ch of ast.channels || []) {
     // Check instrument references
     if (ch.inst && !ast.insts[ch.inst]) {
-      warnings.push({ 
-        component: 'validation', 
+      warnings.push({
+        component: 'validation',
         message: `Channel ${ch.id} references unknown inst '${ch.inst}'`,
         loc: ch.loc
       });
     }
-    
+
     // Extract sequence names from channel and validate transforms
     const extractSeqNames = (channel: any): string[] => {
       const names: string[] = [];
       if (!channel || !channel.pat) return names;
       if (Array.isArray(channel.pat)) return []; // inline pattern tokens
-      
+
       const rawTokens: string[] | undefined = (channel as any).seqSpecTokens;
       if (rawTokens && rawTokens.length > 0) {
         const joined = rawTokens.join(' ');
@@ -120,7 +120,7 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
             const itemRef = m ? m[1].trim() : g;
             const base = itemRef.split(':')[0];
             if (base) names.push(base);
-            
+
             // Check transforms in the itemRef
             if (itemRef.indexOf(':') >= 0) {
               const transformParts = itemRef.split(':').slice(1);
@@ -139,7 +139,7 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
             const parts = g.split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
             for (const p of parts) {
               names.push(p.split(':')[0]);
-              
+
               // Check transforms in each part
               if (p.indexOf(':') >= 0) {
                 const transformParts = p.split(':').slice(1);
@@ -159,7 +159,7 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
         }
         return names.filter(Boolean);
       }
-      
+
       const spec = String(channel.pat).trim();
       for (const group of spec.split(',')) {
         const g = group.trim();
@@ -168,7 +168,7 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
         const itemRef = mRep ? mRep[1].trim() : g;
         const base = itemRef.split(':')[0];
         if (base) names.push(base);
-        
+
         // Check transforms in string format
         if (itemRef.indexOf(':') >= 0) {
           const transformParts = itemRef.split(':').slice(1);
@@ -186,19 +186,23 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
       }
       return names.filter(Boolean);
     };
-    
+
     const seqNames = extractSeqNames(ch);
     for (const seqName of seqNames) {
+      // Check both sequences and patterns (inline pattern lists use pattern names)
       if (!ast.seqs || !ast.seqs[seqName]) {
-        warnings.push({
-          component: 'validation',
-          message: `Channel ${ch.id} references unknown sequence '${seqName}'`,
-          loc: ch.loc
-        });
+        // If not a sequence, check if it's a pattern
+        if (!ast.pats || !ast.pats[seqName]) {
+          warnings.push({
+            component: 'validation',
+            message: `Channel ${ch.id} references unknown sequence or pattern '${seqName}'`,
+            loc: ch.loc
+          });
+        }
       }
     }
   }
-  
+
   return warnings;
 }
 
@@ -321,7 +325,7 @@ playBtn?.addEventListener('click', async () => {
   console.log('[web-ui] Play handler start');
   clearWarnings();
   const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-  
+
   try {
     status && (status.textContent = 'Parsing...');
     const src = srcArea ? srcArea.value : '';
@@ -329,11 +333,11 @@ playBtn?.addEventListener('click', async () => {
     const ast = parse(src);
     console.log('[web-ui] parsed AST', ast && typeof ast === 'object' ? Object.keys(ast) : typeof ast);
     console.log('[web-ui] source preview:\n', String(src).slice(0, 800));
-    
+
     // Validate AST and collect warnings
     const validationWarnings = validateAST(ast);
     warnings.push(...validationWarnings);
-    
+
     const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
     console.log('[web-ui] resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
     if ((resolved as any).channels) {
@@ -341,10 +345,10 @@ playBtn?.addEventListener('click', async () => {
         console.log('[web-ui] channel', ch.id, 'events=', (ch.events || ch.pat || []).length);
       }
     }
-    
+
     // Show warnings if any
     showWarnings(warnings);
-    
+
     currentAST = ast;
     status && (status.textContent = 'Starting AudioContext...');
     if (!player) player = new Player();
@@ -398,18 +402,18 @@ stopBtn?.addEventListener('click', () => {
 applyBtn?.addEventListener('click', async () => {
   clearWarnings();
   const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-  
+
   try {
     const p2 = (window as any).__beatbax_player || player;
     if (p2 && typeof p2.stop === 'function') p2.stop();
     status && (status.textContent = 'Applying...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
-    
+
     // Validate AST and collect warnings
     const validationWarnings = validateAST(ast);
     warnings.push(...validationWarnings);
-    
+
     currentAST = ast;
     renderChannelControls(ast);
     if (!player) player = new Player();
@@ -422,10 +426,10 @@ applyBtn?.addEventListener('click', async () => {
     } catch (e) { console.warn('resume failed during apply', e); }
     attachScheduleHook(player);
     const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
-    
+
     // Show warnings if any
     showWarnings(warnings);
-    
+
     console.log('[web-ui] apply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
@@ -580,17 +584,17 @@ const liveApply = debounce(async () => {
   if (!liveCheckbox || !liveCheckbox.checked) return;
   clearWarnings();
   const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-  
+
   try {
     if (player) player.stop();
     status && (status.textContent = 'Applying (live)...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
-    
+
     // Validate AST and collect warnings
     const validationWarnings = validateAST(ast);
     warnings.push(...validationWarnings);
-    
+
     currentAST = ast;
     renderChannelControls(ast);
     if (!player) player = new Player();
@@ -603,10 +607,10 @@ const liveApply = debounce(async () => {
     } catch (e) { console.warn('resume failed during live apply', e); }
     attachScheduleHook(player);
     const resolved = resolveSong(ast as any, { onWarn: (w: any) => warnings.push(w) });
-    
+
     // Show warnings if any
     showWarnings(warnings);
-    
+
     console.log('[web-ui] liveApply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing (live)');
