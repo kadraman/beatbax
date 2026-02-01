@@ -629,11 +629,16 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - **Implementation**: Schedules multiple note restarts at regular tick intervals, creating rhythmic stuttering effects.
   - **Syntax**: `<retrig:interval,volumeDelta>` where:
     - `interval` is the number of ticks between each retrigger (required)
-    - `volumeDelta` is the volume change per retrigger (optional, e.g., -2 for fadeout) - EXPERIMENTAL, may not be audible with flat envelopes
+    - `volumeDelta` is the volume change per retrigger in Game Boy envelope units (optional, range: -15 to +15)
+      - Negative values create fadeout (e.g., -2, -3, -5)
+      - Positive values create fadein (e.g., +2, +3)
+      - Normalized to 0-1 range internally by dividing by 15 (e.g., -2 → -0.133 per retrigger)
+      - Example: `<retrig:4,-2>` with 8 retrigs = 8 × -0.133 ≈ -1.064 total (full fadeout)
+      - May not be audible with `flat` envelopes; use `down` or other decaying envelopes for best results
   - **Behavior**:
     - Schedules additional AudioNodes at regular intervals
     - Each retrigger creates a full note restart (envelope retriggering)
-    - Volume delta modifies envelope level incrementally (implementation needs verification)
+    - Volume delta modifies envelope level multiplicatively: `newLevel = baseLevel × (1 + cumulative_delta/15)`
     - Retriggering stops when reaching note duration
     - Compatible with other effects (pan, vib, etc.) which are applied to all retriggered notes
     - Prevents infinite recursion by filtering out retrig effect from retriggered notes

@@ -423,9 +423,12 @@ pat combo = C4<retrig:4,pan:-1.0>:16 E4<retrig:6,vib:4,6>:16
 1. `interval` (required): Number of ticks between each retrigger (1-255)
    - Lower values = faster stuttering (2-4 for glitchy effects)
    - Higher values = slower pulsing (6-12 for drum rolls)
-2. `volumeDelta` (optional): Volume change per retrigger (e.g., -2 for fadeout)
-   - Experimental feature, may not be audible with `flat` envelopes
-   - Use `down` or other decaying envelopes for best results
+2. `volumeDelta` (optional): Volume change per retrigger in Game Boy envelope units (-15 to +15)
+   - Negative values create fadeout (e.g., -2, -3, -5)
+   - Positive values create fadein (e.g., +2, +3)
+   - Normalized internally: value/15 (e.g., -2 → -0.133 per retrigger)
+   - Example: `<retrig:4,-2>` with 8 retrigs = 8 × -0.133 ≈ -1.064 (full fadeout)
+   - Works best with `down` or other decaying envelopes; may be subtle with `flat` envelopes
 
 **Behavior:**
 - Schedules multiple note restarts at regular intervals

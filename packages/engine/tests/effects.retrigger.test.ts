@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { register, get } from '../src/effects/index.js';
+import { get } from '../src/effects/index.js';
 
 describe('Retrigger Effect', () => {
   it('should register retrigger effect handler', () => {

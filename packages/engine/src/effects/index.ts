@@ -538,8 +538,8 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 // schedule additional AudioNodes, not just modify the existing ones.
 // The handler here stores retrigger metadata that playback.ts will read.
 //
-// UGE export: Maps to EDx (retrigger) or note delay (7xx) depending on tracker
-// MIDI export: Emit multiple Note On events at scheduled intervals
+// UGE export: Not supported - hUGETracker has no native retrigger effect
+// MIDI export: Not currently implemented (future enhancement: could emit multiple Note On events)
 register('retrig', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number) => {
   if (!params || params.length === 0) return;
 

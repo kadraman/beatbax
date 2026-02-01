@@ -401,9 +401,12 @@ export class Player {
     let volMultiplier = 1.0;
 
     while (retrigTime < start + dur) {
-      // Apply volume delta for fadeout effect
+      // Apply volume delta for fadeout/fadein effect
+      // volumeDelta is in Game Boy envelope units (-15 to +15, typically -2 to -5 for fadeout)
+      // Normalized to 0-1 range by dividing by 15, so -2 = -0.133 per retrigger
+      // Example: -2 delta over 8 retrigs = 8 × -0.133 = -1.064 total (full fadeout)
       if (volumeDelta !== 0) {
-        volMultiplier = Math.max(0, Math.min(1, volMultiplier + (volumeDelta / 15))); // Normalize to 0-1 range
+        volMultiplier = Math.max(0, Math.min(1, volMultiplier + (volumeDelta / 15)));
       }
 
       // Create modified instrument with adjusted envelope/volume
@@ -439,7 +442,7 @@ export class Player {
           for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
         });
       } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
-        const wav = parseWaveTable(inst.wave);
+        const wav = parseWaveTable(capturedInst.wave);
         this.scheduler.schedule(capturedTime, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
