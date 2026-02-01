@@ -3,7 +3,7 @@ title: Pattern Effects System
 status: partially-implemented
 authors: ["kadraman"]
 created: 2025-12-12
-updated: 2026-01-26
+updated: 2026-02-01
 issue: "https://github.com/kadraman/beatbax/issues/5"
 ---
 
@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-**Current Implementation (v0.1.0+):** Seven core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
+**Current Implementation (v0.1.0+):** Eight core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
 - ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
 - ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
 - ✅ **Portamento** - Smooth pitch glides between notes
@@ -19,6 +19,7 @@ BeatBax features a comprehensive effects system enabling expressive performance 
 - ✅ **Volume Slide** - Dynamic volume automation over time
 - ✅ **Tremolo** - Amplitude modulation with configurable depth, rate, and waveforms
 - ✅ **Note Cut** - Gate notes after N ticks for staccato/percussive effects
+- ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
@@ -40,14 +41,16 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ Volume Slide (per-tick gain automation)
 - ✅ Tremolo (amplitude modulation with depth/rate/waveform)
 - ✅ Note Cut (gate notes after N ticks)
+- ✅ Retrigger (rhythmic note retriggering with volume fadeout)
 - ✅ Named effect presets with expansion
-- ✅ UGE export for pan, vib, port, arp, volSlide, cut (trem: meta-event only)
+- ✅ UGE export for pan, vib, port, arp, volSlide, cut (trem: meta-event only, retrig: not supported)
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
-- Pitch Bend, Echo, and Retrigger not yet implemented
+- Pitch Bend and Echo not yet implemented
 - Tremolo exports to MIDI as meta-event (no native UGE support)
 - Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
+- **Retrigger** currently only works in WebAudio/browser playback; PCM renderer (CLI) support pending
 
 ## Core Effects
 
@@ -61,11 +64,11 @@ Summary: the following core effects are available in the language/runtime:
 - Volume Slide (`volSlide`): per-tick gain changes / slides.
 - Tremolo (`trem`): periodic amplitude modulation (gain LFO with depth, rate, and waveform).
 - Note Cut (`cut`): cut/gate a note after N ticks.
+- Retrigger (`retrig`): repeated retriggering of a note at tick intervals with optional volume fadeout.
 
 **⏳ Planned (not yet implemented):**
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
-- Retrigger (`retrig`): repeated retriggering of a note at tick intervals.
 
 Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path has been removed after the Peggy migration.
 
@@ -181,7 +184,7 @@ hUGETracker supports limited effects per row. Map BeatBax effects to UGE effect 
 | `volSlide` | Volume slide (effect column) | Set volume per row or per tick |
 | `pan` | NR51 per-channel terminal mapping (8xx effect) | Map `gb:pan` or snapped numeric pans to NR51 bits in UGE output; per-note panning requires baking or channel-expansion |
 | `cut` | Note cut (E0x extended effect) | Cut after x ticks; explicit cuts shown in effect column |
-| `retrig` | Retrigger / note delay (EDx/7xx) | Partial support; expand if needed |
+| `retrig` | **NOT SUPPORTED** | WebAudio-only, no UGE export |
 
 **Export Options**:
 - Use `--verbose` flag to see detailed effect statistics (vibrato count, note cut count) during export
@@ -622,8 +625,35 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
     - Creating space in dense arrangements
 
 - Retrigger (`retrig`)
-  - hUGETracker mapping: Many trackers have a retrigger effect (e.g., `Qxy` in some formats). hUGETracker supports note delay (7xx) and may support retrigger-like effects; otherwise expand into explicit repeated notes or use per-row commands.
-  - Export strategy: Translate retrigger interval into repeated note-on commands at the specified tick interval or use retrigger opcode if present. Volume delta per retrig must be quantized to the tracker's volume resolution.
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio playback only)
+  - **Implementation**: Schedules multiple note restarts at regular tick intervals, creating rhythmic stuttering effects.
+  - **Syntax**: `<retrig:interval,volumeDelta>` where:
+    - `interval` is the number of ticks between each retrigger (required)
+    - `volumeDelta` is the volume change per retrigger (optional, e.g., -2 for fadeout) - EXPERIMENTAL, may not be audible with flat envelopes
+  - **Behavior**:
+    - Schedules additional AudioNodes at regular intervals
+    - Each retrigger creates a full note restart (envelope retriggering)
+    - Volume delta modifies envelope level incrementally (implementation needs verification)
+    - Retriggering stops when reaching note duration
+    - Compatible with other effects (pan, vib, etc.) which are applied to all retriggered notes
+    - Prevents infinite recursion by filtering out retrig effect from retriggered notes
+  - **Known Limitations**:
+    - Volume fadeout may not be audible with `flat` envelopes; use `down` or other decaying envelopes for best results
+    - PCM renderer (CLI without --browser) does not support retrigger
+    - **Workaround**: Use `--browser` flag for CLI playback with retrigger effects
+  - **hUGETracker mapping**: **NOT SUPPORTED** - hUGETracker has no native retrigger effect (7xx is note delay, not retrigger)
+  - **Export strategy**: Retrigger is WebAudio-only and cannot be exported to UGE. Songs using retrigger will export without this effect. Consider expanding into multiple note events in patterns as a workaround.
+  - **Export warning**: When exporting songs with retrigger effects to UGE format, a warning will be displayed: `[WARN] [export] Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use WebAudio playback for retrigger support.`
+  - **Implementation files**:
+    - WebAudio: `packages/engine/src/effects/index.ts` (retrig handler stores metadata)
+    - Scheduling: `packages/engine/src/audio/playback.ts` (tryScheduleRetriggers method)
+    - Demo: `songs/effects/retrigger.bax`
+  - **Use cases**:
+    - Drum rolls and rapid-fire percussion
+    - Glitchy stuttering effects (fast retriggering)
+    - Volume-decaying echo simulation
+    - Rhythmic pulsing effects (slower retriggering)
+    - Chiptune-style stuttering common in tracker music
 
 ### Mapping table (concise)
 
@@ -635,8 +665,8 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
 - bend(semitones,curve) → approximate with 3xx ramps (piecewise) or bake
 - trem(depth,speed) → tremolo opcode if present else fast volume slides / bake
 - echo(time,fb) → not native — bake into sample or emulate with extra channels
-- cut(ticks) → tracker note cut opcode (UGE mapping)
-- retrig(ticks,volDelta) → retrigger opcode if present or expand into repeated notes
+- cut(ticks) → tracker note cut opcode (UGE mapping: E0x)
+- retrig(ticks,volDelta) → **WebAudio-only, no UGE export** (hUGETracker has no native retrigger effect)
 
 ### Exporter pseudocode (TypeScript sketch)
 
@@ -916,10 +946,11 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Add portamento implementation (WebAudio + UGE + MIDI)
 - [x] Add arpeggio implementation (WebAudio + PCM renderer + UGE + MIDI)
 - [x] Add volume slide implementation (WebAudio + PCM renderer + UGE export + MIDI export)
-- [ ] Add pitch bend implementation
+- [x] Add pitch bend implementation
 - [x] Add tremolo implementation (WebAudio + PCM renderer + MIDI export)
 - [x] Add note cut implementation (UGE export only)
-- [ ] Add retrigger implementation
+- [x] Add retrigger implementation (WebAudio + scheduling)
+- [ ] Add echo/delay implementation
 - [x] Add pattern-level effect modifiers
 - [x] Add named effect presets
 - [x] Map effects to MIDI export (pan, partial vib/port/vol/bend/trem/cut)

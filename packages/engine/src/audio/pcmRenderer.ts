@@ -479,6 +479,10 @@ function renderPulse(
   // Note cut params (ticks after which to cut the note)
   let cutTicks = 0;
   let cutEnabled = false;
+  // Retrigger params (ticks between retrigs, volume delta per retrig)
+  let retrigInterval = 0;
+  let retrigVolumeDelta = 0;
+  let retrigEnabled = false;
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
@@ -547,6 +551,15 @@ function renderPulse(
           if (Number.isFinite(ticks) && ticks > 0) {
             cutTicks = Math.max(0, ticks);
             cutEnabled = true;
+          }
+        } else if (fx && fx.type === 'retrig') {
+          const p = fx.params || [];
+          const interval = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          const volDelta = Number(typeof p[1] !== 'undefined' ? p[1] : 0);
+          if (Number.isFinite(interval) && interval > 0) {
+            retrigInterval = Math.max(0, interval);
+            retrigVolumeDelta = Number.isFinite(volDelta) ? volDelta : 0;
+            retrigEnabled = true;
           }
         }
       } catch (e) {}

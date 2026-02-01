@@ -306,6 +306,7 @@ export class Player {
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -322,6 +323,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -336,6 +338,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
+            this.tryScheduleRetriggers(nodes, 0, inst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
@@ -383,6 +386,91 @@ export class Player {
   // between the gain and the destination when available. `panSpec` may be:
   //  - an object { enum: 'L'|'R'|'C' } or { value: number }
   //  - a raw number or string
+
+  // Schedule retriggered notes if retrigger effect was applied.
+  // The retrigger effect handler stores metadata on the nodes array that we read here.
+  private tryScheduleRetriggers(nodes: any[], freq: number, inst: any, chId: number, token: any, tickSeconds?: number, panVal?: any) {
+    const retrigMeta = (nodes as any).__retrigger;
+    if (!retrigMeta) return;
+
+    const { interval, volumeDelta, tickDuration, start, dur } = retrigMeta;
+    const intervalSec = interval * tickDuration;
+
+    // Schedule retriggered notes at each interval
+    let retrigTime = start + intervalSec;
+    let volMultiplier = 1.0;
+
+    while (retrigTime < start + dur) {
+      // Apply volume delta for fadeout effect
+      if (volumeDelta !== 0) {
+        volMultiplier = Math.max(0, Math.min(1, volMultiplier + (volumeDelta / 15))); // Normalize to 0-1 range
+      }
+
+      // Create modified instrument with adjusted envelope/volume
+      const retrigInst = { ...inst };
+      if (retrigInst.env) {
+        const envParts = String(retrigInst.env).split(',');
+        if (envParts.length > 0) {
+          const envLevel = Math.max(0, Math.min(15, Math.round(parseFloat(envParts[0]) * volMultiplier)));
+          retrigInst.env = `${envLevel},${envParts.slice(1).join(',')}`;
+        }
+      }
+
+      // Calculate remaining duration for this retrig
+      const retrigDur = Math.min(intervalSec, start + dur - retrigTime);
+      const capturedTime = retrigTime;
+      const capturedInst = retrigInst;
+      const capturedToken = token;
+
+      // Schedule the retriggered note
+      if (inst.type && inst.type.toLowerCase().includes('pulse')) {
+        const duty = inst.duty ? parseFloat(inst.duty) / 100 : 0.5;
+        this.scheduler.schedule(capturedTime, () => {
+          if (this.solo !== null && this.solo !== chId) return;
+          if (this.muted.has(chId)) return;
+          const retrigNodes = playPulse(this.ctx, freq, duty, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          // Don't apply retrigger effect recursively, but apply other effects
+          const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
+            const fxType = fx && fx.type ? fx.type : fx;
+            return fxType !== 'retrig';
+          });
+          this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+        });
+      } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
+        const wav = parseWaveTable(inst.wave);
+        this.scheduler.schedule(capturedTime, () => {
+          if (this.solo !== null && this.solo !== chId) return;
+          if (this.muted.has(chId)) return;
+          const retrigNodes = playWavetable(this.ctx, freq, wav, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
+            const fxType = fx && fx.type ? fx.type : fx;
+            return fxType !== 'retrig';
+          });
+          this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+        });
+      } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
+        this.scheduler.schedule(capturedTime, () => {
+          if (this.solo !== null && this.solo !== chId) return;
+          if (this.muted.has(chId)) return;
+          const retrigNodes = playNoise(this.ctx, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
+            const fxType = fx && fx.type ? fx.type : fx;
+            return fxType !== 'retrig';
+          });
+          this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+        });
+      }
+
+      retrigTime += intervalSec;
+    }
+  }
+
   private tryApplyPan(ctx: any, nodes: any[], panSpec: any) {
     if (!panSpec) return;
     let p = undefined as number | undefined;
