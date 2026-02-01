@@ -1,0 +1,64 @@
+## Demo: Retrigger (retrig) effect examples
+## Exercises inline `retrig` parameters and retriggers
+## Play: node bin/beatbax play songs/effects/retrigger.bax
+
+chip gameboy
+bpm 120
+
+## Retrigger effect demo - creates rhythmic stuttering and glitchy effects
+## Syntax: <retrig:interval,volumeDelta>
+##   - interval: ticks between each retrigger (required)
+##   - volumeDelta: volume change per retrigger (optional, e.g., -2 for fadeout)
+##
+## IMPORTANT: Retrigger is WebAudio-only and CANNOT be exported to UGE
+## - hUGETracker has no native retrigger effect (7xx is note delay, not retrigger)
+## - Use --browser flag for playback: npm run play songs/effects/retrigger.bax --browser
+## - UGE exports will lose all retrigger effects
+
+## Instruments
+inst lead  type=pulse1 duty=50 env=15,down
+inst bass  type=pulse2 duty=25 env=12,down
+inst kick  type=noise  env=12,down
+inst snare type=noise  env=10,down
+
+## Basic retrigger - simple stuttering effect
+## Retrigger every 2 ticks (creates rapid-fire effect)
+pat basic = C4<retrig:2>:8 . . .
+
+## Retrigger with volume fadeout - should be audible with down envelope
+## Retrigger every 2 ticks with dramatic volume reduction
+pat fadeout = E4<retrig:2,-3>:8 . . .
+
+## Slower retrigger for rhythmic effects
+## Retrigger every 4 ticks (quarter-note stuttering)
+pat slow = G4<retrig:4>:16 . . .
+
+## Drum roll effect using retrigger
+## Very fast retrigger (every 1 tick) on noise channel
+pat roll = C4<retrig:1>:8 . . .
+
+## Combination with other effects
+## Retrigger with panning for stereo stuttering
+pat stereo_retrig = C5<retrig:2,pan:-1>:8 E5<retrig:2,pan:1>:8
+
+## Glitchy pattern with varying retrigger intervals
+pat glitch = C4<retrig:3>:4 D4<retrig:2>:4 E4<retrig:1>:4 F4<retrig:4>:4
+
+## Long note with subtle retrigger and fadeout
+## Retrigger every 8 ticks with slight volume decay
+pat subtle = G3<retrig:8,-3>:32 . . .
+
+## Fast retriggering for percussive melody
+pat percussive = C7<retrig:1>:4 C7<retrig:1>:4 C7<retrig:1>:4 C7<retrig:1>:4
+
+## Additional patterns used for background
+pat beat = (C7 . . .)*10
+pat rest = (. . . .)*8
+
+## Channels
+channel 1 => inst lead pat basic fadeout slow subtle
+channel 2 => inst bass pat rest glitch
+channel 3 => inst lead pat rest stereo_retrig
+channel 4 => inst kick pat rest beat roll
+
+play

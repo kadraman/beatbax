@@ -182,6 +182,24 @@ await exportUGE(song, 'output.uge');
 
 ## Effects Mapping
 
+### Supported Effects
+
+BeatBax supports the following effects with UGE export:
+
+- **Panning** (`pan`, `gb:pan`) → NR51 terminal bits via `8xx` Set-Panning effect
+- **Vibrato** (`vib`) → `4xy` effect (x=rate, y=depth)
+- **Portamento** (`port`) → `3xx` Tone Portamento effect
+- **Arpeggio** (`arp`) → `0xy` effect (see detailed mapping below)
+- **Volume Slide** (`volSlide`) → `Axy` Volume Slide effect
+- **Note Cut** (`cut`) → `E0x` Note Cut effect
+
+### Unsupported Effects
+
+The following effects are **not supported** in UGE export:
+
+- **Retrigger** (`retrig`) - hUGETracker has no native retrigger effect. When exporting songs containing retrigger effects, a warning will be displayed and the retrigger effects will be omitted from the output. Use WebAudio playback for retrigger support.
+- **Tremolo** (`trem`) - Exported as metadata comment only, not as playable effect
+
 ### Arpeggio (arp) mapping
 
 BeatBax `arp` effect exports to hUGETracker's `0xy` arpeggio effect, cycling through pitch offsets at the Game Boy frame rate (60 Hz).
@@ -193,7 +211,7 @@ BeatBax `arp` effect exports to hUGETracker's `0xy` arpeggio effect, cycling thr
 - **Mapping rule:** First 2 offsets map to x and y nibbles of `0xy` effect code
   - `arp:3,7` → `0x37` (offset +3 in x nibble, +7 in y nibble)
   - `arp:4,7` → `0x47` (major chord)
-- **Limitations:** 
+- **Limitations:**
   - UGE format supports only 2 offsets (3 notes including root)
   - Arpeggios with 3+ offsets (e.g., `arp:4,7,11`) emit a warning and only export first 2
 - **Sustain behavior:** Arpeggio effect applies to note onset row AND all sustain rows for full note duration
