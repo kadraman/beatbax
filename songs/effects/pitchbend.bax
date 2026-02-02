@@ -1,0 +1,62 @@
+## Demo: Pitch bend (pitchbend) effect examples
+## Exercises inline `pitchbend` parameters and pitch bend
+## Play: node bin/beatbax play songs/effects/pitchbend.bax
+
+chip gameboy
+bpm 120
+
+## Instruments for pitch bend demo
+inst lead type=pulse1 duty=50 env=12,flat
+inst bass type=pulse2 duty=25 env=10,flat
+inst pad type=wave wave=[0,3,6,9,12,15,12,9,6,3,0,-3,-6,-9,-12,-15]
+
+## Define effect presets for common pitch bends
+## bend:semitones,curve,delay,time
+## delay: 0 = bend immediately from start
+##        0.5 (default) = bend starts after 50% of note duration
+##        1.0 = bend starts at end (sounds like a slight pitch accent)
+effect riser = bend:+12,exp,0,1
+effect dive = bend:-12,log,0,1
+effect wholetone = bend:+2,linear,0.5
+effect subtle = bend:+0.5,sine,0.5
+
+## Pattern 1: Musical bends (hold note, then bend) - default delay=0.5
+## These sound like guitar bends or horn slides
+pat musical_bends = C4:2 . C4:4 . C4<bend:+2>:4 D4:2 . D4:4 . D4<bend:+2>:4 E4:2 . E4:4 . E4<bend:+4,subtle,1.0>:4 G4<bend:-8, trem:6,4,sine>:8
+
+## Pattern 2: Immediate bends (start from beginning) - delay=0
+## These sound more like chirps or quick pitch sweeps
+pat immediate_bends = C4<bend:+12,exp,0>:16 . E4<bend:+7,exp,0>:8 G4<bend:+5,exp,0>:8
+
+## Pattern 3: Slow start to bend (logarithmic curve, default delay)
+## Holds pitch longer then bends quickly at end
+pat log_bends = C5<bend:-12,log,0.5>:16 . E4<bend:-5,log,0.5>:8 G4<bend:-7,log,0.5>:8
+
+## Pattern 4: Smooth S-curve bends with 25% delay (faster bend start)
+## Bends after 1/4 of note, smoother than immediate
+pat sine_bends = C4<bend:+3,sine,0.25>:8 E4<bend:+3,sine,0.25>:8 G4<bend:-3,sine,0.25>:8 C5<bend:-3,sine,0.25>:8
+
+## Pattern 5: Varied delay values for comparison
+pat delay_demo = C4:8 . C4<bend:+2,linear,0>:8 . C4<bend:+2,linear,0.25>:8 . C4<bend:+2,linear,0.5>:8 . C4<bend:+2,linear,0.75>:8 .
+
+## Pattern 6: Risers and dives using presets
+pat risers = C3<riser>:16 . E3<riser>:16 .
+pat dives = C5<dive>:16 . E5<dive>:16 .
+
+## Pattern 7: Partial bend time (bend for portion of note)
+pat partial_bends = C4<bend:+4,linear,0.25>:8 E4<bend:-2,exp,0.5>:8 G4<bend:+6,sine,1.0>:16
+
+## Pattern 8: Guitar-style bends with different delays
+pat guitar = C4:4 D4<wholetone>:4 E4:4 G4:4 A4<wholetone>:8 . C5<subtle>:4 B4:4 A4:4 G4:4
+
+## Sequences
+seq lead_demo = musical_bends # immediate_bends log_bends sine_bends
+seq guitar_demo = guitar
+seq fx_demo = risers dives #partial_bends
+
+## Channels - uncomment different channels for different effects
+channel 1 => inst lead  seq guitar_demo lead_demo fx_demo
+channel 2 => inst bass  seq guitar_demo:oct(-2)
+#channel 3 => inst pad  seq fx_demo
+
+play

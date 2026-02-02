@@ -13,7 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
-- **Effects system**: Panning, vibrato, portamento, arpeggio, volume slides, tremolo, note cut, and retrigger with UGE/MIDI/WAV export (retrigger WebAudio-only)
+- **Effects system**: Panning, vibrato, portamento, pitch bend, arpeggio, volume slides, tremolo, note cut, and retrigger with UGE/MIDI/WAV export (retrigger WebAudio-only)
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
@@ -64,6 +64,7 @@ play auto repeat
 - `pan` / `gb:pan` - Stereo panning (numeric -1.0 to 1.0 or GB enum L/C/R)
 - `vib` - Vibrato (pitch modulation with depth, rate, waveform)
 - `port` - Portamento (smooth pitch glides)
+- `bend` - Pitch bend (musical pitch bending with delay parameter for hold-then-bend behavior)
 - `arp` - Arpeggio (chord simulation via rapid note cycling)
 - `volSlide` - Volume slides (dynamic volume automation)
 - `trem` - Tremolo (amplitude modulation with depth, rate, waveform)
@@ -73,8 +74,9 @@ play auto repeat
 See `songs/effects/` for detailed examples of each effect.
 
 **Export Notes:**
-- UGE export supports: pan, vib, port, arp, volSlide, cut
+- UGE export supports: pan, vib, port, bend (approximated with portamento), arp, volSlide, cut
 - UGE export does NOT support: retrig (no hUGETracker equivalent), trem (metadata-only)
+- Pitch bend: UGE export approximates bends with `3xx` portamento; warnings issued for non-linear curves and delay parameters
 - Exporting songs with retrigger effects to UGE will display a warning
 
 There are a large number of examples in the [songs](songs\) directory.

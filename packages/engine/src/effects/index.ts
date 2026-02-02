@@ -559,3 +559,261 @@ register('retrig', (ctx: any, nodes: any[], params: any[], start: number, dur: n
     dur,
   };
 });
+
+// Pitch Bend effect: smoothly bend the pitch by a specified number of semitones
+// Parameters:
+//  - params[0]: semitones (required, number of semitones to bend - positive = up, negative = down)
+//  - params[1]: curve (optional, bend curve shape: 'linear', 'exp', 'log', 'sine'. Default: 'linear')
+//  - params[2]: delay (optional, time before bend starts in seconds. Default: 50% of note duration)
+//  - params[3]: time (optional, bend duration in seconds. Default: remaining note duration after delay)
+//
+// Bends the pitch smoothly from the base note frequency to the target pitch.
+// Unlike portamento (which slides between discrete notes), pitch bend can hit
+// any frequency including microtonal intervals.
+//
+// Musical behavior: The note plays at base pitch for 'delay' time, then bends to target.
+// This matches traditional guitar/string bending: play note → hold → bend.
+//
+// Common uses:
+//  - Guitar-style bends: C4<bend:+2> plays C4, holds, then bends up to D4
+//  - Dive bombs and risers (e.g., +12 for octave riser, -12 for dive)
+//  - Subtle expression (e.g., +0.5 for slight sharp)
+//  - Immediate bends: C4<bend:+2,linear,0> bends from start (delay=0)
+//
+// Curve types:
+//  - 'linear' (default): constant rate of pitch change
+//  - 'exp'/'exponential': accelerating bend (slow start, fast end)
+//  - 'log'/'logarithmic': decelerating bend (fast start, slow end)
+//  - 'sine': smooth S-curve (slow-fast-slow)
+//
+// UGE export: Approximated with tone portamento (3xx) or piecewise steps
+// MIDI export: Native pitch wheel events (14-bit resolution, ±2 semitones standard range)
+register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
+  if (!nodes || nodes.length === 0) return;
+  const node = nodes[0];
+  
+  // Detect if this is an oscillator (frequency property) or buffer source (playbackRate property)
+  const hasFrequency = node && node.frequency && typeof node.frequency.setValueAtTime === 'function';
+  const hasPlaybackRate = node && node.playbackRate && typeof node.playbackRate.setValueAtTime === 'function';
+  
+  if (!hasFrequency && !hasPlaybackRate) return;
+
+  if (!params || params.length === 0) return;
+
+  const semitonesRaw = Number(params[0]);
+  if (!Number.isFinite(semitonesRaw)) return;
+  const semitones = semitonesRaw;
+
+  // Parse curve type (default: linear)
+  const curveStr = params.length > 1 && typeof params[1] === 'string' ? String(params[1]).toLowerCase() : 'linear';
+  const curve = ['linear', 'exp', 'exponential', 'log', 'logarithmic', 'sine', 'sin'].includes(curveStr) ? curveStr : 'linear';
+
+  // Parse delay time (default: 50% of note duration for musical bending)
+  const delayRaw = params.length > 2 ? Number(params[2]) : (dur * 0.5);
+  const delay = Number.isFinite(delayRaw) && delayRaw >= 0 ? Math.min(delayRaw, dur) : (dur * 0.5);
+
+  // Parse bend time (default: remaining duration after delay)
+  const bendTimeRaw = params.length > 3 ? Number(params[3]) : (dur - delay);
+  const bendTime = Number.isFinite(bendTimeRaw) && bendTimeRaw > 0 ? Math.min(bendTimeRaw, dur - delay) : (dur - delay);
+
+  // Calculate the pitch bend multiplier: 2^(semitones / 12)
+  const bendMultiplier = Math.pow(2, semitones / 12);
+  
+  try {
+    const bendStart = start + delay;
+    const bendEnd = bendStart + bendTime;
+
+    if (hasFrequency) {
+      // Oscillator path (pulse1, pulse2, noise)
+      const osc = node;
+      
+      // Get the base frequency
+      let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
+      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
+
+      const targetFreq = baseFreq * bendMultiplier;
+      const safeTargetFreq = Math.max(20, Math.min(20000, targetFreq));
+
+      // Cancel any existing frequency automation
+      osc.frequency.cancelScheduledValues(start);
+      // Set starting frequency (hold at base pitch)
+      osc.frequency.setValueAtTime(baseFreq, start);
+
+      // Hold base frequency during delay period
+      if (delay > 0) {
+        osc.frequency.setValueAtTime(baseFreq, bendStart);
+      }
+
+      // Apply pitch bend based on curve type (starts after delay)
+      // Use smooth automation curves to avoid audible steps
+      if (curve === 'exp' || curve === 'exponential') {
+        const safeBase = Math.max(20, baseFreq);
+        const safeTarget = Math.max(20, safeTargetFreq);
+        osc.frequency.exponentialRampToValueAtTime(safeTarget, bendEnd);
+
+      } else if (curve === 'log' || curve === 'logarithmic') {
+        // Use setValueCurveAtTime for smooth logarithmic curve
+        const samples = 128;
+        const curveData = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const t = i / (samples - 1);
+          const logT = 1 - Math.pow(1 - t, 2);
+          const freq = baseFreq * Math.pow(2, (semitones * logT) / 12);
+          curveData[i] = Math.max(20, Math.min(20000, freq));
+        }
+        try {
+          osc.frequency.setValueCurveAtTime(curveData, bendStart, bendTime);
+        } catch (e) {
+          // Fallback: use many small linear ramps
+          const steps = 64;
+          const stepDur = bendTime / steps;
+          for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const logT = 1 - Math.pow(1 - t, 2);
+            const freq = baseFreq * Math.pow(2, (semitones * logT) / 12);
+            const safeFreq = Math.max(20, Math.min(20000, freq));
+            osc.frequency.linearRampToValueAtTime(safeFreq, bendStart + (i * stepDur));
+          }
+        }
+
+      } else if (curve === 'sine' || curve === 'sin') {
+        // Use setValueCurveAtTime for smooth sine curve
+        const samples = 128;
+        const curveData = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const t = i / (samples - 1);
+          const sineT = (1 - Math.cos(Math.PI * t)) / 2;
+          const freq = baseFreq * Math.pow(2, (semitones * sineT) / 12);
+          curveData[i] = Math.max(20, Math.min(20000, freq));
+        }
+        try {
+          osc.frequency.setValueCurveAtTime(curveData, bendStart, bendTime);
+        } catch (e) {
+          // Fallback: use many small linear ramps
+          const steps = 64;
+          const stepDur = bendTime / steps;
+          for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const sineT = (1 - Math.cos(Math.PI * t)) / 2;
+            const freq = baseFreq * Math.pow(2, (semitones * sineT) / 12);
+            const safeFreq = Math.max(20, Math.min(20000, freq));
+            osc.frequency.linearRampToValueAtTime(safeFreq, bendStart + (i * stepDur));
+          }
+        }
+
+      } else {
+        // Linear curve (default)
+        // Linear curve (default)
+        osc.frequency.linearRampToValueAtTime(safeTargetFreq, bendEnd);
+      }
+
+      // Hold target frequency for remainder of note
+      if (bendEnd < start + dur) {
+        osc.frequency.setValueAtTime(safeTargetFreq, bendEnd);
+      }
+
+    } else if (hasPlaybackRate) {
+      // Buffer source path (wave channel)
+      const src = node;
+      
+      // Get the base playback rate
+      let baseRate = src.playbackRate.value;
+      if (!Number.isFinite(baseRate) || baseRate <= 0) baseRate = 1;
+
+      const targetRate = baseRate * bendMultiplier;
+      const safeTargetRate = Math.max(0.1, Math.min(10, targetRate));
+
+      // Cancel any existing playback rate automation
+      try {
+        src.playbackRate.cancelScheduledValues(start);
+      } catch (e) {
+        // Some contexts don't support cancelScheduledValues
+      }
+      
+      // Set starting playback rate (hold at base pitch)
+      src.playbackRate.setValueAtTime(baseRate, start);
+
+      // Hold base playback rate during delay period
+      if (delay > 0) {
+        src.playbackRate.setValueAtTime(baseRate, bendStart);
+      }
+
+      // Apply pitch bend based on curve type (starts after delay)
+      // For buffer sources, use setValueCurveAtTime for truly smooth automation
+      if (curve === 'exp' || curve === 'exponential') {
+        // Generate exponential curve samples
+        const samples = 128;
+        const curveData = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const t = i / (samples - 1);
+          const expT = t * t; // Exponential curve
+          const rate = baseRate * Math.pow(2, (semitones * expT) / 12);
+          curveData[i] = Math.max(0.1, Math.min(10, rate));
+        }
+        try {
+          src.playbackRate.setValueCurveAtTime(curveData, bendStart, bendTime);
+        } catch (e) {
+          // Fallback to exponential ramp
+          const safeBase = Math.max(0.1, baseRate);
+          const safeTarget = Math.max(0.1, safeTargetRate);
+          try {
+            src.playbackRate.exponentialRampToValueAtTime(safeTarget, bendEnd);
+          } catch (e2) {
+            // Last resort: linear ramp
+            src.playbackRate.linearRampToValueAtTime(safeTargetRate, bendEnd);
+          }
+        }
+
+      } else if (curve === 'log' || curve === 'logarithmic') {
+        // Generate logarithmic curve samples
+        const samples = 128;
+        const curveData = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const t = i / (samples - 1);
+          const logT = 1 - Math.pow(1 - t, 2); // Logarithmic curve
+          const rate = baseRate * Math.pow(2, (semitones * logT) / 12);
+          curveData[i] = Math.max(0.1, Math.min(10, rate));
+        }
+        try {
+          src.playbackRate.setValueCurveAtTime(curveData, bendStart, bendTime);
+        } catch (e) {
+          // Fallback to linear ramp
+          src.playbackRate.linearRampToValueAtTime(safeTargetRate, bendEnd);
+        }
+
+      } else if (curve === 'sine' || curve === 'sin') {
+        // Generate sine curve samples
+        const samples = 128;
+        const curveData = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const t = i / (samples - 1);
+          const sineT = (1 - Math.cos(Math.PI * t)) / 2; // Sine curve
+          const rate = baseRate * Math.pow(2, (semitones * sineT) / 12);
+          curveData[i] = Math.max(0.1, Math.min(10, rate));
+        }
+        try {
+          src.playbackRate.setValueCurveAtTime(curveData, bendStart, bendTime);
+        } catch (e) {
+          // Fallback to linear ramp
+          src.playbackRate.linearRampToValueAtTime(safeTargetRate, bendEnd);
+        }
+
+      } else {
+        // Linear curve (default)
+        src.playbackRate.linearRampToValueAtTime(safeTargetRate, bendEnd);
+      }
+
+      // Hold target playback rate for remainder of note
+      if (bendEnd < start + dur) {
+        try {
+          src.playbackRate.setValueAtTime(safeTargetRate, bendEnd);
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    }
+
+  } catch (e) {
+    // Best effort - skip pitch bend if automation fails
+  }
+});

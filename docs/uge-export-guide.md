@@ -189,6 +189,7 @@ BeatBax supports the following effects with UGE export:
 - **Panning** (`pan`, `gb:pan`) → NR51 terminal bits via `8xx` Set-Panning effect
 - **Vibrato** (`vib`) → `4xy` effect (x=rate, y=depth)
 - **Portamento** (`port`) → `3xx` Tone Portamento effect
+- **Pitch Bend** (`bend`) → `3xx` Tone Portamento effect (approximation with warnings)
 - **Arpeggio** (`arp`) → `0xy` effect (see detailed mapping below)
 - **Volume Slide** (`volSlide`) → `Axy` Volume Slide effect
 - **Note Cut** (`cut`) → `E0x` Note Cut effect
@@ -225,6 +226,51 @@ effect arpMajor7 = arp:4,7,11  # Warning: only 4,7 exported to UGE
 
 pat chords = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMinor>:4
 ```
+
+### Pitch Bend (bend) mapping
+
+BeatBax `bend` effect exports to hUGETracker's `3xx` tone portamento effect. Since hUGETracker doesn't support high-resolution pitch bends or delay parameters, the export process approximates bends with the following limitations:
+
+- **Syntax:** `<bend:semitones,curve,delay,time>` in BeatBax
+  - `semitones`: Number of semitones to bend (positive = up, negative = down)
+  - `curve`: Bend curve shape (`linear`, `exp`, `log`, `sine`) - **only `linear` approximates well in UGE**
+  - `delay`: Fraction of note duration before bend starts (default 0.5) - **not supported in UGE**
+  - `time`: Bend duration in seconds - **not supported in UGE, uses full note duration**
+
+- **Mapping to `3xx` effect:**
+  - Effect code: `3` (tone portamento)
+  - Speed value (`xx`): Calculated based on semitone distance:
+    - ≤1 semitone: `32` (slowest, most musical for small bends)
+    - ≤2 semitones: `48` (whole-tone intervals)
+    - ≤5 semitones: `64` (fourth/tritone intervals)
+    - ≤7 semitones: `96` (fifth intervals)
+    - >7 semitones: `128` (octave+ intervals, fastest)
+  - Formula: hUGETracker portamento duration = `(256 - speed) / 256 × noteDuration × 0.6`
+  - Higher speed values = faster portamento (inverse relationship)
+
+- **Export warnings issued for:**
+  - Non-linear curves (`exp`, `log`, `sine`) - UGE only supports linear portamento
+  - Delay values other than `0.0` or `0.5` - partial note timing not supported in UGE format
+  - These warnings don't prevent export but indicate fidelity loss
+
+- **Priority:** 11 (between standard portamento and vibrato in conflict resolution)
+- **Implementation:** See `packages/engine/src/export/ugeWriter.ts` (PitchBendHandler)
+
+Example:
+```bax
+effect wholetone = bend:+2,linear,0.5  # Guitar-style whole-tone bend
+effect dive = bend:-12,log,0           # Octave dive (WARNING: log curve not supported)
+
+pat melody = C4<wholetone>:4 F4 G4<dive>:2
+```
+
+UGE export output:
+```
+⚠ Warning: Pitch bend effect uses non-linear curve 'log', UGE portamento is always linear
+⚠ Warning: Pitch bend effect has delay parameter (0.0), UGE portamento bends across full note
+```
+
+**Recommendation:** For best results in UGE export, use linear curves (`bend:+2,linear`) and stick to delay values of `0` or `0.5`. For complex bends, use WebAudio or MIDI export instead.
 
 ### Noise Channel Note Mapping
 
