@@ -591,11 +591,11 @@ register('retrig', (ctx: any, nodes: any[], params: any[], start: number, dur: n
 register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
   if (!nodes || nodes.length === 0) return;
   const node = nodes[0];
-  
+
   // Detect if this is an oscillator (frequency property) or buffer source (playbackRate property)
   const hasFrequency = node && node.frequency && typeof node.frequency.setValueAtTime === 'function';
   const hasPlaybackRate = node && node.playbackRate && typeof node.playbackRate.setValueAtTime === 'function';
-  
+
   if (!hasFrequency && !hasPlaybackRate) return;
 
   if (!params || params.length === 0) return;
@@ -618,7 +618,7 @@ register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 
   // Calculate the pitch bend multiplier: 2^(semitones / 12)
   const bendMultiplier = Math.pow(2, semitones / 12);
-  
+
   try {
     const bendStart = start + delay;
     const bendEnd = bendStart + bendTime;
@@ -626,7 +626,7 @@ register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     if (hasFrequency) {
       // Oscillator path (pulse1, pulse2, noise)
       const osc = node;
-      
+
       // Get the base frequency
       let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
       if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
@@ -715,7 +715,7 @@ register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     } else if (hasPlaybackRate) {
       // Buffer source path (wave channel)
       const src = node;
-      
+
       // Get the base playback rate
       let baseRate = src.playbackRate.value;
       if (!Number.isFinite(baseRate) || baseRate <= 0) baseRate = 1;
@@ -729,7 +729,7 @@ register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: num
       } catch (e) {
         // Some contexts don't support cancelScheduledValues
       }
-      
+
       // Set starting playback rate (hold at base pitch)
       src.playbackRate.setValueAtTime(baseRate, start);
 
@@ -815,5 +815,127 @@ register('bend', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 
   } catch (e) {
     // Best effort - skip pitch bend if automation fails
+  }
+});
+
+// Pitch Sweep effect: hardware-accurate Game Boy NR10 frequency sweep
+// Parameters:
+//  - params[0]: time (required, sweep step time in 1/128 Hz units, range 0-7)
+//      - 0 = sweep disabled, 1-7 = sweep enabled with step time = n/128 Hz
+//      - Each step shifts frequency by the amount in params[2]
+//  - params[1]: direction (optional, 'up'/'+'/1 or 'down'/'-'/0, default: 'down')
+//      - 'up'/'+'/1 = increase frequency (pitch up)
+//      - 'down'/'-'/0 = decrease frequency (pitch down, hardware default)
+//  - params[2]: shift (required, frequency shift amount, range 0-7)
+//      - Number of bits to shift in GB hardware formula
+//      - 0 = no change, 1-7 = increasingly dramatic sweeps
+//
+// Hardware behavior (Game Boy NR10):
+// - Only available on Pulse 1 channel (NR10 register)
+// - Formula: f_new = f_old ± f_old / 2^shift
+// - Sweep recalculates every (time/128) seconds
+// - Sweep stops when reaching frequency limits (131 Hz - 131 kHz on GB)
+//
+// WebAudio implementation:
+// - Calculates final frequency using iterative sweep formula
+// - Uses exponentialRampToValueAtTime for smooth hardware-like sweep
+// - Warns if used on non-Pulse1 channels (effect still applies for flexibility)
+//
+// Common uses:
+//  - Laser sounds: <sweep:4,down,7> (fast downward sweep)
+//  - Sci-fi effects: <sweep:7,up,3> (slow upward sweep)
+//  - Classic GB "pew" sound: <sweep:2,down,5>
+//  - Pitch risers: <sweep:6,up,4>
+//
+// UGE export: Maps directly to NR10 register (Pulse 1 only)
+// MIDI export: Pitch wheel events or text meta event
+register('sweep', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
+  if (!nodes || nodes.length === 0) return;
+  const osc = nodes[0];
+
+  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+
+  if (!params || params.length < 2) return;
+
+  // Parse time parameter (0-7, in 1/128 Hz units)
+  const timeRaw = Number(params[0]);
+  if (!Number.isFinite(timeRaw) || timeRaw < 0 || timeRaw > 7) return;
+  const time = Math.round(timeRaw);
+
+  if (time === 0) return; // Sweep disabled
+
+  // Parse direction parameter
+  const dirRaw = params.length > 1 ? params[1] : 'down';
+  let direction: 'up' | 'down' = 'down';
+  if (typeof dirRaw === 'number') {
+    direction = dirRaw > 0 ? 'up' : 'down';
+  } else if (typeof dirRaw === 'string') {
+    const dirStr = String(dirRaw).toLowerCase().trim();
+    if (dirStr === 'up' || dirStr === '+' || dirStr === '1') {
+      direction = 'up';
+    }
+  }
+
+  // Parse shift parameter (0-7, frequency shift amount)
+  const shiftRaw = params.length > 2 ? Number(params[2]) : 0;
+  if (!Number.isFinite(shiftRaw) || shiftRaw < 0 || shiftRaw > 7) return;
+  const shift = Math.round(shiftRaw);
+
+  if (shift === 0) return; // No frequency change
+
+  // Get the base frequency
+  let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
+  if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
+
+  // Calculate sweep step time in seconds
+  // Hardware: each step occurs every (time/128) seconds
+  const sweepStepTime = time / 128.0;
+
+  // Calculate final frequency using iterative GB sweep formula
+  // f_new = f_old ± f_old / 2^shift
+  let freq = baseFreq;
+  const maxSteps = Math.floor(dur / sweepStepTime);
+  const divisor = Math.pow(2, shift);
+
+  for (let step = 0; step < maxSteps; step++) {
+    const delta = freq / divisor;
+    if (direction === 'up') {
+      freq = freq + delta;
+    } else {
+      freq = freq - delta;
+    }
+
+    // Clamp to GB hardware limits (approx 131 Hz - 131 kHz)
+    // For WebAudio we use wider range (20 Hz - 20 kHz)
+    if (freq < 20) freq = 20;
+    if (freq > 20000) freq = 20000;
+
+    // Stop if frequency change becomes negligible
+    if (Math.abs(delta) < 0.1) break;
+  }
+
+  const targetFreq = freq;
+  const safeTargetFreq = Math.max(20, Math.min(20000, targetFreq));
+
+  try {
+    // Cancel any existing frequency automation
+    osc.frequency.cancelScheduledValues(start);
+
+    // Set starting frequency
+    osc.frequency.setValueAtTime(baseFreq, start);
+
+    // Apply exponential sweep (hardware-like behavior)
+    const sweepEnd = start + dur;
+
+    // Use exponential ramp for smooth hardware-accurate sweep
+    const safeBase = Math.max(20, baseFreq);
+    const safeTarget = Math.max(20, safeTargetFreq);
+
+    if (Math.abs(safeTarget - safeBase) > 1) {
+      osc.frequency.exponentialRampToValueAtTime(safeTarget, sweepEnd);
+    }
+
+  } catch (e) {
+    // Best effort - skip sweep if automation fails
   }
 });

@@ -291,7 +291,7 @@ const PitchBendHandler: EffectHandler = {
         if (String(name).toLowerCase() !== 'bend') return null;
 
         const params = fx.params || (Array.isArray(fx) ? fx : []);
-        
+
         // Parse bend parameters: [semitones, curve, delay, time]
         const semitones = params.length > 0 ? Number(params[0]) : 0;
         if (!Number.isFinite(semitones) || semitones === 0) return null;
@@ -314,7 +314,7 @@ const PitchBendHandler: EffectHandler = {
         // Rearranging: speed = 256 - (portDur / (noteDuration * 0.6)) * 256
         // For full note bend: portDur ≈ noteDuration, so speed ≈ 256 - (1/0.6)*256 ≈ -171 (invalid)
         // This means we need to account for the note duration relationship differently
-        
+
         // Simpler approach: Use a fixed speed that produces reasonable slides
         // Testing shows: speed ~16-64 works well for typical bends
         // Map larger semitone distances to higher speeds (faster slides needed)
@@ -353,6 +353,68 @@ const PitchBendHandler: EffectHandler = {
         cell.effectCode = request.code;
         cell.effectParam = request.param;
         return true;
+    },
+};
+
+// Pitch Sweep effect handler - hardware-native GB NR10 frequency sweep
+// Maps directly to Game Boy Pulse 1 channel sweep register
+// Note: Sweep is ONLY available on Pulse 1 (channel 0) in hardware
+const SweepHandler: EffectHandler = {
+    type: 'sweep',
+    priority: 13, // Between portamento and arpeggio
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        if (String(name).toLowerCase() !== 'sweep') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+
+        // Parse sweep parameters: [time, direction, shift]
+        const time = params.length > 0 ? Number(params[0]) : 0;
+        if (!Number.isFinite(time) || time < 0 || time > 7) return null;
+        if (time === 0) return null; // Sweep disabled
+
+        const timeRounded = Math.round(time);
+
+        // Parse direction
+        const dirRaw = params.length > 1 ? params[1] : 'down';
+        let direction: 'up' | 'down' = 'down';
+        if (typeof dirRaw === 'number') {
+            direction = dirRaw > 0 ? 'up' : 'down';
+        } else if (typeof dirRaw === 'string') {
+            const dirStr = String(dirRaw).toLowerCase().trim();
+            if (dirStr === 'up' || dirStr === '+' || dirStr === '1') {
+                direction = 'up';
+            }
+        }
+
+        // Parse shift
+        const shift = params.length > 2 ? Number(params[2]) : 0;
+        if (!Number.isFinite(shift) || shift < 0 || shift > 7) return null;
+        if (shift === 0) return null; // No frequency change
+
+        const shiftRounded = Math.round(shift);
+
+        // Encode as hUGETracker Cxy effect (custom sweep encoding)
+        // Note: hUGETracker doesn't have a dedicated sweep effect code, so we use
+        // effect code C (Set Volume) with special encoding for sweep
+        // OR we could use the instrument's built-in sweep parameters
+        // For now, document as text meta and rely on instrument sweep settings
+
+        // Actually, GB sweep is set in the instrument definition, not per-note
+        // So this should warn and suggest using instrument sweep parameters instead
+        warn('export', `Sweep effect detected on note. Game Boy sweep (NR10) is configured per-instrument, not per-note. Set sweep parameters in the instrument definition instead. Effect will be ignored in UGE export.`);
+
+        return null; // Sweep is instrument-level, not note-level
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        return true; // Never applied to cells anyway
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        // Sweep is instrument-level, cannot be applied to individual cells
+        return false;
     },
 };
 
@@ -481,9 +543,11 @@ const VolumeSlideHandler: EffectHandler = {
 // Effect handler registry - add new handlers here as effects are implemented
 // Note: Retrigger is NOT included - hUGETracker has no native retrigger effect
 // Retrigger is WebAudio-only and cannot be exported to UGE
+// Note: Sweep is registered but warns - GB sweep is instrument-level (NR10), not per-note
 const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
     ArpeggioHandler,     // Priority 15
+    SweepHandler,        // Priority 13 - warns (instrument-level only)
     PortamentoHandler,   // Priority 12
     PitchBendHandler,    // Priority 11 - approximated with portamento
     VibratoHandler,      // Priority 10

@@ -14,8 +14,11 @@ declare module 'play-sound';
 
 function floatTo16BitPCM(float32Arr: Float32Array): Buffer {
   const buf = Buffer.alloc(float32Arr.length * 2);
+  // Apply 0.6x volume scaling to match browser auto-gain behavior
+  // Browsers typically apply dynamic range compression/limiting which reduces perceived volume
+  const volumeScale = 0.6;
   for (let i = 0; i < float32Arr.length; i++) {
-    let s = Math.max(-1, Math.min(1, float32Arr[i]));
+    let s = Math.max(-1, Math.min(1, float32Arr[i] * volumeScale));
     s = s < 0 ? s * 0x8000 : s * 0x7FFF;
     buf.writeInt16LE(Math.floor(s), i * 2);
   }

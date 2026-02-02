@@ -1,0 +1,79 @@
+## Demo: Pitch sweep effect examples
+## Shows hardware-accurate Game Boy NR10 frequency sweep
+## Play: node bin/beatbax play songs/effects/sweep.bax
+
+chip gameboy
+bpm 120
+
+## Instruments with sweep for authentic GB sound
+## sweep:time,direction,shift where:
+##   time: 0-7 (sweep step time in 1/128 Hz units, 0=disabled)
+##   direction: 'up'/'+'/ 1 or 'down'/'-'/0
+##   shift: 0-7 (frequency shift amount, higher=more dramatic)
+
+## Classic laser/sci-fi sounds (flat envelope lets you hear the full sweep)
+inst laser1 type=pulse1 duty=50 env=15,flat sweep=4,down,7
+inst laser2 type=pulse1 duty=25 env=14,flat sweep=2,down,5
+inst laser3 type=pulse1 duty=12 env=15,flat sweep=6,down,6
+
+## Sweep up effects (risers)
+inst riser1 type=pulse1 duty=50 env=15,flat sweep=7,up,3
+inst riser2 type=pulse1 duty=25 env=14,flat sweep=5,up,4
+inst riser3 type=pulse1 duty=50 env=13,flat sweep=6,up,2
+
+## Subtle sweep for musical expression
+inst lead_sweep type=pulse1 duty=50 env=12,down,1 sweep=3,down,2
+## Bass accompaniment with rapid retriggering for dramatic effect
+inst bass_sweep type=pulse2 duty=25 env=15,down,1
+
+## Define effect presets for inline sweep
+## Note: Inline sweep effects work but GB hardware sweep is instrument-level
+## Using inline effects is good for WebAudio/MIDI, but UGE export will warn
+effect fast_down = sweep:2,down,7
+effect slow_up = sweep:7,up,3
+effect laser = sweep:4,down,6
+
+## Pattern 1: Classic laser sounds (using instrument sweep)
+## These use the instrument's built-in sweep parameters
+## Longer notes let you hear the full sweep effect
+pat lasers = C5:8 . E5:8 . G5:8 . C6:8 .
+
+## Pattern for bass: rapid repeated notes to complement sweep
+## Creates a continuous "machine gun" effect during laser sweep
+pat bass_rapid = C3:2 C3:2 C3:2 C3:2 E3:2 E3:2 E3:2 E3:2 G3:2 G3:2 G3:2 G3:2 C4:2 C4:2 C4:2 C4:2
+
+## Pattern 2: Sweep up risers (pitch rising effects)
+pat risers = C3:8 . E3:8 . G3:8 . C4:8 .
+
+## Pattern 3: Inline sweep effects (works in WebAudio/MIDI)
+## Note: These will warn in UGE export since GB sweep is instrument-level
+pat inline_sweep = C4<sweep:4,down,7>:8 E4<sweep:2,down,5>:8 G4<sweep:6,up,3>:8 C5<sweep:7,up,4>:8
+
+## Pattern 4: Musical sweep for lead melody
+## Subtle downward sweep adds character to sustained notes
+pat melody = C5:8 E5:4 G5:4 A5:8 . G5:4 E5:4 C5:16 .
+
+## Pattern 5: Fast laser barrage
+pat laser_barrage = C6:2 . C6:2 . C6:2 . C6:2 . C5:2 . C5:2 . C5:2 . C5:2 .
+
+## Pattern 6: Sweep comparison demo
+pat sweep_demo = C4:16 . C4:16 . C4:16 .
+
+## Pattern 7: Combined with other effects
+pat combo = C4<sweep:4,down,7,vib:4,6>:16 E4<sweep:6,up,3,trem:8,4>:16
+
+## Sequences
+seq laser_seq = lasers laser_barrage
+seq bass_seq = bass_rapid laser_barrage:oct(-2)
+seq riser_seq = risers
+seq melody_seq = melody
+seq demo_seq = sweep_demo inline_sweep
+
+## Channels
+## Channel 1 (Pulse 1) - only channel with hardware sweep support
+channel 1 => inst laser1  seq laser_seq
+channel 2 => inst bass_sweep  seq bass_seq
+#channel 1 => inst riser1  seq riser_seq
+#channel 1 => inst lead_sweep  seq melody_seq
+
+play
