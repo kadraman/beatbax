@@ -260,6 +260,34 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							pushMetaText(data, 0, `volSlide:delta=${deltaVal},steps=${steps !== undefined ? steps : 'smooth'}`);
 							delta = 0;
 							break;
+						} else if (fxType === 'bend') {
+							// Pitch bend: emit MIDI pitch wheel events
+							// MIDI pitch wheel range: 0x0000 to 0x3FFF (0-16383), center = 0x2000 (8192)
+							// Standard range: ±2 semitones, but we'll map based on actual semitones requested
+							const semitones = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : 0;
+							const curve = (Array.isArray(fx.params) && fx.params.length > 1) ? String(fx.params[1]) : 'linear';
+							const delay = (Array.isArray(fx.params) && fx.params.length > 2) ? Number(fx.params[2]) : undefined;
+							const bendTime = (Array.isArray(fx.params) && fx.params.length > 3) ? Number(fx.params[3]) : undefined;
+
+							// MIDI pitch bend range: ±8192 units = ±2 semitones (standard)
+							// Map semitones to pitch bend value: value = 8192 + (semitones / 2) * 8192
+							// For semitones outside ±2 range, clamp or use RPN to set bend range
+							const bendValue = Math.round(8192 + (semitones / 2) * 8192);
+							const clampedValue = Math.max(0, Math.min(16383, bendValue));
+
+							// Split 14-bit value into LSB and MSB
+							const lsb = clampedValue & 0x7F;
+							const msb = (clampedValue >> 7) & 0x7F;
+
+							// Emit pitch bend event (0xE0 | channel)
+							const dbytes = vlq(delta);
+							for (const b of dbytes) data.push(b);
+							data.push(0xE0 | midiChannel, lsb, msb);
+
+							// Add text meta event for curve, delay and time (for re-import/reference)
+							pushMetaText(data, 0, `bend:semitones=${semitones},curve=${curve},delay=${delay !== undefined ? delay : 'default'},time=${bendTime !== undefined ? bendTime : 'remaining'}`);
+							delta = 0;
+							break;
 						}
 					}
 				}

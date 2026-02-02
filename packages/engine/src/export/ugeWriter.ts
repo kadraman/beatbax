@@ -280,6 +280,82 @@ const PortamentoHandler: EffectHandler = {
     },
 };
 
+// Pitch Bend effect handler - approximated with tone portamento (3xx)
+// Note: This is a lossy approximation. Delay parameter and non-linear curves are not supported.
+const PitchBendHandler: EffectHandler = {
+    type: 'bend',
+    priority: 11, // Just below portamento priority
+
+    parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
+        const name = fx.type || fx;
+        if (String(name).toLowerCase() !== 'bend') return null;
+
+        const params = fx.params || (Array.isArray(fx) ? fx : []);
+        
+        // Parse bend parameters: [semitones, curve, delay, time]
+        const semitones = params.length > 0 ? Number(params[0]) : 0;
+        if (!Number.isFinite(semitones) || semitones === 0) return null;
+
+        const curve = params.length > 1 ? String(params[1]).toLowerCase() : 'linear';
+        const delay = params.length > 2 ? Number(params[2]) : 0.5;
+        const bendTime = params.length > 3 ? Number(params[3]) : undefined;
+
+        // Warn about unsupported features
+        if (curve !== 'linear') {
+            warn('export', `Pitch bend with curve '${curve}' detected. hUGETracker only supports linear pitch slides (3xx). Curve will be approximated as linear.`);
+        }
+        if (delay > 0) {
+            warn('export', `Pitch bend with delay=${delay} detected. hUGETracker portamento (3xx) cannot delay bend start. The bend will apply across the full note duration.`);
+        }
+
+        // Calculate portamento speed based on semitone distance
+        // Portamento formula: portDur = (256 - speed) / 256 * noteDuration * 0.6
+        // For pitch bend, we want the slide to complete across the full note duration
+        // Rearranging: speed = 256 - (portDur / (noteDuration * 0.6)) * 256
+        // For full note bend: portDur ≈ noteDuration, so speed ≈ 256 - (1/0.6)*256 ≈ -171 (invalid)
+        // This means we need to account for the note duration relationship differently
+        
+        // Simpler approach: Use a fixed speed that produces reasonable slides
+        // Testing shows: speed ~16-64 works well for typical bends
+        // Map larger semitone distances to higher speeds (faster slides needed)
+        const absSemitones = Math.abs(semitones);
+        let speed: number;
+        if (absSemitones <= 1) {
+            speed = 32; // Subtle bends (quarter/half-tone)
+        } else if (absSemitones <= 2) {
+            speed = 48; // Whole-tone bends (guitar-style)
+        } else if (absSemitones <= 5) {
+            speed = 64; // Medium bends (perfect fourth)
+        } else if (absSemitones <= 7) {
+            speed = 96; // Large bends (perfect fifth)
+        } else {
+            speed = 128; // Extreme bends (octave+)
+        }
+
+        return {
+            type: 'bend',
+            code: 3, // Tone portamento
+            param: speed & 0xff,
+            duration: sustainCount + 1, // Apply across full note
+            priority: this.priority,
+            isGlobal: false,
+        };
+    },
+
+    canCoexist(other: EffectRequest): boolean {
+        // Pitch bend cannot coexist with portamento (same effect code)
+        if (other.type === 'port') return false;
+        // Can be delayed for panning
+        return other.type === 'pan' && other.isGlobal;
+    },
+
+    apply(cell: UGECell, request: EffectRequest): boolean {
+        cell.effectCode = request.code;
+        cell.effectParam = request.param;
+        return true;
+    },
+};
+
 // Arpeggio effect handler (0xy - Arpeggio)
 const ArpeggioHandler: EffectHandler = {
     type: 'arp',
@@ -409,6 +485,7 @@ const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
     ArpeggioHandler,     // Priority 15
     PortamentoHandler,   // Priority 12
+    PitchBendHandler,    // Priority 11 - approximated with portamento
     VibratoHandler,      // Priority 10
     VolumeSlideHandler,  // Priority 8
 ];

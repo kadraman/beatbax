@@ -484,6 +484,11 @@ function renderPulse(
   let portDurationSec: number | undefined = undefined;
   // Arpeggio params - semitone offsets
   let arpOffsets: number[] = [];
+  // Pitch bend params
+  let bendSemitones = 0;
+  let bendCurve = 'linear';
+  let bendDelay = 0;
+  let bendTime = 0;
   // Volume slide params
   let volDelta = 0;
   let volSteps: number | undefined = undefined;
@@ -535,6 +540,22 @@ function renderPulse(
           arpOffsets = p
             .map((x: any) => Number(x))
             .filter((n: number) => Number.isFinite(n) && n >= 0);
+        } else if (fx && fx.type === 'bend') {
+          const p = fx.params || [];
+          bendSemitones = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          if (Number.isFinite(bendSemitones)) {
+            bendCurve = typeof p[1] !== 'undefined' ? String(p[1]).toLowerCase() : 'linear';
+            // params[2] is delay (default: 50% of note)
+            bendDelay = typeof p[2] !== 'undefined' ? Number(p[2]) : (durSec * 0.5);
+            if (!Number.isFinite(bendDelay) || bendDelay < 0) bendDelay = durSec * 0.5;
+            bendDelay = Math.min(bendDelay, durSec);
+            // params[3] is bend time (default: remaining time after delay)
+            bendTime = typeof p[3] !== 'undefined' ? Number(p[3]) : (durSec - bendDelay);
+            if (!Number.isFinite(bendTime) || bendTime <= 0) bendTime = durSec - bendDelay;
+            bendTime = Math.min(bendTime, durSec - bendDelay);
+          } else {
+            bendSemitones = 0;
+          }
         } else if (fx && fx.type === 'volSlide') {
           const p = fx.params || [];
           volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
@@ -653,6 +674,32 @@ function renderPulse(
       const semitoneOffset = allOffsets[offsetIndex % allOffsets.length] || 0;
       // Apply frequency shift: freq * 2^(semitones / 12)
       effFreq = effFreq * Math.pow(2, semitoneOffset / 12);
+    }
+
+    // Apply pitch bend - smooth pitch bend over time with curve shaping
+    // Holds base pitch during delay period, then bends to target
+    if (bendSemitones !== 0 && bendTime > 0 && effFreq > 0) {
+      if (t >= bendDelay && t <= (bendDelay + bendTime)) {
+        // Calculate progress within the bend period (0 to 1)
+        let bendProgress = Math.min(1, (t - bendDelay) / bendTime);
+
+        // Apply curve shaping
+        if (bendCurve === 'exp' || bendCurve === 'exponential') {
+          // Exponential: slow start, fast end (y = x^2)
+          bendProgress = bendProgress * bendProgress;
+        } else if (bendCurve === 'log' || bendCurve === 'logarithmic') {
+          // Logarithmic: fast start, slow end (y = 1 - (1 - x)^2)
+          bendProgress = 1 - Math.pow(1 - bendProgress, 2);
+        } else if (bendCurve === 'sine' || bendCurve === 'sin') {
+          // Sine: smooth S-curve (y = (1 - cos(π * x)) / 2)
+          bendProgress = (1 - Math.cos(Math.PI * bendProgress)) / 2;
+        }
+        // else: linear (default) - no transformation
+
+        // Calculate bend frequency: freq * 2^(semitones * progress / 12)
+        const bendMultiplier = Math.pow(2, (bendSemitones * bendProgress) / 12);
+        effFreq = effFreq * bendMultiplier;
+      }
     }
 
     // Simple, efficient band-limited pulse wave synthesis using naive square wave
@@ -831,9 +878,18 @@ function renderWave(
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
+  // Pitch bend params
+  let bendSemitones = 0;
+  let bendCurve = 'linear';
+  let bendDelay = 0;
+  let bendTime = 0;
   // Volume slide params
   let volDelta = 0;
   let volSteps: number | undefined = undefined;
+
+  // Calculate duration in seconds (needed for bend time calculation)
+  const durSec = duration / sampleRate;
+
   if (Array.isArray(effects)) {
     for (const fx of effects) {
       try {
@@ -867,6 +923,25 @@ function renderWave(
             const durRows = Number(p[3]);
             if (!Number.isNaN(durRows)) tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
           }
+        } else if (fx && fx.type === 'bend') {
+          const p = fx.params || [];
+          bendSemitones = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          if (Number.isFinite(bendSemitones)) {
+            bendCurve = typeof p[1] !== 'undefined' ? String(p[1]).toLowerCase() : 'linear';
+            // params[2] = delay (default 50% of note duration = hold base pitch first)
+            // params[3] = time (default remaining duration for bend)
+            const defaultDelay = durSec * 0.5;
+            bendDelay = typeof p[2] !== 'undefined' ? Number(p[2]) : defaultDelay;
+            if (!Number.isFinite(bendDelay) || bendDelay < 0) bendDelay = defaultDelay;
+            bendDelay = Math.min(bendDelay, durSec);
+            
+            const remainingTime = durSec - bendDelay;
+            bendTime = typeof p[3] !== 'undefined' ? Number(p[3]) : remainingTime;
+            if (!Number.isFinite(bendTime) || bendTime <= 0) bendTime = remainingTime;
+            bendTime = Math.min(bendTime, durSec - bendDelay); // Cap at remaining duration
+          } else {
+            bendSemitones = 0;
+          }
         } else if (fx && fx.type === 'volSlide') {
           const p = fx.params || [];
           volDelta = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
@@ -877,8 +952,6 @@ function renderWave(
       } catch (e) {}
     }
   }
-
-  const durSec = duration / sampleRate;
 
   // Get or initialize phase accumulator for this channel
   let phase = (typeof channelId === 'number') ? (channelPhaseState.get(channelId) ?? 0) : 0;
@@ -918,6 +991,29 @@ function renderWave(
     // Save current frequency for next note's portamento (do this for ALL notes, not just portamento notes)
     if (typeof channelId === 'number' && i === duration - 1) {
       channelPortamentoState.set(channelId, freq);
+    }
+
+    // Apply pitch bend - smooth pitch bend over time with curve shaping (after delay)
+    if (bendSemitones !== 0 && bendTime > 0 && t >= bendDelay && t <= (bendDelay + bendTime) && effFreq > 0) {
+      const bendT = t - bendDelay;
+      let bendProgress = Math.min(1, bendT / bendTime);
+
+      // Apply curve shaping
+      if (bendCurve === 'exp' || bendCurve === 'exponential') {
+        // Exponential: slow start, fast end (y = x^2)
+        bendProgress = bendProgress * bendProgress;
+      } else if (bendCurve === 'log' || bendCurve === 'logarithmic') {
+        // Logarithmic: fast start, slow end (y = 1 - (1 - x)^2)
+        bendProgress = 1 - Math.pow(1 - bendProgress, 2);
+      } else if (bendCurve === 'sine' || bendCurve === 'sin') {
+        // Sine: smooth S-curve (y = (1 - cos(π * x)) / 2)
+        bendProgress = (1 - Math.cos(Math.PI * bendProgress)) / 2;
+      }
+      // else: linear (default) - no transformation
+
+      // Calculate bend frequency: freq * 2^(semitones * progress / 12)
+      const bendMultiplier = Math.pow(2, (bendSemitones * bendProgress) / 12);
+      effFreq = effFreq * bendMultiplier;
     }
 
     if (vibDepth !== 0 && vibRate > 0 && freq > 0) {
