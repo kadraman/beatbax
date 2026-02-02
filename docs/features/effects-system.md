@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-**Current Implementation (v0.1.0+):** Eight core effects are fully implemented with WebAudio playback, UGE export, and MIDI export support:
+**Current Implementation (v0.1.0+):** Nine core effects are fully implemented with WebAudio playback, PCM rendering, and export support:
 - ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
 - ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
 - ✅ **Portamento** - Smooth pitch glides between notes
@@ -20,6 +20,7 @@ BeatBax features a comprehensive effects system enabling expressive performance 
 - ✅ **Tremolo** - Amplitude modulation with configurable depth, rate, and waveforms
 - ✅ **Note Cut** - Gate notes after N ticks for staccato/percussive effects
 - ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout
+- ✅ **Pitch Bend** - Smooth pitch bends with curve shaping (linear, exp, log, sine)
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
@@ -47,10 +48,11 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
-- Pitch Bend and Echo not yet implemented
+- Echo/Delay not yet implemented
 - Tremolo exports to MIDI as meta-event (no native UGE support)
 - Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
 - **Retrigger** currently only works in WebAudio/browser playback; PCM renderer (CLI) support pending
+- **Pitch Bend** UGE export uses approximation with tone portamento (3xx) - complex curves may lose fidelity
 
 ## Core Effects
 
@@ -65,9 +67,9 @@ Summary: the following core effects are available in the language/runtime:
 - Tremolo (`trem`): periodic amplitude modulation (gain LFO with depth, rate, and waveform).
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals with optional volume fadeout.
+- Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes (linear, exp, log, sine).
 
 **⏳ Planned (not yet implemented):**
-- Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes.
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
 
 Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path has been removed after the Peggy migration.
@@ -592,8 +594,87 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - Export strategy: Translate BeatBax delta per tick into the tracker's per-tick volume slide units. If simultaneous master volume changes are needed, may also emit `5xx` when appropriate.
 
 - Pitch Bend (`bend`)
-  - hUGETracker mapping: No direct high-resolution pitch-bend opcode; approximate using tone portamento (`3xx`) or vibrato (`4xy`) combinations.
-  - Export strategy: Convert target semitones into per-tick slide amounts, insert a sequence of tone portamento commands, or expand into micro-steps across ticks/rows. For curve shapes (`exp`), approximate with piecewise-linear step sequences or bake into samples.
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio, PCM renderer, MIDI export)
+  - **Implementation**: Smoothly bends the pitch from the base note frequency to a target pitch with optional delay before bend starts. Supports configurable curve shaping for musical expression.
+  - **Syntax**: `<bend:semitones,curve,delay,time>` where:
+    - `semitones` (required): Number of semitones to bend - positive = up, negative = down (e.g., +2, -12, +0.5)
+    - `curve` (optional): Bend curve shape - `linear` (default), `exp`/`exponential`, `log`/`logarithmic`, `sine`/`sin`
+    - `delay` (optional): Time before bend starts as fraction of note duration (default: 0.5 = 50% hold, then bend)
+      - `0` = bend starts immediately from note start (chirp-like)
+      - `0.5` = hold base pitch for 50% of note, then bend (guitar-style, musical default)
+      - `0.75` = hold longer, bend quickly at end
+      - `1.0` = bend starts at very end (subtle pitch accent)
+    - `time` (optional): Bend duration in seconds - defaults to remaining duration after delay
+  - **Behavior**:
+    - Holds base frequency for `delay × noteDuration`
+    - Then bends pitch smoothly to target frequency over `time` duration
+    - Target frequency calculated as: `baseFreq × 2^(semitones / 12)`
+    - Curve types:
+      - `linear`: Constant rate of pitch change (default)
+      - `exp`/`exponential`: Slow start, fast end (accelerating bend)
+      - `log`/`logarithmic`: Fast start, slow end (decelerating bend)
+      - `sine`/`sin`: Smooth S-curve (slow-fast-slow)
+    - If bend time < remaining duration after delay, holds target pitch for remainder
+    - Can bend to microtonal intervals (e.g., +0.5 semitones)
+  - **WebAudio implementation**:
+    - Dual-path support: Detects oscillators (frequency) vs buffer sources (playbackRate)
+    - Delay: `setValueAtTime(baseFreq/baseRate, delayTime)` to hold base pitch
+    - Linear: `linearRampToValueAtTime(targetFreq/targetRate, bendEnd)` (64 steps for buffer sources)
+    - Exponential: `exponentialRampToValueAtTime(targetFreq/targetRate, bendEnd)`
+    - Logarithmic/Sine: `setValueCurveAtTime()` with 128-sample smooth automation curve
+      - Fallback: 64 `linearRampToValueAtTime()` steps if `setValueCurveAtTime` unsupported
+    - Wave channel (buffer sources) uses smooth curves to eliminate clicks/steps
+  - **PCM renderer implementation**:
+    - Per-sample frequency calculation with curve shaping and delay
+    - Delay applied: only bend if `t >= bendDelay && t <= (bendDelay + bendTime)`
+    - Curve progress calculated per sample: `(t - bendDelay) / bendTime`
+    - Applied transforms:
+      - Exponential: `progress²`
+      - Logarithmic: `1 - (1 - progress)²`
+      - Sine: `(1 - cos(π × progress)) / 2`
+  - **MIDI export**: Native pitch wheel events (0xE0 | channel)
+    - 14-bit resolution: 0x0000 to 0x3FFF (0-16383), center = 0x2000 (8192)
+    - Standard range: ±2 semitones (±8192 units)
+    - Formula: `bendValue = 8192 + (semitones / 2) × 8192`
+    - Clamped to valid range for bends exceeding ±2 semitones
+    - Curve, delay, and time stored as text meta event for reference
+  - **hUGETracker/UGE export**: Approximated with tone portamento (3xx)
+    - No native high-resolution pitch bend in hUGETracker
+    - Converted to effect code `3xx` (tone portamento) with speed-based approximation
+    - Priority: 11 (between standard portamento and vibrato in conflict resolution)
+    - Delay parameter not preserved in UGE format (portamento always bends across full note)
+    - Export warnings issued for:
+      - Non-linear curves (exp, log, sine) - only linear bends approximate well
+      - Delay values other than 0.0 or 0.5 - partial note timing not supported
+    - Speed calculation based on semitone distance:
+      - ≤1 semitone: speed = 32 (slowest, most musical for small bends)
+      - ≤2 semitones: speed = 48 (whole-tone intervals)
+      - ≤5 semitones: speed = 64 (fourth/tritone intervals)
+      - ≤7 semitones: speed = 96 (fifth intervals)
+      - >7 semitones: speed = 128 (octave+ intervals, fastest)
+    - Formula reference: hUGETracker portamento duration = `(256 - speed) / 256 × noteDuration × 0.6`
+    - Higher speed values = faster portamento (inverse relationship)
+    - Implementation: `packages/engine/src/export/ugeWriter.ts` (PitchBendHandler)
+  - **Implementation files**:
+    - WebAudio: `packages/engine/src/effects/index.ts` (bend handler with delay)
+    - PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (bendDelay + bendTime split)
+    - MIDI export: `packages/engine/src/export/midiExport.ts` (pitch wheel events with delay meta)
+    - Demo: `songs/effects/pitchbend.bax`
+  - **Use cases**:
+    - Guitar-style whole-tone bends: `C4<bend:+2,linear,0.5>` (hold then bend)
+    - Dive bombs and risers: `C4<bend:+12,exp,0>` (immediate exponential rise)
+    - Subtle expression: `C4<bend:+0.5,sine,0.75>` (quick subtle accent at end)
+    - Smooth pitch automation with musical timing
+    - Microtonal/experimental pitch effects
+  - **Example presets**:
+    ```bax
+    effect riser = bend:+12,exp,0       # Immediate octave up, exponential
+    effect dive = bend:-12,log,0        # Immediate octave down, logarithmic
+    effect wholetone = bend:+2,linear,0.5  # Guitar-style bend (hold then bend)
+    effect subtle = bend:+0.5,sine,0.75    # Quick subtle upward accent
+
+    effect subtle = bend:+0.5,sine   # Subtle vibrato-like
+    ```
 
 - Tremolo (`trem`)
   - hUGETracker mapping: Some trackers include tremolo; if present map accordingly. If hUGETracker lacks tremolo, approximate via fast volume slides or bake.
