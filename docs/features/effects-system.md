@@ -22,6 +22,7 @@ BeatBax features a comprehensive effects system enabling expressive performance 
 - ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout
 - ✅ **Pitch Bend** - Smooth pitch bends with curve shaping (linear, exp, log, sine)
 - ✅ **Pitch Sweep** - Hardware-accurate Game Boy NR10 frequency sweep (Pulse 1 only)
+- ✅ **Echo/Delay** - Time-delayed feedback repeats for ambient and rhythmic effects
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
@@ -46,15 +47,17 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ Retrigger (rhythmic note retriggering with volume fadeout)
 - ✅ Pitch Bend (smooth pitch bends with curve shaping)
 - ✅ Pitch Sweep (hardware-accurate GB NR10 frequency sweep)
+- ✅ Echo/Delay (time-delayed feedback repeats with WebAudio DelayNode)
 - ✅ Named effect presets with expansion
-- ✅ UGE export for pan, vib, port, bend, arp, volSlide, cut, sweep (trem: meta-event only, retrig: not supported)
+- ✅ UGE export for pan, vib, port, bend, arp, volSlide, cut, sweep (trem: meta-event only, retrig/echo: not supported with warnings)
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
-- Echo/Delay not yet implemented
 - Tremolo exports to MIDI as meta-event (no native UGE support)
+- Echo/Delay: Only works in WebAudio playback; UGE export displays warning and omits effect
+- Retrigger: Only works in WebAudio playback; UGE export displays warning and omits effect
+- **CLI playback warnings**: Both retrigger and echo display warnings when played with CLI/PCM renderer (effects ignored)
 - Volume slide disables instrument envelopes (architectural limitation - needs separate gain stage)
-- **Retrigger** currently only works in WebAudio/browser playback; PCM renderer (CLI) support pending
 - **Pitch Bend** UGE export uses approximation with tone portamento (3xx) - complex curves may lose fidelity
 
 ## Core Effects
@@ -72,9 +75,7 @@ Summary: the following core effects are available in the language/runtime:
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals with optional volume fadeout.
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes (linear, exp, log, sine).
 - Pitch Sweep (`sweep`): hardware-accurate Game Boy NR10 frequency sweep (Pulse 1 channel only).
-
-**⏳ Planned (not yet implemented):**
-- Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
+- Echo/Delay (`echo`): time-delayed feedback repeats using WebAudio DelayNode.
 
 Only make updates to the default parser (Peggy grammar). Structured parsing is enabled by default; the legacy tokenizer path has been removed after the Peggy migration.
 
@@ -754,9 +755,28 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - hUGETracker mapping: Some trackers include tremolo; if present map accordingly. If hUGETracker lacks tremolo, approximate via fast volume slides or bake.
   - Export strategy: If hUGETracker supports a tremolo effect code, map depth/speed to parameters; otherwise emulate with short repeated volume slide steps within a row/tick or bake.
 
-- Delay / Echo (`echo`)
-  - hUGETracker mapping: Not natively supported as a per-voice effect. Echo requires routing and feedback not available as a simple effect code.
-  - Export strategy (recommended): Bake delay/echo into the instrument sample (rendered waveform) OR emulate by duplicating notes across spare channels at reduced volume with delay offsets (very limited and channel-expensive). Exporter should warn when `echo` is used and offer the bake option.
+- Echo / Delay (`echo`)
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio playback)
+  - **Implementation**: Creates time-delayed feedback repeats using WebAudio DelayNode with configurable delay time, feedback, and wet/dry mix.
+  - **Syntax**: `<echo:delayTime,feedback,mix>` where:
+    - `delayTime` is delay time in seconds or as fraction of beat (< 1.0 = fraction, >= 1.0 = absolute seconds)
+    - `feedback` is feedback amount 0-100% (optional, default: 50)
+    - `mix` is wet/dry mix 0-100% (optional, default: 30)
+  - **Behavior**:
+    - Uses DelayNode with feedback loop for authentic delay behavior
+    - Feedback controls decay rate (0 = single repeat, 90+ = long tail)
+    - Mix controls wet/dry balance (0 = dry only, 100 = wet only)
+    - Delay time < 1.0 treated as fraction of beat duration (e.g., 0.25 = quarter beat)
+    - Delay time >= 1.0 treated as absolute time in seconds
+  - **hUGETracker mapping**: Not natively supported as a per-voice effect. Echo requires routing and feedback not available as a simple effect code.
+  - **Export strategy**: Bake delay/echo into the instrument sample (rendered waveform) OR emulate by duplicating notes across spare channels at reduced volume with delay offsets (very limited and channel-expensive). Exporter should warn when `echo` is used and offer the bake option.
+  - **Implementation files**:
+    - WebAudio: `packages/engine/src/effects/index.ts` (echo handler)
+  - **Use cases**:
+    - Ambient/spacey textures
+    - Slapback delay (short, single repeat)
+    - Dub-style echo effects
+    - Rhythmic echoes synchronized to tempo
 
 - Note Cut (`cut`)
   - **Status**: ✅ **IMPLEMENTED** (WebAudio playback)

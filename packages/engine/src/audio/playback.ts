@@ -306,6 +306,7 @@ export class Player {
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
@@ -323,6 +324,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
@@ -338,6 +340,7 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
+            this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, 0, inst, chId, token, tickSeconds, panVal);
             this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
@@ -471,6 +474,71 @@ export class Player {
       }
 
       retrigTime += intervalSec;
+    }
+  }
+
+  // Schedule echo/delay effect if echo metadata was stored on the nodes array.
+  // The echo effect handler stores metadata that we use here to create the delay routing.
+  private tryScheduleEcho(nodes: any[]) {
+    const echoMeta = (nodes as any).__echo;
+    if (!echoMeta) return;
+
+    const { delayTime, feedback, mix, start, dur } = echoMeta;
+
+    try {
+      // Find the gain node (typically nodes[1])
+      const gainNode = nodes.length > 1 ? nodes[1] : nodes[0];
+      if (!gainNode || !gainNode.connect) return;
+
+      // Create delay effect nodes
+      const delayNode = (this.ctx as any).createDelay(Math.max(5.0, delayTime * 4));
+      const feedbackGain = (this.ctx as any).createGain();
+      const wetGain = (this.ctx as any).createGain();
+
+      // Set parameters
+      try {
+        delayNode.delayTime.setValueAtTime(delayTime, start);
+        feedbackGain.gain.setValueAtTime(feedback, start);
+        wetGain.gain.setValueAtTime(mix, start);
+      } catch (_) {
+        delayNode.delayTime.value = delayTime;
+        feedbackGain.gain.value = feedback;
+        wetGain.gain.value = mix;
+      }
+
+      // Find the destination (use masterGain if available)
+      const destination = this.masterGain || (this.ctx as any).destination;
+
+      // Create the echo routing:
+      // gainNode is already connected to destination (dry signal)
+      // We add: gainNode -> delayNode -> feedbackGain -> delayNode (feedback loop)
+      //              \-> delayNode -> wetGain -> destination (wet signal)
+
+      // Connect source to delay
+      gainNode.connect(delayNode);
+
+      // Connect feedback loop: delay -> feedbackGain -> back to delay input
+      delayNode.connect(feedbackGain);
+      feedbackGain.connect(delayNode);
+
+      // Connect wet signal: delay -> wetGain -> destination
+      delayNode.connect(wetGain);
+      wetGain.connect(destination);
+
+      // Schedule cleanup after the echo tail has died out
+      const tailDuration = delayTime + (delayTime / Math.max(0.01, 1 - feedback));
+      const cleanupTime = start + dur + tailDuration;
+
+      try {
+        // Schedule gain ramp to zero before disconnecting
+        feedbackGain.gain.setValueAtTime(feedback, cleanupTime - 0.1);
+        feedbackGain.gain.linearRampToValueAtTime(0, cleanupTime);
+      } catch (_) {
+        // Scheduling failed, nodes will be garbage collected
+      }
+
+    } catch (e) {
+      // Echo routing failed, skip silently
     }
   }
 

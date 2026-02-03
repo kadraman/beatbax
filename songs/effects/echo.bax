@@ -1,0 +1,56 @@
+## Demo: Echo/Delay effect examples
+## Shows time-delayed feedback repeats for ambient and rhythmic effects
+## Play: node bin/beatbax play songs/effects/echo.bax
+
+chip gameboy
+bpm 120
+
+## Instruments for echo demonstration
+inst lead type=pulse1 duty=50 env=12,down
+inst bass type=pulse2 duty=25 env=10,down
+inst wave1 type=wave wave=[0,3,6,9,12,15,12,9,6,3,0,3,6,9,12,15]
+inst perc type=noise env=8,down
+
+## Define reusable echo effect presets
+effect ambient = echo:0.5,30,20
+effect slapback = echo:0.125,0,40
+effect dub = echo:0.375,70,50
+effect rhythmic = echo:0.25,50,30
+
+## Pattern 1: Ambient textures with long delay
+## 500ms delay, light feedback (30%), subtle mix (20%)
+pat ambient_melody = C5:8 . E5:8 . G5:8 . C6:8 .
+
+## Pattern 2: Slapback delay (short, single repeat)
+## 125ms delay, no feedback, moderate mix (40%)
+pat slapback_lead = C4:4 E4:4 G4:4 C5:4
+
+## Pattern 3: Dub-style echo
+## Dotted-eighth delay (0.375s at 120 BPM), heavy feedback (70%), equal mix (50%)
+pat dub_bass = C3:8 . . . E3:8 . . . G3:8 . . . C4:8 . . .
+
+## Pattern 4: Rhythmic quarter-note echo
+## Quarter-note delay, moderate feedback (50%), subtle mix (30%)
+pat rhythmic_wave = C4:4 E4:4 G4:4 B4:4 C5:4 G4:4 E4:4 C4:4
+
+## Pattern 5: Inline echo with varying parameters
+pat echo_test = C5<echo:0.25,40,25>:4 E5<echo:0.5,60,35>:4 G5<echo:0.125,20,40>:4 C6<echo:0.375,80,50>:4 E6<echo:0.375,80,50>:4 G5<echo:0.125,20,40>:4 E5<echo:0.5,60,35>:4 C5<echo:0.25,40,25>:4
+
+## Pattern 6: Percussion with echo
+pat perc_echo = C7:2 . C7:2 . C7:4 . . C7:2 . C7:2 .
+
+## Sequences with echo presets
+seq s1 = ambient_melody:ambient*3
+seq s2 = slapback_lead:slapback
+seq s3 = dub_bass:dub
+seq s4 = rhythmic_wave:rhythmic
+seq s5 = echo_test
+seq s6 = perc_echo:slapback
+
+## Channel assignments
+channel 1 => inst lead seq s1
+channel 2 => inst lead seq s2 s3
+channel 3 => inst wave1 seq s4 s5
+channel 4 => inst perc seq s6 s6
+
+play
