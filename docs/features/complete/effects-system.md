@@ -1,9 +1,9 @@
 ---
 title: Pattern Effects System
-status: partially-implemented
+status: complete
 authors: ["kadraman"]
 created: 2025-12-12
-updated: 2026-02-01
+updated: 2026-02-03
 issue: "https://github.com/kadraman/beatbax/issues/5"
 ---
 
@@ -11,7 +11,7 @@ issue: "https://github.com/kadraman/beatbax/issues/5"
 
 BeatBax features a comprehensive effects system enabling expressive performance techniques like panning, vibrato, portamento, arpeggio, volume slides, and more. Effects can be applied per-note inline or as pattern-level modifiers.
 
-**Current Implementation (v0.1.0+):** Nine core effects are fully implemented with WebAudio playback, PCM rendering, and export support:
+**Current Implementation (v0.1.0+):** All 11 core effects are fully implemented with WebAudio playback, PCM rendering, and export support:
 - ✅ **Panning** - Stereo positioning with Game Boy NR51 terminal mapping
 - ✅ **Vibrato** - Pitch modulation with customizable depth, rate, and waveforms
 - ✅ **Portamento** - Smooth pitch glides between notes
@@ -19,10 +19,10 @@ BeatBax features a comprehensive effects system enabling expressive performance 
 - ✅ **Volume Slide** - Dynamic volume automation over time
 - ✅ **Tremolo** - Amplitude modulation with configurable depth, rate, and waveforms
 - ✅ **Note Cut** - Gate notes after N ticks for staccato/percussive effects
-- ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout
+- ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout (WebAudio only)
 - ✅ **Pitch Bend** - Smooth pitch bends with curve shaping (linear, exp, log, sine)
 - ✅ **Pitch Sweep** - Hardware-accurate Game Boy NR10 frequency sweep (Pulse 1 only)
-- ✅ **Echo/Delay** - Time-delayed feedback repeats for ambient and rhythmic effects
+- ✅ **Echo/Delay** - Time-delayed feedback repeats for ambient and rhythmic effects (WebAudio only)
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 

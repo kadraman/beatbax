@@ -13,7 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
-- **Effects system**: Panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, and retrigger with UGE/MIDI/WAV export (retrigger WebAudio-only)
+- **Effects system**: All 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
@@ -80,8 +80,7 @@ See `songs/effects/` for detailed examples of each effect.
 - UGE export does NOT support: retrig (no hUGETracker equivalent), trem (metadata-only), echo (no hUGETracker equivalent)
 - Pitch bend: UGE export approximates bends with `3xx` portamento; warnings issued for non-linear curves and delay parameters
 - Pitch sweep: Best used as instrument property (`inst sweep=...`) for GB hardware; inline `<sweep:...>` effects warn in UGE export
-- Exporting songs with retrigger or echo effects to UGE will display warnings
-- **Retrigger and Echo**: Only work in WebAudio/browser playback; CLI/PCM renderer displays warnings but continues playback without these effects
+- **Retrigger and Echo**: Only work in WebAudio/browser playback; CLI/PCM renderer displays warnings but continues playback without these effects. Exporting songs with retrigger or echo to UGE will display warnings (no hUGETracker equivalent)
 
 There are a large number of examples in the [songs](songs\) directory.
 
