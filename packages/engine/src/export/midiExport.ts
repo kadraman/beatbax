@@ -288,6 +288,17 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 							pushMetaText(data, 0, `bend:semitones=${semitones},curve=${curve},delay=${delay !== undefined ? delay : 'default'},time=${bendTime !== undefined ? bendTime : 'remaining'}`);
 							delta = 0;
 							break;
+						} else if (fxType === 'sweep') {
+							// Pitch sweep: emit MIDI text meta event (no native MIDI sweep)
+							// Could also emit pitch wheel events with calculated target frequency
+							const time = (Array.isArray(fx.params) && fx.params.length > 0) ? Number(fx.params[0]) : 0;
+							const direction = (Array.isArray(fx.params) && fx.params.length > 1) ? String(fx.params[1]) : 'down';
+							const shift = (Array.isArray(fx.params) && fx.params.length > 2) ? Number(fx.params[2]) : 0;
+
+							// Document the sweep for reference
+							pushMetaText(data, delta, `sweep:time=${time},direction=${direction},shift=${shift} (GB NR10)`);
+							delta = 0;
+							break;
 						}
 					}
 				}
