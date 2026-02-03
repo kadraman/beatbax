@@ -76,7 +76,7 @@ export async function playAudioBuffer(
     const speakerModule = await import('speaker');
     const Speaker = speakerModule.default;
     console.log('Using speaker module for audio playback...');
-    
+
     return new Promise((resolve, reject) => {
       const speaker = new Speaker({
         channels: options.channels,
@@ -96,7 +96,7 @@ export async function playAudioBuffer(
           const count = Math.min(blockSize, samples.length - offset);
           const chunk = samples.subarray(offset, offset + count);
           const pcm = floatTo16BitPCM(chunk);
-          
+
           if (!speaker.write(pcm)) {
             offset += count;
             speaker.once('drain', writeNext);
@@ -168,7 +168,7 @@ export async function playAudioBuffer(
     }
 
     const proc = spawn(cmd, args, { stdio: 'pipe' });
-    
+
     proc.on('error', (err: Error) => {
       try { unlinkSync(tempFile); } catch (e) {}
       reject(new Error(`Failed to play audio: ${err.message}. Try installing ffplay or use "export wav" instead.`));

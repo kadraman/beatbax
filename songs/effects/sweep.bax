@@ -8,8 +8,8 @@ bpm 120
 ## Instruments with sweep for authentic GB sound
 ## sweep:time,direction,shift where:
 ##   time: 0-7 (sweep step time in 1/128 Hz units, 0=disabled)
-##   direction: 'up'/'+'/ 1 or 'down'/'-'/0
-##   shift: 0-7 (frequency shift amount, higher=more dramatic)
+##   direction: 'up'/'+' or any positive number for up, 'down'/'-' or any non-positive number for down
+##   shift: 0-7 (frequency shift amount, higher=more dramatic, defaults to 1 if omitted)
 
 ## Classic laser/sci-fi sounds (flat envelope lets you hear the full sweep)
 inst laser1 type=pulse1 duty=50 env=15,flat sweep=4,down,7

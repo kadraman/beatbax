@@ -877,7 +877,8 @@ register('sweep', (ctx: any, nodes: any[], params: any[], start: number, dur: nu
   }
 
   // Parse shift parameter (0-7, frequency shift amount)
-  const shiftRaw = params.length > 2 ? Number(params[2]) : 0;
+  // Default to 1 if not specified (provides sensible sweep behavior)
+  const shiftRaw = params.length > 2 ? Number(params[2]) : 1;
   if (!Number.isFinite(shiftRaw) || shiftRaw < 0 || shiftRaw > 7) return;
   const shift = Math.round(shiftRaw);
 

@@ -26,6 +26,58 @@ function applyHugeDriverOffset(baseReg: number, offset: number): number {
 }
 
 /**
+ * Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
+ * Formula: f_new = f_old ± f_old / 2^shift
+ * Each sweep step occurs every (sweepTime/128) seconds
+ *
+ * @param baseFreq - The base frequency to start the sweep from
+ * @param effFreq - The current effective frequency (may already have other modulations applied)
+ * @param t - Current time in seconds
+ * @param sweepTime - Sweep time parameter (0-7, in 1/128 Hz units)
+ * @param sweepShift - Frequency shift amount (0-7, number of bits to shift)
+ * @param sweepDirection - Direction of sweep ('up' or 'down')
+ * @returns The swept frequency
+ */
+function applySweepToFrequency(
+  baseFreq: number,
+  effFreq: number,
+  t: number,
+  sweepTime: number,
+  sweepShift: number,
+  sweepDirection: 'up' | 'down'
+): number {
+  if (sweepTime <= 0 || sweepShift <= 0 || effFreq <= 0) {
+    return effFreq;
+  }
+
+  const sweepStepTime = sweepTime / 128.0;
+  const divisor = Math.pow(2, sweepShift);
+
+  // Calculate which sweep step we're in
+  const stepIndex = Math.floor(t / sweepStepTime);
+
+  // Apply iterative sweep formula
+  let sweepFreq = baseFreq; // Start from base frequency
+  for (let step = 0; step < stepIndex; step++) {
+    const delta = sweepFreq / divisor;
+    if (sweepDirection === 'up') {
+      sweepFreq = sweepFreq + delta;
+    } else {
+      sweepFreq = sweepFreq - delta;
+    }
+
+    // Clamp to audible range
+    if (sweepFreq < 20) sweepFreq = 20;
+    if (sweepFreq > 20000) sweepFreq = 20000;
+
+    // Stop if change becomes negligible
+    if (Math.abs(delta) < 0.1) break;
+  }
+
+  return sweepFreq;
+}
+
+/**
  * Render a song to PCM samples without using WebAudio.
  * This is a simplified renderer for CLI/offline use.
  */
@@ -702,35 +754,7 @@ function renderPulse(
     }
 
     // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
-    // Formula: f_new = f_old ± f_old / 2^shift
-    // Each sweep step occurs every (sweepTime/128) seconds
-    if (sweepTime > 0 && sweepShift > 0 && effFreq > 0) {
-      const sweepStepTime = sweepTime / 128.0;
-      const divisor = Math.pow(2, sweepShift);
-
-      // Calculate which sweep step we're in
-      const stepIndex = Math.floor(t / sweepStepTime);
-
-      // Apply iterative sweep formula
-      let sweepFreq = freq; // Start from base frequency
-      for (let step = 0; step < stepIndex; step++) {
-        const delta = sweepFreq / divisor;
-        if (sweepDirection === 'up') {
-          sweepFreq = sweepFreq + delta;
-        } else {
-          sweepFreq = sweepFreq - delta;
-        }
-
-        // Clamp to audible range
-        if (sweepFreq < 20) sweepFreq = 20;
-        if (sweepFreq > 20000) sweepFreq = 20000;
-
-        // Stop if change becomes negligible
-        if (Math.abs(delta) < 0.1) break;
-      }
-
-      effFreq = sweepFreq;
-    }
+    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
 
     // Apply pitch bend - smooth pitch bend over time with curve shaping
     // Holds base pitch during delay period, then bends to target
@@ -1075,35 +1099,7 @@ function renderWave(
     }
 
     // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
-    // Formula: f_new = f_old ± f_old / 2^shift
-    // Each sweep step occurs every (sweepTime/128) seconds
-    if (sweepTime > 0 && sweepShift > 0 && effFreq > 0) {
-      const sweepStepTime = sweepTime / 128.0;
-      const divisor = Math.pow(2, sweepShift);
-
-      // Calculate which sweep step we're in
-      const stepIndex = Math.floor(t / sweepStepTime);
-
-      // Apply iterative sweep formula
-      let sweepFreq = freq; // Start from base frequency
-      for (let step = 0; step < stepIndex; step++) {
-        const delta = sweepFreq / divisor;
-        if (sweepDirection === 'up') {
-          sweepFreq = sweepFreq + delta;
-        } else {
-          sweepFreq = sweepFreq - delta;
-        }
-
-        // Clamp to audible range
-        if (sweepFreq < 20) sweepFreq = 20;
-        if (sweepFreq > 20000) sweepFreq = 20000;
-
-        // Stop if change becomes negligible
-        if (Math.abs(delta) < 0.1) break;
-      }
-
-      effFreq = sweepFreq;
-    }
+    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
 
     // Apply pitch bend - smooth pitch bend over time with curve shaping (after delay)
     if (bendSemitones !== 0 && bendTime > 0 && t >= bendDelay && t <= (bendDelay + bendTime) && effFreq > 0) {

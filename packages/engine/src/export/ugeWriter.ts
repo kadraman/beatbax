@@ -374,35 +374,13 @@ const SweepHandler: EffectHandler = {
         if (!Number.isFinite(time) || time < 0 || time > 7) return null;
         if (time === 0) return null; // Sweep disabled
 
-        const timeRounded = Math.round(time);
-
-        // Parse direction
-        const dirRaw = params.length > 1 ? params[1] : 'down';
-        let direction: 'up' | 'down' = 'down';
-        if (typeof dirRaw === 'number') {
-            direction = dirRaw > 0 ? 'up' : 'down';
-        } else if (typeof dirRaw === 'string') {
-            const dirStr = String(dirRaw).toLowerCase().trim();
-            if (dirStr === 'up' || dirStr === '+' || dirStr === '1') {
-                direction = 'up';
-            }
-        }
-
-        // Parse shift
+        // GB sweep is set in the instrument definition, not per-note
+        // Validate that other parameters exist but don't need to parse them in detail
         const shift = params.length > 2 ? Number(params[2]) : 0;
         if (!Number.isFinite(shift) || shift < 0 || shift > 7) return null;
         if (shift === 0) return null; // No frequency change
 
-        const shiftRounded = Math.round(shift);
-
-        // Encode as hUGETracker Cxy effect (custom sweep encoding)
-        // Note: hUGETracker doesn't have a dedicated sweep effect code, so we use
-        // effect code C (Set Volume) with special encoding for sweep
-        // OR we could use the instrument's built-in sweep parameters
-        // For now, document as text meta and rely on instrument sweep settings
-
-        // Actually, GB sweep is set in the instrument definition, not per-note
-        // So this should warn and suggest using instrument sweep parameters instead
+        // Warn and ignore - sweep is instrument-level in GB/UGE
         warn('export', `Sweep effect detected on note. Game Boy sweep (NR10) is configured per-instrument, not per-note. Set sweep parameters in the instrument definition instead. Effect will be ignored in UGE export.`);
 
         return null; // Sweep is instrument-level, not note-level
