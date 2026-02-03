@@ -944,8 +944,8 @@ register('sweep', (ctx: any, nodes: any[], params: any[], start: number, dur: nu
 // Echo / Delay effect: time-delayed feedback repeats
 // Parameters:
 //  - params[0]: delayTime (required, delay time in seconds or as fraction of beat duration)
-//      - If < 1.0, treated as fraction of beat (e.g., 0.25 = quarter beat delay)
-//      - If >= 1.0, treated as absolute time in seconds (e.g., 0.5 = 500ms delay)
+//      - If < 10.0, treated as fraction of beat (e.g., 0.25 = quarter beat, 1.0 = whole beat, 4.0 = four beats)
+//      - If >= 10.0, treated as absolute time in seconds (e.g., 10.0 = 10 seconds)
 //  - params[1]: feedback (optional, feedback amount 0-100%, default: 50)
 //      - 0 = single repeat (no feedback)
 //      - 50 = moderate decay (default)
@@ -973,19 +973,21 @@ register('sweep', (ctx: any, nodes: any[], params: any[], start: number, dur: nu
 // UGE export: Not natively supported - warn and suggest baking or channel duplication
 // MIDI export: Documented via text meta event (MIDI has no native delay)
 register('echo', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
-  if (!nodes || nodes.length === 0) return;
+  if (!nodes) return; // Don't check nodes.length - metadata can be stored on empty arrays
   if (!params || params.length === 0) return;
 
   // Parse delay time parameter
   const delayTimeRaw = Number(params[0]);
   if (!Number.isFinite(delayTimeRaw) || delayTimeRaw <= 0) return;
 
-  // If delay time < 1.0, treat as fraction of beat duration (e.g., 0.25 = quarter beat)
-  // If delay time >= 1.0, treat as absolute time in seconds
+  // If delay time < 10.0, treat as fraction of beat duration (e.g., 0.25 = quarter beat, 1.0 = whole beat)
+  // If delay time >= 10.0, treat as absolute time in seconds (e.g., 10.0 = 10 seconds)
   let delayTime: number;
-  if (delayTimeRaw < 1.0) {
+  if (delayTimeRaw < 10.0) {
     // Fraction of beat - convert to seconds
-    // Assume 120 BPM default if not provided: 0.5 seconds per beat
+    // tickSeconds = duration of one tick in seconds (if provided)
+    // Convention: 16 ticks per beat, so secondsPerBeat = tickSeconds * 16
+    // Default fallback: 120 BPM = 0.5 seconds per beat (60 / 120 BPM)
     const secondsPerBeat = tickSeconds ? (tickSeconds * 16) : 0.5;
     delayTime = delayTimeRaw * secondsPerBeat;
   } else {

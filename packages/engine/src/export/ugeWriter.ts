@@ -1610,7 +1610,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // Emit warnings if retrigger or echo effects were found
     if (hasRetrigEffectsInSong) {
-        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use WebAudio playback for retrigger support.');
+        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use --browser flag for retrigger support.');
     }
     if (hasEchoEffectsInSong) {
         warn('export', 'Echo/delay effects detected in song but cannot be exported to UGE (hUGETracker has no native echo effect). Echo effects will be lost. Use --browser flag for echo support.');

@@ -306,9 +306,10 @@ export class Player {
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
+            this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
-            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
@@ -324,9 +325,10 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
+            this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
-            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
@@ -340,9 +342,10 @@ export class Player {
             if (this.muted.has(chId)) return;
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
+            // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
+            this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, 0, inst, chId, token, tickSeconds, panVal);
-            this.tryApplyPan(this.ctx, nodes, panVal);
             for (const n of nodes) this.activeNodes.push({ node: n, chId });
           });
         }
@@ -494,27 +497,45 @@ export class Player {
       const delayNode = (this.ctx as any).createDelay(Math.max(5.0, delayTime * 4));
       const feedbackGain = (this.ctx as any).createGain();
       const wetGain = (this.ctx as any).createGain();
+      const dryGain = (this.ctx as any).createGain();
 
       // Set parameters
+      // mix controls wet/dry balance: mix=0 (all dry), mix=1 (all wet)
+      const wetLevel = mix;
+      const dryLevel = 1 - mix;
+
       try {
         delayNode.delayTime.setValueAtTime(delayTime, start);
         feedbackGain.gain.setValueAtTime(feedback, start);
-        wetGain.gain.setValueAtTime(mix, start);
+        wetGain.gain.setValueAtTime(wetLevel, start);
+        dryGain.gain.setValueAtTime(dryLevel, start);
       } catch (_) {
         delayNode.delayTime.value = delayTime;
         feedbackGain.gain.value = feedback;
-        wetGain.gain.value = mix;
+        wetGain.gain.value = wetLevel;
+        dryGain.gain.value = dryLevel;
       }
 
       // Find the destination (use masterGain if available)
       const destination = this.masterGain || (this.ctx as any).destination;
 
-      // Create the echo routing:
-      // gainNode is already connected to destination (dry signal)
-      // We add: gainNode -> delayNode -> feedbackGain -> delayNode (feedback loop)
-      //              \-> delayNode -> wetGain -> destination (wet signal)
+      // Disconnect gainNode from its current destination to avoid double-routing
+      try {
+        gainNode.disconnect();
+      } catch (_) {
+        // Already disconnected or no connections
+      }
 
-      // Connect source to delay
+      // Create proper echo routing with separate dry/wet paths:
+      // Dry path: gainNode -> dryGain -> destination
+      // Wet path: gainNode -> delayNode -> wetGain -> destination
+      // Feedback loop: delayNode -> feedbackGain -> delayNode (internal)
+
+      // Connect dry path
+      gainNode.connect(dryGain);
+      dryGain.connect(destination);
+
+      // Connect to delay input
       gainNode.connect(delayNode);
 
       // Connect feedback loop: delay -> feedbackGain -> back to delay input
@@ -525,17 +546,54 @@ export class Player {
       delayNode.connect(wetGain);
       wetGain.connect(destination);
 
+      // Track all echo nodes for proper cleanup
+      this.activeNodes.push({ node: delayNode, chId: -1 });
+      this.activeNodes.push({ node: feedbackGain, chId: -1 });
+      this.activeNodes.push({ node: wetGain, chId: -1 });
+      this.activeNodes.push({ node: dryGain, chId: -1 });
+
       // Schedule cleanup after the echo tail has died out
-      const tailDuration = delayTime + (delayTime / Math.max(0.01, 1 - feedback));
+      // Use logarithmic decay formula to calculate tail duration:
+      // Time for signal to decay to 1/1000 of original level (-60dB)
+      // For feedback close to 1.0, this prevents infinite/excessive durations
+      let tailDuration: number;
+      if (feedback < 0.001) {
+        // Very low feedback - tail dies out quickly (just one repeat)
+        tailDuration = delayTime * 2;
+      } else if (feedback >= 0.999) {
+        // Very high feedback - cap to prevent excessive duration
+        tailDuration = Math.min(10.0, delayTime * 20);
+      } else {
+        // Calculate decay time using logarithmic formula
+        // Math.log(1000) ≈ 6.9, which represents -60dB decay
+        const decayTime = (delayTime * Math.log(1000)) / Math.log(1 / feedback);
+        // Cap to reasonable maximum (10 seconds) to prevent excessive memory usage
+        tailDuration = Math.min(10.0, decayTime);
+      }
       const cleanupTime = start + dur + tailDuration;
 
-      try {
-        // Schedule gain ramp to zero before disconnecting
-        feedbackGain.gain.setValueAtTime(feedback, cleanupTime - 0.1);
-        feedbackGain.gain.linearRampToValueAtTime(0, cleanupTime);
-      } catch (_) {
-        // Scheduling failed, nodes will be garbage collected
-      }
+      // Schedule proper cleanup: ramp gain to zero, then disconnect all nodes
+      this.scheduler.schedule(cleanupTime - 0.1, () => {
+        try {
+          // Ramp feedback to zero over 100ms to avoid clicks
+          feedbackGain.gain.setValueAtTime(feedback, (this.ctx as any).currentTime);
+          feedbackGain.gain.linearRampToValueAtTime(0, (this.ctx as any).currentTime + 0.1);
+        } catch (_) {
+          // Scheduling failed, proceed to disconnect anyway
+        }
+      });
+
+      // Schedule node disconnection after fade-out completes
+      this.scheduler.schedule(cleanupTime, () => {
+        try {
+          delayNode.disconnect();
+          feedbackGain.disconnect();
+          wetGain.disconnect();
+          dryGain.disconnect();
+        } catch (_) {
+          // Already disconnected or GC'd
+        }
+      });
 
     } catch (e) {
       // Echo routing failed, skip silently

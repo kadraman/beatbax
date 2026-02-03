@@ -13,24 +13,24 @@ inst perc type=noise env=8,down
 
 ## Define reusable echo effect presets
 effect ambient = echo:0.5,30,20
-effect slapback = echo:0.125,0,40
+effect slapback = echo:0.25,0,40
 effect dub = echo:0.375,70,50
 effect rhythmic = echo:0.25,50,30
 
 ## Pattern 1: Ambient textures with long delay
-## 500ms delay, light feedback (30%), subtle mix (20%)
+## 0.5 beats = 250ms delay at 120 BPM, light feedback (30%), subtle mix (20%)
 pat ambient_melody = C5:8 . E5:8 . G5:8 . C6:8 .
 
 ## Pattern 2: Slapback delay (short, single repeat)
-## 125ms delay, no feedback, moderate mix (40%)
+## 0.25 beats = 125ms delay at 120 BPM, no feedback, moderate mix (40%)
 pat slapback_lead = C4:4 E4:4 G4:4 C5:4
 
 ## Pattern 3: Dub-style echo
-## Dotted-eighth delay (0.375s at 120 BPM), heavy feedback (70%), equal mix (50%)
+## 0.375 beats = 187.5ms delay at 120 BPM (dotted-eighth timing), heavy feedback (70%), equal mix (50%)
 pat dub_bass = C3:8 . . . E3:8 . . . G3:8 . . . C4:8 . . .
 
 ## Pattern 4: Rhythmic quarter-note echo
-## Quarter-note delay, moderate feedback (50%), subtle mix (30%)
+## 0.25 beats = 125ms delay at 120 BPM (sixteenth-note timing), moderate feedback (50%), subtle mix (30%)
 pat rhythmic_wave = C4:4 E4:4 G4:4 B4:4 C5:4 G4:4 E4:4 C4:4
 
 ## Pattern 5: Inline echo with varying parameters

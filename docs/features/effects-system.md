@@ -759,15 +759,16 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
   - **Status**: ✅ **IMPLEMENTED** (WebAudio playback)
   - **Implementation**: Creates time-delayed feedback repeats using WebAudio DelayNode with configurable delay time, feedback, and wet/dry mix.
   - **Syntax**: `<echo:delayTime,feedback,mix>` where:
-    - `delayTime` is delay time in seconds or as fraction of beat (< 1.0 = fraction, >= 1.0 = absolute seconds)
+    - `delayTime` is delay time in seconds or as fraction of beat (< 10.0 = fraction, >= 10.0 = absolute seconds)
     - `feedback` is feedback amount 0-100% (optional, default: 50)
     - `mix` is wet/dry mix 0-100% (optional, default: 30)
   - **Behavior**:
     - Uses DelayNode with feedback loop for authentic delay behavior
     - Feedback controls decay rate (0 = single repeat, 90+ = long tail)
     - Mix controls wet/dry balance (0 = dry only, 100 = wet only)
-    - Delay time < 1.0 treated as fraction of beat duration (e.g., 0.25 = quarter beat)
-    - Delay time >= 1.0 treated as absolute time in seconds
+    - Delay time < 10.0 treated as fraction of beat duration (e.g., 0.25 = quarter beat, 1.0 = whole beat, 4.0 = four beats)
+    - Delay time >= 10.0 treated as absolute time in seconds (e.g., 10.0 = 10 seconds)
+    - Using 10.0 threshold avoids ambiguity at different tempos (e.g., at 60 BPM, one beat = 1 second)
   - **hUGETracker mapping**: Not natively supported as a per-voice effect. Echo requires routing and feedback not available as a simple effect code.
   - **Export strategy**: Bake delay/echo into the instrument sample (rendered waveform) OR emulate by duplicating notes across spare channels at reduced volume with delay offsets (very limited and channel-expensive). Exporter should warn when `echo` is used and offer the bake option.
   - **Implementation files**:
