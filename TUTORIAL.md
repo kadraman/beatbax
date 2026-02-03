@@ -481,6 +481,75 @@ See `songs/effects/retrigger.bax` for a complete working example.
 
 **Important:** Remember that retrigger effects will trigger a warning when exporting to UGE format and will not be included in the exported file.
 
+#### Echo / Delay (`echo`)
+
+**Status:** ✅ Fully implemented (WebAudio playback only)
+
+**Overview:**
+- Creates time-delayed feedback repeats for ambient, rhythmic, and dub-style effects
+- Uses WebAudio DelayNode with configurable delay time, feedback amount, and wet/dry mix
+- Delay time can be specified as beat fractions (< 10.0) or absolute seconds (≥ 10.0)
+
+**Syntax:**
+```
+<echo:delayTime,feedback,mix>
+```
+
+**Parameters:**
+1. `delayTime` (required): Delay time as beat fraction or absolute seconds
+   - Values < 10.0: Fraction of beat (0.25 = quarter beat, 1.0 = whole beat, 4.0 = four beats)
+   - Values ≥ 10.0: Absolute time in seconds (10.0 = 10 seconds)
+   - At 120 BPM: 1 beat = 0.5 seconds
+2. `feedback` (optional, default 50): Feedback amount 0-100%
+   - 0 = single repeat (slapback)
+   - 50 = moderate decay (default)
+   - 90+ = long tail (dub-style)
+3. `mix` (optional, default 30): Wet/dry mix 0-100%
+   - 0 = dry only (no echo)
+   - 30 = subtle echo (default)
+   - 50 = equal mix
+   - 100 = wet only (echo only)
+
+**Examples:**
+```
+# Named effect presets
+effect ambient = echo:0.5,30,20      # Half-beat delay, light feedback, subtle mix
+effect slapback = echo:0.25,0,40     # Quarter-beat, no feedback, moderate mix
+effect dub = echo:0.375,70,50        # Dotted-eighth, heavy feedback, equal mix
+effect rhythmic = echo:0.25,50,30    # Quarter-beat, moderate feedback
+
+# Inline usage
+pat ambient_lead = C5<echo:0.5,30,20>:8 E5:8 G5:8 C6:8
+pat slapback_melody = C4<echo:0.25,0,40>:4 E4:4 G4:4 C5:4
+
+# With pattern application
+seq s1 = ambient_lead:ambient*3
+seq s2 = slapback_melody:slapback
+```
+
+**Key Features:**
+- Beat-synchronized delays: 0.25, 0.5, 0.75, 1.0, 2.0, 4.0 (musical timing)
+- Absolute time delays: 10.0+ seconds (for experimental effects)
+- Smooth feedback loop with proper audio routing
+- Separate dry/wet signal paths for stable audio
+- Works with panning and other effects
+
+**Technical Notes:**
+- Uses WebAudio DelayNode with feedback loop
+- Proper cleanup after echo tail dies out (logarithmic decay calculation)
+- Maximum tail duration capped at 10 seconds to prevent excessive memory usage
+- Echo routing applied after panning to preserve stereo positioning
+
+**Limitations:**
+- **WebAudio only**: Echo does not work in CLI/PCM renderer
+- CLI playback displays warning: `[WARN] [play] Echo/delay effects detected but are not supported in PCM renderer`
+- UGE export displays warning: `[WARN] [export] Echo/delay effects detected but cannot be exported to UGE`
+- Use `--browser` flag for echo support: `node bin/beatbax play --browser songs/effects/echo.bax`
+
+See `songs/effects/echo.bax` for a complete working example.
+
+**Important:** Remember that echo effects only work in WebAudio/browser playback. CLI/PCM renderer and UGE export will display warnings.
+
 **Tempo & Per-Channel Speed**
 
 - Set a master tempo with a top-level directive: `bpm 128` or `bpm=128`.
