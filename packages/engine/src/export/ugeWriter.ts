@@ -904,8 +904,9 @@ function eventsToPatterns(
     let activeArp: { code: number; param: number; remainingRows?: number } | null = null;
     // Map of note globalRow -> desired durationRows (including the note row)
     if (!desiredVibMap) desiredVibMap = new Map();
-    // Track if any retrigger effects are encountered (for warning)
+    // Track if any retrigger or echo effects are encountered (for warning)
     let hasRetrigEffects = false;
+    let hasEchoEffects = false;
     let prevEventType: string | null = null;
     // Track if we've seen the first note yet (to skip portamento on first note)
     let hasSeenNote = false;
@@ -1106,6 +1107,10 @@ function eventsToPatterns(
                         hasRetrigEffects = true;
                         continue; // Skip retrigger - not supported in UGE
                     }
+                    if (fxName === 'echo') {
+                        hasEchoEffects = true;
+                        continue; // Skip echo - not supported in UGE
+                    }
 
                     // Skip portamento on the first note (nothing to slide from)
                     if (fxName === 'port' && !hasSeenNote) {
@@ -1292,8 +1297,9 @@ function eventsToPatterns(
         patterns.push(emptyPattern);
     }
 
-    // Store retrigger warning flag on the patterns array for caller to check
+    // Store retrigger and echo warning flags on the patterns array for caller to check
     (patterns as any).__hasRetrigEffects = hasRetrigEffects;
+    (patterns as any).__hasEchoEffects = hasEchoEffects;
 
     return patterns;
 }
@@ -1593,9 +1599,21 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         }
     }
 
-    // Emit warning if retrigger effects were found
+    // Check for echo effects
+    let hasEchoEffectsInSong = false;
+    for (const patterns of channelPatterns) {
+        if ((patterns as any).__hasEchoEffects) {
+            hasEchoEffectsInSong = true;
+            break;
+        }
+    }
+
+    // Emit warnings if retrigger or echo effects were found
     if (hasRetrigEffectsInSong) {
-        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use WebAudio playback for retrigger support.');
+        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use --browser flag for retrigger support.');
+    }
+    if (hasEchoEffectsInSong) {
+        warn('export', 'Echo/delay effects detected in song but cannot be exported to UGE (hUGETracker has no native echo effect). Echo effects will be lost. Use --browser flag for echo support.');
     }
 
     // ====== Unified Post-Processing Pass ======

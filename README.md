@@ -71,15 +71,17 @@ play auto repeat
 - `trem` - Tremolo (amplitude modulation with depth, rate, waveform)
 - `cut` - Note cut (gate notes after N ticks for staccato/percussive effects)
 - `retrig` - Retrigger (rhythmic note retriggering with volume fadeout, WebAudio-only)
+- `echo` - Echo/Delay (time-delayed feedback repeats for ambient effects, WebAudio-only)
 
 See `songs/effects/` for detailed examples of each effect.
 
 **Export Notes:**
 - UGE export supports: pan, vib, port, bend (approximated with portamento), sweep (instrument-level), arp, volSlide, cut
-- UGE export does NOT support: retrig (no hUGETracker equivalent), trem (metadata-only)
+- UGE export does NOT support: retrig (no hUGETracker equivalent), trem (metadata-only), echo (no hUGETracker equivalent)
 - Pitch bend: UGE export approximates bends with `3xx` portamento; warnings issued for non-linear curves and delay parameters
 - Pitch sweep: Best used as instrument property (`inst sweep=...`) for GB hardware; inline `<sweep:...>` effects warn in UGE export
-- Exporting songs with retrigger effects to UGE will display a warning
+- Exporting songs with retrigger or echo effects to UGE will display warnings
+- **Retrigger and Echo**: Only work in WebAudio/browser playback; CLI/PCM renderer displays warnings but continues playback without these effects
 
 There are a large number of examples in the [songs](songs\) directory.
 
