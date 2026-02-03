@@ -640,9 +640,16 @@ export async function playAudioBuffer(
 
 **WAV Buffer Generation:**
 - Converts Float32 samples to 16-bit signed PCM
+- Applies 0.6x volume scaling to match browser auto-gain behavior
 - Writes RIFF/WAVE header with format chunk
 - Interleaves channels for stereo output
 - Clamps samples to `[-1.0, 1.0]` range
+
+**Volume Normalization (2026-02-02):**
+- CLI playback applies 0.6x volume scaling factor to match browser loudness
+- Compensates for WebAudio's automatic dynamic range compression/limiting
+- Ensures consistent perceived volume between CLI and browser playback
+- Scale factor can be adjusted in `floatTo16BitPCM()` if needed
 
 This architecture ensures audio works on all platforms without requiring native compilation, while providing optimal performance when native modules are available.
 

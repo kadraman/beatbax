@@ -21,6 +21,7 @@ BeatBax features a comprehensive effects system enabling expressive performance 
 - ✅ **Note Cut** - Gate notes after N ticks for staccato/percussive effects
 - ✅ **Retrigger** - Rhythmic note retriggering with optional volume fadeout
 - ✅ **Pitch Bend** - Smooth pitch bends with curve shaping (linear, exp, log, sine)
+- ✅ **Pitch Sweep** - Hardware-accurate Game Boy NR10 frequency sweep (Pulse 1 only)
 
 This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / hUGEDriver compatibility, plus applicability notes for other retro sound chips.
 
@@ -43,8 +44,10 @@ This document includes explicit mapping plans for Game Boy/hUGETracker (.uge) / 
 - ✅ Tremolo (amplitude modulation with depth/rate/waveform)
 - ✅ Note Cut (gate notes after N ticks)
 - ✅ Retrigger (rhythmic note retriggering with volume fadeout)
+- ✅ Pitch Bend (smooth pitch bends with curve shaping)
+- ✅ Pitch Sweep (hardware-accurate GB NR10 frequency sweep)
 - ✅ Named effect presets with expansion
-- ✅ UGE export for pan, vib, port, arp, volSlide, cut (trem: meta-event only, retrig: not supported)
+- ✅ UGE export for pan, vib, port, bend, arp, volSlide, cut, sweep (trem: meta-event only, retrig: not supported)
 - ✅ MIDI export for all implemented effects
 
 **Remaining Limitations:**
@@ -68,6 +71,7 @@ Summary: the following core effects are available in the language/runtime:
 - Note Cut (`cut`): cut/gate a note after N ticks.
 - Retrigger (`retrig`): repeated retriggering of a note at tick intervals with optional volume fadeout.
 - Pitch Bend (`bend`): arbitrary pitch bends with optional curve shapes (linear, exp, log, sine).
+- Pitch Sweep (`sweep`): hardware-accurate Game Boy NR10 frequency sweep (Pulse 1 channel only).
 
 **⏳ Planned (not yet implemented):**
 - Delay / Echo (`echo`): time-delayed feedback repeats (backend or baked).
@@ -675,6 +679,76 @@ pat port_demo = C4 E3<port:8> G3<port:8> C4<port:16>
 
     effect subtle = bend:+0.5,sine   # Subtle vibrato-like
     ```
+
+- Pitch Sweep (`sweep`)
+  - **Status**: ✅ **IMPLEMENTED** (WebAudio, PCM renderer, MIDI export, UGE export)
+  - **Implementation**: Hardware-accurate Game Boy NR10 frequency sweep emulation. Automatically recalculates frequency at regular intervals using the GB hardware formula.
+  - **Syntax**: `<sweep:time,direction,shift>` where:
+    - `time` (required): Sweep step time in 1/128 Hz units (0-7, where 0=disabled)
+      - Each step occurs every `time/128` seconds
+      - Higher values = slower sweep (more steps over longer time)
+    - `direction` (optional): 'up'/'+'/ 1 (pitch up) or 'down'/'-'/0 (pitch down, default)
+    - `shift` (required): Frequency shift amount (0-7, where 0=no change)
+      - Number of bits to shift in GB hardware formula
+      - Higher values = more dramatic sweeps
+  - **Hardware formula**: `f_new = f_old ± f_old / 2^shift`
+    - Applied iteratively at each sweep step
+    - Example: shift=1, down → each step: f = f - f/2 = f/2 (halving frequency)
+    - Example: shift=7, down → each step: f = f - f/128 (subtle decrease)
+  - **Behavior**:
+    - Recalculates frequency every `time/128` seconds
+    - Direction 'down' decreases frequency (pitch down)
+    - Direction 'up' increases frequency (pitch up)
+    - Sweep stops when reaching frequency limits (20 Hz - 20 kHz in WebAudio/PCM)
+    - Sweep stops if frequency change becomes negligible (< 0.1 Hz)
+  - **WebAudio implementation**:
+    - Calculates final frequency using iterative sweep formula
+    - Uses `exponentialRampToValueAtTime` for smooth hardware-like sweep
+    - Works on all channels (not limited to Pulse 1 in software)
+  - **PCM renderer implementation**:
+    - Per-sample frequency calculation with iterative sweep formula
+    - Calculates which sweep step applies at each sample time
+    - Applies GB hardware formula step-by-step for accuracy
+  - **MIDI export**: Text meta event (no native MIDI sweep equivalent)
+  - **Game Boy hardware**:
+    - **Only available on Pulse 1 channel** (NR10 register)
+    - Pulse 2, Wave, and Noise channels do not have sweep capability
+    - Set via instrument definition: `inst laser type=pulse1 sweep=4,down,7`
+  - **UGE export**:
+    - Sweep is **instrument-level**, not per-note
+    - Inline sweep effects (`<sweep:...>`) will warn during UGE export
+    - Proper approach: Define sweep in instrument definition
+    - Maps to NR10 register parameters (freqSweepTime, freqSweepDir, freqSweepShift)
+    - Export writes sweep parameters to duty instrument structure
+  - **Implementation files**:
+    - WebAudio: `packages/engine/src/effects/index.ts` (sweep handler)
+    - PCM renderer: `packages/engine/src/audio/pcmRenderer.ts` (sweep params and calculation)
+    - MIDI export: `packages/engine/src/export/midiExport.ts` (text meta event)
+    - UGE export: `packages/engine/src/export/ugeWriter.ts` (SweepHandler with warning)
+    - Demo: `songs/effects/sweep.bax`
+  - **Use cases**:
+    - Classic laser sounds: `<sweep:4,down,7>` or `inst laser1 type=pulse1 sweep=4,down,7`
+    - Sci-fi "pew" effects: `<sweep:2,down,5>`
+    - Pitch risers: `<sweep:6,up,4>`
+    - Dive bombs: `<sweep:3,down,6>`
+    - Authentic Game Boy sound design
+  - **Example presets**:
+    ```bax
+    # Inline effects (work in WebAudio/MIDI, warn in UGE export)
+    effect laser = sweep:4,down,7
+    effect riser = sweep:6,up,3
+
+    # Proper GB approach: instrument-level sweep
+    inst laser1 type=pulse1 duty=50 env=12,down,1 sweep=4,down,7
+    inst riser1 type=pulse1 duty=50 env=12,flat sweep=7,up,3
+
+    pat lasers = C5:4 E5:4 G5:4 C6:4  # Uses instrument sweep
+    ```
+  - **Important notes**:
+    - For authentic GB sound, use instrument-level sweep (not inline effects)
+    - Inline sweep effects are flexible for WebAudio/MIDI but not hardware-accurate for GB
+    - UGE export requires instrument-level sweep for proper NR10 register encoding
+    - Only Pulse 1 has hardware sweep on real Game Boy hardware
 
 - Tremolo (`trem`)
   - hUGETracker mapping: Some trackers include tremolo; if present map accordingly. If hUGETracker lacks tremolo, approximate via fast volume slides or bake.

@@ -26,6 +26,58 @@ function applyHugeDriverOffset(baseReg: number, offset: number): number {
 }
 
 /**
+ * Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
+ * Formula: f_new = f_old ± f_old / 2^shift
+ * Each sweep step occurs every (sweepTime/128) seconds
+ *
+ * @param baseFreq - The base frequency to start the sweep from
+ * @param effFreq - The current effective frequency (may already have other modulations applied)
+ * @param t - Current time in seconds
+ * @param sweepTime - Sweep time parameter (0-7, in 1/128 Hz units)
+ * @param sweepShift - Frequency shift amount (0-7, number of bits to shift)
+ * @param sweepDirection - Direction of sweep ('up' or 'down')
+ * @returns The swept frequency
+ */
+function applySweepToFrequency(
+  baseFreq: number,
+  effFreq: number,
+  t: number,
+  sweepTime: number,
+  sweepShift: number,
+  sweepDirection: 'up' | 'down'
+): number {
+  if (sweepTime <= 0 || sweepShift <= 0 || effFreq <= 0) {
+    return effFreq;
+  }
+
+  const sweepStepTime = sweepTime / 128.0;
+  const divisor = Math.pow(2, sweepShift);
+
+  // Calculate which sweep step we're in
+  const stepIndex = Math.floor(t / sweepStepTime);
+
+  // Apply iterative sweep formula
+  let sweepFreq = baseFreq; // Start from base frequency
+  for (let step = 0; step < stepIndex; step++) {
+    const delta = sweepFreq / divisor;
+    if (sweepDirection === 'up') {
+      sweepFreq = sweepFreq + delta;
+    } else {
+      sweepFreq = sweepFreq - delta;
+    }
+
+    // Clamp to audible range
+    if (sweepFreq < 20) sweepFreq = 20;
+    if (sweepFreq > 20000) sweepFreq = 20000;
+
+    // Stop if change becomes negligible
+    if (Math.abs(delta) < 0.1) break;
+  }
+
+  return sweepFreq;
+}
+
+/**
  * Render a song to PCM samples without using WebAudio.
  * This is a simplified renderer for CLI/offline use.
  */
@@ -489,6 +541,10 @@ function renderPulse(
   let bendCurve = 'linear';
   let bendDelay = 0;
   let bendTime = 0;
+  // Pitch sweep params (GB NR10)
+  let sweepTime = 0;
+  let sweepDirection: 'up' | 'down' = 'down';
+  let sweepShift = 0;
   // Volume slide params
   let volDelta = 0;
   let volSteps: number | undefined = undefined;
@@ -555,6 +611,27 @@ function renderPulse(
             bendTime = Math.min(bendTime, durSec - bendDelay);
           } else {
             bendSemitones = 0;
+          }
+        } else if (fx && fx.type === 'sweep') {
+          const p = fx.params || [];
+          const timeVal = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          if (Number.isFinite(timeVal) && timeVal >= 0 && timeVal <= 7) {
+            sweepTime = Math.round(timeVal);
+
+            // Parse direction
+            const dirRaw = typeof p[1] !== 'undefined' ? p[1] : 'down';
+            if (typeof dirRaw === 'number') {
+              sweepDirection = dirRaw > 0 ? 'up' : 'down';
+            } else if (typeof dirRaw === 'string') {
+              const dirStr = String(dirRaw).toLowerCase().trim();
+              sweepDirection = (dirStr === 'up' || dirStr === '+' || dirStr === '1') ? 'up' : 'down';
+            }
+
+            // Parse shift
+            const shiftVal = Number(typeof p[2] !== 'undefined' ? p[2] : 0);
+            if (Number.isFinite(shiftVal) && shiftVal >= 0 && shiftVal <= 7) {
+              sweepShift = Math.round(shiftVal);
+            }
           }
         } else if (fx && fx.type === 'volSlide') {
           const p = fx.params || [];
@@ -675,6 +752,9 @@ function renderPulse(
       // Apply frequency shift: freq * 2^(semitones / 12)
       effFreq = effFreq * Math.pow(2, semitoneOffset / 12);
     }
+
+    // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
+    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
 
     // Apply pitch bend - smooth pitch bend over time with curve shaping
     // Holds base pitch during delay period, then bends to target
@@ -883,6 +963,10 @@ function renderWave(
   let bendCurve = 'linear';
   let bendDelay = 0;
   let bendTime = 0;
+  // Pitch sweep params (GB NR10)
+  let sweepTime = 0;
+  let sweepDirection: 'up' | 'down' = 'down';
+  let sweepShift = 0;
   // Volume slide params
   let volDelta = 0;
   let volSteps: number | undefined = undefined;
@@ -934,13 +1018,34 @@ function renderWave(
             bendDelay = typeof p[2] !== 'undefined' ? Number(p[2]) : defaultDelay;
             if (!Number.isFinite(bendDelay) || bendDelay < 0) bendDelay = defaultDelay;
             bendDelay = Math.min(bendDelay, durSec);
-            
+
             const remainingTime = durSec - bendDelay;
             bendTime = typeof p[3] !== 'undefined' ? Number(p[3]) : remainingTime;
             if (!Number.isFinite(bendTime) || bendTime <= 0) bendTime = remainingTime;
             bendTime = Math.min(bendTime, durSec - bendDelay); // Cap at remaining duration
           } else {
             bendSemitones = 0;
+          }
+        } else if (fx && fx.type === 'sweep') {
+          const p = fx.params || [];
+          const timeVal = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
+          if (Number.isFinite(timeVal) && timeVal >= 0 && timeVal <= 7) {
+            sweepTime = Math.round(timeVal);
+
+            // Parse direction
+            const dirRaw = typeof p[1] !== 'undefined' ? p[1] : 'down';
+            if (typeof dirRaw === 'number') {
+              sweepDirection = dirRaw > 0 ? 'up' : 'down';
+            } else if (typeof dirRaw === 'string') {
+              const dirStr = String(dirRaw).toLowerCase().trim();
+              sweepDirection = (dirStr === 'up' || dirStr === '+' || dirStr === '1') ? 'up' : 'down';
+            }
+
+            // Parse shift
+            const shiftVal = Number(typeof p[2] !== 'undefined' ? p[2] : 0);
+            if (Number.isFinite(shiftVal) && shiftVal >= 0 && shiftVal <= 7) {
+              sweepShift = Math.round(shiftVal);
+            }
           }
         } else if (fx && fx.type === 'volSlide') {
           const p = fx.params || [];
@@ -992,6 +1097,9 @@ function renderWave(
     if (typeof channelId === 'number' && i === duration - 1) {
       channelPortamentoState.set(channelId, freq);
     }
+
+    // Apply pitch sweep (GB NR10) - hardware-accurate frequency sweep
+    effFreq = applySweepToFrequency(freq, effFreq, t, sweepTime, sweepShift, sweepDirection);
 
     // Apply pitch bend - smooth pitch bend over time with curve shaping (after delay)
     if (bendSemitones !== 0 && bendTime > 0 && t >= bendDelay && t <= (bendDelay + bendTime) && effFreq > 0) {
