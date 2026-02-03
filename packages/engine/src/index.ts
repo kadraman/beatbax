@@ -35,6 +35,32 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
 
       const song = resolveSong(ast);
+
+      // Check for echo effects and warn (PCM renderer doesn't support echo yet)
+      let hasEchoEffects = false;
+      if (song && song.channels) {
+        for (const ch of song.channels) {
+          if (ch && ch.events) {
+            for (const evt of ch.events) {
+              if (evt.type === 'note' && evt.effects && Array.isArray(evt.effects)) {
+                for (const fx of evt.effects) {
+                  const fxName = fx && fx.type ? fx.type : fx;
+                  if (fxName === 'echo') {
+                    hasEchoEffects = true;
+                    break;
+                  }
+                }
+              }
+              if (hasEchoEffects) break;
+            }
+          }
+          if (hasEchoEffects) break;
+        }
+      }
+
+      if (hasEchoEffects) {
+        warn('play', 'Echo/delay effects detected in song but are not supported in PCM renderer (CLI playback). Echo effects will be ignored. Use --browser flag for echo support.');
+      }
       const sampleRate = options.sampleRate || 44100;
       const duration = options.duration;
       const bpm = ast.bpm || 128;
