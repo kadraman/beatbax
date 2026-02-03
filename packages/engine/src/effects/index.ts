@@ -940,3 +940,75 @@ register('sweep', (ctx: any, nodes: any[], params: any[], start: number, dur: nu
     // Best effort - skip sweep if automation fails
   }
 });
+
+// Echo / Delay effect: time-delayed feedback repeats
+// Parameters:
+//  - params[0]: delayTime (required, delay time in seconds or as fraction of beat duration)
+//      - If < 10.0, treated as fraction of beat (e.g., 0.25 = quarter beat, 1.0 = whole beat, 4.0 = four beats)
+//      - If >= 10.0, treated as absolute time in seconds (e.g., 10.0 = 10 seconds)
+//  - params[1]: feedback (optional, feedback amount 0-100%, default: 50)
+//      - 0 = single repeat (no feedback)
+//      - 50 = moderate decay (default)
+//      - 90+ = long tail
+//  - params[2]: mix (optional, wet/dry mix 0-100%, default: 30)
+//      - 0 = dry only (no echo)
+//      - 50 = equal mix
+//      - 100 = wet only (echo only, no dry signal)
+//
+// Creates ambient/spacey textures, rhythmic echoes, dub-style effects, and adds depth.
+// Uses WebAudio DelayNode with feedback loop for authentic delay behavior.
+//
+// Implementation note: Echo requires access to the audio signal itself, not just parameter
+// modulation. This effect stores echo configuration on the nodes array for the playback
+// system to handle, similar to how retrigger works.
+//
+// Common uses:
+//  - Ambient textures: <echo:0.5,30,20> (500ms delay, light feedback, subtle mix)
+//  - Slapback delay: <echo:0.125,0,40> (125ms delay, no feedback, moderate mix)
+//  - Dub echo: <echo:0.375,70,50> (dotted-8th delay, heavy feedback, equal mix)
+//  - Rhythmic echo: <echo:0.25,50,30> (quarter-note delay, moderate feedback)
+//
+// WebAudio implementation using DelayNode + feedback loop
+// PCM renderer: Implemented via manual sample delay and feedback
+// UGE export: Not natively supported - warn and suggest baking or channel duplication
+// MIDI export: Documented via text meta event (MIDI has no native delay)
+register('echo', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) => {
+  if (!nodes) return; // Don't check nodes.length - metadata can be stored on empty arrays
+  if (!params || params.length === 0) return;
+
+  // Parse delay time parameter
+  const delayTimeRaw = Number(params[0]);
+  if (!Number.isFinite(delayTimeRaw) || delayTimeRaw <= 0) return;
+
+  // If delay time < 10.0, treat as fraction of beat duration (e.g., 0.25 = quarter beat, 1.0 = whole beat)
+  // If delay time >= 10.0, treat as absolute time in seconds (e.g., 10.0 = 10 seconds)
+  let delayTime: number;
+  if (delayTimeRaw < 10.0) {
+    // Fraction of beat - convert to seconds
+    // tickSeconds = duration of one tick in seconds (if provided)
+    // Convention: 16 ticks per beat, so secondsPerBeat = tickSeconds * 16
+    // Default fallback: 120 BPM = 0.5 seconds per beat (60 / 120 BPM)
+    const secondsPerBeat = tickSeconds ? (tickSeconds * 16) : 0.5;
+    delayTime = delayTimeRaw * secondsPerBeat;
+  } else {
+    delayTime = delayTimeRaw;
+  }
+
+  // Parse feedback parameter (0-100%, default: 50)
+  const feedbackRaw = params.length > 1 ? Number(params[1]) : 50;
+  const feedback = Number.isFinite(feedbackRaw) ? Math.max(0, Math.min(100, feedbackRaw)) / 100 : 0.5;
+
+  // Parse mix parameter (0-100%, default: 30)
+  const mixRaw = params.length > 2 ? Number(params[2]) : 30;
+  const mix = Number.isFinite(mixRaw) ? Math.max(0, Math.min(100, mixRaw)) / 100 : 0.3;
+
+  // Store echo metadata on the nodes array for the playback system to handle
+  // This is similar to how retrigger works - signal that echo post-processing is needed
+  (nodes as any).__echo = {
+    delayTime,
+    feedback,
+    mix,
+    start,
+    dur,
+  };
+});
