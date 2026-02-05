@@ -59,6 +59,7 @@ Statement
   / StepsPerBarStmt
   / TicksPerStepStmt
   / SongMetaStmt
+  / ImportStmt
   / InstStmt
   / EffectStmt
   / PatStmt
@@ -106,6 +107,11 @@ TicksPerStepStmt
 SongMetaStmt
   = $("song" !IdentChar) __ key:Identifier __ value:MetaString {
       return { nodeType: "SongMetaStmt", key, value, loc: loc(location()) };
+    }
+
+ImportStmt
+  = $("import" !IdentChar) __ path:MetaString {
+      return { nodeType: "ImportStmt", source: path, loc: loc(location()) };
     }
 
 PlayStmt

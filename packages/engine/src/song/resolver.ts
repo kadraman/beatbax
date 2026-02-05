@@ -9,6 +9,7 @@ import {
   patternEventsToTokens,
 } from '../parser/structured.js';
 import { expandRefToTokens } from '../expand/refExpander.js';
+import { resolveImports } from './importResolver.js';
 
 // Helpers for parsing inline effects and pan specifications
 function parsePanSpec(val: any, ns?: string) {
@@ -107,7 +108,21 @@ export function parseEffectsInline(str: string) {
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
  */
-export function resolveSong(ast: AST, opts?: { filename?: string; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
+export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
+  // Resolve imports first if present
+  if (ast.imports && ast.imports.length > 0) {
+    ast = resolveImports(ast, {
+      baseFilePath: opts?.filename,
+      searchPaths: opts?.searchPaths,
+      strictMode: opts?.strictInstruments,
+      onWarn: (message, loc) => {
+        if (opts?.onWarn) {
+          opts.onWarn({ component: 'import-resolver', message, file: opts.filename, loc });
+        }
+      },
+    });
+  }
+
   let pats = ast.pats || {};
   const insts = ast.insts || {};
   let seqs: Record<string, string[] | SequenceItem[]> = { ...(ast.seqs || {}) };

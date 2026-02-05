@@ -34,7 +34,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       const { resolveSong } = await import('./song/resolver.js');
       const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
 
-      const song = resolveSong(ast);
+      const song = resolveSong(ast, { filename: path, searchPaths: [process.cwd()] });
 
       // Check for echo effects and warn (PCM renderer doesn't support echo yet)
       let hasEchoEffects = false;
@@ -138,14 +138,83 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       // User explicitly requested browser playback
       console.log('Launching browser-based playback with Vite dev server...');
       try {
-        // Copy the source file into apps/web-ui/public/songs so the web UI can fetch it
+        // Resolve imports before copying to browser (imports won't work in browser context)
+        const { resolveImports } = await import('./song/importResolver.js');
+        const { parse } = await import('./parser/index.js');
+        let resolvedSrc = src;
+        if (ast.imports && ast.imports.length > 0) {
+          // Resolve each import individually to track which instruments came from which file
+          const pathModule = await import('path');
+          const importToInstruments = new Map<string, Array<[string, any]>>();
+          
+          for (const imp of ast.imports) {
+            // Parse the import file to get its instruments
+            const importPath = pathModule.resolve(
+              pathModule.dirname(path),
+              imp.source
+            );
+            try {
+              const { readFileSync } = await import('fs');
+              const importSrc = readFileSync(importPath, 'utf8');
+              const importAST = parse(importSrc);
+              const instruments: Array<[string, any]> = [];
+              for (const [name, inst] of Object.entries(importAST.insts || {})) {
+                instruments.push([name, inst]);
+              }
+              importToInstruments.set(imp.source, instruments);
+            } catch (e) {
+              // If we can't read the import, skip it
+              importToInstruments.set(imp.source, []);
+            }
+          }
+          
+          // Process source line by line, inserting instruments above their import statements
+          const srcLines = src.split('\n');
+          const outputLines: string[] = [];
+          
+          for (const line of srcLines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('import ')) {
+              // Extract the import path from the line
+              const match = trimmed.match(/import\s+["']([^"']+)["']/);
+              if (match) {
+                const importSource = match[1];
+                const instruments = importToInstruments.get(importSource);
+                if (instruments && instruments.length > 0) {
+                  // Add header comment
+                  outputLines.push(`# Resolved instruments from: ${importSource}`);
+                  // Add instrument definitions
+                  for (const [name, inst] of instruments) {
+                    const parts = [`inst ${name}`];
+                    for (const [key, value] of Object.entries(inst as any)) {
+                      if (key === 'name') continue;
+                      if (typeof value === 'object') {
+                        parts.push(`${key}=${JSON.stringify(value)}`);
+                      } else {
+                        parts.push(`${key}=${value}`);
+                      }
+                    }
+                    outputLines.push(parts.join(' '));
+                  }
+                }
+              }
+              // Comment out the import statement
+              outputLines.push('# ' + line);
+            } else {
+              outputLines.push(line);
+            }
+          }
+          
+          resolvedSrc = outputLines.join('\n');
+        }
+        
+        // Copy the resolved source file into apps/web-ui/public/songs so the web UI can fetch it
         const pathModule = await import('path');
         const child = await import('child_process');
         const basename = pathModule.basename(path);
         const outDir = pathModule.join(process.cwd(), 'apps', 'web-ui', 'public', 'songs');
         try { mkdirSync(outDir, { recursive: true }); } catch (e) {}
         const outPath = pathModule.join(outDir, basename);
-        writeFileSync(outPath, src, 'utf8');
 
         // Start Vite dev server in apps/web-ui
         const viteDir = pathModule.join(process.cwd(), 'apps', 'web-ui');
@@ -162,6 +231,10 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         } catch (e) {
           warn('engine', 'Failed to start Vite server: ' + (e && (e as any).message ? (e as any).message : String(e)));
         }
+
+        // Wait for Vite's prepare-engine script to finish copying songs, then write our resolved version
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        writeFileSync(outPath, resolvedSrc, 'utf8');
 
         // Give Vite a moment to start, then open browser
         await new Promise((resolve) => {

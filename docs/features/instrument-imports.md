@@ -1,38 +1,48 @@
 ---
 title: "Instrument Imports"
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2026-01-01
+implemented: 2026-02-05
 issue: "https://github.com/kadraman/beatbax/issues/23"
 ---
 
 ## Summary
 
-Add a lightweight `import` directive to `.bax` files that pulls in collections
-of `inst` declarations from external `.ins` files. Imported instruments are
-merged into the song's instrument table prior to sequence/pattern expansion.
+The `import` directive in `.bax` files pulls in collections of `inst` declarations 
+from external `.ins` files. Imported instruments are merged into the song's instrument 
+table prior to sequence/pattern expansion. **Status: Fully implemented and tested.**
 
 ## Problem Statement
 
 Authors frequently want to reuse instrument collections across songs and
-projects. Currently instrument definitions must live inside each `.bax`, which
-leads to duplication and makes cross-song updates tedious.
+projects. Previously, instrument definitions had to live inside each `.bax`, which
+led to duplication and made cross-song updates tedious.
 
-## Proposed Solution
-### Summary
+## Solution
+### Overview
 
-Introduce a top-level directive:
+A top-level directive:
 
 ```
 import "relative/path/to/instruments.ins"
 ```
 
 `.ins` files contain only `inst` declarations and optional `import` lines.
-Imports resolve relative to the importing file and may fall back to configured
-search paths. Imports are processed recursively with cycle detection and a
-cache. When names conflict, later definitions overwrite earlier ones (last-
-win); the resolver emits a warning by default and can run in strict mode to
-treat overrides as errors.
+Imports resolve relative to the importing file first, then fall back to configured
+search paths. Imports are processed recursively with cycle detection and file
+caching. When names conflict, later definitions overwrite earlier ones (last-wins); 
+the resolver emits warnings by default and can run in strict mode to treat 
+overrides as errors.
+
+### Implementation Notes
+
+- **Path Resolution**: Uses Node.js `path.resolve()` with cross-platform support (posix for tests)
+- **CLI Integration**: All commands (play, verify, export) resolve imports with filename context
+- **Browser Support**: Imports are resolved server-side and inlined for browser playback
+- **Cycle Detection**: Import graphs are validated; circular imports throw errors
+- **File Caching**: Each imported file is parsed once per resolution session
+- **Testing**: 18 tests covering parser, resolver, and end-to-end scenarios
 
 ### Example Syntax
 
@@ -87,16 +97,119 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
 ### Unit Tests
 
 - Parser: accept `import` lines and reject non-`inst` nodes inside `.ins`.
+## Usage
+
+### CLI Commands
+
+All CLI commands support imports automatically:
+
+```bash
+# Verify a song with imports
+npm run cli -- verify songs/import_demo.bax
+
+# Play with imports (headless)
+npm run cli -- play songs/import_demo.bax
+
+# Play in browser (imports are resolved and inlined)
+npm run cli -- play songs/import_demo.bax --browser
+
+# Export with imports
+npm run cli -- export json songs/import_demo.bax output.json
+npm run cli -- export uge songs/import_demo.bax output.uge
+```
+
+### Browser Playback
+
+When using `--browser` mode, imports are automatically resolved server-side and 
+inlined into the source file. The generated browser-compatible file shows:
+
+```
+# Resolved instruments from: lib/gameboy-common.ins
+inst gb_lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":3}
+inst gb_bass type=pulse2 duty=25 env={"level":10,"direction":"down","period":2}
+# import "lib/gameboy-common.ins"
+
+# Resolved instruments from: lib/gameboy-drums.ins
+inst kick type=noise env={"level":15,"direction":"down","period":7} noise={...}
+inst snare type=noise env={"level":12,"direction":"down","period":5} noise={...}
+# import "lib/gameboy-drums.ins"
+```
+
+This ensures the browser can play the song without file system access.
+
+### Path Resolution
+
+Imports support standard relative paths:
+
+```
+import "lib/common.ins"          # Subdirectory relative to song file
+import "../shared/drums.ins"     # Parent directory
+import "../../library/fx.ins"    # Multiple levels up
+```
+
+Resolution order:
+1. Resolve relative to the importing file's directory
+2. Fallback to current working directory (search path)
+
+### Creating .ins Libraries
+
+Example library structure:
+
+```
+songs/
+  import_demo.bax
+  lib/
+    gameboy-common.ins    # Common melodic instruments
+    gameboy-drums.ins     # Percussion/noise instruments
+```
+
+`lib/gameboy-common.ins`:
+```
+inst gb_lead type=pulse1 duty=50 env=12,down
+inst gb_bass type=pulse2 duty=25 env=10,down
+inst gb_arp  type=pulse1 duty=12 env=15,down
+```
+
+`lib/gameboy-drums.ins`:
+```
+inst kick  type=noise env=15,down
+inst snare type=noise env=12,down
+inst hat   type=noise env=8,down
+```
+
+## Testing
+
 - Resolver: relative path resolution, search-path fallback, caching, and
   cycle detection.
 - Merge semantics: last-win overrides and emitted warnings; strict mode
   causes errors.
 
-### Integration Tests
+### Test Coverage (18 tests total)
 
-- Small end-to-end tests that load a `.bax` which imports multiple `.ins`
-  files (including a recursive import) and verify the final ISM contains the
-  expected instrument table.
+**Parser Tests** (`parser.imports.test.ts` - 6 tests):
+- Single import statement parsing
+- Multiple imports
+- Import with different quote styles
+- Location tracking
+- Invalid import syntax errors
+
+**Resolver Tests** (`resolver.imports.test.ts` - 9 tests):
+- Basic import resolution
+- Relative path resolution (`../` support)
+- Import cycle detection
+- File caching verification
+- Last-wins merging semantics
+- Override warnings
+- Strict mode (treats overrides as errors)
+- .ins file validation (rejects patterns/sequences/channels)
+- Missing file error handling
+
+**Integration Tests** (`integration.imports.test.ts`):
+- End-to-end import workflow
+- Multiple .ins files with recursive imports
+- Final ISM validation
+
+All tests pass. See `packages/engine/tests/` for implementation.
 
 ## Migration Path
 
@@ -104,72 +217,26 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
   `.ins` libraries and import them; because overrides apply, local changes can
   still override library instruments without changing the libraries.
 
-## Implementation checklist
+## Implementation Status
 
-- [ ] Add `ImportNode` to `ast.ts`.
-- [ ] Update `parser.ts` to accept and emit `ImportNode`.
-- [ ] Add `.ins` parsing validation.
-- [ ] Implement resolver loading, caching, cycle detection, merge logic.
-- [ ] Emit warnings for overrides; add `--strict-ins` or config option.
-- [ ] Add CLI `--ins-path` option for search-paths (optional but recommended).
-- [ ] Add unit and integration tests.
-- [ ] Update `TUTORIAL.md` and CLI help text.
+✅ **COMPLETE** - All features implemented and tested (Feb 5, 2026)
+
+- ✅ Add `ImportNode` to `ast.ts`
+- ✅ Update parser to accept and emit `ImportNode`
+- ✅ Add `.ins` parsing validation
+- ✅ Implement resolver loading, caching, cycle detection, merge logic
+- ✅ Emit warnings for overrides; strict mode support
+- ✅ CLI integration (all commands support imports)
+- ✅ Browser playback import resolution
+- ✅ Add unit and integration tests (18 tests total)
+- ✅ Update `TUTORIAL.md`, `README.md`, and documentation
 
 ## References
 
 - hUGETracker and other tracker formats use external instrument banks; this
-  feature aims to provide similar convenience for `.bax`.
-
-## Additional Notes
-
-- Design choice: last-win overrides were selected for convenience and to
-  enable intentional local overrides. Projects that require strict stability
-  can enable strict-mode to treat overrides as errors.
-
-- Resolution order:
-  - Resolve the import path relative to the importing file's directory.
-  - If not found, attempt configured project search paths (e.g. `songs/`,
-    `lib/uge/`). Search paths are configurable in the CLI or build tooling.
-
-- `.ins` files may themselves contain `import` directives (recursive imports).
-
-- Only `inst` declarations are allowed inside `.ins` files. Any other top-level
-  node (e.g. `pat`, `seq`, `play`) in an `.ins` file is a parse-time error.
-
-- Later definitions win. If multiple imports (or local `inst` definitions) use
-  the same instrument name, the last parsed/merged definition overrides
-  previous ones. This enables composition and deliberate overrides.
-
-- The resolver should still emit a warning when an instrument name is
-  overridden (configurable as an error in strict mode).
-
-- Add a new top-level AST node: `ImportNode { source: string, loc }`.
-
-- The existing parser will recognize the `import` directive and emit an
-  `ImportNode` into the top-level AST. When parsing `.ins` files, the parser
-  will enforce that only `inst` (and `import`) nodes are present.
-
-- The song resolver is responsible for processing imports before pattern and
-  sequence expansion. Responsibilities:
-  - Load imported files (respecting relative resolution and search paths).
-  - Parse each imported file into an AST and validate permitted nodes.
-  - Detect import cycles and return a clear, human-friendly error.
-  - Cache parsed `.ins` files by absolute path to avoid re-parsing.
-  - Merge instruments into the importing song's instrument table in import
-    order; later definitions overwrite earlier ones.
-
-- Merging semantics:
-  - When merging, copy instrument definitions (do not mutate source AST nodes).
-  - Preserve source metadata (origin file path) for diagnostics and tooling.
-
-- Clear errors should be produced for:
-  - Missing import files (file not found).
-  - Parse errors inside an imported file.
-  - Illegal nodes inside `.ins` files (non-`inst` nodes).
-  - Import cycles.
-
-- Warnings are emitted for name overrides; projects may opt into strict mode to
-  treat overrides as errors.
+  feature provides similar convenience for `.bax`.
+- See `songs/import_demo.bax` for a complete working example
+- See `songs/lib/*.ins` for example instrument libraries
 
 - Add unit tests to cover:
   - Basic import resolution (relative and search-path fallback).

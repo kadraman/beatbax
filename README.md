@@ -13,6 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
+- **Instrument imports**: Reusable `.ins` libraries with relative/search-path resolution, cycle detection, and last-wins merging
 - **Effects system**: All 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
@@ -29,10 +30,12 @@ Each "song" can be defined in a `.bax` file with the following a minimal example
 song name "An example song"
 
 chip gameboy
+import "lib/gameboy-common.ins"  # Import reusable instruments
+
 bpm 128
 # volume 1.0  # Master volume (default: 1.0, matches hUGETracker)
 
-# Instruments for pulse, wave and noise
+# Instruments for pulse, wave and noise (or import from .ins files)
 inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
 inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
