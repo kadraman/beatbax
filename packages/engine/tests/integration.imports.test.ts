@@ -11,7 +11,7 @@ describe('Integration: Instrument Imports', () => {
   test('end-to-end import resolution and song compilation', () => {
     // Create a temporary directory structure
     const testDir = path.join(process.cwd(), 'tmp', 'import-test');
-    
+
     // Ensure directory exists
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -21,7 +21,7 @@ describe('Integration: Instrument Imports', () => {
       // Create .ins files
       const commonIns = `inst lead type=pulse1 duty=50
 inst bass type=pulse2 duty=25`;
-      
+
       const drumsIns = `inst kick type=noise env={"level":15,"direction":"down","period":7}
 inst snare type=noise env={"level":12,"direction":"down","period":5}`;
 
@@ -60,15 +60,15 @@ channel 4 => inst kick seq drum_pattern
 
       // Verify instruments were loaded
       expect(songModel.channels).toHaveLength(3);
-      
+
       // Verify lead was overridden by local definition
       const ch1Events = songModel.channels.find(ch => ch.id === 1);
       expect(ch1Events).toBeDefined();
-      
+
       // Verify bass was imported
       const ch2Events = songModel.channels.find(ch => ch.id === 2);
       expect(ch2Events).toBeDefined();
-      
+
       // Verify drum was imported
       const ch4Events = songModel.channels.find(ch => ch.id === 4);
       expect(ch4Events).toBeDefined();
@@ -88,11 +88,11 @@ channel 4 => inst kick seq drum_pattern
 
   test('imports work with real library files', () => {
     const libPath = path.join(process.cwd(), 'lib', 'uge');
-    
+
     // Check if library files exist
     const commonPath = path.join(libPath, 'gameboy-common.ins');
     const drumsPath = path.join(libPath, 'gameboy-drums.ins');
-    
+
     if (!fs.existsSync(commonPath) || !fs.existsSync(drumsPath)) {
       console.warn('Skipping test: library .ins files not found');
       return;

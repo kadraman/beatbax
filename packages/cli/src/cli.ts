@@ -53,7 +53,7 @@ function validateSource(src: string, filename?: string): ValidationResult {
     errors.push({ message: formattedError });
     return { errors, warnings, ast: null as any };
   }
-  
+
   // Resolve imports if present (separate try/catch to provide better error messages)
   if (ast.imports && ast.imports.length > 0 && filename) {
     try {
@@ -281,10 +281,10 @@ program
     // resolver warnings (e.g. arrange expansion issues).
     const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
     try {
-      resolveSong(ast, { 
-        filename: file, 
-        searchPaths: [process.cwd()], 
-        onWarn: (d: any) => resolverWarnings.push(d) 
+      resolveSong(ast, {
+        filename: file,
+        searchPaths: [process.cwd()],
+        onWarn: (d: any) => resolverWarnings.push(d)
       } as any);
     } catch (resErr: any) {
       console.error('Resolver error:', extractErrorMessage(resErr, globalOpts && globalOpts.debug));
@@ -360,10 +360,10 @@ program
         console.warn(`Validation warnings for ${file}:`);
         for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
       }
-      const resolved = resolveSong(ast, { 
-        filename: file, 
-        searchPaths: [process.cwd()], 
-        onWarn: (d: any) => resolverWarnings.push(d) 
+      const resolved = resolveSong(ast, {
+        filename: file,
+        searchPaths: [process.cwd()],
+        onWarn: (d: any) => resolverWarnings.push(d)
       } as any);
       // merge resolver warnings into combined list for possible strict handling
       const allWarnings: string[] = [];

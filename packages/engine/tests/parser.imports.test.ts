@@ -8,7 +8,7 @@ describe('Parser: Import Directive', () => {
   test('parses single import statement', () => {
     const source = `import "common.ins"`;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(1);
     expect(ast.imports![0].source).toBe('common.ins');
@@ -22,7 +22,7 @@ import "drums.ins"
 import "bass.ins"
 `;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(3);
     expect(ast.imports![0].source).toBe('common.ins');
@@ -33,7 +33,7 @@ import "bass.ins"
   test('parses import with relative path', () => {
     const source = `import "lib/instruments/gameboy.ins"`;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(1);
     expect(ast.imports![0].source).toBe('lib/instruments/gameboy.ins');
@@ -42,7 +42,7 @@ import "bass.ins"
   test('parses import with single quotes', () => {
     const source = `import 'common.ins'`;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(1);
     expect(ast.imports![0].source).toBe('common.ins');
@@ -60,7 +60,7 @@ inst lead type=pulse1 duty=50
 pat melody = C5 E5 G5
 `;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(2);
     expect(ast.imports![0].source).toBe('common.ins');
@@ -79,7 +79,7 @@ bpm 120
 inst lead type=pulse1 duty=50
 `;
     const ast = parse(source);
-    
+
     expect(ast.imports).toBeUndefined();
   });
 });

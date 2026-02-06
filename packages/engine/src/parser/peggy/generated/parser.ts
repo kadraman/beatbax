@@ -348,11 +348,11 @@ function peg$parse(input, options) {
           let inQuote = false;
           let quoteChar = '';
           let commentStart = -1;
-          
+
           for (let i = 0; i < slotText.length; i++) {
             const ch = slotText[i];
             const next = slotText[i + 1];
-            
+
             // Track quote state
             if (!inQuote && (ch === '"' || ch === "'")) {
               inQuote = true;
@@ -361,7 +361,7 @@ function peg$parse(input, options) {
               inQuote = false;
               quoteChar = '';
             }
-            
+
             // Look for comment markers only outside quotes
             if (!inQuote) {
               if (ch === '#') {
@@ -373,11 +373,11 @@ function peg$parse(input, options) {
               }
             }
           }
-          
+
           if (commentStart >= 0) {
             slotText = slotText.substring(0, commentStart);
           }
-          
+
           const t = slotText.trim();
           if (t === '.' || t === '-') return null;
           if ((t.startsWith('"') || t.startsWith("'")) && t.length >= 2) return t.slice(1, -1);

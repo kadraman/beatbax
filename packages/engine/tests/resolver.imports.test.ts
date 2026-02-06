@@ -268,4 +268,218 @@ pat melody = C5 E5 G5
     expect(resolved.insts.base).toBeDefined();
     expect(resolved.insts.common).toBeDefined();
   });
+
+  describe('Security: Path Traversal Prevention', () => {
+    test('rejects paths with .. segments', () => {
+      const mockFiles = {
+        '/etc/passwd': 'secret data',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: '../../../etc/passwd' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/songs/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+        });
+      }).toThrow(/path traversal.*\.\./i);
+    });
+
+    test('rejects paths with .. in the middle', () => {
+      const mockFiles = {
+        '/project/secret.ins': 'inst secret type=pulse1',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: 'subdir/../../../secret.ins' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/songs/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+        });
+      }).toThrow(/path traversal.*\.\./i);
+    });
+
+    test('rejects Unix-style absolute paths', () => {
+      const mockFiles = {
+        '/etc/passwd': 'secret data',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: '/etc/passwd' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+        });
+      }).toThrow(/absolute paths are not allowed/i);
+    });
+
+    test('rejects Windows-style absolute paths', () => {
+      const mockFiles = {
+        'C:/Windows/System32/config/sam': 'secret data',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: 'C:/Windows/System32/config/sam' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+        });
+      }).toThrow(/absolute paths are not allowed/i);
+    });
+
+    test('rejects Windows-style absolute paths with backslashes', () => {
+      const mockFiles = {
+        'D:\\secrets\\passwords.txt': 'secret data',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: 'D:\\secrets\\passwords.txt' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+        });
+      }).toThrow(/absolute paths are not allowed/i);
+    });
+
+    test('allows relative paths in subdirectories', () => {
+      const mockFiles = {
+        '/project/lib/common.ins': 'inst common type=pulse1',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: 'lib/common.ins' }],
+      };
+
+      const resolved = resolveImports(ast, {
+        baseFilePath: '/project/main.bax',
+        readFile: fs.readFile,
+        fileExists: fs.fileExists,
+      });
+
+      expect(resolved.insts.common).toBeDefined();
+    });
+
+    test('allows absolute paths when allowAbsolutePaths is true', () => {
+      const mockFiles = {
+        '/shared/instruments/common.ins': 'inst shared type=pulse1',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: '/shared/instruments/common.ins' }],
+      };
+
+      const resolved = resolveImports(ast, {
+        baseFilePath: '/project/main.bax',
+        readFile: fs.readFile,
+        fileExists: fs.fileExists,
+        allowAbsolutePaths: true,
+        searchPaths: ['/shared/instruments'],
+      });
+
+      expect(resolved.insts.shared).toBeDefined();
+    });
+
+    test('still rejects .. segments even with allowAbsolutePaths', () => {
+      const mockFiles = {
+        '/etc/passwd': 'secret data',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: '../../../etc/passwd' }],
+      };
+
+      expect(() => {
+        resolveImports(ast, {
+          baseFilePath: '/project/songs/main.bax',
+          readFile: fs.readFile,
+          fileExists: fs.fileExists,
+          allowAbsolutePaths: true,
+        });
+      }).toThrow(/path traversal.*\.\./i);
+    });
+
+    test('validates resolved paths stay within allowed directories', () => {
+      const mockFiles = {
+        '/project/lib/common.ins': 'inst safe type=pulse1',
+        '/outside/malicious.ins': 'inst malicious type=pulse1',
+      };
+      const fs = createMockFileSystem(mockFiles);
+
+      const ast: AST = {
+        pats: {},
+        insts: {},
+        seqs: {},
+        channels: [],
+        imports: [{ source: 'lib/common.ins' }],
+      };
+
+      // This should work - within project directory
+      const resolved = resolveImports(ast, {
+        baseFilePath: '/project/main.bax',
+        readFile: fs.readFile,
+        fileExists: fs.fileExists,
+      });
+
+      expect(resolved.insts.safe).toBeDefined();
+    });
+  });
 });

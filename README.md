@@ -267,6 +267,35 @@ beatbax/
 └── tmp/                         # Temporary build outputs
 ```
 
+## Security
+
+BeatBax implements security measures to protect against malicious `.bax` files:
+
+### Import Path Validation
+
+Import statements are validated to prevent path traversal attacks:
+
+- **Rejects `..` segments** - Prevents directory traversal like `"../../../etc/passwd"`
+- **Rejects absolute paths by default** - Blocks access to system files like `"/etc/passwd"` or `"C:/Windows/System32/config/sam"`
+- **Validates resolved paths** - Ensures imports stay within allowed directories (base directory and search paths)
+
+**Safe import examples:**
+```
+import "lib/common.ins"              # ✅ Relative path
+import "instruments/drums.ins"       # ✅ Subdirectory
+```
+
+**Blocked attempts:**
+```
+import "../../../etc/passwd"         # ❌ Path traversal
+import "/etc/passwd"                 # ❌ Absolute path (unless allowAbsolutePaths: true)
+import "C:/Windows/System32/file"    # ❌ Absolute path
+```
+
+For more details and advanced configuration, see [Import Security Documentation](docs/import-security.md).
+
+**Important:** Never execute untrusted `.bax` files without reviewing their import statements.
+
 ## Development
 
 Install dependencies and run tests:

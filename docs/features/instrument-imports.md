@@ -9,8 +9,8 @@ issue: "https://github.com/kadraman/beatbax/issues/23"
 
 ## Summary
 
-The `import` directive in `.bax` files pulls in collections of `inst` declarations 
-from external `.ins` files. Imported instruments are merged into the song's instrument 
+The `import` directive in `.bax` files pulls in collections of `inst` declarations
+from external `.ins` files. Imported instruments are merged into the song's instrument
 table prior to sequence/pattern expansion. **Status: Fully implemented and tested.**
 
 ## Problem Statement
@@ -31,8 +31,8 @@ import "relative/path/to/instruments.ins"
 `.ins` files contain only `inst` declarations and optional `import` lines.
 Imports resolve relative to the importing file first, then fall back to configured
 search paths. Imports are processed recursively with cycle detection and file
-caching. When names conflict, later definitions overwrite earlier ones (last-wins); 
-the resolver emits warnings by default and can run in strict mode to treat 
+caching. When names conflict, later definitions overwrite earlier ones (last-wins);
+the resolver emits warnings by default and can run in strict mode to treat
 overrides as errors.
 
 ### Implementation Notes
@@ -120,7 +120,7 @@ npm run cli -- export uge songs/import_demo.bax output.uge
 
 ### Browser Playback
 
-When using `--browser` mode, imports are automatically resolved server-side and 
+When using `--browser` mode, imports are automatically resolved server-side and
 inlined into the source file. The generated browser-compatible file shows:
 
 ```

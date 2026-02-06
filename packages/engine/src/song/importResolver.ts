@@ -3,7 +3,7 @@
  * Handles loading, caching, cycle detection, and merging of instrument definitions.
  */
 
-import { AST, InstMap, ImportNode } from '../parser/ast.js';
+import { AST, InstMap } from '../parser/ast.js';
 import { parse } from '../parser/index.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -21,6 +21,8 @@ export interface ImportResolverOptions {
   readFile?: (filePath: string) => string;
   /** File existence checker for testing */
   fileExists?: (filePath: string) => boolean;
+  /** Allow absolute paths in imports (disabled by default for security) */
+  allowAbsolutePaths?: boolean;
 }
 
 interface ImportCache {
@@ -34,14 +36,88 @@ interface ImportContext {
 }
 
 /**
+ * Validate an import path for security vulnerabilities.
+ * Rejects paths with:
+ * - Parent directory traversal (..) segments
+ * - Absolute paths (unless explicitly allowed)
+ * @throws Error if the path is invalid
+ */
+function validateImportPath(
+  importSource: string,
+  allowAbsolutePaths: boolean = false
+): void {
+  // Normalize path separators for consistent checking
+  const normalized = importSource.replace(/\\/g, '/');
+
+  // Check for parent directory traversal
+  if (normalized.includes('..')) {
+    throw new Error(
+      `Invalid import path "${importSource}": path traversal using ".." is not allowed for security reasons`
+    );
+  }
+
+  // Check for absolute paths
+  if (!allowAbsolutePaths) {
+    // Check for Unix-style absolute paths
+    if (normalized.startsWith('/')) {
+      throw new Error(
+        `Invalid import path "${importSource}": absolute paths are not allowed for security reasons`
+      );
+    }
+    // Check for Windows-style absolute paths (C:, D:, etc.)
+    if (/^[a-zA-Z]:/.test(normalized)) {
+      throw new Error(
+        `Invalid import path "${importSource}": absolute paths are not allowed for security reasons`
+      );
+    }
+  }
+}
+
+/**
+ * Validate that a resolved path is within allowed directories.
+ * Ensures the resolved path is under the base directory or one of the search paths.
+ */
+function validateResolvedPath(
+  resolvedPath: string,
+  allowedDirs: string[],
+  importSource: string,
+  pathLib: typeof path
+): void {
+  if (allowedDirs.length === 0) {
+    return; // No restrictions if no allowed directories specified
+  }
+
+  const normalizedResolved = pathLib.normalize(resolvedPath);
+  
+  for (const allowedDir of allowedDirs) {
+    const normalizedAllowed = pathLib.normalize(allowedDir);
+    const relative = pathLib.relative(normalizedAllowed, normalizedResolved);
+    
+    // If relative path doesn't start with .., it's within the allowed directory
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+      return; // Valid - within allowed directory
+    }
+  }
+
+  throw new Error(
+    `Security violation: import path "${importSource}" resolves to "${resolvedPath}" ` +
+    `which is outside the allowed directories`
+  );
+}
+
+/**
  * Resolve a relative import path to an absolute path.
  */
 function resolveImportPath(
   importSource: string,
   baseFilePath: string | undefined,
   searchPaths: string[] = [],
-  fileExists?: (filePath: string) => boolean
+  options: ImportResolverOptions = {}
 ): string | null {
+  const fileExists = options.fileExists;
+  // Validate import path for security vulnerabilities
+  validateImportPath(importSource, options.allowAbsolutePaths || false);
+
   const checkExists = fileExists || ((p: string) => {
     try {
       return fs.existsSync(p);
@@ -53,11 +129,21 @@ function resolveImportPath(
   // Use posix paths when a custom fileExists is provided (testing mode)
   const pathLib = fileExists ? path.posix : path;
 
+  // Build list of allowed directories for validation
+  const allowedDirs: string[] = [];
+  if (baseFilePath) {
+    allowedDirs.push(pathLib.dirname(baseFilePath));
+  }
+  allowedDirs.push(...searchPaths);
+
   // If we have a base file path, try resolving relative to it first
   if (baseFilePath) {
     const baseDir = pathLib.dirname(baseFilePath);
     const resolved = pathLib.resolve(baseDir, importSource);
-    
+
+    // Validate that resolved path is within allowed directories
+    validateResolvedPath(resolved, allowedDirs, importSource, pathLib);
+
     if (checkExists(resolved)) {
       return resolved;
     }
@@ -66,6 +152,10 @@ function resolveImportPath(
   // Try search paths
   for (const searchPath of searchPaths) {
     const resolved = pathLib.resolve(searchPath, importSource);
+    
+    // Validate that resolved path is within allowed directories
+    validateResolvedPath(resolved, allowedDirs, importSource, pathLib);
+    
     if (checkExists(resolved)) {
       return resolved;
     }
@@ -209,7 +299,7 @@ function processImports(
       imp.source,
       baseFilePath,
       ctx.options.searchPaths || [],
-      ctx.options.fileExists
+      ctx.options
     );
 
     if (!resolvedPath) {
@@ -220,7 +310,7 @@ function processImports(
     }
 
     const importedInsts = loadImportFile(resolvedPath, ctx);
-    
+
     // Merge imported instruments (later imports override earlier ones)
     mergedInsts = mergeInstruments(mergedInsts, importedInsts, resolvedPath, ctx);
   }
