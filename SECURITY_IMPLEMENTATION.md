@@ -84,19 +84,19 @@ Clear, actionable error messages for security violations:
 
 ### Path Traversal
 ```
-Error: Invalid import path "../../../etc/passwd": 
+Error: Invalid import path "../../../etc/passwd":
 path traversal using ".." is not allowed for security reasons
 ```
 
 ### Absolute Path
 ```
-Error: Invalid import path "/etc/passwd": 
+Error: Invalid import path "/etc/passwd":
 absolute paths are not allowed for security reasons
 ```
 
 ### Outside Allowed Directories
 ```
-Error: Security violation: import path "../../outside/file.ins" 
+Error: Security violation: import path "../../outside/file.ins"
 resolves to "/outside/file.ins" which is outside the allowed directories
 ```
 

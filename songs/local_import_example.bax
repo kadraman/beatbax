@@ -6,8 +6,8 @@ song artist "BeatBax"
 song description "Demonstrates instrument imports from .ins files"
 
 chip gameboy
-import "lib/gameboy-common.ins"
-import "lib/gameboy-drums.ins"
+import "local:lib/gameboy-common.ins"
+import "local:lib/gameboy-drums.ins"
 
 bpm 140
 time 4

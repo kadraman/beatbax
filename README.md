@@ -30,7 +30,7 @@ Each "song" can be defined in a `.bax` file with the following a minimal example
 song name "An example song"
 
 chip gameboy
-import "lib/gameboy-common.ins"  # Import reusable instruments
+import "local:lib/gameboy-common.ins"  # Import reusable instruments
 
 bpm 128
 # volume 1.0  # Master volume (default: 1.0, matches hUGETracker)
@@ -281,12 +281,15 @@ Import statements are validated to prevent path traversal attacks:
 
 **Safe import examples:**
 ```
-import "lib/common.ins"              # ✅ Relative path
-import "instruments/drums.ins"       # ✅ Subdirectory
+import "local:lib/common.ins"              # ✅ Relative path
+import "local:instruments/drums.ins"       # ✅ Subdirectory
+import "github:user/repo/branch/file.ins"  # ✅ Remote GitHub import
+import "https://example.com/drums.ins"     # ✅ Remote HTTPS import
 ```
 
 **Blocked attempts:**
 ```
+import "lib/common.ins"              # ❌ Missing local: prefix
 import "../../../etc/passwd"         # ❌ Path traversal
 import "/etc/passwd"                 # ❌ Absolute path (unless allowAbsolutePaths: true)
 import "C:/Windows/System32/file"    # ❌ Absolute path

@@ -6,9 +6,65 @@ This document describes the security measures implemented in BeatBax's import re
 
 When BeatBax processes `import` statements in `.bax` and `.ins` files, it validates all import paths to ensure they cannot access files outside the intended project directories. This prevents malicious files from reading sensitive system files or escaping the project sandbox.
 
+**As of February 2026**, BeatBax requires explicit import prefixes to clarify import intentions and enhance security:
+- `local:` prefix for local file system imports (CLI only)
+- `https://` or `github:` for remote imports (CLI and browser)
+- Browser environments block all local imports for security
+
 ## Security Measures
 
-### 1. Path Traversal Prevention
+### 1. Import Prefix Requirement
+
+All imports must use explicit prefixes to indicate their source:
+
+```
+// ✅ VALID - Local file import (CLI only)
+import "local:lib/common.ins"
+import "local:instruments/drums.ins"
+
+// ✅ VALID - Remote imports (CLI and browser)
+import "https://raw.githubusercontent.com/user/repo/main/file.ins"
+import "github:user/repo/main/file.ins"
+
+// ❌ REJECTED - Missing prefix
+import "lib/common.ins"
+import "instruments/drums.ins"
+```
+
+This requirement ensures:
+- Import intentions are explicit and clear
+- Prevents accidental file system access
+- Enables browser security (see Browser Security section below)
+- Makes code more auditable and secure
+
+### 2. Browser Security
+
+When running in a browser environment, BeatBax automatically blocks local file imports:
+
+```
+// In browser - BLOCKED with security error
+import "local:lib/common.ins"  
+// Error: Local imports are not supported in the browser for security reasons.
+//        Import "local:lib/common.ins" cannot be loaded.
+//        Use remote imports (https:// or github:) instead, or run in CLI for local file access.
+
+// In browser - ALLOWED
+import "https://example.com/instruments/drums.ins"
+import "github:beatbax/instruments-gb/main/melodic.ins"
+```
+
+**Browser Detection:**
+The engine uses `typeof window !== 'undefined'` to detect browser contexts and enforce this restriction automatically. This prevents browser-based attacks that could attempt to read local file system contents.
+
+**CLI Warnings:**
+When using `--browser` flag with songs containing local imports, the CLI displays a warning:
+```
+⚠️  Warning: This song contains N local file import(s) which will be blocked by browser security.
+   The browser will display an error when attempting to load this song.
+   To play this song in the browser, replace local imports with remote imports (https:// or github:).
+```
+
+### 3. Path Traversal Prevention
 
 Import paths containing `..` segments are **always rejected**, regardless of configuration:
 
@@ -21,7 +77,7 @@ import "subdir/../../../outside/file.ins"
 
 Even if the resolved path would be within an allowed directory, any use of `..` in the import statement itself is forbidden to prevent confusion and potential security bypasses.
 
-### 2. Absolute Path Restriction
+### 4. Absolute Path Restriction
 
 By default, absolute paths are **not allowed** in import statements:
 
@@ -30,14 +86,14 @@ By default, absolute paths are **not allowed** in import statements:
 import "/etc/passwd"
 import "/var/www/data.ins"
 
-// ❌ REJECTED by default - Windows absolute path  
+// ❌ REJECTED by default - Windows absolute path
 import "C:/Windows/System32/config/sam"
 import "D:\\secrets\\passwords.txt"
 ```
 
 This ensures that imports are always relative to the project structure.
 
-### 3. Allowed Directory Validation
+### 5. Allowed Directory Validation
 
 Even after passing initial validation, the **resolved** path must be within one of the allowed directories:
 
@@ -83,18 +139,28 @@ const resolved = resolveImports(ast, {
 
 ## Valid Import Patterns
 
-### Relative Imports (Always Safe)
+### Local Imports (CLI Only)
 
 ```
 // Import from same directory
-import "common.ins"
+import "local:common.ins"
 
 // Import from subdirectory
-import "lib/drums.ins"
-import "instruments/bass.ins"
+import "local:lib/drums.ins"
+import "local:instruments/bass.ins"
 
 // Import from nested subdirectories
-import "lib/chiptune/gameboy/pulse.ins"
+import "local:lib/chiptune/gameboy/pulse.ins"
+```
+
+### Remote Imports (CLI and Browser)
+
+```
+// HTTPS URL
+import "https://raw.githubusercontent.com/user/repo/main/instruments.ins"
+
+// GitHub shorthand
+import "github:user/repo/main/instruments.ins"
 ```
 
 ### Absolute Imports (When Enabled)
@@ -109,24 +175,40 @@ import "C:/BeatBax/Library/drums.ins"
 
 When security validation fails, BeatBax provides clear error messages:
 
+### Missing Import Prefix
+
+```
+Error: Invalid import path "lib/common.ins": local file imports must use "local:" prefix.
+Use "local:lib/common.ins" instead.
+Remote imports should use "https://" or "github:" prefix.
+```
+
+### Browser Security Violation
+
+```
+Error: Local imports are not supported in the browser for security reasons.
+Import "local:lib/common.ins" cannot be loaded.
+Use remote imports (https:// or github:) instead, or run in CLI for local file access.
+```
+
 ### Path Traversal Detected
 
 ```
-Error: Invalid import path "../../../etc/passwd": 
+Error: Invalid import path "local:../../../etc/passwd":
 path traversal using ".." is not allowed for security reasons
 ```
 
 ### Absolute Path Not Allowed
 
 ```
-Error: Invalid import path "/etc/passwd": 
+Error: Invalid import path "local:/etc/passwd":
 absolute paths are not allowed for security reasons
 ```
 
 ### Outside Allowed Directories
 
 ```
-Error: Security violation: import path "../../outside/file.ins" 
+Error: Security violation: import path "local:../../outside/file.ins"
 resolves to "/outside/file.ins" which is outside the allowed directories
 ```
 
@@ -134,10 +216,12 @@ resolves to "/outside/file.ins" which is outside the allowed directories
 
 ### For Users
 
-1. **Use relative paths** for all imports within your project
-2. **Organize imports** in a dedicated directory (e.g., `lib/` or `instruments/`)
-3. **Never trust** `.bax` files from untrusted sources without inspection
-4. **Configure search paths** instead of using absolute paths when possible
+1. **Use `local:` prefix** for all local file imports in CLI
+2. **Use remote imports** (`https://` or `github:`) when sharing or for browser playback
+3. **Organize imports** in a dedicated directory (e.g., `lib/` or `instruments/`)
+4. **Never trust** `.bax` files from untrusted sources without inspection
+5. **Configure search paths** instead of using absolute paths when possible
+6. **Test in browser** to ensure remote imports work correctly
 
 ### For Tool Developers
 
@@ -198,8 +282,28 @@ For high-security environments or running untrusted code:
 4. **Audit all imports** before execution
 5. Use **signed/verified** instrument libraries only
 
+## Migration Guide
+
+**Breaking Change (February 2026)**: All local imports now require the `local:` prefix.
+
+```
+# Before (no longer accepted)
+import "lib/common.ins"
+import "instruments/drums.ins"
+
+# After (required)
+import "local:lib/common.ins"
+import "local:instruments/drums.ins"
+
+# Or use remote imports for browser compatibility
+import "github:beatbax/instruments-gb/main/common.ins"
+```
+
+**Automatic Migration:**
+Update all import statements in your `.bax` and `.ins` files by adding the `local:` prefix to file paths that don't start with `https://` or `github:`.
+
 ## Related Documentation
 
+- [Remote Imports](features/remote-imports.md) - Using https:// and github: imports
 - [Instruments Guide](instruments.md) - How to define and organize instruments
 - [Tutorial](../TUTORIAL.md) - Basic usage and examples
-- [Import Examples](import-examples.md) - Common import patterns and project structures

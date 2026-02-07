@@ -38,10 +38,10 @@ function serializeValue(key: string, value: any): string {
     try {
       // Validate the object can be stringified
       const serialized = JSON.stringify(value);
-      
+
       // Verify it can be parsed back (catches circular references, etc.)
       JSON.parse(serialized);
-      
+
       // For known structured types, validate they have expected properties
       if (key === 'env' && !isValidEnvelope(value)) {
         warn('engine', `Envelope object for property "${key}" may have invalid structure`);
@@ -50,7 +50,7 @@ function serializeValue(key: string, value: any): string {
       } else if (key === 'sweep' && !isValidSweep(value)) {
         warn('engine', `Sweep object for property "${key}" may have invalid structure`);
       }
-      
+
       return serialized;
     } catch (err) {
       error('engine', `Failed to serialize object value for property "${key}": ${err}`);
@@ -68,20 +68,20 @@ function serializeValue(key: string, value: any): string {
  */
 function isValidEnvelope(env: any): boolean {
   if (!env || typeof env !== 'object') return false;
-  
+
   // Check for EnvelopeAST structure
   if ('level' in env && 'direction' in env && 'period' in env) {
     const level = env.level;
     const direction = env.direction;
     const period = env.period;
-    
+
     if (typeof level !== 'number' || level < 0 || level > 15) return false;
     if (!['up', 'down', 'none'].includes(direction)) return false;
     if (typeof period !== 'number' || period < 0 || period > 7) return false;
-    
+
     return true;
   }
-  
+
   // Allow other object structures (may be legacy or extended formats)
   return true;
 }
@@ -91,18 +91,18 @@ function isValidEnvelope(env: any): boolean {
  */
 function isValidNoise(noise: any): boolean {
   if (!noise || typeof noise !== 'object') return false;
-  
+
   // Check for NoiseAST structure
   if ('clockShift' in noise || 'widthMode' in noise || 'divisor' in noise) {
     const { clockShift, widthMode, divisor } = noise;
-    
+
     if (clockShift !== undefined && (typeof clockShift !== 'number' || clockShift < 0 || clockShift > 15)) return false;
     if (widthMode !== undefined && widthMode !== 7 && widthMode !== 15) return false;
     if (divisor !== undefined && (typeof divisor !== 'number' || divisor < 0 || divisor > 7)) return false;
-    
+
     return true;
   }
-  
+
   // Allow other object structures
   return true;
 }
@@ -112,18 +112,18 @@ function isValidNoise(noise: any): boolean {
  */
 function isValidSweep(sweep: any): boolean {
   if (!sweep || typeof sweep !== 'object') return false;
-  
+
   // Check for SweepAST structure
   if ('time' in sweep && 'direction' in sweep && 'shift' in sweep) {
     const { time, direction, shift } = sweep;
-    
+
     if (typeof time !== 'number' || time < 0 || time > 7) return false;
     if (!['up', 'down', 'none'].includes(direction)) return false;
     if (typeof shift !== 'number' || shift < 0 || shift > 7) return false;
-    
+
     return true;
   }
-  
+
   // Allow other object structures
   return true;
 }
@@ -133,17 +133,17 @@ function isValidSweep(sweep: any): boolean {
  */
 function serializeInstrument(name: string, inst: InstrumentNode): string {
   const parts = [`inst ${name}`];
-  
+
   for (const [key, value] of Object.entries(inst)) {
     // Skip internal or metadata fields that shouldn't be serialized
     if (key === 'name') continue;
-    
+
     const serializedValue = serializeValue(key, value);
     if (serializedValue !== '') {
       parts.push(`${key}=${serializedValue}`);
     }
   }
-  
+
   return parts.join(' ');
 }
 
@@ -162,7 +162,7 @@ async function waitForDirectory(
 ): Promise<void> {
   const startTime = Date.now();
   let currentInterval = checkIntervalMs;
-  
+
   while (Date.now() - startTime < maxWaitMs) {
     try {
       // Check if directory exists and is accessible
@@ -175,12 +175,12 @@ async function waitForDirectory(
     } catch (err) {
       // Directory not accessible yet, continue polling
     }
-    
+
     // Wait before next check with exponential backoff (max 1 second)
     await new Promise(resolve => setTimeout(resolve, currentInterval));
     currentInterval = Math.min(currentInterval * 1.5, 1000);
   }
-  
+
   throw new Error(`Timeout waiting for directory "${dirPath}" to be ready after ${maxWaitMs}ms`);
 }
 
@@ -196,7 +196,7 @@ async function waitForViteServer(
 ): Promise<void> {
   const startTime = Date.now();
   let currentInterval = 200;
-  
+
   while (Date.now() - startTime < maxWaitMs) {
     try {
       // Try to fetch from the server
@@ -217,12 +217,12 @@ async function waitForViteServer(
     } catch (err) {
       // Server not ready yet, continue polling
     }
-    
+
     // Wait before next check with exponential backoff (max 1 second)
     await new Promise(resolve => setTimeout(resolve, currentInterval));
     currentInterval = Math.min(currentInterval * 1.5, 1000);
   }
-  
+
   throw new Error(`Timeout waiting for Vite server at ${url} after ${maxWaitMs}ms`);
 }
 
@@ -254,10 +254,10 @@ export async function playFile(path: string, options: PlayOptions = {}) {
     console.log('Rendering song using native PCM renderer...');
 
     try {
-      const { resolveSong } = await import('./song/resolver.js');
+      const { resolveSongAsync } = await import('./song/resolver.js');
       const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
 
-      const song = resolveSong(ast, { filename: path, searchPaths: [process.cwd()] });
+      const song = await resolveSongAsync(ast, { filename: path, searchPaths: [process.cwd()] });
 
       // Check for echo effects and warn (PCM renderer doesn't support echo yet)
       let hasEchoEffects = false;
@@ -364,77 +364,41 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         // Resolve imports before copying to browser (imports won't work in browser context)
         const pathModule = await import('path');
         let resolvedSrc = src;
-        
+
         if (ast.imports && ast.imports.length > 0) {
-          // Use the existing resolveImports function to get merged instruments
-          const { resolveImports } = await import('./song/importResolver.js');
-          
-          try {
-            const resolvedAST = resolveImports(ast, {
-              baseFilePath: path,
-              readFile: (filePath: string) => readFileSync(filePath, 'utf8'),
-              fileExists: (filePath: string) => existsSync(filePath),
-              onWarn: (message: string) => {
-                warn('engine', `Import warning: ${message}`);
-              },
-            });
+          // Filter imports for browser security - only block local imports, keep remote imports intact
+          const { isLocalImport } = await import('./import/urlUtils.js');
 
-            // Identify which instruments came from imports (not in original AST)
-            const originalInstNames = new Set(Object.keys(ast.insts || {}));
-            const importedInsts = Object.entries(resolvedAST.insts || {})
-              .filter(([name]) => !originalInstNames.has(name));
+          const localImports = ast.imports.filter(imp => isLocalImport(imp.source));
+          const remoteImports = ast.imports.filter(imp => !isLocalImport(imp.source));
 
-            if (importedInsts.length > 0) {
-              console.log(`Resolved ${importedInsts.length} instrument(s) from imports`);
-            } else {
-              warn('engine', 'No instruments were resolved from imports - imports may be empty or failed to load');
-            }
-
-            // Replace import statements with resolved instrument definitions
-            const srcLines = src.split('\n');
-            const outputLines: string[] = [];
-
-            for (const line of srcLines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith('import ')) {
-                // Add resolved instruments as a comment block before the import
-                if (importedInsts.length > 0) {
-                  outputLines.push('# Resolved instruments from imports:');
-                  for (const [name, inst] of importedInsts) {
-                    outputLines.push(serializeInstrument(name, inst));
-                  }
-                  outputLines.push('');
-                }
-                // Comment out the import statement
-                outputLines.push('# ' + line);
-              } else {
-                outputLines.push(line);
-              }
-            }
-
-            resolvedSrc = outputLines.join('\n');
-          } catch (importErr: any) {
-            error('engine', `Failed to resolve imports: ${importErr && importErr.message ? importErr.message : String(importErr)}`);
-            if (importErr && importErr.stack) {
-              error('engine', String(importErr.stack));
-            }
-            // Continue with unresolved source - browser will show import errors
-            warn('engine', 'Proceeding with unresolved imports - playback may fail if imported instruments are used');
+          // Warn about local imports - browser will error when trying to resolve them
+          if (localImports.length > 0) {
+            console.log(`⚠️  Warning: This song contains ${localImports.length} local file import(s) which will be blocked by browser security.`);
+            console.log('   The browser will display an error when attempting to load this song.');
+            console.log('   To play this song in the browser, replace local imports with remote imports (https:// or github:).');
           }
+
+          if (remoteImports.length > 0) {
+            console.log(`Browser will resolve ${remoteImports.length} remote import(s) at runtime`);
+          }
+
+          // Send source as-is to browser - let browser error on local imports for clear user feedback
+          resolvedSrc = src;
         }
 
         // Copy the resolved source file into apps/web-ui/public/songs so the web UI can fetch it
         const child = await import('child_process');
         const basename = pathModule.basename(path);
         const outDir = pathModule.join(process.cwd(), 'apps', 'web-ui', 'public', 'songs');
-        
+
         // Ensure output directory exists
-        try { 
-          mkdirSync(outDir, { recursive: true }); 
+        try {
+          mkdirSync(outDir, { recursive: true });
         } catch (e) {
           warn('engine', `Failed to create output directory: ${e}`);
         }
-        
+
         const outPath = pathModule.join(outDir, basename);
 
         // Start Vite dev server in apps/web-ui
@@ -460,7 +424,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         } catch (err) {
           warn('engine', `Directory not ready, proceeding anyway: ${err}`);
         }
-        
+
         // Write the resolved source file
         writeFileSync(outPath, resolvedSrc, 'utf8');
         console.log(`Resolved song written to: ${outPath}`);
@@ -478,14 +442,14 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         // Open browser
         const url = `http://localhost:5173/?song=/songs/${encodeURIComponent(basename)}`;
         console.log('Opening web UI at', url);
-        
+
         // Open default browser (cross-platform)
         const platform = process.platform;
         let cmd = '';
         if (platform === 'win32') cmd = `start "" "${url}"`;
         else if (platform === 'darwin') cmd = `open "${url}"`;
         else cmd = `xdg-open "${url}"`;
-        
+
         try {
           child.exec(cmd, (err: any) => {
             if (err) {

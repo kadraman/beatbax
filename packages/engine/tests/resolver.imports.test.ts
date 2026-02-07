@@ -19,7 +19,7 @@ describe('Import Resolver', () => {
     };
   };
 
-  test('resolves simple import', () => {
+  test('resolves simple import', async () => {
     const mockFiles = {
       '/project/common.ins': 'inst lead type=pulse1 duty=50\ninst bass type=pulse2 duty=25',
     };
@@ -30,10 +30,10 @@ describe('Import Resolver', () => {
       insts: {},
       seqs: {},
       channels: [],
-      imports: [{ source: 'common.ins' }],
+      imports: [{ source: 'local:common.ins' }],
     };
 
-    const resolved = resolveImports(ast, {
+    const resolved = await resolveImports(ast, {
       baseFilePath: '/project/main.bax',
       readFile: fs.readFile,
       fileExists: fs.fileExists,
@@ -45,7 +45,7 @@ describe('Import Resolver', () => {
     expect(resolved.insts.bass.type).toBe('pulse2');
   });
 
-  test('local instruments override imported ones', () => {
+  test('local instruments override imported ones', async () => {
     const mockFiles = {
       '/project/common.ins': 'inst lead type=pulse1 duty=50',
     };
@@ -58,11 +58,11 @@ describe('Import Resolver', () => {
       },
       seqs: {},
       channels: [],
-      imports: [{ source: 'common.ins' }],
+      imports: [{ source: 'local:common.ins' }],
     };
 
     const warnings: string[] = [];
-    const resolved = resolveImports(ast, {
+    const resolved = await resolveImports(ast, {
       baseFilePath: '/project/main.bax',
       readFile: fs.readFile,
       fileExists: fs.fileExists,
@@ -75,7 +75,7 @@ describe('Import Resolver', () => {
     expect(warnings[0]).toContain('overrides');
   });
 
-  test('later imports override earlier ones', () => {
+  test('later imports override earlier ones', async () => {
     const mockFiles = {
       '/project/common.ins': 'inst lead type=pulse1 duty=50',
       '/project/special.ins': 'inst lead type=pulse1 duty=75',
@@ -88,13 +88,13 @@ describe('Import Resolver', () => {
       seqs: {},
       channels: [],
       imports: [
-        { source: 'common.ins' },
-        { source: 'special.ins' },
+        { source: 'local:common.ins' },
+        { source: 'local:special.ins' },
       ],
     };
 
     const warnings: string[] = [];
-    const resolved = resolveImports(ast, {
+    const resolved = await resolveImports(ast, {
       baseFilePath: '/project/main.bax',
       readFile: fs.readFile,
       fileExists: fs.fileExists,
@@ -105,10 +105,10 @@ describe('Import Resolver', () => {
     expect(warnings.length).toBeGreaterThan(0);
   });
 
-  test('detects import cycles', () => {
+  test('detects import cycles', async () => {
     const mockFiles = {
-      '/project/a.ins': 'import "b.ins"\ninst a type=pulse1',
-      '/project/b.ins': 'import "a.ins"\ninst b type=pulse2',
+      '/project/a.ins': 'import "local:b.ins"\ninst a type=pulse1',
+      '/project/b.ins': 'import "local:a.ins"\ninst b type=pulse2',
     };
     const fs = createMockFileSystem(mockFiles);
 
@@ -117,24 +117,24 @@ describe('Import Resolver', () => {
       insts: {},
       seqs: {},
       channels: [],
-      imports: [{ source: 'a.ins' }],
+      imports: [{ source: 'local:a.ins' }],
     };
 
-    expect(() => {
-      resolveImports(ast, {
+    await expect(async () => {
+      await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
       });
-    }).toThrow(/cycle/i);
+    }).rejects.toThrow(/cycle/i);
   });
 
-  test('caches imported files', () => {
+  test('caches imported files', async () => {
     let readCount = 0;
     const mockFiles: Record<string, string> = {
       '/project/common.ins': 'inst shared type=pulse1',
-      '/project/a.ins': 'import "common.ins"\ninst a type=pulse1',
-      '/project/b.ins': 'import "common.ins"\ninst b type=pulse2',
+      '/project/a.ins': 'import "local:common.ins"\ninst a type=pulse1',
+      '/project/b.ins': 'import "local:common.ins"\ninst b type=pulse2',
     };
 
     const readFile = (path: string) => {
@@ -151,12 +151,12 @@ describe('Import Resolver', () => {
       seqs: {},
       channels: [],
       imports: [
-        { source: 'a.ins' },
-        { source: 'b.ins' },
+        { source: 'local:a.ins' },
+        { source: 'local:b.ins' },
       ],
     };
 
-    const resolved = resolveImports(ast, {
+    const resolved = await resolveImports(ast, {
       baseFilePath: '/project/main.bax',
       readFile,
       fileExists: (path) => path in mockFiles,
@@ -170,7 +170,7 @@ describe('Import Resolver', () => {
     expect(readCount).toBe(3); // a.ins, b.ins, common.ins (once)
   });
 
-  test('throws error on missing import file', () => {
+  test('throws error on missing import file', async () => {
     const mockFiles = {};
     const fs = createMockFileSystem(mockFiles);
 
@@ -179,19 +179,19 @@ describe('Import Resolver', () => {
       insts: {},
       seqs: {},
       channels: [],
-      imports: [{ source: 'nonexistent.ins' }],
+      imports: [{ source: 'local:nonexistent.ins' }],
     };
 
-    expect(() => {
-      resolveImports(ast, {
+    await expect(async () => {
+      await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
       });
-    }).toThrow(/not found/i);
+    }).rejects.toThrow(/not found/i);
   });
 
-  test('validates .ins files contain only instruments', () => {
+  test('validates .ins files contain only instruments', async () => {
     const mockFiles = {
       '/project/bad.ins': `
 inst lead type=pulse1
@@ -205,19 +205,19 @@ pat melody = C5 E5 G5
       insts: {},
       seqs: {},
       channels: [],
-      imports: [{ source: 'bad.ins' }],
+      imports: [{ source: 'local:bad.ins' }],
     };
 
-    expect(() => {
-      resolveImports(ast, {
+    await expect(async () => {
+      await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
       });
-    }).toThrow(/Invalid .ins file/i);
+    }).rejects.toThrow(/Invalid .ins file/i);
   });
 
-  test('strict mode treats overrides as errors', () => {
+  test('strict mode treats overrides as errors', async () => {
     const mockFiles = {
       '/project/common.ins': 'inst lead type=pulse1 duty=50',
     };
@@ -230,24 +230,24 @@ pat melody = C5 E5 G5
       },
       seqs: {},
       channels: [],
-      imports: [{ source: 'common.ins' }],
+      imports: [{ source: 'local:common.ins' }],
     };
 
-    expect(() => {
-      resolveImports(ast, {
+    await expect(async () => {
+      await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
         strictMode: true,
       });
-    }).toThrow(/overrides/i);
+    }).rejects.toThrow(/overrides/i);
   });
 
-  test('handles recursive imports', () => {
+  test('handles recursive imports', async () => {
     const mockFiles = {
       '/project/base.ins': 'inst base type=pulse1',
-      '/project/common.ins': 'import "base.ins"\ninst common type=pulse2',
-      '/project/main.bax': 'import "common.ins"',
+      '/project/common.ins': 'import "local:base.ins"\ninst common type=pulse2',
+      '/project/main.bax': 'import "local:common.ins"',
     };
     const fs = createMockFileSystem(mockFiles);
 
@@ -256,10 +256,10 @@ pat melody = C5 E5 G5
       insts: {},
       seqs: {},
       channels: [],
-      imports: [{ source: 'common.ins' }],
+      imports: [{ source: 'local:common.ins' }],
     };
 
-    const resolved = resolveImports(ast, {
+    const resolved = await resolveImports(ast, {
       baseFilePath: '/project/main.bax',
       readFile: fs.readFile,
       fileExists: fs.fileExists,
@@ -270,7 +270,7 @@ pat melody = C5 E5 G5
   });
 
   describe('Security: Path Traversal Prevention', () => {
-    test('rejects paths with .. segments', () => {
+    test('rejects paths with .. segments', async () => {
       const mockFiles = {
         '/etc/passwd': 'secret data',
       };
@@ -281,19 +281,19 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: '../../../etc/passwd' }],
+        imports: [{ source: 'local:../../../etc/passwd' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/songs/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
         });
-      }).toThrow(/path traversal.*\.\./i);
+      }).rejects.toThrow(/path traversal.*\.\./i);
     });
 
-    test('rejects paths with .. in the middle', () => {
+    test('rejects paths with .. in the middle', async () => {
       const mockFiles = {
         '/project/secret.ins': 'inst secret type=pulse1',
       };
@@ -304,19 +304,19 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: 'subdir/../../../secret.ins' }],
+        imports: [{ source: 'local:subdir/../../../secret.ins' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/songs/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
         });
-      }).toThrow(/path traversal.*\.\./i);
+      }).rejects.toThrow(/path traversal.*\.\./i);
     });
 
-    test('rejects Unix-style absolute paths', () => {
+    test('rejects Unix-style absolute paths', async () => {
       const mockFiles = {
         '/etc/passwd': 'secret data',
       };
@@ -327,19 +327,19 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: '/etc/passwd' }],
+        imports: [{ source: 'local:/etc/passwd' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
         });
-      }).toThrow(/absolute paths are not allowed/i);
+      }).rejects.toThrow(/absolute paths are not allowed/i);
     });
 
-    test('rejects Windows-style absolute paths', () => {
+    test('rejects Windows-style absolute paths', async () => {
       const mockFiles = {
         'C:/Windows/System32/config/sam': 'secret data',
       };
@@ -350,19 +350,19 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: 'C:/Windows/System32/config/sam' }],
+        imports: [{ source: 'local:C:/Windows/System32/config/sam' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
         });
-      }).toThrow(/absolute paths are not allowed/i);
+      }).rejects.toThrow(/absolute paths are not allowed/i);
     });
 
-    test('rejects Windows-style absolute paths with backslashes', () => {
+    test('rejects Windows-style absolute paths with backslashes', async () => {
       const mockFiles = {
         'D:\\secrets\\passwords.txt': 'secret data',
       };
@@ -373,19 +373,19 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: 'D:\\secrets\\passwords.txt' }],
+        imports: [{ source: 'local:D:\\secrets\\passwords.txt' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
         });
-      }).toThrow(/absolute paths are not allowed/i);
+      }).rejects.toThrow(/absolute paths are not allowed/i);
     });
 
-    test('allows relative paths in subdirectories', () => {
+    test('allows relative paths in subdirectories', async () => {
       const mockFiles = {
         '/project/lib/common.ins': 'inst common type=pulse1',
       };
@@ -396,10 +396,10 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: 'lib/common.ins' }],
+        imports: [{ source: 'local:lib/common.ins' }],
       };
 
-      const resolved = resolveImports(ast, {
+      const resolved = await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
@@ -408,7 +408,7 @@ pat melody = C5 E5 G5
       expect(resolved.insts.common).toBeDefined();
     });
 
-    test('allows absolute paths when allowAbsolutePaths is true', () => {
+    test('allows absolute paths when allowAbsolutePaths is true', async () => {
       const mockFiles = {
         '/shared/instruments/common.ins': 'inst shared type=pulse1',
       };
@@ -419,10 +419,10 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: '/shared/instruments/common.ins' }],
+        imports: [{ source: 'local:/shared/instruments/common.ins' }],
       };
 
-      const resolved = resolveImports(ast, {
+      const resolved = await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,
@@ -433,7 +433,7 @@ pat melody = C5 E5 G5
       expect(resolved.insts.shared).toBeDefined();
     });
 
-    test('still rejects .. segments even with allowAbsolutePaths', () => {
+    test('still rejects .. segments even with allowAbsolutePaths', async () => {
       const mockFiles = {
         '/etc/passwd': 'secret data',
       };
@@ -444,20 +444,20 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: '../../../etc/passwd' }],
+        imports: [{ source: 'local:../../../etc/passwd' }],
       };
 
-      expect(() => {
-        resolveImports(ast, {
+      await expect(async () => {
+        await resolveImports(ast, {
           baseFilePath: '/project/songs/main.bax',
           readFile: fs.readFile,
           fileExists: fs.fileExists,
           allowAbsolutePaths: true,
         });
-      }).toThrow(/path traversal.*\.\./i);
+      }).rejects.toThrow(/path traversal.*\.\./i);
     });
 
-    test('validates resolved paths stay within allowed directories', () => {
+    test('validates resolved paths stay within allowed directories', async () => {
       const mockFiles = {
         '/project/lib/common.ins': 'inst safe type=pulse1',
         '/outside/malicious.ins': 'inst malicious type=pulse1',
@@ -469,11 +469,11 @@ pat melody = C5 E5 G5
         insts: {},
         seqs: {},
         channels: [],
-        imports: [{ source: 'lib/common.ins' }],
+        imports: [{ source: 'local:lib/common.ins' }],
       };
 
       // This should work - within project directory
-      const resolved = resolveImports(ast, {
+      const resolved = await resolveImports(ast, {
         baseFilePath: '/project/main.bax',
         readFile: fs.readFile,
         fileExists: fs.fileExists,

@@ -11,13 +11,15 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
 **Language Quick Reference**
 
 - import directive: import instrument collections from external `.ins` files
-  - Syntax: `import "path/to/instruments.ins"`
-  - Paths: relative to song file (e.g., `lib/common.ins` or `../shared/drums.ins`)
+  - Syntax: `import "local:path/to/instruments.ins"` (local files) or `import "github:user/repo/branch/file.ins"` (remote)
+  - **Local imports require `local:` prefix** and are CLI-only (blocked in browser for security)
+  - **Remote imports** support `github:` and `https:` protocols and work in both CLI and browser
+  - Paths: relative to song file (e.g., `local:lib/common.ins` or `local:../shared/drums.ins`)
   - Search paths: fallback to current working directory if relative path not found
   - Cycle detection: recursive imports supported with automatic cycle prevention
   - Merging: last-wins semantics (local definitions override imported ones)
-  - Browser: imports auto-resolved and inlined for browser playback
-  - See `songs/import_demo.bax` and `docs/features/instrument-imports.md` for examples
+  - Browser: imports auto-resolved and inlined for browser playback (remote imports only)
+  - See `songs/local_import_example.bax`, `songs/remote_import_example.bax`, and `docs/features/instrument-imports.md` for examples
 
 - inst definitions: define instruments and their params.
   - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`

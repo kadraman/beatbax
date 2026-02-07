@@ -9,7 +9,8 @@ import {
   patternEventsToTokens,
 } from '../parser/structured.js';
 import { expandRefToTokens } from '../expand/refExpander.js';
-import { resolveImports } from './importResolver.js';
+import { resolveImports, resolveImportsSync } from './importResolver.js';
+import { isRemoteImport } from '../import/urlUtils.js';
 
 // Helpers for parsing inline effects and pan specifications
 function parsePanSpec(val: any, ns?: string) {
@@ -107,11 +108,22 @@ export function parseEffectsInline(str: string) {
 /**
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
+ *
+ * Note: This function does not support remote imports. For remote imports,
+ * use resolveSongAsync() instead.
  */
 export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
+  // Check for remote imports
+  if (ast.imports && ast.imports.some(imp => isRemoteImport(imp.source))) {
+    throw new Error(
+      'Remote imports (http://, https://, github:) are not supported in synchronous mode. ' +
+      'Use resolveSongAsync() instead.'
+    );
+  }
+
   // Resolve imports first if present
   if (ast.imports && ast.imports.length > 0) {
-    ast = resolveImports(ast, {
+    ast = resolveImportsSync(ast, {
       baseFilePath: opts?.filename,
       searchPaths: opts?.searchPaths,
       strictMode: opts?.strictInstruments,
@@ -122,6 +134,37 @@ export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: 
       },
     });
   }
+
+  return resolveSongInternal(ast, opts);
+}
+
+/**
+ * Async version of resolveSong that supports remote imports.
+ * Use this when your AST may contain remote imports (http://, https://, github:).
+ */
+export async function resolveSongAsync(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): Promise<SongModel> {
+  // Resolve imports first if present (supports both local and remote)
+  if (ast.imports && ast.imports.length > 0) {
+    ast = await resolveImports(ast, {
+      baseFilePath: opts?.filename,
+      searchPaths: opts?.searchPaths,
+      strictMode: opts?.strictInstruments,
+      onWarn: (message, loc) => {
+        if (opts?.onWarn) {
+          opts.onWarn({ component: 'import-resolver', message, file: opts.filename, loc });
+        }
+      },
+    });
+  }
+
+  return resolveSongInternal(ast, opts);
+}
+
+/**
+ * Internal implementation shared by resolveSong and resolveSongAsync.
+ * Assumes imports have already been resolved.
+ */
+function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
 
   let pats = ast.pats || {};
   const insts = ast.insts || {};

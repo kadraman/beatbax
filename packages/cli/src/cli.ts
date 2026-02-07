@@ -3,9 +3,9 @@ import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { readFileSync, statSync, existsSync } from 'fs';
+import { resolve as resolvePath } from 'path';
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song/resolver';
-import { resolveImports } from '@beatbax/engine/song/importResolver';
+import { resolveSong, resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
 const { getUGEDetailedJSON } = engineImports as any;
 
@@ -14,7 +14,7 @@ interface SourceLocation {
   end: { offset: number; line: number; column: number };
 }
 
-type ValidationIssue = { message: string; loc?: SourceLocation };
+type ValidationIssue = { message: string; loc?: SourceLocation; component?: string };
 type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
 
 function formatLocation(loc?: SourceLocation): string {
@@ -31,7 +31,7 @@ function ensureFileExists(file: string) {
   }
 }
 
-function validateSource(src: string, filename?: string): ValidationResult {
+async function validateSource(src: string, filename?: string): Promise<ValidationResult> {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
@@ -55,11 +55,17 @@ function validateSource(src: string, filename?: string): ValidationResult {
   }
 
   // Resolve imports if present (separate try/catch to provide better error messages)
+  // Use async resolver to support remote imports
   if (ast.imports && ast.imports.length > 0 && filename) {
     try {
-      ast = resolveImports(ast, {
-        baseFilePath: filename,
+      // Convert filename to absolute path for proper import resolution
+      const absoluteFilePath = resolvePath(filename);
+      ast = await resolveImports(ast, {
+        baseFilePath: absoluteFilePath,
         searchPaths: [process.cwd()],
+        onWarn: (message, loc) => {
+          warnings.push({ message, loc, component: 'import-resolver' });
+        },
       });
     } catch (importErr: any) {
       errors.push({ message: `Import error: ${extractErrorMessage(importErr)}` });
@@ -217,21 +223,22 @@ program
     // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings } = validateSource(src, file);
+    const { errors, warnings } = await validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
       process.exitCode = 2;
       return;
     }
-    if (warnings.length > 0 && verbose) {
-      console.warn(`Validation warnings for ${file}:`);
-      for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
+    if (warnings.length > 0) {
+      console.log(`\n⚠️  Warnings`);
+      for (const w of warnings) console.log(`  [${w.component || 'validation'}] ${w.message}${formatLocation(w.loc)}`);
+      console.log('');
     }
 
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: !options.browser || options.headless === true || options.backend === 'node-webaudio',
+      noBrowser: (options.browser !== true) || options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(globalOpts.sampleRate, 10),
       bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
@@ -254,8 +261,8 @@ program
       console.log('  Parsing source...');
     }
 
-    // Use validateSource which handles import resolution
-    const { errors, warnings, ast } = validateSource(src, file);
+    // Use validateSource which handles import resolution (now async)
+    const { errors, warnings, ast } = await validateSource(src, file);
 
     if (verbose && ast) {
       console.log('  Source parsed successfully');
@@ -281,7 +288,7 @@ program
     // resolver warnings (e.g. arrange expansion issues).
     const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
     try {
-      resolveSong(ast, {
+      await resolveSongAsync(ast, {
         filename: file,
         searchPaths: [process.cwd()],
         onWarn: (d: any) => resolverWarnings.push(d)
@@ -293,24 +300,18 @@ program
     }
 
     // Merge parser warnings and resolver warnings
-    const allWarnings: string[] = [];
+    const allWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
     for (const w of warnings) {
-      const locStr = w.loc ? formatLocation(w.loc) : '';
-      allWarnings.push(`${w.message}${locStr}`);
+      allWarnings.push({ component: w.component || 'validation', message: w.message, loc: w.loc });
     }
-    for (const rw of resolverWarnings) {
-      const filePart = rw.file ? rw.file : file;
-      const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
-      const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
-      const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
-      if (linePart !== undefined) parts.push(`line=${linePart}`);
-      if (colPart !== undefined) parts.push(`column=${colPart}`);
-      allWarnings.push(parts.join(', '));
-    }
+    allWarnings.push(...resolverWarnings);
 
     if (allWarnings.length > 0) {
-      console.warn(`Validation warnings for ${file}:`);
-      for (const w of allWarnings) console.warn('  -', w);
+      console.log(`\n⚠️  Warnings`);
+      for (const w of allWarnings) {
+        console.log(`  [${w.component}] ${w.message}${formatLocation(w.loc)}`);
+      }
+      console.log('');
       if (globalOpts && globalOpts.strict) {
         console.error('Strict mode enabled: failing due to warnings');
         process.exitCode = 2;
@@ -342,7 +343,7 @@ program
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings, ast } = validateSource(src, file);
+    const { errors, warnings, ast } = await validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
@@ -355,30 +356,25 @@ program
     // scope so it is available after the try/catch for export steps.
     let song: any = undefined;
     try {
-      const shouldShowParserWarnings = (warnings.length > 0 && ((options as any).verbose || verbose));
-      if (shouldShowParserWarnings) {
-        console.warn(`Validation warnings for ${file}:`);
-        for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
-      }
-      const resolved = resolveSong(ast, {
+      const resolved = await resolveSongAsync(ast, {
         filename: file,
         searchPaths: [process.cwd()],
         onWarn: (d: any) => resolverWarnings.push(d)
       } as any);
-      // merge resolver warnings into combined list for possible strict handling
-      const allWarnings: string[] = [];
-      for (const rw of resolverWarnings) {
-        const filePart = rw.file ? rw.file : file;
-        const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
-        const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
-        const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
-        if (linePart !== undefined) parts.push(`line=${linePart}`);
-        if (colPart !== undefined) parts.push(`column=${colPart}`);
-        allWarnings.push(parts.join(', '));
+
+      // Merge parser warnings and resolver warnings
+      const allWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+      for (const w of warnings) {
+        allWarnings.push({ component: w.component || 'validation', message: w.message, loc: w.loc });
       }
-      if (allWarnings.length > 0 && ((options as any).verbose || verbose)) {
-        console.warn(`Validation warnings for ${file}:`);
-        for (const w of allWarnings) console.warn('  -', w);
+      allWarnings.push(...resolverWarnings);
+
+      if (allWarnings.length > 0) {
+        console.log(`\n⚠️  Warnings`);
+        for (const w of allWarnings) {
+          console.log(`  [${w.component}] ${w.message}${formatLocation(w.loc)}`);
+        }
+        console.log('');
       }
       if (allWarnings.length > 0 && program.opts() && program.opts().strict) {
         console.error('Strict mode enabled: failing due to warnings');

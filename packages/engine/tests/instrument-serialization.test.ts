@@ -18,7 +18,7 @@ inst lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"for
 pat a = C5
 channel 1 => inst lead seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.lead).toBeDefined();
     expect(ast.insts.lead.type).toBe('pulse1');
@@ -37,7 +37,7 @@ inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 pat a = C5
 channel 3 => inst wave1 seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.wave1).toBeDefined();
     // Wave data may be stored as string or array depending on parser
@@ -57,7 +57,7 @@ inst lead type=pulse1 duty=50 env=15,down,1
 pat a = C5
 channel 1 => inst lead seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.lead).toBeDefined();
     expect(ast.insts.lead.type).toBe('pulse1');
@@ -72,7 +72,7 @@ inst lead type=pulse1 duty=50 gm=80
 pat a = C5
 channel 1 => inst lead seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.lead).toBeDefined();
     expect(ast.insts.lead.duty).toBe('50');
@@ -81,17 +81,17 @@ channel 1 => inst lead seq main
 
   test('handles complex instrument definitions from real songs', () => {
     const demoPath = 'songs/instrument_demo.bax';
-    
+
     try {
       const src = readFileSync(demoPath, 'utf8');
       const ast = parse(src);
-      
+
       // Verify various instrument types parsed correctly
       expect(ast.insts.pulse_12).toBeDefined();
       expect(ast.insts.pulse_12.type).toBe('pulse1');
       expect(ast.insts.pulse_12.duty).toBeDefined();
       expect(ast.insts.pulse_12.env).toBeDefined();
-      
+
       expect(ast.insts.wave_sine).toBeDefined();
       expect(ast.insts.wave_sine.type).toBe('wave');
       expect(ast.insts.wave_sine.wave).toBeDefined();
@@ -108,14 +108,14 @@ channel 1 => inst lead seq main
       direction: 'down' as const,
       period: 1
     };
-    
+
     const src = `
 chip gameboy
 inst lead type=pulse1 duty=50 env=${JSON.stringify(validEnv)}
 pat a = C5
 channel 1 => inst lead seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.lead.env).toMatchObject({
       level: 12,
@@ -130,14 +130,14 @@ channel 1 => inst lead seq main
       direction: 'down' as const,
       shift: 2
     };
-    
+
     const src = `
 chip gameboy
 inst lead type=pulse1 duty=50 sweep=${JSON.stringify(validSweep)}
 pat a = C5
 channel 1 => inst lead seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.lead.sweep).toMatchObject({
       time: 3,
@@ -152,14 +152,14 @@ channel 1 => inst lead seq main
       widthMode: 7 as const,
       divisor: 2
     };
-    
+
     const src = `
 chip gameboy
 inst sn type=noise noise=${JSON.stringify(validNoise)}
 pat a = C5
 channel 4 => inst sn seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.sn.noise).toMatchObject({
       clockShift: 4,
@@ -175,7 +175,7 @@ inst complex type=pulse1 duty=50 env={"level":12,"direction":"down","period":1} 
 pat a = C5
 channel 1 => inst complex seq main
     `;
-    
+
     const ast = parse(src);
     expect(ast.insts.complex).toBeDefined();
     expect(ast.insts.complex.type).toBe('pulse1');

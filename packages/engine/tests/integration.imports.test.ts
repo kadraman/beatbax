@@ -31,8 +31,8 @@ inst snare type=noise env={"level":12,"direction":"down","period":5}`;
       // Create main song file
       const mainSong = `
 chip gameboy
-import "common.ins"
-import "drums.ins"
+import "local:common.ins"
+import "local:drums.ins"
 
 bpm 120
 
@@ -100,8 +100,8 @@ channel 4 => inst kick seq drum_pattern
 
     const source = `
 chip gameboy
-import "lib/uge/gameboy-common.ins"
-import "lib/uge/gameboy-drums.ins"
+import "local:lib/uge/gameboy-common.ins"
+import "local:lib/uge/gameboy-drums.ins"
 
 bpm 140
 

@@ -13,7 +13,30 @@ The `import` directive in `.bax` files pulls in collections of `inst` declaratio
 from external `.ins` files. Imported instruments are merged into the song's instrument
 table prior to sequence/pattern expansion. **Status: Fully implemented and tested.**
 
-## Problem Statement
+BeatBax supports both **local file imports** and **remote URL imports** (HTTP(S) and GitHub repositories).
+
+**For remote import documentation (HTTP(S), GitHub), see [`remote-imports.md`](./remote-imports.md).**
+
+This document covers **local file imports** only.
+
+## Import Prefix Requirement
+
+**All local file imports MUST use the `local:` prefix for security reasons:**
+
+```
+import "local:lib/gameboy-common.ins"  # ✅ Correct
+import "lib/gameboy-common.ins"        # ❌ Error: Missing prefix
+```
+
+**Browser Security:** Local imports are only supported in the CLI. If a `.bax` file containing `local:` imports is loaded in the browser, an error will be displayed:
+
+```
+🛑 Local imports are not supported in the browser for security reasons.
+   Use remote imports (github: or https:) instead.
+   Found: import "local:lib/gameboy-common.ins"
+```
+
+When using the CLI with `--browser` flag, a warning is shown if the song contains local imports, since they cannot be used when the file is later played in the browser.
 
 Authors frequently want to reuse instrument collections across songs and
 projects. Previously, instrument definitions had to live inside each `.bax`, which
@@ -25,8 +48,10 @@ led to duplication and made cross-song updates tedious.
 A top-level directive:
 
 ```
-import "relative/path/to/instruments.ins"
+import "local:relative/path/to/instruments.ins"
 ```
+
+**The `local:` prefix is required for all local file imports.** This ensures explicit intent and enables security enforcement in browser environments.
 
 `.ins` files contain only `inst` declarations and optional `import` lines.
 Imports resolve relative to the importing file first, then fall back to configured
@@ -56,7 +81,7 @@ inst bass  type=pulse2 duty=25 env=10,down
 `song.bax`:
 
 ```
-import "common.ins"
+import "local:common.ins"
 
 bpm 128
 inst lead type=pulse1 duty=30 env=8,up
@@ -127,24 +152,24 @@ inlined into the source file. The generated browser-compatible file shows:
 # Resolved instruments from: lib/gameboy-common.ins
 inst gb_lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":3}
 inst gb_bass type=pulse2 duty=25 env={"level":10,"direction":"down","period":2}
-# import "lib/gameboy-common.ins"
+# import "local:lib/gameboy-common.ins"
 
 # Resolved instruments from: lib/gameboy-drums.ins
 inst kick type=noise env={"level":15,"direction":"down","period":7} noise={...}
 inst snare type=noise env={"level":12,"direction":"down","period":5} noise={...}
-# import "lib/gameboy-drums.ins"
+# import "local:lib/gameboy-drums.ins"
 ```
 
 This ensures the browser can play the song without file system access.
 
 ### Path Resolution
 
-Imports support standard relative paths:
+Imports support standard relative paths with the `local:` prefix:
 
 ```
-import "lib/common.ins"          # Subdirectory relative to song file
-import "../shared/drums.ins"     # Parent directory
-import "../../library/fx.ins"    # Multiple levels up
+import "local:lib/common.ins"          # Subdirectory relative to song file
+import "local:../shared/drums.ins"     # Parent directory
+import "local:../../library/fx.ins"    # Multiple levels up
 ```
 
 Resolution order:

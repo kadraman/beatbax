@@ -6,28 +6,28 @@ import { parse } from '../src/parser/index.js';
 
 describe('Parser: Import Directive', () => {
   test('parses single import statement', () => {
-    const source = `import "common.ins"`;
+    const source = `import "local:common.ins"`;
     const ast = parse(source);
 
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(1);
-    expect(ast.imports![0].source).toBe('common.ins');
+    expect(ast.imports![0].source).toBe('local:common.ins');
     expect(ast.imports![0].loc).toBeDefined();
   });
 
   test('parses multiple import statements', () => {
     const source = `
-import "common.ins"
-import "drums.ins"
-import "bass.ins"
+import "local:common.ins"
+import "local:drums.ins"
+import "local:bass.ins"
 `;
     const ast = parse(source);
 
     expect(ast.imports).toBeDefined();
     expect(ast.imports).toHaveLength(3);
-    expect(ast.imports![0].source).toBe('common.ins');
-    expect(ast.imports![1].source).toBe('drums.ins');
-    expect(ast.imports![2].source).toBe('bass.ins');
+    expect(ast.imports![0].source).toBe('local:common.ins');
+    expect(ast.imports![1].source).toBe('local:drums.ins');
+    expect(ast.imports![2].source).toBe('local:bass.ins');
   });
 
   test('parses import with relative path', () => {
