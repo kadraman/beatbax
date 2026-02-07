@@ -115,6 +115,11 @@ export interface ArrangeNode {
   raw?: string;
 }
 
+export interface ImportNode {
+  source: string;
+  loc?: SourceLocation;
+}
+
 export interface AST {
   pats: PatternMap;
   insts: InstMap;
@@ -124,6 +129,7 @@ export interface AST {
   sequenceItems?: SequenceItemMap;
   channels: ChannelNode[];
   arranges?: Record<string, ArrangeNode>;
+  imports?: ImportNode[];
   bpm?: number;
   chip?: string;
   volume?: number;

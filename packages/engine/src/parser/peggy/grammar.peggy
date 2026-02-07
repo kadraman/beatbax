@@ -59,6 +59,7 @@ Statement
   / StepsPerBarStmt
   / TicksPerStepStmt
   / SongMetaStmt
+  / ImportStmt
   / InstStmt
   / EffectStmt
   / PatStmt
@@ -106,6 +107,11 @@ TicksPerStepStmt
 SongMetaStmt
   = $("song" !IdentChar) __ key:Identifier __ value:MetaString {
       return { nodeType: "SongMetaStmt", key, value, loc: loc(location()) };
+    }
+
+ImportStmt
+  = $("import" !IdentChar) __ path:MetaString {
+      return { nodeType: "ImportStmt", source: path, loc: loc(location()) };
     }
 
 PlayStmt
@@ -164,11 +170,11 @@ ArrangeStmt
           let inQuote = false;
           let quoteChar = '';
           let commentStart = -1;
-          
+
           for (let i = 0; i < slotText.length; i++) {
             const ch = slotText[i];
             const next = slotText[i + 1];
-            
+
             // Track quote state
             if (!inQuote && (ch === '"' || ch === "'")) {
               inQuote = true;
@@ -177,7 +183,7 @@ ArrangeStmt
               inQuote = false;
               quoteChar = '';
             }
-            
+
             // Look for comment markers only outside quotes
             if (!inQuote) {
               if (ch === '#') {
@@ -189,11 +195,11 @@ ArrangeStmt
               }
             }
           }
-          
+
           if (commentStart >= 0) {
             slotText = slotText.substring(0, commentStart);
           }
-          
+
           const t = slotText.trim();
           if (t === '.' || t === '-') return null;
           if ((t.startsWith('"') || t.startsWith("'")) && t.length >= 2) return t.slice(1, -1);

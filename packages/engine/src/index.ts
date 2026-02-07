@@ -2,6 +2,229 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 import { warn, error } from './util/diag.js';
+import type { InstrumentNode, EnvelopeAST, NoiseAST, SweepAST } from './parser/ast.js';
+
+/**
+ * Serialize a single instrument property value to .bax format.
+ * Handles various types: primitives, arrays, and structured objects.
+ */
+function serializeValue(key: string, value: any): string {
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  // Handle primitive types (string, number, boolean)
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  // Handle arrays (e.g., wave data)
+  if (Array.isArray(value)) {
+    try {
+      // Validate array elements are serializable
+      if (!value.every(v => typeof v === 'number' || typeof v === 'string')) {
+        warn('engine', `Instrument property "${key}" contains non-primitive array elements, may produce invalid .bax syntax`);
+      }
+      return JSON.stringify(value);
+    } catch (err) {
+      error('engine', `Failed to serialize array value for property "${key}": ${err}`);
+      return '[]';
+    }
+  }
+
+  // Handle structured objects (EnvelopeAST, NoiseAST, SweepAST, etc.)
+  if (typeof value === 'object') {
+    try {
+      // Validate the object can be stringified
+      const serialized = JSON.stringify(value);
+
+      // Verify it can be parsed back (catches circular references, etc.)
+      JSON.parse(serialized);
+
+      // For known structured types, validate they have expected properties
+      if (key === 'env' && !isValidEnvelope(value)) {
+        warn('engine', `Envelope object for property "${key}" may have invalid structure`);
+      } else if (key === 'noise' && !isValidNoise(value)) {
+        warn('engine', `Noise object for property "${key}" may have invalid structure`);
+      } else if (key === 'sweep' && !isValidSweep(value)) {
+        warn('engine', `Sweep object for property "${key}" may have invalid structure`);
+      }
+
+      return serialized;
+    } catch (err) {
+      error('engine', `Failed to serialize object value for property "${key}": ${err}`);
+      return '{}';
+    }
+  }
+
+  // Unsupported type
+  warn('engine', `Instrument property "${key}" has unsupported type "${typeof value}", converting to string`);
+  return String(value);
+}
+
+/**
+ * Validate envelope structure
+ */
+function isValidEnvelope(env: any): boolean {
+  if (!env || typeof env !== 'object') return false;
+
+  // Check for EnvelopeAST structure
+  if ('level' in env && 'direction' in env && 'period' in env) {
+    const level = env.level;
+    const direction = env.direction;
+    const period = env.period;
+
+    if (typeof level !== 'number' || level < 0 || level > 15) return false;
+    if (!['up', 'down', 'none'].includes(direction)) return false;
+    if (typeof period !== 'number' || period < 0 || period > 7) return false;
+
+    return true;
+  }
+
+  // Allow other object structures (may be legacy or extended formats)
+  return true;
+}
+
+/**
+ * Validate noise structure
+ */
+function isValidNoise(noise: any): boolean {
+  if (!noise || typeof noise !== 'object') return false;
+
+  // Check for NoiseAST structure
+  if ('clockShift' in noise || 'widthMode' in noise || 'divisor' in noise) {
+    const { clockShift, widthMode, divisor } = noise;
+
+    if (clockShift !== undefined && (typeof clockShift !== 'number' || clockShift < 0 || clockShift > 15)) return false;
+    if (widthMode !== undefined && widthMode !== 7 && widthMode !== 15) return false;
+    if (divisor !== undefined && (typeof divisor !== 'number' || divisor < 0 || divisor > 7)) return false;
+
+    return true;
+  }
+
+  // Allow other object structures
+  return true;
+}
+
+/**
+ * Validate sweep structure
+ */
+function isValidSweep(sweep: any): boolean {
+  if (!sweep || typeof sweep !== 'object') return false;
+
+  // Check for SweepAST structure
+  if ('time' in sweep && 'direction' in sweep && 'shift' in sweep) {
+    const { time, direction, shift } = sweep;
+
+    if (typeof time !== 'number' || time < 0 || time > 7) return false;
+    if (!['up', 'down', 'none'].includes(direction)) return false;
+    if (typeof shift !== 'number' || shift < 0 || shift > 7) return false;
+
+    return true;
+  }
+
+  // Allow other object structures
+  return true;
+}
+
+/**
+ * Serialize instrument definitions to .bax format with validation
+ */
+function serializeInstrument(name: string, inst: InstrumentNode): string {
+  const parts = [`inst ${name}`];
+
+  for (const [key, value] of Object.entries(inst)) {
+    // Skip internal or metadata fields that shouldn't be serialized
+    if (key === 'name') continue;
+
+    const serializedValue = serializeValue(key, value);
+    if (serializedValue !== '') {
+      parts.push(`${key}=${serializedValue}`);
+    }
+  }
+
+  return parts.join(' ');
+}
+
+/**
+ * Wait for a directory to be ready (exists and is accessible).
+ * Uses polling with exponential backoff up to a maximum timeout.
+ * @param dirPath - Directory path to check
+ * @param maxWaitMs - Maximum time to wait in milliseconds (default: 10000)
+ * @param checkIntervalMs - Initial polling interval in milliseconds (default: 100)
+ * @returns Promise that resolves when directory is ready or rejects on timeout
+ */
+async function waitForDirectory(
+  dirPath: string,
+  maxWaitMs: number = 10000,
+  checkIntervalMs: number = 100
+): Promise<void> {
+  const startTime = Date.now();
+  let currentInterval = checkIntervalMs;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      // Check if directory exists and is accessible
+      if (existsSync(dirPath)) {
+        // Additional check: ensure we can list the directory
+        const fs = await import('fs/promises');
+        await fs.readdir(dirPath);
+        return; // Directory is ready
+      }
+    } catch (err) {
+      // Directory not accessible yet, continue polling
+    }
+
+    // Wait before next check with exponential backoff (max 1 second)
+    await new Promise(resolve => setTimeout(resolve, currentInterval));
+    currentInterval = Math.min(currentInterval * 1.5, 1000);
+  }
+
+  throw new Error(`Timeout waiting for directory "${dirPath}" to be ready after ${maxWaitMs}ms`);
+}
+
+/**
+ * Wait for Vite dev server to be ready by checking if it responds to HTTP requests.
+ * @param url - URL to check (default: http://localhost:5173)
+ * @param maxWaitMs - Maximum time to wait in milliseconds (default: 10000)
+ * @returns Promise that resolves when server is ready or rejects on timeout
+ */
+async function waitForViteServer(
+  url: string = 'http://localhost:5173',
+  maxWaitMs: number = 10000
+): Promise<void> {
+  const startTime = Date.now();
+  let currentInterval = 200;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      // Try to fetch from the server
+      const http = await import('http');
+      await new Promise<void>((resolve, reject) => {
+        const req = http.get(url, (res) => {
+          // Any response means server is running
+          if (res.statusCode) {
+            resolve();
+          } else {
+            reject(new Error('No status code'));
+          }
+        });
+        req.on('error', reject);
+        req.setTimeout(1000);
+      });
+      return; // Server is ready
+    } catch (err) {
+      // Server not ready yet, continue polling
+    }
+
+    // Wait before next check with exponential backoff (max 1 second)
+    await new Promise(resolve => setTimeout(resolve, currentInterval));
+    currentInterval = Math.min(currentInterval * 1.5, 1000);
+  }
+
+  throw new Error(`Timeout waiting for Vite server at ${url} after ${maxWaitMs}ms`);
+}
 
 export interface PlayOptions {
   noBrowser?: boolean;
@@ -31,10 +254,10 @@ export async function playFile(path: string, options: PlayOptions = {}) {
     console.log('Rendering song using native PCM renderer...');
 
     try {
-      const { resolveSong } = await import('./song/resolver.js');
+      const { resolveSongAsync } = await import('./song/resolver.js');
       const { renderSongToPCM } = await import('./audio/pcmRenderer.js');
 
-      const song = resolveSong(ast);
+      const song = await resolveSongAsync(ast, { filename: path, searchPaths: [process.cwd()] });
 
       // Check for echo effects and warn (PCM renderer doesn't support echo yet)
       let hasEchoEffects = false;
@@ -138,14 +361,45 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       // User explicitly requested browser playback
       console.log('Launching browser-based playback with Vite dev server...');
       try {
-        // Copy the source file into apps/web-ui/public/songs so the web UI can fetch it
+        // Resolve imports before copying to browser (imports won't work in browser context)
         const pathModule = await import('path');
+        let resolvedSrc = src;
+
+        if (ast.imports && ast.imports.length > 0) {
+          // Filter imports for browser security - only block local imports, keep remote imports intact
+          const { isLocalImport } = await import('./import/urlUtils.js');
+
+          const localImports = ast.imports.filter(imp => isLocalImport(imp.source));
+          const remoteImports = ast.imports.filter(imp => !isLocalImport(imp.source));
+
+          // Warn about local imports - browser will error when trying to resolve them
+          if (localImports.length > 0) {
+            console.log(`⚠️  Warning: This song contains ${localImports.length} local file import(s) which will be blocked by browser security.`);
+            console.log('   The browser will display an error when attempting to load this song.');
+            console.log('   To play this song in the browser, replace local imports with remote imports (https:// or github:).');
+          }
+
+          if (remoteImports.length > 0) {
+            console.log(`Browser will resolve ${remoteImports.length} remote import(s) at runtime`);
+          }
+
+          // Send source as-is to browser - let browser error on local imports for clear user feedback
+          resolvedSrc = src;
+        }
+
+        // Copy the resolved source file into apps/web-ui/public/songs so the web UI can fetch it
         const child = await import('child_process');
         const basename = pathModule.basename(path);
         const outDir = pathModule.join(process.cwd(), 'apps', 'web-ui', 'public', 'songs');
-        try { mkdirSync(outDir, { recursive: true }); } catch (e) {}
+
+        // Ensure output directory exists
+        try {
+          mkdirSync(outDir, { recursive: true });
+        } catch (e) {
+          warn('engine', `Failed to create output directory: ${e}`);
+        }
+
         const outPath = pathModule.join(outDir, basename);
-        writeFileSync(outPath, src, 'utf8');
 
         // Start Vite dev server in apps/web-ui
         const viteDir = pathModule.join(process.cwd(), 'apps', 'web-ui');
@@ -163,28 +417,49 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           warn('engine', 'Failed to start Vite server: ' + (e && (e as any).message ? (e as any).message : String(e)));
         }
 
-        // Give Vite a moment to start, then open browser
-        await new Promise((resolve) => {
-          setTimeout(() => {
-            const url = `http://localhost:5173/?song=/songs/${encodeURIComponent(basename)}`;
-            console.log('Opening web UI at', url);
-            // open default browser (cross-platform)
-            const platform = process.platform;
-            let cmd = '';
-            if (platform === 'win32') cmd = `start "" "${url}"`;
-            else if (platform === 'darwin') cmd = `open "${url}"`;
-            else cmd = `xdg-open "${url}"`;
-            try {
-              child.exec(cmd, (err: any) => {
-                if (err) error('engine', 'Failed to open browser: ' + (err && err.message ? err.message : String(err)));
-                resolve(null);
-              });
-            } catch (e) {
+        // Wait for output directory to be ready and Vite server to start
+        try {
+          await waitForDirectory(outDir, 10000);
+          console.log('Output directory ready');
+        } catch (err) {
+          warn('engine', `Directory not ready, proceeding anyway: ${err}`);
+        }
+
+        // Write the resolved source file
+        writeFileSync(outPath, resolvedSrc, 'utf8');
+        console.log(`Resolved song written to: ${outPath}`);
+
+        // Wait for Vite server to be ready before opening browser
+        try {
+          await waitForViteServer('http://localhost:5173', 10000);
+          console.log('Vite dev server is ready');
+        } catch (err) {
+          warn('engine', `Vite server may not be ready: ${err}`);
+          console.log('Waiting additional 2 seconds before opening browser...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        // Open browser
+        const url = `http://localhost:5173/?song=/songs/${encodeURIComponent(basename)}`;
+        console.log('Opening web UI at', url);
+
+        // Open default browser (cross-platform)
+        const platform = process.platform;
+        let cmd = '';
+        if (platform === 'win32') cmd = `start "" "${url}"`;
+        else if (platform === 'darwin') cmd = `open "${url}"`;
+        else cmd = `xdg-open "${url}"`;
+
+        try {
+          child.exec(cmd, (err: any) => {
+            if (err) {
+              error('engine', 'Failed to open browser: ' + (err && err.message ? err.message : String(err)));
               console.log('Please open the URL in your browser:', url);
-              resolve(null);
             }
-          }, 2000);
-        });
+          });
+        } catch (e) {
+          console.log('Please open the URL in your browser:', url);
+        }
       } catch (err) {
         error('engine', 'Failed to launch browser-based playback: ' + (err && (err as any).message ? (err as any).message : String(err)));
         console.log('Please run manually: cd apps/web-ui && npm run dev');
