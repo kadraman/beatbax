@@ -9,7 +9,7 @@ import {
   patternEventsToTokens,
 } from '../parser/structured.js';
 import { expandRefToTokens } from '../expand/refExpander.js';
-import { resolveImports, resolveImportsSync } from './importResolver.js';
+import { resolveImports, resolveImportsSync } from './importResolver.browser.js';
 import { isRemoteImport } from '../import/urlUtils.js';
 
 // Helpers for parsing inline effects and pan specifications
@@ -109,8 +109,8 @@ export function parseEffectsInline(str: string) {
  * Resolve an AST into a SongModel (ISM), expanding sequences and resolving
  * instrument overrides according to the language expansion pipeline.
  *
- * Note: This function does not support remote imports. For remote imports,
- * use resolveSongAsync() instead.
+ * Note: This function does not support remote imports in the browser.
+ * Use resolveSongAsync() instead for remote imports.
  */
 export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
   // Check for remote imports
@@ -124,8 +124,6 @@ export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: 
   // Resolve imports first if present
   if (ast.imports && ast.imports.length > 0) {
     ast = resolveImportsSync(ast, {
-      baseFilePath: opts?.filename,
-      searchPaths: opts?.searchPaths,
       strictMode: opts?.strictInstruments,
       onWarn: (message, loc) => {
         if (opts?.onWarn) {
@@ -143,11 +141,9 @@ export function resolveSong(ast: AST, opts?: { filename?: string; searchPaths?: 
  * Use this when your AST may contain remote imports (http://, https://, github:).
  */
 export async function resolveSongAsync(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): Promise<SongModel> {
-  // Resolve imports first if present (supports both local and remote)
+  // Resolve imports first if present (supports remote imports only in browser)
   if (ast.imports && ast.imports.length > 0) {
     ast = await resolveImports(ast, {
-      baseFilePath: opts?.filename,
-      searchPaths: opts?.searchPaths,
       strictMode: opts?.strictInstruments,
       onWarn: (message, loc) => {
         if (opts?.onWarn) {

@@ -125,6 +125,7 @@ interface TimeStmt extends BaseStmt { nodeType: 'TimeStmt'; time: number }
 interface StepsPerBarStmt extends BaseStmt { nodeType: 'StepsPerBarStmt'; stepsPerBar: number }
 interface TicksPerStepStmt extends BaseStmt { nodeType: 'TicksPerStepStmt'; ticksPerStep: number }
 interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string; value: string }
+interface ImportStmt extends BaseStmt { nodeType: 'ImportStmt'; source: string }
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
 interface EffectStmt extends BaseStmt { nodeType: 'EffectStmt'; name: string; rhs?: string }
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
@@ -142,6 +143,7 @@ type Statement =
   | StepsPerBarStmt
   | TicksPerStepStmt
   | SongMetaStmt
+  | ImportStmt
   | InstStmt
   | EffectStmt
   | PatStmt
@@ -450,6 +452,7 @@ export function parseWithPeggy(source: string): AST {
   const channels: ChannelNode[] = [];
   const arrs: Record<string, any> = {};
   const metadata: SongMetadata = {};
+  const imports: { source: string; loc?: SourceLocation }[] = [];
 
   // Structured Peggy events are enabled by default; always provide containers
   // for structured fields so the parser populates them during parse.
@@ -487,6 +490,10 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'ChipStmt': {
         chipName = stmt.chip;
+        break;
+      }
+      case 'ImportStmt': {
+        imports.push({ source: stmt.source, loc: stmt.loc });
         break;
       }
       case 'InstStmt': {
@@ -569,6 +576,7 @@ export function parseWithPeggy(source: string): AST {
 
   const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata };
   if (Object.keys(effects).length) (ast as any).effects = effects;
+  if (imports.length > 0) ast.imports = imports;
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;
     if (sequenceItems) ast.sequenceItems = sequenceItems;

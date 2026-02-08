@@ -13,6 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 A concise feature summary:
 
 - Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
+- **Instrument imports**: Reusable `.ins` libraries with relative/search-path resolution, cycle detection, and last-wins merging
 - **Effects system**: All 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
 - Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
@@ -29,10 +30,12 @@ Each "song" can be defined in a `.bax` file with the following a minimal example
 song name "An example song"
 
 chip gameboy
+import "local:lib/gameboy-common.ins"  # Import reusable instruments
+
 bpm 128
 # volume 1.0  # Master volume (default: 1.0, matches hUGETracker)
 
-# Instruments for pulse, wave and noise
+# Instruments for pulse, wave and noise (or import from .ins files)
 inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
 inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
@@ -263,6 +266,38 @@ beatbax/
 ├── demo/                        # Legacy demo files
 └── tmp/                         # Temporary build outputs
 ```
+
+## Security
+
+BeatBax implements security measures to protect against malicious `.bax` files:
+
+### Import Path Validation
+
+Import statements are validated to prevent path traversal attacks:
+
+- **Rejects `..` segments** - Prevents directory traversal like `"../../../etc/passwd"`
+- **Rejects absolute paths by default** - Blocks access to system files like `"/etc/passwd"` or `"C:/Windows/System32/config/sam"`
+- **Validates resolved paths** - Ensures imports stay within allowed directories (base directory and search paths)
+
+**Safe import examples:**
+```
+import "local:lib/common.ins"              # ✅ Relative path
+import "local:instruments/drums.ins"       # ✅ Subdirectory
+import "github:user/repo/branch/file.ins"  # ✅ Remote GitHub import
+import "https://example.com/drums.ins"     # ✅ Remote HTTPS import
+```
+
+**Blocked attempts:**
+```
+import "lib/common.ins"              # ❌ Missing local: prefix
+import "../../../etc/passwd"         # ❌ Path traversal
+import "/etc/passwd"                 # ❌ Absolute path (unless allowAbsolutePaths: true)
+import "C:/Windows/System32/file"    # ❌ Absolute path
+```
+
+For more details and advanced configuration, see [Import Security Documentation](docs/import-security.md).
+
+**Important:** Never execute untrusted `.bax` files without reviewing their import statements.
 
 ## Development
 
