@@ -3,8 +3,9 @@ import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { readFileSync, statSync, existsSync } from 'fs';
+import { resolve as resolvePath } from 'path';
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song/resolver';
+import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
 const { getUGEDetailedJSON } = engineImports as any;
 
@@ -13,7 +14,7 @@ interface SourceLocation {
   end: { offset: number; line: number; column: number };
 }
 
-type ValidationIssue = { message: string; loc?: SourceLocation };
+type ValidationIssue = { message: string; loc?: SourceLocation; component?: string };
 type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
 
 function formatLocation(loc?: SourceLocation): string {
@@ -30,7 +31,7 @@ function ensureFileExists(file: string) {
   }
 }
 
-function validateSource(src: string, filename?: string): ValidationResult {
+async function validateSource(src: string, filename?: string): Promise<ValidationResult> {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
@@ -51,6 +52,25 @@ function validateSource(src: string, filename?: string): ValidationResult {
     const formattedError = filename ? formatParseError(parseErr, filename) : extractErrorMessage(parseErr);
     errors.push({ message: formattedError });
     return { errors, warnings, ast: null as any };
+  }
+
+  // Resolve imports if present (separate try/catch to provide better error messages)
+  // Use async resolver to support remote imports
+  if (ast.imports && ast.imports.length > 0 && filename) {
+    try {
+      // Convert filename to absolute path for proper import resolution
+      const absoluteFilePath = resolvePath(filename);
+      ast = await resolveImports(ast, {
+        baseFilePath: absoluteFilePath,
+        searchPaths: [process.cwd()],
+        onWarn: (message, loc) => {
+          warnings.push({ message, loc, component: 'import-resolver' });
+        },
+      });
+    } catch (importErr: any) {
+      errors.push({ message: `Import error: ${extractErrorMessage(importErr)}` });
+      return { errors, warnings, ast: null as any };
+    }
   }
 
   // Validate channels and instruments
@@ -203,21 +223,22 @@ program
     // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings } = validateSource(src, file);
+    const { errors, warnings } = await validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
       process.exitCode = 2;
       return;
     }
-    if (warnings.length > 0 && verbose) {
-      console.warn(`Validation warnings for ${file}:`);
-      for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
+    if (warnings.length > 0) {
+      console.log(`\n⚠️  Warnings`);
+      for (const w of warnings) console.log(`  [${w.component || 'validation'}] ${w.message}${formatLocation(w.loc)}`);
+      console.log('');
     }
 
     await playFile(file, {
       browser: options.browser === true,
-      noBrowser: !options.browser || options.headless === true || options.backend === 'node-webaudio',
+      noBrowser: (options.browser !== true) || options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(globalOpts.sampleRate, 10),
       bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
@@ -230,262 +251,79 @@ program
   .description('Parse and validate a song file; exit 0 if valid, non-zero if invalid')
   .argument('<file>', 'Path to the .bax song file')
   .action(async (file) => {
-    try {
-      const globalOpts = program.opts();
-      const verbose = globalOpts && globalOpts.verbose === true;
-      ensureFileExists(file);
-      const src = readFileSync(file, 'utf8');
+    const globalOpts = program.opts();
+    const verbose = globalOpts && globalOpts.verbose === true;
+    ensureFileExists(file);
+    const src = readFileSync(file, 'utf8');
 
-      if (verbose) {
-        console.log(`Verifying: ${file}`);
-        console.log('  Parsing source...');
-      }
-      const errors: string[] = [];
-      const warnings: string[] = [];
-
-      // Pre-scan source for empty `seq NAME =` lines and emit a clear
-      // warning so users see a diagnostics message even if the parser
-      // later normalizes or mis-parses complex sequence forms.
-      const seqEmptyRe = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*$/gm;
-      let mm: RegExpExecArray | null;
-      while ((mm = seqEmptyRe.exec(src)) !== null) {
-        errors.push(
-          `Sequence '${mm[1]}' has no RHS content (empty). ` +
-            `Define patterns after '=' or remove the empty 'seq ${mm[1]} =' line.`
-        );
-      }
-
-      let ast: any;
-      // Capture parser warnings that are normally sent to console.warn
-      const originalWarn = console.warn;
-      const parserWarnings: Array<{ message: string; loc?: string }> = [];
-      console.warn = (msg: string) => {
-        if (typeof msg === 'string' && msg.startsWith('[WARN]')) {
-          // Extract message and optional location info
-          // Format: [WARN] [component] message line=X, column=Y
-          const fullMatch = msg.match(/^\[WARN\]\s*\[([^\]]+)\]\s*(.+)$/);
-          if (fullMatch) {
-            const fullText = fullMatch[2].trim();
-            // Check for location at the end (format: "message line=X, column=Y")
-            const locMatch = fullText.match(/^(.+?)\s+line=(\d+),\s*column=(\d+)$/);
-            if (locMatch) {
-              const message = locMatch[1].trim();
-              const line = locMatch[2];
-              const col = locMatch[3];
-              parserWarnings.push({ message, loc: ` (line ${line}, column ${col})` });
-            } else {
-              // No location info, just the message
-              parserWarnings.push({ message: fullText, loc: '' });
-            }
-          } else {
-            parserWarnings.push({ message: msg, loc: '' });
-          }
-        } else {
-          originalWarn(msg);
-        }
-      };
-
-      try {
-        ast = parse(src);
-
-        // Add parser warnings to the warnings array
-        if (parserWarnings.length > 0) {
-          for (const pw of parserWarnings) {
-            warnings.push(pw.message + pw.loc);
-          }
-        }
-      } catch (parseErr: any) {
-        console.warn = originalWarn;
-        console.error(formatParseError(parseErr, file));
-        process.exitCode = 2;
-        return;
-      } finally {
-        // Always restore original console.warn
-        console.warn = originalWarn;
-      }
-
-      if (verbose) {
-        console.log('  Source parsed successfully');
-        console.log(`  AST structure:`);
-        console.log(`    - Patterns: ${Object.keys(ast.pats || {}).length}`);
-        console.log(`    - Sequences: ${Object.keys(ast.seqs || {}).length}`);
-        console.log(`    - Instruments: ${Object.keys(ast.insts || {}).length}`);
-        console.log(`    - Channels: ${(ast.channels || []).length}`);
-        if (ast.bpm) console.log(`    - Tempo: ${ast.bpm} BPM`);
-        console.log('  Running resolver...');
-      }
-
-      // Run the resolver to materialize sequences/channels and collect any
-      // resolver warnings (e.g. arrange expansion issues). `play` calls
-      // the resolver during playback, but `verify` previously did not,
-      // so run it here to ensure the same diagnostics appear.
-      const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-      try {
-        resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
-      } catch (resErr: any) {
-        const globalOpts = program.opts();
-        console.error('Resolver error:', extractErrorMessage(resErr, globalOpts && globalOpts.debug));
-        process.exitCode = 2;
-        return;
-      }
-      // merge any pre-scan warnings with runtime validations
-
-      const extractSeqBaseNames = (ch: any): string[] => {
-        const names: string[] = [];
-        if (!ch || !ch.pat) return names;
-
-        // If parser attached raw seqSpecTokens (space-preserved), prefer them
-        // even if ch.pat is already expanded to an array
-        const rawTokens: string[] | undefined = (ch as any).seqSpecTokens;
-        if (rawTokens && rawTokens.length > 0) {
-          const joined = rawTokens.join(' ');
-          for (const group of joined.split(',')) {
-            const g = group.trim();
-            if (!g) continue;
-            if (g.indexOf('*') >= 0) {
-              const m = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-              const itemRef = m ? m[1].trim() : g;
-              const base = itemRef.split(':')[0];
-              if (base) names.push(base);
-            } else {
-              const parts = g.split(/\s+/).map(s => s.trim()).filter(Boolean);
-              for (const p of parts) names.push(p.split(':')[0]);
-            }
-          }
-          return names.filter(Boolean);
-        }
-
-        // ch.pat is inline tokens (array), no external sequence names
-        if (Array.isArray(ch.pat)) {
-          return [];
-        }
-
-        // Fallback: ch.pat is a string like "lead" or "lead*2" or "lead,lead2"
-        const spec = String(ch.pat).trim();
-        for (const group of spec.split(',')) {
-          const g = group.trim();
-          if (!g) continue;
-          const mRep = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-          const itemRef = mRep ? mRep[1].trim() : g;
-          const base = itemRef.split(':')[0];
-          if (base) names.push(base);
-        }
-        return names.filter(Boolean);
-      };
-
-      for (const ch of ast.channels) {
-        if (ch.inst && !ast.insts[ch.inst]) {
-          const loc = ch.loc ? formatLocation(ch.loc) : '';
-          errors.push(`Channel ${ch.id} references unknown inst '${ch.inst}'${loc}`);
-        }
-        const bases = extractSeqBaseNames(ch);
-        for (const baseSeqName of bases) {
-          if (!ast.seqs || !ast.seqs[baseSeqName]) {
-            const loc = ch.loc ? formatLocation(ch.loc) : '';
-            // Check if it's actually a pattern name (common mistake)
-            if (ast.pats && ast.pats[baseSeqName]) {
-              warnings.push(`Channel ${ch.id} references '${baseSeqName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseSeqName}' or use comma-separated patterns with channel directive.${loc}`);
-            } else {
-              warnings.push(`Channel ${ch.id} references unknown sequence '${baseSeqName}'${loc}`);
-            }
-          }
-        }
-      }
-
-      for (const [name, pat] of Object.entries(ast.pats)) {
-        if (!Array.isArray(pat) || pat.length === 0) {
-          errors.push(`Pattern '${name}' is empty or malformed`);
-        }
-      }
-
-      // Validate sequences reference valid patterns
-      if (ast.seqs) {
-        for (const [seqName, patRefs] of Object.entries(ast.seqs)) {
-          if (!Array.isArray(patRefs) || patRefs.length === 0) {
-            // Treat empty sequence definitions as a validation error.
-            errors.push(`Sequence '${seqName}' is empty or malformed`);
-          } else {
-            for (const patRef of patRefs) {
-              let basePatName = typeof patRef === 'string' ? patRef.split(':')[0] : patRef;
-              if (typeof basePatName === 'string') {
-                const mRep = basePatName.match(/^(.+?)\*(\d+)$/);
-                if (mRep) basePatName = mRep[1];
-                if (!ast.pats[basePatName]) {
-                  // treat missing pattern references as warnings rather than fatal
-                  warnings.push(`Sequence '${seqName}' references unknown pattern '${basePatName}'`);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Validate arrange blocks reference valid sequences
-      if (ast.arranges) {
-        for (const [arrangeName, arrangeNode] of Object.entries(ast.arranges)) {
-          const rows = (arrangeNode as any).arrangements || [];
-          for (const row of rows) {
-            if (!Array.isArray(row)) continue;
-            for (const slot of row) {
-              if (!slot || slot === '.' || slot === '-') continue;
-              // Extract base name without transforms
-              const baseName = String(slot).split(':')[0].trim();
-              // Check if it's a sequence or pattern reference
-              if (!ast.seqs || !ast.seqs[baseName]) {
-                const loc = (arrangeNode as any).loc ? formatLocation((arrangeNode as any).loc) : '';
-                // Check if it's actually a pattern name (common mistake)
-                if (ast.pats && ast.pats[baseName]) {
-                  warnings.push(`Arrange '${arrangeName}' references '${baseName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseName}'${loc}`);
-                } else {
-                  warnings.push(`Arrange '${arrangeName}' references unknown sequence '${baseName}'${loc}`);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Merge parser-level warnings and resolver warnings
-      const allWarnings: string[] = warnings.slice();
-      for (const rw of resolverWarnings) {
-        const filePart = rw.file ? rw.file : file;
-        const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
-        const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
-        const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
-        if (linePart !== undefined) parts.push(`line=${linePart}`);
-        if (colPart !== undefined) parts.push(`column=${colPart}`);
-        allWarnings.push(parts.join(', '));
-      }
-
-      if (errors.length > 0) {
-        console.error(`Validation failed for ${file}:`);
-        for (const e of errors) console.error('  -', e);
-        process.exitCode = 2;
-      } else if (allWarnings.length > 0) {
-        console.warn(`Validation warnings for ${file}:`);
-        for (const w of allWarnings) console.warn('  -', w);
-        if (globalOpts && globalOpts.strict) {
-          console.error('Strict mode enabled: failing due to warnings');
-          process.exitCode = 2;
-        } else {
-          if (verbose) {
-            console.log('Verification complete: Valid with warnings');
-          }
-          console.log(`OK: ${file} parsed (with warnings)`);
-          process.exitCode = 0;
-        }
-      } else {
-        if (verbose) {
-          console.log('Verification complete: All checks passed');
-        }
-        console.log(`OK: ${file} parsed and basic validation passed`);
-        process.exitCode = 0;
-      }
-    } catch (err: any) {
-      const globalOpts = program.opts();
-      console.error('Error parsing file:', extractErrorMessage(err, globalOpts && globalOpts.debug));
-      process.exitCode = 2;
+    if (verbose) {
+      console.log(`Verifying: ${file}`);
+      console.log('  Parsing source...');
     }
+
+    // Use validateSource which handles import resolution (now async)
+    const { errors, warnings, ast } = await validateSource(src, file);
+
+    if (verbose && ast) {
+      console.log('  Source parsed successfully');
+      console.log(`  AST structure (after import resolution):`);
+      console.log(`    - Patterns: ${Object.keys(ast.pats || {}).length}`);
+      console.log(`    - Sequences: ${Object.keys(ast.seqs || {}).length}`);
+      console.log(`    - Instruments: ${Object.keys(ast.insts || {}).length}`);
+      console.log(`    - Channels: ${(ast.channels || []).length}`);
+      if (ast.bpm) console.log(`    - Tempo: ${ast.bpm} BPM`);
+      console.log('  Running resolver...');
+    }
+
+    if (errors.length > 0) {
+      console.error(`Validation failed for ${file}:`);
+      for (const e of errors) {
+        console.error('  -', e);
+      }
+      process.exitCode = 2;
+      return;
+    }
+
+    // Run the resolver to materialize sequences/channels and collect any
+    // resolver warnings (e.g. arrange expansion issues).
+    const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+    try {
+      await resolveSongAsync(ast, {
+        filename: file,
+        searchPaths: [process.cwd()],
+        onWarn: (d: any) => resolverWarnings.push(d)
+      } as any);
+    } catch (resErr: any) {
+      console.error('Resolver error:', extractErrorMessage(resErr, globalOpts && globalOpts.debug));
+      process.exitCode = 2;
+      return;
+    }
+
+    // Merge parser warnings and resolver warnings
+    const allWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+    for (const w of warnings) {
+      allWarnings.push({ component: w.component || 'validation', message: w.message, loc: w.loc });
+    }
+    allWarnings.push(...resolverWarnings);
+
+    if (allWarnings.length > 0) {
+      console.log(`\n⚠️  Warnings`);
+      for (const w of allWarnings) {
+        console.log(`  [${w.component}] ${w.message}${formatLocation(w.loc)}`);
+      }
+      console.log('');
+      if (globalOpts && globalOpts.strict) {
+        console.error('Strict mode enabled: failing due to warnings');
+        process.exitCode = 2;
+        return;
+      }
+    }
+
+    if (verbose) {
+      console.log('Verification complete: All checks passed');
+    }
+    console.log(`OK: ${file} parsed and validated`);
+    process.exitCode = 0;
   });
 
 program
@@ -505,7 +343,7 @@ program
     const globalOpts = program.opts();
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
-    const { errors, warnings, ast } = validateSource(src, file);
+    const { errors, warnings, ast } = await validateSource(src, file);
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) console.error('  -', e.message + formatLocation(e.loc));
@@ -518,26 +356,25 @@ program
     // scope so it is available after the try/catch for export steps.
     let song: any = undefined;
     try {
-      const shouldShowParserWarnings = (warnings.length > 0 && ((options as any).verbose || verbose));
-      if (shouldShowParserWarnings) {
-        console.warn(`Validation warnings for ${file}:`);
-        for (const w of warnings) console.warn('  -', w.message + formatLocation(w.loc));
+      const resolved = await resolveSongAsync(ast, {
+        filename: file,
+        searchPaths: [process.cwd()],
+        onWarn: (d: any) => resolverWarnings.push(d)
+      } as any);
+
+      // Merge parser warnings and resolver warnings
+      const allWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+      for (const w of warnings) {
+        allWarnings.push({ component: w.component || 'validation', message: w.message, loc: w.loc });
       }
-      const resolved = resolveSong(ast, { filename: file, onWarn: (d: any) => resolverWarnings.push(d) } as any);
-      // merge resolver warnings into combined list for possible strict handling
-      const allWarnings: string[] = [];
-      for (const rw of resolverWarnings) {
-        const filePart = rw.file ? rw.file : file;
-        const linePart = rw.loc && rw.loc.start ? rw.loc.start.line : undefined;
-        const colPart = rw.loc && rw.loc.start ? (rw.loc.start.column || 0) : undefined;
-        const parts = [`[WARN][${rw.component}] ${rw.message}`, `file=${filePart}`];
-        if (linePart !== undefined) parts.push(`line=${linePart}`);
-        if (colPart !== undefined) parts.push(`column=${colPart}`);
-        allWarnings.push(parts.join(', '));
-      }
-      if (allWarnings.length > 0 && ((options as any).verbose || verbose)) {
-        console.warn(`Validation warnings for ${file}:`);
-        for (const w of allWarnings) console.warn('  -', w);
+      allWarnings.push(...resolverWarnings);
+
+      if (allWarnings.length > 0) {
+        console.log(`\n⚠️  Warnings`);
+        for (const w of allWarnings) {
+          console.log(`  [${w.component}] ${w.message}${formatLocation(w.loc)}`);
+        }
+        console.log('');
       }
       if (allWarnings.length > 0 && program.opts() && program.opts().strict) {
         console.error('Strict mode enabled: failing due to warnings');
