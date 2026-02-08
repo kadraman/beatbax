@@ -60,6 +60,10 @@ async function waitForViteServer(
       await new Promise<void>((resolve, reject) => {
         const req = http.get(url, (res) => {
           // Any response means server is running
+          // Drain the response body to prevent memory leaks
+          res.resume();
+          // Handle stream errors to avoid unhandled errors
+          res.on('error', reject);
           if (res.statusCode) {
             resolve();
           } else {
@@ -67,6 +71,10 @@ async function waitForViteServer(
           }
         });
         req.on('error', reject);
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Request timeout'));
+        });
         req.setTimeout(1000);
       });
       return; // Server is ready

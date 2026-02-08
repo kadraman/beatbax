@@ -18,7 +18,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Search paths: fallback to current working directory if relative path not found
   - Cycle detection: recursive imports supported with automatic cycle prevention
   - Merging: last-wins semantics (local definitions override imported ones)
-  - Browser: imports auto-resolved and inlined for browser playback (remote imports only)
+  - Browser: remote imports resolved at runtime by web UI; local imports not supported (blocked for security)
   - See `songs/local_import_example.bax`, `songs/remote_import_example.bax`, and `docs/features/instrument-imports.md` for examples
 
 - inst definitions: define instruments and their params.

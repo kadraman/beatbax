@@ -250,12 +250,6 @@ describe('.ins File Validation - Comprehensive', () => {
         channels: [],
       };
 
-      // Manually inject effects into the mock to test validation
-      const customReadFile = (path: string) => {
-        const content = mockFileSystem[path as keyof typeof mockFileSystem];
-        return content || '';
-      };
-
       // Since we can't easily create a parseable file with effects that triggers validation,
       // we'll skip this test for now and rely on the validation logic being correct.
       // The validation function checks for ast.effects, which would be set by the parser

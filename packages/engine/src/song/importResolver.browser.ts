@@ -24,13 +24,8 @@ export interface ImportResolverOptions {
   // - baseFilePath, searchPaths, readFile, fileExists, allowAbsolutePaths
 }
 
-interface ImportCache {
-  [url: string]: InstMap;
-}
-
 interface ImportContext {
   importStack: string[];
-  cache: ImportCache;
   options: ImportResolverOptions;
   remoteCache?: RemoteInstrumentCache;
 }
@@ -209,7 +204,6 @@ export async function resolveImports(
 ): Promise<AST> {
   const ctx: ImportContext = {
     importStack: [],
-    cache: {},
     options,
     remoteCache: options.remoteCache,
   };
