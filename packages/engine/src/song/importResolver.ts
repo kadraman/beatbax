@@ -75,8 +75,12 @@ function validateImportPath(
   // Normalize path separators for consistent checking
   const normalized = actualPath.replace(/\\/g, '/');
 
-  // Check for parent directory traversal
-  if (normalized.includes('..')) {
+  // Check for parent directory traversal (..) as a path segment
+  // This regex matches ".." when it's:
+  // - At the start followed by / or end: ^\.\.(/|$)
+  // - Preceded by / and followed by / or end: /\.\.(/|$)
+  // This allows filenames containing ".." like "file..txt" but blocks path traversal
+  if (/(^|\/)\.\.($|\/)/.test(normalized)) {
     throw new Error(
       `Invalid import path "${importSource}": path traversal using ".." is not allowed for security reasons`
     );
@@ -206,22 +210,52 @@ function resolveImportPath(
 function validateInsFile(ast: AST, filePath: string): void {
   // .ins files should only contain instrument definitions and imports
   // Check for disallowed nodes
-  const hasPatterns = Object.keys(ast.pats || {}).length > 0;
-  const hasSequences = Object.keys(ast.seqs || {}).length > 0;
-  const hasChannels = (ast.channels || []).length > 0;
-  const hasArranges = ast.arranges && Object.keys(ast.arranges).length > 0;
-  const hasPlay = ast.play !== undefined;
+  const disallowed: string[] = [];
+  
+  // Playback/structure directives
+  if (Object.keys(ast.pats || {}).length > 0) disallowed.push('patterns');
+  if (Object.keys(ast.seqs || {}).length > 0) disallowed.push('sequences');
+  if ((ast.channels || []).length > 0) disallowed.push('channels');
+  if (ast.arranges && Object.keys(ast.arranges).length > 0) disallowed.push('arranges');
+  if (ast.play !== undefined) disallowed.push('play');
+  
+  // Top-level scalar directives (should not be in .ins files)
+  if (ast.chip !== undefined) disallowed.push('chip');
+  if (ast.bpm !== undefined) disallowed.push('bpm');
+  if (ast.volume !== undefined) disallowed.push('volume');
+  
+  // Metadata
+  if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
+    disallowed.push('metadata');
+  }
+  
+  // Effect definitions
+  if (ast.effects && Object.keys(ast.effects).length > 0) disallowed.push('effects');
+  
+  // Pattern events and structured patterns
+  if (ast.patternEvents && Object.keys(ast.patternEvents).length > 0) {
+    disallowed.push('patternEvents');
+  }
+  if (ast.sequenceItems && Object.keys(ast.sequenceItems).length > 0) {
+    disallowed.push('sequenceItems');
+  }
+  
+  // Check for any other non-standard properties that might be added
+  const allowedKeys = new Set([
+    'insts', 'imports', 'pats', 'seqs', 'channels', 'arranges', 'play',
+    'chip', 'bpm', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
+  ]);
+  
+  for (const key of Object.keys(ast)) {
+    if (!allowedKeys.has(key) && key !== 'insts' && key !== 'imports') {
+      disallowed.push(`unknown property '${key}'`);
+    }
+  }
 
-  if (hasPatterns || hasSequences || hasChannels || hasArranges || hasPlay) {
+  if (disallowed.length > 0) {
     throw new Error(
       `Invalid .ins file "${filePath}": .ins files may only contain "inst" and "import" declarations. ` +
-      `Found: ${[
-        hasPatterns && 'patterns',
-        hasSequences && 'sequences',
-        hasChannels && 'channels',
-        hasArranges && 'arranges',
-        hasPlay && 'play'
-      ].filter(Boolean).join(', ')}`
+      `Found: ${disallowed.join(', ')}`
     );
   }
 }
@@ -300,7 +334,12 @@ async function loadImportFile(
   ctx.importStack.push(absolutePath);
 
   // Recursively process imports in this file
-  const mergedInsts = await processImports(ast, absolutePath, ctx);
+  // Create a new context with updated baseFilePath so nested imports resolve relative to this .ins file
+  const nestedCtx: ImportContext = {
+    ...ctx,
+    options: { ...ctx.options, baseFilePath: absolutePath }
+  };
+  const mergedInsts = await processImports(ast, absolutePath, nestedCtx);
 
   // Merge this file's instruments (they override imported ones - last-win)
   const finalInsts = mergeInstruments(
@@ -583,7 +622,12 @@ function loadImportFileSync(
   ctx.importStack.push(absolutePath);
 
   // Recursively process imports in this file
-  const mergedInsts = processImportsSync(ast, absolutePath, ctx);
+  // Create a new context with updated baseFilePath so nested imports resolve relative to this .ins file
+  const nestedCtx: ImportContext = {
+    ...ctx,
+    options: { ...ctx.options, baseFilePath: absolutePath }
+  };
+  const mergedInsts = processImportsSync(ast, absolutePath, nestedCtx);
 
   // Merge this file's instruments (they override imported ones - last-win)
   const finalInsts = mergeInstruments(

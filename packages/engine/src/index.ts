@@ -2,150 +2,6 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 import { warn, error } from './util/diag.js';
-import type { InstrumentNode, EnvelopeAST, NoiseAST, SweepAST } from './parser/ast.js';
-
-/**
- * Serialize a single instrument property value to .bax format.
- * Handles various types: primitives, arrays, and structured objects.
- */
-function serializeValue(key: string, value: any): string {
-  // Handle null/undefined
-  if (value === null || value === undefined) {
-    return '';
-  }
-
-  // Handle primitive types (string, number, boolean)
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  // Handle arrays (e.g., wave data)
-  if (Array.isArray(value)) {
-    try {
-      // Validate array elements are serializable
-      if (!value.every(v => typeof v === 'number' || typeof v === 'string')) {
-        warn('engine', `Instrument property "${key}" contains non-primitive array elements, may produce invalid .bax syntax`);
-      }
-      return JSON.stringify(value);
-    } catch (err) {
-      error('engine', `Failed to serialize array value for property "${key}": ${err}`);
-      return '[]';
-    }
-  }
-
-  // Handle structured objects (EnvelopeAST, NoiseAST, SweepAST, etc.)
-  if (typeof value === 'object') {
-    try {
-      // Validate the object can be stringified
-      const serialized = JSON.stringify(value);
-
-      // Verify it can be parsed back (catches circular references, etc.)
-      JSON.parse(serialized);
-
-      // For known structured types, validate they have expected properties
-      if (key === 'env' && !isValidEnvelope(value)) {
-        warn('engine', `Envelope object for property "${key}" may have invalid structure`);
-      } else if (key === 'noise' && !isValidNoise(value)) {
-        warn('engine', `Noise object for property "${key}" may have invalid structure`);
-      } else if (key === 'sweep' && !isValidSweep(value)) {
-        warn('engine', `Sweep object for property "${key}" may have invalid structure`);
-      }
-
-      return serialized;
-    } catch (err) {
-      error('engine', `Failed to serialize object value for property "${key}": ${err}`);
-      return '{}';
-    }
-  }
-
-  // Unsupported type
-  warn('engine', `Instrument property "${key}" has unsupported type "${typeof value}", converting to string`);
-  return String(value);
-}
-
-/**
- * Validate envelope structure
- */
-function isValidEnvelope(env: any): boolean {
-  if (!env || typeof env !== 'object') return false;
-
-  // Check for EnvelopeAST structure
-  if ('level' in env && 'direction' in env && 'period' in env) {
-    const level = env.level;
-    const direction = env.direction;
-    const period = env.period;
-
-    if (typeof level !== 'number' || level < 0 || level > 15) return false;
-    if (!['up', 'down', 'none'].includes(direction)) return false;
-    if (typeof period !== 'number' || period < 0 || period > 7) return false;
-
-    return true;
-  }
-
-  // Allow other object structures (may be legacy or extended formats)
-  return true;
-}
-
-/**
- * Validate noise structure
- */
-function isValidNoise(noise: any): boolean {
-  if (!noise || typeof noise !== 'object') return false;
-
-  // Check for NoiseAST structure
-  if ('clockShift' in noise || 'widthMode' in noise || 'divisor' in noise) {
-    const { clockShift, widthMode, divisor } = noise;
-
-    if (clockShift !== undefined && (typeof clockShift !== 'number' || clockShift < 0 || clockShift > 15)) return false;
-    if (widthMode !== undefined && widthMode !== 7 && widthMode !== 15) return false;
-    if (divisor !== undefined && (typeof divisor !== 'number' || divisor < 0 || divisor > 7)) return false;
-
-    return true;
-  }
-
-  // Allow other object structures
-  return true;
-}
-
-/**
- * Validate sweep structure
- */
-function isValidSweep(sweep: any): boolean {
-  if (!sweep || typeof sweep !== 'object') return false;
-
-  // Check for SweepAST structure
-  if ('time' in sweep && 'direction' in sweep && 'shift' in sweep) {
-    const { time, direction, shift } = sweep;
-
-    if (typeof time !== 'number' || time < 0 || time > 7) return false;
-    if (!['up', 'down', 'none'].includes(direction)) return false;
-    if (typeof shift !== 'number' || shift < 0 || shift > 7) return false;
-
-    return true;
-  }
-
-  // Allow other object structures
-  return true;
-}
-
-/**
- * Serialize instrument definitions to .bax format with validation
- */
-function serializeInstrument(name: string, inst: InstrumentNode): string {
-  const parts = [`inst ${name}`];
-
-  for (const [key, value] of Object.entries(inst)) {
-    // Skip internal or metadata fields that shouldn't be serialized
-    if (key === 'name') continue;
-
-    const serializedValue = serializeValue(key, value);
-    if (serializedValue !== '') {
-      parts.push(`${key}=${serializedValue}`);
-    }
-  }
-
-  return parts.join(' ');
-}
 
 /**
  * Wait for a directory to be ready (exists and is accessible).
@@ -338,8 +194,8 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       }
       return;
     } catch (err: any) {
-      error('engine', 'Failed to render song: ' + (err && err.message ? err.message : String(err)));
-      if (err && err.stack) error('engine', String(err.stack));
+      error('engine', 'Failed to render song: ' + (err.message ?? String(err)));
+      if (err.stack) error('engine', String(err.stack));
       process.exitCode = 1;
       return;
     }
@@ -453,7 +309,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         try {
           child.exec(cmd, (err: any) => {
             if (err) {
-              error('engine', 'Failed to open browser: ' + (err && err.message ? err.message : String(err)));
+              error('engine', 'Failed to open browser: ' + (err.message ?? String(err)));
               console.log('Please open the URL in your browser:', url);
             }
           });

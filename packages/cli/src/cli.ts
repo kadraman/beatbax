@@ -5,7 +5,7 @@ import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/e
 import { readFileSync, statSync, existsSync } from 'fs';
 import { resolve as resolvePath } from 'path';
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong, resolveSongAsync, resolveImports } from '@beatbax/engine/song';
+import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
 const { getUGEDetailedJSON } = engineImports as any;
 

@@ -66,16 +66,26 @@ When using `--browser` flag with songs containing local imports, the CLI display
 
 ### 3. Path Traversal Prevention
 
-Import paths containing `..` segments are **always rejected**, regardless of configuration:
+Import paths containing `..` **as a path segment** are rejected to prevent directory traversal attacks:
 
 ```
-// ❌ REJECTED - path traversal
-import "../../../etc/passwd"
-import "lib/../../secrets/keys.txt"
-import "subdir/../../../outside/file.ins"
+# ❌ REJECTED - path traversal with .. segments
+import "local:../../../etc/passwd"
+import "local:lib/../../secrets/keys.txt"
+import "local:subdir/../../../outside/file.ins"
+import "local:lib/.."
+
+# ✅ ALLOWED - filenames containing ".." as part of the name
+import "local:lib/drums..backup.ins"
+import "local:lib/file..old.ins"
+import "local:lib/my..version2.ins"
 ```
 
-Even if the resolved path would be within an allowed directory, any use of `..` in the import statement itself is forbidden to prevent confusion and potential security bypasses.
+The validation uses a path segment check (regex: `/(^|\/)\.\.($|\/)/`) which:
+- **Blocks** `.` when preceded by `/` or start-of-string AND followed by `/` or end-of-string
+- **Allows** `..` as part of a filename (e.g., `drums..backup.ins`)
+
+This prevents path traversal attacks while allowing legitimate filenames that happen to contain two consecutive dots.
 
 ### 4. Absolute Path Restriction
 

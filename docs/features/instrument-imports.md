@@ -28,7 +28,7 @@ import "local:lib/gameboy-common.ins"  # ✅ Correct
 import "lib/gameboy-common.ins"        # ❌ Error: Missing prefix
 ```
 
-**Browser Security:** Local imports are only supported in the CLI. If a `.bax` file containing `local:` imports is loaded in the browser, an error will be displayed:
+**Browser Security:** Local imports are only supported in the CLI (Node.js environment). If a `.bax` file containing `local:` imports is loaded in the browser, an error will be displayed:
 
 ```
 🛑 Local imports are not supported in the browser for security reasons.
@@ -36,7 +36,15 @@ import "lib/gameboy-common.ins"        # ❌ Error: Missing prefix
    Found: import "local:lib/gameboy-common.ins"
 ```
 
-When using the CLI with `--browser` flag, a warning is shown if the song contains local imports, since they cannot be used when the file is later played in the browser.
+**Note:** When using the CLI with `--browser` flag, local imports will fail at runtime in the browser. The CLI displays a warning but copies the source file as-is:
+
+```
+⚠️  Warning: This song contains 2 local file import(s) which will be blocked by browser security.
+   The browser will display an error when attempting to load this song.
+   To play this song in the browser, replace local imports with remote imports (https:// or github:).
+```
+
+To enable browser playback, replace local imports with remote imports (see [`remote-imports.md`](./remote-imports.md)).
 
 Authors frequently want to reuse instrument collections across songs and
 projects. Previously, instrument definitions had to live inside each `.bax`, which
@@ -64,7 +72,7 @@ overrides as errors.
 
 - **Path Resolution**: Uses Node.js `path.resolve()` with cross-platform support (posix for tests)
 - **CLI Integration**: All commands (play, verify, export) resolve imports with filename context
-- **Browser Support**: Imports are resolved server-side and inlined for browser playback
+- **Browser Support**: Local imports are NOT supported in browser; use remote imports instead
 - **Cycle Detection**: Import graphs are validated; circular imports throw errors
 - **File Caching**: Each imported file is parsed once per resolution session
 - **Testing**: 18 tests covering parser, resolver, and end-to-end scenarios
@@ -126,7 +134,7 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
 
 ### CLI Commands
 
-All CLI commands support imports automatically:
+All CLI commands support imports automatically (in Node.js/CLI environment):
 
 ```bash
 # Verify a song with imports
@@ -135,7 +143,7 @@ npm run cli -- verify songs/import_demo.bax
 # Play with imports (headless)
 npm run cli -- play songs/import_demo.bax
 
-# Play in browser (imports are resolved and inlined)
+# Note: --browser flag requires remote imports (local imports will fail)
 npm run cli -- play songs/import_demo.bax --browser
 
 # Export with imports
@@ -143,34 +151,49 @@ npm run cli -- export json songs/import_demo.bax output.json
 npm run cli -- export uge songs/import_demo.bax output.uge
 ```
 
-### Browser Playback
+### Browser Playback Limitations
 
-When using `--browser` mode, imports are automatically resolved server-side and
-inlined into the source file. The generated browser-compatible file shows:
+**Local imports are NOT supported in browser playback.** When using `--browser` mode with a song containing local imports, the CLI will:
 
+1. Display a warning that local imports will fail in the browser
+2. Copy the source file as-is (imports are NOT resolved/inlined)
+3. Launch the browser where the song will fail to load with an error
+
+**To enable browser playback:**
+- Replace `local:` imports with remote imports (`https://` or `github:`)
+- See [`remote-imports.md`](./remote-imports.md) for remote import syntax
+- Or manually inline all instruments into your `.bax` file
+
+**Why?** Browsers cannot access local files for security reasons. The engine's browser build does not include Node.js file system APIs. Remote imports fetch over HTTP(S) which works in both CLI and browser.
+
+**Example:**
+```bash
+# This will warn and fail in browser:
+npm run cli -- play song.bax --browser  # Contains local: imports
+
+# These work in browser:
+npm run cli -- play song-remote.bax --browser  # Uses https:// imports
+npm run cli -- play song-inline.bax --browser  # No imports, all inline
 ```
-# Resolved instruments from: lib/gameboy-common.ins
-inst gb_lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":3}
-inst gb_bass type=pulse2 duty=25 env={"level":10,"direction":"down","period":2}
-# import "local:lib/gameboy-common.ins"
-
-# Resolved instruments from: lib/gameboy-drums.ins
-inst kick type=noise env={"level":15,"direction":"down","period":7} noise={...}
-inst snare type=noise env={"level":12,"direction":"down","period":5} noise={...}
-# import "local:lib/gameboy-drums.ins"
-```
-
-This ensures the browser can play the song without file system access.
 
 ### Path Resolution
 
-Imports support standard relative paths with the `local:` prefix:
+Imports support relative paths with the `local:` prefix. **For security reasons, parent directory traversal using `..` path segments is not allowed:**
 
 ```
-import "local:lib/common.ins"          # Subdirectory relative to song file
-import "local:../shared/drums.ins"     # Parent directory
-import "local:../../library/fx.ins"    # Multiple levels up
+import "local:lib/common.ins"               # ✅ Subdirectory relative to song file
+import "local:instruments/drums.ins"        # ✅ Nested subdirectory
+import "local:lib/drums..backup.ins"        # ✅ Filename containing ".."
+import "local:../shared/drums.ins"          # ❌ REJECTED - parent directory traversal
+import "local:../../library/fx.ins"         # ❌ REJECTED - parent directory traversal
+import "local:lib/../sibling.ins"           # ❌ REJECTED - parent directory traversal
 ```
+
+**Security Note:** The validator checks for `..` as a **path segment** (using regex `/(^|\/)\.\.($|\/)/`), which means:
+- `..` preceded by `/` or start-of-string AND followed by `/` or end-of-string is rejected
+- Filenames containing `..` (like `drums..backup.ins`) are allowed
+
+This prevents path traversal attacks while allowing legitimate filenames. Organize your instrument libraries within or beneath your song directories, or use the alternatives below.
 
 Resolution order:
 1. Resolve relative to the importing file's directory
@@ -202,6 +225,56 @@ inst snare type=noise env=12,down
 inst hat   type=noise env=8,down
 ```
 
+### Organizing Shared Libraries Across Projects
+
+Since parent directory traversal (`..`) is not allowed, you have several options for sharing instrument libraries across multiple projects:
+
+**Option 1: Copy libraries into each project** (recommended for simple cases)
+```
+project-a/
+  songs/
+    song1.bax
+  lib/
+    gameboy-common.ins
+
+project-b/
+  songs/
+    song2.bax
+  lib/
+    gameboy-common.ins  # Copy of the same library
+```
+
+**Option 2: Use remote imports** (recommended for shared/published libraries)
+```
+# In your song files:
+import "github:username/beatbax-instruments/main/gameboy-common.ins"
+import "https://raw.githubusercontent.com/username/repo/main/lib/drums.ins"
+```
+
+**Option 3: Centralize projects under a common root**
+```
+beatbax-workspace/
+  lib/                      # Shared libraries
+    gameboy-common.ins
+    gameboy-drums.ins
+  project-a/
+    songs/
+      song1.bax             # import "local:lib/gameboy-common.ins"
+  project-b/
+    songs/
+      song2.bax             # import "local:lib/gameboy-common.ins"
+```
+Run the CLI from `beatbax-workspace/` directory so the `lib/` folder is accessible.
+
+**Option 4: Use version control** (Git submodules, symlinks)
+```
+# Use Git submodules to reference shared libraries:
+cd myproject/lib
+git submodule add https://github.com/user/beatbax-instruments.git
+```
+
+For most users, **Option 2 (remote imports)** provides the best balance of security, convenience, and shareability.
+
 ## Testing
 
 - Resolver: relative path resolution, search-path fallback, caching, and
@@ -220,7 +293,8 @@ inst hat   type=noise env=8,down
 
 **Resolver Tests** (`resolver.imports.test.ts` - 9 tests):
 - Basic import resolution
-- Relative path resolution (`../` support)
+- Relative path resolution (within project directories)
+- Path traversal rejection (`..` segments are blocked)
 - Import cycle detection
 - File caching verification
 - Last-wins merging semantics

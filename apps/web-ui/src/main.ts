@@ -1,7 +1,6 @@
 import { parse } from '@beatbax/engine/parser';
 import Player from '@beatbax/engine/audio/playback';
-import { resolveSongAsync } from '@beatbax/engine/song/resolver';
-import { resolveImports } from '@beatbax/engine/song';
+import { resolveSong, resolveImports } from '@beatbax/engine/song';
 
 // Helper to format parse errors with file location information
 function formatParseError(err: any, filename?: string): string {
@@ -399,7 +398,7 @@ playBtn?.addEventListener('click', async () => {
     console.log('[web-ui] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
     console.log('[web-ui] source preview:\n', String(src).slice(0, 800));
 
-    console.log('[web-ui] Calling resolveSongAsync...');
+    console.log('[web-ui] Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -425,7 +424,7 @@ playBtn?.addEventListener('click', async () => {
     const validationWarnings = validateAST(resolvedAST);
     warnings.push(...validationWarnings);
 
-    const resolved = await resolveSongAsync(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
+    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
     console.log('[web-ui] Resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
     console.log('[web-ui] Resolved AST instruments after resolve:', Object.keys((resolved as any).insts || {}));
     if ((resolved as any).channels) {
@@ -516,7 +515,7 @@ applyBtn?.addEventListener('click', async () => {
       }
     } catch (e) { console.warn('resume failed during apply', e); }
     attachScheduleHook(player);
-    console.log('[web-ui][apply] Calling resolveSongAsync...');
+    console.log('[web-ui][apply] Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -541,7 +540,7 @@ applyBtn?.addEventListener('click', async () => {
     const validationWarnings = validateAST(resolvedAST);
     warnings.push(...validationWarnings);
 
-    const resolved = await resolveSongAsync(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
+    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
     console.log('[web-ui][apply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
 
     // Show warnings if any
@@ -565,10 +564,8 @@ exportWavBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'Rendering WAV...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
-    const resolved = await resolveSongAsync(ast as any);
-
-    // Calculate song duration
-    let maxTicks = 0;
+  // Note: WAV export doesn't support imports yet - would need to call resolveImports first
+  const resolved = resolveSong(ast as any);
     for (const ch of resolved.channels || []) {
       if (ch.events && ch.events.length > maxTicks) {
         maxTicks = ch.events.length;
@@ -725,7 +722,7 @@ const liveApply = debounce(async () => {
       }
     } catch (e) { console.warn('resume failed during live apply', e); }
     attachScheduleHook(player);
-    console.log('[web-ui][liveApply] Calling resolveSongAsync...');
+    console.log('[web-ui][liveApply] Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -750,7 +747,7 @@ const liveApply = debounce(async () => {
     const validationWarnings = validateAST(resolvedAST);
     warnings.push(...validationWarnings);
 
-    const resolved = await resolveSongAsync(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
+    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
     console.log('[web-ui][liveApply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
 
     // Show warnings if any
