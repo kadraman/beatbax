@@ -1,0 +1,32 @@
+# Example song demonstrating instrument imports
+# This song imports reusable instrument libraries and uses them
+
+song name "Import Demo"
+song artist "BeatBax"
+song description "Demonstrates instrument imports from .ins files"
+
+chip gameboy
+import "local:lib/gameboy-common.ins"
+import "local:lib/gameboy-drums.ins"
+
+bpm 140
+time 4
+
+# Define patterns using imported instruments
+pat melody = C5 E5 G5 C6 E5 G5 B4 D5
+
+pat bassline = C3 . C3 . G2 . G2 .
+
+pat drums = C7 . C7 C7 . C7 . .
+
+# Create sequences
+seq main_melody = melody melody:oct(-1)
+seq main_bass = bassline
+seq drum_pattern = drums
+
+# Assign to channels
+channel 1 => inst gb_lead seq main_melody
+channel 2 => inst gb_bass seq main_bass
+channel 4 => inst kick seq drum_pattern
+
+play

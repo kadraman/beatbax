@@ -153,6 +153,7 @@ tests/*.js
 
 # sample source code
 lib
+!songs/lib
 
 # generate tools
 tools

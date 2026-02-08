@@ -16,7 +16,18 @@
     "./export/*": "./dist/export/*.js",
     "./import": "./dist/import/index.js",
     "./import/*": "./dist/import/*.js",
-    "./song": "./dist/song/index.js",
+    "./song": {
+      "browser": "./dist/song/index.browser.js",
+      "default": "./dist/song/index.js"
+    },
+    "./song/resolver": {
+      "browser": "./dist/song/resolver.browser.js",
+      "default": "./dist/song/resolver.js"
+    },
+    "./song/importResolver": {
+      "browser": "./dist/song/importResolver.browser.js",
+      "default": "./dist/song/importResolver.js"
+    },
     "./song/*": "./dist/song/*.js",
     "./audio": "./dist/audio/index.js",
     "./audio/*": "./dist/audio/*.js",

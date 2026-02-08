@@ -1,0 +1,42 @@
+chip gameboy
+bpm 140
+
+# Remote import from GitHub (using shorthand)
+import "github:beatbax/instruments-gb/main/melodic.ins"
+import "github:beatbax/instruments-gb/main/percussion.ins"
+
+# Remote import from HTTPS URL examples
+# Main branch (default)
+#import "github:beatbax/instruments-gb/main/melodic.ins"
+#
+# Development branch
+#import "github:beatbax/instruments-gb/develop/melodic.ins"
+#
+# Feature branch
+#import "github:beatbax/instruments-gb/feature/sid-chip/melodic.ins"
+#
+# Git tag/release
+#import "github:beatbax/instruments-gb/v1.2.3/melodic.ins"
+#
+# Branch with subdirectories
+#import "github:beatbax/instruments-gb/main/chips/gameboy/melodic.ins"
+#
+# Local imports still work as before
+#import "local:lib/gameboy-common.ins"
+#import "local:lib/gameboy-drums.ins"
+
+# Local instrument overrides remote/imported instruments
+# (this overrides any imported 'gb_lead' if it exists)
+inst gb_lead type=pulse1 duty=12 env=8,down
+
+pat melody = C5 E5 G5 C6
+pat bass_line = C3 . G2 .
+pat drums = C7 . C7 . C7 C7 C7 .
+
+seq main = melody bass_line drums
+
+channel 1 => inst gb_lead   seq main
+channel 2 => inst gb_bass   seq main:oct(-1)
+channel 4 => inst snare     pat drums*2
+
+play
