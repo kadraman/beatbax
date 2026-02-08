@@ -10,16 +10,15 @@
 Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2A03) APUs.
 
 ## Features
-A concise feature summary:
 
-- Live-coding language for Game Boy-style chiptunes (patterns, sequences, transforms)
+- **Simple, live-coding language**: Including instruments, patterns, sequences and transforms.
+- **Effects system**: 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
+- **Authentic**: 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
+- **Scheduler**: Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
+- **Exports**: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
+- **CLI features**: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
+- **Extensible toolchain**: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
 - **Instrument imports**: Reusable `.ins` libraries with relative/search-path resolution, cycle detection, and last-wins merging
-- **Effects system**: All 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
-- Authentic 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
-- Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
-- Exports: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
-- CLI features: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
-- Extensible toolchain: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
 - **Noise channel**: Direct 1:1 note mapping to hUGETracker (C2→index 0, C7→index 48), no automatic transpose
 
 ## Language examples
@@ -30,18 +29,17 @@ Each "song" can be defined in a `.bax` file with the following a minimal example
 song name "An example song"
 
 chip gameboy
-import "local:lib/gameboy-common.ins"  # Import reusable instruments
+import "github:beatbax/instruments-gb/main/melodic.ins"  # Import reusable instruments
 
 bpm 128
-# volume 1.0  # Master volume (default: 1.0, matches hUGETracker)
 
-# Instruments for pulse, wave and noise (or import from .ins files)
+# Instruments for pulse, wave and noise (or import from .ins files above)
 inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
 inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
 inst snare type=noise env={"level":12,"direction":"down","period":1,"format":"gb"}
 
-# Named effect presets (v0.1.0+)
+# Named effect presets
 effect wobble = vib:8,4              # Vibrato with depth 8, rate 4
 effect fadeIn = volSlide:+5          # Volume fade in
 effect arpMajor = arp:4,7            # Major chord arpeggio
@@ -63,7 +61,10 @@ arrange main = lead_seq | bass_seq | wave_seq | drums_seq
 play auto repeat
 ```
 
-**Effects System (v0.1.0+):**
+## Effects System
+
+The following effects have been implements:
+
 - `pan` / `gb:pan` - Stereo panning (numeric -1.0 to 1.0 or GB enum L/C/R)
 - `vib` - Vibrato (pitch modulation with depth, rate, waveform)
 - `port` - Portamento (smooth pitch glides)
@@ -76,7 +77,7 @@ play auto repeat
 - `retrig` - Retrigger (rhythmic note retriggering with volume fadeout, WebAudio-only)
 - `echo` - Echo/Delay (time-delayed feedback repeats for ambient effects, WebAudio-only)
 
-See `songs/effects/` for detailed examples of each effect.
+See [songs/effects](songs/effects) for detailed examples of each effect.
 
 **Export Notes:**
 - UGE export supports: pan, vib, port, bend (approximated with portamento), sweep (instrument-level), arp, volSlide, cut
@@ -84,8 +85,6 @@ See `songs/effects/` for detailed examples of each effect.
 - Pitch bend: UGE export approximates bends with `3xx` portamento; warnings issued for non-linear curves and delay parameters
 - Pitch sweep: Best used as instrument property (`inst sweep=...`) for GB hardware; inline `<sweep:...>` effects warn in UGE export
 - **Retrigger and Echo**: Only work in WebAudio/browser playback; CLI/PCM renderer displays warnings but continues playback without these effects. Exporting songs with retrigger or echo to UGE will display warnings (no hUGETracker equivalent)
-
-There are a large number of examples in the [songs](songs\) directory.
 
 ## CLI
 
@@ -103,14 +102,15 @@ The `play` command supports browser and headless playback. In Node.js, it defaul
 - `--sample-rate <hz>` (or `-r`) - Sample rate for headless playback (default: 44100)
 - `--buffer-frames <n>` - Buffer length in frames for offline rendering (optional)
 
-Note on `play` directive flags:
-- Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
+>Note on `play` directive flags:
+>
+>Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
 	- `play auto` requests the web UI to start playback when the file is loaded.
 	- `play repeat` requests looping playback.
+>
+>The web UI will attempt to honor `play auto` but browsers commonly require a user gesture to unlock audible playback; in those cases the UI will prompt the user to enable audio.
 
-Please note: The web UI will attempt to honor `play auto` but browsers commonly require a user gesture to unlock audible playback; in those cases the UI will prompt the user to enable audio.
-
-Validation note: the CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
+The CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
 
 The CLI uses a hybrid approach with cascading fallbacks:
 1. **speaker** module (optional, best performance if installed)
@@ -135,7 +135,6 @@ Inspect `.bax` or `.uge` files and view their structure:
 
 **For .bax files:**
 ```powershell
-# Text summary
 node bin/beatbax inspect songs/sample.bax
 # Output: chip, tempo, pattern/sequence/instrument counts, metadata
 
@@ -145,7 +144,6 @@ node bin/beatbax inspect songs/sample.bax --json
 
 **For .uge files:**
 ```powershell
-# Text summary
 node bin/beatbax inspect songs/example.uge
 # Output: version, title, BPM, pattern/instrument counts
 
@@ -163,7 +161,7 @@ The inspect command is useful for:
 
 ### Export
 
-All export formats are fully implemented and tested:
+The following export formats are implemented:
 
 - `export json <file> [output] [--out <path>]` — Validated JSON export (ISM format)
 - `export midi <file> [output] [--out <path>] [--duration <seconds>] [--channels <list>]` — MIDI export (Type-1 SMF)
@@ -214,7 +212,7 @@ beatbax/
 │   │   │   ├── effects/         # Effects system (pan, vib, port, arp, volSlide, trem)
 │   │   │   ├── expand/          # Reference/token expansion helpers
 │   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
-│   │   │   ├── import/          # UGE file reader
+│   │   │   ├── import/          # UGE file reader and remote cache
 │   │   │   ├── instruments/     # Instrument state management
 │   │   │   ├── parser/          # Parser and structured parse helpers
 │   │   │   │   ├── peggy/       # Peggy grammar + generated parser
@@ -223,10 +221,11 @@ beatbax/
 │   │   │   ├── patterns/        # Pattern expansion and transforms
 │   │   │   ├── scheduler/       # Deterministic tick scheduler
 │   │   │   ├── sequences/       # Sequence expansion
-│   │   │   ├── song/            # Song resolver and model
+│   │   │   ├── song/            # Song resolver and model (Node + browser)
+│   │   │   ├── tests/           # Source-level unit tests
 │   │   │   ├── util/            # Utility helpers (diag, parsing helpers)
 │   │   │   └── index.ts         # Main engine entry point
-│   │   └── tests/               # Engine unit tests (25 suites)
+│   │   └── tests/               # Engine unit tests (25+ suites)
 │   │
 │   └── cli/                     # Command-line interface
 │       ├── src/
@@ -254,16 +253,34 @@ beatbax/
 │
 ├── docs/                        # Documentation
 │   ├── features/                # Feature specifications
-│   │   └── ...
+│   ├── issues/                  # Issue tracking documentation
+│   ├── ast-schema.md            # AST schema documentation
+│   ├── browser-safe-imports.md  # Browser import resolution
+│   ├── browser-safe-resolver.md # Browser-safe resolver design
+│   ├── import-security.md       # Import security documentation
+│   ├── instruments.md           # Instrument definition reference
+│   ├── metadata-directives.md   # Song metadata directives
 │   ├── scheduler.md             # Scheduler API docs
 │   ├── uge-export-guide.md      # UGE export guide
 │   ├── uge-reader.md            # UGE import documentation
+│   ├── uge-transpose.md         # UGE transposition guide
 │   ├── uge-v6-spec.md           # hUGETracker format spec
+│   ├── uge-writer.md            # UGE writer implementation
+│   ├── volume-directive.md      # Volume directive reference
 │   └── wav-export-guide.md      # WAV export documentation
+│
+├── schema/                      # Schema definitions
+│   └── ast.schema.json          # JSON schema for AST
+│
+├── lib/                         # Libraries and resources
+│   └── uge/                     # UGE test files and samples
+│
+├── media/                       # Project assets
+│   └── logo-*.png               # BeatBax logos
 │
 ├── songs/                       # Example .bax song files
 ├── examples/                    # Code examples and utilities
-├── demo/                        # Legacy demo files
+├── tests/                       # Root-level integration tests
 └── tmp/                         # Temporary build outputs
 ```
 
