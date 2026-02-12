@@ -458,14 +458,82 @@ function renderNamedEvent(
   channels: number,
   tickSeconds: number,
   isGameBoy: boolean,
-  _vibDepthScale?: number,
-  _regPerTrackerBaseFactor?: number,
-  _regPerTrackerUnit?: number,
-  _channelId?: number
+  vibDepthScale?: number,
+  regPerTrackerBaseFactor?: number,
+  regPerTrackerUnit?: number,
+  channelId?: number
 ) {
-  // Named events are typically noise-based percussion
+  // For noise instruments, ignore defaultNote and render as noise
+  // (noise doesn't use traditional pitch; defaultNote is not applicable)
   if (inst.type && inst.type.toLowerCase().includes('noise')) {
-    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels);
+    // Determine pan gains for stereo rendering
+    const panSpec = resolveEventPan(ev, inst);
+    const gains = panToGains(panSpec);
+    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
+    return;
+  }
+
+  // For pulse/wave instruments with defaultNote, parse and render at specified pitch
+  if (ev.defaultNote) {
+    const noteToken = ev.defaultNote;
+    const m = noteToken.match(/^([A-G][#B]?)(-?\d+)$/i);
+    if (m) {
+      const note = m[1].toUpperCase();
+      const octave = parseInt(m[2], 10);
+      const midi = noteNameToMidi(note, octave);
+      if (midi !== null) {
+        const freq = midiToFreq(midi);
+        // Align frequency to Game Boy period table like the WebAudio path does
+        const alignedFreq = freqFromRegister(registerFromFreq(freq));
+
+        // Determine pan gains for stereo rendering
+        const panSpec = resolveEventPan(ev, inst);
+        const gains = panToGains(panSpec);
+
+        if (inst.type && inst.type.toLowerCase().includes('pulse')) {
+          renderPulse(
+            buffer,
+            startSample,
+            durationSamples,
+            alignedFreq,
+            inst,
+            sampleRate,
+            channels,
+            gains,
+            ev.effects,
+            tickSeconds,
+            'gameboy',
+            isGameBoy,
+            vibDepthScale,
+            regPerTrackerBaseFactor,
+            regPerTrackerUnit,
+            channelId,
+            false
+          );
+          return;
+        } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
+          renderWave(
+            buffer,
+            startSample,
+            durationSamples,
+            alignedFreq,
+            inst,
+            sampleRate,
+            channels,
+            gains,
+            ev.effects,
+            tickSeconds,
+            isGameBoy,
+            vibDepthScale,
+            regPerTrackerBaseFactor,
+            regPerTrackerUnit,
+            channelId,
+            false
+          );
+          return;
+        }
+      }
+    }
   }
 }
 
@@ -1290,10 +1358,10 @@ function renderNoise(
 
   const durSec = duration / sampleRate;
 
-  // Game Boy noise parameters
-  const width = inst.width ? Number(inst.width) : 15;
-  const divisor = inst.divisor ? Number(inst.divisor) : 3;
-  const shift = inst.shift ? Number(inst.shift) : 4;
+  // Game Boy noise parameters - support both plain and gb: prefixed properties
+  const width = inst.width ? Number(inst.width) : (inst['gb:width'] ? Number(inst['gb:width']) : 15);
+  const divisor = inst.divisor ? Number(inst.divisor) : (inst['gb:divisor'] ? Number(inst['gb:divisor']) : 3);
+  const shift = inst.shift ? Number(inst.shift) : (inst['gb:shift'] ? Number(inst['gb:shift']) : 4);
   const GB_CLOCK = 4194304;
 
   // Calculate LFSR frequency (matches browser implementation)

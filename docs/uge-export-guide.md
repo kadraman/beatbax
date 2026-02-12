@@ -277,13 +277,15 @@ UGE export output:
 The Game Boy noise channel doesn't use traditional musical pitches. Instead, notes control the noise generator's shift and divisor parameters. **BeatBax exports noise channel notes directly to hUGETracker** with NO automatic transpose applied.
 
 - **Direct 1:1 mapping:** Notes are exported exactly as written in BeatBax:
-  - `C2` in BeatBax → exports as index **0** (C-3 in hUGETracker = lowest noise)
-  - `C5` in BeatBax → exports as index **24** (C-5 in hUGETracker = mid-range percussion)
-  - `C7` in BeatBax → exports as index **48** (C-7 in hUGETracker = bright percussion)
-  - `C9` in BeatBax → exports as index **72** (C-9 in hUGETracker = maximum, highest)
-  - Notes above `C9` are clamped to index **72**
+  - `C2` in BeatBax → exports as index **0** (displays as C-3 in hUGETracker)
+  - `C4` in BeatBax → exports as index **24** (displays as C-5 in hUGETracker)
+  - `C5` in BeatBax → exports as index **36** (displays as C-6 in hUGETracker)
+  - `C6` in BeatBax → exports as index **48** (displays as C-7 in hUGETracker, **typical percussion range**)
+  - `C8` in BeatBax → exports as index **72** (displays as C-9 in hUGETracker = maximum)
+  - Notes above `C8` are clamped to index **72**
   - Notes below `C2` are transposed up by octaves to fit in valid range
-- **Write in target range:** For typical percussion sounds, use **C5-C7** (indices 24-48), which map to common snare/hi-hat sounds in hUGETracker
+- **Write in target range:** For typical percussion sounds, use **C5-C6** (indices 36-48), which map to common snare/hi-hat sounds in hUGETracker
+- **Octave Display Note:** hUGETracker displays all notes ONE OCTAVE HIGHER than BeatBax's MIDI notation (C6 in BeatBax = C-7 in hUGETracker)
 - **Custom transpose if needed:** Add `uge_transpose=N` to your noise instrument to shift all notes:
   ```
   inst kick type=noise env=gb:12,down,1 uge_transpose=12  # Shift up 1 octave
@@ -298,10 +300,10 @@ bpm 120
 # Write percussion notes in the exact range you want in hUGETracker
 inst kick  type=noise env=gb:12,down,1 width=15  # Use C2-C3 (deep sounds)
 inst snare type=noise env=gb:10,down,2 width=7   # Use C5-C6 (mid-range)
-inst hat   type=noise env=gb:8,down,1 width=7    # Use C7-C8 (bright sounds)
+inst hat   type=noise env=gb:8,down,1 width=7    # Use C6-C7 (bright sounds)
 
-# Direct mapping: C2→0, C5→24, C6→36, C7→48, C8→60
-pat drums = C2 . C5 . C6 C7 C2 C8
+# Direct mapping: C2→0, C4→24, C5→36, C6→48, C7→60
+pat drums = C2 . C5 . C6 C7 C2 C6
 
 channel 4 => inst kick pat drums
 ```
@@ -322,8 +324,8 @@ Example: export and analyze a song with vibrato
 
 ```bash
 # export UGE then render WAV for analysis (example)
-npm run cli -- export uge songs/effect_demo.bax tmp/effect_demo.uge
-node scripts/auto_calibrate_vib.mjs songs/effect_demo.bax tmp/auto_cal --sampleRate 44100
+npm run cli -- export uge songs/features/effect_demo.bax tmp/effect_demo.uge
+node scripts/auto_calibrate_vib.mjs songs/features/effect_demo.bax tmp/auto_cal --sampleRate 44100
 ```
 
 See `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/audio/pcmRenderer.ts` for implementation details.
