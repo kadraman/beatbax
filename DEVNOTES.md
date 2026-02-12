@@ -266,25 +266,28 @@ The Game Boy noise channel doesn't use traditional musical pitches—notes contr
 
 **Current behavior (v0.1.0+)**:
 - **1:1 mapping**: Notes export directly to hUGETracker indices with NO automatic transpose
-  - C2 → index 0 (C-3 in hUGETracker notation)
-  - C5 → index 24 (C-5, mid-range percussion)
-  - C6 → index 36 (C-6)
-  - C7 → index 48 (C-7, bright percussion)
-  - C9 → index 72 (C-9, maximum)
-- **Recommendation**: Use C5-C7 for typical percussion sounds (snares, hi-hats)
+  - C2 in BeatBax → index 0 (displays as C-3 in hUGETracker)
+  - C5 in BeatBax → index 24 (displays as C-6 in hUGETracker)
+  - C6 in BeatBax → index 36 (displays as C-7 in hUGETracker, **typical percussion range**)
+  - C9 in BeatBax → index 72 (displays as C-10 in hUGETracker = maximum)
+- **Octave Display Note**: hUGETracker displays all notes ONE OCTAVE HIGHER than BeatBax's MIDI notation
+- **Recommendation**: Use C5-C6 for typical percussion sounds (snares, hi-hats)
 - **Override**: Add `uge_transpose=N` to instrument definition for custom offsets
-- **Default note value**: When instrument name appears without explicit note (e.g., `hihat * 8`), defaults to MIDI note 60 (C7) → index 24
+- **Default note parameter**: Instruments can specify `note=C6` to set default pitch when using instrument name as token (see [instrument-note-mapping-guide.md](docs/instrument-note-mapping-guide.md))
 
 **Implementation**:
-- `packages/engine/src/export/ugeWriter.ts` lines 918-928: Removed automatic transpose logic
-- `packages/engine/src/export/ugeWriter.ts` line 1070: Changed default note from 36 to 60
+- `packages/engine/src/export/ugeWriter.ts`: Note-to-index conversion, no automatic transpose
+- `packages/engine/src/parser/parser.ts`: Parse `note=` parameter in instrument definitions
+- `packages/engine/src/song/resolver.ts`: Pass `defaultNote` from instrument to events
 - `docs/uge-export-guide.md`: Updated "Noise Channel Note Mapping" section
-- `songs/percussion_demo.bax`: Added header comments with mapping examples
+- `docs/instrument-note-mapping-guide.md`: Complete guide for `note=` parameter usage
+- `songs/percussion_demo.bax`: Demonstration with `note=` parameter and corrected octave ranges
 
 **Files modified**:
-- `ugeWriter.ts`: Removed +36 transpose, updated default note value
-- `uge-export-guide.md`: Complete rewrite of noise mapping section
-- `percussion_demo.bax`: Documentation with C2-C9 mapping table
+- `ugeWriter.ts`: Note-to-index conversion with octave display clarification
+- `uge-export-guide.md`: Updated with octave display offset explanation
+- `instrument-note-mapping-guide.md`: New user guide for `note=` parameter
+- `percussion_demo.bax`: Updated to use C6 for typical percussion (not C7)
 
 ## Vibrato (`vib`) Implementation
 
