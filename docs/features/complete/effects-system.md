@@ -507,11 +507,11 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - UGE writer mapping & note-cut injection: `packages/engine/dist/export/ugeWriter.js` (and runtime copy in `node_modules/@beatbax/engine/dist/export/ugeWriter.js`).
 
   - Testing & demo:
-    - Example/demo song: `songs/effect_demo.bax` includes `vib` usages and is used by the test harness and CLI export verification.
+    - Example/demo song: `songs/features/effect_demo.bax` includes `vib` usages and is used by the test harness and CLI export verification.
 
   - Calibration note (vib parity)
     - The renderer and exporter have been calibrated to improve audible parity with hUGEDriver exports. A coarse automated sweep produced a practical best-fit set of parameters used in source builds: `vibDepthScale=4.0`, `regPerTrackerBaseFactor=0.04`, `regPerTrackerUnit=1`.
-    - Measured parity: rendered vibrato depth ≈ **175.70 cents** vs hUGE reference **186.38 cents** (difference ≈ **10.68 cents**) for `songs/effect_demo.bax` at 44.1 kHz.
+    - Measured parity: rendered vibrato depth ≈ **175.70 cents** vs hUGE reference **186.38 cents** (difference ≈ **10.68 cents**) for `songs/features/effect_demo.bax` at 44.1 kHz.
     - Reproduce or refine the calibration using the helper scripts:
       - `scripts/compare_vib.cjs` — analyzes two WAVs and reports vibrato rate/depth.
       - `scripts/auto_calibrate_vib.mjs` — runs a parameter sweep and writes results to a CSV directory (e.g. `tmp/auto_final/results.csv`).

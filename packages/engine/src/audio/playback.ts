@@ -180,7 +180,13 @@ export class Player {
 
             if (token.type === 'named') {
               const instProps = token.instProps || instsMap[token.instrument] || null;
-              this.scheduleToken(ch.id, instProps, instsMap, token.token || token.instrument, t, dur, tickSeconds);
+              // For noise instruments, always use instrument name for lookup
+              // For pulse/wave with defaultNote, use the specified note
+              const isNoise = instProps && instProps.type && String(instProps.type).toLowerCase().includes('noise');
+              const tokenToPlay = (isNoise || !token.defaultNote)
+                ? (token.token || token.instrument)
+                : token.defaultNote;
+              this.scheduleToken(ch.id, instProps, instsMap, tokenToPlay, t, dur, tickSeconds);
             } else if (token.type === 'note') {
               const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
               // Pass the full token object so scheduleToken can honour inline pan/effects

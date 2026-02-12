@@ -1200,10 +1200,14 @@ function eventsToPatterns(
                 }
             }
             currentPan = namedPan;
-            // Default note value when instrument name is used without an explicit note
-            // For noise: use MIDI 60 (C4/middle C) → hUGETracker index 24 (mid range)
-            // For tonal channels: use MIDI 60 (C4/middle C) → hUGETracker index 24
-            const noteValue = 24; // hUGETracker index (MIDI 60 - 36 = 24)
+            // Use instrument's default note if specified, otherwise default to C5 (index 24)
+            let noteValue = 24; // Default: hUGETracker index 24 (MIDI 60 - 36 = C5)
+            if (namedEvent.defaultNote) {
+                const parsedNote = noteNameToMidiNote(namedEvent.defaultNote, 0);
+                if (parsedNote !== EMPTY_NOTE) {
+                    noteValue = parsedNote;
+                }
+            }
             cell = {
                 note: noteValue,
                 instrument: instIndex || 0,

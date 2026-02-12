@@ -8,7 +8,7 @@ if (args.length < 1) {
   process.exit(2);
 }
 const refWav = args[0];
-const songPath = args[1] || 'songs/effect_demo.bax';
+const songPath = args[1] || 'songs/features/effect_demo.bax';
 const outDir = args[2] || 'tmp/auto_cal';
 const sampleRate = 44100;
 
