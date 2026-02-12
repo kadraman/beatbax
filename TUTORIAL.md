@@ -95,23 +95,34 @@ Notes:
 
 **Noise Channel Note Mapping (for UGE Export)**
 
-When exporting to hUGETracker (`.uge` format), the Game Boy noise channel uses a **1:1 note mapping** with no automatic transpose:
+When exporting to hUGETracker (`.uge` format), the Game Boy noise channel uses a **1:1 note mapping** with no automatic transpose.
 
-- C2 → index 0 (C-3 in hUGETracker = lowest noise)
-- C5 → index 24 (C-5 in hUGETracker = mid-range)
-- C6 → index 36 (C-6 in hUGETracker)
-- C7 → index 48 (C-7 in hUGETracker = bright percussion)
-- C9 → index 72 (C-9 in hUGETracker = maximum)
+**Important:** hUGETracker displays notes ONE OCTAVE HIGHER than BeatBax's MIDI notation:
 
-**Writing percussion patterns:**
+- C2 in BeatBax → index 0 (displays as C-3 in hUGETracker)
+- C5 in BeatBax → index 24 (displays as C-6 in hUGETracker)
+- C6 in BeatBax → index 36 (displays as C-7 in hUGETracker = **typical percussion range**)
+- C9 in BeatBax → index 72 (displays as C-10 in hUGETracker = maximum)
+
+**Writing percussion patterns with default notes:**
+```bax
+# Use note= parameter to set default pitch for instrument names
+inst kick     type=pulse1 duty=12.5 env=15,down note=C2   # Pulse kick
+inst snare    type=noise env=gb:13,down,1 width=7 note=C6 # Exports as C-7
+inst hihat_cl type=noise env=gb:6,down,1 width=15 note=C6 # Exports as C-7
+
+# Now use instrument names directly - notes are automatic!
+pat drums = kick . snare . kick . hihat_cl .
+```
+
+**Alternative: Explicit notes (old style):**
 ```bax
 # Write notes in the exact octave range you want in hUGETracker
-inst kick  type=noise env=gb:12,down,1 width=15  # Use C2-C3 (deep)
-inst snare type=noise env=gb:10,down,2 width=7   # Use C5-C6 (mid)
-inst hat   type=noise env=gb:8,down,1 width=7    # Use C7-C8 (bright)
+inst kick  type=noise env=gb:12,down,1 width=15
+inst snare type=noise env=gb:10,down,2 width=7
 
-# These notes export directly: C2→0, C5→24, C7→48
-pat drums = C2 . C5 . C7 C7 C2 C5
+# These notes export directly: C2→0 (C-3), C5→24 (C-6), C6→36 (C-7)
+pat drums = inst(kick) C2 . inst(snare) C6 . C5 .
 ```
 
 **Custom transpose override:**
@@ -120,7 +131,7 @@ pat drums = C2 . C5 . C7 C7 C2 C5
 inst shifted_kick type=noise env=gb:12,down,1 uge_transpose=12
 ```
 
-See `songs/percussion_demo.bax` for a complete working example.
+See `songs/percussion_demo.bax` for a complete working example demonstrating the `note=` parameter.
 
 ### Panning (stereo)
 Panning controls stereo position and can be specified in multiple forms:
@@ -713,9 +724,9 @@ npm run cli -- export wav songs\sample.bax output.wav
 
 **UGE (hUGETracker v6 format)**
 ```powershell
-npm run cli -- export uge songs\panning_demo.bax output.uge
+npm run cli -- export uge songs\features\panning_demo.bax output.uge
 # Use strict GB compatibility check to reject numeric pans instead of snapping:
-npm run cli -- export uge songs\panning_demo.bax output.uge --strict-gb
+npm run cli -- export uge songs\features\panning_demo.bax output.uge --strict-gb
 ```
 Notes:
 - `--strict-gb` treats numeric `pan` values as an error to enforce exact NR51-only semantics for Game Boy exports. In non-strict mode numeric pans are deterministically snapped (pan < -0.33 → L, pan > 0.33 → R, otherwise C).

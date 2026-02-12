@@ -39,6 +39,7 @@ export interface NamedInstrumentEvent {
   token: string; // e.g. 'snare' - a named instrument token
   instrument?: string;
   instProps?: Record<string, string> | undefined;
+  defaultNote?: string; // Optional default note from instrument definition (e.g., 'C7')
 }
 
 export type ChannelEvent = NoteEvent | RestEvent | SustainEvent | NamedInstrumentEvent;

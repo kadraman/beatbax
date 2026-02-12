@@ -5,7 +5,7 @@ import { parse } from '../src/parser/index';
 import { exportJSON } from '../src/export/jsonExport';
 import exportUGE from '../src/export/ugeWriter';
 
-const SONG_PATH = path.resolve(__dirname, '../../../songs/panning_demo.bax');
+const SONG_PATH = path.resolve(__dirname, '../../../songs/features/panning_demo.bax');
 
 describe('UGE pan 8xx placement', () => {
   test('writes 8xx only on rows with note onsets (or initial row)', async () => {

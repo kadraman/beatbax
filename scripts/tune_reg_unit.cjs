@@ -3,7 +3,7 @@ const child = require('child_process');
 const path = require('path');
 
 const FILE = path.resolve(__dirname, '../packages/engine/src/audio/pcmRenderer.ts');
-const SONG = 'songs/effect_demo.bax';
+const SONG = 'songs/features/effect_demo.bax';
 const OUT = 'songs/beatbax-browser-export.wav';
 const REF = 'songs/hugetracker-export.wav';
 

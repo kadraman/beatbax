@@ -5,14 +5,14 @@
 song name "Sustain Demo"
 song artist "kadraman"
 song description """Demo showing sustain and duration tokens, long notes and precise rhythms for BeatBax."""
-song tags "sustain,duration,imported"
+song tags "sustain,duration,effect"
 
 chip gameboy
 bpm 128
 
 # --- Instruments ---
 # Using a longer envelope period (7) so the note doesn't decay too fast
-inst lead  type=pulse1 duty=50 env={"level":10,"direction":"down","period":7}
+inst lead  type=pulse1 duty=50 env={"level":10,"direction":"flat","period":7}
 inst bass  type=pulse2 duty=25 env={"level":12,"direction":"down","period":7}
 inst kick  type=noise  env={"level":15,"direction":"down","period":1} width=7  # Short punchy noise
 inst snare type=noise  env={"level":12,"direction":"down","period":3}          # Longer noise
@@ -20,8 +20,8 @@ inst snare type=noise  env={"level":12,"direction":"down","period":3}          #
 # --- Patterns ---
 
 # 1. Using the :duration shorthand (NOTE:TICKS)
-# C5:4 means "Play C5 and sustain it for 4 ticks total"
-pat melody_pat = C5:4 E5:4 G5:2 F5:2 E5:4
+# C5:8 means "Play C5 and sustain it for 8 ticks total"
+pat melody_pat = C5:8 E5:8 G5:4 F5:4 E5:8
 
 # 2. Using explicit sustain tokens (_ or -)
 # C3 _ _ _ is exactly the same as C3:4
@@ -30,29 +30,22 @@ pat bassline_pat = C3 _ _ _ G2 _ _ _ C3 _ G2 _ C3 _ _ _
 # 3. Using rests (.) to cut notes
 # In BeatBax, a rest (.) sends a "Note Cut" to trackers like hUGETracker.
 # This is useful for staccato notes or percussion.
-pat drums_pat = kick . snare . kick kick snare .
+pat drums_pat = (kick . snare . kick kick snare .)*2
 
 # --- Sequences ---
-seq main_seq = melody_pat bassline_pat drums_pat
+seq main_seq = melody_pat
+seq bass_seq = bassline_pat*2
+seq drum_seq = drums_pat*2
 
 # --- Channels ---
 # Channel 1: Lead melody with long sustained notes
-channel 1 => inst lead seq melody_pat
+channel 1 => inst lead seq main_seq
 
 # Channel 2: Bassline using explicit sustain tokens
-channel 2 => inst bass seq bassline_pat
+channel 2 => inst bass seq bass_seq
 
 # Channel 4: Percussion using rests for sharp cuts
-channel 4 => inst kick seq drums_pat
+channel 4 => inst kick seq drum_seq
 
-# --- Commands ---
-# You can play this song using: node bin/beatbax play songs/sustain_demo.bax --headless
-# Or export it: node bin/beatbax export wav songs/sustain_demo.bax demo.wav
-
-# -----------------------------------------------------------------------------
-# Playback directive
-# Add `play auto repeat` to request the web UI to auto-start this song when
-# loaded and to loop it. Note: browsers may still require a user gesture to
-# actually resume audio due to autoplay policies; the web UI shows an enable
-# audio prompt when necessary.
+# --- Playback directive ---
 play auto repeat

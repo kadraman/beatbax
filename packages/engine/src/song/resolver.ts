@@ -2,7 +2,7 @@ import { AST, SequenceItem } from '../parser/ast.js';
 import { warn as diagWarn } from '../util/diag.js';
 import { expandAllSequences } from '../sequences/expand.js';
 import { transposePattern } from '../patterns/expand.js';
-import { SongModel, ChannelModel, ChannelEvent } from './songModel.js';
+import { SongModel, ChannelModel, ChannelEvent, NamedInstrumentEvent } from './songModel.js';
 import { applyInstrumentToEvent } from '../instruments/instrumentState.js';
 import {
   materializeSequenceItems,
@@ -463,8 +463,13 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
 
       // named instrument token (e.g. 'snare') — if it matches an inst name
       if (typeof token === 'string' && insts[token]) {
+        const inst = insts[token];
         let ev: ChannelEvent = { type: 'named', token, instrument: token };
         ev = applyInstrumentToEvent(insts, ev) as ChannelEvent;
+        // Pass instrument's default note if specified (after applyInstrumentToEvent)
+        if (inst.note) {
+          (ev as NamedInstrumentEvent).defaultNote = inst.note as string;
+        }
         chModel.events.push(ev);
         // Update current instrument so subsequent notes use this instrument
         currentInstName = token;

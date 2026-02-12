@@ -116,6 +116,44 @@ Implementation note
 ### Percussion & envelopes
 - Short, high-initial envelopes with width=7 are great for hi-hats; longer envelopes with width=15 produce snares and toms.
 
+## Default Note Parameter (`note=`)
+
+**New in instrument note mapping feature**
+
+All instrument types (pulse, wave, noise) can specify a default note value using the `note=` parameter. When you use the instrument name as a pattern token (e.g., `snare` or `kick`), this note is automatically used:
+
+```
+inst kick     type=pulse1 duty=12.5 env=15,down note=C2
+inst snare    type=noise  gb:width=7 env=13,down note=C6
+inst hihat_cl type=noise  gb:width=15 env=6,down note=C6
+
+pat drums = kick . snare . kick . hihat_cl .  # Uses default notes automatically
+```
+
+### Behavior
+
+1. **Pulse/Wave instruments:** The specified note is the actual pitch played when using the instrument name as a token
+2. **Noise instruments:** The note value is stored for UGE export compatibility (noise doesn't use traditional pitch during playback)
+3. **Override per-note:** You can still use explicit notes: `inst(snare) D6` overrides the default
+4. **No `note=` specified:** Defaults to C5 for backward compatibility in exports
+
+### Recommended Values
+
+For Game Boy percussion (follows hUGETracker conventions):
+
+- **Kicks** (pulse channels): `note=C2` (deep bass)
+- **Snares** (7-bit noise): `note=C6` (exports as C-7 in hUGETracker)
+- **Closed hi-hats** (15-bit noise): `note=C6` to `note=D6` (exports as C-7 to D-7)
+- **Open hi-hats** (15-bit noise): `note=D6` to `note=E6` (exports as D-7 to E-7)
+- **Toms** (7-bit noise): `note=C5` to `note=E5` (exports as C-6 to E-6)
+- **Cymbals** (15-bit noise): `note=E6` to `note=F6` (exports as E-7 to F-7)
+
+**Important:** hUGETracker displays notes ONE OCTAVE HIGHER than BeatBax's MIDI notation:
+- BeatBax `note=C6` → exports as C-7 in hUGETracker
+- BeatBax `note=C2` → exports as C-3 in hUGETracker
+
+See [instrument-note-mapping-guide.md](instrument-note-mapping-guide.md) for complete usage examples.
+
 ## Cheat-sheet (at-a-glance)
 
 | Instrument | Key params | Typical defaults |
