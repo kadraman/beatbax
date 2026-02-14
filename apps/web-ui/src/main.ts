@@ -264,6 +264,64 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
     }
   }
 
+  // Validate patterns - check instrument token references
+  if (ast.patternEvents) {
+    for (const [patName, events] of Object.entries(ast.patternEvents)) {
+      if (!Array.isArray(events)) continue;
+      
+      for (const event of events as any[]) {
+        if (event.kind === 'token' && event.value) {
+          // Check if this token is an instrument name
+          if (!ast.insts?.[event.value]) {
+            // Skip if it's a known pattern name (could be referenced in inline syntax)
+            if (!ast.pats?.[event.value]) {
+              warnings.push({
+                component: 'validation',
+                message: `Pattern '${patName}' references undefined instrument '${event.value}'`,
+                loc: event.loc
+              });
+            }
+          }
+        } else if (event.kind === 'inline-inst' && event.name) {
+          // Check inline inst() syntax
+          if (!ast.insts?.[event.name]) {
+            warnings.push({
+              component: 'validation',
+              message: `Pattern '${patName}' references undefined instrument '${event.name}' in inst() modifier`,
+              loc: event.loc
+            });
+          }
+        } else if (event.kind === 'temp-inst' && event.name) {
+          // Check temp inst(name,N) syntax
+          if (!ast.insts?.[event.name]) {
+            warnings.push({
+              component: 'validation',
+              message: `Pattern '${patName}' references undefined instrument '${event.name}' in inst(,N) temporary override`,
+              loc: event.loc
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Validate sequences - check pattern references
+  if (ast.seqs) {
+    for (const [seqName, items] of Object.entries(ast.seqs)) {
+      if (!Array.isArray(items)) continue;
+      
+      for (const item of items as any[]) {
+        if (item.name && !ast.pats?.[item.name]) {
+          warnings.push({
+            component: 'validation',
+            message: `Sequence '${seqName}' references undefined pattern '${item.name}'`,
+            loc: item.loc
+          });
+        }
+      }
+    }
+  }
+
   return warnings;
 }
 
