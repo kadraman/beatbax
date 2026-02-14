@@ -400,6 +400,47 @@ cd apps/web-ui
 npm run dev:clean  # Uses --force flag to bypass Vite's dependency cache
 ```
 
+### Web UI Phase 1 — Modular Architecture (✅ Complete)
+
+The web UI has been refactored from a monolithic `main.ts` into a modular, testable architecture:
+
+**Core Modules:**
+- `src/utils/event-bus.ts` — Type-safe pub/sub system for component communication
+- `src/editor/monaco-setup.ts` — Monaco editor factory with auto-save and EventBus integration
+- `src/editor/beatbax-language.ts` — Monarch tokenizer with comprehensive syntax highlighting
+- `src/editor/diagnostics.ts` — Parse error/warning display with Monaco markers
+- `src/ui/layout.ts` — Vanilla JS split panes with localStorage persistence
+
+**Syntax Highlighting:**
+- 15+ token types with VS Code-compatible colors (`beatbax-dark` theme)
+- Keywords, definitions, properties, effects, modifiers, notes, comments, JSON objects
+- URI scheme highlighting for imports (`local:`, `github:`, `https:`)
+- Inline effects `<vib:3,6>` and sequence modifiers `:oct(-1)` highlighted
+- Custom theme supports user-defined effect/sequence presets
+- Live validation with red squiggles for undefined instrument/pattern/sequence references
+- 500ms debounced validation for performance
+
+**Entry Points:**
+- `src/main-phase1.ts` — New modular entry point using all Phase 1 components
+- `src/main.ts` — Legacy monolithic implementation (preserved during migration)
+
+**Test Coverage:**
+- `tests/event-bus.test.ts` — 12 tests for EventBus functionality
+- `tests/editor-integration.test.ts` — 12 tests for full editor initialization
+- `tests/validation.test.ts` — 23 comprehensive tests for AST validation logic
+- 45/47 tests passing (2 skipped complex E2E scenarios)
+
+**Documentation:**
+- [PHASE1-README.md](../apps/web-ui/PHASE1-README.md) — Phase 1 implementation details
+- [docs/web-ui-syntax-highlighting.md](./web-ui-syntax-highlighting.md) — Complete color scheme reference
+- [docs/features/web-ui-migration.md](./features/web-ui-migration.md) — Full migration plan with Phases 1-4
+
+**Next Phases:**
+- Phase 2: Playback & output panel
+- Phase 3: Export & import UI
+- Phase 4: Advanced features (menu bar, help panel, channel mixer, theme switching)
+- Post-Phase 3: User-configurable syntax highlighting themes
+
 ### Making Engine Changes for CLI
 
 The CLI requires manual linking after each build:

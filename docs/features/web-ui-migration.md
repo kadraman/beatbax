@@ -438,6 +438,10 @@ interface BeatBaxEvents {
 - `ui/layout.ts` with split panes working
 - Reduced `main.ts` size by ~50%
 
+**Known Issues (to be resolved in Phase 2):**
+- Monaco Editor workers use blob-based fallback (functional but shows warning)
+- Proper worker bundling with `vite-plugin-monaco-editor` deferred to Phase 2
+
 **Testing:**
 - Unit tests for EventBus
 - Integration test: editor loads and displays content
@@ -482,10 +486,17 @@ interface BeatBaxEvents {
    - Show playback time
    - Display BPM and chip
 
+6. **Optimize Monaco Editor workers**
+   - Configure `vite-plugin-monaco-editor` properly in `vite.config.ts`
+   - Bundle Monaco workers locally to avoid CORS issues
+   - Eliminate "Could not create web worker" warnings
+   - Test worker loading with syntax validation
+
 **Deliverables:**
 - `playback/` subsystem functional
 - `panels/output-panel.ts` working
 - `ui/status-bar.ts` live
+- Monaco Editor with properly configured workers (no CORS warnings)
 - All playback logic out of `main.ts`
 
 **Testing:**
@@ -493,6 +504,7 @@ interface BeatBaxEvents {
 - Integration test: play/stop functionality
 - Integration test: errors appear in output panel
 - Integration test: keyboard shortcuts work
+- Integration test: Monaco workers load without CORS errors
 
 ---
 
@@ -1643,6 +1655,16 @@ Post-migration features to consider:
    - Inspect channel state
    - Performance profiling
 
+7. **Theme & Syntax Highlighting Customization** (Post-Phase 3)
+   - Settings panel for customizing syntax colors without code changes
+   - Built-in theme presets (light mode, dark mode, high-contrast)
+   - Theme export/import as JSON files for sharing
+   - Per-user theme preferences persisted in localStorage
+   - Color picker UI for all 15+ token types (keywords, functions, comments, etc.)
+   - Live preview of theme changes in editor
+   - Reset to default themes
+   - Community theme gallery
+
 ---
 
 ## Migration Checklist
@@ -1650,16 +1672,16 @@ Post-migration features to consider:
 Use this checklist during implementation:
 
 ### Phase 1: Core Infrastructure
-- [ ] Create `utils/event-bus.ts` with tests
-- [ ] Create `editor/monaco-setup.ts`
-- [ ] Create `editor/beatbax-language.ts` with tokenizer
-- [ ] Create `editor/diagnostics.ts`
-- [ ] Create `ui/layout.ts` with Allotment
-- [ ] Refactor `main.ts` to use new modules
-- [ ] Verify editor loads and displays content
-- [ ] Verify split panes resize and persist sizes
-- [ ] Add unit tests for EventBus
-- [ ] Add integration test for editor initialization
+- [x] Create `utils/event-bus.ts` with tests
+- [x] Create `editor/monaco-setup.ts`
+- [x] Create `editor/beatbax-language.ts` with tokenizer
+- [x] Create `editor/diagnostics.ts`
+- [x] Create `ui/layout.ts` with Allotment
+- [x] Refactor `main.ts` to use new modules
+- [x] Verify editor loads and displays content
+- [x] Verify split panes resize and persist sizes
+- [x] Add unit tests for EventBus
+- [x] Add integration test for editor initialization
 
 ### Phase 2: Playback & Output
 - [ ] Create `playback/playback-manager.ts`
