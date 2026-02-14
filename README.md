@@ -13,6 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 
 - **Simple, live-coding language**: Including instruments, patterns, sequences and transforms.
 - **Effects system**: 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
+- **Web UI**: Monaco editor with comprehensive syntax highlighting (15+ token types), live validation, and split-pane layout (Phase 1 complete)
 - **Authentic**: 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - **Scheduler**: Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - **Exports**: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
@@ -340,6 +341,15 @@ npm run web-ui:dev
 ```
 
 Then browse to `http://localhost:5173` (Vite default) or the URL shown by the dev server.
+
+**Web UI Features (Phase 1):**
+- Monaco editor with comprehensive syntax highlighting for `.bax` files
+- 15+ token types with VS Code-compatible `beatbax-dark` theme
+- Live validation with red squiggles for undefined instruments, patterns, and sequences
+- Split-pane layout with resizable editor and output panels (persists to localStorage)
+- Event-driven architecture with modular, testable components
+- Autocomplete for keywords, notes, and BeatBax language features
+- See [apps/web-ui/PHASE1-README.md](apps/web-ui/PHASE1-README.md) and [docs/web-ui-syntax-highlighting.md](docs/web-ui-syntax-highlighting.md) for details
 
 ### Engine development workflow
 
