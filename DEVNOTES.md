@@ -427,7 +427,8 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 **Test Coverage:**
 - `tests/event-bus.test.ts` — 12 tests for EventBus functionality
 - `tests/editor-integration.test.ts` — 12 tests for full editor initialization
-- 22/24 tests passing (2 skipped complex E2E scenarios)
+- `tests/validation.test.ts` — 23 comprehensive tests for AST validation logic
+- 45/47 tests passing (2 skipped complex E2E scenarios)
 
 **Documentation:**
 - [PHASE1-README.md](../apps/web-ui/PHASE1-README.md) — Phase 1 implementation details

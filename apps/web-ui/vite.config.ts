@@ -3,8 +3,6 @@ import path from 'path';
 
 export default defineConfig({
   root: '.',
-  // Monaco plugin temporarily disabled - will add after basic setup works
-  // plugins: [],
   resolve: {
     alias: {
       // allow imports like '@/...' if desired

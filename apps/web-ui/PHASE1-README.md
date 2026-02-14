@@ -1,6 +1,6 @@
 # Web UI Phase 1 Implementation
 
-**Status: ✅ COMPLETE** | **Tests: 22/24 passing** | **Coverage: All core features**
+**Status: ✅ COMPLETE** | **Tests: 45/47 passing** | **Coverage: All core features + validation logic**
 
 ## Completed Features ✓
 
@@ -59,7 +59,6 @@ Phase 1 of the web-ui-migration has been successfully implemented with the follo
     "monaco-editor": "^0.45.0"
   },
   "devDependencies": {
-    "vite-plugin-monaco-editor": "^1.1.0",
     "@types/jest": "^29.5.0",
     "jest": "^29.5.0",
     "ts-jest": "^29.1.0",
@@ -67,6 +66,8 @@ Phase 1 of the web-ui-migration has been successfully implemented with the follo
   }
 }
 ```
+
+**Note:** `vite-plugin-monaco-editor` will be added in Phase 2 to optimize Monaco worker loading.
 
 ## Project Structure
 
@@ -90,6 +91,7 @@ apps/web-ui/src/
 apps/web-ui/tests/
 ├── event-bus.test.ts           # ✓ EventBus tests
 ├── editor-integration.test.ts  # ✓ Integration tests
+├── validation.test.ts          # ✓ AST validation unit tests
 └── __mocks__/                  # ✓ Test mocks
     ├── monaco-editor.ts
     ├── allotment.ts
@@ -101,14 +103,15 @@ apps/web-ui/tests/
 Phase 1 is fully tested with comprehensive unit and integration tests:
 
 **Test Suite Summary:**
-- ✅ **2 test suites passed**
-- ✅ **22 tests passed**
+- ✅ **3 test suites passed**
+- ✅ **45 tests passed**
 - ⏭️ **2 tests skipped** (complex E2E scenarios)
-- 📊 **Test coverage**: Event bus, Monaco integration, diagnostics, layout persistence
+- 📊 **Test coverage**: Event bus, Monaco integration, diagnostics, layout persistence, validation logic
 
 **Test Files:**
 1. `tests/event-bus.test.ts` - 12 tests covering all EventBus functionality
-2. `tests/editor-integration.test.ts` - 12 tests verifying full editor initialization flow
+2. `tests/editor-integration.test.ts` - 12 tests verifying full editor initialization flow (2 skipped)
+3. `tests/validation.test.ts` - 23 tests for AST validation logic with comprehensive edge cases
 
 **Running Tests:**
 ```bash
@@ -121,6 +124,14 @@ npm test
 - Monaco editor initialization with BeatBax language
 - Diagnostics integration with EventBus
 - Split pane layout with localStorage persistence
+- **Validation logic** (NEW):
+  - Undefined instrument references in patterns (token, inline-inst, temp-inst)
+  - Undefined pattern references in sequences
+  - Undefined sequence references in channels
+  - Pattern vs sequence confusion detection
+  - Transform validation
+  - Complex multi-level validation scenarios
+  - Edge cases (null/undefined fields, special characters, repeat syntax)
 - Error handling and edge cases
 
 ## How to Use

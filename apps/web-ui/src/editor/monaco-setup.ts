@@ -93,7 +93,7 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
     },
   });
 
-  // Auto-save support
+  // Auto-save support with debounced emission, or immediate emission if no auto-save
   let autoSaveTimeout: number | null = null;
   if (autoSaveDelay > 0) {
     editor.onDidChangeModelContent(() => {
@@ -104,12 +104,12 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
         eventBus.emit('editor:changed', { content: editor.getValue() });
       }, autoSaveDelay);
     });
+  } else {
+    // Emit change events immediately (without debounce) when auto-save is disabled
+    editor.onDidChangeModelContent(() => {
+      eventBus.emit('editor:changed', { content: editor.getValue() });
+    });
   }
-
-  // Emit change events immediately (without debounce)
-  editor.onDidChangeModelContent(() => {
-    eventBus.emit('editor:changed', { content: editor.getValue() });
-  });
 
   // Handle window resize
   const resizeObserver = new ResizeObserver(() => {

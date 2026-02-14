@@ -129,7 +129,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
     document.body.style.userSelect = 'none';
   });
 
-  document.addEventListener('mousemove', (e) => {
+  const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging) return;
 
     const containerRect = splitContainer.getBoundingClientRect();
@@ -147,16 +147,19 @@ export function createLayout(config: LayoutConfig): LayoutManager {
 
     // Trigger resize events for editor
     window.dispatchEvent(new Event('resize'));
-  });
+  };
 
-  document.addEventListener('mouseup', () => {
+  const handleMouseUp = () => {
     if (isDragging) {
       isDragging = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       saveSizes();
     }
-  });
+  };
+
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
 
   // Save function
   function saveSizes() {
@@ -214,6 +217,8 @@ export function createLayout(config: LayoutConfig): LayoutManager {
     getOutputPane: () => outputPane,
     reset,
     dispose: () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
       container.removeChild(splitContainer);
     },
     saveSizes,
