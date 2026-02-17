@@ -1,7 +1,29 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
+// Note: To enable Monaco Editor workers without CORS issues,
+// install vite-plugin-monaco-editor: npm install -D vite-plugin-monaco-editor
+// Then uncomment the import and plugin configuration below.
+//
+// import monacoEditorPlugin from 'vite-plugin-monaco-editor';
+
 export default defineConfig({
+  // Uncomment the plugins section once vite-plugin-monaco-editor is installed
+  /*
+  plugins: [
+    monacoEditorPlugin({
+      // Only bundle workers we need (reduces bundle size)
+      languageWorkers: ['json', 'typescript'],
+      // Custom workers for BeatBax language
+      customWorkers: [
+        {
+          label: 'beatbax',
+          entry: 'monaco-editor/esm/vs/language/typescript/ts.worker',
+        },
+      ],
+    }),
+  ],
+  */
   root: '.',
   resolve: {
     alias: {
@@ -14,7 +36,7 @@ export default defineConfig({
     conditions: ['browser', 'module', 'import', 'default']
   },
   optimizeDeps: {
-    include: ['@beatbax/engine'],
+    include: ['@beatbax/engine', 'monaco-editor'],
     // Exclude Node.js built-ins from optimization
     exclude: ['fs', 'path']
   },
@@ -24,6 +46,13 @@ export default defineConfig({
       // ESM artifact (copied into public/engine) and avoid inlining it
       // into the demo bundle for production.
       external: ['@beatbax/engine']
-    }
+    },
+    // Increase chunk size warning limit for Monaco Editor
+    chunkSizeWarningLimit: 2000
+  },
+  // Worker configuration for Monaco Editor
+  worker: {
+    format: 'es',
+    plugins: []
   }
 });
