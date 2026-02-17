@@ -999,52 +999,6 @@ eventBus.on('playback:started', () => {
     channelState.applyToPlayer(player);
   }
   startPlaybackVisualization();
-
-  // DEBUG: Check button state after playback starts
-  /*console.log('[DEBUG] Playback started, button state:', {
-    id: playBtn.id,
-    disabled: playBtn.disabled,
-    textContent: playBtn.textContent,
-    pointerEvents: playBtn.style.pointerEvents,
-    display: playBtn.style.display,
-    parentElement: playBtn.parentElement?.tagName
-  });
-
-  // DEBUG: Monitor button clicks
-  setTimeout(() => {
-    console.log('[DEBUG] 1 second after playback start, button state:', {
-      disabled: playBtn.disabled,
-      textContent: playBtn.textContent,
-      onclick: typeof playBtn.onclick,
-      hasEventListener: playBtn.getAttribute('data-has-listener')
-    });
-
-    const rect = playBtn.getBoundingClientRect();
-    const computedStyle = window.getComputedStyle(playBtn);
-    console.log('[DEBUG] Button position and style:', {
-      top: rect.top,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
-      display: computedStyle.display,
-      visibility: computedStyle.visibility,
-      opacity: computedStyle.opacity,
-      pointerEvents: computedStyle.pointerEvents,
-      zIndex: computedStyle.zIndex
-    });
-
-    // Check what element is actually at the button's center position
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const elementAtCenter = document.elementFromPoint(centerX, centerY);
-    console.log('[DEBUG] Element at button center position:', {
-      tag: elementAtCenter?.tagName,
-      id: elementAtCenter?.id,
-      isSameAsButton: elementAtCenter === playBtn
-    });
-
-    console.log('[DEBUG] Try clicking the button now and watch for click events');
-  }, 1000);*/
 });
 
 // Listen to playback stopped - stop live visualization
@@ -1055,49 +1009,6 @@ eventBus.on('playback:stopped', () => {
 if (DEBUG) console.log('[web-ui-phase2] Phase 2 setup complete! Monaco editor + Phase 2 components integrated.');
 console.log('[web-ui-phase2] Keyboard shortcuts: Space = Play/Pause, Escape = Stop, Ctrl+Enter = Apply & Play');
 console.log('[web-ui-phase2] Debug mode: Set localStorage.setItem("beatbax-debug", "true") and reload to see detailed logs');
-
-// DEBUG: Add global click listener to see ALL clicks
-/*document.addEventListener('click', (e) => {
-  const target = e.target as HTMLElement;
-  console.log('[DEBUG] Click detected anywhere!', {
-    target: target.tagName,
-    id: target.id,
-    text: target.textContent?.substring(0, 30),
-    classes: target.className,
-    x: e.clientX,
-    y: e.clientY
-  });
-
-  if (target.id === 'phase2-play-btn' || target.textContent?.includes('Play') || target.textContent?.includes('Pause')) {
-    console.log('[DEBUG] >>> This click is on the play/pause button!');
-  }
-}, true); // Use capture phase to catch before any stopPropagation
-*/
-// DEBUG: Add mousemove listener to check what's under the cursor
-/*let lastLoggedElement: HTMLElement | null = null;
-document.addEventListener('mousemove', (e) => {
-  const elementAtPoint = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement;
-
-  // Only log when hovering over play button area
-  if (elementAtPoint && (
-    elementAtPoint.id === 'phase2-play-btn' ||
-    elementAtPoint.textContent?.includes('Play') ||
-    elementAtPoint.textContent?.includes('Pause')
-  )) {
-    if (elementAtPoint !== lastLoggedElement) {
-      console.log('[DEBUG] Element under cursor:', {
-        tag: elementAtPoint.tagName,
-        id: elementAtPoint.id,
-        text: elementAtPoint.textContent?.substring(0, 20),
-        zIndex: window.getComputedStyle(elementAtPoint).zIndex,
-        pointerEvents: window.getComputedStyle(elementAtPoint).pointerEvents
-      });
-      lastLoggedElement = elementAtPoint;
-    }
-  } else {
-    lastLoggedElement = null;
-  }
-});*/
 
 // Parse and display initial content on page load
 try {
