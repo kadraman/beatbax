@@ -58,7 +58,7 @@ export function createDiagnosticsManager(
 
       // Set markers on the model
       monaco.editor.setModelMarkers(model, 'beatbax', markers);
-      
+
       // Note: We don't emit events here to avoid recursion loops.
       // The caller should emit validation events separately.
     },
@@ -79,8 +79,11 @@ export function createDiagnosticsManager(
 
 /**
  * Convert parse errors to diagnostics format
+ *
+ * @param error - The parse error from the engine
+ * @param sourceCode - Optional source code (kept for compatibility, but error enhancement is now done in the engine)
  */
-export function parseErrorToDiagnostic(error: any): Diagnostic {
+export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnostic {
   // Check if this is a Peggy parser error with location information
   if (error.location && error.location.start) {
     return {

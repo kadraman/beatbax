@@ -374,6 +374,11 @@ Developer tips
 - To debug runtime scheduling, open the demo and inspect `window.__beatbax_player` (the Player instance exposes some helpers and metrics).
 - The demo populates per-channel indicators (`ch-ind-N`) and counters (`ch-count-N`) and exposes an `onSchedule` hook that the demo uses to blink indicators. Use the console logs (`[beatbax]`) to trace resolved ISM and scheduling events.
 - To test temporary override semantics, create short patterns using `inst(name,N)` and assert scheduled events via the new playback tests or by examining console diagnostics when running the demo (set `SHOW_CONSOLE=1` for tests or use the browser console for runtime logs).
+- For Web UI debugging, use localStorage flags to control console output:
+  - `localStorage.setItem('beatbax-debug', 'true')` - Enable all debug logs (components, events, state changes)
+  - `localStorage.setItem('beatbax-debug-playback', 'true')` - Enable only note playback logs ("♪ Playing ch1..." messages)
+  - `localStorage.removeItem('beatbax-debug')` - Disable debug logs (clean console)
+  - Reload the page after setting/removing flags
 
 ## Development Workflow
 
