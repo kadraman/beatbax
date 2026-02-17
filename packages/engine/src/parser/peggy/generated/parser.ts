@@ -311,8 +311,9 @@ function peg$parse(input, options) {
   var peg$f10 = function(path) {
       return { nodeType: "ImportStmt", source: path, loc: loc(location()) };
     };
-  var peg$f11 = function(args) {
-      return { nodeType: "PlayStmt", args: args ? args[1] : "", loc: loc(location()) };
+  var peg$f11 = function(ws, rest) {
+      const args = rest ? rest.trim() : "";
+      return { nodeType: "PlayStmt", args: args, loc: loc(location()) };
     };
   var peg$f12 = function(fmt, path) {
       return { nodeType: "ExportStmt", format: fmt, path, loc: loc(location()) };
@@ -1431,7 +1432,7 @@ function peg$parse(input, options) {
   }
 
   function peg$parsePlayStmt() {
-    var s0, s1, s2, s3, s4, s5;
+    var s0, s1, s2, s3, s4;
 
     var key = peg$currPos * 73 + 12;
     var cached = peg$resultsCache[key];
@@ -1443,50 +1444,33 @@ function peg$parse(input, options) {
     }
 
     s0 = peg$currPos;
-    s1 = peg$currPos;
-    s2 = peg$currPos;
     if (input.substr(peg$currPos, 4) === peg$c8) {
-      s3 = peg$c8;
+      s1 = peg$c8;
       peg$currPos += 4;
     } else {
-      s3 = peg$FAILED;
+      s1 = peg$FAILED;
       if (peg$silentFails === 0) { peg$fail(peg$e8); }
     }
-    if (s3 !== peg$FAILED) {
-      s4 = peg$currPos;
+    if (s1 !== peg$FAILED) {
+      s2 = peg$currPos;
       peg$silentFails++;
-      s5 = peg$parseIdentChar();
+      s3 = peg$parseIdentChar();
       peg$silentFails--;
-      if (s5 === peg$FAILED) {
-        s4 = undefined;
-      } else {
-        peg$currPos = s4;
-        s4 = peg$FAILED;
-      }
-      if (s4 !== peg$FAILED) {
-        s3 = [s3, s4];
-        s2 = s3;
+      if (s3 === peg$FAILED) {
+        s2 = undefined;
       } else {
         peg$currPos = s2;
         s2 = peg$FAILED;
       }
-    } else {
-      peg$currPos = s2;
-      s2 = peg$FAILED;
-    }
-    if (s2 !== peg$FAILED) {
-      s1 = input.substring(s1, peg$currPos);
-    } else {
-      s1 = s2;
-    }
-    if (s1 !== peg$FAILED) {
-      s2 = peg$currPos;
-      s3 = peg$parse_();
-      s4 = peg$parseRestOfLine();
-      s3 = [s3, s4];
-      s2 = s3;
-      peg$savedPos = s0;
-      s0 = peg$f11(s2);
+      if (s2 !== peg$FAILED) {
+        s3 = peg$parse_();
+        s4 = peg$parseRestOfLine();
+        peg$savedPos = s0;
+        s0 = peg$f11(s3, s4);
+      } else {
+        peg$currPos = s0;
+        s0 = peg$FAILED;
+      }
     } else {
       peg$currPos = s0;
       s0 = peg$FAILED;

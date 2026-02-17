@@ -115,8 +115,9 @@ ImportStmt
     }
 
 PlayStmt
-  = $("play" !IdentChar) args:(_ RestOfLine)? {
-      return { nodeType: "PlayStmt", args: args ? args[1] : "", loc: loc(location()) };
+  = "play" !IdentChar ws:_? rest:RestOfLine? {
+      const args = rest ? rest.trim() : "";
+      return { nodeType: "PlayStmt", args: args, loc: loc(location()) };
     }
 
 ExportStmt
