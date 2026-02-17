@@ -441,10 +441,51 @@ const parseArrangeDefaults = (raw: string | null | undefined): any => {
   return out;
 };
 
+/**
+ * Enhance Peggy parse error messages for common cases
+ */
+function enhanceParseError(error: any, source: string): Error {
+  if (!error.location || !error.location.start) {
+    return error;
+  }
+
+  let message = error.message || String(error);
+  const lines = source.split('\n');
+  const errorLine = lines[error.location.start.line - 1];
+
+  if (errorLine) {
+    const lineStart = errorLine.trim();
+    const firstWord = lineStart.split(/\s+/)[0];
+    const foundChar = error.found;
+
+    // Check if error is at end of line (found carriage return/newline) - likely unknown keyword
+    if (!foundChar || foundChar === '\r' || foundChar === '\n') {
+      // List of valid keywords
+      const validKeywords = [
+        'chip', 'bpm', 'time', 'stepsPerBar', 'ticksPerStep',
+        'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song'
+      ];
+
+      if (firstWord && !validKeywords.includes(firstWord) && !/^[A-Z]/.test(firstWord)) {
+        message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, time, inst, pat, seq, channel, play, export, import, song`;
+        error.message = message;
+      }
+    }
+  }
+
+  return error;
+}
+
 export function parseWithPeggy(source: string): AST {
   // reset per-parse-run warning flag
   _csvNormalizationWarned = false;
-  const program = peggyParse(source, {}) as ProgramNode;
+
+  let program: ProgramNode;
+  try {
+    program = peggyParse(source, {}) as ProgramNode;
+  } catch (e: any) {
+    throw enhanceParseError(e, source);
+  }
   const pats: Record<string, string[]> = {};
   const insts: InstMap = {};
   const seqs: SeqMap = {};
