@@ -87,7 +87,24 @@ export class Player {
   public muted = new Set<number>();
   public solo: number | null = null;
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number }) => void;
+  public onComplete?: () => void;
+  public onRepeat?: () => void;
   private _repeatTimer: any = null;
+  private _completionTimer: any = null;
+  private _completionTimeoutMs: number = 0; // Total timeout duration
+  private _playbackStartTimestamp: number = 0; // When playback started
+  private _pauseTimestamp: number = 0; // When pause() was called
+  private _isRepeatMode: boolean = false; // Whether song is in repeat mode
+  private _currentAST: any = null; // Current AST for repeat playback
+  private _isPaused: boolean = false; // Whether playback is currently paused
+  private _debugLog: boolean = false; // Whether to log playback events (controlled by localStorage)
+
+  /** Check localStorage for debug flag (browser only) */
+  private static isDebugEnabled(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem('beatbax-debug') === 'true' ||
+           localStorage.getItem('beatbax-debug-playback') === 'true';
+  }
 
   constructor(ctx?: any, opts: { buffered?: boolean; segmentDuration?: number; bufferedLookahead?: number; maxPreRenderSegments?: number } = {}) {
     if (!ctx) {
@@ -100,12 +117,17 @@ export class Player {
       this.ctx = ctx;
     }
     this.scheduler = createScheduler(this.ctx) as TickScheduler;
+    this._debugLog = Player.isDebugEnabled(); // Initialize debug flag from localStorage
     if (opts.buffered) {
       (this as any)._buffered = new BufferedRenderer(this.ctx, this.scheduler as any, { segmentDuration: opts.segmentDuration, lookahead: opts.bufferedLookahead, maxPreRenderSegments: opts.maxPreRenderSegments });
     }
   }
 
   async playAST(ast: AST) {
+    // Store AST for repeat functionality
+    this._currentAST = ast;
+    this._isPaused = false; // Reset paused state
+
     try {
       if (this.ctx && typeof (this.ctx as any).resume === 'function') {
         try {
@@ -246,25 +268,67 @@ export class Player {
     // start the scheduler to begin firing scheduled events
     this.scheduler.start();
 
-    // debug: show estimated global duration for repeat scheduling
-    try { console.debug('[player] estimated globalDurationSec=', globalDurationSec); } catch (e) {}
-
     // If AST requests repeat/looping, schedule a restart when playback ends
     try {
       if (ast.play?.repeat) {
+        this._isRepeatMode = true;
         const delayMs = Math.max(10, Math.round(globalDurationSec * 1000) + 50);
-        try { console.debug('[player] scheduling repeat in ms=', delayMs); } catch (e) {}
         if (this._repeatTimer) clearTimeout(this._repeatTimer);
+        this._completionTimeoutMs = delayMs; // Store for pause/resume
+        this._playbackStartTimestamp = Date.now(); // Track when playback started
+        this._pauseTimestamp = 0; // Reset pause tracking
         this._repeatTimer = setTimeout(() => {
           try {
-            try { console.debug('[player] repeat timer fired - restarting playback'); } catch (e) {}
+            // Don't execute if paused
+            if (this._isPaused) {
+              console.log('[Player] Repeat timer fired but playback is paused - ignoring');
+              return;
+            }
+
+            // Notify UI that playback is repeating
+            if (this.onRepeat) {
+              this.onRepeat();
+            }
+
             this.stop();
             // replay AST (fire-and-forget)
-            this.playAST(ast).catch((e: any) => { error('player', 'Repeat playback failed: ' + (e && e.message ? e.message : String(e))); });
-          } catch (e) {}
+            this.playAST(ast).catch((e: any) => {
+              console.error('[Player] Repeat playback failed:', e);
+              error('player', 'Repeat playback failed: ' + (e && e.message ? e.message : String(e)));
+            });
+          } catch (e) {
+            console.error('[Player] Exception in repeat timer:', e);
+          }
         }, delayMs);
+      } else {
+        this._isRepeatMode = false;
+        // No repeat - schedule automatic stop when playback completes
+        const completionMs = Math.max(10, Math.round(globalDurationSec * 1000) + 100);
+        if (this._completionTimer) clearTimeout(this._completionTimer);
+        this._completionTimeoutMs = completionMs; // Store for pause/resume
+        this._playbackStartTimestamp = Date.now(); // Track when playback started
+        this._pauseTimestamp = 0; // Reset pause tracking
+        this._completionTimer = setTimeout(() => {
+          try {
+            // Don't execute if paused
+            if (this._isPaused) {
+              console.log('[Player] Completion timer fired but playback is paused - ignoring');
+              return;
+            }
+
+            this.stop();
+            // Notify UI that playback has completed
+            if (this.onComplete) {
+              this.onComplete();
+            }
+          } catch (e) {
+            console.error('[Player] Exception in completion timer:', e);
+          }
+        }, completionMs);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[Player] Exception setting up repeat:', e);
+    }
   }
 
   private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
@@ -274,8 +338,16 @@ export class Player {
       if (alt.type && String(alt.type).toLowerCase().includes('noise')) {
         try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur }); } } catch (e) {}
         this.scheduler.schedule(time, () => {
-          if (this.solo !== null && this.solo !== chId) return;
-          if (this.muted.has(chId)) return;
+          // Check mute/solo state at PLAYBACK time (dynamic check)
+          if (this.solo !== null && this.solo !== chId) {
+            console.log(`[Player] Skipping ch${chId} (soloed: ch${this.solo})`);
+            return;
+          }
+          if (this.muted.has(chId)) {
+            console.log(`[Player] Skipping ch${chId} (muted)`);
+            return;
+          }
+          if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
           const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this.masterGain || undefined);
           for (const n of nodes) this.activeNodes.push({ node: n, chId });
         });
@@ -307,8 +379,16 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
-            if (this.solo !== null && this.solo !== chId) return;
-            if (this.muted.has(chId)) return;
+            // Check mute/solo state at PLAYBACK time (dynamic check)
+            if (this.solo !== null && this.solo !== chId) {
+              console.log(`[Player] \u274c Skipping ch${chId} pulse (solo=${this.solo})`);
+              return;
+            }
+            if (this.muted.has(chId)) {
+              console.log(`[Player] \u274c Skipping ch${chId} pulse (muted)`);
+              return;
+            }
+            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} pulse at ${time.toFixed(2)}s`);
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
@@ -327,8 +407,16 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
-            if (this.solo !== null && this.solo !== chId) return;
-            if (this.muted.has(chId)) return;
+            // Check mute/solo state at PLAYBACK time (dynamic check)
+            if (this.solo !== null && this.solo !== chId) {
+              console.log(`[Player] Skipping ch${chId} wave (soloed: ch${this.solo})`);
+              return;
+            }
+            if (this.muted.has(chId)) {
+              console.log(`[Player] Skipping ch${chId} wave (muted)`);
+              return;
+            }
+            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} wave at ${time.toFixed(2)}s`);
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
@@ -344,8 +432,16 @@ export class Player {
           buffered.enqueueNoise(time, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
-            if (this.solo !== null && this.solo !== chId) return;
-            if (this.muted.has(chId)) return;
+            // Check mute/solo state at PLAYBACK time (dynamic check)
+            if (this.solo !== null && this.solo !== chId) {
+              console.log(`[Player] Skipping ch${chId} noise (soloed: ch${this.solo})`);
+              return;
+            }
+            if (this.muted.has(chId)) {
+              console.log(`[Player] Skipping ch${chId} noise (muted)`);
+              return;
+            }
+            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} noise at ${time.toFixed(2)}s`);
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
@@ -649,11 +745,104 @@ export class Player {
     }
   }
 
+  /**
+   * Pause playback by suspending the AudioContext
+   */
+  async pause(): Promise<void> {
+    // Set paused flag FIRST to prevent any timer callbacks from executing
+    this._isPaused = true;
+
+    // Clear both completion and repeat timers, track when we paused
+    if (this._completionTimer) {
+      clearTimeout(this._completionTimer);
+      this._completionTimer = null;
+      this._pauseTimestamp = Date.now();
+    }
+    if (this._repeatTimer) {
+      clearTimeout(this._repeatTimer);
+      this._repeatTimer = null;
+      this._pauseTimestamp = Date.now();
+    }
+
+    if (this.ctx && typeof this.ctx.suspend === 'function' && this.ctx.state === 'running') {
+      await this.ctx.suspend();
+    }
+  }
+
+  /**
+   * Resume playback by resuming the AudioContext
+   */
+  async resume(): Promise<void> {
+    // Clear paused flag FIRST
+    this._isPaused = false;
+
+    // Restart the appropriate timer (repeat or completion) with remaining time
+    if (this._pauseTimestamp > 0 && this._completionTimeoutMs > 0 && this._playbackStartTimestamp > 0) {
+      const elapsedBeforePause = this._pauseTimestamp - this._playbackStartTimestamp;
+      const remainingMs = Math.max(0, this._completionTimeoutMs - elapsedBeforePause);
+
+      // Update start timestamp to account for pause duration
+      this._playbackStartTimestamp = Date.now() - elapsedBeforePause;
+      this._pauseTimestamp = 0;
+
+      if (this._isRepeatMode) {
+        // Restart repeat timer
+        this._repeatTimer = setTimeout(() => {
+          try {
+            if (this.onRepeat) {
+              this.onRepeat();
+            }
+            this.stop();
+            // Replay the stored AST
+            if (this._currentAST) {
+              this.playAST(this._currentAST).catch((e: any) => {
+                console.error('[Player] Repeat playback failed after resume:', e);
+              });
+            }
+          } catch (e) {
+            console.error('[Player] Exception in repeat timer:', e);
+          }
+        }, remainingMs);
+      } else {
+        // Restart completion timer
+        this._completionTimer = setTimeout(() => {
+          try {
+            this.stop();
+            if (this.onComplete) {
+              this.onComplete();
+            }
+          } catch (e) {
+            console.error('[Player] Exception in completion timer:', e);
+          }
+        }, remainingMs);
+      }
+    }
+
+    if (this.ctx && typeof this.ctx.resume === 'function' && this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    }
+  }
+
   stop() {
+    // Clear paused flag
+    this._isPaused = false;
+
     if (this._repeatTimer) {
       try { clearTimeout(this._repeatTimer); } catch (e) {}
       this._repeatTimer = null;
     }
+    if (this._completionTimer) {
+      try { clearTimeout(this._completionTimer); } catch (e) {}
+      this._completionTimer = null;
+    }
+
+    // Reset pause/resume tracking
+    this._completionTimeoutMs = 0;
+    this._playbackStartTimestamp = 0;
+    this._pauseTimestamp = 0;
+    this._isRepeatMode = false;
+    this._currentAST = null;
+
     if (this.scheduler) {
       this.scheduler.clear();
       this.scheduler.stop();
