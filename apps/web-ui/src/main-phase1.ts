@@ -69,7 +69,7 @@ if (initialContent.trim()) {
       eventBus.emit('validation:warnings', { warnings });
     }
   } catch (e: any) {
-    const diagnostic = parseErrorToDiagnostic(e);
+    const diagnostic = parseErrorToDiagnostic(e, initialContent);
     diagnosticsManager.setDiagnostics([diagnostic]);
     eventBus.emit('parse:error', { error: e, message: e.message || String(e) });
   }
@@ -81,17 +81,17 @@ eventBus.on('editor:changed', ({ content }) => {
   if (validationTimeout) {
     clearTimeout(validationTimeout);
   }
-  
+
   validationTimeout = window.setTimeout(() => {
     if (!content.trim()) {
       diagnosticsManager.clear();
       return;
     }
-    
+
     try {
       const ast = parse(content);
       const warnings = validateAST(ast, content);
-      
+
       if (warnings.length > 0) {
         const diagnostics = warningsToDiagnostics(warnings);
         diagnosticsManager.setDiagnostics(diagnostics);
@@ -99,7 +99,7 @@ eventBus.on('editor:changed', ({ content }) => {
         diagnosticsManager.clear();
       }
     } catch (e: any) {
-      const diagnostic = parseErrorToDiagnostic(e);
+      const diagnostic = parseErrorToDiagnostic(e, content);
       diagnosticsManager.setDiagnostics([diagnostic]);
     }
   }, 500); // 500ms debounce
@@ -137,6 +137,30 @@ function validateAST(ast: any, sourceCode?: string): Array<{ component: string; 
   const warnings: Array<{ component: string; message: string; loc?: any }> = [];
   const lines = sourceCode ? sourceCode.split('\n') : [];
   const validTransforms = new Set(['oct', 'inst', 'rev', 'slow', 'fast', 'transpose', 'arp']);
+
+  // Valid instrument types per chip
+  const validInstrumentTypes: Record<string, Set<string>> = {
+    gameboy: new Set(['pulse1', 'pulse2', 'wave', 'noise']),
+    // Future chips can be added here
+  };
+
+  // Determine active chip (default: gameboy)
+  const chipName = ast.chip || 'gameboy';
+  const validTypes = validInstrumentTypes[chipName] || validInstrumentTypes.gameboy;
+
+  // Validate instrument definitions
+  for (const instName in ast.insts || {}) {
+    const inst = ast.insts[instName];
+    if (inst && inst.type) {
+      if (!validTypes.has(inst.type)) {
+        warnings.push({
+          component: 'validation',
+          message: `Instrument '${instName}' has invalid type '${inst.type}'. Valid types for ${chipName}: ${Array.from(validTypes).join(', ')}`,
+          loc: inst.loc
+        });
+      }
+    }
+  }
 
   for (const ch of ast.channels || []) {
     if (ch.inst && !ast.insts[ch.inst]) {
@@ -217,7 +241,7 @@ function validateAST(ast: any, sourceCode?: string): Array<{ component: string; 
     if (!seq) continue;
 
     let patternRefs: string[] = [];
-    
+
     // Seq is directly an array of pattern names
     if (Array.isArray(seq)) {
       patternRefs = seq.filter(item => typeof item === 'string');
@@ -242,11 +266,11 @@ function validateAST(ast: any, sourceCode?: string): Array<{ component: string; 
     // Validate each pattern reference
     for (const ref of patternRefs) {
       if (!ref || typeof ref !== 'string') continue;
-      
+
       // Extract base pattern name (handle "pattern*3", "pattern:transform", etc.)
       const withoutRepeat = ref.split('*')[0].trim();
       const patternName = withoutRepeat.split(':')[0].trim();
-      
+
       if (patternName && patternName !== '') {
         // Check if pattern exists (also check if it might be another sequence)
         if (!ast.pats || !ast.pats[patternName]) {
@@ -285,7 +309,7 @@ function validateAST(ast: any, sourceCode?: string): Array<{ component: string; 
   if (ast.patternEvents) {
     for (const [patName, events] of Object.entries(ast.patternEvents)) {
       if (!Array.isArray(events)) continue;
-      
+
       for (const event of events as any[]) {
         if (event.kind === 'token' && event.value) {
           // Check if this token is an instrument name
@@ -331,18 +355,18 @@ playBtn.addEventListener('click', async () => {
     outputPanel.clearErrors();
     outputPanel.clearWarnings();
     statusDiv.textContent = 'Parsing...';
-    
+
     const src = editor.getValue();
     eventBus.emit('parse:started', undefined);
-    
+
     const ast = parse(src);
     eventBus.emit('parse:success', { ast });
-    
+
     currentAST = ast;
     statusDiv.textContent = 'Resolving...';
-    
+
     const warnings: Array<{ component: string; message: string; loc?: any }> = [];
-    
+
     // Resolve imports if present
     let resolvedAST = ast;
     if ((ast as any).imports && (ast as any).imports.length > 0) {
@@ -359,12 +383,12 @@ playBtn.addEventListener('click', async () => {
         return;
       }
     }
-    
+
     // Validate AST
     const sourceCode = editor.getValue();
     const validationWarnings = validateAST(resolvedAST, sourceCode);
     warnings.push(...validationWarnings);
-    
+
     if (warnings.length > 0) {
       // Show warnings in Monaco editor
       const diagnostics = warningsToDiagnostics(warnings);
@@ -375,37 +399,38 @@ playBtn.addEventListener('click', async () => {
       // Clear any existing warnings
       diagnosticsManager.clear();
     }
-    
+
     // Resolve song
-    const resolved = resolveSong(resolvedAST as any, { 
-      onWarn: (w: any) => warnings.push(w) 
+    const resolved = resolveSong(resolvedAST as any, {
+      onWarn: (w: any) => warnings.push(w)
     });
-    
+
     statusDiv.textContent = 'Playing...';
-    
+
     // Create or reuse player
     if (!player) {
       player = new Player();
     }
-    
+
     // Resume AudioContext
     if (player.ctx && typeof player.ctx.resume === 'function') {
       await player.ctx.resume();
     }
-    
+
     // Start playback
     await player.playAST(resolved as any);
     eventBus.emit('playback:started', undefined);
     statusDiv.textContent = 'Playing';
-    
+
   } catch (e: any) {
     console.error('[web-ui] Play error:', e);
     const error = e instanceof Error ? e : new Error(String(e));
     eventBus.emit('parse:error', { error, message: error.message });
     statusDiv.textContent = 'Error';
-    
+
     // Show error in diagnostics
-    const diagnostic = parseErrorToDiagnostic(e);
+    const sourceCode = editor.getValue();
+    const diagnostic = parseErrorToDiagnostic(e, sourceCode);
     diagnosticsManager.setDiagnostics([diagnostic]);
   }
 });
@@ -430,7 +455,7 @@ function getInitialContent(): string {
   } catch (e) {
     console.warn('Failed to load saved content:', e);
   }
-  
+
   // Default content
   return `chip gameboy
 

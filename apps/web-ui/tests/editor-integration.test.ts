@@ -184,7 +184,7 @@ describe('Editor Integration', () => {
       layout.saveSizes();
       const savedData = localStorageMock.getItem('test-layout');
       expect(savedData).toBeTruthy();
-      
+
       const parsed = JSON.parse(savedData!);
       expect(parsed).toHaveProperty('editor');
       expect(parsed).toHaveProperty('output');
@@ -232,9 +232,9 @@ describe('Editor Integration', () => {
 
       // Simulate parse error
       const error = new Error('Unexpected token');
-      eventBus.emit('parse:error', { 
-        error, 
-        message: error.message 
+      eventBus.emit('parse:error', {
+        error,
+        message: error.message
       });
 
       expect(parseErrorHandler).toHaveBeenCalledWith({
@@ -364,7 +364,7 @@ describe('Editor Integration', () => {
       // Verify sizes were persisted
       const savedData = localStorageMock.getItem('test-persist');
       expect(savedData).toBeTruthy();
-      
+
       const parsed = JSON.parse(savedData!);
       expect(parsed.editor).toBe(60);
       expect(parsed.output).toBe(40);
@@ -389,6 +389,9 @@ describe('Editor Integration', () => {
     });
 
     it('should handle localStorage unavailability gracefully', () => {
+      // Suppress expected console.warn
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
       // Mock localStorage.setItem to throw
       const originalSetItem = localStorageMock.setItem;
       localStorageMock.setItem = jest.fn(() => {
@@ -407,8 +410,15 @@ describe('Editor Integration', () => {
         layout.saveSizes();
       }).not.toThrow();
 
+      // Verify warning was called
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Failed to save layout sizes to localStorage:',
+        expect.any(Error)
+      );
+
       // Restore
       localStorageMock.setItem = originalSetItem;
+      consoleWarnSpy.mockRestore();
     });
   });
 });
