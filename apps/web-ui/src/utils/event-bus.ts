@@ -17,7 +17,9 @@ export interface BeatBaxEvents {
   // Playback events
   'playback:started': void;
   'playback:stopped': void;
+  'playback:repeated': void;
   'playback:paused': void;
+  'playback:resumed': void;
   'playback:error': { error: Error };
   'playback:position': { current: number; total: number };
 

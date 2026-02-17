@@ -38,6 +38,11 @@ export interface LayoutManager {
   loadSizes: () => void;
 }
 
+export interface ThreePaneLayoutManager extends LayoutManager {
+  /** Get the right panel element (for channel controls) */
+  getRightPane: () => HTMLElement;
+}
+
 const DEFAULT_STORAGE_KEY = 'beatbax-layout-sizes';
 
 /**
@@ -351,5 +356,284 @@ export function createOutputPanelContent(container: HTMLElement): {
     clearWarnings,
     showError,
     showWarning,
+  };
+}
+
+/**
+ * Create a three-pane layout with resizable splits:
+ * - Left content area (vertical split): Editor (top) + Output (bottom)
+ * - Right panel: Channel controls
+ * - Horizontal splitter between left and right
+ */
+export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutManager {
+  const {
+    container,
+    minSize = 100,
+    persist = true,
+    storageKey = 'beatbax-layout-3pane',
+  } = config;
+
+  // Default sizes
+  let leftAreaWidth = 75; // 75% for left area (editor + output)
+  let editorHeight = 70;  // 70% for editor within left area
+
+  // Load saved sizes if persistence is enabled
+  if (persist) {
+    try {
+      const savedSizes = localStorage.getItem(storageKey);
+      if (savedSizes) {
+        const sizes = JSON.parse(savedSizes);
+        if (sizes.leftArea !== undefined) leftAreaWidth = sizes.leftArea;
+        if (sizes.editor !== undefined) editorHeight = sizes.editor;
+      }
+    } catch (e) {
+      console.warn('Failed to load 3-pane layout sizes:', e);
+    }
+  }
+
+  // Create main horizontal container
+  const mainContainer = document.createElement('div');
+  mainContainer.style.display = 'flex';
+  mainContainer.style.width = '100%';
+  mainContainer.style.height = '100%';
+  mainContainer.style.overflow = 'hidden';
+
+  // ========== LEFT CONTENT AREA (will contain editor + output vertically) ==========
+  const leftContentArea = document.createElement('div');
+  leftContentArea.style.width = `${leftAreaWidth}%`;
+  leftContentArea.style.height = '100%';
+  leftContentArea.style.display = 'flex';
+  leftContentArea.style.flexDirection = 'column';
+  leftContentArea.style.overflow = 'hidden';
+
+  // Editor pane (top of left area)
+  const editorPane = document.createElement('div');
+  editorPane.id = 'editor-pane';
+  editorPane.style.height = `${editorHeight}%`;
+  editorPane.style.width = '100%';
+  editorPane.style.overflow = 'hidden';
+  editorPane.style.position = 'relative';
+
+  // Vertical splitter (between editor and output)
+  const verticalSplitter = document.createElement('div');
+  verticalSplitter.style.height = '4px';
+  verticalSplitter.style.width = '100%';
+  verticalSplitter.style.backgroundColor = '#333';
+  verticalSplitter.style.cursor = 'row-resize';
+  verticalSplitter.style.flexShrink = '0';
+  verticalSplitter.style.transition = 'background-color 0.2s';
+
+  verticalSplitter.addEventListener('mouseenter', () => {
+    verticalSplitter.style.backgroundColor = '#007acc';
+  });
+
+  verticalSplitter.addEventListener('mouseleave', () => {
+    verticalSplitter.style.backgroundColor = '#333';
+  });
+
+  // Output pane (bottom of left area)
+  const outputPane = document.createElement('div');
+  outputPane.id = 'output-pane';
+  outputPane.style.flex = '1';
+  outputPane.style.width = '100%';
+  outputPane.style.overflow = 'auto';
+  outputPane.style.backgroundColor = '#1e1e1e';
+  outputPane.style.color = '#d4d4d4';
+  outputPane.style.padding = '10px';
+  outputPane.style.fontFamily = 'monospace';
+  outputPane.style.fontSize = '12px';
+
+  // Assemble left content area
+  leftContentArea.appendChild(editorPane);
+  leftContentArea.appendChild(verticalSplitter);
+  leftContentArea.appendChild(outputPane);
+
+  // ========== HORIZONTAL SPLITTER (between left and right) ==========
+  const horizontalSplitter = document.createElement('div');
+  horizontalSplitter.style.width = '4px';
+  horizontalSplitter.style.height = '100%';
+  horizontalSplitter.style.backgroundColor = '#333';
+  horizontalSplitter.style.cursor = 'col-resize';
+  horizontalSplitter.style.flexShrink = '0';
+  horizontalSplitter.style.transition = 'background-color 0.2s';
+
+  horizontalSplitter.addEventListener('mouseenter', () => {
+    horizontalSplitter.style.backgroundColor = '#007acc';
+  });
+
+  horizontalSplitter.addEventListener('mouseleave', () => {
+    horizontalSplitter.style.backgroundColor = '#333';
+  });
+
+  // ========== RIGHT PANEL (channel controls) ==========
+  const rightPane = document.createElement('div');
+  rightPane.id = 'right-pane';
+  rightPane.style.flex = '1';
+  rightPane.style.height = '100%';
+  rightPane.style.overflow = 'auto';
+  rightPane.style.backgroundColor = '#252525';
+  rightPane.style.padding = '10px';
+
+  // Assemble main layout
+  mainContainer.appendChild(leftContentArea);
+  mainContainer.appendChild(horizontalSplitter);
+  mainContainer.appendChild(rightPane);
+  container.appendChild(mainContainer);
+
+  // ========== VERTICAL DRAGGING LOGIC (editor/output split) ==========
+  let isVerticalDragging = false;
+
+  verticalSplitter.addEventListener('mousedown', (e) => {
+    isVerticalDragging = true;
+    e.preventDefault();
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  const handleVerticalMouseMove = (e: MouseEvent) => {
+    if (!isVerticalDragging) return;
+
+    const containerRect = leftContentArea.getBoundingClientRect();
+    const newEditorHeight = e.clientY - containerRect.top;
+    const containerHeight = containerRect.height;
+
+    // Enforce minimum sizes
+    if (newEditorHeight < minSize || containerHeight - newEditorHeight < minSize) {
+      return;
+    }
+
+    const newEditorPercent = (newEditorHeight / containerHeight) * 100;
+    editorHeight = newEditorPercent;
+    editorPane.style.height = `${newEditorPercent}%`;
+
+    // Trigger resize events for editor
+    window.dispatchEvent(new Event('resize'));
+  };
+
+  const handleVerticalMouseUp = () => {
+    if (isVerticalDragging) {
+      isVerticalDragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      saveSizes();
+    }
+  };
+
+  // ========== HORIZONTAL DRAGGING LOGIC (left/right split) ==========
+  let isHorizontalDragging = false;
+
+  horizontalSplitter.addEventListener('mousedown', (e) => {
+    isHorizontalDragging = true;
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  const handleHorizontalMouseMove = (e: MouseEvent) => {
+    if (!isHorizontalDragging) return;
+
+    const containerRect = mainContainer.getBoundingClientRect();
+    const newLeftWidth = e.clientX - containerRect.left;
+    const containerWidth = containerRect.width;
+
+    // Enforce minimum sizes
+    if (newLeftWidth < minSize || containerWidth - newLeftWidth < minSize) {
+      return;
+    }
+
+    const newLeftPercent = (newLeftWidth / containerWidth) * 100;
+    leftAreaWidth = newLeftPercent;
+    leftContentArea.style.width = `${newLeftPercent}%`;
+
+    // Trigger resize events for editor
+    window.dispatchEvent(new Event('resize'));
+  };
+
+  const handleHorizontalMouseUp = () => {
+    if (isHorizontalDragging) {
+      isHorizontalDragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      saveSizes();
+    }
+  };
+
+  // Register mouse event handlers
+  document.addEventListener('mousemove', handleVerticalMouseMove);
+  document.addEventListener('mousemove', handleHorizontalMouseMove);
+  document.addEventListener('mouseup', handleVerticalMouseUp);
+  document.addEventListener('mouseup', handleHorizontalMouseUp);
+
+  // Save function
+  function saveSizes() {
+    if (!persist) return;
+
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          leftArea: leftAreaWidth,
+          editor: editorHeight,
+        })
+      );
+      eventBus.emit('layout:changed', { layout: '3-pane' });
+    } catch (e) {
+      console.warn('Failed to save 3-pane layout sizes:', e);
+    }
+  }
+
+  // Load function
+  function loadSizes() {
+    if (!persist) return;
+
+    try {
+      const savedSizes = localStorage.getItem(storageKey);
+      if (savedSizes) {
+        const sizes = JSON.parse(savedSizes);
+        if (sizes.leftArea !== undefined) {
+          leftAreaWidth = sizes.leftArea;
+          leftContentArea.style.width = `${leftAreaWidth}%`;
+        }
+        if (sizes.editor !== undefined) {
+          editorHeight = sizes.editor;
+          editorPane.style.height = `${editorHeight}%`;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load 3-pane layout sizes:', e);
+    }
+  }
+
+  // Reset function
+  function reset() {
+    leftAreaWidth = 75;
+    editorHeight = 70;
+    leftContentArea.style.width = `${leftAreaWidth}%`;
+    editorPane.style.height = `${editorHeight}%`;
+    if (persist) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.warn('Failed to remove 3-pane layout sizes:', e);
+      }
+    }
+    eventBus.emit('layout:changed', { layout: '3-pane-reset' });
+  }
+
+  return {
+    container: mainContainer,
+    getEditorPane: () => editorPane,
+    getOutputPane: () => outputPane,
+    getRightPane: () => rightPane,
+    reset,
+    dispose: () => {
+      document.removeEventListener('mousemove', handleVerticalMouseMove);
+      document.removeEventListener('mousemove', handleHorizontalMouseMove);
+      document.removeEventListener('mouseup', handleVerticalMouseUp);
+      document.removeEventListener('mouseup', handleHorizontalMouseUp);
+      container.removeChild(mainContainer);
+    },
+    saveSizes,
+    loadSizes,
   };
 }

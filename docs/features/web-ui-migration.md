@@ -374,6 +374,7 @@ interface BeatBaxEvents {
   'playback:paused': void;
   'playback:error': { error: Error };
   'playback:position': { current: number; total: number };
+  'playback:position-changed': { channelId: number; position: PlaybackPosition }; // Phase 2.5
 
   // Export events
   'export:started': { format: string };
@@ -493,18 +494,222 @@ interface BeatBaxEvents {
    - Test worker loading with syntax validation
 
 **Deliverables:**
-- `playback/` subsystem functional
-- `panels/output-panel.ts` working
-- `ui/status-bar.ts` live
-- Monaco Editor with properly configured workers (no CORS warnings)
-- All playback logic out of `main.ts`
+- ✅ `playback/` subsystem functional
+- ✅ `panels/output-panel.ts` working
+- ✅ `ui/status-bar.ts` live
+- ✅ Monaco Editor with properly configured workers (no CORS warnings)
+- ✅ All playback logic out of `main.ts`
+- ✅ Engine pause/resume support (added Feb 17, 2026)
+- ✅ Debug logging system controlled by localStorage
 
 **Testing:**
 - Unit tests for PlaybackManager state
 - Integration test: play/stop functionality
+- Integration test: pause/resume maintains playback position
+- Integration test: paused playback doesn't auto-stop
 - Integration test: errors appear in output panel
 - Integration test: keyboard shortcuts work
 - Integration test: Monaco workers load without CORS errors
+
+**Status:** ✅ Complete (Feb 17, 2026)
+
+---
+
+### Phase 2.5: Real-Time Playback Position Tracking (Enhancement)
+
+**Goal:** Add infrastructure for real-time playback state tracking to enable Phase 3 visual features
+
+**Status:** Proposed enhancement to bridge Phase 2 → Phase 3
+
+#### Rationale
+
+Phase 2 provides functional mute/solo and playback controls, but the UI cannot show:
+- Which instrument is currently playing (only shows all instruments that *will* be used)
+- Which pattern/sequence is active at any moment
+- Playback progress within a song (no progress bar)
+- Visual indication of active vs. silent channels
+
+This is because the Player schedules all events upfront but doesn't expose current playback position. Phase 2.5 adds position tracking infrastructure that Phase 3 will consume for advanced visual features.
+
+#### Technical Requirements
+
+**1. Player Enhancements** (`packages/engine/src/audio/playback.ts`)
+
+Add playback position tracking:
+```typescript
+export class Player {
+  // New properties for position tracking
+  private currentEventIndex: Map<number, number> = new Map(); // channelId → event index
+  private totalEvents: Map<number, number> = new Map(); // channelId → total count
+  public onPositionChange?: (channelId: number, eventIndex: number, totalEvents: number) => void;
+
+  // Enhanced onSchedule callback with more metadata
+  public onSchedule?: (args: {
+    chId: number;
+    inst: any;
+    token: string;
+    time: number;
+    dur: number;
+    eventIndex: number;
+    totalEvents: number;
+  }) => void;
+}
+```
+
+Call `onPositionChange` callback whenever a note is scheduled for playback (in `scheduleToken` method).
+
+**2. Pattern Metadata Preservation** (`packages/engine/src/song/resolver.ts`)
+
+Preserve source pattern/sequence names during resolution:
+```typescript
+interface ExpandedEvent {
+  token: string;
+  instrument?: string;
+  // New metadata fields
+  sourcePattern?: string;  // Original pattern name (e.g., "melody")
+  sourceSequence?: string; // Original sequence name (e.g., "main")
+  patternIndex?: number;   // Which repetition of this pattern (0-based)
+  barNumber?: number;      // Estimated bar number in song
+}
+```
+
+Annotate events during `expandSequence` / `expandPattern` with source metadata.
+
+**3. PlaybackManager Enhancements** (`apps/web-ui/src/playback/playback-manager.ts`)
+
+Track and expose current playback state:
+```typescript
+export class PlaybackManager {
+  private playbackPosition: Map<number, PlaybackPosition> = new Map();
+
+  // Hook into Player's onPositionChange callback
+  private setupPositionTracking(player: Player) {
+    player.onPositionChange = (channelId, eventIndex, totalEvents) => {
+      const position = this.playbackPosition.get(channelId) || {
+        channelId,
+        eventIndex: 0,
+        totalEvents,
+        currentInstrument: null,
+        currentPattern: null,
+        progress: 0,
+      };
+
+      position.eventIndex = eventIndex;
+      position.progress = eventIndex / totalEvents;
+      // Extract metadata from events array
+      const event = this.getCurrentEvent(channelId, eventIndex);
+      position.currentInstrument = event?.instrument;
+      position.currentPattern = event?.sourcePattern;
+
+      this.playbackPosition.set(channelId, position);
+      this.eventBus.emit('playback:position-changed', { channelId, position });
+    };
+  }
+
+  public getPlaybackPosition(channelId: number): PlaybackPosition | null;
+}
+
+interface PlaybackPosition {
+  channelId: number;
+  eventIndex: number;
+  totalEvents: number;
+  currentInstrument: string | null;
+  currentPattern: string | null;
+  progress: number; // 0.0 to 1.0
+}
+```
+
+**4. EventBus Updates** (`apps/web-ui/src/utils/event-bus.ts`)
+
+Add new event type:
+```typescript
+export type Events = {
+  // ... existing events
+  'playback:position-changed': { channelId: number; position: PlaybackPosition };
+};
+```
+
+#### Phase 3 Integration (Future)
+
+Once Phase 2.5 infrastructure exists, Phase 3 can implement:
+
+**1. Real-Time Channel Display Updates**
+- Subscribe to `playback:position-changed` events
+- Update channel panel to show:
+  - `"🎵 leadA • Pattern: melody • Bar 3/8"`
+  - Current instrument (not just all instruments)
+  - Active pattern name
+  - Current bar/beat position
+
+**2. Progress Bar Component** (`panels/channel-mixer.ts`)
+- Visual progress bar showing `position.progress` (0-1)
+- Click to seek (future enhancement)
+- Time elapsed / total time display
+
+**3. Active Channel Highlighting**
+- Highlight channels currently producing sound
+- Dim channels when muted or silent
+- Visual flash/pulse on note events
+
+**4. Pattern Timeline Visualization**
+- Horizontal timeline showing pattern sequence
+- Current position marker
+- Click to jump to pattern (future)
+
+**5. Event List View** (optional)
+- Show upcoming events in scrollable list
+- Auto-scroll to keep current event visible
+- Syntax-highlighted note names
+
+#### Implementation Phases
+
+**Phase 2.5.1: Core Infrastructure (Player + PlaybackManager)**
+- Add position tracking to Player
+- Preserve metadata in resolver
+- Wire up callbacks in PlaybackManager
+- Emit position-changed events
+- **Deliverable:** Position data available but not yet visualized
+
+**Phase 2.5.2: Basic UI Updates (Channel Controls)**
+- Subscribe to position-changed in channel panels
+- Update instrument display in real-time
+- Show pattern name if available
+- **Deliverable:** Real-time instrument/pattern display working
+
+**Phase 2.5.3: Progress Visualization**
+- Add progress bars to channel controls
+- Implement activity flashing on note events
+- Highlight active vs. inactive channels
+- **Deliverable:** Full visual feedback during playback
+
+#### Testing Strategy
+
+- **Unit tests:**
+  - Position tracking correctly increments event indices
+  - Callbacks fire at expected times
+  - Metadata preservation during resolution
+
+- **Integration tests:**
+  - Position events fire during playback
+  - UI updates in response to position changes
+  - Progress bars accurately reflect playback position
+  - Pattern names display correctly
+
+- **Performance tests:**
+  - Position tracking doesn't impact audio timing
+  - UI updates don't cause frame drops
+  - Event bus handles high-frequency position updates
+
+#### Benefits for Phase 3
+
+Phase 2.5 enables Phase 3 to implement:
+- Real-time sequence/pattern display
+- Real-time instrument display
+- Playback progress bars
+- Visual indication of active notes/channels
+- Future features: scrubbing, loop points, breakpoints
+
+Without Phase 2.5, Phase 3 features would require major Player refactoring. This enhancement decouples visualization from audio scheduling.
 
 ---
 
@@ -1695,6 +1900,22 @@ Use this checklist during implementation:
 - [ ] Verify playback state updates correctly
 - [ ] Add unit tests for PlaybackManager
 - [ ] Add integration tests for playback flow
+
+### Phase 2.5: Real-Time Playback Position Tracking (Enhancement)
+- [ ] Add position tracking to Player (currentEventIndex, totalEvents maps)
+- [ ] Add onPositionChange callback to Player
+- [ ] Enhance onSchedule callback with eventIndex and totalEvents
+- [ ] Preserve pattern/sequence metadata in resolver (sourcePattern, sourceSequence)
+- [ ] Implement PlaybackManager.setupPositionTracking()
+- [ ] Add playback:position-changed event to EventBus
+- [ ] Wire up position callbacks in PlaybackManager
+- [ ] Update channel controls to display real-time instrument
+- [ ] Update channel controls to display real-time pattern name
+- [ ] Add progress indicator to channel panels
+- [ ] Verify position updates fire correctly during playback
+- [ ] Verify UI updates don't impact audio performance
+- [ ] Add unit tests for position tracking
+- [ ] Add integration tests for position-changed events
 
 ### Phase 3: Export & Import
 - [ ] Create `export/export-manager.ts`
