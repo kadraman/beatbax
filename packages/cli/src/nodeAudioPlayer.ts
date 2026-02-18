@@ -7,6 +7,9 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { spawn } from 'child_process';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('audio-player');
 
 // Type declarations for optional dependencies
 // @ts-ignore - play-sound is an optional dependency without types
@@ -75,7 +78,7 @@ export async function playAudioBuffer(
     // @ts-ignore - speaker is an optional dependency
     const speakerModule = await import('speaker');
     const Speaker = speakerModule.default;
-    console.log('Using speaker module for audio playback...');
+    log.info('Using speaker module for audio playback...');
 
     return new Promise((resolve, reject) => {
       const speaker = new Speaker({
@@ -115,7 +118,7 @@ export async function playAudioBuffer(
 
   // Try play-sound (wrapper around system players, works cross-platform)
   try {
-    console.log('Using play-sound for audio playback...');
+    log.info('Using play-sound for audio playback...');
     // @ts-ignore - play-sound is an optional dependency without types
     const playSound = (await import('play-sound')).default;
     const player = playSound({});
@@ -127,7 +130,7 @@ export async function playAudioBuffer(
       player.play(tempFile, (err: Error | null) => {
         try { unlinkSync(tempFile); } catch (e) {}
         if (err) {
-          console.log('play-sound failed, trying system commands...');
+          log.debug('play-sound failed, trying system commands...');
           reject(err);
         } else {
           resolve();
@@ -139,7 +142,7 @@ export async function playAudioBuffer(
   }
 
   // Final fallback: direct system commands (most reliable on Windows)
-  console.log('Using system audio player...');
+  log.info('Using system audio player...');
   const tempFile = join(tmpdir(), `beatbax-${Date.now()}.wav`);
   const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels);
   writeFileSync(tempFile, wavBuffer);
@@ -150,8 +153,8 @@ export async function playAudioBuffer(
     if (platform === 'win32') {
       // Warn users: PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.
       // Prefer installing the `speaker` module or using `ffplay`/`afplay` for accurate stereo.
-      console.warn('[WARN] Using PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.');
-      console.warn('[WARN] For accurate stereo playback, install the `speaker` module (npm install --workspace=packages/cli speaker) or ensure `ffplay`/`afplay` is available, or export a WAV and play in a DAW.');
+      log.warn('Using PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.');
+      log.warn('For accurate stereo playback, install the `speaker` module (npm install --workspace=packages/cli speaker) or ensure `ffplay`/`afplay` is available, or export a WAV and play in a DAW.');
       // Windows: Use PowerShell with Media.SoundPlayer for synchronous playback
       cmd = 'powershell';
       args = [

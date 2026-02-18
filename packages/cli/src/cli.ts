@@ -2,6 +2,7 @@ import { Command, Argument } from 'commander';
 import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
+import { configureLogging } from '@beatbax/engine/util/logger';
 import { readFileSync, statSync, existsSync } from 'fs';
 import { resolve as resolvePath } from 'path';
 import { parse } from '@beatbax/engine/parser';
@@ -16,6 +17,23 @@ interface SourceLocation {
 
 type ValidationIssue = { message: string; loc?: SourceLocation; component?: string };
 type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
+
+/**
+ * Configure logger based on CLI flags.
+ * Call this at the start of each command action.
+ */
+function configureLoggerFromCLI(options: any, globalOpts: any) {
+  const verbose = options?.verbose === true || globalOpts?.verbose === true;
+  const debug = globalOpts?.debug === true;
+
+  if (debug) {
+    configureLogging({ level: 'debug' });
+  } else if (verbose) {
+    configureLogging({ level: 'info' });
+  } else {
+    configureLogging({ level: 'error' });
+  }
+}
 
 function formatLocation(loc?: SourceLocation): string {
   if (!loc || !loc.start) return '';
@@ -219,6 +237,10 @@ program
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const globalOpts = program.opts();
+
+    // Configure logger based on CLI flags
+    configureLoggerFromCLI(options, globalOpts);
+
     const verbose = options.verbose === true || (globalOpts && globalOpts.verbose === true);
     // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
@@ -252,6 +274,10 @@ program
   .argument('<file>', 'Path to the .bax song file')
   .action(async (file) => {
     const globalOpts = program.opts();
+
+    // Configure logger based on CLI flags
+    configureLoggerFromCLI({}, globalOpts);
+
     const verbose = globalOpts && globalOpts.verbose === true;
     ensureFileExists(file);
     const src = readFileSync(file, 'utf8');
@@ -341,6 +367,10 @@ program
   .action(async (format, file, output, options) => {
     ensureFileExists(file);
     const globalOpts = program.opts();
+
+    // Configure logger based on CLI flags
+    configureLoggerFromCLI(options, globalOpts);
+
     const verbose = (globalOpts && globalOpts.verbose === true) || false;
     const src = readFileSync(file, 'utf8');
     const { errors, warnings, ast } = await validateSource(src, file);
@@ -487,6 +517,11 @@ program
   .argument('<file>', 'Path to the .bax or .uge file')
   .option('-j, --json', 'Output detailed JSON (default is summary)')
   .action(async (file, options) => {
+    const globalOpts = program.opts();
+
+    // Configure logger based on CLI flags
+    configureLoggerFromCLI(options, globalOpts);
+
     try {
       ensureFileExists(file);
       if (file.endsWith('.uge')) {

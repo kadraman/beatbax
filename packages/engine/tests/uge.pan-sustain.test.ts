@@ -4,9 +4,12 @@ import path from 'path';
 import { parse } from '../src/parser/index';
 import { exportJSON } from '../src/export/jsonExport';
 import exportUGE from '../src/export/ugeWriter';
+import { configureLogging } from '../src/util/logger';
 
 describe('UGE pan sustain behavior', () => {
   test('does not emit extra 8xx when sustain continues and pan unchanged', async () => {
+    // Configure logger for test
+    configureLogging({ level: 'debug', modules: ['export:uge'] });
     // Construct temporary song file
     const tmpSong = path.join(os.tmpdir(), `panning_sustain_${Date.now()}.bax`);
     const content = `chip gameboy\ninst lead type=pulse1 gb:pan=L\npat p = C4:4 _ _ _\nchannel 1 => inst lead pat p\n`;

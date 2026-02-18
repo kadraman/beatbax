@@ -5,8 +5,18 @@ import { parse } from '../src/parser/index';
 import exportUGE from '../src/export/ugeWriter';
 import { exportJSON } from '../src/export/jsonExport';
 import { readUGEFile } from '../src/import/uge/uge.reader';
+import { configureLogging } from '../src/util/logger';
 
 describe('UGE arpeggio export', () => {
+  // Configure logger to emit warnings during tests
+  beforeAll(() => {
+    configureLogging({ level: 'warn' });
+  });
+
+  afterAll(() => {
+    // Reset logger to default (error-only)
+    configureLogging({ level: 'error' });
+  });
   test('maps arp:3,7 to 0x37 effect in UGE file', async () => {
     const src = `
       inst lead type=pulse1

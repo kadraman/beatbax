@@ -6,6 +6,9 @@ import { writeFileSync } from 'fs';
 import { resolveSong } from '../song/resolver.js';
 import { SongModel } from '../song/songModel.js';
 import { error } from '../util/diag.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('export:json');
 
 /**
  * Validate a parsed song model (AST) for basic correctness.
@@ -78,7 +81,7 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		const dummy = { exportedAt: new Date().toISOString(), source: songOrPath };
 		outPath = songOrPath.endsWith('.json') ? songOrPath : `${songOrPath}.json`;
 		writeFileSync(outPath, JSON.stringify(dummy, null, 2), 'utf8');
-		if (opts && opts.debug) console.log('Wrote JSON to', outPath);
+		if (opts && opts.debug) log.debug('Wrote JSON to', outPath);
 		return;
 	}
 
@@ -86,7 +89,7 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 	else if (!outPath.toLowerCase().endsWith('.json')) outPath = `${outPath}.json`;
 
 	if (verbose) {
-		console.log(`Exporting to JSON (ISM format): ${outPath}`);
+		log.info(`Exporting to JSON (ISM format): ${outPath}`);
 	}
 
 	// If caller passed an AST (pats + seqs + insts + channels), resolve into ISM
@@ -151,15 +154,15 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 	};
 
 	if (opts && opts.debug) {
-		console.log(`[DEBUG] JSON: version ${outObj.version}, ${song.channels.length} channels`);
+		log.debug(`JSON: version ${outObj.version}, ${song.channels.length} channels`);
 	}
 
 	if (verbose) {
-		console.log(`  Song structure:`);
-		console.log(`    - Channels: ${song.channels.length}`);
-		console.log(`    - Patterns: ${Object.keys(song.pats || {}).length}`);
-		console.log(`    - Instruments: ${Object.keys(song.insts || {}).length}`);
-		if (song.bpm) console.log(`    - Tempo: ${song.bpm} BPM`);
+		log.info(`  Song structure:`);
+		log.info(`    - Channels: ${song.channels.length}`);
+		log.info(`    - Patterns: ${Object.keys(song.pats || {}).length}`);
+		log.info(`    - Instruments: ${Object.keys(song.insts || {}).length}`);
+		if (song.bpm) log.info(`    - Tempo: ${song.bpm} BPM`);
 	}
 
 	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
@@ -168,6 +171,6 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		const { statSync } = await import('fs');
 		const stats = statSync(outPath);
 		const sizeKB = (stats.size / 1024).toFixed(2);
-		console.log(`Export complete: ${stats.size.toLocaleString()} bytes (${sizeKB} KB) written`);
+		log.info(`Export complete: ${stats.size.toLocaleString()} bytes (${sizeKB} KB) written`);
 	}
 }

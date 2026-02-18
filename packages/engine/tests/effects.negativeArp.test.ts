@@ -3,10 +3,21 @@
  */
 
 import * as effects from '../src/effects/index.js';
+import { configureLogging } from '../src/util/logger.js';
 
 describe('Arpeggio negative offset warnings', () => {
   let originalConsoleWarn: typeof console.warn;
   let warnMessages: string[] = [];
+
+  beforeAll(() => {
+    // Configure logger to emit warnings during tests
+    configureLogging({ level: 'warn' });
+  });
+
+  afterAll(() => {
+    // Reset logger to default (error-only)
+    configureLogging({ level: 'error' });
+  });
 
   beforeEach(() => {
     // Capture console.warn messages

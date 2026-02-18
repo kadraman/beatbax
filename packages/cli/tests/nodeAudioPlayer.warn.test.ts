@@ -1,7 +1,21 @@
 describe('nodeAudioPlayer warnings', () => {
   test('emits Windows downmix warning when using PowerShell fallback', async () => {
+    // Create mock logger BEFORE any modules load
+    const mockLogger = { 
+      warn: jest.fn(), 
+      info: jest.fn(), 
+      debug: jest.fn(), 
+      error: jest.fn() 
+    };
+
     // Clear module cache so we can mock dynamic imports used by playAudioBuffer
     jest.resetModules();
+
+    // Mock the logger module BEFORE loading nodeAudioPlayer
+    jest.mock('@beatbax/engine/util/logger', () => ({
+      createLogger: jest.fn(() => mockLogger),
+      configureLogging: jest.fn(),
+    }));
 
     // Mock speaker and play-sound to simulate they are NOT installed
     jest.mock('speaker', () => { throw new Error('no speaker'); }, { virtual: true });
@@ -16,8 +30,7 @@ describe('nodeAudioPlayer warnings', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
 
     const samples = new Float32Array(44100 * 1 * 2); // 1 second stereo silence
-
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    
     // Replace spawn to a fake that immediately closes (simulate PowerShell playback)
     const childProcess = require('child_process');
     const origSpawn = childProcess.spawn;
@@ -27,13 +40,13 @@ describe('nodeAudioPlayer warnings', () => {
 
     try {
       await playAudioBuffer(samples, { channels: 2, sampleRate: 44100 });
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('may downmix'));
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('may downmix'));
     } finally {
-      warnSpy.mockRestore();
       // restore spawn
       childProcess.spawn = origSpawn;
       if (origPlatform) Object.defineProperty(process, 'platform', origPlatform);
       jest.resetModules();
+      jest.unmock('@beatbax/engine/util/logger');
     }
   }, 20000);
 });

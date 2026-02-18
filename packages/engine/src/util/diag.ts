@@ -1,4 +1,7 @@
 import { SourceLocation } from '../parser/ast.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('diagnostics');
 
 export type DiagLevel = 'WARN' | 'ERROR' | 'INFO';
 
@@ -28,11 +31,11 @@ export function formatDiagnostic(level: DiagLevel, component: string, message: s
 }
 
 export function warn(component: string, message: string, meta?: DiagMeta) {
-  console.warn(formatDiagnostic('WARN', component, message, meta));
+  log.warn(formatDiagnostic('WARN', component, message, meta));
 }
 
 export function error(component: string, message: string, meta?: DiagMeta) {
-  console.error(formatDiagnostic('ERROR', component, message, meta));
+  log.error(formatDiagnostic('ERROR', component, message, meta));
 }
 
 export default { formatDiagnostic, warn, error };

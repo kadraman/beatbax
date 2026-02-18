@@ -26,9 +26,13 @@ npm install
 
 ### 1. Making Changes
 
-As you develop features or fix bugs, commit your code normally:
+Create a feature branch and develop normally:
 
 ```bash
+# Create feature branch
+git checkout -b feat/vibrato-effect
+
+# Make your changes
 git add .
 git commit -m "feat: add vibrato effect support"
 ```
@@ -78,34 +82,37 @@ Added vibrato effect with rate and depth controls
 ```bash
 git add .changeset
 git commit -m "chore: add changeset for vibrato feature"
+git push -u origin feat/vibrato-effect
+
+# Create PR via GitHub UI
+```
+
+### 3. Merging to Main
+
+After your PR is reviewed and approved:
+
+```bash
+# Merge via GitHub UI (recommended)
+# Or manually:
+git checkout main
+git merge feat/vibrato-effect
 git push
 ```
 
-### 3. Accumulating Changes
-
-You can create multiple changesets before releasing:
-
-```bash
-# Week 1: Add feature
-npm run changeset  # Creates changeset A
-git add . && git commit -m "chore: add changeset for feature X"
-
-# Week 2: Fix bug
-npm run changeset  # Creates changeset B
-git add . && git commit -m "chore: add changeset for bug fix Y"
-
-# Week 3: Add another feature
-npm run changeset  # Creates changeset C
-git add . && git commit -m "chore: add changeset for feature Z"
-```
-
-All changesets will be combined during the next release.
+💡 **Tip:** You can accumulate multiple changesets across multiple feature branches before releasing. All changesets on `main` will be consumed together during the next version bump.
 
 ### 4. Versioning Packages
+
+⚠️ **Important:** Always run this step on the `main` branch after merging your PR.
 
 When ready to release, consume all changesets and update versions:
 
 ```bash
+# Ensure you're on main branch with latest changes
+git checkout main
+git pull
+
+# Version packages
 npm run version-packages
 ```
 
@@ -135,6 +142,8 @@ git push
 
 ### 5. Publishing to npm
 
+⚠️ **Important:** Always publish from the `main` branch after running `version-packages`.
+
 **One-time setup: Login to npm**
 
 ```bash
@@ -146,6 +155,10 @@ Enter your npm credentials. Your account must have publish access to the `@beatb
 **Publish packages:**
 
 ```bash
+# Ensure you're on main with version commit
+git status  # Should show "On branch main, nothing to commit"
+
+# Publish
 npm run release
 ```
 
@@ -174,6 +187,138 @@ npm view @beatbax/cli
 Or visit:
 - https://www.npmjs.com/package/@beatbax/engine
 - https://www.npmjs.com/package/@beatbax/cli
+
+## Git Workflow & Branch Strategy
+
+### When to Create Changesets
+
+Create changesets **on your feature branch** as you develop:
+
+```bash
+# On feature branch
+git checkout -b feat/vibrato-effect
+
+# Make your changes
+git add .
+git commit -m "feat: add vibrato effect support"
+
+# Create changeset immediately
+npm run changeset
+# Select: @beatbax/engine
+# Choose: minor
+# Summary: "Added vibrato effect with rate and depth controls"
+
+git add .changeset
+git commit -m "chore: add changeset for vibrato feature"
+git push
+```
+
+**You can create multiple changesets on a branch:**
+
+```bash
+# Day 1
+git commit -m "feat: add vibrato"
+npm run changeset  # Changeset A
+git add .changeset && git commit -m "chore: add changeset for vibrato"
+
+# Day 2
+git commit -m "fix: vibrato edge case"
+npm run changeset  # Changeset B
+git add .changeset && git commit -m "chore: add changeset for bug fix"
+
+# Day 3
+git commit -m "docs: update vibrato documentation"
+npm run changeset  # Changeset C (patch)
+git add .changeset && git commit -m "chore: add changeset for docs"
+
+git push
+```
+
+All changesets will be included in your PR and consumed together during release.
+
+### When to Release
+
+**Always release from the `main` branch** after merging your PR:
+
+```bash
+# After PR is merged to main
+git checkout main
+git pull
+
+# Version packages (consumes all changesets)
+npm run version-packages
+git add .
+git commit -m "chore: version packages"
+git push
+
+# Publish to npm
+npm run release
+git push --follow-tags
+```
+
+### Why Release from Main?
+
+1. **Git tags** - Release tags (`@beatbax/engine@0.2.0`) are created on `main`, making version history clear
+2. **Single source of truth** - The `main` branch always reflects what's published on npm
+3. **Clean history** - Version commits and tags stay on `main`, not scattered across feature branches
+4. **Standard practice** - Matches conventional Git workflows (git-flow, GitHub flow)
+5. **CI/CD ready** - Automated releases (see CI/CD section) run on `main` merges
+
+### Complete Workflow Example
+
+```bash
+# 1. Create feature branch
+git checkout -b feat/arpeggio-effect
+
+# 2. Develop and commit normally
+git add packages/engine/src/effects/arpeggio.ts
+git commit -m "feat: implement arpeggio effect"
+
+# 3. Create changeset
+npm run changeset
+git add .changeset
+git commit -m "chore: add changeset for arpeggio"
+
+# 4. Continue development if needed
+git commit -m "test: add arpeggio tests"
+npm run changeset  # Optional: separate changeset for tests
+git add .changeset && git commit -m "chore: add changeset for tests"
+
+# 5. Push and create PR
+git push -u origin feat/arpeggio-effect
+# Create PR via GitHub UI
+
+# 6. After PR review and merge, switch to main
+git checkout main
+git pull
+
+# 7. Version packages (only on main!)
+npm run version-packages
+git add .
+git commit -m "chore: version packages"
+git push
+
+# 8. Publish to npm (only on main!)
+npm run release
+git push --follow-tags
+```
+
+### Don't Release from Feature Branches ❌
+
+**Avoid this:**
+
+```bash
+# ❌ DON'T DO THIS
+git checkout feat/my-feature
+npm run version-packages  # Creates version commit on feature branch
+npm run release           # Creates tags on feature branch
+```
+
+**Problems:**
+- Version commits end up in PR, making review messy
+- Git tags point to feature branch commits, not main
+- Multiple features releasing simultaneously cause conflicts
+- Main branch state diverges from published packages
 
 ## Using Published Packages
 
@@ -208,11 +353,14 @@ npm install
 ### Scenario 1: Bug Fix in Engine
 
 ```bash
+# Create feature branch
+git checkout -b fix/noise-lfsr
+
 # Fix bug in packages/engine/src/chips/gameboy/noise.ts
 git add packages/engine
 git commit -m "fix: correct noise LFSR seed initialization"
 
-# Create changeset
+# Create changeset on feature branch
 npm run changeset
 # Select: @beatbax/engine
 # Choose: patch
@@ -220,9 +368,13 @@ npm run changeset
 
 git add .changeset
 git commit -m "chore: add changeset for noise fix"
-git push
+git push -u origin fix/noise-lfsr
 
-# When ready to release
+# Create PR, get review, merge to main
+
+# After merge, switch to main and release
+git checkout main
+git pull
 npm run version-packages  # → 0.1.0 → 0.1.1
 git add . && git commit -m "chore: version packages" && git push
 npm run release
@@ -232,6 +384,9 @@ git push --follow-tags
 ### Scenario 2: New Feature in Engine, Used by CLI
 
 ```bash
+# Create feature branch
+git checkout -b feat/arpeggio
+
 # Add feature in engine
 git add packages/engine
 git commit -m "feat: add arpeggio effect"
@@ -240,7 +395,7 @@ git commit -m "feat: add arpeggio effect"
 git add packages/cli
 git commit -m "feat: add arpeggio export to CLI"
 
-# Create changeset for both
+# Create changeset for both packages
 npm run changeset
 # Select: @beatbax/engine AND @beatbax/cli
 # Choose: minor for both
@@ -248,9 +403,13 @@ npm run changeset
 
 git add .changeset
 git commit -m "chore: add changeset for arpeggio feature"
-git push
+git push -u origin feat/arpeggio
 
-# When ready to release
+# Create PR, get review, merge to main
+
+# After merge, switch to main and release
+git checkout main
+git pull
 npm run version-packages  # → engine: 0.1.0 → 0.2.0, cli: 0.1.0 → 0.2.0
 git add . && git commit -m "chore: version packages" && git push
 npm run release
@@ -260,11 +419,14 @@ git push --follow-tags
 ### Scenario 3: Breaking Change in Engine
 
 ```bash
+# Create feature branch
+git checkout -b refactor/instrument-format
+
 # Refactor with breaking API change
 git add packages/engine
 git commit -m "refactor!: change instrument definition format"
 
-# Create changeset
+# Create changeset on feature branch
 npm run changeset
 # Select: @beatbax/engine
 # Choose: major
@@ -272,9 +434,13 @@ npm run changeset
 
 git add .changeset
 git commit -m "chore: add changeset for breaking change"
-git push
+git push -u origin refactor/instrument-format
 
-# When ready to release
+# Create PR, get review, merge to main
+
+# After merge, switch to main and release
+git checkout main
+git pull
 npm run version-packages  # → 0.1.0 → 1.0.0
 git add . && git commit -m "chore: version packages" && git push
 npm run release
@@ -378,19 +544,21 @@ And the bin field in [packages/cli/package.json](../packages/cli/package.json) i
 
 ## Best Practices
 
-1. **Create changesets immediately** after committing features/fixes
-2. **Write clear summaries** - they become your CHANGELOG entries
-3. **Choose correct bump type:**
-   - Patch: Internal changes, bug fixes
-   - Minor: New features, additions
-   - Major: Breaking changes
-4. **Batch releases** - accumulate multiple changesets before versioning
-5. **Test locally** before publishing:
+1. **Create changesets on feature branches** - Add changesets immediately after committing features/fixes
+2. **Always release from `main` branch** - Never run `npm run version-packages` or `npm run release` on feature branches
+3. **Write clear summaries** - They become your CHANGELOG entries visible to users
+4. **Choose correct bump type:**
+   - Patch: Internal changes, bug fixes, documentation
+   - Minor: New features, backward-compatible additions
+   - Major: Breaking changes, API removals/changes
+5. **Batch releases** - Accumulate multiple changesets before versioning (weekly/sprint-based releases)
+6. **Test locally** before publishing:
    ```bash
    npm run build-all
    npm test
    ```
-6. **Use npm link for local testing:**
+7. **Merge to main before releasing** - Version commits and git tags should only exist on `main`
+8. **Use npm link for local testing:**
    ```bash
    cd packages/engine
    npm link

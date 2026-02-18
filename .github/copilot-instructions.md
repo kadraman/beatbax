@@ -148,9 +148,8 @@ CURRENT PROJECT STRUCTURE
       uge.reader.ts       # ✅ Complete (UGE v1-6 reader)
     ugeReader.ts          # ✅ Complete (legacy compatibility)
     index.ts              # ✅ Complete
-  cli.ts                  # ✅ Complete (play, verify, export)
+  cli.ts                  # ✅ Complete (play, verify, export, inspect)
   cli-dev.ts              # ✅ Complete (development CLI)
-  cli-uge-inspect.ts      # ✅ Complete (UGE inspection tool)
   index.ts                # ✅ Complete (main library export)
 
 /docs
