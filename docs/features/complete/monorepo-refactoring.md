@@ -57,9 +57,10 @@ beatbax/                          # Monorepo root
 │   ├── cli/                      # @beatbax/cli (npm package)
 │   │   ├── package.json          # Published to npm with bin
 │   │   ├── src/
-│   │   │   ├── cli.ts
+│   │   │   ├── cli.ts            # Main CLI with inspect command
 │   │   │   ├── cli-dev.ts
-│   │   │   └── cli-uge-inspect.ts
+│   │   │   ├── nodeAudioPlayer.ts
+│   │   │   └── index.ts
 │   │   ├── bin/
 │   │   │   └── beatbax.js
 │   │   └── README.md

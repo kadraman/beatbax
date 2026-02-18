@@ -1,4 +1,5 @@
 import { parseWithPeggy } from '../src/parser/peggy';
+import { configureLogging } from '../src/util/logger';
 
 describe('Peggy CSV normalization for instrument properties', () => {
   // Peggy is the only supported parser now; parser selection via
@@ -6,10 +7,14 @@ describe('Peggy CSV normalization for instrument properties', () => {
   // explicitly for these tests and clean it up after.
   beforeAll(() => {
     process.env.BEATBAX_PEGGY_NORMALIZE_INST_PROPS = '1';
+    // Configure logger to emit warnings during tests
+    configureLogging({ level: 'warn' });
   });
 
   afterAll(() => {
     delete process.env.BEATBAX_PEGGY_NORMALIZE_INST_PROPS;
+    // Reset logger to default (error-only)
+    configureLogging({ level: 'error' });
   });
 
   test('parses CSV env and noise into structured objects and warns once', () => {

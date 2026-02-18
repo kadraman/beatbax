@@ -11,6 +11,9 @@ import {
 import { expandRefToTokens } from '../expand/refExpander.js';
 import { resolveImports, resolveImportsSync } from './importResolver.js';
 import { isRemoteImport } from '../import/urlUtils.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('resolver');
 
 // Helpers for parsing inline effects and pan specifications
 function parsePanSpec(val: any, ns?: string) {
@@ -166,6 +169,14 @@ export async function resolveSongAsync(ast: AST, opts?: { filename?: string; sea
  */
 function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
 
+  log.debug('Resolving song', {
+    patterns: Object.keys(ast.pats || {}).length,
+    sequences: Object.keys(ast.seqs || {}).length,
+    instruments: Object.keys(ast.insts || {}).length,
+    channels: (ast.channels || []).length,
+    bpm: ast.bpm,
+  });
+
   let pats = ast.pats || {};
   const insts = ast.insts || {};
   let seqs: Record<string, string[] | SequenceItem[]> = { ...(ast.seqs || {}) };
@@ -191,7 +202,9 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
   }
 
   // Expand all sequences into flattened token arrays
+  log.debug('Expanding sequences', { count: Object.keys(seqs).length });
   const expandedSeqs = expandAllSequences(seqs, pats, insts, ast.effects as any);
+  log.debug('Sequences expanded', { count: Object.keys(expandedSeqs).length });
 
   // Helper: expand inline effect presets found inside `<...>` by looking up
   // named presets from `ast.effects`. If an inline effect is a bare name
@@ -543,6 +556,15 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
   // backward-compatible playback (Player expects `ch.pat` to hold tokens
   // or event objects). This keeps both `events` and `pat` available.
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
+
+  const totalEvents = channels.reduce((sum, c) => sum + c.events.length, 0);
+  log.debug('Resolution complete', {
+    channels: channels.length,
+    totalEvents,
+    bpm,
+  });
+
+  log.info(`Resolved successfully: ${channels.length} channels with ${totalEvents} total events`);
 
   // Preserve top-level playback directives and metadata so consumers can honor them.
   return {

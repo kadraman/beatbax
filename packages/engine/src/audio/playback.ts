@@ -12,6 +12,9 @@ import { error } from '../util/diag.js';
 import createScheduler from '../scheduler/index.js';
 import BufferedRenderer from './bufferedRenderer.js';
 import { get as getEffect, clearEffectState } from '../effects/index.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('player');
 
 export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
@@ -281,7 +284,7 @@ export class Player {
           try {
             // Don't execute if paused
             if (this._isPaused) {
-              console.log('[Player] Repeat timer fired but playback is paused - ignoring');
+              log.debug('Repeat timer fired but playback is paused - ignoring');
               return;
             }
 
@@ -293,11 +296,11 @@ export class Player {
             this.stop();
             // replay AST (fire-and-forget)
             this.playAST(ast).catch((e: any) => {
-              console.error('[Player] Repeat playback failed:', e);
+              log.error('Repeat playback failed:', e);
               error('player', 'Repeat playback failed: ' + (e && e.message ? e.message : String(e)));
             });
           } catch (e) {
-            console.error('[Player] Exception in repeat timer:', e);
+            log.error('Exception in repeat timer:', e);
           }
         }, delayMs);
       } else {
@@ -312,7 +315,7 @@ export class Player {
           try {
             // Don't execute if paused
             if (this._isPaused) {
-              console.log('[Player] Completion timer fired but playback is paused - ignoring');
+              log.debug('Completion timer fired but playback is paused - ignoring');
               return;
             }
 
@@ -322,12 +325,12 @@ export class Player {
               this.onComplete();
             }
           } catch (e) {
-            console.error('[Player] Exception in completion timer:', e);
+            log.error('Exception in completion timer:', e);
           }
         }, completionMs);
       }
     } catch (e) {
-      console.error('[Player] Exception setting up repeat:', e);
+      log.error('Exception setting up repeat:', e);
     }
   }
 
@@ -340,14 +343,14 @@ export class Player {
         this.scheduler.schedule(time, () => {
           // Check mute/solo state at PLAYBACK time (dynamic check)
           if (this.solo !== null && this.solo !== chId) {
-            console.log(`[Player] Skipping ch${chId} (soloed: ch${this.solo})`);
+            log.debug(`Skipping ch${chId} (soloed: ch${this.solo})`);
             return;
           }
           if (this.muted.has(chId)) {
-            console.log(`[Player] Skipping ch${chId} (muted)`);
+            log.debug(`Skipping ch${chId} (muted)`);
             return;
           }
-          if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
+          if (this._debugLog) log.debug(`Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
           const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this.masterGain || undefined);
           for (const n of nodes) this.activeNodes.push({ node: n, chId });
         });
@@ -381,14 +384,14 @@ export class Player {
           this.scheduler.schedule(time, () => {
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
-              console.log(`[Player] \u274c Skipping ch${chId} pulse (solo=${this.solo})`);
+              log.debug(`Skipping ch${chId} pulse (solo=${this.solo})`);
               return;
             }
             if (this.muted.has(chId)) {
-              console.log(`[Player] \u274c Skipping ch${chId} pulse (muted)`);
+              log.debug(`Skipping ch${chId} pulse (muted)`);
               return;
             }
-            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} pulse at ${time.toFixed(2)}s`);
+            if (this._debugLog) log.debug(`Playing ch${chId} pulse at ${time.toFixed(2)}s`);
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
@@ -409,14 +412,14 @@ export class Player {
           this.scheduler.schedule(time, () => {
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
-              console.log(`[Player] Skipping ch${chId} wave (soloed: ch${this.solo})`);
+              log.debug(`Skipping ch${chId} wave (soloed: ch${this.solo})`);
               return;
             }
             if (this.muted.has(chId)) {
-              console.log(`[Player] Skipping ch${chId} wave (muted)`);
+              log.debug(`Skipping ch${chId} wave (muted)`);
               return;
             }
-            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} wave at ${time.toFixed(2)}s`);
+            if (this._debugLog) log.debug(`Playing ch${chId} wave at ${time.toFixed(2)}s`);
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
@@ -434,14 +437,14 @@ export class Player {
           this.scheduler.schedule(time, () => {
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
-              console.log(`[Player] Skipping ch${chId} noise (soloed: ch${this.solo})`);
+              log.debug(`Skipping ch${chId} noise (soloed: ch${this.solo})`);
               return;
             }
             if (this.muted.has(chId)) {
-              console.log(`[Player] Skipping ch${chId} noise (muted)`);
+              log.debug(`Skipping ch${chId} noise (muted)`);
               return;
             }
-            if (this._debugLog) console.log(`[Player] \u266a Playing ch${chId} noise at ${time.toFixed(2)}s`);
+            if (this._debugLog) log.debug(`Playing ch${chId} noise at ${time.toFixed(2)}s`);
             const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
@@ -796,11 +799,11 @@ export class Player {
             // Replay the stored AST
             if (this._currentAST) {
               this.playAST(this._currentAST).catch((e: any) => {
-                console.error('[Player] Repeat playback failed after resume:', e);
+                log.error('Repeat playback failed after resume:', e);
               });
             }
           } catch (e) {
-            console.error('[Player] Exception in repeat timer:', e);
+            log.error('Exception in repeat timer:', e);
           }
         }, remainingMs);
       } else {
@@ -812,7 +815,7 @@ export class Player {
               this.onComplete();
             }
           } catch (e) {
-            console.error('[Player] Exception in completion timer:', e);
+            log.error('Exception in completion timer:', e);
           }
         }, remainingMs);
       }

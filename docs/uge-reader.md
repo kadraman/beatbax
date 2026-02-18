@@ -64,9 +64,6 @@ packages/engine/tests/
 examples/
 ├── read-uge-example.ts        # Usage example (imports from `@beatbax/engine`)
 └── validate-uge-reader.ts     # Validation script (imports from `@beatbax/engine`)
-
-packages/cli/src/
-└── cli-uge-inspect.ts # CLI inspection tool (now under `packages/cli/src`)
 ```
 
 ## API Reference
@@ -218,23 +215,24 @@ interface SubPatternCell {
 ### Basic Usage
 
 ```bash
-npx tsx packages/cli/src/cli-uge-inspect.ts <file.uge>
+node bin/beatbax inspect <file.uge>
 ```
 
 ### Options
 
-- `--patterns` or `-p`: Show pattern details
-- `--orders` or `-o`: Show order lists
-- `--waves` or `-w`: Show wavetable data
+- `--json` or `-j`: Output detailed JSON (default is summary)
 
 ### Examples
 
 ```bash
 # Basic summary
-npx tsx packages/cli/src/cli-uge-inspect.ts songs/chavez.uge
+node bin/beatbax inspect songs/chavez.uge
 
-# Show everything
-npx tsx packages/cli/src/cli-uge-inspect.ts songs/chavez.uge -p -o -w
+# Detailed JSON output
+node bin/beatbax inspect songs/chavez.uge --json
+
+# Inspect a .bax file
+node bin/beatbax inspect songs/sample.bax --json
 ```
 
 ## Test Results

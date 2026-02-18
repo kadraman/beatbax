@@ -25,6 +25,9 @@ import {
 import { parseSweep } from '../../chips/gameboy/pulse.js';
 import { warn } from '../../util/diag.js';
 import { applyModsToTokens } from '../../expand/refExpander.js';
+import { createLogger } from '../../util/logger.js';
+
+const log = createLogger('parser');
 
 // Reset per-parse run; `parseWithPeggy` will reset this at start of each parse.
 let _csvNormalizationWarned = false;
@@ -480,10 +483,14 @@ export function parseWithPeggy(source: string): AST {
   // reset per-parse-run warning flag
   _csvNormalizationWarned = false;
 
+  log.debug('Parsing source code', { length: source.length });
+
   let program: ProgramNode;
   try {
     program = peggyParse(source, {}) as ProgramNode;
+    log.debug('Peggy parse complete', { statements: program.body.length });
   } catch (e: any) {
+    log.error('Parse error', e);
     throw enhanceParseError(e, source);
   }
   const pats: Record<string, string[]> = {};
@@ -622,6 +629,16 @@ export function parseWithPeggy(source: string): AST {
     if (patternEvents) ast.patternEvents = patternEvents;
     if (sequenceItems) ast.sequenceItems = sequenceItems;
   }
+
+  log.debug('Parse complete', {
+    patterns: Object.keys(pats).length,
+    sequences: Object.keys(seqs).length,
+    instruments: Object.keys(insts).length,
+    channels: channels.length,
+    imports: imports.length,
+  });
+
+  log.info(`Parsed successfully: ${Object.keys(pats).length} patterns, ${Object.keys(seqs).length} sequences, ${Object.keys(insts).length} instruments`);
 
   return ast;
 }
