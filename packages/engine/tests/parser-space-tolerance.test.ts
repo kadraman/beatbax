@@ -1,6 +1,7 @@
 import { parse } from '../src/parser';
 import { expandPattern } from '../src/patterns/expand';
 import { jest } from '@jest/globals';
+import { configureLogging } from '../src/util/logger';
 
 describe('Parser Space Tolerance', () => {
   test('expandPattern handles spaces around * for groups', () => {
@@ -31,6 +32,16 @@ describe('Parser Space Tolerance', () => {
 describe('Pattern Name Validation', () => {
   let warnSpy: any;
 
+  beforeAll(() => {
+    // Configure logger to emit warnings during tests
+    configureLogging({ level: 'warn' });
+  });
+
+  afterAll(() => {
+    // Reset logger to default (error-only)
+    configureLogging({ level: 'error' });
+  });
+
   beforeEach(() => {
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -41,30 +52,41 @@ describe('Pattern Name Validation', () => {
 
   test('warns for single-letter pattern names A-G', () => {
     parse('pat A = C4');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Pattern name 'A' may be confused with a note name"));
-    
+    // Logger now formats output with module names, so check across all call arguments
+    expect(warnSpy).toHaveBeenCalled();
+    const allArgs = warnSpy.mock.calls[0].join(' ');
+    expect(allArgs).toContain("Pattern name 'A' may be confused with a note name");
+
     warnSpy.mockClear();
     parse('pat e = C4');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Pattern name 'e' may be confused with a note name"));
+    expect(warnSpy).toHaveBeenCalled();
+    const allArgs2 = warnSpy.mock.calls[0].join(' ');
+    expect(allArgs2).toContain("Pattern name 'e' may be confused with a note name");
   });
 
   test('warns for note-like pattern names with octaves', () => {
     parse('pat C4 = C4');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Pattern name 'C4' may be confused with a note name"));
+    expect(warnSpy).toHaveBeenCalled();
+    const allArgs = warnSpy.mock.calls[0].join(' ');
+    expect(allArgs).toContain("Pattern name 'C4' may be confused with a note name");
 
     warnSpy.mockClear();
     parse('pat Bb1 = C4');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Pattern name 'Bb1' may be confused with a note name"));
+    expect(warnSpy).toHaveBeenCalled();
+    const allArgs2 = warnSpy.mock.calls[0].join(' ');
+    expect(allArgs2).toContain("Pattern name 'Bb1' may be confused with a note name");
 
     warnSpy.mockClear();
     parse('pat G9 = C4');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Pattern name 'G9' may be confused with a note name"));
+    expect(warnSpy).toHaveBeenCalled();
+    const allArgs3 = warnSpy.mock.calls[0].join(' ');
+    expect(allArgs3).toContain("Pattern name 'G9' may be confused with a note name");
   });
 
   test('does not warn for other single-letter pattern names', () => {
     parse('pat X = C4');
     expect(warnSpy).not.toHaveBeenCalled();
-    
+
     parse('pat Z = C4');
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -72,7 +94,7 @@ describe('Pattern Name Validation', () => {
   test('does not warn for multi-letter pattern names', () => {
     parse('pat AA = C4');
     expect(warnSpy).not.toHaveBeenCalled();
-    
+
     parse('pat Lead = C4');
     expect(warnSpy).not.toHaveBeenCalled();
   });

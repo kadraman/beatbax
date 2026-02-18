@@ -19,6 +19,9 @@ import { writeFileSync } from 'fs';
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
 import { warn } from '../util/diag.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('export:uge');
 
 // Constants from UGE v6 spec
 const UGE_VERSION = 6;
@@ -1369,7 +1372,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     const verbose = opts && opts.verbose === true;
 
     if (verbose) {
-        console.log(`Exporting to UGE v6 format: ${outputPath}`);
+        log.info(`Exporting to UGE v6 format: ${outputPath}`);
     }
 
     // ====== Header & NR51 metadata ======
@@ -1433,16 +1436,16 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             }
         }
     }
-    if (opts && opts.debug) console.log(`[DEBUG] Discovered instruments: duty=${dutyInsts.length} wave=${waveInsts.length} noise=${noiseInsts.length}`);
-    if (opts && opts.debug) console.log(`[DEBUG] Wave instrument names: ${JSON.stringify(waveInsts)}`);
+    if (opts && opts.debug) log.debug(`Discovered instruments: duty=${dutyInsts.length} wave=${waveInsts.length} noise=${noiseInsts.length}`);
+    if (opts && opts.debug) log.debug(`Wave instrument names: ${JSON.stringify(waveInsts)}`);
 
     if (verbose) {
-        console.log('Processing instruments...');
+        log.info('Processing instruments...');
         if (dutyInsts.length > 0 || waveInsts.length > 0 || noiseInsts.length > 0) {
-            console.log(`  Instruments exported:`);
-            if (dutyInsts.length > 0) console.log(`    - Duty: ${dutyInsts.length}/15 slots (${dutyInsts.join(', ')})`);
-            if (waveInsts.length > 0) console.log(`    - Wave: ${waveInsts.length}/15 slots (${waveInsts.join(', ')})`);
-            if (noiseInsts.length > 0) console.log(`    - Noise: ${noiseInsts.length}/15 slots (${noiseInsts.join(', ')})`);
+            log.info(`  Instruments exported:`);
+            if (dutyInsts.length > 0) log.info(`    - Duty: ${dutyInsts.length}/15 slots (${dutyInsts.join(', ')})`);
+            if (waveInsts.length > 0) log.info(`    - Wave: ${waveInsts.length}/15 slots (${waveInsts.join(', ')})`);
+            if (noiseInsts.length > 0) log.info(`    - Noise: ${noiseInsts.length}/15 slots (${noiseInsts.join(', ')})`);
         }
     }
 
@@ -1495,7 +1498,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
             const ugeVolume = mapWaveVolumeToUGE(inst.volume ?? inst.vol ?? 100);
-            if (opts && opts.debug) console.log(`[DEBUG] Wave instrument '${name}' -> volume (beatbax)=${inst.volume ?? inst.vol ?? 'undefined'} ugeValue=${ugeVolume}`);
+            if (opts && opts.debug) log.debug(`Wave instrument '${name}' -> volume (beatbax)=${inst.volume ?? inst.vol ?? 'undefined'} ugeValue=${ugeVolume}`);
             writeWaveInstrument(w, name, i, ugeVolume, lengthEnabled, length);
         } else {
             // Default placeholder: use default 100% mapping
@@ -1581,7 +1584,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>>> = [];
 
     if (verbose) {
-        console.log('Building patterns for 4 channels...');
+        log.info('Building patterns for 4 channels...');
     }
 
     // Shared map of desired vibrato durations (globalRow -> rows)
@@ -1592,7 +1595,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
-        if (opts && opts.debug) console.log(`[DEBUG] Channel ${ch + 1} has ${chEvents.length} events`);
+        if (opts && opts.debug) log.debug(`Channel ${ch + 1} has ${chEvents.length} events`);
         // share `desiredVibMap` across channels so later passes can inspect desired vib rows
         const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap);
         channelPatterns.push(patterns);
@@ -1689,7 +1692,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     }
 
     if (verbose) {
-        console.log('Applying effects and post-processing...');
+        log.info('Applying effects and post-processing...');
 
         // Pattern statistics
         let totalRows = 0;
@@ -1697,18 +1700,18 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             totalRows += channelPatterns[ch].reduce((sum, pat) => sum + pat.length, 0);
         }
 
-        console.log('  Pattern structure:');
+        log.info('  Pattern structure:');
         for (let ch = 0; ch < NUM_CHANNELS; ch++) {
             const patterns = channelPatterns[ch];
             const rowCount = patterns.reduce((sum, pat) => sum + pat.length, 0);
-            console.log(`    - Channel ${ch + 1}: ${patterns.length} pattern${patterns.length !== 1 ? 's' : ''} (${rowCount} rows total)`);
+            log.info(`    - Channel ${ch + 1}: ${patterns.length} pattern${patterns.length !== 1 ? 's' : ''} (${rowCount} rows total)`);
         }
 
         // Effect statistics
         if (vibCount > 0 || cutCount > 0) {
-            console.log('  Effects applied:');
-            if (vibCount > 0) console.log(`    - Vibrato: ${vibCount} note${vibCount !== 1 ? 's' : ''}`);
-            if (cutCount > 0) console.log(`    - Note cuts: ${cutCount} occurrence${cutCount !== 1 ? 's' : ''}`);
+            log.info('  Effects applied:');
+            if (vibCount > 0) log.info(`    - Vibrato: ${vibCount} note${vibCount !== 1 ? 's' : ''}`);
+            if (cutCount > 0) log.info(`    - Note cuts: ${cutCount} occurrence${cutCount !== 1 ? 's' : ''}`);
         }
     }
 
@@ -1795,7 +1798,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                     nr51Writes.set(globalRow, { value: nr51Value & 0xFF, explicit: anyExplicit });
                 } else {
                     if (opts && opts.debug) {
-                        try { console.log('[DEBUG] Skipping NR51 write due to existing effect on ch1 row', { orderIdx, row, existingEffect: targetCell && targetCell.effectCode }); } catch (e) {}
+                        try { log.debug('[DEBUG] Skipping NR51 write due to existing effect on ch1 row', { orderIdx, row, existingEffect: targetCell && targetCell.effectCode }); } catch (e) {}
                     }
                 }
             }
@@ -1806,7 +1809,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     if (opts && opts.debug) {
         try {
             const rows = Array.from(nr51Writes.entries()).map(([k, v]) => ({ globalRow: k, value: v.value, explicit: v.explicit }));
-            console.log('[DEBUG] NR51 writes:', JSON.stringify(rows, null, 2));
+            log.debug('[DEBUG] NR51 writes:', JSON.stringify(rows, null, 2));
         } catch (e) { }
     }
 
@@ -1822,7 +1825,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     if (verbose) {
         const actualBpm = Math.round(896 / ticksPerRow);
-        console.log(`  Tempo: ${bpm} BPM (${ticksPerRow} ticks/row in UGE${actualBpm !== bpm ? `, actual: ~${actualBpm} BPM` : ''})`);
+        log.info(`  Tempo: ${bpm} BPM (${ticksPerRow} ticks/row in UGE${actualBpm !== bpm ? `, actual: ~${actualBpm} BPM` : ''})`);
     }
 
     w.writeU32(ticksPerRow); // Initial ticks per row
@@ -1857,7 +1860,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // `allPatterns` which are the final pattern buffers to be serialized.
     try {
         if (opts && opts.debug) {
-            try { console.log('[DEBUG] finalEnforcement start', { nr51Writes: Array.from(nr51Writes.entries()), desiredVibMap: Array.from(desiredVibMap.entries()) }); } catch(e) {}
+            try { log.debug('[DEBUG] finalEnforcement start', { nr51Writes: Array.from(nr51Writes.entries()), desiredVibMap: Array.from(desiredVibMap.entries()) }); } catch(e) {}
         }
         for (let ch = 0; ch < NUM_CHANNELS; ch++) {
             const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
@@ -1920,7 +1923,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const nrIsDefault = (nrValue === 0xFF);
                 const preserveNoteNR51 = !!noteCell && noteCell.effectCode === 8 && nrWasExplicit && !nrIsDefault;
                 if (opts && opts.debug) {
-                    try { console.log('[DEBUG] finalEnforce note check', { ch, globalStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
+                    try { log.debug('[DEBUG] finalEnforce note check', { ch, globalStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
                 }
 
                 // Updated behavior: vibrato appears on BOTH note row AND first sustain row
@@ -1959,7 +1962,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         }
     } catch (e) {
         if (opts && opts.debug) {
-            console.log('[DEBUG] final vib enforcement failed', e && (e as any).stack ? (e as any).stack : e);
+            log.debug('[DEBUG] final vib enforcement failed', e && (e as any).stack ? (e as any).stack : e);
         }
     }
 
@@ -1971,17 +1974,17 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Debug: inspect patterns before serialization
     if (opts && opts.debug) {
         try {
-            console.log('[DEBUG] Dumping first 3 allPatterns entries (showing up to 16 rows each)');
+            log.debug('[DEBUG] Dumping first 3 allPatterns entries (showing up to 16 rows each)');
             for (let pi = 0; pi < Math.min(3, allPatterns.length); pi++) {
                 const p = allPatterns[pi];
-                console.log(`[DEBUG] allPatterns[${pi}] -> channel=${p.channelIndex} pattern=${p.patternIndex} rows=${p.cells.length}`);
+                log.debug(`[DEBUG] allPatterns[${pi}] -> channel=${p.channelIndex} pattern=${p.patternIndex} rows=${p.cells.length}`);
                 for (let r = 0; r < Math.min(16, p.cells.length); r++) {
                     const c = p.cells[r] as any;
-                    console.log(` [DEBUG] pat${pi} row${r}: note=${c.note} inst=${c.instrument} vol=${typeof c.volume==='number'?c.volume:'undef'} eff=0x${(c.effectCode||0).toString(16)} effp=0x${(c.effectParam||0).toString(16)}`);
+                    log.debug(` [DEBUG] pat${pi} row${r}: note=${c.note} inst=${c.instrument} vol=${typeof c.volume==='number'?c.volume:'undef'} eff=0x${(c.effectCode||0).toString(16)} effp=0x${(c.effectParam||0).toString(16)}`);
                 }
             }
         } catch (e) {
-            console.log('[DEBUG] Pattern dump failed', e && (e as any).stack ? (e as any).stack : e);
+            log.debug('[DEBUG] Pattern dump failed', e && (e as any).stack ? (e as any).stack : e);
         }
 
         // Debug: count EC (note-cut) occurrences before writing
@@ -1992,13 +1995,13 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 if (c && c.effectCode === 0xC) ecCount++;
             }
         }
-        console.log('[DEBUG] Pre-serialize EC count:', ecCount);
+        log.debug('[DEBUG] Pre-serialize EC count:', ecCount);
     }
 
     w.writeU32(allPatterns.length);
 
-    if (opts && opts.debug) console.log(`[DEBUG] Total patterns: ${allPatterns.length}`);
-    if (opts && opts.debug) console.log(`[DEBUG] Pattern breakdown: Ch1=${channelPatterns[0].length}, Ch2=${channelPatterns[1].length}, Ch3=${channelPatterns[2].length}, Ch4=${channelPatterns[3].length}`);
+    if (opts && opts.debug) log.debug(`Total patterns: ${allPatterns.length}`);
+    if (opts && opts.debug) log.debug(`Pattern breakdown: Ch1=${channelPatterns[0].length}, Ch2=${channelPatterns[1].length}, Ch3=${channelPatterns[2].length}, Ch4=${channelPatterns[3].length}`);
 
     // Focused debug: show effect codes for first 16 rows of each channel for quick verification
     if (opts && opts.debug) {
@@ -2011,7 +2014,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const c: any = pat[r];
                 entries.push({ row: r, note: c.note, eff: `0x${(c.effectCode||0).toString(16)}`, effp: `0x${(c.effectParam||0).toString(16)}` });
             }
-            console.log(`[DEBUG] Channel ${ch+1} first ${rowsToShow} rows:`, JSON.stringify(entries));
+            log.debug(`Channel ${ch+1} first ${rowsToShow} rows:`, JSON.stringify(entries));
         }
     }
 
@@ -2024,9 +2027,9 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         // Debug all channel patterns
         if (ch >= 0 && ch < NUM_CHANNELS) {
             const nonEmpty = pattern.cells.filter((c, idx) => c.note !== EMPTY_NOTE || c.instrument !== 0);
-            if (opts && opts.debug) console.log(`[DEBUG] Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
+            if (opts && opts.debug) log.debug(`Pattern ${i} for channel ${ch + 1}: ${nonEmpty.length} non-empty cells out of ${pattern.cells.length} total rows`);
             if (nonEmpty.length <= 20) {
-                if (opts && opts.debug) console.log(`[DEBUG]   Non-empty cells:`, nonEmpty.map((c) => {
+                if (opts && opts.debug) log.debug(`  Non-empty cells:`, nonEmpty.map((c) => {
                     const rowIdx = pattern.cells.indexOf(c);
                     return `row${rowIdx}:note=${c.note},inst=${c.instrument}`;
                 }).join('; '));
@@ -2038,7 +2041,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
             const cell = pattern.cells[rowIdx];
 
             if (opts && opts.debug && cell && cell.effectCode === 0xC) {
-                console.log(`[DEBUG] Writing Note Cut in pattern ${i} ch ${ch} row ${rowIdx}`);
+                log.debug(`Writing Note Cut in pattern ${i} ch ${ch} row ${rowIdx}`);
             }
 
             // Convert absolute instrument index to relative index based on channel type
@@ -2156,15 +2159,15 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
     // Write final binary
     const out = w.toBuffer();
     if (opts && opts.debug) {
-        console.log(`[DEBUG] UGE: ${out.length} bytes written to ${outputPath}`);
+        log.debug(`UGE: ${out.length} bytes written to ${outputPath}`);
     }
     writeFileSync(outputPath, out);
 
     if (verbose) {
-        console.log('Writing binary output...');
+        log.info('Writing binary output...');
         const sizeKB = (out.length / 1024).toFixed(2);
-        console.log(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
-        console.log(`File ready for hUGETracker v6`);
+        log.info(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+        log.info(`File ready for hUGETracker v6`);
     }
 }
 
