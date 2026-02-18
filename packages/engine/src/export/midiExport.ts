@@ -6,6 +6,9 @@
  */
 import { writeFileSync } from 'fs';
 import { noteNameToMidi } from '../audio/playback.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('export:midi');
 
 function writeVarLen(n: number) {
 	const bytes: number[] = [];
@@ -82,7 +85,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 		header.writeUInt16BE(480, 12); // ticks per quarter
 		const track = writeChunk('MTrk', [0x00, 0xff, 0x2f, 0x00]);
 		writeFileSync(outPath, Buffer.concat([header, track]));
-		if (opts && opts.debug) console.log('Wrote empty MIDI to', outPath);
+		if (opts && opts.debug) log.debug('Wrote empty MIDI to', outPath);
 		return;
 	}
 
@@ -90,7 +93,7 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 	if (!outPath) outPath = 'song.mid';
 
 	if (verbose) {
-		console.log(`Exporting to MIDI (Standard MIDI File): ${outPath}`);
+		log.info(`Exporting to MIDI (Standard MIDI File): ${outPath}`);
 	}
 
 	// Basic SMF parameters
@@ -370,20 +373,20 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 	// Write file
 	const out = Buffer.concat([header, ...trackBuffers]);
 	if (opts && opts.debug) {
-		console.log(`[DEBUG] MIDI: ${ntracks} tracks, ${ticksPerQuarter} PPQ`);
+		log.debug(`MIDI: ${ntracks} tracks, ${ticksPerQuarter} PPQ`);
 	}
 
 	if (verbose) {
-		console.log(`  MIDI configuration:`);
-		console.log(`    - Format: Type 1 (multi-track)`);
-		console.log(`    - Tracks: ${ntracks} (1 per channel)`);
-		console.log(`    - Tempo: ${bpm} BPM`);
-		console.log(`    - Resolution: ${ticksPerQuarter} PPQ`);
+		log.info(`  MIDI configuration:`);
+		log.info(`    - Format: Type 1 (multi-track)`);
+		log.info(`    - Tracks: ${ntracks} (1 per channel)`);
+		log.info(`    - Tempo: ${bpm} BPM`);
+		log.info(`    - Resolution: ${ticksPerQuarter} PPQ`);
 		if (options.channels) {
-			console.log(`    - Channels exported: ${options.channels.join(', ')}`);
+			log.info(`    - Channels exported: ${options.channels.join(', ')}`);
 		}
 		if (options.duration) {
-			console.log(`    - Duration: ${options.duration}s`);
+			log.info(`    - Duration: ${options.duration}s`);
 		}
 	}
 
@@ -391,6 +394,6 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 
 	if (verbose) {
 		const sizeKB = (out.length / 1024).toFixed(2);
-		console.log(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+		log.info(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
 	}
 }

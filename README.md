@@ -4,7 +4,7 @@
 
 # BeatBax
 
-[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Publish](https://github.com/kadraman/beatbax/actions/workflows/publish.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/publish.yml)
+[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy](https://github.com/kadraman/beatbax/actions/workflows/deploy-to-ionos.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/deploy-to-ionos.yml)
 
 **BeatBax** is a live-coding language and toolchain for creating retro-console chiptunes.
 Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2A03) APUs.
@@ -232,7 +232,6 @@ beatbax/
 │       ├── src/
 │       │   ├── cli.ts           # Main CLI implementation
 │       │   ├── cli-dev.ts       # Development CLI runner
-│       │   ├── cli-uge-inspect.ts  # UGE file inspector
 │       │   ├── nodeAudioPlayer.ts  # Node.js audio playback
 │       │   └── index.ts         # CLI exports
 │       └── tests/               # CLI integration tests

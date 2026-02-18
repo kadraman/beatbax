@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 import { warn, error } from './util/diag.js';
+import { createLogger } from './util/logger.js';
+
+const log = createLogger('engine-play');
 
 /**
  * Wait for a directory to be ready (exists and is accessible).
@@ -105,7 +108,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
   const src = readFileSync(path, 'utf8');
   const ast = parse(src);
   if (options.verbose) {
-    console.log('Parsed song AST:', JSON.stringify(ast, null, 2));
+    log.debug('Parsed song AST', { ast: JSON.stringify(ast, null, 2) });
   }
 
   const isNode = typeof window === 'undefined';
@@ -115,7 +118,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
   // Attempt headless playback
   if (noBrowser) {
-    console.log('Rendering song using native PCM renderer...');
+    log.info('Rendering song using native PCM renderer...');
 
     try {
       const { resolveSongAsync } = await import('./song/resolver.js');
@@ -181,9 +184,9 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         const cliUrl = url.pathToFileURL(cliPath).href;
 
         const { playAudioBuffer } = await import(cliUrl);
-        console.log('Playing audio via system speakers...');
+        log.info('Playing audio via system speakers...');
         if (ast.play?.repeat) {
-          console.log('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');
+          log.info('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');
           // Loop playback indefinitely; user may interrupt with Ctrl-C
           // Play sequentially to avoid overlapping audio
           while (true) {
@@ -192,12 +195,12 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           }
         } else {
           await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
-          console.log('[OK] Playback complete');
+          log.info('[OK] Playback complete');
         }
       } catch (err: any) {
         error('engine', 'Failed to play audio: ' + (err && err.message ? err.message : String(err)));
-        console.log('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
-        console.log('Or use "export wav" to export to WAV file instead.');
+        log.info('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
+        log.info('Or use "export wav" to export to WAV file instead.');
         process.exitCode = 1;
       }
       return;
@@ -218,12 +221,12 @@ export async function playFile(path: string, options: PlayOptions = {}) {
     });
     const p = new Player(ctx);
     await p.playAST(ast);
-    console.log('[OK] Playback started (WebAudio)');
+    log.info('[OK] Playback started (WebAudio)');
   } catch (err) {
     // WebAudio not available in Node.js environment
     if (options.browser) {
       // User explicitly requested browser playback
-      console.log('Launching browser-based playback with Vite dev server...');
+      log.info('Launching browser-based playback with Vite dev server...');
       try {
         // Resolve imports before copying to browser (imports won't work in browser context)
         const pathModule = await import('path');
@@ -238,13 +241,13 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
           // Warn about local imports - browser will error when trying to resolve them
           if (localImports.length > 0) {
-            console.log(`⚠️  Warning: This song contains ${localImports.length} local file import(s) which will be blocked by browser security.`);
-            console.log('   The browser will display an error when attempting to load this song.');
-            console.log('   To play this song in the browser, replace local imports with remote imports (https:// or github:).');
+            log.warn(`⚠️  Warning: This song contains ${localImports.length} local file import(s) which will be blocked by browser security.`);
+            log.warn('   The browser will display an error when attempting to load this song.');
+            log.warn('   To play this song in the browser, replace local imports with remote imports (https:// or github:).');
           }
 
           if (remoteImports.length > 0) {
-            console.log(`Browser will resolve ${remoteImports.length} remote import(s) at runtime`);
+            log.info(`Browser will resolve ${remoteImports.length} remote import(s) at runtime`);
           }
 
           // Send source as-is to browser - let browser error on local imports for clear user feedback
@@ -267,7 +270,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
         // Start Vite dev server in apps/web-ui
         const viteDir = pathModule.join(process.cwd(), 'apps', 'web-ui');
-        console.log('Starting Vite dev server...');
+        log.info('Starting Vite dev server...');
         try {
           const isWindows = process.platform === 'win32';
           const server = child.spawn('npm', ['run', 'dev'], {
@@ -284,28 +287,28 @@ export async function playFile(path: string, options: PlayOptions = {}) {
         // Wait for output directory to be ready and Vite server to start
         try {
           await waitForDirectory(outDir, 10000);
-          console.log('Output directory ready');
+          log.debug('Output directory ready');
         } catch (err) {
           warn('engine', `Directory not ready, proceeding anyway: ${err}`);
         }
 
         // Write the resolved source file
         writeFileSync(outPath, resolvedSrc, 'utf8');
-        console.log(`Resolved song written to: ${outPath}`);
+        log.debug(`Resolved song written to: ${outPath}`);
 
         // Wait for Vite server to be ready before opening browser
         try {
           await waitForViteServer('http://localhost:5173', 10000);
-          console.log('Vite dev server is ready');
+          log.debug('Vite dev server is ready');
         } catch (err) {
           warn('engine', `Vite server may not be ready: ${err}`);
-          console.log('Waiting additional 2 seconds before opening browser...');
+          log.debug('Waiting additional 2 seconds before opening browser...');
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         // Open browser
         const url = `http://localhost:5173/?song=/songs/${encodeURIComponent(basename)}`;
-        console.log('Opening web UI at', url);
+        log.info('Opening web UI at', url);
 
         // Open default browser (cross-platform)
         const platform = process.platform;
@@ -318,26 +321,26 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           child.exec(cmd, (err: any) => {
             if (err) {
               error('engine', 'Failed to open browser: ' + (err.message ?? String(err)));
-              console.log('Please open the URL in your browser:', url);
+              log.info('Please open the URL in your browser:', url);
             }
           });
         } catch (e) {
-          console.log('Please open the URL in your browser:', url);
+          log.info('Please open the URL in your browser:', url);
         }
       } catch (err) {
         error('engine', 'Failed to launch browser-based playback: ' + (err && (err as any).message ? (err as any).message : String(err)));
-        console.log('Please run manually: cd apps/web-ui && npm run dev');
+        log.info('Please run manually: cd apps/web-ui && npm run dev');
       }
     } else {
       // Default: show helpful message instead of auto-launching
-      console.log('\n[!] CLI playback not available in Node.js environment.');
-      console.log('\nPlayback options:');
-      console.log(`  - Browser playback: node bin/beatbax play ${path} --browser`);
-      console.log(`  - Headless playback: node bin/beatbax play ${path} --headless`);
-      console.log(`  - Direct command: node packages/cli/dist/cli.js play ${path} --headless`);
-      console.log('  - Web UI: cd apps/web-ui && npm run dev (then load your song)');
-      console.log('\nNote: Use direct node commands rather than npm scripts for flag arguments');
-      console.log('      (npm strips flags like --headless due to argument passing limitations)\n');
+      log.info('\n[!] CLI playback not available in Node.js environment.');
+      log.info('\nPlayback options:');
+      log.info(`  - Browser playback: node bin/beatbax play ${path} --browser`);
+      log.info(`  - Headless playback: node bin/beatbax play ${path} --headless`);
+      log.info(`  - Direct command: node packages/cli/dist/cli.js play ${path} --headless`);
+      log.info('  - Web UI: cd apps/web-ui && npm run dev (then load your song)');
+      log.info('\nNote: Use direct node commands rather than npm scripts for flag arguments');
+      log.info('      (npm strips flags like --headless due to argument passing limitations)\n');
       process.exitCode = 1;
     }
   }

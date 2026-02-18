@@ -4,11 +4,14 @@ import path from 'path';
 import { parse } from '../src/parser/index';
 import { exportJSON } from '../src/export/jsonExport';
 import exportUGE from '../src/export/ugeWriter';
+import { configureLogging } from '../src/util/logger';
 
 const SONG_PATH = path.resolve(__dirname, '../../../songs/features/panning_demo.bax');
 
 describe('UGE pan 8xx placement', () => {
   test('writes 8xx only on rows with note onsets (or initial row)', async () => {
+    // Configure logger for test
+    configureLogging({ level: 'debug', modules: ['export:uge'] });
     const src = fs.readFileSync(SONG_PATH, 'utf8');
     const ast = parse(src as any);
     const tempJson = path.join(os.tmpdir(), `panning_demo_${Date.now()}.json`);

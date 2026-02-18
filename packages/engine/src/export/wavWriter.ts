@@ -5,6 +5,9 @@
 import { SongModel } from '../song/songModel.js';
 import { renderSongToPCM, RenderOptions } from '../audio/pcmRenderer.js';
 import { warn } from '../util/diag.js';
+import { createLogger } from '../util/logger.js';
+
+const log = createLogger('export:wav');
 
 export interface WavOptions {
   sampleRate: number;
@@ -87,14 +90,14 @@ export async function exportWAV(samples: Float32Array, outputPath: string, opts:
   const verbose = metaOpts && metaOpts.verbose === true;
   const wavBuffer = writeWAV(samples, opts);
   if (metaOpts?.debug) {
-    console.log(`[DEBUG] WAV: ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch`);
+    log.debug(`WAV: ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch`);
   }
   writeFileSync(outputPath, wavBuffer);
   if (verbose) {
     const durationSec = (samples.length / opts.channels / opts.sampleRate).toFixed(2);
     const sizeKB = (wavBuffer.length / 1024).toFixed(2);
-    console.log(`Export complete: ${wavBuffer.length.toLocaleString()} bytes (${sizeKB} KB) written`);
-    console.log(`  Duration: ${durationSec}s @ ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch`);
+    log.info(`Export complete: ${wavBuffer.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+    log.info(`  Duration: ${durationSec}s @ ${opts.sampleRate}Hz, ${opts.bitDepth}-bit, ${opts.channels}ch`);
   }
 }
 
@@ -106,8 +109,8 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
   const sampleRate = options.sampleRate || 44100;
 
   if (verbose) {
-    console.log(`Exporting to WAV (PCM audio): ${outputPath}`);
-    console.log('  Rendering audio...');
+    log.info(`Exporting to WAV (PCM audio): ${outputPath}`);
+    log.info('  Rendering audio...');
   }
 
   const samples = renderSongToPCM(song, {
@@ -124,7 +127,7 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
       left += Math.abs(samples[i * 2 + 0]);
       right += Math.abs(samples[i * 2 + 1]);
     }
-    console.log(`[DEBUG] WAV pre-write: frames=${frames} leftSum=${left.toFixed(6)} rightSum=${right.toFixed(6)}`);
+    log.debug(`WAV pre-write: frames=${frames} leftSum=${left.toFixed(6)} rightSum=${right.toFixed(6)}`);
     if (Math.abs(left - right) < 1e-9) {
       warn('export', 'left and right channel energy appear identical — check panning/resolution');
     }
