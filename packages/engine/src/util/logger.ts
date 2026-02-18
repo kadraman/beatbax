@@ -54,8 +54,18 @@ let config: LoggerConfig = {
 const moduleSet = new Set<string>();
 
 const levelOrder: LogLevel[] = ['none', 'error', 'warn', 'info', 'debug'];
+const validLevels = new Set<string>(levelOrder);
 
 // ---------- Configuration ----------
+
+/**
+ * Validate and return a log level, or return undefined if invalid.
+ */
+function parseLogLevel(value: string | null | undefined): LogLevel | undefined {
+  if (!value) return undefined;
+  if (validLevels.has(value)) return value as LogLevel;
+  return undefined;
+}
 
 /**
  * Configure global logging settings.
@@ -72,9 +82,14 @@ const levelOrder: LogLevel[] = ['none', 'error', 'warn', 'info', 'debug'];
  */
 export function configureLogging(opts: Partial<LoggerConfig>): void {
   config = { ...config, ...opts };
-  if (opts.modules) {
+
+  // If modules key is present (even if undefined/[]), rebuild moduleSet from merged config
+  // This allows explicit clearing: configureLogging({ modules: [] }) or { modules: undefined }
+  if ('modules' in opts) {
     moduleSet.clear();
-    opts.modules.forEach(m => moduleSet.add(m));
+    if (config.modules && config.modules.length > 0) {
+      config.modules.forEach(m => moduleSet.add(m));
+    }
   }
 
   // Only log configuration message if at info level or higher
@@ -86,22 +101,27 @@ export function configureLogging(opts: Partial<LoggerConfig>): void {
 
 /**
  * Load logging configuration from localStorage (browser only).
- * Looks for keys: beatbax.loglevel, beatbax.modules, beatbax.webaudio
+ * Looks for keys: beatbax:loglevel, beatbax:debug, beatbax:logcolor
  */
 export function loadLoggingFromStorage(): void {
   if (typeof localStorage === 'undefined') return;
 
   try {
-    const level = localStorage.getItem('beatbax.loglevel') as LogLevel | null;
-    const modulesStr = localStorage.getItem('beatbax.modules');
+    const levelStr = localStorage.getItem('beatbax:loglevel');
+    const level = parseLogLevel(levelStr);
+    const modulesStr = localStorage.getItem('beatbax:debug');
     const modules = modulesStr ? modulesStr.split(',').map(m => m.trim()) : undefined;
-    const webaudio = localStorage.getItem('beatbax.webaudio') === '1';
+    const colorStr = localStorage.getItem('beatbax:logcolor');
+    const colorize = colorStr === 'true' ? true : colorStr === 'false' ? false : undefined;
+    const webaudioStr = localStorage.getItem('beatbax:webaudio');
+    const webaudioTrace = webaudioStr === 'true' ? true : webaudioStr === 'false' ? false : undefined;
 
-    if (level || modules || webaudio) {
+    if (level || modules || colorize !== undefined || webaudioTrace !== undefined) {
       configureLogging({
         level: level ?? config.level,
         modules,
-        webaudioTrace: webaudio
+        colorize: colorize ?? config.colorize,
+        webaudioTrace: webaudioTrace ?? config.webaudioTrace
       });
     }
   } catch (e) {
@@ -110,24 +130,49 @@ export function loadLoggingFromStorage(): void {
 }
 
 /**
+ * Save current logging configuration to localStorage (browser only).
+ */
+export function saveLoggingToStorage(): void {
+  if (typeof localStorage === 'undefined') return;
+
+  try {
+    localStorage.setItem('beatbax:loglevel', config.level);
+    if (config.modules && config.modules.length > 0) {
+      localStorage.setItem('beatbax:debug', config.modules.join(','));
+    } else {
+      localStorage.removeItem('beatbax:debug');
+    }
+    localStorage.setItem('beatbax:logcolor', String(config.colorize));
+    localStorage.setItem('beatbax:webaudio', String(config.webaudioTrace));
+  } catch (e) {
+    // Silently fail if localStorage is unavailable
+  }
+}
+
+/**
  * Load logging configuration from URL query parameters (browser only).
- * Supports: ?loglevel=debug&debug=player,sequencer&webaudio=1
+ * Supports: ?loglevel=debug&debug=player,sequencer&logcolor=true
  */
 export function loadLoggingFromURL(): void {
   if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return;
 
   try {
     const params = new URLSearchParams(window.location.search);
-    const level = params.get('loglevel') as LogLevel | null;
+    const levelStr = params.get('loglevel');
+    const level = parseLogLevel(levelStr);
     const modulesStr = params.get('debug');
     const modules = modulesStr ? modulesStr.split(',').map(m => m.trim()) : undefined;
-    const webaudioTrace = params.get('webaudio') === '1';
+    const colorStr = params.get('logcolor');
+    const colorize = colorStr === 'true' ? true : colorStr === 'false' ? false : undefined;
+    const webaudioStr = params.get('webaudio');
+    const webaudioTrace = webaudioStr === 'true' || webaudioStr === '1' ? true : webaudioStr === 'false' || webaudioStr === '0' ? false : undefined;
 
-    if (level || modules || webaudioTrace) {
+    if (level || modules || colorize !== undefined || webaudioTrace !== undefined) {
       configureLogging({
         level: level ?? config.level,
         modules,
-        webaudioTrace
+        colorize: colorize ?? config.colorize,
+        webaudioTrace: webaudioTrace ?? config.webaudioTrace
       });
     }
   } catch (e) {
@@ -297,9 +342,12 @@ export function traceDisconnect(node: AudioNode): void {
 declare global {
   interface Window {
     beatbaxDebug?: {
-      enable: (level?: LogLevel, modules?: string[]) => void;
-      disable: () => void;
-      webaudio: (on?: boolean) => void;
+      setLevel: (level: LogLevel) => void;
+      enable: (...modules: string[]) => void;
+      disable: (...modules: string[]) => void;
+      reset: () => void;
+      webaudio: (enabled: boolean) => void;
+      colorize: (enabled: boolean) => void;
       config: () => LoggerConfig;
     };
   }
@@ -308,40 +356,90 @@ declare global {
 if (typeof window !== 'undefined') {
   window.beatbaxDebug = {
     /**
-     * Enable debug logging.
-     * @example window.beatbaxDebug.enable('debug', ['player', 'sequencer'])
+     * Set global log level (applies immediately, no reload).
+     * @example window.beatbaxDebug.setLevel('debug')
      */
-    enable(level: LogLevel = 'debug', modules?: string[]) {
+    setLevel(level: LogLevel) {
+      if (!validLevels.has(level)) {
+        console.warn(`[BeatBax] Invalid log level: "${level}". Valid levels: ${levelOrder.join(', ')}`);
+        return;
+      }
+      configureLogging({ level });
+      saveLoggingToStorage();
+    },
+
+    /**
+     * Enable debug logging for specific modules (applies immediately, no reload).
+     * If no modules specified, enables all modules.
+     * @example window.beatbaxDebug.enable('player', 'ui', 'sequencer')
+     */
+    enable(...modules: string[]) {
+      if (modules.length === 0) {
+        // Enable all modules
+        configureLogging({ modules: undefined });
+      } else {
+        // Merge with existing modules
+        const currentModules = config.modules ? [...config.modules] : [];
+        const allModules = [...new Set([...currentModules, ...modules])];
+        configureLogging({ modules: allModules });
+      }
+      saveLoggingToStorage();
+    },
+
+    /**
+     * Disable specific modules or all if none specified (applies immediately, no reload).
+     * @example window.beatbaxDebug.disable('parser')
+     * @example window.beatbaxDebug.disable() // Disable all module filtering
+     */
+    disable(...modules: string[]) {
+      if (modules.length === 0) {
+        // Disable all module filtering
+        configureLogging({ modules: undefined });
+      } else {
+        // Remove specified modules from current list
+        const currentModules = config.modules ? [...config.modules] : [];
+        const remainingModules = currentModules.filter(m => !modules.includes(m));
+        configureLogging({ modules: remainingModules.length > 0 ? remainingModules : undefined });
+      }
+      saveLoggingToStorage();
+    },
+
+    /**
+     * Reset to default configuration (applies immediately, no reload).
+     * @example window.beatbaxDebug.reset()
+     */
+    reset() {
+      configureLogging({
+        level: 'error',
+        modules: undefined,
+        timestamps: true,
+        webaudioTrace: false,
+        colorize: typeof window !== 'undefined',
+      });
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('beatbax.loglevel', level);
-        if (modules) {
-          localStorage.setItem('beatbax.modules', modules.join(','));
-        }
-        window.location.reload();
+        localStorage.removeItem('beatbax:loglevel');
+        localStorage.removeItem('beatbax:debug');
+        localStorage.removeItem('beatbax:logcolor');
+        localStorage.removeItem('beatbax:webaudio');
       }
     },
 
     /**
-     * Disable debug logging (revert to default error-only).
-     * @example window.beatbaxDebug.disable()
-     */
-    disable() {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('beatbax.loglevel');
-        localStorage.removeItem('beatbax.modules');
-        window.location.reload();
-      }
-    },
-
-    /**
-     * Enable/disable WebAudio tracing.
+     * Enable/disable WebAudio tracing (applies immediately, no reload).
      * @example window.beatbaxDebug.webaudio(true)
      */
-    webaudio(on = true) {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('beatbax.webaudio', on ? '1' : '0');
-        window.location.reload();
-      }
+    webaudio(enabled: boolean) {
+      configureLogging({ webaudioTrace: enabled });
+      saveLoggingToStorage();
+    },
+
+    /**
+     * Enable/disable colorization (applies immediately, no reload).
+     * @example window.beatbaxDebug.colorize(true)
+     */
+    colorize(enabled: boolean) {
+      configureLogging({ colorize: enabled });
+      saveLoggingToStorage();
     },
 
     /**

@@ -115,9 +115,9 @@ configureLogging({
 
 ```javascript
 // Enable debug logging (persists across page loads)
-localStorage.setItem('beatbax.loglevel', 'debug');
-localStorage.setItem('beatbax.modules', 'player,sequencer');
-localStorage.setItem('beatbax.webaudio', '1');
+localStorage.setItem('beatbax:loglevel', 'debug');
+localStorage.setItem('beatbax:debug', 'player,sequencer');
+localStorage.setItem('beatbax:webaudio', 'true');
 location.reload();
 ```
 
@@ -125,8 +125,8 @@ location.reload();
 
 ```javascript
 // Global debug helpers (available in browser console)
-window.beatbaxDebug.enable('debug', ['player', 'sequencer']);
-window.beatbaxDebug.disable();
+window.beatbaxDebug.setLevel('debug');
+window.beatbaxDebug.enable('player', 'sequencer');
 window.beatbaxDebug.webaudio(true);
 window.beatbaxDebug.config(); // View current config
 ```
@@ -146,6 +146,7 @@ Control logging via URL query parameters - useful for sharing debug links or tes
 | `loglevel` | `none`, `error`, `warn`, `info`, `debug` | Set global log level | `?loglevel=debug` |
 | `debug` | Comma-separated module names | Enable debug mode for specific modules | `?debug=player,ui` |
 | `logcolor` | `true`, `false` | Enable/disable color output | `?logcolor=true` |
+| `webaudio` | `true`, `false`, `1`, `0` | Enable/disable WebAudio tracing | `?webaudio=true` |
 
 **Usage Examples:**
 
@@ -184,6 +185,7 @@ Logger configuration persists across browser sessions using localStorage. This a
 - `beatbax:loglevel` - Global log level (none/error/warn/info/debug)
 - `beatbax:debug` - Comma-separated list of enabled modules
 - `beatbax:logcolor` - Enable colorization (true/false)
+- `beatbax:webaudio` - Enable WebAudio tracing (true/false)
 
 **Usage:**
 
@@ -207,6 +209,7 @@ function handleUserConfigChange(level: string, modules: string[]) {
 localStorage.setItem('beatbax:loglevel', 'debug');
 localStorage.setItem('beatbax:debug', 'player,ui,sequencer');
 localStorage.setItem('beatbax:logcolor', 'true');
+localStorage.setItem('beatbax:webaudio', 'true');
 ```
 
 **Configuration Priority:**
@@ -701,6 +704,7 @@ window.beatbaxDebug.webaudio(true);             // Trace WebAudio graph
 localStorage.setItem('beatbax:loglevel', 'debug');           // Global level
 localStorage.setItem('beatbax:debug', 'player,ui');          // Module filter
 localStorage.setItem('beatbax:logcolor', 'true');            // Colorization
+localStorage.setItem('beatbax:webaudio', 'true');            // WebAudio tracing
 ```
 
 ### CLI Usage
