@@ -1,5 +1,17 @@
 # @beatbax/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 94ae630: Implements a production-ready centralized logging system for BeatBax engine and CLI
+
+### Patch Changes
+
+- Updated dependencies [94ae630]
+- Updated dependencies [94ae630]
+  - @beatbax/engine@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes
