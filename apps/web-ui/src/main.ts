@@ -1,6 +1,9 @@
 import { parse } from '@beatbax/engine/parser';
 import Player from '@beatbax/engine/audio/playback';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui');
 
 // Helper to format parse errors with file location information
 function formatParseError(err: any, filename?: string): string {
@@ -22,7 +25,7 @@ function formatParseError(err: any, filename?: string): string {
 }
 
 // Core demo wiring (adapted from demo/boot.ts)
-console.log('[web-ui] main module loaded');
+log.debug('main module loaded');
 const fileInput = document.getElementById('file') as HTMLInputElement | null;
 const srcArea = document.getElementById('src') as HTMLTextAreaElement | null;
 const playBtn = document.getElementById('play') as HTMLButtonElement | null;
@@ -50,10 +53,10 @@ let currentErrors: Array<{ message: string; loc?: any }> = []; // Track displaye
 
 // Error display functions
 function showErrors(errors: Array<{ message: string; loc?: any }>) {
-  console.log('[web-ui] showErrors called with', errors.length, 'errors');
+  log.debug('showErrors called with', errors.length, 'errors');
 
   if (!errorsPanel || !errorsList) {
-    console.warn('[web-ui] Error elements not found in DOM');
+    log.warn('Error elements not found in DOM');
     return;
   }
   if (errors.length === 0) {
@@ -101,11 +104,11 @@ clearErrorsBtn?.addEventListener('click', clearErrors);
 
 // Warning display functions
 function showWarnings(warnings: Array<{ component: string; message: string; file?: string; loc?: any }>) {
-  console.log('[web-ui] showWarnings called with', warnings.length, 'warnings');
-  console.log('[web-ui] warningsPanel:', !!warningsPanel, 'warningsList:', !!warningsList);
+  log.debug('showWarnings called with', warnings.length, 'warnings');
+  log.debug('warningsPanel:', !!warningsPanel, 'warningsList:', !!warningsList);
 
   if (!warningsPanel || !warningsList) {
-    console.warn('[web-ui] Warning elements not found in DOM');
+    log.warn('Warning elements not found in DOM');
     return;
   }
   if (warnings.length === 0) {
@@ -129,7 +132,7 @@ function showWarnings(warnings: Array<{ component: string; message: string; file
     warningsList.appendChild(div);
   }
 
-  console.log('[web-ui] Setting warningsPanel display to block');
+  log.debug('Setting warningsPanel display to block');
   warningsPanel.style.display = 'block';
 }
 
@@ -327,7 +330,7 @@ function validateAST(ast: any): Array<{ component: string; message: string; loc?
 
 // quick debug: report that DOM nodes were found
 try {
-  console.log('[web-ui] elements', {
+  log.debug('elements', {
     fileInput: !!fileInput,
     srcArea: !!srcArea,
     playBtn: !!playBtn,
@@ -338,7 +341,7 @@ try {
 
 // Add a minimal click-only listener so we can confirm the Play button fires
 playBtn?.addEventListener('click', () => {
-  console.log('[web-ui] Play button clicked (debug handler)');
+  log.debug('Play button clicked (debug handler)');
 });
 
 // Active indicator CSS
@@ -417,7 +420,7 @@ async function autoLoadFromQuery() {
     try { await loadHelpFromText(t); applyPersistedShow(); } catch (e) {}
     try { const ast = parse(t); currentAST = ast; renderChannelControls(ast); } catch (e) {}
     if (autoplay === '1') playBtn?.click();
-  } catch (e) { console.warn('autoLoadFromQuery failed', e); }
+  } catch (e) { log.warn('autoLoadFromQuery failed', e); }
 }
 
 autoLoadFromQuery();
@@ -441,7 +444,7 @@ document.getElementById('loadExample')?.addEventListener('click', async () => {
 });
 
 playBtn?.addEventListener('click', async () => {
-  console.log('[web-ui] Play handler start');
+  log.debug('Play handler start');
   clearErrors();
   clearWarnings();
   const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
@@ -449,14 +452,14 @@ playBtn?.addEventListener('click', async () => {
   try {
     status && (status.textContent = 'Parsing...');
     const src = srcArea ? srcArea.value : '';
-    console.log('[web-ui] source length', src.length);
+    log.debug('source length', src.length);
     const ast = parse(src);
-    console.log('[web-ui] parsed AST', ast && typeof ast === 'object' ? Object.keys(ast) : typeof ast);
-    console.log('[web-ui] AST imports:', (ast as any).imports);
-    console.log('[web-ui] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
-    console.log('[web-ui] source preview:\n', String(src).slice(0, 800));
+    log.debug('parsed AST', ast && typeof ast === 'object' ? Object.keys(ast) : typeof ast);
+    log.debug('AST imports:', (ast as any).imports);
+    log.debug('AST instruments before resolve:', Object.keys((ast as any).insts || {}));
+    log.debug('source preview:\n', String(src).slice(0, 800));
 
-    console.log('[web-ui] Calling resolveSong...');
+    log.debug('Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -467,9 +470,9 @@ playBtn?.addEventListener('click', async () => {
             warnings.push({ component: 'import-resolver', message, loc });
           },
         });
-        console.log('[web-ui] Imports resolved, instruments:', Object.keys((resolvedAST as any).insts || {}));
+        log.debug('Imports resolved, instruments:', Object.keys((resolvedAST as any).insts || {}));
       } catch (importErr: any) {
-        console.error('[web-ui] Import resolution failed:', importErr);
+        log.error('Import resolution failed:', importErr);
         // Import errors are critical - show in error panel
         showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
         status && (status.textContent = 'Failed');
@@ -483,11 +486,11 @@ playBtn?.addEventListener('click', async () => {
     warnings.push(...validationWarnings);
 
     const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    console.log('[web-ui] Resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
-    console.log('[web-ui] Resolved AST instruments after resolve:', Object.keys((resolved as any).insts || {}));
+    log.debug('Resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
+    log.debug('Resolved AST instruments after resolve:', Object.keys((resolved as any).insts || {}));
     if ((resolved as any).channels) {
       for (const ch of (resolved as any).channels) {
-        console.log('[web-ui] channel', ch.id, 'events=', (ch.events || ch.pat || []).length);
+        log.debug('channel', ch.id, 'events=', (ch.events || ch.pat || []).length);
       }
     }
 
@@ -501,24 +504,24 @@ playBtn?.addEventListener('click', async () => {
     // Ensure AudioContext is resumed within user gesture
     try {
       if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        console.log('[web-ui] resuming AudioContext');
+        log.debug('resuming AudioContext');
         await player.ctx.resume();
-        console.log('[web-ui] AudioContext state after resume=', player.ctx.state);
+        log.debug('AudioContext state after resume=', player.ctx.state);
       }
-    } catch (e) { console.warn('resume failed', e); }
+    } catch (e) { log.warn('resume failed', e); }
     // log scheduling events
     const prevHook = (player as any).onSchedule;
     (player as any).onSchedule = function (args: any) {
-      try { console.log('[web-ui] onSchedule', args); } catch (e) {}
+      try { log.debug('onSchedule', args); } catch (e) {}
       try { if (typeof prevHook === 'function') prevHook(args); } catch (e) {}
     };
     attachScheduleHook(player);
     renderChannelControls(ast);
-    console.log('[web-ui] calling player.playAST');
+    log.debug('calling player.playAST');
     if ((resolved as any).channels && (resolved as any).channels.length > 0) {
       await player.playAST(resolved as any);
     } else {
-      console.warn('[web-ui] resolved ISM contains no channels — using fallback test AST to verify audio');
+      log.warn('resolved ISM contains no channels — using fallback test AST to verify audio');
       const testAst: any = {
         chip: 'gameboy',
         bpm: 128,
@@ -527,11 +530,11 @@ playBtn?.addEventListener('click', async () => {
       };
       await player.playAST(testAst);
     }
-    console.log('[web-ui] player.playAST returned');
+    log.debug('player.playAST returned');
     status && (status.textContent = 'Playing');
     if (exportWavBtn) exportWavBtn.disabled = false;
   } catch (e: any) {
-    console.error('[web-ui] Play handler error', e);
+    log.error('Play handler error', e);
     const errorMsg = formatParseError(e);
     // Show error prominently in errors panel
     showErrors([{ message: errorMsg }]);
@@ -545,7 +548,7 @@ stopBtn?.addEventListener('click', () => {
     const p = (window as any).__beatbax_player || player;
     if (p && typeof p.stop === 'function') p.stop();
     status && (status.textContent = 'Stopped');
-  } catch (e) { console.error(e); status && (status.textContent = 'Error stopping playback'); }
+  } catch (e) { log.error(e); status && (status.textContent = 'Error stopping playback'); }
 });
 
 applyBtn?.addEventListener('click', async () => {
@@ -559,8 +562,8 @@ applyBtn?.addEventListener('click', async () => {
     status && (status.textContent = 'Applying...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
-    console.log('[web-ui][apply] AST imports:', (ast as any).imports);
-    console.log('[web-ui][apply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
+    log.debug('[apply] AST imports:', (ast as any).imports);
+    log.debug('[apply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
 
     currentAST = ast;
     renderChannelControls(ast);
@@ -568,12 +571,12 @@ applyBtn?.addEventListener('click', async () => {
     (window as any).__beatbax_player = player;
     try {
       if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        console.log('[web-ui] resuming AudioContext (apply)');
+        log.debug('resuming AudioContext (apply)');
         await player.ctx.resume();
       }
-    } catch (e) { console.warn('resume failed during apply', e); }
+    } catch (e) { log.warn('resume failed during apply', e); }
     attachScheduleHook(player);
-    console.log('[web-ui][apply] Calling resolveSong...');
+    log.debug('[apply] Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -585,7 +588,7 @@ applyBtn?.addEventListener('click', async () => {
           },
         });
       } catch (importErr: any) {
-        console.error('[web-ui][apply] Import resolution failed:', importErr);
+        log.error('[apply] Import resolution failed:', importErr);
         // Import errors are critical - show in error panel
         showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
         status && (status.textContent = 'Failed');
@@ -599,17 +602,17 @@ applyBtn?.addEventListener('click', async () => {
     warnings.push(...validationWarnings);
 
     const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    console.log('[web-ui][apply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
+    log.debug('[apply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
 
     // Show warnings if any
     showWarnings(warnings);
 
-    console.log('[web-ui] apply: calling player.playAST');
+    log.debug('apply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing');
     if (exportWavBtn) exportWavBtn.disabled = false;
   } catch (e: any) {
-    console.error(e);
+    log.error(e);
     const errorMsg = formatParseError(e);
     showErrors([{ message: errorMsg }]);
     status && (status.textContent = 'Failed');
@@ -654,7 +657,7 @@ exportWavBtn?.addEventListener('click', async () => {
           try {
             ev.fn();
           } catch (e) {
-            console.error('Scheduled function error', e);
+            log.error('Scheduled function error', e);
           }
         }
       };
@@ -683,7 +686,7 @@ exportWavBtn?.addEventListener('click', async () => {
 
     status && (status.textContent = 'WAV exported!');
   } catch (e: any) {
-    console.error('Export error:', e);
+    log.error('Export error:', e);
     const errorMsg = formatParseError(e);
     status && (status.textContent = errorMsg);
   }
@@ -766,8 +769,8 @@ const liveApply = debounce(async () => {
     status && (status.textContent = 'Applying (live)...');
     const src = srcArea ? srcArea.value : '';
     const ast = parse(src);
-    console.log('[web-ui][liveApply] AST imports:', (ast as any).imports);
-    console.log('[web-ui][liveApply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
+    log.debug('[liveApply] AST imports:', (ast as any).imports);
+    log.debug('[liveApply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
 
     currentAST = ast;
     renderChannelControls(ast);
@@ -775,12 +778,12 @@ const liveApply = debounce(async () => {
     (window as any).__beatbax_player = player;
     try {
       if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        console.log('[web-ui] resuming AudioContext (liveApply)');
+        log.debug('resuming AudioContext (liveApply)');
         await player.ctx.resume();
       }
-    } catch (e) { console.warn('resume failed during live apply', e); }
+    } catch (e) { log.warn('resume failed during live apply', e); }
     attachScheduleHook(player);
-    console.log('[web-ui][liveApply] Calling resolveSong...');
+    log.debug('[liveApply] Calling resolveSong...');
 
     // Resolve imports first to get updated AST with all instruments
     let resolvedAST = ast;
@@ -792,7 +795,7 @@ const liveApply = debounce(async () => {
           },
         });
       } catch (importErr: any) {
-        console.error('[web-ui][liveApply] Import resolution failed:', importErr);
+        log.error('[liveApply] Import resolution failed:', importErr);
         // Import errors are critical - show in error panel
         showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
         status && (status.textContent = 'Live Failed');
@@ -806,17 +809,17 @@ const liveApply = debounce(async () => {
     warnings.push(...validationWarnings);
 
     const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    console.log('[web-ui][liveApply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
+    log.debug('[liveApply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
 
     // Show warnings if any
     showWarnings(warnings);
 
-    console.log('[web-ui] liveApply: calling player.playAST');
+    log.debug('liveApply: calling player.playAST');
     await player.playAST(resolved as any);
     status && (status.textContent = 'Playing (live)');
     if (exportWavBtn) exportWavBtn.disabled = false;
   } catch (e: any) {
-    console.error(e);
+    log.error(e);
     const errorMsg = e && e.message ? e.message : String(e);
     showErrors([{ message: errorMsg }]);
     status && (status.textContent = 'Live Failed');

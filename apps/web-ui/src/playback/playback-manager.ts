@@ -7,6 +7,9 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import Player from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui:playback');
 
 export interface PlaybackState {
   isPlaying: boolean;
@@ -149,7 +152,7 @@ export class PlaybackManager {
 
       this.eventBus.emit('playback:stopped', undefined);
     } catch (error) {
-      console.error('Error stopping playback:', error);
+      log.error('Error stopping playback:', error);
     }
   }
 

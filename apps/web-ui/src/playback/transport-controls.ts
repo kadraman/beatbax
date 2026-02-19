@@ -5,6 +5,9 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { PlaybackManager } from './playback-manager';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui:transport-controls');
 
 export type TransportState = 'stopped' | 'playing' | 'paused';
 
@@ -149,7 +152,7 @@ export class TransportControls {
       const source = this.getSource();
       await this.playbackManager.play(source);
     } catch (error) {
-      console.error('Playback failed:', error);
+      log.error('Playback failed:', error);
       // Error is already emitted by PlaybackManager
     } finally {
       // Re-enable button
@@ -166,7 +169,7 @@ export class TransportControls {
       try {
         await this.playbackManager.pause();
       } catch (error) {
-        console.error('Pause failed:', error);
+        log.error('Pause failed:', error);
       }
       return;
     }
@@ -176,7 +179,7 @@ export class TransportControls {
       try {
         await this.playbackManager.resume();
       } catch (error) {
-        console.error('Resume failed:', error);
+        log.error('Resume failed:', error);
       }
       return;
     }
