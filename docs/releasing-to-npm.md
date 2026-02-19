@@ -328,7 +328,7 @@ After publishing, update `@beatbax/web-ui` or external projects:
 
 ```bash
 cd apps/web-ui
-npm install @beatbax/engine@latest @beatbax/cli@latest
+npm install @beatbax/engine@latest
 ```
 
 Or specify exact versions in `package.json`:

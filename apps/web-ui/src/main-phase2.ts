@@ -20,11 +20,14 @@ import { TransportControls } from './playback/transport-controls';
 import { ChannelState } from './playback/channel-state';
 import { OutputPanel } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui');
 
 // Debug flag controlled by localStorage
 const DEBUG = typeof localStorage !== 'undefined' && localStorage.getItem('beatbax-debug') === 'true';
 
-if (DEBUG) console.log('[web-ui-phase2] Initializing Phase 2 - building on Phase 1 with 3-pane layout...');
+if (DEBUG) log.debug('Initializing BeatBax Web UI - Phase 2');
 
 // Make eventBus globally accessible
 (window as any).__beatbax_eventBus = eventBus;
@@ -42,7 +45,7 @@ function getInitialContent(): string {
     const saved = localStorage.getItem('beatbax-editor-content');
     if (saved) return saved;
   } catch (e) {
-    console.warn('Failed to load saved content:', e);
+    log.warn('Failed to load saved content:', e);
   }
 
   return `# BeatBax Phase 2 - Monaco Editor + Playback Components
@@ -270,13 +273,13 @@ eventBus.on('editor:changed', ({ content }) => {
         applyBtn.dispatchEvent(applyBtnClickEvent);
       } catch (e) {
         // Parse error - don't auto-apply
-      if (DEBUG) console.log('[live-play] Skipping auto-apply due to parse error');
+      if (DEBUG) log.debug('[live-play] Skipping auto-apply due to parse error');
       }
     }
   }, 500);
 });
 
-if (DEBUG) console.log('[web-ui-phase2] All Phase 2 components initialized');
+if (DEBUG) log.debug('All components initialized');
 
 // ============================================================================
 // VALIDATION (from Phase 1 - FULL VERSION)
@@ -594,7 +597,7 @@ loadExampleBtn.addEventListener('click', async () => {
     editor.setValue(content);
     eventBus.emit('editor:changed', { content });
   } catch (error) {
-    console.error('Failed to load example:', error);
+    log.error('Failed to load example:', error);
     outputPanel.addMessage({
       type: 'error',
       message: 'Failed to load example file',
@@ -1006,9 +1009,9 @@ eventBus.on('playback:stopped', () => {
   stopPlaybackVisualization();
 });
 
-if (DEBUG) console.log('[web-ui-phase2] Phase 2 setup complete! Monaco editor + Phase 2 components integrated.');
-console.log('[web-ui-phase2] Keyboard shortcuts: Space = Play/Pause, Escape = Stop, Ctrl+Enter = Apply & Play');
-console.log('[web-ui-phase2] Debug mode: Set localStorage.setItem("beatbax-debug", "true") and reload to see detailed logs');
+if (DEBUG) log.debug('Phase 2 setup complete! Monaco editor + Phase 2 components integrated.');
+log.info('Keyboard shortcuts: Space = Play/Pause, Escape = Stop, Ctrl+Enter = Apply & Play');
+log.info('Debug mode: Set localStorage.setItem("beatbax-debug", "true") and reload to see detailed logs');
 
 // Parse and display initial content on page load
 try {
@@ -1037,7 +1040,7 @@ try {
     eventBus.emit('validation:warnings', { warnings: allWarnings });
   }
 } catch (err) {
-  console.warn('[web-ui-phase2] Could not parse initial content:', err);
+  log.warn('Could not parse initial content:', err);
   // Clear any stale warnings
   eventBus.emit('validation:warnings', { warnings: [] });
 }

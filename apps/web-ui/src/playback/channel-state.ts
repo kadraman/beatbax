@@ -5,6 +5,9 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type Player from '@beatbax/engine/audio/playback';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui:channel-state');
 
 export interface ChannelInfo {
   id: number;
@@ -56,7 +59,7 @@ export class ChannelState {
         }
       }
     } catch (error) {
-      console.warn('Failed to load channel state:', error);
+      log.warn('Failed to load channel state:', error);
     }
   }
 
@@ -71,7 +74,7 @@ export class ChannelState {
       }
       localStorage.setItem(this.storageKey, JSON.stringify(state));
     } catch (error) {
-      console.warn('Failed to save channel state:', error);
+      log.warn('Failed to save channel state:', error);
     }
   }
 
@@ -218,7 +221,7 @@ export class ChannelState {
    */
   applyToPlayer(player: Player | null): void {
     if (!player) {
-      console.warn('[ChannelState] applyToPlayer called with null player');
+      log.warn('applyToPlayer called with null player');
       return;
     }
 
