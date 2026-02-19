@@ -3,12 +3,14 @@
  */
 
 import { EventBus } from '../src/utils/event-bus';
+import { createLogger } from '@beatbax/engine/util/logger';
 
 describe('EventBus', () => {
   let bus: EventBus;
 
   beforeEach(() => {
     bus = new EventBus();
+    jest.clearAllMocks(); // Clear mock call history between tests
   });
 
   afterEach(() => {
@@ -162,7 +164,8 @@ describe('EventBus', () => {
 
   describe('error handling', () => {
     it('should catch and log errors in callbacks', () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      // Get the mocked logger that EventBus uses
+      const log = createLogger('ui:event-bus');
       const callback1 = jest.fn(() => {
         throw new Error('callback error');
       });
@@ -175,9 +178,7 @@ describe('EventBus', () => {
       
       expect(callback1).toHaveBeenCalled();
       expect(callback2).toHaveBeenCalled(); // Should still be called
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      
-      consoleErrorSpy.mockRestore();
+      expect(log.error).toHaveBeenCalled();
     });
   });
 

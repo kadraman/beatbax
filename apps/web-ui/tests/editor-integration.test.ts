@@ -8,6 +8,7 @@ import { createEditor, registerBeatBaxLanguage, configureMonaco } from '../src/e
 import { createDiagnosticsManager, setupDiagnosticsIntegration } from '../src/editor/diagnostics';
 import { createLayout } from '../src/ui/layout';
 import * as monaco from 'monaco-editor';
+import { createLogger } from '@beatbax/engine/util/logger';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -47,7 +48,7 @@ describe('Editor Integration', () => {
     // Clear localStorage
     localStorageMock.clear();
 
-    // Clear Monaco mocks
+    // Clear Monaco mocks and logger mocks
     jest.clearAllMocks();
   });
 
@@ -389,9 +390,6 @@ describe('Editor Integration', () => {
     });
 
     it('should handle localStorage unavailability gracefully', () => {
-      // Suppress expected console.warn
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-
       // Mock localStorage.setItem to throw
       const originalSetItem = localStorageMock.setItem;
       localStorageMock.setItem = jest.fn(() => {
@@ -410,15 +408,15 @@ describe('Editor Integration', () => {
         layout.saveSizes();
       }).not.toThrow();
 
-      // Verify warning was called
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // Verify warning was called on the logger
+      const log = createLogger('ui:layout');
+      expect(log.warn).toHaveBeenCalledWith(
         'Failed to save layout sizes to localStorage:',
         expect.any(Error)
       );
 
       // Restore
       localStorageMock.setItem = originalSetItem;
-      consoleWarnSpy.mockRestore();
     });
   });
 });

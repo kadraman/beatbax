@@ -5,6 +5,9 @@
  */
 
 import { eventBus } from '../utils/event-bus';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui:layout');
 
 export interface LayoutConfig {
   /** Container element */
@@ -70,7 +73,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
         if (sizes.editor !== undefined) currentEditorSize = sizes.editor;
       }
     } catch (e) {
-      console.warn('Failed to load layout sizes from localStorage:', e);
+      log.warn('Failed to load layout sizes from localStorage:', e);
     }
   }
 
@@ -180,7 +183,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
       );
       eventBus.emit('layout:changed', { layout: 'editor-output' });
     } catch (e) {
-      console.warn('Failed to save layout sizes to localStorage:', e);
+      log.warn('Failed to save layout sizes to localStorage:', e);
     }
   }
 
@@ -198,7 +201,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
         }
       }
     } catch (e) {
-      console.warn('Failed to load layout sizes from localStorage:', e);
+      log.warn('Failed to load layout sizes from localStorage:', e);
     }
   }
 
@@ -210,7 +213,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
       try {
         localStorage.removeItem(storageKey);
       } catch (e) {
-        console.warn('Failed to remove layout sizes from localStorage:', e);
+        log.warn('Failed to remove layout sizes from localStorage:', e);
       }
     }
     eventBus.emit('layout:changed', { layout: 'reset' });
@@ -387,7 +390,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
         if (sizes.editor !== undefined) editorHeight = sizes.editor;
       }
     } catch (e) {
-      console.warn('Failed to load 3-pane layout sizes:', e);
+      log.warn('Failed to load 3-pane layout sizes:', e);
     }
   }
 
@@ -578,7 +581,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
       );
       eventBus.emit('layout:changed', { layout: '3-pane' });
     } catch (e) {
-      console.warn('Failed to save 3-pane layout sizes:', e);
+      log.warn('Failed to save 3-pane layout sizes:', e);
     }
   }
 
@@ -600,7 +603,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
         }
       }
     } catch (e) {
-      console.warn('Failed to load 3-pane layout sizes:', e);
+      log.warn('Failed to load 3-pane layout sizes:', e);
     }
   }
 
@@ -614,7 +617,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
       try {
         localStorage.removeItem(storageKey);
       } catch (e) {
-        console.warn('Failed to remove 3-pane layout sizes:', e);
+        log.warn('Failed to remove 3-pane layout sizes:', e);
       }
     }
     eventBus.emit('layout:changed', { layout: '3-pane-reset' });

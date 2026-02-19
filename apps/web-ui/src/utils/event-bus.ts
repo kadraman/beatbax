@@ -3,6 +3,10 @@
  * Type-safe pub/sub event system
  */
 
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui:event-bus');
+
 // Event type definitions
 export interface BeatBaxEvents {
   // Editor events
@@ -109,7 +113,7 @@ export class EventBus {
       try {
         callback(data);
       } catch (error) {
-        console.error(`Error in event listener for ${eventName}:`, error);
+        log.error(`Error in event listener for ${eventName}:`, error);
       }
     });
   }

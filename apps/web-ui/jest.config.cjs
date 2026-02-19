@@ -10,15 +10,20 @@ module.exports = {
     '!src/**/*.test.ts',
   ],
   transform: {
-    '^.+\\.ts$': ['ts-jest', {
+    '^.+\\.(ts|js)$': ['ts-jest', {
       tsconfig: {
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
-        module: 'es2020',
+        allowJs: true,
+        module: 'commonjs',
       },
     }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@beatbax)/)',
+  ],
   moduleNameMapper: {
+    '^@beatbax/engine/util/logger$': '<rootDir>/tests/__mocks__/logger.ts',
     '^monaco-editor$': '<rootDir>/tests/__mocks__/monaco-editor.ts',
     '\\.css$': '<rootDir>/tests/__mocks__/styleMock.js',
   },

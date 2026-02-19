@@ -6,6 +6,9 @@
 import { parse } from '@beatbax/engine/parser';
 import Player from '@beatbax/engine/audio/playback';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
+import { createLogger } from '@beatbax/engine/util/logger';
+
+const log = createLogger('ui');
 
 // Import new modules
 import { eventBus } from './utils/event-bus';
@@ -13,7 +16,7 @@ import { createEditor, registerBeatBaxLanguage, configureMonaco } from './editor
 import { createDiagnosticsManager, setupDiagnosticsIntegration, parseErrorToDiagnostic, warningsToDiagnostics } from './editor/diagnostics';
 import { createLayout, createOutputPanelContent } from './ui/layout';
 
-console.log('[web-ui] Phase 1 - Modular architecture loading...');
+log.debug('Modular architecture loading...');
 
 // Initialize global state
 let player: Player | null = null;
@@ -423,7 +426,7 @@ playBtn.addEventListener('click', async () => {
     statusDiv.textContent = 'Playing';
 
   } catch (e: any) {
-    console.error('[web-ui] Play error:', e);
+    log.error('Play error:', e);
     const error = e instanceof Error ? e : new Error(String(e));
     eventBus.emit('parse:error', { error, message: error.message });
     statusDiv.textContent = 'Error';
@@ -453,7 +456,7 @@ function getInitialContent(): string {
       return saved;
     }
   } catch (e) {
-    console.warn('Failed to load saved content:', e);
+    log.warn('Failed to load saved content:', e);
   }
 
   // Default content
@@ -482,7 +485,7 @@ eventBus.on('editor:changed', ({ content }) => {
   try {
     localStorage.setItem('beatbax-editor-content', content);
   } catch (e) {
-    console.warn('Failed to save content:', e);
+    log.warn('Failed to save content:', e);
   }
 });
 
@@ -495,4 +498,4 @@ eventBus.on('editor:changed', ({ content }) => {
   player: () => player,
 };
 
-console.log('[web-ui] Phase 1 initialization complete ✓');
+log.info('Phase 1 initialization complete ✓');
