@@ -36,9 +36,10 @@ export default defineConfig({
     conditions: ['browser', 'module', 'import', 'default']
   },
   optimizeDeps: {
-    include: ['@beatbax/engine', 'monaco-editor'],
-    // Exclude Node.js built-ins from optimization
-    exclude: ['fs', 'path']
+    include: ['monaco-editor'],
+    // Exclude @beatbax/engine so Vite always uses the built dist files directly
+    // without pre-bundling/caching them (important for local development)
+    exclude: ['fs', 'path', '@beatbax/engine']
   },
   build: {
     rollupOptions: {

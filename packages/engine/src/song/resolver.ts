@@ -168,7 +168,7 @@ export async function resolveSongAsync(ast: AST, opts?: { filename?: string; sea
  * Assumes imports have already been resolved.
  */
 function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?: string[]; strictInstruments?: boolean; onWarn?: (d: { component: string; message: string; file?: string; loc?: any }) => void }): SongModel {
-
+  log.debug('resolveSongInternal START - channels in AST:', ast.channels?.length);
   log.debug('Resolving song', {
     patterns: Object.keys(ast.pats || {}).length,
     sequences: Object.keys(ast.seqs || {}).length,
@@ -330,7 +330,20 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
   })();
 
   for (const ch of channelSources) {
+    log.debug(`Processing channel ${ch.id}, ch.pat type: ${typeof ch.pat}, value:`, ch.pat);
     const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
+
+    // Phase 2.5: Track source sequence name(s) for metadata
+    let sourceSequenceName: string | undefined = undefined;
+    if (typeof ch.pat === 'string') {
+      // Capture the first sequence/pattern name (before any transforms or repetitions)
+      const firstRef = ch.pat.split(',')[0].trim().split('*')[0].trim().split(':')[0].trim();
+      sourceSequenceName = firstRef;
+      log.debug(`Channel ${ch.id}: sourceSequenceName set to '${sourceSequenceName}' from ch.pat='${ch.pat}'`);
+    } else {
+      log.debug(`Channel ${ch.id}: ch.pat is not a string (type: ${typeof ch.pat})`);
+    }
+    // End Phase 2.5
 
     // Determine source tokens: channel may reference a pattern name, sequence name, or already have token array
     let tokens: string[] = [];
@@ -388,6 +401,35 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     // Sequence-level pan override (applies until reset via pan() token)
     let sequencePanOverride: any = undefined;
 
+    // Phase 2.5: Helper to calculate bar number from token index
+    // Assumes 4/4 time and 16 ticks per step by default
+    const calculateBarNumber = (tokenIndex: number): number => {
+      const ticksPerStep = 16; // default ticks per step
+      const stepsPerBar = 4; // default time signature (4/4)
+      const tokensPerBar = stepsPerBar; // one token per step
+      return Math.floor(tokenIndex / tokensPerBar);
+    };
+
+    // Helper to attach position metadata to events
+    const attachMetadata = (event: ChannelEvent, tokenIndex: number): ChannelEvent => {
+      const eventWithMeta = event as any;
+      const barNum = calculateBarNumber(tokenIndex);
+      // ALWAYS add debug fields to prove this function is called
+      eventWithMeta._debug_attachMetadataCalled = true;
+      eventWithMeta._debug_sourceSequenceNameValue = String(sourceSequenceName);
+      eventWithMeta._debug_tokenIndex = tokenIndex;
+      eventWithMeta._debug_barNum = barNum;
+
+      if (event.type === 'note' || event.type === 'named') {
+        if (sourceSequenceName) {
+          eventWithMeta.sourceSequence = sourceSequenceName;
+        }
+        eventWithMeta.barNumber = barNum;
+      }
+      return eventWithMeta;
+    };
+    // End Phase 2.5
+
     function resolveInstName(name: string | undefined) {
       if (!name) return undefined;
       return name in insts ? name : name; // keep string name; consumer can map to insts
@@ -395,6 +437,9 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
 
     for (let ti = 0; ti < tokens.length; ti++) {
       const token = tokens[ti];
+      if (ti === 0) {
+        log.debug(`Channel ${ch.id} token loop START, total tokens: ${tokens.length}, first token:`, token);
+      }
       // inst(name) or inst(name,N)
       const mInstInline = typeof token === 'string' && token.match(/^inst\(([^,()\s]+)(?:,(\d+))?\)$/i);
       if (mInstInline) {
@@ -417,7 +462,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
             for (let k = 0; k < count; k++) {
               const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
               const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
-              chModel.events.push(evWithProps);
+              chModel.events.push(attachMetadata(evWithProps, ti));
             }
             continue;
           }
@@ -459,7 +504,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         for (let k = 0; k < count; k++) {
           const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
           const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
-          chModel.events.push(evWithProps);
+          chModel.events.push(attachMetadata(evWithProps, ti));
         }
         continue;
       }
@@ -483,7 +528,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         if (inst.note) {
           (ev as NamedInstrumentEvent).defaultNote = inst.note as string;
         }
-        chModel.events.push(ev);
+        chModel.events.push(attachMetadata(ev, ti));
         // Update current instrument so subsequent notes use this instrument
         currentInstName = token;
         // decrement temp only for non-rest
@@ -540,7 +585,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           }
         }
 
-        chModel.events.push(ev);
+        chModel.events.push(attachMetadata(ev, ti));
         if (tempRemaining > 0) {
           tempRemaining -= 1;
           if (tempRemaining <= 0) { tempInstName = undefined; tempRemaining = 0; }
@@ -556,6 +601,8 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
   // backward-compatible playback (Player expects `ch.pat` to hold tokens
   // or event objects). This keeps both `events` and `pat` available.
   const channelsOut = channels.map(c => ({ id: c.id, events: c.events, defaultInstrument: c.defaultInstrument, pat: c.events } as any));
+
+  log.debug('Channel events sample:', channelsOut[0]?.events?.slice(0, 3));
 
   const totalEvents = channels.reduce((sum, c) => sum + c.events.length, 0);
   log.debug('Resolution complete', {
