@@ -6,7 +6,7 @@
 import type { EventBus } from '../utils/event-bus';
 import type { PlaybackPosition } from '../playback/playback-manager';
 import { ChannelState } from '../playback/channel-state';
-import { createLogger } from '@beatbax/engine/util/logger';
+import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:channel-controls');
 
@@ -221,10 +221,10 @@ export class ChannelControls {
     }
 
     // Update event position text
-    const positionEl = document.getElementById(`ch-position-${channelId}`);
-    if (positionEl) {
-      positionEl.textContent = `${position.eventIndex + 1}/${position.totalEvents}`;
-    }
+    //const positionEl = document.getElementById(`ch-position-${channelId}`);
+    //if (positionEl) {
+    //  positionEl.textContent = `${position.eventIndex + 1}/${position.totalEvents}`;
+    //}
 
     // Pulse indicator
     const indicator = document.getElementById(`ch-ind-${channelId}`);
@@ -419,23 +419,35 @@ export class ChannelControls {
     `;
     progressContainer.appendChild(progressFill);
 
-    // Event position (eventIndex/totalEvents)
-    const positionInfo = document.createElement('div');
-    positionInfo.id = `ch-position-${ch.id}`;
-    positionInfo.style.cssText = `
-      font-size: 10px;
-      color: #888;
-      margin-left: 24px;
-      margin-top: 2px;
-    `;
-    positionInfo.textContent = '0/0';
+    // Evaluate logging config early to determine if we should show debug controls (position info and config info)
+    const loggingCfg = getLoggingConfig();
+    const showDebugControls =
+      loggingCfg.level === 'debug' &&
+      (!loggingCfg.modules || loggingCfg.modules.includes('ui:channel-controls'));
 
-    // Static config info
-    const configInfo = document.createElement('div');
-    configInfo.style.cssText = 'font-size: 10px; color: #666; margin-left: 24px; margin-top: 4px;';
-    const eventCount = (ch as any).events?.length || 0;
-    const beatCount = Math.floor(eventCount / 4);
-    configInfo.textContent = `${eventCount} events (≈${beatCount} beats)`;
+    // Event position (eventIndex/totalEvents) — only show in debug for this module
+    let positionInfo: HTMLDivElement | null = null;
+    if (showDebugControls) {
+      positionInfo = document.createElement('div');
+      positionInfo.id = `ch-position-${ch.id}`;
+      positionInfo.style.cssText = `
+        font-size: 10px;
+        color: #888;
+        margin-left: 24px;
+        margin-top: 2px;
+        font-family: 'Consolas', 'Courier New', monospace;
+      `;
+      positionInfo.textContent = '0/0';
+    }
+
+    let configInfo: HTMLDivElement | null = null;
+    if (showDebugControls) {
+      configInfo = document.createElement('div');
+      configInfo.style.cssText = 'font-size: 10px; color: #666; margin-left: 24px; margin-top: 4px;';
+      const eventCount = (ch as any).events?.length || 0;
+      const beatCount = Math.floor(eventCount / 4);
+      configInfo.textContent = `${eventCount} events (≈${beatCount} beats)`;
+    }
 
     // Button container
     const btnContainer = document.createElement('div');
@@ -487,8 +499,8 @@ export class ChannelControls {
     row.appendChild(instInfo);
     row.appendChild(patternInfo);
     row.appendChild(progressContainer);
-    row.appendChild(positionInfo);
-    row.appendChild(configInfo);
+    if (positionInfo) row.appendChild(positionInfo);
+    if (configInfo) row.appendChild(configInfo);
     row.appendChild(btnContainer);
 
     // Update initial button states
