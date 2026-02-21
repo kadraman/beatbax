@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.4.0
+
+### Minor Changes
+
+- bc94574: Added playback position tracking APIs for real-time monitoring of pattern, sequence, and event positions.
+
 ## 0.3.0
 
 ### Minor Changes
