@@ -4,7 +4,7 @@
 
 # BeatBax
 
-[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy](https://github.com/kadraman/beatbax/actions/workflows/deploy-to-ionos.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/deploy-to-ionos.yml)
+[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
 
 **BeatBax** is a live-coding language and toolchain for creating retro-console chiptunes.
 Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2A03) APUs.
