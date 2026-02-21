@@ -5,8 +5,9 @@
 
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
-import Player from '@beatbax/engine/audio/playback';
+import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
+import type { ChannelState } from './channel-state';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:playback');
@@ -25,6 +26,20 @@ export interface PlaybackOptions {
 }
 
 /**
+ * Phase 2.5: Real-time playback position tracking
+ */
+export interface PlaybackPosition {
+  channelId: number;
+  eventIndex: number;
+  totalEvents: number;
+  currentInstrument: string | null;
+  currentPattern: string | null;
+  sourceSequence: string | null;
+  barNumber: number | null;
+  progress: number; // 0.0 to 1.0
+}
+
+/**
  * Manages audio playback lifecycle and state
  */
 export class PlaybackManager {
@@ -38,16 +53,26 @@ export class PlaybackManager {
   };
 
   private player: Player | null = null;
+  // Phase 2.5: Track playback position per channel
+  private playbackPosition: Map<number, PlaybackPosition> = new Map();
+  private channelEvents: Map<number, any[]> = new Map(); // channelId → event array
 
-  constructor(private eventBus: EventBus) {}
+  constructor(
+    private eventBus: EventBus,
+    private channelState?: ChannelState
+  ) {}
 
   /**
    * Parse and start playback
    */
   async play(source: string, options: PlaybackOptions = {}): Promise<void> {
+    log.debug('=== PlaybackManager.play() called ===');
+    log.debug('Source length:', source.length, 'characters');
+
     try {
       // Stop any existing playback
       if (this.state.isPlaying) {
+        log.debug('Stopping existing playback');
         this.stop();
       }
 
@@ -55,6 +80,7 @@ export class PlaybackManager {
       this.state.error = null;
 
       // Emit parsing event
+      log.debug('Emitting parse:started');
       this.eventBus.emit('parse:started', undefined);
 
       // Parse source
@@ -81,6 +107,119 @@ export class PlaybackManager {
         }
       }
 
+      // Phase 2.5: Extract sequence/pattern names BEFORE resolution (resolution will mutate these)
+      const channelSequenceNames = new Map<number, string>();
+      const channelPatternMaps = new Map<number, Map<number, string>>(); // channelId -> (eventIndex -> patternName)
+
+      if (resolvedAST && (resolvedAST as any).channels) {
+        const ast = resolvedAST as any;
+
+        (ast.channels as any[]).forEach((channel: any) => {
+          const channelId = channel.id;
+          let seqName: string | null = null;
+
+          // Extract sequence or pattern name
+          if (channel.seq && typeof channel.seq === 'string') {
+            seqName = channel.seq.split(/[\s,]/)[0].trim();
+            if (seqName) {
+              channelSequenceNames.set(channelId, seqName);
+            }
+          } else if (channel.pat && typeof channel.pat === 'string') {
+            const patName = channel.pat.split(/[\s,]/)[0].trim().split(':')[0].trim();
+            if (patName) {
+              channelSequenceNames.set(channelId, patName);
+              seqName = patName; // Treat direct pattern as a single-pattern sequence
+            }
+          }
+
+          // Build event index -> pattern name mapping
+          if (ast.pats) {
+            const patternMap = new Map<number, string>();
+            let currentEventIndex = 0;
+            let patternTokens: string[] = [];
+
+            // Check if this is a named sequence or inline sequence
+            if (channel.seq && typeof channel.seq === 'string') {
+              // Could be inline sequence like "wave_seq wave_seq arp_pat"
+              // or named sequence reference
+              const firstToken = channel.seq.split(/[\s,]/)[0].trim();
+
+              if (ast.seqs && ast.seqs[firstToken]) {
+                // Named sequence - get tokens from sequence definition
+                const seqDef = ast.seqs[firstToken];
+                if (seqDef.tokens && Array.isArray(seqDef.tokens)) {
+                  patternTokens = seqDef.tokens.map((t: any) =>
+                    typeof t === 'string' ? t : (t.pattern || t.ref || '')
+                  );
+                }
+              } else {
+                // Inline sequence - parse the string directly
+                patternTokens = channel.seq.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+              }
+            } else if (channel.pat && typeof channel.pat === 'string') {
+              // Direct pattern reference OR inline sequence
+              // Check if it contains spaces (inline sequence) or is a single pattern
+              if (channel.pat.includes(' ') || channel.pat.includes(',')) {
+                // Inline sequence - multiple patterns
+                patternTokens = channel.pat.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+              } else {
+                // Single pattern reference
+                patternTokens = [channel.pat];
+              }
+            }
+
+            // Expand sequence references to pattern names
+            const expandedPatternTokens: string[] = [];
+            patternTokens.forEach((token: string) => {
+              const baseName = token.split(':')[0].trim();
+
+              // Check if this is a sequence reference
+              if (ast.seqs && ast.seqs[baseName]) {
+                const seqDef = ast.seqs[baseName];
+
+                // The seqDef is directly an array of pattern names
+                if (Array.isArray(seqDef)) {
+                  seqDef.forEach((patRef: any) => {
+                    const patName = typeof patRef === 'string' ? patRef : (patRef.pattern || patRef.ref || '');
+                    if (patName) {
+                      expandedPatternTokens.push(patName);
+                    }
+                  });
+                }
+              } else {
+                // It's a direct pattern reference
+                expandedPatternTokens.push(token);
+              }
+            });
+
+            // Map each pattern to event indices
+            expandedPatternTokens.forEach((patRef: string) => {
+              // Extract pattern name (handle transforms like "melody:inst(bass)" or "wave_seq:oct(-1)")
+              const patName = patRef.split(':')[0].trim();
+
+              if (patName && ast.pats[patName]) {
+                const pattern = ast.pats[patName];
+
+                // Pattern is directly an array of tokens (notes/rests)
+                const patternLength = Array.isArray(pattern) ? pattern.length :
+                                     (pattern.tokens ? pattern.tokens.length : 0);
+
+                // Map this range of events to this pattern
+                for (let i = 0; i < patternLength; i++) {
+                  patternMap.set(currentEventIndex + i, patName);
+                }
+
+                currentEventIndex += patternLength;
+              }
+            });
+
+            if (patternMap.size > 0) {
+              channelPatternMaps.set(channelId, patternMap);
+            }
+          }
+        });
+      }
+
       // Resolve song
       const resolved = resolveSong(resolvedAST as any, {
         onWarn: (w: any) => {
@@ -104,6 +243,14 @@ export class PlaybackManager {
       // Create player if needed
       if (!this.player) {
         this.player = new Player();
+        log.debug('Player instance created:', this.player);
+        log.debug('Player.playAST type:', typeof this.player.playAST);
+        log.debug('Player.playAST:', this.player.playAST);
+
+        // Connect player to channelState so mute/solo buttons work
+        if (this.channelState) {
+          this.channelState.setPlayer(this.player);
+        }
       }
 
       // Set up completion callback to handle natural playback end
@@ -116,14 +263,27 @@ export class PlaybackManager {
         this.eventBus.emit('playback:repeated', undefined);
       };
 
+      // Phase 2.5: Set up position tracking
+      log.debug('Setting up position tracking callback on player');
+      this.setupPositionTracking(this.player, resolved, channelSequenceNames, channelPatternMaps);
+      log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
+
+      // Apply channel mute/solo state before playback starts
+      if (this.channelState) {
+        this.channelState.applyToPlayer(this.player);
+      }
+
       // Start playback (Player will handle AudioContext resume internally)
+      log.debug('Calling player.playAST()...');
       await this.player.playAST(resolved as any);
+      log.debug('player.playAST() completed');
 
       // Update state
       this.state.isPlaying = true;
       this.state.isPaused = false;
 
       // Emit playback started
+      log.debug('Emitting playback:started');
       this.eventBus.emit('playback:started', undefined);
 
     } catch (error: any) {
@@ -149,6 +309,10 @@ export class PlaybackManager {
       this.state.isPlaying = false;
       this.state.isPaused = false;
       this.state.currentTime = 0;
+
+      // Phase 2.5: Clear position tracking
+      this.playbackPosition.clear();
+      this.channelEvents.clear();
 
       this.eventBus.emit('playback:stopped', undefined);
     } catch (error) {
@@ -212,6 +376,80 @@ export class PlaybackManager {
    */
   getAST(): any | null {
     return this.state.ast;
+  }
+
+  /**
+   * Phase 2.5: Set up real-time position tracking
+   */
+  private setupPositionTracking(
+    player: Player,
+    ast: any,
+    channelSequenceNames: Map<number, string>,
+    channelPatternMaps: Map<number, Map<number, string>>
+  ): void {
+    // Extract channel events from resolved AST
+    // (channelSequenceNames and channelPatternMaps already extracted before resolution)
+
+    if (ast && ast.channels) {
+      log.debug(`Setting up position tracking for ${ast.channels.length} channels`);
+
+      ast.channels.forEach((channel: any) => {
+        const channelId = channel.id;
+
+        if (channel.events && Array.isArray(channel.events)) {
+          log.debug(`Channel ${channelId}: ${channel.events.length} events`);
+          this.channelEvents.set(channelId, channel.events);
+        }
+      });
+
+      log.debug(`channelEvents map populated:`, Array.from(this.channelEvents.keys()));
+    }
+
+    // Hook into Player's onPositionChange callback
+    player.onPositionChange = (channelId: number, eventIndex: number, totalEvents: number) => {
+      log.debug(`onPositionChange: ch${channelId}, event ${eventIndex}/${totalEvents}`);
+
+      const events = this.channelEvents.get(channelId) || [];
+      const event = events[eventIndex];
+
+      log.debug(`Event data:`, event);
+
+      // Get sequence and pattern names for this channel
+      const sequenceName = channelSequenceNames.get(channelId) || null;
+      const patternMap = channelPatternMaps.get(channelId);
+      const patternName = patternMap ? patternMap.get(eventIndex) || null : null;
+
+      // Create or update position object
+      const position: PlaybackPosition = {
+        channelId,
+        eventIndex,
+        totalEvents,
+        currentInstrument: event?.instrument || null,
+        currentPattern: patternName, // Use the pattern name we extracted
+        sourceSequence: sequenceName, // Use the sequence name we extracted
+        barNumber: null, // Not needed when showing pattern names
+        progress: totalEvents > 0 ? eventIndex / totalEvents : 0,
+      };
+
+      this.playbackPosition.set(channelId, position);
+
+      log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
+      this.eventBus.emit('playback:position-changed', { channelId, position });
+    };
+  }
+
+  /**
+   * Phase 2.5: Get current playback position for a channel
+   */
+  getPlaybackPosition(channelId: number): PlaybackPosition | null {
+    return this.playbackPosition.get(channelId) || null;
+  }
+
+  /**
+   * Phase 2.5: Get all playback positions
+   */
+  getAllPlaybackPositions(): Map<number, PlaybackPosition> {
+    return new Map(this.playbackPosition);
   }
 
   /**
