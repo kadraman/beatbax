@@ -13,7 +13,7 @@ Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2
 
 - **Simple, live-coding language**: Including instruments, patterns, sequences and transforms.
 - **Effects system**: 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
-- **Web UI**: Monaco editor with comprehensive syntax highlighting (15+ token types), live validation, and split-pane layout (Phase 1 complete)
+- **Web UI**: Monaco editor with syntax highlighting, live validation, split-pane layout (Phase 1), playback controls with pause/resume (Phase 2), and real-time position tracking with progress visualization (Phase 2.5 complete)
 - **Authentic**: 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
 - **Scheduler**: Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
 - **Exports**: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI

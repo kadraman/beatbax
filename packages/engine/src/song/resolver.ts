@@ -412,21 +412,15 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
 
     // Helper to attach position metadata to events
     const attachMetadata = (event: ChannelEvent, tokenIndex: number): ChannelEvent => {
-      const eventWithMeta = event as any;
       const barNum = calculateBarNumber(tokenIndex);
-      // ALWAYS add debug fields to prove this function is called
-      eventWithMeta._debug_attachMetadataCalled = true;
-      eventWithMeta._debug_sourceSequenceNameValue = String(sourceSequenceName);
-      eventWithMeta._debug_tokenIndex = tokenIndex;
-      eventWithMeta._debug_barNum = barNum;
-
+      // Only attach production metadata (sourceSequence, barNumber) if needed
       if (event.type === 'note' || event.type === 'named') {
         if (sourceSequenceName) {
-          eventWithMeta.sourceSequence = sourceSequenceName;
+          (event as any).sourceSequence = sourceSequenceName;
         }
-        eventWithMeta.barNumber = barNum;
+        (event as any).barNumber = barNum;
       }
-      return eventWithMeta;
+      return event;
     };
     // End Phase 2.5
 

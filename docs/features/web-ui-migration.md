@@ -580,7 +580,7 @@ interface BeatBaxEvents {
 
 **Goal:** Add infrastructure for real-time playback state tracking to enable Phase 3 visual features
 
-**Status:** ✅ Completed (Engine Infrastructure) - 2026-02-19
+**Status:** ✅ Fully Complete (Engine + Web UI) - 2026-02-20
 
 **Completed Deliverables:**
 - ✅ Player position tracking (currentEventIndex, totalEvents maps)
@@ -590,8 +590,9 @@ interface BeatBaxEvents {
 - ✅ Event interface extensions (NoteEvent, NamedInstrumentEvent)
 - ✅ Test suite for metadata preservation (3 passing tests)
 - ✅ All existing tests passing (295 tests, 83 suites)
-
-**Pending:** Web UI integration (Phase 2.5.2, 2.5.3) - requires PlaybackManager implementation
+- ✅ PlaybackManager position tracking and event emission (Phase 2.5.1)
+- ✅ Real-time instrument/pattern display in channel controls (Phase 2.5.2)
+- ✅ Progress bars, activity indicators, and visual feedback (Phase 2.5.3)
 
 #### Rationale
 
@@ -752,13 +753,13 @@ Once Phase 2.5 infrastructure exists, Phase 3 can implement:
 - ✅ Add test suite for position tracking
 - **Deliverable:** Complete position tracking infrastructure from engine to PlaybackManager
 
-**Phase 2.5.2: Basic UI Updates (Channel Controls)** ⏳ **READY TO IMPLEMENT**
+**Phase 2.5.2: Basic UI Updates (Channel Controls)** ✅ **COMPLETE** (2026-02-20)
 - Subscribe to position-changed in channel panels
 - Update instrument display in real-time
 - Show pattern name if available
 - **Deliverable:** Real-time instrument/pattern display working
 
-**Phase 2.5.3: Progress Visualization** ⏳ **READY TO IMPLEMENT**
+**Phase 2.5.3: Progress Visualization** ✅ **COMPLETE** (2026-02-20)
 - Add progress bars to channel controls
 - Implement activity flashing on note events
 - Highlight active vs. inactive channels
@@ -1996,7 +1997,7 @@ Use this checklist during implementation:
 - [x] Implement PlaybackManager.setupPositionTracking()
 - [x] Add playback:position-changed event to EventBus
 - [x] Wire up position callbacks in PlaybackManager
-- [ ] Update channel controls to display real-time instrument
+- [x] Update channel controls to display real-time instrument
 - [x] Update channel controls to display real-time pattern/sequence name (UI and test updated)
 - [x] Add progress indicator to channel panels
 #### ✅ Refactor: Debug Log Cleanup (2026-02-20)
@@ -2055,13 +2056,19 @@ Use this checklist during implementation:
 
 ---
 
-## Phase 2.5 Implementation Summary (2026-02-19)
+## Phase 2.5 Implementation Summary (2026-02-20)
+
+### Full Implementation Complete ✅
+
+**All three Phase 2.5 sub-phases are now complete:**
+
+- ✅ **Phase 2.5.1:** Core Infrastructure (Engine + PlaybackManager) - Completed 2026-02-19
+- ✅ **Phase 2.5.2:** Basic UI Updates (Channel Controls) - Completed 2026-02-20
+- ✅ **Phase 2.5.3:** Progress Visualization - Completed 2026-02-20
 
 ### What Was Delivered
 
-**Engine Infrastructure (✅ Complete)**
-
-The BeatBax engine now provides comprehensive real-time playback position tracking:
+**1. Engine Infrastructure (Phase 2.5.1)** ✅ Complete
 
 1. **Player Position Tracking** (`packages/engine/src/audio/playback.ts`)
    - `currentEventIndex` and `totalEvents` Maps tracking per-channel progress
@@ -2085,54 +2092,61 @@ The BeatBax engine now provides comprehensive real-time playback position tracki
    - 5 integration tests ready (skipped pending AudioContext setup)
    - Zero regressions (all 295 existing tests pass)
 
-### What's Ready for Web UI Integration
+### Web UI Integration Completed ✅
 
-**Available APIs:**
+**Phase 2.5.2 & 2.5.3 delivered the following UI enhancements:**
+
+**1. Real-Time Channel Display** (`apps/web-ui/src/panels/channel-controls.ts`)
+- Instrument name updates during playback
+- Pattern/sequence name display ("main • melody" format)
+- Event position tracking ("5/32" format)
+- Automatic reset when playback stops
+
+**2. Progress Visualization**
+- Per-channel progress bars (0-100%)
+- Visual activity indicators with pulse effects
+- Active/inactive channel highlighting
+- Integration with mute/solo state
+
+**3. Event-Driven Updates**
+- Subscribed to `playback:position-changed` events
+- Non-blocking UI updates (no full re-render)
+- Smooth animations and transitions
+
+**Example Usage:**
 
 ```typescript
-// Hook into Player position tracking
-player.onPositionChange = (channelId, eventIndex, totalEvents) => {
-  const progress = eventIndex / totalEvents;
-  console.log(`Channel ${channelId}: ${eventIndex}/${totalEvents} (${progress * 100}%)`);
-};
-
-// Enhanced schedule callback with position
-player.onSchedule = ({ chId, inst, token, time, dur, eventIndex, totalEvents }) => {
-  // Update UI with current event info
-};
-
-// Access event metadata from resolved ISM
-const channel = ism.channels.find(ch => ch.id === 1);
-channel.events.forEach(event => {
-  if (event.type === 'note') {
-    console.log(event.sourceSequence); // e.g., "main"
-    console.log(event.barNumber);      // e.g., 0, 1, 2...
-  }
+// PlaybackManager automatically emits position updates
+eventBus.on('playback:position-changed', ({ channelId, position }) => {
+  console.log(`Channel ${channelId}:`);
+  console.log(`  Instrument: ${position.currentInstrument}`);
+  console.log(`  Sequence: ${position.sourceSequence}`);
+  console.log(`  Pattern: ${position.currentPattern}`);
+  console.log(`  Progress: ${(position.progress * 100).toFixed(1)}%`);
+  console.log(`  Event: ${position.eventIndex + 1}/${position.totalEvents}`);
 });
 ```
 
-### Next Steps (Ready to Implement)
+### Next Steps (Complete - Ready for Phase 3)
 
-Phase 2 is complete with PlaybackManager, EventBus, and all UI components in place. To complete Phase 2.5, the following web-ui integrations are needed:
+**All Phase 2.5 Implementation Complete! ✅**
 
-1. **PlaybackManager Enhancement** (`apps/web-ui/src/playback/playback-manager.ts`)
-   - Add `playbackPosition` Map to track position per channel
-   - Connect to Player's `onPositionChange` callback in the `play()` method
-   - Emit `playback:position-changed` events via EventBus
+Phase 2.5 is now fully implemented across all three sub-phases:
 
-2. **EventBus Update** (`apps/web-ui/src/utils/event-bus.ts`)
-   - Add `'playback:position-changed'` to BeatBaxEvents interface
-   - Type should include `{ channelId: number; position: PlaybackPosition }`
+1. **✅ Phase 2.5.1:** Engine infrastructure and PlaybackManager integration complete
+2. **✅ Phase 2.5.2:** Real-time instrument/pattern display in channel controls complete
+3. **✅ Phase 2.5.3:** Progress bars, activity indicators, and visual feedback complete
 
-3. **Channel Controls UI** (Phase 2.5.2, 2.5.3)
-   - Subscribe to position-changed events
-   - Display current instrument name
-   - Display current pattern/sequence name
-   - Show bar/beat position
-   - Add progress bars per channel
-   - Show activity indicators on active channels
+**Features Now Available:**
+- Real-time instrument name display per channel
+- Real-time pattern/sequence name display
+- Per-channel progress bars (0-100%)
+- Event position tracking (e.g., "5/32")
+- Visual activity indicators that pulse on note events
+- Active/inactive channel highlighting
+- Mute/solo state integration with visual feedback
 
-**Recommendation:** Start with steps 1 & 2 to wire up the engine infrastructure to the existing PlaybackManager, then proceed to UI enhancements.
+**Ready for Phase 3:** Export & Import functionality is next on the migration roadmap.
 
 ---
 
