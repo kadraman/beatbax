@@ -5,7 +5,7 @@
  */
 
 import { parse } from '@beatbax/engine/parser';
-import Player from '@beatbax/engine/audio/playback';
+import { Player } from '@beatbax/engine/audio/playback';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 
 // Phase 1 imports - Monaco editor, diagnostics, layout
@@ -20,14 +20,21 @@ import { TransportControls } from './playback/transport-controls';
 import { ChannelState } from './playback/channel-state';
 import { OutputPanel } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
-import { createLogger } from '@beatbax/engine/util/logger';
+import { ChannelControls } from './panels/channel-controls';
+import { createLogger, loadLoggingFromStorage, loadLoggingFromURL, getLoggingConfig } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui');
 
-// Debug flag controlled by localStorage
-const DEBUG = typeof localStorage !== 'undefined' && localStorage.getItem('beatbax-debug') === 'true';
+// Initialize logger from localStorage and URL params
+loadLoggingFromStorage();
+loadLoggingFromURL();
 
-if (DEBUG) log.debug('Initializing BeatBax Web UI - Phase 2');
+// Log the actual configuration to verify modules are loaded
+const logConfig = getLoggingConfig();
+log.debug('Logger configuration loaded:', logConfig);
+log.debug('Enabled modules:', logConfig.modules);
+
+log.debug('Initializing BeatBax Web UI - Phase 2');
 
 // Make eventBus globally accessible
 (window as any).__beatbax_eventBus = eventBus;
@@ -124,13 +131,13 @@ document.body.appendChild(statusBarContainer);
 // PHASE 2 COMPONENTS - NEW!
 // ============================================================================
 
-// Initialize Phase 2 PlaybackManager
-const playbackManager = new PlaybackManager(eventBus);
-(window as any).__beatbax_playbackManager = playbackManager;
-
-// Initialize Phase 2 ChannelState
+// Initialize Phase 2 ChannelState first (needed by PlaybackManager)
 const channelState = new ChannelState(eventBus);
 (window as any).__beatbax_channelState = channelState;
+
+// Initialize Phase 2 PlaybackManager with channelState
+const playbackManager = new PlaybackManager(eventBus, channelState);
+(window as any).__beatbax_playbackManager = playbackManager;
 
 // Initialize Phase 2 OutputPanel
 const outputPanel = new OutputPanel(outputPane, eventBus);
@@ -139,6 +146,16 @@ const outputPanel = new OutputPanel(outputPane, eventBus);
 // Initialize Phase 2 StatusBar
 const statusBar = new StatusBar({ container: statusBarContainer }, eventBus);
 (window as any).__beatbax_statusBar = statusBar;
+
+// Initialize Phase 2 ChannelControls
+const channelControls = new ChannelControls({
+  container: rightPane,
+  eventBus,
+  channelState,
+});
+// Note: Constructor already calls setupEventListeners() internally
+channelControls.render();
+(window as any).__beatbax_channelControls = channelControls;
 
 // Create control buttons
 const controlsDiv = document.createElement('div');
@@ -273,13 +290,13 @@ eventBus.on('editor:changed', ({ content }) => {
         applyBtn.dispatchEvent(applyBtnClickEvent);
       } catch (e) {
         // Parse error - don't auto-apply
-      if (DEBUG) log.debug('[live-play] Skipping auto-apply due to parse error');
+        log.debug('[live-play] Skipping auto-apply due to parse error');
       }
     }
   }, 500);
 });
 
-if (DEBUG) log.debug('All components initialized');
+log.debug('All components initialized');
 
 // ============================================================================
 // VALIDATION (from Phase 1 - FULL VERSION)
@@ -615,254 +632,10 @@ if (editor.editor) {
 }
 
 // ============================================================================
-// CHANNEL CONTROLS
+// CHANNEL CONTROLS - Now handled by ChannelControls component
 // ============================================================================
-
-function renderChannelControls(ast: any) {
-  // Clear the right pane
-  rightPane.innerHTML = '';
-
-  // Create title
-  const title = document.createElement('div');
-  title.textContent = 'Channel Controls';
-  title.style.cssText = `
-    font-weight: bold;
-    font-size: 16px;
-    margin-bottom: 8px;
-    color: #d4d4d4;
-    border-bottom: 2px solid #444;
-    padding-bottom: 8px;
-  `;
-  rightPane.appendChild(title);
-
-  // Add explanation
-  /*const subtitle = document.createElement('div');
-  subtitle.textContent = 'Shows instruments used in channel';
-  subtitle.style.cssText = `
-    font-size: 10px;
-    color: #888;
-    margin-bottom: 12px;
-    font-style: italic;
-  `;
-  rightPane.appendChild(subtitle);*/
-
-  const channels = ast?.channels || [];
-  if (channels.length === 0) {
-    const emptyMsg = document.createElement('div');
-    emptyMsg.textContent = 'No channels defined';
-    emptyMsg.style.cssText = 'color: #888; font-style: italic;';
-    rightPane.appendChild(emptyMsg);
-    return;
-  }
-
-  // Create channel list with live playback visualization
-  for (const ch of channels) {
-    const row = document.createElement('div');
-    row.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 12px;
-      background: #2d2d2d;
-      border: 1px solid #444;
-      border-radius: 4px;
-      margin-bottom: 12px;
-      transition: background 0.2s;
-    `;
-
-    // Channel header with indicator
-    const header = document.createElement('div');
-    header.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-
-    const indicator = document.createElement('div');
-    indicator.id = `ch-ind-${ch.id}`;
-    indicator.style.cssText = `
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #555;
-      border: 2px solid #777;
-      transition: all 0.15s;
-    `;
-
-    const label = document.createElement('div');
-    label.textContent = `Channel ${ch.id}`;
-    label.style.cssText = 'font-weight: 600; font-size: 14px; color: #d4d4d4; flex: 1;';
-
-    header.appendChild(indicator);
-    header.appendChild(label);
-
-    // Get instrument name - extract from channel events
-    const getInstrumentName = () => {
-      // Try channel-level inst property first (for backward compatibility)
-      if (ch.inst && ast.insts && ast.insts[ch.inst]) {
-        return ch.inst;
-      }
-
-      // Extract instruments from events (Song Model format)
-      if ((ch as any).events && Array.isArray((ch as any).events)) {
-        const events = (ch as any).events;
-        const instruments = new Set<string>();
-
-        for (const event of events) {
-          if (event.instrument && event.instrument !== 'rest') {
-            instruments.add(event.instrument);
-          }
-        }
-
-        if (instruments.size > 0) {
-          const instList = Array.from(instruments);
-          // If multiple instruments, show count
-          if (instList.length > 3) {
-            return `${instList[0]} +${instList.length - 1} more`;
-          }
-          return instList.join(', ');
-        }
-      }
-
-      // No instrument found
-      return `Ch${ch.id}`;
-    };
-
-    const instName = getInstrumentName();
-
-    // Live playback info (instrument + activity status)
-    const liveInfo = document.createElement('div');
-    liveInfo.id = `ch-live-${ch.id}`;
-    liveInfo.dataset.instName = instName; // Store for later reference
-    liveInfo.style.cssText = `
-      font-size: 12px;
-      color: #4a9eff;
-      margin-left: 24px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      min-height: 18px;
-    `;
-    liveInfo.textContent = `🎵 ${instName}`;
-
-    // Static config info (smaller, less prominent)
-    const configInfo = document.createElement('div');
-    configInfo.style.cssText = 'font-size: 10px; color: #666; margin-left: 24px;';
-
-    // Show event count (since sequence names are lost after resolution)
-    const eventCount = (ch as any).events?.length || (ch as any).pat?.length || 0;
-    const beatCount = Math.floor(eventCount / 4); // Rough estimate assuming 4 steps per beat
-    configInfo.textContent = `${eventCount} events (≈${beatCount} beats)`;
-
-    // Visual activity bar
-    const activityBar = document.createElement('div');
-    activityBar.id = `ch-activity-${ch.id}`;
-    activityBar.style.cssText = `
-      height: 4px;
-      background: linear-gradient(90deg, #4a9eff 0%, #4a9eff 0%, transparent 0%);
-      border-radius: 2px;
-      margin-left: 24px;
-      margin-top: 4px;
-      transition: background 0.1s;
-    `;
-
-    // Button container
-    const btnContainer = document.createElement('div');
-    btnContainer.style.cssText = 'display: flex; gap: 8px; margin-left: 24px; margin-top: 4px;';
-
-    const muteBtn = document.createElement('button');
-    muteBtn.textContent = 'Mute';
-    muteBtn.style.cssText = `
-      padding: 6px 12px;
-      cursor: pointer;
-      flex: 1;
-      border: 1px solid #555;
-      background: #3a3a3a;
-      color: #d4d4d4;
-      border-radius: 3px;
-      font-size: 12px;
-    `;
-
-    const soloBtn = document.createElement('button');
-    soloBtn.textContent = 'Solo';
-    soloBtn.style.cssText = `
-      padding: 6px 12px;
-      cursor: pointer;
-      flex: 1;
-      border: 1px solid #555;
-      background: #3a3a3a;
-      color: #d4d4d4;
-      border-radius: 3px;
-      font-size: 12px;
-    `;
-
-    const updateButtons = () => {
-      const channelInfo = channelState.getChannel(ch.id);
-      if (!channelInfo) return;
-
-      muteBtn.textContent = channelInfo.muted ? '🔇 Unmute' : '🔊 Mute';
-      soloBtn.textContent = channelInfo.soloed ? '⭐ Unsolo' : '⭐ Solo';
-      row.style.opacity = channelState.isAudible(ch.id) ? '1' : '0.5';
-
-      if (channelState.isAudible(ch.id)) {
-        indicator.style.background = '#4a9eff';
-        indicator.style.borderColor = '#6bb6ff';
-        indicator.style.boxShadow = '0 0 8px rgba(74, 158, 255, 0.6)';
-      } else {
-        indicator.style.background = '#555';
-        indicator.style.borderColor = '#777';
-        indicator.style.boxShadow = 'none';
-      }
-
-      // Update button styles
-      if (channelInfo.muted) {
-        muteBtn.style.background = '#c94e4e';
-        muteBtn.style.borderColor = '#d66';
-      } else {
-        muteBtn.style.background = '#3a3a3a';
-        muteBtn.style.borderColor = '#555';
-      }
-
-      if (channelInfo.soloed) {
-        soloBtn.style.background = '#4a9eff';
-        soloBtn.style.borderColor = '#6bb6ff';
-      } else {
-        soloBtn.style.background = '#3a3a3a';
-        soloBtn.style.borderColor = '#555';
-      }
-    };
-
-    muteBtn.addEventListener('click', () => {
-      channelState.toggleMute(ch.id);
-      updateButtons();
-      const player = playbackManager.getPlayer();
-      // Always apply to player if it exists, even if not currently playing
-      // This ensures state is ready when playback starts
-      if (player) {
-        channelState.applyToPlayer(player);
-      }
-    });
-
-    soloBtn.addEventListener('click', () => {
-      channelState.toggleSolo(ch.id);
-      updateButtons();
-      // Update all channel displays when solo state changes
-      renderChannelControls(ast);
-      const player = playbackManager.getPlayer();
-      // Always apply to player if it exists, even if not currently playing
-      // This ensures state is ready when playback starts
-      if (player) {
-        channelState.applyToPlayer(player);
-      }
-    });
-
-    btnContainer.appendChild(muteBtn);
-    btnContainer.appendChild(soloBtn);
-
-    row.appendChild(header);
-    row.appendChild(liveInfo);
-    row.appendChild(activityBar);
-    row.appendChild(configInfo);
-    row.appendChild(btnContainer);
-    rightPane.appendChild(row);
-
-    updateButtons();
-  }
-}
+// The ChannelControls component automatically subscribes to parse:success events
+// and handles all channel rendering and position tracking
 
 // Track channel activity for live visualization
 const channelActivity: Map<number, { instrument: string; note: string; timeout?: number }> = new Map();
@@ -984,9 +757,9 @@ function stopPlaybackVisualization() {
   channelActivity.clear();
 }
 
-// Listen to parse success to render channel controls
+// Listen to parse success to update state
+// Note: ChannelControls component handles rendering automatically via its own parse:success subscription
 eventBus.on('parse:success', ({ ast }) => {
-  renderChannelControls(ast);
   currentAST = ast;
 
   const player = playbackManager.getPlayer();
@@ -1009,9 +782,9 @@ eventBus.on('playback:stopped', () => {
   stopPlaybackVisualization();
 });
 
-if (DEBUG) log.debug('Phase 2 setup complete! Monaco editor + Phase 2 components integrated.');
+log.debug('Phase 2 setup complete! Monaco editor + Phase 2 components integrated.');
 log.info('Keyboard shortcuts: Space = Play/Pause, Escape = Stop, Ctrl+Enter = Apply & Play');
-log.info('Debug mode: Set localStorage.setItem("beatbax-debug", "true") and reload to see detailed logs');
+log.info('Debug logging: Set localStorage.setItem("beatbax:loglevel", "debug") and localStorage.setItem("beatbax:debug", "player,ui,ui:playback,ui:channel-controls,ui:channel-state,ui:transport-controls,ui:layout,ui:event-bus") then reload');
 
 // Parse and display initial content on page load
 try {
@@ -1029,12 +802,15 @@ try {
         resolveWarnings.push(w);
       }
     });
+    const firstEvent = resolved.channels?.[0]?.events?.[0];
 
     // Combine all warnings
     const allWarnings = [...astWarnings, ...resolveWarnings];
 
     currentAST = resolved;
-    renderChannelControls(resolved);
+
+    // Emit parse:success so ChannelControls can update
+    eventBus.emit('parse:success', { ast: resolved });
 
     // Emit all warnings found
     eventBus.emit('validation:warnings', { warnings: allWarnings });
@@ -1060,7 +836,7 @@ eventBus.on('editor:changed', ({ content }) => {
       const resolved = resolveSong(ast);
 
       currentAST = resolved;
-      renderChannelControls(resolved);
+      // ChannelControls updates automatically via editor:changed debounce + parse:success
     } catch (err) {
       // Parse error - validation handler will manage warnings
     }

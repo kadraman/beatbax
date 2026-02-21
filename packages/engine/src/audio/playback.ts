@@ -89,9 +89,14 @@ export class Player {
   private activeNodes: Array<{ node: any; chId: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
-  public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number }) => void;
+  public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number; eventIndex?: number; totalEvents?: number }) => void;
   public onComplete?: () => void;
   public onRepeat?: () => void;
+  // Phase 2.5: Real-time playback position tracking
+  public onPositionChange?: (channelId: number, eventIndex: number, totalEvents: number) => void;
+  private currentEventIndex: Map<number, number> = new Map(); // channelId → event index
+  private totalEvents: Map<number, number> = new Map(); // channelId → total count
+  // End Phase 2.5
   private _repeatTimer: any = null;
   private _completionTimer: any = null;
   private _completionTimeoutMs: number = 0; // Total timeout duration
@@ -127,6 +132,10 @@ export class Player {
   }
 
   async playAST(ast: AST) {
+    log.debug('=== Player.playAST() called ===');
+    log.debug('AST:', ast);
+    log.debug('Channels:', ast?.channels?.length);
+
     // Store AST for repeat functionality
     this._currentAST = ast;
     this._isPaused = false; // Reset paused state
@@ -142,6 +151,8 @@ export class Player {
 
     // ensure a clean slate for each playback run
     try { this.stop(); } catch (e) {}
+
+    log.debug('Player cleaned, starting setup...');
 
     // Create or update master gain node
     // Default to 1.0 (matches hUGETracker behavior - no attenuation)
@@ -170,6 +181,31 @@ export class Player {
     // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
     (this.ctx as any)._chipType = ast.chip || 'gameboy';
 
+    // Phase 2.5: Initialize position tracking for all channels
+    this.currentEventIndex.clear();
+    this.totalEvents.clear();
+
+    // First pass: count total playable events per channel for position tracking
+    for (const ch of ast.channels || []) {
+      const tokens: any[] = Array.isArray((ch as any).events) ? (ch as any).events : (Array.isArray(ch.pat) ? ch.pat : ['.']);
+      let eventCount = 0;
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        // Count non-rest, non-sustain, non-inst() tokens as playable events
+        if (token && typeof token === 'object' && token.type) {
+          if (token.type === 'note' || token.type === 'named') {
+            eventCount++;
+          }
+        } else if (token !== '_' && token !== '-' && token !== '.' &&
+                   !(typeof token === 'string' && token.match(/^inst\(/))) {
+          eventCount++;
+        }
+      }
+      this.totalEvents.set(ch.id, eventCount);
+      this.currentEventIndex.set(ch.id, 0);
+    }
+    // End Phase 2.5
+
     for (const ch of ast.channels || []) {
       const instsMap = instsRootClone;
       let currentInst = instsMap[ch.inst || ''];
@@ -189,6 +225,8 @@ export class Player {
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const t = startTime + i * tickSeconds;
+
+        log.debug(`Token ${i}/${tokens.length} for ch${ch.id}:`, token);
 
         if (token && typeof token === 'object' && token.type) {
           if (token.type === 'rest' || token.type === 'sustain') {
@@ -211,10 +249,12 @@ export class Player {
               const tokenToPlay = (isNoise || !token.defaultNote)
                 ? (token.token || token.instrument)
                 : token.defaultNote;
+              log.debug(`About to scheduleToken (named) for ch${ch.id}, token:`, tokenToPlay);
               this.scheduleToken(ch.id, instProps, instsMap, tokenToPlay, t, dur, tickSeconds);
             } else if (token.type === 'note') {
               const instProps = token.instProps || (tempRemaining > 0 && tempInst ? tempInst : currentInst);
               // Pass the full token object so scheduleToken can honour inline pan/effects
+              log.debug(`About to scheduleToken (note) for ch${ch.id}, token:`, token);
               this.scheduleToken(ch.id, instProps, instsMap, token, t, dur, tickSeconds);
               if (tempRemaining > 0) {
                 tempRemaining -= 1;
@@ -336,11 +376,30 @@ export class Player {
 
   private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
     if (token === '.') return;
+
+    // Phase 2.5: Track event position (increment happens here during scheduling)
+    const currentIdx = this.currentEventIndex.get(chId) || 0;
+    const totalEvts = this.totalEvents.get(chId) || 0;
+    this.currentEventIndex.set(chId, currentIdx + 1);
+
+    log.debug(`scheduleToken: ch${chId}, token=${typeof token === 'object' ? token.type || token.token : token}, idx=${currentIdx}/${totalEvts}`);
+    // NOTE: onPositionChange callback will be called inside scheduler.schedule() when note PLAYS
+    // End Phase 2.5
+
     if (instsMap && typeof token === 'string' && instsMap[token]) {
       const alt = instsMap[token];
       if (alt.type && String(alt.type).toLowerCase().includes('noise')) {
-        try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur }); } } catch (e) {}
+        try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur, eventIndex: currentIdx, totalEvents: totalEvts }); } } catch (e) {}
         this.scheduler.schedule(time, () => {
+          // Phase 2.5: Emit position callback when note PLAYS
+          if (this.onPositionChange) {
+            try {
+              log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
+              this.onPositionChange(chId, currentIdx, totalEvts);
+            } catch (e) {
+              log.error('Error in onPositionChange callback:', e);
+            }
+          }
           // Check mute/solo state at PLAYBACK time (dynamic check)
           if (this.solo !== null && this.solo !== chId) {
             log.debug(`Skipping ch${chId} (soloed: ch${this.solo})`);
@@ -359,7 +418,7 @@ export class Player {
       inst = alt;
     }
     if (!inst) return;
-    try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst, token, time, dur }); } } catch (e) {}
+    try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst, token, time, dur, eventIndex: currentIdx, totalEvents: totalEvts }); } } catch (e) {}
 
     // token may be a string like "C4" or an object with { type: 'note', token: 'C4', pan, effects }
     let tokenStr: string = typeof token === 'string' ? token : (token && token.token ? token.token : '');
@@ -382,6 +441,15 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
+            // Phase 2.5: Emit position callback when note PLAYS
+            if (this.onPositionChange) {
+              try {
+                log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
+                this.onPositionChange(chId, currentIdx, totalEvts);
+              } catch (e) {
+                log.error('Error in onPositionChange callback:', e);
+              }
+            }
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
               log.debug(`Skipping ch${chId} pulse (solo=${this.solo})`);
@@ -410,6 +478,15 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
+            // Phase 2.5: Emit position callback when note PLAYS
+            if (this.onPositionChange) {
+              try {
+                log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
+                this.onPositionChange(chId, currentIdx, totalEvts);
+              } catch (e) {
+                log.error('Error in onPositionChange callback:', e);
+              }
+            }
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
               log.debug(`Skipping ch${chId} wave (soloed: ch${this.solo})`);
@@ -435,6 +512,15 @@ export class Player {
           buffered.enqueueNoise(time, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
+            // Phase 2.5: Emit position callback when note PLAYS
+            if (this.onPositionChange) {
+              try {
+                log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
+                this.onPositionChange(chId, currentIdx, totalEvts);
+              } catch (e) {
+                log.error('Error in onPositionChange callback:', e);
+              }
+            }
             // Check mute/solo state at PLAYBACK time (dynamic check)
             if (this.solo !== null && this.solo !== chId) {
               log.debug(`Skipping ch${chId} noise (soloed: ch${this.solo})`);
@@ -458,6 +544,15 @@ export class Player {
     } else {
       if (inst.type && inst.type.toLowerCase().includes('noise')) {
         this.scheduler.schedule(time, () => {
+          // Phase 2.5: Emit position callback when note PLAYS
+          if (this.onPositionChange) {
+            try {
+              log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
+              this.onPositionChange(chId, currentIdx, totalEvts);
+            } catch (e) {
+              log.error('Error in onPositionChange callback:', e);
+            }
+          }
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
           const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);

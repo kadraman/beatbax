@@ -3,7 +3,6 @@
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
     "doi.fileheadercomment",
-    "eamodio.gitlens",
     "EditorConfig.EditorConfig"
   ],
   "unwantedRecommendations": []
