@@ -14,6 +14,8 @@ jobs:
   retrieve-project:
     name: check readiness
     runs-on: ubuntu-latest
+    # Skip tag pushes (tags are used only for releases/npm); allow manual workflow_dispatch
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref_type != 'tag' }}
     outputs:
       deployment-enabled: ${{ fromJson(steps.project.outputs.info).deployment-enabled }}
       branch-id: ${{ fromJson(steps.project.outputs.info).branch-id }}
@@ -26,7 +28,7 @@ jobs:
           service-host: api-eu.ionos.space
           project-id: 23eae067-573f-41ce-adc3-83e9d6239f7a
           action: retrieve-info
-          
+
   build:
     name: build
     needs: retrieve-project
