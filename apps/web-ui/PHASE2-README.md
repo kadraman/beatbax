@@ -384,4 +384,28 @@ Phase 2 is complete when:
 
 **Phase 2 Status**: ✅ **Complete**
 
-All Phase 2 deliverables implemented and working. Ready for Phase 3: Export & Import.
+All Phase 2 deliverables implemented and working.
+
+---
+
+## Phase 2.5 Enhancement (Feb 19-20, 2026)
+
+Phase 2.5 added **real-time playback position tracking** to enable visual feedback during playback:
+
+**Engine Enhancements:**
+- Position tracking callbacks (`onPositionChange`) in Player
+- Metadata preservation (sourceSequence, barNumber) in resolver
+- Per-channel event index and total event tracking
+
+**Web UI Enhancements:**
+- PlaybackManager `setupPositionTracking()` method
+- `playback:position-changed` EventBus events
+- Real-time instrument/pattern display in channel controls
+- Per-channel progress bars (0-100%)
+- Visual activity indicators with pulse effects
+
+See [PHASE2-SUMMARY.md](PHASE2-SUMMARY.md) for complete Phase 2.5 details.
+
+---
+
+Ready for Phase 3: Export & Import.

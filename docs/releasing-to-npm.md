@@ -416,7 +416,70 @@ npm run release
 git push --follow-tags
 ```
 
-### Scenario 3: Breaking Change in Engine
+### Scenario 3: Updates After PR Review
+
+```bash
+# Create feature branch
+git checkout -b feat/vibrato-effect
+
+# Add initial feature
+git add packages/engine
+git commit -m "feat: add vibrato effect"
+
+# Create changeset
+npm run changeset
+# Select: @beatbax/engine
+# Choose: minor
+# Summary: "Added vibrato effect with rate and depth controls"
+
+git add .changeset
+git commit -m "chore: add changeset for vibrato"
+git push -u origin feat/vibrato-effect
+
+# Create PR and wait for review...
+
+# ✅ Review feedback: "Please add input validation and update tests"
+
+# Make the requested changes
+git add packages/engine/src/effects/vibrato.ts
+git add packages/engine/tests/effects/vibrato.test.ts
+git commit -m "feat: add input validation for vibrato parameters"
+git push
+
+# ✅ No need to create a new changeset!
+# The original changeset already describes the feature.
+# Review changes are part of the same logical change.
+
+# If review uncovers a separate bug, you CAN add a second changeset:
+git commit -m "fix: correct phase calculation in vibrato"
+npm run changeset
+# Select: @beatbax/engine
+# Choose: patch
+# Summary: "Fixed phase calculation bug in vibrato effect"
+git add .changeset
+git commit -m "chore: add changeset for vibrato bug fix"
+git push
+
+# After final approval and merge to main
+git checkout main
+git pull
+npm run version-packages  # → 0.2.0 (both changesets consumed: minor + patch = minor)
+git add . && git commit -m "chore: version packages" && git push
+npm run release
+git push --follow-tags
+```
+
+**Key Points:**
+- **Don't create new changesets for minor review tweaks** - Just commit and push normally
+- **The original changeset covers the feature** - Review changes are refinements, not new features
+- **Create a second changeset only if:**
+  - Review uncovers a separate bug (use `patch`)
+  - You add a distinct new feature based on feedback (use `minor`)
+  - Review requires a breaking change (use `major`)
+- **Multiple changesets on one branch are fine** - They'll all be consumed together during versioning
+- **Changeset descriptions should be user-facing** - Focus on what changed, not implementation details
+
+### Scenario 4: Breaking Change in Engine
 
 ```bash
 # Create feature branch

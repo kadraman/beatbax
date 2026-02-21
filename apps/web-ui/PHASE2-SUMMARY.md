@@ -254,4 +254,48 @@ apps/web-ui/
 
 **Phase 2 Status**: ✅ **COMPLETE** (including engine pause/resume support)
 
+---
+
+## Phase 2.5 Updates (Feb 19-20, 2026)
+
+**Status**: ✅ **COMPLETE** - Real-time playback position tracking
+
+### What Was Added
+
+**Engine Infrastructure (Feb 19)**
+- Player position tracking via `onPositionChange` callback
+- Metadata preservation (sourceSequence, barNumber) in resolver
+- Per-channel event index and total event tracking
+- Test coverage: 3 passing tests, zero regressions
+
+**Web UI Integration (Feb 19-20)**
+- PlaybackManager enhanced with `setupPositionTracking()` method
+- Pattern/sequence name extraction during song resolution
+- `playback:position-changed` event emission via EventBus
+- PlaybackPosition interface with full metadata
+
+**Channel Controls Enhancements (Feb 20)**
+- Real-time instrument display during playback
+- Pattern/sequence name display ("main • melody" format)
+- Per-channel progress bars (0-100%)
+- Event position tracking ("5/32" format)
+- Visual activity indicators with pulse effects
+- Active/inactive channel highlighting
+
+### Files Modified
+- `packages/engine/src/audio/playback.ts` - Position tracking
+- `packages/engine/src/song/resolver.ts` - Metadata preservation
+- `apps/web-ui/src/playback/playback-manager.ts` - Position tracking integration
+- `apps/web-ui/src/panels/channel-controls.ts` - Real-time UI updates
+- `apps/web-ui/src/utils/event-bus.ts` - New event type
+
+### Benefits
+- Users can see which instrument/pattern is currently playing
+- Progress visualization shows playback position in real-time
+- Foundation for future features (scrubbing, breakpoints, loop regions)
+
+**Deliverable**: Full visual feedback during playback with minimal performance impact
+
+---
+
 Ready for Phase 3: Export & Import

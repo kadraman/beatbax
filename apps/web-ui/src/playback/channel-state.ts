@@ -4,7 +4,7 @@
  */
 
 import type { EventBus } from '../utils/event-bus';
-import type Player from '@beatbax/engine/audio/playback';
+import type { Player } from '@beatbax/engine/audio/playback';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:channel-state');
@@ -23,10 +23,18 @@ export class ChannelState {
   private channels: Map<number, ChannelInfo> = new Map();
   private storageKey = 'beatbax-channel-state';
   private maxChannels = 4; // Game Boy has 4 channels
+  private player: Player | null = null;
 
   constructor(private eventBus: EventBus) {
     this.initializeChannels();
     this.loadState();
+  }
+
+  /**
+   * Set the player instance to apply mute/solo changes to
+   */
+  setPlayer(player: Player | null): void {
+    this.player = player;
   }
 
   /**
@@ -87,6 +95,7 @@ export class ChannelState {
 
     channel.muted = true;
     this.saveState();
+    this.applyToPlayer(this.player); // Apply immediately to Player
     this.eventBus.emit('channel:muted', { channel: channelId });
   }
 
@@ -99,6 +108,7 @@ export class ChannelState {
 
     channel.muted = false;
     this.saveState();
+    this.applyToPlayer(this.player); // Apply immediately to Player
     this.eventBus.emit('channel:unmuted', { channel: channelId });
   }
 
@@ -141,6 +151,7 @@ export class ChannelState {
     }
 
     this.saveState();
+    this.applyToPlayer(this.player); // Apply immediately to Player
   }
 
   /**
@@ -152,6 +163,7 @@ export class ChannelState {
 
     channel.soloed = false;
     this.saveState();
+    this.applyToPlayer(this.player); // Apply immediately to Player
     this.eventBus.emit('channel:unsoloed', { channel: channelId });
   }
 
