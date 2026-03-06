@@ -169,18 +169,20 @@ const statusBar = new StatusBar({ container }, eventBus);
 - ✅ No Node.js dependencies
 - ✅ Pure ESM modules
 
-## What's Next (Phase 3)
+## Phase 3: Export & Import — ✅ Complete (March 5, 2026)
 
-Phase 3 will implement **Export & Import**:
+See **[PHASE3-README.md](PHASE3-README.md)** and **[PHASE3-SUMMARY.md](PHASE3-SUMMARY.md)** for full details.
 
-1. **ExportManager** - JSON/MIDI/UGE/WAV export handling
-2. **DownloadHelper** - Browser file downloads
-3. **ExportValidator** - Pre-export validation
-4. **FileLoader** - Load `.bax` from disk
-5. **DragDropHandler** - Drag-and-drop support
-6. **Toolbar** - Export dropdown menu
+Delivered in Phase 3:
 
-Target completion: 1 week
+1. ✅ **ExportManager** — JSON/MIDI/UGE/WAV export with browser download
+2. ✅ **DownloadHelper** — browser file download, MIME types, export history
+3. ✅ **ExportValidator** — pre-export validation with warnings
+4. ✅ **MidiBuilder** — browser-side 4-track SMF MIDI construction
+5. ✅ **FileLoader** — load `.bax`/`.uge` from disk via file picker
+6. ✅ **DragDropHandler** — drag-and-drop `.bax`/`.uge` onto the editor
+7. ✅ **RemoteLoader** — fetch from URLs, GitHub shorthand, `?song=` query param
+8. ✅ **Toolbar** — Open, Examples dropdown (with pre-fetch cache), Export buttons, Verify
 
 ## Files Changed/Created
 
@@ -298,4 +300,4 @@ apps/web-ui/
 
 ---
 
-Ready for Phase 3: Export & Import
+✅ Phase 3 complete — see [PHASE3-SUMMARY.md](PHASE3-SUMMARY.md)

@@ -238,4 +238,59 @@ describe('Phase 2.5.2: ChannelControls', () => {
     const patternEl = document.getElementById('ch-pattern-1');
     expect(patternEl?.textContent).toContain('main • melody'); // Updated to match new UI logic
   });
+
+  // ── Phase 3: song:loaded resets the AST cache ────────────────────────────
+
+  it('re-renders when a new song with the same channel IDs is loaded via song:loaded + parse:success', () => {
+    // First song: channel 1 with instrument 'lead'
+    const ast1 = {
+      channels: [{ id: 1, events: [{ instrument: 'lead' }] }],
+      insts: { lead: { type: 'pulse1' } },
+    };
+    eventBus.emit('parse:success', { ast: ast1 });
+    expect(container.innerHTML).toContain('🎵 lead');
+
+    // Second song: same channel ID but different instrument — structure unchanged normally
+    // But song:loaded must clear the AST cache so re-render fires unconditionally.
+    const ast2 = {
+      channels: [{ id: 1, events: [{ instrument: 'bass' }] }],
+      insts: { bass: { type: 'pulse2' } },
+    };
+    eventBus.emit('song:loaded', { filename: 'new_song.bax' });
+    eventBus.emit('parse:success', { ast: ast2 });
+
+    expect(container.innerHTML).toContain('🎵 bass');
+    expect(container.innerHTML).not.toContain('🎵 lead');
+  });
+
+  it('re-renders when a second file load fires song:loaded reset followed by parse:success', () => {
+    // Load three different songs in succession — each must update the panel
+    for (const [instrument, type] of [['kick', 'noise'], ['hat', 'noise'], ['snare', 'noise']]) {
+      const ast = {
+        channels: [{ id: 4, events: [{ instrument }] }],
+        insts: { [instrument]: { type } },
+      };
+      eventBus.emit('song:loaded', { filename: `${instrument}.bax` });
+      eventBus.emit('parse:success', { ast });
+      expect(container.innerHTML).toContain(`🎵 ${instrument}`);
+    }
+  });
+
+  it('does NOT re-render on parse:success alone when channel structure is unchanged (optimisation preserved)', () => {
+    const ast = {
+      channels: [{ id: 1, events: [{ instrument: 'lead' }] }],
+      insts: { lead: { type: 'pulse1' } },
+    };
+    // First parse — establishes the cache
+    eventBus.emit('parse:success', { ast });
+
+    // Spy on render by checking whether Channel 1 is still rendered
+    const renderSpy = jest.spyOn(channelControls as any, 'render');
+
+    // Second identical parse without song:loaded — should be skipped
+    eventBus.emit('parse:success', { ast });
+    expect(renderSpy).not.toHaveBeenCalled();
+
+    renderSpy.mockRestore();
+  });
 });

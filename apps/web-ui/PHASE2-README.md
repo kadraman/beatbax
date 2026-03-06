@@ -310,27 +310,31 @@ Phase 2 builds on Phase 1 components:
 | Phase 1 Component | Used By Phase 2 |
 |-------------------|-----------------|
 | `utils/event-bus.ts` | ✅ All Phase 2 components |
-| `editor/monaco-setup.ts` | 🔜 Phase 3 (full Monaco integration) |
-| `editor/beatbax-language.ts` | 🔜 Phase 3 |
-| `ui/layout.ts` | 🔜 Phase 3 (split panes) |
+| `editor/monaco-setup.ts` | ✅ Phase 3 (full Monaco integration) |
+| `editor/beatbax-language.ts` | ✅ Phase 3 |
+| `ui/layout.ts` | ✅ Phase 3 (split panes) |
 
-## Next Steps (Phase 3)
+## Phase 3: Export & Import — ✅ Complete (March 5, 2026)
 
-Phase 3 will implement **Export & Import**:
+See **[PHASE3-README.md](PHASE3-README.md)** and **[PHASE3-SUMMARY.md](PHASE3-SUMMARY.md)** for full details.
 
-1. **ExportManager** - Handle JSON/MIDI/UGE/WAV exports
-2. **DownloadHelper** - Browser file download utilities
-3. **ExportValidator** - Pre-export validation
-4. **FileLoader** - Load `.bax` files from disk
-5. **DragDropHandler** - Drag-and-drop file support
-6. **Toolbar** - Export dropdown menu
+Delivered:
+
+1. ✅ **ExportManager** — JSON/MIDI/UGE/WAV export with browser download
+2. ✅ **DownloadHelper** — browser file download utilities and export history
+3. ✅ **ExportValidator** — pre-export validation with warnings
+4. ✅ **MidiBuilder** — browser-side 4-track SMF MIDI
+5. ✅ **FileLoader** — load `.bax`/`.uge` from disk via file picker
+6. ✅ **DragDropHandler** — drag-and-drop `.bax`/`.uge` onto the editor
+7. ✅ **RemoteLoader** — fetch from URLs/GitHub; `?song=` query param; EXAMPLE_SONGS cache
+8. ✅ **Toolbar** — Open, Examples dropdown, Export buttons, Verify (`Ctrl+O`)
 
 ## Known Limitations
 
 1. **Monaco Editor workers**: Require `vite-plugin-monaco-editor` installation (commented out in config)
-2. **WAV export**: Placeholder implemented, actual WAV export needs integration
-3. **Seek**: Not implemented (Phase 4)
-4. **Help panel**: Not integrated yet (Phase 4)
+2. **WAV export**: ✅ Resolved in Phase 3 — OfflineAudioContext scheduler drain fix
+3. **Seek**: Not implemented (post-Phase 3)
+4. **Help panel**: Not integrated yet (post-Phase 3)
 
 **✅ Resolved (Feb 17, 2026):**
 - ~~**Pause functionality**~~: **Now fully implemented!** Engine supports pause/resume with proper timer management, state tracking, and AudioContext suspension/resumption.
@@ -408,4 +412,4 @@ See [PHASE2-SUMMARY.md](PHASE2-SUMMARY.md) for complete Phase 2.5 details.
 
 ---
 
-Ready for Phase 3: Export & Import.
+✅ Phase 3 complete — see [PHASE3-README.md](PHASE3-README.md).
