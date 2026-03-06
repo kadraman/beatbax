@@ -30,16 +30,30 @@ export default defineConfig({
       // allow imports like '@/...' if desired
       '@': path.resolve(__dirname, 'src'),
       // Force browser-safe import resolver in browser builds (exact match only)
-      '@beatbax/engine/song$': path.resolve(__dirname, '../../packages/engine/dist/song/index.browser.js')
+      '@beatbax/engine/song$': path.resolve(
+        __dirname,
+        '../../packages/engine/dist/song/index.browser.js'
+      ),
+      // Phase 3: redirect Node.js 'fs' to a browser-safe mock so the engine's
+      // UGE/MIDI exporters can run in the browser via writeFileSync capture.
+      'fs': path.resolve(__dirname, 'src/utils/browser-fs.ts'),
     },
     // Ensure Node.js built-ins are not polyfilled (we don't need them in browser)
     conditions: ['browser', 'module', 'import', 'default']
   },
+  // Phase 3: make 'Buffer' and 'global' available globally for the engine
+  define: {
+    global: 'globalThis',
+  },
   optimizeDeps: {
-    include: ['monaco-editor'],
+    include: [
+      'monaco-editor',
+      // Phase 3: pre-bundle 'buffer' polyfill so it's available as an ESM module
+      'buffer',
+    ],
     // Exclude @beatbax/engine so Vite always uses the built dist files directly
     // without pre-bundling/caching them (important for local development)
-    exclude: ['fs', 'path', '@beatbax/engine']
+    exclude: ['path', '@beatbax/engine']
   },
   build: {
     rollupOptions: {
@@ -48,11 +62,13 @@ export default defineConfig({
       // into the demo bundle for production.
       external: ['@beatbax/engine'],
       // Ensure additional HTML entry pages are included in the build output
-      // so files like index-phase1.html and index-phase2.html end up in dist/.
+      // so files like index-phase1.html, index-phase2.html, index-phase3.html
+      // end up in dist/.
       input: {
         main: path.resolve(__dirname, 'index.html'),
         phase1: path.resolve(__dirname, 'index-phase1.html'),
-        phase2: path.resolve(__dirname, 'index-phase2.html')
+        phase2: path.resolve(__dirname, 'index-phase2.html'),
+        phase3: path.resolve(__dirname, 'index-phase3.html'),
       }
     },
     // Increase chunk size warning limit for Monaco Editor

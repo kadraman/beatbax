@@ -79,6 +79,15 @@ export class ChannelControls {
       })
     );
 
+    // When a new file is loaded, clear the cached AST so the next parse:success
+    // always triggers a full re-render regardless of channel structure similarity.
+    this.unsubscribers.push(
+      this.eventBus.on('song:loaded', () => {
+        this.ast = null;
+        log.debug('song:loaded received — AST cache cleared, next parse:success will re-render');
+      })
+    );
+
     // Subscribe to channel state changes - update button states only, don't re-render
     this.unsubscribers.push(
       this.eventBus.on('channel:muted', ({ channel }) => this.updateMuteButtonState(channel))
@@ -221,10 +230,10 @@ export class ChannelControls {
     }
 
     // Update event position text
-    //const positionEl = document.getElementById(`ch-position-${channelId}`);
-    //if (positionEl) {
-    //  positionEl.textContent = `${position.eventIndex + 1}/${position.totalEvents}`;
-    //}
+    const positionEl = document.getElementById(`ch-position-${channelId}`);
+    if (positionEl) {
+      positionEl.textContent = `${position.eventIndex + 1}/${position.totalEvents}`;
+    }
 
     // Pulse indicator
     const indicator = document.getElementById(`ch-ind-${channelId}`);
@@ -425,20 +434,18 @@ export class ChannelControls {
       loggingCfg.level === 'debug' &&
       (!loggingCfg.modules || loggingCfg.modules.includes('ui:channel-controls'));
 
-    // Event position (eventIndex/totalEvents) — only show in debug for this module
-    let positionInfo: HTMLDivElement | null = null;
-    if (showDebugControls) {
-      positionInfo = document.createElement('div');
-      positionInfo.id = `ch-position-${ch.id}`;
-      positionInfo.style.cssText = `
-        font-size: 10px;
-        color: #888;
-        margin-left: 24px;
-        margin-top: 2px;
-        font-family: 'Consolas', 'Courier New', monospace;
-      `;
-      positionInfo.textContent = '0/0';
-    }
+    // Event position (eventIndex/totalEvents) — always in DOM, visible only in debug
+    const positionInfo = document.createElement('div');
+    positionInfo.id = `ch-position-${ch.id}`;
+    positionInfo.style.cssText = `
+      font-size: 10px;
+      color: #888;
+      margin-left: 24px;
+      margin-top: 2px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      display: ${showDebugControls ? 'block' : 'none'};
+    `;
+    positionInfo.textContent = '0/0';
 
     let configInfo: HTMLDivElement | null = null;
     if (showDebugControls) {
@@ -499,7 +506,7 @@ export class ChannelControls {
     row.appendChild(instInfo);
     row.appendChild(patternInfo);
     row.appendChild(progressContainer);
-    if (positionInfo) row.appendChild(positionInfo);
+    row.appendChild(positionInfo);
     if (configInfo) row.appendChild(configInfo);
     row.appendChild(btnContainer);
 
