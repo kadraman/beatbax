@@ -118,12 +118,16 @@ export function downloadBinary(
 }
 
 /**
- * Generate a timestamped filename
+ * Generate a timestamped filename in the form `<base>_YYYYMMDD-HHmmss.<ext>`.
  */
-export function generateFilename(base: string, ext: string): string {
+export function generateFilename(base: string, ext: string, now = new Date()): string {
   const cleanBase = sanitizeFilename(base);
   const cleanExt = ext.replace(/^\./, '');
-  return `${cleanBase}.${cleanExt}`;
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const ts =
+    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+    `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `${cleanBase}_${ts}.${cleanExt}`;
 }
 
 /**

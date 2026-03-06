@@ -1,6 +1,6 @@
 # BeatBax Web UI - Phase 3 Implementation
 
-**Status**: ✅ Complete  
+**Status**: ✅ Complete
 **Date**: March 5, 2026
 
 > **Note:** Phase 3 **BUILDS ON** Phase 1's Monaco editor/diagnostics/layout and Phase 2's PlaybackManager/ChannelControls/OutputPanel. It adds a Toolbar, full export pipeline (JSON/MIDI/UGE/WAV), file/URL/drag-drop import, and an examples browser — without replacing any prior functionality.
@@ -151,7 +151,7 @@ Attaches drag-and-drop listeners to any `HTMLElement` (defaults to `document.bod
 - Accepts `.bax` and `.uge` files by default (configurable via `acceptedExtensions`)
 - Visual overlay during drag with CSS class `drag-over`
 - Debounced drag counter to handle nested elements
-- Cleanup via `destroy()` — removes all event listeners and overlay
+- Cleanup via `dispose()` — removes all event listeners and overlay
 - `onDrop`, `onInvalidFile`, `onError` callbacks
 
 ---
@@ -167,7 +167,7 @@ Fetches `.bax` source from remote URLs with a 10 s timeout.
 - `EXAMPLE_SONGS` — typed array of `{ label, path }` for the Toolbar dropdown
 - `RemoteLoader` class — configurable instance with base URL
 
-**Security:** `httpsOnly` option (default `true`) rejects plain-HTTP remote URLs.
+**Security:** `httpsOnly` option (default `false`) rejects plain-HTTP remote URLs when enabled.
 
 ---
 

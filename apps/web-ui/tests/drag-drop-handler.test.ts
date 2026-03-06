@@ -13,6 +13,12 @@ jest.mock('../src/import/file-loader', () => ({
 import { readFileAsText } from '../src/import/file-loader';
 const mockReadFile = readFileAsText as jest.MockedFunction<typeof readFileAsText>;
 
+// ─── Deterministic async flush ───────────────────────────────────────────────
+// Drains the microtask queue without relying on real-time delays.
+// handleDrop's only async step is a single `await readFileAsText(...)`, so
+// two microtask flushes are sufficient to settle even a rejection path.
+const flushPromises = () => Promise.resolve().then(() => Promise.resolve());
+
 // ─── DragEvent helpers ───────────────────────────────────────────────────────
 
 function makeFile(name: string, content = 'bpm 120', type = 'text/plain'): File {
@@ -88,7 +94,7 @@ describe('DragDropHandler', () => {
     container.dispatchEvent(event);
 
     // wait for async handleDrop
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).toHaveBeenCalledWith('song.bax', 'chip gameboy\nbpm 120');
     expect(onInvalidFile).not.toHaveBeenCalled();
@@ -101,7 +107,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [file]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).toHaveBeenCalledWith('track.uge', '\x55\x47\x45');
   });
@@ -113,7 +119,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [file]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onInvalidFile).toHaveBeenCalledWith(
       'music.mp3',
@@ -130,7 +136,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [file1, file2]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).toHaveBeenCalledTimes(1);
     expect(onDrop).toHaveBeenCalledWith('first.bax', 'bpm 160');
@@ -144,7 +150,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [bad, good]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onInvalidFile).toHaveBeenCalledWith('image.png', expect.any(String));
     expect(onDrop).toHaveBeenCalledWith('song.bax', 'bpm 100');
@@ -159,7 +165,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [file]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'Disk read failed' }));
     expect(onDrop).not.toHaveBeenCalled();
@@ -171,7 +177,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', []);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).not.toHaveBeenCalled();
     expect(onInvalidFile).not.toHaveBeenCalled();
@@ -198,7 +204,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [makeFile('notes.txt')]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).toHaveBeenCalledWith('notes.txt', 'data');
   });
@@ -212,7 +218,7 @@ describe('DragDropHandler', () => {
     const event = makeDragEvent('drop', [makeFile('song.bax')]);
     container.dispatchEvent(event);
 
-    await new Promise(r => setTimeout(r, 10));
+    await flushPromises();
 
     expect(onDrop).not.toHaveBeenCalled();
   });

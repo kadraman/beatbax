@@ -109,13 +109,46 @@ describe('loadRemote — GitHub URL resolution', () => {
     expect(result.filename).toBe('demo.bax');
   });
 
-  it('rewrites a github: shorthand to raw.githubusercontent.com', async () => {
+  it('rewrites a github: shorthand to raw.githubusercontent.com, defaulting ref to main', async () => {
     mockFetchSuccess('# shorthand');
 
     await loadRemote('github:user/repo/songs/track.bax');
 
+    // "songs" is a directory, not a branch — ref defaults to "main"
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
-      'https://raw.githubusercontent.com/user/repo/songs/track.bax'
+      'https://raw.githubusercontent.com/user/repo/main/songs/track.bax'
+    );
+  });
+
+  it('uses an explicit ref when the @ separator is present', async () => {
+    mockFetchSuccess('# explicit ref');
+
+    await loadRemote('github:user/repo@dev/songs/track.bax');
+
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      'https://raw.githubusercontent.com/user/repo/dev/songs/track.bax'
+    );
+  });
+
+  it('defaults ref to main for a single-level path (no subdirectory)', async () => {
+    mockFetchSuccess('# top-level file');
+
+    await loadRemote('github:user/repo/file.bax');
+
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      'https://raw.githubusercontent.com/user/repo/main/file.bax'
+    );
+  });
+
+  it('throws a clear error when @ ref is present but no file path follows', async () => {
+    await expect(loadRemote('github:user/repo@main')).rejects.toThrow(
+      /file path is required after the ref/i
+    );
+  });
+
+  it('throws a clear error when the shorthand has fewer than 3 path segments', async () => {
+    await expect(loadRemote('github:user/repo')).rejects.toThrow(
+      /invalid github: shorthand/i
     );
   });
 

@@ -9,7 +9,6 @@ import { Buffer } from 'buffer';
 (globalThis as any).Buffer = Buffer;
 
 import { parse } from '@beatbax/engine/parser';
-import { Player } from '@beatbax/engine/audio/playback';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -62,8 +61,6 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 }
 
 // ─── Global state ─────────────────────────────────────────────────────────────
-let player: Player | null = null;
-let currentAST: any = null;
 let editor: any = null;
 let diagnosticsManager: any = null;
 let rightPane: HTMLElement;

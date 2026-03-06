@@ -27,6 +27,9 @@ export class Toolbar {
   private el!: HTMLElement;
   /** Pre-fetched example content keyed by path, populated when dropdown first opens. */
   private exampleCache = new Map<string, string>();
+  /** AbortController whose signal is passed to every document-level listener so they
+   *  can all be removed in a single abort() call from dispose(). */
+  private abortController = new AbortController();
 
   constructor(private options: ToolbarOptions) {
     this.render();
@@ -136,7 +139,7 @@ export class Toolbar {
         examplesList.hidden = true;
         examplesBtn.setAttribute('aria-expanded', 'false');
       }
-    });
+    }, { signal: this.abortController.signal });
 
     examplesList.addEventListener('click', async (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-example]');
@@ -188,16 +191,25 @@ export class Toolbar {
     }
 
     // Listen for export events to show status
-    eventBus.on('export:started', (data: any) => {
+    const onExportStarted = (data: any) => {
       this.setStatus(`Exporting ${data.format?.toUpperCase() ?? ''}...`, 'info');
-    });
-
-    eventBus.on('export:success', (data: any) => {
+    };
+    const onExportSuccess = (data: any) => {
       this.setStatus(`Exported ${data.filename ?? data.format}`, 'success');
-    });
-
-    eventBus.on('export:error', (data: any) => {
+    };
+    const onExportError = (data: any) => {
       this.setStatus(`Export failed: ${data.error?.message ?? 'Unknown error'}`, 'error');
+    };
+
+    eventBus.on('export:started', onExportStarted);
+    eventBus.on('export:success', onExportSuccess);
+    eventBus.on('export:error', onExportError);
+
+    // Remove EventBus subscriptions when the toolbar is disposed
+    this.abortController.signal.addEventListener('abort', () => {
+      eventBus.off('export:started', onExportStarted);
+      eventBus.off('export:success', onExportSuccess);
+      eventBus.off('export:error', onExportError);
     });
 
     // Keyboard shortcut: Ctrl+O → open file
@@ -206,7 +218,18 @@ export class Toolbar {
         e.preventDefault();
         openBtn.click();
       }
-    });
+    }, { signal: this.abortController.signal });
+  }
+
+  /**
+   * Remove all document-level event listeners and EventBus subscriptions.
+   * Call this when the toolbar is unmounted or replaced (e.g. during HMR).
+   */
+  dispose(): void {
+    this.abortController.abort();
+    this.el.remove();
+    this.exampleCache.clear();
+    log.debug('Toolbar disposed');
   }
 
   /**
@@ -244,15 +267,23 @@ export class Toolbar {
   }
 
   /**
-   * Enable or disable all export buttons (e.g., when song fails to parse)
+   * Enable or disable all export buttons (e.g., when song fails to parse).
+   *
+   * The original title is preserved in `data-original-title` on first call so
+   * that repeated calls to setExportEnabled(false) never double-append the
+   * suffix, and re-enabling always restores the exact original text.
    */
   setExportEnabled(enabled: boolean): void {
     const btns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
     btns.forEach(btn => {
+      // Snapshot the original title the first time we touch it
+      if (!btn.dataset.originalTitle) {
+        btn.dataset.originalTitle = btn.title;
+      }
       btn.disabled = !enabled;
       btn.title = enabled
-        ? btn.title.replace(' (parse first)', '')
-        : btn.title + ' (parse first)';
+        ? btn.dataset.originalTitle
+        : `${btn.dataset.originalTitle} (parse first)`;
     });
   }
 

@@ -161,17 +161,32 @@ describe('downloadBinary', () => {
 // ─── generateFilename ────────────────────────────────────────────────────────
 
 describe('generateFilename', () => {
-  it('combines base and extension', () => {
-    expect(generateFilename('my_song', 'wav')).toBe('my_song.wav');
+  // Pin the clock so timestamp output is deterministic
+  const FIXED_DATE = new Date('2026-03-06T14:05:09');
+
+  it('combines base, timestamp, and extension', () => {
+    expect(generateFilename('my_song', 'wav', FIXED_DATE)).toBe('my_song_20260306-140509.wav');
   });
 
   it('sanitizes the base name', () => {
     // '?' is a forbidden character → replaced/collapsed to single underscore
-    expect(generateFilename('my song?', 'json')).toBe('my_song.json');
+    expect(generateFilename('my song?', 'json', FIXED_DATE)).toBe('my_song_20260306-140509.json');
   });
 
   it('strips leading dot from extension', () => {
-    expect(generateFilename('track', '.mid')).toBe('track.mid');
+    expect(generateFilename('track', '.mid', FIXED_DATE)).toBe('track_20260306-140509.mid');
+  });
+
+  it('uses the current time when no date is supplied', () => {
+    const before = Date.now();
+    const result = generateFilename('song', 'bax');
+    const after = Date.now();
+    // The filename must contain a timestamp segment matching YYYYMMDD-HHmmss
+    expect(result).toMatch(/^song_\d{8}-\d{6}\.bax$/);
+    // Cross-check: the date part should be today (UTC or local, within test run window)
+    const dateStr = String(new Date(before).getFullYear());
+    expect(result).toContain(dateStr);
+    void after; // suppress unused-variable warning
   });
 });
 

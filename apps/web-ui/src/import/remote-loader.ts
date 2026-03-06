@@ -26,20 +26,55 @@ export interface RemoteLoadResult {
   filename: string;
 }
 
+const DEFAULT_GITHUB_REF = 'main';
+
 /**
- * Convert a GitHub URL to a raw content URL
+ * Convert a GitHub URL to a raw content URL.
+ *
  * Handles:
- * - https://github.com/user/repo/blob/branch/path
- * - github:user/repo/path
+ * - `https://github.com/user/repo/blob/branch/path`
+ * - `github:user/repo/path/to/file.bax`           — ref defaults to "main"
+ * - `github:user/repo@branch/path/to/file.bax`    — explicit ref via `@`
+ *
+ * The `@` separator unambiguously marks the ref so that paths containing
+ * directory components (e.g. `songs/demo.bax`) are never misread as branches.
  */
 function resolveGitHubUrl(url: string): string | null {
   // github: shorthand
   if (url.startsWith('github:')) {
-    const path = url.slice(7);
-    return `https://raw.githubusercontent.com/${path.replace('/blob/', '/')}`;
+    const spec = url.slice(7); // everything after "github:"
+
+    const atIdx = spec.indexOf('@');
+    if (atIdx !== -1) {
+      // Explicit ref: github:user/repo@ref/path/to/file.bax
+      const repoPart = spec.slice(0, atIdx);          // "user/repo"
+      const rest = spec.slice(atIdx + 1);             // "ref/path/to/file.bax"
+      const slashIdx = rest.indexOf('/');
+      if (slashIdx === -1) {
+        throw new Error(
+          `Invalid github: shorthand "${url}" — a file path is required after the ref ` +
+          `(e.g. github:${repoPart}@${rest}/file.bax)`
+        );
+      }
+      const ref = rest.slice(0, slashIdx);
+      const filePath = rest.slice(slashIdx + 1);
+      return `https://raw.githubusercontent.com/${repoPart}/${ref}/${filePath}`;
+    }
+
+    // No explicit ref — split user/repo off and default the ref to "main"
+    const parts = spec.split('/');
+    if (parts.length < 3) {
+      throw new Error(
+        `Invalid github: shorthand "${url}" — expected github:user/repo/path/to/file.bax ` +
+        `or github:user/repo@ref/path/to/file.bax`
+      );
+    }
+    const [user, repo, ...pathParts] = parts;
+    const filePath = pathParts.join('/');
+    return `https://raw.githubusercontent.com/${user}/${repo}/${DEFAULT_GITHUB_REF}/${filePath}`;
   }
 
-  // Full GitHub URL
+  // Full GitHub URL: https://github.com/user/repo/blob/branch/path
   const match = url.match(
     /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/
   );

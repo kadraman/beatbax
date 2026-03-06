@@ -2031,8 +2031,9 @@ Use this checklist during implementation:
 - [x] Wire up drag-and-drop — DragDropHandler on document.body → editor
 - [x] Wire up URL query auto-load — `?song=URL` auto-loads on startup
 - [x] Wire up examples dropdown — RemoteLoader EXAMPLE_SONGS list
-- [ ] Add unit tests for export validation (pending)
-- [ ] Add integration tests for export flow (pending)
+- [x] Add unit tests for export validation (`tests/export-validator.test.ts`)
+- [x] Add unit tests for download helper, remote loader, drag-drop, toolbar, file-loader (`tests/*.test.ts`)
+- [ ] Add integration tests for end-to-end export flow (pending)
 
 ### Phase 4: Advanced Features
 - [ ] Create `ui/menu-bar.ts`

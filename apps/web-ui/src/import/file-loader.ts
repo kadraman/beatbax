@@ -80,10 +80,22 @@ export function openFilePicker(options: FileLoaderOptions = {}): void {
   input.style.display = 'none';
   document.body.appendChild(input);
 
+  // Track whether the change handler already cleaned up so the cancel path
+  // does not attempt a second removeChild.
+  let settled = false;
+
+  function cleanup() {
+    if (settled) return;
+    settled = true;
+    if (input.parentNode) {
+      document.body.removeChild(input);
+    }
+  }
+
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
-      document.body.removeChild(input);
+      cleanup();
       return;
     }
 
@@ -101,9 +113,18 @@ export function openFilePicker(options: FileLoaderOptions = {}): void {
       log.error('File load error:', err);
       options.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      document.body.removeChild(input);
+      cleanup();
     }
   });
+
+  // When the picker closes without a selection the browser returns focus to
+  // the window.  We use a one-time focus listener as the cancel signal.
+  // A short setTimeout is needed because some browsers fire focus before the
+  // input's change event on successful selection; the delay lets change win.
+  const onWindowFocus = () => {
+    setTimeout(() => cleanup(), 300);
+  };
+  window.addEventListener('focus', onWindowFocus, { once: true });
 
   // Trigger the picker
   input.click();

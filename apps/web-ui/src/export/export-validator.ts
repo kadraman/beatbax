@@ -107,7 +107,6 @@ export function validateForExport(ast: any, format?: string): ValidationResult {
  */
 function validateForUGE(ast: any, issues: ValidationIssue[]): void {
   const insts = ast.insts || {};
-  const instCount = Object.keys(insts).length;
 
   // Check instrument count limits
   const duty = Object.values(insts).filter((i: any) =>
