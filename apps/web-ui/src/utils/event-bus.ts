@@ -45,6 +45,9 @@ export interface BeatBaxEvents {
   'channel:unmuted': { channel: number };
   'channel:unsoloed': { channel: number };
 
+  // Song load events
+  'song:loaded': { filename: string };
+
   // Validation events
   'validation:warnings': { warnings: Array<{ component: string; message: string; file?: string; loc?: any }> };
   'validation:errors': { errors: Array<{ message: string; loc?: any }> };
