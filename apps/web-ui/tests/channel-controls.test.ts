@@ -16,7 +16,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    
+
     eventBus = new EventBus();
     channelState = new ChannelState(eventBus);
     channelControls = new ChannelControls({
@@ -36,7 +36,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
   it('should render empty state when no channels defined', () => {
     channelControls.render();
-    
+
     expect(container.innerHTML).toContain('Channel Controls');
     expect(container.innerHTML).toContain('No channels defined');
   });
@@ -292,5 +292,96 @@ describe('Phase 2.5.2: ChannelControls', () => {
     expect(renderSpy).not.toHaveBeenCalled();
 
     renderSpy.mockRestore();
+  });
+
+  // ── Phase 4: Channel mute/solo wiring ────────────────────────────────────
+
+  describe('Channel mute/solo wiring', () => {
+    let ast: any;
+
+    beforeEach(() => {
+      // Reset channel state to avoid localStorage pollution from previous tests.
+      // ChannelState.loadState() runs in the constructor and may pick up state
+      // saved by an earlier test, so we reset here to guarantee a clean slate.
+      channelState.reset();
+      ast = {
+        channels: [
+          { id: 1, events: [{ instrument: 'lead' }] },
+          { id: 2, events: [{ instrument: 'bass' }] },
+        ],
+      };
+      eventBus.emit('parse:success', { ast });
+    });
+
+    it('solo button click marks the channel as soloed', () => {
+      document.getElementById('ch-solo-1')!.click();
+      expect(channelState.getChannel(1)?.soloed).toBe(true);
+    });
+
+    it('solo button shows Unsolo text when the channel is soloed', () => {
+      document.getElementById('ch-solo-1')!.click();
+      expect(document.getElementById('ch-solo-1')?.textContent).toContain('Unsolo');
+    });
+
+    it('second solo click unsoloes the channel', () => {
+      document.getElementById('ch-solo-1')!.click();
+      document.getElementById('ch-solo-1')!.click();
+      expect(channelState.getChannel(1)?.soloed).toBe(false);
+      expect(document.getElementById('ch-solo-1')?.textContent).not.toContain('Unsolo');
+    });
+
+    it('soloing channel 1 fully dims the row of channel 2', () => {
+      document.getElementById('ch-solo-1')!.click();
+      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
+      expect(document.getElementById('ch-row-2')?.style.opacity).toBe('0.5');
+    });
+
+    it('unsoloing all channels restores all rows to full opacity', () => {
+      document.getElementById('ch-solo-1')!.click(); // solo
+      document.getElementById('ch-solo-1')!.click(); // unsolo
+      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
+      expect(document.getElementById('ch-row-2')?.style.opacity).toBe('1');
+    });
+
+    it('muting channel 1 dims its row', () => {
+      document.getElementById('ch-mute-1')!.click();
+      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('0.5');
+    });
+
+    it('unmuting restores row to full opacity', () => {
+      document.getElementById('ch-mute-1')!.click(); // mute
+      document.getElementById('ch-mute-1')!.click(); // unmute
+      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
+    });
+
+    it('muting via channelState.mute() updates button text without re-rendering', () => {
+      const renderSpy = jest.spyOn(channelControls as any, 'render');
+      channelState.mute(1);
+      expect(document.getElementById('ch-mute-1')?.textContent).toContain('Unmute');
+      expect(renderSpy).not.toHaveBeenCalled();
+      renderSpy.mockRestore();
+    });
+
+    it('soloing via channelState.solo() updates solo button text without re-rendering', () => {
+      const renderSpy = jest.spyOn(channelControls as any, 'render');
+      channelState.solo(1);
+      expect(document.getElementById('ch-solo-1')?.textContent).toContain('Unsolo');
+      expect(renderSpy).not.toHaveBeenCalled();
+      renderSpy.mockRestore();
+    });
+
+    it('soloing channel 1 via channelState leaves channel 2 solo button showing Solo', () => {
+      channelState.solo(1);
+      expect(document.getElementById('ch-solo-2')?.textContent).not.toContain('Unsolo');
+    });
+
+    it('soloing channel 2 transfers the soloed state from channel 1', () => {
+      channelState.solo(1);
+      channelState.solo(2);
+      expect(channelState.getChannel(1)?.soloed).toBe(false);
+      expect(channelState.getChannel(2)?.soloed).toBe(true);
+      expect(document.getElementById('ch-solo-1')?.textContent).not.toContain('Unsolo');
+      expect(document.getElementById('ch-solo-2')?.textContent).toContain('Unsolo');
+    });
   });
 });

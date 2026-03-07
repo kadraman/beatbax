@@ -17,33 +17,36 @@ Enable real-time updates to playing songs without stopping playback. When the us
 - **Flow state**: Maintain creative momentum without interruptions
 - **Demo value**: Showcase BeatBax's live coding capabilities in the web UI
 
-## Current State
+## Current State (Phase 4 IDE — 2026-03-07)
 
-- Demo has a "Live" checkbox that triggers recompilation on text changes
-- Recompilation works but has issues:
-  - Full stop/restart causes audio glitch
-  - High latency between edit and audio update (~500ms+)
-  - No smooth transition between old and new patterns
-  - Channel state is lost on reload
-- Debounce delay is fixed (no tuning options)
-
-## Problems with Current Implementation
+The Phase 4 IDE (`apps/web-ui/src/main-phase4.ts`) ships a working ⚡ **Live** mode:
 
 ```typescript
-// apps/web-ui/src/main.ts (current approach)
-const liveApply = debounce(async () => {
-  if (player) player.stop();           // ❌ Hard stop causes glitch
-  const ast = parse(src);               // ❌ Full reparse every time
-  const resolved = resolveSong(ast);    // ❌ Full resolution
-  player.playAST(resolved);             // ❌ Cold start
-}, 300);
+// apps/web-ui/src/main-phase4.ts (current implementation)
+let liveMode = false;
+liveBtn.addEventListener('click', () => {
+  liveMode = !liveMode;
+  // visual feedback via border colour
+});
+
+editor.onDidChangeModelContent?.(() => {
+  if (!liveMode) return;
+  clearTimeout((window as any).__bb_liveTimer);
+  (window as any).__bb_liveTimer = setTimeout(
+    () => playbackManager.play(getSource()), 800
+  );
+});
 ```
 
-**Issues:**
-- Full stop clears scheduler queue and kills all audio nodes
-- No diff checking (even unchanged patterns are reloaded)
-- Cold start means initial notes might be missed or delayed
-- No state preservation (mute/solo settings reset)
+This is a full-stop/restart approach with an 800 ms debounce — functionally correct but with the same audio-glitch characteristic as the original prototype. **True hot reload (pattern diffing + scheduler patching) is not yet implemented** and is the goal of this feature spec.
+
+**What has improved over the original prototype:**
+- Live mode is now a labelled ⚡ button with clear active/inactive visual state
+- The 800 ms debounce avoids most mid-word re-triggers
+- Channel mute/solo state survives the restart (managed by `ChannelState`)
+- Parse errors are shown as Monaco inline markers; live mode does not crash on errors
+
+## Problems with Current Full-Stop Approach
 
 ## Proposed Solution
 
@@ -70,17 +73,17 @@ export interface ASTDiff {
   addedInstruments: string[];
   removedInstruments: string[];
   modifiedInstruments: string[];
-  
+
   addedPatterns: string[];
   removedPatterns: string[];
   modifiedPatterns: string[];
-  
+
   addedSequences: string[];
   removedSequences: string[];
   modifiedSequences: string[];
-  
+
   channelChanges: Map<number, ChannelChange>;
-  
+
   globalChanges: {
     bpm?: number;
     chip?: string;
@@ -95,11 +98,11 @@ export function diffAST(oldAST: AST, newAST: AST): ASTDiff {
     modifiedInstruments: [],
     // ... etc
   };
-  
+
   // Compare instruments
   const oldInsts = new Map(oldAST.instruments.map(i => [i.name, i]));
   const newInsts = new Map(newAST.instruments.map(i => [i.name, i]));
-  
+
   for (const [name, newInst] of newInsts) {
     if (!oldInsts.has(name)) {
       diff.addedInstruments.push(name);
@@ -107,15 +110,15 @@ export function diffAST(oldAST: AST, newAST: AST): ASTDiff {
       diff.modifiedInstruments.push(name);
     }
   }
-  
+
   for (const [name] of oldInsts) {
     if (!newInsts.has(name)) {
       diff.removedInstruments.push(name);
     }
   }
-  
+
   // Compare patterns, sequences, channels similarly...
-  
+
   return diff;
 }
 ```
@@ -127,56 +130,56 @@ export function diffAST(oldAST: AST, newAST: AST): ASTDiff {
 export class HotReloadManager {
   private currentAST: AST | null = null;
   private player: Player;
-  
+
   constructor(player: Player) {
     this.player = player;
   }
-  
+
   async update(newSource: string): Promise<HotReloadResult> {
     try {
       const newAST = parse(newSource);
-      
+
       if (!this.currentAST) {
         // First load: just play normally
         this.currentAST = newAST;
         await this.player.playAST(newAST);
         return { success: true, coldStart: true };
       }
-      
+
       // Compute diff
       const diff = diffAST(this.currentAST, newAST);
-      
+
       // Check if we need a full restart (breaking changes)
       if (this.requiresRestart(diff)) {
         await this.fullRestart(newAST);
         this.currentAST = newAST;
         return { success: true, fullRestart: true };
       }
-      
+
       // Apply hot patches
       await this.applyPatches(diff, newAST);
       this.currentAST = newAST;
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         patchesApplied: true,
-        diff 
+        diff
       };
-      
+
     } catch (error) {
       return { success: false, error };
     }
   }
-  
+
   private requiresRestart(diff: ASTDiff): boolean {
     // Restart if chip changes or channel count changes
     return !!(
       diff.globalChanges.chip ||
-      diff.channelChanges.size > 0 && 
+      diff.channelChanges.size > 0 &&
       Array.from(diff.channelChanges.values()).some(c => c.type === 'removed')
     );
   }
-  
+
   private async applyPatches(diff: ASTDiff, newAST: AST) {
     // Update instruments (affects future notes only)
     for (const name of diff.modifiedInstruments) {
@@ -185,7 +188,7 @@ export class HotReloadManager {
         this.player.updateInstrument(name, inst);
       }
     }
-    
+
     // Update patterns (re-expand and swap in scheduler)
     for (const name of diff.modifiedPatterns) {
       const pat = newAST.patterns.find(p => p.name === name);
@@ -193,14 +196,14 @@ export class HotReloadManager {
         await this.player.updatePattern(name, pat);
       }
     }
-    
+
     // Update sequences (re-resolve and patch channel event queues)
     for (const [chId, change] of diff.channelChanges) {
       if (change.type === 'modified') {
         await this.player.updateChannelSequence(chId, change.newSequence);
       }
     }
-    
+
     // Update global tempo
     if (diff.globalChanges.bpm) {
       this.player.setBPM(diff.globalChanges.bpm);
@@ -215,7 +218,7 @@ export class HotReloadManager {
 // src/audio/playback.ts
 export class Player {
   // ... existing methods ...
-  
+
   /**
    * Update instrument definition without stopping playback.
    * Affects notes scheduled after this call.
@@ -224,7 +227,7 @@ export class Player {
     this.instruments.set(name, inst);
     // Future scheduled notes will use new instrument
   }
-  
+
   /**
    * Update a pattern definition and re-schedule affected events.
    * Smoothly transitions from old to new pattern at next loop point.
@@ -232,34 +235,34 @@ export class Player {
   async updatePattern(name: string, pattern: PatternNode): Promise<void> {
     // Find all channels using this pattern
     const affectedChannels = this.findChannelsUsingPattern(name);
-    
+
     for (const chId of affectedChannels) {
       // Wait for current pattern iteration to complete
       const nextLoopTime = this.getNextLoopPoint(chId);
-      
+
       // Expand new pattern
       const expanded = expandPattern(pattern, /* context */);
-      
+
       // Schedule transition
       this.scheduler.schedule(nextLoopTime, () => {
         this.swapChannelEvents(chId, expanded);
       });
     }
   }
-  
+
   /**
    * Update channel sequence (pattern order) at next safe point.
    */
   async updateChannelSequence(chId: number, sequence: SequenceNode): Promise<void> {
     const resolved = resolveSequence(sequence, this.patterns, this.instruments);
     const nextLoopTime = this.getNextLoopPoint(chId);
-    
+
     this.scheduler.schedule(nextLoopTime, () => {
       this.channels[chId].eventQueue = resolved.events;
       this.channels[chId].currentIndex = 0;
     });
   }
-  
+
   /**
    * Change BPM smoothly without stopping playback.
    */
@@ -269,18 +272,18 @@ export class Player {
     // Reschedule future events with new timing
     this.rescheduleUpcomingEvents();
   }
-  
+
   private getNextLoopPoint(chId: number): number {
     // Find when current pattern/bar completes
     const ch = this.channels[chId];
     const currentTime = this.ctx.currentTime;
-    
+
     // Calculate next bar boundary
     const barDuration = this.getBarDuration();
     const timeSinceStart = currentTime - this.startTime;
     const currentBar = Math.floor(timeSinceStart / barDuration);
     const nextBarTime = this.startTime + ((currentBar + 1) * barDuration);
-    
+
     return nextBarTime;
   }
 }
@@ -296,21 +299,21 @@ let hotReloadManager: HotReloadManager | null = null;
 
 const liveApply = debounce(async () => {
   if (!liveCheckbox?.checked) return;
-  
+
   try {
     status.textContent = 'Live update...';
-    
+
     const src = srcArea.value;
-    
+
     // Initialize hot reload manager if needed
     if (!hotReloadManager || !player) {
       player = new Player();
       hotReloadManager = new HotReloadManager(player);
     }
-    
+
     // Apply hot update
     const result = await hotReloadManager.update(src);
-    
+
     if (result.success) {
       if (result.coldStart) {
         status.textContent = 'Playing (cold start)';
@@ -323,7 +326,7 @@ const liveApply = debounce(async () => {
       status.textContent = `Error: ${result.error?.message}`;
       console.error(result.error);
     }
-    
+
   } catch (e) {
     console.error('Live update failed:', e);
     status.textContent = 'Live update failed';
@@ -351,7 +354,7 @@ function showPatchIndicator(diff: ASTDiff) {
 function flashElement(selector: string, color: string) {
   const el = document.querySelector(selector);
   if (!el) return;
-  
+
   el.style.backgroundColor = color;
   setTimeout(() => {
     el.style.backgroundColor = '';
@@ -367,13 +370,13 @@ function flashElement(selector: string, color: string) {
 class EditHistory {
   private history: AST[] = [];
   private currentIndex = 0;
-  
+
   push(ast: AST) {
     this.history = this.history.slice(0, this.currentIndex + 1);
     this.history.push(ast);
     this.currentIndex++;
   }
-  
+
   undo(): AST | null {
     if (this.currentIndex > 0) {
       this.currentIndex--;
@@ -381,7 +384,7 @@ class EditHistory {
     }
     return null;
   }
-  
+
   redo(): AST | null {
     if (this.currentIndex < this.history.length - 1) {
       this.currentIndex++;
@@ -435,17 +438,17 @@ describe('Hot Reload', () => {
     const oldAST = parse('pat melody = C4 E4 G4');
     const newAST = parse('pat melody = C4 F4 A4');
     const diff = diffAST(oldAST, newAST);
-    
+
     expect(diff.modifiedPatterns).toContain('melody');
   });
-  
+
   test('preserves playback state on pattern update', async () => {
     const player = new Player();
     const manager = new HotReloadManager(player);
-    
+
     await manager.update('pat melody = C4 E4\nchannel 1 => inst lead pat melody\nplay');
     expect(player.isPlaying()).toBe(true);
-    
+
     await manager.update('pat melody = D4 F4\nchannel 1 => inst lead pat melody\nplay');
     expect(player.isPlaying()).toBe(true); // Still playing!
   });
@@ -460,7 +463,7 @@ test('updates pattern without audio glitch', async () => {
   const ctx = new OfflineAudioContext(1, 44100 * 10, 44100);
   const player = new Player(ctx);
   const manager = new HotReloadManager(player);
-  
+
   await manager.update(`
     bpm 128
     inst lead type=pulse1 duty=50
@@ -468,7 +471,7 @@ test('updates pattern without audio glitch', async () => {
     channel 1 => inst lead pat melody
     play
   `);
-  
+
   // Simulate edit after 2 seconds
   setTimeout(async () => {
     await manager.update(`
@@ -479,11 +482,11 @@ test('updates pattern without audio glitch', async () => {
       play
     `);
   }, 2000);
-  
+
   // Render and check for audio continuity (no gaps/clicks)
   await ctx.startRendering();
   const buffer = ctx.getChannelData(0);
-  
+
   // Verify no zero-amplitude gaps (would indicate glitch)
   let hasGlitch = false;
   for (let i = 44100; i < buffer.length - 4410; i++) {
@@ -494,7 +497,7 @@ test('updates pattern without audio glitch', async () => {
       break;
     }
   }
-  
+
   expect(hasGlitch).toBe(false);
 });
 ```
