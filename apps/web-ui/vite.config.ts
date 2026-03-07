@@ -69,6 +69,7 @@ export default defineConfig({
         phase1: path.resolve(__dirname, 'index-phase1.html'),
         phase2: path.resolve(__dirname, 'index-phase2.html'),
         phase3: path.resolve(__dirname, 'index-phase3.html'),
+        phase4: path.resolve(__dirname, 'index-phase4.html'),
       }
     },
     // Increase chunk size warning limit for Monaco Editor
