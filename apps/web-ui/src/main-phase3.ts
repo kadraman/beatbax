@@ -112,7 +112,7 @@ registerBeatBaxLanguage();
 const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
-// Phase 3 Toolbar host — inserted above the layout
+// Phase 3 Toolbar host
 const toolbarContainer = document.createElement('div');
 toolbarContainer.id = 'bb-toolbar-host';
 appContainer.appendChild(toolbarContainer);

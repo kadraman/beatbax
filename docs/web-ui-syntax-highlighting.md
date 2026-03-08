@@ -2,9 +2,22 @@
 
 ## Overview
 
-The BeatBax web-ui uses Monaco Editor with a custom language definition and theme (`beatbax-dark`) to provide comprehensive syntax highlighting for `.bax` files. This document describes all syntax elements that are color-coded and their default colors.
+The BeatBax web-ui uses Monaco Editor with a custom language definition and two built-in themes to provide comprehensive syntax highlighting for `.bax` files. This document describes all syntax elements that are colour-coded and their default colours.
 
-## Color Scheme
+## Themes
+
+The Phase 4 IDE (`index-phase4.html`) includes a `ThemeManager` that toggles between dark and light modes. Both editor themes are registered at startup:
+
+| Mode | Monaco theme | Trigger |
+|------|-------------|----------|
+| **Dark** (default) | `beatbax-dark` | System dark preference or user toggle |
+| **Light** | `vs-light` | System light preference or user toggle |
+
+The active theme is toggled via **View → Toggle Theme** in the menu bar, the `Ctrl+Shift+T` keyboard shortcut, or the toolbar theme button. The preference is persisted to `localStorage` under `beatbax-theme`.
+
+When the light theme is active, all UI chrome (menu bar, toolbar, transport bar, channel panel, help panel, output panel, layout panes, splitters) switches to light colours via `[data-theme="light"]` CSS overrides. The Monaco editor simultaneously switches to `vs-light`.
+
+## Color Scheme — Dark Mode (`beatbax-dark`)
 
 The `beatbax-dark` theme is based on VS Code's `vs-dark` theme with customizations for BeatBax-specific tokens.
 
@@ -202,7 +215,7 @@ Hover over any error marker to see the detailed error message.
 
 Yes, the colors are fully customizable! The syntax highlighting system consists of two parts:
 
-1. **Tokenizer** (`apps/web-ui/src/editor/beatbax-language.ts`): 
+1. **Tokenizer** (`apps/web-ui/src/editor/beatbax-language.ts`):
    - Defines which tokens get which token types
    - Token types are semantic labels (e.g., `keyword`, `function`, `attribute`)
    - Changing tokenizer rules requires code changes
@@ -237,31 +250,33 @@ monaco.editor.setTheme('my-custom-theme');
 
 ### Future Theme Configuration
 
-Planned features for making themes user-configurable:
+The `ThemeManager` is already integrated in Phase 4 — dark/light switching is fully operational. Remaining planned enhancements:
 
-- **Settings Panel**: UI for customizing colors without code changes
-- **Theme Presets**: Multiple built-in themes (light, dark, high-contrast)
-- **Theme Export/Import**: Save and share custom themes as JSON
-- **Per-User Preferences**: Persist theme choices in localStorage
+- **Settings Panel**: UI for customising individual token colours without code changes
+- **Theme Presets**: Additional built-in themes (high-contrast, OLED black, etc.)
+- **Theme Export/Import**: Save and share custom Monaco themes as JSON
 
-The architecture is already theme-ready — adding UI controls is straightforward.
+The architecture is theme-ready — adding more presets or a UI colour picker is straightforward.
 
 ## Implementation Details
 
 ### File Locations
 
-- **Language Definition**: `apps/web-ui/src/editor/beatbax-language.ts`
+- **Language Definition & Themes**: `apps/web-ui/src/editor/beatbax-language.ts`
   - Monarch tokenizer rules
-  - Theme definitions
+  - `beatbax-dark` theme definition
   - Hover documentation
 
 - **Monaco Setup**: `apps/web-ui/src/editor/monaco-setup.ts`
-  - Editor creation
-  - Global configuration
+  - Editor creation and global configuration
 
-- **Validation**: `apps/web-ui/src/main-phase1.ts`
-  - Real-time validation logic
-  - Error marker generation
+- **Theme Manager**: `apps/web-ui/src/ui/theme-manager.ts`
+  - Dark/light toggle, localStorage persistence, OS-preference detection
+  - Emits `theme:changed` events via EventBus
+
+- **Phase 4 Entry Point**: `apps/web-ui/src/main-phase4.ts`
+  - Wires `ThemeManager` to the menu bar and `Ctrl+Shift+T` shortcut
+  - Validation / error marker generation via `DiagnosticsManager`
 
 ### Token Type Reference
 

@@ -426,8 +426,11 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 - 500ms debounced validation for performance
 
 **Entry Points:**
-- `src/main-phase1.ts` — New modular entry point using all Phase 1 components
-- `src/main.ts` — Legacy monolithic implementation (preserved during migration)
+- `src/main-phase4.ts` — Current production IDE entry point (Phase 4: menu bar, keyboard shortcuts, theme, channel mixer, Live mode)
+- `src/main-phase3.ts` — Phase 3 entry point (export/import UI, preserved for reference)
+- `src/main-phase2.ts` — Phase 2 entry point (playback controls, preserved for reference)
+- `src/main-phase1.ts` — Phase 1 entry point (modular editor foundation, preserved for reference)
+- `src/main.ts` — Legacy monolithic implementation (preserved for reference)
 
 **Test Coverage:**
 - `tests/event-bus.test.ts` — 12 tests for EventBus functionality
@@ -440,11 +443,11 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 - [docs/web-ui-syntax-highlighting.md](./web-ui-syntax-highlighting.md) — Complete color scheme reference
 - [docs/features/web-ui-migration.md](./features/web-ui-migration.md) — Full migration plan with Phases 1-4
 
-**Next Phases:**
-- Phase 2: Playback & output panel
-- Phase 3: Export & import UI
-- Phase 4: Advanced features (menu bar, help panel, channel mixer, theme switching)
-- Post-Phase 3: User-configurable syntax highlighting themes
+**All Phases Complete:**
+- ✅ Phase 2: Playback & output panel
+- ✅ Phase 3: Export & import UI
+- ✅ Phase 4: Menu bar, keyboard shortcuts, dark/light theme switching, unified channel mixer, help panel, ⚡ Live mode
+- Post-MVP: User-configurable token colour themes (see `docs/features/web-ui-migration.md`)
 
 ### Making Engine Changes for CLI
 
