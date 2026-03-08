@@ -149,6 +149,7 @@ editor = createEditor({
   theme: 'beatbax-dark',
   language: 'beatbax',
   autoSaveDelay: 500,
+  emitChangedEvents: false, // EditorState is the sole editor:changed emitter
 });
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
@@ -310,6 +311,9 @@ liveBtn.addEventListener('click', () => {
   liveBtn.style.borderColor = liveMode ? '#4caf50' : 'transparent';
   liveBtn.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
   opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
+  if (!liveMode) {
+    clearTimeout((window as any).__bb_liveTimer);
+  }
 });
 
 editor.onDidChangeModelContent?.(() => {

@@ -166,7 +166,8 @@ export const storage = new BeatBaxStorage();
  */
 export const BeatBaxSettings = {
   getTheme(): 'dark' | 'light' {
-    return (storage.get(StorageKey.THEME, 'dark') as 'dark' | 'light');
+    const value = storage.get(StorageKey.THEME, 'dark');
+    return value === 'dark' || value === 'light' ? value : 'dark';
   },
   setTheme(theme: 'dark' | 'light'): void {
     storage.set(StorageKey.THEME, theme);

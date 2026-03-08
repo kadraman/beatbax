@@ -465,7 +465,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Keyboard Shortcuts',
-        shortcut: 'Ctrl+Shift+K',
+        shortcut: 'Ctrl+Shift+H',
         action: () => this.emitPanelToggle('help'),
       },
       { type: 'separator' },
@@ -610,7 +610,10 @@ export class MenuBar {
     // Allow Monaco to handle its own shortcuts
     if (inMonaco) return;
 
-    if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+    // Treat Cmd (Meta) as Ctrl so shortcuts work on macOS as well as Windows/Linux.
+    const ctrl = e.ctrlKey || e.metaKey;
+
+    if (ctrl && !e.shiftKey && !e.altKey) {
       switch (e.key.toLowerCase()) {
         case 'n':
           e.preventDefault();
@@ -636,7 +639,7 @@ export class MenuBar {
       return;
     }
 
-    if (e.ctrlKey && e.shiftKey && !e.altKey) {
+    if (ctrl && e.shiftKey && !e.altKey) {
       switch (e.key.toLowerCase()) {
         case 's':
           e.preventDefault();
@@ -652,23 +655,19 @@ export class MenuBar {
           break;
         case 'h':
           e.preventDefault();
-          this.opts.eventBus.emit('panel:toggled', { panel: 'help', visible: true });
+          this.emitPanelToggle('help');
           break;
         case 'm':
           e.preventDefault();
-          this.opts.eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: true });
-          break;
-        case 'k':
-          e.preventDefault();
-          this.opts.eventBus.emit('panel:toggled', { panel: 'help', visible: true });
+          this.emitPanelToggle('channel-mixer');
           break;
       }
       return;
     }
 
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '`') {
+    if (ctrl && !e.shiftKey && !e.altKey && e.key === '`') {
       e.preventDefault();
-      this.opts.eventBus.emit('panel:toggled', { panel: 'output', visible: true });
+      this.emitPanelToggle('output');
     }
   }
 
@@ -676,6 +675,12 @@ export class MenuBar {
     // When a file is loaded externally (toolbar open, drag-drop), record it
     this.opts.eventBus.on('song:loaded', ({ filename }) => {
       recordRecentFile(filename);
+    });
+
+    // Keep panelVisible in sync with any panel:toggled event regardless of
+    // who emitted it (keyboard shortcuts, toolbar buttons, other components).
+    this.opts.eventBus.on('panel:toggled', ({ panel, visible }) => {
+      this.panelVisible.set(panel, visible);
     });
   }
 

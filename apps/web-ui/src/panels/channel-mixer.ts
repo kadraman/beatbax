@@ -266,6 +266,8 @@ export class ChannelMixer {
 
   private hasChannelStructureChanged(newAst: any): boolean {
     if (!this.ast) return true;
+    // A chip change affects volumeEnabled and volume control tooltips/disabled state.
+    if ((this.ast.chip ?? 'gameboy') !== (newAst.chip ?? 'gameboy')) return true;
     if (!this.ast.channels && !newAst.channels) return false;
     if (!this.ast.channels || !newAst.channels) return true;
     if (this.ast.channels.length !== newAst.channels.length) return true;
@@ -359,10 +361,10 @@ export class ChannelMixer {
   }
 
   private clearAllLevels(): void {
-    for (let ch = 1; ch <= 4; ch++) {
+    for (const ch of this.levelTimers.keys()) {
+      clearTimeout(this.levelTimers.get(ch));
       const bar = document.getElementById(`bb-cp-level-${ch}`);
       if (bar) { bar.style.boxShadow = 'none'; bar.style.opacity = '0.35'; }
-      clearTimeout(this.levelTimers.get(ch));
     }
     this.levelTimers.clear();
   }

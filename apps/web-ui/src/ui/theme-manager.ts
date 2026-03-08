@@ -11,6 +11,7 @@
 
 import * as monaco from 'monaco-editor';
 import type { EventBus } from '../utils/event-bus';
+import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:theme-manager');
@@ -22,8 +23,6 @@ const MONACO_THEMES: Record<Theme, string> = {
   dark: 'beatbax-dark',
   light: 'vs-light',
 };
-
-const STORAGE_KEY = 'beatbax-theme';
 
 export interface ThemeManagerOptions {
   /** EventBus instance for emitting theme change events */
@@ -152,11 +151,7 @@ export class ThemeManager {
 
     // 3. Persist to localStorage (only on explicit user choice)
     if (persist) {
-      try {
-        localStorage.setItem(STORAGE_KEY, theme);
-      } catch (err) {
-        log.warn('Failed to persist theme preference:', err);
-      }
+      BeatBaxSettings.setTheme(theme);
     }
 
     // 4. Notify other components
@@ -167,13 +162,8 @@ export class ThemeManager {
 
   /** Read the previously persisted theme, or null if none. */
   private loadStoredTheme(): Theme | null {
-    try {
-      const value = localStorage.getItem(STORAGE_KEY);
-      if (value === 'dark' || value === 'light') return value;
-    } catch {
-      // localStorage may be unavailable (e.g. private browsing with strict settings)
-    }
-    return null;
+    if (!storage.has(StorageKey.THEME)) return null;
+    return BeatBaxSettings.getTheme();
   }
 
   /** Detect the OS-level colour-scheme preference. */
