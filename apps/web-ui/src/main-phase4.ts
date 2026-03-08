@@ -1,7 +1,7 @@
 /**
- * BeatBax Web UI - Phase 3 Implementation
- * BUILDS ON Phase 1+2: Monaco editor, diagnostics, layout, playback
- * ADDS Phase 3: ExportManager, Toolbar, FileLoader, DragDropHandler, RemoteLoader
+ * BeatBax Web UI - Phase 4 Implementation
+ * BUILDS ON Phase 1+2+3: Monaco editor, diagnostics, layout, playback, exports
+ * ADDS Phase 4: MenuBar, ThemeManager, EditorState, advanced IDE chrome
  */
 
 // Polyfill Buffer for engine compatibility in browser (must be first)
@@ -33,21 +33,30 @@ import { ChannelState } from './playback/channel-state';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
-import { ChannelControls } from './panels/channel-controls';
 
-// Phase 3 imports — NEW
+// Phase 3 imports
 import { Toolbar } from './ui/toolbar';
 import { ExportManager } from './export/export-manager';
 import type { ExportFormat } from './export/export-manager';
 import { DragDropHandler } from './import/drag-drop-handler';
 
-const log = createLogger('ui:phase3');
+// Phase 4 imports — NEW
+import { MenuBar } from './ui/menu-bar';
+import { ThemeManager } from './ui/theme-manager';
+import { EditorState } from './editor/editor-state';
+import { HelpPanel } from './panels/help-panel';
+import { ChannelMixer } from './panels/channel-mixer';
+import { downloadText } from './export/download-helper';
+import { openFilePicker } from './import/file-loader';
+import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
+
+const log = createLogger('ui:phase4');
 
 // Init logger
 loadLoggingFromStorage();
 loadLoggingFromURL();
 const logConfig = getLoggingConfig();
-log.debug('BeatBax Phase 3 starting. Logging config:', logConfig);
+log.debug('BeatBax Phase 4 starting. Logging config:', logConfig);
 
 // ─── Convenience helpers for OutputPanel ─────────────────────────────────────
 function opLog(panel: OutputPanel, message: string, source = 'app') {
@@ -63,6 +72,7 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 // ─── Global state ─────────────────────────────────────────────────────────────
 let editor: any = null;
 let diagnosticsManager: any = null;
+let editorState: EditorState | null = null;
 let rightPane: HTMLElement;
 
 // Expose eventBus globally for debugging
@@ -71,13 +81,16 @@ let rightPane: HTMLElement;
 // ─── Initial content ─────────────────────────────────────────────────────────
 function getInitialContent(): string {
   try {
-    const saved = localStorage.getItem('beatbax-editor-content');
+    const saved = localStorage.getItem('beatbax:editor.content');
     if (saved) return saved;
+    // Fall back to legacy phase3 key
+    const legacy = localStorage.getItem('beatbax-editor-content');
+    if (legacy) return legacy;
   } catch (_e) { /* ignore */ }
 
-  return `# BeatBax Phase 3 - Export & Import
-# Open a .bax file, drag-and-drop, or use the Examples menu.
-# Use the export buttons in the toolbar to download JSON / MIDI / UGE / WAV.
+  return `# BeatBax Phase 4 - Advanced IDE
+# Use the menu bar (File / Edit / View / Help) for all operations.
+# Drag-and-drop a .bax file to load it, or use File → Open.
 
 chip gameboy
 bpm 140
@@ -112,12 +125,17 @@ registerBeatBaxLanguage();
 const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
-// Phase 3 Toolbar host
+// ─── Phase 4: Menu bar host (topmost) ────────────────────────────────────────
+const menuBarContainer = document.createElement('div');
+menuBarContainer.id = 'bb-menu-bar-host';
+appContainer.appendChild(menuBarContainer);
+
+// ─── Toolbar host (below menu bar) ───────────────────────────────────────────
 const toolbarContainer = document.createElement('div');
 toolbarContainer.id = 'bb-toolbar-host';
 appContainer.appendChild(toolbarContainer);
 
-// Layout host — fills remaining height
+// ─── Layout host (fills remaining height) ────────────────────────────────────
 const layoutHost = document.createElement('div');
 layoutHost.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
 appContainer.appendChild(layoutHost);
@@ -131,6 +149,7 @@ editor = createEditor({
   theme: 'beatbax-dark',
   language: 'beatbax',
   autoSaveDelay: 500,
+  emitChangedEvents: false, // EditorState is the sole editor:changed emitter
 });
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
@@ -138,6 +157,14 @@ setupDiagnosticsIntegration(diagnosticsManager);
 
 const outputPane = layout.getOutputPane();
 rightPane = layout.getRightPane();
+
+// ─── Phase 4: EditorState ─────────────────────────────────────────────────────
+editorState = new EditorState({
+  editor: editor.editor,
+  eventBus,
+  autoSaveDelay: 500,
+  restoreOnInit: false, // already restored via getInitialContent()
+});
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
 const statusBarContainer = document.createElement('div');
@@ -150,26 +177,85 @@ const channelState = new ChannelState(eventBus);
 const playbackManager = new PlaybackManager(eventBus, channelState);
 const outputPanel = new OutputPanel(outputPane, eventBus);
 const statusBar = new StatusBar({ container: statusBarContainer }, eventBus);
-const channelControls = new ChannelControls({ container: rightPane, eventBus, channelState });
-channelControls.render();
+
+// ─── Phase 4: Unified Channel Panel (ChannelMixer) in the right pane ────────
+// The ChannelMixer is the combined channel controls + monitor. It lives in a
+// dedicated scoped div so its render() (which clears innerHTML on every
+// parse:success) never conflicts with any sibling nodes in rightPane.
+const ccContainer = document.createElement('div');
+ccContainer.id = 'bb-channel-controls-host';
+ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
+rightPane.appendChild(ccContainer);
+
+const channelMixer = new ChannelMixer({ container: ccContainer, eventBus, channelState });
+
+// ─── Phase 4: HelpPanel — fixed overlay drawer from the right ────────────────
+const helpOverlay = document.createElement('div');
+helpOverlay.id = 'bb-help-overlay';
+helpOverlay.style.cssText = [
+  'position: fixed',
+  'top: 0',
+  'right: 0',
+  'bottom: 0',
+  'width: min(480px, 90vw)',
+  'z-index: 5000',
+  'display: none',
+  'flex-direction: column',
+  'box-shadow: -4px 0 24px rgba(0,0,0,0.5)',
+  'border-left: 1px solid #3c3c3c',
+].join('; ');
+document.body.appendChild(helpOverlay);
+
+// ─── Phase 4: Central keyboard shortcuts registry ───────────────────────────
+// Created before HelpPanel so we can pass getShortcuts: () => ks.list().
+// Shortcuts are registered after all components are instantiated (see bottom).
+const ks = new KeyboardShortcuts();
+
+const helpPanel = new HelpPanel({
+  container: helpOverlay,
+  eventBus,
+  defaultVisible: false,
+  getShortcuts: () => ks.list(),
+  onInsertSnippet: (snippet) => {
+    const monacoEditor = editor?.editor;
+    if (!monacoEditor) return;
+    const selection = monacoEditor.getSelection();
+    const id = { major: 1, minor: 1 };
+    const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
+    monacoEditor.executeEdits('help-panel', [op]);
+    monacoEditor.focus();
+    helpPanel.hide();
+  },
+});
+
+// Toggle panel visibility via panel:toggled
+eventBus.on('panel:toggled', ({ panel, visible }) => {
+  if (panel === 'output') {
+    outputPane.style.display = visible ? '' : 'none';
+  }
+  if (panel === 'channel-mixer') {
+    ccContainer.style.display = visible ? '' : 'none';
+  }
+});
 
 (window as any).__beatbax_channelState = channelState;
 (window as any).__beatbax_playbackManager = playbackManager;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
+(window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
+(window as any).__beatbax_helpPanel = helpPanel;
 
 // ─── Transport bar ────────────────────────────────────────────────────────────
 const transportContainer = document.createElement('div');
-transportContainer.id = 'phase3-transport';
+transportContainer.id = 'phase4-transport';
+transportContainer.className = 'bb-transport';
 transportContainer.style.cssText = `
   padding: 6px 10px;
-  background: #2d2d2d;
   display: flex;
   gap: 8px;
   align-items: center;
-  border-bottom: 1px solid #3c3c3c;
   flex-shrink: 0;
-`;
+`;  // background and border handled by .bb-transport via CSS vars
 
 const logo = document.createElement('img');
 logo.src = '/logo-menu-bar.png';
@@ -206,7 +292,7 @@ const transportControls = new TransportControls(
     pauseButton: pauseBtn,
     stopButton: stopBtn,
     applyButton: applyBtn,
-    enableKeyboardShortcuts: true,
+    enableKeyboardShortcuts: false, // central ks registry owns Space/Esc/Ctrl+Enter
   },
   playbackManager,
   eventBus,
@@ -225,6 +311,9 @@ liveBtn.addEventListener('click', () => {
   liveBtn.style.borderColor = liveMode ? '#4caf50' : 'transparent';
   liveBtn.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
   opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
+  if (!liveMode) {
+    clearTimeout((window as any).__bb_liveTimer);
+  }
 });
 
 editor.onDidChangeModelContent?.(() => {
@@ -237,7 +326,6 @@ editor.onDidChangeModelContent?.(() => {
 const exportManager = new ExportManager(eventBus);
 
 // Tracks the stem of the last loaded .bax filename (e.g. 'sample_song' from 'sample_song.bax').
-// Used as the base for all export filenames. Resets to 'song' when content is typed fresh.
 let loadedFilename = 'song';
 
 /** Strip directory, extension and return the bare stem of a filename path. */
@@ -247,7 +335,7 @@ function fileBaseStem(path: string): string {
 
 /**
  * Parse song source and emit parse:success / parse:error so all subscribers
- * (ChannelControls, StatusBar, etc.) immediately reflect the new song.
+ * (ChannelMixer, StatusBar, etc.) immediately reflect the new song.
  */
 function emitParse(content: string): void {
   try {
@@ -275,8 +363,89 @@ async function handleExport(format: ExportFormat) {
   }
 }
 
+// ─── Phase 4: ThemeManager ────────────────────────────────────────────────────
+const themeManager = new ThemeManager({ eventBus });
+themeManager.init();
+
+(window as any).__beatbax_themeManager = themeManager;
+
+// ─── Phase 4: MenuBar ─────────────────────────────────────────────────────────
+// Declared before Toolbar so toolbar's onLoad can call menuBar.recordRecent.
+// The `toolbar` variable is referenced inside MenuBar callbacks via the closure
+// formed after Toolbar is instantiated below.
+let toolbar: Toolbar; // forward declaration — assigned after Toolbar construction
+
+const menuBar = new MenuBar({
+  container: menuBarContainer,
+  eventBus,
+  enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
+  onNew: () => {
+    if (confirm('Clear the editor and start a new song?')) {
+      editor.setValue?.('');
+      loadedFilename = 'song';
+      opLog(outputPanel, '📄 New song');
+    }
+  },
+  onOpen: () => {
+    openFilePicker({
+      accept: '.bax',
+      onLoad: (result) => {
+        loadedFilename = fileBaseStem(result.filename);
+        editor.setValue?.(result.content);
+        opLog(outputPanel, `📂 Opened ${result.filename}`);
+        eventBus.emit('song:loaded', { filename: result.filename });
+        menuBar.recordRecent(result.filename);
+        emitParse(result.content);
+        toolbar?.setExportEnabled(true);
+      },
+    });
+  },
+  onSave: () => {
+    const content = getSource();
+    if (!content.trim()) { opWarn(outputPanel, 'Nothing to save'); return; }
+    downloadText(content, `${loadedFilename}.bax`, 'text/plain');
+    opLog(outputPanel, `💾 Saved ${loadedFilename}.bax`);
+  },
+  onSaveAs: () => {
+    const raw = prompt('Save as:', `${loadedFilename}.bax`);
+    if (!raw) return;
+    const filename = raw.endsWith('.bax') ? raw : `${raw}.bax`;
+    downloadText(getSource(), filename, 'text/plain');
+    loadedFilename = fileBaseStem(filename);
+    opLog(outputPanel, `💾 Saved ${filename}`);
+  },
+  onLoadFile: (filename, content) => {
+    loadedFilename = fileBaseStem(filename);
+    editor.setValue?.(content);
+    opLog(outputPanel, `🎵 Loaded ${filename}`);
+    eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
+    emitParse(content);
+    toolbar?.setExportEnabled(true);
+  },
+  onUndo: () => editor.editor?.trigger('menu', 'undo', null),
+  onRedo: () => editor.editor?.trigger('menu', 'redo', null),
+  onCut: () => editor.editor?.trigger('menu', 'editor.action.clipboardCutAction', null),
+  onCopy: () => editor.editor?.trigger('menu', 'editor.action.clipboardCopyAction', null),
+  onPaste: () => editor.editor?.trigger('menu', 'editor.action.clipboardPasteAction', null),
+  onFind: () => editor.editor?.trigger('menu', 'actions.find', null),
+  onReplace: () => editor.editor?.trigger('menu', 'editor.action.startFindReplaceAction', null),
+  onZoomIn: () => {
+    const cur = (editor.editor?.getOption(52 /* fontSize */) as number) || 14;
+    editor.editor?.updateOptions({ fontSize: Math.min(cur + 2, 32) });
+  },
+  onZoomOut: () => {
+    const cur = (editor.editor?.getOption(52 /* fontSize */) as number) || 14;
+    editor.editor?.updateOptions({ fontSize: Math.max(cur - 2, 8) });
+  },
+  onZoomReset: () => editor.editor?.updateOptions({ fontSize: 14 }),
+  onToggleTheme: () => themeManager.toggle(),
+});
+
+(window as any).__beatbax_menuBar = menuBar;
+
 // ─── Phase 3: Toolbar ─────────────────────────────────────────────────────────
-const toolbar = new Toolbar({
+toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
   onLoad: (filename, content) => {
@@ -284,6 +453,7 @@ const toolbar = new Toolbar({
     editor.setValue?.(content);
     opLog(outputPanel, `📂 Opened ${filename}`);
     eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
     emitParse(content);
     toolbar.setExportEnabled(true);
   },
@@ -316,6 +486,7 @@ const dragDrop = new DragDropHandler(document.body, {
     editor.setValue?.(content);
     opLog(outputPanel, `🗂 Dropped ${filename}`);
     eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
     emitParse(content);
     toolbar.setExportEnabled(true);
     setTimeout(() => playbackManager.play(getSource()), 200);
@@ -335,6 +506,7 @@ const dragDrop = new DragDropHandler(document.body, {
       editor.setValue?.(result.content);
       opLog(outputPanel, `🌐 Loaded from URL: ${filename}`);
       eventBus.emit('song:loaded', { filename });
+      menuBar.recordRecent(filename);
       emitParse(result.content);
       toolbar.setExportEnabled(true);
       setTimeout(() => playbackManager.play(getSource()), 300);
@@ -344,14 +516,72 @@ const dragDrop = new DragDropHandler(document.body, {
   }
 })();
 
-// ─── Initial validation ───────────────────────────────────────────────────────
+// ─── Initial parse ───────────────────────────────────────────────────────────
+// Emit parse:success on startup so subscribers (ChannelMixer, StatusBar, …)
+// are populated without requiring the user to press Play first.
 (async () => {
+  const content = getSource();
   try {
-    parse(getSource());
+    parse(content); // validate first so we know whether to enable exports
     toolbar.setExportEnabled(true);
   } catch {
     toolbar.setExportEnabled(false);
   }
+  emitParse(content);
 })();
 
-log.debug('BeatBax Phase 3 initialised ✓');
+// ─── Central keyboard shortcut registrations ────────────────────────────────
+// All app-wide shortcuts live here so HelpPanel can list them dynamically.
+
+// Transport
+ks.register({ key: ' ', description: 'Play / Pause', allowInInput: false,
+  action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
+});
+ks.register({ key: 'Escape', description: 'Stop playback or close Help panel',
+  action: () => { if (helpPanel.isVisible()) helpPanel.hide(); else stopBtn.click(); },
+});
+ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play',
+  action: () => applyBtn.click(),
+});
+
+// File
+ks.register({ key: 'n', ctrlKey: true, description: 'New song',
+  action: () => menuBar.triggerNew() });
+ks.register({ key: 'o', ctrlKey: true, description: 'Open file…',
+  action: () => menuBar.triggerOpen() });
+ks.register({ key: 's', ctrlKey: true, description: 'Save',
+  action: () => menuBar.triggerSave() });
+ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…',
+  action: () => menuBar.triggerSaveAs() });
+
+// Edit
+ks.register({ key: 'z', ctrlKey: true, description: 'Undo',
+  action: () => menuBar.triggerUndo() });
+ks.register({ key: 'y', ctrlKey: true, description: 'Redo',
+  action: () => menuBar.triggerRedo() });
+
+// View
+ks.register({ key: 't', ctrlKey: true, shiftKey: true, description: 'Toggle theme',
+  action: () => menuBar.triggerToggleTheme() });
+ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel',
+  action: () => {
+    const vis = outputPane.style.display !== 'none';
+    eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
+  },
+});
+ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls',
+  action: () => {
+    const vis = ccContainer.style.display !== 'none';
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+  },
+});
+
+// Help
+ks.register({ key: 'F1', description: 'Open Help panel',
+  action: () => helpPanel.show() });
+ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Help / keyboard shortcuts',
+  action: () => helpPanel.show() });
+
+ks.mount();
+
+log.debug('BeatBax Phase 4 initialised ✓');
