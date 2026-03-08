@@ -25,6 +25,13 @@ export interface EditorOptions {
   tabSize?: number;
   /** Auto-save delay in ms (0 to disable) */
   autoSaveDelay?: number;
+  /**
+   * When false, createEditor will NOT emit `editor:changed` events.
+   * Set to false when EditorState (or another component) owns that emission
+   * to prevent duplicate events on the same EventBus.
+   * Defaults to true for backward compatibility.
+   */
+  emitChangedEvents?: boolean;
 }
 
 export interface BeatBaxEditor {
@@ -64,6 +71,7 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
     fontSize = 14,
     tabSize = 2,
     autoSaveDelay = 0,
+    emitChangedEvents = true,
   } = options;
 
   // Create editor instance
@@ -95,20 +103,22 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
 
   // Auto-save support with debounced emission, or immediate emission if no auto-save
   let autoSaveTimeout: number | null = null;
-  if (autoSaveDelay > 0) {
-    editor.onDidChangeModelContent(() => {
-      if (autoSaveTimeout !== null) {
-        clearTimeout(autoSaveTimeout);
-      }
-      autoSaveTimeout = window.setTimeout(() => {
+  if (emitChangedEvents) {
+    if (autoSaveDelay > 0) {
+      editor.onDidChangeModelContent(() => {
+        if (autoSaveTimeout !== null) {
+          clearTimeout(autoSaveTimeout);
+        }
+        autoSaveTimeout = window.setTimeout(() => {
+          eventBus.emit('editor:changed', { content: editor.getValue() });
+        }, autoSaveDelay);
+      });
+    } else {
+      // Emit change events immediately (without debounce) when auto-save is disabled
+      editor.onDidChangeModelContent(() => {
         eventBus.emit('editor:changed', { content: editor.getValue() });
-      }, autoSaveDelay);
-    });
-  } else {
-    // Emit change events immediately (without debounce) when auto-save is disabled
-    editor.onDidChangeModelContent(() => {
-      eventBus.emit('editor:changed', { content: editor.getValue() });
-    });
+      });
+    }
   }
 
   // Handle window resize

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BeatBax Web UI - Phase 4</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* ── Design tokens: dark defaults ── */
+      :root {
+        --bb-app-bg:    #1e1e1e;
+        --bb-fg:        #d4d4d4;
+        /* shared vars consumed by output-panel, status-bar, etc. */
+        --bg-color:     #1e1e1e;
+        --text-color:   #d4d4d4;
+        --text-muted:   #858585;
+        --header-bg:    #2d2d2d;
+        --button-bg:    #444;
+        --button-hover-bg: #3a3a3a;
+        --border-color: #444;
+        --error-color:  #f48771;
+        --warning-color: #cca700;
+        /* toolbar */
+        --bb-toolbar-bg:          #252526;
+        --bb-toolbar-border:      #3c3c3c;
+        --bb-toolbar-fg:          #cccccc;
+        --bb-toolbar-label-fg:    #888;
+        --bb-toolbar-separator:   #3c3c3c;
+        --bb-toolbar-btn-hover-bg:     #2a2d2e;
+        --bb-toolbar-btn-hover-border: #3c3c3c;
+        --bb-toolbar-btn-active-bg:    #37373d;
+        --bb-toolbar-dropdown-bg:      #2d2d30;
+        --bb-toolbar-dropdown-border:  #555;
+        --bb-toolbar-dropdown-fg:      #cccccc;
+        --bb-toolbar-dropdown-hover-bg: #3e3e42;
+        --bb-toolbar-dropdown-hover-fg: #ffffff;
+        --bb-toolbar-status-fg:   #888;
+        /* layout */
+        --bb-splitter-color:  #333;
+        --bb-output-bg:       #1e1e1e;
+        --bb-output-fg:       #d4d4d4;
+        --bb-right-pane-bg:   #252525;
+        /* transport */
+        --bb-transport-bg:     #2d2d2d;
+        --bb-transport-border: #3c3c3c;
+      }
+
+      /* ── Light theme overrides ── */
+      [data-theme="light"] {
+        --bb-app-bg:    #f0f0f0;
+        --bb-fg:        #333333;
+        --bg-color:     #ffffff;
+        --text-color:   #333333;
+        --text-muted:   #666666;
+        --header-bg:    #f3f3f3;
+        --button-bg:    #e0e0e0;
+        --button-hover-bg: #d0d0d0;
+        --border-color: #ddd;
+        --error-color:  #d73a49;
+        --warning-color: #9a6700;
+        --bb-toolbar-bg:          #f3f3f3;
+        --bb-toolbar-border:      #ddd;
+        --bb-toolbar-fg:          #333333;
+        --bb-toolbar-label-fg:    #666666;
+        --bb-toolbar-separator:   #ddd;
+        --bb-toolbar-btn-hover-bg:     #e4e4e4;
+        --bb-toolbar-btn-hover-border: #ccc;
+        --bb-toolbar-btn-active-bg:    #d8d8d8;
+        --bb-toolbar-dropdown-bg:      #ffffff;
+        --bb-toolbar-dropdown-border:  #ccc;
+        --bb-toolbar-dropdown-fg:      #333333;
+        --bb-toolbar-dropdown-hover-bg: #e9e9e9;
+        --bb-toolbar-dropdown-hover-fg: #111111;
+        --bb-toolbar-status-fg:   #666666;
+        --bb-splitter-color:  #c8c8c8;
+        --bb-output-bg:       #f5f5f5;
+        --bb-output-fg:       #333333;
+        --bb-right-pane-bg:   #f0f0f0;
+        --bb-transport-bg:     #e8e8e8;
+        --bb-transport-border: #d0d0d0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: var(--bb-app-bg);
+        color: var(--bb-fg);
+        overflow: hidden;
+      }
+
+      #app {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Back link positioned in bottom-right */
+      #backLink {
+        position: fixed;
+        bottom: 8px;
+        right: 8px;
+        padding: 6px 12px;
+        background: rgba(60, 60, 60, 0.9);
+        color: #d4d4d4;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        z-index: 10000;
+        border: 1px solid #444;
+        transition: all 0.2s;
+      }
+
+      #backLink:hover {
+        background: rgba(80, 80, 80, 0.95);
+        border-color: #666;
+      }
+
+      [data-theme="light"] #backLink {
+        background: rgba(220, 220, 220, 0.95);
+        color: #333;
+        border-color: #bbb;
+      }
+      [data-theme="light"] #backLink:hover {
+        background: rgba(200, 200, 200, 0.98);
+        border-color: #999;
+      }
+
+      /* Drag-and-drop overlay (managed by DragDropHandler) */
+      .bb-drop-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(14, 99, 156, 0.25);
+        border: 3px dashed #569cd6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+
+      .bb-drop-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .bb-drop-overlay__label {
+        font-size: 20px;
+        font-weight: 600;
+        color: #9cdcfe;
+        background: rgba(30, 30, 30, 0.85);
+        padding: 20px 40px;
+        border-radius: 8px;
+        border: 1px solid #569cd6;
+      }
+
+      /* ── Transport bar ── */
+      .bb-transport {
+        background: var(--bb-transport-bg);
+        border-bottom: 1px solid var(--bb-transport-border);
+      }
+
+      /* ── Layout panes & splitters ── */
+      #output-pane {
+        background-color: var(--bb-output-bg);
+        color: var(--bb-output-fg);
+      }
+      #right-pane {
+        background-color: var(--bb-right-pane-bg);
+      }
+      .bb-splitter {
+        background-color: var(--bb-splitter-color);
+      }
+    </style>
+  </head>
+  <body>
+    <a href="index-phase3.html" id="backLink" title="Return to Phase 3">← Phase 3</a>
+    <div id="app"></div>
+    <script type="module" src="/src/main-phase4.ts"></script>
+  </body>
+</html>

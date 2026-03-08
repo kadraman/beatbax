@@ -432,6 +432,60 @@ export class Toolbar {
       .bb-toolbar__status[data-type="info"] {
         color: #9cdcfe;
       }
+
+      /* ── Light theme overrides ── */
+      [data-theme="light"] .bb-toolbar {
+        background: var(--bb-toolbar-bg, #f3f3f3);
+        border-bottom-color: var(--bb-toolbar-border, #ddd);
+      }
+      [data-theme="light"] .bb-toolbar__label {
+        color: var(--bb-toolbar-label-fg, #666);
+      }
+      [data-theme="light"] .bb-toolbar__separator {
+        background: var(--bb-toolbar-separator, #ddd);
+      }
+      [data-theme="light"] .bb-toolbar__btn {
+        color: var(--bb-toolbar-fg, #333);
+      }
+      [data-theme="light"] .bb-toolbar__btn:hover:not(:disabled) {
+        background: var(--bb-toolbar-btn-hover-bg, #e4e4e4);
+        border-color: var(--bb-toolbar-btn-hover-border, #ccc);
+        color: #111;
+      }
+      [data-theme="light"] .bb-toolbar__btn:active:not(:disabled) {
+        background: var(--bb-toolbar-btn-active-bg, #d8d8d8);
+      }
+      [data-theme="light"] .bb-toolbar__btn--export {
+        color: #0366d6;
+      }
+      [data-theme="light"] .bb-toolbar__btn--export:hover:not(:disabled) {
+        color: #003080;
+        border-color: #0366d6;
+      }
+      [data-theme="light"] .bb-toolbar__dropdown {
+        background: var(--bb-toolbar-dropdown-bg, #fff);
+        border-color: var(--bb-toolbar-dropdown-border, #ccc);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      }
+      [data-theme="light"] .bb-toolbar__dropdown-item {
+        color: var(--bb-toolbar-dropdown-fg, #333);
+      }
+      [data-theme="light"] .bb-toolbar__dropdown-item:hover {
+        background: var(--bb-toolbar-dropdown-hover-bg, #e9e9e9);
+        color: var(--bb-toolbar-dropdown-hover-fg, #111);
+      }
+      [data-theme="light"] .bb-toolbar__status {
+        color: var(--bb-toolbar-status-fg, #666);
+      }
+      [data-theme="light"] .bb-toolbar__status[data-type="success"] {
+        color: #1a7a4c;
+      }
+      [data-theme="light"] .bb-toolbar__status[data-type="error"] {
+        color: #d73a49;
+      }
+      [data-theme="light"] .bb-toolbar__status[data-type="info"] {
+        color: #0366d6;
+      }
     `;
     document.head.appendChild(style);
   }

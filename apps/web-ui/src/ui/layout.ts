@@ -419,9 +419,9 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
 
   // Vertical splitter (between editor and output)
   const verticalSplitter = document.createElement('div');
+  verticalSplitter.className = 'bb-splitter';
   verticalSplitter.style.height = '4px';
   verticalSplitter.style.width = '100%';
-  verticalSplitter.style.backgroundColor = '#333';
   verticalSplitter.style.cursor = 'row-resize';
   verticalSplitter.style.flexShrink = '0';
   verticalSplitter.style.transition = 'background-color 0.2s';
@@ -431,7 +431,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   });
 
   verticalSplitter.addEventListener('mouseleave', () => {
-    verticalSplitter.style.backgroundColor = '#333';
+    verticalSplitter.style.removeProperty('background-color');
   });
 
   // Output pane (bottom of left area)
@@ -440,8 +440,6 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   outputPane.style.flex = '1';
   outputPane.style.width = '100%';
   outputPane.style.overflow = 'auto';
-  outputPane.style.backgroundColor = '#1e1e1e';
-  outputPane.style.color = '#d4d4d4';
   outputPane.style.padding = '10px';
   outputPane.style.fontFamily = 'monospace';
   outputPane.style.fontSize = '12px';
@@ -453,9 +451,9 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
 
   // ========== HORIZONTAL SPLITTER (between left and right) ==========
   const horizontalSplitter = document.createElement('div');
+  horizontalSplitter.className = 'bb-splitter';
   horizontalSplitter.style.width = '4px';
   horizontalSplitter.style.height = '100%';
-  horizontalSplitter.style.backgroundColor = '#333';
   horizontalSplitter.style.cursor = 'col-resize';
   horizontalSplitter.style.flexShrink = '0';
   horizontalSplitter.style.transition = 'background-color 0.2s';
@@ -465,7 +463,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   });
 
   horizontalSplitter.addEventListener('mouseleave', () => {
-    horizontalSplitter.style.backgroundColor = '#333';
+    horizontalSplitter.style.removeProperty('background-color');
   });
 
   // ========== RIGHT PANEL (channel controls) ==========
@@ -474,7 +472,6 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   rightPane.style.flex = '1';
   rightPane.style.height = '100%';
   rightPane.style.overflow = 'auto';
-  rightPane.style.backgroundColor = '#252525';
   rightPane.style.padding = '10px';
 
   // Assemble main layout

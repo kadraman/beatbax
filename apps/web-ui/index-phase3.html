@@ -48,6 +48,28 @@
         border-color: #666;
       }
 
+      /* Forward link positioned in bottom-left */
+      #forwardLink {
+        position: fixed;
+        bottom: 8px;
+        left: 8px;
+        padding: 6px 12px;
+        background: rgba(60, 60, 60, 0.9);
+        color: #d4d4d4;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        z-index: 10000;
+        border: 1px solid #444;
+        transition: all 0.2s;
+      }
+
+      #forwardLink:hover {
+        background: rgba(80, 80, 80, 0.95);
+        border-color: #666;
+      }
+
       /* Drag-and-drop overlay (managed by DragDropHandler) */
       .bb-drop-overlay {
         position: fixed;
@@ -81,6 +103,7 @@
   </head>
   <body>
     <a href="index-phase2.html" id="backLink" title="Return to Phase 2">← Phase 2</a>
+    <a href="index-phase4.html" id="forwardLink" title="Advance to Phase 4">Phase 4 →</a>
     <div id="app"></div>
     <script type="module" src="/src/main-phase3.ts"></script>
   </body>
