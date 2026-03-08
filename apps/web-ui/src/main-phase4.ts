@@ -257,7 +257,10 @@ const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
     monacoEditor.focus();
     helpPanel?.hide();
   },
-}), helpOverlay);
+// Pass appContainer, not helpOverlay, so that if HelpPanel throws the error
+// card is rendered into a visible element.  helpOverlay starts with
+// display:none, which would hide the boundary fallback silently.
+}), appContainer);
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
