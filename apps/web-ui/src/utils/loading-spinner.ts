@@ -15,7 +15,7 @@ export class LoadingSpinner {
   private overlay: HTMLElement | null = null;
   private labelEl: HTMLElement | null = null;
   private depth = 0;
-  private stylesInjected = false;
+  private static stylesInjected = false;
 
   /** Remove the static boot overlay from the DOM (call once, after editor init). */
   hideBoot(): void {
@@ -48,20 +48,24 @@ export class LoadingSpinner {
     const el = document.createElement('div');
     el.id = 'bb-activity-spinner';
     el.hidden = true;
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-busy', 'true');
     el.innerHTML =
-      '<div class="bb-spinner-ring"></div>' +
+      '<div class="bb-spinner-ring" aria-hidden="true"></div>' +
       '<span class="bb-spinner-label"></span>';
     document.body.appendChild(el);
     this.overlay = el;
-    this.labelEl = el.querySelector('.bb-spinner-label');
+    this.labelEl = el.querySelector<HTMLElement>('.bb-spinner-label');
   }
 
   private _ensureStyles(): void {
-    if (this.stylesInjected) return;
-    this.stylesInjected = true;
+    if (LoadingSpinner.stylesInjected) return;
+    LoadingSpinner.stylesInjected = true;
     const style = document.createElement('style');
     style.id = 'bb-spinner-dynamic-styles';
     style.textContent = `
+@keyframes bb-spin { to { transform: rotate(360deg); } }
 #bb-activity-spinner {
   position: fixed;
   inset: 0;

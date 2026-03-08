@@ -169,19 +169,11 @@ export type GlobalErrorCallback = (message: string, error?: unknown) => void;
  * Returns a teardown function that removes the handlers.
  */
 export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () => void {
-  const onError = (
-    event: string | Event,
-    _source?: string,
-    _lineno?: number,
-    _colno?: number,
-    error?: Error,
-  ) => {
-    const msg =
-      error?.message ??
-      (typeof event === 'string' ? event : (event as ErrorEvent).message) ??
-      'Unknown error';
-    log.error('Uncaught error:', msg, error);
-    callback(msg, error);
+  const onError = (ev: ErrorEvent) => {
+    const err: Error | undefined = ev.error instanceof Error ? ev.error : undefined;
+    const msg = err?.message ?? ev.message ?? 'Unknown error';
+    log.error('Uncaught error:', msg, err ?? ev);
+    callback(msg, err ?? ev);
     // Don't suppress default browser handling
     return false;
   };
@@ -198,11 +190,11 @@ export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () =>
     callback(msg, reason);
   };
 
-  window.addEventListener('error', onError as EventListener);
+  window.addEventListener('error', onError);
   window.addEventListener('unhandledrejection', onUnhandledRejection);
 
   return () => {
-    window.removeEventListener('error', onError as EventListener);
+    window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onUnhandledRejection);
   };
 }
