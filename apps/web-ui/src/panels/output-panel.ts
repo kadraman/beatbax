@@ -15,6 +15,8 @@ export interface OutputMessage {
   timestamp: Date;
   source?: string; // parse, playback, export, etc.
   loc?: { start?: { line?: number; column?: number } };
+  /** Optional actionable hint shown below the message in the Problems tab */
+  suggestion?: string;
 }
 
 /**
@@ -81,6 +83,7 @@ export class OutputPanel {
           source: 'validation',
           timestamp: new Date(),
           loc: w.loc,
+          suggestion: (w as any).suggestion,
         }, !isLast); // Skip render for all but last message
       }
 
@@ -105,6 +108,7 @@ export class OutputPanel {
           source: 'validation',
           timestamp: new Date(),
           loc: e.loc,
+          suggestion: (e as any).suggestion,
         }, !isLast); // Skip render for all but last message
       }
 
@@ -362,18 +366,26 @@ export class OutputPanel {
     const icon = this.getIcon(msg.type);
     const source = msg.source ? `[${msg.source}]` : '';
 
-    let locStr = '';
+    let locBadge = '';
     if (msg.loc && msg.loc.start) {
       const line = msg.loc.start.line;
-      const col = msg.loc.start.column || 0;
-      locStr = ` (line ${line}, col ${col})`;
+      const col = (msg.loc.start.column ?? 0) + 1; // display as 1-based
+      locBadge = `<span class="output-loc">line ${line}, col ${col}</span>`;
     }
+
+    const suggestionHtml = msg.suggestion
+      ? `<div class="output-suggestion">💡 ${this.escapeHtml(msg.suggestion)}</div>`
+      : '';
 
     return `
       <div class="output-message output-${msg.type}">
-        <span class="output-icon">${icon}</span>
-        ${source ? `<span class="output-source">${source}</span>` : ''}
-        <span class="output-text">${this.escapeHtml(msg.message)}${locStr}</span>
+        <div class="output-message-main">
+          <span class="output-icon">${icon}</span>
+          ${source ? `<span class="output-source">${source}</span>` : ''}
+          <span class="output-text">${this.escapeHtml(msg.message)}</span>
+          ${locBadge}
+        </div>
+        ${suggestionHtml}
       </div>
     `;
   }
@@ -388,10 +400,12 @@ export class OutputPanel {
 
     return `
       <div class="output-message output-${msg.type}">
-        <span class="output-icon">${icon}</span>
-        <span class="output-time">${time}</span>
-        ${source ? `<span class="output-source">${source}</span>` : ''}
-        <span class="output-text">${this.escapeHtml(msg.message)}</span>
+        <div class="output-message-main">
+          <span class="output-icon">${icon}</span>
+          <span class="output-time">${time}</span>
+          ${source ? `<span class="output-source">${source}</span>` : ''}
+          <span class="output-text">${this.escapeHtml(msg.message)}</span>
+        </div>
       </div>
     `;
   }
@@ -537,9 +551,15 @@ export class OutputPanel {
 
       .output-message {
         display: flex;
-        gap: 8px;
+        flex-direction: column;
+        gap: 2px;
         padding: 4px 0;
-        align-items: flex-start;
+      }
+
+      .output-message-main {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
       }
 
       .output-error { color: var(--error-color, #f48771); }
@@ -570,6 +590,23 @@ export class OutputPanel {
       .output-text {
         flex: 1;
         word-break: break-word;
+      }
+
+      .output-loc {
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--text-muted, #858585);
+        padding: 1px 5px;
+        border-radius: 3px;
+        border: 1px solid var(--border-color, #444);
+        white-space: nowrap;
+      }
+
+      .output-suggestion {
+        margin-left: 28px;
+        font-size: 11px;
+        color: var(--text-muted, #858585);
+        font-style: italic;
       }
     `;
     document.head.appendChild(style);
