@@ -80,10 +80,14 @@ export class ExportManager {
       if (validate) {
         const validation = validateForExport(ast, format);
         if (!validation.valid) {
-          const errorMessage = validation.errors.map(e => e.message).join('; ');
+          const errorMessage = validation.errors
+            .map(e => e.suggestion ? `${e.message} — ${e.suggestion}` : e.message)
+            .join('; ');
           throw new Error(`Validation failed: ${errorMessage}`);
         }
-        warnings.push(...validation.warnings.map(w => w.message));
+        warnings.push(...validation.warnings.map(w =>
+          w.suggestion ? `${w.message} — ${w.suggestion}` : w.message
+        ));
       }
 
       // Resolve song
