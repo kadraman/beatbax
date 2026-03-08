@@ -179,10 +179,40 @@
       .bb-splitter {
         background-color: var(--bb-splitter-color);
       }
+
+      /* ── Boot spinner ─────────────────────────────────────────────────── */
+      @keyframes bb-spin { to { transform: rotate(360deg); } }
+      #bb-boot-spinner {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: var(--bb-app-bg, #1e1e1e);
+        z-index: 9999;
+        color: #aaa;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        letter-spacing: 0.03em;
+      }
+      #bb-boot-spinner .bb-spinner-ring {
+        width: 44px;
+        height: 44px;
+        border: 4px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #4ec9b0;
+        border-radius: 50%;
+        animation: bb-spin 0.7s linear infinite;
+      }
     </style>
   </head>
   <body>
     <a href="index-phase3.html" id="backLink" title="Return to Phase 3">← Phase 3</a>
+    <div id="bb-boot-spinner" aria-label="Loading BeatBax" role="status">
+      <div class="bb-spinner-ring"></div>
+      <span>Loading BeatBax…</span>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main-phase4.ts"></script>
   </body>

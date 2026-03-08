@@ -49,6 +49,12 @@ import { ChannelMixer } from './panels/channel-mixer';
 import { downloadText } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
 import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
+import {
+  withErrorBoundary,
+  showFatalError,
+  installGlobalErrorHandlers,
+} from './utils/error-boundary';
+import { LoadingSpinner } from './utils/loading-spinner';
 
 const log = createLogger('ui:phase4');
 
@@ -77,6 +83,11 @@ let rightPane: HTMLElement;
 
 // Expose eventBus globally for debugging
 (window as any).__beatbax_eventBus = eventBus;
+
+// ─── Fatal error guard ────────────────────────────────────────────────────────
+// Wrap the entire module body so any synchronous throw during startup
+// shows the full-screen fatal overlay instead of a blank/broken page.
+try {
 
 // ─── Initial content ─────────────────────────────────────────────────────────
 function getInitialContent(): string {
@@ -119,6 +130,8 @@ play
 }
 
 // ─── DOM setup ───────────────────────────────────────────────────────────────
+const spinner = new LoadingSpinner();
+
 configureMonaco();
 registerBeatBaxLanguage();
 
@@ -155,6 +168,9 @@ editor = createEditor({
 diagnosticsManager = createDiagnosticsManager(editor.editor);
 setupDiagnosticsIntegration(diagnosticsManager);
 
+// Editor is fully initialised — remove the static boot overlay.
+spinner.hideBoot();
+
 const outputPane = layout.getOutputPane();
 rightPane = layout.getRightPane();
 
@@ -176,7 +192,18 @@ document.body.appendChild(statusBarContainer);
 const channelState = new ChannelState(eventBus);
 const playbackManager = new PlaybackManager(eventBus, channelState);
 const outputPanel = new OutputPanel(outputPane, eventBus);
-const statusBar = new StatusBar({ container: statusBarContainer }, eventBus);
+const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
+
+// Install global error handlers now that outputPanel is ready.
+// Uncaught errors and unhandled rejections are forwarded as error messages.
+installGlobalErrorHandlers((message, _err) => {
+  outputPanel.addMessage({
+    type: 'error',
+    message: `Uncaught error: ${message}`,
+    source: 'runtime',
+    timestamp: new Date(),
+  });
+});
 
 // ─── Phase 4: Unified Channel Panel (ChannelMixer) in the right pane ────────
 // The ChannelMixer is the combined channel controls + monitor. It lives in a
@@ -187,7 +214,11 @@ ccContainer.id = 'bb-channel-controls-host';
 ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
 rightPane.appendChild(ccContainer);
 
-const channelMixer = new ChannelMixer({ container: ccContainer, eventBus, channelState });
+const channelMixer = withErrorBoundary(
+  'ChannelMixer',
+  () => new ChannelMixer({ container: ccContainer, eventBus, channelState }),
+  ccContainer,
+);
 
 // ─── Phase 4: HelpPanel — fixed overlay drawer from the right ────────────────
 const helpOverlay = document.createElement('div');
@@ -211,7 +242,7 @@ document.body.appendChild(helpOverlay);
 // Shortcuts are registered after all components are instantiated (see bottom).
 const ks = new KeyboardShortcuts();
 
-const helpPanel = new HelpPanel({
+const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
   container: helpOverlay,
   eventBus,
   defaultVisible: false,
@@ -224,9 +255,9 @@ const helpPanel = new HelpPanel({
     const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
     monacoEditor.executeEdits('help-panel', [op]);
     monacoEditor.focus();
-    helpPanel.hide();
+    helpPanel?.hide();
   },
-});
+}), helpOverlay);
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
@@ -325,6 +356,13 @@ editor.onDidChangeModelContent?.(() => {
 // ─── Phase 3: ExportManager ───────────────────────────────────────────────────
 const exportManager = new ExportManager(eventBus);
 
+// Show activity spinner during exports (WAV can take several seconds).
+eventBus.on('export:started', ({ format }) =>
+  spinner.show(format === 'wav' ? 'Rendering WAV audio…' : `Exporting ${format.toUpperCase()}…`)
+);
+eventBus.on('export:success', () => spinner.hide());
+eventBus.on('export:error', () => spinner.hide());
+
 // Tracks the stem of the last loaded .bax filename (e.g. 'sample_song' from 'sample_song.bax').
 let loadedFilename = 'song';
 
@@ -351,7 +389,7 @@ function emitParse(content: string): void {
 async function handleExport(format: ExportFormat) {
   const source = getSource();
   if (!source.trim()) {
-    opWarn(outputPanel, 'Nothing to export — write a song first', 'export');
+    opWarn(outputPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
     return;
   }
   const result = await exportManager.export(source, format, { filename: loadedFilename });
@@ -402,7 +440,7 @@ const menuBar = new MenuBar({
   },
   onSave: () => {
     const content = getSource();
-    if (!content.trim()) { opWarn(outputPanel, 'Nothing to save'); return; }
+    if (!content.trim()) { opWarn(outputPanel, 'Nothing to save — the editor is empty.'); return; }
     downloadText(content, `${loadedFilename}.bax`, 'text/plain');
     opLog(outputPanel, `💾 Saved ${loadedFilename}.bax`);
   },
@@ -460,7 +498,7 @@ toolbar = new Toolbar({
   onExport: handleExport,
   onVerify: () => {
     const source = getSource();
-    if (!source.trim()) { opWarn(outputPanel, 'Nothing to verify'); return; }
+    if (!source.trim()) { opWarn(outputPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.'); return; }
     try {
       parse(source);
       opLog(outputPanel, '✔ Verification passed', 'verify');
@@ -496,11 +534,14 @@ const dragDrop = new DragDropHandler(document.body, {
 
 // ─── Phase 3: URL query auto-load ─────────────────────────────────────────────
 (async () => {
+  const params = new URL(location.href).searchParams;
+  const hasSongParam = params.has('song');
+  if (hasSongParam) spinner.show('Loading song…');
   try {
     const { loadFromQueryParams } = await import('./import/remote-loader');
-    const result = await loadFromQueryParams(new URL(location.href).searchParams);
+    const result = await loadFromQueryParams(params);
     if (result) {
-      const songParam = new URL(location.href).searchParams.get('song') ?? 'song.bax';
+      const songParam = params.get('song') ?? 'song.bax';
       const filename = songParam.split('/').pop() || 'song.bax';
       loadedFilename = fileBaseStem(filename);
       editor.setValue?.(result.content);
@@ -513,6 +554,8 @@ const dragDrop = new DragDropHandler(document.body, {
     }
   } catch (err: any) {
     log.warn('URL auto-load failed:', err.message);
+  } finally {
+    if (hasSongParam) spinner.hide();
   }
 })();
 
@@ -538,7 +581,7 @@ ks.register({ key: ' ', description: 'Play / Pause', allowInInput: false,
   action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
 });
 ks.register({ key: 'Escape', description: 'Stop playback or close Help panel',
-  action: () => { if (helpPanel.isVisible()) helpPanel.hide(); else stopBtn.click(); },
+  action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else stopBtn.click(); },
 });
 ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play',
   action: () => applyBtn.click(),
@@ -578,10 +621,14 @@ ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Chan
 
 // Help
 ks.register({ key: 'F1', description: 'Open Help panel',
-  action: () => helpPanel.show() });
+  action: () => helpPanel?.show() });
 ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Help / keyboard shortcuts',
-  action: () => helpPanel.show() });
+  action: () => helpPanel?.show() });
 
 ks.mount();
 
 log.debug('BeatBax Phase 4 initialised ✓');
+
+} catch (fatalError) {
+  showFatalError(fatalError);
+}
