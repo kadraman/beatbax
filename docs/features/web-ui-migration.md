@@ -2059,9 +2059,9 @@ Use this checklist during implementation:
 
 ### Final Polish
 - [ ] Optimize bundle size
-- [ ] Add loading spinner
-- [ ] Add error boundaries
-- [ ] Improve error messages
+- [x] Add loading spinner — `utils/loading-spinner.ts` (`LoadingSpinner` class); static boot overlay in `index-phase4.html` visible before JS runs (removed after `createEditor()`); activity overlay shown during exports (`export:started` → `export:success/error`) and URL auto-loads (`?song=` param)
+- [x] Add error boundaries — `utils/error-boundary.ts` with `withErrorBoundary`, `showFatalError`, `installGlobalErrorHandlers`; integrated into `main-phase4.ts`
+- [x] Improve error messages — suggestions shown in Problems panel, richer parse-error formatting (Peggy expected tokens, location badge), AudioContext autoplay detection, validation suggestions surfaced in export errors, actionable "nothing to …" messages
 - [ ] Add tooltips to all buttons
 - [ ] Write user documentation
 - [ ] Update README

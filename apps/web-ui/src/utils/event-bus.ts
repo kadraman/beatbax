@@ -49,8 +49,8 @@ export interface BeatBaxEvents {
   'song:loaded': { filename: string };
 
   // Validation events
-  'validation:warnings': { warnings: Array<{ component: string; message: string; file?: string; loc?: any }> };
-  'validation:errors': { errors: Array<{ message: string; loc?: any }> };
+  'validation:warnings': { warnings: Array<{ component: string; message: string; suggestion?: string; file?: string; loc?: any }> };
+  'validation:errors': { errors: Array<{ message: string; suggestion?: string; loc?: any }> };
 }
 
 type EventCallback<T> = (data: T) => void;

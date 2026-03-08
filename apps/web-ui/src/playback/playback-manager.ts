@@ -458,18 +458,46 @@ export class PlaybackManager {
   private formatParseError(err: any, filename?: string): string {
     if (!err) return 'Parse error: Unknown error';
 
-    const message = err.message || String(err);
+    const rawMessage: string = err.message || String(err);
+    const prefix = filename ? `in ${filename}` : 'at';
 
-    // Check if this is a Peggy parser error with location information
+    // Peggy parser error — has location and expected array
     if (err.location && err.location.start) {
       const line = err.location.start.line;
-      const column = err.location.start.column;
-      const prefix = filename ? filename : 'source';
-      return `Parse error in ${prefix} at line ${line}, column ${column}: ${message}`;
+      const col = err.location.start.column;
+
+      // Build a compact "Expected ..." summary from Peggy's expected list
+      let expectedSummary = '';
+      if (Array.isArray(err.expected) && err.expected.length > 0) {
+        // Peggy provides descriptions or literal text; deduplicate and cap at 5
+        const labels = [...new Set(
+          err.expected.map((e: any) => e.description ?? e.text ?? e.type ?? String(e))
+        )].slice(0, 5);
+        const more = err.expected.length - labels.length;
+        expectedSummary = `Expected ${labels.join(', ')}${more > 0 ? `, …(+${more})` : ''}.`;
+      }
+
+      // The raw message from Peggy already says "Expected ... but found ...";
+      // if our summary matches it closely enough, just use the raw message.
+      const body = expectedSummary && !rawMessage.startsWith('Expected')
+        ? `${expectedSummary} ${rawMessage}`
+        : rawMessage;
+
+      return `Parse error ${prefix} line ${line}, column ${col}: ${body}`;
     }
 
-    // Fallback for other errors
-    const prefix = filename ? ` in ${filename}` : '';
-    return `Parse error${prefix}: ${message}`;
+    // AudioContext autoplay policy (browser blocks audio without a user gesture)
+    if (
+      rawMessage.includes('AudioContext') ||
+      rawMessage.includes('user gesture') ||
+      rawMessage.includes('resume') ||
+      rawMessage.includes('autoplay')
+    ) {
+      return `Audio blocked by browser policy. Click anywhere on the page first, then press Play again. (${rawMessage})`;
+    }
+
+    // Generic fallback
+    const locationPrefix = filename ? ` in ${filename}` : '';
+    return `Parse error${locationPrefix}: ${rawMessage}`;
   }
 }
