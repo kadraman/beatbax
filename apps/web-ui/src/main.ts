@@ -1,943 +1,627 @@
+/**
+ * BeatBax Web UI
+ * Main entry point for the BeatBax web-based IDE. This file is responsible for bootstrapping the entire application, including:
+ * - Setting up the editor and UI layout
+ * - Initialising global state and event bus
+ */
+
+// Polyfill Buffer for engine compatibility in browser (must be first)
+import { Buffer } from 'buffer';
+(globalThis as any).Buffer = Buffer;
+
 import { parse } from '@beatbax/engine/parser';
-import Player from '@beatbax/engine/audio/playback';
-import { resolveSong, resolveImports } from '@beatbax/engine/song';
-import { createLogger } from '@beatbax/engine/util/logger';
+import {
+  createLogger,
+  loadLoggingFromStorage,
+  loadLoggingFromURL,
+  getLoggingConfig,
+} from '@beatbax/engine/util/logger';
+import { eventBus } from './utils/event-bus';
+import { createEditor, registerBeatBaxLanguage, configureMonaco } from './editor';
+import {
+  createDiagnosticsManager,
+  setupDiagnosticsIntegration,
+  parseErrorToDiagnostic,
+} from './editor/diagnostics';
+import { createThreePaneLayout } from './ui/layout';
+import { PlaybackManager } from './playback/playback-manager';
+import { TransportControls } from './playback/transport-controls';
+import { ChannelState } from './playback/channel-state';
+import { OutputPanel } from './panels/output-panel';
+import type { OutputMessage } from './panels/output-panel';
+import { StatusBar } from './ui/status-bar';
+import { Toolbar } from './ui/toolbar';
+import { ExportManager } from './export/export-manager';
+import type { ExportFormat } from './export/export-manager';
+import { DragDropHandler } from './import/drag-drop-handler';
+import { MenuBar } from './ui/menu-bar';
+import { ThemeManager } from './ui/theme-manager';
+import { EditorState } from './editor/editor-state';
+import { HelpPanel } from './panels/help-panel';
+import { ChannelMixer } from './panels/channel-mixer';
+import { downloadText } from './export/download-helper';
+import { openFilePicker } from './import/file-loader';
+import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
+import {
+  withErrorBoundary,
+  showFatalError,
+  installGlobalErrorHandlers,
+} from './utils/error-boundary';
+import { LoadingSpinner } from './utils/loading-spinner';
 
-const log = createLogger('ui');
+const log = createLogger('web-ui');
 
-// Helper to format parse errors with file location information
-function formatParseError(err: any, filename?: string): string {
-  if (!err) return `Parse error: Unknown error`;
+// Init logger
+loadLoggingFromStorage();
+loadLoggingFromURL();
+const logConfig = getLoggingConfig();
+log.debug('BeatBax Web-UI starting. Logging config:', logConfig);
 
-  const message = err.message || String(err);
-
-  // Check if this is a Peggy parser error with location information
-  if (err.location && err.location.start) {
-    const line = err.location.start.line;
-    const column = err.location.start.column;
-    const prefix = filename ? filename : 'source';
-    return `Parse error in ${prefix} at line ${line}, column ${column}: ${message}`;
-  }
-
-  // Fallback for other errors
-  const prefix = filename ? ` in ${filename}` : '';
-  return `Parse error${prefix}: ${message}`;
+// ─── Convenience helpers for OutputPanel ─────────────────────────────────────
+function opLog(panel: OutputPanel, message: string, source = 'app') {
+  panel.addMessage({ type: 'info', message, source, timestamp: new Date() } as OutputMessage);
+}
+function opWarn(panel: OutputPanel, message: string, source = 'app') {
+  panel.addMessage({ type: 'warning', message, source, timestamp: new Date() } as OutputMessage);
+}
+function opError(panel: OutputPanel, message: string, source = 'app') {
+  panel.addMessage({ type: 'error', message, source, timestamp: new Date() } as OutputMessage);
 }
 
-// Core demo wiring (adapted from demo/boot.ts)
-log.debug('main module loaded');
-const fileInput = document.getElementById('file') as HTMLInputElement | null;
-const srcArea = document.getElementById('src') as HTMLTextAreaElement | null;
-const playBtn = document.getElementById('play') as HTMLButtonElement | null;
-const stopBtn = document.getElementById('stop') as HTMLButtonElement | null;
-const applyBtn = document.getElementById('apply') as HTMLButtonElement | null;
-const exportWavBtn = document.getElementById('exportWav') as HTMLButtonElement | null;
-const liveCheckbox = document.getElementById('live') as HTMLInputElement | null;
-const status = document.getElementById('status') as HTMLElement | null;
-const showHelpBtn = document.getElementById('showHelp') as HTMLButtonElement | null;
-const helpPanel = document.getElementById('helpPanel') as HTMLDivElement | null;
-const helpText = document.getElementById('helpText') as HTMLDivElement | null;
-const closeHelpBtn = document.getElementById('closeHelp') as HTMLButtonElement | null;
-const helpIcon = document.getElementById('helpIcon') as HTMLButtonElement | null;
-const layoutEl = document.getElementById('layout') as HTMLDivElement | null;
-const persistCheckbox = document.getElementById('persistHelp') as HTMLInputElement | null;
-const warningsPanel = document.getElementById('warnings') as HTMLDivElement | null;
-const warningsList = document.getElementById('warningsList') as HTMLDivElement | null;
-const clearWarningsBtn = document.getElementById('clearWarnings') as HTMLButtonElement | null;
-const errorsPanel = document.getElementById('errors') as HTMLDivElement | null;
-const errorsList = document.getElementById('errorsList') as HTMLDivElement | null;
-const clearErrorsBtn = document.getElementById('clearErrors') as HTMLButtonElement | null;
-let player: any = null;
-let currentAST: any = null;
-let currentErrors: Array<{ message: string; loc?: any }> = []; // Track displayed errors to avoid duplicates
+// ─── Global state ─────────────────────────────────────────────────────────────
+let editor: any = null;
+let diagnosticsManager: any = null;
+let editorState: EditorState | null = null;
+let rightPane: HTMLElement;
 
-// Error display functions
-function showErrors(errors: Array<{ message: string; loc?: any }>) {
-  log.debug('showErrors called with', errors.length, 'errors');
+// Expose eventBus globally for debugging
+(window as any).__beatbax_eventBus = eventBus;
 
-  if (!errorsPanel || !errorsList) {
-    log.warn('Error elements not found in DOM');
-    return;
-  }
-  if (errors.length === 0) {
-    errorsPanel.style.display = 'none';
-    currentErrors = [];
-    return;
-  }
-
-  // Deduplicate - only add errors not already in currentErrors
-  for (const newError of errors) {
-    const isDuplicate = currentErrors.some(existing =>
-      existing.message === newError.message &&
-      existing.loc?.start?.line === newError.loc?.start?.line
-    );
-
-    if (!isDuplicate) {
-      currentErrors.push(newError);
-
-      // Add to DOM
-      const div = document.createElement('div');
-      div.style.marginBottom = '4px';
-
-      let locStr = '';
-      if (newError.loc && newError.loc.start) {
-        const line = newError.loc.start.line;
-        const col = newError.loc.start.column || 0;
-        locStr = ` (line ${line}, col ${col})`;
-      }
-
-      div.textContent = `${newError.message}${locStr}`;
-      errorsList.appendChild(div);
-    }
-  }
-
-  errorsPanel.style.display = 'block';
-}
-
-function clearErrors() {
-  if (errorsPanel) errorsPanel.style.display = 'none';
-  if (errorsList) errorsList.innerHTML = '';
-  currentErrors = [];
-}
-
-clearErrorsBtn?.addEventListener('click', clearErrors);
-
-// Warning display functions
-function showWarnings(warnings: Array<{ component: string; message: string; file?: string; loc?: any }>) {
-  log.debug('showWarnings called with', warnings.length, 'warnings');
-  log.debug('warningsPanel:', !!warningsPanel, 'warningsList:', !!warningsList);
-
-  if (!warningsPanel || !warningsList) {
-    log.warn('Warning elements not found in DOM');
-    return;
-  }
-  if (warnings.length === 0) {
-    warningsPanel.style.display = 'none';
-    return;
-  }
-
-  warningsList.innerHTML = '';
-  for (const w of warnings) {
-    const div = document.createElement('div');
-    div.style.marginBottom = '4px';
-
-    let locStr = '';
-    if (w.loc && w.loc.start) {
-      const line = w.loc.start.line;
-      const col = w.loc.start.column || 0;
-      locStr = ` (line ${line}, col ${col})`;
-    }
-
-    div.textContent = `[${w.component}] ${w.message}${locStr}`;
-    warningsList.appendChild(div);
-  }
-
-  log.debug('Setting warningsPanel display to block');
-  warningsPanel.style.display = 'block';
-}
-
-function clearWarnings() {
-  if (warningsPanel) warningsPanel.style.display = 'none';
-  if (warningsList) warningsList.innerHTML = '';
-}
-
-clearWarningsBtn?.addEventListener('click', clearWarnings);
-
-// Validation function (similar to CLI)
-function validateAST(ast: any): Array<{ component: string; message: string; loc?: any }> {
-  const warnings: Array<{ component: string; message: string; loc?: any }> = [];
-
-  // Valid transform names
-  const validTransforms = new Set(['oct', 'inst', 'rev', 'slow', 'fast']);
-
-  // Validate channels
-  for (const ch of ast.channels || []) {
-    // Check instrument references
-    if (ch.inst && !ast.insts[ch.inst]) {
-      warnings.push({
-        component: 'validation',
-        message: `Channel ${ch.id} references unknown inst '${ch.inst}'`,
-        loc: ch.loc
-      });
-    }
-
-    // Extract sequence names from channel and validate transforms
-    const extractSeqNames = (channel: any): string[] => {
-      const names: string[] = [];
-      if (!channel || !channel.pat) return names;
-      if (Array.isArray(channel.pat)) return []; // inline pattern tokens
-
-      const rawTokens: string[] | undefined = (channel as any).seqSpecTokens;
-      if (rawTokens && rawTokens.length > 0) {
-        const joined = rawTokens.join(' ');
-        for (const group of joined.split(',')) {
-          const g = group.trim();
-          if (!g) continue;
-          if (g.indexOf('*') >= 0) {
-            const m = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-            const itemRef = m ? m[1].trim() : g;
-            const base = itemRef.split(':')[0];
-            if (base) names.push(base);
-
-            // Check transforms in the itemRef
-            if (itemRef.indexOf(':') >= 0) {
-              const transformParts = itemRef.split(':').slice(1);
-              for (const transform of transformParts) {
-                const transformName = transform.trim().split('(')[0];
-                if (transformName && !validTransforms.has(transformName)) {
-                  warnings.push({
-                    component: 'transforms',
-                    message: `Unknown transform '${transformName}' on '${g}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
-                    loc: ch.loc
-                  });
-                }
-              }
-            }
-          } else {
-            const parts = g.split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
-            for (const p of parts) {
-              names.push(p.split(':')[0]);
-
-              // Check transforms in each part
-              if (p.indexOf(':') >= 0) {
-                const transformParts = p.split(':').slice(1);
-                for (const transform of transformParts) {
-                  const transformName = transform.trim().split('(')[0];
-                  if (transformName && !validTransforms.has(transformName)) {
-                    warnings.push({
-                      component: 'transforms',
-                      message: `Unknown transform '${transformName}' on '${p}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
-                      loc: ch.loc
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-        return names.filter(Boolean);
-      }
-
-      const spec = String(channel.pat).trim();
-      for (const group of spec.split(',')) {
-        const g = group.trim();
-        if (!g) continue;
-        const mRep = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-        const itemRef = mRep ? mRep[1].trim() : g;
-        const base = itemRef.split(':')[0];
-        if (base) names.push(base);
-
-        // Check transforms in string format
-        if (itemRef.indexOf(':') >= 0) {
-          const transformParts = itemRef.split(':').slice(1);
-          for (const transform of transformParts) {
-            const transformName = transform.trim().split('(')[0];
-            if (transformName && !validTransforms.has(transformName)) {
-              warnings.push({
-                component: 'transforms',
-                message: `Unknown transform '${transformName}' on '${g}'. Valid transforms: oct(±N), inst(name), rev, slow, fast. For repetition, use pattern*N syntax.`,
-                loc: ch.loc
-              });
-            }
-          }
-        }
-      }
-      return names.filter(Boolean);
-    };
-
-    const seqNames = extractSeqNames(ch);
-    for (const seqName of seqNames) {
-      // Check both sequences and patterns (inline pattern lists use pattern names)
-      if (!ast.seqs || !ast.seqs[seqName]) {
-        // If not a sequence, check if it's a pattern (common mistake)
-        if (ast.pats && ast.pats[seqName]) {
-          warnings.push({
-            component: 'validation',
-            message: `Channel ${ch.id} references '${seqName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${seqName}' or use comma-separated patterns with channel directive.`,
-            loc: ch.loc
-          });
-        } else if (!ast.pats || !ast.pats[seqName]) {
-          warnings.push({
-            component: 'validation',
-            message: `Channel ${ch.id} references unknown sequence or pattern '${seqName}'`,
-            loc: ch.loc
-          });
-        }
-      }
-    }
-  }
-
-  // Validate patterns - check instrument token references
-  if (ast.patternEvents) {
-    for (const [patName, events] of Object.entries(ast.patternEvents)) {
-      if (!Array.isArray(events)) continue;
-      
-      for (const event of events as any[]) {
-        if (event.kind === 'token' && event.value) {
-          // Check if this token is an instrument name
-          if (!ast.insts?.[event.value]) {
-            // Skip if it's a known pattern name (could be referenced in inline syntax)
-            if (!ast.pats?.[event.value]) {
-              warnings.push({
-                component: 'validation',
-                message: `Pattern '${patName}' references undefined instrument '${event.value}'`,
-                loc: event.loc
-              });
-            }
-          }
-        } else if (event.kind === 'inline-inst' && event.name) {
-          // Check inline inst() syntax
-          if (!ast.insts?.[event.name]) {
-            warnings.push({
-              component: 'validation',
-              message: `Pattern '${patName}' references undefined instrument '${event.name}' in inst() modifier`,
-              loc: event.loc
-            });
-          }
-        } else if (event.kind === 'temp-inst' && event.name) {
-          // Check temp inst(name,N) syntax
-          if (!ast.insts?.[event.name]) {
-            warnings.push({
-              component: 'validation',
-              message: `Pattern '${patName}' references undefined instrument '${event.name}' in inst(,N) temporary override`,
-              loc: event.loc
-            });
-          }
-        }
-      }
-    }
-  }
-
-  // Validate sequences - check pattern references
-  if (ast.seqs) {
-    for (const [seqName, items] of Object.entries(ast.seqs)) {
-      if (!Array.isArray(items)) continue;
-      
-      for (const item of items as any[]) {
-        if (item.name && !ast.pats?.[item.name]) {
-          warnings.push({
-            component: 'validation',
-            message: `Sequence '${seqName}' references undefined pattern '${item.name}'`,
-            loc: item.loc
-          });
-        }
-      }
-    }
-  }
-
-  return warnings;
-}
-
-// quick debug: report that DOM nodes were found
+// ─── Fatal error guard ────────────────────────────────────────────────────────
+// Wrap the entire module body so any synchronous throw during startup
+// shows the full-screen fatal overlay instead of a blank/broken page.
 try {
-  log.debug('elements', {
-    fileInput: !!fileInput,
-    srcArea: !!srcArea,
-    playBtn: !!playBtn,
-    stopBtn: !!stopBtn,
-    applyBtn: !!applyBtn
+
+// ─── Initial content ─────────────────────────────────────────────────────────
+function getInitialContent(): string {
+  try {
+    const saved = localStorage.getItem('beatbax:editor.content');
+    if (saved) return saved;
+  } catch (_e) { /* ignore */ }
+
+  return `# BeatBax Web UI
+# Use the menu bar (File / Edit / View / Help) for all operations.
+# Drag-and-drop a .bax file to load it, or use File → Open.
+
+chip gameboy
+bpm 140
+time 4
+
+inst lead  type=pulse1 duty=50 env=12,down
+inst bass  type=pulse2 duty=25 env=10,down
+inst kick  type=noise  env=12,down
+inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+
+pat melody  = C5 E5 G5 C6
+pat bassline = C3 . G2 .
+pat beat    = C6 . . C6 . C6 C6 .
+
+seq main  = melody melody melody melody
+seq groove = bassline bassline
+seq perc  = beat beat beat beat
+
+channel 1 => inst lead  seq main
+channel 2 => inst bass  seq groove:oct(-1)
+channel 3 => inst wave1 seq main:oct(-1)
+channel 4 => inst kick  seq perc
+
+play
+`;
+}
+
+// ─── DOM setup ───────────────────────────────────────────────────────────────
+const spinner = new LoadingSpinner();
+
+configureMonaco();
+registerBeatBaxLanguage();
+
+const appContainer = document.getElementById('app') as HTMLElement;
+if (!appContainer) throw new Error('#app container not found');
+
+// ─── Menu bar host (topmost) ────────────────────────────────────────
+const menuBarContainer = document.createElement('div');
+menuBarContainer.id = 'bb-menu-bar-host';
+appContainer.appendChild(menuBarContainer);
+
+// ─── Toolbar host (below menu bar) ───────────────────────────────────────────
+const toolbarContainer = document.createElement('div');
+toolbarContainer.id = 'bb-toolbar-host';
+appContainer.appendChild(toolbarContainer);
+
+// ─── Layout host (fills remaining height) ────────────────────────────────────
+const layoutHost = document.createElement('div');
+layoutHost.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+appContainer.appendChild(layoutHost);
+
+const layout = createThreePaneLayout({ container: layoutHost, persist: true });
+const editorPane = layout.getEditorPane();
+
+editor = createEditor({
+  container: editorPane,
+  value: getInitialContent(),
+  theme: 'beatbax-dark',
+  language: 'beatbax',
+  autoSaveDelay: 500,
+  emitChangedEvents: false, // EditorState is the sole editor:changed emitter
+});
+
+diagnosticsManager = createDiagnosticsManager(editor.editor);
+setupDiagnosticsIntegration(diagnosticsManager);
+
+// Editor is fully initialised — remove the static boot overlay.
+spinner.hideBoot();
+
+const outputPane = layout.getOutputPane();
+rightPane = layout.getRightPane();
+
+// ─── EditorState ──────────────────────────────────────────────────────────────
+editorState = new EditorState({
+  editor: editor.editor,
+  eventBus,
+  autoSaveDelay: 500,
+  restoreOnInit: false, // already restored via getInitialContent()
+});
+
+// ─── Status bar ───────────────────────────────────────────────────────────────
+const statusBarContainer = document.createElement('div');
+statusBarContainer.id = 'status-bar';
+statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:1000;';
+document.body.appendChild(statusBarContainer);
+
+// ─── Additional Components ───────────────────────────────────────────────────────
+const channelState = new ChannelState(eventBus);
+const playbackManager = new PlaybackManager(eventBus, channelState);
+const outputPanel = new OutputPanel(outputPane, eventBus);
+const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
+
+// Install global error handlers now that outputPanel is ready.
+// Uncaught errors and unhandled rejections are forwarded as error messages.
+installGlobalErrorHandlers((message, _err) => {
+  outputPanel.addMessage({
+    type: 'error',
+    message: `Uncaught error: ${message}`,
+    source: 'runtime',
+    timestamp: new Date(),
   });
-} catch (e) {}
-
-// Add a minimal click-only listener so we can confirm the Play button fires
-playBtn?.addEventListener('click', () => {
-  log.debug('Play button clicked (debug handler)');
 });
 
-// Active indicator CSS
-try {
-  const styleId = 'beatbax-demo-indicator-style';
-  if (!document.getElementById(styleId)) {
-    const s = document.createElement('style');
-    s.id = styleId;
-    s.textContent = `\n.ch-ind-active { background: lime !important; box-shadow: 0 0 6px rgba(0,255,0,0.9) !important; border-color: #6f6 !important; }\n`;
-    document.head.appendChild(s);
+// ─── Unified Channel Panel (ChannelMixer) in the right pane ────────
+// The ChannelMixer is the combined channel controls + monitor. It lives in a
+// dedicated scoped div so its render() (which clears innerHTML on every
+// parse:success) never conflicts with any sibling nodes in rightPane.
+const ccContainer = document.createElement('div');
+ccContainer.id = 'bb-channel-controls-host';
+ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
+rightPane.appendChild(ccContainer);
+
+const channelMixer = withErrorBoundary(
+  'ChannelMixer',
+  () => new ChannelMixer({ container: ccContainer, eventBus, channelState }),
+  ccContainer,
+);
+
+// ─── HelpPanel — fixed overlay drawer from the right ──────────────────────
+const helpOverlay = document.createElement('div');
+helpOverlay.id = 'bb-help-overlay';
+helpOverlay.style.cssText = [
+  'position: fixed',
+  'top: 0',
+  'right: 0',
+  'bottom: 0',
+  'width: min(480px, 90vw)',
+  'z-index: 5000',
+  'display: none',
+  'flex-direction: column',
+  'box-shadow: -4px 0 24px rgba(0,0,0,0.5)',
+  'border-left: 1px solid #3c3c3c',
+].join('; ');
+document.body.appendChild(helpOverlay);
+
+// ─── Central keyboard shortcuts registry ─────────────────────────────────
+// Created before HelpPanel so we can pass getShortcuts: () => ks.list().
+// Shortcuts are registered after all components are instantiated (see bottom).
+const ks = new KeyboardShortcuts();
+
+const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
+  container: helpOverlay,
+  eventBus,
+  defaultVisible: false,
+  getShortcuts: () => ks.list(),
+  onInsertSnippet: (snippet) => {
+    const monacoEditor = editor?.editor;
+    if (!monacoEditor) return;
+    const selection = monacoEditor.getSelection();
+    const id = { major: 1, minor: 1 };
+    const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
+    monacoEditor.executeEdits('help-panel', [op]);
+    monacoEditor.focus();
+    helpPanel?.hide();
+  },
+// Pass appContainer, not helpOverlay, so that if HelpPanel throws the error
+// card is rendered into a visible element.  helpOverlay starts with
+// display:none, which would hide the boundary fallback silently.
+}), appContainer);
+
+// Toggle panel visibility via panel:toggled
+eventBus.on('panel:toggled', ({ panel, visible }) => {
+  if (panel === 'output') {
+    outputPane.style.display = visible ? '' : 'none';
   }
-} catch (e) {}
-
-async function ensureMarked(): Promise<any> {
-  if ((window as any).marked) return (window as any).marked;
-  return new Promise((resolve, reject) => {
-    try {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-      s.async = true;
-      s.onload = () => resolve((window as any).marked || null);
-      s.onerror = (e) => reject(new Error('Failed to load marked from CDN'));
-      document.head.appendChild(s);
-    } catch (e) { reject(e); }
-  });
-}
-
-async function loadHelpFromText(text: string) {
-  if (!helpText) return;
-  const lines = text.split(/\r?\n/).filter(l => /^\s*#/.test(l));
-  const cleaned = lines.map(l => {
-    const s = l.replace(/^\s*/, '');
-    if (/^#{2,}\s/.test(s)) return s;
-    return s.replace(/^#\s?/, '');
-  }).join('\n');
-  try {
-    const mk = await ensureMarked();
-    const parser = mk || (window as any).marked;
-    if (parser && typeof parser.parse === 'function') {
-      const html = parser.parse(cleaned || '');
-      helpText.innerHTML = html || '<div>No help comments found in sample.</div>';
-    } else {
-      helpText.textContent = cleaned || 'No help comments found in sample.';
-    }
-  } catch (e) {
-    helpText.textContent = cleaned || 'No help comments found in sample.';
-  }
-}
-
-function showHelpPanel(visible: boolean) {
-  if (!helpPanel || !layoutEl) return;
-  if (visible) layoutEl.classList.add('help-open'); else layoutEl.classList.remove('help-open');
-  const showBtn = document.getElementById('showHelp');
-  if (showBtn) showBtn.textContent = visible ? 'Hide Help' : 'Show Help';
-}
-
-function applyPersistedShow() {
-  try {
-    const pref = localStorage.getItem('beatbax.helpPersist');
-    if (persistCheckbox) persistCheckbox.checked = pref === 'true';
-    const shouldShow = pref === 'true' ? true : false;
-    showHelpPanel(shouldShow);
-  } catch (e) { showHelpPanel(false); }
-}
-
-async function autoLoadFromQuery() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    let song = params.get('song');
-    const autoplay = params.get('autoplay');
-    if (!song) song = '/songs/sample.bax';
-    const resp = await fetch(song);
-    if (!resp.ok) return;
-    const t = await resp.text();
-    if (srcArea) srcArea.value = t;
-    try { await loadHelpFromText(t); applyPersistedShow(); } catch (e) {}
-    try { const ast = parse(t); currentAST = ast; renderChannelControls(ast); } catch (e) {}
-    if (autoplay === '1') playBtn?.click();
-  } catch (e) { log.warn('autoLoadFromQuery failed', e); }
-}
-
-autoLoadFromQuery();
-
-fileInput?.addEventListener('change', async (ev) => {
-  const f = (ev as any).target.files[0];
-  if (!f) return;
-  const txt = await f.text();
-  if (srcArea) srcArea.value = txt;
-  try { const ast = parse(txt); currentAST = ast; renderChannelControls(ast); } catch (e) {}
-});
-
-document.getElementById('loadExample')?.addEventListener('click', async () => {
-  try {
-    const resp = await fetch('/songs/sample.bax');
-    const t = await resp.text();
-    if (srcArea) srcArea.value = t;
-    try { await loadHelpFromText(t); applyPersistedShow(); } catch (e) {}
-    try { const ast = parse(t); currentAST = ast; renderChannelControls(ast); } catch (e) {}
-  } catch (e) { if (srcArea) srcArea.value = 'Could not load example from ../songs/sample.bax'; }
-});
-
-playBtn?.addEventListener('click', async () => {
-  log.debug('Play handler start');
-  clearErrors();
-  clearWarnings();
-  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-
-  try {
-    status && (status.textContent = 'Parsing...');
-    const src = srcArea ? srcArea.value : '';
-    log.debug('source length', src.length);
-    const ast = parse(src);
-    log.debug('parsed AST', ast && typeof ast === 'object' ? Object.keys(ast) : typeof ast);
-    log.debug('AST imports:', (ast as any).imports);
-    log.debug('AST instruments before resolve:', Object.keys((ast as any).insts || {}));
-    log.debug('source preview:\n', String(src).slice(0, 800));
-
-    log.debug('Calling resolveSong...');
-
-    // Resolve imports first to get updated AST with all instruments
-    let resolvedAST = ast;
-    if ((ast as any).imports && (ast as any).imports.length > 0) {
-      try {
-        resolvedAST = await resolveImports(ast as any, {
-          onWarn: (message: string, loc?: any) => {
-            warnings.push({ component: 'import-resolver', message, loc });
-          },
-        });
-        log.debug('Imports resolved, instruments:', Object.keys((resolvedAST as any).insts || {}));
-      } catch (importErr: any) {
-        log.error('Import resolution failed:', importErr);
-        // Import errors are critical - show in error panel
-        showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
-        status && (status.textContent = 'Failed');
-        if (exportWavBtn) exportWavBtn.disabled = true;
-        return; // Stop processing if import fails
-      }
-    }
-
-    // Validate AST after imports are resolved (so instrument checks are accurate)
-    const validationWarnings = validateAST(resolvedAST);
-    warnings.push(...validationWarnings);
-
-    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    log.debug('Resolved ISM channels=', (resolved as any).channels ? (resolved as any).channels.length : 0);
-    log.debug('Resolved AST instruments after resolve:', Object.keys((resolved as any).insts || {}));
-    if ((resolved as any).channels) {
-      for (const ch of (resolved as any).channels) {
-        log.debug('channel', ch.id, 'events=', (ch.events || ch.pat || []).length);
-      }
-    }
-
-    // Show warnings if any
-    showWarnings(warnings);
-
-    currentAST = ast;
-    status && (status.textContent = 'Starting AudioContext...');
-    if (!player) player = new Player();
-    (window as any).__beatbax_player = player;
-    // Ensure AudioContext is resumed within user gesture
-    try {
-      if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        log.debug('resuming AudioContext');
-        await player.ctx.resume();
-        log.debug('AudioContext state after resume=', player.ctx.state);
-      }
-    } catch (e) { log.warn('resume failed', e); }
-    // log scheduling events
-    const prevHook = (player as any).onSchedule;
-    (player as any).onSchedule = function (args: any) {
-      try { log.debug('onSchedule', args); } catch (e) {}
-      try { if (typeof prevHook === 'function') prevHook(args); } catch (e) {}
-    };
-    attachScheduleHook(player);
-    renderChannelControls(ast);
-    log.debug('calling player.playAST');
-    if ((resolved as any).channels && (resolved as any).channels.length > 0) {
-      await player.playAST(resolved as any);
-    } else {
-      log.warn('resolved ISM contains no channels — using fallback test AST to verify audio');
-      const testAst: any = {
-        chip: 'gameboy',
-        bpm: 128,
-        insts: { test: { type: 'pulse1', duty: 50, env: 'gb:12,down,1' } },
-        channels: [{ id: 1, inst: 'test', pat: ['C5', '.', '.', '.'] }]
-      };
-      await player.playAST(testAst);
-    }
-    log.debug('player.playAST returned');
-    status && (status.textContent = 'Playing');
-    if (exportWavBtn) exportWavBtn.disabled = false;
-  } catch (e: any) {
-    log.error('Play handler error', e);
-    const errorMsg = formatParseError(e);
-    // Show error prominently in errors panel
-    showErrors([{ message: errorMsg }]);
-    status && (status.textContent = 'Failed');
-    if (exportWavBtn) exportWavBtn.disabled = true;
+  if (panel === 'channel-mixer') {
+    ccContainer.style.display = visible ? '' : 'none';
   }
 });
 
-stopBtn?.addEventListener('click', () => {
-  try {
-    const p = (window as any).__beatbax_player || player;
-    if (p && typeof p.stop === 'function') p.stop();
-    status && (status.textContent = 'Stopped');
-  } catch (e) { log.error(e); status && (status.textContent = 'Error stopping playback'); }
-});
+(window as any).__beatbax_channelState = channelState;
+(window as any).__beatbax_playbackManager = playbackManager;
+(window as any).__beatbax_outputPanel = outputPanel;
+(window as any).__beatbax_statusBar = statusBar;
+(window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
+(window as any).__beatbax_helpPanel = helpPanel;
 
-applyBtn?.addEventListener('click', async () => {
-  clearErrors();
-  clearWarnings();
-  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
+// ─── Transport bar ────────────────────────────────────────────────────────────
+const transportContainer = document.createElement('div');
+transportContainer.id = 'transport';
+transportContainer.className = 'bb-transport';
+transportContainer.style.cssText = `
+  padding: 6px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+`;  // background and border handled by .bb-transport via CSS vars
 
-  try {
-    const p2 = (window as any).__beatbax_player || player;
-    if (p2 && typeof p2.stop === 'function') p2.stop();
-    status && (status.textContent = 'Applying...');
-    const src = srcArea ? srcArea.value : '';
-    const ast = parse(src);
-    log.debug('[apply] AST imports:', (ast as any).imports);
-    log.debug('[apply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
+const logo = document.createElement('img');
+logo.src = '/logo-menu-bar.png';
+logo.alt = 'BeatBax';
+logo.style.cssText = 'height: 44px; margin-right: 6px;';
+transportContainer.appendChild(logo);
 
-    currentAST = ast;
-    renderChannelControls(ast);
-    if (!player) player = new Player();
-    (window as any).__beatbax_player = player;
-    try {
-      if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        log.debug('resuming AudioContext (apply)');
-        await player.ctx.resume();
-      }
-    } catch (e) { log.warn('resume failed during apply', e); }
-    attachScheduleHook(player);
-    log.debug('[apply] Calling resolveSong...');
+const mkBtn = (label: string, title = '') => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.title = title;
+  b.style.cssText = 'padding: 6px 14px; font-size: 13px; cursor: pointer;';
+  return b;
+};
 
-    // Resolve imports first to get updated AST with all instruments
-    let resolvedAST = ast;
-    if ((ast as any).imports && (ast as any).imports.length > 0) {
-      try {
-        resolvedAST = await resolveImports(ast as any, {
-          onWarn: (message: string, loc?: any) => {
-            warnings.push({ component: 'import-resolver', message, loc });
-          },
-        });
-      } catch (importErr: any) {
-        log.error('[apply] Import resolution failed:', importErr);
-        // Import errors are critical - show in error panel
-        showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
-        status && (status.textContent = 'Failed');
-        if (exportWavBtn) exportWavBtn.disabled = true;
-        return; // Stop processing if import fails
-      }
-    }
+const playBtn = mkBtn('▶ Play', 'Play current song (Space)') as HTMLButtonElement;
+const pauseBtn = mkBtn('⏸ Pause', 'Pause playback') as HTMLButtonElement;
+const stopBtn = mkBtn('⏹ Stop', 'Stop playback (Esc)') as HTMLButtonElement;
+const applyBtn = mkBtn('🔄 Apply', 'Apply and re-play') as HTMLButtonElement;
+const liveBtn = mkBtn('⚡ Live', 'Toggle live-play mode') as HTMLButtonElement;
+liveBtn.style.border = '2px solid transparent';
 
-    // Validate AST after imports are resolved
-    const validationWarnings = validateAST(resolvedAST);
-    warnings.push(...validationWarnings);
+transportContainer.append(playBtn, pauseBtn, stopBtn, applyBtn, liveBtn);
 
-    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    log.debug('[apply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
+// Insert transport bar BEFORE the layout content (but inside layoutHost)
+layoutHost.insertBefore(transportContainer, layoutHost.firstChild);
 
-    // Show warnings if any
-    showWarnings(warnings);
+// ─── TransportControls component ─────────────────────────────────────────────
+const getSource = () => (editor?.getValue?.() as string) || '';
 
-    log.debug('apply: calling player.playAST');
-    await player.playAST(resolved as any);
-    status && (status.textContent = 'Playing');
-    if (exportWavBtn) exportWavBtn.disabled = false;
-  } catch (e: any) {
-    log.error(e);
-    const errorMsg = formatParseError(e);
-    showErrors([{ message: errorMsg }]);
-    status && (status.textContent = 'Failed');
-    if (exportWavBtn) exportWavBtn.disabled = true;
+const transportControls = new TransportControls(
+  {
+    playButton: playBtn,
+    pauseButton: pauseBtn,
+    stopButton: stopBtn,
+    applyButton: applyBtn,
+    enableKeyboardShortcuts: false, // central ks registry owns Space/Esc/Ctrl+Enter
+  },
+  playbackManager,
+  eventBus,
+  getSource
+);
+(window as any).__beatbax_transportControls = transportControls;
+
+// Sync error state with TransportControls
+eventBus.on('parse:error', () => transportControls.setHasErrors(true));
+eventBus.on('validation:warnings', () => transportControls.setHasErrors(false));
+
+// ─── Live mode ────────────────────────────────────────────────────────────────
+let liveMode = false;
+liveBtn.addEventListener('click', () => {
+  liveMode = !liveMode;
+  liveBtn.style.borderColor = liveMode ? '#4caf50' : 'transparent';
+  liveBtn.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
+  opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
+  if (!liveMode) {
+    clearTimeout((window as any).__bb_liveTimer);
   }
 });
 
-exportWavBtn?.addEventListener('click', async () => {
-  try {
-    status && (status.textContent = 'Rendering WAV...');
-    const src = srcArea ? srcArea.value : '';
-    const ast = parse(src);
-  // Note: WAV export doesn't support imports yet - would need to call resolveImports first
-  const resolved = resolveSong(ast as any);
-    for (const ch of resolved.channels || []) {
-      if (ch.events && ch.events.length > maxTicks) {
-        maxTicks = ch.events.length;
-      }
-    }
-    const bpm = (ast as any).bpm || 120;
-    const secondsPerBeat = 60 / bpm;
-    const tickSeconds = secondsPerBeat / 4;
-    const duration = Math.ceil(maxTicks * tickSeconds) + 1;
-
-    // Create an offline context
-    const OfflineAudioContextCtor = (globalThis as any).OfflineAudioContext || (globalThis as any).webkitOfflineAudioContext;
-    const sampleRate = 44100;
-    const lengthInSamples = Math.ceil(duration * sampleRate);
-    const offlineCtx = new OfflineAudioContextCtor(2, lengthInSamples, sampleRate);
-
-    // Create a player
-    const offlinePlayer = new Player(offlineCtx, { buffered: false });
-
-    // Manually process scheduler queue after playAST schedules events
-    const scheduler = (offlinePlayer as any).scheduler;
-    if (scheduler && scheduler.queue) {
-      // Override tick to process ALL events immediately
-      scheduler.tick = function() {
-        // Process all queued events regardless of time
-        while ((this as any).queue && (this as any).queue.length > 0) {
-          const ev = (this as any).queue.shift();
-          try {
-            ev.fn();
-          } catch (e) {
-            log.error('Scheduled function error', e);
-          }
-        }
-      };
-    }
-
-    // Play the AST (this schedules all events)
-    await offlinePlayer.playAST(resolved);
-
-    // Force process all scheduled events
-    if (scheduler && typeof scheduler.tick === 'function') {
-      scheduler.tick();
-    }
-
-    // Render to buffer
-    const audioBuffer = await offlineCtx.startRendering();
-
-    // Convert to WAV
-    const wav = audioBufferToWav(audioBuffer);
-    const blob = new Blob([wav], { type: 'audio/wav' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'beatbax-browser-export.wav';
-    a.click();
-    URL.revokeObjectURL(url);
-
-    status && (status.textContent = 'WAV exported!');
-  } catch (e: any) {
-    log.error('Export error:', e);
-    const errorMsg = formatParseError(e);
-    status && (status.textContent = errorMsg);
-  }
+editor.onDidChangeModelContent?.(() => {
+  if (!liveMode) return;
+  clearTimeout((window as any).__bb_liveTimer);
+  (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
 });
 
-// Helper to convert AudioBuffer to WAV file
-function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
-  const numChannels = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const bitDepth = 16;
-  const bytesPerSample = bitDepth / 8;
-  const blockAlign = numChannels * bytesPerSample;
+// ─── Phase 3: ExportManager ───────────────────────────────────────────────────
+const exportManager = new ExportManager(eventBus);
 
-  const data = new Float32Array(buffer.length * numChannels);
-  for (let i = 0; i < buffer.length; i++) {
-    for (let ch = 0; ch < numChannels; ch++) {
-      data[i * numChannels + ch] = buffer.getChannelData(ch)[i];
-    }
-  }
+// Show activity spinner during exports (WAV can take several seconds).
+eventBus.on('export:started', ({ format }) =>
+  spinner.show(format === 'wav' ? 'Rendering WAV audio…' : `Exporting ${format.toUpperCase()}…`)
+);
+eventBus.on('export:success', () => spinner.hide());
+eventBus.on('export:error', () => spinner.hide());
 
-  const dataLength = data.length * bytesPerSample;
-  const headerLength = 44;
-  const totalLength = headerLength + dataLength;
+// Tracks the stem of the last loaded .bax filename (e.g. 'sample_song' from 'sample_song.bax').
+let loadedFilename = 'song';
 
-  const arrayBuffer = new ArrayBuffer(totalLength);
-  const view = new DataView(arrayBuffer);
-
-  // RIFF header
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, totalLength - 8, true);
-  writeString(view, 8, 'WAVE');
-
-  // fmt chunk
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitDepth, true);
-
-  // data chunk
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataLength, true);
-
-  let offset = 44;
-  for (let i = 0; i < data.length; i++) {
-    const sample = Math.max(-1, Math.min(1, data[i]));
-    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-    view.setInt16(offset, intSample, true);
-    offset += 2;
-  }
-
-  return arrayBuffer;
+/** Strip directory, extension and return the bare stem of a filename path. */
+function fileBaseStem(path: string): string {
+  return (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '') || 'song';
 }
 
-function writeString(view: DataView, offset: number, str: string) {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}
-
-function debounce(fn: (...args: any[]) => void, wait = 300) {
-  let t: any = null;
-  return (...args: any[]) => {
-    if (t) clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
-  };
-}
-
-const liveApply = debounce(async () => {
-  if (!liveCheckbox || !liveCheckbox.checked) return;
-  clearErrors();
-  clearWarnings();
-  const warnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
-
+/**
+ * Parse song source and emit parse:success / parse:error so all subscribers
+ * (ChannelMixer, StatusBar, etc.) immediately reflect the new song.
+ */
+function emitParse(content: string): void {
   try {
-    if (player) player.stop();
-    status && (status.textContent = 'Applying (live)...');
-    const src = srcArea ? srcArea.value : '';
-    const ast = parse(src);
-    log.debug('[liveApply] AST imports:', (ast as any).imports);
-    log.debug('[liveApply] AST instruments before resolve:', Object.keys((ast as any).insts || {}));
-
-    currentAST = ast;
-    renderChannelControls(ast);
-    if (!player) player = new Player();
-    (window as any).__beatbax_player = player;
-    try {
-      if (player && player.ctx && typeof player.ctx.resume === 'function') {
-        log.debug('resuming AudioContext (liveApply)');
-        await player.ctx.resume();
-      }
-    } catch (e) { log.warn('resume failed during live apply', e); }
-    attachScheduleHook(player);
-    log.debug('[liveApply] Calling resolveSong...');
-
-    // Resolve imports first to get updated AST with all instruments
-    let resolvedAST = ast;
-    if ((ast as any).imports && (ast as any).imports.length > 0) {
-      try {
-        resolvedAST = await resolveImports(ast as any, {
-          onWarn: (message: string, loc?: any) => {
-            warnings.push({ component: 'import-resolver', message, loc });
-          },
-        });
-      } catch (importErr: any) {
-        log.error('[liveApply] Import resolution failed:', importErr);
-        // Import errors are critical - show in error panel
-        showErrors([{ message: `Import failed: ${importErr.message || String(importErr)}` }]);
-        status && (status.textContent = 'Live Failed');
-        if (exportWavBtn) exportWavBtn.disabled = true;
-        return; // Stop processing if import fails
-      }
-    }
-
-    // Validate AST after imports are resolved
-    const validationWarnings = validateAST(resolvedAST);
-    warnings.push(...validationWarnings);
-
-    const resolved = resolveSong(resolvedAST as any, { onWarn: (w: any) => warnings.push(w) });
-    log.debug('[liveApply] Resolved instruments:', Object.keys((resolved as any).insts || {}));
-
-    // Show warnings if any
-    showWarnings(warnings);
-
-    log.debug('liveApply: calling player.playAST');
-    await player.playAST(resolved as any);
-    status && (status.textContent = 'Playing (live)');
-    if (exportWavBtn) exportWavBtn.disabled = false;
-  } catch (e: any) {
-    log.error(e);
-    const errorMsg = e && e.message ? e.message : String(e);
-    showErrors([{ message: errorMsg }]);
-    status && (status.textContent = 'Live Failed');
-    if (exportWavBtn) exportWavBtn.disabled = true;
+    eventBus.emit('parse:started', undefined);
+    const ast = parse(content);
+    eventBus.emit('parse:success', { ast });
+    diagnosticsManager?.clear?.();
+  } catch (err: any) {
+    eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
   }
-}, 350);
+}
 
-srcArea?.addEventListener('input', () => { if (liveCheckbox && liveCheckbox.checked) liveApply(); });
+async function handleExport(format: ExportFormat) {
+  const source = getSource();
+  if (!source.trim()) {
+    opWarn(outputPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
+    return;
+  }
+  const result = await exportManager.export(source, format, { filename: loadedFilename });
+  if (result.success) {
+    opLog(outputPanel, `✓ Exported ${result.filename} (${result.size ?? 0} bytes)`, 'export');
+    result.warnings?.forEach(w => opWarn(outputPanel, w, 'export'));
+  } else {
+    opError(outputPanel, `Export failed: ${result.error?.message ?? 'unknown error'}`, 'export');
+  }
+}
 
-function renderChannelControls(ast: any) {
-  const container = document.getElementById('channelControls') as HTMLDivElement | null;
-  if (!container) return;
-  container.innerHTML = '';
-  const title = document.createElement('div');
-  title.textContent = 'Channels:';
-  container.appendChild(title);
-  for (const ch of (ast.channels || [])) {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '8px';
-    row.style.marginTop = '6px';
-    const indicator = document.createElement('div');
-    indicator.id = `ch-ind-${ch.id}`;
-    indicator.style.width = '12px';
-    indicator.style.height = '12px';
-    indicator.style.borderRadius = '6px';
-    indicator.style.background = 'transparent';
-    indicator.style.border = '1px solid #666';
-    indicator.style.marginRight = '6px';
-    indicator.style.transition = 'background 120ms ease';
-    const label = document.createElement('div');
-    label.textContent = `Channel ${ch.id}`;
-    const count = document.createElement('div');
-    count.id = `ch-count-${ch.id}`;
-    count.textContent = '0';
-    count.style.minWidth = '24px';
-    count.style.textAlign = 'center';
-    count.style.marginLeft = '6px';
-    const mute = document.createElement('button');
-    mute.textContent = 'Mute';
-    const solo = document.createElement('button');
-    solo.textContent = 'Solo';
-    mute.addEventListener('click', () => {
-      if (!player) player = new Player();
-      player.toggleChannelMute(ch.id);
-      updateButtons();
+// ─── ThemeManager ─────────────────────────────────────────────────────────────
+const themeManager = new ThemeManager({ eventBus });
+themeManager.init();
+
+(window as any).__beatbax_themeManager = themeManager;
+
+// ─── MenuBar ──────────────────────────────────────────────────────────────────
+// Declared before Toolbar so toolbar's onLoad can call menuBar.recordRecent.
+// The `toolbar` variable is referenced inside MenuBar callbacks via the closure
+// formed after Toolbar is instantiated below.
+let toolbar: Toolbar; // forward declaration — assigned after Toolbar construction
+
+const menuBar = new MenuBar({
+  container: menuBarContainer,
+  eventBus,
+  enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
+  onNew: () => {
+    if (confirm('Clear the editor and start a new song?')) {
+      editor.setValue?.('');
+      loadedFilename = 'song';
+      opLog(outputPanel, '📄 New song');
+    }
+  },
+  onOpen: () => {
+    openFilePicker({
+      accept: '.bax',
+      onLoad: (result) => {
+        loadedFilename = fileBaseStem(result.filename);
+        editor.setValue?.(result.content);
+        opLog(outputPanel, `📂 Opened ${result.filename}`);
+        eventBus.emit('song:loaded', { filename: result.filename });
+        menuBar.recordRecent(result.filename);
+        emitParse(result.content);
+        toolbar?.setExportEnabled(true);
+      },
     });
-    solo.addEventListener('click', () => {
-      if (!player) player = new Player();
-      player.toggleChannelSolo(ch.id);
-      updateButtons();
-    });
-    row.appendChild(indicator);
-    row.appendChild(label);
-    const bpmEl = document.createElement('div');
-    bpmEl.id = `ch-bpm-${ch.id}`;
-    bpmEl.style.minWidth = '64px';
-    bpmEl.style.textAlign = 'right';
-    bpmEl.style.marginLeft = '8px';
-    const masterBpm = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
-    const effBpm = (typeof (ch as any).speed === 'number') ? Math.round(masterBpm * (ch as any).speed) : masterBpm;
-    bpmEl.textContent = `BPM: ${effBpm}`;
-    row.appendChild(bpmEl);
-    row.appendChild(count);
-    row.appendChild(mute);
-    row.appendChild(solo);
-    container.appendChild(row);
+  },
+  onSave: () => {
+    const content = getSource();
+    if (!content.trim()) { opWarn(outputPanel, 'Nothing to save — the editor is empty.'); return; }
+    downloadText(content, `${loadedFilename}.bax`, 'text/plain');
+    opLog(outputPanel, `💾 Saved ${loadedFilename}.bax`);
+  },
+  onSaveAs: () => {
+    const raw = prompt('Save as:', `${loadedFilename}.bax`);
+    if (!raw) return;
+    const filename = raw.endsWith('.bax') ? raw : `${raw}.bax`;
+    downloadText(getSource(), filename, 'text/plain');
+    loadedFilename = fileBaseStem(filename);
+    opLog(outputPanel, `💾 Saved ${filename}`);
+  },
+  onLoadFile: (filename, content) => {
+    loadedFilename = fileBaseStem(filename);
+    editor.setValue?.(content);
+    opLog(outputPanel, `🎵 Loaded ${filename}`);
+    eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
+    emitParse(content);
+    toolbar?.setExportEnabled(true);
+  },
+  onUndo: () => editor.editor?.trigger('menu', 'undo', null),
+  onRedo: () => editor.editor?.trigger('menu', 'redo', null),
+  onCut: () => editor.editor?.trigger('menu', 'editor.action.clipboardCutAction', null),
+  onCopy: () => editor.editor?.trigger('menu', 'editor.action.clipboardCopyAction', null),
+  onPaste: () => editor.editor?.trigger('menu', 'editor.action.clipboardPasteAction', null),
+  onFind: () => editor.editor?.trigger('menu', 'actions.find', null),
+  onReplace: () => editor.editor?.trigger('menu', 'editor.action.startFindReplaceAction', null),
+  onZoomIn: () => {
+    const cur = (editor.editor?.getOption(52 /* fontSize */) as number) || 14;
+    editor.editor?.updateOptions({ fontSize: Math.min(cur + 2, 32) });
+  },
+  onZoomOut: () => {
+    const cur = (editor.editor?.getOption(52 /* fontSize */) as number) || 14;
+    editor.editor?.updateOptions({ fontSize: Math.max(cur - 2, 8) });
+  },
+  onZoomReset: () => editor.editor?.updateOptions({ fontSize: 14 }),
+  onToggleTheme: () => themeManager.toggle(),
+});
 
-    function updateButtons() {
-      const isMuted = player && player.muted && player.muted.has(ch.id);
-      const isSolo = player && player.solo === ch.id;
-      mute.textContent = isMuted ? 'Unmute' : 'Mute';
-      solo.textContent = isSolo ? 'Unsolo' : 'Solo';
-      if (player && player.solo !== null && player.solo !== ch.id) row.style.opacity = '0.5'; else row.style.opacity = '1';
-      try {
-        const b = document.getElementById(`ch-bpm-${ch.id}`);
-        if (b) {
-          const master = (ast && typeof ast.bpm === 'number') ? ast.bpm : 120;
-          const effective = (typeof (ch as any).speed === 'number') ? Math.round(master * (ch as any).speed) : master;
-          b.textContent = `BPM: ${effective}`;
-        }
-      } catch (e) {}
-    }
-    updateButtons();
-  }
-}
+(window as any).__beatbax_menuBar = menuBar;
 
-function attachScheduleHook(p: any) {
-  if (!p) return;
-  const prev = (p as any).onSchedule;
-  (p as any).onSchedule = (args: { chId: number; inst?: any; token?: string; time?: number; dur?: number }) => {
+// ─── Toolbar ──────────────────────────────────────────────────────────────────
+toolbar = new Toolbar({
+  container: toolbarContainer,
+  eventBus,
+  onLoad: (filename, content) => {
+    loadedFilename = fileBaseStem(filename);
+    editor.setValue?.(content);
+    opLog(outputPanel, `📂 Opened ${filename}`);
+    eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
+    emitParse(content);
+    toolbar.setExportEnabled(true);
+  },
+  onExport: handleExport,
+  onVerify: () => {
+    const source = getSource();
+    if (!source.trim()) { opWarn(outputPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.'); return; }
     try {
-      // preserve previous hook
-      try { if (typeof prev === 'function') prev(args); } catch (_) {}
-      const token = (args && args.token) ? String(args.token) : '';
-      let shouldLight = false;
-      if (token) {
-        const t = token.trim();
-        if (t === '.' || /^inst\(/i.test(t) || /^rest$/i.test(t)) shouldLight = false; else shouldLight = true;
-      } else if (args && args.inst && args.inst.type) {
-        shouldLight = /pulse|wave|noise/i.test(String(args.inst.type));
+      parse(source);
+      opLog(outputPanel, '✔ Verification passed', 'verify');
+      diagnosticsManager?.clearAll?.();
+      toolbar.setExportEnabled(true);
+    } catch (err: any) {
+      opError(outputPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
+      if (diagnosticsManager && err.loc) {
+        diagnosticsManager.setMarkers([parseErrorToDiagnostic(err)]);
       }
-      if (!shouldLight) return;
-      const el = document.getElementById(`ch-ind-${args.chId}`);
-      if (!el) return;
-      el.classList.add('ch-ind-active');
-      setTimeout(() => { try { el.classList.remove('ch-ind-active'); } catch (e) {} }, 180);
-      try {
-        const c = document.getElementById(`ch-count-${args.chId}`);
-        if (c) {
-          const n = parseInt(c.textContent || '0', 10) || 0;
-          c.textContent = String(n + 1);
-        }
-      } catch (e) {}
-    } catch (e) {}
-  };
+      toolbar.setExportEnabled(false);
+    }
+  },
+});
+
+(window as any).__beatbax_toolbar = toolbar;
+(window as any).__beatbax_exportManager = exportManager;
+
+// ─── Drag-and-drop ────────────────────────────────────────────────────────────
+const dragDrop = new DragDropHandler(document.body, {
+  onDrop: (filename, content) => {
+    loadedFilename = fileBaseStem(filename);
+    editor.setValue?.(content);
+    opLog(outputPanel, `🗂 Dropped ${filename}`);
+    eventBus.emit('song:loaded', { filename });
+    menuBar.recordRecent(filename);
+    emitParse(content);
+    toolbar.setExportEnabled(true);
+    setTimeout(() => playbackManager.play(getSource()), 200);
+  },
+});
+(window as any).__beatbax_dragDrop = dragDrop;
+
+// ─── URL query auto-load ──────────────────────────────────────────────────────
+(async () => {
+  const params = new URL(location.href).searchParams;
+  const hasSongParam = params.has('song');
+  if (hasSongParam) spinner.show('Loading song…');
+  try {
+    const { loadFromQueryParams } = await import('./import/remote-loader');
+    const result = await loadFromQueryParams(params);
+    if (result) {
+      const songParam = params.get('song') ?? 'song.bax';
+      const filename = songParam.split('/').pop() || 'song.bax';
+      loadedFilename = fileBaseStem(filename);
+      editor.setValue?.(result.content);
+      opLog(outputPanel, `🌐 Loaded from URL: ${filename}`);
+      eventBus.emit('song:loaded', { filename });
+      menuBar.recordRecent(filename);
+      emitParse(result.content);
+      toolbar.setExportEnabled(true);
+      setTimeout(() => playbackManager.play(getSource()), 300);
+    }
+  } catch (err: any) {
+    log.warn('URL auto-load failed:', err.message);
+  } finally {
+    if (hasSongParam) spinner.hide();
+  }
+})();
+
+// ─── Initial parse ───────────────────────────────────────────────────────────
+// Emit parse:success on startup so subscribers (ChannelMixer, StatusBar, …)
+// are populated without requiring the user to press Play first.
+(async () => {
+  const content = getSource();
+  try {
+    parse(content); // validate first so we know whether to enable exports
+    toolbar.setExportEnabled(true);
+  } catch {
+    toolbar.setExportEnabled(false);
+  }
+  emitParse(content);
+})();
+
+// ─── Central keyboard shortcut registrations ────────────────────────────────
+// All app-wide shortcuts live here so HelpPanel can list them dynamically.
+
+// Transport
+ks.register({ key: ' ', description: 'Play / Pause', allowInInput: false,
+  action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
+});
+ks.register({ key: 'Escape', description: 'Stop playback or close Help panel',
+  action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else stopBtn.click(); },
+});
+ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play',
+  action: () => applyBtn.click(),
+});
+
+// File
+ks.register({ key: 'n', ctrlKey: true, description: 'New song',
+  action: () => menuBar.triggerNew() });
+ks.register({ key: 'o', ctrlKey: true, description: 'Open file…',
+  action: () => menuBar.triggerOpen() });
+ks.register({ key: 's', ctrlKey: true, description: 'Save',
+  action: () => menuBar.triggerSave() });
+ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…',
+  action: () => menuBar.triggerSaveAs() });
+
+// Edit
+ks.register({ key: 'z', ctrlKey: true, description: 'Undo',
+  action: () => menuBar.triggerUndo() });
+ks.register({ key: 'y', ctrlKey: true, description: 'Redo',
+  action: () => menuBar.triggerRedo() });
+
+// View
+ks.register({ key: 't', ctrlKey: true, shiftKey: true, description: 'Toggle theme',
+  action: () => menuBar.triggerToggleTheme() });
+ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel',
+  action: () => {
+    const vis = outputPane.style.display !== 'none';
+    eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
+  },
+});
+ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls',
+  action: () => {
+    const vis = ccContainer.style.display !== 'none';
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+  },
+});
+
+// Help
+ks.register({ key: 'F1', description: 'Open Help panel',
+  action: () => helpPanel?.show() });
+ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Help / keyboard shortcuts',
+  action: () => helpPanel?.show() });
+
+ks.mount();
+
+log.debug('BeatBax Web-UI initialised ✓');
+
+} catch (fatalError) {
+  showFatalError(fatalError);
 }
-
-loadHelpFromText('').then(() => applyPersistedShow()).catch(() => {});
-
