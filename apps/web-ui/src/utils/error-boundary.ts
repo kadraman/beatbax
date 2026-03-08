@@ -5,7 +5,7 @@
  * 1. withErrorBoundary  — wraps individual component init; renders an inline
  *    error card if it throws so the rest of the app keeps loading.
  * 2. showFatalError     — full-screen overlay for catastrophic init failures.
- * 3. installGlobalErrorHandlers — window.onerror + unhandledrejection hook that
+ * 3. installGlobalErrorHandlers — window `error` + `unhandledrejection` listeners that
  *    forwards to a caller-supplied callback (usually OutputPanel.addMessage).
  */
 
@@ -162,11 +162,11 @@ export function showFatalError(error: unknown): void {
 export type GlobalErrorCallback = (message: string, error?: unknown) => void;
 
 /**
- * Install `window.onerror` and `unhandledrejection` handlers.
+ * Install `error` and `unhandledrejection` event listeners on `window`.
  * The provided `callback` receives a human-readable message so the caller
  * can forward it to wherever errors are displayed (e.g. OutputPanel).
  *
- * Returns a teardown function that removes the handlers.
+ * Returns a teardown function that removes the listeners.
  */
 export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () => void {
   const onError = (ev: ErrorEvent) => {
@@ -174,8 +174,6 @@ export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () =>
     const msg = err?.message ?? ev.message ?? 'Unknown error';
     log.error('Uncaught error:', msg, err ?? ev);
     callback(msg, err ?? ev);
-    // Don't suppress default browser handling
-    return false;
   };
 
   const onUnhandledRejection = (event: PromiseRejectionEvent) => {
