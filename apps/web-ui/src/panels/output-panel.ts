@@ -83,7 +83,7 @@ export class OutputPanel {
           source: 'validation',
           timestamp: new Date(),
           loc: w.loc,
-          suggestion: (w as any).suggestion,
+          suggestion: w.suggestion,
         }, !isLast); // Skip render for all but last message
       }
 
@@ -108,7 +108,7 @@ export class OutputPanel {
           source: 'validation',
           timestamp: new Date(),
           loc: e.loc,
-          suggestion: (e as any).suggestion,
+          suggestion: e.suggestion,
         }, !isLast); // Skip render for all but last message
       }
 
@@ -369,7 +369,7 @@ export class OutputPanel {
     let locBadge = '';
     if (msg.loc && msg.loc.start) {
       const line = msg.loc.start.line;
-      const col = (msg.loc.start.column ?? 0) + 1; // display as 1-based
+      const col = msg.loc.start.column ?? 1; // already 1-based (Peggy convention)
       locBadge = `<span class="output-loc">line ${line}, col ${col}</span>`;
     }
 
