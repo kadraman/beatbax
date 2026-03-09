@@ -152,7 +152,7 @@ export function setupDiagnosticsIntegration(
   });
 
   // Note: We don't listen for validation:warnings here because the caller
-  // (e.g., main-phase1.ts) calls setDiagnostics directly to avoid recursion.
+  // (e.g., main.ts) calls setDiagnostics directly to avoid recursion.
 
   // Return cleanup function
   return () => {

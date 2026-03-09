@@ -1,8 +1,7 @@
 /**
- * BeatBax Web UI
- * Main entry point for the BeatBax web-based IDE. This file is responsible for bootstrapping the entire application, including:
- * - Setting up the editor and UI layout
- * - Initialising global state and event bus
+ * BeatBax Web UI — main entry point
+ * Bootstraps the full IDE: Monaco editor, diagnostics, layout, playback, exports,
+ * MenuBar, ThemeManager, EditorState, keyboard shortcuts, and advanced IDE chrome.
  */
 
 // Polyfill Buffer for engine compatibility in browser (must be first)
@@ -16,6 +15,8 @@ import {
   loadLoggingFromURL,
   getLoggingConfig,
 } from '@beatbax/engine/util/logger';
+
+// Core / editor imports
 import { eventBus } from './utils/event-bus';
 import { createEditor, registerBeatBaxLanguage, configureMonaco } from './editor';
 import {
@@ -24,16 +25,23 @@ import {
   parseErrorToDiagnostic,
 } from './editor/diagnostics';
 import { createThreePaneLayout } from './ui/layout';
+
+// Playback imports
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
 import { ChannelState } from './playback/channel-state';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
+
+// Export / import imports
 import { Toolbar } from './ui/toolbar';
 import { ExportManager } from './export/export-manager';
 import type { ExportFormat } from './export/export-manager';
 import { DragDropHandler } from './import/drag-drop-handler';
+
+import { KeyCode, KeyMod } from 'monaco-editor';
+import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { EditorState } from './editor/editor-state';
@@ -49,13 +57,13 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 
-const log = createLogger('web-ui');
+const log = createLogger('ui:main');
 
 // Init logger
 loadLoggingFromStorage();
 loadLoggingFromURL();
 const logConfig = getLoggingConfig();
-log.debug('BeatBax Web-UI starting. Logging config:', logConfig);
+log.debug('BeatBax starting. Logging config:', logConfig);
 
 // ─── Convenience helpers for OutputPanel ─────────────────────────────────────
 function opLog(panel: OutputPanel, message: string, source = 'app') {
@@ -87,9 +95,12 @@ function getInitialContent(): string {
   try {
     const saved = localStorage.getItem('beatbax:editor.content');
     if (saved) return saved;
+    // Fall back to legacy storage key
+    const legacy = localStorage.getItem('beatbax-editor-content');
+    if (legacy) return legacy;
   } catch (_e) { /* ignore */ }
 
-  return `# BeatBax Web UI
+  return `# BeatBax Web IDE
 # Use the menu bar (File / Edit / View / Help) for all operations.
 # Drag-and-drop a .bax file to load it, or use File → Open.
 
@@ -128,7 +139,7 @@ registerBeatBaxLanguage();
 const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
-// ─── Menu bar host (topmost) ────────────────────────────────────────
+// ─── Menu bar host (topmost) ────────────────────────────────────────────────
 const menuBarContainer = document.createElement('div');
 menuBarContainer.id = 'bb-menu-bar-host';
 appContainer.appendChild(menuBarContainer);
@@ -164,7 +175,7 @@ spinner.hideBoot();
 const outputPane = layout.getOutputPane();
 rightPane = layout.getRightPane();
 
-// ─── EditorState ──────────────────────────────────────────────────────────────
+// ─── EditorState ─────────────────────────────────────────────────────────────
 editorState = new EditorState({
   editor: editor.editor,
   eventBus,
@@ -178,7 +189,7 @@ statusBarContainer.id = 'status-bar';
 statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:1000;';
 document.body.appendChild(statusBarContainer);
 
-// ─── Additional Components ───────────────────────────────────────────────────────
+// ─── Core components ─────────────────────────────────────────────────────────────────
 const channelState = new ChannelState(eventBus);
 const playbackManager = new PlaybackManager(eventBus, channelState);
 const outputPanel = new OutputPanel(outputPane, eventBus);
@@ -195,7 +206,7 @@ installGlobalErrorHandlers((message, _err) => {
   });
 });
 
-// ─── Unified Channel Panel (ChannelMixer) in the right pane ────────
+// ─── Unified Channel Panel (ChannelMixer) in the right pane ────────────────
 // The ChannelMixer is the combined channel controls + monitor. It lives in a
 // dedicated scoped div so its render() (which clears innerHTML on every
 // parse:success) never conflicts with any sibling nodes in rightPane.
@@ -210,7 +221,7 @@ const channelMixer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── HelpPanel — fixed overlay drawer from the right ──────────────────────
+// ─── HelpPanel — fixed overlay drawer from the right ───────────────────────
 const helpOverlay = document.createElement('div');
 helpOverlay.id = 'bb-help-overlay';
 helpOverlay.style.cssText = [
@@ -227,7 +238,7 @@ helpOverlay.style.cssText = [
 ].join('; ');
 document.body.appendChild(helpOverlay);
 
-// ─── Central keyboard shortcuts registry ─────────────────────────────────
+// ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
 // Shortcuts are registered after all components are instantiated (see bottom).
 const ks = new KeyboardShortcuts();
@@ -271,7 +282,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 
 // ─── Transport bar ────────────────────────────────────────────────────────────
 const transportContainer = document.createElement('div');
-transportContainer.id = 'transport';
+transportContainer.id = 'bb-transport-bar';
 transportContainer.className = 'bb-transport';
 transportContainer.style.cssText = `
   padding: 6px 10px;
@@ -295,10 +306,10 @@ const mkBtn = (label: string, title = '') => {
   return b;
 };
 
-const playBtn = mkBtn('▶ Play', 'Play current song (Space)') as HTMLButtonElement;
+const playBtn = mkBtn('▶ Play', 'Play current song (F5 / Space when outside editor)') as HTMLButtonElement;
 const pauseBtn = mkBtn('⏸ Pause', 'Pause playback') as HTMLButtonElement;
-const stopBtn = mkBtn('⏹ Stop', 'Stop playback (Esc)') as HTMLButtonElement;
-const applyBtn = mkBtn('🔄 Apply', 'Apply and re-play') as HTMLButtonElement;
+const stopBtn = mkBtn('⏹ Stop', 'Stop playback (F8 / Esc)') as HTMLButtonElement;
+const applyBtn = mkBtn('🔄 Apply', 'Apply & re-play (Ctrl+Enter)') as HTMLButtonElement;
 const liveBtn = mkBtn('⚡ Live', 'Toggle live-play mode') as HTMLButtonElement;
 liveBtn.style.border = '2px solid transparent';
 
@@ -346,7 +357,7 @@ editor.onDidChangeModelContent?.(() => {
   (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
 });
 
-// ─── Phase 3: ExportManager ───────────────────────────────────────────────────
+// ─── ExportManager ───────────────────────────────────────────────────────────
 const exportManager = new ExportManager(eventBus);
 
 // Show activity spinner during exports (WAV can take several seconds).
@@ -394,13 +405,13 @@ async function handleExport(format: ExportFormat) {
   }
 }
 
-// ─── ThemeManager ─────────────────────────────────────────────────────────────
+// ─── ThemeManager ────────────────────────────────────────────────────────────
 const themeManager = new ThemeManager({ eventBus });
 themeManager.init();
 
 (window as any).__beatbax_themeManager = themeManager;
 
-// ─── MenuBar ──────────────────────────────────────────────────────────────────
+// ─── MenuBar ─────────────────────────────────────────────────────────────────
 // Declared before Toolbar so toolbar's onLoad can call menuBar.recordRecent.
 // The `toolbar` variable is referenced inside MenuBar callbacks via the closure
 // formed after Toolbar is instantiated below.
@@ -410,6 +421,7 @@ const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
+  onShowShortcuts: () => helpPanel?.showShortcuts(),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
       editor.setValue?.('');
@@ -475,7 +487,7 @@ const menuBar = new MenuBar({
 
 (window as any).__beatbax_menuBar = menuBar;
 
-// ─── Toolbar ──────────────────────────────────────────────────────────────────
+// ─── Toolbar ─────────────────────────────────────────────────────────────────
 toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
@@ -510,7 +522,7 @@ toolbar = new Toolbar({
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;
 
-// ─── Drag-and-drop ────────────────────────────────────────────────────────────
+// ─── Drag-and-drop ───────────────────────────────────────────────────────────
 const dragDrop = new DragDropHandler(document.body, {
   onDrop: (filename, content) => {
     loadedFilename = fileBaseStem(filename);
@@ -525,7 +537,7 @@ const dragDrop = new DragDropHandler(document.body, {
 });
 (window as any).__beatbax_dragDrop = dragDrop;
 
-// ─── URL query auto-load ──────────────────────────────────────────────────────
+// ─── URL query auto-load ─────────────────────────────────────────────────────
 (async () => {
   const params = new URL(location.href).searchParams;
   const hasSongParam = params.has('song');
@@ -566,61 +578,127 @@ const dragDrop = new DragDropHandler(document.body, {
   emitParse(content);
 })();
 
+// ─── Monaco editor shortcut commands ────────────────────────────────────────
+// These fire when the Monaco editor has focus and complement the global window
+// handler (which is blocked by isInInput when Monaco has focus).
+const monacoInst = editor.editor;
+
+// F5 → Play (prevents browser page-refresh when Monaco is focused)
+monacoInst.addCommand(KeyCode.F5, () => { playBtn.click(); });
+// F8 → Stop
+monacoInst.addCommand(KeyCode.F8, () => { stopBtn.click(); });
+// Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { applyBtn.click(); });
+// Shift+F1 → Toggle Help (F1 alone is Monaco's own Command Palette — leave that alone)
+monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { helpPanel?.toggle(); });
+// Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
+// Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { helpPanel?.showShortcuts(); });
+// Ctrl+Shift+L → Theme toggle.
+// Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
+// here via addCommand overrides that default while Monaco has focus.
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
+// Ctrl+Shift+Y → Channel Monitor toggle (Monaco captures this key when focused).
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
+  const vis = ccContainer.style.display !== 'none';
+  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+});
+// Ctrl+Alt+P → Monaco Command Palette (alternative to Ctrl+Shift+P which is
+// intercepted by browsers: Firefox opens a Private Window, Chrome/Edge open
+// the DevTools command menu, so Ctrl+Shift+P can never reliably reach Monaco).
+// F1 is the primary in-editor shortcut for the Command Palette.
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
+  monacoInst.trigger('keyboard', 'editor.action.quickCommand', null);
+});
+// Escape: close the Help overlay if it is open, and allow Monaco to handle
+// its own Escape uses (close find widget, suggestions, rename dialog, etc.).
+// Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
+monacoInst.onKeyDown((e: IKeyboardEvent) => {
+  if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    if (helpPanel?.isVisible()) helpPanel.hide();
+    // Do NOT call stopBtn.click() here: the same Escape that closes Monaco’s
+    // find widget / suggestions overlay would also unexpectedly stop playback.
+  }
+});
+
 // ─── Central keyboard shortcut registrations ────────────────────────────────
 // All app-wide shortcuts live here so HelpPanel can list them dynamically.
 
 // Transport
-ks.register({ key: ' ', description: 'Play / Pause', allowInInput: false,
+// Space only fires when the editor does NOT have focus (allowInInput: false is
+// correct — users must be able to type spaces). F5/F8 are the in-editor transport
+// shortcuts; their Monaco commands (above) handle the in-editor case.
+ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
   action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
 });
-ks.register({ key: 'Escape', description: 'Stop playback or close Help panel',
+ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
+  action: () => playBtn.click(),
+});
+ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
+  action: () => stopBtn.click(),
+});
+ks.register({ key: 'Escape', description: 'Stop playback or close Help panel', allowInInput: false,
   action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else stopBtn.click(); },
 });
-ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play',
+// Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
+// addCommand above handles the in-editor case.
+ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,
   action: () => applyBtn.click(),
 });
 
 // File
-ks.register({ key: 'n', ctrlKey: true, description: 'New song',
-  action: () => menuBar.triggerNew() });
-ks.register({ key: 'o', ctrlKey: true, description: 'Open file…',
+// Note: Ctrl+N is reserved by browsers (new window) and cannot be intercepted —
+// use File → New from the menu bar instead.
+ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
   action: () => menuBar.triggerOpen() });
-ks.register({ key: 's', ctrlKey: true, description: 'Save',
+ks.register({ key: 's', ctrlKey: true, description: 'Save', allowInInput: true,
   action: () => menuBar.triggerSave() });
-ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…',
+ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
   action: () => menuBar.triggerSaveAs() });
 
 // Edit
-ks.register({ key: 'z', ctrlKey: true, description: 'Undo',
+// Ctrl+Z / Ctrl+Y: Monaco handles these natively when the editor is focused.
+// These entries let them work via the global handler when focus is elsewhere.
+ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
   action: () => menuBar.triggerUndo() });
-ks.register({ key: 'y', ctrlKey: true, description: 'Redo',
+ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
   action: () => menuBar.triggerRedo() });
 
-// View
-ks.register({ key: 't', ctrlKey: true, shiftKey: true, description: 'Toggle theme',
+// View — marked allowInInput: true so they work while the editor is focused
+// (Monaco doesn't intercept any of these key combinations).
+//
+// Ctrl+Alt+T is reserved by Firefox (opens a new tab).
+// Ctrl+Shift+M is reserved by Firefox (Responsive Design Mode).
+// Ctrl+Shift+L and Ctrl+Shift+Y are safe in Chrome, Edge and Firefox.
+ks.register({ key: 'l', ctrlKey: true, shiftKey: true, description: 'Toggle theme (Dark / Light)', allowInInput: true,
   action: () => menuBar.triggerToggleTheme() });
-ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel',
+ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allowInInput: true,
   action: () => {
     const vis = outputPane.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
   },
 });
-ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls',
+ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
     const vis = ccContainer.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
   },
 });
 
-// Help
-ks.register({ key: 'F1', description: 'Open Help panel',
-  action: () => helpPanel?.show() });
-ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Help / keyboard shortcuts',
-  action: () => helpPanel?.show() });
+// Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
+// Both shortcuts toggle the panel open/closed.
+ks.register({ key: 'F1', shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
+  action: () => helpPanel?.toggle() });
+ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
+  action: () => helpPanel?.toggle() });
+// Alt+Shift+K → jump directly to the Keyboard Shortcuts section.
+// (Ctrl+Shift+/ = Monaco block comment, so Ctrl+? is not available.)
+ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
+  action: () => helpPanel?.showShortcuts() });
 
 ks.mount();
 
-log.debug('BeatBax Web-UI initialised ✓');
+log.debug('BeatBax initialised ✓');
 
 } catch (fatalError) {
   showFatalError(fatalError);

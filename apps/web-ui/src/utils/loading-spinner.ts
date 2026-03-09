@@ -2,7 +2,7 @@
  * LoadingSpinner — manages a boot overlay and a modal activity indicator.
  *
  * Boot overlay (#bb-boot-spinner):
- *   Rendered as a static HTML element in index-phase4.html so it appears
+ *   Rendered as a static HTML element in index.html so it appears
  *   immediately, before any JavaScript runs.  Call hideBoot() once the editor
  *   is ready to remove it.
  *

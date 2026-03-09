@@ -274,7 +274,7 @@ The architecture is theme-ready — adding more presets or a UI colour picker is
   - Dark/light toggle, localStorage persistence, OS-preference detection
   - Emits `theme:changed` events via EventBus
 
-- **Phase 4 Entry Point**: `apps/web-ui/src/main-phase4.ts`
+- **Entry Point**: `apps/web-ui/src/main.ts`
   - Wires `ThemeManager` to the menu bar and `Ctrl+Shift+T` shortcut
   - Validation / error marker generation via `DiagnosticsManager`
 
