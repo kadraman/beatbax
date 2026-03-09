@@ -7,7 +7,7 @@
  * - Incremental search filters all content
  * - Click-to-insert snippets (fires onInsertSnippet callback)
  * - Listens to panel:toggled { panel: 'help' } to show/hide itself
- * - Keyboard: Escape closes; F1 / Ctrl+? opens
+ * - Keyboard: Escape closes; F1 / Alt+Shift+K opens shortcuts
  */
 
 import type { EventBus } from '../utils/event-bus';
@@ -134,17 +134,23 @@ seq slow = melody:slow` },
     title: 'Keyboard Shortcuts',
     // Populated statically; overridden at render time when getShortcuts is provided.
     content: [
-      { kind: 'shortcut', keys: ['Space'],              desc: 'Play / Pause' },
-      { kind: 'shortcut', keys: ['Esc'],                desc: 'Stop playback' },
+      { kind: 'shortcut', keys: ['F5'],                 desc: 'Play / re-play' },
+      { kind: 'shortcut', keys: ['Space'],              desc: 'Play / Pause (when editor not focused)' },
+      { kind: 'shortcut', keys: ['F8'],                 desc: 'Stop playback' },
+      { kind: 'shortcut', keys: ['Esc'],                desc: 'Stop playback (when editor not focused)' },
       { kind: 'shortcut', keys: ['Ctrl', 'Enter'],      desc: 'Apply & re-play' },
       { kind: 'shortcut', keys: ['Ctrl', 'S'],          desc: 'Save (download .bax)' },
       { kind: 'shortcut', keys: ['Ctrl', 'Shift', 'S'], desc: 'Save As…' },
       { kind: 'shortcut', keys: ['Ctrl', 'O'],          desc: 'Open file…' },
-      { kind: 'shortcut', keys: ['Ctrl', 'N'],          desc: 'New song' },
       { kind: 'shortcut', keys: ['Ctrl', 'Z'],          desc: 'Undo' },
       { kind: 'shortcut', keys: ['Ctrl', 'Y'],          desc: 'Redo' },
-      { kind: 'shortcut', keys: ['F1'],                 desc: 'Open this help panel' },
-      { kind: 'shortcut', keys: ['Ctrl', 'Shift', 'T'], desc: 'Toggle theme' },
+      { kind: 'shortcut', keys: ['Shift', 'F1'],        desc: 'Toggle Help Panel (all sections)' },
+      { kind: 'shortcut', keys: ['Alt', 'Shift', 'K'],  desc: 'Jump to Keyboard Shortcuts in Help Panel' },
+      { kind: 'shortcut', keys: ['Ctrl', 'Shift', 'L'], desc: 'Toggle theme (Dark / Light)' },
+      { kind: 'shortcut', keys: ['Ctrl', 'Shift', 'Y'], desc: 'Toggle Channel Monitor' },
+      { kind: 'shortcut', keys: ['Ctrl', '`'],          desc: 'Toggle Output panel' },
+      { kind: 'shortcut', keys: ['F1'],                 desc: 'Monaco Command Palette (when editor focused)' },
+      { kind: 'shortcut', keys: ['Ctrl', 'Alt', 'P'],   desc: 'Monaco Command Palette — browser-safe alternative to Ctrl+Shift+P' },
     ],
   },
   {
@@ -266,6 +272,20 @@ export class HelpPanel {
 
   isVisible(): boolean {
     return this.visible;
+  }
+
+  /**
+   * Open the panel and scroll directly to the Keyboard Shortcuts section,
+   * clearing any active search and expanding the section if collapsed.
+   */
+  showShortcuts(): void {
+    this.searchQuery = '';
+    this.collapsedSections.delete('shortcuts');
+    this.show(); // renders the panel
+    requestAnimationFrame(() => {
+      const sec = this.container.querySelector<HTMLElement>('[data-section-id="shortcuts"]');
+      sec?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   dispose(): void {
@@ -436,6 +456,7 @@ export class HelpPanel {
 
     const el = document.createElement('div');
     el.className = 'bb-help__section';
+    el.dataset.sectionId = section.id;
 
     // Section header / toggle
     const sectionHeader = document.createElement('button');

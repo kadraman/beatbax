@@ -41,6 +41,8 @@ import type { ExportFormat } from './export/export-manager';
 import { DragDropHandler } from './import/drag-drop-handler';
 
 // Phase 4 imports — NEW
+import { KeyCode, KeyMod } from 'monaco-editor';
+import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { EditorState } from './editor/editor-state';
@@ -305,10 +307,10 @@ const mkBtn = (label: string, title = '') => {
   return b;
 };
 
-const playBtn = mkBtn('▶ Play', 'Play current song (Space)') as HTMLButtonElement;
+const playBtn = mkBtn('▶ Play', 'Play current song (F5 / Space when outside editor)') as HTMLButtonElement;
 const pauseBtn = mkBtn('⏸ Pause', 'Pause playback') as HTMLButtonElement;
-const stopBtn = mkBtn('⏹ Stop', 'Stop playback (Esc)') as HTMLButtonElement;
-const applyBtn = mkBtn('🔄 Apply', 'Apply and re-play') as HTMLButtonElement;
+const stopBtn = mkBtn('⏹ Stop', 'Stop playback (F8 / Esc)') as HTMLButtonElement;
+const applyBtn = mkBtn('🔄 Apply', 'Apply & re-play (Ctrl+Enter)') as HTMLButtonElement;
 const liveBtn = mkBtn('⚡ Live', 'Toggle live-play mode') as HTMLButtonElement;
 liveBtn.style.border = '2px solid transparent';
 
@@ -420,6 +422,7 @@ const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
+  onShowShortcuts: () => helpPanel?.showShortcuts(),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
       editor.setValue?.('');
@@ -576,57 +579,123 @@ const dragDrop = new DragDropHandler(document.body, {
   emitParse(content);
 })();
 
+// ─── Monaco editor shortcut commands ────────────────────────────────────────
+// These fire when the Monaco editor has focus and complement the global window
+// handler (which is blocked by isInInput when Monaco has focus).
+const monacoInst = editor.editor;
+
+// F5 → Play (prevents browser page-refresh when Monaco is focused)
+monacoInst.addCommand(KeyCode.F5, () => { playBtn.click(); });
+// F8 → Stop
+monacoInst.addCommand(KeyCode.F8, () => { stopBtn.click(); });
+// Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { applyBtn.click(); });
+// Shift+F1 → Toggle Help (F1 alone is Monaco's own Command Palette — leave that alone)
+monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { helpPanel?.toggle(); });
+// Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
+// Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { helpPanel?.showShortcuts(); });
+// Ctrl+Shift+L → Theme toggle.
+// Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
+// here via addCommand overrides that default while Monaco has focus.
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
+// Ctrl+Shift+Y → Channel Monitor toggle (Monaco captures this key when focused).
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
+  const vis = ccContainer.style.display !== 'none';
+  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+});
+// Ctrl+Alt+P → Monaco Command Palette (alternative to Ctrl+Shift+P which is
+// intercepted by browsers: Firefox opens a Private Window, Chrome/Edge open
+// the DevTools command menu, so Ctrl+Shift+P can never reliably reach Monaco).
+// F1 is the primary in-editor shortcut for the Command Palette.
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
+  monacoInst.trigger('keyboard', 'editor.action.quickCommand', null);
+});
+// Escape: close the Help overlay if it is open, and allow Monaco to handle
+// its own Escape uses (close find widget, suggestions, rename dialog, etc.).
+// Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
+monacoInst.onKeyDown((e: IKeyboardEvent) => {
+  if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    if (helpPanel?.isVisible()) helpPanel.hide();
+    // Do NOT call stopBtn.click() here: the same Escape that closes Monaco’s
+    // find widget / suggestions overlay would also unexpectedly stop playback.
+  }
+});
+
 // ─── Central keyboard shortcut registrations ────────────────────────────────
 // All app-wide shortcuts live here so HelpPanel can list them dynamically.
 
 // Transport
-ks.register({ key: ' ', description: 'Play / Pause', allowInInput: false,
+// Space only fires when the editor does NOT have focus (allowInInput: false is
+// correct — users must be able to type spaces). F5/F8 are the in-editor transport
+// shortcuts; their Monaco commands (above) handle the in-editor case.
+ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
   action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
 });
-ks.register({ key: 'Escape', description: 'Stop playback or close Help panel',
+ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
+  action: () => playBtn.click(),
+});
+ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
+  action: () => stopBtn.click(),
+});
+ks.register({ key: 'Escape', description: 'Stop playback or close Help panel', allowInInput: false,
   action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else stopBtn.click(); },
 });
-ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play',
+// Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
+// addCommand above handles the in-editor case.
+ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,
   action: () => applyBtn.click(),
 });
 
 // File
-ks.register({ key: 'n', ctrlKey: true, description: 'New song',
-  action: () => menuBar.triggerNew() });
-ks.register({ key: 'o', ctrlKey: true, description: 'Open file…',
+// Note: Ctrl+N is reserved by browsers (new window) and cannot be intercepted —
+// use File → New from the menu bar instead.
+ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
   action: () => menuBar.triggerOpen() });
-ks.register({ key: 's', ctrlKey: true, description: 'Save',
+ks.register({ key: 's', ctrlKey: true, description: 'Save', allowInInput: true,
   action: () => menuBar.triggerSave() });
-ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…',
+ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
   action: () => menuBar.triggerSaveAs() });
 
 // Edit
-ks.register({ key: 'z', ctrlKey: true, description: 'Undo',
+// Ctrl+Z / Ctrl+Y: Monaco handles these natively when the editor is focused.
+// These entries let them work via the global handler when focus is elsewhere.
+ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
   action: () => menuBar.triggerUndo() });
-ks.register({ key: 'y', ctrlKey: true, description: 'Redo',
+ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
   action: () => menuBar.triggerRedo() });
 
-// View
-ks.register({ key: 't', ctrlKey: true, shiftKey: true, description: 'Toggle theme',
+// View — marked allowInInput: true so they work while the editor is focused
+// (Monaco doesn't intercept any of these key combinations).
+//
+// Ctrl+Alt+T is reserved by Firefox (opens a new tab).
+// Ctrl+Shift+M is reserved by Firefox (Responsive Design Mode).
+// Ctrl+Shift+L and Ctrl+Shift+Y are safe in Chrome, Edge and Firefox.
+ks.register({ key: 'l', ctrlKey: true, shiftKey: true, description: 'Toggle theme (Dark / Light)', allowInInput: true,
   action: () => menuBar.triggerToggleTheme() });
-ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel',
+ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allowInInput: true,
   action: () => {
     const vis = outputPane.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
   },
 });
-ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls',
+ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls', allowInInput: true,
   action: () => {
     const vis = ccContainer.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
   },
 });
 
-// Help
-ks.register({ key: 'F1', description: 'Open Help panel',
-  action: () => helpPanel?.show() });
-ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Help / keyboard shortcuts',
-  action: () => helpPanel?.show() });
+// Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
+// Both shortcuts toggle the panel open/closed.
+ks.register({ key: 'F1', shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
+  action: () => helpPanel?.toggle() });
+ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
+  action: () => helpPanel?.toggle() });
+// Alt+Shift+K → jump directly to the Keyboard Shortcuts section.
+// (Ctrl+Shift+/ = Monaco block comment, so Ctrl+? is not available.)
+ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
+  action: () => helpPanel?.showShortcuts() });
 
 ks.mount();
 
