@@ -161,4 +161,4 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 
 ## Web UI status
 
-The browser-based IDE (`apps/web-ui`) reached full feature parity with the Phase 4 migration plan and is closed. Tracking document: `docs/features/web-ui-migration.md` (status: complete, 2026-03-09). The app is served from a single `index.html` entry point backed by `main-phase4.ts`. All legacy phase entry points have been removed. Future web UI work should be tracked in new feature documents under `docs/features/`.
+The browser-based IDE (`apps/web-ui`) reached full feature parity with the Phase 4 migration plan and is closed. Tracking document: `docs/features/web-ui-migration.md` (status: complete, 2026-03-09). The app is served from a single `index.html` entry point backed by `main.ts`. All legacy phase entry points have been removed. Future web UI work should be tracked in new feature documents under `docs/features/`.

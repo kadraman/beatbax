@@ -7,7 +7,8 @@
  * - Incremental search filters all content
  * - Click-to-insert snippets (fires onInsertSnippet callback)
  * - Listens to panel:toggled { panel: 'help' } to show/hide itself
- * - Keyboard: Escape closes; F1 / Alt+Shift+K opens shortcuts
+ * - Keyboard: Escape closes; Shift+F1 / Ctrl+Shift+H toggles the panel; Alt+Shift+K opens and scrolls to the Keyboard Shortcuts section
+ *   (F1 is reserved for Monaco's command palette when the editor is focused)
  */
 
 import type { EventBus } from '../utils/event-bus';
@@ -584,7 +585,7 @@ export class HelpPanel {
       }),
     );
     // Note: F1 / Escape shortcuts are registered in the central KeyboardShortcuts
-    // registry (main-phase4.ts) when getShortcuts is provided. When the panel is
+    // registry (main.ts) when getShortcuts is provided. When the panel is
     // used standalone (phases 1-3) it falls back to its own inline handler below.
     if (!this.getShortcuts) {
       const onKey = (e: Event) => {

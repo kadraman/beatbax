@@ -10,7 +10,7 @@ issue: "https://github.com/kadraman/beatbax/issues/21"
 
 This document describes requirements and an implementation plan for a Visual Studio Code extension providing first-class editing and playback support for BeatBax `.bax` files. The extension will be developed as an independently-versioned package under `packages/vscode-plugin` so it can be built, tested, and released separately from the monorepo.
 
-The **Phase 4 Web UI IDE** (`apps/web-ui/src/main-phase4.ts`) is now the primary development environment and provides a strong precedent for the language features described here — the Monaco-based tokenizer, autocomplete, diagnostics, and theme definitions in `apps/web-ui/src/editor/` should be reused or adapted as the basis for the VS Code extension's TextMate grammar and language client.
+The **BeatBax Web UI IDE** (`apps/web-ui/src/main.ts`) is now the primary development environment and provides a strong precedent for the language features described here — the Monaco-based tokenizer, autocomplete, diagnostics, and theme definitions in `apps/web-ui/src/editor/` should be reused or adapted as the basis for the VS Code extension's TextMate grammar and language client.
 
 ## Goals
 

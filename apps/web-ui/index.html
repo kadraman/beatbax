@@ -100,38 +100,6 @@
         flex-direction: column;
       }
 
-      /* Back link positioned in bottom-right */
-      #backLink {
-        position: fixed;
-        bottom: 8px;
-        right: 8px;
-        padding: 6px 12px;
-        background: rgba(60, 60, 60, 0.9);
-        color: #d4d4d4;
-        text-decoration: none;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-        z-index: 10000;
-        border: 1px solid #444;
-        transition: all 0.2s;
-      }
-
-      #backLink:hover {
-        background: rgba(80, 80, 80, 0.95);
-        border-color: #666;
-      }
-
-      [data-theme="light"] #backLink {
-        background: rgba(220, 220, 220, 0.95);
-        color: #333;
-        border-color: #bbb;
-      }
-      [data-theme="light"] #backLink:hover {
-        background: rgba(200, 200, 200, 0.98);
-        border-color: #999;
-      }
-
       /* Drag-and-drop overlay (managed by DragDropHandler) */
       .bb-drop-overlay {
         position: fixed;
@@ -213,6 +181,6 @@
       <span>Loading BeatBax…</span>
     </div>
     <div id="app"></div>
-    <script type="module" src="/src/main-phase4.ts"></script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

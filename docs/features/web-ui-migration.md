@@ -116,7 +116,7 @@ This document outlines the migration strategy for transforming the current monol
   - Layout pane backgrounds and splitter colours driven by CSS vars — no hardcoded inline colours remain
   - Toolbar light overrides cover background, buttons, dropdowns, separator, and all status-text colours
 
-**Keyboard Shortcuts** (`utils/keyboard-shortcuts.ts` — centralised in `main-phase4.ts`)
+**Keyboard Shortcuts** (`utils/keyboard-shortcuts.ts` — centralised in `main.ts`)
 - Central `KeyboardShortcuts` registry is the single source of truth for all app-wide shortcuts
 - All shortcuts registered with `allowInInput` flags and descriptions (16+ in global registry plus several Monaco-only commands)
 - Browser-reserved shortcuts removed/replaced: Ctrl+N (new window), Ctrl+Shift+T (reopen tab), Ctrl+Alt+T (Firefox new tab), Ctrl+Shift+M (Firefox responsive mode) — none of these are registered
@@ -133,7 +133,7 @@ This document outlines the migration strategy for transforming the current monol
 - Auto-save to localStorage (configurable delay, default 500 ms)
 - Restores last content on reload
 
-**Entry Point** (`main-phase4.ts`)
+**Entry Point** (`main.ts`)
 - ~590 lines; all component instantiation, event wiring, and shortcut registration in one place
 - `emitParse()` helper ensures `parse:success` fires on page load so all subscribers (ChannelMixer, StatusBar) populate without requiring user interaction
 - `index.html` is the live Phase 4 app
@@ -146,8 +146,8 @@ This document outlines the migration strategy for transforming the current monol
 - `apps/web-ui/src/utils/keyboard-shortcuts.ts` (created)
 - `apps/web-ui/src/editor/editor-state.ts` (created)
 - `apps/web-ui/src/utils/local-storage.ts` (created)
-- `apps/web-ui/src/main-phase4.ts` (created)
-- `apps/web-ui/index.html` (updated — Phase 4 content promoted here; CSS token layer; `main-phase4.ts` entry point)
+- `apps/web-ui/src/main.ts` (created)
+- `apps/web-ui/index.html` (updated — Phase 4 content promoted here; CSS token layer; `main.ts` entry point)
 - `apps/web-ui/src/ui/layout.ts` (modified — removed hardcoded inline colours; splitters use `.bb-splitter` CSS class)
 - `apps/web-ui/src/ui/toolbar.ts` (modified — light-theme overrides added)
 
@@ -159,7 +159,7 @@ This document outlines the migration strategy for transforming the current monol
 
 *All planned phases are complete. Future work tracked in ROADMAP.md.*
 
-**Note:** The Phase 4 IDE is the current production UI, served from `index.html` / `main-phase4.ts`. Dead phase entry points (`index-phase1–3.html`, `index-phase4.html`, `index-demo.html`, `main-phase1–3.ts`, `main-demo.ts`, `main.ts`) have been removed.
+**Note:** The production UI is served from `index.html` / `main.ts`. Dead phase entry points (`index-phase1–3.html`, `index-phase4.html`, `index-demo.html`, `main-phase1–4.ts`, `main-demo.ts`) have been removed.
 
 ## Current State
 
@@ -922,10 +922,10 @@ Without Phase 2.5, Phase 3 features would require major Player refactoring. This
 - ✅ `panels/help-panel.ts` — searchable docs overlay with click-to-insert snippets, live shortcut list, `showShortcuts()` method, `data-section-id` on sections for scroll-targeting
 - ✅ `panels/channel-mixer.ts` — unified channel panel replacing the former ChannelControls + ChannelMixer split
 - ✅ `ui/theme-manager.ts` — full dark/light theming across all components and layout
-- ✅ `utils/keyboard-shortcuts.ts` + central registry in `main-phase4.ts` — `enableGlobalShortcuts: false` / `enableKeyboardShortcuts: false` passed to subcomponents; browser-reserved shortcuts avoided; Monaco `addCommand` overrides for in-editor bindings
+- ✅ `utils/keyboard-shortcuts.ts` + central registry in `main.ts` — `enableGlobalShortcuts: false` / `enableKeyboardShortcuts: false` passed to subcomponents; browser-reserved shortcuts avoided; Monaco `addCommand` overrides for in-editor bindings
 - ✅ `editor/editor-state.ts` — auto-save and content restore
 - ✅ `utils/local-storage.ts` — type-safe namespaced wrapper
-- ✅ `main-phase4.ts` — all wiring in one place
+- ✅ `main.ts` — all wiring in one place
 
 **Testing:**
 - Integration test: all menu items work
@@ -2053,7 +2053,7 @@ Use this checklist during implementation:
 - [x] Create `utils/keyboard-shortcuts.ts` — centralised shortcut registry with AbortController teardown
 - [x] Create `editor/editor-state.ts` — auto-save and content restore
 - [x] Create `utils/local-storage.ts` — typed namespace-safe wrapper + `BeatBaxSettings` helpers
-- [x] Wire up all menu items — File, Edit, View, Playback, Export, Help all functional in `main-phase4.ts`
+- [x] Wire up all menu items — File, Edit, View, Playback, Export, Help all functional in `main.ts`
 - [x] Implement theme switching — `ThemeManager` wired to View menu and `Ctrl+Shift+L`; all components respond via `[data-theme="light"]` CSS overrides and `--bb-*` design tokens
 - [x] Implement channel mute/solo — visual state (opacity, button text/colour), cross-channel solo, event-driven updates; 11 new tests in `channel-controls.test.ts`
 - [x] Add keyboard shortcuts — browser-reserved shortcuts (Ctrl+N, Ctrl+Shift+T, Ctrl+Alt+T, Ctrl+Shift+M) avoided; 16+ shortcuts in central registry; Monaco `addCommand` overrides ensure all shortcuts work when editor has focus; `showShortcuts()` + "Keyboard Shortcuts…" menu item (`Alt+Shift+K`) for direct shortcuts-section access; `enableKeyboardShortcuts: false` / `enableGlobalShortcuts: false` passed to subcomponents to prevent duplicate listeners
@@ -2066,7 +2066,7 @@ Use this checklist during implementation:
 ### Final Polish
 - [ ] Optimize bundle size
 - [x] Add loading spinner — `utils/loading-spinner.ts` (`LoadingSpinner` class); static boot overlay in `index.html` visible before JS runs (removed after `createEditor()`); activity overlay shown during exports (`export:started` → `export:success/error`) and URL auto-loads (`?song=` param)
-- [x] Add error boundaries — `utils/error-boundary.ts` with `withErrorBoundary`, `showFatalError`, `installGlobalErrorHandlers`; integrated into `main-phase4.ts`
+- [x] Add error boundaries — `utils/error-boundary.ts` with `withErrorBoundary`, `showFatalError`, `installGlobalErrorHandlers`; integrated into `main.ts`
 - [x] Improve error messages — suggestions shown in Problems panel, richer parse-error formatting (Peggy expected tokens, location badge), AudioContext autoplay detection, validation suggestions surfaced in export errors, actionable "nothing to …" messages
 - [ ] Add tooltips to all buttons
 - [ ] Write user documentation

@@ -1,7 +1,7 @@
 /**
- * BeatBax Web UI - Phase 4 Implementation
- * BUILDS ON Phase 1+2+3: Monaco editor, diagnostics, layout, playback, exports
- * ADDS Phase 4: MenuBar, ThemeManager, EditorState, advanced IDE chrome
+ * BeatBax Web UI — main entry point
+ * Bootstraps the full IDE: Monaco editor, diagnostics, layout, playback, exports,
+ * MenuBar, ThemeManager, EditorState, keyboard shortcuts, and advanced IDE chrome.
  */
 
 // Polyfill Buffer for engine compatibility in browser (must be first)
@@ -16,7 +16,7 @@ import {
   getLoggingConfig,
 } from '@beatbax/engine/util/logger';
 
-// Phase 1 imports
+// Core / editor imports
 import { eventBus } from './utils/event-bus';
 import { createEditor, registerBeatBaxLanguage, configureMonaco } from './editor';
 import {
@@ -26,7 +26,7 @@ import {
 } from './editor/diagnostics';
 import { createThreePaneLayout } from './ui/layout';
 
-// Phase 2 imports
+// Playback imports
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
 import { ChannelState } from './playback/channel-state';
@@ -34,13 +34,12 @@ import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
 
-// Phase 3 imports
+// Export / import imports
 import { Toolbar } from './ui/toolbar';
 import { ExportManager } from './export/export-manager';
 import type { ExportFormat } from './export/export-manager';
 import { DragDropHandler } from './import/drag-drop-handler';
 
-// Phase 4 imports — NEW
 import { KeyCode, KeyMod } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
@@ -58,13 +57,13 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 
-const log = createLogger('ui:phase4');
+const log = createLogger('ui:main');
 
 // Init logger
 loadLoggingFromStorage();
 loadLoggingFromURL();
 const logConfig = getLoggingConfig();
-log.debug('BeatBax Phase 4 starting. Logging config:', logConfig);
+log.debug('BeatBax starting. Logging config:', logConfig);
 
 // ─── Convenience helpers for OutputPanel ─────────────────────────────────────
 function opLog(panel: OutputPanel, message: string, source = 'app') {
@@ -96,12 +95,12 @@ function getInitialContent(): string {
   try {
     const saved = localStorage.getItem('beatbax:editor.content');
     if (saved) return saved;
-    // Fall back to legacy phase3 key
+    // Fall back to legacy storage key
     const legacy = localStorage.getItem('beatbax-editor-content');
     if (legacy) return legacy;
   } catch (_e) { /* ignore */ }
 
-  return `# BeatBax Phase 4 - Advanced IDE
+  return `# BeatBax Web IDE
 # Use the menu bar (File / Edit / View / Help) for all operations.
 # Drag-and-drop a .bax file to load it, or use File → Open.
 
@@ -140,7 +139,7 @@ registerBeatBaxLanguage();
 const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
-// ─── Phase 4: Menu bar host (topmost) ────────────────────────────────────────
+// ─── Menu bar host (topmost) ────────────────────────────────────────────────
 const menuBarContainer = document.createElement('div');
 menuBarContainer.id = 'bb-menu-bar-host';
 appContainer.appendChild(menuBarContainer);
@@ -176,7 +175,7 @@ spinner.hideBoot();
 const outputPane = layout.getOutputPane();
 rightPane = layout.getRightPane();
 
-// ─── Phase 4: EditorState ─────────────────────────────────────────────────────
+// ─── EditorState ─────────────────────────────────────────────────────────────
 editorState = new EditorState({
   editor: editor.editor,
   eventBus,
@@ -190,7 +189,7 @@ statusBarContainer.id = 'status-bar';
 statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:1000;';
 document.body.appendChild(statusBarContainer);
 
-// ─── Phase 2 Components ───────────────────────────────────────────────────────
+// ─── Core components ─────────────────────────────────────────────────────────────────
 const channelState = new ChannelState(eventBus);
 const playbackManager = new PlaybackManager(eventBus, channelState);
 const outputPanel = new OutputPanel(outputPane, eventBus);
@@ -207,7 +206,7 @@ installGlobalErrorHandlers((message, _err) => {
   });
 });
 
-// ─── Phase 4: Unified Channel Panel (ChannelMixer) in the right pane ────────
+// ─── Unified Channel Panel (ChannelMixer) in the right pane ────────────────
 // The ChannelMixer is the combined channel controls + monitor. It lives in a
 // dedicated scoped div so its render() (which clears innerHTML on every
 // parse:success) never conflicts with any sibling nodes in rightPane.
@@ -222,7 +221,7 @@ const channelMixer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── Phase 4: HelpPanel — fixed overlay drawer from the right ────────────────
+// ─── HelpPanel — fixed overlay drawer from the right ───────────────────────
 const helpOverlay = document.createElement('div');
 helpOverlay.id = 'bb-help-overlay';
 helpOverlay.style.cssText = [
@@ -239,7 +238,7 @@ helpOverlay.style.cssText = [
 ].join('; ');
 document.body.appendChild(helpOverlay);
 
-// ─── Phase 4: Central keyboard shortcuts registry ───────────────────────────
+// ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
 // Shortcuts are registered after all components are instantiated (see bottom).
 const ks = new KeyboardShortcuts();
@@ -283,7 +282,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 
 // ─── Transport bar ────────────────────────────────────────────────────────────
 const transportContainer = document.createElement('div');
-transportContainer.id = 'phase4-transport';
+transportContainer.id = 'bb-transport-bar';
 transportContainer.className = 'bb-transport';
 transportContainer.style.cssText = `
   padding: 6px 10px;
@@ -358,7 +357,7 @@ editor.onDidChangeModelContent?.(() => {
   (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
 });
 
-// ─── Phase 3: ExportManager ───────────────────────────────────────────────────
+// ─── ExportManager ───────────────────────────────────────────────────────────
 const exportManager = new ExportManager(eventBus);
 
 // Show activity spinner during exports (WAV can take several seconds).
@@ -406,13 +405,13 @@ async function handleExport(format: ExportFormat) {
   }
 }
 
-// ─── Phase 4: ThemeManager ────────────────────────────────────────────────────
+// ─── ThemeManager ────────────────────────────────────────────────────────────
 const themeManager = new ThemeManager({ eventBus });
 themeManager.init();
 
 (window as any).__beatbax_themeManager = themeManager;
 
-// ─── Phase 4: MenuBar ─────────────────────────────────────────────────────────
+// ─── MenuBar ─────────────────────────────────────────────────────────────────
 // Declared before Toolbar so toolbar's onLoad can call menuBar.recordRecent.
 // The `toolbar` variable is referenced inside MenuBar callbacks via the closure
 // formed after Toolbar is instantiated below.
@@ -488,7 +487,7 @@ const menuBar = new MenuBar({
 
 (window as any).__beatbax_menuBar = menuBar;
 
-// ─── Phase 3: Toolbar ─────────────────────────────────────────────────────────
+// ─── Toolbar ─────────────────────────────────────────────────────────────────
 toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
@@ -523,7 +522,7 @@ toolbar = new Toolbar({
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;
 
-// ─── Phase 3: Drag-and-drop ───────────────────────────────────────────────────
+// ─── Drag-and-drop ───────────────────────────────────────────────────────────
 const dragDrop = new DragDropHandler(document.body, {
   onDrop: (filename, content) => {
     loadedFilename = fileBaseStem(filename);
@@ -538,7 +537,7 @@ const dragDrop = new DragDropHandler(document.body, {
 });
 (window as any).__beatbax_dragDrop = dragDrop;
 
-// ─── Phase 3: URL query auto-load ─────────────────────────────────────────────
+// ─── URL query auto-load ─────────────────────────────────────────────────────
 (async () => {
   const params = new URL(location.href).searchParams;
   const hasSongParam = params.has('song');
@@ -679,7 +678,7 @@ ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allow
     eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
   },
 });
-ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Controls', allowInInput: true,
+ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
     const vis = ccContainer.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
@@ -699,7 +698,7 @@ ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboar
 
 ks.mount();
 
-log.debug('BeatBax Phase 4 initialised ✓');
+log.debug('BeatBax initialised ✓');
 
 } catch (fatalError) {
   showFatalError(fatalError);
