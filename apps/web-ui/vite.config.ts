@@ -61,15 +61,8 @@ export default defineConfig({
       // ESM artifact (copied into public/engine) and avoid inlining it
       // into the demo bundle for production.
       external: ['@beatbax/engine'],
-      // Ensure additional HTML entry pages are included in the build output
-      // so files like index-phase1.html, index-phase2.html, index-phase3.html
-      // end up in dist/.
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        phase1: path.resolve(__dirname, 'index-phase1.html'),
-        phase2: path.resolve(__dirname, 'index-phase2.html'),
-        phase3: path.resolve(__dirname, 'index-phase3.html'),
-        phase4: path.resolve(__dirname, 'index-phase4.html'),
       }
     },
     // Increase chunk size warning limit for Monaco Editor

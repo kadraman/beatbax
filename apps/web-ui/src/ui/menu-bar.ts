@@ -78,6 +78,8 @@ export interface MenuBarOptions {
    * Defaults to true for backward compatibility with phases 1–3.
    */
   enableGlobalShortcuts?: boolean;
+  /** Open the Keyboard Shortcuts section of the Help Panel (Alt+Shift+K). */
+  onShowShortcuts?: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,6 +168,7 @@ export class MenuBar {
   triggerUndo(): void { this.opts.onUndo?.(); }
   triggerRedo(): void { this.opts.onRedo?.(); }
   triggerToggleTheme(): void { this.opts.onToggleTheme?.(); }
+  triggerShowShortcuts(): void { this.opts.onShowShortcuts?.(); }
 
   // ─── Rendering ──────────────────────────────────────────────────────────────
 
@@ -318,7 +321,8 @@ export class MenuBar {
       {
         type: 'item',
         label: 'New',
-        shortcut: 'Ctrl+N',
+        // Ctrl+N is reserved by browsers (opens a new window) and cannot be
+        // intercepted — access New via the menu or toolbar instead.
         action: () => this.opts.onNew?.(),
       },
       {
@@ -417,13 +421,13 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Toggle Help Panel',
-        shortcut: 'Ctrl+Shift+H',
+        shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
       },
       {
         type: 'item',
         label: 'Toggle Channel Monitor',
-        shortcut: 'Ctrl+Shift+M',
+        shortcut: 'Ctrl+Shift+Y',
         action: () => this.emitPanelToggle('channel-mixer'),
       },
       { type: 'separator' },
@@ -449,7 +453,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Toggle Theme (Dark / Light)',
-        shortcut: 'Ctrl+Shift+T',
+        shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
       },
     ];
@@ -464,8 +468,15 @@ export class MenuBar {
       },
       {
         type: 'item',
-        label: 'Keyboard Shortcuts',
-        shortcut: 'Ctrl+Shift+H',
+        label: 'Keyboard Shortcuts…',
+        shortcut: 'Alt+Shift+K',
+        action: () => this.opts.onShowShortcuts?.(),
+      },
+      {
+        // Opens the full Help Panel (syntax reference, snippets, keyboard shortcuts).
+        label: 'Help Panel…',
+        type: 'item',
+        shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
       },
       { type: 'separator' },

@@ -19,10 +19,10 @@ Enable real-time updates to playing songs without stopping playback. When the us
 
 ## Current State (Phase 4 IDE — 2026-03-07)
 
-The Phase 4 IDE (`apps/web-ui/src/main-phase4.ts`) ships a working ⚡ **Live** mode:
+The BeatBax Web UI (`apps/web-ui/src/main.ts`) ships a working ⚡ **Live** mode:
 
 ```typescript
-// apps/web-ui/src/main-phase4.ts (current implementation)
+// apps/web-ui/src/main.ts (current implementation)
 let liveMode = false;
 liveBtn.addEventListener('click', () => {
   liveMode = !liveMode;

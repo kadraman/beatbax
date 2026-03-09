@@ -426,7 +426,7 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 - 500ms debounced validation for performance
 
 **Entry Points:**
-- `src/main-phase4.ts` — Current production IDE entry point (Phase 4: menu bar, keyboard shortcuts, theme, channel mixer, Live mode)
+- `src/main.ts` — Production IDE entry point (menu bar, keyboard shortcuts, theme, channel mixer, Live mode)
 - `src/main-phase3.ts` — Phase 3 entry point (export/import UI, preserved for reference)
 - `src/main-phase2.ts` — Phase 2 entry point (playback controls, preserved for reference)
 - `src/main-phase1.ts` — Phase 1 entry point (modular editor foundation, preserved for reference)

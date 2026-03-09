@@ -5,7 +5,7 @@
 
 describe('AST Validation', () => {
   /**
-   * Simplified validation function extracted from main-phase1.ts
+   * Simplified validation function extracted from main.ts
    * This would ideally be exported from a dedicated validation module
    */
   function validateAST(ast: any, source: string): any[] {
@@ -89,7 +89,7 @@ describe('AST Validation', () => {
       if (!seq) continue;
 
       let patternRefs: string[] = [];
-      
+
       if (Array.isArray(seq)) {
         patternRefs = seq.filter(item => typeof item === 'string');
       }
@@ -110,10 +110,10 @@ describe('AST Validation', () => {
 
       for (const ref of patternRefs) {
         if (!ref || typeof ref !== 'string') continue;
-        
+
         const withoutRepeat = ref.split('*')[0].trim();
         const patternName = withoutRepeat.split(':')[0].trim();
-        
+
         if (patternName && patternName !== '') {
           if (!ast.pats || !ast.pats[patternName]) {
             if (!ast.seqs || !ast.seqs[patternName]) {
@@ -149,7 +149,7 @@ describe('AST Validation', () => {
     if (ast.patternEvents) {
       for (const [patName, events] of Object.entries(ast.patternEvents)) {
         if (!Array.isArray(events)) continue;
-        
+
         for (const event of events as any[]) {
           if (event.kind === 'token' && event.value) {
             if (!ast.insts?.[event.value]) {
@@ -465,7 +465,7 @@ seq main = melody:oct(+1) unknown:rev
 
       const warnings = validateAST(ast, source);
       // Should warn about 'unknown' pattern, not 'melody' (which exists)
-      const unknownPatternWarnings = warnings.filter(w => 
+      const unknownPatternWarnings = warnings.filter(w =>
         w.message.includes("unknown pattern 'unknown'")
       );
       expect(unknownPatternWarnings.length).toBeGreaterThan(0);
@@ -558,9 +558,9 @@ channel 1 => inst lead seq melody
           intro: []
         },
         channels: [
-          { 
-            id: 1, 
-            pat: 'intro verse chorus', 
+          {
+            id: 1,
+            pat: 'intro verse chorus',
             inst: 'lead',
             seqSpecTokens: ['intro', ',', 'verse', ',', 'chorus'],
             loc: { start: { line: 2, column: 1 } }
@@ -691,8 +691,8 @@ seq main = riff*4 bridge*2
         },
         seqs: {},
         channels: [
-          { 
-            id: 1, 
+          {
+            id: 1,
             pat: 'melody:invalidTransform',
             seqSpecTokens: ['melody:invalidTransform'],
             inst: 'lead',
@@ -708,7 +708,7 @@ channel 1 => seq melody:invalidTransform
 
       const warnings = validateAST(ast, source);
       expect(warnings.length).toBeGreaterThan(0);
-      const transformWarning = warnings.find(w => 
+      const transformWarning = warnings.find(w =>
         w.component === 'transforms' && w.message.includes('invalidTransform')
       );
       expect(transformWarning).toBeDefined();
@@ -755,13 +755,13 @@ channel 2 => inst bass seq outro
       `.trim();
 
       const warnings = validateAST(ast, source);
-      
+
       // Should have warnings for:
       // 1. Undefined instrument 'synth' in pattern
       // 2. Undefined pattern 'bridge' in sequence
       // 3. Undefined sequence 'outro' in channel
       expect(warnings.length).toBeGreaterThanOrEqual(3);
-      
+
       expect(warnings.some(w => w.message.includes("'synth'"))).toBe(true);
       expect(warnings.some(w => w.message.includes("'bridge'"))).toBe(true);
       expect(warnings.some(w => w.message.includes("'outro'"))).toBe(true);
@@ -775,13 +775,13 @@ channel 2 => inst bass seq outro
         },
         patternEvents: {
           drums: [
-            { 
-              kind: 'token', 
-              value: 'kick', 
-              loc: { 
+            {
+              kind: 'token',
+              value: 'kick',
+              loc: {
                 start: { line: 2, column: 15 },
                 end: { line: 2, column: 19 }
-              } 
+              }
             }
           ]
         }
