@@ -44,6 +44,7 @@ import { KeyCode, KeyMod } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
+import { TransportBar } from './ui/transport-bar';
 import { EditorState } from './editor/editor-state';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
@@ -271,6 +272,16 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'channel-mixer') {
     ccContainer.style.display = visible ? '' : 'none';
   }
+  if (panel === 'toolbar') {
+    try {
+      toolbar?.[visible ? 'show' : 'hide']?.();
+    } catch (_e) { /* ignore */ }
+  }
+  if (panel === 'transport-bar') {
+    try {
+      transportBar?.[visible ? 'show' : 'hide']?.();
+    } catch (_e) { /* ignore */ }
+  }
 });
 
 (window as any).__beatbax_channelState = channelState;
@@ -280,53 +291,37 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 (window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
 (window as any).__beatbax_helpPanel = helpPanel;
 
-// ─── Transport bar ────────────────────────────────────────────────────────────
-const transportContainer = document.createElement('div');
-transportContainer.id = 'bb-transport-bar';
-transportContainer.className = 'bb-transport';
-transportContainer.style.cssText = `
-  padding: 6px 10px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-`;  // background and border handled by .bb-transport via CSS vars
+// Transport bar UI will be created by TransportBar
 
-const logo = document.createElement('img');
-logo.src = '/logo-menu-bar.png';
-logo.alt = 'BeatBax';
-logo.style.cssText = 'height: 44px; margin-right: 6px;';
-transportContainer.appendChild(logo);
+// ─── TransportBar + TransportControls ────────────────────────────────────────
+const transportBar = new TransportBar({ container: layoutHost });
 
-const mkBtn = (label: string, title = '') => {
-  const b = document.createElement('button');
-  b.textContent = label;
-  b.title = title;
-  b.style.cssText = 'padding: 6px 14px; font-size: 13px; cursor: pointer;';
-  return b;
-};
+// Update transport display from parser / playback events
+eventBus.on('parse:success', ({ ast }) => {
+  try {
+    const bpm = (ast as any)?.bpm ?? 120;
+    transportBar.setBpm(Number(bpm));
+  } catch (_e) {}
+});
 
-const playBtn = mkBtn('▶ Play', 'Play current song (F5 / Space when outside editor)') as HTMLButtonElement;
-const pauseBtn = mkBtn('⏸ Pause', 'Pause playback') as HTMLButtonElement;
-const stopBtn = mkBtn('⏹ Stop', 'Stop playback (F8 / Esc)') as HTMLButtonElement;
-const applyBtn = mkBtn('🔄 Apply', 'Apply & re-play (Ctrl+Enter)') as HTMLButtonElement;
-const liveBtn = mkBtn('⚡ Live', 'Toggle live-play mode') as HTMLButtonElement;
-liveBtn.style.border = '2px solid transparent';
+eventBus.on('playback:position', ({ current, total }) => {
+  try {
+    // Format current seconds -> MM:SS if value appears to be seconds, otherwise show tick count
+    const label = typeof current === 'number'
+      ? `${Math.floor(current/60)}:${Math.floor(current%60).toString().padStart(2,'0')}`
+      : String(current);
+    transportBar.setTimeLabel(label);
+  } catch (_e) {}
+});
 
-transportContainer.append(playBtn, pauseBtn, stopBtn, applyBtn, liveBtn);
-
-// Insert transport bar BEFORE the layout content (but inside layoutHost)
-layoutHost.insertBefore(transportContainer, layoutHost.firstChild);
-
-// ─── TransportControls component ─────────────────────────────────────────────
 const getSource = () => (editor?.getValue?.() as string) || '';
 
 const transportControls = new TransportControls(
   {
-    playButton: playBtn,
-    pauseButton: pauseBtn,
-    stopButton: stopBtn,
-    applyButton: applyBtn,
+    playButton: transportBar.playButton,
+    pauseButton: transportBar.pauseButton,
+    stopButton: transportBar.stopButton,
+    applyButton: transportBar.applyButton,
     enableKeyboardShortcuts: false, // central ks registry owns Space/Esc/Ctrl+Enter
   },
   playbackManager,
@@ -339,12 +334,12 @@ const transportControls = new TransportControls(
 eventBus.on('parse:error', () => transportControls.setHasErrors(true));
 eventBus.on('validation:warnings', () => transportControls.setHasErrors(false));
 
-// ─── Live mode ────────────────────────────────────────────────────────────────
+// ─── Live mode (handled by transportBar.liveButton) ──────────────────────────
 let liveMode = false;
-liveBtn.addEventListener('click', () => {
+transportBar.liveButton.addEventListener('click', () => {
   liveMode = !liveMode;
-  liveBtn.style.borderColor = liveMode ? '#4caf50' : 'transparent';
-  liveBtn.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
+  transportBar.liveButton.style.borderColor = liveMode ? '#4caf50' : 'transparent';
+  transportBar.liveButton.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
   opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
   if (!liveMode) {
     clearTimeout((window as any).__bb_liveTimer);
@@ -422,6 +417,7 @@ const menuBar = new MenuBar({
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
   onShowShortcuts: () => helpPanel?.showShortcuts(),
+  onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
       editor.setValue?.('');
@@ -584,11 +580,11 @@ const dragDrop = new DragDropHandler(document.body, {
 const monacoInst = editor.editor;
 
 // F5 → Play (prevents browser page-refresh when Monaco is focused)
-monacoInst.addCommand(KeyCode.F5, () => { playBtn.click(); });
+monacoInst.addCommand(KeyCode.F5, () => { transportBar.playButton.click(); });
 // F8 → Stop
-monacoInst.addCommand(KeyCode.F8, () => { stopBtn.click(); });
+monacoInst.addCommand(KeyCode.F8, () => { transportBar.stopButton.click(); });
 // Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { applyBtn.click(); });
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.applyButton.click(); });
 // Shift+F1 → Toggle Help (F1 alone is Monaco's own Command Palette — leave that alone)
 monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { helpPanel?.toggle(); });
 // Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
@@ -616,7 +612,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
 monacoInst.onKeyDown((e: IKeyboardEvent) => {
   if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     if (helpPanel?.isVisible()) helpPanel.hide();
-    // Do NOT call stopBtn.click() here: the same Escape that closes Monaco’s
+    // Do NOT call transportBar.stopButton.click() here: the same Escape that closes Monaco’s
     // find widget / suggestions overlay would also unexpectedly stop playback.
   }
 });
@@ -629,21 +625,21 @@ monacoInst.onKeyDown((e: IKeyboardEvent) => {
 // correct — users must be able to type spaces). F5/F8 are the in-editor transport
 // shortcuts; their Monaco commands (above) handle the in-editor case.
 ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
-  action: () => { if (!playBtn.disabled) playBtn.click(); else pauseBtn.click(); },
+  action: () => { if (!transportBar.playButton.disabled) transportBar.playButton.click(); else transportBar.pauseButton.click(); },
 });
 ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
-  action: () => playBtn.click(),
+  action: () => transportBar.playButton.click(),
 });
 ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
-  action: () => stopBtn.click(),
+  action: () => transportBar.stopButton.click(),
 });
 ks.register({ key: 'Escape', description: 'Stop playback or close Help panel', allowInInput: false,
-  action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else stopBtn.click(); },
+  action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else transportBar.stopButton.click(); },
 });
 // Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
 // addCommand above handles the in-editor case.
 ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,
-  action: () => applyBtn.click(),
+  action: () => transportBar.applyButton.click(),
 });
 
 // File
@@ -682,6 +678,18 @@ ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Chan
   action: () => {
     const vis = ccContainer.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+  },
+});
+ks.register({ key: 'b', ctrlKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
+  action: () => {
+    const vis = toolbar?.isVisible?.() ?? false;
+    eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+  },
+});
+ks.register({ key: 'r', ctrlKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
+  action: () => {
+    const vis = transportBar?.isVisible?.() ?? false;
+    eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
   },
 });
 
