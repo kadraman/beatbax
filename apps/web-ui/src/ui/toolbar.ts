@@ -232,6 +232,27 @@ export class Toolbar {
     log.debug('Toolbar disposed');
   }
 
+  /** Show the toolbar (if hidden) */
+  show(): void {
+    this.el.style.display = '';
+  }
+
+  /** Hide the toolbar */
+  hide(): void {
+    this.el.style.display = 'none';
+  }
+
+  /** Toggle toolbar visibility */
+  toggle(): void {
+    const cur = this.isVisible();
+    if (cur) this.hide(); else this.show();
+  }
+
+  /** Whether toolbar is currently visible */
+  isVisible(): boolean {
+    return this.el.style.display !== 'none';
+  }
+
   /**
    * Silently pre-fetch all example songs into the in-memory cache so that
    * clicking an item from the dropdown is instant (no HTTP round-trip).

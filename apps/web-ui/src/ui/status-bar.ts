@@ -189,15 +189,18 @@ export class StatusBar {
         ` : ''}
 
         <div class="status-section">
-          <span class="status-label">BPM: ${this.info.bpm}</span>
-        </div>
-
-        <div class="status-section">
           <span class="status-label">Chip: ${this.info.chip}</span>
         </div>
-
-        <div class="status-section">
-          <span class="status-label">Time: ${this.info.playbackTime}</span>
+        <div class="status-section status-brand">
+          <a class="status-brand-link" href="https://github.com/kadraman/beatbax" target="_blank" rel="noopener noreferrer" title="BeatBax on GitHub">
+            <span class="bb-letter beat-b">B</span>
+            <span class="bb-letter beat-e">e</span>
+            <span class="bb-letter beat-a">a</span>
+            <span class="bb-letter beat-t">t</span>
+            <span class="bb-letter bax-b">B</span>
+            <span class="bb-letter bax-a">a</span>
+            <span class="bb-letter bax-x">x</span>
+          </a>
         </div>
       </div>
     `;
@@ -272,6 +275,46 @@ export class StatusBar {
       .status-warnings {
         color: var(--warning-color-light, #ffd666);
       }
+
+      .status-section.status-brand {
+        margin-left: 8px;
+        opacity: 0.7;
+        font-weight: 600;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .status-brand-link {
+        display: inline-flex;
+        gap: 0px;
+        align-items: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .status-brand-link:focus { outline: 2px solid rgba(255,255,255,0.14); outline-offset: 2px; }
+      .bb-letter {
+        display: inline-block;
+        font-weight: 800;
+        padding: 0 0.4px;
+        margin-right: 0px;
+        line-height: 1;
+        transform-origin: center;
+        transition: transform 120ms ease, opacity 120ms ease;
+        letter-spacing: -0.2px;
+        /* Add a subtle dark outline for readability on blue backgrounds */
+        -webkit-text-stroke: 0.8px rgba(0,0,0,0.75);
+        text-stroke: 0.8px rgba(0,0,0,0.75);
+        text-shadow: -1px -1px 0 rgba(0,0,0,0.85), 1px -1px 0 rgba(0,0,0,0.85), -1px 1px 0 rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.85);
+      }
+      /* Beat = reddish tones */
+      .bb-letter.beat-b { color: #ff7a78; }
+      .bb-letter.beat-e { color: #ff9e9e; }
+      .bb-letter.beat-a { color: #ff6b6b; }
+      .bb-letter.beat-t { color: #ff4a4a; }
+      /* Bax = blueish tones */
+      .bb-letter.bax-b { color: #7fb8ff; }
+      .bb-letter.bax-a { color: #9fd0ff; }
+      .bb-letter.bax-x { color: #5f9eff; }
+      .status-brand-link:hover .bb-letter { transform: translateY(-1px); opacity: 0.98; }
     `;
     document.head.appendChild(style);
   }
