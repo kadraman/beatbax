@@ -435,6 +435,32 @@ export class PlaybackManager {
 
       log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
       this.eventBus.emit('playback:position-changed', { channelId, position });
+
+      // Also emit a legacy-style time position event (seconds) so UI
+      // components that expect `playback:position` (e.g. StatusBar,
+      // TransportBar) continue to receive elapsed time updates.
+      try {
+        const playerAny: any = player as any;
+        const startTs = playerAny._playbackStartTimestamp || 0;
+        const pauseTs = playerAny._pauseTimestamp || 0;
+        const completionMs = playerAny._completionTimeoutMs || 0;
+        let currentSec = 0;
+        let totalSec = 0;
+
+        if (startTs) {
+          // If paused, _pauseTimestamp contains the timestamp when paused;
+          // subtract pause time if present. Keep a simple approximation.
+          const now = Date.now();
+          const pausedOffset = pauseTs && pauseTs > startTs ? (now - pauseTs) : 0;
+          currentSec = Math.max(0, (now - startTs - pausedOffset) / 1000);
+        }
+
+        if (completionMs) totalSec = completionMs / 1000;
+
+        this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
+      } catch (e) {
+        // Non-fatal - don't break playback if timing inference fails
+      }
     };
   }
 

@@ -80,6 +80,8 @@ export interface MenuBarOptions {
   enableGlobalShortcuts?: boolean;
   /** Open the Keyboard Shortcuts section of the Help Panel (Alt+Shift+K). */
   onShowShortcuts?: () => void;
+  /** Export callback for File → Export menu */
+  onExport?: (format: 'json' | 'midi' | 'uge' | 'wav') => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -133,6 +135,8 @@ export class MenuBar {
     ['output', true],
     ['help', false],
     ['channel-mixer', true],
+    ['toolbar', true],
+    ['transport-bar', true],
   ]);
 
   constructor(private opts: MenuBarOptions) {
@@ -333,6 +337,17 @@ export class MenuBar {
       },
       { type: 'separator' },
       {
+        type: 'submenu',
+        label: 'Export',
+        id: 'export',
+        children: [
+          { type: 'item', label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
+          { type: 'item', label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
+          { type: 'item', label: 'Export as UGE', action: () => this.opts.onExport?.('uge') },
+          { type: 'item', label: 'Export as WAV', action: () => this.opts.onExport?.('wav') },
+        ],
+      },
+      {
         type: 'item',
         label: 'Save',
         shortcut: 'Ctrl+S',
@@ -417,6 +432,18 @@ export class MenuBar {
         label: 'Toggle Output Panel',
         shortcut: 'Ctrl+`',
         action: () => this.emitPanelToggle('output'),
+      },
+      {
+        type: 'item',
+        label: 'Toggle Toolbar',
+        shortcut: 'Ctrl+Shift+B',
+        action: () => this.emitPanelToggle('toolbar'),
+      },
+      {
+        type: 'item',
+        label: 'Toggle Transport Bar',
+        shortcut: 'Ctrl+Shift+R',
+        action: () => this.emitPanelToggle('transport-bar'),
       },
       {
         type: 'item',
@@ -671,6 +698,14 @@ export class MenuBar {
         case 'm':
           e.preventDefault();
           this.emitPanelToggle('channel-mixer');
+          break;
+        case 'b':
+          e.preventDefault();
+          this.emitPanelToggle('toolbar');
+          break;
+        case 'r':
+          e.preventDefault();
+          this.emitPanelToggle('transport-bar');
           break;
       }
       return;
