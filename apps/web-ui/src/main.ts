@@ -24,6 +24,7 @@ import {
   setupDiagnosticsIntegration,
   parseErrorToDiagnostic,
 } from './editor/diagnostics';
+import { setupCodeLensPreview } from './editor/codelens-preview';
 import { createThreePaneLayout } from './ui/layout';
 
 // Playback imports
@@ -169,6 +170,7 @@ editor = createEditor({
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
 setupDiagnosticsIntegration(diagnosticsManager);
+setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
 
 // Editor is fully initialised — remove the static boot overlay.
 spinner.hideBoot();

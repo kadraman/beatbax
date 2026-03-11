@@ -147,7 +147,7 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 - [ ] Add `editor/integrations/interactive-providers.ts`
 - [ ] Implement `hoverProvider` + preview cancelation
 - [ ] Implement `completionProvider` for domain tokens
-- [ ] Implement `codeLensProvider` for `pat` / `seq`
+- [x] Implement `codeLensProvider` for `pat` / `seq` — **done** (`editor/codelens-preview.ts`, 2026-03-11). Provides `▶ Preview`, `↺ Loop`, `⬛ Stop` lenses for patterns and sequences; per-note buttons (`C3`–`C7`) for instruments; live re-parse on each loop iteration; shared `AudioContext` for first-click reliability.
 - [ ] Implement `semanticTokensProvider` and CSS rules
 - [ ] Add `playbackManager.preview` lightweight API
 - [ ] Wire beat decorations and live playback cursor

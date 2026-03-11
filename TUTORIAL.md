@@ -765,6 +765,14 @@ npm run web-ui:dev
 - Per‑channel `Mute` / `Solo` controls appear after applying a song.
 - Help panel: click the ❓ icon or the Show Help button (H / ? toggles the panel). The help panel surfaces the commented documentation inside `songs/sample.bax`.
 
+**CodeLens inline previews** — the editor shows clickable actions directly above definitions:
+- `▶ Preview` above a `pat` or `seq` line: plays that pattern or sequence in isolation and then stops automatically.
+- `↺ Loop` above a `pat` or `seq` line: plays the pattern or sequence on repeat. Each new iteration re-parses the source, so edits you make while looping are heard on the next pass.
+- Clicking a playing item's `⬛ Stop` (or `⬛ Stop ↺` when looping) halts playback.
+- Above each `inst` line five note buttons appear (`C3 C4 C5 C6 C7`). Clicking one plays that pitch through the instrument so you can audition timbre without writing a full pattern. Re-clicking the same note restarts it.
+- Instrument resolution is automatic: the preview borrows the instrument already associated with the pattern or sequence in a channel declaration; otherwise the first declared instrument is used.
+- Only one preview plays at a time. Starting a new preview stops the previous one.
+
 ## Troubleshooting
 - If audio is silent in your browser, verify your browser supports WebAudio and that the demo did not throttle audio (autoplay policies may require a user gesture).
 - You can inspect `window.__beatbax_player` in the console for runtime diagnostics.

@@ -162,3 +162,5 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 ## Web UI status
 
 The browser-based IDE (`apps/web-ui`) reached full feature parity with the Phase 4 migration plan and is closed. Tracking document: `docs/features/web-ui-migration.md` (status: complete, 2026-03-09). The app is served from a single `index.html` entry point backed by `main.ts`. All legacy phase entry points have been removed. Future web UI work should be tracked in new feature documents under `docs/features/`.
+
+**CodeLens interactive preview** (2026-03-11, `editor/codelens-preview.ts`): Monaco CodeLens provider delivering `▶ Preview` and `↺ Loop` actions above every `pat` and `seq` definition, plus per-note audition buttons (`C3`–`C7`) above `inst` definitions. Loop mode live-re-parses the source on each iteration. Spec: `docs/features/editor-interactive-features.md`.

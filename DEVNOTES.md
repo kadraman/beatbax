@@ -414,6 +414,7 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 - `src/editor/monaco-setup.ts` — Monaco editor factory with auto-save and EventBus integration
 - `src/editor/beatbax-language.ts` — Monarch tokenizer with comprehensive syntax highlighting
 - `src/editor/diagnostics.ts` — Parse error/warning display with Monaco markers
+- `src/editor/codelens-preview.ts` — CodeLens provider: `▶ Preview` / `↺ Loop` above `pat`/`seq` lines, per-note buttons (`C3`–`C7`) above `inst` lines, shared `AudioContext` management, live re-parse on each loop iteration
 - `src/ui/layout.ts` — Vanilla JS split panes with localStorage persistence
 
 **Syntax Highlighting:**
@@ -447,6 +448,7 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 - ✅ Phase 2: Playback & output panel
 - ✅ Phase 3: Export & import UI
 - ✅ Phase 4: Menu bar, keyboard shortcuts, dark/light theme switching, unified channel mixer, help panel, ⚡ Live mode
+- ✅ CodeLens interactive previews: `▶ Preview` / `↺ Loop` for `pat` and `seq`; per-note timbre buttons for `inst`; live re-parse on loop (see `docs/features/editor-interactive-features.md`)
 - Post-MVP: User-configurable token colour themes (see `docs/features/web-ui-migration.md`)
 
 ### Making Engine Changes for CLI
