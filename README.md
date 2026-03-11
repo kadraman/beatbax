@@ -350,8 +350,9 @@ Then browse to `http://localhost:5173` (Vite default) or the URL shown by the de
 - Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
 - Unified channel mixer with per-channel mute, solo, and volume controls
 - Help panel showing all registered keyboard shortcuts
+- **CodeLens inline previews**: `▶ Preview` and `↺ Loop` actions appear above every `pat` and `seq` definition; clicking plays that pattern or sequence in isolation using the correct instrument. Five individual note buttons (`C3`–`C7`) appear above each `inst` definition for instant timbre checks. Loop mode live-re-parses the source on every iteration so edits are heard immediately.
 - Event-driven architecture with modular, testable components
-- See [docs/features/web-ui-migration.md](docs/features/web-ui-migration.md) and [docs/web-ui-syntax-highlighting.md](docs/web-ui-syntax-highlighting.md) for details
+- See [docs/features/web-ui-migration.md](docs/features/web-ui-migration.md), [docs/web-ui-syntax-highlighting.md](docs/web-ui-syntax-highlighting.md), and [docs/features/editor-interactive-features.md](docs/features/editor-interactive-features.md) for details
 
 ### Engine development workflow
 
