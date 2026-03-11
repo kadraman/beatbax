@@ -4,6 +4,7 @@ export const editor = {
   setTheme: jest.fn(),
   defineTheme: jest.fn(),
   setModelMarkers: jest.fn(),
+  registerCommand: jest.fn(),
 };
 
 export const languages = {
@@ -12,6 +13,7 @@ export const languages = {
   setMonarchTokensProvider: jest.fn(),
   registerCompletionItemProvider: jest.fn(),
   registerHoverProvider: jest.fn(),
+  registerCodeLensProvider: jest.fn(),
   typescript: {
     javascriptDefaults: {
       setDiagnosticsOptions: jest.fn(),
@@ -33,6 +35,10 @@ export const MarkerSeverity = {
   Warning: 4,
   Info: 2,
 };
+
+export class Range {
+  constructor(public startLineNumber: number, public startColumn: number, public endLineNumber: number, public endColumn: number) {}
+}
 
 export default {
   editor,
