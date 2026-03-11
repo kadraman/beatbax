@@ -41,16 +41,28 @@ function resolvePreviewInstrument(patternName: string, ast: any): string | null 
   for (const ch of (ast.channels ?? []) as any[]) {
     if (!ch.inst) continue;
 
-    if (typeof ch.pat === 'string') {
-      if (ch.pat.split(':')[0].trim() === patternName) return ch.inst as string;
-    } else if (Array.isArray(ch.pat)) {
-      if (ch.pat.some((p: string) => p.split(':')[0].trim() === patternName)) {
-        return ch.inst as string;
+    // Prefer parser-provided `seqSpecTokens` which preserve the original
+    // sequence/pattern references. These are the most reliable source for
+    // determining whether this channel references `patternName`.
+    const seqSpec: string[] | undefined = (ch as any).seqSpecTokens;
+    if (Array.isArray(seqSpec) && ast.seqs) {
+      for (const seqToken of seqSpec) {
+        const seqName = (seqToken || '').split(':')[0].trim();
+        const seqItems: any[] = ast.seqs[seqName] ?? [];
+        const refsPattern = seqItems.some((item: any) => {
+          const name = typeof item === 'string' ? item.split(':')[0].trim() : (item?.name ?? '');
+          return name === patternName;
+        });
+        if (refsPattern) return ch.inst as string;
       }
     }
 
-    if (typeof ch.seq === 'string' && ast.seqs) {
-      const seqTokens = ch.seq.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+    // If the parser left a raw string in `pat` (e.g. a single pattern/seq
+    // reference), check that too. Do NOT rely on `Array.isArray(ch.pat)` as
+    // the parser often normalizes that into expanded token arrays.
+    if (typeof ch.pat === 'string' && ast.seqs) {
+      if (ch.pat.split(':')[0].trim() === patternName) return ch.inst as string;
+      const seqTokens = ch.pat.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
       for (const seqToken of seqTokens) {
         const seqName = seqToken.split(':')[0].trim();
         const seqItems: any[] = ast.seqs[seqName] ?? [];
@@ -146,13 +158,29 @@ async function startPatternPreview(
 // ---------------------------------------------------------------------------
 
 function resolveSeqInstrument(seqName: string, ast: any): string | null {
-  // 1. First channel that directly references this sequence
+  // 1. First channel that directly references this sequence. Channels may
+  // expose the raw RHS as `seqSpecTokens` (array) or as `pat` (string) when
+  // the parser didn't create a dedicated `seq` property — check both.
   for (const ch of (ast.channels ?? []) as any[]) {
     if (!ch.inst) continue;
-    if (typeof ch.seq === 'string') {
-      if (ch.seq.split(':')[0].trim() === seqName) return ch.inst as string;
+
+    const seqSpec: string[] | undefined = (ch as any).seqSpecTokens;
+    if (Array.isArray(seqSpec)) {
+      for (const token of seqSpec) {
+        const name = (token || '').split(':')[0].trim();
+        if (name === seqName) return ch.inst as string;
+      }
+    }
+
+    if (typeof ch.pat === 'string') {
+      const tokens = ch.pat.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+      for (const token of tokens) {
+        const name = token.split(':')[0].trim();
+        if (name === seqName) return ch.inst as string;
+      }
     }
   }
+
   // 2. Fallback: first declared instrument
   const first = Object.keys(ast.insts ?? {})[0];
   return first ?? null;
@@ -301,7 +329,15 @@ function ensureAudioCtxReady(): void {
   if (!Ctor) return;
   if (!_sharedCtx) _sharedCtx = new Ctor();
   // Synchronous resume — caller MUST be inside a user-gesture handler.
-  if (_sharedCtx.state === 'suspended') _sharedCtx.resume();
+  // Call `resume()` as fire-and-forget but handle rejection to avoid
+  // unhandled Promise rejections and lints. The call remains synchronous
+  // from the caller's perspective (no await) so it must be inside a
+  // user-gesture handler.
+  if (_sharedCtx.state === 'suspended') void _sharedCtx.resume().catch((err: any) => {
+    // Non-fatal; log for diagnostics. Avoid throwing.
+    // eslint-disable-next-line no-console
+    console.warn('AudioContext.resume() failed', err);
+  });
 }
 
 function ensureCommandsRegistered(): void {
@@ -488,7 +524,7 @@ export function setupCodeLensPreview(
         const line = model.getLineContent(ln);
 
         // ── pat definitions ──────────────────────────────────────────────
-        const patMatch = line.match(/^\s*pat\s+(\w+)\s*=/);
+        const patMatch = line.match(/^\s*pat\s+([A-Za-z0-9_-]+)\s*=/);
         if (patMatch) {
           const patternName = patMatch[1];
           const activeKey = previewState?.key;
@@ -516,7 +552,7 @@ export function setupCodeLensPreview(
         }
 
         // ── seq definitions ──────────────────────────────────────────────
-        const seqMatch = line.match(/^\s*seq\s+(\w+)\s*=/);
+        const seqMatch = line.match(/^\s*seq\s+([A-Za-z0-9_-]+)\s*=/);
         if (seqMatch) {
           const seqName = seqMatch[1];
           const activeKey = previewState?.key;
@@ -544,7 +580,7 @@ export function setupCodeLensPreview(
         }
 
         // ── inst definitions — one clickable lens per preview note ─────────
-        const instMatch = line.match(/^\s*inst\s+(\w+)\s+/);
+        const instMatch = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\s+/);
         if (instMatch) {
           const instName = instMatch[1];
           for (const note of INST_PREVIEW_NOTES) {
