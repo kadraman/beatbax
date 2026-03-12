@@ -39,75 +39,77 @@ function injectGlyphStyles(): void {
       50%       { opacity: 0.25; }
     }
 
-    /* Playback position cursor — active pat line (teal) */
-    .bb-glyph--playing::before {
-      content: '';
-      width: 16px;
-      height: 16px;
+    /* Centre the ::before badge inside Monaco's glyph container */
+    .bb-glyph--playing,
+    .bb-glyph--seq-playing,
+    .bb-glyph--ch-live,
+    .bb-glyph--ch-muted,
+    .bb-glyph--ch-soloed {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Shared badge base ─────────────────────────────────────── */
+    .bb-glyph--playing::before,
+    .bb-glyph--seq-playing::before,
+    .bb-glyph--ch-live::before,
+    .bb-glyph--ch-muted::before,
+    .bb-glyph--ch-soloed::before {
       display: block;
-      margin: 2px auto;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 16px 16px;
-      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzRlYzliMCIgZD0iTTggNXYxNGwxMS03eiIvPjwvc3ZnPg==");
+      width: 16px;
+      height: 15px;
+      line-height: 15px;
+      text-align: center;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    /* ── Playback position cursor — active pat line (teal) ─────── */
+    .bb-glyph--playing::before {
+      content: '▶';
+      border: 1px solid #3a9b8a;
+      background: #1e3d38;
+      color: #4ec9b0;
       animation: bb-beat 0.9s ease-in-out infinite;
     }
 
-    /* Playback position cursor — active seq line (amber) */
+    /* ── Playback position cursor — active seq line (amber) ────── */
     .bb-glyph--seq-playing::before {
-      content: '';
-      width: 16px;
-      height: 16px;
-      display: block;
-      margin: 2px auto;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 16px 16px;
-      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2NlOTE3OCIgZD0iTTggNXYxNGwxMS03eiIvPjwvc3ZnPg==");
+      content: '▶';
+      border: 1px solid #9e6e4e;
+      background: #3a2e20;
+      color: #ce9178;
       animation: bb-beat 0.9s ease-in-out infinite;
       animation-delay: 0.45s;
     }
 
-    /* Channel live (normal) — inline SVG (green speaker) */
+    /* ── Channel live (normal) ─────────────────────────────────── */
     .bb-glyph--ch-live::before {
-      content: '';
-      width: 16px;
-      height: 16px;
-      display: block;
-      margin: 2px auto;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 18px 18px;
-      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzRjYWY1MCIgZD0iTTMgMTB2NGg0bDUgNVY1TDcgMTBIM3oiLz48L3N2Zz4=");
-      cursor: pointer;
+      content: '♪';
+      border: 1px solid #555;
+      background: #3a3a3a;
+      color: #4caf50;
     }
 
-    /* Channel muted — inline SVG (speaker with slash) */
+    /* ── Channel muted ─────────────────────────────────────────── */
     .bb-glyph--ch-muted::before {
-      content: '';
-      width: 16px;
-      height: 16px;
-      display: block;
-      margin: 2px auto;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 16px 16px;
-      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzU1NSIgZD0iTTUgOXY2aDRsNSA1VjRMOSA5SDV6Ii8+PGxpbmUgeDE9IjMiIHkxPSIyMSIgeDI9IjIxIiB5Mj0iMyIgc3Ryb2tlPSIjNTU1IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==");
-      cursor: pointer;
+      content: 'M';
+      border: 1px solid #c94e4e;
+      background: #7a2f2f;
+      color: #ffaaaa;
     }
 
-    /* Channel soloed — inline SVG (star) */
+    /* ── Channel soloed ────────────────────────────────────────── */
     .bb-glyph--ch-soloed::before {
-      content: '';
-      width: 14px;
-      height: 14px;
-      display: block;
-      margin: 2px auto;
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 14px 14px;
-      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZDcwMCIgZD0iTTEyIDE3LjI3TDE4LjE4IDIxbC0xLjY0LTcuMDNMMjIgOS4yNGwtNy4xOS0uNjFMMTIgMiA5LjE5IDguNjMgMiA5LjI0bDUuNDYgNC43M0w1LjgyIDIxeiIvPjwvc3ZnPg==");
-      cursor: pointer;
+      content: 'S';
+      border: 1px solid #4a9eff;
+      background: #2a4a7a;
+      color: #9cdcfe;
     }
 
     .bb-glyph--ch-live,
@@ -134,6 +136,13 @@ export function setupGlyphMargin(
   channelState: ChannelState,
 ): () => void {
   injectGlyphStyles();
+
+  // Tighten the left margin: the line-decorations column (right of line
+  // numbers, default 10 px in Monaco) adds unnecessary blank space.
+  // This is the correct lever — Monaco's glyph-column width itself is
+  // set entirely via its internal layout engine and cannot be overridden
+  // with CSS.
+  monacoEditor.updateOptions({ lineDecorationsWidth: 0 });
 
   // line-number look-ups (rebuilt on every parse:success)
   const patLineMap     = new Map<string, number>();     // patternName  → 1-based line
@@ -225,7 +234,7 @@ export function setupGlyphMargin(
       let hint: string;
       if (info.soloed) {
         cls  = 'bb-glyph--ch-soloed';
-        hint = `Channel ${chId} soloed — click to mute`;
+        hint = `Channel ${chId} soloed — click to unsolo`;
       } else if (info.muted) {
         cls  = 'bb-glyph--ch-muted';
         hint = `Channel ${chId} muted — click to unmute`;
@@ -261,14 +270,33 @@ export function setupGlyphMargin(
     'playback:position-changed',
     ({ channelId, position }: { channelId: number; position: any }) => {
       let changed = false;
-      if (position?.currentPattern) {
-        activePatterns.set(channelId, position.currentPattern);
-        changed = true;
+
+      if (position && 'currentPattern' in position) {
+        const next: string | null = position.currentPattern;
+        if (next == null) {
+          if (activePatterns.has(channelId)) {
+            activePatterns.delete(channelId);
+            changed = true;
+          }
+        } else if (activePatterns.get(channelId) !== next) {
+          activePatterns.set(channelId, next);
+          changed = true;
+        }
       }
-      if (position?.sourceSequence) {
-        activeSequences.set(channelId, position.sourceSequence);
-        changed = true;
+
+      if (position && 'sourceSequence' in position) {
+        const next: string | null = position.sourceSequence;
+        if (next == null) {
+          if (activeSequences.has(channelId)) {
+            activeSequences.delete(channelId);
+            changed = true;
+          }
+        } else if (activeSequences.get(channelId) !== next) {
+          activeSequences.set(channelId, next);
+          changed = true;
+        }
       }
+
       if (changed) redrawPositionGlyphs();
     },
   );
@@ -284,7 +312,9 @@ export function setupGlyphMargin(
   const unsubSoloed   = eventBus.on('channel:soloed',   () => redrawMuteSoloGlyphs());
   const unsubUnsoloed = eventBus.on('channel:unsoloed', () => redrawMuteSoloGlyphs());
 
-  // ── Glyph-margin click → toggle mute ─────────────────────────────────────
+  // ── Glyph-margin click → toggle mute or solo ─────────────────────────────
+  // Clicking the S (soloed) badge un-solos the channel.
+  // Clicking the M (muted) or ♪ (live) badge toggles mute.
 
   const mouseDisposable = monacoEditor.onMouseDown((e: any) => {
     if (e.target.type !== (monaco.editor as any).MouseTargetType.GUTTER_GLYPH_MARGIN) return;
@@ -293,7 +323,12 @@ export function setupGlyphMargin(
 
     for (const [chId, ln] of channelLineMap.entries()) {
       if (ln === lineNumber) {
-        channelState.toggleMute(chId);
+        const info = channelState.getChannel(chId);
+        if (info?.soloed) {
+          channelState.toggleSolo(chId);
+        } else {
+          channelState.toggleMute(chId);
+        }
         return;
       }
     }
@@ -312,5 +347,6 @@ export function setupGlyphMargin(
     mouseDisposable.dispose();
     monacoEditor.deltaDecorations(positionIds, []);
     monacoEditor.deltaDecorations(muteSoloIds, []);
+    monacoEditor.updateOptions({ lineDecorationsWidth: 10 }); // restore default
   };
 }
