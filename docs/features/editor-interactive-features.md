@@ -48,6 +48,11 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
 
 - Gutter glyphs / clickable play icons (Medium): enable `glyphMargin` and render a play icon that starts a pattern preview.
   - Monaco API: `glyphMargin` + `editor.onMouseDown` handler
+  - Implementation notes (2026-03-12): the glyph margin now hosts two related feature sets:
+    - Playback position cursors: a pulsing inline-SVG triangle is rendered on both the active `pat` line and the enclosing `seq` line. The `pat` triangle is teal and the `seq` triangle is amber; both pulse using a CSS `@keyframes` animation. The triangles are rendered as base64-embedded SVG data URIs to avoid encoding issues inside CSS.
+    - Channel state glyphs: per-`channel N =>` lines a glyph shows channel state — live (green speaker), muted (speaker+slash), and soloed (gold star). These are inline SVGs embedded as base64 URIs for compatibility. Clicking a channel glyph toggles mute via the existing `ChannelState.toggleMute()` API.
+    - The glyph column is narrowed to keep the editor compact while preserving line numbers. CSS targets `.monaco-editor .margin .glyph-margin` rather than the entire margin to avoid clipping line numbers.
+    - Decorations are diffed via `editor.deltaDecorations(oldIds, newDecors)` for efficiency; the implementation keeps separate decoration sets for position cursors and channel glyphs so updates are independent and low-cost.
 
 - Semantic tokens / colorization (Low): color instruments, channels, transforms for immediate visual parsing.
   - Monaco API: `monaco.languages.registerDocumentSemanticTokensProvider`
@@ -61,6 +66,8 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
 - Live playback cursor (Medium): sync a moving editor decoration to the scheduler so users see the exact tick/step while playing.
   - Monaco API: `editor.deltaDecorations` (fast), update at scheduler tick rate (throttle to 60fps).
   - Integration: subscribe to `playbackManager` tick events on `eventBus` and update decoration to current token position.
+  - Implementation notes (2026-03-12): the current implementation subscribes to `playback:position-changed` events on the `eventBus`. Each event carries `{ channelId, position }` where `position` contains both `currentPattern` and `sourceSequence` fields. The expansion logic maps `currentPattern` to a `pat` line and `sourceSequence` to a `seq` line and draws the corresponding pulsing triangle decorations. When both a pattern and its sequence are active, the pat triangle takes visual priority and the seq triangle is shown on its own line (if different).
+  - Performance: position cursors are updated only when `position.currentPattern` or `position.sourceSequence` values change; decorations for channels are updated on channel events (`channel:muted`, `channel:unmuted`, `channel:soloed`, `channel:unsoloed`) and on `parse:success` when line maps are rebuilt.
 
 - Metronome overlay / transport LED (Medium): `IOverlayWidget` that pulses on the downbeat and shows BPM/state.
   - Monaco API: `editor.addOverlayWidget` + CSS animation; driven by `playbackManager`.
@@ -152,6 +159,12 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 - [ ] Add `playbackManager.preview` lightweight API
 - [ ] Wire beat decorations and live playback cursor
 - [ ] Expose EditorState toggle and ThemeManager preference
+- [x] Glyph-margin playback cursor + channel glyphs implemented (`apps/web-ui/src/editor/glyph-margin.ts`, 2026-03-12). Features:
+   - pulsing SVG play-triangle on `pat` and `seq` lines (`bb-glyph--playing`, `bb-glyph--seq-playing`)
+   - base64-embedded SVGs for channel live/muted/solo glyphs
+   - click-to-toggle mute via `ChannelState.toggleMute()`
+   - CSS targets only the glyph column to avoid hiding line numbers
+   - Unit tests added: `apps/web-ui/tests/glyph-margin.test.ts` (18 tests covering parse, position updates, channel state, clicks, teardown)
 
 ## Future Enhancements
 

@@ -5,6 +5,9 @@ export const editor = {
   defineTheme: jest.fn(),
   setModelMarkers: jest.fn(),
   registerCommand: jest.fn(),
+  MouseTargetType: {
+    GUTTER_GLYPH_MARGIN: 2,
+  },
 };
 
 export const languages = {
