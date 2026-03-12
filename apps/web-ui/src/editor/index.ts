@@ -5,7 +5,7 @@
 export { createEditor, configureMonaco } from './monaco-setup';
 export type { EditorOptions, BeatBaxEditor } from './monaco-setup';
 
-export { registerBeatBaxLanguage } from './beatbax-language';
+export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language';
 
 export { EditorState, DEFAULT_AUTO_SAVE_DELAY_MS } from './editor-state';
 export type {

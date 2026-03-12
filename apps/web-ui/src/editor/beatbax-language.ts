@@ -117,7 +117,7 @@ export function registerBeatBaxLanguage(): void {
 
         // Commands
         [/\b(play|export)\b/, 'keyword.control'],
-        
+
         // Play modifiers
         [/\b(auto|repeat)\b/, 'keyword'],
 
@@ -229,7 +229,7 @@ export function registerBeatBaxLanguage(): void {
         [/\s+/, ''],
         // Close brace - return to root (MUST come before generic brackets)
         [/\}/, { token: 'delimiter.bracket', next: '@pop' }],
-        // Property names (quoted strings followed by colon) - light blue  
+        // Property names (quoted strings followed by colon) - light blue
         [/"([^"\\]|\\.)*"(?=\s*:)/, 'attribute'],
         // String values (quoted strings NOT followed by colon) - orange
         [/"([^"\\]|\\.)*"/, 'string'],
@@ -447,6 +447,41 @@ export function registerBeatBaxLanguage(): void {
     },
   });
 
+  // Register document highlight provider.
+  // Returns empty highlights for note tokens (C4, Bb3, G5 etc.) so that
+  // clicking a note does not light up every other note in the file.
+  // For all other identifiers (pattern/sequence/instrument names) every
+  // whole-word occurrence is highlighted as normal.
+  monaco.languages.registerDocumentHighlightProvider('beatbax', {
+    provideDocumentHighlights: (model, position) => {
+      const word = model.getWordAtPosition(position);
+      if (!word) return null;
+
+      // Note tokens: natural (C3) or flat (Bb4, Ab3).
+      // Sharp notes (C#4) are split by '#' so getWordAtPosition returns just
+      // 'C' or '4' — neither matches, so they're left to the fallback below.
+      if (/^[A-G]b?[0-8]$/.test(word.word)) {
+        return [];
+      }
+
+      // For identifiers, highlight every whole-word occurrence in the document.
+      const escaped = word.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const matches = model.findMatches(
+        `\\b${escaped}\\b`,
+        false, // searchOnlyEditableRange
+        true,  // isRegex
+        true,  // matchCase
+        null,  // wordSeparators
+        false, // captureMatches
+      );
+
+      return matches.map((match) => ({
+        range: match.range,
+        kind: monaco.languages.DocumentHighlightKind.Text,
+      }));
+    },
+  });
+
   // Define custom theme that styles our sequence modifiers
   monaco.editor.defineTheme('beatbax-dark', {
     base: 'vs-dark',
@@ -471,4 +506,137 @@ export function registerBeatBaxLanguage(): void {
     ],
     colors: {},
   });
+}
+
+// ─── Note transposition helpers ──────────────────────────────────────────────
+
+const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_TO_SHARP: Record<string, string> = {
+  Db: 'C#', Eb: 'D#', Fb: 'E', Gb: 'F#', Ab: 'G#', Bb: 'A#', Cb: 'B',
+};
+
+interface NoteToken {
+  note: string;
+  range: monaco.IRange;
+}
+
+/**
+ * Detect the note token (C4, Bb4, C#4, …) at `position`.
+ * Sharp notes straddle a word boundary because `#` is a word separator, so we
+ * inspect the character immediately after the word when needed.
+ */
+function getNoteAtPosition(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): NoteToken | null {
+  const word = model.getWordAtPosition(position);
+  if (!word) return null;
+
+  // Natural / flat note: e.g. C4, Bb4, Ab3
+  if (/^[A-G]b?[0-8]$/.test(word.word)) {
+    return {
+      note: word.word,
+      range: {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      },
+    };
+  }
+
+  // Sharp note: word is just the letter (e.g. "C"), next chars should be "#<digit>"
+  // word.endColumn is 1-based exclusive → string index is word.endColumn - 1
+  if (/^[A-G]$/.test(word.word)) {
+    const lineContent = model.getLineContent(position.lineNumber);
+    const afterWord = lineContent.substring(word.endColumn - 1);
+    const sharpMatch = afterWord.match(/^#([0-8])/);
+    if (sharpMatch) {
+      return {
+        note: word.word + '#' + sharpMatch[1],
+        range: {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn + 2, // '#' + octave digit
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Transpose `note` by `semitones` half-steps.
+ * Returns the new note string, or `null` if the result falls outside C0–B8.
+ * Flat input notes are output as their sharp equivalent (Bb → A#).
+ */
+function transposeNote(note: string, semitones: number): string | null {
+  const match = note.match(/^([A-G][#b]?)([0-8])$/);
+  if (!match) return null;
+
+  let pitchClass = match[1];
+  const octave = parseInt(match[2], 10);
+
+  if (FLAT_TO_SHARP[pitchClass]) pitchClass = FLAT_TO_SHARP[pitchClass];
+
+  const idx = CHROMATIC_SCALE.indexOf(pitchClass);
+  if (idx === -1) return null;
+
+  const midiStep = octave * 12 + idx + semitones;
+  const newOctave = Math.floor(midiStep / 12);
+  const newIdx = ((midiStep % 12) + 12) % 12;
+
+  if (newOctave < 0 || newOctave > 8) return null; // out of C0–B8 range
+
+  return CHROMATIC_SCALE[newIdx] + newOctave;
+}
+
+/**
+ * Apply a transposition to the note under the cursor.
+ * Silently no-ops if the cursor is not on a note or the result is out of range.
+ */
+export function transposeCurrentNote(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  semitones: number,
+): void {
+  const model = editor.getModel();
+  const position = editor.getPosition();
+  if (!model || !position) return;
+
+  const token = getNoteAtPosition(model, position);
+  if (!token) return;
+
+  const newNote = transposeNote(token.note, semitones);
+  if (!newNote) return;
+
+  editor.executeEdits('note-transpose', [{ range: token.range, text: newNote }]);
+
+  // Restore cursor inside the replacement token at the same relative offset
+  const offset = Math.min(position.column - token.range.startColumn, newNote.length - 1);
+  editor.setPosition({ lineNumber: position.lineNumber, column: token.range.startColumn + offset });
+}
+
+/**
+ * Register note-transposition key commands on a Monaco editor instance.
+ *
+ * | Shortcut      | Action        |
+ * | ------------- | ------------- |
+ * | Alt+.         | Semitone up   |
+ * | Alt+,         | Semitone down |
+ * | Alt+Shift+.   | Octave up     |
+ * | Alt+Shift+,   | Octave down   |
+ *
+ * Commands are editor-scoped and only fire when the editor has focus.
+ */
+export function registerNoteEditCommands(
+  editor: monaco.editor.IStandaloneCodeEditor,
+): void {
+  const { KeyMod, KeyCode } = monaco;
+
+  editor.addCommand(KeyMod.Alt | KeyCode.Period,                       () => transposeCurrentNote(editor,  1));
+  editor.addCommand(KeyMod.Alt | KeyCode.Comma,                        () => transposeCurrentNote(editor, -1));
+  editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Period,        () => transposeCurrentNote(editor,  12));
+  editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Comma,         () => transposeCurrentNote(editor, -12));
 }

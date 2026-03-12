@@ -18,7 +18,7 @@ import {
 
 // Core / editor imports
 import { eventBus } from './utils/event-bus';
-import { createEditor, registerBeatBaxLanguage, configureMonaco } from './editor';
+import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands } from './editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
@@ -172,6 +172,7 @@ editor = createEditor({
 diagnosticsManager = createDiagnosticsManager(editor.editor);
 setupDiagnosticsIntegration(diagnosticsManager);
 setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
+registerNoteEditCommands(editor.editor);
 
 // Editor is fully initialised — remove the static boot overlay.
 spinner.hideBoot();
@@ -663,14 +664,22 @@ ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
   action: () => menuBar.triggerUndo() });
 ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
   action: () => menuBar.triggerRedo() });
+// Note transposition — handled by Monaco addCommand inside registerNoteEditCommands.
+// These entries exist solely for help-panel display; allowInInput: false ensures the
+// global handler never fires while the editor (textarea) is focused.
+ks.register({ key: '.', altKey: true,              description: 'Note: semitone up (editor)',  allowInInput: false, action: () => {} });
+ks.register({ key: ',', altKey: true,              description: 'Note: semitone down (editor)', allowInInput: false, action: () => {} });
+ks.register({ key: '.', altKey: true, shiftKey: true, description: 'Note: octave up (editor)',    allowInInput: false, action: () => {} });
+ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave down (editor)',  allowInInput: false, action: () => {} });
 
 // View — marked allowInInput: true so they work while the editor is focused
 // (Monaco doesn't intercept any of these key combinations).
 //
-// Ctrl+Alt+T is reserved by Firefox (opens a new tab).
-// Ctrl+Shift+M is reserved by Firefox (Responsive Design Mode).
-// Ctrl+Shift+L and Ctrl+Shift+Y are safe in Chrome, Edge and Firefox.
-ks.register({ key: 'l', ctrlKey: true, shiftKey: true, description: 'Toggle theme (Dark / Light)', allowInInput: true,
+// All panel toggles use Alt+Shift+<key> for consistency and to avoid
+// browser-reserved shortcuts (Ctrl+Shift+R = hard refresh, Ctrl+Shift+B =
+// bookmarks, Ctrl+Shift+H = history, Ctrl+Shift+Y = reading list/pocket).
+// Ctrl+` is the exception (VS Code-style output/terminal toggle; no conflict).
+ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Toggle theme (Dark / Light)', allowInInput: true,
   action: () => menuBar.triggerToggleTheme() });
 ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allowInInput: true,
   action: () => {
@@ -678,19 +687,19 @@ ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allow
     eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
   },
 });
-ks.register({ key: 'y', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
+ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
     const vis = ccContainer.style.display !== 'none';
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
   },
 });
-ks.register({ key: 'b', ctrlKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
+ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
   action: () => {
     const vis = toolbar?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
   },
 });
-ks.register({ key: 'r', ctrlKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
+ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
   action: () => {
     const vis = transportBar?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
@@ -701,10 +710,9 @@ ks.register({ key: 'r', ctrlKey: true, shiftKey: true, description: 'Toggle Tran
 // Both shortcuts toggle the panel open/closed.
 ks.register({ key: 'F1', shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
   action: () => helpPanel?.toggle() });
-ks.register({ key: 'h', ctrlKey: true, shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
+ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
   action: () => helpPanel?.toggle() });
 // Alt+Shift+K → jump directly to the Keyboard Shortcuts section.
-// (Ctrl+Shift+/ = Monaco block comment, so Ctrl+? is not available.)
 ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
   action: () => helpPanel?.showShortcuts() });
 
