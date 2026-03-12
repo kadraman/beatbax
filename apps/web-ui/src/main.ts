@@ -25,6 +25,7 @@ import {
   parseErrorToDiagnostic,
 } from './editor/diagnostics';
 import { setupCodeLensPreview } from './editor/codelens-preview';
+import { setupGlyphMargin } from './editor/glyph-margin';
 import { createThreePaneLayout } from './ui/layout';
 
 // Playback imports
@@ -194,6 +195,7 @@ document.body.appendChild(statusBarContainer);
 
 // ─── Core components ─────────────────────────────────────────────────────────────────
 const channelState = new ChannelState(eventBus);
+setupGlyphMargin(editor.editor, eventBus, channelState);
 const playbackManager = new PlaybackManager(eventBus, channelState);
 const outputPanel = new OutputPanel(outputPane, eventBus);
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
