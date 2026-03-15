@@ -29,6 +29,10 @@ export interface HelpPanelOptions {
    * Pass `() => ks.list()` from main to keep the panel in sync.
    */
   getShortcuts?: () => ReadonlyArray<ShortcutDescriptor>;
+  /** When true, renders inline inside a tab container — no close button, no overlay toggle behaviour. */
+  embedded?: boolean;
+  /** When set, only the section with this id is rendered and the search bar is hidden. */
+  singleSection?: string;
 }
 
 interface Section {
@@ -238,6 +242,8 @@ export class HelpPanel {
   private onInsertSnippet?: (snippet: string) => void;
   private getShortcuts?: () => ReadonlyArray<ShortcutDescriptor>;
   private visible: boolean;
+  private embedded: boolean;
+  private singleSection: string | undefined;
   private unsubscribers: Array<() => void> = [];
   private searchQuery = '';
   private collapsedSections = new Set<string>();
@@ -249,6 +255,8 @@ export class HelpPanel {
     this.onInsertSnippet = options.onInsertSnippet;
     this.getShortcuts = options.getShortcuts;
     this.visible = options.defaultVisible ?? false;
+    this.embedded = options.embedded ?? false;
+    this.singleSection = options.singleSection;
 
     this.injectStyles();
     this.render();
@@ -300,7 +308,7 @@ export class HelpPanel {
   private render(): void {
     this.container.innerHTML = '';
 
-    if (!this.visible) {
+    if (!this.embedded && !this.visible) {
       this.container.style.display = 'none';
       return;
     }
@@ -312,75 +320,83 @@ export class HelpPanel {
     const root = document.createElement('div');
     root.className = 'bb-help';
 
-    // ── Header ──────────────────────────────────────────────────────────────
-    const header = document.createElement('div');
-    header.className = 'bb-help__header';
-
-    const title = document.createElement('span');
-    title.className = 'bb-help__title';
-    title.textContent = '❔ Help & Reference';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'bb-help__close';
-    closeBtn.textContent = '✕';
-    closeBtn.title = 'Close help (Esc)';
-    closeBtn.addEventListener('click', () => this.hide());
-
-    header.append(title, closeBtn);
-    root.appendChild(header);
-
-    // ── Search bar ───────────────────────────────────────────────────────────
-    const searchBar = document.createElement('div');
-    searchBar.className = 'bb-help__search-bar';
-
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.className = 'bb-help__search';
-    searchInput.placeholder = 'Search docs…';
-    searchInput.value = this.searchQuery;
-    searchInput.setAttribute('aria-label', 'Search documentation');
-
-    searchInput.addEventListener('input', () => {
-      this.searchQuery = searchInput.value.toLowerCase();
-      this.renderBody(body);
-    });
-    // Prevent Escape from also closing the whole panel when search has text
-    searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (this.searchQuery) {
-          e.stopPropagation();
-          this.searchQuery = '';
-          searchInput.value = '';
-          this.renderBody(body);
-        }
-        // If empty, let the event propagate to close the panel
-      }
-    });
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'bb-help__search-clear';
-    clearBtn.textContent = '✕';
-    clearBtn.title = 'Clear search';
-    clearBtn.addEventListener('click', () => {
-      this.searchQuery = '';
-      searchInput.value = '';
-      this.renderBody(body);
-      searchInput.focus();
-    });
-
-    searchBar.append(searchInput, clearBtn);
-    root.appendChild(searchBar);
-
-    // ── Scrollable body ──────────────────────────────────────────────────────
+    // Declare body early so search-bar event handlers can close over it
     const body = document.createElement('div');
     body.className = 'bb-help__body';
+
+    // ── Header (overlay mode only — embedded panels use the tab bar as header) ─
+    if (!this.embedded) {
+      const header = document.createElement('div');
+      header.className = 'bb-help__header';
+
+      const title = document.createElement('span');
+      title.className = 'bb-help__title';
+      title.textContent = '❔ Help & Reference';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'bb-help__close';
+      closeBtn.textContent = '✕';
+      closeBtn.title = 'Close help (Esc)';
+      closeBtn.addEventListener('click', () => this.hide());
+
+      header.append(title, closeBtn);
+      root.appendChild(header);
+    }
+
+    // ── Search bar (hidden in single-section mode) ───────────────────────────
+    if (!this.singleSection) {
+      const searchBar = document.createElement('div');
+      searchBar.className = 'bb-help__search-bar';
+
+      const searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'bb-help__search';
+      searchInput.placeholder = 'Search docs…';
+      searchInput.value = this.searchQuery;
+      searchInput.setAttribute('aria-label', 'Search documentation');
+
+      searchInput.addEventListener('input', () => {
+        this.searchQuery = searchInput.value.toLowerCase();
+        this.renderBody(body);
+      });
+      // Prevent Escape from also closing the whole panel when search has text
+      searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (this.searchQuery) {
+            e.stopPropagation();
+            this.searchQuery = '';
+            searchInput.value = '';
+            this.renderBody(body);
+          }
+          // If empty, let the event propagate
+        }
+      });
+
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'bb-help__search-clear';
+      clearBtn.textContent = '✕';
+      clearBtn.title = 'Clear search';
+      clearBtn.addEventListener('click', () => {
+        this.searchQuery = '';
+        searchInput.value = '';
+        this.renderBody(body);
+        searchInput.focus();
+      });
+
+      searchBar.append(searchInput, clearBtn);
+      root.appendChild(searchBar);
+
+      // Auto-focus search (overlay mode only — embedded panels keep editor focus)
+      if (!this.embedded) {
+        requestAnimationFrame(() => searchInput.focus());
+      }
+    }
+
+    // ── Scrollable body ──────────────────────────────────────────────────────
     this.renderBody(body);
     root.appendChild(body);
 
     this.container.appendChild(root);
-
-    // Auto-focus search
-    requestAnimationFrame(() => searchInput.focus());
   }
 
   private buildShortcutSections(): Section[] {
@@ -421,7 +437,12 @@ export class HelpPanel {
   private renderBody(body: HTMLElement): void {
     body.innerHTML = '';
     const q = this.searchQuery;
-    const sections = this.buildShortcutSections();
+    let sections = this.buildShortcutSections();
+
+    // In single-section mode, only show the requested section (no search filtering)
+    if (this.singleSection) {
+      sections = sections.filter(s => s.id === this.singleSection);
+    }
 
     for (const section of sections) {
       const visibleItems = q ? this.filterItems(section.content, q) : section.content;
@@ -577,6 +598,10 @@ export class HelpPanel {
   // ─── Event subscriptions ─────────────────────────────────────────────────
 
   private subscribe(): void {
+    // Embedded panels skip overlay-specific subscriptions; the tab container in
+    // main.ts handles visibility and keyboard routing via switchRightTab().
+    if (this.embedded) return;
+
     // Listen for panel:toggled event targeting 'help'
     this.unsubscribers.push(
       this.eventBus.on('panel:toggled', ({ panel, visible }) => {

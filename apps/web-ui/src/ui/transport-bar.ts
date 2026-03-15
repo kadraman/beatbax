@@ -56,7 +56,7 @@ export class TransportBar {
     this.stopButton = mkBtn('⏹ Stop', 'Stop playback (F8 / Esc)');
     this.applyButton = mkBtn('🔄 Apply', 'Apply & re-play (Ctrl+Enter)');
     this.liveButton = mkBtn('⚡ Live', 'Toggle live-play mode');
-    this.liveButton.style.border = '2px solid transparent';
+    this.liveButton.classList.add('bb-live-btn');
 
     this.el.append(this.playButton, this.pauseButton, this.stopButton, this.applyButton, this.liveButton);
 

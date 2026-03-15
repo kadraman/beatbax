@@ -9,6 +9,7 @@ import { Buffer } from 'buffer';
 (globalThis as any).Buffer = Buffer;
 
 import { parse } from '@beatbax/engine/parser';
+import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -23,6 +24,7 @@ import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
   parseErrorToDiagnostic,
+  warningsToDiagnostics,
 } from './editor/diagnostics';
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
@@ -154,7 +156,7 @@ appContainer.appendChild(toolbarContainer);
 
 // ─── Layout host (fills remaining height) ────────────────────────────────────
 const layoutHost = document.createElement('div');
-layoutHost.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+layoutHost.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px;';
 appContainer.appendChild(layoutHost);
 
 const layout = createThreePaneLayout({ container: layoutHost, persist: true });
@@ -174,10 +176,138 @@ setupDiagnosticsIntegration(diagnosticsManager);
 setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
 registerNoteEditCommands(editor.editor);
 
+// Navigate cursor when user clicks a Problems panel diagnostic row.
+eventBus.on('navigate:to', ({ line, column }) => {
+  const monacoEditor = editor.editor;
+  monacoEditor.setPosition({ lineNumber: line, column });
+  monacoEditor.revealLineInCenter(line);
+  monacoEditor.focus();
+});
+
+// Keep status-bar cursor position in sync with Monaco.
+editor.editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number } }) => {
+  statusBar?.setCursorPosition(e.position.lineNumber, e.position.column);
+});
+
 // Editor is fully initialised — remove the static boot overlay.
 spinner.hideBoot();
 
 const outputPane = layout.getOutputPane();
+
+// ─── Bottom pane: tabbed panel (Problems | Output) ───────────────────────────
+// Reset outputPane styles for use as a flex tab container.
+outputPane.style.padding = '0';
+outputPane.style.overflow = 'hidden';
+outputPane.style.display = 'flex';
+outputPane.style.flexDirection = 'column';
+outputPane.style.fontFamily = '';
+outputPane.style.fontSize = '';
+
+const bottomTabStyle = document.createElement('style');
+bottomTabStyle.textContent = `
+  .bb-bottom-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
+  .bb-bottom-tab { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
+  .bb-bottom-tab:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
+  .bb-bottom-tab--active { color: var(--text-color, #d4d4d4); border-bottom-color: #569cd6; }
+  .bb-bottom-tab--hidden { display: none; }
+  .bb-bottom-tab__label { flex: 1; }
+  .bb-bottom-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
+  .bb-bottom-tab:hover .bb-bottom-tab__close,
+  .bb-bottom-tab--active .bb-bottom-tab__close { opacity: 1; pointer-events: auto; }
+  .bb-bottom-tab__close:hover { background: var(--button-hover-bg, #3a3a3a); color: var(--text-color, #d4d4d4); }
+  .bb-bottom-tab-content { flex: 1 1 0; overflow: hidden; display: none; flex-direction: column; }
+  .bb-bottom-tab-content--active { display: flex; }
+  .bb-tab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    background: #0e639c; color: #fff;
+    border-radius: 8px; font-size: 11px; font-weight: 700; line-height: 1;
+    vertical-align: middle; margin-left: 4px; position: relative; top: -1px;
+  }
+`;
+document.head.appendChild(bottomTabStyle);
+
+type BottomTabId = 'problems' | 'output';
+const BOTTOM_TAB_LABELS: Record<BottomTabId, string> = { problems: 'Problems', output: 'Output' };
+const BOTTOM_TAB_ORDER: BottomTabId[] = ['problems', 'output'];
+let activeBottomTab: BottomTabId | null = 'problems';
+const bottomTabOpen: Record<BottomTabId, boolean> = { problems: true, output: true };
+const bottomTabButtons: Partial<Record<BottomTabId, HTMLButtonElement>> = {};
+const bottomTabContents: Partial<Record<BottomTabId, HTMLElement>> = {};
+
+/** Show a bottom tab (open + activate). If already open, just activate it. */
+const showBottomTab = (tab: BottomTabId): void => {
+  bottomTabOpen[tab] = true;
+  bottomTabButtons[tab]?.classList.remove('bb-bottom-tab--hidden');
+  layout.setOutputPaneVisible(true);
+  switchBottomTab(tab);
+};
+
+/** Activate a tab that is already open. Does not open a closed tab. */
+const switchBottomTab = (tab: BottomTabId): void => {
+  activeBottomTab = tab;
+  for (const t of BOTTOM_TAB_ORDER) {
+    bottomTabButtons[t]?.classList.toggle('bb-bottom-tab--active', t === tab);
+    bottomTabContents[t]?.classList.toggle('bb-bottom-tab-content--active', t === tab);
+  }
+};
+
+/** Close a tab. Switches to nearest open neighbour, or hides entire pane + splitter. */
+const closeBottomTab = (tab: BottomTabId): void => {
+  bottomTabOpen[tab] = false;
+  bottomTabButtons[tab]?.classList.remove('bb-bottom-tab--active');
+  bottomTabButtons[tab]?.classList.add('bb-bottom-tab--hidden');
+  bottomTabContents[tab]?.classList.remove('bb-bottom-tab-content--active');
+  if (activeBottomTab === tab) {
+    const next = BOTTOM_TAB_ORDER.find(t => t !== tab && bottomTabOpen[t]);
+    if (next) {
+      switchBottomTab(next);
+    } else {
+      activeBottomTab = null;
+      layout.setOutputPaneVisible(false);
+    }
+  }
+};
+
+const bottomTabBar = document.createElement('div');
+bottomTabBar.className = 'bb-bottom-tab-bar';
+outputPane.appendChild(bottomTabBar);
+
+for (const t of BOTTOM_TAB_ORDER) {
+  const btn = document.createElement('button');
+  btn.className = 'bb-bottom-tab';
+  btn.title = BOTTOM_TAB_LABELS[t];
+
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'bb-bottom-tab__label';
+  labelSpan.textContent = BOTTOM_TAB_LABELS[t];
+
+  const closeBtn = document.createElement('span');
+  closeBtn.className = 'bb-bottom-tab__close';
+  closeBtn.textContent = '✕';
+  closeBtn.title = `Close ${BOTTOM_TAB_LABELS[t]}`;
+  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeBottomTab(t); });
+
+  btn.append(labelSpan, closeBtn);
+  btn.addEventListener('click', () => showBottomTab(t));
+  bottomTabButtons[t] = btn;
+  bottomTabBar.appendChild(btn);
+
+  const content = document.createElement('div');
+  content.className = 'bb-bottom-tab-content';
+  bottomTabContents[t] = content;
+  outputPane.appendChild(content);
+}
+switchBottomTab('problems');
+
+const problemsContainer = document.createElement('div');
+problemsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+bottomTabContents['problems']!.appendChild(problemsContainer);
+
+const outputLogsContainer = document.createElement('div');
+outputLogsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+bottomTabContents['output']!.appendChild(outputLogsContainer);
+
 rightPane = layout.getRightPane();
 
 // ─── EditorState ─────────────────────────────────────────────────────────────
@@ -198,28 +328,160 @@ document.body.appendChild(statusBarContainer);
 const channelState = new ChannelState(eventBus);
 setupGlyphMargin(editor.editor, eventBus, channelState);
 const playbackManager = new PlaybackManager(eventBus, channelState);
-const outputPanel = new OutputPanel(outputPane, eventBus);
+const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
+const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
 
-// Install global error handlers now that outputPanel is ready.
+// Install global error handlers now that panels are ready.
 // Uncaught errors and unhandled rejections are forwarded as error messages.
 installGlobalErrorHandlers((message, _err) => {
-  outputPanel.addMessage({
+  problemsPanel.addMessage({
     type: 'error',
     message: `Uncaught error: ${message}`,
     source: 'runtime',
     timestamp: new Date(),
   });
+  showBottomTab('problems');
 });
 
-// ─── Unified Channel Panel (ChannelMixer) in the right pane ────────────────
-// The ChannelMixer is the combined channel controls + monitor. It lives in a
-// dedicated scoped div so its render() (which clears innerHTML on every
-// parse:success) never conflicts with any sibling nodes in rightPane.
+// Auto-show the relevant bottom tab when events arrive.
+eventBus.on('parse:error', () => showBottomTab('problems'));
+eventBus.on('validation:errors', ({ errors }) => { if (errors.length > 0) showBottomTab('problems'); });
+eventBus.on('validation:warnings', ({ warnings }) => { if (warnings.length > 0) showBottomTab('problems'); });
+eventBus.on('playback:started', () => showBottomTab('output'));
+
+// ─── Problems tab badge ───────────────────────────────────────────────────────
+let problemsBadgeErrors = 0;
+let problemsBadgeWarnings = 0;
+
+function updateProblemsTabBadge(): void {
+  const labelSpan = bottomTabButtons['problems']?.querySelector<HTMLElement>('.bb-bottom-tab__label');
+  if (!labelSpan) return;
+  const total = problemsBadgeErrors + problemsBadgeWarnings;
+  if (total > 0) {
+    labelSpan.innerHTML = `Problems <span class="bb-tab-badge">${total}</span>`;
+  } else {
+    labelSpan.textContent = 'Problems';
+  }
+}
+
+eventBus.on('validation:errors',   ({ errors })   => { problemsBadgeErrors   = errors.length;   updateProblemsTabBadge(); });
+eventBus.on('validation:warnings', ({ warnings }) => { problemsBadgeWarnings = warnings.length; updateProblemsTabBadge(); });
+eventBus.on('parse:error',         ()             => { problemsBadgeErrors   = 1;               updateProblemsTabBadge(); });
+
+// ─── Right pane: tabbed panel (Channel Mixer | Help | Shortcuts) ────────
+const rightTabStyle = document.createElement('style');
+rightTabStyle.textContent = `
+  .bb-right-tabs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  .bb-right-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
+  .bb-right-tab { display: flex; align-items: center; gap: 4px; flex: 1; padding: 7px 6px 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; overflow: hidden; }
+  .bb-right-tab:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
+  .bb-right-tab--active { color: var(--text-color, #d4d4d4); border-bottom-color: #569cd6; }
+  .bb-right-tab--hidden { display: none; }
+  .bb-right-tab__label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .bb-right-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
+  .bb-right-tab:hover .bb-right-tab__close,
+  .bb-right-tab--active .bb-right-tab__close { opacity: 1; pointer-events: auto; }
+  .bb-right-tab__close:hover { background: var(--button-hover-bg, #3a3a3a); color: var(--text-color, #d4d4d4); }
+  .bb-right-tab-content { flex: 1 1 0; overflow: hidden; display: none; flex-direction: column; }
+  .bb-right-tab-content--active { display: flex; }
+  .bb-right-tabs--empty .bb-right-tab-content { display: none !important; }
+`;
+document.head.appendChild(rightTabStyle);
+
+type RightTabId = 'channels' | 'help' | 'shortcuts';
+const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
+  channels: 'Mixer',
+  help: 'Help',
+  shortcuts: 'Shortcuts',
+};
+const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'shortcuts'];
+let activeRightTab: RightTabId | null = 'channels';
+const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, shortcuts: true };
+const rightTabButtons: Partial<Record<RightTabId, HTMLButtonElement>> = {};
+const rightTabContents: Partial<Record<RightTabId, HTMLElement>> = {};
+
+/** Show a tab (make it open+active). If it is already open, just activate it. */
+const showRightTab = (tab: RightTabId): void => {
+  rightTabOpen[tab] = true;
+  rightTabButtons[tab]?.classList.remove('bb-right-tab--hidden');
+  layout.setRightPaneVisible(true);
+  switchRightTab(tab);
+};
+
+/** Activate a tab that is already open. Does not open a closed tab. */
+const switchRightTab = (tab: RightTabId): void => {
+  activeRightTab = tab;
+  rightTabs.classList.remove('bb-right-tabs--empty');
+  for (const t of RIGHT_TAB_ORDER) {
+    rightTabButtons[t]?.classList.toggle('bb-right-tab--active', t === tab);
+    rightTabContents[t]?.classList.toggle('bb-right-tab-content--active', t === tab);
+  }
+};
+
+/** Close a tab. Switches to the nearest open neighbour, or marks pane empty. */
+const closeRightTab = (tab: RightTabId): void => {
+  rightTabOpen[tab] = false;
+  rightTabButtons[tab]?.classList.remove('bb-right-tab--active');
+  rightTabButtons[tab]?.classList.add('bb-right-tab--hidden');
+  rightTabContents[tab]?.classList.remove('bb-right-tab-content--active');
+
+  if (activeRightTab === tab) {
+    // Find next open tab to activate
+    const next = RIGHT_TAB_ORDER.find(t => t !== tab && rightTabOpen[t]);
+    if (next) {
+      switchRightTab(next);
+    } else {
+      activeRightTab = null;
+      rightTabs.classList.add('bb-right-tabs--empty');
+      // Collapse right pane and its splitter
+      layout.setRightPaneVisible(false);
+    }
+  }
+};
+
+const rightTabs = document.createElement('div');
+rightTabs.className = 'bb-right-tabs';
+rightPane.appendChild(rightTabs);
+
+const rightTabBar = document.createElement('div');
+rightTabBar.className = 'bb-right-tab-bar';
+rightTabs.appendChild(rightTabBar);
+
+for (const t of RIGHT_TAB_ORDER) {
+  const btn = document.createElement('button');
+  btn.className = 'bb-right-tab';
+  btn.title = RIGHT_TAB_LABELS[t];
+
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'bb-right-tab__label';
+  labelSpan.textContent = RIGHT_TAB_LABELS[t];
+
+  const closeBtn = document.createElement('span');
+  closeBtn.className = 'bb-right-tab__close';
+  closeBtn.textContent = '✕';
+  closeBtn.title = `Close ${RIGHT_TAB_LABELS[t]}`;
+  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeRightTab(t); });
+
+  btn.append(labelSpan, closeBtn);
+  btn.addEventListener('click', () => showRightTab(t));
+  rightTabButtons[t] = btn;
+  rightTabBar.appendChild(btn);
+
+  const content = document.createElement('div');
+  content.className = 'bb-right-tab-content';
+  rightTabContents[t] = content;
+  rightTabs.appendChild(content);
+}
+switchRightTab('channels');
+
+// ─── Unified Channel Panel (ChannelMixer) in the channels tab ──────────────
+// The ChannelMixer lives in a dedicated scoped div so its render() (which
+// clears innerHTML on every parse:success) never conflicts with sibling nodes.
 const ccContainer = document.createElement('div');
 ccContainer.id = 'bb-channel-controls-host';
 ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
-rightPane.appendChild(ccContainer);
+rightTabContents['channels']!.appendChild(ccContainer);
 
 const channelMixer = withErrorBoundary(
   'ChannelMixer',
@@ -227,22 +489,16 @@ const channelMixer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── HelpPanel — fixed overlay drawer from the right ───────────────────────
-const helpOverlay = document.createElement('div');
-helpOverlay.id = 'bb-help-overlay';
-helpOverlay.style.cssText = [
-  'position: fixed',
-  'top: 0',
-  'right: 0',
-  'bottom: 0',
-  'width: min(480px, 90vw)',
-  'z-index: 5000',
-  'display: none',
-  'flex-direction: column',
-  'box-shadow: -4px 0 24px rgba(0,0,0,0.5)',
-  'border-left: 1px solid #3c3c3c',
-].join('; ');
-document.body.appendChild(helpOverlay);
+// ─── HelpPanel — embedded in the help tab ──────────────────────────────────
+// shortcutsContainer is created here but its HelpPanel is instantiated after
+// ks.mount() so that getShortcuts() returns the full registered list.
+const helpContainer = document.createElement('div');
+helpContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+rightTabContents['help']!.appendChild(helpContainer);
+
+const shortcutsContainer = document.createElement('div');
+shortcutsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+rightTabContents['shortcuts']!.appendChild(shortcutsContainer);
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -250,9 +506,10 @@ document.body.appendChild(helpOverlay);
 const ks = new KeyboardShortcuts();
 
 const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
-  container: helpOverlay,
+  container: helpContainer,
   eventBus,
-  defaultVisible: false,
+  embedded: true,
+  defaultVisible: true,
   getShortcuts: () => ks.list(),
   onInsertSnippet: (snippet) => {
     const monacoEditor = editor?.editor;
@@ -262,20 +519,25 @@ const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
     const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
     monacoEditor.executeEdits('help-panel', [op]);
     monacoEditor.focus();
-    helpPanel?.hide();
   },
-// Pass appContainer, not helpOverlay, so that if HelpPanel throws the error
-// card is rendered into a visible element.  helpOverlay starts with
-// display:none, which would hide the boundary fallback silently.
 }), appContainer);
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'output') {
-    outputPane.style.display = visible ? '' : 'none';
+    visible ? showBottomTab('output') : closeBottomTab('output');
+  }
+  if (panel === 'problems') {
+    visible ? showBottomTab('problems') : closeBottomTab('problems');
   }
   if (panel === 'channel-mixer') {
-    ccContainer.style.display = visible ? '' : 'none';
+    visible ? showRightTab('channels') : closeRightTab('channels');
+  }
+  if (panel === 'help') {
+    visible ? showRightTab('help') : closeRightTab('help');
+  }
+  if (panel === 'shortcuts') {
+    visible ? showRightTab('shortcuts') : closeRightTab('shortcuts');
   }
   if (panel === 'toolbar') {
     try {
@@ -291,6 +553,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 
 (window as any).__beatbax_channelState = channelState;
 (window as any).__beatbax_playbackManager = playbackManager;
+(window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
 (window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
@@ -335,15 +598,46 @@ const transportControls = new TransportControls(
 );
 (window as any).__beatbax_transportControls = transportControls;
 
-// Sync error state with TransportControls
-eventBus.on('parse:error', () => transportControls.setHasErrors(true));
-eventBus.on('validation:warnings', () => transportControls.setHasErrors(false));
+// Sync error state with TransportControls and Live button
+let hasParseErrors = false;
+
+function setErrorState(hasErrors: boolean): void {
+  hasParseErrors = hasErrors;
+  transportControls.setHasErrors(hasErrors);
+  // Disable the Live button when errors exist; deactivate live mode too.
+  transportBar.liveButton.disabled = hasErrors;
+  if (hasErrors && liveMode) {
+    liveMode = false;
+    transportBar.liveButton.classList.remove('bb-live-btn--active');
+    transportBar.liveButton.title = 'Toggle live-play mode';
+    clearTimeout((window as any).__bb_liveTimer);
+  }
+}
+
+eventBus.on('parse:error', () => setErrorState(true));
+eventBus.on('validation:errors', ({ errors }) => setErrorState(errors.length > 0));
 
 // ─── Live mode (handled by transportBar.liveButton) ──────────────────────────
+// Inject live-button pulse animation once.
+const liveBtnStyle = document.createElement('style');
+liveBtnStyle.textContent = `
+  .bb-live-btn { border: 2px solid transparent; border-radius: 4px; transition: border-color 0.2s; }
+  .bb-live-btn--active {
+    border-color: #4caf50;
+    animation: bb-live-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes bb-live-pulse {
+    0%, 100% { box-shadow: 0 0 4px 2px rgba(76,175,80,0.35); }
+    50%       { box-shadow: 0 0 12px 4px rgba(76,175,80,0.75); }
+  }
+`;
+document.head.appendChild(liveBtnStyle);
+
 let liveMode = false;
 transportBar.liveButton.addEventListener('click', () => {
+  if (hasParseErrors) return; // button is disabled but guard anyway
   liveMode = !liveMode;
-  transportBar.liveButton.style.borderColor = liveMode ? '#4caf50' : 'transparent';
+  transportBar.liveButton.classList.toggle('bb-live-btn--active', liveMode);
   transportBar.liveButton.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
   opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
   if (!liveMode) {
@@ -351,8 +645,16 @@ transportBar.liveButton.addEventListener('click', () => {
   }
 });
 
-editor.onDidChangeModelContent?.(() => {
-  if (!liveMode) return;
+// React to content changes via the EditorState-emitted event.
+// (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
+// sole emitter of 'editor:changed'.)
+eventBus.on('editor:changed', () => {
+  // Always run a debounced parse so squiggles and Problems panel stay live.
+  clearTimeout((window as any).__bb_parseTimer);
+  (window as any).__bb_parseTimer = setTimeout(() => emitParse(getSource()), 600);
+
+  // Additionally trigger live playback when Live mode is on and song is valid.
+  if (!liveMode || hasParseErrors) return;
   clearTimeout((window as any).__bb_liveTimer);
   (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
 });
@@ -378,13 +680,56 @@ function fileBaseStem(path: string): string {
 /**
  * Parse song source and emit parse:success / parse:error so all subscribers
  * (ChannelMixer, StatusBar, etc.) immediately reflect the new song.
+ * Runs the full parse + resolve pipeline so semantic errors (undefined
+ * sequences, instruments, patterns) are detected and shown live.
  */
-function emitParse(content: string): void {
+async function emitParse(content: string): Promise<void> {
   try {
     eventBus.emit('parse:started', undefined);
     const ast = parse(content);
+
+    // Split parser diagnostics into errors and warnings
+    const errors: Array<{ component: string; message: string; loc?: any }> = [];
+    const warnings: Array<{ component: string; message: string; loc?: any }> = [];
+    for (const d of ((ast as any).diagnostics ?? [])) {
+      const entry = { component: d.component ?? 'parser', message: d.message, loc: d.loc };
+      if (d.level === 'error') errors.push(entry); else warnings.push(entry);
+    }
+
+    // Run the resolver to surface arrange/expand warnings.
+    // Use the async path when imports are present so remote/local imports
+    // (github:, https://) don't throw in browser sync mode and don't
+    // incorrectly mark a valid song as a parse error.
+    try {
+      const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
+      if ((ast as any).imports?.length > 0) {
+        await resolveSongAsync(ast as any, resolveOpts);
+      } else {
+        resolveSong(ast as any, resolveOpts);
+      }
+    } catch (resolveErr: any) {
+      eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
+      return;
+    }
+
+    // Emit errors (disables Play button, shows in Problems > Errors)
+    eventBus.emit('validation:errors', { errors });
+
+    // Emit warnings (informational only)
+    eventBus.emit('validation:warnings', { warnings });
+
+    // Update Monaco markers for both (preserve level so errors get red squiggles)
+    const allDiags = [
+      ...errors.map(e => ({ ...e, level: 'error' as const })),
+      ...warnings.map(w => ({ ...w, level: 'warning' as const })),
+    ];
+    if (allDiags.length > 0) {
+      diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
+    } else {
+      diagnosticsManager?.clear?.();
+    }
+
     eventBus.emit('parse:success', { ast });
-    diagnosticsManager?.clear?.();
   } catch (err: any) {
     eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
   }
@@ -393,15 +738,19 @@ function emitParse(content: string): void {
 async function handleExport(format: ExportFormat) {
   const source = getSource();
   if (!source.trim()) {
-    opWarn(outputPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
+    opWarn(problemsPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
     return;
   }
   const result = await exportManager.export(source, format, { filename: loadedFilename });
   if (result.success) {
     opLog(outputPanel, `✓ Exported ${result.filename} (${result.size ?? 0} bytes)`, 'export');
-    result.warnings?.forEach(w => opWarn(outputPanel, w, 'export'));
+    if (result.warnings?.length) {
+      result.warnings.forEach(w => opWarn(problemsPanel, w, 'export'));
+      showBottomTab('problems');
+    }
   } else {
-    opError(outputPanel, `Export failed: ${result.error?.message ?? 'unknown error'}`, 'export');
+    opError(problemsPanel, `Export failed: ${result.error?.message ?? 'unknown error'}`, 'export');
+    showBottomTab('problems');
   }
 }
 
@@ -421,7 +770,7 @@ const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
-  onShowShortcuts: () => helpPanel?.showShortcuts(),
+  onShowShortcuts: () => showRightTab('shortcuts'),
   onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
@@ -446,7 +795,7 @@ const menuBar = new MenuBar({
   },
   onSave: () => {
     const content = getSource();
-    if (!content.trim()) { opWarn(outputPanel, 'Nothing to save — the editor is empty.'); return; }
+    if (!content.trim()) { opWarn(problemsPanel, 'Nothing to save — the editor is empty.'); return; }
     downloadText(content, `${loadedFilename}.bax`, 'text/plain');
     opLog(outputPanel, `💾 Saved ${loadedFilename}.bax`);
   },
@@ -504,14 +853,15 @@ toolbar = new Toolbar({
   onExport: handleExport,
   onVerify: () => {
     const source = getSource();
-    if (!source.trim()) { opWarn(outputPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.'); return; }
+    if (!source.trim()) { opWarn(problemsPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.'); return; }
     try {
       parse(source);
       opLog(outputPanel, '✔ Verification passed', 'verify');
       diagnosticsManager?.clearAll?.();
       toolbar.setExportEnabled(true);
     } catch (err: any) {
-      opError(outputPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
+      opError(problemsPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
+      showBottomTab('problems');
       if (diagnosticsManager && err.loc) {
         diagnosticsManager.setMarkers([parseErrorToDiagnostic(err)]);
       }
@@ -590,19 +940,18 @@ monacoInst.addCommand(KeyCode.F5, () => { transportBar.playButton.click(); });
 monacoInst.addCommand(KeyCode.F8, () => { transportBar.stopButton.click(); });
 // Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.applyButton.click(); });
-// Shift+F1 → Toggle Help (F1 alone is Monaco's own Command Palette — leave that alone)
-monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { helpPanel?.toggle(); });
+// Shift+F1 → Switch to Help tab (F1 alone is Monaco's own Command Palette — leave that alone)
+monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { showRightTab('help'); });
 // Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
 // Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { helpPanel?.showShortcuts(); });
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { showRightTab('shortcuts'); });
 // Ctrl+Shift+L → Theme toggle.
 // Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
 // here via addCommand overrides that default while Monaco has focus.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
-// Ctrl+Shift+Y → Channel Monitor toggle (Monaco captures this key when focused).
+// Ctrl+Shift+Y → Switch to Channel Mixer tab (Monaco captures this key when focused).
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
-  const vis = ccContainer.style.display !== 'none';
-  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
+  showRightTab('channels');
 });
 // Ctrl+Alt+P → Monaco Command Palette (alternative to Ctrl+Shift+P which is
 // intercepted by browsers: Firefox opens a Private Window, Chrome/Edge open
@@ -616,7 +965,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
 // Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
 monacoInst.onKeyDown((e: IKeyboardEvent) => {
   if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-    if (helpPanel?.isVisible()) helpPanel.hide();
+    if (activeRightTab === 'help') switchRightTab('channels');
     // Do NOT call transportBar.stopButton.click() here: the same Escape that closes Monaco’s
     // find widget / suggestions overlay would also unexpectedly stop playback.
   }
@@ -638,8 +987,8 @@ ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
 ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
   action: () => transportBar.stopButton.click(),
 });
-ks.register({ key: 'Escape', description: 'Stop playback or close Help panel', allowInInput: false,
-  action: () => { if (helpPanel?.isVisible()) helpPanel?.hide(); else transportBar.stopButton.click(); },
+ks.register({ key: 'Escape', description: 'Stop playback', allowInInput: false,
+  action: () => transportBar.stopButton.click(),
 });
 // Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
 // addCommand above handles the in-editor case.
@@ -679,19 +1028,16 @@ ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave
 // browser-reserved shortcuts (Ctrl+Shift+R = hard refresh, Ctrl+Shift+B =
 // bookmarks, Ctrl+Shift+H = history, Ctrl+Shift+Y = reading list/pocket).
 // Ctrl+` is the exception (VS Code-style output/terminal toggle; no conflict).
-ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Toggle theme (Dark / Light)', allowInInput: true,
+ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
   action: () => menuBar.triggerToggleTheme() });
-ks.register({ key: '`', ctrlKey: true, description: 'Toggle Output panel', allowInInput: true,
-  action: () => {
-    const vis = outputPane.style.display !== 'none';
-    eventBus.emit('panel:toggled', { panel: 'output', visible: !vis });
-  },
+ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowInInput: true,
+  action: () => showBottomTab('output'),
 });
-ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
-  action: () => {
-    const vis = ccContainer.style.display !== 'none';
-    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
-  },
+ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
+  action: () => showBottomTab('problems'),
+});
+ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel Mixer tab', allowInInput: true,
+  action: () => showRightTab('channels'),
 });
 ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
   action: () => {
@@ -707,16 +1053,27 @@ ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Trans
 });
 
 // Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
-// Both shortcuts toggle the panel open/closed.
-ks.register({ key: 'F1', shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
-  action: () => helpPanel?.toggle() });
-ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Toggle Help Panel', allowInInput: true,
-  action: () => helpPanel?.toggle() });
-// Alt+Shift+K → jump directly to the Keyboard Shortcuts section.
-ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
-  action: () => helpPanel?.showShortcuts() });
+ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInInput: true,
+  action: () => showRightTab('help') });
+ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
+  action: () => showRightTab('help') });
+// Alt+Shift+K → switch directly to the Keyboard Shortcuts tab.
+ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts tab', allowInInput: true,
+  action: () => showRightTab('shortcuts') });
 
 ks.mount();
+
+// ─── Shortcuts panel — instantiated after ks.mount() so the full registered ─
+// shortcut list is available when HelpPanel first renders the section.
+const shortcutsPanel = withErrorBoundary('ShortcutsPanel', () => new HelpPanel({
+  container: shortcutsContainer,
+  eventBus,
+  embedded: true,
+  singleSection: 'shortcuts',
+  defaultVisible: true,
+  getShortcuts: () => ks.list(),
+}), appContainer);
+(window as any).__beatbax_shortcutsPanel = shortcutsPanel;
 
 log.debug('BeatBax initialised ✓');
 
