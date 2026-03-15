@@ -62,13 +62,8 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
     return { errors, warnings, ast: null as any };
   }
 
-  // Promote parser diagnostics into errors/warnings
-  for (const d of (ast.diagnostics ?? [])) {
-    const issue: ValidationIssue = { message: d.message, loc: d.loc, component: d.component };
-    if (d.level === 'error') errors.push(issue); else warnings.push(issue);
-  }
-
-  // Resolve imports if present (separate try/catch to provide better error messages)
+  // Resolve imports BEFORE promoting diagnostics so that instruments/sequences
+  // introduced by imports are visible when we decide which diagnostics are real.
   if (ast.imports && ast.imports.length > 0 && filename) {
     try {
       const absoluteFilePath = resolvePath(filename);
@@ -83,6 +78,21 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
       errors.push({ message: `Import error: ${extractErrorMessage(importErr)}` });
       return { errors, warnings, ast: null as any };
     }
+  }
+
+  // Promote parser diagnostics into errors/warnings AFTER import resolution.
+  // Filter out instrument-reference diagnostics for names that are now defined
+  // in the resolved AST (i.e. they were supplied by an import).
+  const resolvedInsts: Record<string, unknown> = ast.insts ?? {};
+  for (const d of (ast.diagnostics ?? [])) {
+    // Suppress instrument-reference issues that are resolved post-import.
+    const instMatch = typeof d.message === 'string'
+      ? d.message.match(/instrument '([^']+)' is not defined/)
+      : null;
+    if (instMatch && resolvedInsts[instMatch[1]]) continue;
+
+    const issue: ValidationIssue = { message: d.message, loc: d.loc, component: d.component };
+    if (d.level === 'error') errors.push(issue); else warnings.push(issue);
   }
 
   return { errors, warnings, ast };
