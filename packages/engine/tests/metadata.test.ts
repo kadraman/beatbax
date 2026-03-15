@@ -5,7 +5,7 @@ import { resolveSong } from '../src/song/resolver.js';
 import { exportUGE } from '../src/export/ugeWriter.js';
 
 describe('song metadata parsing and export', () => {
-  const examplePath = resolve(__dirname, '../../../songs/metadata_example.bax');
+  const examplePath = resolve(__dirname, '../../../songs/features/metadata_example.bax');
   it('parses metadata from .bax and resolves into SongModel', () => {
     const src = readFileSync(examplePath, 'utf8');
     const ast = parse(src);
