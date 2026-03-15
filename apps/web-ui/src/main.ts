@@ -9,7 +9,7 @@ import { Buffer } from 'buffer';
 (globalThis as any).Buffer = Buffer;
 
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song';
+import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -683,7 +683,7 @@ function fileBaseStem(path: string): string {
  * Runs the full parse + resolve pipeline so semantic errors (undefined
  * sequences, instruments, patterns) are detected and shown live.
  */
-function emitParse(content: string): void {
+async function emitParse(content: string): Promise<void> {
   try {
     eventBus.emit('parse:started', undefined);
     const ast = parse(content);
@@ -696,11 +696,17 @@ function emitParse(content: string): void {
       if (d.level === 'error') errors.push(entry); else warnings.push(entry);
     }
 
-    // Also run the synchronous resolver to surface arrange/expand warnings
+    // Run the resolver to surface arrange/expand warnings.
+    // Use the async path when imports are present so remote/local imports
+    // (github:, https://) don't throw in browser sync mode and don't
+    // incorrectly mark a valid song as a parse error.
     try {
-      resolveSong(ast as any, {
-        onWarn: (w: any) => warnings.push(w),
-      });
+      const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
+      if ((ast as any).imports?.length > 0) {
+        await resolveSongAsync(ast as any, resolveOpts);
+      } else {
+        resolveSong(ast as any, resolveOpts);
+      }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
       return;

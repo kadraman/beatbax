@@ -108,8 +108,12 @@ export class StatusBar {
 
     this.eventBus.on('validation:errors', ({ errors }) => {
       this.info.errorCount = errors.length;
-      if (errors.length > 0 && this.info.status !== 'Playback error' && this.info.status !== 'Parse error') {
-        this.info.status = 'Ready';
+      if (errors.length === 0) {
+        if (this.info.status !== 'Playback error' && this.info.status !== 'Parse error') {
+          this.info.status = 'Ready';
+        }
+      } else {
+        this.info.status = 'Parse error';
       }
       this.render();
     });
