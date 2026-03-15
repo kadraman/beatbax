@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.0
+
+### Minor Changes
+
+- d9653cf: Structured parser diagnostics with error/warning levels
+
 ## 0.4.0
 
 ### Minor Changes
