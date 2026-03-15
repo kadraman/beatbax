@@ -55,15 +55,16 @@ export class StatusBar {
     });
 
     this.eventBus.on('parse:success', ({ ast }) => {
-      this.setStatus('Parse successful');
-      this.info.errorCount = 0;
-
-      // Extract BPM and chip from AST
+      // Extract BPM and chip from AST — but only update status if there are no
+      // validation errors (validation:errors fires separately and sets errorCount).
       if (ast) {
         this.info.bpm = (ast as any).bpm || 120;
         this.info.chip = (ast as any).chip || 'gameboy';
       }
-
+      // Only reset the status text if it was a transient "Parsing…" state.
+      if (this.info.status === 'Parsing...') {
+        this.info.status = 'Ready';
+      }
       this.render();
     });
 
@@ -107,6 +108,9 @@ export class StatusBar {
 
     this.eventBus.on('validation:errors', ({ errors }) => {
       this.info.errorCount = errors.length;
+      if (errors.length > 0 && this.info.status !== 'Playback error' && this.info.status !== 'Parse error') {
+        this.info.status = 'Ready';
+      }
       this.render();
     });
 

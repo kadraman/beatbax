@@ -27,191 +27,189 @@ export class OutputPanel {
   private container: HTMLElement;
   private maxMessages = 1000; // Prevent memory issues
   private activeTab: 'problems' | 'output' = 'problems';
+  private singleTab: 'problems' | 'output' | undefined;
 
   constructor(
     container: HTMLElement,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    options: { singleTab?: 'problems' | 'output' } = {}
   ) {
     this.container = container;
+    this.singleTab = options.singleTab;
     this.setupEventListeners();
     this.render();
   }
 
   /**
-   * Subscribe to relevant events
+   * Subscribe to relevant events.
+   * When singleTab is set, only subscribe to events that are relevant for that view:
+   *   'problems' → parse/validation/playback errors only
+   *   'output'   → playback status and export events only
+   * This prevents the two panels from accumulating invisible messages from
+   * each other's domains, which would waste the maxMessages budget and could
+   * cause subtle clearing side-effects.
    */
   private setupEventListeners(): void {
-    // Parse errors
-    this.eventBus.on('parse:error', ({ error, message }) => {
-      // Clear previous parse errors before adding new one
-      this.clearMessagesBySource('parser', 'error');
+    const wantsProblems = this.singleTab !== 'output'; // problems or dual-tab
+    const wantsOutput   = this.singleTab !== 'problems'; // output or dual-tab
 
-      this.addMessage({
-        type: 'error',
-        message: message || error.message || String(error),
-        source: 'parser',
-        timestamp: new Date(),
-        loc: (error as any).location,
-      });
-    });
+    if (wantsProblems) {
+      // Parse errors
+      this.eventBus.on('parse:error', ({ error, message }) => {
+        // Clear previous parse errors before adding new one
+        this.clearMessagesBySource('parser', 'error');
 
-    // Playback errors
-    this.eventBus.on('playback:error', ({ error }) => {
-      this.addMessage({
-        type: 'error',
-        message: `Playback error: ${error.message}`,
-        source: 'playback',
-        timestamp: new Date(),
-      });
-    });
-
-    // Validation warnings
-    this.eventBus.on('validation:warnings', ({ warnings }) => {
-      // If validation ran, that means parsing succeeded - clear parse errors
-      this.clearMessagesBySource('parser', 'error');
-
-      // Clear previous validation warnings
-      this.clearMessagesBySource('validation', 'warning');
-
-      // Add all warnings, skipping render until the last one
-      for (let i = 0; i < warnings.length; i++) {
-        const w = warnings[i];
-        const isLast = i === warnings.length - 1;
-        this.addMessage({
-          type: 'warning',
-          message: w.message, // Don't include component - source property handles it
-          source: 'validation',
-          timestamp: new Date(),
-          loc: w.loc,
-          suggestion: w.suggestion,
-        }, !isLast); // Skip render for all but last message
-      }
-
-      // If no warnings, render to show empty state
-      if (warnings.length === 0) {
-        this.render();
-      }
-    });
-
-    // Validation errors
-    this.eventBus.on('validation:errors', ({ errors }) => {
-      // Clear previous validation errors before adding new ones
-      this.clearMessagesBySource('validation', 'error');
-
-      // Add all errors, skipping render until the last one
-      for (let i = 0; i < errors.length; i++) {
-        const e = errors[i];
-        const isLast = i === errors.length - 1;
         this.addMessage({
           type: 'error',
-          message: e.message,
-          source: 'validation',
+          message: message || error.message || String(error),
+          source: 'parser',
           timestamp: new Date(),
-          loc: e.loc,
-          suggestion: e.suggestion,
-        }, !isLast); // Skip render for all but last message
-      }
-
-      // If no errors, render to show empty state
-      if (errors.length === 0) {
-        this.render();
-      }
-    });
-
-    // Export events
-    this.eventBus.on('export:started', ({ format }) => {
-      this.addMessage({
-        type: 'info',
-        message: `Exporting to ${format}...`,
-        source: 'export',
-        timestamp: new Date(),
+          loc: (error as any).location,
+        });
       });
-    });
 
-    this.eventBus.on('export:success', ({ format, filename }) => {
-      this.addMessage({
-        type: 'success',
-        message: `Successfully exported to ${filename}`,
-        source: 'export',
-        timestamp: new Date(),
+      // Playback errors
+      this.eventBus.on('playback:error', ({ error }) => {
+        this.addMessage({
+          type: 'error',
+          message: `Playback error: ${error.message}`,
+          source: 'playback',
+          timestamp: new Date(),
+        });
       });
-    });
 
-    this.eventBus.on('export:error', ({ format, error }) => {
-      this.addMessage({
-        type: 'error',
-        message: `Export failed (${format}): ${error.message}`,
-        source: 'export',
-        timestamp: new Date(),
+      // Validation warnings
+      this.eventBus.on('validation:warnings', ({ warnings }) => {
+        // If validation ran, that means parsing succeeded - clear parse errors
+        this.clearMessagesBySource('parser', 'error');
+
+        // Clear previous validation warnings
+        this.clearMessagesBySource('validation', 'warning');
+
+        // Add all warnings, skipping render until the last one
+        for (let i = 0; i < warnings.length; i++) {
+          const w = warnings[i];
+          const isLast = i === warnings.length - 1;
+          this.addMessage({
+            type: 'warning',
+            message: w.message,
+            source: 'validation',
+            timestamp: new Date(),
+            loc: w.loc,
+            suggestion: w.suggestion,
+          }, !isLast);
+        }
+
+        if (warnings.length === 0) {
+          this.render();
+        }
       });
-    });
 
-    // Parse success - clear parse errors and optionally log to output
-    this.eventBus.on('parse:success', () => {
-      // Clear previous parse errors when parse succeeds
-      this.clearMessagesBySource('parser', 'error');
+      // Validation errors
+      this.eventBus.on('validation:errors', ({ errors }) => {
+        // Clear previous validation errors before adding new ones
+        this.clearMessagesBySource('validation', 'error');
 
-      // Optionally add success message to Output tab (commented out to reduce noise)
-      // this.addMessage({
-      //   type: 'success',
-      //   message: 'Parse successful',
-      //   source: 'parser',
-      //   timestamp: new Date(),
-      // });
-    });
+        for (let i = 0; i < errors.length; i++) {
+          const e = errors[i];
+          const isLast = i === errors.length - 1;
+          this.addMessage({
+            type: 'error',
+            message: e.message,
+            source: 'validation',
+            timestamp: new Date(),
+            loc: e.loc,
+            suggestion: e.suggestion,
+          }, !isLast);
+        }
 
-    // Playback started
-    this.eventBus.on('playback:started', () => {
-      // Switch to Output tab to show playback messages
-      this.activeTab = 'output';
-
-      this.addMessage({
-        type: 'info',
-        message: 'Playback started',
-        source: 'playback',
-        timestamp: new Date(),
+        if (errors.length === 0) {
+          this.render();
+        }
       });
-    });
 
-    // Playback paused
-    this.eventBus.on('playback:paused', () => {
-      this.addMessage({
-        type: 'info',
-        message: 'Playback paused',
-        source: 'playback',
-        timestamp: new Date(),
+      // Parse success - clear parse errors
+      this.eventBus.on('parse:success', () => {
+        this.clearMessagesBySource('parser', 'error');
       });
-    });
+    }
 
-    // Playback resumed
-    this.eventBus.on('playback:resumed', () => {
-      this.addMessage({
-        type: 'info',
-        message: 'Playback resumed',
-        source: 'playback',
-        timestamp: new Date(),
+    if (wantsOutput) {
+      // Export events
+      this.eventBus.on('export:started', ({ format }) => {
+        this.addMessage({
+          type: 'info',
+          message: `Exporting to ${format}...`,
+          source: 'export',
+          timestamp: new Date(),
+        });
       });
-    });
 
-    // Playback stopped
-    this.eventBus.on('playback:stopped', () => {
-      this.addMessage({
-        type: 'info',
-        message: 'Playback stopped',
-        source: 'playback',
-        timestamp: new Date(),
+      this.eventBus.on('export:success', ({ format, filename }) => {
+        this.addMessage({
+          type: 'success',
+          message: `Successfully exported to ${filename}`,
+          source: 'export',
+          timestamp: new Date(),
+        });
       });
-    });
 
-    // Playback repeated (when song loops)
-    this.eventBus.on('playback:repeated', () => {
-      this.addMessage({
-        type: 'info',
-        message: 'Playback repeated',
-        source: 'playback',
-        timestamp: new Date(),
+      this.eventBus.on('export:error', ({ format, error }) => {
+        this.addMessage({
+          type: 'error',
+          message: `Export failed (${format}): ${error.message}`,
+          source: 'export',
+          timestamp: new Date(),
+        });
       });
-    });
+
+      // Playback status events
+      this.eventBus.on('playback:started', () => {
+        this.activeTab = 'output';
+        this.addMessage({
+          type: 'info',
+          message: 'Playback started',
+          source: 'playback',
+          timestamp: new Date(),
+        });
+      });
+
+      this.eventBus.on('playback:paused', () => {
+        this.addMessage({
+          type: 'info',
+          message: 'Playback paused',
+          source: 'playback',
+          timestamp: new Date(),
+        });
+      });
+
+      this.eventBus.on('playback:resumed', () => {
+        this.addMessage({
+          type: 'info',
+          message: 'Playback resumed',
+          source: 'playback',
+          timestamp: new Date(),
+        });
+      });
+
+      this.eventBus.on('playback:stopped', () => {
+        this.addMessage({
+          type: 'info',
+          message: 'Playback stopped',
+          source: 'playback',
+          timestamp: new Date(),
+        });
+      });
+
+      this.eventBus.on('playback:repeated', () => {
+        this.addMessage({
+          type: 'info',
+          message: 'Playback repeated',
+          source: 'playback',
+          timestamp: new Date(),
+        });
+      });
+    }
   }
 
   /**
@@ -277,49 +275,72 @@ export class OutputPanel {
     const warningCount = problems.filter(m => m.type === 'warning').length;
     const problemCount = errorCount + warningCount;
 
-    const html = `
-      <div class="output-tabs">
-        <button class="output-tab ${this.activeTab === 'problems' ? 'active' : ''}" data-tab="problems">
-          Problems ${problemCount > 0 ? `<span class="tab-badge">${problemCount}</span>` : ''}
-        </button>
-        <button class="output-tab ${this.activeTab === 'output' ? 'active' : ''}" data-tab="output">
-          Output
-        </button>
-        <button class="clear-btn" title="Clear ${this.activeTab}">Clear</button>
-      </div>
-      <div class="output-content">
-        ${this.activeTab === 'problems'
-          ? this.renderProblems(sortedProblems, errorCount, warningCount)
-          : this.renderOutput(outputs)
-        }
-      </div>
-    `;
+    let html: string;
+    if (this.singleTab) {
+      const content = this.singleTab === 'problems'
+        ? this.renderProblems(sortedProblems, errorCount, warningCount)
+        : this.renderOutput(outputs);
+      html = `<div class="output-content" style="height:100%">${content}</div>`;
+    } else {
+      html = `
+        <div class="output-tabs">
+          <button class="output-tab ${this.activeTab === 'problems' ? 'active' : ''}" data-tab="problems">
+            Problems ${problemCount > 0 ? `<span class="tab-badge">${problemCount}</span>` : ''}
+          </button>
+          <button class="output-tab ${this.activeTab === 'output' ? 'active' : ''}" data-tab="output">
+            Output
+          </button>
+          <button class="clear-btn" title="Clear ${this.activeTab}">Clear</button>
+        </div>
+        <div class="output-content">
+          ${this.activeTab === 'problems'
+            ? this.renderProblems(sortedProblems, errorCount, warningCount)
+            : this.renderOutput(outputs)
+          }
+        </div>
+      `;
+    }
 
     this.container.innerHTML = html;
 
-    // Wire up tab buttons
-    this.container.querySelectorAll('.output-tab').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const tab = (e.target as HTMLElement).getAttribute('data-tab') as 'problems' | 'output';
-        if (tab) {
-          this.activeTab = tab;
-          this.render();
-        }
+    if (!this.singleTab) {
+      // Wire up tab buttons
+      this.container.querySelectorAll('.output-tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const tab = (e.target as HTMLElement).getAttribute('data-tab') as 'problems' | 'output';
+          if (tab) {
+            this.activeTab = tab;
+            this.render();
+          }
+        });
       });
-    });
 
-    // Wire up clear button
-    this.container.querySelector('.clear-btn')?.addEventListener('click', () => {
-      if (this.activeTab === 'problems') {
-        this.messages = this.messages.filter(m => m.type !== 'error' && m.type !== 'warning');
-      } else {
-        this.messages = this.messages.filter(m => m.type !== 'info' && m.type !== 'success');
-      }
-      this.render();
+      // Wire up clear button
+      this.container.querySelector('.clear-btn')?.addEventListener('click', () => {
+        if (this.activeTab === 'problems') {
+          this.messages = this.messages.filter(m => m.type !== 'error' && m.type !== 'warning');
+        } else {
+          this.messages = this.messages.filter(m => m.type !== 'info' && m.type !== 'success');
+        }
+        this.render();
+      });
+    }
+
+    // Wire click-to-navigate on problem rows that have location info
+    this.container.querySelectorAll<HTMLElement>('[data-nav-line]').forEach(el => {
+      el.addEventListener('click', () => {
+        const line = parseInt(el.getAttribute('data-nav-line') ?? '0', 10);
+        const column = parseInt(el.getAttribute('data-nav-col') ?? '1', 10);
+        if (line > 0) this.eventBus.emit('navigate:to', { line, column });
+      });
     });
 
     // Add CSS if not already present
     this.ensureStyles();
+
+    // Scroll the output messages list to the bottom so the latest entry is visible.
+    const msgList = this.container.querySelector<HTMLElement>('.output-messages');
+    if (msgList) msgList.scrollTop = msgList.scrollHeight;
   }
 
   /**
@@ -349,12 +370,10 @@ export class OutputPanel {
       return '<div class="empty-state">No output messages</div>';
     }
 
-    // Reverse to show newest messages at the top
-    const reversedOutputs = [...outputs].reverse();
-
+    // Chronological order — newest at the bottom; we scroll there after render.
     return `
       <div class="output-messages">
-        ${reversedOutputs.map(msg => this.renderOutputMessage(msg)).join('')}
+        ${outputs.map(msg => this.renderOutputMessage(msg)).join('')}
       </div>
     `;
   }
@@ -367,9 +386,10 @@ export class OutputPanel {
     const source = msg.source ? `[${msg.source}]` : '';
 
     let locBadge = '';
+    let line = 0, col = 1;
     if (msg.loc && msg.loc.start) {
-      const line = msg.loc.start.line;
-      const col = msg.loc.start.column ?? 1; // already 1-based (Peggy convention)
+      line = msg.loc.start.line ?? 0;
+      col = msg.loc.start.column ?? 1;
       locBadge = `<span class="output-loc">line ${line}, col ${col}</span>`;
     }
 
@@ -377,8 +397,10 @@ export class OutputPanel {
       ? `<div class="output-suggestion">💡 ${this.escapeHtml(msg.suggestion)}</div>`
       : '';
 
+    const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}" style="cursor:pointer" title="Click to jump to line ${line}"` : '';
+
     return `
-      <div class="output-message output-${msg.type}">
+      <div class="output-message output-${msg.type}" ${navAttrs}>
         <div class="output-message-main">
           <span class="output-icon">${icon}</span>
           ${source ? `<span class="output-source">${source}</span>` : ''}
@@ -600,6 +622,11 @@ export class OutputPanel {
         border-radius: 3px;
         border: 1px solid var(--border-color, #444);
         white-space: nowrap;
+      }
+
+      [data-nav-line]:hover {
+        background: var(--button-hover-bg, rgba(255,255,255,0.06));
+        border-radius: 3px;
       }
 
       .output-suggestion {
