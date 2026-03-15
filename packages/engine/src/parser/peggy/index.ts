@@ -647,7 +647,7 @@ export function parseWithPeggy(source: string): AST {
 
   // Instrument type and property validation
   const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
-  const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed']);
+  const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
   const INST_TYPE_PROPS: Record<string, Set<string>> = {
     pulse1: new Set(['duty', 'sweep', 'width']),
     pulse2: new Set(['duty', 'width']),
@@ -680,7 +680,10 @@ export function parseWithPeggy(source: string): AST {
     if (!ch.inst) {
       diag('error', 'parser', `Channel ${ch.id}: no instrument assigned -- check for a typo in 'inst <name>'.`, chLoc);
     } else if (!insts[ch.inst]) {
-      diag('error', 'parser', `Channel ${ch.id}: instrument '${ch.inst}' is not defined.`, chLoc);
+      // Downgrade to a warning when imports are present: the instrument may be
+      // supplied by an import that hasn't been resolved yet.
+      const instDiagLevel = imports.length > 0 ? 'warning' : 'error';
+      diag(instDiagLevel, 'parser', `Channel ${ch.id}: instrument '${ch.inst}' is not defined.`, chLoc);
     }
     const hasSeqSpec = chAny.seqSpecTokens && (chAny.seqSpecTokens as string[]).length > 0;
     const hasPat = ch.pat !== undefined;
@@ -691,7 +694,7 @@ export function parseWithPeggy(source: string): AST {
       const rawTokens: string[] = hasSeqSpec ? (chAny.seqSpecTokens as string[]) : [];
       if (rawTokens.length === 0 && typeof ch.pat === 'string') rawTokens.push(...ch.pat.split(/[\s,]+/));
       for (const tok of rawTokens) {
-        const base = tok.split(':')[0].trim();
+        const base = tok.split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
         if (base && !seqs[base] && !pats[base]) {
           diag('error', 'parser', `Channel ${ch.id}: sequence/pattern '${base}' is not defined.`, chLoc);
         }
@@ -717,6 +720,9 @@ export function parseWithPeggy(source: string): AST {
         if (NOTE_RE.test(val)) continue;
         if (val === '.' || val === '_' || val === '-') continue;
         if (insts[val] || pats[val] || seqs[val]) continue;
+        // Skip when imports are present: the token may be a valid instrument
+        // name that will be introduced by import resolution.
+        if (imports.length > 0) continue;
         diag('warning', 'parser', `Pattern '${patName}': unknown token '${val}' — not a valid note, rest, or defined name.`, ev.loc);
       }
     }
@@ -725,7 +731,7 @@ export function parseWithPeggy(source: string): AST {
   // Sequence item reference validation: check each item name exists as a seq or pat
   for (const [seqName, items] of Object.entries(sequenceItems ?? {})) {
     for (const item of items) {
-      const base = item.name.split(':')[0].trim();
+      const base = item.name.split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
       if (base && !seqs[base] && !pats[base]) {
         diag('error', 'parser', `Sequence '${seqName}': pattern/sequence '${base}' is not defined.`, item.loc);
       }
