@@ -9,7 +9,7 @@ High level
     `:inst(name)`, `:oct(-1)`) are applied during expansion and produce the per-channel
     ISM directly. Existing `channel` mappings remain supported as a legacy/fallback.
 - Key folders:
-  - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser has been removed after the Peggy migration. Produces the minimal AST: `pats`, `insts`, `channels`.
+  - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser has been removed after the Peggy migration. Produces the minimal AST: `pats`, `insts`, `channels`. After a successful parse the parser runs a semantic validation pass that populates `ast.diagnostics: ParseDiagnostic[]` with `'error'` and `'warning'` level entries (see `ast.ts`). Consumers should check `ast.diagnostics` rather than catching exceptions for semantic issues.
   - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.
   - `packages/engine/src/audio/` — `playback.ts` implements `Player`, `Scheduler`, and channel playback helpers: `playPulse`, `playWavetable`, `playNoise`.
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).

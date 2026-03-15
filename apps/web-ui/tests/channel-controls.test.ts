@@ -1,8 +1,9 @@
 /**
- * Tests for ChannelControls panel (Phase 2.5.2)
+ * Tests for ChannelControls / ChannelMixer panel (Phase 2.5.2)
+ * Updated to use ChannelMixer (the unified replacement for the former ChannelControls)
  */
 
-import { ChannelControls } from '../src/panels/channel-controls';
+import { ChannelMixer as ChannelControls } from '../src/panels/channel-mixer';
 import { EventBus } from '../src/utils/event-bus';
 import { ChannelState } from '../src/playback/channel-state';
 import type { PlaybackPosition } from '../src/playback/playback-manager';
@@ -37,7 +38,6 @@ describe('Phase 2.5.2: ChannelControls', () => {
   it('should render empty state when no channels defined', () => {
     channelControls.render();
 
-    expect(container.innerHTML).toContain('Channel Controls');
     expect(container.innerHTML).toContain('No channels defined');
   });
 
@@ -84,24 +84,24 @@ describe('Phase 2.5.2: ChannelControls', () => {
     eventBus.emit('playback:position-changed', { channelId: 1, position });
 
     // Check that instrument is updated
-    const instEl = document.getElementById('ch-inst-1');
+    const instEl = document.getElementById('bb-cp-inst-1');
     expect(instEl).toBeTruthy();
     expect(instEl?.textContent).toContain('lead');
 
     // Check that pattern info is displayed
-    const patternEl = document.getElementById('ch-pattern-1');
+    const patternEl = document.getElementById('bb-cp-pattern-1');
     expect(patternEl).toBeTruthy();
     expect(patternEl?.textContent).toContain('melody');
     expect(patternEl?.textContent).toContain('main');
 
     // Check that progress bar is updated
-    const progressFill = document.getElementById('ch-progress-1');
+    const progressFill = document.getElementById('bb-cp-progress-1');
     expect(progressFill).toBeTruthy();
     const expectedProgress = Math.round((5 / 32) * 100);
     expect(progressFill?.style.width).toBe(`${expectedProgress}%`);
 
     // Check position text
-    const positionEl = document.getElementById('ch-position-1');
+    const positionEl = document.getElementById('bb-cp-pos-1');
     expect(positionEl?.textContent).toBe('6/32');
   });
 
@@ -132,13 +132,13 @@ describe('Phase 2.5.2: ChannelControls', () => {
     eventBus.emit('playback:stopped', undefined);
 
     // Check that displays are reset
-    const progressFill = document.getElementById('ch-progress-1');
+    const progressFill = document.getElementById('bb-cp-progress-1');
     expect(progressFill?.style.width).toBe('0%');
 
-    const positionEl = document.getElementById('ch-position-1');
+    const positionEl = document.getElementById('bb-cp-pos-1');
     expect(positionEl?.textContent).toBe('0/0');
 
-    const patternEl = document.getElementById('ch-pattern-1');
+    const patternEl = document.getElementById('bb-cp-pattern-1');
     expect(patternEl?.textContent).toBe('');
   });
 
@@ -151,14 +151,14 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     eventBus.emit('parse:success', { ast });
 
-    const muteBtn = container.querySelector('button');
+    const muteBtn = document.getElementById('bb-cp-mute-1') as HTMLButtonElement | null;
     expect(muteBtn).toBeTruthy();
-    expect(muteBtn?.textContent).toContain('Mute');
+    expect(muteBtn?.title).toContain('Mute');
 
     // Click mute button
     muteBtn?.click();
 
-    expect(muteBtn?.textContent).toContain('Unmute');
+    expect(muteBtn?.getAttribute('aria-pressed')).toBe('true');
     expect(channelState.getChannel(1)?.muted).toBe(true);
   });
 
@@ -185,7 +185,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     eventBus.emit('playback:position-changed', { channelId: 1, position });
 
-    let progressFill = document.getElementById('ch-progress-1');
+    let progressFill = document.getElementById('bb-cp-progress-1');
     expect(progressFill?.style.width).toBe('0%');
 
     // Middle of playback (50%)
@@ -197,7 +197,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     eventBus.emit('playback:position-changed', { channelId: 1, position });
 
-    progressFill = document.getElementById('ch-progress-1');
+    progressFill = document.getElementById('bb-cp-progress-1');
     expect(progressFill?.style.width).toBe('50%');
 
     // End of playback (100%)
@@ -209,7 +209,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     eventBus.emit('playback:position-changed', { channelId: 1, position });
 
-    progressFill = document.getElementById('ch-progress-1');
+    progressFill = document.getElementById('bb-cp-progress-1');
     expect(progressFill?.style.width).toBe('99%');
   });
 
@@ -235,7 +235,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     eventBus.emit('playback:position-changed', { channelId: 1, position });
 
-    const patternEl = document.getElementById('ch-pattern-1');
+    const patternEl = document.getElementById('bb-cp-pattern-1');
     expect(patternEl?.textContent).toContain('main • melody'); // Updated to match new UI logic
   });
 
@@ -314,65 +314,65 @@ describe('Phase 2.5.2: ChannelControls', () => {
     });
 
     it('solo button click marks the channel as soloed', () => {
-      document.getElementById('ch-solo-1')!.click();
+      document.getElementById('bb-cp-solo-1')!.click();
       expect(channelState.getChannel(1)?.soloed).toBe(true);
     });
 
-    it('solo button shows Unsolo text when the channel is soloed', () => {
-      document.getElementById('ch-solo-1')!.click();
-      expect(document.getElementById('ch-solo-1')?.textContent).toContain('Unsolo');
+    it('solo button shows soloed state when the channel is soloed', () => {
+      document.getElementById('bb-cp-solo-1')!.click();
+      expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('true');
     });
 
     it('second solo click unsoloes the channel', () => {
-      document.getElementById('ch-solo-1')!.click();
-      document.getElementById('ch-solo-1')!.click();
+      document.getElementById('bb-cp-solo-1')!.click();
+      document.getElementById('bb-cp-solo-1')!.click();
       expect(channelState.getChannel(1)?.soloed).toBe(false);
-      expect(document.getElementById('ch-solo-1')?.textContent).not.toContain('Unsolo');
+      expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('false');
     });
 
-    it('soloing channel 1 fully dims the row of channel 2', () => {
-      document.getElementById('ch-solo-1')!.click();
-      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
-      expect(document.getElementById('ch-row-2')?.style.opacity).toBe('0.5');
+    it('soloing channel 1 adds silent class to the card of channel 2', () => {
+      document.getElementById('bb-cp-solo-1')!.click();
+      expect(document.getElementById('bb-cp-card-1')?.classList.contains('bb-cp__card--silent')).toBe(false);
+      expect(document.getElementById('bb-cp-card-2')?.classList.contains('bb-cp__card--silent')).toBe(true);
     });
 
-    it('unsoloing all channels restores all rows to full opacity', () => {
-      document.getElementById('ch-solo-1')!.click(); // solo
-      document.getElementById('ch-solo-1')!.click(); // unsolo
-      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
-      expect(document.getElementById('ch-row-2')?.style.opacity).toBe('1');
+    it('unsoloing all channels removes silent class from all cards', () => {
+      document.getElementById('bb-cp-solo-1')!.click(); // solo
+      document.getElementById('bb-cp-solo-1')!.click(); // unsolo
+      expect(document.getElementById('bb-cp-card-1')?.classList.contains('bb-cp__card--silent')).toBe(false);
+      expect(document.getElementById('bb-cp-card-2')?.classList.contains('bb-cp__card--silent')).toBe(false);
     });
 
-    it('muting channel 1 dims its row', () => {
-      document.getElementById('ch-mute-1')!.click();
-      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('0.5');
+    it('muting channel 1 adds silent class to its card', () => {
+      document.getElementById('bb-cp-mute-1')!.click();
+      expect(document.getElementById('bb-cp-card-1')?.classList.contains('bb-cp__card--silent')).toBe(true);
     });
 
-    it('unmuting restores row to full opacity', () => {
-      document.getElementById('ch-mute-1')!.click(); // mute
-      document.getElementById('ch-mute-1')!.click(); // unmute
-      expect(document.getElementById('ch-row-1')?.style.opacity).toBe('1');
+    it('unmuting removes silent class from the card', () => {
+      document.getElementById('bb-cp-mute-1')!.click(); // mute
+      document.getElementById('bb-cp-mute-1')!.click(); // unmute
+      expect(document.getElementById('bb-cp-card-1')?.classList.contains('bb-cp__card--silent')).toBe(false);
     });
 
-    it('muting via channelState.mute() updates button text without re-rendering', () => {
+    it('muting via channelState.mute() updates button aria-pressed without re-rendering', () => {
       const renderSpy = jest.spyOn(channelControls as any, 'render');
       channelState.mute(1);
-      expect(document.getElementById('ch-mute-1')?.textContent).toContain('Unmute');
+      expect(document.getElementById('bb-cp-mute-1')?.getAttribute('aria-pressed')).toBe('true');
       expect(renderSpy).not.toHaveBeenCalled();
       renderSpy.mockRestore();
     });
 
-    it('soloing via channelState.solo() updates solo button text without re-rendering', () => {
+    it('soloing via channelState.solo() updates solo button aria-pressed without re-rendering', () => {
       const renderSpy = jest.spyOn(channelControls as any, 'render');
       channelState.solo(1);
-      expect(document.getElementById('ch-solo-1')?.textContent).toContain('Unsolo');
+      expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('true');
       expect(renderSpy).not.toHaveBeenCalled();
       renderSpy.mockRestore();
     });
 
-    it('soloing channel 1 via channelState leaves channel 2 solo button showing Solo', () => {
+    it('soloing channel 1 via channelState leaves channel 2 solo button not pressed', () => {
       channelState.solo(1);
-      expect(document.getElementById('ch-solo-2')?.textContent).not.toContain('Unsolo');
+      expect(document.getElementById('bb-cp-solo-2')?.getAttribute('aria-pressed')).toBe('false');
     });
 
     it('soloing channel 2 transfers the soloed state from channel 1', () => {
@@ -380,8 +380,8 @@ describe('Phase 2.5.2: ChannelControls', () => {
       channelState.solo(2);
       expect(channelState.getChannel(1)?.soloed).toBe(false);
       expect(channelState.getChannel(2)?.soloed).toBe(true);
-      expect(document.getElementById('ch-solo-1')?.textContent).not.toContain('Unsolo');
-      expect(document.getElementById('ch-solo-2')?.textContent).toContain('Unsolo');
+      expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('false');
+      expect(document.getElementById('bb-cp-solo-2')?.getAttribute('aria-pressed')).toBe('true');
     });
   });
 });

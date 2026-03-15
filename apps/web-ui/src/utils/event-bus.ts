@@ -50,7 +50,10 @@ export interface BeatBaxEvents {
 
   // Validation events
   'validation:warnings': { warnings: Array<{ component: string; message: string; suggestion?: string; file?: string; loc?: any }> };
-  'validation:errors': { errors: Array<{ message: string; suggestion?: string; loc?: any }> };
+  'validation:errors': { errors: Array<{ component?: string; message: string; suggestion?: string; loc?: any }> };
+
+  // Editor navigation (emitted by Problems panel when user clicks a diagnostic row)
+  'navigate:to': { line: number; column: number };
 }
 
 type EventCallback<T> = (data: T) => void;

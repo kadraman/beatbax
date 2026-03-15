@@ -1,9 +1,17 @@
 ---
 title: "Parser Error Recovery for Multiple Syntax Errors"
-status: proposed
+status: partial
 authors: ["GitHub Copilot"]
 created: 2026-02-16
 issue: ""
+---
+
+## Implementation Status
+
+**Semantic validation (implemented):** The parser now runs a post-parse semantic validation pass after a successful Peggy parse. All issues discovered during this pass are collected into `ast.diagnostics: ParseDiagnostic[]` rather than thrown as exceptions, so multiple issues are reported in one parse cycle. This covers: unknown chip names, unknown play flags, bad instrument types, unknown instrument properties, undefined instrument/sequence/pattern references, and channel configuration errors. Unknown pattern tokens (non-note, non-rest identifiers that don't resolve to a defined name) emit warnings. The web UI Problems panel and CLI `verify` command both consume `ast.diagnostics` directly.
+
+**PEG-level multi-error recovery (still proposed):** See the original proposal below. Recovering from hard syntax errors (e.g. a misspelled keyword that prevents the grammar from matching) during the Peggy parse itself is a separate and more complex effort that remains unimplemented.
+
 ---
 
 ## Summary

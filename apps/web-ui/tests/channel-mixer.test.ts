@@ -55,8 +55,8 @@ describe('Phase 4: ChannelMixer', () => {
 
   // ── Initial render ──────────────────────────────────────────────────────────
 
-  it('renders the panel header', () => {
-    expect(container.innerHTML).toContain('Channel Controls');
+  it('renders the panel', () => {
+    expect(container.innerHTML).toContain('aria-label="Mixer"');
   });
 
   it('shows "No channels defined" when no AST is set', () => {

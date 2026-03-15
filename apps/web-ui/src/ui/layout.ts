@@ -44,6 +44,20 @@ export interface LayoutManager {
 export interface ThreePaneLayoutManager extends LayoutManager {
   /** Get the right panel element (for channel controls) */
   getRightPane: () => HTMLElement;
+  /** Get the splitter between editor and output (vertical/row resize) */
+  getVerticalSplitter: () => HTMLElement;
+  /** Get the splitter between left area and right panel (horizontal/col resize) */
+  getHorizontalSplitter: () => HTMLElement;
+  /**
+   * Show or hide the right pane + its splitter, expanding the left area to fill
+   * the full width when hidden, or restoring layout sizes when shown.
+   */
+  setRightPaneVisible: (visible: boolean) => void;
+  /**
+   * Show or hide the output pane + its splitter, expanding the editor to fill
+   * the full height when hidden, or restoring layout sizes when shown.
+   */
+  setOutputPaneVisible: (visible: boolean) => void;
 }
 
 const DEFAULT_STORAGE_KEY = 'beatbax-layout-sizes';
@@ -625,6 +639,23 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
     getEditorPane: () => editorPane,
     getOutputPane: () => outputPane,
     getRightPane: () => rightPane,
+    getVerticalSplitter: () => verticalSplitter,
+    getHorizontalSplitter: () => horizontalSplitter,
+    setRightPaneVisible(visible: boolean): void {
+      rightPane.style.display = visible ? '' : 'none';
+      horizontalSplitter.style.display = visible ? '' : 'none';
+      leftContentArea.style.width = visible ? `${leftAreaWidth}%` : '100%';
+      window.dispatchEvent(new Event('resize'));
+    },
+    setOutputPaneVisible(visible: boolean): void {
+      // Use 'flex' (not '') to restore — outputPane is repurposed as a flex
+      // column tab container by main.ts, so '' would revert to block and
+      // collapse the flex-based tab content areas to zero height.
+      outputPane.style.display = visible ? 'flex' : 'none';
+      verticalSplitter.style.display = visible ? '' : 'none';
+      editorPane.style.height = visible ? `${editorHeight}%` : '100%';
+      window.dispatchEvent(new Event('resize'));
+    },
     reset,
     dispose: () => {
       document.removeEventListener('mousemove', handleVerticalMouseMove);

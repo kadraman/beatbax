@@ -176,11 +176,7 @@ export async function loadFromQueryParams(
  * Built-in example songs (relative paths served by Vite)
  */
 export const EXAMPLE_SONGS: Array<{ label: string; path: string }> = [
-  { label: 'sample.bax', path: '/songs/sample.bax' },
-  { label: 'instrument_demo.bax', path: '/songs/instrument_demo.bax' },
-  { label: 'percussion_demo.bax', path: '/songs/percussion_demo.bax' },
-  { label: 'sequence_demo.bax', path: '/songs/sequence_demo.bax' },
-  { label: 'metadata_example.bax', path: '/songs/metadata_example.bax' },
+  { label: 'sample.bax', path: '/songs/sample.bax' }
 ];
 
 /**

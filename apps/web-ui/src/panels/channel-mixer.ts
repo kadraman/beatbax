@@ -74,12 +74,7 @@ export class ChannelMixer {
     const root = document.createElement('div');
     root.className = 'bb-cp';
     root.setAttribute('role', 'region');
-    root.setAttribute('aria-label', 'Channel Controls');
-
-    const header = document.createElement('div');
-    header.className = 'bb-cp__header';
-    header.textContent = 'Channel Controls';
-    root.appendChild(header);
+    root.setAttribute('aria-label', 'Mixer');
 
     const channels = this.ast?.channels ?? [];
 
