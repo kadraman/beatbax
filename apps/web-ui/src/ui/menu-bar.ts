@@ -133,7 +133,9 @@ export class MenuBar {
   /** Tracks current visibility state for each toggleable panel. */
   private panelVisible = new Map<string, boolean>([
     ['output', true],
-    ['help', false],
+    ['problems', true],
+    ['help', true],
+    ['shortcuts', true],
     ['channel-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
@@ -425,13 +427,25 @@ export class MenuBar {
     this.opts.eventBus.emit('panel:toggled', { panel, visible: next });
   }
 
+  /** Show a tab panel (always emits visible:true). */
+  private emitPanelShow(panel: string): void {
+    this.panelVisible.set(panel, true);
+    this.opts.eventBus.emit('panel:toggled', { panel, visible: true });
+  }
+
   private viewItems(): MenuItemDef[] {
     return [
       {
         type: 'item',
-        label: 'Toggle Output Panel',
+        label: 'Output',
         shortcut: 'Ctrl+`',
-        action: () => this.emitPanelToggle('output'),
+        action: () => this.emitPanelShow('output'),
+      },
+      {
+        type: 'item',
+        label: 'Problems',
+        shortcut: 'Alt+Shift+P',
+        action: () => this.emitPanelShow('problems'),
       },
       {
         type: 'item',
@@ -447,16 +461,23 @@ export class MenuBar {
       },
       {
         type: 'item',
-        label: 'Toggle Help Panel',
+        label: 'Mixer',
+        shortcut: 'Ctrl+Shift+Y',
+        action: () => this.emitPanelShow('channel-mixer'),
+      },
+/*      {
+        type: 'item',
+        label: 'Help',
         shortcut: 'Shift+F1',
-        action: () => this.emitPanelToggle('help'),
+        action: () => this.emitPanelShow('help'),
       },
       {
         type: 'item',
-        label: 'Toggle Channel Monitor',
-        shortcut: 'Ctrl+Shift+Y',
-        action: () => this.emitPanelToggle('channel-mixer'),
+        label: 'Shortcuts',
+        shortcut: 'Alt+Shift+K',
+        action: () => this.emitPanelShow('shortcuts'),
       },
+      */
       { type: 'separator' },
       {
         type: 'item',
@@ -479,7 +500,7 @@ export class MenuBar {
       { type: 'separator' },
       {
         type: 'item',
-        label: 'Toggle Theme (Dark / Light)',
+        label: 'Theme (Dark / Light)',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
       },

@@ -9,9 +9,43 @@
     "body": {
       "type": "array",
       "items": { "$ref": "#/definitions/node" }
+    },
+    "diagnostics": {
+      "type": "array",
+      "description": "Semantic diagnostics produced by the post-parse validation pass.",
+      "items": { "$ref": "#/definitions/parseDiagnostic" }
     }
   },
   "definitions": {
+    "parseDiagnostic": {
+      "type": "object",
+      "required": ["level", "component", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": "string", "enum": ["error", "warning"] },
+        "component": { "type": "string" },
+        "message": { "type": "string" },
+        "loc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": { "$ref": "#/definitions/position" },
+            "end": { "$ref": "#/definitions/position" }
+          }
+        }
+      }
+    },
+
+    "position": {
+      "type": "object",
+      "required": ["line", "column"],
+      "additionalProperties": false,
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 0 }
+      }
+    },
+
     "node": {
       "oneOf": [
         { "$ref": "#/definitions/chip" },

@@ -106,16 +106,18 @@ export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnos
 }
 
 /**
- * Convert validation warnings to diagnostics format
+ * Convert validation diagnostics (errors and/or warnings) to Monaco diagnostics format.
+ * Items with `level === 'error'` get red squiggles; all others get yellow.
  */
 export function warningsToDiagnostics(
-  warnings: Array<{ component: string; message: string; loc?: any }>
+  warnings: Array<{ component: string; message: string; loc?: any; level?: string }>
 ): Diagnostic[] {
   return warnings.map((w) => {
+    const severity = w.level === 'error' ? 'error' : 'warning';
     if (w.loc && w.loc.start) {
       return {
         message: `[${w.component}] ${w.message}`,
-        severity: 'warning',
+        severity,
         startLine: w.loc.start.line,
         startColumn: w.loc.start.column ?? 1,
         endLine: w.loc.end?.line ?? w.loc.start.line,
@@ -123,10 +125,9 @@ export function warningsToDiagnostics(
       };
     }
 
-    // Warning without location
     return {
       message: `[${w.component}] ${w.message}`,
-      severity: 'warning',
+      severity,
       startLine: 1,
       startColumn: 1,
     };
@@ -140,23 +141,19 @@ export function warningsToDiagnostics(
 export function setupDiagnosticsIntegration(
   diagnosticsManager: DiagnosticsManager
 ): () => void {
-  // Listen for parse errors
+  // Listen for parse errors (hard syntax errors from the parser itself)
   const unsubscribeParseError = eventBus.on('parse:error', ({ error }) => {
     const diagnostic = parseErrorToDiagnostic(error);
     diagnosticsManager.setDiagnostics([diagnostic]);
   });
 
-  // Listen for parse success (clear errors)
-  const unsubscribeParseSuccess = eventBus.on('parse:success', () => {
-    diagnosticsManager.clear();
-  });
-
-  // Note: We don't listen for validation:warnings here because the caller
-  // (e.g., main.ts) calls setDiagnostics directly to avoid recursion.
+  // Note: parse:success is intentionally NOT handled here.
+  // Marker clearing is done by emitParse() directly — after setting new markers —
+  // so that neither the playback-manager's parse:success nor any other emitter
+  // accidentally wipes live validation squiggles.
 
   // Return cleanup function
   return () => {
     unsubscribeParseError();
-    unsubscribeParseSuccess();
   };
 }

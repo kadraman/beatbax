@@ -120,6 +120,15 @@ export interface ImportNode {
   loc?: SourceLocation;
 }
 
+export type DiagnosticLevel = 'error' | 'warning';
+
+export interface ParseDiagnostic {
+  level: DiagnosticLevel;
+  component: string;
+  message: string;
+  loc?: SourceLocation;
+}
+
 export interface AST {
   pats: PatternMap;
   insts: InstMap;
@@ -135,6 +144,8 @@ export interface AST {
   volume?: number;
   play?: PlayNode;
   metadata?: SongMetadata;
+  /** Diagnostics emitted during parsing (type errors, unknown properties, etc.) */
+  diagnostics?: ParseDiagnostic[];
 }
 
 export default AST;

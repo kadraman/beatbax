@@ -4,6 +4,7 @@ import {
   AST,
   ChannelNode,
   InstMap,
+  ParseDiagnostic,
   PatternEvent,
   PatternEventMap,
   PlayNode,
@@ -169,7 +170,7 @@ const warnProblematicPatternName = (name: string, loc?: SourceLocation | null): 
     warn('parser', `Pattern name '${name}' may be confused with a note name. Consider using a more descriptive name like '${name}_pattern' or '${name}_pat'.`, { loc });
   }
 };
-const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
+const parseInstRhs = (name: string, rhs: string, insts: InstMap, loc?: SourceLocation | null): void => {
   const rest = rhs.trim();
   const parts = rest.split(/\s+/);
   const props: Record<string, any> = {};
@@ -273,6 +274,7 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap): void => {
     }
   }
 
+  if (loc) props.__loc = loc;
   insts[name] = props;
 };
 
@@ -509,8 +511,10 @@ export function parseWithPeggy(source: string): AST {
 
   let topBpm: number | undefined = undefined;
   let chipName: string | undefined = undefined;
+  let chipLoc: SourceLocation | undefined = undefined;
   let topVolume: number | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
+  let playLoc: SourceLocation | undefined = undefined;
 
   for (const stmt of program.body) {
     switch (stmt.nodeType) {
@@ -538,6 +542,7 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'ChipStmt': {
         chipName = stmt.chip;
+        chipLoc = stmt.loc;
         break;
       }
       case 'ImportStmt': {
@@ -545,7 +550,7 @@ export function parseWithPeggy(source: string): AST {
         break;
       }
       case 'InstStmt': {
-        parseInstRhs(stmt.name, stmt.rhs, insts);
+        parseInstRhs(stmt.name, stmt.rhs, insts, stmt.loc);
         break;
       }
       case 'EffectStmt': {
@@ -588,6 +593,7 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'PlayStmt': {
         playNode = parsePlay(stmt.args);
+        playLoc = stmt.loc;
         break;
       }
       default:
@@ -620,9 +626,122 @@ export function parseWithPeggy(source: string): AST {
     }
   }
 
+  // --- Semantic validation pass: populate ast.diagnostics ---
+  const diagnostics: ParseDiagnostic[] = [];
+  const diag = (level: ParseDiagnostic['level'], component: string, message: string, loc?: SourceLocation) =>
+    diagnostics.push({ level, component, message, loc });
+
+  // Chip name validation
+  const VALID_CHIPS = ['gameboy', 'gb', 'dmg'];
+  if (chipName && !VALID_CHIPS.includes(String(chipName).toLowerCase())) {
+    diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${VALID_CHIPS.join(', ')}.`, chipLoc);
+  }
+
+  // Play flag validation
+  const VALID_PLAY_FLAGS = ['auto', 'repeat'];
+  for (const flag of (playNode?.flags ?? [])) {
+    if (!VALID_PLAY_FLAGS.includes(flag.toLowerCase())) {
+      diag('error', 'parser', `'play' has unknown flag '${flag}'. Valid flags: ${VALID_PLAY_FLAGS.join(', ')}.`, playLoc);
+    }
+  }
+
+  // Instrument type and property validation
+  const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
+  const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
+  const INST_TYPE_PROPS: Record<string, Set<string>> = {
+    pulse1: new Set(['duty', 'sweep', 'width']),
+    pulse2: new Set(['duty', 'width']),
+    wave:   new Set(['wave']),
+    noise:  new Set(['width', 'divisor', 'shift', 'lfsr']),
+  };
+  for (const [instName, instDef] of Object.entries(insts)) {
+    const p = instDef as any;
+    const instLoc: SourceLocation | undefined = p.__loc;
+    const type: string | undefined = p.type;
+    if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
+      diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
+    } else {
+      const typeKey = type ? String(type).toLowerCase() : '';
+      const allowedProps = new Set([...INST_COMMON_PROPS, ...(INST_TYPE_PROPS[typeKey] ?? [])]);
+      for (const key of Object.keys(p)) {
+        if (key === '__loc') continue;
+        const bare = key.includes(':') ? key.split(':').pop()! : key;
+        if (!allowedProps.has(bare.toLowerCase())) {
+          diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);
+        }
+      }
+    }
+  }
+
+  // Channel validation: missing inst, unknown inst reference, missing seq/pat, unknown seq/pat reference
+  for (const ch of channels) {
+    const chLoc = ch.loc;
+    const chAny = ch as any;
+    if (!ch.inst) {
+      diag('error', 'parser', `Channel ${ch.id}: no instrument assigned -- check for a typo in 'inst <name>'.`, chLoc);
+    } else if (!insts[ch.inst]) {
+      // Downgrade to a warning when imports are present: the instrument may be
+      // supplied by an import that hasn't been resolved yet.
+      const instDiagLevel = imports.length > 0 ? 'warning' : 'error';
+      diag(instDiagLevel, 'parser', `Channel ${ch.id}: instrument '${ch.inst}' is not defined.`, chLoc);
+    }
+    const hasSeqSpec = chAny.seqSpecTokens && (chAny.seqSpecTokens as string[]).length > 0;
+    const hasPat = ch.pat !== undefined;
+    if (!hasSeqSpec && !hasPat) {
+      diag('error', 'parser', `Channel ${ch.id}: no sequence or pattern assigned -- check for a typo in 'seq <name>'.`, chLoc);
+    } else {
+      // Check that each referenced seq/pat name exists
+      const rawTokens: string[] = hasSeqSpec ? (chAny.seqSpecTokens as string[]) : [];
+      if (rawTokens.length === 0 && typeof ch.pat === 'string') rawTokens.push(...ch.pat.split(/[\s,]+/));
+      for (const tok of rawTokens) {
+        const base = tok.split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
+        if (base && !seqs[base] && !pats[base]) {
+          diag('error', 'parser', `Channel ${ch.id}: sequence/pattern '${base}' is not defined.`, chLoc);
+        }
+      }
+    }
+  }
+
+  // Pattern token validation: flag unrecognised tokens that are not notes/rests/inst-refs
+  //   kind:'token' is the grammar's catch-all Identifier fallback — a plain word that matched
+  //   nothing more specific.  If it isn't a note, a known inst/seq/pat name, or a transform
+  //   call / effect reference, it is almost certainly a typo.
+  const NOTE_RE = /^[A-Ga-g][#b]?-?[0-9]+$/;
+  // Tokens produced by IdentWithCall (e.g. oct(-1)) or IdentWithEffects (e.g. name<vib>)
+  // always contain '(' or '<', so a plain identifier with neither is the risky case.
+  const isCallOrEffect = (v: string) => v.includes('(') || v.includes('<');
+  if (patternEvents) {
+    for (const [patName, events] of Object.entries(patternEvents)) {
+      for (const ev of events) {
+        if (!ev || ev.kind !== 'token') continue;
+        const val = ev.value;
+        if (!val || isCallOrEffect(val)) continue;
+        // It's a plain identifier — valid if it's a note, rest char, or a known name
+        if (NOTE_RE.test(val)) continue;
+        if (val === '.' || val === '_' || val === '-') continue;
+        if (insts[val] || pats[val] || seqs[val]) continue;
+        // Skip when imports are present: the token may be a valid instrument
+        // name that will be introduced by import resolution.
+        if (imports.length > 0) continue;
+        diag('warning', 'parser', `Pattern '${patName}': unknown token '${val}' — not a valid note, rest, or defined name.`, ev.loc);
+      }
+    }
+  }
+
+  // Sequence item reference validation: check each item name exists as a seq or pat
+  for (const [seqName, items] of Object.entries(sequenceItems ?? {})) {
+    for (const item of items) {
+      const base = item.name.split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
+      if (base && !seqs[base] && !pats[base]) {
+        diag('error', 'parser', `Sequence '${seqName}': pattern/sequence '${base}' is not defined.`, item.loc);
+      }
+    }
+  }
+
   const includeStructured = true;
 
   const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata };
+  if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (imports.length > 0) ast.imports = imports;
   if (includeStructured) {

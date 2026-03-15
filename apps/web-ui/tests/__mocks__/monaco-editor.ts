@@ -17,6 +17,7 @@ export const languages = {
   registerCompletionItemProvider: jest.fn(),
   registerHoverProvider: jest.fn(),
   registerCodeLensProvider: jest.fn(),
+  registerDocumentHighlightProvider: jest.fn(),
   typescript: {
     javascriptDefaults: {
       setDiagnosticsOptions: jest.fn(),
