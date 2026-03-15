@@ -53,16 +53,6 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  // Pre-scan for empty `seq NAME =` lines — treat as errors.
-  const seqEmptyRe = /^\s*seq\s+([A-Za-z_][A-Za-z0-9_\-]*)\s*=\s*$/gm;
-  let mm: RegExpExecArray | null;
-  while ((mm = seqEmptyRe.exec(src)) !== null) {
-    errors.push({
-      message: `Sequence '${mm[1]}' has no RHS content (empty). ` +
-        `Define patterns after '=' or remove the empty 'seq ${mm[1]} =' line.`
-    });
-  }
-
   let ast: any;
   try {
     ast = parse(src);
@@ -72,11 +62,15 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
     return { errors, warnings, ast: null as any };
   }
 
+  // Promote parser diagnostics into errors/warnings
+  for (const d of (ast.diagnostics ?? [])) {
+    const issue: ValidationIssue = { message: d.message, loc: d.loc, component: d.component };
+    if (d.level === 'error') errors.push(issue); else warnings.push(issue);
+  }
+
   // Resolve imports if present (separate try/catch to provide better error messages)
-  // Use async resolver to support remote imports
   if (ast.imports && ast.imports.length > 0 && filename) {
     try {
-      // Convert filename to absolute path for proper import resolution
       const absoluteFilePath = resolvePath(filename);
       ast = await resolveImports(ast, {
         baseFilePath: absoluteFilePath,
@@ -88,98 +82,6 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
     } catch (importErr: any) {
       errors.push({ message: `Import error: ${extractErrorMessage(importErr)}` });
       return { errors, warnings, ast: null as any };
-    }
-  }
-
-  // Validate channels and instruments
-  for (const ch of ast.channels || []) {
-    if (ch.inst && !ast.insts[ch.inst]) {
-      errors.push({ message: `Channel ${ch.id} references unknown inst '${ch.inst}'`, loc: ch.loc });
-    }
-    // collect sequence base names referenced by channel
-    const extractSeqBaseNames = (ch2: any): string[] => {
-      const names: string[] = [];
-      if (!ch2 || !ch2.pat) return names;
-
-      // If parser attached raw seqSpecTokens (space-preserved), prefer them
-      // even if ch.pat is already expanded to an array
-      const rawTokens: string[] | undefined = (ch2 as any).seqSpecTokens;
-      if (rawTokens && rawTokens.length > 0) {
-        const joined = rawTokens.join(' ');
-        for (const group of joined.split(',')) {
-          const g = group.trim();
-          if (!g) continue;
-          if (g.indexOf('*') >= 0) {
-            const m = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-            const itemRef = m ? m[1].trim() : g;
-            const base = itemRef.split(':')[0];
-            if (base) names.push(base);
-          } else {
-            const parts = g.split(/\s+/).map(s => s.trim()).filter(Boolean);
-            for (const p of parts) names.push(p.split(':')[0]);
-          }
-        }
-        return names.filter(Boolean);
-      }
-
-      // ch.pat is inline tokens (array), no external sequence names
-      if (Array.isArray(ch2.pat)) {
-        return [];
-      }
-
-      // Fallback: ch.pat is a string like "lead" or "lead*2" or "lead,lead2"
-      const spec = String(ch2.pat).trim();
-      for (const group of spec.split(',')) {
-        const g = group.trim();
-        if (!g) continue;
-        const mRep = g.match(/^(.+?)\s*\*\s*(\d+)$/);
-        const itemRef = mRep ? mRep[1].trim() : g;
-        const base = itemRef.split(':')[0];
-        if (base) names.push(base);
-      }
-      return names.filter(Boolean);
-    };
-
-    const bases = extractSeqBaseNames(ch);
-    for (const baseSeqName of bases) {
-      if (!ast.seqs || !ast.seqs[baseSeqName]) {
-        // Check if it's actually a pattern name (common mistake)
-        if (ast.pats && ast.pats[baseSeqName]) {
-          warnings.push({
-            message: `Channel ${ch.id} references '${baseSeqName}' as a sequence, but it's a pattern. Create a sequence first: 'seq myseq = ${baseSeqName}' or use comma-separated patterns with channel directive.`,
-            loc: ch.loc
-          });
-        } else {
-          warnings.push({ message: `Channel ${ch.id} references unknown sequence '${baseSeqName}'`, loc: ch.loc });
-        }
-      }
-    }
-  }
-
-  // Validate patterns
-  for (const [name, pat] of Object.entries(ast.pats || {})) {
-    if (!Array.isArray(pat) || (pat as any[]).length === 0) {
-      errors.push({ message: `Pattern '${name}' is empty or malformed` });
-    }
-  }
-
-  // Validate sequences reference valid patterns
-  if (ast.seqs) {
-    for (const [seqName, patRefs] of Object.entries(ast.seqs)) {
-      if (!Array.isArray(patRefs) || (patRefs as any[]).length === 0) {
-        errors.push({ message: `Sequence '${seqName}' is empty or malformed` });
-      } else {
-        for (const patRef of patRefs as any[]) {
-          let basePatName = typeof patRef === 'string' ? patRef.split(':')[0] : patRef;
-          if (typeof basePatName === 'string') {
-            const mRep = basePatName.match(/^(.+?)\*(\d+)$/);
-            if (mRep) basePatName = mRep[1];
-            if (!ast.pats[basePatName]) {
-              warnings.push({ message: `Sequence '${seqName}' references unknown pattern '${basePatName}'` });
-            }
-          }
-        }
-      }
     }
   }
 
@@ -304,7 +206,13 @@ program
     if (errors.length > 0) {
       console.error(`Validation failed for ${file}:`);
       for (const e of errors) {
-        console.error('  -', e);
+        console.error('  -', e.message + formatLocation(e.loc));
+      }
+      if (warnings.length > 0) {
+        console.error(`\n  Warnings:`);
+        for (const w of warnings) {
+          console.error('  -', `[${w.component || 'validation'}] ${w.message}${formatLocation(w.loc)}`);
+        }
       }
       process.exitCode = 2;
       return;
