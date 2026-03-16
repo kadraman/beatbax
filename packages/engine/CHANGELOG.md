@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.2
+
+### Patch Changes
+
+- f3b1cf9: fix(audio): unify noise channel amplitude across all playback backends
+
 ## 0.5.1
 
 ### Patch Changes
