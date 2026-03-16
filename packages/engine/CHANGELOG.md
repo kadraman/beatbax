@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.1
+
+### Patch Changes
+
+- carry instrument default note through resolver into UGE export
+
 ## 0.5.0
 
 ### Minor Changes
