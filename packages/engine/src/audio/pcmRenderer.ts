@@ -1399,7 +1399,7 @@ function renderNoise(
 
     const noise = (lfsr & 1) ? 1.0 : -1.0;
     const envVal = getEnvelopeValue(t, envelope, durSec);
-    const sample = noise * envVal * 0.85; // slightly higher base to better match WebAudio output
+    const sample = noise * envVal; // 1:1 with pulse (matches Game Boy hardware mix)
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {

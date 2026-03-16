@@ -38,7 +38,7 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
       phase -= ticks;
     }
     const sampleVal = (lfsr & 1) ? 1 : -1;
-    data[i] = sampleVal * 1.0;
+    data[i] = sampleVal * 0.5; // Scale buffer slightly (0.5) to match WebAudio PeriodicWave pulse average amplitude
   }
 
   const src = ctx.createBufferSource();
