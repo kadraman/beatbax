@@ -1203,10 +1203,12 @@ function eventsToPatterns(
                 }
             }
             currentPan = namedPan;
-            // Use instrument's default note if specified, otherwise default to C5 (index 24)
-            let noteValue = 24; // Default: hUGETracker index 24 (MIDI 60 - 36 = C5)
-            if (namedEvent.defaultNote) {
-                const parsedNote = noteNameToMidiNote(namedEvent.defaultNote, 0);
+            // Use instrument's default note if specified, otherwise look up instruments map
+            // directly as a fallback (handles hit() and inst(name,N) paths in the resolver)
+            let noteValue = 24; // fallback: hUGETracker index 24 = C5 in BeatBax octave numbering
+            const noteSrc: string | undefined = namedEvent.defaultNote ?? (namedInst?.note as string | undefined);
+            if (noteSrc) {
+                const parsedNote = noteNameToMidiNote(noteSrc, 0);
                 if (parsedNote !== EMPTY_NOTE) {
                     noteValue = parsedNote;
                 }
