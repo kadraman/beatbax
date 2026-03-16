@@ -14,7 +14,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.5.1",
+    "@beatbax/engine": "^0.5.2",
     "buffer": "^6.0.3",
     "monaco-editor": "^0.45.0"
   },
