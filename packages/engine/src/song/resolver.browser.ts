@@ -400,6 +400,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
             for (let k = 0; k < count; k++) {
               const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
               const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
+              if (insts[name]?.note) (evWithProps as NamedInstrumentEvent).defaultNote = insts[name].note as string;
               chModel.events.push(evWithProps);
             }
             continue;
@@ -442,6 +443,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         for (let k = 0; k < count; k++) {
           const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
           const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
+          if (insts[name]?.note) (evWithProps as NamedInstrumentEvent).defaultNote = insts[name].note as string;
           chModel.events.push(evWithProps);
         }
         continue;
