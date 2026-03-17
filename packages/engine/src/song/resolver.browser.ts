@@ -377,7 +377,12 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     }
 
     for (let ti = 0; ti < tokens.length; ti++) {
-      const token = tokens[ti];
+      const token = tokens[ti];      // inst name  (space-separated, from inline-inst AST nodes serialised by patternEventsToTokens)
+      const mInstSpace = typeof token === 'string' && token.match(/^inst\s+(\S+)$/i);
+      if (mInstSpace) {
+        currentInstName = resolveInstName(mInstSpace[1]);
+        continue;
+      }
       // inst(name) or inst(name,N)
       const mInstInline = typeof token === 'string' && token.match(/^inst\(([^,()\s]+)(?:,(\d+))?\)$/i);
       if (mInstInline) {
