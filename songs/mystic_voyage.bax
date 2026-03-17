@@ -1,0 +1,250 @@
+## mystic_voyage.bax
+## Original adventure theme — in the spirit of classic portable-RPG exploration.
+## Key: G major | Tempo: 124 BPM | Style: Pastoral, soaring, adventurous
+##
+## Opens with a soaring octave-arch melody (G5 → G6 → A5) and a lyrical response
+## phrase. A quiet bridge section uses deep vibrato and slow portamento walks before
+## the reprise returns the theme with full duty-cycle modulation.
+##
+## BUG FIX NOTE: Inline `inst` tokens carry forward across pattern boundaries in
+## the resolver — every pattern that follows a DCM or bridge duty-switch must begin
+## with an explicit `inst` reset to prevent timbral drift.  All patterns here are
+## annotated to make the intended instrument state unambiguous.
+##
+## Effects showcased:
+##   - vib      : gentle wobble on held melody notes (wobble); deep slow vibrato on
+##                the bridge (deepVib); fast shimmer on the closing coda (shimmer)
+##   - arp      : major/minor/dom7 arpeggios on Pulse2 harmony and Wave fills;
+##                arpeggiated melody climax pattern (mel_fill)
+##   - port     : ascending legato run into the bridge (mel_run); slow portamento
+##                walking lines in the Wave bass (wave_bridge_a)
+##   - duty mod : thin (12.5%) → warm (75%) → full (50%) switching mid-pattern on
+##                the Pulse1 reprise; bridge harmony uses wide-duty (75%) Pulse2
+##
+## Play: node bin/beatbax play songs/mystic_voyage.bax
+
+song name "Mystic Voyage"
+song artist "BeatBax"
+song description """An original adventure theme in G major. Opens with a soaring octave arch and a gentle pastoral harmony — evoking the moment of stepping out to sea on a small wooden vessel, horizon glittering ahead. Demonstrates vibrato, arpeggio, portamento and duty cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,adventure,exploration,effects,demo"
+
+chip gameboy
+bpm 124
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Three Pulse1 variants — only duty differs.  Switching between them mid-pattern
+# is the duty-cycle modulation technique showcased in the DCM reprise.
+#   lead_full  — 50%    balanced, full-bodied   (default for main statements)
+#   lead_thin  — 12.5%  hollow, nasal           (ascending approach figures)
+#   lead_warm  — 75%    warm, rounded           (peak notes and resolutions)
+#
+# Two Pulse2 variants for harmonic colour:
+#   harm       — 25%    crisp, bright           (A-section arpeggiated chords)
+#   harm_sus   — 75%    rich, wide duty         (bridge sustained tones)
+#
+# Wave: gentle sawtooth-ish wavetable — bass/counterpoint role.
+# Noise: kick / snare / hi-hat percussion kit.
+
+inst lead_full  type=pulse1 duty=50   env={"level":13,"direction":"down","period":1,"format":"gb"} gm=81
+inst lead_thin  type=pulse1 duty=12.5 env={"level":13,"direction":"down","period":1,"format":"gb"} gm=81
+inst lead_warm  type=pulse1 duty=75   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=82
+
+inst harm       type=pulse2 duty=25   env={"level":8,"direction":"down","period":2,"format":"gb"}  gm=80
+inst harm_sus   type=pulse2 duty=75   env={"level":9,"direction":"down","period":3,"format":"gb"}  gm=80
+
+inst bass       type=wave   wave=[0,2,5,9,13,15,13,9,5,2,0,2,5,9,13,15]
+
+inst kick       type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} note=C6
+inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
+inst hat        type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Named effect presets
+# =============================================================================
+
+effect wobble    = vib:3,5,sine,3    # gentle wobble on held melody notes
+effect deepVib   = vib:5,3,sine,6    # slow, deep bridge vibrato
+effect shimmer   = vib:2,9,sine,2    # fast sparkle on the closing coda
+
+effect shimmer = trem:6,4,sine
+effect pulse = trem:10,8,square
+effect slow_wave = trem:4,2,triangle
+
+effect majorArp  = arp:4,7           # major triad
+effect minorArp  = arp:3,7           # minor triad
+effect dom7Arp   = arp:4,7,10        # dominant 7th
+
+effect slide     = port:10           # snappy legato glide
+effect slowSlide = port:22           # slow portamento for bass walks
+
+# =============================================================================
+# Melody patterns  (Channel 1 — Pulse1)
+# =============================================================================
+
+# mel_hook: soaring octave arch — G5 leaps to G6 then gracefully descends to A5.
+# 16 steps: 4+2+2+2+2+2+2
+pat mel_hook      = G5:4 B5:2 D6:2 G6:2 D6:2 B5:2 A5:2
+
+# mel_answer: response phrase — climbs E5→A5 (gentle wobble), peaks at B5, leads
+#             off the F#5 leading tone.
+# 16 steps: 2+2+4+2+2+2+2
+pat mel_answer    = E5:2 G5:2 A5<shimmer>:4 B5:2 A5:2 G5:2 F#5:2
+pat mel_answer_old    = E5:2 G5:2 A5<wobble>:4 B5:2 A5:2 G5:2 F#5:2
+
+# mel_bridge: slow descending bridge with deep vibrato — the emotional high point.
+# 16 steps: 4+2+2+4+4
+pat mel_bridge    = D6<slow_wave>:4 C6:2 B5:2 A5<slow_wave>:4 G5:4
+pat mel_bridge_old    = D6<deepVib>:4 C6:2 B5:2 A5<deepVib>:4 G5:4
+
+# mel_run: ascending portamento run building tension before the reprise.
+# 16 steps: 2+2+2+2+2+2+2+2
+pat mel_run       = B4<slide>:2 C5<slide>:2 D5<slide>:2 E5<slide>:2 F#5<slide>:2 G5<slide>:2 A5:2 B5:2
+
+# mel_hook_dcm: reprise hook with duty-cycle modulation.
+#   thin (12.5%) on the opening approach → warm (75%) on the G6 peak → full (50%) descent.
+#   All three inst tokens are explicit — no carry-over from earlier patterns.
+# 16 steps: 4+2+2+2+2+2+2
+pat mel_hook_dcm  = inst lead_thin G5:4 B5:2 inst lead_warm D6:2 G6:2 D6:2 inst lead_full B5:2 A5:2
+
+# mel_answer_dcm: DCM response — thin approach, warm peak, EXPLICIT lead_full at end.
+#   The final `inst lead_full` ensures the channel resets cleanly for any following pattern.
+# 16 steps: 2+2+4+2+2+2+2
+pat mel_answer_dcm = inst lead_thin E5:2 G5:2 A5<shimmer>:4 inst lead_warm B5:2 A5:2 inst lead_full G5:2 F#5<shimmer>:2
+pat mel_answer_dcm_old = inst lead_thin E5:2 G5:2 A5<wobble>:4 inst lead_warm B5:2 A5:2 inst lead_full G5:2 F#5<shimmer>:2
+
+# mel_fill: arpeggiated G-major burst up the octave — the energy peak.
+# 16 steps: 4+4+4+4
+pat mel_fill      = G5<majorArp>:4 B5<majorArp>:4 D6<majorArp>:4 G6<majorArp>:4
+
+# mel_coda: shimmer landing — peak note shimmers then settles to the tonic with rests.
+# 16 steps: 4+2+2+4+1+1+1+1
+pat mel_coda      = G5<shimmer>:4 D6<shimmer>:2 B5<shimmer>:2 G5:4 . . . .
+
+# =============================================================================
+# Harmony patterns  (Channel 2 — Pulse2)
+#
+# A-section: long 8-step arpeggiated chord blocks (spacious, unhurried).
+# Bridge: wide-duty sustained tones WITHOUT arpeggios (richer, breathing texture).
+# Reprise: explicit inst harm reset clears any carry-over from harm_sus.
+# =============================================================================
+
+# harm_A: I–V arpeggios, 8 steps each — open and calm under mel_hook.
+# 16 steps: 8+8
+pat harm_A        = G4<majorArp>:8 D4<majorArp>:8
+
+# harm_B: IV–V–vi–I chord walk under mel_answer.
+# 16 steps: 4+4+4+4
+pat harm_B        = C4<majorArp>:4 D4<dom7Arp>:4 E4<minorArp>:4 G4<majorArp>:4
+
+# harm_bridge_a: bridge — rich harm_sus with deep vibrato, NO arpeggios.
+#   Starts with explicit inst harm_sus.
+# 16 steps: 8+8
+pat harm_bridge_a = inst harm_sus B4<slow_wave>:8 A4<slow_wave>:8
+pat harm_bridge_a_old = inst harm_sus B4<deepVib>:8 A4<deepVib>:8
+
+# harm_bridge_b: bridge run — low octave arpeggios under mel_run.
+#   Still on harm_sus for timbral continuity.
+# 16 steps: 4+4+4+4
+pat harm_bridge_b = inst harm_sus G3<majorArp>:4 C4<majorArp>:4 D4<majorArp>:4 G4<majorArp>:4
+
+# harm_A_reset: reprise I–V — EXPLICIT inst harm resets state after harm_sus bridge.
+#   Without this, harm_sus would carry over and the reprise would sound wrong.
+# 16 steps: 8+8
+pat harm_A_reset  = inst harm G4<majorArp>:8 D4<majorArp>:8
+
+# harm_B_reset: reprise IV–V–vi–I — explicit inst harm.
+# 16 steps: 4+4+4+4
+pat harm_B_reset  = inst harm C4<majorArp>:4 D4<dom7Arp>:4 E4<minorArp>:4 G4<majorArp>:4
+
+# harm_fill: energetic arpeggiated burst to match the melody fill.
+#   Explicit inst harm.
+# 16 steps: 4+4+4+4
+pat harm_fill     = inst harm G4<majorArp>:4 B4<majorArp>:4 D5<majorArp>:4 G3<majorArp>:4
+
+# harm_coda: sustain the I chord, fade on add-9 colour.
+#   Explicit inst harm.
+# 16 steps: 8+8
+pat harm_coda     = inst harm G4<majorArp>:8 D4<dom7Arp>:8
+
+# =============================================================================
+# Wave bass patterns  (Channel 3 — Wave)
+#
+# Plays sustained chord-tone counterpoint in the A-section (NOT a walking bass
+# line — this differentiates the song from a relentless walking quarter-note bass).
+# Portamento walks and arpeggios appear in the bridge for contrast.
+# =============================================================================
+
+# wave_A: sustained G-major tones — I root, V fifth, III third, I root.
+# 16 steps: 4+4+4+4
+pat wave_A        = G2:4 D3:4 B2:4 G2:4
+
+# wave_Ar: IV–V–vi–I bass movement mirroring harm_B.
+# 16 steps: 4+4+4+4
+pat wave_Ar       = C3:4 D3:4 E3:4 G3:4
+
+# wave_bridge_a: slow portamento walk ascending into the bridge peak.
+# 16 steps: 2+2+2+2+2+2+2+2
+pat wave_bridge_a = G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3:2 E3<slowSlide>:2 D3:2 G2:2
+
+# wave_bridge_b: arpeggiated G→C→D→G — builds energy under mel_run.
+# 16 steps: 4+4+4+4
+pat wave_bridge_b = G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G3<majorArp>:4
+
+# wave_fill: energetic arpeggio sweep — root-position G major up the scale.
+# 16 steps: 4+4+4+4
+pat wave_fill     = G2<majorArp>:4 B2<majorArp>:4 D3<majorArp>:4 G3<majorArp>:4
+
+# wave_coda: held root, fifth, octave, then back to root — calm resolution.
+# 16 steps: 4+4+4+4
+pat wave_coda     = G2:4 D3:4 G3:4 G2:4
+
+# =============================================================================
+# Drum patterns  (Channel 4 — Noise)
+#
+# Lighter and more varied than an all-16th-hat pattern.  The bridge uses a
+# sparse pattern to let the melody breathe.
+# =============================================================================
+
+# drums_a: steady groove — kick on 1+3, snare on 2+4, hat on up-beats.
+# 16 steps
+pat drums_a       = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_b: syncopated variation — double kick before beat 3 for forward momentum.
+# 16 steps
+pat drums_b       = kick . snare hat kick hat kick snare . hat snare hat kick . snare hat
+
+# drums_sparse: bridge groove — very minimal, lets the melody breathe.
+# 16 steps
+pat drums_sparse  = kick . . hat . . snare . kick . . hat . . snare .
+
+# drums_fill: climax — extra kick and double snare on the final beat.
+# 16 steps
+pat drums_fill    = kick hat snare hat kick kick snare hat kick hat snare hat kick hat snare snare
+
+# =============================================================================
+# Sequences
+# =============================================================================
+#
+# 10-bar structure:
+#   Bars 1–2   A section  — hook + answer  (main theme introduction)
+#   Bars 3–4   A repeat   — hook + answer  (theme reinforced)
+#   Bars 5–6   B bridge   — deep vibrato + portamento run (lyrical contrast)
+#   Bar  7     Fill       — arpeggiated climax burst
+#   Bars 8–9   A reprise  — hook_dcm + answer_dcm with duty modulation
+#   Bar  10    Coda       — shimmer landing and loop
+
+seq melody_seq  = mel_hook mel_answer mel_hook mel_answer mel_bridge mel_run mel_fill mel_hook_dcm mel_answer_dcm mel_coda
+seq harmony_seq = harm_A harm_B harm_A harm_B harm_bridge_a harm_bridge_b harm_fill harm_A_reset harm_B_reset harm_coda
+seq bass_seq    = wave_A wave_Ar wave_A wave_Ar wave_bridge_a wave_bridge_b wave_fill wave_A wave_Ar wave_coda
+seq drums_seq   = drums_a drums_b drums_a drums_b drums_sparse drums_sparse drums_fill drums_a drums_b drums_a
+
+# =============================================================================
+channel 1 => inst lead_full  seq melody_seq
+channel 2 => inst harm       seq harmony_seq
+channel 3 => inst bass       seq bass_seq
+channel 4 => inst kick       seq drums_seq
+
+play auto repeat
