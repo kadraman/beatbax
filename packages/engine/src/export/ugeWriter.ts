@@ -52,7 +52,7 @@ enum InstrumentType {
 
 // Vibrato depth scaling applied when encoding 4xy for UGE export.
 // Some trackers and synths use different depth units; tune this to match hUGE.
-const VIB_DEPTH_SCALE = 4.0;
+const VIB_DEPTH_SCALE = 1.0;
 
 // Map waveform names to hUGETracker waveform selector values (0-15)
 // Official hUGETracker vibrato waveform names:

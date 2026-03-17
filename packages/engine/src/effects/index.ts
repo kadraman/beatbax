@@ -92,16 +92,21 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   //
   // This gives ~4.6x larger vibrato than the old semitone formula, matching the
   // measurement: hUGETracker = 1272 cents vs old BeatBax = 276 cents.
-  const VIB_DEPTH_SCALE = 4.0; // Must match ugeWriter.ts
+  const VIB_DEPTH_SCALE = 1.0; // Must match ugeWriter.ts
   const trackerDepth = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-  const amplitudeHz = Math.abs(baseFreq * trackerDepth * 0.012);
+  // GB-accurate Hz deviation: a period-register offset of N at frequency f
+  // creates a Hz deviation of N * f^2 / 131072.
+  const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
 
   if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
 
   try {
     const lfo = (ctx as any).createOscillator();
     const lfoGain = (ctx as any).createGain();
-    lfo.type = 'sine';
+    // Apply waveform parameter if provided (params[2])
+    const waveformAliases: Record<string, string> = { sine: 'sine', square: 'square', triangle: 'triangle', sawtooth: 'sawtooth', saw: 'sawtooth', tri: 'triangle' };
+    const waveformRaw = (Array.isArray(params) && typeof params[2] === 'string') ? params[2].toLowerCase().trim() : 'sine';
+    lfo.type = (waveformAliases[waveformRaw] ?? 'sine') as OscillatorType;
     try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
     try { lfoGain.gain.setValueAtTime(amplitudeHz, start); } catch (_) { lfoGain.gain.value = amplitudeHz; }
     // Connect LFO -> gain -> oscillator.frequency (AudioParam accepts node input)

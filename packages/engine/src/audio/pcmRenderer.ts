@@ -14,7 +14,7 @@ const RENDER_REG_PER_TRACKER_UNIT = 1;
 const RENDER_REG_PER_TRACKER_BASE_FACTOR = 0.04;
 // Exporter-side vibrato depth scaling (used when exporting to UGE).
 // Keep in sync with packages/engine/src/export/ugeWriter.ts VIB_DEPTH_SCALE
-const EXPORTER_VIB_DEPTH_SCALE = 4.0;
+const EXPORTER_VIB_DEPTH_SCALE = 1.0;
 
 // Apply hUGEDriver-style period modification: add `offset` to the low 8 bits
 // of the GB period register (NR13 low byte), clamp to valid 11-bit range.
@@ -785,10 +785,9 @@ function renderPulse(
     // Apply vibrato - use per-channel LFO phase for smooth, continuous vibrato
     if (vibDepth !== 0 && vibRate > 0 && effFreq > 0) {
       if (typeof vibDurationSec === 'undefined' || (i / sampleRate) < vibDurationSec) {
-        // Game Boy-accurate vibrato: Convert BeatBax depth -> tracker nibble -> Hz deviation
+        // GB-accurate Hz deviation: period-register offset N at frequency f = N * f^2 / 131072
         const trackerDepth = Math.max(0, Math.min(15, Math.round((vibDepth || 0) * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-        // Match WebAudio formula: use 0.012 multiplier for Hz deviation
-        const amplitudeHz = effFreq * trackerDepth * 0.012;
+        const amplitudeHz = trackerDepth * effFreq * effFreq / 131072;
         const lfo = Math.sin(vibratoPhase);
         effFreq = effFreq + (lfo * amplitudeHz);
 
@@ -1225,10 +1224,9 @@ function renderWave(
             const lfo = Math.sin(state.phase || 0);
             const baseReg = registerFromFreq(freq);
             const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
-            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
-            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
-            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+            // Direct register-unit offset (GB-accurate): ± trackerDepth period-register steps
+            const effReg = Math.max(0, Math.round(baseReg + lfo * trackerDepth));
+            effFreq = freqFromRegister(effReg);
           }
         } else {
           if (isGameBoy) {
@@ -1240,10 +1238,9 @@ function renderWave(
             const lfo = Math.sin(state.phase || 0);
             const baseReg = registerFromFreq(freq);
             const trackerDepth = Math.max(0, Math.min(15, Math.round(vibDepth * (vibDepthScale ?? EXPORTER_VIB_DEPTH_SCALE))));
-            const regScale = Math.max(1, Math.round(baseReg * (regPerTrackerBaseFactor ?? RENDER_REG_PER_TRACKER_BASE_FACTOR)));
-            const unit = regPerTrackerUnit ?? RENDER_REG_PER_TRACKER_UNIT;
-            const effReg = Math.max(0, baseReg + lfo * trackerDepth * unit * regScale);
-            effFreq = freqFromRegister(Math.max(0, Math.round(effReg)));
+            // Direct register-unit offset (GB-accurate): ± trackerDepth period-register steps
+            const effReg = Math.max(0, Math.round(baseReg + lfo * trackerDepth));
+            effFreq = freqFromRegister(effReg);
           }
         }
       }
