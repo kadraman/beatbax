@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.3
+
+### Patch Changes
+
+- fd31436: fix inline instrument changes and vibrato not working
+
 ## 0.5.2
 
 ### Patch Changes
