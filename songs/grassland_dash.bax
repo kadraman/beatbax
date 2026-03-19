@@ -1,12 +1,12 @@
 ## grassland_dash.bax
 ## Original platformer theme — in the spirit of classic 8-bit adventure games.
-## Key: G major | Tempo: 170 BPM | Style: Bouncy, energetic
+## Key: G major | Tempo: 140 BPM | Style: Bouncy, energetic
 ##
 ## Composition notes:
 ##   - Ch1 (Pulse1): Main melody with vibrato on sustained notes and arpeggiated fills.
 ##   - Ch2 (Pulse2): Arpeggiated chord voicings and portamento counter-line.
-##   - Ch3 (Wave): Walking bass with slow portamento slides and arpeggiated tonic hits.
-##   - Ch4 (Noise): Energetic kick / snare / hi-hat percussion.
+##   - Ch3 (Wave): Bass + kick time-share — wavekick on every beat, bass on off-beats.
+##   - Ch4 (Noise): Snare / hi-hat percussion (kick moved to wave channel).
 ##
 ## Effects used:
 ##   - arp   : rapid chord cycling on held notes (pulse channels and wave bass)
@@ -22,23 +22,24 @@ song description """An original upbeat platformer theme in G major. Inspired by 
 song tags "original,platformer,demo,effects"
 
 chip gameboy
-bpm 170
+bpm 140
 
 # -----------------------------------------------------------------------------
 # Instruments
-# melody  — Pulse1: bright, snappy duty-50 pulse. Carries the main theme.
-# harmony — Pulse2: narrower duty, softer. Arpeggiated chord fill and counter-melody.
-# bass    — Wave:   smooth triangle-style wavetable. Low walking bass line.
-# kick    — Noise:  hard-hitting low-level thump on beats 1 and 3.
-# snare   — Noise:  mid-range crack on beats 2 and 4.
-# hat     — Noise:  very short, quiet hi-hat fills on up-beats.
+# melody   — Pulse1:  bright, snappy duty-50 pulse. Carries the main theme.
+# harmony  — Pulse2:  narrower duty, softer. Arpeggiated chord fill and counter-melody.
+# bass     — Wave:    smooth triangle-style wavetable. Low walking bass line.
+# wavekick — Wave:    kick drum waveform; time-shares ch3 with the bass on every beat.
+# snare    — Noise:   mid-range crack on beats 2 and 4.
+# hat      — Noise:   very short, quiet hi-hat fills on up-beats.
 
 inst melody  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"} gm=80
 inst harmony type=pulse2 duty=25  env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
-inst bass    type=wave   wave=[0,4,8,12,15,12,8,4,0,4,8,12,15,12,8,4]
-inst kick    type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} note=C6
-inst snare   type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"} note=C6
-inst hat     type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"} note=C7
+inst bass1    type=wave   wave=[0,4,8,12,15,12,8,4,0,4,8,12,15,12,8,4]
+inst bass2   type=wave   wave=[7,7,7,5,0,0,0,0,0,0,0,0,0,0,0,0,15,15,15,14,14,14,14,14,14,12,2,2,1,7,7,6]
+inst snare    type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"} note=C6
+inst hat      type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"} note=C7
+inst wavekick type=wave   wave=[15,15,14,12,9,6,4,2,1,0,0,0,0,0,0,0] note=C2 env={"level":15,"direction":"down","period":1,"format":"gb"}
 
 # -----------------------------------------------------------------------------
 # Effect presets
@@ -108,21 +109,22 @@ pat harm_riser  = G3<majorArp>:16
 # -----------------------------------------------------------------------------
 # Bass patterns (Channel 3, Wave)
 #
-# Walking bass in G major. Uses slow portamento for smooth transitions between
-# wider intervals. Arpeggiated patterns provide rhythmic churn.
-pat bass_a      = G2 . D3 . G3 . B2 . G2 . D3 G3 D3 . B2 .
-pat bass_b      = C3 . G3 . E3 . C3 . D3 . A3 . D3 . D3 .
-pat bass_arp    = G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G2<majorArp>:4
-pat bass_fill   = G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
+# Walking bass in G major. On every beat the wave channel briefly plays the
+# wavekick waveform (time-sharing); the bass resumes on off-beat steps.
+# Fills and arpeggio patterns keep the bass clean — no kick there.
+pat bass_a      = wavekick . D3 . wavekick . B2 . wavekick . D3 G3 wavekick . B2 .
+pat bass_b      = wavekick . G3 . wavekick . C3 . wavekick . A3 . wavekick . D3 .
+pat bass_arp    = inst bass1 G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G2<majorArp>:4
+pat bass_fill   = inst bass1 G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
 
 # -----------------------------------------------------------------------------
 # Drum patterns (Channel 4, Noise)
 #
-# drums_a: standard kick-snare with hi-hat every up-beat.
-pat drums_a     = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+# drums_a: snare-hat groove (kick now on wave channel via wavekick).
+pat drums_a     = . hat snare hat . hat snare hat . hat snare hat . hat snare hat
 
-# drums_b: more syncopated — double hat before beats 1/3 for drive.
-pat drums_b     = kick hat hat snare kick hat hat snare kick hat snare hat kick hat snare hat
+# drums_b: more syncopated — double hat before snare, kick on wave channel.
+pat drums_b     = . hat hat snare . hat hat snare . hat snare hat . hat snare hat
 
 # -----------------------------------------------------------------------------
 # Sequences
@@ -141,7 +143,7 @@ seq drums_seq   = drums_a drums_b drums_a drums_b drums_a drums_a drums_a drums_
 # -----------------------------------------------------------------------------
 channel 1 => inst melody  seq melody_seq
 channel 2 => inst harmony seq harmony_seq
-channel 3 => inst bass    seq bass_seq
-channel 4 => inst kick    seq drums_seq
+channel 3 => inst bass2   seq bass_seq
+channel 4 => inst snare   seq drums_seq
 
 play auto repeat
