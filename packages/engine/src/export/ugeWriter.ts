@@ -574,15 +574,24 @@ class UGEWriter {
 
     /**
      * Write shortstring: 1 byte length + 255 bytes (padded with zeros)
+     * Total size is always exactly 256 bytes.
+     * Encodes to UTF-8 bytes first, then clamps to 255 bytes to prevent
+     * multi-byte Unicode characters (e.g. em-dash) from overflowing the field.
      */
     writeShortString(s: string): void {
-        const bytes = Buffer.from(s.substring(0, 255), 'utf-8');
-        this.writeU8(bytes.length);
-        for (let i = 0; i < bytes.length; i++) {
-            this.buffer.push(bytes[i]);
+        // Encode to UTF-8 first, then clamp to 255 bytes.
+        // Using substring() on the JS string would count characters, not bytes,
+        // so a string whose first 255 characters encode to >255 UTF-8 bytes
+        // (e.g. because it contains multi-byte characters like em-dash U+2014)
+        // would silently corrupt the fixed 256-byte ShortString field.
+        const allBytes = Buffer.from(s, 'utf-8');
+        const len = Math.min(255, allBytes.length);
+        this.writeU8(len);
+        for (let i = 0; i < len; i++) {
+            this.buffer.push(allBytes[i]);
         }
-        // Pad to 255 bytes
-        for (let i = bytes.length; i < 255; i++) {
+        // Pad to exactly 255 data bytes so the field is always 256 bytes total.
+        for (let i = len; i < 255; i++) {
             this.buffer.push(0);
         }
     }

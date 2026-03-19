@@ -531,8 +531,10 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           (ev as NamedInstrumentEvent).defaultNote = inst.note as string;
         }
         chModel.events.push(attachMetadata(ev, ti));
-        // Update current instrument so subsequent notes use this instrument
-        currentInstName = token;
+        // Named instrument tokens are one-shot hits (like hit(name)) and must NOT
+        // update currentInstName. Doing so would cause every note following a percussion
+        // hit (e.g. wavekick in a bass pattern) to inherit that instrument instead of
+        // the channel default. Use inst(name) for an explicit persistent change.
         // decrement temp only for non-rest
         if (tempRemaining > 0) {
           tempRemaining -= 1;
