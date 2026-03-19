@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.4
+
+### Patch Changes
+
+- 5e28635: wave channel effects support and uge export fix
+
 ## 0.5.3
 
 ### Patch Changes
