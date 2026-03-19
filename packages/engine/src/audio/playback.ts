@@ -474,7 +474,7 @@ export class Player {
         const wav = parseWaveTable(inst.wave);
         const buffered = (this as any)._buffered as any;
         if (buffered) {
-          buffered.enqueueWavetable(time, freq, wav, dur, inst, chId, panVal);
+          buffered.enqueueWavetable(time, freq, wav, dur, inst, chId, panVal, token && token.effects ? token.effects : []);
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {

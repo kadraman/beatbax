@@ -204,7 +204,12 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, tickSeconds?: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
-  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+  if (!osc) return;
+
+  // Detect node type: OscillatorNode uses `frequency`; AudioBufferSourceNode (wave channel) uses `playbackRate`
+  const hasFrequency = osc.frequency && typeof osc.frequency.setValueAtTime === 'function';
+  const hasPlaybackRate = !hasFrequency && osc.playbackRate && typeof osc.playbackRate.setValueAtTime === 'function';
+  if (!hasFrequency && !hasPlaybackRate) return;
 
   // Parse semitone offsets from parameters (filter out non-numeric values)
   const rawOffsets = (params || []).map(p => Number(p));
@@ -217,17 +222,6 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const offsets = rawOffsets.filter(n => Number.isFinite(n) && n >= 0);
 
   if (offsets.length === 0) return;
-
-  // Get the base frequency (the current note's pitch)
-  // Use _baseFreq if available (stored by playPulse), otherwise fallback to .value
-  let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
-  if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
-
-  // Arpeggio timing: advances at the chip's native frame rate.
-  // Each tick = 1 frame, independent of BPM or musical tempo.
-  // For Speed=7 (7 ticks per row) with 3-note arpeggio:
-  //   Root → +x → +y → Root → +x → +y → Root (7 notes)
-  // This rapid cycling creates the chord illusion.
 
   // Chip frame rates (Hz) - based on TV standards and hardware specs
   // Note: Defaults reflect the dominant market/scene for each chip:
@@ -246,37 +240,50 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const frameRate = CHIP_FRAME_RATES[chipType] || 60; // Default to 60 Hz
   const stepDuration = 1 / frameRate;
 
+  // hUGETracker arpeggio always includes the root note first
+  // For offsets [3, 7], the cycle is: Root (0) → +3 → +7 → Root → ...
+  const allOffsets = [0, ...offsets];
+
   try {
-    // Cancel any existing frequency automation
-    osc.frequency.cancelScheduledValues(start);
+    if (hasFrequency) {
+      // OscillatorNode path (pulse / noise channels): automate the `frequency` AudioParam.
+      // Get the base frequency — use _baseFreq if available (stored by playPulse), otherwise .value
+      let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
+      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
 
-    // hUGETracker arpeggio always includes the root note first
-    // For offsets [3, 7], the cycle is: Root (0) → +3 → +7 → Root → ...
-    const allOffsets = [0, ...offsets];
+      osc.frequency.cancelScheduledValues(start);
 
-    // Calculate frequencies for each offset
-    // Formula: freq = baseFreq * 2^(semitones / 12)
-    const frequencies = allOffsets.map(offset => baseFreq * Math.pow(2, offset / 12));
+      // Formula: freq = baseFreq * 2^(semitones / 12)
+      const frequencies = allOffsets.map((offset: number) => baseFreq * Math.pow(2, offset / 12));
 
-    // Schedule frequency changes at the chip's native frame rate (e.g., 60Hz for Game Boy, 50Hz for C64)
-    // Each note in the arpeggio lasts exactly one frame (e.g., ~16.667ms at 60Hz, ~20ms at 50Hz)
-    let currentTime = start;
-    const endTime = start + dur;
+      let currentTime = start;
+      const endTime = start + dur;
+      while (currentTime < endTime) {
+        for (let i = 0; i < frequencies.length && currentTime < endTime; i++) {
+          osc.frequency.setValueAtTime(Math.max(20, Math.min(20000, frequencies[i])), currentTime);
+          currentTime += stepDuration;
+        }
+      }
+    } else {
+      // AudioBufferSourceNode path (wave channel): automate `playbackRate` instead.
+      // The wave channel encodes pitch as playbackRate = (freq * cycleLen) / sampleRate.
+      // Semitone ratios are identical: newRate = baseRate * 2^(semitones / 12).
+      const baseRate = osc.playbackRate.value;
+      if (!Number.isFinite(baseRate) || baseRate <= 0) return;
 
-    // Schedule the arpeggio cycle for the entire note duration
-    while (currentTime < endTime) {
-      for (let i = 0; i < frequencies.length && currentTime < endTime; i++) {
-        const freq = frequencies[i];
-        const safeFreq = Math.max(20, Math.min(20000, freq));
+      osc.playbackRate.cancelScheduledValues(start);
 
-        // Schedule this frequency to start at currentTime
-        osc.frequency.setValueAtTime(safeFreq, currentTime);
-        currentTime += stepDuration; // Advance by one chip frame (1/frameRate second)
+      const rates = allOffsets.map((offset: number) => baseRate * Math.pow(2, offset / 12));
+
+      let currentTime = start;
+      const endTime = start + dur;
+      while (currentTime < endTime) {
+        for (let i = 0; i < rates.length && currentTime < endTime; i++) {
+          osc.playbackRate.setValueAtTime(rates[i], currentTime);
+          currentTime += stepDuration;
+        }
       }
     }
-
-    // Hold the last frequency until the end of the note
-    // (Don't reset to base - let it naturally transition)
   } catch (e) {
     // Best effort - skip arpeggio if automation fails
   }
