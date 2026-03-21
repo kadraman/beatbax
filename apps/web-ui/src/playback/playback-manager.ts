@@ -268,8 +268,12 @@ export class PlaybackManager {
       this.setupPositionTracking(this.player, resolved, channelSequenceNames, channelPatternMaps);
       log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
 
-      // Apply channel mute/solo state before playback starts
+      // Apply channel mute/solo state before playback starts.
+      // First reconcile: clear solo/mute for channels that don't exist in the
+      // new song (e.g. channel 3 was solo'd but the new song only has channel 1).
       if (this.channelState) {
+        const activeChannelIds = (resolved.channels || []).map((ch: any) => ch.id);
+        this.channelState.reconcileWithChannels(activeChannelIds);
         this.channelState.applyToPlayer(this.player);
       }
 

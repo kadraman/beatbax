@@ -37,7 +37,15 @@ const splitTopLevel = (s: string, sep = ':'): string[] => {
   return out.map(x => x.trim()).filter(Boolean);
 };
 
-export function expandSequenceItems(items: (string | SequenceItem)[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>, presets?: Record<string, string>): string[] {
+export function expandSequenceItems(
+  items: (string | SequenceItem)[],
+  pats: Record<string, string[]>,
+  insts?: Record<string, any>,
+  _missingWarned?: Set<string>,
+  presets?: Record<string, string>,
+  seqs?: Record<string, string[] | SequenceItem[]>,
+  _seqVisiting?: Set<string>,
+): string[] {
   const out: string[] = [];
   const missingWarned = _missingWarned || new Set<string>();
 
@@ -78,16 +86,27 @@ export function expandSequenceItems(items: (string | SequenceItem)[], pats: Reco
     if (mGroup) {
       const inner = mGroup[1].trim();
       const innerParts = inner.match(/[^\s]+/g) || [];
-      tokens = expandSequenceItems(innerParts, pats, insts, missingWarned);
+      tokens = expandSequenceItems(innerParts, pats, insts, missingWarned, presets, seqs, _seqVisiting);
     } else if (pats[realBase]) {
       tokens = pats[realBase].slice();
+    } else if (seqs && Object.prototype.hasOwnProperty.call(seqs, realBase)) {
+      // Sequence-references-sequence: recursively expand the referenced sequence.
+      const visiting = _seqVisiting ?? new Set<string>();
+      if (visiting.has(realBase)) {
+        warn('sequences', `Circular sequence reference detected: '${realBase}' — skipping to avoid infinite loop.`);
+        tokens = [];
+      } else {
+        visiting.add(realBase);
+        tokens = expandSequenceItems(seqs[realBase] as any, pats, insts, missingWarned, presets, seqs, visiting);
+        visiting.delete(realBase);
+      }
     } else {
       tokens = [realBase];
       // Only warn if realBase is not a known pattern AND not a known instrument
       const isInstrument = insts && insts[realBase];
       if (realBase && !missingWarned.has(realBase) && !isInstrument) {
         missingWarned.add(realBase);
-        warn('sequences', `sequence item '${realBase}' referenced but no pattern named '${realBase}' was found.`);
+        warn('sequences', `sequence item '${realBase}' referenced but no pattern or sequence named '${realBase}' was found.`);
       }
     }
 
@@ -105,7 +124,7 @@ export function expandAllSequences(seqs: Record<string, string[] | SequenceItem[
   const res: Record<string, string[]> = {};
   for (const [name, items] of Object.entries(seqs)) {
     // items may be an array of strings or structured SequenceItem objects
-    const expanded = expandSequenceItems(items as any, pats, insts, undefined, presets);
+    const expanded = expandSequenceItems(items as any, pats, insts, undefined, presets, seqs);
     res[name] = expanded;
   }
   return res;

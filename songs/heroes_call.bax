@@ -1,4 +1,4 @@
-## heroes_call.bax
+## heroes_call.bax - <kadraman>
 ## Original heroic title theme in the spirit of classic 8-bit fantasy RPG adventure music.
 ## Key: D major | Tempo: 108 BPM | Style: Heroic, mystical, triumphant
 ##
@@ -31,10 +31,9 @@
 ##   port : smooth legato slides on ascending portamento runs (slide, slowSlide)
 ##   DCM  : duty-cycle modulation on the coda (hero_thin → hero_bright → hero_warm)
 ##
-## Play: node bin/beatbax play songs/heroes_call.bax
 
-song name "Hyrule's Call"
-song artist "BeatBax"
+song name "Heroes Call"
+song artist "kadraman"
 song description """An original heroic title theme in D major, evoking the grandeur and mystique of classic 8-bit fantasy RPG adventure games. Opens with a bold ascending fanfare, develops into a flowing lyrical hero theme with arpeggiated harmony, visits a mysterious minor-tinged bridge with deep vibrato, then returns triumphant with shimmer embellishments before a grand duty-cycle modulated finale. Demonstrates vibrato, arpeggio, portamento, and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,adventure,rpg,fanfare,heroic,demo"
 
@@ -56,14 +55,14 @@ bpm 108
 #
 # Wave — deep_bass: rounded sawtooth wavetable, full-bodied warm walking bass
 #
-# Noise — percussion kit: kick, snare, hat (sparse and regal)
 
-inst hero_bright  type=pulse1 duty=50    env={"level":14,"direction":"down","period":1,"format":"gb"} gm=56
+inst hero_bright   type=pulse1 duty=50 env={"level":10,"direction":"down","period":3,"format":"gb"} gm=80
+inst hero_bright2  type=pulse1 duty=50    env={"level":14,"direction":"down","period":1,"format":"gb"} gm=56
 inst hero_thin    type=pulse1 duty=12.5  env={"level":14,"direction":"down","period":1,"format":"gb"} gm=56
 inst hero_warm    type=pulse1 duty=75    env={"level":12,"direction":"down","period":2,"format":"gb"} gm=57
 
-inst chord_bright type=pulse2 duty=25   env={"level":9,"direction":"down","period":2,"format":"gb"}  gm=80
-inst chord_sus    type=pulse2 duty=75   env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
+inst chord_bright type=pulse2 duty=25   env={"level":8,"direction":"down","period":4,"format":"gb"}  gm=80
+inst chord_sus    type=pulse2 duty=75   env={"level":8,"direction":"down","period":6,"format":"gb"}  gm=80
 
 inst deep_bass    type=wave   wave=[0,1,3,6,10,13,15,14,13,11,8,5,3,1,0,0]
 
@@ -94,12 +93,12 @@ effect slowSlide = port:22           # slow portamento for bass walks
 # The hero's call: D5 leaps through F#5 and A5 to the triumphant D6 peak
 # then echoes back down the chord, announcing adventure.
 # 16 steps: 2+2+2+6+2+2
-pat fan_a      = D5:2 F#5:2 A5:2 D6:6 A5:2 F#5:2
+pat fan_a      = D5:2 F#5:2 A5:2 D6<deepVib>:6 A5:2 F#5:2
 
 # fan_b: fanfare answer — D6 descends via chromatic passing tones to tonic D5
 # Creates that stately & conclusive "call and echo" fanfare structure.
 # 16 steps: 4+2+2+4+4
-pat fan_b      = D6:4 C#6:2 B5:2 A5:4 D5:4
+pat fan_b      = D6:4 C#6:2 B5:2 A5<heroVib>:4 D5<heroVib>:4
 
 # theme_a: main hero melody — flowing lyrical 8th-note phrase in D major
 # Rises through the scale from F#5, peaks on A5, then descends gracefully.
@@ -109,12 +108,12 @@ pat theme_a    = F#5:2 E5:2 D5:2 E5:2 F#5:2 A5:2 G5:2 F#5:2
 # theme_b: soaring answer phrase — climbs to D6 with heroic vibrato on the peak
 # The defining "hero moment" of the theme.
 # 16 steps: 2+2+4+2+2+4
-pat theme_b    = A5:2 B5:2 D6<heroVib>:4 A5:2 G5:2 F#5:4
+pat theme_b    = A5:2 B5:2 D6<heroVib>:4 A5:2 G5:2 F#5<heroVib>:4
 
 # theme_c: cadential resolution — closes the A section back to the tonic D5
 # The heroVib on D5 signals the end of each theme statement; rests allow breath.
 # 16 steps: 4+2+2+4+4
-pat theme_c    = E5:4 D5:2 C#5:2 D5<heroVib>:4 . . . .
+pat theme_c    = E5<heroVib>:4 D5:2 C#5:2 D5<heroVib>:4 . . . .
 
 # bridge_a: mysterious bridge — B minor colouring, slow deep vibrato throughout
 # Descends in long glowing steps: B5 → A5 → G5 → F#5
@@ -124,12 +123,12 @@ pat bridge_a   = B5<deepVib>:4 A5<deepVib>:4 G5<deepVib>:4 F#5<deepVib>:4
 # bridge_b: bridge continuation — portamento slide into B4, ends wistfully on A4
 # The slide and heroVib create a haunted, searching quality before the run.
 # 16 steps: 2+4+2+4+4
-pat bridge_b   = E5:2 D5<slide>:4 C#5:2 B4<heroVib>:4 A4:4
+pat bridge_b   = E5:2 D5<slide>:4 C#5:2 B4<heroVib>:4 A4<heroVib>:4
 
 # mel_run: ascending portamento run — builds anticipation into the triumphant reprise
 # Each step slides smoothly up from the previous for a seamless heroic climb.
 # 16 steps: 2+2+2+2+2+2+4
-pat mel_run    = A4<slide>:2 B4<slide>:2 C#5<slide>:2 D5<slide>:2 E5<slide>:2 F#5<slide>:2 A5:4
+pat mel_run    = A4<slide>:2 B4<slide>:2 C#5<slide>:2 D5<slide>:2 E5<slide>:2 F#5<slide>:2 A5<deepVib>:4
 
 # theme_a_sh: reprise theme_a — shimmer sparkle on the peak notes (F#5 and A5)
 # 16 steps: 2+2+2+2+2+2+2+2
@@ -137,18 +136,18 @@ pat theme_a_sh = F#5<shimmer>:2 E5:2 D5:2 E5:2 F#5<shimmer>:2 A5<shimmer>:2 G5:2
 
 # theme_b_sh: reprise answer phrase — shimmer throughout the climb to D6
 # 16 steps: 2+2+4+2+2+4
-pat theme_b_sh = A5<shimmer>:2 B5<shimmer>:2 D6<shimmer>:4 A5<shimmer>:2 G5:2 F#5:4
+pat theme_b_sh = A5<shimmer>:2 B5<shimmer>:2 D6<shimmer>:4 A5<shimmer>:2 G5:2 F#5<heroVib>:4
 
 # theme_c_sh: reprise cadence — shimmer resolution; rests allow the song to breathe
 # 16 steps: 4+2+2+4+4
-pat theme_c_sh = E5:4 D5:2 C#5:2 D5<shimmer>:4 . . . .
+pat theme_c_sh = E5<heroVib>:4 D5:2 C#5:2 D5<shimmer>:4 . . . .
 
 # coda_a: duty-cycle modulation bar — dramatic DCM ascent D5→D6, shimmer peak, heroVib arch
 #   thin (12.5%): hollow, nasal quick ascent D5→F#5→A5→D6
 #   bright (50%): full shimmer D6 soar and A5 arch
 #   warm (75%):   round, warm final landing on D5
 # 16 steps: 1+1+1+1+4+4+4
-pat coda_a     = inst hero_thin D5:1 F#5:1 A5:1 D6:1 inst hero_bright D6<shimmer>:4 A5<heroVib>:4 inst hero_warm D5:4
+pat coda_a     = inst hero_thin D5:1 F#5:1 A5:1 D6:1 inst hero_bright D6<shimmer>:4 A5<heroVib>:4 inst hero_warm D5<shimmer>:4
 
 # flourish_up: grand ascending flourish — fast D5→D6 scale run, then shimmer + heroVib peak
 # The final triumphant burst before the DCM coda; all upward energy and sparkle.
@@ -257,7 +256,7 @@ pat bass_run      = D2:2 E2:2 F#2:2 G2:2 A2:2 B2:2 C#3:2 D3:2
 
 # bass_coda: sustained tonic pedal — D2 held for the full final bar
 # 16 steps: 16
-pat bass_coda     = D2:16
+pat bass_coda     = D2<deepVib>:16
 
 # =============================================================================
 # Drum patterns  (Channel 4 — Noise)
@@ -285,32 +284,78 @@ pat drums_bridge  = hat . . . hat . . . hat . . . hat . . .
 pat drums_climax  = kick hat hat snare kick hat hat snare kick hat hat snare kick hat hat snare
 
 # =============================================================================
-# Sequences
+# Sequences  (grouped by song section — all four channels per section)
 # =============================================================================
 #
-# Song structure (20 bars total):
+# Song structure (21 bars):
 #   Bars  1– 2 : Grand opening fanfare
-#   Bars  3– 6 : Main A-section hero theme (× 2 with cadence)
+#   Bars  3– 6 : Main hero theme (× 2 with cadence)
 #   Bars  7– 8 : Mysterious bridge
-#   Bar   9    : Rising portamento run (transition into shimmer reprise)
+#   Bar   9    : Ascending run — transition into shimmer reprise
 #   Bars 10–13 : Shimmer reprise (× 2 with cadence)
 #   Bars 14–17 : Bold final reprise — plain heroic, no shimmer (× 2 with cadence)
 #   Bar  18    : Grand ascending flourish
 #   Bar  19    : DCM coda (duty-cycle modulation)
-#   Bar  20    : Final resolution (sustained tonic fade)
+#   Bars 20–21 : Final resolution (sustained tonic fade)
 
-seq melody_seq  = fan_a fan_b theme_a theme_b theme_a theme_c bridge_a bridge_b mel_run theme_a_sh theme_b_sh theme_a_sh theme_c_sh theme_a theme_b theme_a theme_c flourish_up coda_a coda_final
+# --- Section 1: Grand Opening Fanfare (Bars 1–2) ---
+seq fanfare_mel  = fan_a fan_b
+seq fanfare_harm = harm_fanfare harm_fanfare
+seq fanfare_bass = bass_intro bass_intro
+seq fanfare_perc = drums_sparse drums_sparse
 
-seq harmony_seq = harm_fanfare harm_fanfare harm_I_V harm_I_IV harm_I_V harm_IV_V harm_bridge1 harm_bridge2 harm_run harm_I_V_r harm_I_IV_r harm_I_V_r harm_IV_V_r harm_I_V harm_I_IV harm_I_V harm_IV_V harm_flourish harm_coda harm_coda_final
+# --- Section 2: Main Hero Theme (Bars 3–6) ---
+seq theme_mel  = theme_a theme_b theme_a theme_c
+seq theme_harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
+seq theme_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+seq theme_perc = drums_march drums_march drums_march drums_march
 
-seq bass_seq    = bass_intro bass_intro bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V bass_bridge bass_bridge bass_run bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V bass_run bass_coda bass_coda
+# --- Section 3: Mysterious Bridge (Bars 7–8) ---
+seq bridge_mel  = bridge_a bridge_b
+seq bridge_harm = harm_bridge1 harm_bridge2
+seq bridge_bass = bass_bridge bass_bridge
+seq bridge_perc = drums_bridge drums_bridge
 
-seq drums_seq   = drums_sparse drums_sparse drums_march drums_march drums_march drums_march drums_bridge drums_bridge drums_climax drums_march drums_march drums_climax drums_climax drums_march drums_march drums_climax drums_climax drums_climax drums_sparse drums_sparse
+# --- Section 4: Ascending Run — transition into reprise (Bar 9) ---
+seq run_mel  = mel_run
+seq run_harm = harm_run
+seq run_bass = bass_run
+seq run_perc = drums_climax
+
+# --- Section 5: Shimmer Reprise (Bars 10–13) ---
+seq shimmer_mel  = theme_a_sh theme_b_sh theme_a_sh theme_c_sh
+seq shimmer_harm = harm_I_V_r harm_I_IV_r harm_I_V_r harm_IV_V_r
+seq shimmer_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+seq shimmer_perc = drums_march drums_march drums_climax drums_climax
+
+# --- Section 6: Bold Final Reprise (Bars 14–17) ---
+seq reprise_mel  = theme_a theme_b theme_a theme_c
+seq reprise_harm = harm_I_V harm_I_IV harm_I_V harm_IV_V
+seq reprise_bass = bass_I_IV_V bass_ii_V_I bass_I_IV_V bass_I_IV_V
+seq reprise_perc = drums_march drums_march drums_climax drums_climax
+
+# --- Section 7: Grand Ascending Flourish (Bar 18) ---
+seq flourish_mel  = flourish_up
+seq flourish_harm = harm_flourish
+seq flourish_bass = bass_run
+seq flourish_perc = drums_climax
+
+# --- Section 8: DCM Coda — duty-cycle modulation (Bar 19) ---
+seq coda_mel  = coda_a
+seq coda_harm = harm_coda
+seq coda_bass = bass_coda
+seq coda_perc = drums_sparse
+
+# --- Section 9: Final Resolution — warm tonic fade (Bars 20–21) ---
+seq outro_mel  = coda_final
+seq outro_harm = harm_coda_final harm_coda_final
+seq outro_bass = bass_coda bass_coda
+seq outro_perc = drums_sparse drums_climax
 
 # =============================================================================
-channel 1 => inst hero_bright  seq melody_seq
-channel 2 => inst chord_bright seq harmony_seq
-channel 3 => inst deep_bass    seq bass_seq
-channel 4 => inst kick         seq drums_seq
+channel 1 => inst hero_bright  seq fanfare_mel  theme_mel  bridge_mel  run_mel  shimmer_mel  reprise_mel  flourish_mel  coda_mel  outro_mel
+channel 2 => inst chord_bright seq fanfare_harm theme_harm bridge_harm run_harm shimmer_harm reprise_harm flourish_harm coda_harm outro_harm
+channel 3 => inst deep_bass    seq fanfare_bass theme_bass bridge_bass run_bass shimmer_bass reprise_bass flourish_bass coda_bass outro_bass
+channel 4 => inst kick         seq fanfare_perc theme_perc bridge_perc run_perc shimmer_perc reprise_perc flourish_perc coda_perc outro_perc
 
-play
+play auto repeat

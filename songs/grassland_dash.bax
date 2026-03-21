@@ -1,6 +1,8 @@
-## grassland_dash.bax
+## grassland_dash.bax - <kadraman>
 ## Original platformer theme — in the spirit of classic 8-bit adventure games.
 ## Key: G major | Tempo: 140 BPM | Style: Bouncy, energetic
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
 ##
 ## Composition notes:
 ##   - Ch1 (Pulse1): Main melody with vibrato on sustained notes and arpeggiated fills.
@@ -8,16 +10,15 @@
 ##   - Ch3 (Wave): Bass + kick time-share — wavekick on every beat, bass on off-beats.
 ##   - Ch4 (Noise): Snare / hi-hat percussion (kick moved to wave channel).
 ##
-## Effects used:
+## Effects demonstrated:
 ##   - arp   : rapid chord cycling on held notes (pulse channels and wave bass)
 ##   - port  : legato slides for melodic runs and bass passages
 ##   - bend  : upward riser into the bridge, downward dive at phrase end
 ##   - vib   : light wobble on the bridge's sustained notes
 ##
-## Play: node bin/beatbax play songs/demo/grassland_dash.bax
 
 song name "Grassland Dash"
-song artist "BeatBax"
+song artist "kadraman"
 song description """An original upbeat platformer theme in G major. Inspired by the energetic spirit of classic 8-bit game soundtracks. Demonstrates arpeggio, portamento, pitchbend and vibrato effects across all four Game Boy channels."""
 song tags "original,platformer,demo,effects"
 
@@ -127,7 +128,7 @@ pat drums_a     = . hat snare hat . hat snare hat . hat snare hat . hat snare ha
 pat drums_b     = . hat hat snare . hat hat snare . hat snare hat . hat snare hat
 
 # -----------------------------------------------------------------------------
-# Sequences
+# Sequences  (grouped by song section — all four channels per section)
 #
 # Structure:
 #   Bars 01–04  A section  (phrase_a + phrase_b, repeated)
@@ -135,15 +136,34 @@ pat drums_b     = . hat hat snare . hat hat snare . hat snare hat . hat snare ha
 #   Bars 07–08  Turnaround (riser fill + endpoint dive)
 #   Bars 09–12  A reprise  (phrase_a + phrase_b, repeated — back to theme)
 
-seq melody_seq  = phrase_a phrase_b phrase_a phrase_b phrase_c phrase_d phrase_riser phrase_fill phrase_end phrase_a phrase_b phrase_a phrase_b
-seq harmony_seq = harm_a harm_b harm_a harm_b harm_c harm_fill harm_riser harm_fill harm_b harm_a harm_b harm_a harm_b
-seq bass_seq    = bass_a bass_b bass_a bass_b bass_fill bass_arp bass_arp bass_fill bass_b bass_a bass_b bass_a bass_b
-seq drums_seq   = drums_a drums_b drums_a drums_b drums_a drums_a drums_a drums_b drums_a drums_a drums_b drums_a drums_b
+# --- Section 1: A section — main theme (Bars 1–4) ---
+seq theme_mel  = phrase_a phrase_b phrase_a phrase_b
+seq theme_harm = harm_a harm_b harm_a harm_b
+seq theme_bass = bass_a bass_b bass_a bass_b
+seq theme_perc = drums_a drums_b drums_a drums_b
+
+# --- Section 2: Build — bridge with vibrato (Bars 5–6) ---
+seq build_mel  = phrase_c phrase_d
+seq build_harm = harm_c harm_fill
+seq build_bass = bass_fill bass_arp
+seq build_perc = drums_a drums_a
+
+# --- Section 3: Turnaround — riser, fill and dive (Bars 7–8) ---
+seq turn_mel  = phrase_riser phrase_fill phrase_end
+seq turn_harm = harm_riser harm_fill harm_b
+seq turn_bass = bass_arp bass_fill bass_b
+seq turn_perc = drums_a drums_b drums_a
+
+# --- Section 4: A reprise — theme returns (Bars 9–12) ---
+seq reprise_mel  = phrase_a phrase_b phrase_a phrase_b
+seq reprise_harm = harm_a harm_b harm_a harm_b
+seq reprise_bass = bass_a bass_b bass_a bass_b
+seq reprise_perc = drums_a drums_b drums_a drums_b
 
 # -----------------------------------------------------------------------------
-channel 1 => inst melody  seq melody_seq
-channel 2 => inst harmony seq harmony_seq
-channel 3 => inst bass2   seq bass_seq
-channel 4 => inst snare   seq drums_seq
+channel 1 => inst melody  seq theme_mel  build_mel  turn_mel  reprise_mel
+channel 2 => inst harmony seq theme_harm build_harm turn_harm reprise_harm
+channel 3 => inst bass2   seq theme_bass build_bass turn_bass reprise_bass
+channel 4 => inst snare   seq theme_perc build_perc turn_perc reprise_perc
 
 play auto repeat

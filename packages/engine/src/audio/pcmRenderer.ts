@@ -999,7 +999,13 @@ function renderWave(
   channelId?: number,
   legato?: boolean
 ) {
-  const waveTable = inst.wave ? parseWaveTable(inst.wave) : [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
+  const _parsedWave = inst.wave ? parseWaveTable(inst.wave) : null;
+  // Guard: if parseWaveTable returns an empty array (e.g. wave="[]"), fall back to the
+  // default sine-like table so waveMean / the sample loop never see NaN or Infinity.
+  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
+  const waveTable: number[] = (_parsedWave && _parsedWave.length > 0) ? _parsedWave : DEFAULT_WAVE;
+  // AC-coupling mean: computed once, used in the sample loop below.
+  const waveMean = waveTable.reduce((a: number, b: number) => a + b, 0) / waveTable.length;
 
   // Resolve volume multiplier
   let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
@@ -1249,13 +1255,13 @@ function renderWave(
     const phase = (t * effFreq) % 1.0;
     const tablePos = phase * waveTable.length;
     const i0 = Math.floor(tablePos) % waveTable.length;
-    const i1 = (i0 + 1) % waveTable.length;
-    const frac = tablePos - Math.floor(tablePos);
-    const v0 = (waveTable[i0] / 15.0) * 2.0 - 1.0;
-    const v1 = (waveTable[i1] / 15.0) * 2.0 - 1.0;
+    // ZOH + AC-coupling: use floor index only (no interpolation), subtract mean
+    // to match real GB wave DAC behaviour (AC-coupled, staircase output).
+    // Scale by /15 (4-bit max) to preserve relative amplitude like pulse channels.
+    const v = (waveTable[i0] - waveMean) / 15.0;
     // Use sustained volume for legato notes, otherwise use instrument volume
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
-    let sample = ((v0 * (1 - frac) + v1 * frac) * effectiveVolMul);
+    let sample = v * effectiveVolMul;
 
     // Apply tremolo if enabled (amplitude modulation)
     if (tremDepth > 0 && tremRate > 0) {
@@ -1417,22 +1423,28 @@ function renderNoise(
  * @returns An array of 16 numbers representing the wavetable.
  */
 function parseWaveTable(wave: any): number[] {
+  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
   if (typeof wave === 'string') {
     try {
+      const s = wave.replace(/^["']|["']$/g, '').trim(); // strip optional surrounding quotes
+      // hUGETracker hex format: 32 hex nibbles, e.g. "0478ABBB986202467776420146777631"
+      if (/^[0-9A-Fa-f]{32}$/.test(s)) {
+        return s.split('').map(c => parseInt(c, 16));
+      }
       // Parse array string like "[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]"
-      const parsed = JSON.parse(wave);
-      if (Array.isArray(parsed)) {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map(v => Math.max(0, Math.min(15, v)));
       }
     } catch (e) {
       // Fall through to default
     }
-  } else if (Array.isArray(wave)) {
+  } else if (Array.isArray(wave) && wave.length > 0) {
     return wave.map(v => Math.max(0, Math.min(15, v)));
   }
 
-  // Default sine-like wave
-  return [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
+  // Default sine-like wave (also handles empty array inputs)
+  return DEFAULT_WAVE;
 }
 
 /**
