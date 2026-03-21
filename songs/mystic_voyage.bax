@@ -68,7 +68,7 @@ inst hat        type=noise  env={"level":3,"direction":"down","period":1,"format
 
 effect wobble    = vib:3,5,sine,3    # gentle wobble on held melody notes
 effect deepVib   = vib:5,3,sine,6    # slow, deep bridge vibrato
-effect shimmer   = vib:2,9,sine,2    # fast sparkle on the closing coda
+#effect shimmer   = vib:2,9,sine,2    # fast sparkle on the closing coda
 
 effect shimmer = trem:6,4,sine
 effect pulse = trem:10,8,square

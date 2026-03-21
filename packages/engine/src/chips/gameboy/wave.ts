@@ -2,7 +2,9 @@ import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js'
 import { parseEnvelope } from './pulse.js';
 
 export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
-  const cycleLen = (table && table.length) ? table.length : 32;
+  // Normalize: guard against empty/missing table — default to silence (all zeros, 32 samples = GB wave RAM size)
+  const safeTable: number[] = (table && table.length > 0) ? table : new Array(32).fill(0);
+  const cycleLen = safeTable.length;
 
   // Use the native audio context sample rate so the playback rate stays near 1.0.
   // At native rate we can implement zero-order hold (ZOH) upsampling — each 4-bit
@@ -26,7 +28,7 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
 
   // AC-couple: subtract mean so the waveform is centred around 0, matching the
   // real GB wave DAC which is always AC-coupled at the hardware level.
-  const mean = table.reduce((a: number, b: number) => a + b, 0) / cycleLen;
+  const mean = safeTable.reduce((a: number, b: number) => a + b, 0) / cycleLen;
   // Scale by /15 (the 4-bit max) to preserve relative amplitude across waveforms;
   // using /peak would always normalise to ±0.9 regardless of the original level.
 
@@ -34,7 +36,7 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
   // copy that step's value without any interpolation — staircase preserved.
   for (let s = 0; s < bufLen; s++) {
     const step = Math.floor(s * cycleLen / bufLen);
-    data[s] = ((table[step] - mean) / 15) * 0.9;
+    data[s] = ((safeTable[step] - mean) / 15) * 0.9;
   }
 
   const src = ctx.createBufferSource();
@@ -112,9 +114,23 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
   return [src, gain];
 }
 
+/** Tile a short array up to targetLen by repeating it, preserving waveform shape. */
+function padToLength(samples: number[], targetLen: number): number[] {
+  if (samples.length >= targetLen) return samples;
+  const out: number[] = [];
+  for (let i = 0; i < targetLen; i++) out.push(samples[i % samples.length]);
+  return out;
+}
+
 export function parseWaveTable(raw: any): number[] {
-  if (!raw) return new Array(16).fill(0);
-  if (Array.isArray(raw)) return raw.map(n => Number(n) || 0);
+  // GB wave RAM is 32 × 4-bit samples; all defaults and short tables tile up to 32.
+  const GB_WAVE_LEN = 32;
+  if (!raw) return new Array(GB_WAVE_LEN).fill(0);
+  if (Array.isArray(raw)) {
+    const mapped = raw.map(n => Number(n) || 0);
+    if (mapped.length === 0) return new Array(GB_WAVE_LEN).fill(0);
+    return padToLength(mapped, GB_WAVE_LEN);
+  }
   try {
     const s = String(raw).replace(/^["']|["']$/g, '').trim(); // strip optional surrounding quotes
     // hUGETracker hex format: 32 hex nibbles, e.g. "0478ABBB986202467776420146777631"
@@ -122,9 +138,9 @@ export function parseWaveTable(raw: any): number[] {
       return s.split('').map(c => parseInt(c, 16));
     }
     const arr = JSON.parse(s);
-    if (Array.isArray(arr)) return arr.map(n => Number(n) || 0);
+    if (Array.isArray(arr) && arr.length > 0) return padToLength(arr.map(n => Number(n) || 0), GB_WAVE_LEN);
   } catch (_) {}
-  return new Array(16).fill(0);
+  return new Array(GB_WAVE_LEN).fill(0);
 }
 
 export default { playWavetable, parseWaveTable };
