@@ -1,6 +1,6 @@
 ## sample.bax
-## BeatBax Sample song
-## This file illustrates common language features and maps them to 4 Game Boy-like
+## BeatBax Sample song - <kadraman>
+## This song illustrates common language features and maps them to 4 Game Boy-like
 ## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
 
 song name "Sample Song"
@@ -22,7 +22,6 @@ bpm 128
 #      For backwards compatibility the legacy CSV form `env=12,down,1` is still accepted and will be normalized by the parser.
 #  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
 #
-# The instruments below are chosen to show different channel roles:
 # The instruments below are chosen to show different channel roles.
 # You may optionally annotate instruments with a General MIDI program number
 # using `gm=<0-127>`. The exporter will use this value for Program Change

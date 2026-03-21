@@ -68,32 +68,37 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
       }
       const curve = new Float32Array(vals);
       const curveDuration = (vals.length - 1) * stepPeriod;
+      // maxSteps = floor(dur / stepPeriod), so the curve always finishes at or before
+      // start+dur. The correct gain at that point is the last value in the vals array.
+      // Using g.value here would return the AudioParam's intrinsic value (1.0) regardless
+      // of any scheduled automation — causing a loud snap/click at note-end.
+      const gainAtDur = vals[vals.length - 1];
       if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
         scheduler.scheduleAligned(start, () => {
           try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
         });
-        scheduler.scheduleAligned(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
+        scheduler.scheduleAligned(start + dur, () => { try { g.setValueAtTime(gainAtDur, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
       } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
         scheduler.schedule(start, () => {
           try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
         });
-        scheduler.schedule(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
+        scheduler.schedule(start + dur, () => { try { g.setValueAtTime(gainAtDur, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
       } else {
         try {
           if (typeof (g as any).setValueCurveAtTime === 'function') {
             (g as any).setValueCurveAtTime(curve, start, curveDuration);
-            g.setValueAtTime(g.value, start + dur);
+            g.setValueAtTime(gainAtDur, start + dur);
             g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
           } else {
             g.setValueAtTime(vals[0], start);
             let t = start + stepPeriod;
             for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
-            g.setValueAtTime(g.value, start + dur);
+            g.setValueAtTime(gainAtDur, start + dur);
             g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
           }
         } catch (e) {
           g.setValueAtTime(vals[0], start);
-          g.setValueAtTime(g.value, start + dur);
+          g.setValueAtTime(gainAtDur, start + dur);
           g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
         }
       }

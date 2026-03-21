@@ -264,6 +264,33 @@ export class ChannelState {
   }
 
   /**
+   * Clear solo/mute state for channels that don't exist in the active song.
+   * Call this before applying state to a new song to prevent stale solos
+   * from silencing all channels when a previously-soloed channel no longer exists.
+   */
+  reconcileWithChannels(activeChannelIds: number[]): void {
+    const activeSet = new Set(activeChannelIds);
+    let changed = false;
+    for (const [id, info] of this.channels.entries()) {
+      if (!activeSet.has(id)) {
+        if (info.soloed) {
+          info.soloed = false;
+          this.eventBus.emit('channel:unsoloed', { channel: id });
+          changed = true;
+        }
+        if (info.muted) {
+          info.muted = false;
+          this.eventBus.emit('channel:unmuted', { channel: id });
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.saveState();
+    }
+  }
+
+  /**
    * Reset all channels to default state
    */
   reset(): void {

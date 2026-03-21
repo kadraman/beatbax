@@ -426,11 +426,14 @@ function parseOrders(reader: BinaryReader): Orders {
         const orderLen = Math.max(0, orderLenPlusOne - 1);
         const indices: number[] = [];
 
+        // Each order entry is a single uint32 (the pattern index).
+        // After all entries there is one trailing uint32(0) filler (off-by-one per UGE spec).
         for (let i = 0; i < orderLen; i++) {
             const idx = reader.readU32(`orders[${channelNames[c]}].index[${i}]`);
-            const filler = reader.readU32(`orders[${channelNames[c]}].filler[${i}]`);
             indices.push(idx);
         }
+        // Consume the trailing off-by-one filler uint32
+        reader.readU32(`orders[${channelNames[c]}].trailingFiller`);
 
         channels.push(indices);
     }
