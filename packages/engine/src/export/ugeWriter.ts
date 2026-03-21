@@ -1066,6 +1066,15 @@ function eventsToPatterns(
                 ugeTranspose = 0; // No automatic transpose for noise
             }
 
+            // For the wave channel, the GB hardware produces half the frequency of the
+            // pulse channel for the same period register: f = 65536 / (2048 - R), vs
+            // f = 131072 / (2048 - R) for pulse. To compensate so the note plays at the
+            // intended pitch in hUGETracker, transpose wave channel notes up one octave (+12).
+            // Users can cancel this with uge_transpose=-12 on the instrument if desired.
+            if (channelType === GBChannel.WAVE) {
+                ugeTranspose += 12;
+            }
+
             const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose);
             const instIndex = resolveInstrumentIndex(
                 noteEvent.instrument,
@@ -1560,11 +1569,17 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 if (Array.isArray(inst.wave)) {
                     waveData = inst.wave;
                 } else if (typeof inst.wave === 'string') {
-                    // Parse string like "[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]"
-                    try {
-                        waveData = JSON.parse(inst.wave);
-                    } catch (e) {
-                        warn('export', `Failed to parse wave data for ${name}: ${inst.wave}`);
+                    const hexStr = inst.wave.replace(/^["']|["']$/g, '').trim();
+                    // hUGETracker hex format: 32 hex nibbles, e.g. "0478ABBB986202467776420146777631"
+                    if (/^[0-9A-Fa-f]{32}$/.test(hexStr)) {
+                        waveData = hexStr.split('').map((c: string) => parseInt(c, 16));
+                    } else {
+                        // Parse array string like "[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]"
+                        try {
+                            waveData = JSON.parse(hexStr);
+                        } catch (e) {
+                            warn('export', `Failed to parse wave data for ${name}: ${inst.wave}`);
+                        }
                     }
                 }
             }

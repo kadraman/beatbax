@@ -1,0 +1,324 @@
+## crypt_of_fallen_kings.bax - <kadraman>
+## Original dark-action theme in the spirit of gothic 8-bit platformer soundtracks.
+## Key: A harmonic minor | Tempo: 160 BPM | Style: Driving, dark, heroic
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It captures the *atmosphere* of dark platformer action: a bold leaping melody hook,
+## fast descending harmonic-minor runs, driving percussion, and arpeggio-based harmony
+## that simulate full chords across just two tonal channels.
+##
+## Structure (20 bars):
+##   Bars  1– 4 : Dark intro         (Am arpeggios + bass pedal; rising then falling melodic hint)
+##   Bars  5– 8 : Main hook "A"      (bold 4th-leap + harmonic-minor descent run, ×2)
+##   Bars  9–12 : B section          (higher register, tighter tension, ×2)
+##   Bars 13–14 : Bridge             (held notes with deep vibrato, atmospheric descent)
+##   Bars 15–18 : Return to A        (hook returns with vibrato flourishes, ×2)
+##   Bars 19–20 : Climax             (blazing ascending run + triumphant peak chord)
+##   Bars 21–22 : Finale hook        (closing phrase — loop-ready)
+##
+## Channels:
+##   Ch1 (Pulse1): Main melody — bold octave leaps, fast harmonic-minor runs,
+##                 vibrato on sustained peaks for Konami-style expressiveness
+##   Ch2 (Pulse2): Harmony arpeggios — tight chord cycling (Am/Dm/E7/F/G),
+##                 duty switches for timbral contrast in the B section
+##   Ch3 (Wave):   Driving bass — rounded asymmetric waveform, straight 8ths and
+##                 galloping long-short-short patterns for forward propulsion
+##   Ch4 (Noise):  Percussion — kick/snare/hat groove with climax fills
+##
+## Effects demonstrated:
+##   vib  : medium vibrato on melody peaks (exprVib); deep slow vibrato on bridge (deepVib);
+##          fast shimmer on climax notes (fastVib)
+##   arp  : minor triad cycling on Am/Dm harmony; major triad on F/G; dom7 on E7
+##   port : snappy slides between scalar run notes; legato bass walks
+##
+## Play: node bin/beatbax play songs/crypt_of_fallen_kings.bax
+
+song name "Crypt of the Fallen Kings"
+song artist "kadraman"
+song description """An original dark-action theme in A harmonic minor at 160 BPM. Driving 16th-note energy, bold octave leaps, fast descending harmonic-minor scalar runs, and relentless percussion evoke locked castle corridors and undead hordes. The two pulse channels simulate full Am–F–G–Am and Am–Dm–E7–Am progressions via tight arpeggios, while a galloping wave-bass and snappy kick-snare-hat groove maintain constant forward momentum. Demonstrates vibrato, arpeggios, portamento and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,dark,action,horror,platformer,demo"
+
+chip gameboy
+bpm 160
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Pulse1 — lead melody: 50% duty for a balanced, full-bodied heroic tone.
+#   lead  — 50%    standard balanced tone        (default melodic statements)
+#   edge  — 12.5%  hollow, nasal, sharp attack   (fast scalar run notes)
+#   warm  — 75%    warm, rounded                 (sustained resolution peaks)
+#
+# Pulse2 — harmony arpeggios: two duty variants for timbral contrast.
+#   arp   — 25%    crisp, staccato arp tone       (A-section chord cycling)
+#   arp2  — 12.5%  bright, edgy                  (B-section heightened tension)
+#
+# Wave — bass: asymmetric rounded waveform (rising hump) for deep, warm attack.
+# Noise — drums: three percussion voices (kick/snare/hat).
+
+inst lead   type=pulse1 duty=50   env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst edge   type=pulse1 duty=12.5 env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst warm   type=pulse1 duty=75   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=82
+
+inst arp    type=pulse2 duty=25   env={"level":9,"direction":"down","period":2,"format":"gb"}  gm=80
+inst arp2   type=pulse2 duty=12.5 env={"level":9,"direction":"down","period":6,"format":"gb"}  gm=80
+
+inst bass   type=wave   wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0]
+
+inst kick   type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} note=C6
+inst snare  type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
+inst hat    type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect exprVib  = vib:3,5,sine,4    # medium vibrato — expressiveness on peaks
+effect deepVib  = vib:5,3,sine,6    # slow, deep vibrato — atmospheric bridge tension
+effect fastVib  = vib:2,8,sine,2    # fast shimmer — blazing climax and peak notes
+
+effect minorArp = arp:3,7           # minor triad  (Am, Dm: root + min3 + P5)
+effect majArp   = arp:4,7           # major triad  (F, G: root + maj3 + P5)
+effect dom7Arp  = arp:4,7,10        # dominant 7th (E7: root + maj3 + P5 + min7)
+
+effect slide    = port:8            # snappy slide — scalar run articulation
+
+# =============================================================================
+# Melody patterns  (Channel 1 — Pulse1)
+# =============================================================================
+
+# mel_intro: quiet arpeggio call — ascending Am gesture with surrounding silence.
+# Sparse and ominous; sets the key before the fuller second intro phrase enters.
+# 16 steps: 4 rests + (2+2+2+2) arp + 4 rests
+pat mel_intro   = . . . . A4<pan:L>:2 C5<pan:R>:2 E5<pan:L>:2 A5<pan:R>:2 . . . .
+
+# mel_intro2: extended intro gesture — rises to C6 then descends back to A4.
+# More active than mel_intro but still atmospheric; builds tension into the hook.
+# 16 steps: 2 rests + (2+2+2+2+2+2) arch + 2 rests
+pat mel_intro2  = . . E5<pan:L>:2 A5<pan:R>:2 C6<pan:L>:2 A5<pan:R>:2 E5<pan:L>:2 A4<pan:R>:2 . .
+
+# mel_a: MAIN HOOK — bold P4-leap E5→A5, then blazing harmonic-minor descent.
+# The core melodic identity: heroic upward leap followed by a breakneck run
+# through the A harmonic minor scale (A B C D E F G#) back to the tonic.
+# 16 steps: 2+1+1+1+1+1+1+1+1+2+1+1+1+1
+pat mel_a       = E5<pan:L>:2 A5<pan:R> G5<pan:L> F5<pan:R> E5<pan:L> D5<pan:R> C5<pan:L> B4<pan:R> A4<pan:L> E5<pan:R>:2 C5<pan:L> A4<pan:R> . .
+
+# mel_a2: hook variation — octave jump to C6, then a dramatic longer descent.
+# The heroic answer: goes higher, falls further, reinforcing scale familiarity.
+# 16 steps: 1×12 + 2 + 1 + 1
+pat mel_a2      = A4<pan:L> E5<pan:R> A5<pan:L> C6<pan:R> B5<pan:L> A5<pan:R> G5<pan:L> F5<pan:R> E5<pan:L> D5<pan:R> C5<pan:L> B4<pan:R> A4<pan:C>:2 . .
+
+# mel_b_hi: B-section melody — higher register entry C5→C6 with syncopated accent.
+# Rapid descent from C6 through the harmonic minor. Vibrato on the peak C6
+# creates expressiveness amid the driving 16th-note energy.
+# 16 steps: 1+1+1+2+1+1+1+1+2+1+1+1+1
+pat mel_b_hi    = C5<pan:L> E5<pan:R> A5<pan:L> C6<exprVib,pan:R>:2 B5<pan:L> A5<pan:R> G5<pan:L> F5<pan:R> E5<pan:L>:2 D5<pan:R> C5<pan:L> B4<pan:R> .
+
+# mel_b_hi2: B-section continuation — ascends even higher, peak at E6 with fast vib.
+# The most intense melodic bar: dramatic upper-register leap and shimmering peak.
+# 16 steps: 1+1+1+1+1+2+1+1+1+1+1+2+1+1
+pat mel_b_hi2   = E5<pan:L> F5<pan:R> G5<pan:L> A5<pan:R> C6<pan:L> E6<fastVib,pan:R>:2 C6<pan:L> B5<pan:R> A5<pan:L> G5<pan:R> F5<pan:L> E5<pan:R>:2 . .
+
+# mel_bridge_a: bridge — long held notes with deep vibrato, slow and atmospheric.
+# Descends from A5 in measured steps — the dark heart of the piece, introspective.
+# 16 steps: 4+4+4+4
+pat mel_bridge_a = A5<deepVib,pan:L>:4 G5<deepVib,pan:R>:4 F5<deepVib,pan:L>:4 E5<deepVib,pan:R>:4
+
+# mel_bridge_b: bridge continuation — resolvies downward to the tonic under deep vibrato.
+# Closes out the descent to A4 — maximum tension before the return erupts.
+# 16 steps: 4+4+4+4
+pat mel_bridge_b = D5<deepVib,pan:L>:4 C5<deepVib,pan:R>:4 B4<deepVib,pan:L>:4 A4<deepVib,pan:R>:4
+
+# mel_run: CLIMAX RUN — blazing ascending scalar passage up the harmonic minor scale.
+# Each note slides into the next. Builds to D6 peak then drops triumphantly to A5.
+# 16 steps: 1×10 + 2 + 4
+pat mel_run     = A4<slide> B4<slide> C5<slide> D5<slide> E5<slide> F5<slide> G#5<slide> A5<slide> B5<slide> C6<slide> D6:2 A5<fastVib>:4
+
+# mel_a_vib: return-A hook — mel_a with medium vibrato added on both peak notes.
+# Vibrato on A5 and C5 marks the return as more expressive and triumphant.
+# 16 steps: 2+1+1+1+1+1+1+1+1+2+1+1+1+1
+pat mel_a_vib   = E5<pan:L>:2 A5<exprVib,pan:R> G5<pan:L> F5<pan:R> E5<pan:L> D5<pan:R> C5<pan:L> B4<pan:R> A4<pan:L> E5<pan:R>:2 C5<exprVib,pan:L> A4<pan:R> . .
+
+# mel_finale: closing peak — powerful sustained A5, then one last descending phrase.
+# Fast vibrato on the initial peak before the final descent to tonic.
+# 16 steps: 4+1+1+1+1+1+1+4+1+1
+pat mel_finale  = A5<fastVib,pan:L>:4 G5<pan:R> F5<pan:L> E5<pan:R> D5<pan:L> C5<pan:R> B4<pan:L> A4<exprVib,pan:R>:4 . .
+
+# =============================================================================
+# Harmony patterns  (Channel 2 — Pulse2)
+# =============================================================================
+#
+# The harmony channel drives tight arpeggiated chord outlines beneath the melody.
+# Each pattern uses the arp effect for rapid chord-tone cycling on held notes.
+#
+# Core progressions (A harmonic minor):
+#   i → VI → VII → i   Am → F → G  → Am  (Bars 3–6 and return)
+#   i → iv  → V  → i   Am → Dm → E7 → Am (alternating bars)
+
+# harm_intro: Am pedal arp — opens the dark intro before the melody enters.
+# Two bars of Am cycling provide harmonic grounding for the bass pedal.
+# 16 steps: 8+8
+pat harm_intro  = A3<minorArp>:8 E3<minorArp>:8
+
+# harm_main1: i → VI → VII → i — the classic Castlevania minor progression.
+# Am:4 → F:4 → G:4 → Am:4 gives the dark-heroic alternating quality.
+# 16 steps: 4+4+4+4
+pat harm_main1  = A3<minorArp>:4 F3<majArp>:4 G3<majArp>:4 A3<minorArp>:4
+
+# harm_main2: i → iv → V7 → i — builds tension with the harmonic-minor V chord.
+# E7 (E-G#-B-D) is the key: the G# leading tone creates harmonic minor flavor.
+# 16 steps: 4+4+4+4
+pat harm_main2  = A3<minorArp>:4 D3<minorArp>:4 E3<dom7Arp>:4 A3<minorArp>:4
+
+# harm_b1: B-section chord 1 — switches to arp2 (12.5% duty) for sharper timbre.
+# Higher voicing (C4, E4) for the elevated register of the B-section melody.
+# 16 steps: 4+4+4+4
+pat harm_b1     = inst arp2 A3<minorArp>:4 C4<majArp>:4 E4<dom7Arp>:4 A3<minorArp>:4
+
+# harm_b2: B-section chord 2 — Dm and E7 dominant tension under the climax bars.
+# 16 steps: 4+4+4+4
+pat harm_b2     = inst arp2 D3<minorArp>:4 F3<majArp>:4 E3<dom7Arp>:4 A3<minorArp>:4
+
+# harm_bridge: atmospheric sparse arps — resets to arp for the calm bridge.
+# Long held arps create a more open, spacious texture under the slow melody.
+# 16 steps: 8+8
+pat harm_bridge = inst arp A2<minorArp>:8 E3<dom7Arp>:8
+
+# harm_run: climbing arps matching the ascending climax run energy.
+# Rises Am→C→Em→A7 to track the scalar ascent on Pulse1.
+# 16 steps: 4+4+4+4
+pat harm_run    = inst arp A3<minorArp>:4 C4<majArp>:4 E4<minorArp>:4 A4<dom7Arp>:4
+
+# =============================================================================
+# Bass patterns  (Channel 3 — Wave)
+# =============================================================================
+#
+# Wave bass uses a rounded asymmetric waveform for a warm, dark, full-bodied tone.
+# Straight 8ths anchor the harmonic roots; galloping patterns add rhythmic urgency.
+
+# bass_intro: A pedal in straight 8ths — dark underpinning of the intro buildup.
+# 16 steps: 8 × A2:2
+pat bass_intro  = A2:2 A2:2 A2:2 A2:2 A2:2 A2:2 A2:2 A2:2
+
+# bass_main1: follows i → VI → VII → i chord roots in straight 8ths.
+# A2-A2-F2-F2-G2-G2-A2-A2: pairs each chord across 2 steps each.
+# 16 steps: 8 × 2
+pat bass_main1  = A2:2 A2:2 F2:2 F2:2 G2:2 G2:2 A2:2 A2:2
+
+# bass_gallop: long-short-short galloping pattern — classic Castlevania bass energy.
+# Each chord gets 4+2+2 steps: the strong beat + two quicker off-beat repeats.
+# 16 steps: 4+2+2+4+2+2
+pat bass_gallop = A2:4 A2:2 E2:2 F2:4 F2:2 C3:2
+
+# bass_b_main: B-section bass — Am → Dm → E → Am in quarter-note pace per chord.
+# Slower movement with bigger chord shifts suits the higher-register B melody.
+# 16 steps: 4+4+4+4
+pat bass_b_main = A2:4 D3:4 E3:4 A2:4
+
+# bass_bridge: slow chromatic descent for the atmospheric bridge section.
+# A2 → G#2 → F2 → E2 mirrors the melody's descending harmonic-minor walk.
+# 16 steps: 4+4+4+4
+pat bass_bridge = A2:4 G2:4 F2:4 E2:4
+
+# bass_run: blazing ascending bass doubles the climax scalar run energy.
+# Moves from A2 to A3 in even 8ths — mirrors the harmonic-minor scalar ascent.
+# 16 steps: 8 × 2
+pat bass_run    = A2:2 B2:2 C3:2 D3:2 E3:2 F3:2 G#3:2 A3:2
+
+# =============================================================================
+# Drum patterns  (Channel 4 — Noise)
+# =============================================================================
+#
+# Tight, driving 8-bit percussion. Kick on beats 1 and 3, snare on 2 and 4.
+# Hi-hat fills maintain the relentless 16th-note forward energy.
+#
+# 16 steps per bar (4 beats × 4 sub-steps in 4/4):
+#   beat 1 = steps 1–4, beat 2 = steps 5–8, beat 3 = steps 9–12, beat 4 = steps 13–16
+
+# drums_intro: sparse — kick on beats 1 and 3, hats on upbeats. Dark and minimal.
+# 16 steps
+pat drums_intro  = kick . . . hat . . . kick . . . hat . . .
+
+# drums_main: driving groove — kick on 1 and 3, snare on 2 and 4, 8th hats.
+# The backbone rhythm: relentless forward drive without clutter.
+# 16 steps
+pat drums_main   = kick hat . hat snare hat . hat kick hat . hat snare hat . hat
+
+# drums_drive: intense 16th fill — kick-hat-snare-hat × 4 for maximum energy.
+# Used to heighten the intensity in the B-section and build sections.
+# 16 steps
+pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_bridge: minimal eerie pattern — bare kicks, near-silence for the bridge.
+# The sparse percussion lets the atmospheric deep-vibrato melody breathe.
+# 16 steps
+pat drums_bridge = kick . . . . . . . kick . . . hat . . .
+
+# drums_climax: full-power fill — kick-hat-hat-snare × 4.
+# Maximum percussive density under the ascending climax run bar.
+# 16 steps
+pat drums_climax = kick hat hat snare kick hat hat snare kick hat hat snare kick hat hat snare
+
+# =============================================================================
+# Sequences  (grouped by song section — all four channels per section)
+# =============================================================================
+#
+# Song structure (22 bars total):
+#   Bars  1– 4 : Dark intro         (arp + bass pedal; ascending/descending Am hints)
+#   Bars  5– 8 : Main hook A        (mel_a + mel_a2 × 2, driving groove begins)
+#   Bars  9–12 : B section          (mel_b_hi + mel_b_hi2 × 2, climax tension)
+#   Bars 13–14 : Bridge             (mel_bridge_a + mel_bridge_b, sparse percussion)
+#   Bars 15–18 : Return to A        (mel_a_vib + mel_a2 × 2, triumphant vibrato)
+#   Bars 19–20 : Climax             (mel_run + mel_finale, blazing ascending + peak)
+#   Bars 21–22 : Finale hook        (mel_a + mel_a2, loop-ready close)
+
+# --- Section 1: Dark intro (Bars 1–4) ---
+seq intro_mel  = mel_intro mel_intro mel_intro2 mel_intro2
+seq intro_harm = harm_intro harm_intro harm_intro harm_intro
+seq intro_bass = bass_intro bass_intro bass_intro bass_intro
+seq intro_perc = drums_intro drums_intro drums_intro drums_intro
+
+# --- Section 2: Main hook A (Bars 5–8) ---
+seq hook_mel  = mel_a mel_a2 mel_a mel_a2
+seq hook_harm = harm_main1 harm_main2 harm_main1 harm_main2
+seq hook_bass = bass_main1 bass_gallop bass_main1 bass_gallop
+seq hook_perc = drums_main drums_main drums_drive drums_main
+
+# --- Section 3: B section — climax tension (Bars 9–12) ---
+seq bsec_mel  = mel_b_hi mel_b_hi2 mel_b_hi mel_b_hi2
+seq bsec_harm = harm_b1 harm_b2 harm_b1 harm_b2
+seq bsec_bass = bass_b_main bass_b_main bass_b_main bass_b_main
+seq bsec_perc = drums_drive drums_main drums_drive drums_drive
+
+# --- Section 4: Bridge — atmospheric descent (Bars 13–16) ---
+seq bridge_mel  = mel_bridge_a mel_bridge_b mel_bridge_a mel_bridge_b
+seq bridge_harm = harm_bridge harm_bridge harm_bridge harm_bridge
+seq bridge_bass = bass_bridge bass_bridge bass_bridge bass_bridge
+seq bridge_perc = drums_bridge drums_bridge drums_bridge drums_bridge
+
+# --- Section 5: Return to A — triumphant vibrato (Bars 17–20) ---
+seq return_mel  = mel_a_vib mel_a2 mel_a_vib mel_a2
+seq return_harm = harm_main1 harm_main2 harm_main1 harm_main2
+seq return_bass = bass_main1 bass_gallop bass_main1 bass_gallop
+seq return_perc = drums_main drums_main drums_drive drums_drive
+
+# --- Section 6: Climax — blazing ascending run + peak (Bars 21–24) ---
+seq climax_mel  = mel_run mel_finale mel_run mel_finale
+seq climax_harm = harm_run harm_main1 harm_run harm_main1
+seq climax_bass = bass_run bass_main1 bass_run bass_main1
+seq climax_perc = drums_climax drums_drive drums_climax drums_drive
+
+# --- Section 7: Finale hook — loop-ready close (Bars 25–28) ---
+seq finale_mel  = mel_a mel_a2 mel_a mel_a2
+seq finale_harm = harm_main1 harm_main2 harm_main1 harm_main2
+seq finale_bass = bass_main1 bass_gallop bass_main1 bass_gallop
+seq finale_perc = drums_main drums_main drums_main drums_climax
+
+# =============================================================================
+channel 1 => inst lead  seq intro_mel  hook_mel  bsec_mel  bridge_mel  return_mel  climax_mel  finale_mel
+channel 2 => inst arp   seq intro_harm hook_harm bsec_harm bridge_harm return_harm climax_harm finale_harm
+channel 3 => inst bass  seq intro_bass hook_bass bsec_bass bridge_bass return_bass climax_bass finale_bass
+channel 4 => inst kick  seq intro_perc hook_perc bsec_perc bridge_perc return_perc climax_perc finale_perc
+
+play auto repeat

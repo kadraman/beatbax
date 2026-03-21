@@ -60,66 +60,75 @@ export default registryAPI;
 register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
-  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+  if (!osc) return;
+
+  // Detect node type: OscillatorNode uses `frequency`; BufferSourceNode (wave channel) uses `playbackRate`
+  const hasFrequency = osc.frequency && typeof osc.frequency.setValueAtTime === 'function';
+  const hasPlaybackRate = !hasFrequency && osc.playbackRate && typeof osc.playbackRate.setValueAtTime === 'function';
+  if (!hasFrequency && !hasPlaybackRate) return;
 
   const depthRaw = params && params.length > 0 ? Number(params[0]) : 1;
   const rateRaw = params && params.length > 1 ? Number(params[1]) : 4;
   const depth = Number.isFinite(depthRaw) ? depthRaw : 1;
   const rate = Number.isFinite(rateRaw) ? Math.max(0.1, rateRaw) : 4;
 
-  // Determine the base frequency currently assigned to the oscillator at `start`.
-  // Fallback to `osc.frequency.value` if AudioParam scheduling isn't available.
-  let baseFreq = (osc.frequency && typeof (osc.frequency.value) === 'number') ? osc.frequency.value as number : NaN;
-  try {
-    // If there is a scheduled value at `start`, attempt to read it; otherwise use current value.
-    if (typeof (osc.frequency.getValueAtTime) === 'function') {
-      baseFreq = osc.frequency.getValueAtTime(start);
-    }
-  } catch (e) {
-    // Ignore — use fallback value
-  }
-  if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
+  const waveformAliases: Record<string, string> = { sine: 'sine', square: 'square', triangle: 'triangle', sawtooth: 'sawtooth', saw: 'sawtooth', tri: 'triangle' };
+  const waveformRaw = (Array.isArray(params) && typeof params[2] === 'string') ? params[2].toLowerCase().trim() : 'sine';
+  const lfoType = (waveformAliases[waveformRaw] ?? 'sine') as OscillatorType;
+
+  // If resolver provided a normalized duration in params[3] (seconds), prefer it
+  const vibDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
+  const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec + 0.05) : (start + dur + 0.05);
 
   // Game Boy-accurate vibrato depth calculation:
-  // 1. Scale BeatBax depth (e.g., 3) by VIB_DEPTH_SCALE (4.0) to get tracker nibble (12)
-  // 2. Convert tracker nibble to Hz deviation matching hUGETracker's register offset behavior
-  //
-  // hUGETracker applies the depth nibble as a register offset (adds to period register).
-  // For WebAudio smooth LFO, we approximate the Hz deviation this creates.
-  //
-  // Empirical formula (tuned to match hUGETracker output):
-  // amplitudeHz ≈ baseFreq * (trackerDepth * 0.012)
-  //
-  // This gives ~4.6x larger vibrato than the old semitone formula, matching the
-  // measurement: hUGETracker = 1272 cents vs old BeatBax = 276 cents.
+  // hUGETracker applies the depth nibble as a period-register offset.
+  // Hz deviation: Δf = trackerDepth * f² / 131072
   const VIB_DEPTH_SCALE = 1.0; // Must match ugeWriter.ts
   const trackerDepth = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-  // GB-accurate Hz deviation: a period-register offset of N at frequency f
-  // creates a Hz deviation of N * f^2 / 131072.
-  const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
-
-  if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
 
   try {
     const lfo = (ctx as any).createOscillator();
     const lfoGain = (ctx as any).createGain();
-    // Apply waveform parameter if provided (params[2])
-    const waveformAliases: Record<string, string> = { sine: 'sine', square: 'square', triangle: 'triangle', sawtooth: 'sawtooth', saw: 'sawtooth', tri: 'triangle' };
-    const waveformRaw = (Array.isArray(params) && typeof params[2] === 'string') ? params[2].toLowerCase().trim() : 'sine';
-    lfo.type = (waveformAliases[waveformRaw] ?? 'sine') as OscillatorType;
+    lfo.type = lfoType;
     try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
-    try { lfoGain.gain.setValueAtTime(amplitudeHz, start); } catch (_) { lfoGain.gain.value = amplitudeHz; }
-    // Connect LFO -> gain -> oscillator.frequency (AudioParam accepts node input)
-    lfo.connect(lfoGain);
-    try { lfoGain.connect(osc.frequency); } catch (e) {
-      // Some implementations require connecting to an AudioParam via .connect(param)
-      try { (lfoGain as any).connect(osc.frequency); } catch (e2) {}
+
+    if (hasFrequency) {
+      // OscillatorNode path (pulse channels): modulate osc.frequency directly
+      let baseFreq = (osc.frequency && typeof (osc.frequency.value) === 'number') ? osc.frequency.value as number : NaN;
+      try {
+        if (typeof (osc.frequency.getValueAtTime) === 'function') {
+          baseFreq = osc.frequency.getValueAtTime(start);
+        }
+      } catch (e) {}
+      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = osc.frequency.value || 440;
+
+      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+
+      try { lfoGain.gain.setValueAtTime(amplitudeHz, start); } catch (_) { lfoGain.gain.value = amplitudeHz; }
+      lfo.connect(lfoGain);
+      try { lfoGain.connect(osc.frequency); } catch (e) {
+        try { (lfoGain as any).connect(osc.frequency); } catch (e2) {}
+      }
+    } else {
+      // BufferSourceNode path (wave channel): modulate playbackRate instead.
+      // __freq and __basePlaybackRate are attached by playWavetable in wave.ts.
+      const baseFreq: number = (osc as any).__freq || 440;
+      const baseRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
+
+      // Convert Hz amplitude to playbackRate amplitude: Δrate = (Δf / f) * baseRate
+      const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
+      if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
+      const amplitudeRate = (amplitudeHz / baseFreq) * baseRate;
+
+      try { lfoGain.gain.setValueAtTime(amplitudeRate, start); } catch (_) { lfoGain.gain.value = amplitudeRate; }
+      lfo.connect(lfoGain);
+      try { lfoGain.connect(osc.playbackRate); } catch (e) {
+        try { (lfoGain as any).connect(osc.playbackRate); } catch (e2) {}
+      }
     }
 
     try { lfo.start(start); } catch (e) { try { lfo.start(); } catch (_) {} }
-    // If resolver provided a normalized duration in params[3] (seconds), prefer it
-    const vibDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-    const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec + 0.05) : (start + dur + 0.05);
     try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
@@ -141,50 +150,67 @@ const portamentoLastFreq = new Map<number, number>();
 register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
-  if (!osc || !(osc.frequency && typeof osc.frequency.setValueAtTime === 'function')) return;
+
+  const hasFreq = osc && osc.frequency && typeof osc.frequency.setValueAtTime === 'function';
+  // Wave channel uses BufferSourceNode which has playbackRate instead of frequency
+  const hasPlaybackRate = !hasFreq && osc && osc.playbackRate && typeof osc.playbackRate.setValueAtTime === 'function';
+  if (!hasFreq && !hasPlaybackRate) return;
 
   const speedRaw = params && params.length > 0 ? Number(params[0]) : 16;
   const speed = Number.isFinite(speedRaw) ? Math.max(1, Math.min(255, speedRaw)) : 16;
 
-  // Get the target frequency (the current note's pitch)
-  let targetFreq = osc.frequency.value;
-  if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
-
-  // Get the previous note's frequency for this channel
-  // Use channel ID (defaults to 0 if not provided for backward compatibility)
   const channelKey = chId ?? 0;
-  const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
-
   // Speed scaling: higher speed = shorter portamento time
-  // Map speed [1..255] to portamento duration
-  // Lower speed = longer slide, higher speed = shorter slide
   const portDuration = Math.max(0.001, (256 - speed) / 256 * dur * 0.6);
 
-  try {
-    // Cancel any existing frequency automation
-    osc.frequency.cancelScheduledValues(start);
-    // Set starting frequency (previous note or current if first note)
-    osc.frequency.setValueAtTime(lastFreq, start);
+  if (hasFreq) {
+    // OscillatorNode path (pulse channels)
+    let targetFreq = osc.frequency.value;
+    if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
+
+    const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
+
+    try {
+      osc.frequency.cancelScheduledValues(start);
+      osc.frequency.setValueAtTime(lastFreq, start);
+
+      if (Math.abs(targetFreq - lastFreq) > 1) {
+        const safeTarget = Math.max(20, Math.min(20000, targetFreq));
+        try {
+          osc.frequency.exponentialRampToValueAtTime(safeTarget, start + portDuration);
+        } catch (e) {
+          osc.frequency.linearRampToValueAtTime(safeTarget, start + portDuration);
+        }
+        osc.frequency.setValueAtTime(safeTarget, start + portDuration);
+      }
+    } catch (e) {
+      // Best effort - skip portamento if automation fails
+    }
+
+    portamentoLastFreq.set(channelKey, targetFreq);
+  } else {
+    // BufferSourceNode path (wave channel)
+    // __freq and __basePlaybackRate are attached by playWavetable in wave.ts
+    const targetFreq: number = (osc as any).__freq || 440;
+    const targetRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
+
+    const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
 
     if (Math.abs(targetFreq - lastFreq) > 1) {
-      // Only apply portamento if there's a significant frequency difference
-      const safeTarget = Math.max(20, Math.min(20000, targetFreq));
+      // Scale playbackRate proportionally: rate(f) = (f / targetFreq) * targetRate
+      const startRate = (lastFreq / targetFreq) * targetRate;
       try {
-        // Exponential ramp sounds more musical for pitch changes
-        osc.frequency.exponentialRampToValueAtTime(safeTarget, start + portDuration);
+        osc.playbackRate.cancelScheduledValues(start);
+        osc.playbackRate.setValueAtTime(startRate, start);
+        osc.playbackRate.linearRampToValueAtTime(targetRate, start + portDuration);
+        osc.playbackRate.setValueAtTime(targetRate, start + portDuration);
       } catch (e) {
-        // Fallback to linear if exponential fails (e.g., if lastFreq is too close to 0)
-        osc.frequency.linearRampToValueAtTime(safeTarget, start + portDuration);
+        // Best effort
       }
-      // Hold target frequency for remainder of note
-      osc.frequency.setValueAtTime(safeTarget, start + portDuration);
     }
-  } catch (e) {
-    // Best effort - skip portamento if automation fails
-  }
 
-  // Store this frequency for the next note on this channel
-  portamentoLastFreq.set(channelKey, targetFreq);
+    portamentoLastFreq.set(channelKey, targetFreq);
+  }
 });
 
 // Arpeggio effect: rapidly cycle through pitch offsets to simulate chords.
