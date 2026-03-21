@@ -48,14 +48,15 @@ bpm 124
 # Wave: gentle sawtooth-ish wavetable — bass/counterpoint role.
 # Noise: kick / snare / hi-hat percussion kit.
 
-inst lead_full  type=pulse1 duty=50   env={"level":13,"direction":"down","period":1,"format":"gb"} gm=81
-inst lead_thin  type=pulse1 duty=12.5 env={"level":13,"direction":"down","period":1,"format":"gb"} gm=81
+inst lead_full  type=pulse1 duty=50   env={"level":13,"direction":"down","period":2,"format":"gb"} gm=81
+inst lead_thin  type=pulse1 duty=12.5 env={"level":13,"direction":"down","period":2,"format":"gb"} gm=81
 inst lead_warm  type=pulse1 duty=75   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=82
 
-inst harm       type=pulse2 duty=25   env={"level":8,"direction":"down","period":2,"format":"gb"}  gm=80
-inst harm_sus   type=pulse2 duty=75   env={"level":9,"direction":"down","period":3,"format":"gb"}  gm=80
+inst harm       type=pulse2 duty=25   env={"level":8,"direction":"down","period":4,"format":"gb"}  gm=80
+inst harm_sus   type=pulse2 duty=75   env={"level":9,"direction":"down","period":4,"format":"gb"}  gm=80
 
-inst bass       type=wave   wave=[0,2,5,9,13,15,13,9,5,2,0,2,5,9,13,15]
+#inst bass       type=wave   wave=[0,4,7,8,10,11,11,11,9,8,6,2,0,2,4,6,7,7,7,6,4,2,0,1,4,6,7,7,7,6,3,1]
+inst bass       type=wave   wave="0478ABBB986202467776420146777631" # Hugetracker format Hex representation
 
 inst kick       type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} note=C6
 inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
@@ -86,13 +87,13 @@ effect slowSlide = port:22           # slow portamento for bass walks
 
 # mel_hook: soaring octave arch — G5 leaps to G6 then gracefully descends to A5.
 # 16 steps: 4+2+2+2+2+2+2
-pat mel_hook      = G5:4 B5:2 D6:2 G6:2 D6:2 B5:2 A5:2
+pat mel_hook      = G5:4 B5:2 D6:2 G6:2 D6:2 B5:2 A5<shimmer>:2
 
 # mel_answer: response phrase — climbs E5→A5 (gentle wobble), peaks at B5, leads
 #             off the F#5 leading tone.
 # 16 steps: 2+2+4+2+2+2+2
 pat mel_answer    = E5:2 G5:2 A5<shimmer>:4 B5:2 A5:2 G5:2 F#5:2
-pat mel_answer_old    = E5:2 G5:2 A5<wobble>:4 B5:2 A5:2 G5:2 F#5:2
+pat mel_answer_old    = E5:2 G5:2 A5<shimmer>:4 B5:2 A5:2 G5:2 F#5:2
 
 # mel_bridge: slow descending bridge with deep vibrato — the emotional high point.
 # 16 steps: 4+2+2+4+4
@@ -113,7 +114,7 @@ pat mel_hook_dcm  = inst lead_thin G5:4 B5:2 inst lead_warm D6:2 G6:2 D6:2 inst 
 #   The final `inst lead_full` ensures the channel resets cleanly for any following pattern.
 # 16 steps: 2+2+4+2+2+2+2
 pat mel_answer_dcm = inst lead_thin E5:2 G5:2 A5<shimmer>:4 inst lead_warm B5:2 A5:2 inst lead_full G5:2 F#5<shimmer>:2
-pat mel_answer_dcm_old = inst lead_thin E5:2 G5:2 A5<wobble>:4 inst lead_warm B5:2 A5:2 inst lead_full G5:2 F#5<shimmer>:2
+pat mel_answer_dcm_old = inst lead_thin E5:2 G5:2 A5<shimmer>:4 inst lead_warm B5:2 A5:2 inst lead_full G5:2 F#5<shimmer>:2
 
 # mel_fill: arpeggiated G-major burst up the octave — the energy peak.
 # 16 steps: 4+4+4+4
@@ -187,15 +188,15 @@ pat wave_Ar       = C3:4 D3:4 E3:4 G3:4
 
 # wave_bridge_a: slow portamento walk ascending into the bridge peak.
 # 16 steps: 2+2+2+2+2+2+2+2
-pat wave_bridge_a = G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3:2 E3<slowSlide>:2 D3:2 G2:2
+pat wave_bridge_a = G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3:2 D3:2 E3<slowSlide>:2 D3:2 G2:2
 
-# wave_bridge_b: arpeggiated G→C→D→G — builds energy under mel_run.
+# wave_bridge_b: slow portamento walk ascending into the bridge peak.
 # 16 steps: 4+4+4+4
-pat wave_bridge_b = G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G3<majorArp>:4
+pat wave_bridge_b = G2:4 C3<slowSlide>:4 D3<slowSlide>:4 G3<slowSlide>:4
 
-# wave_fill: energetic arpeggio sweep — root-position G major up the scale.
+# wave_fill: slow portamento walk ascending into the bridge peak.
 # 16 steps: 4+4+4+4
-pat wave_fill     = G2<majorArp>:4 B2<majorArp>:4 D3<majorArp>:4 G3<majorArp>:4
+pat wave_fill     = G2:4 B2<slowSlide>:4 D3<slowSlide>:4 G3<slowSlide>:4
 
 # wave_coda: held root, fifth, octave, then back to root — calm resolution.
 # 16 steps: 4+4+4+4
@@ -225,7 +226,7 @@ pat drums_sparse  = kick . . hat . . snare . kick . . hat . . snare .
 pat drums_fill    = kick hat snare hat kick kick snare hat kick hat snare hat kick hat snare snare
 
 # =============================================================================
-# Sequences
+# Sequences  (grouped by song section — all four channels per section)
 # =============================================================================
 #
 # 10-bar structure:
@@ -236,10 +237,47 @@ pat drums_fill    = kick hat snare hat kick kick snare hat kick hat snare hat ki
 #   Bars 8–9   A reprise  — hook_dcm + answer_dcm with duty modulation
 #   Bar  10    Coda       — shimmer landing and loop
 
-seq melody_seq  = mel_hook mel_answer mel_hook mel_answer mel_bridge mel_run mel_fill mel_hook_dcm mel_answer_dcm mel_coda
-seq harmony_seq = harm_A harm_B harm_A harm_B harm_bridge_a harm_bridge_b harm_fill harm_A_reset harm_B_reset harm_coda
-seq bass_seq    = wave_A wave_Ar wave_A wave_Ar wave_bridge_a wave_bridge_b wave_fill wave_A wave_Ar wave_coda
-seq drums_seq   = drums_a drums_b drums_a drums_b drums_sparse drums_sparse drums_fill drums_a drums_b drums_a
+# --- Section 1: A section — main theme introduction (Bars 1–2) ---
+seq intro_mel  = mel_hook mel_answer
+seq intro_harm = harm_A harm_B
+seq intro_bass = wave_A wave_Ar
+seq intro_perc = drums_a drums_b
+
+# --- Section 2: A repeat — theme reinforced (Bars 3–4) ---
+seq theme_mel  = mel_hook mel_answer
+seq theme_harm = harm_A harm_B
+seq theme_bass = wave_A wave_Ar
+seq theme_perc = drums_a drums_b
+
+# --- Section 3: B bridge — lyrical contrast (Bars 5–6) ---
+seq bridge_mel  = mel_bridge mel_run
+seq bridge_harm = harm_bridge_a harm_bridge_b
+seq bridge_bass = wave_bridge_a wave_bridge_b
+seq bridge_perc = drums_sparse drums_sparse
+
+# --- Section 4: Fill — arpeggiated climax burst (Bar 7) ---
+seq fill_mel  = mel_fill
+seq fill_harm = harm_fill
+seq fill_bass = wave_fill
+seq fill_perc = drums_fill
+
+# --- Section 5: A reprise — duty-cycle modulation (Bars 8–9) ---
+seq reprise_mel  = mel_hook_dcm mel_answer_dcm
+seq reprise_harm = harm_A_reset harm_B_reset
+seq reprise_bass = wave_A wave_Ar
+seq reprise_perc = drums_a drums_b
+
+# --- Section 6: Coda — shimmer landing (Bar 10) ---
+seq coda_mel  = mel_coda
+seq coda_harm = harm_coda
+seq coda_bass = wave_coda
+seq coda_perc = drums_a
+
+# --- Master per-channel sequences (splice sections in song order) ---
+seq melody_seq  = intro_mel  theme_mel  bridge_mel  fill_mel  reprise_mel  coda_mel
+seq harmony_seq = intro_harm theme_harm bridge_harm fill_harm reprise_harm coda_harm
+seq bass_seq    = intro_bass theme_bass bridge_bass fill_bass reprise_bass coda_bass
+seq drums_seq   = intro_perc theme_perc bridge_perc fill_perc reprise_perc coda_perc
 
 # =============================================================================
 channel 1 => inst lead_full  seq melody_seq

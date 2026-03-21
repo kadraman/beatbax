@@ -2,23 +2,50 @@ import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js'
 import { parseEnvelope } from './pulse.js';
 
 export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
-  const sampleRate = 8192;
-  const cycleLen = (table && table.length) ? table.length : 16;
-  const buf = ctx.createBuffer(1, cycleLen, sampleRate);
+  const cycleLen = (table && table.length) ? table.length : 32;
+
+  // Use the native audio context sample rate so the playback rate stays near 1.0.
+  // At native rate we can implement zero-order hold (ZOH) upsampling — each 4-bit
+  // sample is held flat for its full duration, preserving the staircase character of
+  // the real GB wave DAC.  A slow playbackRate with a tiny 8192 Hz buffer causes
+  // WebAudio to linearly interpolate, smoothing away all the grungy step edges.
+  const nativeSampleRate: number = (ctx.sampleRate as number) || 44100;
+
+  // Resolve GB-aligned frequency so our period matches actual hardware registers.
+  let alignedFreq = freq;
+  try {
+    const reg = registerFromFreq(freq);
+    alignedFreq = freqFromRegister(reg);
+  } catch (_) {}
+
+  // One-cycle buffer length at native sample rate.
+  const bufLen = Math.max(cycleLen, Math.round(nativeSampleRate / alignedFreq));
+
+  const buf = ctx.createBuffer(1, bufLen, nativeSampleRate);
   const data = buf.getChannelData(0);
-  for (let i = 0; i < cycleLen; i++) data[i] = (table[i] / 15) * 0.9;
+
+  // AC-couple: subtract mean so the waveform is centred around 0, matching the
+  // real GB wave DAC which is always AC-coupled at the hardware level.
+  const mean = table.reduce((a: number, b: number) => a + b, 0) / cycleLen;
+  // Scale by /15 (the 4-bit max) to preserve relative amplitude across waveforms;
+  // using /peak would always normalise to ±0.9 regardless of the original level.
+
+  // ZOH fill: for each output sample, look up which wave step it belongs to and
+  // copy that step's value without any interpolation — staircase preserved.
+  for (let s = 0; s < bufLen; s++) {
+    const step = Math.floor(s * cycleLen / bufLen);
+    data[s] = ((table[step] - mean) / 15) * 0.9;
+  }
 
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.loop = true;
-  const baseRate = sampleRate;
-  try {
-    const reg = registerFromFreq(freq);
-    const aligned = freqFromRegister(reg);
-    src.playbackRate.value = (aligned * cycleLen) / baseRate;
-  } catch (e) {
-    src.playbackRate.value = (freq * cycleLen) / baseRate;
-  }
+  // playbackRate ≈ 1.0 — minimal WebAudio interpolation.
+  src.playbackRate.value = (alignedFreq * bufLen) / nativeSampleRate;
+  // Attach metadata so effect handlers (e.g. portamento) can derive playbackRate
+  // from a target frequency: playbackRate(f) = (f / __freq) * __basePlaybackRate
+  (src as any).__freq = alignedFreq;
+  (src as any).__basePlaybackRate = src.playbackRate.value;
 
   const gain = ctx.createGain();
   src.connect(gain);
@@ -89,7 +116,11 @@ export function parseWaveTable(raw: any): number[] {
   if (!raw) return new Array(16).fill(0);
   if (Array.isArray(raw)) return raw.map(n => Number(n) || 0);
   try {
-    const s = String(raw);
+    const s = String(raw).replace(/^["']|["']$/g, '').trim(); // strip optional surrounding quotes
+    // hUGETracker hex format: 32 hex nibbles, e.g. "0478ABBB986202467776420146777631"
+    if (/^[0-9A-Fa-f]{32}$/.test(s)) {
+      return s.split('').map(c => parseInt(c, 16));
+    }
     const arr = JSON.parse(s);
     if (Array.isArray(arr)) return arr.map(n => Number(n) || 0);
   } catch (_) {}
