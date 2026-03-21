@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.5.5
+
+### Patch Changes
+
+- f671c2e: Improved gameboy wave instrument fidelity and added sequence-to-sequence mapping.
+
 ## 0.5.4
 
 ### Patch Changes
