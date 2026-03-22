@@ -35,6 +35,13 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
 - Instrument preview on hover (Low): short 200–500ms preview of the named instrument when hovering an `inst` token.
   - Monaco API: hover provider + small `setTimeout` playback; cancel on mouseout.
   - Integration: use `eventBus` or `playbackManager.playPreview(instName)` (add lightweight preview API if needed).
+  - **CodeLens instrument preview implemented** (2026-03-11): per-`inst` line CodeLens buttons (`C3` `C4` `C5` `C6` `C7`) trigger single-note playback via `beatbax.previewInstNote`. Notes play on the correct APU channel (pulse1/2/wave/noise) derived from the instrument's `type` field. Only one note plays at a time; auto-stops after 2 s or `onComplete`. Hover-triggered audio on the hover provider itself (without a user gesture) is still pending — CodeLens serves as the primary interaction point.
+
+- Effect preview (High): preview the audio result of inline effect tokens (`<vib:3,6>`, `<arp:0,3,7>`, `<port:8>`) and named `effect` preset blocks by playing a short representative pattern with the effect applied.
+  - Monaco API: CodeLens above `effect` definition lines + hover docs for inline effect tokens (already syntax-highlighted).
+  - Integration: build a minimal one-pattern AST with the effect applied; play via the shared `AudioContext` using the existing `startInstNotePreview`/`startPatternPreview` path.
+  - Each `effect` definition line should get `▶ Preview` / `↺ Loop` / `⬛ Stop` lenses (same pattern as `pat`/`seq`).
+  - Inline `<effect>` tokens inside patterns should get hover docs showing effect name, parameters, and a "click CodeLens to hear" hint (since hover itself cannot launch audio without a gesture).
 
 - Completions & snippets (Low): provide completions for `inst` names, `pat`/`seq` identifiers, transforms, and transforms parameters.
   - Monaco API: `monaco.languages.registerCompletionItemProvider`
@@ -106,11 +113,14 @@ The plan below focuses on delivering quick wins first (hover, preview, completio
 
 ### Phase 1 — Quick wins (1–2 days)
 
-1. Implement a hover provider that shows note info and instrument params. (Low)
-2. Wire instrument preview on hover using `playbackManager.playPreview(instName)`. Add a `playPreview` method if none exists. (Low)
-3. Add completion provider for `inst`, `pat`, `seq`, `seq` transforms. (Low)
-4. Add CodeLens provider for `pat` / `seq` with Play/Stop actions. (Low → Medium)
-5. Add semantic tokens provider and basic CSS token classes for colorization. (Low)
+1. ✅ Implement a hover provider that shows keyword/directive docs. (`beatbax-language.ts`, 2026-03-11)
+2. ✅ Add completion provider for `inst`, `pat`, `seq`, transforms and directives. (`beatbax-language.ts`, 2026-03-11)
+3. ✅ Add CodeLens provider for `pat` / `seq` with `▶ Preview`, `↺ Loop`, `⬛ Stop` actions and per-note instrument preview buttons (`C3`–`C7`). (`codelens-preview.ts`, 2026-03-11)
+4. Add effect preview via CodeLens for `effect` definition lines; add hover docs for inline `<effect:…>` tokens. (High)
+5. Add play-selected-sequence from the editor context menu and command palette — see **Play Selected Sequence** section below. (Medium)
+6. Expand the Monaco command palette with BeatBax-specific commands — see **Command Palette Expansion** section below. (Medium)
+7. Wire instrument preview on hover using `playbackManager.playPreview(instName)` (gesture-safe path). (Low)
+8. Add semantic tokens provider and basic CSS token classes for colorization. (Low)
 
 ### Phase 2 — Medium features (2–4 days)
 
@@ -125,11 +135,61 @@ The plan below focuses on delivering quick wins first (hover, preview, completio
 2. Pattern preview popover with mini piano-roll (High).
 3. Embedded piano-roll editor (High) — treat as separate experimental plugin.
 
+### Play Selected Sequence
+
+Allow the user to select text in the editor, right-click and choose "Play Selection as Sequence", or invoke the same action from the command palette.
+
+- **Trigger**: text selection (minimum: a `seq` or `pat` identifier) → right-click context menu item "▶ Play Selected Sequence" or command palette "BeatBax: Play Selected Sequence".
+- **Resolution**: read the current selection text; if it is a known `seq` or `pat` name, invoke the existing `beatbax.previewSeq` / `beatbax.previewPattern` command directly. If the selection is raw note tokens (e.g. `C4 E4 G4`), synthesize a temporary `pat __selection__` and preview that.
+- **Monaco API**: `editor.addAction` to register the context-menu entry and command palette entry in one call (each `IActionDescriptor` with a `keybindings` array, a `contextMenuGroupId`, and a `run` callback).
+- **Stop**: a paired "⬛ Stop Preview" action/command calls `beatbax.stopPreview`.
+- **Keyboard shortcut**: `Ctrl+Shift+Space` (or configurable) to play the current selection, `Escape` to stop (already wired in `KeyboardShortcuts`).
+
+### Command Palette Expansion
+
+Surface BeatBax-specific actions in the Monaco command palette by registering them as `editor.addAction` entries (these appear in `F1` / `Ctrl+Shift+P` automatically) or as `KeyboardShortcuts` entries in the app-level shortcut registry.
+
+Suggested commands to add:
+
+| Command ID | Title | Category | Notes |
+|---|---|---|---|
+| `beatbax.exportJson` | Export to JSON | BeatBax: Export | Triggers existing export-manager JSON export |
+| `beatbax.exportMidi` | Export to MIDI | BeatBax: Export | Triggers MIDI export |
+| `beatbax.exportUge` | Export to UGE (hUGETracker) | BeatBax: Export | Triggers UGE export |
+| `beatbax.exportWav` | Export to WAV | BeatBax: Export | Triggers WAV render export |
+| `beatbax.playSelection` | Play Selected Sequence / Pattern | BeatBax: Playback | See **Play Selected Sequence** above |
+| `beatbax.stopPreview` | Stop Preview | BeatBax: Playback | Already registered; needs palette title |
+| `beatbax.generateSampleInst` | Generate Sample Instruments | BeatBax: Edit | Inserts a commented block of starter `inst` definitions for all four GB channel types at the cursor |
+| `beatbax.generateSamplePat` | Generate Sample Pattern | BeatBax: Edit | Inserts a starter 4/4 `pat` with placeholder notes |
+| `beatbax.insertTransform` | Insert Transform… | BeatBax: Edit | Quick-pick of transforms (`oct`, `rev`, `slow`, `fast`, `transpose`, `arp`) to insert at cursor |
+| `beatbax.formatDocument` | Format BeatBax Document | BeatBax: Edit | Normalises whitespace, aligns `=` signs in `pat`/`seq`, no semantic changes |
+| `beatbax.verifySong` | Verify / Validate Song | BeatBax: Validate | Re-runs the parser + resolver and shows the Problems panel |
+| `beatbax.toggleMuteChannel` | Toggle Mute Channel… | BeatBax: Channels | Quick-pick of channels 1–4; toggles mute via `ChannelState` |
+| `beatbax.soloChannel` | Solo Channel… | BeatBax: Channels | Quick-pick; solos the chosen channel |
+| `beatbax.openDocs` | Open BeatBax Docs | BeatBax: Help | Opens the help panel or links to docs |
+
+- **Implementation**: each entry is registered via `editor.addAction(descriptor)` or `editor.addCommand(keybinding, handler)`. Export commands delegate to the existing `ExportManager`.
+- **`generateSampleInst`**: insert a snippet block like:
+  ```
+  inst lead  type=pulse1 duty=50 env=12,down
+  inst bass  type=pulse2 duty=25 env=10,down
+  inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+  inst sn    type=noise  env=12,down
+  ```
+  at the cursor position using `editor.executeEdits`.
+- **`insertTransform`**: uses `monaco.editor.showQuickPick` (or a lightweight DOM select) to let the user pick a transform, then inserts it at the cursor.
+- **Keybindings** to surface (optional, document them):
+  - `Ctrl+Shift+E` → Export submenu / `beatbax.exportJson`
+  - `Ctrl+Shift+Space` → Play Selection
+  - `Ctrl+Shift+V` → Verify Song
+
 ### Web UI Changes
 
 - Add a new `editor/integrations` submodule that registers Monaco providers on editor init.
 - Expose a small `playbackManager.preview` API for short previews with cancellation.
 - Add user prefs toggles (ThemeManager / EditorState) for enabling interactive features.
+- Register all command palette commands in a new `editor/command-palette.ts` module, called from `main.ts` after editor init.
+- `generateSampleInst` and `generateSamplePat` should use Monaco's `editor.executeEdits` so they are undoable.
 
 ### CLI / Parser / AST Changes
 
@@ -158,9 +218,16 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 ## Implementation Checklist
 
 - [ ] Add `editor/integrations/interactive-providers.ts`
-- [ ] Implement `hoverProvider` + preview cancelation
-- [ ] Implement `completionProvider` for domain tokens
+- [x] Implement `hoverProvider` for keyword/directive docs — **done** (`editor/beatbax-language.ts`, 2026-03-11).
+- [ ] Extend `hoverProvider` to show note frequency / MIDI number metadata and instrument params on hover over note/inst tokens.
+- [ ] Add instrument preview audio on hover (gesture-safe; requires `playbackManager.playPreview` or CodeLens workaround).
+- [x] Implement `completionProvider` for domain tokens — **done** (`editor/beatbax-language.ts`, 2026-03-11). Covers directives, `inst`/`pat`/`seq` definitions, transforms, and note snippets.
 - [x] Implement `codeLensProvider` for `pat` / `seq` — **done** (`editor/codelens-preview.ts`, 2026-03-11). Provides `▶ Preview`, `↺ Loop`, `⬛ Stop` lenses for patterns and sequences; per-note buttons (`C3`–`C7`) for instruments; live re-parse on each loop iteration; shared `AudioContext` for first-click reliability.
+- [x] Implement `codeLensProvider` per-note instrument preview (`C3`–`C7` buttons above `inst` lines) — **done** (`editor/codelens-preview.ts`, 2026-03-11). Plays single notes on the correct APU channel; auto-stops after 2 s.
+- [ ] Add effect preview via CodeLens for `effect` definition lines and hover docs for inline `<effect:…>` tokens. (Phase 1, High)
+  - **Done** (2026-03-21): `codelens-preview.ts` — `▶ Preview` / `↺ Loop` / `⬛ Stop` lenses above every `effect Name = …` line. Plays 4 ascending notes (C4 E4 G4 C5) with the preset applied inline, using the best available instrument (pulse1 > pulse2 > wave > noise). `beatbax-language.ts` — added hover docs for all 8 built-in inline effects (`vib`, `port`, `volSlide`, `trem`, `pan`, `echo`, `retrig`, `sweep`) and for the `effect` keyword itself. Commands registered: `beatbax.previewEffect`, `beatbax.loopEffect`.
+- [ ] Add play-selected-sequence context menu + command palette action (`beatbax.playSelection`). (Phase 1, Medium)
+- [ ] Expand command palette with BeatBax-specific commands — export, generate, validate, channel controls. (Phase 1, Medium)
 - [ ] Implement `semanticTokensProvider` and CSS rules
 - [ ] Add `playbackManager.preview` lightweight API
 - [ ] Wire beat decorations and live playback cursor

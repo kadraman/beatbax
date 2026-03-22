@@ -133,8 +133,7 @@ pat mel_bridge_b = D5<deepVib,pan:L>:4 C5<deepVib,pan:R>:4 B4<deepVib,pan:L>:4 A
 # mel_run: CLIMAX RUN — blazing ascending scalar passage up the harmonic minor scale.
 # Each note slides into the next. Builds to D6 peak then drops triumphantly to A5.
 # 16 steps: 1×10 + 2 + 4
-pat mel_run     = A4<slide> B4<slide> C5<slide> D5<slide> E5<slide> F5<slide> G#5<slide> A5<slide> B5<slide> C6<slide> D6:2 A5<fastVib>:4
-
+pat mel_run     = A4<slide> B4<slide> C5<slide> D5<slide> E5<slide> F5<slide> G#5<slide> A5<slide> B5<slide> C6<slide> D6<fastVib>:2 A5<fastVib>:4
 # mel_a_vib: return-A hook — mel_a with medium vibrato added on both peak notes.
 # Vibrato on A5 and C5 marks the return as more expressive and triumphant.
 # 16 steps: 2+1+1+1+1+1+1+1+1+2+1+1+1+1

@@ -433,7 +433,17 @@ export function registerBeatBaxLanguage(): void {
         slow: 'Slow down pattern (double duration). Example: `pat:slow`',
         fast: 'Speed up pattern (half duration). Example: `pat:fast`',
         transpose: 'Transpose pattern. Example: `pat:transpose(+2)`',
-        arp: 'Arpeggio effect. Example: `pat:arp(0,3,7)`',
+        effect: 'Defines a named effect preset. Example: `effect shimmer = vib:3,6`\nUse inline as `C4<shimmer>` in a pattern.',
+        // Built-in inline effects
+        arp: 'Arpeggio — cycles through semitone offsets per tick. Example: `C4<arp:0,4,7>` plays C-E-G arpeggio.',
+        vib: 'Vibrato — oscillates pitch up/down. Example: `C4<vib:3,6>` (depth, speed). Waveform optional: `C4<vib:3,6,sine>`.',
+        port: 'Portamento — slides pitch from previous note. Example: `E4<port:8>` (slide speed 0–15).',
+        volSlide: 'Volume slide — ramps volume up or down over the note. Example: `C4<volSlide:-2>` (delta per tick).',
+        trem: 'Tremolo — oscillates volume. Example: `C4<trem:4,8>` (depth, speed).',
+        pan: 'Panning — sets stereo position. Example: `C4<pan:L>`, `C4<pan:R>`, `C4<pan:C>`.',
+        echo: 'Echo/delay — repeats the note. Example: `C4<echo:3>` (delay ticks).',
+        retrig: 'Retrigger — re-triggers the note rapidly. Example: `C4<retrig:2>` (interval ticks).',
+        sweep: 'Frequency sweep (pulse1 only) — glides frequency up or down. Example: `C4<sweep:4,up,2>` (time, dir, shift).',
       };
 
       const doc = hoverDocs[word.word];

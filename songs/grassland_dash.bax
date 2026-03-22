@@ -51,8 +51,8 @@ effect minorArp  = arp:3,7      # minor triad  (root + min-3rd + P5)
 effect domArp    = arp:4,7,10   # dominant 7th (root + maj-3rd + P5 + min-7th)
 
 # Portamento — smooth pitch glide from previous note to this one
-effect slide     = port:10      # snappy, punchy articulation between steps
-effect slowSlide = port:24      # smooth legato glide for bass runs
+effect slide     = port:16      # snappy, punchy articulation between steps
+effect slowSlide = port:4       # smooth legato glide for bass runs
 
 # Pitch bend — sweeps frequency over the note duration
 effect riser     = bend:+12,exp,0,1    # dramatic one-octave rise (bridge lead-in)
@@ -73,7 +73,7 @@ pat phrase_b    = E6 . D6 B5 A5 G5 A5 B5 C6 . B5 A5 G5 . . .
 
 # phrase_c: ascending portamento run — builds tension into the bridge.
 #           Each step slides from the previous pitch for a legato feel.
-pat phrase_c    = G4:2 A4<slide>:2 B4<slide>:2 D5<slide>:2 E5<slide>:2 G5<slide>:2 A5<slide>:1 B5<slide>:3
+pat phrase_c    = G4<slide>:2 A4<slide>:2 B4<slide>:2 D5<slide>:2 E5<slide>:2 G5<slide>:2 A5<slide>:2 B5<wobble>:2
 
 # phrase_d: bridge — four long notes with vibrato. Dramatic, slower pacing.
 pat phrase_d    = D6<wobble>:4 B5<wobble>:4 A5<wobble>:4 G5<wobble>:4
@@ -99,7 +99,7 @@ pat harm_a      = G4<majorArp>:4 B4<majorArp>:4 D5<majorArp>:4 G4<majorArp>:4
 pat harm_b      = E4<minorArp>:4 A4<majorArp>:4 D4<domArp>:4 G4<majorArp>:4
 
 # harm_c: portamento counter-line in parallel with phrase_c (bridge build-up).
-pat harm_c      = G4:2 A4<slide>:2 B4<slide>:4 D5<slide>:4 E5<slide>:4
+pat harm_c      = G4<slide>:2 A4<slide>:2 B4<slide>:4 D5<slide>:4 E5<wobble>:4
 
 # harm_fill: quick chord swap — matches the melody fill with chord tones.
 pat harm_fill   = D5<majorArp>:4 G4<majorArp>:4 B4<minorArp>:4 A4<domArp>:4
@@ -116,7 +116,7 @@ pat harm_riser  = G3<majorArp>:16
 pat bass_a      = wavekick . D3 . wavekick . B2 . wavekick . D3 G3 wavekick . B2 .
 pat bass_b      = wavekick . G3 . wavekick . C3 . wavekick . A3 . wavekick . D3 .
 pat bass_arp    = inst bass1 G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G2<majorArp>:4
-pat bass_fill   = inst bass1 G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
+pat bass_fill   = inst bass1 G2<slowSlife>:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
 
 # -----------------------------------------------------------------------------
 # Drum patterns (Channel 4, Noise)
