@@ -10,6 +10,9 @@ import { isRemoteImport, isLocalImport } from '../import/urlUtils.js';
 import { RemoteInstrumentCache, RemoteImportOptions } from '../import/remoteCache.js';
 
 export interface ImportResolverOptions {
+  /** Optional base file path, ignored in browser */
+  baseFilePath?: string;
+  searchPaths?: string[];
   /** Strict mode: treat instrument name overrides as errors instead of warnings */
   strictMode?: boolean;
   /** Warning handler */

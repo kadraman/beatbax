@@ -169,40 +169,85 @@ export async function resolveSongAsync(ast: AST, opts?: { filename?: string; sea
  * totalTokens: actual count of expanded tokens produced for this item invocation
  * pats: raw pattern token arrays (used to get token counts per pattern)
  */
-function buildTokenPatternMeta(seqItems: string[], totalTokens: number, pats: Record<string, string[]>): string[] {
+function getLeafPats(
+  seqItem: string,
+  seqs: Record<string, any>,
+  pats: Record<string, string[]>,
+  visited = new Set<string>()
+): { patBase: string, count: number }[] {
+  let realItem = seqItem.trim();
+  let repeat = 1;
+  const mRep = realItem.match(/^(.+?)\s*\*\s*(\d+)$/);
+  if (mRep) {
+    realItem = mRep[1].trim();
+    repeat = parseInt(mRep[2], 10);
+  }
+  const parts = realItem.split(':');
+  const base = parts[0].trim();
+  const mods = parts.slice(1);
+  
+  let mult = 1;
+  for (const mod of mods) {
+    const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+    if (mSlow) { mult *= mSlow[1] ? parseInt(mSlow[1], 10) : 2; continue; }
+    const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+    if (mFast) { mult /= (mFast[1] ? parseInt(mFast[1], 10) : 2); continue; }
+  }
+
+  let children: { patBase: string, count: number }[] = [];
+  if (visited.has(base)) {
+    return [];
+  }
+
+  if (pats[base]) {
+    children = [{ patBase: base, count: pats[base].length }];
+  } else if (seqs[base]) {
+    visited.add(base);
+    const rawSeqDef = seqs[base];
+    const innerItems: string[] = !rawSeqDef
+      ? []
+      : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
+        ? materializeSequenceItems(rawSeqDef as any)
+        : (rawSeqDef as string[]);
+    
+    for (const inner of innerItems) {
+      if (!inner || inner.trim() === '') continue;
+      children.push(...getLeafPats(inner, seqs, pats, visited));
+    }
+    visited.delete(base);
+  } else {
+    children = [{ patBase: base, count: 1 }]; // fallback
+  }
+
+  const out: { patBase: string, count: number }[] = [];
+  for (let r = 0; r < repeat; r++) {
+    for (const c of children) {
+      out.push({ patBase: c.patBase, count: Math.max(1, Math.round(c.count * mult)) });
+    }
+  }
+  return out;
+}
+
+function buildTokenPatternMeta(seqItems: string[], totalTokens: number, pats: Record<string, string[]>, seqs: Record<string, any>): string[] {
   if (seqItems.length === 0 || totalTokens === 0) return [];
 
-  const patBases: string[] = [];
-  const itemCounts: number[] = [];
-  let rawTotal = 0;
-
-  for (const seqItem of seqItems) {
-    const parts = seqItem.split(':');
-    const patBase = parts[0].trim();
-    const mods = parts.slice(1);
-    let count = (pats[patBase] || []).length;
-    if (count === 0) count = 1; // fallback for sub-seqs or unknown refs
-
-    for (const mod of mods) {
-      const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
-      if (mSlow) { count *= mSlow[1] ? parseInt(mSlow[1], 10) : 2; continue; }
-      const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
-      if (mFast) { count = Math.max(1, Math.floor(count / (mFast[1] ? parseInt(mFast[1], 10) : 2))); continue; }
-    }
-    patBases.push(patBase);
-    itemCounts.push(count);
-    rawTotal += count;
+  const leaves: { patBase: string, count: number }[] = [];
+  for (const item of seqItems) {
+    leaves.push(...getLeafPats(item, seqs, pats));
   }
+
+  let rawTotal = 0;
+  for (const leaf of leaves) rawTotal += leaf.count;
 
   if (rawTotal === 0) return Array(totalTokens).fill('');
 
   const result: string[] = [];
-  for (let i = 0; i < patBases.length; i++) {
-    const isLast = i === patBases.length - 1;
+  for (let i = 0; i < leaves.length; i++) {
+    const isLast = i === leaves.length - 1;
     const scaledCount = isLast
       ? (totalTokens - result.length)
-      : Math.round((itemCounts[i] / rawTotal) * totalTokens);
-    for (let j = 0; j < scaledCount; j++) result.push(patBases[i]);
+      : Math.round((leaves[i].count / rawTotal) * totalTokens);
+    for (let j = 0; j < scaledCount; j++) result.push(leaves[i].patBase);
   }
 
   // Safety: trim/pad to totalTokens
@@ -365,11 +410,11 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
             emitResolverWarn(`arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`, arr.loc);
             continue;
           }
-          concatenated.push(...toks);
+          concatenated.push(slot); // Push the unresolved item reference string
         }
         const instForCol = arrangeInstList ? (arrangeInstList[i] || undefined) : (arr.defaults && arr.defaults.inst ? arr.defaults.inst : undefined);
         const speedForCol = arr.defaults && arr.defaults.speed ? arr.defaults.speed : undefined;
-        channelNodes.push({ id: i + 1, pat: concatenated, inst: instForCol, speed: speedForCol });
+        channelNodes.push({ id: i + 1, pat: 'arrange-synth', seqSpecTokens: concatenated, inst: instForCol, speed: speedForCol });
       }
       return channelNodes;
     }
@@ -443,7 +488,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
               : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
                 ? materializeSequenceItems(rawSeqDef as SequenceItem[])
                 : (rawSeqDef as string[]);
-            const patMeta = buildTokenPatternMeta(seqItemStrings, toks.length, pats);
+            const patMeta = buildTokenPatternMeta(seqItemStrings, toks.length, pats, seqs);
             for (let mi = 0; mi < toks.length; mi++) {
               tokenSeqNames.push(itemBase);
               tokenPatNames.push(patMeta[mi] || '');
