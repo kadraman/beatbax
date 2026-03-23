@@ -227,8 +227,8 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 - [ ] Expand command palette with BeatBax-specific commands — export, generate, validate, channel controls. (Phase 1, Medium)
 - [x] Implement `semanticTokensProvider` and CSS rules — **done** (`editor/beatbax-language.ts`, 2026-03-23).
 - [x] Add `playbackManager.preview` lightweight API - **done** via CodeLens isolated Player instance and shared Context (`editor/codelens-preview.ts`, 2026-03-11).
-- [ ] Wire live playback cursor
-- [ ] Expose EditorState toggle and ThemeManager preference
+- [x] Wire live playback cursor — **done** via glyph-margin play head tracking (`editor/glyph-margin.ts`, 2026-03-23). Note-by-note token tracking is pushed to Future Enhancements.
+- [x] Expose EditorState toggle and ThemeManager preference — **done** (available via menu bar Dark/Light theme selection and Play/Live mode buttons; can revisit later if needed).
 - [x] Glyph-margin playback cursor + channel glyphs implemented (`apps/web-ui/src/editor/glyph-margin.ts`, 2026-03-12). Features:
    - pulsing SVG play-triangle on `pat` and `seq` lines (`bb-glyph--playing`, `bb-glyph--seq-playing`)
    - base64-embedded SVGs for channel live/muted/solo glyphs
@@ -238,6 +238,7 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 
 ## Future Enhancements
 
+- Inline note-by-note playback position tracking (tracking the playback cursor character-by-character over notes: `C4` -> `E4` etc.)
 - Collaborative live-editing visualizer
 - Full embedded piano-roll with quantize/snapping
 - Channel-specific minimap and activity heatmap

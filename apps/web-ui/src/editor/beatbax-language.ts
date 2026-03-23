@@ -462,29 +462,42 @@ export function registerBeatBaxLanguage(): void {
 
       if (latestAST?.insts && latestAST.insts[word.word]) {
         const inst = latestAST.insts[word.word];
-        const lines = [`**Instrument:** \`${word.word}\``];
-        
-        if (inst.type) lines.push(`- **Type:** ${inst.type}`);
-        if (inst.duty !== undefined) lines.push(`- **Duty:** ${inst.duty}`);
+        const props: string[] = [];
+
+        if (inst.type) props.push(`type=${inst.type}`);
+        if (inst.duty !== undefined) props.push(`duty=${inst.duty}`);
         if (inst.env !== undefined) {
           const envStr = typeof inst.env === 'string' ? inst.env : JSON.stringify(inst.env);
-          lines.push(`- **Env:** ${envStr}`);
+          props.push(`env=${envStr}`);
         }
         if (inst.wave !== undefined) {
           const waveStr = Array.isArray(inst.wave) ? `[${inst.wave.join(',')}]` : inst.wave;
-          lines.push(`- **Wave:** ${waveStr}`);
+          props.push(`wave=${waveStr}`);
         }
         if (inst.sweep !== undefined) {
           const sweepStr = typeof inst.sweep === 'string' ? inst.sweep : JSON.stringify(inst.sweep);
-          lines.push(`- **Sweep:** ${sweepStr}`);
+          props.push(`sweep=${sweepStr}`);
         }
         if (inst.noise !== undefined) {
           const noiseStr = typeof inst.noise === 'string' ? inst.noise : JSON.stringify(inst.noise);
-          lines.push(`- **Noise:** ${noiseStr}`);
+          props.push(`noise=${noiseStr}`);
         }
 
         return {
-          contents: [{ value: lines.join('\n') }],
+          contents: [
+            { value: `**Instrument**: \`${word.word}\`` },
+            { value: "```beatbax\n" + props.join(' ') + "\n```" }
+          ]
+        };
+      }
+
+      if (latestAST?.effects && latestAST.effects[word.word]) {
+        const effectVal = latestAST.effects[word.word];
+        return {
+          contents: [
+            { value: `**Named Effect**: \`${word.word}\`` },
+            { value: "```beatbax\neffect " + word.word + " = " + effectVal + "\n```" }
+          ]
         };
       }
 
@@ -788,3 +801,4 @@ export function registerNoteEditCommands(
   editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Period,        () => transposeCurrentNote(editor,  12));
   editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Comma,         () => transposeCurrentNote(editor, -12));
 }
+
