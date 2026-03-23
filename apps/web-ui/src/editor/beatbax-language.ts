@@ -5,6 +5,12 @@
 
 import * as monaco from 'monaco-editor';
 import { parse } from '@beatbax/engine/parser';
+import { eventBus } from '../utils/event-bus';
+
+let latestAST: any = null;
+eventBus.on('parse:success', ({ ast }) => {
+  latestAST = ast;
+});
 
 /**
  * Register BeatBax language with Monaco
@@ -451,6 +457,34 @@ export function registerBeatBaxLanguage(): void {
       if (doc) {
         return {
           contents: [{ value: doc }],
+        };
+      }
+
+      if (latestAST?.insts && latestAST.insts[word.word]) {
+        const inst = latestAST.insts[word.word];
+        const lines = [`**Instrument:** \`${word.word}\``];
+        
+        if (inst.type) lines.push(`- **Type:** ${inst.type}`);
+        if (inst.duty !== undefined) lines.push(`- **Duty:** ${inst.duty}`);
+        if (inst.env !== undefined) {
+          const envStr = typeof inst.env === 'string' ? inst.env : JSON.stringify(inst.env);
+          lines.push(`- **Env:** ${envStr}`);
+        }
+        if (inst.wave !== undefined) {
+          const waveStr = Array.isArray(inst.wave) ? `[${inst.wave.join(',')}]` : inst.wave;
+          lines.push(`- **Wave:** ${waveStr}`);
+        }
+        if (inst.sweep !== undefined) {
+          const sweepStr = typeof inst.sweep === 'string' ? inst.sweep : JSON.stringify(inst.sweep);
+          lines.push(`- **Sweep:** ${sweepStr}`);
+        }
+        if (inst.noise !== undefined) {
+          const noiseStr = typeof inst.noise === 'string' ? inst.noise : JSON.stringify(inst.noise);
+          lines.push(`- **Noise:** ${noiseStr}`);
+        }
+
+        return {
+          contents: [{ value: lines.join('\n') }],
         };
       }
 
