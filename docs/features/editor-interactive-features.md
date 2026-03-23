@@ -28,9 +28,9 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
 
 ### Quick Wins (Priority: High)
 
-- Hover info (Low): show note metadata (frequency, MIDI number, step length) and instrument params.
+- Hover info (Low): show instrument definitions (e.g., type, env, duty) when hovering over `inst` references in patterns or channels.
   - Monaco API: `monaco.languages.registerHoverProvider`
-  - Integration: resolve token under cursor via existing parser; use `playbackManager` for quick audio preview on demand.
+  - Integration: resolve token under cursor via existing parser; lookup instrument state from `ast`.
 
 - Instrument preview on hover (Low): short 200–500ms preview of the named instrument when hovering an `inst` token.
   - Monaco API: hover provider + small `setTimeout` playback; cancel on mouseout.
@@ -70,13 +70,12 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
 - Semantic tokens / colorization (Low): color instruments, channels, transforms for immediate visual parsing.
   - Monaco API: `monaco.languages.registerDocumentSemanticTokensProvider`
 
-- Beat / step decorations (Medium): decorate note/rest tokens with CSS classes for downbeats and subdivisions.
-  - Monaco API: `editor.deltaDecorations`
-  - Integration: map token positions during parse/expansion; update decorations on edits.
+- ❌ Beat / step decorations (Medium): decorate note/rest tokens with CSS classes for downbeats and subdivisions.
+  - *Cancelled*: Deemed too visually noisy and unnecessary given duration tokens like `:4` already distinguish spacing.
 
 ### Medium-effort Interactive Features (Priority: Medium)
 
-- Live playback cursor (Medium): sync a moving editor decoration to the scheduler so users see the exact tick/step while playing.
+- ✅ Live playback cursor (Medium): sync a moving editor decoration to the scheduler so users see the exact tick/step while playing.
   - Monaco API: `editor.deltaDecorations` (fast), update at scheduler tick rate (throttle to 60fps).
   - Integration: subscribe to `playbackManager` tick events on `eventBus` and update decoration to current token position.
   - Implementation notes (2026-03-12): the current implementation subscribes to `playback:position-changed` events on the `eventBus`. Each event carries `{ channelId, position }` where `position` contains both `currentPattern` and `sourceSequence` fields. The expansion logic maps `currentPattern` to a `pat` line and `sourceSequence` to a `seq` line and draws the corresponding pulsing triangle decorations. When both a pattern and its sequence are active, the pat triangle takes visual priority and the seq triangle is shown on its own line (if different).
@@ -186,7 +185,7 @@ Suggested commands to add:
 ### Web UI Changes
 
 - Add a new `editor/integrations` submodule that registers Monaco providers on editor init.
-- Expose a small `playbackManager.preview` API for short previews with cancellation.
+- ✅ Expose a small `playbackManager.preview` API for short previews with cancellation.
 - Add user prefs toggles (ThemeManager / EditorState) for enabling interactive features.
 - Register all command palette commands in a new `editor/command-palette.ts` module, called from `main.ts` after editor init.
 - `generateSampleInst` and `generateSamplePat` should use Monaco's `editor.executeEdits` so they are undoable.
@@ -217,19 +216,18 @@ None required for initial features. If rich editors (piano-roll) are added, ensu
 
 ## Implementation Checklist
 
-- [ ] Add `editor/integrations/interactive-providers.ts`
 - [x] Implement `hoverProvider` for keyword/directive docs — **done** (`editor/beatbax-language.ts`, 2026-03-11).
-- [ ] Extend `hoverProvider` to show note frequency / MIDI number metadata and instrument params on hover over note/inst tokens.
-- [ ] Add instrument preview audio on hover (gesture-safe; requires `playbackManager.playPreview` or CodeLens workaround).
+- [x] Extend `hoverProvider` to show instrument definitions (type, env, duty) when hovering over `inst` names in patterns/sequences. — **done** (`editor/beatbax-language.ts`, 2026-03-23).
+- [x] Add instrument preview audio on hover (gesture-safe; requires `playbackManager.playPreview` or CodeLens workaround). - **done** via CodeLens instrument preview keys (`C3`–`C7`) above `inst` lines (2026-03-11).
 - [x] Implement `completionProvider` for domain tokens — **done** (`editor/beatbax-language.ts`, 2026-03-11). Covers directives, `inst`/`pat`/`seq` definitions, transforms, and note snippets.
 - [x] Implement `codeLensProvider` for `pat` / `seq` — **done** (`editor/codelens-preview.ts`, 2026-03-11). Provides `▶ Preview`, `↺ Loop`, `⬛ Stop` lenses for patterns and sequences; per-note buttons (`C3`–`C7`) for instruments; live re-parse on each loop iteration; shared `AudioContext` for first-click reliability.
 - [x] Implement `codeLensProvider` per-note instrument preview (`C3`–`C7` buttons above `inst` lines) — **done** (`editor/codelens-preview.ts`, 2026-03-11). Plays single notes on the correct APU channel; auto-stops after 2 s.
 - [x] Add effect preview via CodeLens for `effect` definition lines and hover docs for inline `<effect:…>` tokens. (Phase 1, High) - **done** (2026-03-21): `codelens-preview.ts` — `▶ Preview` / `↺ Loop` / `⬛ Stop` lenses above every `effect Name = …` line. Plays 4 ascending notes (C4 E4 G4 C5) with the preset applied inline, using the best available instrument (pulse1 > pulse2 > wave > noise). `beatbax-language.ts` — added hover docs for all 8 built-in inline effects (`vib`, `port`, `volSlide`, `trem`, `pan`, `echo`, `retrig`, `sweep`) and for the `effect` keyword itself. Commands registered: `beatbax.previewEffect`, `beatbax.loopEffect`.
 - [ ] Add play-selected-sequence context menu + command palette action (`beatbax.playSelection`). (Phase 1, Medium)
 - [ ] Expand command palette with BeatBax-specific commands — export, generate, validate, channel controls. (Phase 1, Medium)
-- [ ] Implement `semanticTokensProvider` and CSS rules
-- [ ] Add `playbackManager.preview` lightweight API
-- [ ] Wire beat decorations and live playback cursor
+- [x] Implement `semanticTokensProvider` and CSS rules — **done** (`editor/beatbax-language.ts`, 2026-03-23).
+- [x] Add `playbackManager.preview` lightweight API - **done** via CodeLens isolated Player instance and shared Context (`editor/codelens-preview.ts`, 2026-03-11).
+- [ ] Wire live playback cursor
 - [ ] Expose EditorState toggle and ThemeManager preference
 - [x] Glyph-margin playback cursor + channel glyphs implemented (`apps/web-ui/src/editor/glyph-margin.ts`, 2026-03-12). Features:
    - pulsing SVG play-triangle on `pat` and `seq` lines (`bb-glyph--playing`, `bb-glyph--seq-playing`)

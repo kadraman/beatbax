@@ -4,6 +4,7 @@
  */
 
 import * as monaco from 'monaco-editor';
+import { parse } from '@beatbax/engine/parser';
 
 /**
  * Register BeatBax language with Monaco
@@ -492,11 +493,84 @@ export function registerBeatBaxLanguage(): void {
     },
   });
 
+  // Register document semantic tokens provider for colorizing parsed entities
+  const semanticTokenTypes = ['instrument', 'pattern', 'sequence'];
+  monaco.languages.registerDocumentSemanticTokensProvider('beatbax', {
+    getLegend: function () {
+      return {
+        tokenTypes: semanticTokenTypes,
+        tokenModifiers: [],
+      };
+    },
+    provideDocumentSemanticTokens: function (model, lastResultId, token) {
+      const code = model.getValue();
+      let ast;
+      try {
+        ast = parse(code);
+      } catch (e) {
+        // Return empty if parse fails, keeping old colors or falling back to Monarch
+        return null;
+      }
+
+      const instruments = new Set(Object.keys(ast.insts || {}));
+      const patterns = new Set(Object.keys(ast.pats || {}));
+      const sequences = new Set(Object.keys(ast.seqs || {}));
+
+      const lines = model.getLinesContent();
+      const tokens: number[] = [];
+      let prevLine = 0;
+      let prevChar = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip comments early
+        const commentIdx = line.indexOf('#');
+        const textToSearch = commentIdx !== -1 ? line.substring(0, commentIdx) : line;
+
+        const regex = /[a-zA-Z_]\w*/g;
+        let match;
+        while ((match = regex.exec(textToSearch)) !== null) {
+          const word = match[0];
+
+          let typeIdx = -1;
+          if (instruments.has(word)) typeIdx = 0;
+          else if (patterns.has(word)) typeIdx = 1;
+          else if (sequences.has(word)) typeIdx = 2;
+
+          if (typeIdx !== -1) {
+            const startChar = match.index;
+            const length = word.length;
+
+            const deltaLine = i - prevLine;
+            const deltaChar = deltaLine === 0 ? startChar - prevChar : startChar;
+
+            tokens.push(deltaLine, deltaChar, length, typeIdx, 0);
+
+            prevLine = i;
+            prevChar = startChar;
+          }
+        }
+      }
+
+      return {
+        data: new Uint32Array(tokens),
+        resultId: undefined,
+      };
+    },
+    releaseDocumentSemanticTokens: function (resultId) {},
+  });
+
   // Define custom theme that styles our sequence modifiers
   monaco.editor.defineTheme('beatbax-dark', {
     base: 'vs-dark',
     inherit: true,
+    // @ts-expect-error - Some monaco versions are missing this in types
+    semanticHighlighting: true,
     rules: [
+      { token: 'instrument', foreground: 'FFB86C' }, // Distinct Orange for semantic instruments
+      { token: 'pattern', foreground: '8BE9FD' }, // Cyan for semantic patterns
+      { token: 'sequence', foreground: '50FA7B' }, // Green for semantic sequences
       { token: 'function', foreground: 'C678DD' }, // Bright magenta/purple - inline effects
       { token: 'entity.name.function', foreground: 'C678DD' }, // Bright magenta/purple - sequence modifiers and effect presets
       { token: 'variable.name', foreground: 'DCDCAA' }, // Yellow - definition names (lead, melody, main, ambient)
@@ -513,6 +587,36 @@ export function registerBeatBaxLanguage(): void {
       { token: 'keyword', foreground: '569CD6' }, // Blue - keywords like pat, seq, inst
       { token: 'keyword.control', foreground: 'C586C0' }, // Purple - play, export
       { token: 'comment', foreground: '6A9955' }, // Typical green - comments
+    ],
+    colors: {},
+  });
+
+  // Define light theme
+  monaco.editor.defineTheme('beatbax-light', {
+    base: 'vs',
+    inherit: true,
+    // @ts-expect-error - Some monaco versions are missing this in types
+    semanticHighlighting: true,
+    rules: [
+      { token: 'instrument', foreground: 'D97706' }, // Darker orange
+      { token: 'pattern', foreground: '0284C7' }, // Blue/Cyan
+      { token: 'sequence', foreground: '16A34A' }, // Green
+      { token: 'function', foreground: '9333EA' }, // Purple
+      { token: 'entity.name.function', foreground: '9333EA' }, // Bright magenta/purple
+      { token: 'variable.name', foreground: '795E26' }, // Yellow - definition names
+      { token: 'attribute', foreground: '001080' }, // Light blue - property names
+      { token: 'string', foreground: 'A31515' }, // Orange - string values
+      { token: 'number', foreground: '098658' }, // Orange - numbers
+      { token: 'number.note', foreground: '007ACC' }, // Cyan - notes
+      { token: 'number.rest', foreground: '808080' }, // Gray - rests
+      { token: 'constant.language', foreground: '007ACC' }, // Cyan - URIs
+      { token: 'type', foreground: '267F99' }, // Orange - types
+      { token: 'identifier', foreground: '001080' }, // Yellow - identifiers
+      { token: 'operator', foreground: '000000' }, // White/gray - operators
+      { token: 'delimiter', foreground: '000000' }, // Gray - delimiters
+      { token: 'keyword', foreground: '0000FF' }, // Blue - keywords
+      { token: 'keyword.control', foreground: 'AF00DB' }, // Purple - keywords
+      { token: 'comment', foreground: '008000' }, // Green - comments
     ],
     colors: {},
   });
