@@ -18,6 +18,8 @@ export const languages = {
   registerHoverProvider: jest.fn(),
   registerCodeLensProvider: jest.fn(),
   registerDocumentHighlightProvider: jest.fn(),
+  registerDocumentSemanticTokensProvider: jest.fn(),
+  registerSignatureHelpProvider: jest.fn(),
   typescript: {
     javascriptDefaults: {
       setDiagnosticsOptions: jest.fn(),
