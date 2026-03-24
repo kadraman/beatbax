@@ -54,6 +54,17 @@ export interface BeatBaxEvents {
 
   // Editor navigation (emitted by Problems panel when user clicks a diagnostic row)
   'navigate:to': { line: number; column: number };
+
+  /**
+   * Emitted by command-palette when >MAX_CHANNELS seqs are merged into fewer
+   * channels.  Each channel that received a merged seq gets an ordered list of
+   * `{seqName, patCount}` chunks — the glyph margin uses `eventIndex /
+   * totalEvents` to determine which chunk (and therefore which editor line) is
+   * currently active, avoiding false positives from shared pattern names.
+   */
+  'preview:chunkInfo': {
+    chunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>>;
+  };
 }
 
 type EventCallback<T> = (data: T) => void;
