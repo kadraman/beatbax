@@ -21,7 +21,7 @@ export type Theme = 'dark' | 'light';
 /** Monaco theme identifier corresponding to each Theme */
 const MONACO_THEMES: Record<Theme, string> = {
   dark: 'beatbax-dark',
-  light: 'vs-light',
+  light: 'beatbax-light',
 };
 
 export interface ThemeManagerOptions {

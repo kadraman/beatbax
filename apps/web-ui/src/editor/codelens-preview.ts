@@ -297,6 +297,257 @@ async function startInstNotePreview(
 
   return { player, key: `inst-note:${instName}:${note}`, stopTimer };
 }
+
+// ---------------------------------------------------------------------------
+// Effect preview
+// ---------------------------------------------------------------------------
+
+/**
+ * Picks the best instrument to demonstrate an effect:
+ * pulse1 > pulse2 > wave > noise (prefer melodic channels).
+ * For sweep effects, pulse1 is required (hardware sweep lives on ch1 only).
+ */
+function resolveEffectPreviewInstrument(ast: any, preferType?: string): string | null {
+  const insts = Object.entries(ast.insts ?? {}) as [string, any][];
+  const order = preferType
+    ? [preferType, 'pulse1', 'pulse2', 'wave', 'noise'].filter((v, i, a) => a.indexOf(v) === i)
+    : ['pulse1', 'pulse2', 'wave', 'noise'];
+  for (const typePref of order) {
+    const found = insts.find(([, v]) => (v.type ?? '').toLowerCase() === typePref);
+    if (found) return found[0];
+  }
+  const first = Object.keys(ast.insts ?? {})[0];
+  return first ?? null;
+}
+
+/**
+ * Flat (non-decaying) GB-style envelope: max volume held for the full note
+ * duration. Used for effect previews that require sustained sound to be
+ * clearly audible (vib, trem, port, bend, sweep, volSlide, echo).
+ */
+const SUSTAIN_ENVELOPE = { mode: 'gb', initial: 15, direction: 'flat', period: 0 } as const;
+
+/**
+ * Returns a copy of `ast.insts` with the named instrument's envelope patched
+ * to SUSTAIN_ENVELOPE so the note is clearly held for the full duration.
+ * All other instrument properties are preserved unchanged.
+ */
+function patchInstForSustain(insts: Record<string, any>, instName: string): Record<string, any> {
+  return {
+    ...insts,
+    [instName]: { ...insts[instName], env: SUSTAIN_ENVELOPE },
+  };
+}
+
+/**
+ * Returns true for effect types whose audio is only audible (or most clearly
+ * heard) on a fully sustained, non-decaying note.
+ */
+function effectNeedsSustain(type: string): boolean {
+  return ['vib', 'trem', 'port', 'bend', 'sweep', 'volSlide', 'echo'].includes(type);
+}
+
+// ---------------------------------------------------------------------------
+// Effect-aware token generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the primary/dominant built-in effect type for a name.
+ * For user-defined presets, inspect the RHS string to find the first effect
+ * keyword; for built-ins, return the name directly.
+ */
+function resolveEffectType(effectName: string, ast: any): string {
+  const BUILTINS = ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep', 'bend'];
+  if (BUILTINS.includes(effectName)) return effectName;
+  const rhs: string | undefined = ast.effects?.[effectName];
+  if (rhs) {
+    const m = rhs.match(/^([a-zA-Z][a-zA-Z0-9_-]*)/);
+    if (m) return m[1];
+  }
+  return effectName;
+}
+
+/**
+ * Expand note+step pairs into an individual-token array.
+ * Each `[note, steps]` pair produces one note token followed by `steps-1`
+ * `_` (held-rest) tokens — matching how the pattern expander handles `:N`.
+ * The effect suffix `<fx>` is appended to the note token, UNLESS the note
+ * string already contains `<` (to allow callers to pre-embed or omit effects).
+ */
+function buildEffectTokens(pairs: Array<[string, number]>, fx: string): string[] {
+  const out: string[] = [];
+  for (const [note, steps] of pairs) {
+    // If the note already contains an angle bracket (pre-embedded effect or
+    // explicitly no-effect anchor), use it verbatim.
+    const token = note.includes('<') || note === note.trimEnd() && !note.match(/^[A-Ga-g]/) ? note : `${note}<${fx}>`;
+    out.push(token);
+    for (let i = 1; i < steps; i++) out.push('_');
+  }
+  return out;
+}
+
+/**
+ * Return tokens and total step count for the given effect, tuned so audio
+ * feedback matches the nature of the effect:
+ *
+ * | Effect type         | Strategy                                                          |
+ * |---------------------|-------------------------------------------------------------------|
+ * | arp                 | 4-step held notes × 4 — arp cycles are audible                   |
+ * | retrig              | 2-step notes × 4 — rapid retrigger is clear                      |
+ * | port                | plain C3 anchor (2 steps), then G4/C5/G3 slides × 4 steps each   |
+ * | bend                | 4-step notes × 3 at wide intervals — per-note pitch bend heard   |
+ * | vib / trem          | 8-step notes × 2 — long sustain for oscillation                  |
+ * | sweep               | 8-step notes × 2 — full sweep range is heard                     |
+ * | volSlide / echo     | 4-step notes × 4 — enough for time-based effect                  |
+ * | pan                 | 2-step notes × 4 — panning is immediate                          |
+ * | default / unknown   | 2-step notes × 4                                                  |
+ */
+function effectPreviewConfig(
+  effectName: string,
+  ast: any,
+  stepsOverride?: number,
+): { tokens: string[]; totalSteps: number } {
+  const type = resolveEffectType(effectName, ast);
+
+  type Pair = [string, number];
+  let pairs: Pair[];
+  switch (type) {
+    case 'arp':
+      // Held notes so the arp has time to cycle through chord tones
+      pairs = [['C4', stepsOverride ?? 4], ['E4', stepsOverride ?? 4], ['G4', stepsOverride ?? 4], ['C5', stepsOverride ?? 4]];
+      break;
+    case 'retrig':
+      // Short notes — rapid re-triggers are the point
+      pairs = [['C4', stepsOverride ?? 2], ['E4', stepsOverride ?? 2], ['G4', stepsOverride ?? 2], ['C5', stepsOverride ?? 2]];
+      break;
+    case 'port': {
+      // Portamento slides FROM the previous note's pitch TO the current note.
+      // The first note in the sequence has no previous pitch, so we emit a
+      // plain anchor note (no effect) to establish an initial pitch; every
+      // subsequent note then slides from the previous stop.
+      // Wide intervals (5th, octave, down-6th) make the glide clearly audible.
+      // Default is 8 steps per slide (was 4) to give the portamento enough time
+      // to complete; ▶ Slow uses 16 steps for very slow or wide-range slides.
+      const anchorTokens: string[] = ['C3', '_'];
+      const stepsPerSlide = stepsOverride ?? 8;
+      const slidePairs: Array<[string, number]> = [['G4', stepsPerSlide], ['C5', stepsPerSlide], ['E3', stepsPerSlide]];
+      const slideTokens = buildEffectTokens(slidePairs, effectName);
+      const tokens = [...anchorTokens, ...slideTokens];
+      return { tokens, totalSteps: anchorTokens.length + slidePairs.reduce((s, [, n]) => s + n, 0) };
+    }
+    case 'bend':
+      // Pitch bend is applied per-note (no dependency on previous pitch).
+      // Wide-interval starting notes (low to high) make each individual bend
+      // clearly audible even on a short listen.
+      // Default is 8 steps per note (was 4) to allow the bend to fully develop;
+      // ▶ Slow uses 16 steps for deep or slow bends.
+      pairs = [['C3', stepsOverride ?? 8], ['G3', stepsOverride ?? 8], ['C4', stepsOverride ?? 8], ['G4', stepsOverride ?? 8]];
+      break;
+    case 'vib':
+    case 'trem':
+      // Long sustained notes so the oscillation is clearly audible
+      pairs = [['C4', stepsOverride ?? 8], ['G4', stepsOverride ?? 8]];
+      break;
+    case 'sweep':
+      // Long single note per hit so the full hardware sweep range is heard
+      pairs = [['C4', stepsOverride ?? 8], ['C5', stepsOverride ?? 8]];
+      break;
+    case 'volSlide':
+    case 'echo':
+      // Moderate length — time-based effect needs room to breathe
+      pairs = [['C4', stepsOverride ?? 4], ['E4', stepsOverride ?? 4], ['G4', stepsOverride ?? 4], ['C5', stepsOverride ?? 4]];
+      break;
+    case 'pan':
+      // Panning is immediate; short notes are fine
+      pairs = [['C4', stepsOverride ?? 2], ['G4', stepsOverride ?? 2], ['C5', stepsOverride ?? 2], ['G4', stepsOverride ?? 2]];
+      break;
+    default:
+      pairs = [['C4', stepsOverride ?? 2], ['E4', stepsOverride ?? 2], ['G4', stepsOverride ?? 2], ['C5', stepsOverride ?? 2]];
+  }
+
+  const tokens = buildEffectTokens(pairs, effectName);
+  const totalSteps = pairs.reduce((sum, [, s]) => sum + s, 0);
+  return { tokens, totalSteps };
+}
+
+/**
+ * Preview a named effect preset (or built-in inline effect) by playing a
+ * short note sequence with the effect applied. Note lengths are chosen based
+ * on the effect type so the audio feedback is appropriate:
+ *   - arp        → 4-step held notes (arp cycles are audible)
+ *   - vib/trem   → 8-step sustained notes (oscillation is clear)
+ *   - port/bend  → 4-step notes (slide between pitches is heard)
+ *   - sweep      → 8-step single notes (full sweep range)
+ *   - others     → 2-step short notes
+ */
+async function startEffectPreview(
+  effectName: string,
+  rawAst: any,
+  onDone: () => void,
+  options?: { stepsOverride?: number; keyPrefix?: string },
+): Promise<PreviewState | null> {
+  const type = resolveEffectType(effectName, rawAst);
+
+  // sweep is a hardware feature of pulse channel 1 only — force pulse1.
+  const preferType = type === 'sweep' ? 'pulse1' : undefined;
+  const instName = resolveEffectPreviewInstrument(rawAst, preferType);
+  if (!instName) return null;
+
+  const { tokens, totalSteps } = effectPreviewConfig(effectName, rawAst, options?.stepsOverride);
+
+  // For effects that require a fully sustained note to be audible, override
+  // the instrument's envelope with a flat (non-decaying) GB envelope so the
+  // sound is held clearly for the full note duration regardless of how the
+  // song's instrument was configured.
+  const insts = effectNeedsSustain(type)
+    ? patchInstForSustain(rawAst.insts ?? {}, instName)
+    : rawAst.insts;
+
+  const previewAst = {
+    ...rawAst,
+    insts,
+    pats:  { ...rawAst.pats,  __fx_preview__: tokens },
+    seqs:  { ...rawAst.seqs  },
+    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: '__fx_preview__' }],
+    play: { auto: false },
+  };
+
+  let songModel: any;
+  try {
+    songModel = resolveSong(previewAst as any);
+  } catch {
+    return null;
+  }
+
+  let player: Player;
+  try {
+    player = new Player(_sharedCtx ?? undefined);
+    await player.playAST(songModel as any);
+  } catch {
+    return null;
+  }
+
+  const bpm: number = rawAst.bpm ?? 120;
+  const stepsPerBar: number = rawAst.stepsPerBar ?? rawAst.time ?? 4;
+  const barDurationMs = (60_000 / bpm) * stepsPerBar;
+  const barsNeeded = Math.max(1, Math.ceil(totalSteps / stepsPerBar));
+  // 800 ms decay tail so effects like echo/vib have room to breathe after the last note.
+  const durationMs = barDurationMs * barsNeeded + 800;
+
+  const stopTimer = window.setTimeout(() => {
+    try { player.stop(); } catch (_e) { /* ignore */ }
+    onDone();
+  }, durationMs);
+
+  player.onComplete = () => {
+    clearTimeout(stopTimer);
+    onDone();
+  };
+
+  const keyPrefix = options?.keyPrefix ?? 'effect';
+  return { player, key: `${keyPrefix}:${effectName}`, stopTimer };
+}
+
 // ---------------------------------------------------------------------------
 // Module-level command bridge
 // Monaco commands are registered globally; we delegate to the active instance
@@ -308,6 +559,9 @@ let _loopTrigger: ((patternName: string) => void) | null = null;
 let _seqPreviewTrigger: ((seqName: string) => void) | null = null;
 let _seqLoopTrigger: ((seqName: string) => void) | null = null;
 let _instNotePreviewTrigger: ((instName: string, note: string) => void) | null = null;
+let _effectPreviewTrigger: ((effectName: string) => void) | null = null;
+let _effectSlowPreviewTrigger: ((effectName: string) => void) | null = null;
+let _effectLoopTrigger: ((effectName: string) => void) | null = null;
 let _stopTrigger: (() => void) | null = null;
 let _commandsRegistered = false;
 
@@ -357,6 +611,15 @@ function ensureCommandsRegistered(): void {
   });
   monaco.editor.registerCommand('beatbax.previewInstNote', (_acc: any, instName: string, note: string) => {
     _instNotePreviewTrigger?.(instName, note);
+  });
+  monaco.editor.registerCommand('beatbax.previewEffect', (_acc: any, effectName: string) => {
+    _effectPreviewTrigger?.(effectName);
+  });
+  monaco.editor.registerCommand('beatbax.previewEffectSlow', (_acc: any, effectName: string) => {
+    _effectSlowPreviewTrigger?.(effectName);
+  });
+  monaco.editor.registerCommand('beatbax.loopEffect', (_acc: any, effectName: string) => {
+    _effectLoopTrigger?.(effectName);
   });
   monaco.editor.registerCommand('beatbax.stopPreview', (_acc: any) => {
     _stopTrigger?.();
@@ -496,6 +759,63 @@ export function setupCodeLensPreview(
     await playNext();
   };
 
+  _effectPreviewTrigger = async (effectName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
+    stopPreview();
+    let rawAst: any;
+    try { rawAst = parse(getSource()); } catch { return; }
+    const state = await startEffectPreview(effectName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    previewState = state;
+    notifyChange();
+  };
+
+  _effectSlowPreviewTrigger = async (effectName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `effect-slow:${effectName}`) { stopPreview(); return; }
+    stopPreview();
+    let rawAst: any;
+    try { rawAst = parse(getSource()); } catch { return; }
+    const state = await startEffectPreview(effectName, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    }, { stepsOverride: 16, keyPrefix: 'effect-slow' });
+    previewState = state;
+    notifyChange();
+  };
+
+  _effectLoopTrigger = async (effectName: string) => {
+    ensureAudioCtxReady();
+    if (previewState?.key === `effect-loop:${effectName}`) { stopPreview(); return; }
+    stopPreview();
+
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+
+    async function playNext(): Promise<void> {
+      if (cancelled) return;
+      let rawAst: any;
+      try { rawAst = parse(getSource()); } catch { return; }
+      let fired = false;
+      const onIterationDone = () => {
+        if (fired || cancelled) return;
+        fired = true;
+        void playNext();
+      };
+      const state = await startEffectPreview(effectName, rawAst, onIterationDone);
+      if (!state || cancelled) return;
+      state.key = `effect-loop:${effectName}`;
+      state.cancelLoop = cancel;
+      previewState = state;
+      notifyChange();
+    }
+
+    await playNext();
+  };
+
   _stopTrigger = () => stopPreview();
 
   // ── EventBus subscriptions ────────────────────────────────────────────────
@@ -588,6 +908,39 @@ export function setupCodeLensPreview(
               range: new monaco.Range(ln, 1, ln, 1),
               id: `bb-inst-${instName}-${note}`,
               command: { id: 'beatbax.previewInstNote', title: note, arguments: [instName, note] },
+            });
+          }
+          continue;
+        }
+
+        // ── effect definitions ────────────────────────────────────────────
+        const effectMatch = line.match(/^\s*effect\s+([A-Za-z0-9_-]+)\s*=/);
+        if (effectMatch) {
+          const effectName = effectMatch[1];
+          const activeKey = previewState?.key;
+          const isActive = activeKey === `effect:${effectName}` || activeKey === `effect-loop:${effectName}` || activeKey === `effect-slow:${effectName}`;
+          if (isActive) {
+            const isLooping = activeKey === `effect-loop:${effectName}`;
+            lenses.push({
+              range: new monaco.Range(ln, 1, ln, 1),
+              id: `bb-effect-stop-${effectName}`,
+              command: { id: 'beatbax.stopPreview', title: isLooping ? '⬛ Stop  ↺' : '⬛ Stop', arguments: [] },
+            });
+          } else {
+            lenses.push({
+              range: new monaco.Range(ln, 1, ln, 1),
+              id: `bb-effect-preview-${effectName}`,
+              command: { id: 'beatbax.previewEffect', title: '▶ Preview', arguments: [effectName] },
+            });
+            lenses.push({
+              range: new monaco.Range(ln, 1, ln, 1),
+              id: `bb-effect-slow-${effectName}`,
+              command: { id: 'beatbax.previewEffectSlow', title: '▶ Slow', arguments: [effectName] },
+            });
+            lenses.push({
+              range: new monaco.Range(ln, 1, ln, 1),
+              id: `bb-effect-loop-${effectName}`,
+              command: { id: 'beatbax.loopEffect', title: '↺ Loop', arguments: [effectName] },
             });
           }
         }

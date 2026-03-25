@@ -28,6 +28,7 @@ import {
 } from './editor/diagnostics';
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
+import { setupCommandPalette } from './editor/command-palette';
 import { createThreePaneLayout } from './ui/layout';
 
 // Playback imports
@@ -851,27 +852,34 @@ toolbar = new Toolbar({
     toolbar.setExportEnabled(true);
   },
   onExport: handleExport,
-  onVerify: () => {
-    const source = getSource();
-    if (!source.trim()) { opWarn(problemsPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.'); return; }
-    try {
-      parse(source);
-      opLog(outputPanel, '✔ Verification passed', 'verify');
-      diagnosticsManager?.clearAll?.();
-      toolbar.setExportEnabled(true);
-    } catch (err: any) {
-      opError(problemsPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
-      showBottomTab('problems');
-      if (diagnosticsManager && err.loc) {
-        diagnosticsManager.setMarkers([parseErrorToDiagnostic(err)]);
-      }
-      toolbar.setExportEnabled(false);
-    }
-  },
+  onVerify: doVerify,
 });
 
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;
+
+// ─── Shared verify helper ─────────────────────────────────────────────
+function doVerify(): void {
+  const source = getSource();
+  if (!source.trim()) {
+    opWarn(problemsPanel, 'Nothing to verify — the editor is empty. Use File → Open or type a song.');
+    return;
+  }
+  try {
+    parse(source);
+    opLog(outputPanel, '✔ Verification passed', 'verify');
+    showBottomTab('output');
+    diagnosticsManager?.clearAll?.();
+    toolbar.setExportEnabled(true);
+  } catch (err: any) {
+    opError(problemsPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
+    showBottomTab('problems');
+    if (diagnosticsManager && err.loc) {
+      diagnosticsManager.setMarkers([parseErrorToDiagnostic(err)]);
+    }
+    toolbar.setExportEnabled(false);
+  }
+}
 
 // ─── Drag-and-drop ───────────────────────────────────────────────────────────
 const dragDrop = new DragDropHandler(document.body, {
@@ -953,12 +961,12 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menu
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
   showRightTab('channels');
 });
-// Ctrl+Alt+P → Monaco Command Palette (alternative to Ctrl+Shift+P which is
-// intercepted by browsers: Firefox opens a Private Window, Chrome/Edge open
-// the DevTools command menu, so Ctrl+Shift+P can never reliably reach Monaco).
-// F1 is the primary in-editor shortcut for the Command Palette.
+// Ctrl+Alt+P → Monaco Command Palette.
+// NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
+// not fire on all systems. F1 is the primary reliable shortcut. A global
+// fallback is also registered via ks (see below) which focuses Monaco first.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
-  monacoInst.trigger('keyboard', 'editor.action.quickCommand', null);
+  monacoInst.trigger('', 'editor.action.quickCommand', null);
 });
 // Escape: close the Help overlay if it is open, and allow Monaco to handle
 // its own Escape uses (close find widget, suggestions, rename dialog, etc.).
@@ -1061,7 +1069,33 @@ ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help ta
 ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts tab', allowInInput: true,
   action: () => showRightTab('shortcuts') });
 
+// Ctrl+Alt+P → Command Palette (global fallback: works even when Monaco is not focused).
+// Monaco's own addCommand version only fires when Monaco already has focus; this
+// registration also covers the case where focus is elsewhere by focusing Monaco first.
+// Note: on European AltGr keyboards Ctrl+Alt may be intercepted by the OS — use F1 instead.
+ks.register({ key: 'p', ctrlKey: true, altKey: true, description: 'Open Command Palette', allowInInput: true,
+  action: () => { monacoInst.focus(); setTimeout(() => monacoInst.trigger('', 'editor.action.quickCommand', null), 50); },
+});
+
 ks.mount();
+
+// ─── Command Palette — BeatBax-specific commands in the Monaco palette ────────
+setupCommandPalette({
+  editor: monacoInst,
+  getSource,
+  onExport: handleExport,
+  onVerify: doVerify,
+  onToggleMute: (channelId) => channelState.toggleMute(channelId),
+  onToggleSolo: (channelId) => channelState.toggleSolo(channelId),
+  onStopPreview: () => monacoInst.trigger('', 'beatbax.stopPreview', null),
+  onPlayRaw: (src, chunkInfo) => {
+    if (chunkInfo && Object.keys(chunkInfo).length > 0) {
+      eventBus.emit('preview:chunkInfo', { chunkInfo });
+    }
+    showBottomTab('output');
+    playbackManager.play(src);
+  },
+});
 
 // ─── Shortcuts panel — instantiated after ks.mount() so the full registered ─
 // shortcut list is available when HelpPanel first renders the section.

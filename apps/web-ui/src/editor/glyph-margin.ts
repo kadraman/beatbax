@@ -29,7 +29,8 @@ import type { ChannelState } from '../playback/channel-state';
 // ---------------------------------------------------------------------------
 
 function injectGlyphStyles(): void {
-  if (document.getElementById('bb-glyph-styles')) return;
+  const existing = document.getElementById('bb-glyph-styles');
+  if (existing) existing.remove();
   const style = document.createElement('style');
   style.id = 'bb-glyph-styles';
   style.textContent = `
@@ -71,45 +72,60 @@ function injectGlyphStyles(): void {
 
     /* ── Playback position cursor — active pat line (teal) ─────── */
     .bb-glyph--playing::before {
-      content: '▶';
+      content: '';
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNSI+PHBvbHlnb24gcG9pbnRzPSI2LDMgMTIsNy41IDYsMTIiIGZpbGw9IiM0ZWM5YjAiLz48L3N2Zz4=');
+      background-repeat: no-repeat;
+      background-position: center;
       border: 1px solid #3a9b8a;
-      background: #1e3d38;
-      color: #4ec9b0;
+      background-color: #1e3d38;
+      border-radius: 3px;
       animation: bb-beat 0.9s ease-in-out infinite;
     }
 
     /* ── Playback position cursor — active seq line (amber) ────── */
     .bb-glyph--seq-playing::before {
-      content: '▶';
+      content: '';
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNSI+PHBvbHlnb24gcG9pbnRzPSI2LDMgMTIsNy41IDYsMTIiIGZpbGw9IiNjZTkxNzgiLz48L3N2Zz4=');
+      background-repeat: no-repeat;
+      background-position: center;
       border: 1px solid #9e6e4e;
-      background: #3a2e20;
-      color: #ce9178;
+      background-color: #3a2e20;
+      border-radius: 3px;
       animation: bb-beat 0.9s ease-in-out infinite;
       animation-delay: 0.45s;
     }
 
     /* ── Channel live (normal) ─────────────────────────────────── */
     .bb-glyph--ch-live::before {
-      content: '♪';
+      content: '';
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTEwLjUgM0w1IDYuNXY1LjVDNSAxMy42IDQuNiAxNCAzLjUgMTRTMiAxMy42IDIgMTIuNXMxLS0xLjUgMi4xLTEuNWMuNyAwIDEuMy4yIDEuOC42VjcuMWw0LjUtMi45djVjMCAxIC0uOSA0LjUtMiA0LjVTMTAuNSAxMy42IDEwLjUgMTIuNXMxLS0xLjUgMi4xLS0xLjVjLjcgMCAxLjMuMiAxLjguNlYzWiIgZmlsbD0iIzRjYWY1MCIvPjwvc3ZnPg==');
+      background-repeat: no-repeat;
+      background-position: center;
       border: 1px solid #555;
-      background: #3a3a3a;
-      color: #4caf50;
+      background-color: #3a3a3a;
+      border-radius: 3px;
     }
 
     /* ── Channel muted ─────────────────────────────────────────── */
     .bb-glyph--ch-muted::before {
-      content: 'M';
+      content: '';
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTUgNCBMNyA4IEw1IDEyIEw3IDEzIEw5IDkuNSBMMTEgMTMgTDEzIDEyIEwxMSA4IEwxMyA0IEwxMSA0IEw5LjUgNiBMNyAzIFoiIGZpbGw9IiNmZmFhYWEiLz48L3N2Zz4=');
+      background-repeat: no-repeat;
+      background-position: center;
       border: 1px solid #c94e4e;
-      background: #7a2f2f;
-      color: #ffaaaa;
+      background-color: #7a2f2f;
+      border-radius: 3px;
     }
 
     /* ── Channel soloed ────────────────────────────────────────── */
     .bb-glyph--ch-soloed::before {
-      content: 'S';
+      content: '';
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTggMSBMMTAgNiBMMTUgNiBMMTEgOSBMMTIgMTQgTDggMTEgTDQgMTQgTDUgOSBMMSA2IEw2IDYgWiIgZmlsbD0iIzljZGNmZSIvPjwvc3ZnPg==');
+      background-repeat: no-repeat;
+      background-position: center;
       border: 1px solid #4a9eff;
-      background: #2a4a7a;
-      color: #9cdcfe;
+      background-color: #2a4a7a;
+      border-radius: 3px;
     }
 
     .bb-glyph--ch-live,
@@ -152,6 +168,16 @@ export function setupGlyphMargin(
   // Which pattern/sequence is currently playing per channel
   const activePatterns  = new Map<number, string>(); // channelId → patternName
   const activeSequences = new Map<number, string>(); // channelId → sequenceName
+
+  // Raw position data per channel — used with chunkInfo to resolve sections.
+  const activePositions = new Map<number, { eventIndex: number; totalEvents: number }>();
+
+  // chunkInfo populated by `preview:chunkInfo` when >N seqs are merged.
+  // channelId → ordered [{seqName, noteCount, patNames}] for each original seq in the slot.
+  // Active chunk resolution uses patNames first (match against the sourcePattern of the
+  // current position event), then falls back to a noteCount boundary walk when no
+  // pattern-name match is found.
+  let previewChunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>> = {};
 
   // Decoration-ID bookkeeping so Monaco can diff on the next update
   let positionIds: string[] = [];
@@ -203,9 +229,46 @@ export function setupGlyphMargin(
     }
 
     // seq glyphs (amber ▶)
+    // For channels with chunkInfo (merged seqs), resolve which original seq is
+    // active. Two strategies are applied in order:
+    //
+    // 1. Pattern-name lookup (primary): use the runtime sourcePattern reported
+    //    by the engine (stored in activePatterns). Each chunk records the unique
+    //    pattern names its seq references (patNames). If the current pattern
+    //    belongs to a chunk, that chunk's seqName is returned. This is immune to
+    //    note-count estimation errors and works for any pattern format including
+    //    percussion patterns that may use non-standard note syntax.
+    //
+    // 2. Note-count fallback: if the current pattern isn't matched to any chunk
+    //    (e.g. no position event yet, pattern name mismatch), compare eventIndex
+    //    against cumulative noteCount boundaries.
+    const resolveSeqName = (channelId: number, seqName: string): string => {
+      const chunks = previewChunkInfo[channelId];
+      if (!chunks || chunks.length <= 1) return seqName;
+
+      // Strategy 1: pattern-name lookup
+      const currentPat = activePatterns.get(channelId);
+      if (currentPat) {
+        for (const chunk of chunks) {
+          if (chunk.patNames.includes(currentPat)) return chunk.seqName;
+        }
+      }
+
+      // Strategy 2: note-count boundary
+      const pos = activePositions.get(channelId);
+      if (!pos) return seqName;
+      let cumulative = 0;
+      for (const chunk of chunks) {
+        cumulative += chunk.noteCount;
+        if (pos.eventIndex < cumulative) return chunk.seqName;
+      }
+      return chunks[chunks.length - 1].seqName;
+    };
+
     const playingSeqLines = new Set<number>();
-    for (const seqName of activeSequences.values()) {
-      const ln = seqLineMap.get(seqName);
+    for (const [channelId, seqName] of activeSequences.entries()) {
+      const resolved = resolveSeqName(channelId, seqName);
+      const ln = seqLineMap.get(resolved);
       if (ln !== undefined) playingSeqLines.add(ln);
     }
     for (const ln of playingSeqLines) {
@@ -259,7 +322,10 @@ export function setupGlyphMargin(
 
   const unsubParse = eventBus.on('parse:success', () => {
     rebuildLineMaps();
-    // Clear stale position glyphs — names may have changed
+    // Clear stale position glyphs — names may have changed.
+    // Note: do NOT clear previewChunkInfo here — it is set just before
+    // playbackManager.play() and must survive the parse:success that
+    // play() itself emits before audio starts.
     activePatterns.clear();
     activeSequences.clear();
     positionIds = monacoEditor.deltaDecorations(positionIds, []);
@@ -270,6 +336,20 @@ export function setupGlyphMargin(
     'playback:position-changed',
     ({ channelId, position }: { channelId: number; position: any }) => {
       let changed = false;
+
+      // Record raw position data for chunkInfo-based section resolution.
+      if (position && typeof position.eventIndex === 'number') {
+        const prev = activePositions.get(channelId);
+        if (!prev || prev.eventIndex !== position.eventIndex) {
+          activePositions.set(channelId, {
+            eventIndex: position.eventIndex,
+            totalEvents: position.totalEvents ?? 0,
+          });
+          // Always redraw when chunkInfo is set, since the section may change
+          // even if the pattern name has not changed.
+          if (previewChunkInfo[channelId]) changed = true;
+        }
+      }
 
       if (position && 'currentPattern' in position) {
         const next: string | null = position.currentPattern;
@@ -304,6 +384,8 @@ export function setupGlyphMargin(
   const unsubStopped = eventBus.on('playback:stopped', () => {
     activePatterns.clear();
     activeSequences.clear();
+    activePositions.clear();
+    previewChunkInfo = {};
     positionIds = monacoEditor.deltaDecorations(positionIds, []);
   });
 
@@ -311,6 +393,10 @@ export function setupGlyphMargin(
   const unsubUnmuted  = eventBus.on('channel:unmuted',  () => redrawMuteSoloGlyphs());
   const unsubSoloed   = eventBus.on('channel:soloed',   () => redrawMuteSoloGlyphs());
   const unsubUnsoloed = eventBus.on('channel:unsoloed', () => redrawMuteSoloGlyphs());
+
+  const unsubChunkInfo = eventBus.on('preview:chunkInfo', ({ chunkInfo }) => {
+    previewChunkInfo = chunkInfo;
+  });
 
   // ── Glyph-margin click → toggle mute or solo ─────────────────────────────
   // Clicking the S (soloed) badge un-solos the channel.
@@ -340,6 +426,7 @@ export function setupGlyphMargin(
     unsubParse();
     unsubPositionChanged();
     unsubStopped();
+    unsubChunkInfo();
     unsubMuted();
     unsubUnmuted();
     unsubSoloed();

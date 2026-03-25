@@ -55,7 +55,14 @@ export class PlaybackManager {
   private player: Player | null = null;
   // Phase 2.5: Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
-  private channelEvents: Map<number, any[]> = new Map(); // channelId → event array
+  private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
+  // Maps channelId → (noteEventIndex → { seq, pat })
+  // Built post-resolution by counting ONLY note/named events, matching the Player's eventIndex counter.
+  private channelMetaIndex: Map<number, Map<number, { seq: string | null; pat: string | null }>> = new Map();
+  // Parallel note/named-only event arrays so eventIndex (note-only counter) maps correctly for instrument display.
+  private channelNoteEvents: Map<number, any[]> = new Map();
+  private _lastKnownSeq: Map<number, string> = new Map();
+  private _lastKnownPat: Map<number, string> = new Map();
 
   constructor(
     private eventBus: EventBus,
@@ -317,6 +324,10 @@ export class PlaybackManager {
       // Phase 2.5: Clear position tracking
       this.playbackPosition.clear();
       this.channelEvents.clear();
+      this.channelMetaIndex.clear();
+      this.channelNoteEvents.clear();
+      this._lastKnownSeq.clear();
+      this._lastKnownPat.clear();
 
       this.eventBus.emit('playback:stopped', undefined);
     } catch (error) {
@@ -403,6 +414,27 @@ export class PlaybackManager {
         if (channel.events && Array.isArray(channel.events)) {
           log.debug(`Channel ${channelId}: ${channel.events.length} events`);
           this.channelEvents.set(channelId, channel.events);
+
+          // Build channelMetaIndex: maps noteEventIndex (as counted by the Player's scheduleToken)
+          // to {seq, pat}. The Player only increments its counter for note/named events, so we
+          // must iterate only those to keep the mapping aligned.
+          // Also build channelNoteEvents: the note/named-only event list so that eventIndex
+          // (a note-only counter) maps correctly when looking up instrument names.
+          const metaMap = new Map<number, { seq: string | null; pat: string | null }>();
+          const noteEvents: any[] = [];
+          let noteIdx = 0;
+          for (const ev of channel.events) {
+            if (ev.type === 'note' || ev.type === 'named') {
+              metaMap.set(noteIdx++, {
+                seq: (ev as any).sourceSequence || null,
+                pat: (ev as any).sourcePattern || null,
+              });
+              noteEvents.push(ev);
+            }
+          }
+          this.channelMetaIndex.set(channelId, metaMap);
+          this.channelNoteEvents.set(channelId, noteEvents);
+          log.debug(`Channel ${channelId}: metaIndex has ${metaMap.size} note/named entries`);
         }
       });
 
@@ -413,22 +445,28 @@ export class PlaybackManager {
     player.onPositionChange = (channelId: number, eventIndex: number, totalEvents: number) => {
       log.debug(`onPositionChange: ch${channelId}, event ${eventIndex}/${totalEvents}`);
 
-      const events = this.channelEvents.get(channelId) || [];
-      const event = events[eventIndex];
+      // Look up metadata using the note-only index (matches Player's scheduleToken counter exactly)
+      const meta = this.channelMetaIndex.get(channelId)?.get(eventIndex);
+      const rawSeq = meta?.seq ?? null;
+      const rawPat = meta?.pat ?? null;
 
-      log.debug(`Event data:`, event);
+      // Update last-known fallbacks so glyphs persist between callbacks
+      if (rawSeq) this._lastKnownSeq.set(channelId, rawSeq);
+      if (rawPat) this._lastKnownPat.set(channelId, rawPat);
+      const sequenceName = rawSeq || this._lastKnownSeq.get(channelId) || null;
+      const patternName  = rawPat || this._lastKnownPat.get(channelId) || null;
 
-      // Get sequence and pattern names for this channel
-      const sequenceName = channelSequenceNames.get(channelId) || null;
-      const patternMap = channelPatternMaps.get(channelId);
-      const patternName = patternMap ? patternMap.get(eventIndex) || null : null;
+      // currentInstrument: read from the note/named-only events list so that eventIndex
+      // (the Player's note-only counter) maps to the correct event.
+      const noteEvents = this.channelNoteEvents.get(channelId) || [];
+      const approxEvent = noteEvents[eventIndex];
 
       // Create or update position object
       const position: PlaybackPosition = {
         channelId,
         eventIndex,
         totalEvents,
-        currentInstrument: event?.instrument || null,
+        currentInstrument: approxEvent?.instrument || null,
         currentPattern: patternName, // Use the pattern name we extracted
         sourceSequence: sequenceName, // Use the sequence name we extracted
         barNumber: null, // Not needed when showing pattern names

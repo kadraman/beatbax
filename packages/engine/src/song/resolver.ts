@@ -164,6 +164,98 @@ export async function resolveSongAsync(ast: AST, opts?: { filename?: string; sea
 }
 
 /**
+ * For a named sequence, build a per-token array of source pattern base names.
+ * seqItems: the raw item strings for the sequence (e.g. ["mel_a", "mel_b:slow"])
+ * totalTokens: actual count of expanded tokens produced for this item invocation
+ * pats: raw pattern token arrays (used to get token counts per pattern)
+ */
+function getLeafPats(
+  seqItem: string,
+  seqs: Record<string, any>,
+  pats: Record<string, string[]>,
+  visited = new Set<string>()
+): { patBase: string, count: number }[] {
+  let realItem = seqItem.trim();
+  let repeat = 1;
+  const mRep = realItem.match(/^(.+?)\s*\*\s*(\d+)$/);
+  if (mRep) {
+    realItem = mRep[1].trim();
+    repeat = parseInt(mRep[2], 10);
+  }
+  const parts = realItem.split(':');
+  const base = parts[0].trim();
+  const mods = parts.slice(1);
+
+  let mult = 1;
+  for (const mod of mods) {
+    const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
+    if (mSlow) { mult *= mSlow[1] ? parseInt(mSlow[1], 10) : 2; continue; }
+    const mFast = mod.match(/^fast(?:\((\d+)\))?$/i);
+    if (mFast) { mult /= (mFast[1] ? parseInt(mFast[1], 10) : 2); continue; }
+  }
+
+  let children: { patBase: string, count: number }[] = [];
+  if (visited.has(base)) {
+    return [];
+  }
+
+  if (pats[base]) {
+    children = [{ patBase: base, count: pats[base].length }];
+  } else if (seqs[base]) {
+    visited.add(base);
+    const rawSeqDef = seqs[base];
+    const innerItems: string[] = !rawSeqDef
+      ? []
+      : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
+        ? materializeSequenceItems(rawSeqDef as any)
+        : (rawSeqDef as string[]);
+
+    for (const inner of innerItems) {
+      if (!inner || inner.trim() === '') continue;
+      children.push(...getLeafPats(inner, seqs, pats, visited));
+    }
+    visited.delete(base);
+  } else {
+    children = [{ patBase: base, count: 1 }]; // fallback
+  }
+
+  const out: { patBase: string, count: number }[] = [];
+  for (let r = 0; r < repeat; r++) {
+    for (const c of children) {
+      out.push({ patBase: c.patBase, count: Math.max(1, Math.round(c.count * mult)) });
+    }
+  }
+  return out;
+}
+
+function buildTokenPatternMeta(seqItems: string[], totalTokens: number, pats: Record<string, string[]>, seqs: Record<string, any>): string[] {
+  if (seqItems.length === 0 || totalTokens === 0) return [];
+
+  const leaves: { patBase: string, count: number }[] = [];
+  for (const item of seqItems) {
+    leaves.push(...getLeafPats(item, seqs, pats));
+  }
+
+  let rawTotal = 0;
+  for (const leaf of leaves) rawTotal += leaf.count;
+
+  if (rawTotal === 0) return Array(totalTokens).fill('');
+
+  const result: string[] = [];
+  for (let i = 0; i < leaves.length; i++) {
+    const isLast = i === leaves.length - 1;
+    const scaledCount = isLast
+      ? (totalTokens - result.length)
+      : Math.round((leaves[i].count / rawTotal) * totalTokens);
+    for (let j = 0; j < scaledCount; j++) result.push(leaves[i].patBase);
+  }
+
+  // Safety: trim/pad to totalTokens
+  while (result.length < totalTokens) result.push(result[result.length - 1] || '');
+  return result.slice(0, totalTokens);
+}
+
+/**
  * Internal implementation shared by resolveSong and resolveSongAsync.
  * Assumes imports have already been resolved.
  */
@@ -318,11 +410,11 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
             emitResolverWarn(`arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`, arr.loc);
             continue;
           }
-          concatenated.push(...toks);
+          concatenated.push(slot); // Push the unresolved item reference string
         }
         const instForCol = arrangeInstList ? (arrangeInstList[i] || undefined) : (arr.defaults && arr.defaults.inst ? arr.defaults.inst : undefined);
         const speedForCol = arr.defaults && arr.defaults.speed ? arr.defaults.speed : undefined;
-        channelNodes.push({ id: i + 1, pat: concatenated, inst: instForCol, speed: speedForCol });
+        channelNodes.push({ id: i + 1, pat: 'arrange-synth', seqSpecTokens: concatenated, inst: instForCol, speed: speedForCol });
       }
       return channelNodes;
     }
@@ -333,17 +425,14 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     log.debug(`Processing channel ${ch.id}, ch.pat type: ${typeof ch.pat}, value:`, ch.pat);
     const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
 
-    // Phase 2.5: Track source sequence name(s) for metadata
-    let sourceSequenceName: string | undefined = undefined;
-    if (typeof ch.pat === 'string') {
-      // Capture the first sequence/pattern name (before any transforms or repetitions)
-      const firstRef = ch.pat.split(',')[0].trim().split('*')[0].trim().split(':')[0].trim();
-      sourceSequenceName = firstRef;
-      log.debug(`Channel ${ch.id}: sourceSequenceName set to '${sourceSequenceName}' from ch.pat='${ch.pat}'`);
-    } else {
+    // Phase 2.5: Per-token source metadata — built during the items expansion loop below.
+    // tokenSeqNames[i] = name of the named sequence this token came from (or '' for direct pat refs)
+    // tokenPatNames[i] = name of the source pattern (within seq, or the direct pat name)
+    const tokenSeqNames: string[] = [];
+    const tokenPatNames: string[] = [];
+    if (typeof ch.pat !== 'string') {
       log.debug(`Channel ${ch.id}: ch.pat is not a string (type: ${typeof ch.pat})`);
     }
-    // End Phase 2.5
 
     // Determine source tokens: channel may reference a pattern name, sequence name, or already have token array
     let tokens: string[] = [];
@@ -388,6 +477,35 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         for (let r = 0; r < repeat; r++) {
           const toks = expandRefToTokens(itemRef, expandedSeqs, pats, ast.effects as any, ch.loc);
           outTokens.push(...toks);
+
+          // Build per-token source metadata for this batch of tokens
+          const itemBase = itemRef.split(':')[0].trim();
+          if (expandedSeqs[itemBase]) {
+            // Named sequence — tag with seq name and infer per-token pattern names
+            const rawSeqDef = seqs[itemBase];
+            const seqItemStrings: string[] = !rawSeqDef
+              ? []
+              : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
+                ? materializeSequenceItems(rawSeqDef as SequenceItem[])
+                : (rawSeqDef as string[]);
+            const patMeta = buildTokenPatternMeta(seqItemStrings, toks.length, pats, seqs);
+            for (let mi = 0; mi < toks.length; mi++) {
+              tokenSeqNames.push(itemBase);
+              tokenPatNames.push(patMeta[mi] || '');
+            }
+          } else if (pats[itemBase]) {
+            // Direct pattern reference
+            for (let mi = 0; mi < toks.length; mi++) {
+              tokenSeqNames.push('');
+              tokenPatNames.push(itemBase);
+            }
+          } else {
+            // Unknown ref — no metadata
+            for (let mi = 0; mi < toks.length; mi++) {
+              tokenSeqNames.push('');
+              tokenPatNames.push('');
+            }
+          }
         }
       }
 
@@ -401,28 +519,28 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     // Sequence-level pan override (applies until reset via pan() token)
     let sequencePanOverride: any = undefined;
 
-    // Phase 2.5: Helper to calculate bar number from token index
-    // Assumes 4/4 time and 16 ticks per step by default
+    // Phase 2.5: Helper to calculate bar number from token index.
+    // Reads stepsPerBar from the AST so songs that use `time` or `stepsPerBar`
+    // directives get correct bar numbers (e.g. 3/4, 6/8, etc.).
     const calculateBarNumber = (tokenIndex: number): number => {
-      const ticksPerStep = 16; // default ticks per step
-      const stepsPerBar = 4; // default time signature (4/4)
-      const tokensPerBar = stepsPerBar; // one token per step
-      return Math.floor(tokenIndex / tokensPerBar);
+      const stepsPerBar = (ast as any).stepsPerBar ?? (ast as any).time ?? 4;
+      return Math.floor(tokenIndex / stepsPerBar);
     };
 
     // Helper to attach position metadata to events
     const attachMetadata = (event: ChannelEvent, tokenIndex: number): ChannelEvent => {
-      const barNum = calculateBarNumber(tokenIndex);
-      // Only attach production metadata (sourceSequence, barNumber) if needed
+      // Attach source metadata to ALL event types so that sustain/rest steps
+      // (which make up most events in songs using :N duration syntax) maintain
+      // their glyph position during playback.
+      const seqName = tokenSeqNames[tokenIndex];
+      const patName = tokenPatNames[tokenIndex];
+      if (seqName) (event as any).sourceSequence = seqName;
+      if (patName) (event as any).sourcePattern = patName;
       if (event.type === 'note' || event.type === 'named') {
-        if (sourceSequenceName) {
-          (event as any).sourceSequence = sourceSequenceName;
-        }
-        (event as any).barNumber = barNum;
+        (event as any).barNumber = calculateBarNumber(tokenIndex);
       }
       return event;
     };
-    // End Phase 2.5
 
     function resolveInstName(name: string | undefined) {
       if (!name) return undefined;
@@ -512,12 +630,12 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
       }
 
       if (token === '.' || token === 'rest' || token === 'R') {
-        chModel.events.push({ type: 'rest' } as ChannelEvent);
+        chModel.events.push(attachMetadata({ type: 'rest' } as ChannelEvent, ti));
         continue;
       }
 
       if (token === '_' || token === '-' || token === 'sustain') {
-        chModel.events.push({ type: 'sustain' } as ChannelEvent);
+        chModel.events.push(attachMetadata({ type: 'sustain' } as ChannelEvent, ti));
         continue;
       }
 

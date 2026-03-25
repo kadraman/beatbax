@@ -182,34 +182,46 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
       }
       const curve = new Float32Array(vals);
       const curveDuration = (vals.length - 1) * stepPeriod;
-      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.scheduleAligned(start, () => {
+
+      // Helper used in every scheduling path below.
+      // When the portamento effect has flagged __portamento_legato__ on this gain
+      // node, replace the normal re-attacking envelope curve with a smooth gain
+      // continuation so consecutive portamento notes don't produce audible attacks.
+      function applyGainStart() {
+        if ((g as any).__portamento_legato__) {
+          const startG: number = (g as any).__portamento_gain_start__ ?? initialVol;
+          const endG: number   = (g as any).__portamento_gain_end__   ?? initialVol;
+          try {
+            g.cancelScheduledValues(start);
+            g.setValueAtTime(Math.max(0.0001, startG), start);
+            if (Math.abs(endG - startG) > 0.001 && curveDuration > 0) {
+              g.linearRampToValueAtTime(Math.max(0.0001, endG), start + curveDuration);
+            }
+          } catch (_) {}
+        } else {
           try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.scheduleAligned(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
-        scheduler.schedule(start, () => {
-          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (e) { try { g.setValueAtTime(vals[0], start); } catch (_) {} }
-        });
-        scheduler.schedule(start + dur, () => { try { g.setValueAtTime(g.value, start + dur); g.linearRampToValueAtTime(0.0001, start + dur + 0.005); } catch (e) {} });
-      } else {
-        try {
-          if (typeof (g as any).setValueCurveAtTime === 'function') {
-            (g as any).setValueCurveAtTime(curve, start, curveDuration);
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          } else {
-            g.setValueAtTime(vals[0], start);
-            let t = start + stepPeriod;
-            for (let vi = 1; vi < vals.length; vi++) { g.setValueAtTime(vals[vi], t); t += stepPeriod; }
-            g.setValueAtTime(g.value, start + dur);
-            g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-          }
-        } catch (e) {
-          g.setValueAtTime(vals[0], start);
-          g.setValueAtTime(g.value, start + dur);
-          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
         }
+      }
+      function applyGainEnd() {
+        try {
+          const endG: number = (g as any).__portamento_legato__
+            ? ((g as any).__portamento_gain_end__ ?? initialVol)
+            : g.value;
+          g.setValueAtTime(Math.max(0.0001, endG), start + dur);
+          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+        } catch (e) {}
+      }
+
+      if (scheduler && typeof scheduler.scheduleAligned === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
+        scheduler.scheduleAligned(start, applyGainStart);
+        scheduler.scheduleAligned(start + dur, applyGainEnd);
+      } else if (scheduler && typeof scheduler.schedule === 'function' && typeof (g as any).setValueCurveAtTime === 'function') {
+        scheduler.schedule(start, applyGainStart);
+        scheduler.schedule(start + dur, applyGainEnd);
+      } else {
+        // Direct (no scheduler): flags already set, apply immediately.
+        applyGainStart();
+        applyGainEnd();
       }
     } else {
       g.setValueAtTime(0.0001, start);
