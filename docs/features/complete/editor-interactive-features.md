@@ -1,6 +1,6 @@
 ---
 title: "Editor: Interactive / Musical Editing Features"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-03-10
 issue: "issue: "https://github.com/kadraman/beatbax/issues/56"
