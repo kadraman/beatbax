@@ -1,0 +1,321 @@
+## night_hawk.bax
+## Original action theme in the spirit of 80s television helicopter action themes.
+## Key: E minor | Tempo: 132 BPM | Style: Driving, heroic, cinematic action
+##
+## This is an entirely original composition. It does not reproduce any copyrighted material.
+## It captures the *atmosphere* of classic 80s action-TV title music: staccato synth punches,
+## a soaring heroic melody with big leaps, a chromatic tension bridge, and a triumphant
+## duty-cycle modulated reprise that closes on a shimmer landing.
+##
+## Structure (17 bars total):
+##   Bars  1– 2 : Intro fanfare    — ascending hammer, percussive build
+##   Bars  3– 6 : Main theme A     — punchy E-minor riff (× 2)
+##   Bars  7– 8 : Secondary B      — soaring melodic lift
+##   Bars  9–10 : Dark bridge      — deep vibrato chromatic tension
+##   Bar  11    : Ascending run    — 16th-note climb into reprise
+##   Bars 12–15 : DCM Reprise      — main riff with duty-cycle modulation (× 2)
+##   Bars 16–17 : Coda             — shimmer peak, warm resolution fade
+##
+## Channels:
+##   Ch1 (Pulse1): Melody — bold punchy riff, soaring lines, shimmer on reprise
+##   Ch2 (Pulse2): Harmony — minor/major arpeggios, wide-duty atmospheric bridge chords
+##   Ch3 (Wave  ): Bass — driving power-fifth pedal, descending chromatic bridge walk
+##   Ch4 (Noise ): Percussion — sparse intro, full action groove, heavy double-kick drive
+##
+## Effects demonstrated:
+##   vib  : gentle heroic wobble on held melody peaks (heroVib); slow deep bridge (deepVib)
+##   trem : fast shimmer sparkle on the reprise climax notes (shimmer)
+##   arp  : minor/major/dom7 chord arpeggios on harmony channel
+##   port : smooth 16th-note ascending glide run (slide)
+##   DCM  : thin (12.5%) → bright (50%) → warm (75%) on the duty-cycle modulated reprise
+
+song name "Night Hawk"
+song artist "BeatBax"
+song description """An original action theme in E minor, inspired by the heroic synthesiser energy of 1980s television helicopter dramas. Opens with a staccato ascending hammer call, builds into a punchy E-minor melodic riff with power-fifth bass, lifts into a soaring secondary line, descends into a tense chromatic bridge with deep vibrato, then tears back with a duty-cycle modulated reprise and closes on a shimmering tonic resolution. Demonstrates vibrato, arpeggio, portamento, tremolo and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,action,80s,heroic,driving,chiptune,demo"
+
+chip gameboy
+bpm 132
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Pulse1 — melody lead: three duty variants for timbre modulation
+#   lead_bright  50%    full, balanced herald tone  (main statements)
+#   lead_thin   12.5%   hollow, nasal approach runs (DCM ascending)
+#   lead_warm    75%    rounded, warm resolution     (DCM peak/coda landing)
+#
+# Pulse2 — harmony: two duty variants
+#   chord        25%    crisp, bright arpeggio tone  (main A sections)
+#   chord_sus    75%    wide, atmospheric sustain    (dark bridge)
+#
+# Wave — bass_wave: sawtooth-ish wavetable, warm and full for driving bass lines
+#
+# Noise — kick/snare/hat percussion kit
+
+inst lead_bright  type=pulse1 duty=50    env={"level":14,"direction":"down","period":2,"format":"gb"} gm=81
+inst lead_thin    type=pulse1 duty=12.5  env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst lead_warm    type=pulse1 duty=75    env={"level":12,"direction":"down","period":2,"format":"gb"} gm=82
+
+inst chord        type=pulse2 duty=25    env={"level":9,"direction":"down","period":4,"format":"gb"}  gm=80
+inst chord_sus    type=pulse2 duty=75    env={"level":9,"direction":"down","period":5,"format":"gb"}  gm=80
+
+inst bass_wave    type=wave   wave=[0,1,2,3,5,7,9,11,12,13,14,15,15,15,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0]
+
+inst kick         type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} note=C5
+inst snare        type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
+inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect heroVib   = vib:3,4,sine,3     # gentle heroic wobble on held melody peaks
+effect deepVib   = vib:5,2,sine,6     # slow, deep atmospheric bridge vibrato
+effect shimmer   = trem:5,8,sine      # fast sparkle — reprise and coda climax notes
+
+effect minorArp  = arp:3,7            # minor triad  (root + min3 + P5)
+effect majorArp  = arp:4,7            # major triad  (root + maj3 + P5)
+effect dom7Arp   = arp:4,7,10         # dominant 7th (root + maj3 + P5 + min7)
+
+effect slide     = port:10            # snappy portamento glide (ascending run)
+
+# =============================================================================
+# Melody patterns  (Channel 1 — Pulse1)
+# =============================================================================
+
+# open_a: opening fanfare — ascending E-minor hammer: B4 leaps through the triad to E6
+# Staccato approach notes then a big sustained peak on E6. Sets the action-hero tone.
+# 16 steps: 2+2+2+2+4+2+2
+pat open_a = B4:2 E5:2 G5:2 B5:2 E6:4 B5:2 A5:2
+
+# open_b: fanfare answer — stepwise descent from G5 to E4 with heroic vibrato landing
+# Echoes the fanfare down the scale, grounding after the high opening statement.
+# 16 steps: 2+2+4+2+2+4
+pat open_b = G5:2 F#5:2 E5:4 B4:2 G4:2 E4<heroVib>:4
+
+# riff_a: the core action hook — quick 16th punches (E5 G5), leap to B5, hold E6, descend
+# The signature "punch-punch-HOLD" motif that drives the main theme energy.
+# 16 steps: 1+1+2+4+2+2+2+2
+pat riff_a = E5:1 G5:1 B5:2 E6:4 D6:2 B5:2 A5:2 G5:2
+
+# riff_b: the cadential answer — stepwise ascent F#5→B5, falls back to the tonic E5
+# Round-trips the riff back to the tonic, ready to loop or continue.
+# 16 steps: 2+2+2+2+4+4
+pat riff_b = F#5:2 G5:2 A5:2 B5:2 E5:4 B4:4
+
+# soar_a: secondary theme, soaring lift — wide leaps up from B5 to E6, airy quality
+# Contrasts with the punchy riff; feels like the helicopter climbing altitude.
+# 16 steps: 4+2+2+2+2+2+2
+pat soar_a = B5:4 A5:2 G5:2 A5:2 B5:2 D6:2 E6:2
+
+# soar_b: soaring answer — falls gracefully G5→E5, landing with a hopeful resolution
+# 16 steps: 2+2+4+2+2+2+2
+pat soar_b = B5:2 A5:2 G5:4 F#5:2 E5:2 D5:2 E5:2
+
+# bridge_a: dark chromatic bridge — C6 with deep vibrato drops to F#5 via chromatic steps
+# 16 steps: 4+2+2+4+4
+pat bridge_a = C6<deepVib>:4 B5:2 A5:2 G5<deepVib>:4 F#5:4
+
+# bridge_b: tension continuation — chromatic walk E5→B5→F#5, rising with unease
+# 16 steps: 2+2+2+2+2+2+2+2
+pat bridge_b = E5:2 F#5:2 G5:2 A5:2 B5:2 A5:2 G5:2 F#5:2
+
+# accel: 16th-note ascending run — E5 to E6 in one bar, portamento slide, burst into reprise
+# 16 steps: 1+1+1+1+1+1+1+1+2+2+4
+pat accel = E5:1 F#5:1 G5:1 A5:1 B5:1 C6:1 D6:1 E6:1 B5:2 G5:2 E5<shimmer>:4
+
+# riff_a_dcm: reprise core riff — duty-cycle modulation version
+#   thin (12.5%): hollow nasal attack notes → bright (50%): full E6 hold and descent
+#   Gives the reprise a harder, more saturated sound compared to the plain intro.
+# 16 steps: 1+1+2+4+2+2+2+2
+pat riff_a_dcm = inst lead_thin E5:1 G5:1 B5:2 inst lead_bright E6:4 D6:2 B5:2 A5:2 G5:2
+
+# riff_b_dcm: reprise cadence — thin approach, warm landing on E5
+#   Explicit inst lead_bright reset ensures clean state for any following pattern.
+# 16 steps: 2+2+2+2+4+4
+pat riff_b_dcm = inst lead_thin F#5:2 G5:2 A5:2 B5:2 inst lead_warm E5:4 inst lead_bright B4:4
+
+# coda_high: shimmer peak — E6 and B5 shimmer, descend through G5 to E5 root
+# 16 steps: 4+2+2+4+4
+pat coda_high = E6<shimmer>:4 B5<shimmer>:2 G5:2 E5:4 B4:4
+
+# coda_end: warm tonic fade — long held E5 with heroVib, then silence
+# 16 steps: 8 + 8 rests
+pat coda_end  = inst lead_warm E5<heroVib>:8 . . . . . . .
+
+# =============================================================================
+# Harmony patterns  (Channel 2 — Pulse2)
+#
+# E minor vocabulary:
+#   i   = E minor (E G B)     — tonic, home, dark power
+#   iv  = A minor (A C E)     — subdominant, heaviness
+#   VII = G major (G B D)     — borrowed VII, drive and motion
+#   v   = B minor (B D F#)    — minor dominant, tension
+#   VI  = C major (C E G)     — relative brightness in the bridge
+#   ii° = F# dim  (F# A C)    — bridge leading tension chord
+
+# harm_fanfare: pure E minor whole bar — spacious, majestic opening
+# 16 steps: 16
+pat harm_fanfare = E3<minorArp>:16
+
+# harm_em_bm: i–v alternation — tonic and minor dominant, core action vamp
+# 16 steps: 8+8
+pat harm_em_bm   = E3<minorArp>:8 B3<minorArp>:8
+
+# harm_am_g: iv–VII — subdominant to borrowed VII, heavy rock forward motion
+# 16 steps: 8+8
+pat harm_am_g    = A3<minorArp>:8 G3<majorArp>:8
+
+# harm_bm_em: v–i — minor dominant resolving to tonic
+# 16 steps: 8+8
+pat harm_bm_em   = B3<minorArp>:8 E3<minorArp>:8
+
+# harm_bridge1: bridge — VI then III, wide-duty atmospheric sustain
+#   Explicit inst chord_sus for richer timbral depth over the bridge melody.
+# 16 steps: 8+8
+pat harm_bridge1 = inst chord_sus C3<majorArp>:8 G3<majorArp>:8
+
+# harm_bridge2: bridge tension continuation — F# diminished then v dominant
+#   Remains on chord_sus for textural continuity through the whole bridge section.
+# 16 steps: 8+8
+pat harm_bridge2 = inst chord_sus F#3<minorArp>:8 B3<dom7Arp>:8
+
+# harm_run: transition reset — explicit inst chord clears chord_sus carry-over
+#   E minor then B dom7 creates tension building into the DCM reprise.
+# 16 steps: 8+8
+pat harm_run     = inst chord E3<minorArp>:8 B3<dom7Arp>:8
+
+# harm_em_r: reprise i–v — EXPLICIT inst chord reset after bridge chord_sus
+# 16 steps: 8+8
+pat harm_em_r    = inst chord E3<minorArp>:8 B3<minorArp>:8
+
+# harm_am_g_r: reprise iv–VII — explicit inst chord
+# 16 steps: 8+8
+pat harm_am_g_r  = inst chord A3<minorArp>:8 G3<majorArp>:8
+
+# harm_coda: sustained E minor resolution
+# 16 steps: 16
+pat harm_coda    = inst chord E3<minorArp>:16
+
+# =============================================================================
+# Bass patterns  (Channel 3 — Wave)
+#
+# Power-fifth pedal patterns drive the main theme with a heavy rock bass feel.
+# Descending chromatic walk in the bridge creates tension under the dark melody.
+
+# bass_em_bm: E2–B2 power-fifth alternation — the core driving bass vamp
+# 16 steps: 4+4+4+4
+pat bass_em_bm = E2:4 B2:4 E2:4 B2:4
+
+# bass_am_gm: A2–G2 iv–VII bass — forward motion under the action vamp
+# 16 steps: 4+4+4+4
+pat bass_am_gm = A2:4 G2:4 A2:4 G2:4
+
+# bass_bm_em: B2 minor dominant descending to E2 tonic — resolution arc
+# 16 steps: 4+4+4+4
+pat bass_bm_em = B2:4 A2:4 G2:4 E2:4
+
+# bass_cm_bm: bridge bass — stepwise C3→G2 descent, dark chromatic gravity
+# 16 steps: 4+4+4+4
+pat bass_cm_bm = C3:4 B2:4 A2:4 G2:4
+
+# bass_run: ascending 8th-note run E2→E3 — mirrors the accel melody climb
+# 16 steps: 2+2+2+2+2+2+2+2
+pat bass_run = E2:2 F#2:2 G2:2 A2:2 B2:2 C3:2 D3:2 E3:2
+
+# bass_coda: held E2 pedal with fifth answer — final resolution
+# 16 steps: 8+4+4
+pat bass_coda = E2:8 B2:4 E2:4
+
+# =============================================================================
+# Drum patterns  (Channel 4 — Noise)
+# =============================================================================
+
+# drums_intro: sparse tension build — sparse kick beats only, 4 beats of 4
+# 16 steps
+pat drums_intro  = kick . . . kick . . . kick . . . kick . . .
+
+# drums_drive: full action groove — kick on 1+3, snare on 2+4, steady hi-hat 8ths
+# 16 steps
+pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_heavy: double-kick action drive — extra kick before beat 3 for hard push
+# 16 steps
+pat drums_heavy  = kick kick snare hat kick kick snare hat kick kick snare hat kick kick snare hat
+
+# drums_bridge: sparse atmospheric bridge groove — wide space for melody to breathe
+# 16 steps
+pat drums_bridge = kick . . hat snare . . . kick . . hat snare . . .
+
+# drums_fill: climax fill — extra snares on the final two 16ths, maximum energy
+# 16 steps
+pat drums_fill   = kick hat snare hat kick kick snare hat kick hat kick snare kick hat snare kick
+
+# drums_coda: closing pattern — four quiet beats then fade to silence
+# 16 steps
+pat drums_coda   = kick . . . snare . . . kick . . . . . . .
+
+# =============================================================================
+# Sequences  (grouped by song section — all four channels per section)
+# =============================================================================
+#
+# 17-bar structure:
+#   Bars  1– 2 : Intro fanfare
+#   Bars  3– 6 : Main theme A (× 2)
+#   Bars  7– 8 : Secondary theme B
+#   Bars  9–10 : Dark bridge
+#   Bar  11    : Ascending run — transition
+#   Bars 12–15 : DCM Reprise (× 2)
+#   Bars 16–17 : Coda
+
+# --- Section 1: Intro Fanfare (Bars 1–2) ---
+seq intro_mel  = open_a open_b
+seq intro_harm = harm_fanfare harm_em_bm
+seq intro_bass = bass_em_bm bass_em_bm
+seq intro_perc = drums_intro drums_drive
+
+# --- Section 2: Main Theme A (Bars 3–6) ---
+seq theme_mel  = riff_a riff_b riff_a riff_b
+seq theme_harm = harm_em_bm harm_am_g harm_bm_em harm_am_g
+seq theme_bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
+seq theme_perc = drums_drive drums_drive drums_heavy drums_fill
+
+# --- Section 3: Secondary Theme B (Bars 7–8) ---
+seq soar_mel  = soar_a soar_b
+seq soar_harm = harm_am_g harm_bm_em
+seq soar_bass = bass_am_gm bass_bm_em
+seq soar_perc = drums_drive drums_heavy
+
+# --- Section 4: Dark Bridge (Bars 9–10) ---
+seq bridge_mel  = bridge_a bridge_b
+seq bridge_harm = harm_bridge1 harm_bridge2
+seq bridge_bass = bass_cm_bm bass_cm_bm
+seq bridge_perc = drums_bridge drums_bridge
+
+# --- Section 5: Ascending Run — transition (Bar 11) ---
+seq run_mel  = accel
+seq run_harm = harm_run
+seq run_bass = bass_run
+seq run_perc = drums_heavy
+
+# --- Section 6: DCM Reprise (Bars 12–15) ---
+seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+seq reprise_harm = harm_em_r harm_am_g_r harm_bm_em harm_am_g
+seq reprise_bass = bass_em_bm bass_am_gm bass_bm_em bass_am_gm
+seq reprise_perc = drums_heavy drums_heavy drums_heavy drums_fill
+
+# --- Section 7: Coda (Bars 16–17) ---
+seq coda_mel  = coda_high coda_end
+seq coda_harm = harm_coda harm_coda
+seq coda_bass = bass_coda bass_coda
+seq coda_perc = drums_coda drums_intro
+
+# =============================================================================
+channel 1 => inst lead_bright seq intro_mel  theme_mel  soar_mel  bridge_mel  run_mel  reprise_mel  coda_mel
+channel 2 => inst chord       seq intro_harm theme_harm soar_harm bridge_harm run_harm reprise_harm coda_harm
+channel 3 => inst bass_wave   seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass coda_bass
+channel 4 => inst kick        seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc coda_perc
+
+play auto repeat

@@ -350,7 +350,9 @@ Then browse to `http://localhost:5173` (Vite default) or the URL shown by the de
 - Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
 - Unified channel mixer with per-channel mute, solo, and volume controls
 - Help panel showing all registered keyboard shortcuts
-- **CodeLens inline previews**: `▶ Preview` and `↺ Loop` actions appear above every `pat` and `seq` definition; clicking plays that pattern or sequence in isolation using the correct instrument. Five individual note buttons (`C3`–`C7`) appear above each `inst` definition for instant timbre checks. Loop mode live-re-parses the source on every iteration so edits are heard immediately.
+- **CodeLens inline previews**: `▶ Preview` and `↺ Loop` actions appear above every `pat`, `seq`, and `effect` definition; clicking plays that item in isolation using the correct instrument. Five individual note buttons (`C3`–`C7`) appear above each `inst` definition for instant timbre checks. Loop mode live-re-parses the source on every iteration so edits are heard immediately.
+- **Play selected sequence / pattern**: select one or more `pat` or `seq` definition lines and press `Ctrl+Shift+Space` (or right-click → **▶ Play Selected Sequence / Pattern**) to play them simultaneously — each on its own channel. Selecting more sequences than the chip has channels distributes them round-robin with merged playback. Glyph-margin play indicators track every original sequence, even when merged.
+- **BeatBax command palette** (`F1` or `Ctrl+Alt+P`): BeatBax-specific commands for export (JSON, MIDI, UGE, WAV), validation, code generation (`inst`/`pat` snippets, transform picker), document formatting, and per-channel mute/solo — all accessible by name without leaving the keyboard.
 - Event-driven architecture with modular, testable components
 - See [docs/features/web-ui-migration.md](docs/features/web-ui-migration.md), [docs/web-ui-syntax-highlighting.md](docs/web-ui-syntax-highlighting.md), and [docs/features/editor-interactive-features.md](docs/features/editor-interactive-features.md) for details
 

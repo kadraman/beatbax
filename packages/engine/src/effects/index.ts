@@ -40,6 +40,7 @@ register('pan', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 // Clear all effect state (called when playback stops/resets)
 export const clearEffectState = () => {
   portamentoLastFreq.clear();
+  portamentoLastGain.clear();
 };
 
 export const registryAPI: EffectRegistry = {
@@ -147,7 +148,30 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 // so portamento works correctly across rests and pattern boundaries.
 const portamentoLastFreq = new Map<number, number>();
 
-register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number) => {
+// Tracks the GB gain level (0-1) at the END of the previous portamento note for
+// each channel, so the next note can continue the envelope without re-attacking.
+const portamentoLastGain = new Map<number, number>();
+
+// Game Boy system clock used for envelope period calculation.
+const GB_CLOCK_HZ = 4194304;
+
+/**
+ * Compute where the GB gain envelope will be after `dur` seconds,
+ * starting from `start15` (0-15). Returns the resulting 0-15 level.
+ */
+function computeLegatoEndGain(start15: number, env: ReturnType<typeof parseEnvelope>, dur: number): number {
+  if (!env || env.mode !== 'gb' || !env.period || env.period <= 0) return start15;
+  const stepPeriod = env.period * (65536 / GB_CLOCK_HZ);
+  const steps = Math.floor(dur / stepPeriod);
+  let cur = start15;
+  for (let i = 0; i < steps; i++) {
+    if (env.direction === 'up') cur = Math.min(15, cur + 1);
+    else cur = Math.max(0, cur - 1);
+  }
+  return cur;
+}
+
+register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: number, chId?: number, _tickSeconds?: number, inst?: any) => {
   if (!nodes || nodes.length === 0) return;
   const osc = nodes[0];
 
@@ -165,7 +189,13 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
 
   if (hasFreq) {
     // OscillatorNode path (pulse channels)
-    let targetFreq = osc.frequency.value;
+    // Use _baseFreq (stored by playPulse) because osc.frequency.value returns
+    // the WebAudio intrinsic default (440 Hz) when the scheduler callback fires
+    // *before* the `setValueAtTime(freq, start)` scheduled in playPulse takes
+    // effect.  The browser native AudioContext and standardized-audio-context
+    // (used in the CLI) differ here: SAC reflects setValueAtTime immediately,
+    // the browser does not — so this bug was silent in the CLI.
+    let targetFreq = (osc as any)._baseFreq || osc.frequency.value;
     if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
 
     const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
@@ -188,6 +218,27 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     }
 
     portamentoLastFreq.set(channelKey, targetFreq);
+
+    // ── Legato gain: suppress envelope re-attack for smooth portamento runs ──
+    // playPulse schedules the gain envelope via scheduler.scheduleAligned(), which
+    // fires AFTER tryApplyEffects in the same scheduler tick — so we cannot cancel
+    // it here. Instead we set flags on the gain node that playPulse's callback
+    // will read and honour, replacing the normal re-attack curve with a smooth
+    // gain continuation from where the previous note's envelope left off.
+    const gainNode = nodes.length > 1 ? nodes[1] : null;
+    if (gainNode && gainNode.gain && inst) {
+      const env = parseEnvelope(inst.env);
+      const initial15 = env?.mode === 'gb' ? (env.initial ?? 15) : 15;
+      const tracked15 = portamentoLastGain.has(channelKey)
+        ? Math.round(portamentoLastGain.get(channelKey)! * 15)
+        : initial15;
+      const end15 = computeLegatoEndGain(tracked15, env, dur);
+      // Flags read by playPulse's scheduled gain callback:
+      (gainNode as any).__portamento_legato__    = true;
+      (gainNode as any).__portamento_gain_start__ = Math.max(0.0001, tracked15 / 15);
+      (gainNode as any).__portamento_gain_end__   = Math.max(0.0001, end15 / 15);
+      portamentoLastGain.set(channelKey, end15 / 15);
+    }
   } else {
     // BufferSourceNode path (wave channel)
     // __freq and __basePlaybackRate are attached by playWavetable in wave.ts

@@ -770,8 +770,30 @@ npm run web-ui:dev
 - `↺ Loop` above a `pat` or `seq` line: plays the pattern or sequence on repeat. Each new iteration re-parses the source, so edits you make while looping are heard on the next pass.
 - Clicking a playing item's `⬛ Stop` (or `⬛ Stop ↺` when looping) halts playback.
 - Above each `inst` line five note buttons appear (`C3 C4 C5 C6 C7`). Clicking one plays that pitch through the instrument so you can audition timbre without writing a full pattern. Re-clicking the same note restarts it.
+- `▶ Preview` also appears above `effect` definition lines and plays four ascending notes with the effect applied, so you can audition presets like `vib`, `arp`, and `port` without building a full pattern.
 - Instrument resolution is automatic: the preview borrows the instrument already associated with the pattern or sequence in a channel declaration; otherwise the first declared instrument is used.
 - Only one preview plays at a time. Starting a new preview stops the previous one.
+
+**Play selected sequence / pattern** — quickly audition any subset of your song without editing the channel layout:
+1. Select one or more `pat` or `seq` definition lines in the editor (click-drag, or hold `Shift` and click).
+2. Press `Ctrl+Shift+Space`, or right-click and choose **▶ Play Selected Sequence / Pattern**.
+3. Each selected item plays on its own channel simultaneously. If you select more sequences than the chip has channels (4 for Game Boy), the extras are distributed round-robin — the first seq on each channel plays first, then the overflow seqs chain on automatically.
+4. The glyph-margin play indicators light up on the original `seq` lines as each one becomes active, tracking through merged channels accurately.
+5. Press `Escape` to stop playback at any time.
+
+**BeatBax command palette** — press `F1` (or `Ctrl+Alt+P`) inside the editor and type `BeatBax` to see all available commands:
+
+| Command | Description |
+|---|---|
+| BeatBax: Play Selected Sequence / Pattern | Play highlighted `seq` / `pat` lines (`Ctrl+Shift+Space`) |
+| BeatBax: Verify / Validate Song | Re-run the parser and show the Problems panel (`Ctrl+Shift+V`) |
+| BeatBax: Export → JSON / MIDI / UGE / WAV | Export the current song in the chosen format |
+| BeatBax: Generate Sample Instruments | Insert a starter `inst` block for all four Game Boy channel types |
+| BeatBax: Generate Sample Pattern | Insert a placeholder `pat` with 4/4 notes |
+| BeatBax: Insert Transform… | Quick-pick a transform (`oct`, `rev`, `slow`, `fast`, `arp`, …) and insert at cursor |
+| BeatBax: Format BeatBax Document | Normalise whitespace and align `=` signs in `pat`/`seq` blocks |
+| BeatBax: Toggle Mute Channel… | Quick-pick a channel to toggle mute |
+| BeatBax: Solo Channel… | Quick-pick a channel to solo |
 
 ## Troubleshooting
 - If audio is silent in your browser, verify your browser supports WebAudio and that the demo did not throttle audio (autoplay policies may require a user gesture).

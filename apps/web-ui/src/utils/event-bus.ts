@@ -54,6 +54,31 @@ export interface BeatBaxEvents {
 
   // Editor navigation (emitted by Problems panel when user clicks a diagnostic row)
   'navigate:to': { line: number; column: number };
+
+  /**
+   * Emitted by command-palette when >MAX_CHANNELS seqs are merged into fewer
+   * channels.  Each channel that received a merged seq gets an ordered list of
+   * chunks describing that seq's contribution.  Each chunk has:
+   *   - `seqName`   — the name of the source sequence (used for editor-line lookup)
+   *   - `noteCount` — number of note/named events in this chunk (NOT total events;
+   *                   rests and sustains are excluded to match the Player's note-only
+   *                   `eventIndex` counter)
+   *   - `patNames`  — ordered list of pattern names within the chunk
+   *
+   * Glyph-margin consumers should:
+   *   1. Try to match the active pattern name (`position.currentPattern`) against
+   *      `patNames` within each chunk — this is the primary lookup.
+   *   2. Fall back to comparing the cumulative `noteCount` boundaries against
+   *      `position.eventIndex` (note-only counter) only when no pattern-name
+   *      match is found (e.g. unnamed/inline patterns).
+   *
+   * Do NOT use `eventIndex / totalEvents` directly against full event arrays —
+   * `eventIndex` counts note/named events only and will mis-index arrays that
+   * include rests or sustains.
+   */
+  'preview:chunkInfo': {
+    chunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>>;
+  };
 }
 
 type EventCallback<T> = (data: T) => void;
