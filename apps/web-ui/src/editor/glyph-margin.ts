@@ -173,9 +173,10 @@ export function setupGlyphMargin(
   const activePositions = new Map<number, { eventIndex: number; totalEvents: number }>();
 
   // chunkInfo populated by `preview:chunkInfo` when >N seqs are merged.
-  // channelId → ordered [{seqName, patCount}] for each original seq in the slot.
-  // We use (eventIndex / totalEvents) * totalPatCount to pick the active chunk,
-  // which is immune to shared pattern names between original seqs.
+  // channelId → ordered [{seqName, noteCount, patNames}] for each original seq in the slot.
+  // Active chunk resolution uses patNames first (match against the sourcePattern of the
+  // current position event), then falls back to a noteCount boundary walk when no
+  // pattern-name match is found.
   let previewChunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>> = {};
 
   // Decoration-ID bookkeeping so Monaco can diff on the next update

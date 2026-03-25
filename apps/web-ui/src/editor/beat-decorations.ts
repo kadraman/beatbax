@@ -36,7 +36,8 @@ export function setupBeatDecorations(
     if (!ast || !ast.patternEvents) return;
 
     const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-    const stepsPerBeat = 4; // Assume 4 steps per beat as standard for typical 16-step patterns
+    const stepsPerBar: number = ast.stepsPerBar ?? ast.time ?? 4;
+    const halfBar = Math.max(1, Math.floor(stepsPerBar / 2));
 
     for (const patName of Object.keys(ast.patternEvents)) {
       const events = ast.patternEvents[patName];
@@ -48,9 +49,9 @@ export function setupBeatDecorations(
           const duration = event.duration || 1;
 
           let className = '';
-          if (stepCounter % stepsPerBeat === 0) {
+          if (stepCounter % stepsPerBar === 0) {
             className = 'bb-beat-downbeat';
-          } else if (stepCounter % 2 === 0) { // e.g. step 2, 6, 10
+          } else if (stepCounter % halfBar === 0) {
             className = 'bb-beat-upbeat';
           }
 

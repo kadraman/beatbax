@@ -1,4 +1,21 @@
 // Mock for monaco-editor in tests
+export const KeyMod = {
+  CtrlCmd: 2048,
+  Shift: 1024,
+  Alt: 512,
+  WinCtrl: 256,
+};
+
+export const KeyCode = {
+  KeyJ: 36,
+  KeyM: 43,
+  KeyP: 52,
+  KeyV: 60,
+  Space: 10,
+  Escape: 9,
+  Enter: 3,
+};
+
 export const editor = {
   create: jest.fn(),
   setTheme: jest.fn(),
@@ -50,4 +67,6 @@ export default {
   editor,
   languages,
   MarkerSeverity,
+  KeyMod,
+  KeyCode,
 };

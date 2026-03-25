@@ -185,7 +185,7 @@ function getLeafPats(
   const parts = realItem.split(':');
   const base = parts[0].trim();
   const mods = parts.slice(1);
-  
+
   let mult = 1;
   for (const mod of mods) {
     const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);
@@ -209,7 +209,7 @@ function getLeafPats(
       : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
         ? materializeSequenceItems(rawSeqDef as any)
         : (rawSeqDef as string[]);
-    
+
     for (const inner of innerItems) {
       if (!inner || inner.trim() === '') continue;
       children.push(...getLeafPats(inner, seqs, pats, visited));
@@ -519,13 +519,12 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     // Sequence-level pan override (applies until reset via pan() token)
     let sequencePanOverride: any = undefined;
 
-    // Phase 2.5: Helper to calculate bar number from token index
-    // Assumes 4/4 time and 16 ticks per step by default
+    // Phase 2.5: Helper to calculate bar number from token index.
+    // Reads stepsPerBar from the AST so songs that use `time` or `stepsPerBar`
+    // directives get correct bar numbers (e.g. 3/4, 6/8, etc.).
     const calculateBarNumber = (tokenIndex: number): number => {
-      const ticksPerStep = 16; // default ticks per step
-      const stepsPerBar = 4; // default time signature (4/4)
-      const tokensPerBar = stepsPerBar; // one token per step
-      return Math.floor(tokenIndex / tokensPerBar);
+      const stepsPerBar = (ast as any).stepsPerBar ?? (ast as any).time ?? 4;
+      return Math.floor(tokenIndex / stepsPerBar);
     };
 
     // Helper to attach position metadata to events

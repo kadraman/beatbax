@@ -133,6 +133,7 @@ function showQuickPick(
     list.appendChild(header);
 
     function dismiss(value: string | null) {
+      document.removeEventListener('keydown', onKey);
       overlay.remove();
       list.remove();
       resolve(value);
@@ -155,7 +156,7 @@ function showQuickPick(
 
     // Dismiss on Escape
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); dismiss(null); }
+      if (e.key === 'Escape') { dismiss(null); }
     };
     document.addEventListener('keydown', onKey);
   });
@@ -439,7 +440,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
  *  - Emit a fresh `play`.
  */
 /** One entry per original seq in a merged channel slot. */
-interface SeqChunk { seqName: string; noteCount: number; patNames: string[]; }
+export interface SeqChunk { seqName: string; noteCount: number; patNames: string[]; }
 
 /**
  * Known channel limits per chip backend. Extend as new chips are added.
@@ -466,7 +467,7 @@ function countNotesInBody(body: string): number {
   return (body.match(NOTE_TOKEN_RE) ?? []).length;
 }
 
-function buildMultiPlaySource(
+export function buildMultiPlaySource(
   items: Array<{ name: string; kind: 'pat' | 'seq' }>,
   fullSource: string,
 ): { source: string; chunkInfo: Record<number, SeqChunk[]> } {
@@ -474,7 +475,9 @@ function buildMultiPlaySource(
   const fullLines = fullSource.split('\n');
 
   // Lines to preserve verbatim (everything except channel/play directives).
-  const KEEP_RE = /^\s*(inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume|#|\/\/|$)\b/;
+  // The keyword alternatives use \b; comment-only and blank-line alternatives
+  // do not end with a word character so they must be matched without \b.
+  const KEEP_RE = /^\s*(?:(inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
   const baseLines = fullLines.filter(l => KEEP_RE.test(l));
 
   // Build a map: seq-name → inst-name from the original channel assignments.

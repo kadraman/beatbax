@@ -116,7 +116,7 @@ pat harm_riser  = G3<majorArp>:16
 pat bass_a      = wavekick . D3 . wavekick . B2 . wavekick . D3 G3 wavekick . B2 .
 pat bass_b      = wavekick . G3 . wavekick . C3 . wavekick . A3 . wavekick . D3 .
 pat bass_arp    = inst bass1 G2<majorArp>:4 C3<majorArp>:4 D3<majorArp>:4 G2<majorArp>:4
-pat bass_fill   = inst bass1 G2<slowSlife>:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
+pat bass_fill   = inst bass1 G2<slowSlide>:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
 
 # -----------------------------------------------------------------------------
 # Drum patterns (Channel 4, Noise)

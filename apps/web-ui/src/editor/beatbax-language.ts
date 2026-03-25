@@ -12,6 +12,9 @@ eventBus.on('parse:success', ({ ast }) => {
   latestAST = ast;
 });
 
+/** Cached semantic-token result. Invalidated whenever the model version changes. */
+let tokenCache: { versionId: number; data: Uint32Array } | null = null;
+
 /**
  * Register BeatBax language with Monaco
  */
@@ -550,13 +553,25 @@ export function registerBeatBaxLanguage(): void {
       };
     },
     provideDocumentSemanticTokens: function (model, lastResultId, token) {
-      const code = model.getValue();
-      let ast;
-      try {
-        ast = parse(code);
-      } catch (e) {
-        // Return empty if parse fails, keeping old colors or falling back to Monarch
-        return null;
+      const versionId = model.getVersionId();
+
+      // Fast path: same model version → return cached tokens without re-parsing
+      if (tokenCache && tokenCache.versionId === versionId) {
+        return { data: tokenCache.data, resultId: undefined };
+      }
+
+      // Use the AST already produced by the editor's parse:success subscriber to
+      // avoid a redundant parse on the hot typing path.  Fall back to a fresh
+      // parse only when no cached AST is available (e.g. on first load).
+      let ast = latestAST;
+      if (!ast) {
+        const code = model.getValue();
+        try {
+          ast = parse(code);
+        } catch (e) {
+          // Return empty if parse fails, keeping old colors or falling back to Monarch
+          return null;
+        }
       }
 
       const instruments = new Set(Object.keys(ast.insts || {}));
@@ -600,8 +615,10 @@ export function registerBeatBaxLanguage(): void {
         }
       }
 
+      const result = new Uint32Array(tokens);
+      tokenCache = { versionId, data: result };
       return {
-        data: new Uint32Array(tokens),
+        data: result,
         resultId: undefined,
       };
     },
