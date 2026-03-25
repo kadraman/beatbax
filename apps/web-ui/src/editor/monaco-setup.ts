@@ -12,7 +12,7 @@ export interface EditorOptions {
   /** Initial content */
   value?: string;
   /** Theme (default: 'beatbax-dark') */
-  theme?: 'vs-dark' | 'vs-light' | 'beatbax-dark';
+  theme?: 'vs-dark' | 'vs-light' | 'beatbax-dark' | 'beatbax-light';
   /** Language (default: 'beatbax') */
   language?: string;
   /** Read-only mode */
@@ -50,7 +50,7 @@ export interface BeatBaxEditor {
   /** Dispose the editor */
   dispose: () => void;
   /** Update theme */
-  updateTheme: (theme: 'vs-dark' | 'vs-light' | 'beatbax-dark') => void;
+  updateTheme: (theme: 'vs-dark' | 'vs-light' | 'beatbax-dark' | 'beatbax-light') => void;
   /** Get cursor position */
   getCursorPosition: () => { line: number; column: number };
   /** Set cursor position */
@@ -83,6 +83,7 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
     fontSize,
     tabSize,
     automaticLayout: true, // Auto-resize with container
+    'semanticHighlighting.enabled': true,
     minimap: { enabled: minimap },
     scrollBeyondLastLine: false,
     renderWhitespace: 'selection',
@@ -166,7 +167,7 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
       editor.dispose();
     },
 
-    updateTheme: (newTheme: 'vs-dark' | 'vs-light' | 'beatbax-dark') => {
+    updateTheme: (newTheme: 'vs-dark' | 'vs-light' | 'beatbax-dark' | 'beatbax-light') => {
       monaco.editor.setTheme(newTheme);
     },
 
