@@ -539,20 +539,27 @@ if (aiTabBtn) aiTabBtn.classList.add('bb-right-tab--hidden');
 
 let chatPanel: ChatPanel | null = null;
 
+// Module-level cache of last-seen diagnostics (populated by validation events).
+import type { Diagnostic } from './editor/diagnostics';
+let lastDiagnostics: Diagnostic[] = [];
+
+/** Map a raw validation entry to a Diagnostic. */
+function toDiagnostic(entry: any, severity: 'error' | 'warning'): Diagnostic {
+  return {
+    message: entry.message,
+    severity,
+    startLine: entry.loc?.start?.line ?? 1,
+    startColumn: entry.loc?.start?.column ?? 1,
+  };
+}
+
 function getChatPanel(): ChatPanel {
   if (!chatPanel) {
     chatPanel = new ChatPanel({
       container: aiContainer,
       eventBus,
       getEditorContent: () => (editor?.getValue?.() as string) || '',
-      getDiagnostics: () => {
-        // Gather current diagnostics from the diagnosticsManager
-        const dm = diagnosticsManager;
-        if (!dm) return [];
-        // DiagnosticsManager doesn't expose a getDiagnostics() getter,
-        // so we collect from the eventBus-driven validation state instead.
-        return (window as any).__beatbax_lastDiagnostics ?? [];
-      },
+      getDiagnostics: () => lastDiagnostics,
       onInsertSnippet: (text) => {
         const monacoEditor = editor?.editor;
         if (!monacoEditor) return;
@@ -584,26 +591,17 @@ function getChatPanel(): ChatPanel {
   return chatPanel;
 }
 
-// Cache last diagnostics so getChatPanel can access them.
-(window as any).__beatbax_lastDiagnostics = [];
+// Keep lastDiagnostics in sync with validation events.
 eventBus.on('validation:errors', ({ errors }) => {
-  (window as any).__beatbax_lastDiagnostics = errors.map((e: any) => ({
-    message: e.message,
-    severity: 'error' as const,
-    startLine: e.loc?.start?.line ?? 1,
-    startColumn: e.loc?.start?.column ?? 1,
-  }));
+  lastDiagnostics = [
+    ...lastDiagnostics.filter(d => d.severity !== 'error'),
+    ...errors.map((e: any) => toDiagnostic(e, 'error')),
+  ];
 });
 eventBus.on('validation:warnings', ({ warnings }) => {
-  const existing = ((window as any).__beatbax_lastDiagnostics ?? []).filter((d: any) => d.severity !== 'warning');
-  (window as any).__beatbax_lastDiagnostics = [
-    ...existing,
-    ...warnings.map((w: any) => ({
-      message: w.message,
-      severity: 'warning' as const,
-      startLine: w.loc?.start?.line ?? 1,
-      startColumn: w.loc?.start?.column ?? 1,
-    })),
+  lastDiagnostics = [
+    ...lastDiagnostics.filter(d => d.severity !== 'warning'),
+    ...warnings.map((w: any) => toDiagnostic(w, 'warning')),
   ];
 });
 

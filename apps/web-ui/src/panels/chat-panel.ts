@@ -22,6 +22,27 @@ const STYLE_ID = 'bb-chat-panel-styles';
 const DEFAULT_MODEL = 'Phi-3.5-mini-instruct-q4f16_1-MLC';
 const MAX_EDITOR_CHARS = 3000;
 
+// ─── Minimal WebLLM interface (sufficient for runtime use) ────────────────────
+
+interface WebLLMEngine {
+  chat: {
+    completions: {
+      create(params: {
+        messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+        temperature?: number;
+        max_tokens?: number;
+      }): Promise<{
+        choices: Array<{ message: { content: string | null } }>;
+      }>;
+    };
+  };
+}
+
+interface WebLLMProgress {
+  progress: number;
+  text: string;
+}
+
 // ─── BeatBax language reference injected into the system prompt ───────────────
 
 const BEATBAX_LANGUAGE_REF = `
@@ -86,7 +107,7 @@ export class ChatPanel {
   private statusEl!: HTMLElement;
 
   private messages: Message[] = [];
-  private engine: any = null; // WebLLM MLCEngine instance (loaded lazily)
+  private engine: WebLLMEngine | null = null; // loaded lazily on first use
   private isLoading = false;
   private visible = false;
   private modelId: string;
@@ -284,7 +305,7 @@ export class ChatPanel {
     return reply.choices[0]?.message?.content ?? '(no response)';
   }
 
-  private async getEngine(): Promise<any> {
+  private async getEngine(): Promise<WebLLMEngine> {
     if (this.engine) return this.engine;
 
     this.setStatus('Loading AI model… (this may take a while on first use)');
@@ -293,12 +314,12 @@ export class ChatPanel {
     const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
 
     this.engine = await CreateMLCEngine(this.modelId, {
-      initProgressCallback: (progress: any) => {
+      initProgressCallback: (progress: WebLLMProgress) => {
         const pct = Math.round((progress.progress ?? 0) * 100);
         const text = progress.text ?? '';
         this.setStatus(pct < 100 ? `Downloading model: ${pct}% — ${text}` : 'Model ready.');
       },
-    });
+    }) as WebLLMEngine;
 
     this.setStatus('');
     return this.engine;
