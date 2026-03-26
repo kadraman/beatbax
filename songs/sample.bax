@@ -1,18 +1,38 @@
 ## sample.bax
-## BeatBax Sample song - <kadraman>
-## This song illustrates common language features and maps them to 4 Game Boy-like
-## channels (Pulse1, Pulse2, Wave, Noise). Read each section below for details.
+## BeatBax sample — illustrates common language features across all four Game Boy channels.
+## Key: C major | Tempo: 128 BPM | Style: Demonstration, tutorial
+##
+## This is an original demonstration song — it does not reproduce any copyrighted material.
+## Illustrates common BeatBax language features mapped to all four Game Boy channels:
+## Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
+##
+## Structure (8 bars):
+##   Bars 1–4 : Theme A (×2)   — melody + bass + arpeggio + percussion
+##   Bars 5–8 : Theme A (×2)   — same sequences looped (demonstration repeat)
+##
+## Channels:
+##   Ch1 (Pulse1): Melody — twinkle-style motif with fill phrases (leadA, 60% duty)
+##   Ch2 (Pulse2): Bass — low-end root movement transposed one octave down (leadB, 30% duty)
+##   Ch3 (Wave  ): Harmony — wavetable arpeggio cycling shifted down one octave (wave1)
+##   Ch4 (Noise ): Percussion — snare backbeat with hi-hat fills (perc, snare, hihat)
+##
+## Effects demonstrated:
+##   arp  : arpeggiated chord cycling on wave channel arpeggio patterns
+##   oct  : octave shift transform applied to Pulse2 bass and Wave harmony channels
+##
+## Play: node bin/beatbax play songs/sample.bax
 
 song name "Sample Song"
-song artist "kadraman"
+song artist "The BeatBax Team"
 song description """BeatBax Sample song — illustrates common language features and maps them to 4 Game Boy-like channels (Pulse1, Pulse2, Wave, Noise)."""
 song tags "example,imported,metadata"
 
 chip gameboy
 bpm 128
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Instruments
+# =============================================================================
 # Each `inst` defines a Game Boy-style instrument. Fields:
 #  - `type`: one of `pulse1`, `pulse2`, `wave`, `noise`
 #  - `duty`: duty cycle percentage for pulse channels (controls timbre)
@@ -33,8 +53,9 @@ inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"g
 inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
 inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
 
-# -----------------------------------------------------------------------------
-# Patterns
+# =============================================================================
+# PATTERNS
+# =============================================================================
 # Patterns are sequences of tokens (notes like C4, rests `.` and identifiers).
 # They may include grouping with `(...)` and repetition with `*N`.
 # Inline tokens like `inst(name)` or `inst(name,N)` temporarily change the
@@ -60,8 +81,9 @@ pat drums_pat      = (snare . . .) (snare . . .) (snare . . .) (snare . hihat .)
 # Short melodic fill used between phrases (16 tokens).
 pat fill_pat      = (C5 E5 G5 C6) * 4
 
-# -----------------------------------------------------------------------------
-# New shorthand examples
+# =============================================================================
+# SHORTHAND EXAMPLES
+# =============================================================================
 # You can use `name*n` as a concise shorthand to emit the named instrument
 # hit 4 times in a row (equivalent to `hit(name,4)`). This is useful for
 # percussion stabs where you want immediate repeated hits without inserting
@@ -69,8 +91,9 @@ pat fill_pat      = (C5 E5 G5 C6) * 4
 # for the next N non-rest notes.
 pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 
-# -----------------------------------------------------------------------------
-# Channel routing
+# =============================================================================
+# SEQUENCES AND CHANNELS
+# =============================================================================
 # Map logical channels to instruments and patterns. Each `channel N => ...`
 # line sets the channel ID (1-4) and a default instrument plus the sequence
 # to play. `bpm=` controls tempo for that channel.
@@ -79,7 +102,7 @@ pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 # - Channel 3: Wave channel (wavetable arpeggio) transposed down one octave
 # - Channel 4: Noise/percussion channel
 
-## Example sequencing: create separate sequences per part and map to channels
+# Example sequencing: create separate sequences per part and map to channels
 # Each channel consumes its own sequence. This keeps parts independent and
 # lets you modify/loop them separately in the tracker or live UI.
 
@@ -95,14 +118,15 @@ seq wave_seq = arp_pat arp_pat arp_pat
 # Drums/percussion sequence
 seq drums_seq = drums_pat drums_alt_pat drums_pat drums_alt_pat
 
-## Map channels to their separate sequences.
+# Map channels to their separate sequences.
 channel 1 => inst leadA seq lead_seq lead_seq
 channel 2 => inst leadB seq bass_seq:oct(-1) bass_seq:oct(-1)
 channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-1) arp_pat arp_pat
 channel 4 => inst perc  seq drums_seq drums_seq
 
-# -----------------------------------------------------------------------------
-# Playback directive
+# =============================================================================
+# PLAYBACK
+# =============================================================================
 # The `play` directive starts playback in the web UI player. In the CLI this
 # would trigger immediate rendering or playback; in the web UI the UI uses the
 # parsed AST to schedule audio.

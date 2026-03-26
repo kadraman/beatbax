@@ -1,4 +1,4 @@
-## heroes_call.bax - <kadraman>
+## heroes_call.bax
 ## Original heroic title theme in the spirit of classic 8-bit fantasy RPG adventure music.
 ## Key: D major | Tempo: 108 BPM | Style: Heroic, mystical, triumphant
 ##
@@ -31,9 +31,10 @@
 ##   port : smooth legato slides on ascending portamento runs (slide, slowSlide)
 ##   DCM  : duty-cycle modulation on the coda (hero_thin → hero_bright → hero_warm)
 ##
+## Play: node bin/beatbax play songs/heroes_call.bax
 
 song name "Heroes Call"
-song artist "kadraman"
+song artist "The BeatBax Team"
 song description """An original heroic title theme in D major, evoking the grandeur and mystique of classic 8-bit fantasy RPG adventure games. Opens with a bold ascending fanfare, develops into a flowing lyrical hero theme with arpeggiated harmony, visits a mysterious minor-tinged bridge with deep vibrato, then returns triumphant with shimmer embellishments before a grand duty-cycle modulated finale. Demonstrates vibrato, arpeggio, portamento, and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,adventure,rpg,fanfare,heroic,demo"
 
