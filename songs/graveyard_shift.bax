@@ -1,0 +1,314 @@
+## graveyard_shift.bax
+## Original dark-funk horror chiptune — in the spirit of classic horror movie soundtracks.
+## Key: B minor | Tempo: 118 BPM | Style: Eerie, funky, dramatic
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It captures the atmosphere of a foggy midnight cemetery: a hollow 12.5%-duty lead hook
+## weaving through a walking minor bass line, hard-swinging mid-tempo funk groove, and
+## wide-duty atmospheric pads that make the bridge feel vast and foreboding.
+##
+## Structure (19 bars):
+##   Bars  1– 2 : Spooky intro      (sparse ascending Bm arpeggios, lone kick pulses)
+##   Bars  3– 6 : Main funk hook A  (staccato 16th-note riff + soaring scale answer, ×2)
+##   Bars  7– 8 : Secondary hook B  (wide-interval dramatic arc, F#5–A5–B5–back down)
+##   Bars  9–10 : Mysterious bridge (deep triangle-vibrato descent, sparse percussion)
+##   Bar  11    : Tension ascent    (chromatic 16th-note run B4→F#6, drives into reprise)
+##   Bars 12–15 : DCM Reprise A     (duty-cycle-modulated hook: thin→bright→warm, ×2)
+##   Bars 16–17 : Horror B reprise  (B section with square-trem chop + shimmer sparkle)
+##   Bars 18–19 : Coda              (shimmer wail descent B5→B4; lone eerie spook hold)
+##
+## Channels:
+##   Ch1 (Pulse1): Main melody — 12.5% spook_lead / 50% funk_stab / 75% warm_lead;
+##                 DCM reprise switches timbre mid-riff for expressive dynamics
+##   Ch2 (Pulse2): Harmony — 25% chord_stab for crisp minor arp stabs;
+##                 75% atmo_pad for wide-duty mournful bridge pads
+##   Ch3 (Wave):   Walking bass — plucked asymmetric 32-sample waveform;
+##                 sharp 4-step attack rise then 20-step decay tail, then silence
+##   Ch4 (Noise):  Percussion — kick / snare / hat funk groove with syncopated fills
+##
+## Effects demonstrated:
+##   vib  : haunt sine wobble (4,3) on held melody peaks;
+##          desolate triangle vibrato (5,2) for slow mournful bridge
+##   trem : horror square-wave chop (3,8) — pulsating staccato horror stabs;
+##          shimmer sine sparkle (4,7) on reprise and coda peaks
+##   arp  : minorArp (3,7) on Bm / Em harmony; majArp (4,7) on G / A;
+##          dom7Arp (4,7,10) on F#7 harmonic-minor dominant
+##   port : slide (port:8) — legato connection on bass and melody runs
+##
+## Play: node bin/beatbax play songs/graveyard_shift.bax
+
+song name "Graveyard Shift"
+song artist "The BeatBax Team"
+song description """An original dark-funk chiptune in B minor at 118 BPM. A hollow 12.5%-duty lead hook weaves through a walking plucked-bass wave channel and a hard-swinging mid-tempo funk groove to evoke a foggy midnight cemetery. The bridge strips everything back to sparse percussion and deep triangle vibrato before a blistering chromatic 16th-note ascent drives into a duty-cycle-modulated reprise. Closes with a shimmer wail descent and a lone eerie tonic hold. Demonstrates duty-cycle modulation, vib/trem effects, minor-key arpeggio harmony, and plucked wavetable bass across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,dark,horror,funk,demo"
+
+chip gameboy
+bpm 118
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Pulse1 — lead melody; three timbres for duty-cycle modulation in the reprise:
+#   spook_lead  — 12.5%  hollow, nasal, sharp attack   (eerie intro; DCM thin attack)
+#   funk_stab   — 50%    balanced, punchy               (main hook body; DCM bright peak)
+#   warm_lead   — 75%    warm, round, gentle decay      (DCM resolution + coda landing)
+inst spook_lead  type=pulse1 duty=12.5 env={"level":13,"direction":"down","period":1,"format":"gb"} gm=81
+inst funk_stab   type=pulse1 duty=50   env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst warm_lead   type=pulse1 duty=75   env={"level":11,"direction":"down","period":2,"format":"gb"} gm=82
+
+# Pulse2 — harmony; two timbres for structural contrast:
+#   chord_stab  — 25%    crisp, staccato minor-arp chord stabs
+#   atmo_pad    — 75%    wide-duty atmospheric sustained bridge pad
+inst chord_stab  type=pulse2 duty=25   env={"level":9,"direction":"down","period":2,"format":"gb"}  gm=80
+inst atmo_pad    type=pulse2 duty=75   env={"level":8,"direction":"down","period":6,"format":"gb"}  gm=80
+
+# Wave — bass (32 × 4-bit samples, values 0–15):
+#   thriller_bass — plucked asymmetric waveform; rapid 4-sample rise to peak,
+#                   then 20-step gradual decay, then 8 silent samples
+#                   Simulates a plucked electric bass guitar attack + sustain
+inst thriller_bass type=wave wave=[0,8,14,15,15,14,12,10,9,8,7,6,5,4,3,3,2,2,2,1,1,1,1,0,0,0,0,0,0,0,0,0]
+
+# Noise — percussion
+inst kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} note=C5
+inst snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} note=C6
+inst hat    type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+effect haunt    = vib:4,3,sine,3      # eerie wobble on held melody notes
+effect desolate = vib:5,2,triangle,6  # slow, deep, mournful triangle vibrato (bridge)
+effect horror   = trem:3,8,square     # staccato square-wave tremolo — horror chop
+effect shimmer  = trem:4,7,sine       # sparkle sine trem on reprise and coda peaks
+effect minorArp = arp:3,7             # minor triad  (root + min3 + P5)
+effect majArp   = arp:4,7             # major triad  (root + maj3 + P5)
+effect dom7Arp  = arp:4,7,10          # dominant 7th (root + maj3 + P5 + min7)
+effect slide    = port:8              # smooth legato portamento
+
+# =============================================================================
+# MELODY PATTERNS (Pulse1)
+# B minor: i=Bm, iv=Em, VI=G, VII=A, V7=F#7
+# =============================================================================
+
+# open_scare: sparse ominous opening — ascending Bm arpeggio into silence, then echo
+# 16 steps: 2+2+4+1+1+2+2+2
+pat open_scare  = B4:2 D5:2 F#5<haunt>:4 . . B4:2 D5:2 F#5:2
+
+# open_echo: ghostly descending answer — falls through Bm scale with haunt vibrato
+# 16 steps: 4+2+2+4+4
+pat open_echo   = F#5<haunt>:4 E5:2 D5:2 C#5<haunt>:4 B4:4
+
+# riff_a: main funk hook — staccato 16th-note Bm punches, off-beat rests drive the pocket
+# Pattern: B-rest-D-B-rest | F#-rest-D-B-rest | A-G-A-rest-B-rest
+# 16 steps: 16 single tokens
+pat riff_a = B4 . D5 B4 . F#5 . D5 B4 . A4 G4 A4 . B4 .
+
+# riff_b: soaring hook answer — climbs B-minor scale to the B5 peak, then descends
+# 16 steps: 16 single tokens
+pat riff_b = F#5 G5 A5 B5 . A5 G5 F#5 E5 . D5 C#5 D5 E5 F#5 .
+
+# soar_a: secondary theme — dramatic wide-interval arc up to B5, holds, then resolves
+# 16 steps: 2+2+4+2+2+2+2
+pat soar_a = F#5:2 A5:2 B5<haunt>:4 A5:2 G5:2 F#5:2 E5:2
+
+# soar_b: secondary answer — descends through Bm, landing on the tonic
+# 16 steps: 2+2+4+4+4
+pat soar_b = D5:2 E5:2 F#5<haunt>:4 E5:4 B4:4
+
+# bridge_a: mysterious deep bridge — held notes descend slowly with desolate vibrato
+# 16 steps: 4+4+4+4
+pat bridge_a = F#5<desolate>:4 E5<desolate>:4 D5<desolate>:4 C#5<desolate>:4
+
+# bridge_b: bridge resolution — bottoms out, then climbs back to the tonic
+# 16 steps: 4+2+2+4+4
+pat bridge_b = B4<desolate>:4 C#5:2 D5:2 E5<desolate>:4 B4:4
+
+# tension: chromatic 16th-note ascent — maximum forward drive into the DCM reprise
+# 16 steps: 12×1 + 2 + 2
+pat tension = B4:1 C#5:1 D5:1 E5:1 F#5:1 G5:1 A5:1 B5:1 C#6:1 D6:1 E6:1 F#6:1 D6:2 B5<shimmer>:2
+
+# riff_a_dcm: main hook with duty-cycle modulation — three timbral sections
+#   spook_lead (12.5%) — thin nasal attack hits the B-D pocket
+#   funk_stab  (50%)   — bright punchy energy on the F# peak
+#   warm_lead  (75%)   — warm round landing descends to rest on B
+# 16 steps: 5 + 5 + 6
+pat riff_a_dcm = inst spook_lead B4:1 . D5:1 B4:1 . inst funk_stab F#5:1 . D5:1 B4:1 . inst warm_lead A4:1 G4:1 A4:1 . B4:1 .
+
+# riff_b_dcm: hook answer with DCM — scale run shifts timbre as it ascends
+# 16 steps: 5 + 7 + 4
+pat riff_b_dcm = inst spook_lead F#5:1 G5:1 A5:1 B5:1 . inst funk_stab A5:1 G5:1 F#5:1 E5:1 . D5:1 C#5:1 inst warm_lead D5:1 E5:1 F#5:1 .
+
+# soar_a_horror: B section reprise — horror square-chop on the ascent, shimmer on B5 peak
+# 16 steps: 2+2+4+2+2+2+2
+pat soar_a_horror = inst funk_stab F#5<horror>:2 A5<horror>:2 B5<shimmer>:4 A5<horror>:2 G5:2 F#5<shimmer>:2 E5:2
+
+# soar_b_horror: B section reprise answer — shimmer sparkle on F#5, horror chop on E5
+# 16 steps: 2+2+4+4+4
+pat soar_b_horror = D5:2 E5:2 F#5<shimmer>:4 E5<horror>:4 B4:4
+
+# coda_wail: shimmer descent from B5 peak — eerie glide down to the tonic
+# 16 steps: 4+2+2+2+2+2+2
+pat coda_wail = B5<shimmer>:4 F#5<shimmer>:2 D5:2 C#5:2 B4:2 A4:2 B4:2
+
+# coda_end: lone eerie tonic hold fades to silence — the lights go out
+# 16 steps: 8 + 8
+pat coda_end = inst spook_lead B4<haunt>:8 . . . . . . . .
+
+# =============================================================================
+# HARMONY PATTERNS (Pulse2)
+# B minor vocabulary used (arp root → chord tones via arpeggiation):
+#   i   = Bm (B D F#)     → minorArp on B
+#   iv  = Em (E G B)      → minorArp on E
+#   VI  = G  (G B D)      → majArp   on G
+#   VII = A  (A C# E)     → majArp   on A
+#   V7  = F#7(F# A# C# E) → dom7Arp  on F#
+# =============================================================================
+
+# harm_intro: Bm whole-bar hold — spacious, ominous
+pat harm_intro   = B3<minorArp>:16
+
+# harm_Bm_A: i → VII — the classic dark minor vamp
+pat harm_Bm_A    = B3<minorArp>:8 A3<majArp>:8
+
+# harm_Bm_Em: i → iv — deeper darkening motion
+pat harm_Bm_Em   = B3<minorArp>:8 E3<minorArp>:8
+
+# harm_G_F7: VI → V7 — pre-cadential tension; harmonic-minor F#7 dominant
+pat harm_G_F7    = G3<majArp>:8 F#3<dom7Arp>:8
+
+# harm_Bm_G: i → VI — opens up for the secondary hook
+pat harm_Bm_G    = B3<minorArp>:8 G3<majArp>:8
+
+# harm_bridge1: wide-duty bridge pad — inst atmo_pad for mournful 75% duty sound
+pat harm_bridge1 = inst atmo_pad B3<minorArp>:8 G3<majArp>:8
+
+# harm_bridge2: bridge tension — atmo_pad continues; F#7 builds toward resolution
+pat harm_bridge2 = inst atmo_pad E3<minorArp>:8 F#3<dom7Arp>:8
+
+# harm_run: tension bar — resets to chord_stab, dominant energy for the reprise launch
+pat harm_run     = inst chord_stab B3<minorArp>:8 F#3<dom7Arp>:8
+
+# harm_Bm_A_r: reprise opening — explicit chord_stab reset after bridge atmo_pad
+pat harm_Bm_A_r  = inst chord_stab B3<minorArp>:8 A3<majArp>:8
+
+# harm_coda: final Bm resolution — simple, spacious, fading out
+pat harm_coda    = inst chord_stab B3<minorArp>:16
+
+# =============================================================================
+# BASS PATTERNS (Wave — thriller_bass, 32-sample plucked bass)
+# Walking minor lines; 8th notes = :2, quarter notes = :4
+# =============================================================================
+
+# bass_walk: Thriller-style minor walking bass — descends B2→F#2 then walks back up
+# 16 steps: 2×8
+pat bass_walk   = B2:2 A2:2 G2:2 F#2:2 G2:2 A2:2 B2:2 A2:2
+
+# bass_root: driving root-fifth anchor — stable quarter-note groove foundation
+# 16 steps: 4×4
+pat bass_root   = B2:4 F#2:4 B2:4 F#2:4
+
+# bass_vi_v: vi → v → VI movement — Em→F#→G for harmonic colour
+# 16 steps: 4×4
+pat bass_vi_v   = E2:4 F#2:4 G2:4 F#2:4
+
+# bass_bridge: one-note-per-beat descending walk — B2→A2→G2→F#2
+# 16 steps: 4×4
+pat bass_bridge = B2:4 A2:4 G2:4 F#2:4
+
+# bass_run: ascending scale run — drives into the DCM reprise
+# 16 steps: 2×8
+pat bass_run    = B2:2 C#3:2 D3:2 E3:2 F#3:2 G3:2 A3:2 B3:2
+
+# bass_coda: held tonic + fifth + return — closing pedal
+# 16 steps: 8+4+4
+pat bass_coda   = B2:8 F#2:4 B2:4
+
+# =============================================================================
+# DRUM PATTERNS (Noise — kick, snare, hat)
+# =============================================================================
+
+# drums_intro: bare spooky — sparse lone kicks and soft hat; near silence
+pat drums_intro    = kick . . . . . . . kick . . . hat . . .
+
+# drums_funk: mid-tempo funk groove — kick on 1, snare on 2&4, 8th-note hats
+pat drums_funk     = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_sync: syncopated variation — anticipation kick before 3, double-snare energy
+pat drums_sync     = kick . snare hat kick kick snare hat kick . snare hat kick hat snare hat
+
+# drums_bridge: sparse breathing room — four hits per bar; maximum open space
+pat drums_bridge   = kick . . . . . snare . kick . . . . . . .
+
+# drums_tension: hard driving 16ths — maximum pressure into the reprise
+pat drums_tension  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat kick snare
+
+# drums_fill: heavy climax fill — double-kicks and dense snare accents
+pat drums_fill     = kick hat snare hat kick kick snare hat kick hat snare hat kick kick snare kick
+
+# drums_coda: slow fading beats — bleeding out, losing energy
+pat drums_coda     = kick . . . snare . . . kick . . . . . . .
+
+# =============================================================================
+# SEQUENCES
+# Each section's four channels are built and referenced below
+# =============================================================================
+
+# --- Section 1: Spooky intro (Bars 1–2) ---
+seq intro_mel   = open_scare open_echo
+seq intro_harm  = harm_intro harm_Bm_A
+seq intro_bass  = bass_walk bass_root
+seq intro_perc  = drums_intro drums_intro
+
+# --- Section 2: Main funk hook A (Bars 3–6, ×2) ---
+seq hook_mel    = riff_a riff_b riff_a riff_b
+seq hook_harm   = harm_Bm_A harm_Bm_Em harm_G_F7 harm_Bm_A
+seq hook_bass   = bass_walk bass_root bass_vi_v bass_walk
+seq hook_perc   = drums_funk drums_sync drums_funk drums_sync
+
+# --- Section 3: Secondary hook B (Bars 7–8) ---
+seq soar_mel    = soar_a soar_b
+seq soar_harm   = harm_Bm_G harm_Bm_Em
+seq soar_bass   = bass_root bass_vi_v
+seq soar_perc   = drums_funk drums_funk
+
+# --- Section 4: Mysterious bridge (Bars 9–10) ---
+seq bridge_mel  = bridge_a bridge_b
+seq bridge_harm = harm_bridge1 harm_bridge2
+seq bridge_bass = bass_bridge bass_bridge
+seq bridge_perc = drums_bridge drums_bridge
+
+# --- Section 5: Tension ascent (Bar 11) ---
+seq tension_mel  = tension
+seq tension_harm = harm_run
+seq tension_bass = bass_run
+seq tension_perc = drums_tension
+
+# --- Section 6: DCM Reprise A (Bars 12–15, ×2) ---
+seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+seq reprise_harm = harm_Bm_A_r harm_Bm_Em harm_G_F7 harm_Bm_A
+seq reprise_bass = bass_walk bass_root bass_vi_v bass_walk
+seq reprise_perc = drums_funk drums_sync drums_fill drums_sync
+
+# --- Section 7: Horror B reprise (Bars 16–17) ---
+seq brise_mel   = soar_a_horror soar_b_horror
+seq brise_harm  = harm_Bm_G harm_Bm_Em
+seq brise_bass  = bass_root bass_vi_v
+seq brise_perc  = drums_funk drums_fill
+
+# --- Section 8: Coda (Bars 18–19) ---
+seq coda_mel    = coda_wail coda_end
+seq coda_harm   = harm_coda harm_coda
+seq coda_bass   = bass_coda bass_coda
+seq coda_perc   = drums_coda drums_intro
+
+# =============================================================================
+# CHANNELS
+# =============================================================================
+
+channel 1 => inst funk_stab    seq intro_mel   hook_mel   soar_mel   bridge_mel   tension_mel   reprise_mel   brise_mel   coda_mel
+channel 2 => inst chord_stab   seq intro_harm  hook_harm  soar_harm  bridge_harm  tension_harm  reprise_harm  brise_harm  coda_harm
+channel 3 => inst thriller_bass seq intro_bass  hook_bass  soar_bass  bridge_bass  tension_bass  reprise_bass  brise_bass  coda_bass
+channel 4 => inst kick          seq intro_perc  hook_perc  soar_perc  bridge_perc  tension_perc  reprise_perc  brise_perc  coda_perc
+
+play auto repeat

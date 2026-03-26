@@ -177,9 +177,12 @@ export async function loadFromQueryParams(
  */
 export const EXAMPLE_SONGS: Array<{ label: string; path: string }> = [
   { label: 'sample.bax', path: '/songs/sample.bax' },
-  { label: 'mystic_voyage.bax', path: '/songs/mystic_voyage.bax' },
+  { label: 'a_trainers_journey.bax', path: '/songs/a_trainers_journey.bax' },
   { label: 'crypt_of_fallen_kings.bax', path: '/songs/crypt_of_fallen_kings.bax' },
   { label: 'grassland_dash.bax', path: '/songs/grassland_dash.bax' },
+  { label: 'graveyard_shift.bax', path: '/songs/graveyard_shift.bax' },
+  { label: 'heroes_call.bax', path: '/songs/heroes_call.bax' },
+  { label: 'mystic_voyage.bax', path: '/songs/mystic_voyage.bax' },
   { label: 'night_hawk.bax', path: '/songs/night_hawk.bax' },
 ];
 

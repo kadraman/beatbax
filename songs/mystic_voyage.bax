@@ -2,29 +2,36 @@
 ## Original adventure theme — in the spirit of classic portable-RPG exploration.
 ## Key: G major | Tempo: 124 BPM | Style: Pastoral, soaring, adventurous
 ##
-## Opens with a soaring octave-arch melody (G5 → G6 → A5) and a lyrical response
-## phrase. A quiet bridge section uses deep vibrato and slow portamento walks before
-## the reprise returns the theme with full duty-cycle modulation.
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## Opens with a soaring octave-arch melody (G5 → G6 → A5) and a lyrical response phrase.
+## A quiet bridge section uses deep vibrato and slow portamento walks before the reprise
+## returns the theme with full duty-cycle modulation.
 ##
-## BUG FIX NOTE: Inline `inst` tokens carry forward across pattern boundaries in
-## the resolver — every pattern that follows a DCM or bridge duty-switch must begin
-## with an explicit `inst` reset to prevent timbral drift.  All patterns here are
-## annotated to make the intended instrument state unambiguous.
+## Structure (10 bars):
+##   Bars  1– 2 : A section    (soaring octave-arch hook + lyrical answer phrase)
+##   Bars  3– 4 : A repeat     (theme reinforced — hook + answer)
+##   Bars  5– 6 : B bridge     (deep vibrato descent + portamento ascending run)
+##   Bar   7    : Fill         (arpeggiated G-major climax burst)
+##   Bars  8– 9 : DCM reprise  (hook + answer with thin→warm→full duty modulation)
+##   Bar  10    : Coda         (shimmer landing — peak shimmer, tonic resolution)
 ##
-## Effects showcased:
-##   - vib      : gentle wobble on held melody notes (wobble); deep slow vibrato on
-##                the bridge (deepVib); fast shimmer on the closing coda (shimmer)
-##   - arp      : major/minor/dom7 arpeggios on Pulse2 harmony and Wave fills;
-##                arpeggiated melody climax pattern (mel_fill)
-##   - port     : ascending legato run into the bridge (mel_run); slow portamento
-##                walking lines in the Wave bass (wave_bridge_a)
-##   - duty mod : thin (12.5%) → warm (75%) → full (50%) switching mid-pattern on
-##                the Pulse1 reprise; bridge harmony uses wide-duty (75%) Pulse2
+## Channels:
+##   Ch1 (Pulse1): Melody — soaring arch, vibrato bridge, duty-cycle-modulated reprise
+##   Ch2 (Pulse2): Harmony — arpeggiated chord blocks (I–V, IV–V–vi–I), wide-duty bridge pads
+##   Ch3 (Wave  ): Bass — sustained chord-tone counterpoint; portamento walks in bridge
+##   Ch4 (Noise ): Percussion — kick/snare/hat groove with sparse bridge and climax fill
+##
+## Effects demonstrated:
+##   vib  : gentle wobble on held melody notes (wobble); slow deep bridge vibrato (deepVib)
+##   trem : fast shimmer sparkle on reprise and coda peak notes (shimmer)
+##   arp  : major/minor/dom7 chord arpeggios on harmony and wave fills (majorArp, minorArp, dom7Arp)
+##   port : ascending legato build into bridge (slide); slow portamento bass walks (slowSlide)
+##   DCM  : thin (12.5%) → warm (75%) → full (50%) duty switching on the Pulse1 reprise
 ##
 ## Play: node bin/beatbax play songs/mystic_voyage.bax
 
 song name "Mystic Voyage"
-song artist "BeatBax"
+song artist "The BeatBax Team"
 song description """An original adventure theme in G major. Opens with a soaring octave arch and a gentle pastoral harmony — evoking the moment of stepping out to sea on a small wooden vessel, horizon glittering ahead. Demonstrates vibrato, arpeggio, portamento and duty cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,adventure,exploration,effects,demo"
 

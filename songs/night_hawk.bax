@@ -28,9 +28,11 @@
 ##   arp  : minor/major/dom7 chord arpeggios on harmony channel
 ##   port : smooth 16th-note ascending glide run (slide)
 ##   DCM  : thin (12.5%) → bright (50%) → warm (75%) on the duty-cycle modulated reprise
+##
+## Play: node bin/beatbax play songs/night_hawk.bax
 
 song name "Night Hawk"
-song artist "BeatBax"
+song artist "The BeatBax Team"
 song description """An original action theme in E minor, inspired by the heroic synthesiser energy of 1980s television helicopter dramas. Opens with a staccato ascending hammer call, builds into a punchy E-minor melodic riff with power-fifth bass, lifts into a soaring secondary line, descends into a tense chromatic bridge with deep vibrato, then tears back with a duty-cycle modulated reprise and closes on a shimmering tonic resolution. Demonstrates vibrato, arpeggio, portamento, tremolo and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,action,80s,heroic,driving,chiptune,demo"
 
