@@ -1,0 +1,377 @@
+## a_trainers_journey.bax
+## Original Game Boy chiptune in the spirit of classic handheld JRPG title themes.
+## Key: C major (bridge borrows from A minor) | Tempo: 120 BPM | Style: Bright, bouncy, adventurous
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It captures the *atmosphere* of classic 8-bit handheld JRPG title music: a staccato
+## arpeggio-punch hook in C major, a soaring secondary theme with wide leaps, a mysterious
+## A-minor bridge with deep vibrato, a 16th-note ascending run into a duty-cycle modulated
+## reprise, then a shimmering B-section finale that closes on a warm tonic fade.
+##
+## Structure (19 bars total):
+##   Bars  1– 2 : Intro fanfare   — ascending C major call & answer, sparse percussion
+##   Bars  3– 6 : Theme A (× 2)   — staccato arpeggio hook + soaring answer
+##   Bars  7– 8 : Theme B         — wide-leap secondary phrase, flowing paired notes
+##   Bars  9–10 : Bridge          — A-minor bridge, deep vibrato, quiet drums
+##   Bar  11    : Ascending run   — 16th-note C5→E6 burst launching the reprise
+##   Bars 12–15 : DCM Reprise (× 2) — Theme A with thin→bright→warm duty cycle modulation
+##   Bars 16–17 : B Reprise       — Theme B with shimmer sparkle at the peaks
+##   Bars 18–19 : Coda            — shimmer peak descend, then warm tonic resolution fade
+##
+## Channels:
+##   Ch1 (Pulse1): Melody — staccato hook, soaring B lines, shimmer on reprise
+##   Ch2 (Pulse2): Harmony — major/minor/dom7 arpeggios, wide-duty atmospheric bridge
+##   Ch3 (Wave  ): Bass — 32-sample triangle wave, driving power roots and passing tones
+##   Ch4 (Noise ): Percussion — sparse intro, bouncy action groove, energetic fills
+##
+## Effects demonstrated:
+##   vib  : gentle melodic wobble on held melody peaks (drift); slow deep bridge (deepDrift)
+##   trem : fast sparkle on reprise/coda shimmer notes (sparkle)
+##   arp  : major/minor/dom7 cycling on harmony channel (majorArp, minorArp, dom7Arp)
+##   port : smooth 16th-note ascending glide run (slide)
+##   DCM  : thin (12.5%) → bright (50%) → warm (75%) on the duty-cycle modulated reprise
+##
+## Play: node bin/beatbax play songs/a_trainers_journey.bax
+
+song name "A Trainer's Journey"
+song artist "The BeatBax Team"
+song description """An original handheld JRPG title theme in C major at 120 BPM. Opens with a bold ascending C-major fanfare call and answer, builds into a punchy staccato arpeggio-hook main theme with classic I–IV–V–vi harmony, lifts into a soaring secondary phrase with wide melodic leaps, descends into a mysterious A-minor bridge with slow deep vibrato, then rockets back with a duty-cycle-modulated reprise and closes in a shimmering tonic fade. Demonstrates vibrato, arpeggio, portamento, tremolo and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,rpg,adventure,bright,nostalgic,chiptune,demo"
+
+chip gameboy
+bpm 120
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Pulse1 — melody lead: three duty variants for timbre modulation
+#   poke_lead   50%    balanced, full-bodied bright lead  (main melodic statements)
+#   poke_thin  12.5%  hollow, nasal — run notes and DCM ascending approach
+#   poke_warm   75%   warm, rounded — DCM resolution peaks and coda sustain
+#
+# Pulse2 — harmony: two duty variants
+#   poke_harm   25%   crisp, bright staccato arpeggios     (A and B sections)
+#   poke_sus    75%   wide, atmospheric sustained arps     (mysterious bridge)
+#
+# Wave — poke_bass: 32-sample triangle wave approximation. The pure triangle is
+#   the Game Boy wave channel's most iconic timbre — round attack, warm body,
+#   clean pitch. Doubles the wavetable length for maximum fidelity.
+#
+# Noise — kick / snare / hat percussion kit
+
+inst poke_lead  type=pulse1 duty=50    env={"level":13,"direction":"down","period":4,"format":"gb"} gm=81
+inst poke_thin  type=pulse1 duty=12.5  env={"level":14,"direction":"down","period":2,"format":"gb"} gm=81
+inst poke_warm  type=pulse1 duty=75    env={"level":11,"direction":"down","period":4,"format":"gb"} gm=82
+
+inst poke_harm  type=pulse2 duty=25    env={"level":8,"direction":"down","period":4,"format":"gb"}  gm=80
+inst poke_sus   type=pulse2 duty=75    env={"level":9,"direction":"down","period":5,"format":"gb"}  gm=80
+
+inst poke_bass  type=wave   wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0]
+
+inst kick       type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} note=C5
+inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
+inst hat        type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect sparkle   = trem:4,7,sine        # fast shimmer — reprise and coda peak notes
+effect drift     = vib:3,4,sine,4       # gentle wobble on held melody peaks
+effect deepDrift = vib:5,2,sine,6       # slow deep — mysterious bridge atmosphere
+
+effect majorArp  = arp:4,7             # major triad  (root + maj3 + P5)
+effect minorArp  = arp:3,7             # minor triad  (root + min3 + P5)
+effect dom7Arp   = arp:4,7,10          # dominant 7th (root + maj3 + P5 + min7)
+
+effect slide     = port:10             # snappy portamento for ascending run notes
+
+# =============================================================================
+# Melody patterns  (Channel 1 — Pulse1)
+# =============================================================================
+
+# open_a: opening fanfare call — ascending C major arpeggio, leap to C6, then step down.
+# Sets the key and establishes the hero's adventurous announcement tone.
+# 16 steps: 2+2+2+4+2+2+2
+pat open_a      = C5:2 E5:2 G5:2 C6:4 G5:2 E5:2 C5:2
+
+# open_b: fanfare answer — stepwise ascent to A5 with gentle wobble, then calm descent.
+# Echoes the call with a more lyrical, relaxed reply before the main theme starts.
+# 16 steps: 2+2+4+2+2+2+2
+pat open_b      = E5:2 G5:2 A5<drift>:4 G5:2 F5:2 E5:2 C5:2
+
+# riff_a: main theme hook — staccato C-major arpeggio punches.
+# The signature "punch-pattern": quick arpeggiated leaps up to the sixth (A5), then
+# a stepwise descent back through the chord tones to the tonic. One-step = 16th note
+# staccato attack, the defining rhythmic energy of a bouncy JRPG title screen.
+# 16 steps: 16 × single steps
+pat riff_a      = C5 . G5 C5 E5 C5 G5 . A5 G5 E5 . D5 E5 G5 .
+
+# riff_b: soaring answer phrase — climbs to C6 and descends gracefully.
+# Reaches higher than riff_a (C6 peak), giving the classic call-and-response
+# arch shape: the secondary half that validates the first.
+# 16 steps: 16 × single steps
+pat riff_b      = E5 G5 A5 B5 C6 . B5 A5 G5 E5 G5 . E5 D5 C5 .
+
+# soar_a: secondary theme A — flowing paired 8th notes, wide octave arch.
+# Wide leaps (C6 → C5) and a smooth descending scale give a sense of breeze
+# and spacious landscape — the "stepping onto the overworld" feeling.
+# 16 steps: 2×8
+pat soar_a      = C6:2 B5:2 A5:2 G5:2 A5:2 G5:2 E5:2 C5:2
+
+# soar_b: secondary answer phrase — builds to the C6 peak with gentle wobble.
+# The drift effect on C6 lets the held note float — the emotional high point
+# of the B theme before the song turns darker into the bridge.
+# 16 steps: 4+2+2+4+4
+pat soar_b      = G5:4 A5:2 B5:2 C6<drift>:4 G5:4
+
+# bridge_a: mysterious bridge — A-minor descent with deep slow vibrato throughout.
+# Borrows from the parallel A minor to add harmonic colour; the lush deep vibrato
+# makes this section feel introspective — like reading the Pokédex before a big battle.
+# 16 steps: 4+4+4+4
+pat bridge_a    = A5<deepDrift>:4 G5<deepDrift>:4 F5<deepDrift>:4 E5<deepDrift>:4
+
+# bridge_b: bridge continuation — resolves back toward the tonic via D5–E5–F5–C5.
+# The deepDrift on the long notes, contrasting with the bare short notes, creates
+# a sense of momentary uncertainty quickly resolved by the C5 landing.
+# 16 steps: 4+2+2+4+4
+pat bridge_b    = D5<deepDrift>:4 E5:2 F5:2 E5<deepDrift>:4 C5:4
+
+# accel: ascending 16th-note run — C5 climbs through the full octave to E6, then
+# arches back to a glittering E5 to launch the duty-cycle-modulated reprise.
+# Portamento slides between each step for a seamless legato sweep.
+# 16 steps: 1×12 + 2 + 2
+pat accel       = C5:1 D5:1 E5:1 F5:1 G5:1 A5:1 B5:1 C6:1 D6:1 C6:1 B5:1 A5:1 G5:2 E5<sparkle>:2
+
+# riff_a_dcm: reprise hook — thin (12.5%) approach gives a nasal punchy attack
+#   on the ascending tones, then bright (50%) restores the main voice for the
+#   peak arpeggio A5, and warm (75%) closes on a rounded, satisfying C5 landing.
+#   This duty-cycle modulation makes the reprise feel louder and more saturated.
+# 16 steps: 2+2+2+4+2+2+2
+pat riff_a_dcm  = inst poke_thin C5:2 E5:2 G5:2 inst poke_lead A5:4 G5:2 E5:2 inst poke_warm C5:2
+
+# riff_b_dcm: reprise answer — thin approach climbs to B5, bright on the C6 peak
+#   and descent, then warm landing on G5. Explicit poke_lead ensures clean reset.
+# 16 steps: 2+2+2+4+2+2+2
+pat riff_b_dcm  = inst poke_thin E5:2 G5:2 inst poke_lead B5:2 C6:4 B5:2 A5:2 inst poke_warm G5:2
+
+# soar_a_sh: B-section reprise — shimmer sparkle on the peak notes (C6 and A5).
+# The sparkle effect flickers the high notes, signalling the triumphant finale.
+# 16 steps: 2×8
+pat soar_a_sh   = C6<sparkle>:2 B5<sparkle>:2 A5:2 G5:2 A5<sparkle>:2 G5:2 E5:2 C5:2
+
+# soar_b_sh: B-section reprise answer — shimmer on B5, C6 peak, and G5 landing.
+# Maximum sparkle energy before the coda wind-down.
+# 16 steps: 4+2+2+4+4
+pat soar_b_sh   = G5:4 A5:2 B5<sparkle>:2 C6<sparkle>:4 G5<sparkle>:4
+
+# coda_peak: shimmering descent from peak — E6 sparkle down through the C major chord.
+# The highest note in the whole song (E6) marks the emotional apex before the fade.
+# 16 steps: 4+2+2+2+2+2+2
+pat coda_peak   = C6<sparkle>:4 E6<sparkle>:2 C6:2 A5:2 G5:2 E5:2 C5:2
+
+# coda_fade: warm tonic hold — C5 held with gentle drift, then silence.
+# The title-screen logo holds; the tone blooms warmly and fades to stillness.
+# 16 steps: 8 + 8 rests
+pat coda_fade   = inst poke_warm C5<drift>:8 . . . . . . .
+
+# =============================================================================
+# Harmony patterns  (Channel 2 — Pulse2)
+#
+# C major vocabulary:
+#   I   = C major (C E G)         — tonic, bright home
+#   IV  = F major (F A C)         — subdominant, warmth
+#   V7  = G dominant 7 (G B D F) — dominant tension, drive
+#   vi  = A minor (A C E)         — relative minor, emotional depth
+#   ii  = D minor (D F A)         — supertonic, bridge tension
+
+# harm_fanfare: full-bar tonic arpeggio — spacious, joyful opener
+# 16 steps: 16
+pat harm_fanfare = C3<majorArp>:16
+
+# harm_I_V: I → V — tonic to dominant, classic forward motion
+# 16 steps: 8+8
+pat harm_I_V     = C3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_I_vi: I → vi — bright tonic to relative minor, emotional depth
+# 16 steps: 8+8
+pat harm_I_vi    = C3<majorArp>:8 A3<minorArp>:8
+
+# harm_IV_V: IV → V — the pre-cadential push back to the tonic
+# 16 steps: 8+8
+pat harm_IV_V    = F3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_I_IV: I → IV — bright to warm for the soaring B section
+# 16 steps: 8+8
+pat harm_I_IV    = C3<majorArp>:8 F3<majorArp>:8
+
+# harm_bridge1: vi → IV with wide-duty sustain — atmospheric mysterious quality
+#   Explicit inst poke_sus for richer, more atmospheric timbral depth.
+# 16 steps: 8+8
+pat harm_bridge1 = inst poke_sus A3<minorArp>:8 F3<majorArp>:8
+
+# harm_bridge2: ii → V dominant — unresolved tension before the ascending run
+#   Stays on poke_sus for tonal continuity through the whole bridge section.
+# 16 steps: 8+8
+pat harm_bridge2 = inst poke_sus D3<minorArp>:8 G3<dom7Arp>:8
+
+# harm_run: transition — EXPLICIT inst poke_harm resets state after bridge poke_sus
+#   Without this, poke_sus would carry over into the reprise and sound wrong.
+# 16 steps: 8+8
+pat harm_run     = inst poke_harm C3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_IV_V_r: reprise IV → V — explicit inst poke_harm reset after bridge
+# 16 steps: 8+8
+pat harm_IV_V_r  = inst poke_harm F3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_coda: final I chord resolution — sustained closing arpeggio
+# 16 steps: 16
+pat harm_coda    = inst poke_harm C3<majorArp>:16
+
+# =============================================================================
+# Bass patterns  (Channel 3 — Wave)
+#
+# Triangle-wave bass via 32-sample wavetable. Pure, clean, round-sounding —
+# ideal for a classic handheld JRPG where the bass must not clutter the pulse leads.
+# Root notes on the beat with fifths and passing tones on the off-beats.
+
+# bass_C: C tonic pedal — root and fifth alternating for a stable bounce
+# 16 steps: 4+4+4+4
+pat bass_C      = C2:4 G2:4 C2:4 G2:4
+
+# bass_C_G: I → V bass movement — rising through E2 and landing on D3 fifth
+# 16 steps: 4+4+4+4
+pat bass_C_G    = C2:4 E2:4 G2:4 D3:4
+
+# bass_F_G: IV → V — F to C then G to D, clean sub-dominant forward drive
+# 16 steps: 4+4+4+4
+pat bass_F_G    = F2:4 C3:4 G2:4 D3:4
+
+# bass_Am_F: vi → IV — A minor to F, the emotional bass movement
+# 16 steps: 4+4+4+4
+pat bass_Am_F   = A2:4 E2:4 F2:4 C3:4
+
+# bass_bridge: descending A-minor walk — A2→G2→F2→E2 chromatic gravity
+# 16 steps: 4+4+4+4
+pat bass_bridge = A2:4 G2:4 F2:4 E2:4
+
+# bass_run: 8th-note ascending C major scale — mirrors the accel melody climb
+# 16 steps: 2×8
+pat bass_run    = C2:2 D2:2 E2:2 F2:2 G2:2 A2:2 B2:2 C3:2
+
+# bass_coda: held tonic resolution — long C2 pedal, then fifth-root close
+# 16 steps: 8+4+4
+pat bass_coda   = C2:8 G2:4 C2:4
+
+# =============================================================================
+# Drum patterns  (Channel 4 — Noise)
+# =============================================================================
+#
+# Light, clean percussion in the style of classic handheld JRPG soundtracks —
+# not heavy or modern; bubbly, rhythmically precise, forward-moving.
+
+# drums_intro: sparse fanfare pulse — four lone kicks across the bar, no hats.
+# Appropriate for the ceremonial opening before the full groove kicks in.
+# 16 steps
+pat drums_intro  = kick . . . kick . . . kick . . . kick . . .
+
+# drums_bounce: clean main groove — kick on 1+3, snare on 2+4, hat on off-beats.
+# The backbone rhythm: precisely timed, cheerful, perfect for JRPG adventuring.
+# 16 steps
+pat drums_bounce = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_alt: syncopated variation — double kick before beat 3 for forward push.
+# Used every other bar of Theme A to add rhythmic movement without overwhelming.
+# 16 steps
+pat drums_alt    = kick . snare hat kick kick snare hat kick . snare hat kick hat snare hat
+
+# drums_bridge: very sparse ghost pattern — wide open space for bridge melody to breathe.
+# Just a few key anchor points; the silence is as important as the hits here.
+# 16 steps
+pat drums_bridge = kick . . hat . . snare . kick . . . . . . .
+
+# drums_run: driving 16th groove with final double-kick — maximum energy for the run bar.
+# Every step filled with kick/hat/snare density, building excitement into the reprise.
+# 16 steps
+pat drums_run    = kick hat snare hat kick hat snare hat kick hat snare hat kick hat kick snare
+
+# drums_fill: climax fill — double kick before snare, snare on the final step.
+# Used to peak the energy at the end of Theme A Reprise and B Reprise sections.
+# 16 steps
+pat drums_fill   = kick hat snare hat kick kick snare hat kick hat snare hat kick hat snare kick
+
+# drums_coda: slow closing fade — four quiet hits then long silence.
+# Gives the coda room to settle without a full stop.
+# 16 steps
+pat drums_coda   = kick . . . snare . . . . . . . . . . .
+
+# =============================================================================
+# Sequences  (grouped by song section — all four channels per section)
+# =============================================================================
+#
+# 19-bar structure:
+#   Bars  1– 2 : Intro fanfare
+#   Bars  3– 6 : Theme A (× 2)
+#   Bars  7– 8 : Theme B
+#   Bars  9–10 : Bridge
+#   Bar  11    : Ascending run — transition
+#   Bars 12–15 : DCM Reprise A (× 2)
+#   Bars 16–17 : B Reprise with shimmer
+#   Bars 18–19 : Coda
+
+# --- Section 1: Intro Fanfare (Bars 1–2) ---
+seq intro_mel  = open_a open_b
+seq intro_harm = harm_fanfare harm_I_V
+seq intro_bass = bass_C bass_C_G
+seq intro_perc = drums_intro drums_bounce
+
+# --- Section 2: Theme A — main hook (Bars 3–6) ---
+seq theme_mel  = riff_a riff_b riff_a riff_b
+seq theme_harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V
+seq theme_bass = bass_C bass_F_G bass_Am_F bass_F_G
+seq theme_perc = drums_bounce drums_alt drums_bounce drums_alt
+
+# --- Section 3: Theme B — soaring secondary phrase (Bars 7–8) ---
+seq soar_mel   = soar_a soar_b
+seq soar_harm  = harm_I_IV harm_I_V
+seq soar_bass  = bass_C bass_C_G
+seq soar_perc  = drums_bounce drums_bounce
+
+# --- Section 4: Bridge — mysterious A-minor descent (Bars 9–10) ---
+seq bridge_mel  = bridge_a bridge_b
+seq bridge_harm = harm_bridge1 harm_bridge2
+seq bridge_bass = bass_bridge bass_bridge
+seq bridge_perc = drums_bridge drums_bridge
+
+# --- Section 5: Ascending Run — transition into reprise (Bar 11) ---
+seq run_mel  = accel
+seq run_harm = harm_run
+seq run_bass = bass_run
+seq run_perc = drums_run
+
+# --- Section 6: DCM Reprise A — duty-cycle modulation (Bars 12–15) ---
+seq reprise_mel  = riff_a_dcm riff_b_dcm riff_a_dcm riff_b_dcm
+seq reprise_harm = harm_I_V harm_IV_V harm_I_vi harm_IV_V_r
+seq reprise_bass = bass_C bass_F_G bass_Am_F bass_F_G
+seq reprise_perc = drums_bounce drums_alt drums_fill drums_alt
+
+# --- Section 7: B Reprise — shimmer sparkle (Bars 16–17) ---
+seq bsoar_mel  = soar_a_sh soar_b_sh
+seq bsoar_harm = harm_I_IV harm_I_V
+seq bsoar_bass = bass_C bass_C_G
+seq bsoar_perc = drums_bounce drums_fill
+
+# --- Section 8: Coda — peak shimmer and warm fade (Bars 18–19) ---
+seq coda_mel  = coda_peak coda_fade
+seq coda_harm = harm_coda harm_coda
+seq coda_bass = bass_coda bass_coda
+seq coda_perc = drums_coda drums_intro
+
+# =============================================================================
+channel 1 => inst poke_lead seq intro_mel  theme_mel  soar_mel  bridge_mel  run_mel  reprise_mel  bsoar_mel  coda_mel
+channel 2 => inst poke_harm seq intro_harm theme_harm soar_harm bridge_harm run_harm reprise_harm bsoar_harm coda_harm
+channel 3 => inst poke_bass seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass bsoar_bass coda_bass
+channel 4 => inst kick      seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc bsoar_perc coda_perc
+
+play auto repeat

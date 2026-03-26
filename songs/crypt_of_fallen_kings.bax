@@ -1,4 +1,4 @@
-## crypt_of_fallen_kings.bax - <kadraman>
+## crypt_of_fallen_kings.bax
 ## Original dark-action theme in the spirit of gothic 8-bit platformer soundtracks.
 ## Key: A harmonic minor | Tempo: 160 BPM | Style: Driving, dark, heroic
 ##
@@ -34,7 +34,7 @@
 ## Play: node bin/beatbax play songs/crypt_of_fallen_kings.bax
 
 song name "Crypt of the Fallen Kings"
-song artist "kadraman"
+song artist "The BeatBax Team"
 song description """An original dark-action theme in A harmonic minor at 160 BPM. Driving 16th-note energy, bold octave leaps, fast descending harmonic-minor scalar runs, and relentless percussion evoke locked castle corridors and undead hordes. The two pulse channels simulate full Am–F–G–Am and Am–Dm–E7–Am progressions via tight arpeggios, while a galloping wave-bass and snappy kick-snare-hat groove maintain constant forward momentum. Demonstrates vibrato, arpeggios, portamento and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,dark,action,horror,platformer,demo"
 
