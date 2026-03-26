@@ -53,6 +53,7 @@ import { TransportBar } from './ui/transport-bar';
 import { EditorState } from './editor/editor-state';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
+import { ChatPanel } from './panels/chat-panel';
 import { downloadText } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
 import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
@@ -62,6 +63,7 @@ import {
   installGlobalErrorHandlers,
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
+import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
 
 const log = createLogger('ui:main');
 
@@ -390,15 +392,16 @@ rightTabStyle.textContent = `
 `;
 document.head.appendChild(rightTabStyle);
 
-type RightTabId = 'channels' | 'help' | 'shortcuts';
+type RightTabId = 'channels' | 'help' | 'shortcuts' | 'ai';
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Mixer',
   help: 'Help',
   shortcuts: 'Shortcuts',
+  ai: 'AI Copilot',
 };
-const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'shortcuts'];
+const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'shortcuts', 'ai'];
 let activeRightTab: RightTabId | null = 'channels';
-const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, shortcuts: true };
+const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, shortcuts: true, ai: false };
 const rightTabButtons: Partial<Record<RightTabId, HTMLButtonElement>> = {};
 const rightTabContents: Partial<Record<RightTabId, HTMLElement>> = {};
 
@@ -523,6 +526,113 @@ const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
   },
 }), appContainer);
 
+// ─── ChatPanel — AI Copilot tab ─────────────────────────────────────────────
+// The AI tab container is always present in the DOM; the ChatPanel itself is
+// only created when the feature flag is first enabled (lazy instantiation).
+const aiContainer = document.createElement('div');
+aiContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+rightTabContents['ai']!.appendChild(aiContainer);
+
+// Initially hide the AI tab button — shown only when feature flag is on.
+const aiTabBtn = rightTabButtons['ai'];
+if (aiTabBtn) aiTabBtn.classList.add('bb-right-tab--hidden');
+
+let chatPanel: ChatPanel | null = null;
+
+function getChatPanel(): ChatPanel {
+  if (!chatPanel) {
+    chatPanel = new ChatPanel({
+      container: aiContainer,
+      eventBus,
+      getEditorContent: () => (editor?.getValue?.() as string) || '',
+      getDiagnostics: () => {
+        // Gather current diagnostics from the diagnosticsManager
+        const dm = diagnosticsManager;
+        if (!dm) return [];
+        // DiagnosticsManager doesn't expose a getDiagnostics() getter,
+        // so we collect from the eventBus-driven validation state instead.
+        return (window as any).__beatbax_lastDiagnostics ?? [];
+      },
+      onInsertSnippet: (text) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor) return;
+        const pos = monacoEditor.getPosition();
+        if (!pos) return;
+        monacoEditor.executeEdits('chat-panel', [{
+          identifier: { major: 1, minor: 1 },
+          range: { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column },
+          text,
+          forceMoveMarkers: true,
+        }]);
+        monacoEditor.focus();
+      },
+      onReplaceSelection: (text) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor) return;
+        const sel = monacoEditor.getSelection();
+        if (!sel) return;
+        monacoEditor.executeEdits('chat-panel', [{
+          identifier: { major: 1, minor: 1 },
+          range: sel,
+          text,
+          forceMoveMarkers: true,
+        }]);
+        monacoEditor.focus();
+      },
+    });
+  }
+  return chatPanel;
+}
+
+// Cache last diagnostics so getChatPanel can access them.
+(window as any).__beatbax_lastDiagnostics = [];
+eventBus.on('validation:errors', ({ errors }) => {
+  (window as any).__beatbax_lastDiagnostics = errors.map((e: any) => ({
+    message: e.message,
+    severity: 'error' as const,
+    startLine: e.loc?.start?.line ?? 1,
+    startColumn: e.loc?.start?.column ?? 1,
+  }));
+});
+eventBus.on('validation:warnings', ({ warnings }) => {
+  const existing = ((window as any).__beatbax_lastDiagnostics ?? []).filter((d: any) => d.severity !== 'warning');
+  (window as any).__beatbax_lastDiagnostics = [
+    ...existing,
+    ...warnings.map((w: any) => ({
+      message: w.message,
+      severity: 'warning' as const,
+      startLine: w.loc?.start?.line ?? 1,
+      startColumn: w.loc?.start?.column ?? 1,
+    })),
+  ];
+});
+
+/** Toggle the AI chat panel on/off. Creates it on first use. */
+function toggleAIAssistant(): void {
+  const wasEnabled = isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
+  const nowEnabled = !wasEnabled;
+  setFeatureEnabled(FeatureFlag.AI_ASSISTANT, nowEnabled);
+
+  if (nowEnabled) {
+    // Show the tab button and switch to it
+    aiTabBtn?.classList.remove('bb-right-tab--hidden');
+    rightTabOpen['ai'] = true;
+    getChatPanel(); // ensure panel is created
+    showRightTab('ai');
+  } else {
+    closeRightTab('ai');
+    aiTabBtn?.classList.add('bb-right-tab--hidden');
+    rightTabOpen['ai'] = false;
+  }
+}
+
+// Initialise AI tab visibility on page load (in case flag is already set).
+if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
+  aiTabBtn?.classList.remove('bb-right-tab--hidden');
+  rightTabOpen['ai'] = true;
+  getChatPanel();
+}
+
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'output') {
@@ -539,6 +649,9 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
   if (panel === 'shortcuts') {
     visible ? showRightTab('shortcuts') : closeRightTab('shortcuts');
+  }
+  if (panel === 'ai-assistant') {
+    toggleAIAssistant();
   }
   if (panel === 'toolbar') {
     try {
@@ -834,6 +947,7 @@ const menuBar = new MenuBar({
   },
   onZoomReset: () => editor.editor?.updateOptions({ fontSize: 14 }),
   onToggleTheme: () => themeManager.toggle(),
+  onToggleAI: () => toggleAIAssistant(),
 });
 
 (window as any).__beatbax_menuBar = menuBar;

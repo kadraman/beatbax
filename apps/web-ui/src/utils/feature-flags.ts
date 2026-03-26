@@ -1,0 +1,70 @@
+/**
+ * Feature flags — read/write helpers backed by localStorage + URL param overrides.
+ *
+ * Usage:
+ *   isFeatureEnabled(FeatureFlag.AI_ASSISTANT)   // → false by default
+ *   setFeatureEnabled(FeatureFlag.AI_ASSISTANT, true)
+ *
+ * URL overrides (evaluated once at page load):
+ *   ?ai=1  → AI_ASSISTANT enabled regardless of localStorage
+ *   ?ai=0  → AI_ASSISTANT disabled regardless of localStorage
+ */
+
+import { storage, StorageKey } from './local-storage';
+
+// ─── Well-known flags ─────────────────────────────────────────────────────────
+
+export const FeatureFlag = {
+  AI_ASSISTANT: StorageKey.AI_ASSISTANT,
+  // future flags here
+} as const;
+
+// ─── URL-param overrides ──────────────────────────────────────────────────────
+
+/** Map from storage-key to URL param name. */
+const URL_PARAM_MAP: Record<string, string> = {
+  [FeatureFlag.AI_ASSISTANT]: 'ai',
+};
+
+/**
+ * Returns the URL-param override for a flag, or `undefined` if the URL contains
+ * no relevant param for this flag.
+ */
+function getUrlOverride(flag: string): boolean | undefined {
+  try {
+    const paramName = URL_PARAM_MAP[flag];
+    if (!paramName) return undefined;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has(paramName)) return undefined;
+    return params.get(paramName) !== '0';
+  } catch {
+    return undefined;
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Returns `true` when the feature flag is enabled.
+ *
+ * Priority (highest → lowest):
+ *  1. URL query parameter (`?ai=1` / `?ai=0`)
+ *  2. localStorage value (`"true"` / `"false"`)
+ *  3. Default: `false`
+ */
+export function isFeatureEnabled(flag: string): boolean {
+  const urlOverride = getUrlOverride(flag);
+  if (urlOverride !== undefined) return urlOverride;
+  const stored = storage.get(flag);
+  return stored === 'true';
+}
+
+/**
+ * Persist the enabled/disabled state of a feature flag to localStorage.
+ * A URL override will still take precedence over the stored value on the
+ * current page load, but the stored value will apply once the URL param
+ * is removed.
+ */
+export function setFeatureEnabled(flag: string, enabled: boolean): void {
+  storage.set(flag, enabled ? 'true' : 'false');
+}

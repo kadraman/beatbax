@@ -28,6 +28,7 @@ module.exports = {
     '^@beatbax/engine/parser$': '<rootDir>/tests/__mocks__/engine-parser.ts',
     '^@beatbax/engine/song$': '<rootDir>/tests/__mocks__/engine-song.ts',
     '^@beatbax/engine/audio/playback$': '<rootDir>/tests/__mocks__/engine-playback.ts',
+    '^@mlc-ai/web-llm$': '<rootDir>/tests/__mocks__/@mlc-ai/web-llm.ts',
     '\\.css$': '<rootDir>/tests/__mocks__/styleMock.js',
   },
 };
