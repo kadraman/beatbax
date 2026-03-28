@@ -25,6 +25,7 @@ import {
   setupDiagnosticsIntegration,
   parseErrorToDiagnostic,
   warningsToDiagnostics,
+  type Diagnostic,
 } from './editor/diagnostics';
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
@@ -372,7 +373,7 @@ eventBus.on('validation:errors',   ({ errors })   => { problemsBadgeErrors   = e
 eventBus.on('validation:warnings', ({ warnings }) => { problemsBadgeWarnings = warnings.length; updateProblemsTabBadge(); });
 eventBus.on('parse:error',         ()             => { problemsBadgeErrors   = 1;               updateProblemsTabBadge(); });
 
-// ─── Right pane: tabbed panel (Channel Mixer | Help | Shortcuts) ────────
+// ─── Right pane: tabbed panel (Channel Mixer | Help | Copilot) ──────────
 const rightTabStyle = document.createElement('style');
 rightTabStyle.textContent = `
   .bb-right-tabs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -392,16 +393,16 @@ rightTabStyle.textContent = `
 `;
 document.head.appendChild(rightTabStyle);
 
-type RightTabId = 'channels' | 'help' | 'shortcuts' | 'ai';
+type RightTabId = 'channels' | 'help' | 'ai';
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Mixer',
   help: 'Help',
-  shortcuts: 'Shortcuts',
-  ai: 'AI Copilot',
+  ai: 'Copilot',
 };
-const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'shortcuts', 'ai'];
+const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'ai'];
+const RIGHT_TAB_STORAGE_KEY = 'bb-active-right-tab';
 let activeRightTab: RightTabId | null = 'channels';
-const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, shortcuts: true, ai: false };
+const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, ai: false };
 const rightTabButtons: Partial<Record<RightTabId, HTMLButtonElement>> = {};
 const rightTabContents: Partial<Record<RightTabId, HTMLElement>> = {};
 
@@ -416,6 +417,7 @@ const showRightTab = (tab: RightTabId): void => {
 /** Activate a tab that is already open. Does not open a closed tab. */
 const switchRightTab = (tab: RightTabId): void => {
   activeRightTab = tab;
+  try { localStorage.setItem(RIGHT_TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
   rightTabs.classList.remove('bb-right-tabs--empty');
   for (const t of RIGHT_TAB_ORDER) {
     rightTabButtons[t]?.classList.toggle('bb-right-tab--active', t === tab);
@@ -477,7 +479,11 @@ for (const t of RIGHT_TAB_ORDER) {
   rightTabContents[t] = content;
   rightTabs.appendChild(content);
 }
-switchRightTab('channels');
+// Capture the persisted tab BEFORE the next line writes 'channels' to localStorage.
+const _savedRightTabOnLoad = (() => {
+  try { return localStorage.getItem(RIGHT_TAB_STORAGE_KEY) as RightTabId | null; } catch { return null; }
+})();
+switchRightTab('channels'); // will be overridden after all tabs are initialised
 
 // ─── Unified Channel Panel (ChannelMixer) in the channels tab ──────────────
 // The ChannelMixer lives in a dedicated scoped div so its render() (which
@@ -500,9 +506,122 @@ const helpContainer = document.createElement('div');
 helpContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
 rightTabContents['help']!.appendChild(helpContainer);
 
+// ─── Keyboard Shortcuts modal ───────────────────────────────────────────────
+// Shortcuts are shown in a popup modal (not a sidebar tab).
+const shortcutsModalStyles = document.createElement('style');
+shortcutsModalStyles.textContent = `
+  .bb-shortcuts-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 9000;
+    align-items: center;
+    justify-content: center;
+  }
+  .bb-shortcuts-modal-backdrop.bb-shortcuts-modal--open {
+    display: flex;
+  }
+  .bb-shortcuts-modal {
+    background: #1f1f1f;
+    border: 1px solid #444;
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    width: min(720px, 92vw);
+    height: min(640px, 80vh);
+    overflow: hidden;
+  }
+  .bb-shortcuts-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+  }
+  .bb-shortcuts-modal-header-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #ccc;
+    letter-spacing: 0.3px;
+  }
+  .bb-shortcuts-modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .bb-shortcuts-modal-close:hover {
+    color: #eee;
+    background: #383838;
+  }
+  .bb-shortcuts-modal-body {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+`;
+document.head.appendChild(shortcutsModalStyles);
+
+const shortcutsBackdrop = document.createElement('div');
+shortcutsBackdrop.className = 'bb-shortcuts-modal-backdrop';
+shortcutsBackdrop.setAttribute('role', 'dialog');
+shortcutsBackdrop.setAttribute('aria-modal', 'true');
+shortcutsBackdrop.setAttribute('aria-label', 'Keyboard Shortcuts');
+
+const shortcutsModalEl = document.createElement('div');
+shortcutsModalEl.className = 'bb-shortcuts-modal';
+
+const shortcutsModalHeader = document.createElement('div');
+shortcutsModalHeader.className = 'bb-shortcuts-modal-header';
+const shortcutsModalTitle = document.createElement('span');
+shortcutsModalTitle.className = 'bb-shortcuts-modal-header-title';
+shortcutsModalTitle.textContent = 'Keyboard Shortcuts';
+const shortcutsModalCloseBtn = document.createElement('button');
+shortcutsModalCloseBtn.className = 'bb-shortcuts-modal-close';
+shortcutsModalCloseBtn.setAttribute('aria-label', 'Close keyboard shortcuts');
+shortcutsModalCloseBtn.textContent = '✕';
+shortcutsModalHeader.append(shortcutsModalTitle, shortcutsModalCloseBtn);
+
+const shortcutsModalBody = document.createElement('div');
+shortcutsModalBody.className = 'bb-shortcuts-modal-body';
+
 const shortcutsContainer = document.createElement('div');
 shortcutsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-rightTabContents['shortcuts']!.appendChild(shortcutsContainer);
+shortcutsModalBody.appendChild(shortcutsContainer);
+
+shortcutsModalEl.append(shortcutsModalHeader, shortcutsModalBody);
+shortcutsBackdrop.appendChild(shortcutsModalEl);
+document.body.appendChild(shortcutsBackdrop);
+
+const openShortcutsModal = (): void => {
+  shortcutsBackdrop.classList.add('bb-shortcuts-modal--open');
+  shortcutsModalCloseBtn.focus();
+};
+const closeShortcutsModal = (): void => {
+  shortcutsBackdrop.classList.remove('bb-shortcuts-modal--open');
+};
+
+// Close on backdrop click (outside the modal box).
+shortcutsBackdrop.addEventListener('click', (e) => {
+  if (e.target === shortcutsBackdrop) closeShortcutsModal();
+});
+// Close on button click.
+shortcutsModalCloseBtn.addEventListener('click', closeShortcutsModal);
+// Close on Escape.
+shortcutsBackdrop.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.stopPropagation(); closeShortcutsModal(); }
+});
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -539,8 +658,32 @@ if (aiTabBtn) aiTabBtn.classList.add('bb-right-tab--hidden');
 
 let chatPanel: ChatPanel | null = null;
 
+// ─── Pending AI change state ────────────────────────────────────────────────
+interface PendingAIChange {
+  previousContent: string;
+  decorationIds: string[];
+  banner: HTMLElement;
+}
+let pendingAIChange: PendingAIChange | null = null;
+
+function clearPendingAIChange(restore = false): void {
+  if (!pendingAIChange) return;
+  const monacoEditor = editor?.editor;
+  if (monacoEditor) {
+    monacoEditor.deltaDecorations(pendingAIChange.decorationIds, []);
+    if (restore) {
+      const model = monacoEditor.getModel();
+      if (model) {
+        monacoEditor.executeEdits('chat-undo', [{ range: model.getFullModelRange(), text: pendingAIChange.previousContent, forceMoveMarkers: true }]);
+        monacoEditor.focus();
+      }
+    }
+  }
+  pendingAIChange.banner.remove();
+  pendingAIChange = null;
+}
+
 // Module-level cache of last-seen diagnostics (populated by validation events).
-import type { Diagnostic } from './editor/diagnostics';
 let lastDiagnostics: Diagnostic[] = [];
 
 /** Map a raw validation entry to a Diagnostic. */
@@ -586,6 +729,58 @@ function getChatPanel(): ChatPanel {
         }]);
         monacoEditor.focus();
       },
+      onReplaceEditor: (text) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor) return;
+        const model = monacoEditor.getModel();
+        if (!model) return;
+        const fullRange = model.getFullModelRange();
+        monacoEditor.executeEdits('chat-panel', [{
+          identifier: { major: 1, minor: 1 },
+          range: fullRange,
+          text,
+          forceMoveMarkers: true,
+        }]);
+        monacoEditor.focus();
+      },
+      onHighlightChanges: (addedLineNums, previousContent) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor || addedLineNums.length === 0) return;
+        // Clear any existing pending change
+        clearPendingAIChange(false);
+        // Green decorations on every added/changed line
+        const decorations = addedLineNums.map(lineNum => ({
+          range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
+          options: {
+            isWholeLine: true,
+            className: 'bb-changed-line-added',
+            overviewRulerColor: '#4ec94e',
+            overviewRulerLane: 4,
+          },
+        }));
+        const ids = monacoEditor.deltaDecorations([], decorations);
+        // Create Keep / Discard banner inside the editor container
+        const editorDom = monacoEditor.getDomNode() as HTMLElement | null;
+        if (!editorDom) return;
+        const banner = document.createElement('div');
+        banner.className = 'bb-ai-change-banner';
+        const dot = document.createElement('span');
+        dot.className = 'bb-ai-change-banner-dot';
+        dot.textContent = '⬤';
+        const label = document.createElement('span');
+        label.textContent = `AI: ${addedLineNums.length} changed line${addedLineNums.length !== 1 ? 's' : ''}`;
+        const keepBtn = document.createElement('button');
+        keepBtn.className = 'bb-ai-banner-keep';
+        keepBtn.textContent = '✓ Keep';
+        keepBtn.addEventListener('click', () => clearPendingAIChange(false));
+        const discardBtn = document.createElement('button');
+        discardBtn.className = 'bb-ai-banner-discard';
+        discardBtn.textContent = '✗ Discard';
+        discardBtn.addEventListener('click', () => clearPendingAIChange(true));
+        banner.append(dot, label, keepBtn, discardBtn);
+        editorDom.appendChild(banner);
+        pendingAIChange = { previousContent, decorationIds: ids, banner };
+      },
     });
   }
   return chatPanel;
@@ -615,9 +810,10 @@ function toggleAIAssistant(): void {
     // Show the tab button and switch to it
     aiTabBtn?.classList.remove('bb-right-tab--hidden');
     rightTabOpen['ai'] = true;
-    getChatPanel(); // ensure panel is created
+    getChatPanel().show(); // ensure panel is created and visible
     showRightTab('ai');
   } else {
+    getChatPanel().hide();
     closeRightTab('ai');
     aiTabBtn?.classList.add('bb-right-tab--hidden');
     rightTabOpen['ai'] = false;
@@ -628,8 +824,22 @@ function toggleAIAssistant(): void {
 if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
   aiTabBtn?.classList.remove('bb-right-tab--hidden');
   rightTabOpen['ai'] = true;
-  getChatPanel();
+  getChatPanel().show();
 }
+
+// Restore the last active tab now that all tabs (including AI) are initialised.
+// Uses _savedRightTabOnLoad (captured before the initial switchRightTab call
+// overwrote localStorage with 'channels').
+(() => {
+  try {
+    const saved = _savedRightTabOnLoad;
+    if (saved && RIGHT_TAB_ORDER.includes(saved) && rightTabOpen[saved]) {
+      switchRightTab(saved);
+      return;
+    }
+  } catch { /* ignore */ }
+  switchRightTab('channels');
+})();
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
@@ -646,7 +856,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     visible ? showRightTab('help') : closeRightTab('help');
   }
   if (panel === 'shortcuts') {
-    visible ? showRightTab('shortcuts') : closeRightTab('shortcuts');
+    if (visible) openShortcutsModal();
   }
   if (panel === 'ai-assistant') {
     toggleAIAssistant();
@@ -882,7 +1092,7 @@ const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
-  onShowShortcuts: () => showRightTab('shortcuts'),
+  onShowShortcuts: () => openShortcutsModal(),
   onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
@@ -1064,7 +1274,13 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.apply
 monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { showRightTab('help'); });
 // Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
 // Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { showRightTab('shortcuts'); });
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { openShortcutsModal(); });
+// Alt+Shift+I → Show AI/Copilot tab (I for Intelligence/AI; no browser conflict).
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => {
+  if (rightTabOpen['ai']) showRightTab('ai'); else toggleAIAssistant();
+});
+// Alt+Shift+V → Verify syntax (no browser conflict).
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify(); });
 // Ctrl+Shift+L → Theme toggle.
 // Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
 // here via addCommand overrides that default while Monaco has focus.
@@ -1107,7 +1323,7 @@ ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
 ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
   action: () => transportBar.stopButton.click(),
 });
-ks.register({ key: 'Escape', description: 'Stop playback', allowInInput: false,
+ks.register({ key: 'Escape', description: 'Stop playback (when editor not focused)', allowInInput: false,
   action: () => transportBar.stopButton.click(),
 });
 // Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
@@ -1177,9 +1393,15 @@ ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInIn
   action: () => showRightTab('help') });
 ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
   action: () => showRightTab('help') });
-// Alt+Shift+K → switch directly to the Keyboard Shortcuts tab.
-ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts tab', allowInInput: true,
-  action: () => showRightTab('shortcuts') });
+// Alt+Shift+K → open the Keyboard Shortcuts modal.
+ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
+  action: () => openShortcutsModal() });
+// Alt+Shift+I → Show AI/Copilot tab (or enable it if the feature flag is off).
+ks.register({ key: 'i', altKey: true, shiftKey: true, description: 'Show AI Copilot tab', allowInInput: true,
+  action: () => { if (rightTabOpen['ai']) showRightTab('ai'); else toggleAIAssistant(); } });
+// Alt+Shift+V → Verify syntax.
+ks.register({ key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', allowInInput: true,
+  action: () => doVerify() });
 
 // Ctrl+Alt+P → Command Palette (global fallback: works even when Monaco is not focused).
 // Monaco's own addCommand version only fires when Monaco already has focus; this
@@ -1216,6 +1438,8 @@ const shortcutsPanel = withErrorBoundary('ShortcutsPanel', () => new HelpPanel({
   eventBus,
   embedded: true,
   singleSection: 'shortcuts',
+  hideHeader: true,
+  twoColumns: true,
   defaultVisible: true,
   getShortcuts: () => ks.list(),
 }), appContainer);
