@@ -486,7 +486,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'AI Assistant',
-        shortcut: 'Ctrl+Shift+A',
+        shortcut: 'Alt+Shift+I',
         id: 'ai-assistant',
         action: () => this.opts.onToggleAI?.(),
       },

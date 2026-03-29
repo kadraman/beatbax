@@ -354,7 +354,7 @@ export interface ChatPanelOptions {
   /** Called with snippet text when user clicks "Replace selection". */
   onReplaceSelection: (text: string) => void;
   /** Called with snippet text when user clicks "Replace editor" — replaces entire editor content. */
-  onReplaceEditor: (text: string) => void;
+  onReplaceEditor?: (text: string) => void;
   /** Called after an auto-apply; provides changed line numbers and the previous content for undo. */
   onHighlightChanges?: (addedLineNums: number[], previousContent: string) => void;
 }
@@ -749,7 +749,7 @@ export class ChatPanel {
     const modeSuffix = this.mode === 'edit' ? EDIT_SYSTEM_SUFFIX : ASK_SYSTEM_SUFFIX;
     const langRef = buildLanguageRef(detectChip(editorContent));
     return (
-      `You are BeatBax Copilot, an assistant for the BeatBax live-coding chiptune language.\n${langRef}\n\n${modeSuffix}\n\n` +
+      `[SYSTEM]\nYou are BeatBax Copilot, an assistant for the BeatBax live-coding chiptune language.\n${langRef}\n\n${modeSuffix}\n\n` +
       `[EDITOR CONTENT]\n\`\`\`bax\n${truncated}\n\`\`\`\n\n` +
       `[DIAGNOSTICS]\n${diagBlock}`
     );
@@ -781,6 +781,11 @@ export class ChatPanel {
           for (let attempt = 0; attempt < MAX_SELF_CORRECTION_ATTEMPTS; attempt++) {
             const errs = this.validateBax(baxCode!);
             if (errs === null) break;
+            // On the last attempt, give up rather than apply invalid code
+            if (attempt === MAX_SELF_CORRECTION_ATTEMPTS - 1) {
+              baxCode = null;
+              break;
+            }
             this.setStatus(`⚠ Parse errors — self-correcting (${attempt + 1}/${MAX_SELF_CORRECTION_ATTEMPTS})…`);
             appendMessages = [
               ...appendMessages,
@@ -796,7 +801,7 @@ export class ChatPanel {
         let previousContent: string | null = null;
         if (baxCode !== null) {
           previousContent = this.opts.getEditorContent();
-          this.opts.onReplaceEditor(baxCode);
+          this.opts.onReplaceEditor?.(baxCode);
           // Only highlight diffs when editing an existing song — skip for fresh creation
           if (this.opts.onHighlightChanges && previousContent.trim().length > 0) {
             const diff = computeDiffLines(previousContent, baxCode);
@@ -825,7 +830,7 @@ export class ChatPanel {
   /** Parse and resolve baxCode; returns formatted error string or null if valid. */
   private validateBax(code: string): string | null {
     try {
-      const ast = parse(code);
+      const ast = parse(code) as any;
       resolveSong(ast);
 
       // resolveSong silently accepts undefined instrument names (both branches of
@@ -843,7 +848,7 @@ export class ChatPanel {
 
       // 2. Inline inst tokens in patterns (structured form)
       if (ast.patternEvents) {
-        for (const [patName, events] of Object.entries(ast.patternEvents)) {
+        for (const [patName, events] of Object.entries(ast.patternEvents) as [string, any[]][]) {
           for (const ev of events) {
             if ((ev.kind === 'inline-inst' || ev.kind === 'temp-inst') && ev.name && !defined.has(ev.name)) {
               errors.push(`instrument "${ev.name}" (pattern "${patName}") is not defined`);
@@ -853,7 +858,7 @@ export class ChatPanel {
       }
 
       // 3. Inline inst tokens in patterns (string token form, e.g. "inst lead")
-      for (const [patName, tokens] of Object.entries(ast.pats || {})) {
+      for (const [patName, tokens] of Object.entries(ast.pats || {}) as [string, any[]][]) {
         for (const tok of tokens) {
           const m = typeof tok === 'string' && tok.match(/^inst\s+(\S+)$/i);
           if (m && !defined.has(m[1])) {
@@ -864,7 +869,7 @@ export class ChatPanel {
 
       // 4. Sequence-level inst transforms (e.g. A:inst(bass))
       if (ast.sequenceItems) {
-        for (const [seqName, items] of Object.entries(ast.sequenceItems)) {
+        for (const [seqName, items] of Object.entries(ast.sequenceItems) as [string, any[]][]) {
           for (const item of items) {
             for (const tr of (item.transforms || [])) {
               if (tr.kind === 'inst' && tr.value && typeof tr.value === 'string' && !defined.has(tr.value)) {
@@ -935,6 +940,26 @@ export class ChatPanel {
   }
 
   // ─── Message rendering ───────────────────────────────────────────────────────
+
+  /**
+   * Split a response string into alternating text and code segments.
+   * Code segments are the contents of ```bax … ``` fenced blocks.
+   */
+  splitContent(content: string): Array<{ type: 'text' | 'code'; value: string }> {
+    const result: Array<{ type: 'text' | 'code'; value: string }> = [];
+    const pattern = /```bax\s*\n([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(content)) !== null) {
+      const before = content.slice(lastIndex, match.index);
+      if (before) result.push({ type: 'text', value: before });
+      result.push({ type: 'code', value: match[1].replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim() });
+      lastIndex = match.index + match[0].length;
+    }
+    const remaining = content.slice(lastIndex);
+    if (remaining) result.push({ type: 'text', value: remaining });
+    return result;
+  }
 
   /** Extract the first ```bax fenced block from a response, or null if none. */
   private extractBaxCode(content: string): string | null {
@@ -1014,7 +1039,7 @@ export class ChatPanel {
           undoBtn.title = 'Restore the previous editor content';
           const snapshot = previousContent;
           undoBtn.addEventListener('click', () => {
-            this.opts.onReplaceEditor(snapshot);
+            this.opts.onReplaceEditor?.(snapshot);
             undoBtn.disabled = true;
             undoBtn.textContent = '✓ Restored';
           });
@@ -1047,7 +1072,7 @@ export class ChatPanel {
           replaceEditorBtn.className = 'bb-chat-action-btn bb-chat-action-btn--primary';
           replaceEditorBtn.textContent = '↺ Replace editor';
           replaceEditorBtn.title = 'Replace entire editor content with this code';
-          replaceEditorBtn.addEventListener('click', () => this.opts.onReplaceEditor(codeText));
+          replaceEditorBtn.addEventListener('click', () => this.opts.onReplaceEditor?.(codeText));
 
           const insertBtn = document.createElement('button');
           insertBtn.className = 'bb-chat-action-btn';

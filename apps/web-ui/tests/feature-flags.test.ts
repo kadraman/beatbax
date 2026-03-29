@@ -7,7 +7,6 @@
 jest.mock('../src/utils/local-storage', () => ({
   StorageKey: {
     AI_ASSISTANT: 'feature.aiAssistant',
-    WEBLLM_MODEL: 'feature.webllmModel',
   },
   storage: {
     get: (key: string) => {

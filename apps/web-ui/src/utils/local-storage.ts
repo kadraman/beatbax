@@ -40,8 +40,6 @@ export const StorageKey = {
   LOG_LEVEL: 'debug.logLevel',
   /** AI Assistant feature flag (boolean). */
   AI_ASSISTANT: 'feature.aiAssistant',
-  /** WebLLM model ID used by the AI Assistant. */
-  WEBLLM_MODEL: 'feature.webllmModel',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

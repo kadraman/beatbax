@@ -3,7 +3,7 @@ title: "Web UI: AI Chatbot Assistant (BeatBax Copilot)"
 status: implemented
 authors: ["kadraman"]
 created: 2026-03-21
-updated: 2026-03-28
+updated: 2026-03-29
 issue: "https://github.com/kadraman/beatbax/issues/61"
 ---
 
@@ -173,6 +173,11 @@ const MAX_SELF_CORRECTION_ATTEMPTS = 4;
 for (let attempt = 0; attempt < MAX_SELF_CORRECTION_ATTEMPTS; attempt++) {
   const errs = this.validateBax(baxCode);
   if (errs === null) break;
+  // On the final attempt, give up rather than apply invalid code.
+  if (attempt === MAX_SELF_CORRECTION_ATTEMPTS - 1) {
+    baxCode = null;
+    break;
+  }
   // show status: ⚠ Parse errors — self-correcting (N/4)…
   appendMessages = [
     ...appendMessages,
@@ -184,6 +189,7 @@ for (let attempt = 0; attempt < MAX_SELF_CORRECTION_ATTEMPTS; attempt++) {
   response = await generate(text, appendMessages);
   baxCode = extractBaxCode(response);
 }
+// baxCode is non-null only if a validated (error-free) candidate was found.
 ```
 
 Retry exchanges do **not** pollute the visible conversation history.
@@ -219,7 +225,7 @@ export interface ChatPanelOptions {
   /** Called with snippet text when user clicks "Replace selection". */
   onReplaceSelection: (text: string) => void;
   /** Called with snippet text when user clicks "Replace editor" — replaces entire editor content. */
-  onReplaceEditor: (text: string) => void;
+  onReplaceEditor?: (text: string) => void;
   /** Called after an auto-apply; provides changed line numbers and the previous content for undo. */
   onHighlightChanges?: (addedLineNums: number[], previousContent: string) => void;
 }
@@ -231,6 +237,8 @@ export class ChatPanel {
   toggle(): void;
   isVisible(): boolean;
   assembleContext(): string;   // public for testing
+  /** Split a response string into alternating text/code segments (```bax blocks). */
+  splitContent(content: string): Array<{ type: 'text' | 'code'; value: string }>;
   dispose(): void;
 }
 ```
@@ -272,7 +280,7 @@ The API key is only included if non-empty (Ollama/LM Studio don't require one). 
 |---|---|---|
 | `apps/web-ui/src/panels/chat-panel.ts` | ✅ Complete | Full UI, API integration, context assembly, self-correction |
 | `apps/web-ui/src/utils/feature-flags.ts` | ✅ Complete | URL param + localStorage feature flag helpers |
-| `apps/web-ui/src/utils/local-storage.ts` | ✅ Updated | `AI_ASSISTANT` storage key added |
+| `apps/web-ui/src/utils/local-storage.ts` | ✅ Updated | `AI_ASSISTANT` storage key added; `WEBLLM_MODEL` removed (WebLLM approach abandoned) |
 | `apps/web-ui/src/ui/menu-bar.ts` | ✅ Updated | `View → AI Assistant` toggle added |
 | `apps/web-ui/src/main.ts` | ✅ Updated | `ChatPanel` instantiated and wired |
 
@@ -411,16 +419,19 @@ A chunk manager would score and rank all retrieved chunks, then greedily add the
 ### Implemented
 
 - `chat-panel.test.ts`
-  - Panel renders when feature flag is enabled
-  - `assembleContext()` produces correct system prompt shape (mock editor + mock diagnostics)
-  - Insert/replace/replace-editor callbacks invoked with extracted code block text
-  - Editor content truncated to ≤ 3000 characters
-  - Self-correction retry loop fires and feeds error messages back to the model
+  - Panel renders correctly; root element appended to container
+  - `assembleContext()` produces correct system prompt shape with `[SYSTEM]`, `[EDITOR CONTENT]`, and `[DIAGNOSTICS]` sections
+  - Editor content truncated to ≤ 3000 characters; `[truncated]` marker appended
+  - Diagnostics formatted as `line N, col N: message`; empty list shows "No current errors or warnings."
+  - Insert/replace callbacks invoked with extracted code block text
+  - `splitContent()` splits plain text, single `\`\`\`bax` blocks, and multiple blocks into typed segments
+  - Self-correction loop: invalid code is not applied when all retry attempts are exhausted (`baxCode` set to `null`)
 
 - `feature-flags.test.ts`
   - `isFeatureEnabled` returns `false` by default
   - `setFeatureEnabled(true)` persists; subsequent call returns `true`
   - URL param `?ai=1` enables regardless of storage; `?ai=0` disables
+  - Only `?ai=1` and `?ai=0` are recognised; other values (e.g. `?ai=false`, `?ai=`) fall through to localStorage
 
 ### Manual Tests
 

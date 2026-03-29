@@ -15,15 +15,15 @@
   },
   "dependencies": {
     "@beatbax/engine": "^0.5.5",
-    "@types/dompurify": "^3.0.5",
-    "@types/marked": "^5.0.2",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
     "marked": "^5.1.2",
     "monaco-editor": "^0.45.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/jest": "^29.5.0",
+    "@types/marked": "^5.0.2",
     "@types/node": "^20.0.0",
     "jest": "^29.5.0",
     "jest-environment-jsdom": "^30.2.0",

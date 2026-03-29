@@ -36,7 +36,10 @@ function getUrlOverride(flag: string): boolean | undefined {
     if (!paramName) return undefined;
     const params = new URLSearchParams(window.location.search);
     if (!params.has(paramName)) return undefined;
-    return params.get(paramName) !== '0';
+    const val = params.get(paramName);
+    if (val === '1') return true;
+    if (val === '0') return false;
+    return undefined;
   } catch {
     return undefined;
   }
