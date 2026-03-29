@@ -1,16 +1,34 @@
 ---
 title: "Parser Error Recovery for Multiple Syntax Errors"
 status: partial
-authors: ["GitHub Copilot"]
+authors: ["GitHub Copilot","kadraman"]
 created: 2026-02-16
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/67"
 ---
 
 ## Implementation Status
 
-**Semantic validation (implemented):** The parser now runs a post-parse semantic validation pass after a successful Peggy parse. All issues discovered during this pass are collected into `ast.diagnostics: ParseDiagnostic[]` rather than thrown as exceptions, so multiple issues are reported in one parse cycle. This covers: unknown chip names, unknown play flags, bad instrument types, unknown instrument properties, undefined instrument/sequence/pattern references, and channel configuration errors. Unknown pattern tokens (non-note, non-rest identifiers that don't resolve to a defined name) emit warnings. The web UI Problems panel and CLI `verify` command both consume `ast.diagnostics` directly.
+### ✅ Implemented
 
-**PEG-level multi-error recovery (still proposed):** See the original proposal below. Recovering from hard syntax errors (e.g. a misspelled keyword that prevents the grammar from matching) during the Peggy parse itself is a separate and more complex effort that remains unimplemented.
+**`ast.diagnostics: ParseDiagnostic[]` — semantic validation layer**
+The parser runs a full post-parse semantic validation pass at the end of `parseWithPeggy()` (lines 629–744 of `packages/engine/src/parser/peggy/index.ts`). All issues discovered during this pass are collected into `ast.diagnostics: ParseDiagnostic[]` rather than thrown as exceptions, so multiple issues are reported in one parse cycle. The `ParseDiagnostic` interface (defined in `packages/engine/src/parser/ast.ts`) carries `level`, `component`, `message`, and `loc` fields. Coverage includes: unknown chip names, unknown `play` flags, bad instrument types, unknown instrument properties, undefined instrument/sequence/pattern references, channel configuration errors, and unknown pattern tokens (which emit warnings). The web UI Problems panel and CLI `verify` command both consume `ast.diagnostics` directly.
+
+**`parseWithPeggy(source: string): AST`**
+Exists in `packages/engine/src/parser/peggy/index.ts` and is re-exported from `packages/engine/src/parser/index.ts`. This is now the primary parser entry point. Note: it returns `AST` directly — **not** the `ParseResult` wrapper described in the proposal below. It still throws on the first hard Peggy grammar error.
+
+**`enhanceParseError()`**
+Private helper in `packages/engine/src/parser/peggy/index.ts` that improves the single thrown error message (e.g. detects unknown keywords and suggests corrections). This is error *presentation* improvement only, not recovery.
+
+### ❌ Not Yet Implemented (PEG-level grammar recovery)
+
+Recovering from hard syntax errors during the Peggy parse itself is a separate and more complex effort. Everything below remains unimplemented:
+
+- **`ParseResult` / `ParseError` interfaces** — `parseWithPeggy()` still returns `AST` and throws on grammar failure rather than returning `{ ast, errors, hasErrors }`.
+- **`ErrorStmt` catch-all production in `grammar.peggy`** — the `Statement` rule has no fallback; first syntax error terminates parsing.
+- **Skip/synchronize to next statement** — no newline-sync or recovery heuristics in the grammar.
+- **`createEmptyAST()`** — not implemented.
+- **Web UI multi-error display via `ParseResult`** — `apps/web-ui/src/main.ts` still wraps `parse()` in a `try/catch` and processes only `ast.diagnostics` (semantic errors), not recovered syntax errors.
+- **`--continue-on-error` CLI flag** — not present.
 
 ---
 
@@ -380,17 +398,29 @@ New `parseWithPeggy()` function provides enhanced behavior:
 
 ## Implementation Checklist
 
+**Semantic validation layer (complete):**
+- [x] Design `ParseDiagnostic` interface in `ast.ts`
+- [x] Add `diagnostics?: ParseDiagnostic[]` to `AST` type
+- [x] Implement post-parse semantic validation pass in `parseWithPeggy()`
+- [x] Validate chip names, play flags, instrument types and properties
+- [x] Validate undefined instrument/sequence/pattern references
+- [x] Validate channel configuration errors
+- [x] Emit warnings for unknown pattern tokens
+- [x] Web UI Problems panel consumes `ast.diagnostics`
+- [x] CLI `verify` command consumes `ast.diagnostics`
+- [x] `enhanceParseError()` improves single thrown error messages
+
+**PEG-level grammar recovery (not yet started):**
 - [ ] Research Peggy error recovery mechanisms
-- [ ] Design error node types for AST
-- [ ] Implement ErrorStmt production in grammar
-- [ ] Add synchronization rules (skip to next statement)
-- [ ] Create `parseWithPeggy()` with error collection
-- [ ] Update `enhanceParseError()` to handle multiple errors
-- [ ] Add unit tests for multiple syntax errors
-- [ ] Update Web UI to display multiple errors
-- [ ] Update Output panel to show all syntax errors
+- [ ] Design `ParseResult` / `ParseError` interfaces
+- [ ] Implement `ErrorStmt` catch-all production in `grammar.peggy`
+- [ ] Add statement synchronization rules (skip to next newline/keyword)
+- [ ] Change `parseWithPeggy()` return type to `ParseResult`
+- [ ] Implement `createEmptyAST()` for fatal-error fallback
+- [ ] Update Web UI to use `ParseResult` and display recovered syntax errors
+- [ ] Update Output panel to show all syntax errors (not just semantic)
+- [ ] Add unit tests for multiple syntax errors (schema in spec above)
 - [ ] Test with real-world error scenarios
-- [ ] Document error recovery behavior
 - [ ] Add examples to TUTORIAL.md
 - [ ] Consider CLI `--continue-on-error` flag
 
