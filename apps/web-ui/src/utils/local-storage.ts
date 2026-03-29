@@ -38,6 +38,8 @@ export const StorageKey = {
   LAST_EXPORT_FORMAT: 'export.lastFormat',
   /** Logger level setting. */
   LOG_LEVEL: 'debug.logLevel',
+  /** AI Assistant feature flag (boolean). */
+  AI_ASSISTANT: 'feature.aiAssistant',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

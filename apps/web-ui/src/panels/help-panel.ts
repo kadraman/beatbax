@@ -33,6 +33,10 @@ export interface HelpPanelOptions {
   embedded?: boolean;
   /** When set, only the section with this id is rendered and the search bar is hidden. */
   singleSection?: string;
+  /** When true and used with singleSection, the accordion section header is hidden (modal already has a title). */
+  hideHeader?: boolean;
+  /** When true, shortcut items are laid out in two columns. */
+  twoColumns?: boolean;
 }
 
 interface Section {
@@ -113,6 +117,49 @@ pat sharps  = C#4 D#4 F#4 G#4 A#4` },
       { kind: 'snippet', label: 'Temporary instrument override (N steps)', code:
 `pat fill = C6 C6 inst(hat,2) C6 C6 C6
 # inst(name,N) switches for N steps, then reverts` },
+    ],
+  },
+  {
+    id: 'effects',
+    title: 'Effects',
+    content: [
+      { kind: 'text', text: 'Effects are applied inline on notes using angle-bracket syntax. Named presets can be declared and reused.' },
+      { kind: 'snippet', label: 'Inline effect syntax', code:
+`# note<effect:params>   or multiple effects:  note<eff1:p><eff2:p>
+pat ex = C4<vib:3,6> E4<pan:L> G4<cut:4> C5<arp:4,7>` },
+      { kind: 'snippet', label: 'Note duration + effect', code:
+`# note<effect>:ticks  — effect BEFORE duration (required order)
+pat held = C4<vib:3,6>:8 E4<cut:4>:16 G4<port:8>:8` },
+      { kind: 'snippet', label: 'Named effect presets', code:
+`effect wobble = vib:8,4
+effect stab   = cut:2
+effect arpMaj = arp:4,7
+
+pat melody = C4<wobble> E4<stab> G4<arpMaj>` },
+      { kind: 'snippet', label: 'Pan — stereo position', code:
+`# pan:L  pan:R  pan:C  or numeric -1.0..1.0
+pat panned = C4<pan:L> E4<pan:R> G4<pan:C>` },
+      { kind: 'snippet', label: 'Vib — vibrato pitch LFO', code:
+`# vib:<depth>,<rate>
+pat vib = C4<vib:3,6> E4<vib:8,4>` },
+      { kind: 'snippet', label: 'Arp — arpeggio (semitone offsets)', code:
+`# arp:<offset1>,<offset2>  — cycles root → +s1 → +s2 → root
+pat chords = C4<arp:4,7> F4<arp:5,9> G4<arp:4,7>  # maj triad arps` },
+      { kind: 'snippet', label: 'Port — portamento / glide', code:
+`# port:<speed>  — slides pitch from previous note
+pat slide = C4:4 E4<port:8>:4 G4:4` },
+      { kind: 'snippet', label: 'VolSlide — volume slide', code:
+`# volSlide:+<n>  or  volSlide:-<n>
+pat swell = C4<volSlide:+3>:8 G4<volSlide:-2>:8` },
+      { kind: 'snippet', label: 'Cut — note gate', code:
+`# cut:<ticks>  — silence note after N ticks
+pat staccato = C4<cut:2>:8 E4<cut:2>:8 G4<cut:2>:8` },
+      { kind: 'snippet', label: 'Trem — tremolo (volume LFO)', code:
+`# trem:<depth>,<rate>
+pat tremolo = C4<trem:4,8>:16` },
+      { kind: 'snippet', label: 'Sweep — GB hardware sweep (ch1 only)', code:
+`# sweep:<time>,<direction>,<shift>
+pat sweep = C4<sweep:7,down,2>:16` },
     ],
   },
   {
@@ -244,6 +291,8 @@ export class HelpPanel {
   private visible: boolean;
   private embedded: boolean;
   private singleSection: string | undefined;
+  private hideHeader: boolean;
+  private twoColumns: boolean;
   private unsubscribers: Array<() => void> = [];
   private searchQuery = '';
   private collapsedSections = new Set<string>();
@@ -257,6 +306,8 @@ export class HelpPanel {
     this.visible = options.defaultVisible ?? false;
     this.embedded = options.embedded ?? false;
     this.singleSection = options.singleSection;
+    this.hideHeader = options.hideHeader ?? false;
+    this.twoColumns = options.twoColumns ?? false;
 
     this.injectStyles();
     this.render();
@@ -480,34 +531,45 @@ export class HelpPanel {
     el.className = 'bb-help__section';
     el.dataset.sectionId = section.id;
 
-    // Section header / toggle
-    const sectionHeader = document.createElement('button');
-    sectionHeader.className = 'bb-help__section-header';
-    sectionHeader.setAttribute('aria-expanded', String(!isCollapsed));
-    sectionHeader.innerHTML = `<span class="bb-help__section-arrow">${isCollapsed ? '▶' : '▼'}</span> ${section.title}`;
-    sectionHeader.addEventListener('click', () => {
-      if (this.collapsedSections.has(section.id)) {
-        this.collapsedSections.delete(section.id);
-      } else {
-        this.collapsedSections.add(section.id);
-      }
-      const body = el.querySelector('.bb-help__section-body') as HTMLElement;
-      const arrow = sectionHeader.querySelector('.bb-help__section-arrow') as HTMLElement;
-      const nowCollapsed = this.collapsedSections.has(section.id);
-      body.style.display = nowCollapsed ? 'none' : 'block';
-      arrow.textContent = nowCollapsed ? '▶' : '▼';
-      sectionHeader.setAttribute('aria-expanded', String(!nowCollapsed));
-    });
-
-    el.appendChild(sectionHeader);
+    // Section header / toggle — omitted when hideHeader is set (e.g. modal already has a title)
+    if (!this.hideHeader) {
+      const sectionHeader = document.createElement('button');
+      sectionHeader.className = 'bb-help__section-header';
+      sectionHeader.setAttribute('aria-expanded', String(!isCollapsed));
+      sectionHeader.innerHTML = `<span class="bb-help__section-arrow">${isCollapsed ? '▶' : '▼'}</span> ${section.title}`;
+      sectionHeader.addEventListener('click', () => {
+        if (this.collapsedSections.has(section.id)) {
+          this.collapsedSections.delete(section.id);
+        } else {
+          this.collapsedSections.add(section.id);
+        }
+        const body = el.querySelector('.bb-help__section-body') as HTMLElement;
+        const arrow = sectionHeader.querySelector('.bb-help__section-arrow') as HTMLElement;
+        const nowCollapsed = this.collapsedSections.has(section.id);
+        body.style.display = nowCollapsed ? 'none' : 'block';
+        arrow.textContent = nowCollapsed ? '▶' : '▼';
+        sectionHeader.setAttribute('aria-expanded', String(!nowCollapsed));
+      });
+      el.appendChild(sectionHeader);
+    }
 
     // Section body
     const sectionBody = document.createElement('div');
     sectionBody.className = 'bb-help__section-body';
-    sectionBody.style.display = isCollapsed ? 'none' : 'block';
+    if (!this.hideHeader) {
+      sectionBody.style.display = isCollapsed ? 'none' : 'block';
+    }
 
-    for (const item of items) {
-      sectionBody.appendChild(this.buildItem(item, q));
+    if (this.twoColumns) {
+      // Two-column grid: each shortcut item fills one cell
+      sectionBody.classList.add('bb-help__section-body--two-col');
+      for (const item of items) {
+        sectionBody.appendChild(this.buildItem(item, q));
+      }
+    } else {
+      for (const item of items) {
+        sectionBody.appendChild(this.buildItem(item, q));
+      }
     }
 
     el.appendChild(sectionBody);
@@ -784,6 +846,17 @@ export class HelpPanel {
         align-items: center;
         gap: 8px;
         padding: 3px 0;
+      }
+
+      .bb-help__section-body--two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 16px;
+        padding: 8px 12px;
+      }
+
+      .bb-help__section-body--two-col .bb-help__shortcut {
+        padding: 4px 0;
       }
 
       .bb-help__keys {
