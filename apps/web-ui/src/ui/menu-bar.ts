@@ -70,6 +70,8 @@ export interface MenuBarOptions {
   onZoomReset?: () => void;
   /** Toggle dark / light theme. */
   onToggleTheme?: () => void;
+  /** Toggle the AI Copilot chat panel. */
+  onToggleAI?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
   /**
@@ -139,6 +141,7 @@ export class MenuBar {
     ['channel-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
+    ['ai-assistant', false],
   ]);
 
   constructor(private opts: MenuBarOptions) {
@@ -175,6 +178,7 @@ export class MenuBar {
   triggerRedo(): void { this.opts.onRedo?.(); }
   triggerToggleTheme(): void { this.opts.onToggleTheme?.(); }
   triggerShowShortcuts(): void { this.opts.onShowShortcuts?.(); }
+  triggerToggleAI(): void { this.opts.onToggleAI?.(); }
 
   // ─── Rendering ──────────────────────────────────────────────────────────────
 
@@ -478,6 +482,14 @@ export class MenuBar {
         action: () => this.emitPanelShow('shortcuts'),
       },
       */
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'AI Assistant',
+        shortcut: 'Alt+Shift+I',
+        id: 'ai-assistant',
+        action: () => this.opts.onToggleAI?.(),
+      },
       { type: 'separator' },
       {
         type: 'item',
