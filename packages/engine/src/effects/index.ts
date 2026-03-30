@@ -81,6 +81,17 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const vibDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
   const stopAt = (typeof vibDurSec === 'number' && vibDurSec > 0) ? (start + vibDurSec + 0.05) : (start + dur + 0.05);
 
+  // Onset delay: params[4] (seconds, normalized by resolver via tryApplyEffects).
+  // Game Boy vibrato typically starts after a short delay (2–6 frames ≈ 30–100 ms)
+  // rather than immediately on note trigger. A delay of 0 (default) keeps the LFO
+  // starting on the note trigger for backward compatibility.
+  const vibDelaySec = (Array.isArray(params) && typeof params[4] === 'number' && Number.isFinite(params[4]))
+    ? Math.max(0, Number(params[4]))
+    : 0;
+  const lfoStart = start + vibDelaySec;
+  // Safety clamp: ensure LFO starts within the note duration
+  const safeLfoStart = Math.min(lfoStart, start + dur * 0.75);
+
   // Game Boy-accurate vibrato depth calculation:
   // hUGETracker applies the depth nibble as a period-register offset.
   // Hz deviation: Δf = trackerDepth * f² / 131072
@@ -91,7 +102,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     const lfo = (ctx as any).createOscillator();
     const lfoGain = (ctx as any).createGain();
     lfo.type = lfoType;
-    try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
+    try { lfo.frequency.setValueAtTime(rate, lfoStart); } catch (_) { lfo.frequency.value = rate; }
 
     if (hasFrequency) {
       // OscillatorNode path (pulse channels): modulate osc.frequency directly
@@ -106,7 +117,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       const amplitudeHz = trackerDepth * baseFreq * baseFreq / 131072;
       if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
 
-      try { lfoGain.gain.setValueAtTime(amplitudeHz, start); } catch (_) { lfoGain.gain.value = amplitudeHz; }
+      try { lfoGain.gain.setValueAtTime(amplitudeHz, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeHz; }
       lfo.connect(lfoGain);
       try { lfoGain.connect(osc.frequency); } catch (e) {
         try { (lfoGain as any).connect(osc.frequency); } catch (e2) {}
@@ -122,14 +133,14 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       if (!Number.isFinite(amplitudeHz) || amplitudeHz <= 0) return;
       const amplitudeRate = (amplitudeHz / baseFreq) * baseRate;
 
-      try { lfoGain.gain.setValueAtTime(amplitudeRate, start); } catch (_) { lfoGain.gain.value = amplitudeRate; }
+      try { lfoGain.gain.setValueAtTime(amplitudeRate, lfoStart); } catch (_) { lfoGain.gain.value = amplitudeRate; }
       lfo.connect(lfoGain);
       try { lfoGain.connect(osc.playbackRate); } catch (e) {
         try { (lfoGain as any).connect(osc.playbackRate); } catch (e2) {}
       }
     }
 
-    try { lfo.start(start); } catch (e) { try { lfo.start(); } catch (_) {} }
+    try { lfo.start(safeLfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
     try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
@@ -475,6 +486,7 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
 //  - params[1]: rate (Hz, speed of the tremolo oscillation, default 6)
 //  - params[2]: waveform (optional, default 'sine')
 //  - params[3]: duration in seconds (normalized from durationRows by resolver)
+//  - params[4]: onset delay in seconds (normalized from delayRows by resolver; 0 = immediate)
 //
 // Similar to vibrato but modulates volume instead of pitch. This creates a pulsating
 // or "shimmering" effect commonly used for atmospheric sounds, sustained notes,
@@ -484,75 +496,77 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
 // UGE export: Can be approximated with volume column automation or effect commands
 register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
   if (!nodes || nodes.length < 2) return;
+  const src = nodes[0];
   const gain = nodes[1];
-  if (!gain || !gain.gain || typeof gain.gain.setValueAtTime !== 'function') return;
+  if (!src || !gain || !gain.gain || typeof gain.gain.setValueAtTime !== 'function') return;
 
   const depthRaw = params && params.length > 0 ? Number(params[0]) : 4;
-  const rateRaw = params && params.length > 1 ? Number(params[1]) : 6;
+  const rateRaw  = params && params.length > 1 ? Number(params[1]) : 6;
   const waveform = params && params.length > 2 ? String(params[2]).toLowerCase() : 'sine';
 
   const depth = Number.isFinite(depthRaw) ? Math.max(0, Math.min(15, depthRaw)) : 4;
-  const rate = Number.isFinite(rateRaw) ? Math.max(0.1, rateRaw) : 6;
+  const rate  = Number.isFinite(rateRaw)  ? Math.max(0.1, rateRaw) : 6;
 
-  // Map waveform names to OscillatorNode types
-  // Support same waveform aliases as vibrato for consistency
-  const waveformMap: Record<string, OscillatorType> = {
-    'sine': 'sine',
-    'triangle': 'triangle',
-    'square': 'square',
-    'sawtooth': 'sawtooth',
-    'saw': 'sawtooth',
+  const waveformAliases: Record<string, OscillatorType> = {
+    'sine': 'sine', 'triangle': 'triangle', 'square': 'square',
+    'sawtooth': 'sawtooth', 'saw': 'sawtooth',
   };
-  const oscType: OscillatorType = waveformMap[waveform] || 'sine';
+  const oscType: OscillatorType = waveformAliases[waveform] || 'sine';
 
-  // Calculate tremolo amplitude as a fraction of the current gain
-  // depth 0 = no effect, depth 15 = ±50% gain modulation (0.5 to 1.5x)
-  const modulationDepth = (depth / 15) * 0.5; // 0 to 0.5 (±50% max)
+  // depth 0-15 → amplitude 0–0.5 (±50% peak modulation around unity gain)
+  const amplitude = (depth / 15) * 0.5;
+  if (amplitude <= 0) return;
+
+  // Onset delay (seconds, injected by resolver via params[4]). Default 0 = immediate.
+  const tremDelaySec = (Array.isArray(params) && typeof params[4] === 'number' && Number.isFinite(params[4]))
+    ? Math.max(0, Number(params[4]))
+    : 0;
+  const lfoStart = start + tremDelaySec;
+
+  // Duration from params[3] (seconds, resolver-normalised), else full note duration.
+  // params[3]=0 means "no duration limit" — use full note.
+  const tremDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
+  const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec + 0.05) : (start + dur + 0.05);
+
+  // Safety: if the delay would push lfoStart past the note end, clamp it so the LFO
+  // still plays for at least the last portion of the note rather than never playing.
+  const safeLfoStart = Math.min(lfoStart, start + dur * 0.75);
+
+  // Implementation: insert a dedicated tremGain node between src and gain:
+  //   src → tremGain → gain(envelope) → destination
+  //
+  // tremGain.gain has no competing automation, so LFO → tremGain.gain
+  // audio-rate connection works reliably (same pattern as vibrato → osc.frequency).
+  // Baseline tremGain.gain = 1.0; LFO adds ±amplitude around that.
+  let tremGain: any;
+  try {
+    tremGain = ctx.createGain();
+    try { src.disconnect(gain); } catch (_) { /* may already be disconnected */ }
+    src.connect(tremGain);
+    tremGain.connect(gain);
+  } catch (e) {
+    try { src.connect(gain); } catch (_) {}
+    return;
+  }
 
   try {
-    // Get the current baseline gain (from envelope or default)
-    let baselineGain: number;
-    try {
-      if (typeof gain.gain.getValueAtTime === 'function') {
-        baselineGain = gain.gain.getValueAtTime(start);
-      } else {
-        baselineGain = gain.gain.value || 1.0;
-      }
-    } catch (e) {
-      baselineGain = gain.gain.value || 1.0;
-    }
-    if (!Number.isFinite(baselineGain) || baselineGain <= 0) baselineGain = 1.0;
-
-    // Create LFO for tremolo
     const lfo = (ctx as any).createOscillator();
     const lfoGain = (ctx as any).createGain();
-
     lfo.type = oscType;
+
+    // tremGain.gain baseline = 1.0; LFO adds ±amplitude to it.
+    // Set baseline BEFORE lfoStart so gain is 1.0 during the delay phase.
+    try { tremGain.gain.setValueAtTime(1.0, start); } catch (_) { tremGain.gain.value = 1.0; }
+    try { lfoGain.gain.setValueAtTime(amplitude, start); } catch (_) { lfoGain.gain.value = amplitude; }
     try { lfo.frequency.setValueAtTime(rate, start); } catch (_) { lfo.frequency.value = rate; }
 
-    // LFO amplitude = baselineGain * modulationDepth
-    // This will modulate the gain between (baseline - amplitude) and (baseline + amplitude)
-    const amplitude = baselineGain * modulationDepth;
-    try { lfoGain.gain.setValueAtTime(amplitude, start); } catch (_) { lfoGain.gain.value = amplitude; }
-
-    // Connect LFO -> lfoGain -> gain.gain (modulate the volume)
     lfo.connect(lfoGain);
-    try {
-      lfoGain.connect(gain.gain);
-    } catch (e) {
-      // Some implementations require different connection approach
-      try { (lfoGain as any).connect(gain.gain); } catch (e2) {}
-    }
+    lfoGain.connect(tremGain.gain);
 
-    try { lfo.start(start); } catch (e) { try { lfo.start(); } catch (_) {} }
-
-    // Duration handling: use params[3] if provided (normalized seconds), otherwise use note duration
-    const tremDurSec = (Array.isArray(params) && typeof params[3] === 'number') ? Number(params[3]) : undefined;
-    const stopAt = (typeof tremDurSec === 'number' && tremDurSec > 0) ? (start + tremDurSec + 0.05) : (start + dur + 0.05);
+    try { lfo.start(safeLfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
     try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
-    // Best-effort only; if the environment doesn't support oscillator-based modulation
-    // or connections fail, silently skip tremolo.
+    // LFO setup failed — tremGain remains at 1.0 (no modulation, but audio still passes)
   }
 });
 

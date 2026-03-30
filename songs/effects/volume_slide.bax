@@ -1,6 +1,16 @@
-## Demo: Volume Slide (volSlide) effect example
-## Exercises inline `volSlide` parameters and vibrato
+## Demo: Volume Slide (volSlide) effect examples
+## Smoothly fades volume up or down over a note — creates swells, fade-ins, and fade-outs
 ## Play: node bin/beatbax play songs/effects/volume_slide.bax
+##
+## Syntax: volSlide:<delta>[,<steps>]
+##   - delta : volume change per tick — positive (+) for fade-in, negative (-) for fade-out (required)
+##   - steps : number of discrete steps over the note duration (optional; omit for continuous slide)
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : yes — encoded as CC7 volume messages
+##   UGE   : yes — Axy effect (x = slide-up nibble, y = slide-down nibble)
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 120
@@ -13,7 +23,7 @@ inst lead_in  type=pulse1 duty=50 env=4,flat    # For fade-ins
 inst lead_out type=pulse1 duty=50 env=12,flat   # For fade-outs
 
 inst bass type=pulse2 duty=25 env=5,flat   # Start at 80% - good range for slides
-inst pad  type=wave   wave=[0,3,6,9,12,15,12,9,6,3,0,3,6,9,12,15] volume=50  # Start at 50% - room for swells
+inst pad  type=wave   wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=50  # Start at 50% - room for swells
 inst perc type=noise  env=8,down            # Start at 53% - moderate percussion
 
 ## Named volume slide presets

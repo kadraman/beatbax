@@ -98,6 +98,8 @@ export class Player {
   private totalEvents: Map<number, number> = new Map(); // channelId → total count
   // End Phase 2.5
   private _repeatTimer: any = null;
+  private _preScheduleTimer: any = null; // Timer for seamless loop pre-scheduling
+  private _loopEndTime: number = 0; // Absolute AudioContext time when current loop iteration ends
   private _completionTimer: any = null;
   private _completionTimeoutMs: number = 0; // Total timeout duration
   private _playbackStartTimestamp: number = 0; // When playback started
@@ -168,20 +170,66 @@ export class Player {
       throw new Error(`Unsupported chip: ${chip}. Only 'gameboy' is supported at this time.`);
     }
 
-    // Track estimated playback duration (seconds) across channels for repeat scheduling
-    let globalDurationSec = 0;
+    // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
+    (this.ctx as any)._chipType = ast.chip || 'gameboy';
 
-    // Clone the instrument table to avoid in-place mutations during scheduling/playback
-    // Use structuredClone when available for correctness and performance, fallback to JSON clone.
+    // Schedule all channels starting 100ms from now on the audio clock
+    const loopStart = this.ctx.currentTime + 0.1;
+    const globalDurationSec = this._scheduleAllChannels(ast, loopStart);
+    this._loopEndTime = loopStart + globalDurationSec;
+
+    // Start the scheduler to begin firing scheduled events
+    this.scheduler.start();
+
+    // Set up repeat or one-shot completion
+    try {
+      if (ast.play?.repeat) {
+        this._isRepeatMode = true;
+        this._playbackStartTimestamp = Date.now();
+        this._pauseTimestamp = 0;
+        this._completionTimeoutMs = Math.round(globalDurationSec * 1000);
+        this._scheduleNextRepeat(ast, globalDurationSec);
+      } else {
+        this._isRepeatMode = false;
+        // No repeat - schedule automatic stop when playback completes
+        const completionMs = Math.max(10, Math.round(globalDurationSec * 1000) + 100);
+        if (this._completionTimer) clearTimeout(this._completionTimer);
+        this._completionTimeoutMs = completionMs;
+        this._playbackStartTimestamp = Date.now();
+        this._pauseTimestamp = 0;
+        this._completionTimer = setTimeout(() => {
+          try {
+            if (this._isPaused) {
+              log.debug('Completion timer fired but playback is paused - ignoring');
+              return;
+            }
+            this.stop();
+            if (this.onComplete) {
+              this.onComplete();
+            }
+          } catch (e) {
+            log.error('Exception in completion timer:', e);
+          }
+        }, completionMs);
+      }
+    } catch (e) {
+      log.error('Exception setting up repeat:', e);
+    }
+  }
+
+  /**
+   * Schedule all channel audio tokens starting at the given absolute AudioContext time.
+   * Returns the total song duration in seconds.
+   * Called once per loop iteration — safe to call without stopping the scheduler.
+   */
+  private _scheduleAllChannels(ast: AST, startTime: number): number {
+    // Clone the instrument table fresh for each pass to avoid in-place mutations
     const rootInsts = ast.insts || {};
     const instsRootClone = (typeof (globalThis as any).structuredClone === 'function')
       ? (globalThis as any).structuredClone(rootInsts)
       : JSON.parse(JSON.stringify(rootInsts));
 
-    // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
-    (this.ctx as any)._chipType = ast.chip || 'gameboy';
-
-    // Phase 2.5: Initialize position tracking for all channels
+    // Phase 2.5: Re-initialize position tracking for this pass
     this.currentEventIndex.clear();
     this.totalEvents.clear();
 
@@ -191,11 +239,8 @@ export class Player {
       let eventCount = 0;
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        // Count non-rest, non-sustain, non-inst() tokens as playable events
         if (token && typeof token === 'object' && token.type) {
-          if (token.type === 'note' || token.type === 'named') {
-            eventCount++;
-          }
+          if (token.type === 'note' || token.type === 'named') eventCount++;
         } else if (token !== '_' && token !== '-' && token !== '.' &&
                    !(typeof token === 'string' && token.match(/^inst\(/))) {
           eventCount++;
@@ -205,6 +250,8 @@ export class Player {
       this.currentEventIndex.set(ch.id, 0);
     }
     // End Phase 2.5
+
+    let globalDurationSec = 0;
 
     for (const ch of ast.channels || []) {
       const instsMap = instsRootClone;
@@ -218,8 +265,6 @@ export class Player {
       const secondsPerBeat = 60 / bpm;
       const tickSeconds = secondsPerBeat / 4;
 
-      const startTime = this.ctx.currentTime + 0.1;
-      // estimate channel duration in seconds from token count and ticks
       let lastEndTimeForThisChannel = 0;
 
       for (let i = 0; i < tokens.length; i++) {
@@ -284,7 +329,6 @@ export class Player {
 
         const useInst = tempRemaining > 0 && tempInst ? tempInst : currentInst;
 
-        // Calculate duration by looking ahead for sustains
         let sustainCount = 0;
         for (let j = i + 1; j < tokens.length; j++) {
           const next = tokens[j];
@@ -303,74 +347,55 @@ export class Player {
         }
       }
 
-      // convert channel end (absolute) into a channel duration relative to startTime
-      const channelDuration = lastEndTimeForThisChannel > 0 ? (lastEndTimeForThisChannel - (this.ctx.currentTime + 0.1)) : (tokens.length * tickSeconds);
+      // Channel duration relative to the explicit startTime parameter
+      const channelDuration = lastEndTimeForThisChannel > 0
+        ? (lastEndTimeForThisChannel - startTime)
+        : (tokens.length * tickSeconds);
       globalDurationSec = Math.max(globalDurationSec, channelDuration);
     }
 
-    // start the scheduler to begin firing scheduled events
-    this.scheduler.start();
+    return globalDurationSec;
+  }
 
-    // If AST requests repeat/looping, schedule a restart when playback ends
+  /**
+   * Arm the pre-schedule timer for seamless looping.
+   * Fires ~250ms before the current loop ends, then queues the next iteration's
+   * audio directly into the running TickScheduler — no stop/restart needed.
+   */
+  private _scheduleNextRepeat(ast: AST, durationSec: number): void {
+    if (this._preScheduleTimer) { clearTimeout(this._preScheduleTimer); this._preScheduleTimer = null; }
+    // Fire 250ms before loop end so the next iteration is pre-queued in time
+    const preMs = Math.max(10, Math.round((durationSec - 0.25) * 1000));
+    this._preScheduleTimer = setTimeout(() => this._fireRepeat(ast), preMs);
+  }
+
+  /**
+   * Called ~250ms before the loop boundary.
+   * Schedules the next iteration starting at the exact audio-clock loop-end time,
+   * then re-arms itself for the iteration after that.
+   */
+  private _fireRepeat(ast: AST): void {
+    this._preScheduleTimer = null;
     try {
-      if (ast.play?.repeat) {
-        this._isRepeatMode = true;
-        const delayMs = Math.max(10, Math.round(globalDurationSec * 1000) + 50);
-        if (this._repeatTimer) clearTimeout(this._repeatTimer);
-        this._completionTimeoutMs = delayMs; // Store for pause/resume
-        this._playbackStartTimestamp = Date.now(); // Track when playback started
-        this._pauseTimestamp = 0; // Reset pause tracking
-        this._repeatTimer = setTimeout(() => {
-          try {
-            // Don't execute if paused
-            if (this._isPaused) {
-              log.debug('Repeat timer fired but playback is paused - ignoring');
-              return;
-            }
+      if (!this._isRepeatMode || this._isPaused) return;
 
-            // Notify UI that playback is repeating
-            if (this.onRepeat) {
-              this.onRepeat();
-            }
+      // Notify UI that the song is wrapping around
+      if (this.onRepeat) { try { this.onRepeat(); } catch (e) {} }
 
-            this.stop();
-            // replay AST (fire-and-forget)
-            this.playAST(ast).catch((e: any) => {
-              log.error('Repeat playback failed:', e);
-              error('player', 'Repeat playback failed: ' + (e && e.message ? e.message : String(e)));
-            });
-          } catch (e) {
-            log.error('Exception in repeat timer:', e);
-          }
-        }, delayMs);
-      } else {
-        this._isRepeatMode = false;
-        // No repeat - schedule automatic stop when playback completes
-        const completionMs = Math.max(10, Math.round(globalDurationSec * 1000) + 100);
-        if (this._completionTimer) clearTimeout(this._completionTimer);
-        this._completionTimeoutMs = completionMs; // Store for pause/resume
-        this._playbackStartTimestamp = Date.now(); // Track when playback started
-        this._pauseTimestamp = 0; // Reset pause tracking
-        this._completionTimer = setTimeout(() => {
-          try {
-            // Don't execute if paused
-            if (this._isPaused) {
-              log.debug('Completion timer fired but playback is paused - ignoring');
-              return;
-            }
+      // nextStart is the exact audio-clock time the next iteration begins.
+      // Guard against clock drift: if we're already past loopEndTime, start 50ms from now.
+      const nextStart = Math.max(this._loopEndTime, this.ctx.currentTime + 0.05);
+      const nextDuration = this._scheduleAllChannels(ast, nextStart);
+      this._loopEndTime = nextStart + nextDuration;
 
-            this.stop();
-            // Notify UI that playback has completed
-            if (this.onComplete) {
-              this.onComplete();
-            }
-          } catch (e) {
-            log.error('Exception in completion timer:', e);
-          }
-        }, completionMs);
-      }
+      // Prune audio nodes from fully-elapsed iterations to prevent unbounded growth
+      const pruneBeforeTime = this.ctx.currentTime - 0.5;
+      this.activeNodes = this.activeNodes.filter(e => !(e as any).endTime || (e as any).endTime > pruneBeforeTime);
+
+      // Arm the next pre-schedule timer
+      this._scheduleNextRepeat(ast, nextDuration);
     } catch (e) {
-      log.error('Exception setting up repeat:', e);
+      log.error('Exception in _fireRepeat:', e);
     }
   }
 
@@ -571,11 +596,23 @@ export class Player {
     for (const fx of effectsArr) {
       try {
         const name = fx && fx.type ? fx.type : fx;
-        // Prefer resolver-provided durationSec when available; inject into params[3]
+        // Prefer resolver-provided durationSec when available; inject into params[3].
+        // Also inject delaySec (onset delay) into params[4] for vib/trem.
         let params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
-        if (fx && typeof fx.durationSec === 'number') {
+        if (fx && (typeof fx.durationSec === 'number' || typeof fx.delaySec === 'number')) {
           const pcopy = Array.isArray(params) ? params.slice() : [];
-          pcopy[3] = fx.durationSec;
+          if (typeof fx.durationSec === 'number') pcopy[3] = fx.durationSec;
+          if (typeof fx.delaySec === 'number') pcopy[4] = fx.delaySec;
+          params = pcopy;
+        } else if ((name === 'vib' || name === 'trem') && typeof fx.delaySec !== 'number' &&
+                   Array.isArray(params) && typeof params[4] === 'number' && params[4] > 0 &&
+                   typeof tickSeconds === 'number' && tickSeconds > 0) {
+          // Resolver didn't pre-convert delayRows → delaySec. Convert raw rows to seconds.
+          // Formula matches resolver: delaySec = (delayRows / stepsPerRow) / beatsPerSecond
+          //   stepsPerRow = ticksPerStep/4 = 16/4 = 4,  beatsPerSecond = bpm/60
+          //   → delaySec = delayRows * tickSeconds  (since tickSeconds = secondsPerBeat/4 = 1/(4*bps))
+          const pcopy = Array.isArray(params) ? params.slice() : [];
+          pcopy[4] = params[4] * tickSeconds;
           params = pcopy;
         }
         const handler = getEffect(name);
@@ -850,7 +887,12 @@ export class Player {
     // Set paused flag FIRST to prevent any timer callbacks from executing
     this._isPaused = true;
 
-    // Clear both completion and repeat timers, track when we paused
+    // Clear all playback timers and record when we paused
+    if (this._preScheduleTimer) {
+      clearTimeout(this._preScheduleTimer);
+      this._preScheduleTimer = null;
+      this._pauseTimestamp = Date.now();
+    }
     if (this._completionTimer) {
       clearTimeout(this._completionTimer);
       this._completionTimer = null;
@@ -873,47 +915,29 @@ export class Player {
   async resume(): Promise<void> {
     // Clear paused flag FIRST
     this._isPaused = false;
+    this._pauseTimestamp = 0;
 
-    // Restart the appropriate timer (repeat or completion) with remaining time
-    if (this._pauseTimestamp > 0 && this._completionTimeoutMs > 0 && this._playbackStartTimestamp > 0) {
-      const elapsedBeforePause = this._pauseTimestamp - this._playbackStartTimestamp;
+    // Restart the appropriate timer after resume
+    if (this._isRepeatMode && this._currentAST) {
+      // Use the audio clock to compute remaining time until the next pre-schedule moment.
+      // ctx.currentTime is frozen while suspended, so this correctly reflects the remaining
+      // audio to play before we need to queue the next iteration.
+      const timeToPreSchedule = (this._loopEndTime - 0.25) - this.ctx.currentTime;
+      const remainingMs = Math.max(10, Math.round(timeToPreSchedule * 1000));
+      const capturedAst = this._currentAST;
+      this._preScheduleTimer = setTimeout(() => this._fireRepeat(capturedAst), remainingMs);
+    } else if (!this._isRepeatMode && this._completionTimeoutMs > 0 && this._playbackStartTimestamp > 0) {
+      const elapsedBeforePause = (this._pauseTimestamp || Date.now()) - this._playbackStartTimestamp;
       const remainingMs = Math.max(0, this._completionTimeoutMs - elapsedBeforePause);
-
-      // Update start timestamp to account for pause duration
       this._playbackStartTimestamp = Date.now() - elapsedBeforePause;
-      this._pauseTimestamp = 0;
-
-      if (this._isRepeatMode) {
-        // Restart repeat timer
-        this._repeatTimer = setTimeout(() => {
-          try {
-            if (this.onRepeat) {
-              this.onRepeat();
-            }
-            this.stop();
-            // Replay the stored AST
-            if (this._currentAST) {
-              this.playAST(this._currentAST).catch((e: any) => {
-                log.error('Repeat playback failed after resume:', e);
-              });
-            }
-          } catch (e) {
-            log.error('Exception in repeat timer:', e);
-          }
-        }, remainingMs);
-      } else {
-        // Restart completion timer
-        this._completionTimer = setTimeout(() => {
-          try {
-            this.stop();
-            if (this.onComplete) {
-              this.onComplete();
-            }
-          } catch (e) {
-            log.error('Exception in completion timer:', e);
-          }
-        }, remainingMs);
-      }
+      this._completionTimer = setTimeout(() => {
+        try {
+          this.stop();
+          if (this.onComplete) this.onComplete();
+        } catch (e) {
+          log.error('Exception in completion timer:', e);
+        }
+      }, remainingMs);
     }
 
     if (this.ctx && typeof this.ctx.resume === 'function' && this.ctx.state === 'suspended') {
@@ -925,6 +949,10 @@ export class Player {
     // Clear paused flag
     this._isPaused = false;
 
+    if (this._preScheduleTimer) {
+      try { clearTimeout(this._preScheduleTimer); } catch (e) {}
+      this._preScheduleTimer = null;
+    }
     if (this._repeatTimer) {
       try { clearTimeout(this._repeatTimer); } catch (e) {}
       this._repeatTimer = null;

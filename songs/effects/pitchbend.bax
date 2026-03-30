@@ -1,6 +1,19 @@
-## Demo: Pitch bend (pitchbend) effect examples
-## Exercises inline `pitchbend` parameters and pitch bend
+## Demo: Pitch Bend (bend) effect examples
+## Smoothly slides pitch by a given number of semitones with configurable curve and onset delay
 ## Play: node bin/beatbax play songs/effects/pitchbend.bax
+##
+## Syntax: bend:<semitones>[,<curve>[,<delay>[,<time>]]]
+##   - semitones : target pitch offset in semitones (+up, -down)
+##   - curve     : interpolation curve — linear (default), exp, log, sine
+##   - delay     : onset as fraction of note duration (0 = immediate, 0.5 = halfway, default = 0.5)
+##   - time      : bend duration in beats (optional; defaults to remaining note duration)
+##
+## Export support:
+##   JSON  : yes — full fidelity (all curve types and delay values preserved)
+##   MIDI  : yes — encoded as pitch-bend MIDI messages
+##   UGE   : approximated — mapped to 3xx portamento (linear only; non-linear curves and
+##           delay > 0 trigger a warning for lossy conversion)
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 120
@@ -11,10 +24,6 @@ inst bass type=pulse2 duty=25 env=10,flat
 inst pad type=wave wave=[0,3,6,9,12,15,12,9,6,3,0,-3,-6,-9,-12,-15]
 
 ## Define effect presets for common pitch bends
-## bend:semitones,curve,delay,time
-## delay: 0 = bend immediately from start
-##        0.5 (default) = bend starts after 50% of note duration
-##        1.0 = bend starts at end (sounds like a slight pitch accent)
 effect riser = bend:+12,exp,0,1
 effect dive = bend:-12,log,0,1
 effect wholetone = bend:+2,linear,0.5
