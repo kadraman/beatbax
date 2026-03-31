@@ -86,7 +86,7 @@ export class Player {
   private scheduler: TickScheduler;
   private bpmDefault = 128;
   private masterGain: GainNode | null = null;
-  private activeNodes: Array<{ node: any; chId: number }> = [];
+  private activeNodes: Array<{ node: any; chId: number; endTime?: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number; eventIndex?: number; totalEvents?: number }) => void;
@@ -138,8 +138,6 @@ export class Player {
     log.debug('AST:', ast);
     log.debug('Channels:', ast?.channels?.length);
 
-    // Store AST for repeat functionality
-    this._currentAST = ast;
     this._isPaused = false; // Reset paused state
 
     try {
@@ -152,7 +150,9 @@ export class Player {
     } catch (e) {}
 
     // ensure a clean slate for each playback run
+    // Note: stop() clears _currentAST, so we restore it immediately after
     try { this.stop(); } catch (e) {}
+    this._currentAST = ast;
 
     log.debug('Player cleaned, starting setup...');
 
@@ -436,7 +436,8 @@ export class Player {
           }
           if (this._debugLog) log.debug(`Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
           const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this.masterGain || undefined);
-          for (const n of nodes) this.activeNodes.push({ node: n, chId });
+          const endTime0 = time + dur + 0.1;
+          for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime0 });
         });
         return;
       }
@@ -492,7 +493,8 @@ export class Player {
             this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
-            for (const n of nodes) this.activeNodes.push({ node: n, chId });
+            const endTime1 = time + dur + 0.1;
+            for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime1 });
           });
         }
       } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
@@ -528,7 +530,8 @@ export class Player {
             this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
-            for (const n of nodes) this.activeNodes.push({ node: n, chId });
+            const endTime2 = time + dur + 0.1;
+            for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime2 });
           });
         }
       } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
@@ -562,7 +565,8 @@ export class Player {
             this.tryApplyPan(this.ctx, nodes, panVal);
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, 0, inst, chId, token, tickSeconds, panVal);
-            for (const n of nodes) this.activeNodes.push({ node: n, chId });
+            const endTime3 = time + dur + 0.1;
+            for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime3 });
           });
         }
       }
@@ -582,7 +586,8 @@ export class Player {
           if (this.muted.has(chId)) return;
           const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
           this.tryApplyPan(this.ctx, nodes, panVal);
-          for (const n of nodes) this.activeNodes.push({ node: n, chId });
+          const endTime4 = time + dur + 0.1;
+          for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime4 });
         });
       }
     }
@@ -682,7 +687,8 @@ export class Player {
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
           this.tryApplyPan(this.ctx, retrigNodes, panVal);
-          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+          const retrigEnd1 = capturedTime + retrigDur + 0.1;
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd1 });
         });
       } else if (inst.type && inst.type.toLowerCase().includes('wave')) {
         const wav = parseWaveTable(capturedInst.wave);
@@ -696,7 +702,8 @@ export class Player {
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
           this.tryApplyPan(this.ctx, retrigNodes, panVal);
-          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+          const retrigEnd2 = capturedTime + retrigDur + 0.1;
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd2 });
         });
       } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
         this.scheduler.schedule(capturedTime, () => {
@@ -709,7 +716,8 @@ export class Player {
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
           this.tryApplyPan(this.ctx, retrigNodes, panVal);
-          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId });
+          const retrigEnd3 = capturedTime + retrigDur + 0.1;
+          for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd3 });
         });
       }
 
@@ -913,7 +921,10 @@ export class Player {
    * Resume playback by resuming the AudioContext
    */
   async resume(): Promise<void> {
-    // Clear paused flag FIRST
+    // Capture pause timestamp before clearing it so elapsed time can be computed correctly
+    const pausedAt = this._pauseTimestamp;
+
+    // Clear paused flag
     this._isPaused = false;
     this._pauseTimestamp = 0;
 
@@ -927,7 +938,7 @@ export class Player {
       const capturedAst = this._currentAST;
       this._preScheduleTimer = setTimeout(() => this._fireRepeat(capturedAst), remainingMs);
     } else if (!this._isRepeatMode && this._completionTimeoutMs > 0 && this._playbackStartTimestamp > 0) {
-      const elapsedBeforePause = (this._pauseTimestamp || Date.now()) - this._playbackStartTimestamp;
+      const elapsedBeforePause = (pausedAt || Date.now()) - this._playbackStartTimestamp;
       const remainingMs = Math.max(0, this._completionTimeoutMs - elapsedBeforePause);
       this._playbackStartTimestamp = Date.now() - elapsedBeforePause;
       this._completionTimer = setTimeout(() => {

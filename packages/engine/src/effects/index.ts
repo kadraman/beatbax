@@ -88,9 +88,10 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   const vibDelaySec = (Array.isArray(params) && typeof params[4] === 'number' && Number.isFinite(params[4]))
     ? Math.max(0, Number(params[4]))
     : 0;
-  const lfoStart = start + vibDelaySec;
-  // Safety clamp: ensure LFO starts within the note duration
-  const safeLfoStart = Math.min(lfoStart, start + dur * 0.75);
+  // Clamp the LFO start to within the note duration so param automation and
+  // lfo.start() always use the same time — preventing the LFO from running with
+  // default parameters during any gap between safeLfoStart and lfoStart.
+  const lfoStart = Math.min(start + vibDelaySec, start + dur * 0.75);
 
   // Game Boy-accurate vibrato depth calculation:
   // hUGETracker applies the depth nibble as a period-register offset.
@@ -140,7 +141,7 @@ register('vib', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
       }
     }
 
-    try { lfo.start(safeLfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
+    try { lfo.start(lfoStart); } catch (e) { try { lfo.start(); } catch (_) {} }
     try { lfo.stop(stopAt); } catch (e) {}
   } catch (e) {
     // Best-effort only; if the environment doesn't support oscillator-based modulation
