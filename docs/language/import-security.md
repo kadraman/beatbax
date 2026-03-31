@@ -43,7 +43,7 @@ When running in a browser environment, BeatBax automatically blocks local file i
 
 ```
 // In browser - BLOCKED with security error
-import "local:lib/common.ins"  
+import "local:lib/common.ins"
 // Error: Local imports are not supported in the browser for security reasons.
 //        Import "local:lib/common.ins" cannot be loaded.
 //        Use remote imports (https:// or github:) instead, or run in CLI for local file access.
@@ -317,3 +317,32 @@ Update all import statements in your `.bax` and `.ins` files by adding the `loca
 - [Remote Imports](features/remote-imports.md) - Using https:// and github: imports
 - [Instruments Guide](instruments.md) - How to define and organize instruments
 - [Tutorial](../TUTORIAL.md) - Basic usage and examples
+
+## Path Traversal Guard — Validation Examples
+
+The engine blocks `..` when used as a *path segment* for directory traversal, while allowing filenames that contain `..` as a substring.
+
+**Regex**: `/(^|\/)\.\.($|\/)/`
+
+### Allowed (`.." inside a filename, not a segment)
+```
+local:lib/drums..backup.ins      ✅
+local:lib/file..old.ins          ✅
+local:lib/my..version2.ins       ✅
+local:.hidden..file.ins          ✅
+local:lib/.hidden.ins            ✅  (hidden file, single dot)
+local:lib/file.v2.ins            ✅
+local:...special.ins             ✅  (three dots — not two)
+```
+
+### Rejected (`..` as a path component)
+```
+local:../parent/file.ins         ❌
+local:../../grandparent/file.ins ❌
+local:lib/../sibling/file.ins    ❌
+local:lib/..                     ❌
+local:./lib/../../../etc/passwd  ❌
+```
+
+Implementation: `packages/engine/src/song/importResolver.ts`
+Tests: `packages/engine/tests/resolver.imports.path-segment-validation.test.ts`

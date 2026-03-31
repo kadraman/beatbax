@@ -289,14 +289,14 @@ The Game Boy noise channel doesn't use traditional musical pitches—notes contr
 - **Octave Display Note**: hUGETracker displays all notes ONE OCTAVE HIGHER than BeatBax's MIDI notation
 - **Recommendation**: Use C5-C6 for typical percussion sounds (snares, hi-hats)
 - **Override**: Add `uge_transpose=N` to instrument definition for custom offsets
-- **Default note parameter**: Instruments can specify `note=C6` to set default pitch when using instrument name as token (see [instrument-note-mapping-guide.md](docs/instrument-note-mapping-guide.md))
+- **Default note parameter**: Instruments can specify `note=C6` to set default pitch when using instrument name as token (see [instrument-note-mapping-guide.md](docs/language/instrument-note-mapping-guide.md))
 
 **Implementation**:
 - `packages/engine/src/export/ugeWriter.ts`: Note-to-index conversion, no automatic transpose
 - `packages/engine/src/parser/parser.ts`: Parse `note=` parameter in instrument definitions
 - `packages/engine/src/song/resolver.ts`: Pass `defaultNote` from instrument to events
-- `docs/uge-export-guide.md`: Updated "Noise Channel Note Mapping" section
-- `docs/instrument-note-mapping-guide.md`: Complete guide for `note=` parameter usage
+- `docs/exports/uge-export-guide.md`: Updated "Noise Channel Note Mapping" section
+- `docs/language/instrument-note-mapping-guide.md`: Complete guide for `note=` parameter usage
 - `songs/percussion_demo.bax`: Demonstration with `note=` parameter and corrected octave ranges
 
 **Files modified**:
@@ -457,7 +457,7 @@ The web UI has been refactored from a monolithic `main.ts` into a modular, testa
 
 **Documentation:**
 - [PHASE1-README.md](../apps/web-ui/PHASE1-README.md) — Phase 1 implementation details
-- [docs/web-ui-syntax-highlighting.md](./web-ui-syntax-highlighting.md) — Complete color scheme reference
+- [docs/ui/web-ui-syntax-highlighting.md](./ui/web-ui-syntax-highlighting.md) — Complete color scheme reference
 - [docs/features/web-ui-migration.md](./features/web-ui-migration.md) — Full migration plan with Phases 1-4
 
 **All Phases Complete:**
@@ -528,7 +528,7 @@ The engine supports three export formats:
 - Includes instrument table, pattern data, order lists, and channel routing
 - Compatible with hUGETracker and uge2source.exe for Game Boy development
 - Handles envelope encoding, duty cycles, wavetables, and noise parameters
-- See `docs/uge-v6-spec.md` and `DEVNOTES-UGE-IMPLEMENTATION.md` for format details
+- See `docs/formats/uge-v6-spec.md` and `DEVNOTES-UGE-IMPLEMENTATION.md` for format details
 
 ## Per-Channel Controls
 
@@ -736,4 +736,56 @@ This architecture ensures audio works on all platforms without requiring native 
 - If you need to revert to the prior workflow (post-build compiled-file patching), note that
   `scripts/fix-imports.cjs` is now deprecated and replaced with a no-op stub. Prefer the
   source-level `.js` approach — it's more reliable and avoids modifying compiled artifacts.
+
+## Logger migration notes
+
+The logging system (`packages/engine/src/util/logger.ts`) replaced ~100 direct `console.log/warn/error` calls across the engine. Key namespaces:
+
+| Module | Namespace |
+|---|---|
+| `audio/playback.ts` | `player` |
+| `util/diag.ts` | `diagnostics` |
+| `export/jsonExport.ts` | `export:json` |
+| `export/midiExport.ts` | `export:midi` |
+| `export/wavWriter.ts` | `export:wav` |
+| `export/ugeWriter.ts` | `export:uge` |
+| `parser/peggy/index.ts` | `parser` |
+| `song/resolver.ts` | `resolver` |
+| `index.ts` (playFile) | `engine-play` |
+
+CLI verbosity gates:
+- Default: `level: 'error'` (silent unless something breaks)
+- `--verbose`: `level: 'info'` — shows parse/resolve success lines
+- `--debug`: `level: 'debug'` — shows detailed per-phase progress
+
+All export commands (`export json/midi/uge/wav`) inherit the same pipeline; adding `--debug` shows parser → resolver → exporter trace in sequence.
+
+Test files that relied on `console.warn` spying were updated to configure the logger via `beforeAll`/`afterAll` hooks. See `packages/engine/tests/peggy-env-normalize.test.ts` as the reference example.
+
+## Browser-safe resolver implementation notes
+
+Two separate resolver chains handle Node.js vs. browser environments:
+
+```
+Node.js:   resolver.ts → importResolver.ts → fs, path ✅
+Browser:   resolver.browser.ts → importResolver.browser.ts → (no Node deps) ✅
+```
+
+Conditional exports in `packages/engine/package.json` select the right file automatically:
+```json
+"./song": {
+  "browser": "./dist/song/index.browser.js",
+  "default": "./dist/song/index.js"
+},
+"./song/resolver": {
+  "browser": "./dist/song/resolver.browser.js",
+  "default": "./dist/song/resolver.js"
+}
+```
+
+Browser version limitations: local file imports (`local:...`) throw a clear error; `resolveImportsSync` throws; `baseFilePath`/`searchPaths` are not supported. Remote imports (`https://`, `github:`) work fully.
+
+The Vite config in `apps/web-ui/vite.config.ts` adds the `browser` resolve condition and excludes `fs`/`path` from optimization. Cosmetic Vite warnings about Node modules being "externalized" are expected and harmless — those code paths are never reached at runtime.
+
+Path-traversal guard: import path segments are validated with `/(^|\/)\.\.($|\/)/ ` to block `..` as a path component while allowing filenames that contain `..` as a substring (e.g. `drums..backup.ins`). See `packages/engine/src/song/importResolver.ts` and `packages/engine/tests/resolver.imports.path-segment-validation.test.ts`.
 

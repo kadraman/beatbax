@@ -1,22 +1,87 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://example.com/beatbax/ast.schema.json",
-  "title": "BeatBax AST Schema",
+  "$id": "https://beatbax.dev/schema/ast.json",
+  "title": "BeatBax AST",
+  "description": "JSON Schema for the assembled AST returned by parseWithPeggy. Contains instruments, patterns, sequences, channels, and optional extended song data.",
   "type": "object",
-  "required": ["body"],
+  "required": ["pats", "insts", "seqs", "channels"],
   "additionalProperties": false,
   "properties": {
-    "body": {
+    "pats": {
+      "type": "object",
+      "description": "Pattern token arrays keyed by name.",
+      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+    },
+    "insts": {
+      "type": "object",
+      "description": "Instrument definitions keyed by name.",
+      "additionalProperties": { "$ref": "#/definitions/instrumentNode" }
+    },
+    "seqs": {
+      "type": "object",
+      "description": "Sequence token arrays keyed by name.",
+      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+    },
+    "effects": {
+      "type": "object",
+      "description": "Named effect preset raw strings keyed by name.",
+      "additionalProperties": { "type": "string" }
+    },
+    "patternEvents": {
+      "type": "object",
+      "description": "Structured pattern event arrays keyed by name.",
+      "additionalProperties": { "type": "array", "items": { "$ref": "#/definitions/patternEvent" } }
+    },
+    "sequenceItems": {
+      "type": "object",
+      "description": "Structured sequence item arrays keyed by name.",
+      "additionalProperties": { "type": "array", "items": { "$ref": "#/definitions/sequenceItem" } }
+    },
+    "channels": {
       "type": "array",
-      "items": { "$ref": "#/definitions/node" }
+      "description": "Channel assignment nodes.",
+      "items": { "$ref": "#/definitions/channelNode" }
+    },
+    "arranges": {
+      "type": "object",
+      "description": "Arrange nodes keyed by name.",
+      "additionalProperties": { "$ref": "#/definitions/arrangeNode" }
+    },
+    "imports": {
+      "type": "array",
+      "description": "Import directives.",
+      "items": { "$ref": "#/definitions/importNode" }
+    },
+    "bpm": {
+      "type": "integer",
+      "description": "Top-level tempo in BPM.",
+      "minimum": 1,
+      "maximum": 500
+    },
+    "chip": {
+      "type": "string",
+      "description": "Target chip backend name, e.g. 'gameboy'."
+    },
+    "volume": {
+      "type": "number",
+      "description": "Master output volume: 0.0â€“1.0.",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "play": {
+      "$ref": "#/definitions/playNode"
+    },
+    "metadata": {
+      "$ref": "#/definitions/songMetadata"
     },
     "diagnostics": {
       "type": "array",
-      "description": "Semantic diagnostics produced by the post-parse validation pass.",
+      "description": "Parse diagnostics emitted during assembly.",
       "items": { "$ref": "#/definitions/parseDiagnostic" }
     }
   },
   "definitions": {
+
     "parseDiagnostic": {
       "type": "object",
       "required": ["level", "component", "message"],
@@ -25,14 +90,7 @@
         "level": { "type": "string", "enum": ["error", "warning"] },
         "component": { "type": "string" },
         "message": { "type": "string" },
-        "loc": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "start": { "$ref": "#/definitions/position" },
-            "end": { "$ref": "#/definitions/position" }
-          }
-        }
+        "loc": { "$ref": "#/definitions/loc" }
       }
     },
 
@@ -41,174 +99,302 @@
       "required": ["line", "column"],
       "additionalProperties": false,
       "properties": {
+        "offset": { "type": "integer", "minimum": 0, "description": "Byte offset from start of source." },
         "line": { "type": "integer", "minimum": 1 },
         "column": { "type": "integer", "minimum": 0 }
       }
     },
 
-    "node": {
+    "loc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": { "$ref": "#/definitions/position" },
+        "end": { "$ref": "#/definitions/position" }
+      }
+    },
+
+    "envelopeAST": {
+      "type": "object",
+      "required": ["level", "direction", "period"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "direction": { "type": "string", "enum": ["up", "down", "none"] },
+        "period": { "type": "integer", "minimum": 0, "description": "Envelope timing period (ticks)." },
+        "format": { "type": "string", "description": "Optional vendor prefix, e.g. 'gb'." }
+      }
+    },
+
+    "sweepAST": {
+      "type": "object",
+      "required": ["time", "direction", "shift"],
+      "additionalProperties": false,
+      "properties": {
+        "time": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "direction": { "type": "string", "enum": ["up", "down", "none"] },
+        "shift": { "type": "integer", "minimum": 0, "maximum": 7 }
+      }
+    },
+
+    "noiseAST": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clockShift": { "type": "integer" },
+        "widthMode": { "type": "integer", "enum": [7, 15] },
+        "divisor": { "type": "integer" },
+        "format": { "type": "string" }
+      }
+    },
+
+    "instrumentNode": {
+      "type": "object",
+      "description": "Assembled instrument properties. Additional keys allowed for chip-specific extensibility.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Channel type: pulse1, pulse2, wave, noise.",
+          "enum": ["pulse1", "pulse2", "wave", "noise"]
+        },
+        "duty": {
+          "type": "string",
+          "description": "Duty cycle percentage string, e.g. '12.5', '25', '50', '75'."
+        },
+        "wave": {
+          "oneOf": [
+            { "type": "string", "description": "Hex wavetable string or shorthand." },
+            { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 15 }, "description": "Array of 16 or 32 nibble values." }
+          ]
+        },
+        "env": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/envelopeAST" },
+            { "type": "null" }
+          ],
+          "description": "Envelope: legacy CSV string or structured EnvelopeAST object."
+        },
+        "noise": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/noiseAST" },
+            { "type": "null" }
+          ],
+          "description": "Noise parameters: legacy CSV string or structured NoiseAST object."
+        },
+        "sweep": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/definitions/sweepAST" },
+            { "type": "null" }
+          ],
+          "description": "Sweep parameters (pulse1 only): legacy string or structured SweepAST object."
+        },
+        "volume": {
+          "type": "integer",
+          "description": "Wave channel output volume selector (0=mute, 25, 50, 100=full).",
+          "enum": [0, 25, 50, 100]
+        },
+        "note": {
+          "type": "string",
+          "description": "Default note override, e.g. 'C4'.",
+          "pattern": "^[A-Ga-g][#b]?-?[0-9]+$"
+        }
+      }
+    },
+
+    "channelNode": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1, "maximum": 4, "description": "Game Boy channel number (1-4)." },
+        "inst": { "type": "string", "description": "Default instrument name for this channel." },
+        "pat": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Pattern or sequence name(s) assigned to this channel."
+        },
+        "speed": { "type": "number", "description": "Playback speed multiplier." },
+        "seqSpecTokens": { "type": "array", "items": { "type": "string" }, "description": "Raw sequence spec tokens from the channel RHS." },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "playNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auto": { "type": "boolean", "description": "Auto-play on load." },
+        "repeat": { "type": "boolean", "description": "Loop playback." },
+        "flags": { "type": "array", "items": { "type": "string" }, "description": "Additional play flags." }
+      }
+    },
+
+    "songMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "artist": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "arrangeNode": {
+      "type": "object",
+      "required": ["name", "arrangements"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "arrange" },
+        "name": { "type": "string" },
+        "arrangements": {
+          "type": "array",
+          "description": "2D array of pattern/sequence slot references. null indicates an empty slot.",
+          "items": {
+            "type": "array",
+            "items": { "type": ["string", "null"] }
+          }
+        },
+        "defaults": {
+          "type": "object",
+          "description": "Default overrides (bpm, inst, speed, etc.). Open-ended for extensibility."
+        },
+        "loc": { "$ref": "#/definitions/loc" },
+        "raw": { "type": "string" }
+      }
+    },
+
+    "importNode": {
+      "type": "object",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "description": "Import path or identifier." },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "sequenceItem": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "Pattern or sequence reference name." },
+        "transforms": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/sequenceTransform" }
+        },
+        "repeat": { "type": "integer", "minimum": 1, "description": "Repeat count for this item." },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "sequenceTransform": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["oct", "rev", "slow", "fast", "inst", "pan", "transpose", "unknown"]
+        },
+        "value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "null" }
+          ],
+          "description": "Transform argument, e.g. +1 for oct, 'bass' for inst."
+        },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "patternEvent": {
       "oneOf": [
-        { "$ref": "#/definitions/chip" },
-        { "$ref": "#/definitions/bpm" },
-        { "$ref": "#/definitions/time" },
-        { "$ref": "#/definitions/ticksPerStep" },
-        { "$ref": "#/definitions/inst" },
-        { "$ref": "#/definitions/pat" },
-        { "$ref": "#/definitions/seq" },
-        { "$ref": "#/definitions/channel" },
-        { "$ref": "#/definitions/play" },
-        { "$ref": "#/definitions/export" }
+        { "$ref": "#/definitions/patEvent_note" },
+        { "$ref": "#/definitions/patEvent_rest" },
+        { "$ref": "#/definitions/patEvent_inlineInst" },
+        { "$ref": "#/definitions/patEvent_tempInst" },
+        { "$ref": "#/definitions/patEvent_token" }
       ]
     },
 
-    "chip": {
+    "patEvent_note": {
       "type": "object",
-      "required": ["nodeType","chip"],
+      "required": ["kind", "value"],
       "additionalProperties": false,
       "properties": {
-        "nodeType": { "const": "ChipDirective" },
-        "chip": { "type": "string" }
-      }
-    },
-
-    "bpm": {
-      "type": "object",
-      "required": ["nodeType","bpm"],
-      "additionalProperties": false,
-      "properties": {
-        "nodeType": { "const": "BpmDirective" },
-        "bpm": { "type": "integer", "minimum": 1 }
-      }
-    },
-
-    "time": {
-      "type": "object",
-      "required": ["nodeType","time"],
-      "additionalProperties": false,
-      "properties": {
-        "nodeType": { "const": "TimeDirective" },
-        "time": { "type": "integer", "minimum": 1 }
-      }
-    },
-
-    "ticksPerStep": {
-      "type": "object",
-      "required": ["nodeType","ticksPerStep"],
-      "additionalProperties": false,
-      "properties": {
-        "nodeType": { "const": "TicksPerStepDirective" },
-        "ticksPerStep": { "type": "integer", "minimum": 1 }
-      }
-    },
-
-    "inst": {
-      "type": "object",
-      "required": ["nodeType","name","type"],
-      "additionalProperties": false,
-      "properties": {
-        "nodeType": { "const": "InstDef" },
-          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "type": { "type": "string" },
-        "params": { "type": "object", "additionalProperties": true }
-      }
-    },
-
-    "token_note": {
-      "type": "object",
-      "required": ["tokenType","pitch"],
-      "additionalProperties": false,
-      "properties": {
-        "tokenType": { "const": "note" },
-        "pitch": { "type": "string", "pattern": "^[A-G](?:#|b)?\\d$" },
-        "length": { "type": "integer", "minimum": 1 }
-      }
-    },
-
-    "token_rest": {
-      "type": "object",
-      "required": ["tokenType"],
-      "additionalProperties": false,
-      "properties": { "tokenType": { "const": "rest" }, "length": { "type": "integer", "minimum": 1 } }
-    },
-
-    "token_inst_inline": {
-      "type": "object",
-      "required": ["tokenType","name"],
-      "additionalProperties": false,
-      "properties": { "tokenType": { "const": "inst" }, "name": { "type": "string" }, "param": { "oneOf": [ { "type": "string" }, { "type": "number" } ] } }
-    },
-
-    "pat": {
-      "type": "object",
-      "required": ["nodeType","name","tokens"],
-      "additionalProperties": false,
-      "properties": {
-        "nodeType": { "const": "PatternDef" },
-          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "tokens": { "type": "array", "items": { "oneOf": [ { "$ref": "#/definitions/token_note" }, { "$ref": "#/definitions/token_rest" }, { "$ref": "#/definitions/token_inst_inline" } ] } },
-        "rhs": {
+        "kind": { "const": "note" },
+        "value": {
           "type": "string",
-          "description": "Deprecated: original RHS string from legacy parser. Use `tokens` (structured events) instead.",
-          "deprecated": true
-        }
+          "pattern": "^[A-Ga-g][#b]?-?[0-9]+$",
+          "description": "Note name with optional accidental and octave, e.g. 'C5', 'F#3', 'Bb-1'."
+        },
+        "duration": { "type": "number" },
+        "effects": { "type": "array", "items": { "type": "string" }, "description": "Effect strings from angle-bracket suffixes, e.g. ['vol=12', 'vib=2']." },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
       }
     },
 
-    "seq_item": {
+    "patEvent_rest": {
       "type": "object",
-      "required": ["ref"],
+      "required": ["kind", "value"],
       "additionalProperties": false,
       "properties": {
-        "ref": { "type": "string" },
-        "transforms": { "type": "array", "items": { "oneOf": [ { "type": "string" }, { "type": "object" } ] } }
+        "kind": { "const": "rest" },
+        "value": { "type": "string", "enum": [".", "_", "-"] },
+        "duration": { "type": "number" },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
       }
     },
 
-    "seq": {
+    "patEvent_inlineInst": {
       "type": "object",
-      "required": ["nodeType","name","items"],
+      "required": ["kind", "name"],
       "additionalProperties": false,
       "properties": {
-        "nodeType": { "const": "SequenceDef" },
-          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "items": { "type": "array", "items": { "$ref": "#/definitions/seq_item" } },
-        "rhs": {
-          "type": "string",
-          "description": "Deprecated: legacy RHS string representation. Use `items` (structured sequence items) instead.",
-          "deprecated": true
-        }
+        "kind": { "const": "inline-inst" },
+        "name": { "type": "string", "description": "Instrument name, from 'inst <name>' token." },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
       }
     },
 
-    "channel": {
+    "patEvent_tempInst": {
       "type": "object",
-      "required": ["nodeType","channel","seq"],
+      "required": ["kind", "name"],
       "additionalProperties": false,
       "properties": {
-        "nodeType": { "const": "ChannelDef" },
-        "channel": { "type": "integer", "minimum": 1, "maximum": 16 },
-        "seq": { "type": "string" },
-        "inst": { "type": "string" },
-        "bpm": { "type": "integer", "minimum": 1 }
+        "kind": { "const": "temp-inst" },
+        "name": { "type": "string", "description": "Instrument name, from 'inst(name,N)' or 'inst(name)' token." },
+        "duration": { "type": "number", "description": "Number of following notes the instrument override applies to." },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
       }
     },
 
-    "play": {
+    "patEvent_token": {
       "type": "object",
-      "required": ["nodeType"],
-      "additionalProperties": false,
-      "properties": { "nodeType": { "const": "Play" } }
-    },
-
-    "export": {
-      "type": "object",
-      "required": ["nodeType","format","path"],
+      "required": ["kind", "value"],
       "additionalProperties": false,
       "properties": {
-        "nodeType": { "const": "Export" },
-        "format": { "type": "string", "enum": ["json","midi","uge"] },
-        "path": { "type": "string" }
+        "kind": { "const": "token" },
+        "value": { "type": "string", "description": "Raw unrecognized or call-style token, e.g. 'crash' or 'vib(2)'." },
+        "duration": { "type": "number" },
+        "raw": { "type": "string" },
+        "loc": { "$ref": "#/definitions/loc" }
       }
     }
+
   }
 }

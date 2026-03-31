@@ -47,8 +47,8 @@ A simpler keyword/BM25 fallback (Option B) is implemented first — it requires 
 
 ```typescript
 interface RagChunk {
-  id: string;           // unique, e.g. "docs/instruments.md#2"
-  source: string;       // relative path, e.g. "docs/instruments.md"
+  id: string;           // unique, e.g. "docs/language/instruments.md#2"
+  source: string;       // relative path, e.g. "docs/language/instruments.md"
   section: string;      // heading or filename, e.g. "## Noise Channel"
   text: string;         // raw chunk content
   tokens: number;       // approximate token count (chars / 4)
@@ -98,7 +98,7 @@ You are BeatBax Copilot…
 --- songs/graveyard_shift.bax (drum patterns) ---
 pat drums_funk = kick hat snare hat kick hat snare hat …
 
---- docs/instruments.md § Noise Channel ---
+--- docs/language/instruments.md § Noise Channel ---
 Noise envelope: env=gb:<vol>,<dir>,<period> …
 
 [EDITOR CONTENT]
