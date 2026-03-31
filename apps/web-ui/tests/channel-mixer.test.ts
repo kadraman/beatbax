@@ -1,5 +1,5 @@
 /**
- * Tests for ChannelMixer panel (Phase 4)
+ * Tests for ChannelMixer panel
  *
  * Covers: initial empty render, parse:success re-render, incremental updates vs
  * full re-render, playback:position-changed display logic, playback:stopped reset,
@@ -30,7 +30,7 @@ function makeAst(channelIds: number[], chip = 'gameboy') {
 
 // ─── Suite ───────────────────────────────────────────────────────────────────
 
-describe('Phase 4: ChannelMixer', () => {
+describe('ChannelMixer', () => {
   let container: HTMLElement;
   let eventBus: EventBus;
   let channelState: ChannelState;

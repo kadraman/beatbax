@@ -1,6 +1,5 @@
 /**
  * Import module barrel
- * Phase 3: Export & Import
  */
 
 export { FileLoader, openFilePicker, readFileAsText } from './file-loader';

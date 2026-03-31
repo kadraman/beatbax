@@ -1,6 +1,5 @@
 /**
  * ChannelMixer - Unified per-channel monitor and controls panel
- * Part of Phase 4: Advanced IDE features
  *
  * Combines the former ChannelControls (real-time position tracking) and
  * ChannelMonitor (mute/solo/level indicator) into a single panel, and adds
@@ -46,12 +45,14 @@ export class ChannelMixer {
   private ast: any = null;
   private unsubscribers: Array<() => void> = [];
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
+  private compactMode = true;
 
   constructor(options: ChannelMixerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
     this.channelState = options.channelState;
     this.injectStyles();
+    try { const saved = localStorage.getItem('bb-channel-compact'); if (saved !== null) this.compactMode = saved === 'true'; } catch (e) {}
     this.render();
     this.setupEventListeners();
   }
@@ -73,8 +74,28 @@ export class ChannelMixer {
 
     const root = document.createElement('div');
     root.className = 'bb-cp';
+    if (this.compactMode) root.classList.add('bb-cp--compact');
+    else root.classList.add('bb-cp--full');
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', 'Mixer');
+
+    // Toolbar: compact/full toggle
+    const toolbar = document.createElement('div');
+    toolbar.className = 'bb-cp__toolbar';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'bb-cp__toolbar-btn';
+    toggleBtn.title = 'Toggle compact / full view';
+    toggleBtn.textContent = this.compactMode ? 'Compact' : 'Full';
+    toggleBtn.addEventListener('click', () => {
+      this.compactMode = !this.compactMode;
+      toggleBtn.textContent = this.compactMode ? 'Compact' : 'Full';
+      root.classList.toggle('bb-cp--compact', this.compactMode);
+      root.classList.toggle('bb-cp--full', !this.compactMode);
+      try { localStorage.setItem('bb-channel-compact', String(this.compactMode)); } catch (e) {}
+      this.updateModeVisuals(root);
+    });
+    toolbar.appendChild(toggleBtn);
+    root.appendChild(toolbar);
 
     const channels = this.ast?.channels ?? [];
 
@@ -128,23 +149,43 @@ export class ChannelMixer {
 
     titleBlock.appendChild(channelTitle);
     titleBlock.appendChild(chipLabel);
-    cardHeader.appendChild(levelBar);
-    cardHeader.appendChild(titleBlock);
-    card.appendChild(cardHeader);
 
-    // ── Real-time instrument display ─────────────────────────────────────────
+    // Header right: compact instrument + pattern/sequence info
+    const headerRight = document.createElement('div');
+    headerRight.className = 'bb-cp__header-right';
+
+    // Real-time instrument display (moved to header-right)
     const instEl = document.createElement('div');
     instEl.className = 'bb-cp__inst';
     instEl.id = `bb-cp-inst-${ch.id}`;
     instEl.dataset.defaultInst = defaultInstName;
-    instEl.textContent = `🎵 ${defaultInstName}`;
-    card.appendChild(instEl);
+    instEl.textContent = `${defaultInstName}`;
 
-    // ── Pattern / sequence / bar display ─────────────────────────────────────
+    // Pattern / sequence / bar display (moved to header-right)
     const patternEl = document.createElement('div');
     patternEl.className = 'bb-cp__pattern';
     patternEl.id = `bb-cp-pattern-${ch.id}`;
-    card.appendChild(patternEl);
+
+    headerRight.appendChild(instEl);
+    headerRight.appendChild(patternEl);
+
+    // (visual meter removed — waveform canvas provides visuals)
+
+
+    // Mini waveform canvas (animated in full mode)
+    const waveCanvas = document.createElement('canvas');
+    waveCanvas.className = 'bb-cp__wave-canvas';
+    waveCanvas.id = `bb-cp-wave-${ch.id}`;
+    waveCanvas.width = 80;
+    waveCanvas.height = 24;
+    headerRight.appendChild(waveCanvas);
+
+    cardHeader.appendChild(levelBar);
+    cardHeader.appendChild(titleBlock);
+    cardHeader.appendChild(headerRight);
+    card.appendChild(cardHeader);
+
+    // (instEl and patternEl moved into header-right to occupy top-right)
 
     // ── Progress bar ──────────────────────────────────────────────────────────
     const progressWrap = document.createElement('div');
@@ -165,7 +206,7 @@ export class ChannelMixer {
     positionEl.className = 'bb-cp__position';
     positionEl.id = `bb-cp-pos-${ch.id}`;
     positionEl.textContent = '0/0';
-    positionEl.style.display = showDebug ? 'block' : 'none';
+    positionEl.style.display = showDebug || !this.compactMode ? 'block' : 'none';
     card.appendChild(positionEl);
 
     // ── Controls row: Mute + Solo + Volume slider ─────────────────────────────
@@ -299,7 +340,7 @@ export class ChannelMixer {
   private updatePosition(channelId: number, position: PlaybackPosition): void {
     const instEl = document.getElementById(`bb-cp-inst-${channelId}`);
     if (instEl && position.currentInstrument) {
-      instEl.textContent = `🎵 ${position.currentInstrument}`;
+      instEl.textContent = `${position.currentInstrument}`;
       instEl.style.color = '#4affaf';
     }
 
@@ -328,7 +369,7 @@ export class ChannelMixer {
     for (const ch of channels) {
       const instEl = document.getElementById(`bb-cp-inst-${ch.id}`);
       if (instEl) {
-        instEl.textContent = `🎵 ${instEl.dataset.defaultInst ?? `Ch${ch.id}`}`;
+        instEl.textContent = `${instEl.dataset.defaultInst ?? `Ch${ch.id}`}`;
         instEl.style.color = '#4a9eff';
       }
       const patternEl = document.getElementById(`bb-cp-pattern-${ch.id}`);
@@ -353,6 +394,80 @@ export class ChannelMixer {
       bar.style.boxShadow = 'none';
       bar.style.opacity = this.channelState.isAudible(channelId) ? '0.35' : '0.15';
     }, 120));
+
+
+    // Animate mini waveform canvas — smoothed path, transparent background
+    const canvas = document.getElementById(`bb-cp-wave-${channelId}`) as HTMLCanvasElement | null;
+    if (canvas && canvas.getContext) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = CHANNEL_META[channelId]?.color ?? '#4a9eff';
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = (CHANNEL_META[channelId]?.color ?? '#4a9eff') + '33';
+
+        // Build sampled points depending on channel type
+        const pts: Array<{ x: number; y: number }> = [];
+        if (channelId === 3) {
+          for (let x = 0; x < w; x += 2) {
+            const t = (x / w) * Math.PI * 2 * 2;
+            const y = h/2 + Math.sin(t) * (h/3);
+            pts.push({ x, y });
+          }
+        } else if (channelId === 4) {
+          for (let x = 0; x < w; x += 2) {
+            const y = h/2 + (Math.random() - 0.5) * h * 0.75;
+            pts.push({ x, y });
+          }
+        } else {
+          const period = Math.max(6, Math.floor(w / 4));
+          for (let x = 0; x < w; x += 2) {
+            const phase = Math.floor(x / period) % 2;
+            const y = phase ? h * 0.28 : h * 0.72;
+            pts.push({ x, y });
+          }
+        }
+
+        // Smooth path via quadratic curves between midpoints
+        const drawSmoothed = (alpha = 1) => {
+          ctx.clearRect(0, 0, w, h);
+          ctx.globalAlpha = alpha;
+          if (pts.length === 0) return;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            const prev = pts[i - 1];
+            const curr = pts[i];
+            const cx = (prev.x + curr.x) / 2;
+            const cy = (prev.y + curr.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, cx, cy);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        };
+
+        // initial draw
+        drawSmoothed(1);
+
+        // fade out smoothly using RAF
+        let alpha = 1;
+        const fadeStep = () => {
+          alpha -= 0.06; // step size — smaller for smoother fade
+          if (alpha <= 0) {
+            ctx.clearRect(0, 0, w, h);
+            return;
+          }
+          drawSmoothed(alpha);
+          requestAnimationFrame(fadeStep);
+        };
+        // start fade after a short dwell so waveform is visible briefly
+        setTimeout(() => requestAnimationFrame(fadeStep), 90);
+      }
+    }
   }
 
   private clearAllLevels(): void {
@@ -362,6 +477,24 @@ export class ChannelMixer {
       if (bar) { bar.style.boxShadow = 'none'; bar.style.opacity = '0.35'; }
     }
     this.levelTimers.clear();
+  }
+
+  private updateModeVisuals(root?: HTMLElement): void {
+    const loggingCfg = getLoggingConfig();
+    const showDebug =
+      loggingCfg.level === 'debug' &&
+      (!loggingCfg.modules || loggingCfg.modules.includes('ui:channel-panel'));
+    const host = root ?? document.querySelector('.bb-cp');
+    if (!host) return;
+    for (const card of Array.from(host.querySelectorAll('.bb-cp__card'))) {
+      const idAttr = card.id?.replace('bb-cp-card-', '');
+      const chId = idAttr ? parseInt(idAttr, 10) : null;
+      const pos = card.querySelector<HTMLElement>(`.bb-cp__position`);
+      if (pos) pos.style.display = (showDebug || !this.compactMode) ? 'block' : 'none';
+      // waveform canvas visibility toggled with mode
+      const wave = card.querySelector<HTMLCanvasElement>(`.bb-cp__wave-canvas`);
+      if (wave) wave.style.display = this.compactMode ? 'none' : 'block';
+    }
   }
 
   // ─── Style helpers ───────────────────────────────────────────────────────────
@@ -407,7 +540,7 @@ export class ChannelMixer {
         display: flex;
         flex-direction: column;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 12px;
+        font-size: 11px;
         color: #d4d4d4;
       }
 
@@ -426,16 +559,33 @@ export class ChannelMixer {
         font-style: italic;
       }
 
+      .bb-cp__toolbar {
+        display: flex;
+        justify-content: flex-end;
+        padding: 6px 8px;
+        gap: 8px;
+      }
+
+      .bb-cp__toolbar-btn {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #555;
+        background: #2f2f2f;
+        color: #d4d4d4;
+        cursor: pointer;
+        font-size: 11px;
+      }
+
       /* ── Card ───────────────────────────────────────────────────────────── */
       .bb-cp__card {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        padding: 10px 12px 12px;
+        gap: 4px;
+        padding: 6px 8px;
         background: #2d2d2d;
         border: 1px solid #444;
         border-radius: 4px;
-        margin: 4px 8px;
+        margin: 3px 6px;
         transition: opacity 0.2s;
       }
 
@@ -444,13 +594,33 @@ export class ChannelMixer {
       /* ── Card header ────────────────────────────────────────────────────── */
       .bb-cp__card-header {
         display: flex;
-        align-items: stretch;
+        align-items: center;
+        justify-content: space-between;
         gap: 8px;
+      }
+
+      .bb-cp__header-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        min-width: 110px;
+        text-align: right;
+      }
+
+
+
+      .bb-cp__wave-canvas {
+        width: 80px;
+        height: 24px;
+        border-radius: 3px;
+        background: transparent;
+        display: block;
       }
 
       .bb-cp__level-bar {
         width: 6px;
-        min-height: 28px;
+        min-height: 18px;
         border-radius: 3px;
         flex-shrink: 0;
         transition: box-shadow 0.05s, opacity 0.15s;
@@ -460,6 +630,9 @@ export class ChannelMixer {
         display: flex;
         flex-direction: column;
         gap: 2px;
+        flex: 1 1 auto;
+        min-width: 0;
+        align-items: flex-start;
       }
 
       .bb-cp__channel-title {
@@ -477,22 +650,22 @@ export class ChannelMixer {
 
       /* ── Real-time info ─────────────────────────────────────────────────── */
       .bb-cp__inst {
-        font-size: 12px;
-        color: #4a9eff;
-        font-family: 'Consolas', 'Courier New', monospace;
-        min-height: 16px;
-      }
-
-      .bb-cp__pattern {
         font-size: 11px;
-        color: #9cdcfe;
+        color: #4a9eff;
         font-family: 'Consolas', 'Courier New', monospace;
         min-height: 14px;
       }
 
+      .bb-cp__pattern {
+        font-size: 10px;
+        color: #9cdcfe;
+        font-family: 'Consolas', 'Courier New', monospace;
+        min-height: 12px;
+      }
+
       /* ── Progress bar ───────────────────────────────────────────────────── */
       .bb-cp__progress-wrap {
-        height: 4px;
+        height: 3px;
         background: #1e1e1e;
         border-radius: 2px;
         overflow: hidden;
@@ -518,24 +691,39 @@ export class ChannelMixer {
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-top: 4px;
+        margin-top: 2px;
       }
 
       .bb-cp__btn {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
         padding: 0;
         cursor: pointer;
         border: 1px solid #555;
         background: #3a3a3a;
         color: #aaa;
         border-radius: 3px;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
         line-height: 1;
         flex-shrink: 0;
-        transition: all 0.2s;
+        transition: all 0.15s;
       }
+
+      /* Full mode: larger controls and visible visual meter */
+      .bb-cp--full .bb-cp__btn {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
+
+      .bb-cp--full .bb-cp__vol-wrap {
+        min-width: 90px;
+      }
+
+      /* visual meter removed */
+      .bb-cp--compact .bb-cp__wave-canvas { display: none; }
+      .bb-cp--full .bb-cp__wave-canvas { display: block; }
 
       .bb-cp__btn:hover { background: #4a4a4a; border-color: #777; }
 
@@ -555,9 +743,9 @@ export class ChannelMixer {
       .bb-cp__vol-wrap {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         flex: 1;
-        min-width: 80px;
+        min-width: 60px;
       }
 
       .bb-cp__vol-label {

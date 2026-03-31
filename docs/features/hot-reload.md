@@ -17,7 +17,7 @@ Enable real-time updates to playing songs without stopping playback. When the us
 - **Flow state**: Maintain creative momentum without interruptions
 - **Demo value**: Showcase BeatBax's live coding capabilities in the web UI
 
-## Current State (Phase 4 IDE — 2026-03-07)
+## Current State
 
 The BeatBax Web UI (`apps/web-ui/src/main.ts`) ships a working ⚡ **Live** mode:
 

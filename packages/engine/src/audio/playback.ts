@@ -92,11 +92,9 @@ export class Player {
   public onSchedule?: (args: { chId: number; inst: any; token: string; time: number; dur: number; eventIndex?: number; totalEvents?: number }) => void;
   public onComplete?: () => void;
   public onRepeat?: () => void;
-  // Phase 2.5: Real-time playback position tracking
   public onPositionChange?: (channelId: number, eventIndex: number, totalEvents: number) => void;
   private currentEventIndex: Map<number, number> = new Map(); // channelId → event index
   private totalEvents: Map<number, number> = new Map(); // channelId → total count
-  // End Phase 2.5
   private _repeatTimer: any = null;
   private _preScheduleTimer: any = null; // Timer for seamless loop pre-scheduling
   private _loopEndTime: number = 0; // Absolute AudioContext time when current loop iteration ends
@@ -229,7 +227,7 @@ export class Player {
       ? (globalThis as any).structuredClone(rootInsts)
       : JSON.parse(JSON.stringify(rootInsts));
 
-    // Phase 2.5: Re-initialize position tracking for this pass
+    // Re-initialize position tracking for this pass
     this.currentEventIndex.clear();
     this.totalEvents.clear();
 
@@ -249,7 +247,6 @@ export class Player {
       this.totalEvents.set(ch.id, eventCount);
       this.currentEventIndex.set(ch.id, 0);
     }
-    // End Phase 2.5
 
     let globalDurationSec = 0;
 
@@ -402,21 +399,20 @@ export class Player {
   private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
     if (token === '.') return;
 
-    // Phase 2.5: Track event position (increment happens here during scheduling)
+    // Track event position (increment happens here during scheduling)
     const currentIdx = this.currentEventIndex.get(chId) || 0;
     const totalEvts = this.totalEvents.get(chId) || 0;
     this.currentEventIndex.set(chId, currentIdx + 1);
 
     log.debug(`scheduleToken: ch${chId}, token=${typeof token === 'object' ? token.type || token.token : token}, idx=${currentIdx}/${totalEvts}`);
     // NOTE: onPositionChange callback will be called inside scheduler.schedule() when note PLAYS
-    // End Phase 2.5
 
     if (instsMap && typeof token === 'string' && instsMap[token]) {
       const alt = instsMap[token];
       if (alt.type && String(alt.type).toLowerCase().includes('noise')) {
         try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur, eventIndex: currentIdx, totalEvents: totalEvts }); } } catch (e) {}
         this.scheduler.schedule(time, () => {
-          // Phase 2.5: Emit position callback when note PLAYS
+          // Emit position callback when note PLAYS
           if (this.onPositionChange) {
             try {
               log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
@@ -467,7 +463,7 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
-            // Phase 2.5: Emit position callback when note PLAYS
+            // Emit position callback when note PLAYS
             if (this.onPositionChange) {
               try {
                 log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
@@ -505,7 +501,7 @@ export class Player {
         } else {
           const capturedInst = inst;
           this.scheduler.schedule(time, () => {
-            // Phase 2.5: Emit position callback when note PLAYS
+            // Emit position callback when note PLAYS
             if (this.onPositionChange) {
               try {
                 log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
@@ -540,7 +536,7 @@ export class Player {
           buffered.enqueueNoise(time, dur, inst, chId, panVal);
         } else {
           this.scheduler.schedule(time, () => {
-            // Phase 2.5: Emit position callback when note PLAYS
+            // Emit position callback when note PLAYS
             if (this.onPositionChange) {
               try {
                 log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);
@@ -573,7 +569,7 @@ export class Player {
     } else {
       if (inst.type && inst.type.toLowerCase().includes('noise')) {
         this.scheduler.schedule(time, () => {
-          // Phase 2.5: Emit position callback when note PLAYS
+          // Emit position callback when note PLAYS
           if (this.onPositionChange) {
             try {
               log.debug(`Calling onPositionChange for ch${chId}, ${currentIdx}/${totalEvts}`);

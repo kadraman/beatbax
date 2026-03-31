@@ -1,6 +1,5 @@
 /**
  * StatusBar - Displays status information at the bottom of the UI
- * Part of Phase 2: Playback & Output
  */
 
 import type { EventBus } from '../utils/event-bus';

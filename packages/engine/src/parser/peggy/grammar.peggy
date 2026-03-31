@@ -1,4 +1,4 @@
-// BeatBax PEGGY grammar (phase 2)
+// BeatBax PEGGY grammar
 // Parses pattern/sequence RHS into structured token arrays.
 
 {

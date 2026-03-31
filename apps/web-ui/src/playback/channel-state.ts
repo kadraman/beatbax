@@ -1,6 +1,5 @@
 /**
  * ChannelState - Manages mute/solo state for each channel
- * Part of Phase 2: Playback & Output
  */
 
 import type { EventBus } from '../utils/event-bus';

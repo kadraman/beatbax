@@ -1,5 +1,5 @@
 /**
- * Tests for ChannelControls / ChannelMixer panel (Phase 2.5.2)
+ * Tests for ChannelControls / ChannelMixer panel
  * Updated to use ChannelMixer (the unified replacement for the former ChannelControls)
  */
 
@@ -8,7 +8,7 @@ import { EventBus } from '../src/utils/event-bus';
 import { ChannelState } from '../src/playback/channel-state';
 import type { PlaybackPosition } from '../src/playback/playback-manager';
 
-describe('Phase 2.5.2: ChannelControls', () => {
+describe('ChannelControls', () => {
   let container: HTMLElement;
   let eventBus: EventBus;
   let channelState: ChannelState;
@@ -57,8 +57,8 @@ describe('Phase 2.5.2: ChannelControls', () => {
 
     expect(container.innerHTML).toContain('Channel 1');
     expect(container.innerHTML).toContain('Channel 2');
-    expect(container.innerHTML).toContain('🎵 lead');
-    expect(container.innerHTML).toContain('🎵 bass');
+    expect(container.innerHTML).toContain('lead');
+    expect(container.innerHTML).toContain('bass');
   });
 
   it('should update channel display on position-changed event', () => {
@@ -239,7 +239,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
     expect(patternEl?.textContent).toContain('main • melody'); // Updated to match new UI logic
   });
 
-  // ── Phase 3: song:loaded resets the AST cache ────────────────────────────
+  // ── Song load: resets the AST cache ────────────────────────────
 
   it('re-renders when a new song with the same channel IDs is loaded via song:loaded + parse:success', () => {
     // First song: channel 1 with instrument 'lead'
@@ -248,7 +248,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
       insts: { lead: { type: 'pulse1' } },
     };
     eventBus.emit('parse:success', { ast: ast1 });
-    expect(container.innerHTML).toContain('🎵 lead');
+    expect(container.innerHTML).toContain('lead');
 
     // Second song: same channel ID but different instrument — structure unchanged normally
     // But song:loaded must clear the AST cache so re-render fires unconditionally.
@@ -259,8 +259,8 @@ describe('Phase 2.5.2: ChannelControls', () => {
     eventBus.emit('song:loaded', { filename: 'new_song.bax' });
     eventBus.emit('parse:success', { ast: ast2 });
 
-    expect(container.innerHTML).toContain('🎵 bass');
-    expect(container.innerHTML).not.toContain('🎵 lead');
+    expect(container.innerHTML).toContain('bass');
+    expect(container.innerHTML).not.toContain('lead');
   });
 
   it('re-renders when a second file load fires song:loaded reset followed by parse:success', () => {
@@ -272,7 +272,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
       };
       eventBus.emit('song:loaded', { filename: `${instrument}.bax` });
       eventBus.emit('parse:success', { ast });
-      expect(container.innerHTML).toContain(`🎵 ${instrument}`);
+      expect(container.innerHTML).toContain(`${instrument}`);
     }
   });
 
@@ -294,7 +294,7 @@ describe('Phase 2.5.2: ChannelControls', () => {
     renderSpy.mockRestore();
   });
 
-  // ── Phase 4: Channel mute/solo wiring ────────────────────────────────────
+  // ── Channel mute/solo wiring ────────────────────────────────────
 
   describe('Channel mute/solo wiring', () => {
     let ast: any;

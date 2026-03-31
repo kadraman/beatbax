@@ -1,6 +1,5 @@
 /**
  * TransportControls - Manages play/pause/stop state machine and keyboard shortcuts
- * Part of Phase 2: Playback & Output
  */
 
 import type { EventBus } from '../utils/event-bus';
