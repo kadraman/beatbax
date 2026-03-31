@@ -1,5 +1,5 @@
 # hUGETracker UGE v6 — Format Specification (implementer guide)
-**Filename suggestion:** `docs/uge-v6-spec.md`
+**Filename suggestion:** `docs/formats/uge-v6-spec.md`
 
 **Purpose:** definitive reference for parsing/validating `.uge` (hUGETracker v6) files for export from the language runtime.
 **Primary source:** hUGETracker manual — "hUGETracker .UGE v5/v6 format spec". :contentReference[oaicite:2]{index=2}

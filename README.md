@@ -1,325 +1,321 @@
 <p align="center"><img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/></p>
 
-
-
 # BeatBax
 
 [![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
 
-**BeatBax** is a live-coding language and toolchain for creating retro-console chiptunes.
-Initial implementation is focused on the Nintendo Game Boy (DMG-01) and NES (RP2A03) APUs.
+**BeatBax** is a live-coding language and toolchain for composing retro-console chiptunes. Target hardware is the Nintendo Game Boy (DMG-01) APU. The architecture is designed so additional chip backends (NES, SID, Genesis) can be added as plugins without reworking the core language or scheduler.
+
+---
 
 ## Features
 
-- **Simple, live-coding language**: Including instruments, patterns, sequences and transforms.
-- **Effects system**: 11 core effects fully implemented - panning, vibrato, portamento, pitch bend, pitch sweep, arpeggio, volume slides, tremolo, note cut, retrigger, and echo/delay with UGE/MIDI/WAV export
-- **Web UI**: Full-featured IDE — Monaco editor with syntax highlighting and live validation (Phase 1), playback controls with pause/resume (Phase 2), real-time position tracking (Phase 2.5), and Phase 4 IDE with menu bar, keyboard shortcuts, dark/light theme switching, unified channel mixer, help panel, and ⚡ Live mode
-- **BeatBax Copilot**: AI chat assistant in the Web UI — write, edit, and debug `.bax` songs using any OpenAI-compatible endpoint (OpenAI, Groq, Ollama, LM Studio, etc.). Understands the full BeatBax language, injects editor content and active errors as context, and auto-applies generated code with self-correction retry
-- **Authentic**: 4-channel GB APU model (pulse1, pulse2, wave, noise) with instrument envelopes
-- **Scheduler**: Deterministic tick scheduler and live playback (browser WebAudio + CLI PCM renderer)
-- **Exports**: validated ISM JSON, 4-track MIDI, hUGETracker v6, and WAV via CLI
-- **CLI features**: headless playback, offline WAV rendering, per-channel export, sample-rate/duration controls
-- **Extensible toolchain**: UGE import, plugin-friendly architecture, per-channel mute/solo, and tests
-- **Instrument imports**: Reusable `.ins` libraries with relative/search-path resolution, cycle detection, and last-wins merging
-- **Noise channel**: Direct 1:1 note mapping to hUGETracker (C2→index 0, C7→index 48), no automatic transpose
+- **Live-coding language** — instruments, patterns, sequences, transforms, and named effect presets in a concise `.bax` syntax
+- **11 effects** — pan, vibrato, portamento, pitch bend, sweep, arpeggio, volume slide, tremolo, note cut, retrigger, and echo
+- **Authentic Game Boy APU model** — 4-channel emulation (pulse1, pulse2, wave, noise) with hardware-accurate envelopes, duty cycles, wavetables, and LFSR noise
+- **Deterministic scheduler** — tick-accurate, reproducible playback independent of system timer jitter
+- **Multiple audio backends** — browser WebAudio, Node.js headless playback, and an offline PCM renderer for WAV export
+- **4 export formats** — ISM JSON, 4-track MIDI, hUGETracker v6 (`.uge`), WAV
+- **UGE import** — read and inspect existing hUGETracker v1–v6 files
+- **Reusable instrument libraries** — `.ins` files with local and remote (`github:`, `https://`) import, cycle detection, and last-wins merging
+- **Web UI IDE** — Monaco editor, live validation, CodeLens previews, channel mixer, ⚡ Live mode, and command palette
+- **BeatBax Copilot** — AI chat assistant in the Web UI backed by any OpenAI-compatible endpoint
+- **CLI** — `play`, `verify`, `export`, and `inspect` commands for headless workflows
 
-## Language examples
+---
 
-Each "song" can be defined in a `.bax` file with the following a minimal example:
+<p align="center"><img src="./media/web-ui-screenshot-1.png" alt="BeatBax Web UI"/></p>
+
+*An example screenshot of the BeatBax Web-UI.*
+
+---
+
+## Quick start
+
+```powershell
+git clone https://github.com/kadraman/beatbax.git
+cd beatbax
+npm install
+npm run build-all
+node bin/beatbax play songs/sample.bax
+```
+
+Open the Web UI:
+
+```powershell
+npm run web-ui:dev
+# → http://localhost:5173
+```
+
+---
+
+## Language overview
+
+A `.bax` song defines instruments, effects, patterns, sequences, and a channel arrangement.
 
 ```
 song name "An example song"
 
 chip gameboy
-import "github:beatbax/instruments-gb/main/melodic.ins"  # Import reusable instruments
-
 bpm 128
 
-# Instruments for pulse, wave and noise (or import from .ins files above)
-inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
-inst bass  type=pulse2 duty=25 env={"level":10,"direction":"down","period":1,"format":"gb"}
-inst wave1 type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst snare type=noise env={"level":12,"direction":"down","period":1,"format":"gb"}
+# Import a shared instrument library (local or remote)
+import "github:beatbax/instruments-gb/main/melodic.ins"
+
+# Instruments
+inst lead  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"}
+inst bass  type=pulse2 duty=25  env={"level":10,"direction":"down","period":1,"format":"gb"}
+inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}
 
 # Named effect presets
-effect wobble = vib:8,4              # Vibrato with depth 8, rate 4
-effect fadeIn = volSlide:+5          # Volume fade in
-effect arpMajor = arp:4,7            # Major chord arpeggio
+effect wobble   = vib:8,4       # Vibrato: depth 8, rate 4
+effect fadeIn   = volSlide:+5   # Volume fade-in
+effect arpMajor = arp:4,7       # Major chord arpeggio (root + major 3rd + 5th)
 
-# Patterns of notes with inline effects
-pat melody = C5<wobble> E4<fadeIn> G4<arpMajor> C5
-pat bass_pat = C3 . G2<port:C4,50> .  # Portamento glide to C4
-pat drum_pat = "snare . snare snare"
+# Patterns
+pat melody   = C5<wobble> E4<fadeIn> G4<arpMajor> C5
+pat bass_pat = C3 . G2<port:C4,50> .
+pat drum_pat = snare . snare snare
 
-# Sequences of patterns with default instruments
+# Sequences
 seq lead_seq  = melody:inst(lead) melody:inst(lead)
 seq bass_seq  = bass_pat:inst(bass)*2
 seq wave_seq  = melody:oct(-1):inst(wave1) melody:oct(-2):inst(wave1)
 seq drums_seq = drum_pat*2
 
-# Arrangements of sequences via slots that map to sound chip channels
+# Channel arrangement
 arrange main = lead_seq | bass_seq | wave_seq | drums_seq
 
 play auto repeat
 ```
 
-## Effects System
+The full language reference is in [docs/language/](docs/language/).
 
-The following effects have been implements:
+---
 
-- `pan` / `gb:pan` - Stereo panning (numeric -1.0 to 1.0 or GB enum L/C/R)
-- `vib` - Vibrato (pitch modulation with depth, rate, waveform)
-- `port` - Portamento (smooth pitch glides)
-- `bend` - Pitch bend (musical pitch bending with delay parameter for hold-then-bend behavior)
-- `sweep` - Pitch sweep (hardware-accurate GB NR10 frequency sweep for classic laser/sci-fi sounds)
-- `arp` - Arpeggio (chord simulation via rapid note cycling)
-- `volSlide` - Volume slides (dynamic volume automation)
-- `trem` - Tremolo (amplitude modulation with depth, rate, waveform)
-- `cut` - Note cut (gate notes after N ticks for staccato/percussive effects)
-- `retrig` - Retrigger (rhythmic note retriggering with volume fadeout, WebAudio-only)
-- `echo` - Echo/Delay (time-delayed feedback repeats for ambient effects, WebAudio-only)
+## Effects
 
-See [songs/effects](songs/effects) for detailed examples of each effect.
+| Effect | Syntax | Description |
+|--------|--------|-------------|
+| Pan | `pan:L\|C\|R` or `gb:pan:-1.0…1.0` | Stereo panning |
+| Vibrato | `vib:<depth>,<rate>[,<wave>[,<dur>[,<delay>]]]` | Pitch LFO |
+| Portamento | `port:<speed>` | Smooth pitch glide from previous note |
+| Pitch bend | `bend:<semitones>[,<curve>[,<delay>[,<time>]]]` | Musical pitch bend |
+| Sweep | `sweep:<time>,<dir>,<shift>` | GB hardware NR10 frequency sweep |
+| Arpeggio | `arp:<offset1>,<offset2>[,…]` | Rapid note cycling to simulate chords |
+| Volume slide | `volSlide:<±amount>` | Per-tick volume automation |
+| Tremolo | `trem:<depth>,<rate>[,<wave>]` | Amplitude LFO |
+| Note cut | `cut:<ticks>` | Gate note after N ticks |
+| Retrigger | `retrig:<rate>[,<vol>]` | Rhythmic note restart (WebAudio only) |
+| Echo | `echo:<delay>,<feedback>` | Feedback delay (WebAudio only) |
 
-**Export Notes:**
-- UGE export supports: pan, vib, port, bend (approximated with portamento), sweep (instrument-level), arp, volSlide, cut
-- UGE export does NOT support: retrig (no hUGETracker equivalent), trem (metadata-only), echo (no hUGETracker equivalent)
-- Pitch bend: UGE export approximates bends with `3xx` portamento; warnings issued for non-linear curves and delay parameters
-- Pitch sweep: Best used as instrument property (`inst sweep=...`) for GB hardware; inline `<sweep:...>` effects warn in UGE export
-- **Retrigger and Echo**: Only work in WebAudio/browser playback; CLI/PCM renderer displays warnings but continues playback without these effects. Exporting songs with retrigger or echo to UGE will display warnings (no hUGETracker equivalent)
+Annotated examples for every effect are in [songs/effects/](songs/effects/).
+
+**Export compatibility:**
+
+| Effect | JSON | MIDI | UGE | WAV |
+|--------|------|------|-----|-----|
+| pan, vib, port, arp, volSlide, cut | ✓ | ✓ | ✓ | ✓ |
+| bend | ✓ | ✓ | Approx. (3xx portamento) | ✓ |
+| sweep | ✓ | ✓ | Instrument-level only | ✓ |
+| trem | ✓ | ✓ | Metadata only | ✓ |
+| retrig, echo | ✓ | ✓ | — | — |
+
+See [docs/exports/uge-export-guide.md](docs/exports/uge-export-guide.md) for per-effect UGE encoding details.
+
+---
 
 ## CLI
 
-The CLI provides a number of different sub-commands and options.
+> **Windows note:** npm has limitations passing flag arguments through `npm run`. Use `node bin/beatbax` or the `bin\beatbax` wrapper directly.
 
->On Windows, npm has limitations passing flag arguments through `npm run` scripts. Use direct commands or the `bin\beatbax` wrapper instead:
-
-### Play Command Options
-
-The `play` command supports browser and headless playback. In Node.js, it defaults to **headless playback**.
-
-- `--browser` (or `-b`) - Launch browser-based playback (starts Vite dev server for Web UI)
-- `--headless` (or `--no-browser`) - Force headless Node.js playback (default in Node)
-- `--backend <name>` — Audio backend (choices: `auto` (default), `node-webaudio`, `browser`)
-- `--sample-rate <hz>` (or `-r`) - Sample rate for headless playback (default: 44100)
-- `--buffer-frames <n>` - Buffer length in frames for offline rendering (optional)
-
->Note on `play` directive flags:
->
->Songs may include a top-level `play` directive with optional flags: `auto` and `repeat`.
-	- `play auto` requests the web UI to start playback when the file is loaded.
-	- `play repeat` requests looping playback.
->
->The web UI will attempt to honor `play auto` but browsers commonly require a user gesture to unlock audible playback; in those cases the UI will prompt the user to enable audio.
-
-The CLI performs structural validation of `.bax` files before running `play` or `export`. Definitions like an empty sequence line (`seq NAME =`) are considered errors — run `node bin/beatbax verify <file>` to see diagnostics and fix issues before exporting or playing.
-
-The CLI uses a hybrid approach with cascading fallbacks:
-1. **speaker** module (optional, best performance if installed)
-2. **play-sound** wrapper (uses system players, works cross-platform)
-3. **PowerShell/afplay/aplay** direct system commands (most reliable fallback)
-
-**Volume Normalization:** CLI playback applies a 0.6x volume scaling factor to match browser auto-gain behavior, ensuring consistent loudness between headless and browser playback.
-
-Install optional dependencies for best audio quality:
-```powershell
-npm install --save-optional speaker play-sound
-```
-
-WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies. It implements all 4 Game Boy channels with envelope support, duty cycle control, wavetable playback, and LFSR-based noise generation. Output is stereo by default and closely matches browser WebAudio quality.
-
-### Inspect
-
-Inspect `.bax` or `.uge` files and view their structure:
-
-- `inspect <file>` — Show a text summary (default)
-- `inspect <file> --json` (or `-j`) — Output detailed JSON structure
-
-**For .bax files:**
-```powershell
-node bin/beatbax inspect songs/sample.bax
-# Output: chip, tempo, pattern/sequence/instrument counts, metadata
-
-# Detailed JSON (full AST)
-node bin/beatbax inspect songs/sample.bax --json
-```
-
-**For .uge files:**
-```powershell
-node bin/beatbax inspect songs/example.uge
-# Output: version, title, BPM, pattern/instrument counts
-
-# Detailed JSON breakdown
-node bin/beatbax inspect songs/example.uge --json
-# Output: patterns with note names, instruments with readable fields,
-#         wavetables in hex, orders, routines, statistics
-```
-
-The inspect command is useful for:
-- Debugging exports (verify UGE files after export)
-- Understanding hUGETracker file structure
-- Extracting metadata from existing UGE files
-- Validating pattern and instrument data
-
-### Export
-
-The following export formats are implemented:
-
-- `export json <file> [output] [--out <path>]` — Validated JSON export (ISM format)
-- `export midi <file> [output] [--out <path>] [--duration <seconds>] [--channels <list>]` — MIDI export (Type-1 SMF)
-- `export uge <file> [output] [--out <path>]` — UGE v6 export (hUGETracker format for Game Boy)
-- `export wav <file> [output] [--out <path>] [--duration <seconds>] [--channels <list>]` — WAV export (stereo, 44100Hz, 16-bit)
-
-The JSON exporter performs structural validation of the parsed AST and writes a normalized Intermediate Song Model (ISM) with metadata. The MIDI exporter creates a multi-track Standard MIDI File suitable for DAW import, mapping each channel to a separate track. The UGE exporter generates valid hUGETracker v6 files that can be opened in hUGETracker and processed by uge2source.exe for Game Boy development. The WAV exporter uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) that generates samples without WebAudio dependencies.
-
-### Examples
+### Commands
 
 ```powershell
-# Verify song
+# Validate a song file
 node bin/beatbax verify songs/sample.bax
 
-# Play with headless audio playback (default)
+# Play (headless by default in Node.js)
 node bin/beatbax play songs/sample.bax
+node bin/beatbax play songs/sample.bax --browser   # open Web UI instead
 
-# Play with browser-based playback
-node bin/beatbax play songs/sample.bax --browser
-
-# Render to WAV file (offline export)
-node bin/beatbax export wav songs/sample.bax output.wav
-
-# Render with explicit duration (auto-calculated by default)
-node bin/beatbax export wav songs/sample.bax output.wav --duration 30
-
-# Export individual channels for debugging
-node bin/beatbax export wav songs/sample.bax ch1.wav --channels 1
-
-# Verify/validate a song file
-node bin/beatbax verify songs/sample.bax
-
-# Export to different formats
+# Export
 node bin/beatbax export json songs/sample.bax output.json
 node bin/beatbax export midi songs/sample.bax output.mid
-node bin/beatbax export uge songs/sample.bax output.uge
-node bin/beatbax export wav songs/sample.bax output.wav
+node bin/beatbax export uge  songs/sample.bax output.uge
+node bin/beatbax export wav  songs/sample.bax output.wav
+
+# Inspect a .bax or .uge file
+node bin/beatbax inspect songs/sample.bax
+node bin/beatbax inspect output.uge --json
 ```
+
+### Play options
+
+| Flag | Description |
+|------|-------------|
+| `--browser` / `-b` | Launch browser-based playback via Vite |
+| `--headless` | Force Node.js headless playback (default) |
+| `--backend <name>` | `auto` (default), `node-webaudio`, `browser` |
+| `--sample-rate <hz>` / `-r` | PCM sample rate (default: 44100) |
+| `--buffer-frames <n>` | Offline render buffer size |
+
+### Export options
+
+| Flag | Applies to | Description |
+|------|-----------|-------------|
+| `--out <path>` | all | Output file path |
+| `--duration <seconds>` | midi, wav | Override auto-calculated duration |
+| `--channels <list>` | midi, wav | Export only listed channels (e.g. `1,3`) |
+
+### Headless audio fallback chain
+
+1. `speaker` npm module (best quality — install with `npm install --save-optional speaker`)
+2. `play-sound` wrapper (cross-platform system players)
+3. System command (`PowerShell`/`afplay`/`aplay`)
+
+### WAV export
+
+WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) with no WebAudio dependency. It implements all four Game Boy channels (duty, envelope, wavetable, LFSR noise) and outputs stereo 44100 Hz 16-bit PCM. See [docs/exports/wav-export-guide.md](docs/exports/wav-export-guide.md).
+
+---
+
+## Web UI
+
+Start the development server:
+
+```powershell
+npm run web-ui:dev
+# → http://localhost:5173
+```
+
+Features:
+
+- Monaco editor with `.bax` syntax highlighting (15+ token types, dark/light themes)
+- Live validation — red squiggles for undefined instruments, patterns, and sequences
+- Resizable split-pane layout (state persisted to `localStorage`)
+- Transport bar: Play, Pause, Stop, and ⚡ **Live mode** (800 ms debounce, auto-replays on edit)
+- Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
+- Unified channel mixer with per-channel mute, solo, and volume controls
+- **CodeLens inline actions** — `▶ Preview` and `↺ Loop` above every `pat`, `seq`, and `effect`; five note buttons (`C3`–`C7`) above every `inst` for instant timbre checks
+- **Play selected** (`Ctrl+Shift+Space`) — play one or more selected `pat`/`seq` lines simultaneously, each on its own channel
+- **Command palette** (`F1` or `Ctrl+Alt+P`) — export, validate, generate snippets, format, mute/solo by name
+- **BeatBax Copilot** — AI chat panel backed by any OpenAI-compatible endpoint (OpenAI, Groq, Ollama, LM Studio). Injects editor content and active diagnostics as context. **Edit mode** auto-applies generated code with up to 4 self-correction retries; **Ask mode** answers without touching the editor
+
+See [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) and [docs/ui/web-ui-syntax-highlighting.md](docs/ui/web-ui-syntax-highlighting.md) for details.
+
+---
+
+## Security
+
+Import statements are validated to prevent path traversal and unexpected file system access. See [docs/language/import-security.md](docs/language/import-security.md) for the full policy.
+
+```
+import "local:lib/common.ins"              # ✅ local-prefixed relative path
+import "github:user/repo/branch/file.ins"  # ✅ remote GitHub
+import "https://example.com/drums.ins"     # ✅ remote HTTPS
+import "../../../etc/passwd"               # ❌ path traversal — rejected
+import "/etc/passwd"                       # ❌ absolute path — rejected
+```
+
+**Important:** Never execute untrusted `.bax` files without reviewing their import statements.
+
+---
+
 ## Project layout
 
 ```
 beatbax/
-├── packages/                    # Monorepo packages
-│   ├── engine/                  # Core BeatBax engine
-│   │   ├── src/
-│   │   │   ├── audio/           # WebAudio playback and PCM renderer
-│   │   │   ├── chips/           # Chip emulation (Game Boy APU)
-│   │   │   ├── effects/         # Effects system (pan, vib, port, arp, volSlide, trem)
-│   │   │   ├── expand/          # Reference/token expansion helpers
-│   │   │   ├── export/          # JSON/MIDI/UGE/WAV exporters
-│   │   │   ├── import/          # UGE file reader and remote cache
-│   │   │   ├── instruments/     # Instrument state management
-│   │   │   ├── parser/          # Parser and structured parse helpers
-│   │   │   │   ├── peggy/       # Peggy grammar + generated parser
-│   │   │   │   ├── structured.ts# Helpers to materialize structured AST nodes
-│   │   │   │   └── tokenizer.ts # Legacy tokenizer stub (removed runtime impl)
-│   │   │   ├── patterns/        # Pattern expansion and transforms
-│   │   │   ├── scheduler/       # Deterministic tick scheduler
-│   │   │   ├── sequences/       # Sequence expansion
-│   │   │   ├── song/            # Song resolver and model (Node + browser)
-│   │   │   ├── tests/           # Source-level unit tests
-│   │   │   ├── util/            # Utility helpers (diag, parsing helpers)
-│   │   │   └── index.ts         # Main engine entry point
-│   │   └── tests/               # Engine unit tests (25+ suites)
+├── packages/
+│   ├── engine/              # @beatbax/engine — core library (ESM, browser + Node)
+│   │   └── src/
+│   │       ├── audio/       # WebAudio playback + offline PCM renderer
+│   │       ├── chips/       # Chip backends (gameboy/: pulse, wave, noise, APU)
+│   │       ├── effects/     # Effect processors (vib, port, arp, sweep, …)
+│   │       ├── export/      # JSON / MIDI / UGE / WAV exporters
+│   │       ├── import/      # UGE reader (v1–v6), remote fetch cache
+│   │       ├── instruments/ # Instrument state management
+│   │       ├── parser/      # Peggy grammar, AST types, structured helpers
+│   │       ├── patterns/    # Pattern expansion and transforms
+│   │       ├── scheduler/   # Deterministic tick scheduler
+│   │       ├── sequences/   # Sequence expansion
+│   │       ├── song/        # Song resolver and ISM model
+│   │       └── util/        # Logger, diagnostics, parse utilities
 │   │
-│   └── cli/                     # Command-line interface
-│       ├── src/
-│       │   ├── cli.ts           # Main CLI implementation
-│       │   ├── cli-dev.ts       # Development CLI runner
-│       │   ├── nodeAudioPlayer.ts  # Node.js audio playback
-│       │   └── index.ts         # CLI exports
-│       └── tests/               # CLI integration tests
+│   └── cli/                 # @beatbax/cli — command-line interface
+│       └── src/
+│           ├── cli.ts       # play, verify, export, inspect commands
+│           └── nodeAudioPlayer.ts  # Headless audio playback
 │
-├── apps/                        # Frontend applications
-│   └── web-ui/                  # Browser-based live editor
-│       ├── src/                 # Vite + TypeScript UI
-│       ├── public/              # Static assets and songs
-│       └── scripts/             # Build preparation scripts
+├── apps/
+│   └── web-ui/              # @beatbax/web-ui — browser IDE (Vite + TypeScript)
+│       └── src/
+│           ├── editor/      # Monaco integration, syntax highlighting, CodeLens
+│           ├── panels/      # Channel mixer, Copilot, output panels
+│           ├── playback/    # WebAudio playback bridge
+│           └── export/      # Export dialogs and format handlers
 │
-├── bin/                         # Executable wrappers
-│   └── beatbax                  # Main CLI entry point
+├── bin/
+│   └── beatbax              # CLI entry point (Node shebang wrapper)
 │
-├── scripts/                     # Build and tooling scripts
-│   ├── add-js-extensions.cjs    # ESM import fixer
-│   ├── check-dist.cjs           # Build validation
-│   ├── cli-wrapper.js           # CLI argument passthrough
-│   └── link-local-engine.cjs    # Local package linking
+├── songs/                   # Example .bax files
+│   ├── *.bax                # Full songs (sample, heroes_call, night_hawk, …)
+│   ├── effects/             # One .bax demo per effect
+│   ├── features/            # Feature-demonstration songs
+│   └── gameboy/             # GB-specific examples
 │
-├── docs/                        # Documentation
-│   ├── features/                # Feature specifications
-│   ├── issues/                  # Issue tracking documentation
-│   ├── ast-schema.md            # AST schema documentation
-│   ├── browser-safe-imports.md  # Browser import resolution
-│   ├── browser-safe-resolver.md # Browser-safe resolver design
-│   ├── import-security.md       # Import security documentation
-│   ├── instruments.md           # Instrument definition reference
-│   ├── metadata-directives.md   # Song metadata directives
-│   ├── scheduler.md             # Scheduler API docs
-│   ├── uge-export-guide.md      # UGE export guide
-│   ├── uge-reader.md            # UGE import documentation
-│   ├── uge-transpose.md         # UGE transposition guide
-│   ├── uge-v6-spec.md           # hUGETracker format spec
-│   ├── uge-writer.md            # UGE writer implementation
-│   ├── volume-directive.md      # Volume directive reference
-│   └── wav-export-guide.md      # WAV export documentation
+├── docs/                    # Documentation
+│   ├── language/            # Language reference (instruments, metadata, import security, …)
+│   ├── exports/             # Export guides (UGE, WAV, MIDI)
+│   ├── formats/             # Binary format specs (UGE v6, AST schema)
+│   ├── api/                 # API reference (scheduler, logger, UGE reader)
+│   ├── chips/               # Sound chip hardware references (gameboy.md, …)
+│   ├── ui/                  # Web UI documentation
+│   ├── contributing/        # Contributor guides (browser-safe imports, releasing)
+│   └── features/            # Feature specs (active and complete/)
 │
-├── schema/                      # Schema definitions
-│   └── ast.schema.json          # JSON schema for AST
+├── schema/
+│   └── ast.schema.json      # JSON Schema for the BeatBax AST
 │
-├── lib/                         # Libraries and resources
-│   └── uge/                     # UGE test files and samples
-│
-├── media/                       # Project assets
-│   └── logo-*.png               # BeatBax logos
-│
-├── songs/                       # Example .bax song files
-├── examples/                    # Code examples and utilities
-├── tests/                       # Root-level integration tests
-└── tmp/                         # Temporary build outputs
+├── tests/                   # Root-level integration tests
+├── scripts/                 # Build and tooling scripts
+├── examples/                # Standalone code examples
+└── media/                   # Logo and promotional assets
 ```
 
-## Security
+---
 
-BeatBax implements security measures to protect against malicious `.bax` files:
+## Documentation index
 
-### Import Path Validation
+| Topic | Location |
+|-------|----------|
+| Language reference | [docs/language/](docs/language/) |
+| Instrument definitions | [docs/language/instruments.md](docs/language/instruments.md) |
+| Song metadata directives | [docs/language/metadata-directives.md](docs/language/metadata-directives.md) |
+| Volume directive | [docs/language/volume-directive.md](docs/language/volume-directive.md) |
+| Note mapping for instruments | [docs/language/instrument-note-mapping-guide.md](docs/language/instrument-note-mapping-guide.md) |
+| Import security | [docs/language/import-security.md](docs/language/import-security.md) |
+| UGE export guide | [docs/exports/uge-export-guide.md](docs/exports/uge-export-guide.md) |
+| UGE transpose parameter | [docs/exports/uge-transpose.md](docs/exports/uge-transpose.md) |
+| WAV export guide | [docs/exports/wav-export-guide.md](docs/exports/wav-export-guide.md) |
+| hUGETracker v6 format spec | [docs/formats/uge-v6-spec.md](docs/formats/uge-v6-spec.md) |
+| AST schema reference | [docs/formats/ast-schema.md](docs/formats/ast-schema.md) |
+| Scheduler API | [docs/api/scheduler.md](docs/api/scheduler.md) |
+| Logger API | [docs/api/logger.md](docs/api/logger.md) |
+| UGE reader API | [docs/api/uge-reader.md](docs/api/uge-reader.md) |
+| Game Boy chip reference | [docs/chips/gameboy.md](docs/chips/gameboy.md) |
+| Web UI syntax highlighting | [docs/ui/web-ui-syntax-highlighting.md](docs/ui/web-ui-syntax-highlighting.md) |
+| AI Copilot assistant | [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) |
+| Plugin system (post-MVP) | [docs/features/plugin-system.md](docs/features/plugin-system.md) |
+| Contributing guide | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Roadmap | [ROADMAP.md](ROADMAP.md) |
+| Tutorial | [TUTORIAL.md](TUTORIAL.md) |
+| Dev notes | [DEVNOTES.md](DEVNOTES.md) |
 
-Import statements are validated to prevent path traversal attacks:
-
-- **Rejects `..` segments** - Prevents directory traversal like `"../../../etc/passwd"`
-- **Rejects absolute paths by default** - Blocks access to system files like `"/etc/passwd"` or `"C:/Windows/System32/config/sam"`
-- **Validates resolved paths** - Ensures imports stay within allowed directories (base directory and search paths)
-
-**Safe import examples:**
-```
-import "local:lib/common.ins"              # ✅ Relative path
-import "local:instruments/drums.ins"       # ✅ Subdirectory
-import "github:user/repo/branch/file.ins"  # ✅ Remote GitHub import
-import "https://example.com/drums.ins"     # ✅ Remote HTTPS import
-```
-
-**Blocked attempts:**
-```
-import "lib/common.ins"              # ❌ Missing local: prefix
-import "../../../etc/passwd"         # ❌ Path traversal
-import "/etc/passwd"                 # ❌ Absolute path (unless allowAbsolutePaths: true)
-import "C:/Windows/System32/file"    # ❌ Absolute path
-```
-
-For more details and advanced configuration, see [Import Security Documentation](docs/import-security.md).
-
-**Important:** Never execute untrusted `.bax` files without reviewing their import statements.
+---
 
 ## Development
-
-Install dependencies and run tests:
 
 ```powershell
 npm install
@@ -328,98 +324,57 @@ npm run build-all
 npm test
 ```
 
-Run the CLI and play the sample song:
+### Workspace scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run engine:build` | Build `@beatbax/engine` |
+| `npm run cli:build` | Build `@beatbax/cli` |
+| `npm run web-ui:dev` | Start Web UI dev server |
+| `npm run cli:dev` | Build engine + run CLI dev entry |
+| `npm run build-all` | Full monorepo build |
+| `npm run clean-all` | Clean all dist outputs |
+| `npm test` | Run all test suites |
+
+### Engine → Web UI workflow
 
 ```powershell
-npm run cli:dev
-```
-
-Run the Web UI and load the sample song:
-
-```powershell
-npm run web-ui:dev
-```
-
-Then browse to `http://localhost:5173` (Vite default) or the URL shown by the dev server.
-
-**Web UI Features (Phase 4 IDE — current):**
-- Monaco editor with comprehensive syntax highlighting for `.bax` files
-- 15+ token types with `beatbax-dark` (dark) and `vs-light` (light) themes; dark/light toggle via View menu or `Ctrl+Shift+T`
-- Live validation with red squiggles for undefined instruments, patterns, and sequences
-- Resizable split-pane layout with editor, output, and channel panels (persists to localStorage)
-- Transport bar: Play, Pause, Stop, and ⚡ Live mode (800 ms debounce auto-replay on edit)
-- Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
-- Unified channel mixer with per-channel mute, solo, and volume controls
-- Help panel showing all registered keyboard shortcuts
-- **CodeLens inline previews**: `▶ Preview` and `↺ Loop` actions appear above every `pat`, `seq`, and `effect` definition; clicking plays that item in isolation using the correct instrument. Five individual note buttons (`C3`–`C7`) appear above each `inst` definition for instant timbre checks. Loop mode live-re-parses the source on every iteration so edits are heard immediately.
-- **Play selected sequence / pattern**: select one or more `pat` or `seq` definition lines and press `Ctrl+Shift+Space` (or right-click → **▶ Play Selected Sequence / Pattern**) to play them simultaneously — each on its own channel. Selecting more sequences than the chip has channels distributes them round-robin with merged playback. Glyph-margin play indicators track every original sequence, even when merged.
-- **BeatBax command palette** (`F1` or `Ctrl+Alt+P`): BeatBax-specific commands for export (JSON, MIDI, UGE, WAV), validation, code generation (`inst`/`pat` snippets, transform picker), document formatting, and per-channel mute/solo — all accessible by name without leaving the keyboard.
-- **BeatBax Copilot (AI assistant)**: A collapsible chat panel powered by any OpenAI-compatible REST API. Write songs by chatting ("compose a chiptune bass line in D minor"), ask questions about the language, or request fixes for errors. The assistant injects the current editor content and active diagnostics into every request. In **Edit mode** it auto-applies the generated `.bax` code with up to 4 self-correction retries on parse failures; in **Ask mode** it answers and explains without touching the editor. Supports built-in presets (OpenAI, Groq, Ollama, LM Studio) and any custom endpoint. Enable via **View → AI Assistant** or configure under the ⚙ gear icon in the Copilot panel.
-- Event-driven architecture with modular, testable components
-- See [docs/features/web-ui-migration.md](docs/features/web-ui-migration.md), [docs/web-ui-syntax-highlighting.md](docs/web-ui-syntax-highlighting.md), [docs/features/editor-interactive-features.md](docs/features/editor-interactive-features.md), and [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) for details
-
-### Engine development workflow
-
-When making changes to the engine that need to appear in the web UI:
-
-```powershell
-# Terminal 1: Keep the web UI dev server running
+# Terminal 1
 npm run web-ui:dev
 
-# Terminal 2: After making changes to packages/engine/src/
+# Terminal 2 — after changing packages/engine/src/
 npm run engine:build
-
-# Back to Terminal 1: Press 'r' + Enter to restart the dev server
-# This forces Vite to re-optimize dependencies and pick up engine changes
+# Then press r+Enter in Terminal 1 to restart Vite
 ```
 
-**Note:** The web UI uses npm workspace links, so you don't need to run `link-local-engine.cjs` for web UI development. That script is only needed for CLI usage.
+If the restart doesn't pick up changes:
 
-**Alternative (if restart doesn't work):**
 ```powershell
-cd apps/web-ui
-npm run dev:clean  # Uses --force flag to bypass Vite cache
+cd apps/web-ui && npm run dev:clean   # --force bypasses Vite cache
 ```
 
-**For CLI development:**
+### Engine → CLI workflow
+
 ```powershell
-# After engine changes
 npm run engine:build
-node scripts/link-local-engine.cjs  # Copies dist to node_modules
+node scripts/link-local-engine.cjs   # copies dist into node_modules
 node bin/beatbax play songs/sample.bax --headless
 ```
 
-### Local linking (developer convenience)
-
-To use the project CLI globally during local development, create a local symlink with npm. From the repository root run:
+### Global symlink
 
 ```powershell
-# build packages first
 npm run build-all
-
-# Create a global symlink to the root package's bin stub
 npm link
-
-# Now `beatbax` is available globally and uses the local code
 beatbax --help
 ```
 
-If you prefer to link only the CLI package instead of the whole repo, you can:
-
-```powershell
-cd packages\cli
-npm link
-cd ../..
-# This will make the `beatbax` command use the local CLI package
-beatbax --help
-```
-
-On Unix systems the `bin/beatbax` file is executable and contains a shebang so the command works after `npm link` or `npm install -g`.
+---
 
 ## Contributing
 
-Contributions welcome. Open issues for features, and PRs against `main`. Keep changes small and include tests for parser/expansion behavior.
+Contributions welcome. Open issues for features and PRs against `main`. Keep changes small and include tests for parser/expansion behaviour. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-See `LICENSE` in this repository.
+MIT — see [LICENSE](LICENSE).

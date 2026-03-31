@@ -142,7 +142,7 @@ inst lead type=pulse1 duty=50 env={"level":15,"direction":"down","period":7} swe
 ## See Also
 
 - `docs/features/pulse-sweep-support.md` — sweep implementation and examples
-- `docs/uge-v6-spec.md` — UGE format and instrument encoding
+- `docs/formats/uge-v6-spec.md` — UGE format and instrument encoding
 
 ## Notes
 

@@ -112,7 +112,7 @@ export interface ImportResolverOptions {
   onWarn?: (message: string, loc?: any) => void;
   remoteOptions?: RemoteImportOptions;
   remoteCache?: RemoteInstrumentCache;
-  
+
   // Note: File system options not supported in browser:
   // - baseFilePath, searchPaths, readFile, fileExists, allowAbsolutePaths
 }
@@ -158,6 +158,23 @@ The `resolver.js` module still has the import statement at the module level, cau
 **Impact**: The Node.js code paths are never executed at runtime since imports are resolved before calling `resolveSong`. The build succeeds and the application works correctly.
 
 **Future Fix**: Refactor `resolver.ts` to use dynamic imports or move import resolution logic entirely out of the resolver module.
+
+## Song Resolver — Browser-Safe Extension
+
+`resolver.ts` also statically imported `importResolver.ts`. A browser-safe counterpart was added to complete the chain:
+
+- **`resolver.browser.ts`** — identical to `resolver.ts` but imports from `importResolver.browser.js`. Does not pass `baseFilePath` or `searchPaths` (unsupported in browser).
+- **`index.browser.ts`** — re-exports from `resolver.browser.js` and `importResolver.browser.js`.
+- **`package.json`** — conditional export added for `./song/resolver`.
+
+```json
+"./song/resolver": {
+  "browser": "./dist/song/resolver.browser.js",
+  "default": "./dist/song/resolver.js"
+}
+```
+
+The same usage pattern applies: importers use the standard `@beatbax/engine/song/resolver` path and the bundler selects the right file automatically.
 
 ## References
 

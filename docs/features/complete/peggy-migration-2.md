@@ -38,7 +38,7 @@ const ast = parse(source);
 - Add structured pattern event nodes (note, rest, inline inst change, temporary inst override with duration N) with location info.
 - Add structured transform nodes for sequences and patterns (`oct`, `rev`, `slow`, `fast`, `inst`, etc.) with optional args.
 - Introduce optional `tokens` and `transforms` arrays on pattern/sequence AST nodes while preserving existing string `rhs` fields for backward compatibility during rollout.
-- Keep overall AST schema stable; update `schema/ast.schema.json` and `docs/ast-schema.md` with optional structured fields.
+- Keep overall AST schema stable; update `schema/ast.schema.json` and `docs/formats/ast-schema.md` with optional structured fields.
 
 ### Parser Changes
 - Extend `grammar.peggy` to parse pattern bodies into event lists instead of `RestOfLine` strings.
@@ -60,7 +60,7 @@ const ast = parse(source);
 - None directly; ensure downstream expansion and ISM generation consume structured nodes so exports remain unchanged.
 
 ### Documentation Updates
-- Update `docs/ast-schema.md`, `docs/features/peggy-migration.md`, `docs/features/sequence-arrangements.md`, and relevant tutorial/examples to describe structured pattern tokens and transforms.
+- Update `docs/formats/ast-schema.md`, `docs/features/peggy-migration.md`, `docs/features/sequence-arrangements.md`, and relevant tutorial/examples to describe structured pattern tokens and transforms.
 
 ## Testing Strategy
 ### Unit Tests
@@ -90,7 +90,7 @@ const ast = parse(source);
 - [x] Flip rollout flag: make structured Peggy events the default. (Files: `packages/engine/src/parser/*`)
 - [x] Gate legacy tokenizer: move legacy tokenizer/expression code behind a feature flag and ensure it is tree-shakeable from browser bundles (e.g. `packages/engine/src/parser/legacy`).
 - [x] Remove fallback code paths: update transformer/resolver/expanders to consume structured `tokens`/`transforms` unconditionally and remove `rhs`-to-token materializer, leaving a small compatibility shim only for opt-out mode. (Files: `engine/src/patterns/expand.ts`, `engine/src/sequences/expand.ts`, `engine/src/song/resolver.ts`)
-- [x] Clean up AST/schema/docs: mark `rhs` deprecated in `schema/ast.schema.json` and update `docs/ast-schema.md`, `docs/features/peggy-migration-2.md`, and `docs/features/sequence-arrangements.md` to document structured fields as first-class.
+- [x] Clean up AST/schema/docs: mark `rhs` deprecated in `schema/ast.schema.json` and update `docs/formats/ast-schema.md`, `docs/features/peggy-migration-2.md`, and `docs/features/sequence-arrangements.md` to document structured fields as first-class.
 - [x] Tests & parity validation: update unit tests/snapshots for structured AST shapes, run parity/integration tests across `songs/*.bax` and `tmp/*.bax`, and confirm ISM parity with legacy outputs.
 - [x] CI and release: update CI matrix to run with structured events enabled by default and retain a short-lived opt-out job; add release notes documenting the deprecation window.
 - [x] Packaging & bundles: ensure demo/browser builds exclude legacy expression bundle by default and verify ESM/type exports remain consistent.
@@ -102,7 +102,7 @@ const ast = parse(source);
 
 ## References
 - [docs/features/peggy-migration.md](docs/features/peggy-migration.md)
-- [docs/ast-schema.md](docs/ast-schema.md)
+- [docs/formats/ast-schema.md](docs/formats/ast-schema.md)
 - [docs/features/sequence-arrangements.md](docs/features/sequence-arrangements.md)
 
 ## Additional Notes
