@@ -24,7 +24,7 @@ export interface NoteEvent {
   pan?: Pan;
   effects?: Effect[];
   legato?: boolean; // true if note should not retrigger envelope (portamento/legato)
-  // Phase 2.5: Playback position tracking metadata
+  // Playback position tracking metadata
   sourcePattern?: string; // Original pattern name (e.g., "melody")
   sourceSequence?: string; // Original sequence name (e.g., "main")
   patternIndex?: number; // Which repetition of this pattern (0-based)
@@ -45,7 +45,7 @@ export interface NamedInstrumentEvent {
   instrument?: string;
   instProps?: Record<string, string> | undefined;
   defaultNote?: string; // Optional default note from instrument definition (e.g., 'C7')
-  // Phase 2.5: Playback position tracking metadata
+  // Playback position tracking metadata
   sourcePattern?: string; // Original pattern name (e.g., "melody")
   sourceSequence?: string; // Original sequence name (e.g., "main")
   patternIndex?: number; // Which repetition of this pattern (0-based)

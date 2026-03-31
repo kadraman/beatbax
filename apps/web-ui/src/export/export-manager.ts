@@ -1,6 +1,5 @@
 /**
  * ExportManager - Handles JSON/MIDI/UGE/WAV exports for browser
- * Part of Phase 3: Export & Import
  */
 
 import { parse } from '@beatbax/engine/parser';

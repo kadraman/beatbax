@@ -1,5 +1,5 @@
 /**
- * Unit tests for RemoteLoader utilities (Phase 3)
+ * Unit tests for RemoteLoader utilities
  */
 
 import {

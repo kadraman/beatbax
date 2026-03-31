@@ -1,6 +1,5 @@
 /**
  * File loader - Load .bax files from disk
- * Part of Phase 3: Export & Import
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';

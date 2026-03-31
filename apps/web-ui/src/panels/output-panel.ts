@@ -1,7 +1,5 @@
 /**
- * OutputPanel - Displays console/error/warning messages with tabbed interface
- * Part of Phase 2: Playback & Output
- *
+ * OutputPanel - Displays console/error/warning messages with tabbed interface *
  * Two tabs:
  * - Problems: Errors and warnings (no timestamp, sorted by severity)
  * - Output: Info and success messages (with timestamp, chronological order)

@@ -1,6 +1,5 @@
 /**
  * PlaybackManager - Manages audio playback lifecycle and state
- * Part of Phase 2: Playback & Output
  */
 
 import { parse } from '@beatbax/engine/parser';
@@ -26,7 +25,7 @@ export interface PlaybackOptions {
 }
 
 /**
- * Phase 2.5: Real-time playback position tracking
+ * Real-time playback position tracking
  */
 export interface PlaybackPosition {
   channelId: number;
@@ -53,7 +52,7 @@ export class PlaybackManager {
   };
 
   private player: Player | null = null;
-  // Phase 2.5: Track playback position per channel
+  // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
   // Maps channelId → (noteEventIndex → { seq, pat })
@@ -114,7 +113,7 @@ export class PlaybackManager {
         }
       }
 
-      // Phase 2.5: Extract sequence/pattern names BEFORE resolution (resolution will mutate these)
+      // Extract sequence/pattern names BEFORE resolution (resolution will mutate these)
       const channelSequenceNames = new Map<number, string>();
       const channelPatternMaps = new Map<number, Map<number, string>>(); // channelId -> (eventIndex -> patternName)
 
@@ -270,7 +269,7 @@ export class PlaybackManager {
         this.eventBus.emit('playback:repeated', undefined);
       };
 
-      // Phase 2.5: Set up position tracking
+      // Set up position tracking
       log.debug('Setting up position tracking callback on player');
       this.setupPositionTracking(this.player, resolved, channelSequenceNames, channelPatternMaps);
       log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
@@ -321,7 +320,7 @@ export class PlaybackManager {
       this.state.isPaused = false;
       this.state.currentTime = 0;
 
-      // Phase 2.5: Clear position tracking
+      // Clear position tracking
       this.playbackPosition.clear();
       this.channelEvents.clear();
       this.channelMetaIndex.clear();
@@ -394,7 +393,7 @@ export class PlaybackManager {
   }
 
   /**
-   * Phase 2.5: Set up real-time position tracking
+   * Set up real-time position tracking
    */
   private setupPositionTracking(
     player: Player,
@@ -507,14 +506,14 @@ export class PlaybackManager {
   }
 
   /**
-   * Phase 2.5: Get current playback position for a channel
+   * Get current playback position for a channel
    */
   getPlaybackPosition(channelId: number): PlaybackPosition | null {
     return this.playbackPosition.get(channelId) || null;
   }
 
   /**
-   * Phase 2.5: Get all playback positions
+   * Get all playback positions
    */
   getAllPlaybackPositions(): Map<number, PlaybackPosition> {
     return new Map(this.playbackPosition);
