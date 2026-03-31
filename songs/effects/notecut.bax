@@ -1,6 +1,16 @@
 ## Demo: Note Cut (cut) effect examples
-## Exercises inline 'cut' effect which gates notes after N ticks
+## Gates (silences) a note after a set number of ticks — creates staccato and percussive articulation
 ## Play: node bin/beatbax play songs/effects/notecut.bax
+##
+## Syntax: cut:<ticks>
+##   - ticks : number of ticks after note-on before the note is cut (required)
+##             value 0 cuts the note immediately on the trigger row
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : yes — note-off inserted at the cut position
+##   UGE   : yes — ECx effect (x = tick delay before cut, 0 = immediate)
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 120

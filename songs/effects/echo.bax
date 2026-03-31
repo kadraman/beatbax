@@ -1,6 +1,17 @@
-## Demo: Echo/Delay effect examples
-## Shows time-delayed feedback repeats for ambient and rhythmic effects
+## Demo: Echo/Delay (echo) effect examples
+## Time-delayed feedback repeats for ambient, slapback, and rhythmic texture
 ## Play: node bin/beatbax play songs/effects/echo.bax
+##
+## Syntax: echo:<delay>,<feedback>,<mix>
+##   - delay    : delay duration in beats (e.g. 0.25 = quarter note at current BPM)
+##   - feedback : percentage of signal fed back into the delay line (0–100)
+##   - mix      : wet/dry mix percentage (0–100)
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : no  — no standard MIDI echo/delay effect
+##   UGE   : no  — hUGETracker has no echo effect; all echo effects are silently dropped
+##   Audio : yes — WebAudio delay nodes and PCM renderer
 
 chip gameboy
 bpm 120
@@ -8,7 +19,7 @@ bpm 120
 ## Instruments for echo demonstration
 inst lead type=pulse1 duty=50 env=12,down
 inst bass type=pulse2 duty=25 env=10,down
-inst wave1 type=wave wave=[0,3,6,9,12,15,12,9,6,3,0,3,6,9,12,15]
+inst wave1 type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6]
 inst perc type=noise env=8,down
 
 ## Define reusable echo effect presets

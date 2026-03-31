@@ -1,6 +1,18 @@
 ## Demo: Arpeggio (arp) effect examples
-## Exercises inline `arp` parameters and reuseable arp presets
+## Rapidly cycles through note offsets to simulate chords and create melodic patterns
 ## Play: node bin/beatbax play songs/effects/arpeggio.bax
+##
+## Syntax: arp:<offset1>,<offset2>[,<offset3>,...]
+##   - offset1  : semitone offset for step 2 (required)
+##   - offset2  : semitone offset for step 3 (required)
+##   - offset3+ : additional offsets for longer arpeggios (optional)
+##                UGE export uses only the first two offsets; extras are dropped with a warning
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : yes — each arpeggio step emitted as a separate note event
+##   UGE   : yes — 0xy effect (x = offset1 nibble, y = offset2 nibble, max 15 semitones per nibble)
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 140

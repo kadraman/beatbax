@@ -17,7 +17,7 @@ bpm 120
 # Instruments
 inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81
 inst leadB type=pulse2 duty=30 env={"level":10,"direction":"down","period":1,"format":"gb"} gm=34
-inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82
+inst wave1 type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82
 inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
 inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
 inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel

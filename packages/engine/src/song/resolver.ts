@@ -332,24 +332,40 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     if (!effects || !effects.length) return effects;
 
     return effects.map(effect => {
-      // Both vibrato and tremolo support durationRows as params[3]
-      if ((effect.type === 'vib' || effect.type === 'trem') && effect.params && effect.params.length >= 4) {
-        try {
-          const durationRows = Number(effect.params[3]);
-          if (!Number.isNaN(durationRows) && durationRows > 0) {
-            // Convert rows to seconds: (rows / stepsPerRow) / (bpm / 60)
+      // Both vibrato and tremolo support durationRows as params[3] and delayRows as params[4]
+      if (effect.type === 'vib' || effect.type === 'trem') {
+        if (effect.params && effect.params.length >= 4) {
+          try {
             const stepsPerRow = ticksPerStep / 4; // assuming 4/4 time
             const beatsPerSecond = bpm / 60;
-            const durationSec = (durationRows / stepsPerRow) / beatsPerSecond;
 
-            return {
-              ...effect,
-              params: [...effect.params.slice(0, 3), effect.params[3]],
-              durationSec
-            };
+            const durationRows = Number(effect.params[3]);
+            const hasDuration = !Number.isNaN(durationRows) && durationRows > 0;
+            const durationSec = hasDuration ? (durationRows / stepsPerRow) / beatsPerSecond : undefined;
+
+            // Preserve params[4] (delay rows) so UGE writer can read raw rows;
+            // also convert to delaySec for the WebAudio engine (injected via tryApplyEffects).
+            const newParams: Array<string | number> = [...effect.params.slice(0, 3), effect.params[3]];
+            let delaySec: number | undefined;
+            if (effect.params.length > 4) {
+              newParams.push(effect.params[4]);
+              const delayRows = Number(effect.params[4]);
+              if (!Number.isNaN(delayRows) && delayRows > 0) {
+                delaySec = (delayRows / stepsPerRow) / beatsPerSecond;
+              }
+            }
+
+            if (hasDuration || delaySec !== undefined) {
+              return {
+                ...effect,
+                params: newParams,
+                ...(durationSec !== undefined ? { durationSec } : {}),
+                ...(delaySec !== undefined ? { delaySec } : {}),
+              };
+            }
+          } catch (e) {
+            // If conversion fails, keep original params
           }
-        } catch (e) {
-          // If conversion fails, keep original params
         }
       }
       return effect;

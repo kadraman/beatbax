@@ -1,15 +1,27 @@
-## Demo: Pitch sweep effect examples
-## Shows hardware-accurate Game Boy NR10 frequency sweep
+## Demo: Pitch Sweep (sweep) effect examples
+## Hardware-accurate Game Boy NR10 frequency sweep — pitch rises or falls automatically at a set rate
 ## Play: node bin/beatbax play songs/effects/sweep.bax
+##
+## Syntax: sweep:<time>,<direction>,<shift>
+##   - time      : sweep period in 1/128 Hz units, 0–7 (0 = disabled)
+##   - direction : up / + for rising pitch,  down / - for falling pitch
+##   - shift     : frequency shift per step, 0–7 (higher = more dramatic, default = 1)
+##
+## Note: Sweep is a Pulse 1 (channel 1) hardware feature only.
+##       Instrument-level sweep maps directly to NR10 register values.
+##       Inline (per-note) sweep works in audio playback but triggers a warning on UGE export.
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : approximated — sweep encoded as pitch-bend automation
+##   UGE   : yes for instrument-level sweep (NR10 register, Pulse 1 only)
+##           inline (per-note) sweep triggers a warning in UGE export
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 120
 
 ## Instruments with sweep for authentic GB sound
-## sweep:time,direction,shift where:
-##   time: 0-7 (sweep step time in 1/128 Hz units, 0=disabled)
-##   direction: 'up'/'+' or any positive number for up, 'down'/'-' or any non-positive number for down
-##   shift: 0-7 (frequency shift amount, higher=more dramatic, defaults to 1 if omitted)
 
 ## Classic laser/sci-fi sounds (flat envelope lets you hear the full sweep)
 inst laser1 type=pulse1 duty=50 env=15,flat sweep=4,down,7

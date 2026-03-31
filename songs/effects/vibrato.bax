@@ -1,6 +1,21 @@
 ## Demo: Vibrato (vib) effect examples
-## Exercises inline `vib` parameters and vibrato
+## Frequency modulation (pitch LFO) — periodically wobbles pitch for an expressive, wavering tone
 ## Play: node bin/beatbax play songs/effects/vibrato.bax
+##
+## Syntax: vib:<depth>,<rate>[,<waveform>[,<duration>[,<delayRows>]]]
+##   - depth     : modulation depth, 0–15 (maps to hUGETracker nibble; higher = wider wobble)
+##   - rate      : LFO speed in Hz (higher = faster oscillation)
+##   - waveform  : LFO shape — sine (default), triangle, square, saw
+##   - duration  : number of rows the effect is active (optional; defaults to full note length)
+##   - delayRows : rows to wait before the LFO starts (optional; 0 = immediate, default = 0)
+##                 creates an authentic GB-style onset delay before the wobble kicks in
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : yes — encoded as modulation-wheel (CC1) messages
+##   UGE   : yes — 4xy effect (x = waveform nibble, y = depth nibble)
+##           onset delay: 4xy is omitted from note row and early sustain rows until delayRows expire
+##   Audio : yes — WebAudio frequency LFO and PCM renderer
 
 chip gameboy
 bpm 140
@@ -8,25 +23,26 @@ bpm 140
 ## Instruments
 inst lead  type=pulse1 duty=75 env=10,up
 #inst lead  type=pulse1 duty=50 env={"level":14,"direction":"up","period":2,"format":"gb"} sweep={"time":7,"direction":"up","shift":3}
-inst wave1 type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4]
+inst wave1 type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6]
 
-## Named preset: `wobble` defines a reusable vibrato preset
-effect wobble = vib:4,8,sine,4
+## Named preset: `wobble` defines a reusable vibrato preset with a 1-step onset delay
+effect wobble = vib:4,8,sine,4,1
 
 ## Simple melody - no effects
 pat no_effect_pat = C5:4 . C5:4 . E5:4 . G5:4 .
 
-## Simple melody showcasing inline vibrato: <vib:depth,rate,waveform,duration>
-pat vib_melody = C5<vib:6,5,square,2>:8 D5<vib:3,6,sine,2>:8 E5<vib:4,8,square,4>:8 F5<vib:2,10,sine,4>:8
+## Simple melody showcasing inline vibrato: <vib:depth,rate,waveform,duration,delayRows>
+## Each note has a 1-step delay before the wobble kicks in — authentic Game Boy feel
+pat vib_melody = C5<vib:6,5,square,2,1>:8 D5<vib:3,6,sine,2,1>:8 E5<vib:4,8,square,4,1>:8 F5<vib:2,10,sine,4,1>:8
 
-## Repeated wobble using inline vib (no named preset)
-pat wobble_line = C5<vib:4,6> . D5<vib:4,6> . E5<vib:4,6> . G5<vib:4,6> .
+## Repeated wobble using inline vib (no named preset), 1-step delay
+pat wobble_line = C5<vib:4,6,sine,0,1> . D5<vib:4,6,sine,0,1> . E5<vib:4,6,sine,0,1> . G5<vib:4,6,sine,0,1> .
 
-## Bassline with faster vibrato applied inline
-pat vib_bass = C3<vib:8,3> . G2<vib:8,3> . C3<vib:8,3> . G2<vib:8,3>
+## Bassline with faster vibrato applied inline, 1-step delay
+pat vib_bass = C3<vib:8,3,sine,0,1> . G2<vib:8,3,sine,0,1> . C3<vib:8,3,sine,0,1> . G2<vib:8,3,sine,0,1>
 
-## Pattern combining wave instrument with a longer vib on sustained notes
-pat wave_vib = inst wave1 C5<vib:6,4>:8 . .
+## Pattern combining wave instrument with a longer vib on sustained notes, 2-step delay
+pat wave_vib = inst wave1 C5<vib:6,4,sine,0,2>:8 . .
 
 ## Wobble effect applied to first and last note via named preset
 pat inline_effect_pat = C5<wobble>:4 . C5:4 . E5:4 . G5<wobble>:4 .

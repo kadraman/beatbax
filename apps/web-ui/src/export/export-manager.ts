@@ -109,7 +109,7 @@ export class ExportManager {
           result = await this.exportMIDI(resolved, baseFilename);
           break;
         case 'uge':
-          result = await this.exportUGE(resolved, baseFilename);
+          result = await this.exportUGE(resolved, baseFilename, (msg) => warnings.push(msg));
           break;
         case 'wav':
           result = await this.exportWAV(source, resolved, baseFilename);
@@ -183,7 +183,7 @@ export class ExportManager {
    * Export as UGE (hUGETracker v6 format)
    * Uses the engine's exportUGE function via a browser-safe fs mock
    */
-  private async exportUGE(resolved: any, baseFilename: string): Promise<ExportResult> {
+  private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
     const filename = ensureExtension(baseFilename, 'uge');
 
     // Attempt to dynamically import the engine's UGE exporter
@@ -193,7 +193,7 @@ export class ExportManager {
 
       // Dynamic import to allow graceful fallback if unavailable
       const { exportUGE } = await import('@beatbax/engine/export');
-      await exportUGE(resolved as any, filename);
+      await exportUGE(resolved as any, filename, { onWarn });
 
       // Retrieve captured data
       const captured = getCapturedWrite();

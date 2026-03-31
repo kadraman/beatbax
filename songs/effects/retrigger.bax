@@ -1,19 +1,19 @@
 ## Demo: Retrigger (retrig) effect examples
-## Exercises inline `retrig` parameters and retriggers
+## Rapidly re-triggers a note at a fixed interval — creates rhythmic stutter and glitch effects
 ## Play: node bin/beatbax play songs/effects/retrigger.bax
+##
+## Syntax: retrig:<interval>[,<volumeDelta>]
+##   - interval    : number of ticks between each re-trigger (required)
+##   - volumeDelta : volume change applied on each re-trigger (optional, e.g. -2 for fade-out)
+##
+## Export support:
+##   JSON  : yes — full fidelity
+##   MIDI  : no  — no standard MIDI retrigger equivalent
+##   UGE   : no  — hUGETracker 7xx is note delay, not retrigger; effect is silently dropped
+##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
 bpm 120
-
-## Retrigger effect demo - creates rhythmic stuttering and glitchy effects
-## Syntax: <retrig:interval,volumeDelta>
-##   - interval: ticks between each retrigger (required)
-##   - volumeDelta: volume change per retrigger (optional, e.g., -2 for fadeout)
-##
-## IMPORTANT: Retrigger is WebAudio-only and CANNOT be exported to UGE
-## - hUGETracker has no native retrigger effect (7xx is note delay, not retrigger)
-## - Use --browser flag for playback: npm run play songs/effects/retrigger.bax --browser
-## - UGE exports will lose all retrigger effects
 
 ## Instruments
 inst lead  type=pulse1 duty=50 env=15,down

@@ -1,0 +1,103 @@
+## Demo: Duty-Cycle Modulation (DCM) examples
+## Timbre modulation — switching pulse-width during playback to animate tone colour
+## Play: node bin/beatbax play songs/effects/duty_cycle_modulation.bax
+##
+## Technique: define multiple inst with different duty values, then switch inline with
+##            `inst <name>` inside a pat definition.  Pitch and volume stay the same —
+##            only the waveform shape (duty) changes, altering the timbre.
+##
+## Game Boy duty values:
+##   12.5%  — thin, nasal, cutting (the "closed wah")
+##   25%    — classic hollow square timbre
+##   50%    — balanced, full-bodied (the "open wah")
+##   75%    — warm, rounded, dark (same spectral content as 25%, phase-inverted)
+##
+## Technique summary:
+##   1. Per-note   : each note uses a different duty → timbre shifts on every step
+##   2. Mid-phrase : thin on approach notes, bright on peak, warm on resolution
+##   3. Rhythmic   : alternating duty per bar (slow) or per note (fast) for "wah-wah"
+##
+## Export support:
+##   JSON  : yes — full fidelity (inst changes preserved as events)
+##   MIDI  : yes — GM program change on each inst switch
+##   UGE   : yes — each duty maps to a separate instrument slot
+##   Audio : yes — WebAudio PeriodicWave rebuilt per note; PCM renderer uses phase-correct duty
+
+chip gameboy
+bpm 120
+
+## ── Instruments ──────────────────────────────────────────────────────────────
+## Channel 1 (pulse1) — four duty variants
+inst thin    type=pulse1 duty=12.5 env={"level":14,"direction":"down","period":3,"format":"gb"}
+inst hollow  type=pulse1 duty=25   env={"level":13,"direction":"down","period":3,"format":"gb"}
+inst bright  type=pulse1 duty=50   env={"level":13,"direction":"down","period":4,"format":"gb"}
+inst warm    type=pulse1 duty=75   env={"level":11,"direction":"down","period":4,"format":"gb"}
+
+## Channel 2 (pulse2) — neutral chord support + wah-wah demonstration
+inst harm      type=pulse2 duty=25   env={"level":9,"direction":"down","period":5,"format":"gb"}
+inst wah_open  type=pulse2 duty=50   env={"level":12,"direction":"down","period":2,"format":"gb"}
+inst wah_close type=pulse2 duty=12.5 env={"level":12,"direction":"down","period":2,"format":"gb"}
+
+## Channel 3 (wave) — bass ostinato
+inst bass_wave type=wave wave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6] volume=100
+
+## ── All patterns are exactly 16 steps ───────────────────────────────────────
+## (ensures channels stay perfectly in phase throughout)
+
+## ── Section 1: Reference — no DCM ────────────────────────────────────────────
+## 50% duty throughout — balanced tone, no timbre movement.
+## Compare this against sections 2–5 to hear what DCM adds.
+pat ref_pat  = inst bright C5:4 E5:4 G5:4 C5:4  ## lead:    16 steps, all 50%
+pat harm_ref = inst harm   C4:4 G4:4 E4:4 G4:4  ## support: 16 steps, neutral 25%
+
+## ── Section 2: Per-note duty ─────────────────────────────────────────────────
+## Each note uses a different duty: nasal → hollow → full → warm.
+pat per_note     = inst thin C5:4 inst hollow E5:4 inst bright G5:4 inst warm C6:4
+pat per_note_rev = inst warm C6:4 inst bright G5:4 inst hollow E5:4 inst thin C5:4
+pat harm_pn      = inst harm C4:4 G4:4 E4:4 G4:4
+
+## ── Section 3: Mid-phrase modulation ─────────────────────────────────────────
+## Duty follows the musical contour: thin on approach, bright on peak, warm on resolution.
+## Only C-major triad + 6th (C E G A) — no chromatic clashes.
+pat climb_dcm = inst thin C5:2 E5:2 G5:2 inst bright A5:4 G5:2 inst warm E5:2 C5:2
+pat harm_cl   = inst harm C4:4 E4:4 G4:4 E4:4
+
+## Rapid version — thin↔bright on every note within the bar.
+## Uses only C-major triad (C E G) so it stays consonant against the harmony.
+pat rapid_dcm = inst thin C5:2 inst bright E5:2 inst thin G5:2 inst bright C6:2 inst thin G5:2 inst bright E5:2 inst warm C5:2 inst bright E5:2
+pat harm_rp   = inst harm C4:4 E4:4 G4:4 E4:4
+
+## ── Section 4: Rhythmic wah-wah ───────────────────────────────────────────────
+## Duty held for a full bar then flipped — same notes, very different timbre.
+## Both channels modulate in phase so the "open" and "close" land together.
+##
+## Lead (ch1):     open (50%) → close (12.5%) → fast per-note alternation
+pat wah_open_lead  = inst bright G5:4 E5:4 C5:4 G5:4
+pat wah_close_lead = inst thin   G5:4 E5:4 C5:4 G5:4  ## same notes, very different timbre
+pat wah_fast_lead  = inst bright G5:2 inst thin G5:2 inst bright E5:2 inst thin E5:2 inst bright C5:2 inst thin C5:2 inst bright G4:2 inst thin G4:2
+
+## Harmony (ch2): aligned open → close → fast, in phase with ch1
+pat wah_a    = inst wah_open  C4:4 E4:4 G4:4 C5:4
+pat wah_b    = inst wah_close C4:4 E4:4 G4:4 C5:4
+pat wah_fast = inst wah_open C4:2 inst wah_close C4:2 inst wah_open E4:2 inst wah_close E4:2 inst wah_open G4:2 inst wah_close G4:2 inst wah_open C5:2 inst wah_close C5:2
+
+## ── Section 5: Expressive melody ─────────────────────────────────────────────
+## Duty arc mirrors the phrase shape: thin (attack urgency) → bright (peak) → warm (resolution).
+pat melody_dcm = inst thin C5:4 inst bright E5:4 inst warm G5:4 inst bright C5:4
+pat harm_mel   = inst harm C4:4 E4:4 G4:4 E4:4
+
+## ── Bass ostinato ─────────────────────────────────────────────────────────────
+pat bass_line = C3:4 G2:4 C3:4 G2:4  ## 16 steps; C–G rocking bass
+
+## ── Sequences (all 10 × 16 = 160 steps) ─────────────────────────────────────
+## Each position in harm_seq accompanies the matching position in lead_seq.
+seq lead_seq = ref_pat per_note per_note_rev climb_dcm rapid_dcm wah_open_lead wah_close_lead wah_fast_lead melody_dcm melody_dcm
+seq harm_seq = harm_ref harm_pn harm_pn harm_cl harm_rp wah_a wah_b wah_fast harm_mel harm_mel
+seq bass_seq = bass_line*10
+
+## ── Channels ──────────────────────────────────────────────────────────────────
+channel 1 => inst bright seq lead_seq
+channel 2 => inst harm   seq harm_seq
+channel 3 => inst bass_wave seq bass_seq
+
+play
