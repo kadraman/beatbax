@@ -153,13 +153,40 @@ CURRENT PROJECT STRUCTURE
   index.ts                # ✅ Complete (main library export)
 
 /docs
-  scheduler.md                    # Scheduler API and usage
-  uge-export-guide.md             # UGE export user guide
-  uge-reader.md                   # UGE import documentation
-  uge-writer.md                   # UGE writer implementation details
-  uge-v6-spec.md                  # hUGETracker v6 binary format spec
+  language/
+    metadata-directives.md        # Top-level directives and song metadata
+    instruments.md                # Instrument definitions (wave, volume)
+    instrument-note-mapping-guide.md  # note= parameter reference
+    volume-directive.md           # Master volume directive
+    import-security.md            # Import security and path-traversal guard
+  exports/
+    uge-export-guide.md           # UGE export user guide
+    uge-transpose.md              # uge_transpose= parameter
+    wav-export-guide.md           # WAV export guide
+  formats/
+    uge-v6-spec.md                # hUGETracker v6 binary format spec
+    ast-schema.md                 # AST JSON schema and diagnostics reference
+  api/
+    scheduler.md                  # Scheduler API and usage
+    logger.md                     # Logger API reference
+    uge-reader.md                 # UGE import documentation
+  ui/
+    web-ui-syntax-highlighting.md # Monaco editor theme and token colors
+  contributing/
+    browser-safe-imports.md       # Browser-safe module architecture
+    uge-writer.md                 # UGE writer implementation details
+    releasing-to-npm.md           # npm release workflow
   features/
-    dynamic-chip-loading.md       # Post-MVP: Multi-chip backend system
+    dynamic-chip-loading.md       # Post-MVP: Multi-chip backend system (superseded by plugin-system.md)
+    plugin-system.md              # Unified chip plugin system spec
+    hot-reload.md                 # Hot-reload feature spec
+    parser-error-recovery.md      # Parser error recovery spec
+    ai-chatbot-rag.md             # AI chatbot RAG retrieval spec
+    electron-desktop-client.md    # Electron desktop client spec
+    vscode-plugin.md              # VS Code extension spec
+    web-ui-refactoring.md         # Web UI refactoring spec
+    FEATURE_TEMPLATE.md           # Template for new feature specs
+    complete/                     # Archived / completed feature specs
 
 /tests                            # ✅ 25 test suites, 81 tests passing
 /demo                             # ✅ Browser-based playback demo
@@ -220,7 +247,7 @@ DAY 3 TARGET (✅ COMPLETED)
 ---------------------------------
 
 Deliverables (Day 3 — exports, CLI, polish, and packaging):
-- ✅ Fully correct hUGETracker v6 `.UGE` export meeting the `docs/uge-v6-spec.md` requirements:
+- ✅ Fully correct hUGETracker v6 `.UGE` export meeting the `docs/formats/uge-v6-spec.md` requirements:
   - ✅ Instrument table encoding (duty, wave, noise)
   - ✅ Pattern and pattern-data encoding (64 rows, notes, effects)
   - ✅ Order list / sequence mapping

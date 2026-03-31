@@ -1,10 +1,35 @@
 # Instruments Reference
 
-## Wavetable (Wave) — format & design
+## Pulse (Duty)
+
+The Game Boy has two pulse channels: **Pulse 1** (`type=pulse1`) and **Pulse 2** (`type=pulse2`). Pulse 1 additionally supports frequency sweep.
+
+### Duty options
+- **12.5%** — thin, cutting (good for arpeggios and trebly leads)
+- **25%** — classic square-like timbre
+- **50%** — balanced, full-sounding
+- **75%** — darker/thicker tone
+
+### Envelope & sweep
+- `env=gb:<initial>,<up|down>,<period>` — `initial` 0–15, `period` 0 means constant volume. Use `period` to control envelope speed.
+- `sweep` (Pulse 1 only) applies frequency shifts over time to create slides; use moderate parameters to avoid abrupt pitch jumps.
+
+### Tips & pitfalls
+- Short envelope periods (1–2) create plucky staccato notes; long periods create pads. `period=0` preserves initial volume.
+- For low notes use wider duty or add subtle detune on the pulse pair to fill the spectrum.
+
+---
+
+## Wave
+
+The wave channel (`type=wave`) plays back a custom 32-nibble wavetable stored in Game Boy Wave RAM, giving it a distinct, richer timbre compared to the pulse channels.
 
 ### Format & sizing
-- BeatBax expects 16 4-bit samples (values 0–15) for `wave=[...]`. When exporting to UGE, 16-entry tables are repeated to fill the 32-nibble Wave RAM slot.
-- Input may be a JS array or a JSON-like string (e.g., `"[0,1,2,...]"`). Values are clamped to 0..15 on export.
+- The Game Boy Wave RAM holds **32 4-bit nibbles** (values 0–15); BeatBax uses 32 as the native wavetable size. The `parseWaveTable` engine function always produces a 32-entry array.
+- **32-value arrays** are used directly (preferred — full control over each nibble).
+- **16-value arrays** are also accepted as a convenient shorthand; the engine automatically tiles them to fill all 32 slots (entries 0–15 are repeated as entries 16–31).
+- **Hex string format**: a 32-character hex string (e.g. `"0478ABBB986202467776420146777631"`) is supported and is the native hUGETracker format. Each character is one nibble.
+- Input may be a JS array, a JSON-like string (`"[0,1,2,...]"`), or a 32-nibble hex string. Values are clamped to 0..15.
 
 ### Normalization & headroom
 - Ensure your wavetable reaches near the top (max ≈ 15) for good perceived loudness. Very-low peaks result in quiet output even with `volume=100`.
@@ -17,16 +42,23 @@
 
 Example wavetables:
 ```
-# Smooth bass
+# Smooth bass (32 values — preferred)
+wave = [0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2,0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2]
+
+# Smooth bass (16-value shorthand — tiled to 32 automatically)
 wave = [0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2]
-# Metallic bell
-wave = [15,0,12,3,9,6,6,9,3,12,0,15,0,12,3,9]
+
+# Metallic bell (32 values)
+wave = [15,0,12,3,9,6,6,9,3,12,0,15,0,12,3,9,15,0,12,3,9,6,6,9,3,12,0,15,0,12,3,9]
+
+# Hex string (32-nibble native UGE format)
+wave = "02468ACDFFEDCA862468ACDF0FDCA864"
 ```
 
 ### Aliasing considerations
 - High-harmonic tables may alias when played at high pitches; reduce high-frequency content for very high notes or lower the octave for those parts.
 
-## Wave Channel Volume 🔊
+### Wave Channel Volume 🔊
 
 The Game Boy wave channel has a global volume control separate from the wavetable data. BeatBax supports specifying this per-wave instrument using `volume=` (or `vol=` with a percent suffix).
 
@@ -90,23 +122,11 @@ Implementation note
 
 - The PCM renderer applies a simple multiplier mapping (0 → 0.0, 25 → 0.25, 50 → 0.5, 100 → 1.0) to wave samples during rendering to emulate the output-level locally; the UGE writer stores the raw selector (0..3) for hUGE. For consistent results, prefer using `volume=100` for key melodic parts if you rely on round-trip UGE exports.
 
-## Pulse (Duty) — quick reference
+---
 
-### Duty options
-- **12.5%** — thin, cutting (good for arpeggios and trebly leads)
-- **25%** — classic square-like timbre
-- **50%** — balanced, full-sounding
-- **75%** — darker/thicker tone
+## Noise (LFSR)
 
-### Envelope & sweep
-- `env=gb:<initial>,<up|down>,<period>` — `initial` 0–15, `period` 0 means constant volume. Use `period` to control envelope speed.
-- `sweep` (Pulse 1 only) applies frequency shifts over time to create slides; use moderate parameters to avoid abrupt pitch jumps.
-
-### Tips & pitfalls
-- Short envelope periods (1–2) create plucky staccato notes; long periods create pads. `period=0` preserves initial volume.
-- For low notes use wider duty or add subtle detune on pulse pair to fill spectrum.
-
-## Noise (LFSR) — quick reference
+The noise channel (`type=noise`) uses a linear-feedback shift register to produce percussion and sound effects.
 
 ### Modes & parameters
 - `width=7` (7-bit) — metallic, high-frequency noise (hi-hats, shakers)
@@ -115,6 +135,8 @@ Implementation note
 
 ### Percussion & envelopes
 - Short, high-initial envelopes with width=7 are great for hi-hats; longer envelopes with width=15 produce snares and toms.
+
+---
 
 ## Default Note Parameter (`note=`)
 
@@ -158,12 +180,14 @@ See [instrument-note-mapping-guide.md](instrument-note-mapping-guide.md) for com
 
 | Instrument | Key params | Typical defaults |
 |---|---:|:---|
-| Wave | `wave=[16]`, `volume=` | wave values 0..15, volume default `100` |
-| Pulse | `duty`, `env`, `sweep` | duty 50, env=gb:15,down,1 |
+| Pulse 1 / 2 | `duty`, `env`, `sweep` (Pulse 1 only) | duty 50, env=gb:15,down,1 |
+| Wave | `wave=[32]` (or `[16]` shorthand), `volume=` | 32 nibbles 0..15, volume default `100` |
 | Noise | `width`, `divisor`, `shift`, `env` | width=15, divisor=3, shift=4 |
 
 ## Tests & examples
 - See `songs/instrument_demo.bax` and the added tutorial example for quick demos.
-- Test suggestions: validate `parseWaveTable()` clamps values and repeats 16→32, envelope parsing edge cases, and noise frequency mapping under unit tests.
+- Test suggestions: validate `parseWaveTable()` clamps values, that 16-value input tiles correctly to 32, that 32-value input is used as-is, that 32-nibble hex strings are parsed correctly, envelope parsing edge cases, and noise frequency mapping under unit tests.
+
+> **Note — rendering path discrepancy**: The PCM renderer (`pcmRenderer.ts`) contains a separate local `parseWaveTable` that does not tile 16-value inputs to 32; it returns the values as-is and uses a 16-value fallback. The WebAudio path (`chips/gameboy/wave.ts`) and UGE exporter (`ugeWriter.ts`) both use 32 as the native size. If you rely on PCM/WAV export, providing all 32 values explicitly gives identical results across both paths.
 
 For other instrument details, consult the respective sections (pulse, noise) in this document or the individual feature pages in `/docs/features/`.

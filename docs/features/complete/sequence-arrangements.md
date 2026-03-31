@@ -35,7 +35,7 @@ Notes:
 - Each slot may be a sequence name or empty (use `.` or `-` to indicate silence when desired).
 - Rows are ordered and play sequentially; each row's n slots play in parallel across channels 1..n.
 
-- Deprecation note: legacy `rhs` string fields (pattern/sequence RHS) are deprecated. Prefer structured `tokens` on `PatternDef` and structured `items` on `SequenceDef` when authoring or consuming ASTs. See `docs/ast-schema.md` and `schema/ast.schema.json` for details.
+- Deprecation note: legacy `rhs` string fields (pattern/sequence RHS) are deprecated. Prefer structured `tokens` on `PatternDef` and structured `items` on `SequenceDef` when authoring or consuming ASTs. See `docs/formats/ast-schema.md` and `schema/ast.schema.json` for details.
 
 ## AST changes
 

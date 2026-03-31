@@ -984,7 +984,8 @@ function renderPulse(
 
 /**
  * Renders a Game Boy wave channel.
- * Uses a 16-sample 4-bit wavetable.
+ * Uses a 32-nibble 4-bit wavetable matching GB Wave RAM.
+ * 16-value inputs are automatically tiled to fill all 32 slots.
  *
  * @param buffer The target PCM buffer.
  * @param start The starting sample index.
@@ -1015,7 +1016,7 @@ function renderWave(
   const _parsedWave = inst.wave ? parseWaveTable(inst.wave) : null;
   // Guard: if parseWaveTable returns an empty array (e.g. wave="[]"), fall back to the
   // default sine-like table so waveMean / the sample loop never see NaN or Infinity.
-  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
+  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
   const waveTable: number[] = (_parsedWave && _parsedWave.length > 0) ? _parsedWave : DEFAULT_WAVE;
   // AC-coupling mean: computed once, used in the sample loop below.
   const waveMean = waveTable.reduce((a: number, b: number) => a + b, 0) / waveTable.length;
@@ -1440,13 +1441,18 @@ function renderNoise(
 }
 
 /**
- * Parses a wavetable definition into an array of 16 4-bit values (0-15).
+ * Parses a wavetable definition into an array of 32 4-bit values (0-15).
+ * Matches the canonical parseWaveTable in chips/gameboy/wave.ts:
+ * - 32-value arrays are used directly.
+ * - Shorter arrays are tiled to fill all 32 slots.
+ * - 32-nibble hex strings (e.g. "0478ABBB...") are parsed directly.
  *
  * @param wave The wavetable definition (string or array).
- * @returns An array of 16 numbers representing the wavetable.
+ * @returns An array of 32 numbers representing the wavetable.
  */
 function parseWaveTable(wave: any): number[] {
-  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
+  const GB_WAVE_LEN = 32;
+  const DEFAULT_WAVE = [0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0, 3, 6, 9, 12, 15];
   if (typeof wave === 'string') {
     try {
       const s = wave.replace(/^["']|["']$/g, '').trim(); // strip optional surrounding quotes
@@ -1457,13 +1463,19 @@ function parseWaveTable(wave: any): number[] {
       // Parse array string like "[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]"
       const parsed = JSON.parse(s);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(v => Math.max(0, Math.min(15, v)));
+        const mapped = parsed.map(v => Math.max(0, Math.min(15, v)));
+        const tiled: number[] = [];
+        for (let i = 0; i < GB_WAVE_LEN; i++) tiled.push(mapped[i % mapped.length]);
+        return tiled;
       }
     } catch (e) {
       // Fall through to default
     }
   } else if (Array.isArray(wave) && wave.length > 0) {
-    return wave.map(v => Math.max(0, Math.min(15, v)));
+    const mapped = wave.map(v => Math.max(0, Math.min(15, v)));
+    const tiled: number[] = [];
+    for (let i = 0; i < GB_WAVE_LEN; i++) tiled.push(mapped[i % mapped.length]);
+    return tiled;
   }
 
   // Default sine-like wave (also handles empty array inputs)

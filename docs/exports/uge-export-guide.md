@@ -438,7 +438,7 @@ channel 4 => inst kick pat drums
 ## Resources
 
 - [hUGETracker Official Site](https://github.com/SuperDisk/hUGETracker)
-- [UGE v6 Format Specification](../docs/uge-v6-spec.md)
+- [UGE v6 Format Specification](../formats/uge-v6-spec.md)
 - [BeatBax Tutorial](../TUTORIAL.md)
 - [Implementation Details](../DEVNOTES-UGE-IMPLEMENTATION.md)
 

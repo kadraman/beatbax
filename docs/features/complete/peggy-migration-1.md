@@ -30,7 +30,7 @@ Peggy now defines the authoritative BeatBax grammar. The generated parser produc
 
 Key requirements:
 - Keep the public parser API stable: `parse(source: string): AST` (exported from `packages/engine/src/parser/index.ts`).
-- Preserve existing AST schema expectations (see [docs/ast-schema.md](docs/ast-schema.md) and `schema/ast.schema.json`).
+- Preserve existing AST schema expectations (see [docs/formats/ast-schema.md](docs/formats/ast-schema.md) and `schema/ast.schema.json`).
 - Preserve existing language surface and examples (`songs/*.bax`, `docs/*.md`).
 - Improve and standardize parse error messages with line/column where possible.
 
@@ -108,7 +108,7 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 ### Documentation Updates
 
 - If parsing behavior changes in subtle ways (e.g., stricter whitespace), update:
-  - [docs/metadata-directives.md](docs/metadata-directives.md)
+  - [docs/language/metadata-directives.md](docs/language/metadata-directives.md)
   - [TUTORIAL.md](TUTORIAL.md)
   - any examples that depended on legacy quirks
 
