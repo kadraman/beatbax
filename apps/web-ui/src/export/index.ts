@@ -1,6 +1,5 @@
 /**
  * Export module barrel
- * Phase 3: Export & Import
  */
 
 export { ExportManager } from './export-manager';

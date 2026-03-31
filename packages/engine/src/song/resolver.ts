@@ -441,7 +441,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     log.debug(`Processing channel ${ch.id}, ch.pat type: ${typeof ch.pat}, value:`, ch.pat);
     const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
 
-    // Phase 2.5: Per-token source metadata — built during the items expansion loop below.
+    // Per-token source metadata — built during the items expansion loop below.
     // tokenSeqNames[i] = name of the named sequence this token came from (or '' for direct pat refs)
     // tokenPatNames[i] = name of the source pattern (within seq, or the direct pat name)
     const tokenSeqNames: string[] = [];
@@ -535,7 +535,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     // Sequence-level pan override (applies until reset via pan() token)
     let sequencePanOverride: any = undefined;
 
-    // Phase 2.5: Helper to calculate bar number from token index.
+    // Helper to calculate bar number from token index.
     // Reads stepsPerBar from the AST so songs that use `time` or `stepsPerBar`
     // directives get correct bar numbers (e.g. 3/4, 6/8, etc.).
     const calculateBarNumber = (tokenIndex: number): number => {

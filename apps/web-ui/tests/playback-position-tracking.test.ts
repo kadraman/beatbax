@@ -1,12 +1,12 @@
 /**
- * Phase 2.5 Web UI Integration Tests
+ * Web UI Integration Tests
  * Tests for real-time playback position tracking
  */
 
 import { PlaybackManager, PlaybackPosition } from '../src/playback/playback-manager';
 import { EventBus } from '../src/utils/event-bus';
 
-describe('Phase 2.5: Playback Position Tracking', () => {
+describe('Playback Position Tracking', () => {
   let eventBus: EventBus;
   let playbackManager: PlaybackManager;
 
@@ -24,7 +24,7 @@ describe('Phase 2.5: Playback Position Tracking', () => {
     const positions: Array<{ channelId: number; position: PlaybackPosition }> = [];
     const callback = jest.fn(({ channelId, position }) => {
       positions.push({ channelId, position });
-      
+
       // Verify position structure
       expect(position).toHaveProperty('channelId');
       expect(position).toHaveProperty('eventIndex');
@@ -77,7 +77,7 @@ play`;
     expect(positions.size).toBe(0);
 
     playbackManager.stop();
-    
+
     const positionsAfterStop = playbackManager.getAllPlaybackPositions();
     expect(positionsAfterStop.size).toBe(0);
   });

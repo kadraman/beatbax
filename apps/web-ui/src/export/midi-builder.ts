@@ -2,8 +2,6 @@
  * Browser-native MIDI builder
  * Implements a lightweight Standard MIDI File (SMF Type 1) encoder
  * using only TypedArrays - no Node.js Buffer or fs required.
- *
- * Part of Phase 3: Export & Import
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';

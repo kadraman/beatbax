@@ -289,7 +289,7 @@ seq coda_perc = drums_a
 # =============================================================================
 channel 1 => inst lead_full  seq intro_mel  theme_mel  bridge_mel  fill_mel  reprise_mel  coda_mel
 channel 2 => inst harm       seq intro_harm theme_harm bridge_harm fill_harm reprise_harm coda_harm
-channel 3 => inst bass       seq intro_bass theme_bass bridge_bass fill_bass reprise_bass coda_bas
+channel 3 => inst bass       seq intro_bass theme_bass bridge_bass fill_bass reprise_bass coda_bass
 channel 4 => inst kick       seq intro_perc theme_perc bridge_perc fill_perc reprise_perc coda_perc
 
 play auto repeat

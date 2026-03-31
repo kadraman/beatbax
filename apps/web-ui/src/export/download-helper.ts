@@ -1,6 +1,5 @@
 /**
  * Download helper - Browser file download utilities
- * Part of Phase 3: Export & Import
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';

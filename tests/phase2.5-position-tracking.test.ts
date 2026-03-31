@@ -1,5 +1,5 @@
 /**
- * Phase 2.5: Real-time playback position tracking tests
+ * Real-time playback position tracking tests
  *
  * Tests the position tracking infrastructure added to Player and Resolver
  * to enable real-time visualization of playback state.
@@ -10,7 +10,7 @@ import { parse } from '../packages/engine/src/parser/parser.js';
 import { resolveSong } from '../packages/engine/src/song/resolver.js';
 import { Player, createAudioContext } from '../packages/engine/src/audio/playback.js';
 
-describe('Phase 2.5 - Position Tracking', () => {
+describe('Position Tracking', () => {
   describe('Resolver metadata preservation', () => {
     it('should add sourceSequence metadata to note events', () => {
       const script = `
@@ -223,7 +223,6 @@ channel 1 => inst lead seq main
         expect(event.token).toBeDefined();
         expect(event.time).toBeDefined();
         expect(event.dur).toBeDefined();
-        // Phase 2.5 additions
         expect(event.eventIndex).toBeDefined();
         expect(typeof event.eventIndex).toBe('number');
         expect(event.totalEvents).toBeDefined();

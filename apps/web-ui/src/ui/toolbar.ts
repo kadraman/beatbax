@@ -1,5 +1,5 @@
 /**
- * Toolbar - Export controls and file open/save toolbar for Phase 3
+ * Toolbar - Export controls and file open/save toolbar
  * Provides: Open, example songs, export format buttons, drag-and-drop trigger
  */
 

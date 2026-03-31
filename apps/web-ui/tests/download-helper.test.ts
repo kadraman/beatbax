@@ -1,5 +1,5 @@
 /**
- * Unit tests for DownloadHelper utilities (Phase 3)
+ * Unit tests for DownloadHelper utilities
  */
 
 import {

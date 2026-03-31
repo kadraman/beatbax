@@ -1,6 +1,5 @@
 /**
  * HelpPanel - Embedded reference documentation with search and click-to-insert
- * Part of Phase 4: Advanced IDE features
  *
  * Features:
  * - Collapsible sections: Language Syntax, Instruments, Transforms, Keyboard Shortcuts, Examples
@@ -673,7 +672,7 @@ export class HelpPanel {
     );
     // Note: F1 / Escape shortcuts are registered in the central KeyboardShortcuts
     // registry (main.ts) when getShortcuts is provided. When the panel is
-    // used standalone (phases 1-3) it falls back to its own inline handler below.
+    // used standalone it falls back to its own inline handler below.
     if (!this.getShortcuts) {
       const onKey = (e: Event) => {
         const ke = e as KeyboardEvent;

@@ -1,5 +1,5 @@
 /**
- * Unit tests for DragDropHandler (Phase 3)
+ * Unit tests for DragDropHandler
  */
 
 import { DragDropHandler } from '../src/import/drag-drop-handler';

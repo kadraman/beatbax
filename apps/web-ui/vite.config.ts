@@ -34,21 +34,21 @@ export default defineConfig({
         __dirname,
         '../../packages/engine/dist/song/index.browser.js'
       ),
-      // Phase 3: redirect Node.js 'fs' to a browser-safe mock so the engine's
+      // Redirect Node.js 'fs' to a browser-safe mock so the engine's
       // UGE/MIDI exporters can run in the browser via writeFileSync capture.
       'fs': path.resolve(__dirname, 'src/utils/browser-fs.ts'),
     },
     // Ensure Node.js built-ins are not polyfilled (we don't need them in browser)
     conditions: ['browser', 'module', 'import', 'default']
   },
-  // Phase 3: make 'Buffer' and 'global' available globally for the engine
+  // Make 'Buffer' and 'global' available globally for the engine
   define: {
     global: 'globalThis',
   },
   optimizeDeps: {
     include: [
       'monaco-editor',
-      // Phase 3: pre-bundle 'buffer' polyfill so it's available as an ESM module
+      // Pre-bundle 'buffer' polyfill so it's available as an ESM module
       'buffer',
     ],
     // Exclude @beatbax/engine so Vite always uses the built dist files directly

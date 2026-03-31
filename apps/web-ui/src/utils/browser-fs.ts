@@ -2,8 +2,6 @@
  * Browser-safe mock for Node.js 'fs' module.
  * Used via Vite alias to intercept writeFileSync calls from the engine's
  * export functions, capturing the output data for browser downloads.
- *
- * Part of Phase 3: Export & Import
  */
 
 // Captured data from the last writeFileSync call

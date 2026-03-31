@@ -30,4 +30,5 @@ module.exports = {
     '^@beatbax/engine/audio/playback$': '<rootDir>/tests/__mocks__/engine-playback.ts',
     '\\.css$': '<rootDir>/tests/__mocks__/styleMock.js',
   },
+  setupFiles: ['<rootDir>/tests/setup-canvas-mock.ts'],
 };

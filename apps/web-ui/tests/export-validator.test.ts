@@ -1,5 +1,5 @@
 /**
- * Unit tests for ExportValidator (Phase 3)
+ * Unit tests for ExportValidator
  */
 
 import { validateForExport } from '../src/export/export-validator';

@@ -26,7 +26,7 @@ export interface BeatBaxEvents {
   'playback:resumed': void;
   'playback:error': { error: Error };
   'playback:position': { current: number; total: number };
-  // Phase 2.5: Real-time position tracking
+  // Real-time position tracking
   'playback:position-changed': { channelId: number; position: any };
 
   // Export events

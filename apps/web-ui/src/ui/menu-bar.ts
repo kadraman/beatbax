@@ -77,7 +77,7 @@ export interface MenuBarOptions {
   /**
    * When false, MenuBar will NOT register its own global keydown handler.
    * Set to false when a central KeyboardShortcuts registry owns all shortcuts.
-   * Defaults to true for backward compatibility with phases 1–3.
+   * Defaults to true for backward compatibility.
    */
   enableGlobalShortcuts?: boolean;
   /** Open the Keyboard Shortcuts section of the Help Panel (Alt+Shift+K). */
