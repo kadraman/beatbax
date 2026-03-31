@@ -43,35 +43,35 @@ inst kick_pulse  type=pulse1 duty=12.5 env={"level":15,"direction":"down","perio
 # =============================================================================
 # WAVE CHANNEL INSTRUMENTS (Channel 3)
 # =============================================================================
-# Wave channel plays 16 x 4-bit samples (values 0-15)
-# Each waveform creates a different timbre
+# Wave channel uses 32 x 4-bit samples (values 0–15)
+# 16-entry arrays are auto-tiled; use 32-entry arrays for full single-cycle fidelity
 
 # Basic waveforms
-inst wave_sine type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] gm=82
-inst wave_saw  type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] gm=81
-inst wave_ramp type=wave wave=[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] gm=81
-inst wave_square type=wave wave=[15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0] gm=80
+inst wave_sine type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82
+inst wave_saw  type=wave wave=[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15] gm=81
+inst wave_ramp type=wave wave=[15,15,14,14,13,13,12,12,11,11,10,10,9,9,8,8,7,7,6,6,5,5,4,4,3,3,2,2,1,1,0,0] gm=81
+inst wave_square type=wave wave=[15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=80
 # Volume demos for wave channel
-inst wave_loud  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=100 gm=82
-inst wave_soft  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=50 gm=82
-inst wave_quiet type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=25 gm=82
-inst wave_mute  type=wave wave=[8,11,13,14,15,14,13,11,8,4,2,1,0,1,2,4] volume=0  gm=82
+inst wave_loud  type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=100 gm=82
+inst wave_soft  type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=50 gm=82
+inst wave_quiet type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=25 gm=82
+inst wave_mute  type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=0  gm=82
 
 # Harmonic-rich waveforms
-inst wave_triangle type=wave wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2] gm=82
-inst wave_pulse25  type=wave wave=[15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0] gm=81
-inst wave_pulse12  type=wave wave=[15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=80
+inst wave_triangle type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1] gm=82
+inst wave_pulse25  type=wave wave=[15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=81
+inst wave_pulse12  type=wave wave=[15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=80
 
 # Complex/musical waveforms
-inst wave_organ type=wave wave=[8,12,15,13,8,3,0,2,8,12,15,13,8,3,0,2] gm=16
-inst wave_strings type=wave wave=[0,4,8,11,13,14,13,11,8,4,0,4,8,11,13,14] gm=49
-inst wave_brass type=wave wave=[8,13,15,14,10,5,2,1,8,13,15,14,10,5,2,1] gm=57
-inst wave_bell type=wave wave=[15,14,12,9,6,3,1,0,0,1,3,6,9,12,14,15] gm=14
+inst wave_organ type=wave wave=[8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5,8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5] gm=16
+inst wave_strings type=wave wave=[0,2,4,6,8,10,11,12,13,14,14,14,13,12,11,10,8,6,4,2,0,2,4,6,8,10,11,12,13,14,14,14] gm=49
+inst wave_brass type=wave wave=[8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5,8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5] gm=57
+inst wave_bell type=wave wave=[15,15,14,13,12,11,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6,8,9,11,12,13,14,15,15,15] gm=14
 
 # Experimental/effect waveforms
-inst wave_metallic type=wave wave=[15,0,12,3,9,6,6,9,3,12,0,15,0,12,3,9] gm=122
-inst wave_distorted type=wave wave=[15,15,10,10,5,5,0,0,0,5,5,10,10,15,15,0] gm=30
-inst wave_noise_like type=wave wave=[8,2,13,5,11,1,14,7,9,4,12,6,10,3,15,0] gm=125
+inst wave_metallic type=wave wave=[15,8,0,6,12,8,3,6,9,8,6,6,6,8,9,6,3,8,12,6,0,8,15,8,0,6,12,8,3,6,9,12] gm=122
+inst wave_distorted type=wave wave=[15,15,15,13,10,10,10,8,5,5,5,3,0,0,0,0,0,3,5,5,5,8,10,10,10,13,15,15,15,8,0,8] gm=30
+inst wave_noise_like type=wave wave=[8,5,2,8,13,9,5,8,11,6,1,8,14,11,7,8,9,7,4,8,12,9,6,8,10,7,3,9,15,8,0,4] gm=125
 
 # =============================================================================
 # NOISE CHANNEL INSTRUMENTS (Channel 4)

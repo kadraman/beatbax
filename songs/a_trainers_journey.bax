@@ -54,22 +54,23 @@ bpm 120
 #   poke_harm   25%   crisp, bright staccato arpeggios     (A and B sections)
 #   poke_sus    75%   wide, atmospheric sustained arps     (mysterious bridge)
 #
-# Wave — poke_bass: 32-sample triangle wave approximation. The pure triangle is
-#   the Game Boy wave channel's most iconic timbre — round attack, warm body,
-#   clean pitch. Doubles the wavetable length for maximum fidelity.
+# Wave — poke_bass: 32-sample custom bass waveform.
+#   Mid-amplitude rounded shape (values 3–14, centred around 7–9) with a gentle
+#   asymmetric curve — fuller and punchier than a pure sine, with enough body to
+#   sit warmly under the pulse leads without introducing harsh high-frequency content.
 #
 # Noise — kick / snare / hat percussion kit
 
-inst poke_lead  type=pulse1 duty=50    env={"level":13,"direction":"down","period":4,"format":"gb"} gm=81
-inst poke_thin  type=pulse1 duty=12.5  env={"level":14,"direction":"down","period":2,"format":"gb"} gm=81
-inst poke_warm  type=pulse1 duty=75    env={"level":11,"direction":"down","period":4,"format":"gb"} gm=82
+inst poke_lead  type=pulse1 duty=50    env={"level":13,"direction":"down","period":6,"format":"gb"} gm=81
+inst poke_thin  type=pulse1 duty=12.5  env={"level":14,"direction":"down","period":4,"format":"gb"} gm=81
+inst poke_warm  type=pulse1 duty=75    env={"level":11,"direction":"down","period":6,"format":"gb"} gm=82
 
-inst poke_harm  type=pulse2 duty=25    env={"level":8,"direction":"down","period":4,"format":"gb"}  gm=80
-inst poke_sus   type=pulse2 duty=75    env={"level":9,"direction":"down","period":5,"format":"gb"}  gm=80
+inst poke_harm  type=pulse2 duty=75    env={"level":8,"direction":"down","period":6,"format":"gb"}  gm=80
+inst poke_sus   type=pulse2 duty=75    env={"level":9,"direction":"down","period":8,"format":"gb"}  gm=80
 
-inst poke_bass  type=wave   wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0]
+inst poke_bass  type=wave   wave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]
 
-inst kick       type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} note=C5
+inst kick       type=noise  env={"level":6,"direction":"down","period":1,"format":"gb"} note=C6
 inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
 inst hat        type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  note=C7
 
@@ -77,9 +78,9 @@ inst hat        type=noise  env={"level":4,"direction":"down","period":1,"format
 # Effect presets
 # =============================================================================
 
-effect sparkle   = trem:4,7,sine        # fast shimmer — reprise and coda peak notes
-effect drift     = vib:3,4,sine,4       # gentle wobble on held melody peaks
-effect deepDrift = vib:5,2,sine,6       # slow deep — mysterious bridge atmosphere
+effect sparkle   = trem:4,7,sine,0,1    # fast shimmer — reprise and coda peak notes; 1-step delay onset
+effect drift     = vib:3,4,sine,4,1    # gentle wobble on held melody peaks; 1-step delay onset
+effect deepDrift = vib:5,2,sine,6,2    # slow deep — mysterious bridge atmosphere; 2-step delay onset
 
 effect majorArp  = arp:4,7             # major triad  (root + maj3 + P5)
 effect minorArp  = arp:3,7             # minor triad  (root + min3 + P5)

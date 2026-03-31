@@ -25,12 +25,13 @@ export class BufferedRenderer {
       for (const fx of effects) {
         try {
           const name = fx && fx.type ? fx.type : fx;
-          // If resolver attached a normalized duration in seconds, prefer that
+          // If resolver attached normalized duration/delay in seconds, inject them
           let params = fx && fx.params ? fx.params : (Array.isArray(fx) ? fx : []);
-          if (fx && typeof fx.durationSec === 'number') {
+          if (fx && (typeof fx.durationSec === 'number' || typeof fx.delaySec === 'number')) {
             // shallow copy so we don't mutate original parsed params
             const pcopy = Array.isArray(params) ? params.slice() : [];
-            pcopy[3] = fx.durationSec;
+            if (typeof fx.durationSec === 'number') pcopy[3] = fx.durationSec;
+            if (typeof fx.delaySec === 'number') pcopy[4] = fx.delaySec;
             params = pcopy;
           }
           const handler = (require('../effects/index.js') as any).get(name);
