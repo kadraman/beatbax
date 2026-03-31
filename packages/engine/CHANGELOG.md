@@ -1,5 +1,14 @@
 # @beatbax/engine
 
+## 0.7.0
+
+### Minor Changes
+
+- c121a66: - # `playback.ts` - seamless looping refactor
+  - # `effects\\index.ts` and `pcmRenderer.ts` - vibrato and tremolo onset delay support
+  - `resolver.ts` - effects parameter normalization
+  - `ugeWriter.ts` - uge export improvements
+
 ## 0.6.0
 
 ### Minor Changes
