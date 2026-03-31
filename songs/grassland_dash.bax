@@ -48,7 +48,7 @@ bpm 140
 
 inst melody  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"} gm=80
 inst harmony type=pulse2 duty=25  env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
-inst bass1    type=wave   wave=[0,4,8,12,15,12,8,4,0,4,8,12,15,12,8,4]
+inst bass1    type=wave   wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]
 inst bass2   type=wave   wave=[7,7,7,5,0,0,0,0,0,0,0,0,0,0,0,0,15,15,15,14,14,14,14,14,14,12,2,2,1,7,7,6]
 inst snare    type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"} note=C6
 inst hat      type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"} note=C7

@@ -25,7 +25,7 @@ time 4
 # - Inline tokens like `<pan:L>` or `<pan=0.0>` apply to a single note; sequence modifiers `:pan(...)` apply to an entire sequence occurrence.
 inst leadL type=pulse1 gb:pan=L   # lead hard-left via GB NR51
 inst leadR type=pulse1 gb:pan=R   # lead hard-right via GB NR51
-inst arp type=wave  wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82  # wavetable arpeggio (uses mixed inline pans below)
+inst arp type=wave  wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82  # wavetable arpeggio (uses mixed inline pans below)
 inst bass type=pulse2 gb:pan=L    # bass default left via GB NR51
 inst sn type=noise gb:width=7  env={"level":13,"direction":"down","period":1,"format":"gb"} length=8  # snare (no explicit pan)
 

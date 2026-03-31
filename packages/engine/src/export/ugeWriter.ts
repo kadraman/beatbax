@@ -121,9 +121,10 @@ interface EffectRequest {
     type: string;
     code: number;
     param: number;
-    duration: number; // Number of rows this effect should span (including note row)
+    duration: number; // Number of rows this effect is active (from its startRow, excluding the delay)
     priority: number;
     isGlobal: boolean; // True for effects like panning (8xx) that affect all channels
+    startRow?: number; // Row offset from note trigger where the effect begins (0 = note row, default)
 }
 
 interface EffectHandler {
@@ -178,17 +179,31 @@ const VibratoHandler: EffectHandler = {
             durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
         }
 
+        // Parse delay from 5th param (params[4]) in rows
+        let delayRows = 0;
+        if (params && params.length > 4 && Number.isFinite(Number(params[4]))) {
+            delayRows = Math.max(0, Math.round(Number(params[4])));
+        } else if ((fx as any).delaySec && Number.isFinite((fx as any).delaySec)) {
+            delayRows = Math.max(0, Math.round((fx as any).delaySec / tickSeconds));
+        }
+        // Clamp delayRows: must start before the note ends
+        delayRows = Math.min(delayRows, sustainCount);
+
         const depth = Math.max(0, Math.min(15, Math.round(depthRaw)));
         const waveform = Math.max(0, Math.min(15, Math.round(waveformRaw)));
         const param = encodeVibParam(waveform, depth);
+
+        // Effective active rows: min(requested duration, rows remaining after delay)
+        const effectiveDuration = Math.max(1, Math.min(durationRows, sustainCount + 1 - delayRows));
 
         return {
             type: 'vib',
             code: 4,
             param: param & 0xff,
-            duration: Math.min(durationRows, sustainCount + 1), // Clamp to note length
+            duration: effectiveDuration,
             priority: this.priority,
             isGlobal: false,
+            startRow: delayRows,
         };
     },
 
@@ -521,9 +536,12 @@ const VolumeSlideHandler: EffectHandler = {
     },
 };
 
+// Tremolo effect handler (7xy - Tremolo)
 // Effect handler registry - add new handlers here as effects are implemented
 // Note: Retrigger is NOT included - hUGETracker has no native retrigger effect
 // Retrigger is WebAudio-only and cannot be exported to UGE
+// Note: Tremolo is NOT included - hUGETracker has no native tremolo effect
+// hUGETracker effect 7 is Note Delay, not tremolo. Trem is WebAudio-only.
 // Note: Sweep is registered but warns - GB sweep is instrument-level (NR10), not per-note
 const EFFECT_HANDLERS: EffectHandler[] = [
     NoteCutHandler,      // Priority 20 - always wins
@@ -910,8 +928,9 @@ function eventsToPatterns(
     // Map of target global row -> cut parameter (ticks) to write as ECx
     const cutParamMap: Map<number, number> = new Map();
     // Track active per-channel vibrato so we can repeat it on sustain rows.
-    // `remainingRows` is optional; if present it counts sustain rows left AFTER the note row.
-    let activeVib: { code: number; param: number; remainingRows?: number } | null = null;
+    // `remainingRows` is optional; if present it counts sustain rows left AFTER the first apply row.
+    // `pendingRows` counts sustain rows to skip before starting to apply the effect (onset delay).
+    let activeVib: { code: number; param: number; remainingRows?: number; pendingRows?: number } | null = null;
     // Track active per-channel arpeggio so we can repeat it on sustain rows.
     let activeArp: { code: number; param: number; remainingRows?: number } | null = null;
     // Map of note globalRow -> desired durationRows (including the note row)
@@ -919,6 +938,7 @@ function eventsToPatterns(
     // Track if any retrigger or echo effects are encountered (for warning)
     let hasRetrigEffects = false;
     let hasEchoEffects = false;
+    let hasTremEffects = false;
     let prevEventType: string | null = null;
     // Track if we've seen the first note yet (to skip portamento on first note)
     let hasSeenNote = false;
@@ -952,8 +972,10 @@ function eventsToPatterns(
             let effCode = 0;
             let effParam = 0;
             if (activeVib) {
-                // If remainingRows is undefined, vib continues for full note (until note ends).
-                if (typeof activeVib.remainingRows === 'undefined' || activeVib.remainingRows > 0) {
+                // If still in delay phase, skip this sustain row.
+                if (typeof activeVib.pendingRows === 'number' && activeVib.pendingRows > 0) {
+                    // skip — no effect
+                } else if (typeof activeVib.remainingRows === 'undefined' || activeVib.remainingRows > 0) {
                     effCode = activeVib.code;
                     effParam = activeVib.param;
                 }
@@ -971,12 +993,16 @@ function eventsToPatterns(
                 effectParam: effParam,
                 pan: currentPan,
             };
-            // Decrement remainingRows if present
-            if (activeVib && typeof activeVib.remainingRows === 'number') {
-                activeVib.remainingRows = Math.max(0, activeVib.remainingRows - 1);
-                if (activeVib.remainingRows === 0) {
-                    // Once expired, clear activeVib so further sustains don't repeat it
-                    activeVib = null;
+            // Decrement pendingRows (delay) or remainingRows (active duration)
+            if (activeVib) {
+                if (typeof activeVib.pendingRows === 'number' && activeVib.pendingRows > 0) {
+                    activeVib.pendingRows = Math.max(0, activeVib.pendingRows - 1);
+                } else if (typeof activeVib.remainingRows === 'number') {
+                    activeVib.remainingRows = Math.max(0, activeVib.remainingRows - 1);
+                    if (activeVib.remainingRows === 0) {
+                        // Once expired, clear activeVib so further sustains don't repeat it
+                        activeVib = null;
+                    }
                 }
             }
             if (activeArp && typeof activeArp.remainingRows === 'number') {
@@ -1132,6 +1158,10 @@ function eventsToPatterns(
                         hasEchoEffects = true;
                         continue; // Skip echo - not supported in UGE
                     }
+                    if (fxName === 'trem') {
+                        hasTremEffects = true;
+                        continue; // Skip trem - not supported in UGE (effect 7 is Note Delay, not tremolo)
+                    }
 
                     // Skip portamento on the first note (nothing to slide from)
                     if (fxName === 'port' && !hasSeenNote) {
@@ -1161,21 +1191,30 @@ function eventsToPatterns(
             // Resolve conflicts and apply the winning effect to note row
             const winningEffect = resolveEffectConflict(effectRequests);
             if (winningEffect && winningEffect.type !== 'cut') {
-                // For vibrato, apply to BOTH note row AND the next sustain row
+                // For vibrato, handle optional onset delay (startRow > 0)
                 if (winningEffect.type === 'vib') {
-                    // Apply to note row
-                    const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
-                    if (handler) {
-                        handler.apply(cell, winningEffect);
+                    const startRow = winningEffect.startRow ?? 0;
+                    const effectiveDuration = winningEffect.duration; // already clamped in parse()
+
+                    if (startRow === 0) {
+                        // Immediate: apply to note row, then continue on sustain rows
+                        const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
+                        if (handler) handler.apply(cell, winningEffect);
+                        activeVib = {
+                            code: winningEffect.code,
+                            param: winningEffect.param,
+                            remainingRows: Math.max(0, effectiveDuration - 1),
+                        };
+                    } else {
+                        // Delayed: skip note row, start applying after `startRow - 1` sustain rows
+                        activeVib = {
+                            code: winningEffect.code,
+                            param: winningEffect.param,
+                            pendingRows: startRow - 1,
+                            remainingRows: effectiveDuration,
+                        };
                     }
-                    // Also keep it active for the next sustain row
-                    // remainingRows=1 means it will be applied to exactly one more row
-                    activeVib = {
-                        code: winningEffect.code,
-                        param: winningEffect.param,
-                        remainingRows: 1
-                    };
-                    desiredVibMap.set(i, 2); // vibrato appears on 2 rows total
+                    desiredVibMap.set(i, startRow + effectiveDuration); // last vib row = i + startRow + effectiveDuration - 1
                 } else if (winningEffect.type === 'arp') {
                     // Apply arpeggio to note row AND all sustain rows (arpeggio lasts for full note duration)
                     const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
@@ -1327,6 +1366,7 @@ function eventsToPatterns(
     // Store retrigger and echo warning flags on the patterns array for caller to check
     (patterns as any).__hasRetrigEffects = hasRetrigEffects;
     (patterns as any).__hasEchoEffects = hasEchoEffects;
+    (patterns as any).__hasTremEffects = hasTremEffects;
 
     return patterns;
 }
@@ -1386,7 +1426,7 @@ export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrume
 /**
  * Export a beatbax SongModel to UGE v6 binary format.
  */
-export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean } = {}): Promise<void> {
+export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void } = {}): Promise<void> {
     const w = new UGEWriter();
     const strictGb = opts && opts.strictGb === true;
     const verbose = opts && opts.verbose === true;
@@ -1641,12 +1681,30 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         }
     }
 
-    // Emit warnings if retrigger or echo effects were found
+    // Check for tremolo effects
+    let hasTremEffectsInSong = false;
+    for (const patterns of channelPatterns) {
+        if ((patterns as any).__hasTremEffects) {
+            hasTremEffectsInSong = true;
+            break;
+        }
+    }
+
+    // Emit warnings for unsupported effects.
+    // Route through opts.onWarn if provided (browser/programmatic callers); also always
+    // print to console.warn so CLI users see them regardless of logger level.
+    const emitWarn = (msg: string) => {
+        console.warn(`[WARN] [export] ${msg}`);
+        if (opts.onWarn) opts.onWarn(msg);
+    };
     if (hasRetrigEffectsInSong) {
-        warn('export', 'Retrigger effects detected in song but cannot be exported to UGE (hUGETracker has no native retrigger effect). Retrigger effects will be lost. Use --browser flag for retrigger support.');
+        emitWarn('Retrigger effects cannot be exported to UGE — they will not be included in the UGE file.');
     }
     if (hasEchoEffectsInSong) {
-        warn('export', 'Echo/delay effects detected in song but cannot be exported to UGE (hUGETracker has no native echo effect). Echo effects will be lost. Use --browser flag for echo support.');
+        emitWarn('Echo/delay effects cannot be exported to UGE — they will not be included in the UGE file.');
+    }
+    if (hasTremEffectsInSong) {
+        emitWarn('Tremolo effects cannot be exported to UGE — they will not be included in the UGE file.');
     }
 
     // ====== Unified Post-Processing Pass ======
@@ -1935,8 +1993,21 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const waveform = Number.isFinite(waveformRaw) ? Math.max(0, Math.min(15, Math.round(waveformRaw))) : 0;
                 const param = encodeVibParam(waveform, depth);
 
+                // Parse onset delay from params[4] (rows) or delaySec fallback
+                let delayRowsEnforce = 0;
+                if (params && params.length > 4 && Number.isFinite(Number(params[4]))) {
+                    delayRowsEnforce = Math.max(0, Math.round(Number(params[4])));
+                } else if (vibFx.delaySec && Number.isFinite(vibFx.delaySec)) {
+                    const bpmForTicksD = (typeof song.bpm === 'number' && Number.isFinite(song.bpm)) ? song.bpm : 128;
+                    const tickSecondsD = (60 / bpmForTicksD) / 4;
+                    delayRowsEnforce = Math.max(0, Math.round(vibFx.delaySec / tickSecondsD));
+                }
+                // Clamp delay: cannot exceed note duration
+                delayRowsEnforce = Math.min(delayRowsEnforce, sustainCount);
+
                 const globalStart = i;
-                const allowedEnd = globalStart + dr - 1; // inclusive
+                const delayedStart = globalStart + delayRowsEnforce; // first row that should have 4xy
+                const allowedEnd = delayedStart + dr - 1; // inclusive (dr rows of active vibrato)
                 const actualEnd = globalStart + sustainCount; // inclusive
 
                 // if NR51 explicit and non-default on note row, we will preserve it
@@ -1949,16 +2020,24 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
                 const nrIsDefault = (nrValue === 0xFF);
                 const preserveNoteNR51 = !!noteCell && noteCell.effectCode === 8 && nrWasExplicit && !nrIsDefault;
                 if (opts && opts.debug) {
-                    try { log.debug('[DEBUG] finalEnforce note check', { ch, globalStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
+                    try { log.debug('[DEBUG] finalEnforce note check', { ch, globalStart, delayRowsEnforce, delayedStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
                 }
 
-                // Updated behavior: vibrato appears on BOTH note row AND first sustain row
-                // This provides immediate vibrato effect starting from the note trigger
-                // No need to clear vibrato from note row anymore
+                // Clear 4xy from the note row and any delay rows (rows before vibrato should start)
+                for (let g = globalStart; g < delayedStart; g++) {
+                    const patIdx = Math.floor(g / PATTERN_ROWS);
+                    const rowIdx = g % PATTERN_ROWS;
+                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
+                    if (!patObj) continue;
+                    const cell = patObj.cells[rowIdx];
+                    if (cell && cell.effectCode === 4) {
+                        cell.effectCode = 0;
+                        cell.effectParam = 0;
+                    }
+                }
 
-                // enforce: for g in [globalStart .. min(allowedEnd, actualEnd)] set 4xy=param
-                // Note: starting from globalStart (note row) instead of globalStart+1
-                for (let g = globalStart; g <= Math.min(allowedEnd, actualEnd); g++) {
+                // Enforce: for rows [delayedStart .. min(allowedEnd, actualEnd)] set 4xy=param
+                for (let g = delayedStart; g <= Math.min(allowedEnd, actualEnd); g++) {
                     const patIdx = Math.floor(g / PATTERN_ROWS);
                     const rowIdx = g % PATTERN_ROWS;
                     const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);

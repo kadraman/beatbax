@@ -591,11 +591,12 @@ function renderPulse(
   let vibDepth = 0;
   let vibRate = 0;
   let vibDurationSec: number | undefined = undefined;
-  // Tremolo params (depth 0-15, rate in Hz, waveform, duration)
+  // Tremolo params (depth 0-15, rate in Hz, waveform, duration, delay onset)
   let tremDepth = 0;
   let tremRate = 0;
   let tremWaveform: string | undefined = undefined;
   let tremDurationSec: number | undefined = undefined;
+  let tremDelaySec: number | undefined = undefined;
   // Note cut params (ticks after which to cut the note)
   let cutTicks = 0;
   let cutEnabled = false;
@@ -649,13 +650,24 @@ function renderPulse(
           tremDepth = Number(typeof p[0] !== 'undefined' ? p[0] : 0);
           tremRate = Number(typeof p[1] !== 'undefined' ? p[1] : 6);
           tremWaveform = typeof p[2] !== 'undefined' ? String(p[2]).toLowerCase() : 'sine';
-          // Prefer resolver-provided durationSec, else fall back to 4th param as rows
-          if (typeof fx.durationSec === 'number') {
+          // Prefer resolver-provided durationSec, else fall back to 4th param as rows.
+          // IMPORTANT: durRows=0 means "no duration limit" (not 0 seconds).
+          if (typeof fx.durationSec === 'number' && fx.durationSec > 0) {
             tremDurationSec = Number(fx.durationSec);
           } else {
             const durRows = typeof p[3] !== 'undefined' ? Number(p[3]) : undefined;
-            if (typeof durRows === 'number' && !Number.isNaN(durRows) && typeof tickSeconds === 'number') {
+            if (typeof durRows === 'number' && !Number.isNaN(durRows) && durRows > 0 && typeof tickSeconds === 'number') {
               tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            }
+            // durRows===0 (or undefined) → tremDurationSec stays undefined = unlimited
+          }
+          // Onset delay: resolver stores delayRows→delaySec on fx.delaySec; raw rows in p[4].
+          if (typeof fx.delaySec === 'number' && fx.delaySec > 0) {
+            tremDelaySec = fx.delaySec;
+          } else {
+            const delayRows = typeof p[4] !== 'undefined' ? Number(p[4]) : undefined;
+            if (typeof delayRows === 'number' && !Number.isNaN(delayRows) && delayRows > 0 && typeof tickSeconds === 'number') {
+              tremDelaySec = delayRows * tickSeconds; // rows → seconds
             }
           }
         } else if (fx && fx.type === 'arp') {
@@ -886,7 +898,8 @@ function renderPulse(
 
     // Apply tremolo if enabled (amplitude modulation)
     if (tremDepth > 0 && tremRate > 0) {
-      if (typeof tremDurationSec === 'undefined' || t < tremDurationSec) {
+      const afterDelay = (typeof tremDelaySec === 'undefined' || t >= tremDelaySec);
+      if (afterDelay && (typeof tremDurationSec === 'undefined' || t < tremDurationSec)) {
         // Tremolo depth: 0-15 maps to 0-50% amplitude modulation
         const modulationDepth = (tremDepth / 15) * 0.5; // 0 to 0.5 (±50% max)
 
@@ -1028,6 +1041,7 @@ function renderWave(
   let tremRate = 0;
   let tremWaveform: string | undefined = undefined;
   let tremDurationSec: number | undefined = undefined;
+  let tremDelaySec: number | undefined = undefined;
   // Portamento params
   let portSpeed = 0;
   let portDurationSec: number | undefined = undefined;
@@ -1078,7 +1092,15 @@ function renderWave(
           if (typeof fx.durationSec === 'number') tremDurationSec = Number(fx.durationSec);
           else if (typeof p[3] !== 'undefined' && typeof tickSeconds === 'number') {
             const durRows = Number(p[3]);
-            if (!Number.isNaN(durRows)) tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+            if (!Number.isNaN(durRows) && durRows > 0) tremDurationSec = Math.max(0, Math.floor(durRows) * tickSeconds);
+          }
+          if (typeof fx.delaySec === 'number' && fx.delaySec > 0) {
+            tremDelaySec = fx.delaySec;
+          } else {
+            const delayRows = typeof p[4] !== 'undefined' ? Number(p[4]) : undefined;
+            if (typeof delayRows === 'number' && !Number.isNaN(delayRows) && delayRows > 0 && typeof tickSeconds === 'number') {
+              tremDelaySec = delayRows * tickSeconds; // rows → seconds
+            }
           }
         } else if (fx && fx.type === 'bend') {
           const p = fx.params || [];
@@ -1265,7 +1287,8 @@ function renderWave(
 
     // Apply tremolo if enabled (amplitude modulation)
     if (tremDepth > 0 && tremRate > 0) {
-      if (typeof tremDurationSec === 'undefined' || t < tremDurationSec) {
+      const afterDelayW = (typeof tremDelaySec === 'undefined' || t >= tremDelaySec);
+      if (afterDelayW && (typeof tremDurationSec === 'undefined' || t < tremDurationSec)) {
         const modulationDepth = (tremDepth / 15) * 0.5;
         let lfo = 0;
         const tremPhase = (t * tremRate * 2 * Math.PI);
