@@ -1,10 +1,15 @@
 /**
  * ChannelState - Manages mute/solo state for each channel
+ *
+ * @deprecated Use the `channelStates` map atom from `../stores/channel.store`
+ * directly for reactive reads. ChannelState is kept as the Player bridge layer
+ * and will be removed in a future cleanup phase.
  */
 
 import type { EventBus } from '../utils/event-bus';
 import type { Player } from '@beatbax/engine/audio/playback';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { setChannelMuted, setChannelSoloed, setChannelVolume } from '../stores/channel.store';
 
 const log = createLogger('ui:channel-state');
 
@@ -95,6 +100,7 @@ export class ChannelState {
     channel.muted = true;
     this.saveState();
     this.applyToPlayer(this.player); // Apply immediately to Player
+    setChannelMuted(channelId, true);
     this.eventBus.emit('channel:muted', { channel: channelId });
   }
 
@@ -108,6 +114,7 @@ export class ChannelState {
     channel.muted = false;
     this.saveState();
     this.applyToPlayer(this.player); // Apply immediately to Player
+    setChannelMuted(channelId, false);
     this.eventBus.emit('channel:unmuted', { channel: channelId });
   }
 
@@ -142,9 +149,11 @@ export class ChannelState {
     for (const [id, info] of this.channels.entries()) {
       if (id === channelId) {
         info.soloed = true;
+        setChannelSoloed(id, true);
         this.eventBus.emit('channel:soloed', { channel: id });
       } else {
         info.soloed = false;
+        setChannelSoloed(id, false);
         this.eventBus.emit('channel:unsoloed', { channel: id });
       }
     }
@@ -163,6 +172,7 @@ export class ChannelState {
     channel.soloed = false;
     this.saveState();
     this.applyToPlayer(this.player); // Apply immediately to Player
+    setChannelSoloed(channelId, false);
     this.eventBus.emit('channel:unsoloed', { channel: channelId });
   }
 
@@ -189,6 +199,7 @@ export class ChannelState {
 
     channel.volume = Math.max(0, Math.min(1, volume));
     this.saveState();
+    setChannelVolume(channelId, channel.volume);
   }
 
   /**

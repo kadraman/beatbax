@@ -3,6 +3,8 @@
  */
 
 import type { EventBus } from '../utils/event-bus';
+import { playbackStatus, playbackTimeLabel } from '../stores/playback.store';
+import { icon } from '../utils/icons';
 
 export interface StatusBarConfig {
   container: HTMLElement;
@@ -73,29 +75,26 @@ export class StatusBar {
       this.render();
     });
 
-    // Playback events
-    this.eventBus.on('playback:started', () => {
-      this.setStatus('Playing');
+    // Playback state — subscribe to stores instead of event bus
+    playbackStatus.listen((status) => {
+      switch (status) {
+        case 'playing': this.setStatus('Playing'); break;
+        case 'stopped':
+          this.info.playbackTime = '0:00';
+          this.setStatus('Stopped');
+          break;
+        case 'paused': this.setStatus('Paused'); break;
+      }
     });
 
-    this.eventBus.on('playback:stopped', () => {
-      this.setStatus('Stopped');
-      this.info.playbackTime = '0:00';
+    playbackTimeLabel.listen((label) => {
+      this.info.playbackTime = label;
       this.render();
-    });
-
-    this.eventBus.on('playback:paused', () => {
-      this.setStatus('Paused');
     });
 
     this.eventBus.on('playback:error', () => {
       this.setStatus('Playback error');
       this.info.errorCount++;
-      this.render();
-    });
-
-    this.eventBus.on('playback:position', ({ current, total }) => {
-      this.info.playbackTime = this.formatTime(current);
       this.render();
     });
 
@@ -183,14 +182,14 @@ export class StatusBar {
 
         ${this.info.errorCount > 0 ? `
           <div class="status-section status-errors">
-            <span class="status-icon">❌</span>
+            <span class="status-icon">${icon('exclamation-circle', 'w-3.5 h-3.5 inline-block align-middle')}</span>
             <span class="status-count">${this.info.errorCount}</span>
           </div>
         ` : ''}
 
         ${this.info.warningCount > 0 ? `
           <div class="status-section status-warnings">
-            <span class="status-icon">⚠️</span>
+            <span class="status-icon">${icon('exclamation-triangle', 'w-3.5 h-3.5 inline-block align-middle')}</span>
             <span class="status-count">${this.info.warningCount}</span>
           </div>
         ` : ''}
@@ -213,7 +212,6 @@ export class StatusBar {
     `;
 
     this.container.innerHTML = html;
-    this.ensureStyles();
   }
 
   /**
@@ -223,106 +221,5 @@ export class StatusBar {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  /**
-   * Ensure CSS styles are present
-   */
-  private ensureStyles(): void {
-    const styleId = 'beatbax-status-bar-styles';
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .status-bar {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 4px 12px;
-        background: var(--status-bar-bg, #007acc);
-        color: var(--status-bar-text, #fff);
-        font-size: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-        border-top: 1px solid var(--border-color, #444);
-        height: 24px;
-      }
-
-      .status-section {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .status-main {
-        flex: 1;
-        font-weight: 500;
-      }
-
-      .status-text {
-        opacity: 0.95;
-      }
-
-      .status-label {
-        opacity: 0.9;
-      }
-
-      .status-icon {
-        font-size: 14px;
-      }
-
-      .status-count {
-        font-weight: 600;
-      }
-
-      .status-errors {
-        color: var(--error-color-light, #ffc1c1);
-      }
-
-      .status-warnings {
-        color: var(--warning-color-light, #ffd666);
-      }
-
-      .status-section.status-brand {
-        margin-left: 8px;
-        opacity: 0.7;
-        font-weight: 600;
-        font-size: 11px;
-        white-space: nowrap;
-      }
-      .status-brand-link {
-        display: inline-flex;
-        gap: 0px;
-        align-items: center;
-        text-decoration: none;
-        cursor: pointer;
-      }
-      .status-brand-link:focus { outline: 2px solid rgba(255,255,255,0.14); outline-offset: 2px; }
-      .bb-letter {
-        display: inline-block;
-        font-weight: 800;
-        padding: 0 0.4px;
-        margin-right: 0px;
-        line-height: 1;
-        transform-origin: center;
-        transition: transform 120ms ease, opacity 120ms ease;
-        letter-spacing: -0.2px;
-        /* Add a subtle dark outline for readability on blue backgrounds */
-        -webkit-text-stroke: 0.8px rgba(0,0,0,0.75);
-        text-stroke: 0.8px rgba(0,0,0,0.75);
-        text-shadow: -1px -1px 0 rgba(0,0,0,0.85), 1px -1px 0 rgba(0,0,0,0.85), -1px 1px 0 rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.85);
-      }
-      /* Beat = reddish tones */
-      .bb-letter.beat-b { color: #ff7a78; }
-      .bb-letter.beat-e { color: #ff9e9e; }
-      .bb-letter.beat-a { color: #ff6b6b; }
-      .bb-letter.beat-t { color: #ff4a4a; }
-      /* Bax = blueish tones */
-      .bb-letter.bax-b { color: #7fb8ff; }
-      .bb-letter.bax-a { color: #9fd0ff; }
-      .bb-letter.bax-x { color: #5f9eff; }
-      .status-brand-link:hover .bb-letter { transform: translateY(-1px); opacity: 0.98; }
-    `;
-    document.head.appendChild(style);
   }
 }

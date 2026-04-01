@@ -15,6 +15,7 @@ import type * as Monaco from 'monaco-editor';
 import { BeatBaxSettings } from '../utils/local-storage';
 import type { EventBus } from '../utils/event-bus';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { editorContent, editorDirty } from '../stores/editor.store';
 
 const log = createLogger('editor:state');
 
@@ -108,6 +109,11 @@ export interface IEditorState {
 /**
  * Manages editor content state, auto-save, cursor/selection tracking, and
  * undo/redo for a Monaco editor instance.
+ *
+ * @deprecated The event-bus emissions remain for backward compatibility.
+ * Prefer subscribing to `editorContent` and `editorDirty` from
+ * `../stores/editor.store` for reactive reads. This class will be removed
+ * in a future cleanup phase.
  *
  * Example:
  * ```typescript
@@ -286,6 +292,8 @@ export class EditorState implements IEditorState {
 
     // Emit change event (callers can react immediately).
     this.eventBus.emit('editor:changed', { content });
+    editorContent.set(content);
+    editorDirty.set(true);
 
     if (this.autoSaveDelay === 0) {
       // Auto-save disabled — persist immediately so tests / callers that rely
@@ -309,6 +317,7 @@ export class EditorState implements IEditorState {
   private persist(content: string): void {
     BeatBaxSettings.setEditorContent(content);
     this._isDirty = false;
+    editorDirty.set(false);
     this.eventBus.emit('editor:saved', { filename: 'autosave' });
     log.debug(`Auto-saved ${content.length} chars.`);
   }

@@ -8,6 +8,19 @@ import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
 import type { ChannelState } from './channel-state';
 import { createLogger } from '@beatbax/engine/util/logger';
+import {
+  playbackStatus,
+  playbackBpm,
+  playbackPosition as playbackPositionAtom,
+  playbackDuration,
+  playbackTimeLabel,
+} from '../stores/playback.store';
+
+function formatPlaybackTime(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 const log = createLogger('ui:playback');
 
@@ -245,6 +258,7 @@ export class PlaybackManager {
 
       // Emit parse success
       this.eventBus.emit('parse:success', { ast: resolved });
+      playbackBpm.set((resolved as any).bpm || 120);
 
       // Create player if needed
       if (!this.player) {
@@ -295,6 +309,7 @@ export class PlaybackManager {
       // Emit playback started
       log.debug('Emitting playback:started');
       this.eventBus.emit('playback:started', undefined);
+      playbackStatus.set('playing');
 
     } catch (error: any) {
       this.state.error = error as Error;
@@ -329,6 +344,10 @@ export class PlaybackManager {
       this._lastKnownPat.clear();
 
       this.eventBus.emit('playback:stopped', undefined);
+      playbackStatus.set('stopped');
+      playbackPositionAtom.set(0);
+      playbackDuration.set(0);
+      playbackTimeLabel.set('0:00');
     } catch (error) {
       log.error('Error stopping playback:', error);
     }
@@ -346,6 +365,7 @@ export class PlaybackManager {
       await this.player.pause();
       this.state.isPaused = true;
       this.eventBus.emit('playback:paused', undefined);
+      playbackStatus.set('paused');
     }
   }
 
@@ -361,6 +381,7 @@ export class PlaybackManager {
       await this.player.resume();
       this.state.isPaused = false;
       this.eventBus.emit('playback:resumed', undefined);
+      playbackStatus.set('playing');
     }
   }
 
@@ -499,6 +520,9 @@ export class PlaybackManager {
         if (completionMs) totalSec = completionMs / 1000;
 
         this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
+        playbackPositionAtom.set(currentSec);
+        playbackDuration.set(totalSec);
+        playbackTimeLabel.set(formatPlaybackTime(currentSec));
       } catch (e) {
         // Non-fatal - don't break playback if timing inference fails
       }

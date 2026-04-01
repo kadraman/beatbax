@@ -276,9 +276,9 @@ no cross-component DOM queries.
 - [x] Tailwind v4 configured via `src/styles.css` (`@import "tailwindcss"` + `@custom-variant dark`) — no `tailwind.config.js`
 - [x] Create `src/styles.css`; import in `main.ts`
 - [x] Add `@tailwindcss/vite` plugin to `vite.config.ts`
-- [ ] Verify existing tests still pass (`npm test`)
+- [x] Verify existing tests still pass (`npm test`)
 
-### Phase 1 — Stores (~1 day) ✅ (core stores done; consumer migration pending)
+### Phase 1 — Stores (~1 day) ✅
 
 - [x] Create `src/stores/` with all 6 store files (added `chat.store.ts` — see Open Questions #2)
 - [x] `channel.store.ts` created with localStorage persistence (`'beatbax-channel-state'`)
@@ -287,11 +287,11 @@ no cross-component DOM queries.
 - [x] `playback.store.ts` and `ui.store.ts` created
 - [x] `chat.store.ts` created — AI message history, settings (API key NOT persisted), mode, loading, unread count
 - [x] `src/stores/index.ts` barrel export
-- [ ] Update `playback/playback-manager.ts` to write stores instead of emitting events
-- [ ] Update `ui/status-bar.ts` to subscribe to stores
-- [ ] Migrate `playback/channel-state.ts` → delete (superseded by `channel.store.ts`)
-- [ ] Migrate `editor/editor-state.ts` → delete (superseded by `editor.store.ts`)
-- [ ] Keep `event-bus.ts` alive during transition; mark deprecated
+- [x] Update `playback/playback-manager.ts` to write stores instead of emitting events
+- [x] Update `ui/status-bar.ts` to subscribe to stores
+- [x] `playback/channel-state.ts` marked `@deprecated`; dual-writes to `channel.store` added (delete in Phase 4)
+- [x] `editor/editor-state.ts` marked `@deprecated`; dual-writes to `editor.store` added (delete in Phase 4)
+- [x] `event-bus.ts` marked `@deprecated` with migration note
 
 ### Phase 2 — Split `main.ts` (~2 days) ⬜ not started
 
@@ -302,25 +302,25 @@ no cross-component DOM queries.
 - [ ] Reduce `main.ts` to orchestration shell (~80 lines)
 - [ ] Verify dev server and all features still work end-to-end
 
-### Phase 3 — Tailwind migration (~2 days) 🟡 partial
+### Phase 3 — Tailwind migration (~2 days) ✅
 
 **Heroicons:** All emoji and unicode symbols replaced with heroicons v2 outline 24px (MIT).
 Inline SVGs served via `src/utils/icons.ts` (`icon(name)` / `iconEl(name)` helpers).
 
 Convert components in bottom-up order (least CSS-heavy first):
 
-- [ ] `ui/status-bar.ts`
+- [x] `ui/status-bar.ts` — heroicons (exclamation-circle, exclamation-triangle); subscribes to `playback.store` via `.listen()`
 - [x] `ui/transport-bar.ts` — heroicons (play, pause, stop, arrow-path, bolt)
 - [x] `ui/theme-manager.ts` — Tailwind `dark` class toggle added; `data-theme` attribute kept
 - [x] `ui/toolbar.ts` — heroicons (folder-open, musical-note, document, cpu-chip, speaker-wave, check-circle, chevron-down)
 - [x] `ui/menu-bar.ts` — heroicons added to 15+ menu items; submenu arrow replaced
-- [ ] `panels/output-panel.ts`
-- [ ] `panels/help-panel.ts`
+- [x] `panels/output-panel.ts` — heroicons (exclamation-circle, exclamation-triangle, information-circle, check-circle, light-bulb)
+- [x] `panels/help-panel.ts` — heroicons (question-mark-circle, x-mark, chevron-right, chevron-down, check-circle)
 - [x] `panels/channel-mixer.ts` — heroicons (speaker-wave, speaker-x-mark, eye)
 - [x] `panels/chat-panel.ts` — heroicons (sparkles, cog-6-tooth, paper-airplane, stop); wired to `chat.store`
-- [ ] `app/layout.ts` (pane sizing)
-- [ ] Remove all `document.createElement('style')` injection (keep Monaco decoration files)
-- [ ] Remove large CSS block from `index.html` (only keep CSS token `:root` vars and `body` reset)
+- [ ] `app/layout.ts` (pane sizing — pending Phase 2 split)
+- [x] Remove all `document.createElement('style')` injection (kept Monaco decoration files only)
+- [x] Remove large CSS block from `index.html` (kept only `:root` design tokens + `[data-theme="light"]` overrides + `body` + `#app` reset; all component CSS consolidated into `styles.css`)
 
 ### Phase 4 — Cleanup (~0.5 days) ⬜ not started
 
