@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/*
+ * BeatBax dark/light theme custom variant.
+ * The theme-manager sets data-theme="dark"|"light" on <html>.
+ * Tailwind `dark:` utilities activate when data-theme="dark" is present.
+ */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/*
+ * BeatBax design tokens — keep in sync with index.html :root block.
+ * These are referenced by Tailwind utilities via `var(...)` where needed.
+ */
+@theme {
+  --color-bb-bg:       var(--bb-app-bg);
+  --color-bb-fg:       var(--bb-fg);
+  --color-bb-toolbar:  var(--bb-toolbar-bg);
+  --color-bb-border:   var(--bb-toolbar-border);
+  --color-bb-muted:    var(--text-muted);
+  --color-bb-error:    var(--error-color);
+  --color-bb-warning:  var(--warning-color);
+}

@@ -4,6 +4,8 @@
  * used by `TransportControls`.
  */
 
+import { icon } from '../utils/icons';
+
 export interface TransportBarOptions {
   container: HTMLElement;
   logoSrc?: string;
@@ -43,19 +45,19 @@ export class TransportBar {
     this.el.appendChild(infoWrap);
 
     // Buttons
-    const mkBtn = (label: string, title = '') => {
+    const mkBtn = (iconName: string, label: string, title = '') => {
       const b = document.createElement('button');
-      b.textContent = label;
+      b.innerHTML = `${icon(iconName, 'w-4 h-4 inline-block align-text-bottom')} ${label}`;
       b.title = title;
-      b.style.cssText = 'padding: 6px 14px; font-size: 13px; cursor: pointer;';
+      b.style.cssText = 'padding: 6px 14px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;';
       return b as HTMLButtonElement;
     };
 
-    this.playButton = mkBtn('▶ Play', 'Play current song (F5 / Space when outside editor)');
-    this.pauseButton = mkBtn('⏸ Pause', 'Pause playback');
-    this.stopButton = mkBtn('⏹ Stop', 'Stop playback (F8 / Esc)');
-    this.applyButton = mkBtn('🔄 Apply', 'Apply & re-play (Ctrl+Enter)');
-    this.liveButton = mkBtn('⚡ Live', 'Toggle live-play mode');
+    this.playButton  = mkBtn('play',       'Play',  'Play current song (F5 / Space when outside editor)');
+    this.pauseButton = mkBtn('pause',      'Pause', 'Pause playback');
+    this.stopButton  = mkBtn('stop',       'Stop',  'Stop playback (F8 / Esc)');
+    this.applyButton = mkBtn('arrow-path', 'Apply', 'Apply & re-play (Ctrl+Enter)');
+    this.liveButton  = mkBtn('bolt',       'Live',  'Toggle live-play mode');
     this.liveButton.classList.add('bb-live-btn');
 
     this.el.append(this.playButton, this.pauseButton, this.stopButton, this.applyButton, this.liveButton);

@@ -20,7 +20,7 @@ module.exports = {
     }],
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@beatbax)/)',
+    'node_modules/(?!(@beatbax|nanostores)/)',
   ],
   moduleNameMapper: {
     '^@beatbax/engine/util/logger$': '<rootDir>/tests/__mocks__/logger.ts',

@@ -8,6 +8,8 @@
 import { Buffer } from 'buffer';
 (globalThis as any).Buffer = Buffer;
 
+import './styles.css';
+
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {

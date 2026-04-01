@@ -18,6 +18,7 @@ import type { EventBus } from '../utils/event-bus';
 import type { PlaybackPosition } from '../playback/playback-manager';
 import { ChannelState } from '../playback/channel-state';
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
+import { icon } from '../utils/icons';
 
 const log = createLogger('ui:channel-panel');
 const STYLE_ID = 'bb-channel-panel-styles';
@@ -500,14 +501,16 @@ export class ChannelMixer {
   // ─── Style helpers ───────────────────────────────────────────────────────────
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
-    btn.textContent = 'M';
+    btn.innerHTML = muted
+      ? icon('speaker-x-mark', 'w-3.5 h-3.5 inline-block')
+      : icon('speaker-wave',   'w-3.5 h-3.5 inline-block');
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
     btn.setAttribute('aria-pressed', String(muted));
     btn.classList.toggle('bb-cp__btn--active', muted);
   }
 
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
-    btn.textContent = 'S';
+    btn.innerHTML = icon('eye', 'w-3.5 h-3.5 inline-block');
     btn.title = soloed ? 'Remove solo' : 'Solo this channel';
     btn.setAttribute('aria-pressed', String(soloed));
     btn.classList.toggle('bb-cp__btn--active', soloed);

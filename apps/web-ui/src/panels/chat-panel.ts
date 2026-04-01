@@ -17,11 +17,22 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import {
+  chatSettings,
+  chatMode,
+  chatHistory,
+  chatLoading,
+  pushChatMessage,
+  updateChatSettings,
+  clearChatHistory,
+  markChatRead,
+  type AISettings,
+  type ChatMode,
+} from '../stores/chat.store';
+import { icon } from '../utils/icons';
 
 const STYLE_ID = 'bb-chat-panel-styles';
-const STORAGE_KEY = 'bb-ai-settings';
 const MAX_SELF_CORRECTION_ATTEMPTS = 4;
-const MODE_KEY = 'bb-ai-mode';
 const MAX_EDITOR_CHARS = 3000;
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
@@ -60,29 +71,6 @@ const PRESETS: Preset[] = [
   },
 ];
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
-
-interface AISettings {
-  endpoint: string;
-  apiKey: string;
-  model: string;
-}
-
-function defaultSettings(): AISettings {
-  return { endpoint: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini' };
-}
-
-function loadSettings(): AISettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultSettings(), ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return defaultSettings();
-}
-
-function saveSettings(s: AISettings): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
-}
 
 // ─── BeatBax language reference injected into the system prompt ───────────────
 
@@ -427,22 +415,42 @@ export class ChatPanel {
   private apiKeyInput!: HTMLInputElement;
   private modelInput!: HTMLInputElement;
 
+  /**
+   * Local cache of the chat history used for API context assembly.
+   * Kept in sync with chatHistory store via subscribe.
+   */
   private messages: Message[] = [];
+  /** Local cache of AI settings read from chatSettings store. */
   private settings: AISettings;
-  private mode: 'ask' | 'edit';
+  /** Local cache of mode read from chatMode store. */
+  private mode: ChatMode;
   private isLoading = false;
   private visible = false;
   private abortController: AbortController | null = null;
+  /** Cleanup functions for store subscriptions. */
+  private storeUnsubs: Array<() => void> = [];
 
   constructor(private opts: ChatPanelOptions) {
-    this.settings = loadSettings();
-    this.mode = (localStorage.getItem(MODE_KEY) as 'ask' | 'edit') === 'ask' ? 'ask' : 'edit';
+    // Initialise local caches from stores (which already loaded from localStorage)
+    this.settings = chatSettings.get();
+    this.mode = chatMode.get();
+    this.messages = chatHistory.get().map(m => ({ role: m.role, content: m.content }));
+
     this.el = document.createElement('div');
     this.el.className = 'bb-chat-panel';
     this.injectStyles();
     this.render();
     opts.container.appendChild(this.el);
     this.el.style.display = 'none';
+
+    // Keep local caches in sync with stores
+    this.storeUnsubs.push(
+      chatSettings.subscribe(s  => { this.settings = s; }),
+      chatMode.subscribe(m      => { this.mode = m; }),
+      chatHistory.subscribe(h   => {
+        this.messages = h.map(m => ({ role: m.role, content: m.content }));
+      }),
+    );
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -450,6 +458,7 @@ export class ChatPanel {
   show(): void {
     this.visible = true;
     this.el.style.display = 'flex';
+    markChatRead();
   }
 
   hide(): void {
@@ -492,11 +501,11 @@ export class ChatPanel {
     titleRow.className = 'bb-chat-title-row';
     const titleSpan = document.createElement('span');
     titleSpan.className = 'bb-chat-title';
-    titleSpan.textContent = '🤖 BeatBax Copilot';
+    titleSpan.innerHTML = icon('sparkles', 'w-4 h-4 inline-block mr-1') + 'BeatBax Copilot';
     const settingsToggleBtn = document.createElement('button');
     settingsToggleBtn.className = 'bb-chat-settings-btn';
     settingsToggleBtn.title = 'Configure AI provider';
-    settingsToggleBtn.textContent = '⚙';
+    settingsToggleBtn.innerHTML = icon('cog-6-tooth', 'w-4 h-4');
     settingsToggleBtn.addEventListener('click', () => this.toggleSettings());
     titleRow.appendChild(titleSpan);
     titleRow.appendChild(settingsToggleBtn);
@@ -535,7 +544,7 @@ export class ChatPanel {
       btn.title = title;
       btn.addEventListener('click', () => {
         this.mode = value;
-        try { localStorage.setItem(MODE_KEY, value); } catch { /* ignore */ }
+        chatMode.set(value);
         modeBar.querySelectorAll('.bb-chat-mode-btn').forEach(b => b.classList.remove('bb-chat-mode-btn--active'));
         btn.classList.add('bb-chat-mode-btn--active');
         this.inputEl.placeholder = value === 'edit'
@@ -567,7 +576,7 @@ export class ChatPanel {
 
     this.sendBtn = document.createElement('button');
     this.sendBtn.className = 'bb-chat-send-btn';
-    this.sendBtn.textContent = '▶ Send';
+    this.sendBtn.innerHTML = icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
     this.sendBtn.addEventListener('click', () => {
       if (this.isLoading) {
         this.abortController?.abort();
@@ -710,7 +719,7 @@ export class ChatPanel {
       apiKey: this.apiKeyInput.value.trim(),
       model: this.modelInput.value.trim() || 'gpt-4o-mini',
     };
-    saveSettings(this.settings);
+    updateChatSettings(this.settings);
     this.toggleSettings();
     this.checkConfig();
     const subtitle = this.el.querySelector('.bb-chat-subtitle') as HTMLElement | null;
@@ -725,7 +734,7 @@ export class ChatPanel {
     const isLocal = this.settings.endpoint.includes('localhost') ||
                     this.settings.endpoint.includes('127.0.0.1');
     if (!isLocal && !this.settings.apiKey) {
-      this.setStatus('⚠ No API key set. Click ⚙ to configure.');
+      this.setStatus('⚠ No API key set. Click the settings icon to configure.');
     } else {
       this.setStatus('');
     }
@@ -762,7 +771,7 @@ export class ChatPanel {
     if (!text || this.isLoading) return;
 
     if (!this.settings.endpoint) {
-      this.setStatus('⚠ No endpoint configured. Click ⚙ to set one.');
+      this.setStatus('⚠ No endpoint configured. Click the settings icon to set one.');
       return;
     }
 
@@ -968,7 +977,7 @@ export class ChatPanel {
   }
 
   private addMessage(role: 'user' | 'assistant', content: string, autoApplied = false, previousContent: string | null = null): void {
-    this.messages.push({ role, content });
+    pushChatMessage(role, content);
     const el = this.renderMessage(role, content, autoApplied, previousContent);
     this.messagesEl.appendChild(el);
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -980,7 +989,7 @@ export class ChatPanel {
 
     const label = document.createElement('span');
     label.className = 'bb-chat-msg-label';
-    label.textContent = role === 'user' ? 'You' : '🤖 Copilot';
+    label.textContent = role === 'user' ? 'You' : 'Copilot';
     wrap.appendChild(label);
 
     if (role === 'user') {
@@ -1095,15 +1104,18 @@ export class ChatPanel {
   }
 
   private clearChat(): void {
-    this.messages = [];
+    clearChatHistory();
     this.messagesEl.innerHTML = '';
   }
 
   private setLoading(loading: boolean): void {
     this.isLoading = loading;
+    chatLoading.set(loading);
     this.sendBtn.disabled = false; // always clickable — acts as Stop when loading
     this.inputEl.disabled = loading;
-    this.sendBtn.textContent = loading ? '⏹ Stop' : '▶ Send';
+    this.sendBtn.innerHTML = loading
+      ? icon('stop', 'w-4 h-4 inline-block mr-1') + 'Stop'
+      : icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
     this.sendBtn.title = loading ? 'Cancel request' : '';
     if (loading) {
       const el = document.createElement('div');

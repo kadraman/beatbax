@@ -13,6 +13,7 @@ import * as monaco from 'monaco-editor';
 import type { EventBus } from '../utils/event-bus';
 import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { activeTheme } from '../stores/theme.store';
 
 const log = createLogger('ui:theme-manager');
 
@@ -141,7 +142,16 @@ export class ThemeManager {
     //    CSS should use [data-theme="dark"] / [data-theme="light"] selectors.
     this.root.setAttribute('data-theme', theme);
 
-    // 2. Monaco editor theme
+    // 2. Tailwind dark-mode class — enables `dark:` utility variants
+    if (theme === 'dark') {
+      this.root.classList.add('dark');
+      this.root.classList.remove('light');
+    } else {
+      this.root.classList.add('light');
+      this.root.classList.remove('dark');
+    }
+
+    // 3. Monaco editor theme
     try {
       monaco.editor.setTheme(MONACO_THEMES[theme]);
     } catch (err) {
@@ -149,12 +159,15 @@ export class ThemeManager {
       log.debug('monaco.editor.setTheme deferred (Monaco not ready):', err);
     }
 
-    // 3. Persist to localStorage (only on explicit user choice)
+    // 4. Persist to localStorage (only on explicit user choice)
     if (persist) {
       BeatBaxSettings.setTheme(theme);
     }
 
-    // 4. Notify other components
+    // 5. Write to nanostores theme store so other components can subscribe
+    activeTheme.set(theme);
+
+    // 6. Notify other components via event-bus (legacy, kept for backward compat)
     this.eventBus.emit('theme:changed', { theme });
 
     log.debug(`Theme applied: ${theme}`);

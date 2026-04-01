@@ -12,6 +12,7 @@
 import type { EventBus } from '../utils/event-bus';
 import { EXAMPLE_SONGS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { icon } from '../utils/icons';
 
 const log = createLogger('ui:menu-bar');
 
@@ -257,6 +258,7 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
+      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
       ${def.shortcut ? `<span class="bb-menu__item-shortcut" aria-hidden="true">${esc(def.shortcut)}</span>` : ''}
     `;
@@ -288,8 +290,9 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
+      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
-      <span class="bb-menu__item-arrow" aria-hidden="true">▶</span>
+      <span class="bb-menu__item-arrow" aria-hidden="true">${icon('chevron-down', 'w-3 h-3 inline-block -rotate-90')}</span>
     `;
 
     const sub = document.createElement('ul');
@@ -331,6 +334,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'New',
+        icon: 'document-plus',
         // Ctrl+N is reserved by browsers (opens a new window) and cannot be
         // intercepted — access New via the menu or toolbar instead.
         action: () => this.opts.onNew?.(),
@@ -338,6 +342,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Open…',
+        icon: 'folder-open',
         shortcut: 'Ctrl+O',
         action: () => this.opts.onOpen?.(),
       },
@@ -347,21 +352,23 @@ export class MenuBar {
         label: 'Export',
         id: 'export',
         children: [
-          { type: 'item', label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
-          { type: 'item', label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
-          { type: 'item', label: 'Export as UGE', action: () => this.opts.onExport?.('uge') },
-          { type: 'item', label: 'Export as WAV', action: () => this.opts.onExport?.('wav') },
+          { type: 'item', icon: 'document',      label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
+          { type: 'item', icon: 'musical-note',  label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
+          { type: 'item', icon: 'cpu-chip',      label: 'Export as UGE',  action: () => this.opts.onExport?.('uge') },
+          { type: 'item', icon: 'speaker-wave',  label: 'Export as WAV',  action: () => this.opts.onExport?.('wav') },
         ],
       },
       {
         type: 'item',
         label: 'Save',
+        icon: 'arrow-down-tray',
         shortcut: 'Ctrl+S',
         action: () => this.opts.onSave?.(),
       },
       {
         type: 'item',
         label: 'Save As…',
+        icon: 'document-arrow-down',
         shortcut: 'Ctrl+Shift+S',
         action: () => this.opts.onSaveAs?.(),
       },
@@ -369,6 +376,7 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Recent Files',
+        icon: 'clock',
         id: 'recent-files',
         lazyChildren: () => this.recentFileItems(),
       },
@@ -380,12 +388,14 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Undo',
+        icon: 'arrow-uturn-left',
         shortcut: 'Ctrl+Z',
         action: () => this.opts.onUndo?.(),
       },
       {
         type: 'item',
         label: 'Redo',
+        icon: 'arrow-uturn-right',
         shortcut: 'Ctrl+Y',
         action: () => this.opts.onRedo?.(),
       },
@@ -393,18 +403,21 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Cut',
+        icon: 'scissors',
         shortcut: 'Ctrl+X',
         action: () => this.opts.onCut?.(),
       },
       {
         type: 'item',
         label: 'Copy',
+        icon: 'document-duplicate',
         shortcut: 'Ctrl+C',
         action: () => this.opts.onCopy?.(),
       },
       {
         type: 'item',
         label: 'Paste',
+        icon: 'clipboard-document',
         shortcut: 'Ctrl+V',
         action: () => this.opts.onPaste?.(),
       },
@@ -412,12 +425,14 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Find',
+        icon: 'magnifying-glass',
         shortcut: 'Ctrl+F',
         action: () => this.opts.onFind?.(),
       },
       {
         type: 'item',
         label: 'Replace',
+        icon: 'arrows-right-left',
         shortcut: 'Ctrl+H',
         action: () => this.opts.onReplace?.(),
       },
@@ -442,30 +457,35 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Output',
+        icon: 'command-line',
         shortcut: 'Ctrl+`',
         action: () => this.emitPanelShow('output'),
       },
       {
         type: 'item',
         label: 'Problems',
+        icon: 'exclamation-triangle',
         shortcut: 'Alt+Shift+P',
         action: () => this.emitPanelShow('problems'),
       },
       {
         type: 'item',
         label: 'Toggle Toolbar',
+        icon: 'bars-3',
         shortcut: 'Ctrl+Shift+B',
         action: () => this.emitPanelToggle('toolbar'),
       },
       {
         type: 'item',
         label: 'Toggle Transport Bar',
+        icon: 'queue-list',
         shortcut: 'Ctrl+Shift+R',
         action: () => this.emitPanelToggle('transport-bar'),
       },
       {
         type: 'item',
         label: 'Mixer',
+        icon: 'squares-2x2',
         shortcut: 'Ctrl+Shift+Y',
         action: () => this.emitPanelShow('channel-mixer'),
       },
@@ -486,6 +506,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'AI Assistant',
+        icon: 'sparkles',
         shortcut: 'Alt+Shift+I',
         id: 'ai-assistant',
         action: () => this.opts.onToggleAI?.(),
@@ -494,18 +515,21 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Zoom In',
+        icon: 'magnifying-glass-plus',
         shortcut: 'Ctrl++',
         action: () => this.opts.onZoomIn?.(),
       },
       {
         type: 'item',
         label: 'Zoom Out',
+        icon: 'magnifying-glass-minus',
         shortcut: 'Ctrl+-',
         action: () => this.opts.onZoomOut?.(),
       },
       {
         type: 'item',
         label: 'Reset Zoom',
+        icon: 'arrows-pointing-in',
         shortcut: 'Ctrl+0',
         action: () => this.opts.onZoomReset?.(),
       },
@@ -513,6 +537,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Theme (Dark / Light)',
+        icon: 'sun',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
       },
@@ -524,17 +549,20 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Documentation',
+        icon: 'information-circle',
         action: () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer'),
       },
       {
         type: 'item',
         label: 'Keyboard Shortcuts…',
+        icon: 'key',
         shortcut: 'Alt+Shift+K',
         action: () => this.opts.onShowShortcuts?.(),
       },
       {
         // Opens the full Help Panel (syntax reference, snippets, keyboard shortcuts).
         label: 'Help Panel…',
+        icon: 'question-mark-circle',
         type: 'item',
         shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
@@ -543,6 +571,7 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Examples',
+        icon: 'book-open',
         id: 'examples',
         lazyChildren: () => this.exampleItems(),
       },
@@ -550,6 +579,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'About BeatBax',
+        icon: 'globe-alt',
         action: () => window.open(ABOUT_URL, '_blank', 'noopener,noreferrer'),
       },
     ];
@@ -964,6 +994,8 @@ interface ActionItemDef extends BaseItemDef {
   type: 'item';
   label: string;
   shortcut?: string;
+  /** Optional heroicon name to prefix the label. */
+  icon?: string;
   action: () => void;
 }
 
@@ -974,6 +1006,8 @@ interface SeparatorDef {
 interface SubmenuItemDef extends BaseItemDef {
   type: 'submenu';
   label: string;
+  /** Optional heroicon name to prefix the label. */
+  icon?: string;
   /** Static children (resolved at render time). */
   children?: MenuItemDef[];
   /** Dynamic children (resolved each time the submenu opens). */

@@ -7,6 +7,7 @@ import type { EventBus } from '../utils/event-bus';
 import type { ExportFormat } from '../export/export-manager';
 import { EXAMPLE_SONGS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { icon } from '../utils/icons';
 
 const log = createLogger('ui:toolbar');
 
@@ -44,11 +45,11 @@ export class Toolbar {
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-open" title="Open .bax file (Ctrl+O)">
-          <span aria-hidden="true">📂</span> Open
+          ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} Open
         </button>
         <div class="bb-toolbar__dropdown-wrap">
           <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song">
-            <span aria-hidden="true">🎵</span> Examples ▾
+            ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} Examples ${icon('chevron-down', 'w-3 h-3 inline-block align-middle')}
           </button>
           <ul class="bb-toolbar__dropdown" id="tb-examples-list" aria-label="Example songs" hidden>
             ${EXAMPLE_SONGS.map(s => `
@@ -67,16 +68,16 @@ export class Toolbar {
       <div class="bb-toolbar__group bb-toolbar__group--export">
         <span class="bb-toolbar__label">Export:</span>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="json" title="Export as JSON (ISM format)">
-          <span aria-hidden="true">📄</span> JSON
+          ${icon('document', 'w-4 h-4 inline-block align-text-bottom')} JSON
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="midi" title="Export as MIDI (4-track Standard MIDI File)">
-          <span aria-hidden="true">🎹</span> MIDI
+          ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} MIDI
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="uge" title="Export as UGE (hUGETracker v6)">
-          <span aria-hidden="true">🎮</span> UGE
+          ${icon('cpu-chip', 'w-4 h-4 inline-block align-text-bottom')} UGE
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="wav" title="Export as WAV (rendered audio)">
-          <span aria-hidden="true">🔊</span> WAV
+          ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} WAV
         </button>
       </div>
 
@@ -84,7 +85,7 @@ export class Toolbar {
 
       <div class="bb-toolbar__group bb-toolbar__group--verify">
         <button class="bb-toolbar__btn" id="tb-verify" title="Validate the current song (Alt+V)">
-          <span aria-hidden="true">✔</span> Verify
+          ${icon('check-circle', 'w-4 h-4 inline-block align-text-bottom')} Verify
         </button>
       </div>
 
