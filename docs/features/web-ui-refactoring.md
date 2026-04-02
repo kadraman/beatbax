@@ -293,14 +293,14 @@ no cross-component DOM queries.
 - [x] `editor/editor-state.ts` marked `@deprecated`; dual-writes to `editor.store` added (delete in Phase 4)
 - [x] `event-bus.ts` marked `@deprecated` with migration note
 
-### Phase 2 — Split `main.ts` (~2 days) ⬜ not started
+### Phase 2 — Split `main.ts` (~2 days) ✅
 
-- [ ] Extract `app/bootstrap.ts` (engine lazy-load, store hydration)
-- [ ] Extract `app/layout.ts` (pane shell, splitters — absorbing `ui/layout.ts`)
-- [ ] Extract `app/tabs.ts` (tab switching logic)
-- [ ] Extract `app/modals.ts` (settings modal, keyboard overlay)
-- [ ] Reduce `main.ts` to orchestration shell (~80 lines)
-- [ ] Verify dev server and all features still work end-to-end
+- [x] Extract `app/bootstrap.ts` (engine lazy-load, store hydration)
+- [x] Extract `app/layout.ts` (pane shell, splitters — absorbing `ui/layout.ts`)
+- [x] Extract `app/tabs.ts` (tab switching logic)
+- [x] Extract `app/modals.ts` (settings modal, keyboard overlay)
+- [x] Reduce `main.ts` to orchestration shell (~80 lines)
+- [x] Verify dev server and all features still work end-to-end
 
 ### Phase 3 — Tailwind migration (~2 days) ✅
 
@@ -318,7 +318,7 @@ Convert components in bottom-up order (least CSS-heavy first):
 - [x] `panels/help-panel.ts` — heroicons (question-mark-circle, x-mark, chevron-right, chevron-down, check-circle)
 - [x] `panels/channel-mixer.ts` — heroicons (speaker-wave, speaker-x-mark, eye)
 - [x] `panels/chat-panel.ts` — heroicons (sparkles, cog-6-tooth, paper-airplane, stop); wired to `chat.store`
-- [ ] `app/layout.ts` (pane sizing — pending Phase 2 split)
+- [x] `app/layout.ts` (pane sizing — implemented as part of Phase 2 split)
 - [x] Remove all `document.createElement('style')` injection (kept Monaco decoration files only)
 - [x] Remove large CSS block from `index.html` (kept only `:root` design tokens + `[data-theme="light"]` overrides + `body` + `#app` reset; all component CSS consolidated into `styles.css`)
 
@@ -376,7 +376,7 @@ tests pass. There are no breaking changes for users because the web UI has no pu
 - [x] Phase 0: Tooling setup (Tailwind v4 + @tailwindcss/vite + nanostores installed)
 - [x] Phase 1: nanostores — 6 stores created (`playback`, `channel`, `editor`, `theme`, `ui`, `chat`); theme-manager wired
 - [ ] Phase 1 (remaining): migrate consumers — `playback-manager`, `status-bar`, delete old state files
-- [ ] Phase 2: main.ts split — bootstrap, layout, tabs, modals extracted
+- [x] Phase 2: main.ts split — bootstrap, layout, tabs, modals extracted
 - [x] Phase 3 (partial): heroicons replacing all emoji/unicode glyphs; Tailwind dark class toggle; `chat-panel` wired to `chat.store`
 - [ ] Phase 3 (remaining): full Tailwind utility conversion, inline `<style>` removal
 - [ ] Phase 4: Cleanup — dead files deleted, full test pass
