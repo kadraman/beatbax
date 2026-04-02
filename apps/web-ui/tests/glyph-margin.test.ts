@@ -10,6 +10,7 @@
 import { EventBus } from '../src/utils/event-bus';
 import { setupGlyphMargin } from '../src/editor/glyph-margin';
 import * as monaco from 'monaco-editor';
+import * as channelStore from '../src/stores/channel.store';
 
 const SOURCE = [
   'chip gameboy',
@@ -28,12 +29,12 @@ describe('GlyphMargin', () => {
   let deltaDecorations: jest.Mock;
   let onMouseDown: jest.Mock;
   let mockEditor: any;
-  let mockChannelState: any;
-
   // Capture the mouse-down handler so tests can trigger synthetic clicks
   let mouseDownHandler: ((e: any) => void) | null = null;
 
   beforeEach(() => {
+    localStorage.clear();
+    channelStore.resetChannels();
     jest.clearAllMocks();
     eventBus = new EventBus();
     mouseDownHandler = null;
@@ -57,18 +58,12 @@ describe('GlyphMargin', () => {
       updateOptions: jest.fn(),
     };
 
-    // Default: all channels live (not muted, not soloed)
-    mockChannelState = {
-      getChannel: jest.fn((id: number) => ({ id, muted: false, soloed: false, volume: 1 })),
-      toggleMute: jest.fn(),
-      toggleSolo: jest.fn(),
-    };
   });
 
   // ── parse:success ──────────────────────────────────────────────────────────
 
   it('adds live-channel glyphs on both channel lines after parse:success', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     // deltaDecorations was called; the final call is the mute/solo redraw
@@ -86,7 +81,7 @@ describe('GlyphMargin', () => {
   });
 
   it('clears stale position glyphs on parse:success', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     // Simulate a position update, then a new parse
@@ -108,7 +103,7 @@ describe('GlyphMargin', () => {
   // ── playback:position-changed ─────────────────────────────────────────────
 
   it('shows ▶ glyph on the pat line for the currently-playing pattern', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -127,7 +122,7 @@ describe('GlyphMargin', () => {
   });
 
   it('shows seq glyph on the seq line when sourceSequence is provided', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -146,7 +141,7 @@ describe('GlyphMargin', () => {
   });
 
   it('shows both pat and seq glyphs simultaneously', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -182,7 +177,7 @@ describe('GlyphMargin', () => {
       })),
     };
 
-    setupGlyphMargin(sameNameEditor as any, eventBus as any, mockChannelState);
+    setupGlyphMargin(sameNameEditor as any, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -273,7 +268,7 @@ describe('GlyphMargin', () => {
     // whose active pat names both resolve to the same line, with one of those names
     // also referenced as a sourceSequence), the decoration count equals the number
     // of unique lines and each line carries at most one decoration.
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -302,7 +297,7 @@ describe('GlyphMargin', () => {
   });
 
   it('accumulates position glyphs from multiple channels', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     eventBus.emit('playback:position-changed', {
@@ -332,7 +327,7 @@ describe('GlyphMargin', () => {
   });
 
   it('ignores position-changed events that carry no currentPattern or sourceSequence', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -348,7 +343,7 @@ describe('GlyphMargin', () => {
   // ── playback:stopped ──────────────────────────────────────────────────────
 
   it('clears position glyphs on playback:stopped', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
@@ -365,16 +360,10 @@ describe('GlyphMargin', () => {
   // ── channel mute/solo state changes ──────────────────────────────────────
 
   it('shows muted glyph on channel line after channel:muted', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
-    // Make channel 1 appear muted
-    mockChannelState.getChannel.mockImplementation((id: number) => ({
-      id,
-      muted: id === 1,
-      soloed: false,
-      volume: 1,
-    }));
+    channelStore.setChannelMuted(1, true);
     deltaDecorations.mockClear();
 
     eventBus.emit('channel:muted', { channel: 1 });
@@ -385,7 +374,7 @@ describe('GlyphMargin', () => {
   });
 
   it('restores live glyph on channel line after channel:unmuted', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -397,15 +386,10 @@ describe('GlyphMargin', () => {
   });
 
   it('shows soloed glyph on channel line after channel:soloed', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
-    mockChannelState.getChannel.mockImplementation((id: number) => ({
-      id,
-      muted: false,
-      soloed: id === 1,
-      volume: 1,
-    }));
+    channelStore.setChannelSoloed(1, true);
     deltaDecorations.mockClear();
 
     eventBus.emit('channel:soloed', { channel: 1 });
@@ -416,7 +400,7 @@ describe('GlyphMargin', () => {
   });
 
   it('restores live glyph on channel line after channel:unsoloed', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 
@@ -430,7 +414,7 @@ describe('GlyphMargin', () => {
   // ── Glyph-margin click → toggle mute ─────────────────────────────────────
 
   it('toggles mute when clicking on a channel glyph', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     // Simulate clicking the glyph on channel 1's line (line 6)
@@ -441,11 +425,11 @@ describe('GlyphMargin', () => {
       },
     });
 
-    expect(mockChannelState.toggleMute).toHaveBeenCalledWith(1);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
   });
 
   it('toggles mute on the correct channel when clicking channel 2', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     mouseDownHandler!({
@@ -455,11 +439,11 @@ describe('GlyphMargin', () => {
       },
     });
 
-    expect(mockChannelState.toggleMute).toHaveBeenCalledWith(2);
+    expect(channelStore.channelStates.get()[2]?.muted).toBe(true);
   });
 
   it('does not toggle mute when clicking outside the glyph margin', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     mouseDownHandler!({
@@ -469,11 +453,11 @@ describe('GlyphMargin', () => {
       },
     });
 
-    expect(mockChannelState.toggleMute).not.toHaveBeenCalled();
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
   });
 
   it('does not toggle mute when clicking on a non-channel glyph line', () => {
-    setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
     // Line 2 is a pat line, not a channel line
@@ -484,13 +468,13 @@ describe('GlyphMargin', () => {
       },
     });
 
-    expect(mockChannelState.toggleMute).not.toHaveBeenCalled();
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
   });
 
   // ── Teardown ──────────────────────────────────────────────────────────────
 
   it('clears decorations and removes listeners on teardown', () => {
-    const teardown = setupGlyphMargin(mockEditor, eventBus as any, mockChannelState);
+    const teardown = setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
     deltaDecorations.mockClear();
 

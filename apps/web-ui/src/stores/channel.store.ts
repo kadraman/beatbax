@@ -75,3 +75,38 @@ export function setChannelVolume(id: number, volume: number): void {
 export function resetChannels(): void {
   channelStates.set(defaultChannels());
 }
+
+/** Toggle mute for a single channel. */
+export function toggleChannelMuted(id: number): void {
+  const current = channelStates.get();
+  if (current[id]) setChannelMuted(id, !current[id].muted);
+}
+
+/**
+ * Toggle solo for a channel.
+ * Soloing a channel unsolos all others; unsoloing clears solo for just that channel.
+ */
+export function toggleChannelSoloed(id: number): void {
+  const current = channelStates.get();
+  const wasSoloed = current[id]?.soloed ?? false;
+  if (wasSoloed) {
+    setChannelSoloed(id, false);
+  } else {
+    // Solo this channel, unsolo all others
+    for (const chId of Object.keys(current).map(Number)) {
+      setChannelSoloed(chId, chId === id);
+    }
+  }
+}
+
+/**
+ * Returns true when a channel should be audible (not muted, or is the soloed channel).
+ */
+export function isChannelAudible(states: Record<number, ChannelInfo>, id: number): boolean {
+  const ch = states[id];
+  if (!ch) return false;
+  if (ch.muted) return false;
+  const anySoloed = Object.values(states).some(c => c.soloed);
+  if (!anySoloed) return true;
+  return ch.soloed;
+}

@@ -16,7 +16,10 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { PlaybackPosition } from '../playback/playback-manager';
-import { ChannelState } from '../playback/channel-state';
+import {
+  channelStates, isChannelAudible,
+  toggleChannelMuted, toggleChannelSoloed, setChannelVolume,
+} from '../stores/channel.store';
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 
@@ -36,13 +39,11 @@ const CHANNEL_META: Record<number, { label: string; color: string }> = {
 export interface ChannelMixerOptions {
   container: HTMLElement;
   eventBus: EventBus;
-  channelState: ChannelState;
 }
 
 export class ChannelMixer {
   private container: HTMLElement;
   private eventBus: EventBus;
-  private channelState: ChannelState;
   private ast: any = null;
   private unsubscribers: Array<() => void> = [];
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
@@ -51,7 +52,6 @@ export class ChannelMixer {
   constructor(options: ChannelMixerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
-    this.channelState = options.channelState;
     this.injectStyles();
     try { const saved = localStorage.getItem('bb-channel-compact'); if (saved !== null) this.compactMode = saved === 'true'; } catch (e) {}
     this.render();
@@ -116,10 +116,10 @@ export class ChannelMixer {
 
   private buildCard(ch: any): HTMLElement {
     const meta = CHANNEL_META[ch.id as number] ?? { label: `Ch${ch.id}`, color: '#888888' };
-    const info = this.channelState.getChannel(ch.id);
+    const info = channelStates.get()[ch.id];
     const isMuted = info?.muted ?? false;
     const isSoloed = info?.soloed ?? false;
-    const isAudible = this.channelState.isAudible(ch.id);
+    const isAudible = isChannelAudible(channelStates.get(), ch.id);
     const defaultInstName = this.getInstrumentName(ch);
 
     const card = document.createElement('div');
@@ -218,13 +218,13 @@ export class ChannelMixer {
     muteBtn.className = 'bb-cp__btn bb-cp__btn--mute';
     muteBtn.id = `bb-cp-mute-${ch.id}`;
     this.applyMuteStyle(muteBtn, isMuted);
-    muteBtn.addEventListener('click', () => this.channelState.toggleMute(ch.id));
+    muteBtn.addEventListener('click', () => toggleChannelMuted(ch.id));
 
     const soloBtn = document.createElement('button');
     soloBtn.className = 'bb-cp__btn bb-cp__btn--solo';
     soloBtn.id = `bb-cp-solo-${ch.id}`;
     this.applySoloStyle(soloBtn, isSoloed);
-    soloBtn.addEventListener('click', () => this.channelState.toggleSolo(ch.id));
+    soloBtn.addEventListener('click', () => toggleChannelSoloed(ch.id));
 
     // Volume slider — always rendered; disabled for chips without runtime volume
     const volWrap = document.createElement('div');
@@ -253,7 +253,7 @@ export class ChannelMixer {
       volLabel.title = tooltip;
     } else {
       volSlider.addEventListener('input', () => {
-        this.channelState.setVolume(ch.id, parseInt(volSlider.value, 10) / 100);
+        setChannelVolume(ch.id, parseInt(volSlider.value, 10) / 100);
       });
     }
 
@@ -292,10 +292,17 @@ export class ChannelMixer {
         this.clearAllLevels();
       }),
 
-      this.eventBus.on('channel:muted',    ({ channel }) => this.refreshMuteState(channel)),
-      this.eventBus.on('channel:unmuted',  ({ channel }) => this.refreshMuteState(channel)),
-      this.eventBus.on('channel:soloed',   ({ channel: _ }) => this.refreshAllSoloStates()),
-      this.eventBus.on('channel:unsoloed', ({ channel: _ }) => this.refreshAllSoloStates()),
+      // Subscribe to channel store for mute/solo/volume changes.
+      channelStates.subscribe((states) => {
+        for (const [id, info] of Object.entries(states)) {
+          const channelId = Number(id);
+          const muteBtn = document.getElementById(`bb-cp-mute-${channelId}`) as HTMLButtonElement | null;
+          if (muteBtn) this.applyMuteStyle(muteBtn, info.muted);
+          const soloBtn = document.getElementById(`bb-cp-solo-${channelId}`) as HTMLButtonElement | null;
+          if (soloBtn) this.applySoloStyle(soloBtn, info.soloed);
+          this.updateAudibilityVisual(channelId);
+        }
+      }),
     );
   }
 
@@ -314,22 +321,23 @@ export class ChannelMixer {
   }
 
   private refreshMuteState(channelId: number): void {
-    const info = this.channelState.getChannel(channelId);
+    const info = channelStates.get()[channelId];
     const muteBtn = document.getElementById(`bb-cp-mute-${channelId}`) as HTMLButtonElement | null;
     if (muteBtn && info) this.applyMuteStyle(muteBtn, info.muted);
     this.updateAudibilityVisual(channelId);
   }
 
   private refreshAllSoloStates(): void {
-    for (const ch of this.channelState.getAllChannels()) {
-      const soloBtn = document.getElementById(`bb-cp-solo-${ch.id}`) as HTMLButtonElement | null;
+    for (const [id, ch] of Object.entries(channelStates.get())) {
+      const channelId = Number(id);
+      const soloBtn = document.getElementById(`bb-cp-solo-${channelId}`) as HTMLButtonElement | null;
       if (soloBtn) this.applySoloStyle(soloBtn, ch.soloed);
-      this.updateAudibilityVisual(ch.id);
+      this.updateAudibilityVisual(channelId);
     }
   }
 
   private updateAudibilityVisual(channelId: number): void {
-    const isAudible = this.channelState.isAudible(channelId);
+    const isAudible = isChannelAudible(channelStates.get(), channelId);
     const card = document.getElementById(`bb-cp-card-${channelId}`);
     if (card) card.classList.toggle('bb-cp__card--silent', !isAudible);
     const levelBar = document.getElementById(`bb-cp-level-${channelId}`);
@@ -393,7 +401,7 @@ export class ChannelMixer {
     clearTimeout(this.levelTimers.get(channelId));
     this.levelTimers.set(channelId, setTimeout(() => {
       bar.style.boxShadow = 'none';
-      bar.style.opacity = this.channelState.isAudible(channelId) ? '0.35' : '0.15';
+      bar.style.opacity = isChannelAudible(channelStates.get(), channelId) ? '0.35' : '0.15';
     }, 120));
 
 

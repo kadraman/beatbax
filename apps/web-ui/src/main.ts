@@ -40,7 +40,7 @@ import { buildShortcutsModal } from './app/modals';
 // Playback imports
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
-import { ChannelState } from './playback/channel-state';
+import { toggleChannelMuted, toggleChannelSoloed } from './stores/channel.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
@@ -56,7 +56,6 @@ import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
-import { EditorState } from './editor/editor-state';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
@@ -93,7 +92,6 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 // ─── Global state ─────────────────────────────────────────────────────────────
 let editor: any = null;
 let diagnosticsManager: any = null;
-let editorState: EditorState | null = null;
 
 // Expose eventBus globally for debugging
 (window as any).__beatbax_eventBus = eventBus;
@@ -121,7 +119,7 @@ editor = createEditor({
   theme: 'beatbax-dark',
   language: 'beatbax',
   autoSaveDelay: 500,
-  emitChangedEvents: false, // EditorState is the sole editor:changed emitter
+  emitChangedEvents: true,
 });
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
@@ -157,12 +155,8 @@ outputLogsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: fle
 bottomTabs.tabContents['output'].appendChild(outputLogsContainer);
 
 // ─── EditorState ─────────────────────────────────────────────────────────────
-editorState = new EditorState({
-  editor: editor.editor,
-  eventBus,
-  autoSaveDelay: 500,
-  restoreOnInit: false, // already restored via getInitialContent()
-});
+// EditorState has been removed; monaco-setup now emits editor:changed
+// directly and editor.store.ts handles localStorage persistence.
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
 const statusBarContainer = document.createElement('div');
@@ -171,9 +165,8 @@ statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-ind
 document.body.appendChild(statusBarContainer);
 
 // ─── Core components ─────────────────────────────────────────────────────────────────
-const channelState = new ChannelState(eventBus);
-setupGlyphMargin(editor.editor, eventBus, channelState);
-const playbackManager = new PlaybackManager(eventBus, channelState);
+setupGlyphMargin(editor.editor, eventBus);
+const playbackManager = new PlaybackManager(eventBus);
 const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
@@ -217,7 +210,7 @@ rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
 const channelMixer = withErrorBoundary(
   'ChannelMixer',
-  () => new ChannelMixer({ container: ccContainer, eventBus, channelState }),
+  () => new ChannelMixer({ container: ccContainer, eventBus }),
   ccContainer,
 );
 
@@ -468,7 +461,6 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
 });
 
-(window as any).__beatbax_channelState = channelState;
 (window as any).__beatbax_playbackManager = playbackManager;
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
@@ -1014,8 +1006,8 @@ setupCommandPalette({
   getSource,
   onExport: handleExport,
   onVerify: doVerify,
-  onToggleMute: (channelId) => channelState.toggleMute(channelId),
-  onToggleSolo: (channelId) => channelState.toggleSolo(channelId),
+  onToggleMute: (channelId) => toggleChannelMuted(channelId),
+  onToggleSolo: (channelId) => toggleChannelSoloed(channelId),
   onStopPreview: () => monacoInst.trigger('', 'beatbax.stopPreview', null),
   onPlayRaw: (src, chunkInfo) => {
     if (chunkInfo && Object.keys(chunkInfo).length > 0) {

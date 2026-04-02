@@ -6,7 +6,7 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
-import type { ChannelState } from './channel-state';
+import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store';
 import { createLogger } from '@beatbax/engine/util/logger';
 import {
   playbackStatus,
@@ -78,7 +78,6 @@ export class PlaybackManager {
 
   constructor(
     private eventBus: EventBus,
-    private channelState?: ChannelState
   ) {}
 
   /**
@@ -266,11 +265,6 @@ export class PlaybackManager {
         log.debug('Player instance created:', this.player);
         log.debug('Player.playAST type:', typeof this.player.playAST);
         log.debug('Player.playAST:', this.player.playAST);
-
-        // Connect player to channelState so mute/solo buttons work
-        if (this.channelState) {
-          this.channelState.setPlayer(this.player);
-        }
       }
 
       // Set up completion callback to handle natural playback end
@@ -289,12 +283,30 @@ export class PlaybackManager {
       log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
 
       // Apply channel mute/solo state before playback starts.
-      // First reconcile: clear solo/mute for channels that don't exist in the
-      // new song (e.g. channel 3 was solo'd but the new song only has channel 1).
-      if (this.channelState) {
-        const activeChannelIds = (resolved.channels || []).map((ch: any) => ch.id);
-        this.channelState.reconcileWithChannels(activeChannelIds);
-        this.channelState.applyToPlayer(this.player);
+      // Reconcile: clear solo/mute for channels that don't exist in the new song.
+      const activeChannelIds = new Set<number>((resolved.channels || []).map((ch: any) => ch.id));
+      const states = channelStates.get();
+      for (const [idStr, info] of Object.entries(states)) {
+        const id = Number(idStr);
+        if (!activeChannelIds.has(id)) {
+          if (info.soloed) setChannelSoloed(id, false);
+          if (info.muted) setChannelMuted(id, false);
+        }
+      }
+      // Apply mute/solo to the Player.
+      const currentStates = channelStates.get();
+      this.player.muted.clear();
+      this.player.solo = null;
+      let soloedId: number | null = null;
+      for (const [idStr, info] of Object.entries(currentStates)) {
+        if (info.soloed) { soloedId = Number(idStr); break; }
+      }
+      if (soloedId !== null) {
+        this.player.solo = soloedId;
+      } else {
+        for (const [idStr, info] of Object.entries(currentStates)) {
+          if (info.muted) this.player.muted.add(Number(idStr));
+        }
       }
 
       // Start playback (Player will handle AudioContext resume internally)

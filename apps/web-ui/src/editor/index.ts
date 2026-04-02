@@ -7,14 +7,6 @@ export type { EditorOptions, BeatBaxEditor } from './monaco-setup';
 
 export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language';
 
-export { EditorState, DEFAULT_AUTO_SAVE_DELAY_MS } from './editor-state';
-export type {
-  IEditorState,
-  EditorStateOptions,
-  CursorPosition,
-  EditorSelection,
-} from './editor-state';
-
 export {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
