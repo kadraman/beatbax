@@ -6,8 +6,27 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
-import type { ChannelState } from './channel-state';
+import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store';
 import { createLogger } from '@beatbax/engine/util/logger';
+import {
+  playbackStatus,
+  playbackBpm,
+  playbackPosition as playbackPositionAtom,
+  playbackDuration,
+  playbackTimeLabel,
+  playbackError,
+} from '../stores/playback.store';
+import {
+  parseStatus,
+  parsedBpm,
+  parsedChip,
+} from '../stores/editor.store';
+
+function formatPlaybackTime(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 const log = createLogger('ui:playback');
 
@@ -65,8 +84,20 @@ export class PlaybackManager {
 
   constructor(
     private eventBus: EventBus,
-    private channelState?: ChannelState
-  ) {}
+  ) {
+    // Live-sync mute/solo to the Player whenever the store changes during playback.
+    channelStates.subscribe((states) => {
+      if (!this.player) return;
+      const soloedId = Object.values(states).find(s => s.soloed)?.id ?? null;
+      this.player.solo = soloedId;
+      this.player.muted.clear();
+      if (soloedId === null) {
+        for (const info of Object.values(states)) {
+          if (info.muted) this.player.muted.add(info.id);
+        }
+      }
+    });
+  }
 
   /**
    * Parse and start playback
@@ -84,10 +115,12 @@ export class PlaybackManager {
 
       // Reset error state
       this.state.error = null;
+      playbackError.set(null);
 
       // Emit parsing event
       log.debug('Emitting parse:started');
       this.eventBus.emit('parse:started', undefined);
+      parseStatus.set('parsing');
 
       // Parse source
       const ast = parse(source);
@@ -109,6 +142,8 @@ export class PlaybackManager {
           this.state.error = error;
           this.eventBus.emit('parse:error', { error, message: error.message });
           this.eventBus.emit('playback:error', { error });
+          parseStatus.set('error');
+          playbackError.set(error.message);
           throw error;
         }
       }
@@ -245,6 +280,10 @@ export class PlaybackManager {
 
       // Emit parse success
       this.eventBus.emit('parse:success', { ast: resolved });
+      parseStatus.set('success');
+      parsedBpm.set((resolved as any).bpm || 120);
+      parsedChip.set((resolved as any).chip || 'gameboy');
+      playbackBpm.set((resolved as any).bpm || 120);
 
       // Create player if needed
       if (!this.player) {
@@ -252,11 +291,6 @@ export class PlaybackManager {
         log.debug('Player instance created:', this.player);
         log.debug('Player.playAST type:', typeof this.player.playAST);
         log.debug('Player.playAST:', this.player.playAST);
-
-        // Connect player to channelState so mute/solo buttons work
-        if (this.channelState) {
-          this.channelState.setPlayer(this.player);
-        }
       }
 
       // Set up completion callback to handle natural playback end
@@ -275,12 +309,30 @@ export class PlaybackManager {
       log.debug('Position tracking callback registered:', !!this.player.onPositionChange);
 
       // Apply channel mute/solo state before playback starts.
-      // First reconcile: clear solo/mute for channels that don't exist in the
-      // new song (e.g. channel 3 was solo'd but the new song only has channel 1).
-      if (this.channelState) {
-        const activeChannelIds = (resolved.channels || []).map((ch: any) => ch.id);
-        this.channelState.reconcileWithChannels(activeChannelIds);
-        this.channelState.applyToPlayer(this.player);
+      // Reconcile: clear solo/mute for channels that don't exist in the new song.
+      const activeChannelIds = new Set<number>((resolved.channels || []).map((ch: any) => ch.id));
+      const states = channelStates.get();
+      for (const [idStr, info] of Object.entries(states)) {
+        const id = Number(idStr);
+        if (!activeChannelIds.has(id)) {
+          if (info.soloed) setChannelSoloed(id, false);
+          if (info.muted) setChannelMuted(id, false);
+        }
+      }
+      // Apply mute/solo to the Player.
+      const currentStates = channelStates.get();
+      this.player.muted.clear();
+      this.player.solo = null;
+      let soloedId: number | null = null;
+      for (const [idStr, info] of Object.entries(currentStates)) {
+        if (info.soloed) { soloedId = Number(idStr); break; }
+      }
+      if (soloedId !== null) {
+        this.player.solo = soloedId;
+      } else {
+        for (const [idStr, info] of Object.entries(currentStates)) {
+          if (info.muted) this.player.muted.add(Number(idStr));
+        }
       }
 
       // Start playback (Player will handle AudioContext resume internally)
@@ -295,12 +347,15 @@ export class PlaybackManager {
       // Emit playback started
       log.debug('Emitting playback:started');
       this.eventBus.emit('playback:started', undefined);
+      playbackStatus.set('playing');
 
     } catch (error: any) {
       this.state.error = error as Error;
       const errorMessage = this.formatParseError(error);
       this.eventBus.emit('parse:error', { error: error as Error, message: errorMessage });
       this.eventBus.emit('playback:error', { error: error as Error });
+      parseStatus.set('error');
+      playbackError.set(errorMessage);
       throw error;
     }
   }
@@ -329,6 +384,11 @@ export class PlaybackManager {
       this._lastKnownPat.clear();
 
       this.eventBus.emit('playback:stopped', undefined);
+      playbackStatus.set('stopped');
+      playbackPositionAtom.set(0);
+      playbackDuration.set(0);
+      playbackTimeLabel.set('0:00');
+      playbackError.set(null);
     } catch (error) {
       log.error('Error stopping playback:', error);
     }
@@ -346,6 +406,7 @@ export class PlaybackManager {
       await this.player.pause();
       this.state.isPaused = true;
       this.eventBus.emit('playback:paused', undefined);
+      playbackStatus.set('paused');
     }
   }
 
@@ -361,6 +422,7 @@ export class PlaybackManager {
       await this.player.resume();
       this.state.isPaused = false;
       this.eventBus.emit('playback:resumed', undefined);
+      playbackStatus.set('playing');
     }
   }
 
@@ -499,6 +561,9 @@ export class PlaybackManager {
         if (completionMs) totalSec = completionMs / 1000;
 
         this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
+        playbackPositionAtom.set(currentSec);
+        playbackDuration.set(totalSec);
+        playbackTimeLabel.set(formatPlaybackTime(currentSec));
       } catch (e) {
         // Non-fatal - don't break playback if timing inference fails
       }

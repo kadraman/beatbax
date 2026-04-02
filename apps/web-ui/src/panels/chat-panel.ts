@@ -17,11 +17,21 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import {
+  chatSettings,
+  chatMode,
+  chatHistory,
+  chatLoading,
+  pushChatMessage,
+  updateChatSettings,
+  clearChatHistory,
+  markChatRead,
+  type AISettings,
+  type ChatMode,
+} from '../stores/chat.store';
+import { icon } from '../utils/icons';
 
-const STYLE_ID = 'bb-chat-panel-styles';
-const STORAGE_KEY = 'bb-ai-settings';
 const MAX_SELF_CORRECTION_ATTEMPTS = 4;
-const MODE_KEY = 'bb-ai-mode';
 const MAX_EDITOR_CHARS = 3000;
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
@@ -60,29 +70,6 @@ const PRESETS: Preset[] = [
   },
 ];
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
-
-interface AISettings {
-  endpoint: string;
-  apiKey: string;
-  model: string;
-}
-
-function defaultSettings(): AISettings {
-  return { endpoint: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini' };
-}
-
-function loadSettings(): AISettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultSettings(), ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return defaultSettings();
-}
-
-function saveSettings(s: AISettings): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
-}
 
 // ─── BeatBax language reference injected into the system prompt ───────────────
 
@@ -427,22 +414,41 @@ export class ChatPanel {
   private apiKeyInput!: HTMLInputElement;
   private modelInput!: HTMLInputElement;
 
+  /**
+   * Local cache of the chat history used for API context assembly.
+   * Kept in sync with chatHistory store via subscribe.
+   */
   private messages: Message[] = [];
+  /** Local cache of AI settings read from chatSettings store. */
   private settings: AISettings;
-  private mode: 'ask' | 'edit';
+  /** Local cache of mode read from chatMode store. */
+  private mode: ChatMode;
   private isLoading = false;
   private visible = false;
   private abortController: AbortController | null = null;
+  /** Cleanup functions for store subscriptions. */
+  private storeUnsubs: Array<() => void> = [];
 
   constructor(private opts: ChatPanelOptions) {
-    this.settings = loadSettings();
-    this.mode = (localStorage.getItem(MODE_KEY) as 'ask' | 'edit') === 'ask' ? 'ask' : 'edit';
+    // Initialise local caches from stores (which already loaded from localStorage)
+    this.settings = chatSettings.get();
+    this.mode = chatMode.get();
+    this.messages = chatHistory.get().map(m => ({ role: m.role, content: m.content }));
+
     this.el = document.createElement('div');
     this.el.className = 'bb-chat-panel';
-    this.injectStyles();
     this.render();
     opts.container.appendChild(this.el);
     this.el.style.display = 'none';
+
+    // Keep local caches in sync with stores
+    this.storeUnsubs.push(
+      chatSettings.subscribe(s  => { this.settings = s; }),
+      chatMode.subscribe(m      => { this.mode = m; }),
+      chatHistory.subscribe(h   => {
+        this.messages = h.map(m => ({ role: m.role, content: m.content }));
+      }),
+    );
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -450,6 +456,7 @@ export class ChatPanel {
   show(): void {
     this.visible = true;
     this.el.style.display = 'flex';
+    markChatRead();
   }
 
   hide(): void {
@@ -492,11 +499,11 @@ export class ChatPanel {
     titleRow.className = 'bb-chat-title-row';
     const titleSpan = document.createElement('span');
     titleSpan.className = 'bb-chat-title';
-    titleSpan.textContent = '🤖 BeatBax Copilot';
+    titleSpan.innerHTML = icon('sparkles', 'w-4 h-4 inline-block mr-1') + 'BeatBax Copilot';
     const settingsToggleBtn = document.createElement('button');
     settingsToggleBtn.className = 'bb-chat-settings-btn';
     settingsToggleBtn.title = 'Configure AI provider';
-    settingsToggleBtn.textContent = '⚙';
+    settingsToggleBtn.innerHTML = icon('cog-6-tooth', 'w-4 h-4');
     settingsToggleBtn.addEventListener('click', () => this.toggleSettings());
     titleRow.appendChild(titleSpan);
     titleRow.appendChild(settingsToggleBtn);
@@ -535,7 +542,7 @@ export class ChatPanel {
       btn.title = title;
       btn.addEventListener('click', () => {
         this.mode = value;
-        try { localStorage.setItem(MODE_KEY, value); } catch { /* ignore */ }
+        chatMode.set(value);
         modeBar.querySelectorAll('.bb-chat-mode-btn').forEach(b => b.classList.remove('bb-chat-mode-btn--active'));
         btn.classList.add('bb-chat-mode-btn--active');
         this.inputEl.placeholder = value === 'edit'
@@ -567,7 +574,7 @@ export class ChatPanel {
 
     this.sendBtn = document.createElement('button');
     this.sendBtn.className = 'bb-chat-send-btn';
-    this.sendBtn.textContent = '▶ Send';
+    this.sendBtn.innerHTML = icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
     this.sendBtn.addEventListener('click', () => {
       if (this.isLoading) {
         this.abortController?.abort();
@@ -710,7 +717,7 @@ export class ChatPanel {
       apiKey: this.apiKeyInput.value.trim(),
       model: this.modelInput.value.trim() || 'gpt-4o-mini',
     };
-    saveSettings(this.settings);
+    updateChatSettings(this.settings);
     this.toggleSettings();
     this.checkConfig();
     const subtitle = this.el.querySelector('.bb-chat-subtitle') as HTMLElement | null;
@@ -725,7 +732,7 @@ export class ChatPanel {
     const isLocal = this.settings.endpoint.includes('localhost') ||
                     this.settings.endpoint.includes('127.0.0.1');
     if (!isLocal && !this.settings.apiKey) {
-      this.setStatus('⚠ No API key set. Click ⚙ to configure.');
+      this.setStatus('⚠ No API key set. Click the settings icon to configure.');
     } else {
       this.setStatus('');
     }
@@ -762,7 +769,7 @@ export class ChatPanel {
     if (!text || this.isLoading) return;
 
     if (!this.settings.endpoint) {
-      this.setStatus('⚠ No endpoint configured. Click ⚙ to set one.');
+      this.setStatus('⚠ No endpoint configured. Click the settings icon to set one.');
       return;
     }
 
@@ -968,7 +975,7 @@ export class ChatPanel {
   }
 
   private addMessage(role: 'user' | 'assistant', content: string, autoApplied = false, previousContent: string | null = null): void {
-    this.messages.push({ role, content });
+    pushChatMessage(role, content);
     const el = this.renderMessage(role, content, autoApplied, previousContent);
     this.messagesEl.appendChild(el);
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -980,7 +987,7 @@ export class ChatPanel {
 
     const label = document.createElement('span');
     label.className = 'bb-chat-msg-label';
-    label.textContent = role === 'user' ? 'You' : '🤖 Copilot';
+    label.textContent = role === 'user' ? 'You' : 'Copilot';
     wrap.appendChild(label);
 
     if (role === 'user') {
@@ -1095,15 +1102,18 @@ export class ChatPanel {
   }
 
   private clearChat(): void {
-    this.messages = [];
+    clearChatHistory();
     this.messagesEl.innerHTML = '';
   }
 
   private setLoading(loading: boolean): void {
     this.isLoading = loading;
+    chatLoading.set(loading);
     this.sendBtn.disabled = false; // always clickable — acts as Stop when loading
     this.inputEl.disabled = loading;
-    this.sendBtn.textContent = loading ? '⏹ Stop' : '▶ Send';
+    this.sendBtn.innerHTML = loading
+      ? icon('stop', 'w-4 h-4 inline-block mr-1') + 'Stop'
+      : icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
     this.sendBtn.title = loading ? 'Cancel request' : '';
     if (loading) {
       const el = document.createElement('div');
@@ -1125,387 +1135,4 @@ export class ChatPanel {
 
   // ─── Styles ──────────────────────────────────────────────────────────────────
 
-  private injectStyles(): void {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-      .bb-chat-panel {
-        flex-direction: column;
-        height: 100%;
-        overflow: hidden;
-        background: var(--panel-bg, #1e1e1e);
-        color: var(--text-color, #d4d4d4);
-        font-size: 13px;
-      }
-      .bb-chat-header {
-        display: flex;
-        flex-direction: column;
-        padding: 8px 12px 6px;
-        border-bottom: 1px solid var(--border-color, #3c3c3c);
-        flex-shrink: 0;
-      }
-      .bb-chat-title-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .bb-chat-title {
-        font-weight: 700;
-        font-size: 13px;
-        color: var(--text-color, #d4d4d4);
-      }
-      .bb-chat-settings-btn {
-        background: none;
-        border: none;
-        color: var(--text-muted, #888);
-        cursor: pointer;
-        font-size: 14px;
-        padding: 2px 4px;
-        border-radius: 3px;
-        line-height: 1;
-        transition: color 0.1s, background 0.1s;
-      }
-      .bb-chat-settings-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
-      .bb-chat-subtitle {
-        font-size: 11px;
-        color: var(--text-muted, #888);
-        margin-top: 2px;
-      }
-      .bb-chat-settings-panel {
-        background: var(--header-bg, #252526);
-        border-bottom: 1px solid var(--border-color, #3c3c3c);
-        padding: 8px 12px;
-        flex-shrink: 0;
-      }
-      .bb-chat-settings-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 6px;
-      }
-      .bb-chat-settings-row label {
-        font-size: 11px;
-        color: var(--text-muted, #888);
-        white-space: nowrap;
-        width: 60px;
-        flex-shrink: 0;
-      }
-      .bb-chat-input-field,
-      .bb-chat-select {
-        flex: 1;
-        background: var(--input-bg, #3c3c3c);
-        color: var(--text-color, #d4d4d4);
-        border: 1px solid var(--border-color, #3c3c3c);
-        border-radius: 3px;
-        padding: 3px 6px;
-        font-size: 11px;
-        font-family: inherit;
-      }
-      .bb-chat-input-field:focus,
-      .bb-chat-select:focus { outline: 1px solid #569cd6; border-color: #569cd6; }
-      .bb-chat-settings-actions {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: 4px;
-      }
-      .bb-chat-status {
-        display: none;
-        padding: 6px 12px;
-        font-size: 11px;
-        color: #569cd6;
-        background: var(--header-bg, #252526);
-        border-bottom: 1px solid var(--border-color, #3c3c3c);
-        flex-shrink: 0;
-      }
-      .bb-chat-messages {
-        flex: 1 1 0;
-        overflow-y: auto;
-        padding: 8px 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .bb-chat-msg {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .bb-chat-msg-label {
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--text-muted, #888);
-        text-transform: uppercase;
-      }
-      .bb-chat-msg--user .bb-chat-msg-label { color: #569cd6; }
-      .bb-chat-msg--assistant .bb-chat-msg-label { color: #4ec994; }
-      .bb-chat-msg-text {
-        margin: 0;
-        line-height: 1.6;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      .bb-chat-code-block {
-        background: #0d1117;
-        border: 1px solid var(--border-color, #3c3c3c);
-        border-radius: 4px;
-        overflow: hidden;
-      }
-      .bb-chat-code-block pre {
-        margin: 0;
-        padding: 8px 10px;
-        overflow-x: auto;
-      }
-      .bb-chat-code {
-        font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
-        font-size: 12px;
-        color: #d4d4d4;
-        white-space: pre;
-      }
-      .bb-chat-code-actions {
-        display: flex;
-        gap: 6px;
-        padding: 5px 8px;
-        border-top: 1px solid var(--border-color, #3c3c3c);
-        background: var(--header-bg, #252526);
-      }
-      .bb-chat-action-btn {
-        padding: 3px 8px;
-        font-size: 11px;
-        background: #0e639c;
-        color: #fff;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-        transition: background 0.1s;
-      }
-      .bb-chat-action-btn:hover { background: #1177bb; }
-      .bb-chat-applied-badge {
-        justify-content: flex-start;
-      }
-      .bb-chat-applied-badge span {
-        font-size: 11px;
-        color: #4ec94e;
-        padding: 3px 4px;
-        font-style: italic;
-      }
-      .bb-chat-undo-btn {
-        background: #7a4f00;
-        margin-left: 4px;
-      }
-      .bb-chat-undo-btn:hover:not(:disabled) { background: #a06800; }
-      .bb-chat-undo-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #444 !important; }
-      /* ── Mode toggle bar ── */
-      .bb-chat-mode-bar {
-        display: flex;
-        padding: 5px 10px;
-        gap: 4px;
-        border-bottom: 1px solid var(--border-color, #3c3c3c);
-        flex-shrink: 0;
-        background: var(--header-bg, #252526);
-      }
-      .bb-chat-mode-btn {
-        flex: 1;
-        padding: 4px 0;
-        font-size: 12px;
-        background: none;
-        color: var(--text-muted, #888);
-        border: 1px solid var(--border-color, #3c3c3c);
-        border-radius: 3px;
-        cursor: pointer;
-        transition: background 0.1s, color 0.1s;
-      }
-      .bb-chat-mode-btn:hover { background: var(--button-hover-bg, #2a2d2e); color: var(--text-color, #d4d4d4); }
-      .bb-chat-mode-btn--active {
-        background: #0e639c;
-        color: #fff;
-        border-color: #0e639c;
-      }
-      .bb-chat-mode-btn--active:hover { background: #1177bb; }
-      /* Monaco editor decorations — must be globally visible */
-      .bb-changed-line-added   { background: rgba(78,201,78,0.15) !important; border-left: 3px solid #4ec94e !important; }
-      .bb-changed-line-removed { background: rgba(220,80,80,0.12) !important; border-left: 3px solid #f48771 !important; }
-      /* AI pending-changes banner inside the Monaco editor container */
-      .bb-ai-change-banner {
-        position: absolute;
-        top: 8px;
-        right: 18px;
-        z-index: 50;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: #252526;
-        border: 1px solid #3c3c3c;
-        border-radius: 4px;
-        padding: 5px 10px;
-        font-size: 12px;
-        font-family: 'Segoe UI', sans-serif;
-        color: #d4d4d4;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        pointer-events: all;
-      }
-      .bb-ai-change-banner-dot { color: #4ec94e; font-size: 10px; }
-      .bb-ai-banner-keep {
-        padding: 3px 10px;
-        font-size: 11px;
-        background: #16825d;
-        color: #fff;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-      }
-      .bb-ai-banner-keep:hover { background: #1a9c70; }
-      .bb-ai-banner-discard {
-        padding: 3px 10px;
-        font-size: 11px;
-        background: #6e2020;
-        color: #fff;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-      }
-      .bb-ai-banner-discard:hover { background: #a02828; }
-      .bb-chat-input-row {
-        display: flex;
-        gap: 6px;
-        padding: 6px 10px;
-        border-top: 1px solid var(--border-color, #3c3c3c);
-        flex-shrink: 0;
-        align-items: flex-end;
-      }
-      .bb-chat-input {
-        flex: 1;
-        resize: none;
-        background: var(--input-bg, #3c3c3c);
-        color: var(--text-color, #d4d4d4);
-        border: 1px solid var(--border-color, #3c3c3c);
-        border-radius: 4px;
-        padding: 6px 8px;
-        font-size: 12px;
-        font-family: inherit;
-        line-height: 1.5;
-      }
-      .bb-chat-input:focus { outline: 1px solid #569cd6; border-color: #569cd6; }
-      .bb-chat-input:disabled { opacity: 0.5; }
-      .bb-chat-send-btn {
-        padding: 6px 12px;
-        background: #0e639c;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        white-space: nowrap;
-        transition: background 0.1s;
-      }
-      .bb-chat-send-btn:hover:not(:disabled) { background: #1177bb; }
-      .bb-chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .bb-chat-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 4px 10px;
-        border-top: 1px solid var(--border-color, #3c3c3c);
-        flex-shrink: 0;
-      }
-      .bb-chat-clear-btn {
-        background: none;
-        border: none;
-        color: var(--text-muted, #888);
-        cursor: pointer;
-        font-size: 11px;
-        padding: 2px 4px;
-        border-radius: 3px;
-        transition: color 0.1s, background 0.1s;
-      }
-      .bb-chat-clear-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
-      .bb-chat-model-label {
-        font-size: 10px;
-        color: var(--text-muted, #888);
-        opacity: 0.7;
-        max-width: 160px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      /* ── Typing indicator ── */
-      .bb-chat-typing {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 14px;
-        flex-shrink: 0;
-      }
-      .bb-chat-typing-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #569cd6;
-        animation: bb-bounce 1.1s infinite ease-in-out both;
-      }
-      .bb-chat-typing-dot:nth-child(1) { animation-delay: -0.32s; }
-      .bb-chat-typing-dot:nth-child(2) { animation-delay: -0.16s; }
-      @keyframes bb-bounce {
-        0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-        40%            { transform: scale(1);   opacity: 1; }
-      }
-      /* ── Primary action button variant ── */
-      .bb-chat-action-btn--primary {
-        background: #16825d;
-      }
-      .bb-chat-action-btn--primary:hover { background: #1a9c70; }
-      /* ── Markdown rendering ── */
-      .bb-chat-markdown { line-height: 1.6; }
-      .bb-chat-markdown p { margin: 0 0 6px; }
-      .bb-chat-markdown p:last-child { margin-bottom: 0; }
-      .bb-chat-markdown h1, .bb-chat-markdown h2, .bb-chat-markdown h3,
-      .bb-chat-markdown h4, .bb-chat-markdown h5, .bb-chat-markdown h6 {
-        margin: 8px 0 4px; font-weight: 700; line-height: 1.3;
-      }
-      .bb-chat-markdown h1 { font-size: 14px; }
-      .bb-chat-markdown h2 { font-size: 13px; }
-      .bb-chat-markdown h3 { font-size: 12px; }
-      .bb-chat-markdown ul, .bb-chat-markdown ol {
-        margin: 4px 0 6px; padding-left: 18px;
-      }
-      .bb-chat-markdown li { margin-bottom: 2px; }
-      .bb-chat-markdown code {
-        font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
-        font-size: 11.5px;
-        background: #0d1117;
-        border: 1px solid var(--border-color, #3c3c3c);
-        border-radius: 3px;
-        padding: 1px 4px;
-      }
-      .bb-chat-markdown pre {
-        margin: 0;
-        padding: 8px 10px;
-        overflow-x: auto;
-        background: #0d1117;
-      }
-      .bb-chat-markdown pre code {
-        background: none;
-        border: none;
-        padding: 0;
-        font-size: 12px;
-        white-space: pre;
-        color: #d4d4d4;
-      }
-      .bb-chat-markdown blockquote {
-        border-left: 3px solid #569cd6;
-        margin: 4px 0;
-        padding: 2px 10px;
-        color: var(--text-muted, #888);
-      }
-      .bb-chat-markdown a { color: #569cd6; text-decoration: underline; }
-      .bb-chat-markdown hr { border: none; border-top: 1px solid var(--border-color, #3c3c3c); margin: 8px 0; }
-      .bb-chat-markdown table { border-collapse: collapse; font-size: 12px; margin: 6px 0; }
-      .bb-chat-markdown th, .bb-chat-markdown td {
-        border: 1px solid var(--border-color, #3c3c3c);
-        padding: 3px 8px;
-      }
-      .bb-chat-markdown th { background: var(--header-bg, #252526); }
-    `;
-    document.head.appendChild(style);
-  }
 }

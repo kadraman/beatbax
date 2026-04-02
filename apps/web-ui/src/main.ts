@@ -8,6 +8,8 @@
 import { Buffer } from 'buffer';
 (globalThis as any).Buffer = Buffer;
 
+import './styles.css';
+
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {
@@ -30,12 +32,22 @@ import {
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
-import { createThreePaneLayout } from './ui/layout';
+import { getInitialContent } from './app/bootstrap';
+import { buildAppLayout } from './app/layout';
+import { buildBottomTabs, buildRightTabs } from './app/tabs';
+import { buildShortcutsModal } from './app/modals';
 
 // Playback imports
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
-import { ChannelState } from './playback/channel-state';
+import { toggleChannelMuted, toggleChannelSoloed } from './stores/channel.store';
+import {
+  parseStatus,
+  parsedBpm,
+  parsedChip,
+  validationErrors as validationErrorsAtom,
+  validationWarnings as validationWarningsAtom,
+} from './stores/editor.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
@@ -51,7 +63,6 @@ import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
-import { EditorState } from './editor/editor-state';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
@@ -88,8 +99,6 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 // ─── Global state ─────────────────────────────────────────────────────────────
 let editor: any = null;
 let diagnosticsManager: any = null;
-let editorState: EditorState | null = null;
-let rightPane: HTMLElement;
 
 // Expose eventBus globally for debugging
 (window as any).__beatbax_eventBus = eventBus;
@@ -98,46 +107,6 @@ let rightPane: HTMLElement;
 // Wrap the entire module body so any synchronous throw during startup
 // shows the full-screen fatal overlay instead of a blank/broken page.
 try {
-
-// ─── Initial content ─────────────────────────────────────────────────────────
-function getInitialContent(): string {
-  try {
-    const saved = localStorage.getItem('beatbax:editor.content');
-    if (saved) return saved;
-    // Fall back to legacy storage key
-    const legacy = localStorage.getItem('beatbax-editor-content');
-    if (legacy) return legacy;
-  } catch (_e) { /* ignore */ }
-
-  return `# BeatBax Web IDE
-# Use the menu bar (File / Edit / View / Help) for all operations.
-# Drag-and-drop a .bax file to load it, or use File → Open.
-
-chip gameboy
-bpm 140
-time 4
-
-inst lead  type=pulse1 duty=50 env=12,down
-inst bass  type=pulse2 duty=25 env=10,down
-inst kick  type=noise  env=12,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-
-pat melody  = C5 E5 G5 C6
-pat bassline = C3 . G2 .
-pat beat    = C6 . . C6 . C6 C6 .
-
-seq main  = melody melody melody melody
-seq groove = bassline bassline
-seq perc  = beat beat beat beat
-
-channel 1 => inst lead  seq main
-channel 2 => inst bass  seq groove:oct(-1)
-channel 3 => inst wave1 seq main:oct(-1)
-channel 4 => inst kick  seq perc
-
-play
-`;
-}
 
 // ─── DOM setup ───────────────────────────────────────────────────────────────
 const spinner = new LoadingSpinner();
@@ -148,23 +117,8 @@ registerBeatBaxLanguage();
 const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
-// ─── Menu bar host (topmost) ────────────────────────────────────────────────
-const menuBarContainer = document.createElement('div');
-menuBarContainer.id = 'bb-menu-bar-host';
-appContainer.appendChild(menuBarContainer);
-
-// ─── Toolbar host (below menu bar) ───────────────────────────────────────────
-const toolbarContainer = document.createElement('div');
-toolbarContainer.id = 'bb-toolbar-host';
-appContainer.appendChild(toolbarContainer);
-
-// ─── Layout host (fills remaining height) ────────────────────────────────────
-const layoutHost = document.createElement('div');
-layoutHost.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px;';
-appContainer.appendChild(layoutHost);
-
-const layout = createThreePaneLayout({ container: layoutHost, persist: true });
-const editorPane = layout.getEditorPane();
+const appLayout = buildAppLayout(appContainer);
+const { menuBarContainer, toolbarContainer, layoutHost, editorPane, outputPane, rightPane } = appLayout;
 
 editor = createEditor({
   container: editorPane,
@@ -172,7 +126,7 @@ editor = createEditor({
   theme: 'beatbax-dark',
   language: 'beatbax',
   autoSaveDelay: 500,
-  emitChangedEvents: false, // EditorState is the sole editor:changed emitter
+  emitChangedEvents: true,
 });
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
@@ -196,131 +150,20 @@ editor.editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; co
 // Editor is fully initialised — remove the static boot overlay.
 spinner.hideBoot();
 
-const outputPane = layout.getOutputPane();
-
-// ─── Bottom pane: tabbed panel (Problems | Output) ───────────────────────────
-// Reset outputPane styles for use as a flex tab container.
-outputPane.style.padding = '0';
-outputPane.style.overflow = 'hidden';
-outputPane.style.display = 'flex';
-outputPane.style.flexDirection = 'column';
-outputPane.style.fontFamily = '';
-outputPane.style.fontSize = '';
-
-const bottomTabStyle = document.createElement('style');
-bottomTabStyle.textContent = `
-  .bb-bottom-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
-  .bb-bottom-tab { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
-  .bb-bottom-tab:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
-  .bb-bottom-tab--active { color: var(--text-color, #d4d4d4); border-bottom-color: #569cd6; }
-  .bb-bottom-tab--hidden { display: none; }
-  .bb-bottom-tab__label { flex: 1; }
-  .bb-bottom-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
-  .bb-bottom-tab:hover .bb-bottom-tab__close,
-  .bb-bottom-tab--active .bb-bottom-tab__close { opacity: 1; pointer-events: auto; }
-  .bb-bottom-tab__close:hover { background: var(--button-hover-bg, #3a3a3a); color: var(--text-color, #d4d4d4); }
-  .bb-bottom-tab-content { flex: 1 1 0; overflow: hidden; display: none; flex-direction: column; }
-  .bb-bottom-tab-content--active { display: flex; }
-  .bb-tab-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 16px; height: 16px; padding: 0 4px;
-    background: #0e639c; color: #fff;
-    border-radius: 8px; font-size: 11px; font-weight: 700; line-height: 1;
-    vertical-align: middle; margin-left: 4px; position: relative; top: -1px;
-  }
-`;
-document.head.appendChild(bottomTabStyle);
-
-type BottomTabId = 'problems' | 'output';
-const BOTTOM_TAB_LABELS: Record<BottomTabId, string> = { problems: 'Problems', output: 'Output' };
-const BOTTOM_TAB_ORDER: BottomTabId[] = ['problems', 'output'];
-let activeBottomTab: BottomTabId | null = 'problems';
-const bottomTabOpen: Record<BottomTabId, boolean> = { problems: true, output: true };
-const bottomTabButtons: Partial<Record<BottomTabId, HTMLButtonElement>> = {};
-const bottomTabContents: Partial<Record<BottomTabId, HTMLElement>> = {};
-
-/** Show a bottom tab (open + activate). If already open, just activate it. */
-const showBottomTab = (tab: BottomTabId): void => {
-  bottomTabOpen[tab] = true;
-  bottomTabButtons[tab]?.classList.remove('bb-bottom-tab--hidden');
-  layout.setOutputPaneVisible(true);
-  switchBottomTab(tab);
-};
-
-/** Activate a tab that is already open. Does not open a closed tab. */
-const switchBottomTab = (tab: BottomTabId): void => {
-  activeBottomTab = tab;
-  for (const t of BOTTOM_TAB_ORDER) {
-    bottomTabButtons[t]?.classList.toggle('bb-bottom-tab--active', t === tab);
-    bottomTabContents[t]?.classList.toggle('bb-bottom-tab-content--active', t === tab);
-  }
-};
-
-/** Close a tab. Switches to nearest open neighbour, or hides entire pane + splitter. */
-const closeBottomTab = (tab: BottomTabId): void => {
-  bottomTabOpen[tab] = false;
-  bottomTabButtons[tab]?.classList.remove('bb-bottom-tab--active');
-  bottomTabButtons[tab]?.classList.add('bb-bottom-tab--hidden');
-  bottomTabContents[tab]?.classList.remove('bb-bottom-tab-content--active');
-  if (activeBottomTab === tab) {
-    const next = BOTTOM_TAB_ORDER.find(t => t !== tab && bottomTabOpen[t]);
-    if (next) {
-      switchBottomTab(next);
-    } else {
-      activeBottomTab = null;
-      layout.setOutputPaneVisible(false);
-    }
-  }
-};
-
-const bottomTabBar = document.createElement('div');
-bottomTabBar.className = 'bb-bottom-tab-bar';
-outputPane.appendChild(bottomTabBar);
-
-for (const t of BOTTOM_TAB_ORDER) {
-  const btn = document.createElement('button');
-  btn.className = 'bb-bottom-tab';
-  btn.title = BOTTOM_TAB_LABELS[t];
-
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'bb-bottom-tab__label';
-  labelSpan.textContent = BOTTOM_TAB_LABELS[t];
-
-  const closeBtn = document.createElement('span');
-  closeBtn.className = 'bb-bottom-tab__close';
-  closeBtn.textContent = '✕';
-  closeBtn.title = `Close ${BOTTOM_TAB_LABELS[t]}`;
-  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeBottomTab(t); });
-
-  btn.append(labelSpan, closeBtn);
-  btn.addEventListener('click', () => showBottomTab(t));
-  bottomTabButtons[t] = btn;
-  bottomTabBar.appendChild(btn);
-
-  const content = document.createElement('div');
-  content.className = 'bb-bottom-tab-content';
-  bottomTabContents[t] = content;
-  outputPane.appendChild(content);
-}
-switchBottomTab('problems');
+// ─── Bottom pane: Problems | Output tabs ─────────────────────────────────────
+const bottomTabs = buildBottomTabs(outputPane, appLayout.layout);
 
 const problemsContainer = document.createElement('div');
 problemsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-bottomTabContents['problems']!.appendChild(problemsContainer);
+bottomTabs.tabContents['problems'].appendChild(problemsContainer);
 
 const outputLogsContainer = document.createElement('div');
 outputLogsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-bottomTabContents['output']!.appendChild(outputLogsContainer);
-
-rightPane = layout.getRightPane();
+bottomTabs.tabContents['output'].appendChild(outputLogsContainer);
 
 // ─── EditorState ─────────────────────────────────────────────────────────────
-editorState = new EditorState({
-  editor: editor.editor,
-  eventBus,
-  autoSaveDelay: 500,
-  restoreOnInit: false, // already restored via getInitialContent()
-});
+// EditorState has been removed; monaco-setup now emits editor:changed
+// directly and editor.store.ts handles localStorage persistence.
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
 const statusBarContainer = document.createElement('div');
@@ -329,12 +172,11 @@ statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-ind
 document.body.appendChild(statusBarContainer);
 
 // ─── Core components ─────────────────────────────────────────────────────────────────
-const channelState = new ChannelState(eventBus);
-setupGlyphMargin(editor.editor, eventBus, channelState);
-const playbackManager = new PlaybackManager(eventBus, channelState);
+setupGlyphMargin(editor.editor, eventBus);
+const playbackManager = new PlaybackManager(eventBus);
 const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
-const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
+const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
 
 // Install global error handlers now that panels are ready.
 // Uncaught errors and unhandled rejections are forwarded as error messages.
@@ -345,145 +187,25 @@ installGlobalErrorHandlers((message, _err) => {
     source: 'runtime',
     timestamp: new Date(),
   });
-  showBottomTab('problems');
+  bottomTabs.show('problems');
 });
 
 // Auto-show the relevant bottom tab when events arrive.
-eventBus.on('parse:error', () => showBottomTab('problems'));
-eventBus.on('validation:errors', ({ errors }) => { if (errors.length > 0) showBottomTab('problems'); });
-eventBus.on('validation:warnings', ({ warnings }) => { if (warnings.length > 0) showBottomTab('problems'); });
-eventBus.on('playback:started', () => showBottomTab('output'));
+eventBus.on('parse:error', () => bottomTabs.show('problems'));
+eventBus.on('validation:errors', ({ errors }) => { if (errors.length > 0) bottomTabs.show('problems'); });
+eventBus.on('validation:warnings', ({ warnings }) => { if (warnings.length > 0) bottomTabs.show('problems'); });
+eventBus.on('playback:started', () => bottomTabs.show('output'));
 
 // ─── Problems tab badge ───────────────────────────────────────────────────────
-let problemsBadgeErrors = 0;
-let problemsBadgeWarnings = 0;
+let _badgeErrors = 0, _badgeWarnings = 0;
+eventBus.on('validation:errors',   ({ errors })   => { _badgeErrors   = errors.length;   bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
+eventBus.on('validation:warnings', ({ warnings }) => { _badgeWarnings = warnings.length; bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
+eventBus.on('parse:error',         ()             => { _badgeErrors   = 1;               bottomTabs.updateBadge(_badgeErrors, _badgeWarnings); });
 
-function updateProblemsTabBadge(): void {
-  const labelSpan = bottomTabButtons['problems']?.querySelector<HTMLElement>('.bb-bottom-tab__label');
-  if (!labelSpan) return;
-  const total = problemsBadgeErrors + problemsBadgeWarnings;
-  if (total > 0) {
-    labelSpan.innerHTML = `Problems <span class="bb-tab-badge">${total}</span>`;
-  } else {
-    labelSpan.textContent = 'Problems';
-  }
-}
+// ─── Right pane: Mixer | Help | Copilot tabs ──────────────────────────────────
+const rightTabs = buildRightTabs(rightPane, appLayout.layout);
 
-eventBus.on('validation:errors',   ({ errors })   => { problemsBadgeErrors   = errors.length;   updateProblemsTabBadge(); });
-eventBus.on('validation:warnings', ({ warnings }) => { problemsBadgeWarnings = warnings.length; updateProblemsTabBadge(); });
-eventBus.on('parse:error',         ()             => { problemsBadgeErrors   = 1;               updateProblemsTabBadge(); });
 
-// ─── Right pane: tabbed panel (Channel Mixer | Help | Copilot) ──────────
-const rightTabStyle = document.createElement('style');
-rightTabStyle.textContent = `
-  .bb-right-tabs { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-  .bb-right-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
-  .bb-right-tab { display: flex; align-items: center; gap: 4px; flex: 1; padding: 7px 6px 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted, #888); cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap; overflow: hidden; }
-  .bb-right-tab:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
-  .bb-right-tab--active { color: var(--text-color, #d4d4d4); border-bottom-color: #569cd6; }
-  .bb-right-tab--hidden { display: none; }
-  .bb-right-tab__label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-  .bb-right-tab__close { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 3px; font-size: 11px; line-height: 1; color: var(--text-muted, #888); opacity: 0; transition: opacity 0.1s, background 0.1s; pointer-events: none; }
-  .bb-right-tab:hover .bb-right-tab__close,
-  .bb-right-tab--active .bb-right-tab__close { opacity: 1; pointer-events: auto; }
-  .bb-right-tab__close:hover { background: var(--button-hover-bg, #3a3a3a); color: var(--text-color, #d4d4d4); }
-  .bb-right-tab-content { flex: 1 1 0; overflow: hidden; display: none; flex-direction: column; }
-  .bb-right-tab-content--active { display: flex; }
-  .bb-right-tabs--empty .bb-right-tab-content { display: none !important; }
-`;
-document.head.appendChild(rightTabStyle);
-
-type RightTabId = 'channels' | 'help' | 'ai';
-const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
-  channels: 'Mixer',
-  help: 'Help',
-  ai: 'Copilot',
-};
-const RIGHT_TAB_ORDER: RightTabId[] = ['channels', 'help', 'ai'];
-const RIGHT_TAB_STORAGE_KEY = 'bb-active-right-tab';
-let activeRightTab: RightTabId | null = 'channels';
-const rightTabOpen: Record<RightTabId, boolean> = { channels: true, help: true, ai: false };
-const rightTabButtons: Partial<Record<RightTabId, HTMLButtonElement>> = {};
-const rightTabContents: Partial<Record<RightTabId, HTMLElement>> = {};
-
-/** Show a tab (make it open+active). If it is already open, just activate it. */
-const showRightTab = (tab: RightTabId): void => {
-  rightTabOpen[tab] = true;
-  rightTabButtons[tab]?.classList.remove('bb-right-tab--hidden');
-  layout.setRightPaneVisible(true);
-  switchRightTab(tab);
-};
-
-/** Activate a tab that is already open. Does not open a closed tab. */
-const switchRightTab = (tab: RightTabId): void => {
-  activeRightTab = tab;
-  try { localStorage.setItem(RIGHT_TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
-  rightTabs.classList.remove('bb-right-tabs--empty');
-  for (const t of RIGHT_TAB_ORDER) {
-    rightTabButtons[t]?.classList.toggle('bb-right-tab--active', t === tab);
-    rightTabContents[t]?.classList.toggle('bb-right-tab-content--active', t === tab);
-  }
-};
-
-/** Close a tab. Switches to the nearest open neighbour, or marks pane empty. */
-const closeRightTab = (tab: RightTabId): void => {
-  rightTabOpen[tab] = false;
-  rightTabButtons[tab]?.classList.remove('bb-right-tab--active');
-  rightTabButtons[tab]?.classList.add('bb-right-tab--hidden');
-  rightTabContents[tab]?.classList.remove('bb-right-tab-content--active');
-
-  if (activeRightTab === tab) {
-    // Find next open tab to activate
-    const next = RIGHT_TAB_ORDER.find(t => t !== tab && rightTabOpen[t]);
-    if (next) {
-      switchRightTab(next);
-    } else {
-      activeRightTab = null;
-      rightTabs.classList.add('bb-right-tabs--empty');
-      // Collapse right pane and its splitter
-      layout.setRightPaneVisible(false);
-    }
-  }
-};
-
-const rightTabs = document.createElement('div');
-rightTabs.className = 'bb-right-tabs';
-rightPane.appendChild(rightTabs);
-
-const rightTabBar = document.createElement('div');
-rightTabBar.className = 'bb-right-tab-bar';
-rightTabs.appendChild(rightTabBar);
-
-for (const t of RIGHT_TAB_ORDER) {
-  const btn = document.createElement('button');
-  btn.className = 'bb-right-tab';
-  btn.title = RIGHT_TAB_LABELS[t];
-
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'bb-right-tab__label';
-  labelSpan.textContent = RIGHT_TAB_LABELS[t];
-
-  const closeBtn = document.createElement('span');
-  closeBtn.className = 'bb-right-tab__close';
-  closeBtn.textContent = '✕';
-  closeBtn.title = `Close ${RIGHT_TAB_LABELS[t]}`;
-  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeRightTab(t); });
-
-  btn.append(labelSpan, closeBtn);
-  btn.addEventListener('click', () => showRightTab(t));
-  rightTabButtons[t] = btn;
-  rightTabBar.appendChild(btn);
-
-  const content = document.createElement('div');
-  content.className = 'bb-right-tab-content';
-  rightTabContents[t] = content;
-  rightTabs.appendChild(content);
-}
-// Capture the persisted tab BEFORE the next line writes 'channels' to localStorage.
-const _savedRightTabOnLoad = (() => {
-  try { return localStorage.getItem(RIGHT_TAB_STORAGE_KEY) as RightTabId | null; } catch { return null; }
-})();
-switchRightTab('channels'); // will be overridden after all tabs are initialised
 
 // ─── Unified Channel Panel (ChannelMixer) in the channels tab ──────────────
 // The ChannelMixer lives in a dedicated scoped div so its render() (which
@@ -491,137 +213,21 @@ switchRightTab('channels'); // will be overridden after all tabs are initialised
 const ccContainer = document.createElement('div');
 ccContainer.id = 'bb-channel-controls-host';
 ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
-rightTabContents['channels']!.appendChild(ccContainer);
+rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
 const channelMixer = withErrorBoundary(
   'ChannelMixer',
-  () => new ChannelMixer({ container: ccContainer, eventBus, channelState }),
+  () => new ChannelMixer({ container: ccContainer, eventBus }),
   ccContainer,
 );
 
 // ─── HelpPanel — embedded in the help tab ──────────────────────────────────
-// shortcutsContainer is created here but its HelpPanel is instantiated after
-// ks.mount() so that getShortcuts() returns the full registered list.
 const helpContainer = document.createElement('div');
 helpContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-rightTabContents['help']!.appendChild(helpContainer);
+rightTabs.tabContents['help']!.appendChild(helpContainer);
 
 // ─── Keyboard Shortcuts modal ───────────────────────────────────────────────
-// Shortcuts are shown in a popup modal (not a sidebar tab).
-const shortcutsModalStyles = document.createElement('style');
-shortcutsModalStyles.textContent = `
-  .bb-shortcuts-modal-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 9000;
-    align-items: center;
-    justify-content: center;
-  }
-  .bb-shortcuts-modal-backdrop.bb-shortcuts-modal--open {
-    display: flex;
-  }
-  .bb-shortcuts-modal {
-    background: #1f1f1f;
-    border: 1px solid #444;
-    border-radius: 6px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-    display: flex;
-    flex-direction: column;
-    width: min(720px, 92vw);
-    height: min(640px, 80vh);
-    overflow: hidden;
-  }
-  .bb-shortcuts-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid #333;
-    flex-shrink: 0;
-  }
-  .bb-shortcuts-modal-header-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #ccc;
-    letter-spacing: 0.3px;
-  }
-  .bb-shortcuts-modal-close {
-    background: none;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    padding: 4px 6px;
-    border-radius: 3px;
-    transition: color 0.15s, background 0.15s;
-  }
-  .bb-shortcuts-modal-close:hover {
-    color: #eee;
-    background: #383838;
-  }
-  .bb-shortcuts-modal-body {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding: 0;
-  }
-`;
-document.head.appendChild(shortcutsModalStyles);
-
-const shortcutsBackdrop = document.createElement('div');
-shortcutsBackdrop.className = 'bb-shortcuts-modal-backdrop';
-shortcutsBackdrop.setAttribute('role', 'dialog');
-shortcutsBackdrop.setAttribute('aria-modal', 'true');
-shortcutsBackdrop.setAttribute('aria-label', 'Keyboard Shortcuts');
-
-const shortcutsModalEl = document.createElement('div');
-shortcutsModalEl.className = 'bb-shortcuts-modal';
-
-const shortcutsModalHeader = document.createElement('div');
-shortcutsModalHeader.className = 'bb-shortcuts-modal-header';
-const shortcutsModalTitle = document.createElement('span');
-shortcutsModalTitle.className = 'bb-shortcuts-modal-header-title';
-shortcutsModalTitle.textContent = 'Keyboard Shortcuts';
-const shortcutsModalCloseBtn = document.createElement('button');
-shortcutsModalCloseBtn.className = 'bb-shortcuts-modal-close';
-shortcutsModalCloseBtn.setAttribute('aria-label', 'Close keyboard shortcuts');
-shortcutsModalCloseBtn.textContent = '✕';
-shortcutsModalHeader.append(shortcutsModalTitle, shortcutsModalCloseBtn);
-
-const shortcutsModalBody = document.createElement('div');
-shortcutsModalBody.className = 'bb-shortcuts-modal-body';
-
-const shortcutsContainer = document.createElement('div');
-shortcutsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-shortcutsModalBody.appendChild(shortcutsContainer);
-
-shortcutsModalEl.append(shortcutsModalHeader, shortcutsModalBody);
-shortcutsBackdrop.appendChild(shortcutsModalEl);
-document.body.appendChild(shortcutsBackdrop);
-
-const openShortcutsModal = (): void => {
-  shortcutsBackdrop.classList.add('bb-shortcuts-modal--open');
-  shortcutsModalCloseBtn.focus();
-};
-const closeShortcutsModal = (): void => {
-  shortcutsBackdrop.classList.remove('bb-shortcuts-modal--open');
-};
-
-// Close on backdrop click (outside the modal box).
-shortcutsBackdrop.addEventListener('click', (e) => {
-  if (e.target === shortcutsBackdrop) closeShortcutsModal();
-});
-// Close on button click.
-shortcutsModalCloseBtn.addEventListener('click', closeShortcutsModal);
-// Close on Escape.
-shortcutsBackdrop.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { e.stopPropagation(); closeShortcutsModal(); }
-});
+const shortcutsModal = buildShortcutsModal();
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -650,10 +256,10 @@ const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
 // only created when the feature flag is first enabled (lazy instantiation).
 const aiContainer = document.createElement('div');
 aiContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-rightTabContents['ai']!.appendChild(aiContainer);
+rightTabs.tabContents['ai']!.appendChild(aiContainer);
 
 // Initially hide the AI tab button — shown only when feature flag is on.
-const aiTabBtn = rightTabButtons['ai'];
+const aiTabBtn = rightTabs.tabButtons['ai'];
 if (aiTabBtn) aiTabBtn.classList.add('bb-right-tab--hidden');
 
 let chatPanel: ChatPanel | null = null;
@@ -809,54 +415,43 @@ function toggleAIAssistant(): void {
   if (nowEnabled) {
     // Show the tab button and switch to it
     aiTabBtn?.classList.remove('bb-right-tab--hidden');
-    rightTabOpen['ai'] = true;
+    rightTabs.tabOpen['ai'] = true;
     getChatPanel().show(); // ensure panel is created and visible
-    showRightTab('ai');
+    rightTabs.show('ai');
   } else {
     getChatPanel().hide();
-    closeRightTab('ai');
+    rightTabs.close('ai');
     aiTabBtn?.classList.add('bb-right-tab--hidden');
-    rightTabOpen['ai'] = false;
+    rightTabs.tabOpen['ai'] = false;
   }
 }
 
 // Initialise AI tab visibility on page load (in case flag is already set).
 if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
   aiTabBtn?.classList.remove('bb-right-tab--hidden');
-  rightTabOpen['ai'] = true;
+  rightTabs.tabOpen['ai'] = true;
   getChatPanel().show();
 }
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
-// Uses _savedRightTabOnLoad (captured before the initial switchRightTab call
-// overwrote localStorage with 'channels').
-(() => {
-  try {
-    const saved = _savedRightTabOnLoad;
-    if (saved && RIGHT_TAB_ORDER.includes(saved) && rightTabOpen[saved]) {
-      switchRightTab(saved);
-      return;
-    }
-  } catch { /* ignore */ }
-  switchRightTab('channels');
-})();
+rightTabs.restorePersistedTab();
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'output') {
-    visible ? showBottomTab('output') : closeBottomTab('output');
+    visible ? bottomTabs.show('output') : bottomTabs.close('output');
   }
   if (panel === 'problems') {
-    visible ? showBottomTab('problems') : closeBottomTab('problems');
+    visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
   if (panel === 'channel-mixer') {
-    visible ? showRightTab('channels') : closeRightTab('channels');
+    visible ? rightTabs.show('channels') : rightTabs.close('channels');
   }
   if (panel === 'help') {
-    visible ? showRightTab('help') : closeRightTab('help');
+    visible ? rightTabs.show('help') : rightTabs.close('help');
   }
   if (panel === 'shortcuts') {
-    if (visible) openShortcutsModal();
+    if (visible) shortcutsModal.open();
   }
   if (panel === 'ai-assistant') {
     toggleAIAssistant();
@@ -873,7 +468,6 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
 });
 
-(window as any).__beatbax_channelState = channelState;
 (window as any).__beatbax_playbackManager = playbackManager;
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
@@ -940,21 +534,6 @@ eventBus.on('parse:error', () => setErrorState(true));
 eventBus.on('validation:errors', ({ errors }) => setErrorState(errors.length > 0));
 
 // ─── Live mode (handled by transportBar.liveButton) ──────────────────────────
-// Inject live-button pulse animation once.
-const liveBtnStyle = document.createElement('style');
-liveBtnStyle.textContent = `
-  .bb-live-btn { border: 2px solid transparent; border-radius: 4px; transition: border-color 0.2s; }
-  .bb-live-btn--active {
-    border-color: #4caf50;
-    animation: bb-live-pulse 1.4s ease-in-out infinite;
-  }
-  @keyframes bb-live-pulse {
-    0%, 100% { box-shadow: 0 0 4px 2px rgba(76,175,80,0.35); }
-    50%       { box-shadow: 0 0 12px 4px rgba(76,175,80,0.75); }
-  }
-`;
-document.head.appendChild(liveBtnStyle);
-
 let liveMode = false;
 transportBar.liveButton.addEventListener('click', () => {
   if (hasParseErrors) return; // button is disabled but guard anyway
@@ -1008,6 +587,7 @@ function fileBaseStem(path: string): string {
 async function emitParse(content: string): Promise<void> {
   try {
     eventBus.emit('parse:started', undefined);
+    parseStatus.set('parsing');
     const ast = parse(content);
 
     // Split parser diagnostics into errors and warnings
@@ -1031,14 +611,17 @@ async function emitParse(content: string): Promise<void> {
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
+      parseStatus.set('error');
       return;
     }
 
     // Emit errors (disables Play button, shows in Problems > Errors)
     eventBus.emit('validation:errors', { errors });
+    validationErrorsAtom.set(errors);
 
     // Emit warnings (informational only)
     eventBus.emit('validation:warnings', { warnings });
+    validationWarningsAtom.set(warnings);
 
     // Update Monaco markers for both (preserve level so errors get red squiggles)
     const allDiags = [
@@ -1052,8 +635,12 @@ async function emitParse(content: string): Promise<void> {
     }
 
     eventBus.emit('parse:success', { ast });
+    parseStatus.set('success');
+    parsedBpm.set((ast as any).bpm || 120);
+    parsedChip.set((ast as any).chip || 'gameboy');
   } catch (err: any) {
     eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
+    parseStatus.set('error');
   }
 }
 
@@ -1068,11 +655,11 @@ async function handleExport(format: ExportFormat) {
     opLog(outputPanel, `✓ Exported ${result.filename} (${result.size ?? 0} bytes)`, 'export');
     if (result.warnings?.length) {
       result.warnings.forEach(w => opWarn(problemsPanel, w, 'export'));
-      showBottomTab('problems');
+      bottomTabs.show('problems');
     }
   } else {
     opError(problemsPanel, `Export failed: ${result.error?.message ?? 'unknown error'}`, 'export');
-    showBottomTab('problems');
+    bottomTabs.show('problems');
   }
 }
 
@@ -1092,7 +679,7 @@ const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
-  onShowShortcuts: () => openShortcutsModal(),
+  onShowShortcuts: () => shortcutsModal.open(),
   onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
@@ -1190,12 +777,12 @@ function doVerify(): void {
   try {
     parse(source);
     opLog(outputPanel, '✔ Verification passed', 'verify');
-    showBottomTab('output');
+    bottomTabs.show('output');
     diagnosticsManager?.clearAll?.();
     toolbar.setExportEnabled(true);
   } catch (err: any) {
     opError(problemsPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
-    showBottomTab('problems');
+    bottomTabs.show('problems');
     if (diagnosticsManager && err.loc) {
       diagnosticsManager.setMarkers([parseErrorToDiagnostic(err)]);
     }
@@ -1271,13 +858,13 @@ monacoInst.addCommand(KeyCode.F8, () => { transportBar.stopButton.click(); });
 // Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.applyButton.click(); });
 // Shift+F1 → Switch to Help tab (F1 alone is Monaco's own Command Palette — leave that alone)
-monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { showRightTab('help'); });
+monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { rightTabs.show('help'); });
 // Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
 // Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { openShortcutsModal(); });
+monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcutsModal.open(); });
 // Alt+Shift+I → Show AI/Copilot tab (I for Intelligence/AI; no browser conflict).
 monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => {
-  if (rightTabOpen['ai']) showRightTab('ai'); else toggleAIAssistant();
+  if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant();
 });
 // Alt+Shift+V → Verify syntax (no browser conflict).
 monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify(); });
@@ -1287,7 +874,7 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
 // Ctrl+Shift+Y → Switch to Channel Mixer tab (Monaco captures this key when focused).
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
-  showRightTab('channels');
+  rightTabs.show('channels');
 });
 // Ctrl+Alt+P → Monaco Command Palette.
 // NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
@@ -1301,7 +888,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
 // Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
 monacoInst.onKeyDown((e: IKeyboardEvent) => {
   if (e.keyCode === KeyCode.Escape && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-    if (activeRightTab === 'help') switchRightTab('channels');
+    if (rightTabs.activeTab === 'help') rightTabs.switch('channels');
     // Do NOT call transportBar.stopButton.click() here: the same Escape that closes Monaco’s
     // find widget / suggestions overlay would also unexpectedly stop playback.
   }
@@ -1367,13 +954,13 @@ ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave
 ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
   action: () => menuBar.triggerToggleTheme() });
 ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowInInput: true,
-  action: () => showBottomTab('output'),
+  action: () => bottomTabs.show('output'),
 });
 ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
-  action: () => showBottomTab('problems'),
+  action: () => bottomTabs.show('problems'),
 });
 ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel Mixer tab', allowInInput: true,
-  action: () => showRightTab('channels'),
+  action: () => rightTabs.show('channels'),
 });
 ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
   action: () => {
@@ -1390,15 +977,15 @@ ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Trans
 
 // Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
 ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => showRightTab('help') });
+  action: () => rightTabs.show('help') });
 ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => showRightTab('help') });
+  action: () => rightTabs.show('help') });
 // Alt+Shift+K → open the Keyboard Shortcuts modal.
 ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
-  action: () => openShortcutsModal() });
+  action: () => shortcutsModal.open() });
 // Alt+Shift+I → Show AI/Copilot tab (or enable it if the feature flag is off).
 ks.register({ key: 'i', altKey: true, shiftKey: true, description: 'Show AI Copilot tab', allowInInput: true,
-  action: () => { if (rightTabOpen['ai']) showRightTab('ai'); else toggleAIAssistant(); } });
+  action: () => { if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant(); } });
 // Alt+Shift+V → Verify syntax.
 ks.register({ key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', allowInInput: true,
   action: () => doVerify() });
@@ -1419,14 +1006,14 @@ setupCommandPalette({
   getSource,
   onExport: handleExport,
   onVerify: doVerify,
-  onToggleMute: (channelId) => channelState.toggleMute(channelId),
-  onToggleSolo: (channelId) => channelState.toggleSolo(channelId),
+  onToggleMute: (channelId) => toggleChannelMuted(channelId),
+  onToggleSolo: (channelId) => toggleChannelSoloed(channelId),
   onStopPreview: () => monacoInst.trigger('', 'beatbax.stopPreview', null),
   onPlayRaw: (src, chunkInfo) => {
     if (chunkInfo && Object.keys(chunkInfo).length > 0) {
       eventBus.emit('preview:chunkInfo', { chunkInfo });
     }
-    showBottomTab('output');
+    bottomTabs.show('output');
     playbackManager.play(src);
   },
 });
@@ -1434,7 +1021,7 @@ setupCommandPalette({
 // ─── Shortcuts panel — instantiated after ks.mount() so the full registered ─
 // shortcut list is available when HelpPanel first renders the section.
 const shortcutsPanel = withErrorBoundary('ShortcutsPanel', () => new HelpPanel({
-  container: shortcutsContainer,
+  container: shortcutsModal.container,
   eventBus,
   embedded: true,
   singleSection: 'shortcuts',

@@ -9,7 +9,7 @@
 
 import { ChannelMixer } from '../src/panels/channel-mixer';
 import { EventBus } from '../src/utils/event-bus';
-import { ChannelState } from '../src/playback/channel-state';
+import * as channelStore from '../src/stores/channel.store';
 import type { PlaybackPosition } from '../src/playback/playback-manager';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -33,16 +33,15 @@ function makeAst(channelIds: number[], chip = 'gameboy') {
 describe('ChannelMixer', () => {
   let container: HTMLElement;
   let eventBus: EventBus;
-  let channelState: ChannelState;
   let mixer: ChannelMixer;
 
   beforeEach(() => {
-    localStorage.clear(); // prevent ChannelState.loadState() from loading stale mute/solo data
+    localStorage.clear();
+    channelStore.resetChannels();
     container = document.createElement('div');
     document.body.appendChild(container);
     eventBus = new EventBus();
-    channelState = new ChannelState(eventBus);
-    mixer = new ChannelMixer({ container, eventBus, channelState });
+    mixer = new ChannelMixer({ container, eventBus });
     jest.useFakeTimers();
   });
 
@@ -211,7 +210,7 @@ describe('ChannelMixer', () => {
   it('reflects muted state on channel:muted event', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
 
-    channelState.toggleMute(1); // fires channel:muted
+    channelStore.toggleChannelMuted(1); // fires channel:muted
 
     const btn = document.getElementById('bb-cp-mute-1') as HTMLButtonElement | null;
     expect(btn?.getAttribute('aria-pressed')).toBe('true');
@@ -221,8 +220,8 @@ describe('ChannelMixer', () => {
   it('reflects unmuted state after channel:unmuted event', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
 
-    channelState.toggleMute(1); // mute
-    channelState.toggleMute(1); // unmute → channel:unmuted
+    channelStore.toggleChannelMuted(1); // mute
+    channelStore.toggleChannelMuted(1); // unmute → channel:unmuted
 
     const btn = document.getElementById('bb-cp-mute-1') as HTMLButtonElement | null;
     expect(btn?.getAttribute('aria-pressed')).toBe('false');
@@ -231,7 +230,7 @@ describe('ChannelMixer', () => {
 
   it('adds silent class to card when channel is muted', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
-    channelState.toggleMute(1);
+    channelStore.toggleChannelMuted(1);
 
     const card = document.getElementById('bb-cp-card-1');
     expect(card?.classList.contains('bb-cp__card--silent')).toBe(true);
@@ -242,7 +241,7 @@ describe('ChannelMixer', () => {
   it('reflects soloed state on channel:soloed event', () => {
     eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
 
-    channelState.toggleSolo(1); // fires channel:soloed
+    channelStore.toggleChannelSoloed(1); // fires channel:soloed
 
     const soloBtn = document.getElementById('bb-cp-solo-1') as HTMLButtonElement | null;
     expect(soloBtn?.getAttribute('aria-pressed')).toBe('true');
@@ -252,7 +251,7 @@ describe('ChannelMixer', () => {
   it('marks non-soloed channels as silent when another is soloed', () => {
     eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
 
-    channelState.toggleSolo(1); // only ch1 is soloed → ch2 is silent
+    channelStore.toggleChannelSoloed(1); // only ch1 is soloed → ch2 is silent
 
     const card2 = document.getElementById('bb-cp-card-2');
     expect(card2?.classList.contains('bb-cp__card--silent')).toBe(true);
@@ -261,8 +260,8 @@ describe('ChannelMixer', () => {
   it('clears solo state on channel:unsoloed event', () => {
     eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
 
-    channelState.toggleSolo(1); // solo
-    channelState.toggleSolo(1); // unsolo → channel:unsoloed
+    channelStore.toggleChannelSoloed(1); // solo
+    channelStore.toggleChannelSoloed(1); // unsolo → channel:unsoloed
 
     const soloBtn = document.getElementById('bb-cp-solo-1') as HTMLButtonElement | null;
     expect(soloBtn?.getAttribute('aria-pressed')).toBe('false');

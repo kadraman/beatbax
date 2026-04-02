@@ -12,8 +12,7 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { ShortcutDescriptor } from '../utils/keyboard-shortcuts';
-
-const STYLE_ID = 'bb-help-panel-styles';
+import { icon } from '../utils/icons';
 
 export interface HelpPanelOptions {
   container: HTMLElement;
@@ -308,7 +307,6 @@ export class HelpPanel {
     this.hideHeader = options.hideHeader ?? false;
     this.twoColumns = options.twoColumns ?? false;
 
-    this.injectStyles();
     this.render();
     this.subscribe();
   }
@@ -381,11 +379,11 @@ export class HelpPanel {
 
       const title = document.createElement('span');
       title.className = 'bb-help__title';
-      title.textContent = '❔ Help & Reference';
+      title.innerHTML = `${icon('question-mark-circle', 'w-3.5 h-3.5 inline-block align-middle mr-1')} Help & Reference`;
 
       const closeBtn = document.createElement('button');
       closeBtn.className = 'bb-help__close';
-      closeBtn.textContent = '✕';
+      closeBtn.innerHTML = icon('x-mark', 'w-3.5 h-3.5');
       closeBtn.title = 'Close help (Esc)';
       closeBtn.addEventListener('click', () => this.hide());
 
@@ -424,7 +422,7 @@ export class HelpPanel {
 
       const clearBtn = document.createElement('button');
       clearBtn.className = 'bb-help__search-clear';
-      clearBtn.textContent = '✕';
+      clearBtn.innerHTML = icon('x-mark', 'w-3 h-3');
       clearBtn.title = 'Clear search';
       clearBtn.addEventListener('click', () => {
         this.searchQuery = '';
@@ -535,7 +533,7 @@ export class HelpPanel {
       const sectionHeader = document.createElement('button');
       sectionHeader.className = 'bb-help__section-header';
       sectionHeader.setAttribute('aria-expanded', String(!isCollapsed));
-      sectionHeader.innerHTML = `<span class="bb-help__section-arrow">${isCollapsed ? '▶' : '▼'}</span> ${section.title}`;
+      sectionHeader.innerHTML = `<span class="bb-help__section-arrow">${isCollapsed ? icon('chevron-right', 'w-3 h-3') : icon('chevron-down', 'w-3 h-3')}</span> ${section.title}`;
       sectionHeader.addEventListener('click', () => {
         if (this.collapsedSections.has(section.id)) {
           this.collapsedSections.delete(section.id);
@@ -546,7 +544,7 @@ export class HelpPanel {
         const arrow = sectionHeader.querySelector('.bb-help__section-arrow') as HTMLElement;
         const nowCollapsed = this.collapsedSections.has(section.id);
         body.style.display = nowCollapsed ? 'none' : 'block';
-        arrow.textContent = nowCollapsed ? '▶' : '▼';
+        arrow.innerHTML = nowCollapsed ? icon('chevron-right', 'w-3 h-3') : icon('chevron-down', 'w-3 h-3');
         sectionHeader.setAttribute('aria-expanded', String(!nowCollapsed));
       });
       el.appendChild(sectionHeader);
@@ -626,7 +624,7 @@ export class HelpPanel {
           e.stopPropagation();
           this.onInsertSnippet?.(item.code);
           // Brief visual feedback
-          insertBtn.textContent = '✓ Inserted';
+          insertBtn.innerHTML = `${icon('check-circle', 'w-3.5 h-3.5 inline-block align-middle mr-0.5')} Inserted`;
           insertBtn.disabled = true;
           setTimeout(() => {
             insertBtn.textContent = 'Insert';
@@ -686,323 +684,5 @@ export class HelpPanel {
       };
       document.addEventListener('keydown', onKey, { signal: this.abortCtrl.signal });
     }
-  }
-
-  // ─── CSS injection ────────────────────────────────────────────────────────
-
-  private injectStyles(): void {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = /* css */ `
-      .bb-help {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        background: #252526;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 13px;
-        color: #d4d4d4;
-        overflow: hidden;
-      }
-
-      .bb-help__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 12px;
-        background: #1e1e1e;
-        border-bottom: 1px solid #3c3c3c;
-        flex-shrink: 0;
-      }
-
-      .bb-help__title {
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #888;
-      }
-
-      .bb-help__close {
-        background: none;
-        border: none;
-        color: #888;
-        cursor: pointer;
-        font-size: 14px;
-        line-height: 1;
-        padding: 2px 4px;
-        border-radius: 3px;
-      }
-
-      .bb-help__close:hover {
-        background: #3a3a3a;
-        color: #d4d4d4;
-      }
-
-      .bb-help__search-bar {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 10px;
-        border-bottom: 1px solid #2d2d2d;
-        flex-shrink: 0;
-      }
-
-      .bb-help__search {
-        flex: 1;
-        background: #3c3c3c;
-        border: 1px solid #555;
-        border-radius: 4px;
-        color: #d4d4d4;
-        font-size: 12px;
-        padding: 4px 8px;
-        outline: none;
-      }
-
-      .bb-help__search:focus {
-        border-color: #569cd6;
-        box-shadow: 0 0 0 1px rgba(86,156,214,0.3);
-      }
-
-      .bb-help__search-clear {
-        background: none;
-        border: none;
-        color: #777;
-        cursor: pointer;
-        font-size: 12px;
-        padding: 2px 4px;
-        border-radius: 3px;
-      }
-
-      .bb-help__search-clear:hover {
-        color: #d4d4d4;
-        background: #3a3a3a;
-      }
-
-      .bb-help__body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 4px 0;
-      }
-
-      .bb-help__body::-webkit-scrollbar { width: 6px; }
-      .bb-help__body::-webkit-scrollbar-track { background: #1e1e1e; }
-      .bb-help__body::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
-
-      .bb-help__empty {
-        padding: 20px;
-        text-align: center;
-        color: #666;
-        font-style: italic;
-      }
-
-      .bb-help__section {
-        border-bottom: 1px solid #2d2d2d;
-      }
-
-      .bb-help__section-header {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: #2a2a2a;
-        border: none;
-        color: #c8c8c8;
-        padding: 7px 12px;
-        font-size: 12px;
-        font-weight: 600;
-        text-align: left;
-        cursor: pointer;
-        letter-spacing: 0.04em;
-        transition: background 0.15s;
-      }
-
-      .bb-help__section-header:hover {
-        background: #333;
-      }
-
-      .bb-help__section-arrow {
-        font-size: 9px;
-        color: #666;
-        flex-shrink: 0;
-      }
-
-      .bb-help__section-body {
-        padding: 6px 12px 10px;
-      }
-
-      .bb-help__text {
-        font-size: 12px;
-        color: #aaa;
-        line-height: 1.5;
-        margin-bottom: 6px;
-      }
-
-      /* Keyboard shortcuts */
-      .bb-help__shortcut {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 3px 0;
-      }
-
-      .bb-help__section-body--two-col {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        column-gap: 16px;
-        padding: 8px 12px;
-      }
-
-      .bb-help__section-body--two-col .bb-help__shortcut {
-        padding: 4px 0;
-      }
-
-      .bb-help__keys {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        min-width: 130px;
-        flex-shrink: 0;
-      }
-
-      .bb-help__kbd {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 22px;
-        height: 20px;
-        padding: 0 5px;
-        background: #3a3a3a;
-        border: 1px solid #666;
-        border-bottom-width: 2px;
-        border-radius: 4px;
-        font-family: inherit;
-        font-size: 10px;
-        font-weight: 600;
-        color: #d4d4d4;
-        white-space: nowrap;
-      }
-
-      .bb-help__key-sep {
-        color: #666;
-        font-size: 10px;
-        margin: 0 1px;
-      }
-
-      .bb-help__shortcut-desc {
-        font-size: 12px;
-        color: #c8c8c8;
-      }
-
-      /* Snippets */
-      .bb-help__snippet {
-        margin-bottom: 10px;
-        border: 1px solid #3c3c3c;
-        border-radius: 5px;
-        overflow: hidden;
-      }
-
-      .bb-help__snippet-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 5px 8px;
-        background: #2d2d2d;
-        border-bottom: 1px solid #3c3c3c;
-      }
-
-      .bb-help__snippet-label {
-        font-size: 11px;
-        font-weight: 600;
-        color: #9cdcfe;
-      }
-
-      .bb-help__insert-btn {
-        padding: 2px 8px;
-        font-size: 11px;
-        font-weight: 600;
-        background: #0e639c;
-        border: 1px solid #1177bb;
-        border-radius: 3px;
-        color: #fff;
-        cursor: pointer;
-        transition: background 0.15s;
-      }
-
-      .bb-help__insert-btn:hover:not(:disabled) {
-        background: #1177bb;
-      }
-
-      .bb-help__insert-btn:disabled {
-        background: #2a6a2a;
-        border-color: #3a8c3a;
-        cursor: default;
-      }
-
-      .bb-help__snippet-pre {
-        margin: 0;
-        padding: 6px 10px;
-        background: #1e1e1e;
-        overflow-x: auto;
-        font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-        font-size: 11px;
-        line-height: 1.5;
-        color: #ce9178;
-        white-space: pre;
-        tab-size: 2;
-      }
-
-      .bb-help__snippet-pre::-webkit-scrollbar { height: 4px; }
-      .bb-help__snippet-pre::-webkit-scrollbar-track { background: #1e1e1e; }
-      .bb-help__snippet-pre::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
-
-      /* Light theme */
-      [data-theme="light"] .bb-help {
-        background: #f3f3f3;
-        color: #333;
-      }
-
-      [data-theme="light"] .bb-help__header {
-        background: #e8e8e8;
-        border-color: #ddd;
-      }
-
-      [data-theme="light"] .bb-help__section-header {
-        background: #eaeaea;
-        color: #333;
-      }
-
-      [data-theme="light"] .bb-help__section-header:hover {
-        background: #e0e0e0;
-      }
-
-      [data-theme="light"] .bb-help__section-body {
-        background: #f3f3f3;
-      }
-
-      [data-theme="light"] .bb-help__search {
-        background: #fff;
-        border-color: #ccc;
-        color: #333;
-      }
-
-      [data-theme="light"] .bb-help__kbd {
-        background: #eaeaea;
-        border-color: #aaa;
-        color: #333;
-      }
-
-      [data-theme="light"] .bb-help__snippet-pre {
-        background: #f8f8f8;
-        color: #a31515;
-      }
-
-      [data-theme="light"] .bb-help__snippet-header {
-        background: #ebebeb;
-        border-color: #ddd;
-      }
-    `;
-    document.head.appendChild(style);
   }
 }

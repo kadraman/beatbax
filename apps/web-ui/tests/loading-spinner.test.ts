@@ -157,31 +157,6 @@ describe('ref-counting', () => {
   });
 });
 
-// ─── style injection ─────────────────────────────────────────────────────────
-
-describe('style injection', () => {
-  it('injects a <style id="bb-spinner-dynamic-styles"> on first show()', () => {
-    const spinner = new LoadingSpinner();
-    spinner.show();
-
-    expect(document.getElementById('bb-spinner-dynamic-styles')).not.toBeNull();
-  });
-
-  it('injects the style tag only once across multiple instances', () => {
-    new LoadingSpinner().show();
-    new LoadingSpinner().show();
-
-    expect(document.querySelectorAll('#bb-spinner-dynamic-styles').length).toBe(1);
-  });
-
-  it('includes the @keyframes bb-spin rule', () => {
-    new LoadingSpinner().show();
-
-    const style = document.getElementById('bb-spinner-dynamic-styles') as HTMLStyleElement;
-    expect(style.textContent).toContain('@keyframes bb-spin');
-  });
-});
-
 // ─── ARIA attributes ─────────────────────────────────────────────────────────
 
 describe('ARIA attributes', () => {

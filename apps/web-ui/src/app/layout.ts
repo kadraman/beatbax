@@ -1,0 +1,60 @@
+/**
+ * App-level layout construction.
+ *
+ * Creates the menu bar host, toolbar host, and the 3-pane resizable shell,
+ * then appends everything to the given `appContainer`.  Returns element
+ * references so the caller can mount components into each pane.
+ *
+ * The `outputPane` is pre-configured as a flex column (padding cleared,
+ * overflow hidden) so the tab system can mount directly inside it.
+ */
+
+import { createThreePaneLayout, type ThreePaneLayoutManager } from '../ui/layout';
+
+export interface AppLayout {
+  menuBarContainer: HTMLElement;
+  toolbarContainer: HTMLElement;
+  /** Host for the TransportBar (immediately below the toolbar). */
+  layoutHost: HTMLElement;
+  editorPane: HTMLElement;
+  outputPane: HTMLElement;
+  rightPane: HTMLElement;
+  layout: ThreePaneLayoutManager;
+}
+
+/**
+ * Build the top-level app shell and append it to `appContainer`.
+ * Call this once, early in bootstrap, before mounting any component.
+ */
+export function buildAppLayout(appContainer: HTMLElement): AppLayout {
+  // ─── Menu bar host (topmost) ──────────────────────────────────────────────
+  const menuBarContainer = document.createElement('div');
+  menuBarContainer.id = 'bb-menu-bar-host';
+  appContainer.appendChild(menuBarContainer);
+
+  // ─── Toolbar host (below menu bar) ────────────────────────────────────────
+  const toolbarContainer = document.createElement('div');
+  toolbarContainer.id = 'bb-toolbar-host';
+  appContainer.appendChild(toolbarContainer);
+
+  // ─── Layout host (fills remaining height) ─────────────────────────────────
+  const layoutHost = document.createElement('div');
+  layoutHost.style.cssText =
+    'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px;';
+  appContainer.appendChild(layoutHost);
+
+  const layout = createThreePaneLayout({ container: layoutHost, persist: true });
+  const editorPane = layout.getEditorPane();
+  const rightPane  = layout.getRightPane();
+
+  // Prepare the output pane for use as a flex tab container.
+  const outputPane = layout.getOutputPane();
+  outputPane.style.padding       = '0';
+  outputPane.style.overflow      = 'hidden';
+  outputPane.style.display       = 'flex';
+  outputPane.style.flexDirection = 'column';
+  outputPane.style.fontFamily    = '';
+  outputPane.style.fontSize      = '';
+
+  return { menuBarContainer, toolbarContainer, layoutHost, editorPane, outputPane, rightPane, layout };
+}
