@@ -41,6 +41,13 @@ import { buildShortcutsModal } from './app/modals';
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
 import { toggleChannelMuted, toggleChannelSoloed } from './stores/channel.store';
+import {
+  parseStatus,
+  parsedBpm,
+  parsedChip,
+  validationErrors as validationErrorsAtom,
+  validationWarnings as validationWarningsAtom,
+} from './stores/editor.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
@@ -169,7 +176,7 @@ setupGlyphMargin(editor.editor, eventBus);
 const playbackManager = new PlaybackManager(eventBus);
 const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
-const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }, eventBus), statusBarContainer);
+const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
 
 // Install global error handlers now that panels are ready.
 // Uncaught errors and unhandled rejections are forwarded as error messages.
@@ -527,21 +534,6 @@ eventBus.on('parse:error', () => setErrorState(true));
 eventBus.on('validation:errors', ({ errors }) => setErrorState(errors.length > 0));
 
 // ─── Live mode (handled by transportBar.liveButton) ──────────────────────────
-// Inject live-button pulse animation once.
-const liveBtnStyle = document.createElement('style');
-liveBtnStyle.textContent = `
-  .bb-live-btn { border: 2px solid transparent; border-radius: 4px; transition: border-color 0.2s; }
-  .bb-live-btn--active {
-    border-color: #4caf50;
-    animation: bb-live-pulse 1.4s ease-in-out infinite;
-  }
-  @keyframes bb-live-pulse {
-    0%, 100% { box-shadow: 0 0 4px 2px rgba(76,175,80,0.35); }
-    50%       { box-shadow: 0 0 12px 4px rgba(76,175,80,0.75); }
-  }
-`;
-document.head.appendChild(liveBtnStyle);
-
 let liveMode = false;
 transportBar.liveButton.addEventListener('click', () => {
   if (hasParseErrors) return; // button is disabled but guard anyway
@@ -595,6 +587,7 @@ function fileBaseStem(path: string): string {
 async function emitParse(content: string): Promise<void> {
   try {
     eventBus.emit('parse:started', undefined);
+    parseStatus.set('parsing');
     const ast = parse(content);
 
     // Split parser diagnostics into errors and warnings
@@ -618,14 +611,17 @@ async function emitParse(content: string): Promise<void> {
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
+      parseStatus.set('error');
       return;
     }
 
     // Emit errors (disables Play button, shows in Problems > Errors)
     eventBus.emit('validation:errors', { errors });
+    validationErrorsAtom.set(errors);
 
     // Emit warnings (informational only)
     eventBus.emit('validation:warnings', { warnings });
+    validationWarningsAtom.set(warnings);
 
     // Update Monaco markers for both (preserve level so errors get red squiggles)
     const allDiags = [
@@ -639,8 +635,12 @@ async function emitParse(content: string): Promise<void> {
     }
 
     eventBus.emit('parse:success', { ast });
+    parseStatus.set('success');
+    parsedBpm.set((ast as any).bpm || 120);
+    parsedChip.set((ast as any).chip || 'gameboy');
   } catch (err: any) {
     eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
+    parseStatus.set('error');
   }
 }
 

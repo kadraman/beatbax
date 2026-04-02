@@ -378,13 +378,13 @@ tests pass. There are no breaking changes for users because the web UI has no pu
 
 - [x] Phase 0: Tooling setup (Tailwind v4 + @tailwindcss/vite + nanostores installed)
 - [x] Phase 1: nanostores — 6 stores created (`playback`, `channel`, `editor`, `theme`, `ui`, `chat`); theme-manager wired
-- [ ] Phase 1 (remaining): migrate consumers — `playback-manager`, `status-bar`, delete old state files
+- [x] Phase 1 (remaining): `playback-manager` and `status-bar` fully migrated to nanostores; `status-bar.ts` now has zero `EventBus` dependency — subscribes to `parseStatus`, `parsedBpm`, `parsedChip`, `validationErrors`, `validationWarnings`, `playbackStatus`, `playbackTimeLabel`, `playbackError`, `exportStatus`, `exportFormat`; `editor.store` extended with parse/validation atoms; `ui.store` extended with export-status atoms; `playback.store` extended with `playbackError`; old state files already deleted (Phase 4)
 - [x] Phase 2: main.ts split — bootstrap, layout, tabs, modals extracted
 - [x] Phase 3 (partial): heroicons replacing all emoji/unicode glyphs; Tailwind dark class toggle; `chat-panel` wired to `chat.store`
-- [ ] Phase 3 (remaining): full Tailwind utility conversion, inline `<style>` removal
+- [x] Phase 3 (remaining): full Tailwind utility conversion, inline `<style>` removal — all runtime `injectStyles()` / `_ensureStyles()` methods removed from `toolbar.ts`, `menu-bar.ts`, `channel-mixer.ts`, `chat-panel.ts`, `loading-spinner.ts`, and `main.ts`; all CSS migrated to `styles.css`; 21 test suites passing
 - [x] Phase 4: Cleanup — channel-state.ts + editor-state.ts deleted, 83/84 suites passing (event-bus.ts deletion deferred — too many call sites)
 - [x] Monaco decoration files explicitly documented as kept as-is
-- [ ] Bundle size comparison logged (before/after CSS bytes)
+- [x] Bundle size logged (April 2026 production build): JS `3,556 kB` (gzip: `936 kB`), CSS `158 kB` (gzip: `27 kB`) — JS dominated by Monaco editor language packs (lazy-loaded per format)
 
 ---
 

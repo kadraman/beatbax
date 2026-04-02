@@ -99,11 +99,37 @@
         display: flex;
         flex-direction: column;
       }
+
+      /* ── Boot spinner (critical CSS — must load before JS) ── */
+      @keyframes bb-spin { to { transform: rotate(360deg); } }
+      #bb-boot-spinner {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: var(--bb-app-bg, #1e1e1e);
+        z-index: 9999;
+        color: #aaa;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 0.8125rem;
+        letter-spacing: 0.03em;
+      }
+      #bb-boot-spinner .bb-spinner-ring {
+        width: 2.75rem;
+        height: 2.75rem;
+        border: 4px solid rgba(255 255 255 / 12%);
+        border-top-color: #4ec9b0;
+        border-radius: 9999px;
+        animation: bb-spin 0.7s linear infinite;
+      }
     </style>
   </head>
   <body>
     <div id="bb-boot-spinner" aria-label="Loading BeatBax" role="status">
-      <div class="bb-spinner-ring"></div>
+      <div class="bb-spinner-ring" aria-hidden="true"></div>
       <span>Loading BeatBax…</span>
     </div>
     <div id="app"></div>

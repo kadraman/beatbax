@@ -14,6 +14,27 @@ import { atom } from 'nanostores';
 
 const STORAGE_KEY = 'beatbax:editor.content';
 
+// ── Parse / validation state ──────────────────────────────────────────────────
+
+export type ParseStatus = 'idle' | 'parsing' | 'success' | 'error';
+
+/** Current parse pipeline status. */
+export const parseStatus = atom<ParseStatus>('idle');
+
+/** BPM extracted from the most recently parsed AST. */
+export const parsedBpm = atom<number>(120);
+
+/** Chip name extracted from the most recently parsed AST. */
+export const parsedChip = atom<string>('gameboy');
+
+/** Current validation error list (empty when none). */
+export const validationErrors = atom<Array<{ message: string }>>([]);
+
+/** Current validation warning list (empty when none). */
+export const validationWarnings = atom<Array<{ message: string }>>([]);
+
+// ── Editor content ────────────────────────────────────────────────────────────
+
 /** Current content of the editor. */
 export const editorContent = atom<string>('');
 

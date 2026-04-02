@@ -26,3 +26,6 @@ export const playbackLiveMode = atom<boolean>(false);
 
 /** Formatted playback time string, e.g. "1:23". */
 export const playbackTimeLabel = atom<string>('0:00');
+
+/** Last playback error message (null when no error). */
+export const playbackError = atom<string | null>(null);

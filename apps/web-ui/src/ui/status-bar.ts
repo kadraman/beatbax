@@ -1,9 +1,12 @@
 /**
  * StatusBar - Displays status information at the bottom of the UI
+ *
+ * Subscribes exclusively to nanostores — no EventBus dependency.
  */
 
-import type { EventBus } from '../utils/event-bus';
-import { playbackStatus, playbackTimeLabel } from '../stores/playback.store';
+import { playbackStatus, playbackTimeLabel, playbackError } from '../stores/playback.store';
+import { parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '../stores/editor.store';
+import { exportStatus, exportFormat } from '../stores/ui.store';
 import { icon } from '../utils/icons';
 
 export interface StatusBarConfig {
@@ -37,45 +40,47 @@ export class StatusBar {
     status: 'Ready',
   };
 
-  constructor(
-    config: StatusBarConfig,
-    private eventBus: EventBus
-  ) {
+  constructor(config: StatusBarConfig) {
     this.container = config.container;
-    this.setupEventListeners();
+    this.setupStoreSubscriptions();
     this.render();
   }
 
-  /**
-   * Subscribe to relevant events
-   */
-  private setupEventListeners(): void {
-    // Parse events
-    this.eventBus.on('parse:started', () => {
-      this.setStatus('Parsing...');
+  private setupStoreSubscriptions(): void {
+    // Parse lifecycle
+    parseStatus.listen((status) => {
+      switch (status) {
+        case 'parsing': this.setStatus('Parsing...'); break;
+        case 'success':
+          if (this.info.status === 'Parsing...') this.info.status = 'Ready';
+          this.render();
+          break;
+        case 'error':
+          this.setStatus('Parse error');
+          break;
+      }
     });
 
-    this.eventBus.on('parse:success', ({ ast }) => {
-      // Extract BPM and chip from AST — but only update status if there are no
-      // validation errors (validation:errors fires separately and sets errorCount).
-      if (ast) {
-        this.info.bpm = (ast as any).bpm || 120;
-        this.info.chip = (ast as any).chip || 'gameboy';
-      }
-      // Only reset the status text if it was a transient "Parsing…" state.
-      if (this.info.status === 'Parsing...') {
-        this.info.status = 'Ready';
+    parsedBpm.listen((bpm) => { this.info.bpm = bpm; this.render(); });
+    parsedChip.listen((chip) => { this.info.chip = chip; this.render(); });
+
+    // Validation counts
+    validationErrors.listen((errors) => {
+      this.info.errorCount = errors.length;
+      if (errors.length === 0) {
+        if (this.info.status === 'Parse error') this.info.status = 'Ready';
+      } else {
+        this.info.status = 'Parse error';
       }
       this.render();
     });
 
-    this.eventBus.on('parse:error', () => {
-      this.setStatus('Parse error');
-      this.info.errorCount++;
+    validationWarnings.listen((warnings) => {
+      this.info.warningCount = warnings.length;
       this.render();
     });
 
-    // Playback state — subscribe to stores instead of event bus
+    // Playback state
     playbackStatus.listen((status) => {
       switch (status) {
         case 'playing': this.setStatus('Playing'); break;
@@ -92,83 +97,44 @@ export class StatusBar {
       this.render();
     });
 
-    this.eventBus.on('playback:error', () => {
-      this.setStatus('Playback error');
-      this.info.errorCount++;
-      this.render();
-    });
-
-    // Validation events
-    this.eventBus.on('validation:warnings', ({ warnings }) => {
-      this.info.warningCount = warnings.length;
-      this.render();
-    });
-
-    this.eventBus.on('validation:errors', ({ errors }) => {
-      this.info.errorCount = errors.length;
-      if (errors.length === 0) {
-        if (this.info.status !== 'Playback error' && this.info.status !== 'Parse error') {
-          this.info.status = 'Ready';
-        }
-      } else {
-        this.info.status = 'Parse error';
+    playbackError.listen((msg) => {
+      if (msg !== null) {
+        this.setStatus('Playback error');
+        this.info.errorCount++;
+        this.render();
       }
-      this.render();
     });
 
-    // Export events
-    this.eventBus.on('export:started', ({ format }) => {
-      this.setStatus(`Exporting ${format}...`);
-    });
-
-    this.eventBus.on('export:success', ({ format }) => {
-      this.setStatus(`Export ${format} successful`);
-      // Reset to previous status after 3 seconds
-      setTimeout(() => this.setStatus('Ready'), 3000);
-    });
-
-    this.eventBus.on('export:error', ({ format }) => {
-      this.setStatus(`Export ${format} failed`);
+    // Export state
+    exportStatus.listen((status) => {
+      const fmt = exportFormat.get();
+      switch (status) {
+        case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
+        case 'success':
+          this.setStatus(`Export ${fmt} successful`);
+          setTimeout(() => this.setStatus('Ready'), 3000);
+          break;
+        case 'error': this.setStatus(`Export ${fmt} failed`); break;
+      }
     });
   }
 
-  /**
-   * Set status message
-   */
   setStatus(status: string): void {
     this.info.status = status;
     this.render();
   }
 
-  /**
-   * Set cursor position (line, column)
-   */
   setCursorPosition(line: number, column: number): void {
     this.info.line = line;
     this.info.column = column;
     this.render();
   }
 
-  /**
-   * Update status info
-   */
   updateInfo(partial: Partial<StatusInfo>): void {
     this.info = { ...this.info, ...partial };
     this.render();
   }
 
-  /**
-   * Format time in seconds to MM:SS
-   */
-  private formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Render status bar
-   */
   private render(): void {
     const html = `
       <div class="status-bar">
@@ -214,9 +180,6 @@ export class StatusBar {
     this.container.innerHTML = html;
   }
 
-  /**
-   * Escape HTML to prevent XSS
-   */
   private escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;

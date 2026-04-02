@@ -110,3 +110,19 @@ export function isChannelAudible(states: Record<number, ChannelInfo>, id: number
   if (!anySoloed) return true;
   return ch.soloed;
 }
+
+/** Unmute every channel that is currently muted. */
+export function unmuteAll(): void {
+  const states = channelStates.get();
+  for (const id of Object.keys(states).map(Number)) {
+    if (states[id].muted) setChannelMuted(id, false);
+  }
+}
+
+/** Remove solo from every channel. */
+export function clearAllSolo(): void {
+  const states = channelStates.get();
+  for (const id of Object.keys(states).map(Number)) {
+    if (states[id].soloed) setChannelSoloed(id, false);
+  }
+}

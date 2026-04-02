@@ -14,7 +14,13 @@ import {
   playbackPosition as playbackPositionAtom,
   playbackDuration,
   playbackTimeLabel,
+  playbackError,
 } from '../stores/playback.store';
+import {
+  parseStatus,
+  parsedBpm,
+  parsedChip,
+} from '../stores/editor.store';
 
 function formatPlaybackTime(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -78,7 +84,20 @@ export class PlaybackManager {
 
   constructor(
     private eventBus: EventBus,
-  ) {}
+  ) {
+    // Live-sync mute/solo to the Player whenever the store changes during playback.
+    channelStates.subscribe((states) => {
+      if (!this.player) return;
+      const soloedId = Object.values(states).find(s => s.soloed)?.id ?? null;
+      this.player.solo = soloedId;
+      this.player.muted.clear();
+      if (soloedId === null) {
+        for (const info of Object.values(states)) {
+          if (info.muted) this.player.muted.add(info.id);
+        }
+      }
+    });
+  }
 
   /**
    * Parse and start playback
@@ -100,6 +119,7 @@ export class PlaybackManager {
       // Emit parsing event
       log.debug('Emitting parse:started');
       this.eventBus.emit('parse:started', undefined);
+      parseStatus.set('parsing');
 
       // Parse source
       const ast = parse(source);
@@ -121,6 +141,8 @@ export class PlaybackManager {
           this.state.error = error;
           this.eventBus.emit('parse:error', { error, message: error.message });
           this.eventBus.emit('playback:error', { error });
+          parseStatus.set('error');
+          playbackError.set(error.message);
           throw error;
         }
       }
@@ -257,6 +279,9 @@ export class PlaybackManager {
 
       // Emit parse success
       this.eventBus.emit('parse:success', { ast: resolved });
+      parseStatus.set('success');
+      parsedBpm.set((resolved as any).bpm || 120);
+      parsedChip.set((resolved as any).chip || 'gameboy');
       playbackBpm.set((resolved as any).bpm || 120);
 
       // Create player if needed
@@ -328,6 +353,8 @@ export class PlaybackManager {
       const errorMessage = this.formatParseError(error);
       this.eventBus.emit('parse:error', { error: error as Error, message: errorMessage });
       this.eventBus.emit('playback:error', { error: error as Error });
+      parseStatus.set('error');
+      playbackError.set(errorMessage);
       throw error;
     }
   }

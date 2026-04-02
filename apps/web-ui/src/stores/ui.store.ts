@@ -26,6 +26,18 @@ export const panelVisibility = map<Record<string, boolean>>({
   'ai-assistant': false,
 });
 
+// ── Export status ─────────────────────────────────────────────────────────────
+
+export type ExportStatus = 'idle' | 'exporting' | 'success' | 'error';
+
+/** Current export pipeline status. */
+export const exportStatus = atom<ExportStatus>('idle');
+
+/** Format being exported (e.g. 'json', 'midi', 'uge'). Relevant when exportStatus !== 'idle'. */
+export const exportFormat = atom<string>('');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 export function showSpinner(): void {
   spinnerCount.set(spinnerCount.get() + 1);
 }
