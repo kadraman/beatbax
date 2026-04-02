@@ -8,6 +8,7 @@ import { Player } from '@beatbax/engine/audio/playback';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 import type { EventBus } from '../utils/event-bus';
+import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';
 import { buildMIDI } from './midi-builder';
 import { validateForExport } from './export-validator';
 import {
@@ -70,6 +71,8 @@ export class ExportManager {
 
     log.debug(`Export started: format=${format}`);
     this.eventBus.emit('export:started', { format });
+    exportStatus.set('exporting');
+    exportFormatAtom.set(format);
 
     try {
       // Parse source
@@ -128,6 +131,7 @@ export class ExportManager {
       });
 
       this.eventBus.emit('export:success', { format, filename: result.filename });
+      exportStatus.set('success');
       log.debug(`Export success: ${result.filename} (${result.size ?? 0} bytes)`);
       return result;
 
@@ -135,6 +139,7 @@ export class ExportManager {
       const error = err instanceof Error ? err : new Error(String(err));
       log.error(`Export failed (${format}):`, error);
       this.eventBus.emit('export:error', { format, error });
+      exportStatus.set('error');
       return {
         success: false,
         format,

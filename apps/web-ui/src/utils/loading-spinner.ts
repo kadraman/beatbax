@@ -15,7 +15,6 @@ export class LoadingSpinner {
   private overlay: HTMLElement | null = null;
   private labelEl: HTMLElement | null = null;
   private depth = 0;
-  private static stylesInjected = false;
 
   /** Remove the static boot overlay from the DOM (call once, after editor init). */
   hideBoot(): void {
@@ -29,7 +28,6 @@ export class LoadingSpinner {
   show(label = 'Loading…'): void {
     this.depth++;
     if (!this.overlay) {
-      this._ensureStyles();
       this._createOverlay();
     }
     if (this.labelEl) this.labelEl.textContent = label;
@@ -57,44 +55,5 @@ export class LoadingSpinner {
     document.body.appendChild(el);
     this.overlay = el;
     this.labelEl = el.querySelector<HTMLElement>('.bb-spinner-label');
-  }
-
-  private _ensureStyles(): void {
-    if (LoadingSpinner.stylesInjected) return;
-    LoadingSpinner.stylesInjected = true;
-    const style = document.createElement('style');
-    style.id = 'bb-spinner-dynamic-styles';
-    style.textContent = `
-@keyframes bb-spin { to { transform: rotate(360deg); } }
-#bb-activity-spinner {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 10000;
-  color: #e0e0e0;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  backdrop-filter: blur(2px);
-}
-#bb-activity-spinner[hidden] { display: none; }
-#bb-activity-spinner .bb-spinner-ring {
-  width: 44px;
-  height: 44px;
-  border: 4px solid rgba(255, 255, 255, 0.15);
-  border-top-color: #4ec9b0;
-  border-radius: 50%;
-  animation: bb-spin 0.7s linear infinite;
-}
-#bb-activity-spinner .bb-spinner-label {
-  letter-spacing: 0.03em;
-  opacity: 0.85;
-}
-`;
-    document.head.appendChild(style);
   }
 }

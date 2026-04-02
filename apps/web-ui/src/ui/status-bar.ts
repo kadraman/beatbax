@@ -1,8 +1,13 @@
 /**
  * StatusBar - Displays status information at the bottom of the UI
+ *
+ * Subscribes exclusively to nanostores — no EventBus dependency.
  */
 
-import type { EventBus } from '../utils/event-bus';
+import { playbackStatus, playbackTimeLabel, playbackError } from '../stores/playback.store';
+import { parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '../stores/editor.store';
+import { exportStatus, exportFormat } from '../stores/ui.store';
+import { icon } from '../utils/icons';
 
 export interface StatusBarConfig {
   container: HTMLElement;
@@ -11,7 +16,6 @@ export interface StatusBarConfig {
 export interface StatusInfo {
   line: number;
   column: number;
-  errorCount: number;
   warningCount: number;
   bpm: number;
   chip: string;
@@ -27,7 +31,6 @@ export class StatusBar {
   private info: StatusInfo = {
     line: 1,
     column: 1,
-    errorCount: 0,
     warningCount: 0,
     bpm: 120,
     chip: 'gameboy',
@@ -35,141 +38,96 @@ export class StatusBar {
     status: 'Ready',
   };
 
-  constructor(
-    config: StatusBarConfig,
-    private eventBus: EventBus
-  ) {
+  constructor(config: StatusBarConfig) {
     this.container = config.container;
-    this.setupEventListeners();
+    this.setupStoreSubscriptions();
     this.render();
   }
 
-  /**
-   * Subscribe to relevant events
-   */
-  private setupEventListeners(): void {
-    // Parse events
-    this.eventBus.on('parse:started', () => {
-      this.setStatus('Parsing...');
-    });
-
-    this.eventBus.on('parse:success', ({ ast }) => {
-      // Extract BPM and chip from AST — but only update status if there are no
-      // validation errors (validation:errors fires separately and sets errorCount).
-      if (ast) {
-        this.info.bpm = (ast as any).bpm || 120;
-        this.info.chip = (ast as any).chip || 'gameboy';
+  private setupStoreSubscriptions(): void {
+    // Parse lifecycle
+    parseStatus.listen((status) => {
+      switch (status) {
+        case 'parsing': this.setStatus('Parsing...'); break;
+        case 'success':
+          if (this.info.status === 'Parsing...') this.info.status = 'Ready';
+          this.render();
+          break;
+        case 'error':
+          this.setStatus('Parse error');
+          break;
       }
-      // Only reset the status text if it was a transient "Parsing…" state.
-      if (this.info.status === 'Parsing...') {
-        this.info.status = 'Ready';
-      }
-      this.render();
     });
 
-    this.eventBus.on('parse:error', () => {
-      this.setStatus('Parse error');
-      this.info.errorCount++;
-      this.render();
-    });
+    parsedBpm.listen((bpm) => { this.info.bpm = bpm; this.render(); });
+    parsedChip.listen((chip) => { this.info.chip = chip; this.render(); });
 
-    // Playback events
-    this.eventBus.on('playback:started', () => {
-      this.setStatus('Playing');
-    });
-
-    this.eventBus.on('playback:stopped', () => {
-      this.setStatus('Stopped');
-      this.info.playbackTime = '0:00';
-      this.render();
-    });
-
-    this.eventBus.on('playback:paused', () => {
-      this.setStatus('Paused');
-    });
-
-    this.eventBus.on('playback:error', () => {
-      this.setStatus('Playback error');
-      this.info.errorCount++;
-      this.render();
-    });
-
-    this.eventBus.on('playback:position', ({ current, total }) => {
-      this.info.playbackTime = this.formatTime(current);
-      this.render();
-    });
-
-    // Validation events
-    this.eventBus.on('validation:warnings', ({ warnings }) => {
-      this.info.warningCount = warnings.length;
-      this.render();
-    });
-
-    this.eventBus.on('validation:errors', ({ errors }) => {
-      this.info.errorCount = errors.length;
+    // Validation counts
+    validationErrors.listen((errors) => {
       if (errors.length === 0) {
-        if (this.info.status !== 'Playback error' && this.info.status !== 'Parse error') {
-          this.info.status = 'Ready';
-        }
+        if (this.info.status === 'Parse error') this.info.status = 'Ready';
       } else {
         this.info.status = 'Parse error';
       }
       this.render();
     });
 
-    // Export events
-    this.eventBus.on('export:started', ({ format }) => {
-      this.setStatus(`Exporting ${format}...`);
+    validationWarnings.listen((warnings) => {
+      this.info.warningCount = warnings.length;
+      this.render();
     });
 
-    this.eventBus.on('export:success', ({ format }) => {
-      this.setStatus(`Export ${format} successful`);
-      // Reset to previous status after 3 seconds
-      setTimeout(() => this.setStatus('Ready'), 3000);
+    // Playback state
+    playbackStatus.listen((status) => {
+      switch (status) {
+        case 'playing': this.setStatus('Playing'); break;
+        case 'stopped':
+          this.info.playbackTime = '0:00';
+          this.setStatus('Stopped');
+          break;
+        case 'paused': this.setStatus('Paused'); break;
+      }
     });
 
-    this.eventBus.on('export:error', ({ format }) => {
-      this.setStatus(`Export ${format} failed`);
+    playbackTimeLabel.listen((label) => {
+      this.info.playbackTime = label;
+      this.render();
+    });
+
+    playbackError.listen((msg) => {
+      this.setStatus(msg !== null ? 'Playback error' : this.info.status);
+    });
+
+    // Export state
+    exportStatus.listen((status) => {
+      const fmt = exportFormat.get();
+      switch (status) {
+        case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
+        case 'success':
+          this.setStatus(`Export ${fmt} successful`);
+          setTimeout(() => this.setStatus('Ready'), 3000);
+          break;
+        case 'error': this.setStatus(`Export ${fmt} failed`); break;
+      }
     });
   }
 
-  /**
-   * Set status message
-   */
   setStatus(status: string): void {
     this.info.status = status;
     this.render();
   }
 
-  /**
-   * Set cursor position (line, column)
-   */
   setCursorPosition(line: number, column: number): void {
     this.info.line = line;
     this.info.column = column;
     this.render();
   }
 
-  /**
-   * Update status info
-   */
   updateInfo(partial: Partial<StatusInfo>): void {
     this.info = { ...this.info, ...partial };
     this.render();
   }
 
-  /**
-   * Format time in seconds to MM:SS
-   */
-  private formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Render status bar
-   */
   private render(): void {
     const html = `
       <div class="status-bar">
@@ -181,16 +139,18 @@ export class StatusBar {
           <span class="status-label">Ln ${this.info.line}, Col ${this.info.column}</span>
         </div>
 
-        ${this.info.errorCount > 0 ? `
+        ${(() => {
+          const errorCount = validationErrors.get().length + (playbackError.get() !== null ? 1 : 0);
+          return errorCount > 0 ? `
           <div class="status-section status-errors">
-            <span class="status-icon">❌</span>
-            <span class="status-count">${this.info.errorCount}</span>
-          </div>
-        ` : ''}
+            <span class="status-icon">${icon('exclamation-circle', 'w-3.5 h-3.5 inline-block align-middle')}</span>
+            <span class="status-count">${errorCount}</span>
+          </div>` : '';
+        })()}
 
         ${this.info.warningCount > 0 ? `
           <div class="status-section status-warnings">
-            <span class="status-icon">⚠️</span>
+            <span class="status-icon">${icon('exclamation-triangle', 'w-3.5 h-3.5 inline-block align-middle')}</span>
             <span class="status-count">${this.info.warningCount}</span>
           </div>
         ` : ''}
@@ -213,116 +173,11 @@ export class StatusBar {
     `;
 
     this.container.innerHTML = html;
-    this.ensureStyles();
   }
 
-  /**
-   * Escape HTML to prevent XSS
-   */
   private escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  /**
-   * Ensure CSS styles are present
-   */
-  private ensureStyles(): void {
-    const styleId = 'beatbax-status-bar-styles';
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .status-bar {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 4px 12px;
-        background: var(--status-bar-bg, #007acc);
-        color: var(--status-bar-text, #fff);
-        font-size: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-        border-top: 1px solid var(--border-color, #444);
-        height: 24px;
-      }
-
-      .status-section {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .status-main {
-        flex: 1;
-        font-weight: 500;
-      }
-
-      .status-text {
-        opacity: 0.95;
-      }
-
-      .status-label {
-        opacity: 0.9;
-      }
-
-      .status-icon {
-        font-size: 14px;
-      }
-
-      .status-count {
-        font-weight: 600;
-      }
-
-      .status-errors {
-        color: var(--error-color-light, #ffc1c1);
-      }
-
-      .status-warnings {
-        color: var(--warning-color-light, #ffd666);
-      }
-
-      .status-section.status-brand {
-        margin-left: 8px;
-        opacity: 0.7;
-        font-weight: 600;
-        font-size: 11px;
-        white-space: nowrap;
-      }
-      .status-brand-link {
-        display: inline-flex;
-        gap: 0px;
-        align-items: center;
-        text-decoration: none;
-        cursor: pointer;
-      }
-      .status-brand-link:focus { outline: 2px solid rgba(255,255,255,0.14); outline-offset: 2px; }
-      .bb-letter {
-        display: inline-block;
-        font-weight: 800;
-        padding: 0 0.4px;
-        margin-right: 0px;
-        line-height: 1;
-        transform-origin: center;
-        transition: transform 120ms ease, opacity 120ms ease;
-        letter-spacing: -0.2px;
-        /* Add a subtle dark outline for readability on blue backgrounds */
-        -webkit-text-stroke: 0.8px rgba(0,0,0,0.75);
-        text-stroke: 0.8px rgba(0,0,0,0.75);
-        text-shadow: -1px -1px 0 rgba(0,0,0,0.85), 1px -1px 0 rgba(0,0,0,0.85), -1px 1px 0 rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.85);
-      }
-      /* Beat = reddish tones */
-      .bb-letter.beat-b { color: #ff7a78; }
-      .bb-letter.beat-e { color: #ff9e9e; }
-      .bb-letter.beat-a { color: #ff6b6b; }
-      .bb-letter.beat-t { color: #ff4a4a; }
-      /* Bax = blueish tones */
-      .bb-letter.bax-b { color: #7fb8ff; }
-      .bb-letter.bax-a { color: #9fd0ff; }
-      .bb-letter.bax-x { color: #5f9eff; }
-      .status-brand-link:hover .bb-letter { transform: translateY(-1px); opacity: 0.98; }
-    `;
-    document.head.appendChild(style);
   }
 }

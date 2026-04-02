@@ -1,6 +1,10 @@
 /**
  * Event bus for cross-component communication
  * Type-safe pub/sub event system
+ *
+ * @deprecated New code should use nanostores atoms from `../stores` for
+ * reactive state. The event bus is kept for backward compatibility during the
+ * migration and will be removed in a future cleanup phase.
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';

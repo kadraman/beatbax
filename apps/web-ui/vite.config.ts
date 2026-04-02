@@ -1,29 +1,11 @@
 import { defineConfig } from 'vite';
 import path from 'path';
-
-// Note: To enable Monaco Editor workers without CORS issues,
-// install vite-plugin-monaco-editor: npm install -D vite-plugin-monaco-editor
-// Then uncomment the import and plugin configuration below.
-//
-// import monacoEditorPlugin from 'vite-plugin-monaco-editor';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  // Uncomment the plugins section once vite-plugin-monaco-editor is installed
-  /*
   plugins: [
-    monacoEditorPlugin({
-      // Only bundle workers we need (reduces bundle size)
-      languageWorkers: ['json', 'typescript'],
-      // Custom workers for BeatBax language
-      customWorkers: [
-        {
-          label: 'beatbax',
-          entry: 'monaco-editor/esm/vs/language/typescript/ts.worker',
-        },
-      ],
-    }),
+    tailwindcss(),
   ],
-  */
   root: '.',
   resolve: {
     alias: {

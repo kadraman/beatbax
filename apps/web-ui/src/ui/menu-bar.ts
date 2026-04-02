@@ -12,10 +12,10 @@
 import type { EventBus } from '../utils/event-bus';
 import { EXAMPLE_SONGS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { icon } from '../utils/icons';
 
 const log = createLogger('ui:menu-bar');
 
-const STYLE_ID = 'bb-menu-bar-styles';
 const RECENT_STORAGE_KEY = 'beatbax:menu.recentFiles';
 const MAX_RECENT = 8;
 const ABOUT_URL = 'https://github.com/kadraman/beatbax';
@@ -145,7 +145,6 @@ export class MenuBar {
   ]);
 
   constructor(private opts: MenuBarOptions) {
-    this.injectStyles();
     this.render();
     this.attachGlobal();
     this.listenBus();
@@ -257,6 +256,7 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
+      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
       ${def.shortcut ? `<span class="bb-menu__item-shortcut" aria-hidden="true">${esc(def.shortcut)}</span>` : ''}
     `;
@@ -288,8 +288,9 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
+      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
-      <span class="bb-menu__item-arrow" aria-hidden="true">▶</span>
+      <span class="bb-menu__item-arrow" aria-hidden="true">${icon('chevron-down', 'w-3 h-3 inline-block -rotate-90')}</span>
     `;
 
     const sub = document.createElement('ul');
@@ -331,6 +332,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'New',
+        icon: 'document-plus',
         // Ctrl+N is reserved by browsers (opens a new window) and cannot be
         // intercepted — access New via the menu or toolbar instead.
         action: () => this.opts.onNew?.(),
@@ -338,6 +340,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Open…',
+        icon: 'folder-open',
         shortcut: 'Ctrl+O',
         action: () => this.opts.onOpen?.(),
       },
@@ -347,21 +350,23 @@ export class MenuBar {
         label: 'Export',
         id: 'export',
         children: [
-          { type: 'item', label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
-          { type: 'item', label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
-          { type: 'item', label: 'Export as UGE', action: () => this.opts.onExport?.('uge') },
-          { type: 'item', label: 'Export as WAV', action: () => this.opts.onExport?.('wav') },
+          { type: 'item', icon: 'document',      label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
+          { type: 'item', icon: 'musical-note',  label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
+          { type: 'item', icon: 'cpu-chip',      label: 'Export as UGE',  action: () => this.opts.onExport?.('uge') },
+          { type: 'item', icon: 'speaker-wave',  label: 'Export as WAV',  action: () => this.opts.onExport?.('wav') },
         ],
       },
       {
         type: 'item',
         label: 'Save',
+        icon: 'arrow-down-tray',
         shortcut: 'Ctrl+S',
         action: () => this.opts.onSave?.(),
       },
       {
         type: 'item',
         label: 'Save As…',
+        icon: 'document-arrow-down',
         shortcut: 'Ctrl+Shift+S',
         action: () => this.opts.onSaveAs?.(),
       },
@@ -369,6 +374,7 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Recent Files',
+        icon: 'clock',
         id: 'recent-files',
         lazyChildren: () => this.recentFileItems(),
       },
@@ -380,12 +386,14 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Undo',
+        icon: 'arrow-uturn-left',
         shortcut: 'Ctrl+Z',
         action: () => this.opts.onUndo?.(),
       },
       {
         type: 'item',
         label: 'Redo',
+        icon: 'arrow-uturn-right',
         shortcut: 'Ctrl+Y',
         action: () => this.opts.onRedo?.(),
       },
@@ -393,18 +401,21 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Cut',
+        icon: 'scissors',
         shortcut: 'Ctrl+X',
         action: () => this.opts.onCut?.(),
       },
       {
         type: 'item',
         label: 'Copy',
+        icon: 'document-duplicate',
         shortcut: 'Ctrl+C',
         action: () => this.opts.onCopy?.(),
       },
       {
         type: 'item',
         label: 'Paste',
+        icon: 'clipboard-document',
         shortcut: 'Ctrl+V',
         action: () => this.opts.onPaste?.(),
       },
@@ -412,12 +423,14 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Find',
+        icon: 'magnifying-glass',
         shortcut: 'Ctrl+F',
         action: () => this.opts.onFind?.(),
       },
       {
         type: 'item',
         label: 'Replace',
+        icon: 'arrows-right-left',
         shortcut: 'Ctrl+H',
         action: () => this.opts.onReplace?.(),
       },
@@ -442,30 +455,35 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Output',
+        icon: 'command-line',
         shortcut: 'Ctrl+`',
         action: () => this.emitPanelShow('output'),
       },
       {
         type: 'item',
         label: 'Problems',
+        icon: 'exclamation-triangle',
         shortcut: 'Alt+Shift+P',
         action: () => this.emitPanelShow('problems'),
       },
       {
         type: 'item',
         label: 'Toggle Toolbar',
+        icon: 'bars-3',
         shortcut: 'Ctrl+Shift+B',
         action: () => this.emitPanelToggle('toolbar'),
       },
       {
         type: 'item',
         label: 'Toggle Transport Bar',
+        icon: 'queue-list',
         shortcut: 'Ctrl+Shift+R',
         action: () => this.emitPanelToggle('transport-bar'),
       },
       {
         type: 'item',
         label: 'Mixer',
+        icon: 'squares-2x2',
         shortcut: 'Ctrl+Shift+Y',
         action: () => this.emitPanelShow('channel-mixer'),
       },
@@ -486,6 +504,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'AI Assistant',
+        icon: 'sparkles',
         shortcut: 'Alt+Shift+I',
         id: 'ai-assistant',
         action: () => this.opts.onToggleAI?.(),
@@ -494,18 +513,21 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Zoom In',
+        icon: 'magnifying-glass-plus',
         shortcut: 'Ctrl++',
         action: () => this.opts.onZoomIn?.(),
       },
       {
         type: 'item',
         label: 'Zoom Out',
+        icon: 'magnifying-glass-minus',
         shortcut: 'Ctrl+-',
         action: () => this.opts.onZoomOut?.(),
       },
       {
         type: 'item',
         label: 'Reset Zoom',
+        icon: 'arrows-pointing-in',
         shortcut: 'Ctrl+0',
         action: () => this.opts.onZoomReset?.(),
       },
@@ -513,6 +535,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Theme (Dark / Light)',
+        icon: 'sun',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
       },
@@ -524,17 +547,20 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Documentation',
+        icon: 'information-circle',
         action: () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer'),
       },
       {
         type: 'item',
         label: 'Keyboard Shortcuts…',
+        icon: 'key',
         shortcut: 'Alt+Shift+K',
         action: () => this.opts.onShowShortcuts?.(),
       },
       {
         // Opens the full Help Panel (syntax reference, snippets, keyboard shortcuts).
         label: 'Help Panel…',
+        icon: 'question-mark-circle',
         type: 'item',
         shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
@@ -543,6 +569,7 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Examples',
+        icon: 'book-open',
         id: 'examples',
         lazyChildren: () => this.exampleItems(),
       },
@@ -550,6 +577,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'About BeatBax',
+        icon: 'globe-alt',
         action: () => window.open(ABOUT_URL, '_blank', 'noopener,noreferrer'),
       },
     ];
@@ -771,184 +799,6 @@ export class MenuBar {
 
   // ─── Styles ───────────────────────────────────────────────────────────────────
 
-  private injectStyles(): void {
-    if (document.getElementById(STYLE_ID)) return;
-
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-      /* ── Menu bar ───────────────────────────────────────────────────────────── */
-      .bb-menu-bar {
-        display: flex;
-        align-items: stretch;
-        background: #1f1f1f;
-        border-bottom: 1px solid #333;
-        flex-shrink: 0;
-        height: 28px;
-        user-select: none;
-        font-size: 13px;
-        z-index: 1000;
-        position: relative;
-      }
-
-      /* ── Top-level menu wrapper ─────────────────────────────────────────────── */
-      .bb-menu {
-        position: relative;
-        display: flex;
-        align-items: stretch;
-      }
-
-      /* ── Top-level trigger button ───────────────────────────────────────────── */
-      .bb-menu__trigger {
-        padding: 0 10px;
-        background: transparent;
-        border: none;
-        color: #cccccc;
-        font-size: 13px;
-        cursor: pointer;
-        white-space: nowrap;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        transition: background 0.1s, color 0.1s;
-      }
-
-      .bb-menu__trigger:hover,
-      .bb-menu__trigger--active {
-        background: #2a2d2e;
-        color: #ffffff;
-      }
-
-      /* ── Dropdown panel ─────────────────────────────────────────────────────── */
-      .bb-menu__panel {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        min-width: 220px;
-        background: #252526;
-        border: 1px solid #454545;
-        border-radius: 0 0 4px 4px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-        list-style: none;
-        margin: 0;
-        padding: 4px 0;
-        z-index: 2000;
-      }
-
-      /* ── Menu items ─────────────────────────────────────────────────────────── */
-      .bb-menu__item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 5px 16px 5px 24px;
-        color: #cccccc;
-        cursor: pointer;
-        gap: 24px;
-        outline: none;
-        transition: background 0.1s;
-      }
-
-      .bb-menu__item:hover:not(.bb-menu__item--disabled),
-      .bb-menu__item:focus:not(.bb-menu__item--disabled) {
-        background: #094771;
-        color: #ffffff;
-      }
-
-      .bb-menu__item--disabled {
-        color: #666;
-        cursor: default;
-      }
-
-      .bb-menu__item--submenu {
-        position: relative;
-      }
-
-      .bb-menu__item-label {
-        flex: 1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .bb-menu__item-shortcut {
-        font-size: 11px;
-        color: #888;
-        white-space: nowrap;
-        flex-shrink: 0;
-      }
-
-      .bb-menu__item:hover .bb-menu__item-shortcut,
-      .bb-menu__item:focus .bb-menu__item-shortcut {
-        color: #bbbbbb;
-      }
-
-      .bb-menu__item-arrow {
-        font-size: 9px;
-        color: #888;
-        flex-shrink: 0;
-        margin-left: 8px;
-      }
-
-      /* ── Separator ──────────────────────────────────────────────────────────── */
-      .bb-menu__sep {
-        height: 1px;
-        background: #3c3c3c;
-        margin: 4px 0;
-        padding: 0;
-      }
-
-      /* ── Sub-panel (nested menu) ────────────────────────────────────────────── */
-      .bb-menu__sub-panel {
-        position: absolute;
-        left: 100%;
-        top: -4px;
-        min-width: 200px;
-        background: #252526;
-        border: 1px solid #454545;
-        border-radius: 4px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-        list-style: none;
-        margin: 0;
-        padding: 4px 0;
-        z-index: 2100;
-      }
-
-      /* Dark-theme overrides when data-theme=light is set on <html> */
-      [data-theme="light"] .bb-menu-bar {
-        background: #f3f3f3;
-        border-bottom-color: #ddd;
-      }
-      [data-theme="light"] .bb-menu__trigger {
-        color: #333;
-      }
-      [data-theme="light"] .bb-menu__trigger:hover,
-      [data-theme="light"] .bb-menu__trigger--active {
-        background: #e8e8e8;
-        color: #000;
-      }
-      [data-theme="light"] .bb-menu__panel,
-      [data-theme="light"] .bb-menu__sub-panel {
-        background: #ffffff;
-        border-color: #ccc;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      }
-      [data-theme="light"] .bb-menu__item {
-        color: #333;
-      }
-      [data-theme="light"] .bb-menu__item:hover:not(.bb-menu__item--disabled),
-      [data-theme="light"] .bb-menu__item:focus:not(.bb-menu__item--disabled) {
-        background: #0060c0;
-        color: #fff;
-      }
-      [data-theme="light"] .bb-menu__item-shortcut {
-        color: #777;
-      }
-      [data-theme="light"] .bb-menu__sep {
-        background: #e0e0e0;
-      }
-    `;
-    document.head.appendChild(style);
-  }
 }
 
 // ─── Internal menu-item descriptor types ──────────────────────────────────────
@@ -964,6 +814,8 @@ interface ActionItemDef extends BaseItemDef {
   type: 'item';
   label: string;
   shortcut?: string;
+  /** Optional heroicon name to prefix the label. */
+  icon?: string;
   action: () => void;
 }
 
@@ -974,6 +826,8 @@ interface SeparatorDef {
 interface SubmenuItemDef extends BaseItemDef {
   type: 'submenu';
   label: string;
+  /** Optional heroicon name to prefix the label. */
+  icon?: string;
   /** Static children (resolved at render time). */
   children?: MenuItemDef[];
   /** Dynamic children (resolved each time the submenu opens). */
