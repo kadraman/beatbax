@@ -5,13 +5,12 @@
 
 import { ChannelMixer as ChannelControls } from '../src/panels/channel-mixer';
 import { EventBus } from '../src/utils/event-bus';
-import { ChannelState } from '../src/playback/channel-state';
+import * as channelStore from '../src/stores/channel.store';
 import type { PlaybackPosition } from '../src/playback/playback-manager';
 
 describe('ChannelControls', () => {
   let container: HTMLElement;
   let eventBus: EventBus;
-  let channelState: ChannelState;
   let channelControls: ChannelControls;
 
   beforeEach(() => {
@@ -19,11 +18,9 @@ describe('ChannelControls', () => {
     document.body.appendChild(container);
 
     eventBus = new EventBus();
-    channelState = new ChannelState(eventBus);
     channelControls = new ChannelControls({
       container,
       eventBus,
-      channelState,
     });
 
     jest.clearAllMocks();
@@ -159,7 +156,7 @@ describe('ChannelControls', () => {
     muteBtn?.click();
 
     expect(muteBtn?.getAttribute('aria-pressed')).toBe('true');
-    expect(channelState.getChannel(1)?.muted).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
   });
 
   it('should show progress from 0% to 100%', () => {
@@ -301,9 +298,7 @@ describe('ChannelControls', () => {
 
     beforeEach(() => {
       // Reset channel state to avoid localStorage pollution from previous tests.
-      // ChannelState.loadState() runs in the constructor and may pick up state
-      // saved by an earlier test, so we reset here to guarantee a clean slate.
-      channelState.reset();
+      channelStore.resetChannels();
       ast = {
         channels: [
           { id: 1, events: [{ instrument: 'lead' }] },
@@ -315,7 +310,7 @@ describe('ChannelControls', () => {
 
     it('solo button click marks the channel as soloed', () => {
       document.getElementById('bb-cp-solo-1')!.click();
-      expect(channelState.getChannel(1)?.soloed).toBe(true);
+      expect(channelStore.channelStates.get()[1]?.soloed).toBe(true);
     });
 
     it('solo button shows soloed state when the channel is soloed', () => {
@@ -326,7 +321,7 @@ describe('ChannelControls', () => {
     it('second solo click unsoloes the channel', () => {
       document.getElementById('bb-cp-solo-1')!.click();
       document.getElementById('bb-cp-solo-1')!.click();
-      expect(channelState.getChannel(1)?.soloed).toBe(false);
+      expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
       expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('false');
     });
 
@@ -354,32 +349,32 @@ describe('ChannelControls', () => {
       expect(document.getElementById('bb-cp-card-1')?.classList.contains('bb-cp__card--silent')).toBe(false);
     });
 
-    it('muting via channelState.mute() updates button aria-pressed without re-rendering', () => {
+    it('muting via channelStore.toggleChannelMuted() updates button aria-pressed without re-rendering', () => {
       const renderSpy = jest.spyOn(channelControls as any, 'render');
-      channelState.mute(1);
+      channelStore.toggleChannelMuted(1);
       expect(document.getElementById('bb-cp-mute-1')?.getAttribute('aria-pressed')).toBe('true');
       expect(renderSpy).not.toHaveBeenCalled();
       renderSpy.mockRestore();
     });
 
-    it('soloing via channelState.solo() updates solo button aria-pressed without re-rendering', () => {
+    it('soloing via channelStore.toggleChannelSoloed() updates solo button aria-pressed without re-rendering', () => {
       const renderSpy = jest.spyOn(channelControls as any, 'render');
-      channelState.solo(1);
+      channelStore.toggleChannelSoloed(1);
       expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('true');
       expect(renderSpy).not.toHaveBeenCalled();
       renderSpy.mockRestore();
     });
 
     it('soloing channel 1 via channelState leaves channel 2 solo button not pressed', () => {
-      channelState.solo(1);
+      channelStore.toggleChannelSoloed(1);
       expect(document.getElementById('bb-cp-solo-2')?.getAttribute('aria-pressed')).toBe('false');
     });
 
     it('soloing channel 2 transfers the soloed state from channel 1', () => {
-      channelState.solo(1);
-      channelState.solo(2);
-      expect(channelState.getChannel(1)?.soloed).toBe(false);
-      expect(channelState.getChannel(2)?.soloed).toBe(true);
+      channelStore.toggleChannelSoloed(1);
+      channelStore.toggleChannelSoloed(2);
+      expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
+      expect(channelStore.channelStates.get()[2]?.soloed).toBe(true);
       expect(document.getElementById('bb-cp-solo-1')?.getAttribute('aria-pressed')).toBe('false');
       expect(document.getElementById('bb-cp-solo-2')?.getAttribute('aria-pressed')).toBe('true');
     });

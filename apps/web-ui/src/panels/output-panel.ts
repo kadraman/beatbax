@@ -6,6 +6,7 @@
  */
 
 import type { EventBus } from '../utils/event-bus';
+import { icon } from '../utils/icons';
 
 export interface OutputMessage {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -333,9 +334,6 @@ export class OutputPanel {
       });
     });
 
-    // Add CSS if not already present
-    this.ensureStyles();
-
     // Scroll the output messages list to the bottom so the latest entry is visible.
     const msgList = this.container.querySelector<HTMLElement>('.output-messages');
     if (msgList) msgList.scrollTop = msgList.scrollHeight;
@@ -380,7 +378,7 @@ export class OutputPanel {
    * Render a problem message (no timestamp)
    */
   private renderProblemMessage(msg: OutputMessage): string {
-    const icon = this.getIcon(msg.type);
+    const msgIcon = this.getIcon(msg.type);
     const source = msg.source ? `[${msg.source}]` : '';
 
     let locBadge = '';
@@ -392,7 +390,7 @@ export class OutputPanel {
     }
 
     const suggestionHtml = msg.suggestion
-      ? `<div class="output-suggestion">💡 ${this.escapeHtml(msg.suggestion)}</div>`
+      ? `<div class="output-suggestion">${icon('light-bulb', 'w-3 h-3 inline-block align-middle')} ${this.escapeHtml(msg.suggestion)}</div>`
       : '';
 
     const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}" style="cursor:pointer" title="Click to jump to line ${line}"` : '';
@@ -400,7 +398,7 @@ export class OutputPanel {
     return `
       <div class="output-message output-${msg.type}" ${navAttrs}>
         <div class="output-message-main">
-          <span class="output-icon">${icon}</span>
+          <span class="output-icon">${msgIcon}</span>
           ${source ? `<span class="output-source">${source}</span>` : ''}
           <span class="output-text">${this.escapeHtml(msg.message)}</span>
           ${locBadge}
@@ -414,14 +412,14 @@ export class OutputPanel {
    * Render an output message (with timestamp)
    */
   private renderOutputMessage(msg: OutputMessage): string {
-    const icon = this.getIcon(msg.type);
+    const msgIcon = this.getIcon(msg.type);
     const time = msg.timestamp.toLocaleTimeString();
     const source = msg.source ? `[${msg.source}]` : '';
 
     return `
       <div class="output-message output-${msg.type}">
         <div class="output-message-main">
-          <span class="output-icon">${icon}</span>
+          <span class="output-icon">${msgIcon}</span>
           <span class="output-time">${time}</span>
           ${source ? `<span class="output-source">${source}</span>` : ''}
           <span class="output-text">${this.escapeHtml(msg.message)}</span>
@@ -434,13 +432,13 @@ export class OutputPanel {
    * Get icon for message type
    */
   private getIcon(type: OutputMessage['type']): string {
-    const icons = {
-      error: '❌',
-      warning: '⚠️',
-      info: 'ℹ️',
-      success: '✅',
+    const iconMap: Record<OutputMessage['type'], string> = {
+      error:   icon('exclamation-circle',   'w-4 h-4 inline-block align-middle'),
+      warning: icon('exclamation-triangle', 'w-4 h-4 inline-block align-middle'),
+      info:    icon('information-circle',   'w-4 h-4 inline-block align-middle'),
+      success: icon('check-circle',         'w-4 h-4 inline-block align-middle'),
     };
-    return icons[type];
+    return iconMap[type];
   }
 
   /**
@@ -450,190 +448,5 @@ export class OutputPanel {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  /**
-   * Ensure CSS styles are present
-   */
-  private ensureStyles(): void {
-    const styleId = 'beatbax-output-panel-styles';
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .output-tabs {
-        display: flex;
-        gap: 4px;
-        padding: 4px 8px;
-        border-bottom: 1px solid var(--border-color, #444);
-        background: var(--header-bg, #2d2d2d);
-        align-items: center;
-      }
-
-      .output-tab {
-        padding: 6px 12px;
-        background: transparent;
-        border: none;
-        color: var(--text-muted, #858585);
-        cursor: pointer;
-        border-radius: 3px 3px 0 0;
-        font-size: 13px;
-        font-weight: 500;
-        transition: background 0.2s, color 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .output-tab:hover {
-        background: var(--button-hover-bg, #3a3a3a);
-        color: var(--text-color, #ccc);
-      }
-
-      .output-tab.active {
-        background: var(--bg-color, #1e1e1e);
-        color: var(--text-color, #d4d4d4);
-        font-weight: 600;
-      }
-
-      .tab-badge {
-        background: var(--error-color, #f48771);
-        color: #000;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-size: 11px;
-        font-weight: bold;
-        min-width: 20px;
-        text-align: center;
-      }
-
-      .clear-btn {
-        padding: 4px 8px;
-        background: var(--button-bg, #444);
-        border: 1px solid var(--border-color, #555);
-        color: var(--text-color, #ccc);
-        cursor: pointer;
-        border-radius: 3px;
-        font-size: 12px;
-        margin-left: auto;
-      }
-
-      .clear-btn:hover {
-        background: var(--button-hover-bg, #555);
-      }
-
-      .output-content {
-        height: calc(100% - 36px);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        background: var(--bg-color, #1e1e1e);
-      }
-
-      .problems-summary {
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border-color, #444);
-        display: flex;
-        gap: 12px;
-        font-size: 12px;
-        background: var(--header-bg, #2d2d2d);
-      }
-
-      .problem-count {
-        font-weight: 600;
-      }
-
-      .error-count {
-        color: var(--error-color, #f48771);
-      }
-
-      .warning-count {
-        color: var(--warning-color, #cca700);
-      }
-
-      .empty-state {
-        padding: 20px;
-        text-align: center;
-        color: var(--text-muted, #858585);
-        font-size: 13px;
-      }
-
-      .output-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 8px;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--text-color, #d4d4d4);
-      }
-
-      .output-message {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 4px 0;
-      }
-
-      .output-message-main {
-        display: flex;
-        gap: 8px;
-        align-items: baseline;
-      }
-
-      .output-error { color: var(--error-color, #f48771); }
-      .output-warning { color: var(--warning-color, #cca700); }
-      .output-info { color: var(--info-color, #75beff); }
-      .output-success { color: var(--success-color, #89d185); }
-
-      .output-icon {
-        flex-shrink: 0;
-        width: 20px;
-      }
-
-      .output-time {
-        color: var(--text-muted, #858585);
-        min-width: 70px;
-        flex-shrink: 0;
-        font-size: 11px;
-      }
-
-      .output-source {
-        color: var(--text-muted, #858585);
-        font-weight: bold;
-        min-width: 80px;
-        flex-shrink: 0;
-        font-size: 11px;
-      }
-
-      .output-text {
-        flex: 1;
-        word-break: break-word;
-      }
-
-      .output-loc {
-        flex-shrink: 0;
-        font-size: 11px;
-        color: var(--text-muted, #858585);
-        padding: 1px 5px;
-        border-radius: 3px;
-        border: 1px solid var(--border-color, #444);
-        white-space: nowrap;
-      }
-
-      [data-nav-line]:hover {
-        background: var(--button-hover-bg, rgba(255,255,255,0.06));
-        border-radius: 3px;
-      }
-
-      .output-suggestion {
-        margin-left: 28px;
-        font-size: 11px;
-        color: var(--text-muted, #858585);
-        font-style: italic;
-      }
-    `;
-    document.head.appendChild(style);
   }
 }

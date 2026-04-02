@@ -5,6 +5,7 @@
 
 import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus';
+import { editorContent, editorDirty } from '../stores/editor.store';
 
 export interface EditorOptions {
   /** Container element for the editor */
@@ -111,13 +112,19 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
           clearTimeout(autoSaveTimeout);
         }
         autoSaveTimeout = window.setTimeout(() => {
-          eventBus.emit('editor:changed', { content: editor.getValue() });
+          const val = editor.getValue();
+          editorContent.set(val);
+          editorDirty.set(true);
+          eventBus.emit('editor:changed', { content: val });
         }, autoSaveDelay);
       });
     } else {
       // Emit change events immediately (without debounce) when auto-save is disabled
       editor.onDidChangeModelContent(() => {
-        eventBus.emit('editor:changed', { content: editor.getValue() });
+        const val = editor.getValue();
+        editorContent.set(val);
+        editorDirty.set(true);
+        eventBus.emit('editor:changed', { content: val });
       });
     }
   }

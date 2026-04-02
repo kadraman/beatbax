@@ -16,11 +16,15 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { PlaybackPosition } from '../playback/playback-manager';
-import { ChannelState } from '../playback/channel-state';
+import {
+  channelStates, isChannelAudible,
+  toggleChannelMuted, toggleChannelSoloed, setChannelVolume,
+  unmuteAll, clearAllSolo,
+} from '../stores/channel.store';
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
+import { icon } from '../utils/icons';
 
 const log = createLogger('ui:channel-panel');
-const STYLE_ID = 'bb-channel-panel-styles';
 
 /** Chips that expose a per-channel volume register writable at runtime. */
 const VOLUME_SUPPORTED_CHIPS = new Set(['nes', 'sid', 'genesis', 'snes']);
@@ -35,13 +39,11 @@ const CHANNEL_META: Record<number, { label: string; color: string }> = {
 export interface ChannelMixerOptions {
   container: HTMLElement;
   eventBus: EventBus;
-  channelState: ChannelState;
 }
 
 export class ChannelMixer {
   private container: HTMLElement;
   private eventBus: EventBus;
-  private channelState: ChannelState;
   private ast: any = null;
   private unsubscribers: Array<() => void> = [];
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
@@ -50,8 +52,6 @@ export class ChannelMixer {
   constructor(options: ChannelMixerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
-    this.channelState = options.channelState;
-    this.injectStyles();
     try { const saved = localStorage.getItem('bb-channel-compact'); if (saved !== null) this.compactMode = saved === 'true'; } catch (e) {}
     this.render();
     this.setupEventListeners();
@@ -79,7 +79,7 @@ export class ChannelMixer {
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', 'Mixer');
 
-    // Toolbar: compact/full toggle
+    // Toolbar: compact/full toggle + unmute-all + clear-solo
     const toolbar = document.createElement('div');
     toolbar.className = 'bb-cp__toolbar';
     const toggleBtn = document.createElement('button');
@@ -94,7 +94,30 @@ export class ChannelMixer {
       try { localStorage.setItem('bb-channel-compact', String(this.compactMode)); } catch (e) {}
       this.updateModeVisuals(root);
     });
+
+    const states0 = channelStates.get();
+    const anyMuted0 = Object.values(states0).some(s => s.muted);
+    const anySoloed0 = Object.values(states0).some(s => s.soloed);
+
+    const unmuteBtn = document.createElement('button');
+    unmuteBtn.className = 'bb-cp__toolbar-btn';
+    unmuteBtn.id = 'bb-cp-unmute-all';
+    unmuteBtn.title = 'Unmute all channels';
+    unmuteBtn.disabled = !anyMuted0;
+    unmuteBtn.innerHTML = icon('speaker-wave', 'w-3.5 h-3.5');
+    unmuteBtn.addEventListener('click', () => unmuteAll());
+
+    const clearSoloBtn = document.createElement('button');
+    clearSoloBtn.className = 'bb-cp__toolbar-btn';
+    clearSoloBtn.id = 'bb-cp-clear-solo';
+    clearSoloBtn.title = 'Clear solo';
+    clearSoloBtn.disabled = !anySoloed0;
+    clearSoloBtn.innerHTML = icon('eye', 'w-3.5 h-3.5');
+    clearSoloBtn.addEventListener('click', () => clearAllSolo());
+
     toolbar.appendChild(toggleBtn);
+    toolbar.appendChild(unmuteBtn);
+    toolbar.appendChild(clearSoloBtn);
     root.appendChild(toolbar);
 
     const channels = this.ast?.channels ?? [];
@@ -115,10 +138,10 @@ export class ChannelMixer {
 
   private buildCard(ch: any): HTMLElement {
     const meta = CHANNEL_META[ch.id as number] ?? { label: `Ch${ch.id}`, color: '#888888' };
-    const info = this.channelState.getChannel(ch.id);
+    const info = channelStates.get()[ch.id];
     const isMuted = info?.muted ?? false;
     const isSoloed = info?.soloed ?? false;
-    const isAudible = this.channelState.isAudible(ch.id);
+    const isAudible = isChannelAudible(channelStates.get(), ch.id);
     const defaultInstName = this.getInstrumentName(ch);
 
     const card = document.createElement('div');
@@ -217,13 +240,13 @@ export class ChannelMixer {
     muteBtn.className = 'bb-cp__btn bb-cp__btn--mute';
     muteBtn.id = `bb-cp-mute-${ch.id}`;
     this.applyMuteStyle(muteBtn, isMuted);
-    muteBtn.addEventListener('click', () => this.channelState.toggleMute(ch.id));
+    muteBtn.addEventListener('click', () => toggleChannelMuted(ch.id));
 
     const soloBtn = document.createElement('button');
     soloBtn.className = 'bb-cp__btn bb-cp__btn--solo';
     soloBtn.id = `bb-cp-solo-${ch.id}`;
     this.applySoloStyle(soloBtn, isSoloed);
-    soloBtn.addEventListener('click', () => this.channelState.toggleSolo(ch.id));
+    soloBtn.addEventListener('click', () => toggleChannelSoloed(ch.id));
 
     // Volume slider — always rendered; disabled for chips without runtime volume
     const volWrap = document.createElement('div');
@@ -252,7 +275,7 @@ export class ChannelMixer {
       volLabel.title = tooltip;
     } else {
       volSlider.addEventListener('input', () => {
-        this.channelState.setVolume(ch.id, parseInt(volSlider.value, 10) / 100);
+        setChannelVolume(ch.id, parseInt(volSlider.value, 10) / 100);
       });
     }
 
@@ -291,10 +314,23 @@ export class ChannelMixer {
         this.clearAllLevels();
       }),
 
-      this.eventBus.on('channel:muted',    ({ channel }) => this.refreshMuteState(channel)),
-      this.eventBus.on('channel:unmuted',  ({ channel }) => this.refreshMuteState(channel)),
-      this.eventBus.on('channel:soloed',   ({ channel: _ }) => this.refreshAllSoloStates()),
-      this.eventBus.on('channel:unsoloed', ({ channel: _ }) => this.refreshAllSoloStates()),
+      // Subscribe to channel store for mute/solo/volume changes.
+      channelStates.subscribe((states) => {
+        const anyMuted = Object.values(states).some(s => s.muted);
+        const anySoloed = Object.values(states).some(s => s.soloed);
+        const unmuteAllBtn = document.getElementById('bb-cp-unmute-all') as HTMLButtonElement | null;
+        if (unmuteAllBtn) unmuteAllBtn.disabled = !anyMuted;
+        const clearSoloAllBtn = document.getElementById('bb-cp-clear-solo') as HTMLButtonElement | null;
+        if (clearSoloAllBtn) clearSoloAllBtn.disabled = !anySoloed;
+        for (const [id, info] of Object.entries(states)) {
+          const channelId = Number(id);
+          const muteBtn = document.getElementById(`bb-cp-mute-${channelId}`) as HTMLButtonElement | null;
+          if (muteBtn) this.applyMuteStyle(muteBtn, info.muted);
+          const soloBtn = document.getElementById(`bb-cp-solo-${channelId}`) as HTMLButtonElement | null;
+          if (soloBtn) this.applySoloStyle(soloBtn, info.soloed);
+          this.updateAudibilityVisual(channelId);
+        }
+      }),
     );
   }
 
@@ -313,22 +349,23 @@ export class ChannelMixer {
   }
 
   private refreshMuteState(channelId: number): void {
-    const info = this.channelState.getChannel(channelId);
+    const info = channelStates.get()[channelId];
     const muteBtn = document.getElementById(`bb-cp-mute-${channelId}`) as HTMLButtonElement | null;
     if (muteBtn && info) this.applyMuteStyle(muteBtn, info.muted);
     this.updateAudibilityVisual(channelId);
   }
 
   private refreshAllSoloStates(): void {
-    for (const ch of this.channelState.getAllChannels()) {
-      const soloBtn = document.getElementById(`bb-cp-solo-${ch.id}`) as HTMLButtonElement | null;
+    for (const [id, ch] of Object.entries(channelStates.get())) {
+      const channelId = Number(id);
+      const soloBtn = document.getElementById(`bb-cp-solo-${channelId}`) as HTMLButtonElement | null;
       if (soloBtn) this.applySoloStyle(soloBtn, ch.soloed);
-      this.updateAudibilityVisual(ch.id);
+      this.updateAudibilityVisual(channelId);
     }
   }
 
   private updateAudibilityVisual(channelId: number): void {
-    const isAudible = this.channelState.isAudible(channelId);
+    const isAudible = isChannelAudible(channelStates.get(), channelId);
     const card = document.getElementById(`bb-cp-card-${channelId}`);
     if (card) card.classList.toggle('bb-cp__card--silent', !isAudible);
     const levelBar = document.getElementById(`bb-cp-level-${channelId}`);
@@ -392,7 +429,7 @@ export class ChannelMixer {
     clearTimeout(this.levelTimers.get(channelId));
     this.levelTimers.set(channelId, setTimeout(() => {
       bar.style.boxShadow = 'none';
-      bar.style.opacity = this.channelState.isAudible(channelId) ? '0.35' : '0.15';
+      bar.style.opacity = isChannelAudible(channelStates.get(), channelId) ? '0.35' : '0.15';
     }, 120));
 
 
@@ -500,14 +537,16 @@ export class ChannelMixer {
   // ─── Style helpers ───────────────────────────────────────────────────────────
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
-    btn.textContent = 'M';
+    btn.innerHTML = muted
+      ? icon('speaker-x-mark', 'w-3.5 h-3.5 inline-block')
+      : icon('speaker-wave',   'w-3.5 h-3.5 inline-block');
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
     btn.setAttribute('aria-pressed', String(muted));
     btn.classList.toggle('bb-cp__btn--active', muted);
   }
 
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
-    btn.textContent = 'S';
+    btn.innerHTML = icon('eye', 'w-3.5 h-3.5 inline-block');
     btn.title = soloed ? 'Remove solo' : 'Solo this channel';
     btn.setAttribute('aria-pressed', String(soloed));
     btn.classList.toggle('bb-cp__btn--active', soloed);
@@ -530,278 +569,6 @@ export class ChannelMixer {
 
   // ─── CSS injection ───────────────────────────────────────────────────────────
 
-  private injectStyles(): void {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = /* css */ `
-      /* ── Container ─────────────────────────────────────────────────────── */
-      .bb-cp {
-        display: flex;
-        flex-direction: column;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 11px;
-        color: #d4d4d4;
-      }
-
-      .bb-cp__header {
-        font-weight: bold;
-        font-size: 16px;
-        padding: 10px 12px 8px;
-        color: #d4d4d4;
-        border-bottom: 2px solid #444;
-        margin-bottom: 4px;
-      }
-
-      .bb-cp__empty {
-        padding: 12px;
-        color: #888;
-        font-style: italic;
-      }
-
-      .bb-cp__toolbar {
-        display: flex;
-        justify-content: flex-end;
-        padding: 6px 8px;
-        gap: 8px;
-      }
-
-      .bb-cp__toolbar-btn {
-        padding: 4px 8px;
-        border-radius: 4px;
-        border: 1px solid #555;
-        background: #2f2f2f;
-        color: #d4d4d4;
-        cursor: pointer;
-        font-size: 11px;
-      }
-
-      /* ── Card ───────────────────────────────────────────────────────────── */
-      .bb-cp__card {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 6px 8px;
-        background: #2d2d2d;
-        border: 1px solid #444;
-        border-radius: 4px;
-        margin: 3px 6px;
-        transition: opacity 0.2s;
-      }
-
-      .bb-cp__card--silent { opacity: 0.5; }
-
-      /* ── Card header ────────────────────────────────────────────────────── */
-      .bb-cp__card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-      }
-
-      .bb-cp__header-right {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 2px;
-        min-width: 110px;
-        text-align: right;
-      }
-
-
-
-      .bb-cp__wave-canvas {
-        width: 80px;
-        height: 24px;
-        border-radius: 3px;
-        background: transparent;
-        display: block;
-      }
-
-      .bb-cp__level-bar {
-        width: 6px;
-        min-height: 18px;
-        border-radius: 3px;
-        flex-shrink: 0;
-        transition: box-shadow 0.05s, opacity 0.15s;
-      }
-
-      .bb-cp__title-block {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        flex: 1 1 auto;
-        min-width: 0;
-        align-items: flex-start;
-      }
-
-      .bb-cp__channel-title {
-        font-weight: 600;
-        font-size: 13px;
-        color: #d4d4d4;
-      }
-
-      .bb-cp__chip-label {
-        font-size: 10px;
-        font-weight: 500;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-      }
-
-      /* ── Real-time info ─────────────────────────────────────────────────── */
-      .bb-cp__inst {
-        font-size: 11px;
-        color: #4a9eff;
-        font-family: 'Consolas', 'Courier New', monospace;
-        min-height: 14px;
-      }
-
-      .bb-cp__pattern {
-        font-size: 10px;
-        color: #9cdcfe;
-        font-family: 'Consolas', 'Courier New', monospace;
-        min-height: 12px;
-      }
-
-      /* ── Progress bar ───────────────────────────────────────────────────── */
-      .bb-cp__progress-wrap {
-        height: 3px;
-        background: #1e1e1e;
-        border-radius: 2px;
-        overflow: hidden;
-        border: 1px solid #444;
-      }
-
-      .bb-cp__progress-fill {
-        height: 100%;
-        width: 0%;
-        background: #4a9eff;
-        border-radius: 2px;
-        transition: width 0.1s linear;
-      }
-
-      .bb-cp__position {
-        font-size: 10px;
-        color: #888;
-        font-family: 'Consolas', 'Courier New', monospace;
-      }
-
-      /* ── Controls row ───────────────────────────────────────────────────── */
-      .bb-cp__ctrl-row {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        margin-top: 2px;
-      }
-
-      .bb-cp__btn {
-        width: 18px;
-        height: 18px;
-        padding: 0;
-        cursor: pointer;
-        border: 1px solid #555;
-        background: #3a3a3a;
-        color: #aaa;
-        border-radius: 3px;
-        font-size: 10px;
-        font-weight: 700;
-        line-height: 1;
-        flex-shrink: 0;
-        transition: all 0.15s;
-      }
-
-      /* Full mode: larger controls and visible visual meter */
-      .bb-cp--full .bb-cp__btn {
-        width: 22px;
-        height: 22px;
-        font-size: 11px;
-      }
-
-      .bb-cp--full .bb-cp__vol-wrap {
-        min-width: 90px;
-      }
-
-      /* visual meter removed */
-      .bb-cp--compact .bb-cp__wave-canvas { display: none; }
-      .bb-cp--full .bb-cp__wave-canvas { display: block; }
-
-      .bb-cp__btn:hover { background: #4a4a4a; border-color: #777; }
-
-      .bb-cp__btn--mute.bb-cp__btn--active {
-        background: #7a2f2f;
-        border-color: #c94e4e;
-        color: #ffaaaa;
-      }
-
-      .bb-cp__btn--solo.bb-cp__btn--active {
-        background: #2a4a7a;
-        border-color: #4a9eff;
-        color: #9cdcfe;
-      }
-
-      /* ── Volume slider ──────────────────────────────────────────────────── */
-      .bb-cp__vol-wrap {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex: 1;
-        min-width: 60px;
-      }
-
-      .bb-cp__vol-label {
-        font-size: 11px;
-        color: #888;
-        white-space: nowrap;
-        cursor: default;
-        user-select: none;
-      }
-
-      .bb-cp__vol-slider {
-        flex: 1;
-        height: 4px;
-        accent-color: #4a9eff;
-        cursor: pointer;
-      }
-
-      .bb-cp__vol-wrap--disabled .bb-cp__vol-label { color: #555; }
-
-      .bb-cp__vol-wrap--disabled .bb-cp__vol-slider {
-        opacity: 0.3;
-        cursor: not-allowed;
-        accent-color: #555;
-      }
-
-      /* ── Light theme ────────────────────────────────────────────────────── */
-      [data-theme="light"] .bb-cp { color: #333; }
-
-      [data-theme="light"] .bb-cp__header {
-        color: #333;
-        border-color: #ddd;
-      }
-
-      [data-theme="light"] .bb-cp__card {
-        background: #f3f3f3;
-        border-color: #ddd;
-      }
-
-      [data-theme="light"] .bb-cp__btn {
-        background: #e8e8e8;
-        border-color: #ccc;
-        color: #555;
-      }
-
-      [data-theme="light"] .bb-cp__btn:hover {
-        background: #ddd;
-        border-color: #aaa;
-      }
-
-      [data-theme="light"] .bb-cp__progress-wrap {
-        background: #e0e0e0;
-        border-color: #ddd;
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 

@@ -22,7 +22,7 @@
 
 import * as monaco from 'monaco-editor';
 import type { EventBus } from '../utils/event-bus';
-import type { ChannelState } from '../playback/channel-state';
+import { channelStates, toggleChannelMuted, toggleChannelSoloed } from '../stores/channel.store';
 
 // ---------------------------------------------------------------------------
 // CSS
@@ -149,7 +149,6 @@ function injectGlyphStyles(): void {
 export function setupGlyphMargin(
   monacoEditor: monaco.editor.IStandaloneCodeEditor,
   eventBus: EventBus,
-  channelState: ChannelState,
 ): () => void {
   injectGlyphStyles();
 
@@ -288,9 +287,10 @@ export function setupGlyphMargin(
 
   function redrawMuteSoloGlyphs(): void {
     const decors: monaco.editor.IModelDeltaDecoration[] = [];
+    const states = channelStates.get();
 
     for (const [chId, ln] of channelLineMap.entries()) {
-      const info = channelState.getChannel(chId);
+      const info = states[chId];
       if (!info) continue;
 
       let cls: string;
@@ -394,6 +394,9 @@ export function setupGlyphMargin(
   const unsubSoloed   = eventBus.on('channel:soloed',   () => redrawMuteSoloGlyphs());
   const unsubUnsoloed = eventBus.on('channel:unsoloed', () => redrawMuteSoloGlyphs());
 
+  // Subscribe to store changes for immediate reactivity (no eventBus round-trip)
+  const unsubStore = channelStates.subscribe(() => redrawMuteSoloGlyphs());
+
   const unsubChunkInfo = eventBus.on('preview:chunkInfo', ({ chunkInfo }) => {
     previewChunkInfo = chunkInfo;
   });
@@ -409,11 +412,11 @@ export function setupGlyphMargin(
 
     for (const [chId, ln] of channelLineMap.entries()) {
       if (ln === lineNumber) {
-        const info = channelState.getChannel(chId);
+        const info = channelStates.get()[chId];
         if (info?.soloed) {
-          channelState.toggleSolo(chId);
+          toggleChannelSoloed(chId);
         } else {
-          channelState.toggleMute(chId);
+          toggleChannelMuted(chId);
         }
         return;
       }
@@ -431,6 +434,7 @@ export function setupGlyphMargin(
     unsubUnmuted();
     unsubSoloed();
     unsubUnsoloed();
+    unsubStore();
     mouseDisposable.dispose();
     monacoEditor.deltaDecorations(positionIds, []);
     monacoEditor.deltaDecorations(muteSoloIds, []);

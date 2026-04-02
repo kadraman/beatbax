@@ -1,0 +1,335 @@
+## digital_citadel.bax
+## Original action theme in the spirit of Mega Man: Dr. Wily's Revenge (Game Boy, 1991).
+## Key: C minor | Tempo: 168 BPM | Style: Fast, punchy, mechanically relentless
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It captures the *atmosphere* of Game Boy action-platformer music: a sweeping NR10 fanfare
+## over ascending C-minor arpeggios, punchy staccato 16th-note hooks driven by power-fifth
+## bass, a soaring Eb-major lift section, a tense chromatic bridge with deep vibrato, and a
+## duty-cycle-modulated reprise that closes on a shimmering tonic resolution. The tempo (168
+## BPM), the relentless double-kick groove, and the constant 8th hi-hat pulse are all hallmarks
+## of the Game Boy action-platformer aesthetic pioneered by early Mega Man titles.
+##
+## Structure (17 bars):
+##   Bars  1– 2 : Opening fanfare    — NR10-swept ascending Cm arpeggio, percussion build
+##   Bars  3– 6 : Main hook A        — staccato 16th-note Cm riff + power-fifth bass (×2)
+##   Bars  7– 8 : Soaring lift B     — lyrical Eb-major phrase with mWobble vibrato
+##   Bars  9–10 : Tension bridge     — deep-vibrato chromatic descent, sparse percussion
+##   Bar  11    : Rush transition    — portamento 16th-note ascent C5→C6, shimmer burst
+##   Bars 12–15 : DCM Reprise (×2)  — main hook duty-cycle thin→bright→warm
+##   Bars 16–17 : Coda               — shimmer peak C6, warm tonic fade
+##
+## Channels:
+##   Ch1 (Pulse1): Melody — NR10-swept fanfare, punchy staccato hook, soaring lift,
+##                 deep-vibrato bridge, portamento rush, DCM reprise, shimmer coda
+##   Ch2 (Pulse2): Harmony — crisp 25%-duty minor/major arpeggios (main sections);
+##                 wide 75%-duty atmospheric chords (tension bridge)
+##   Ch3 (Wave  ): Bass — sawtooth-style power-fifth chug; chromatic bridge walk;
+##                 ascending 8th-note run into the reprise
+##   Ch4 (Noise ): Percussion — sparse fanfare build, full platform groove, double kicks,
+##                 sparse atmospheric bridge, climactic fill
+##
+## Effects demonstrated:
+##   sweep : hardware NR10 downward pitch sweep on fanfare notes (mech_swept instrument)
+##   vib   : mechanical wobble on sustained melody peaks (mWobble, 1-step onset delay)
+##           deep slow triangle vibrato on the tension bridge (deepVib)
+##   trem  : fast sine shimmer sparkle on reprise and coda climax notes (shimmer)
+##   arp   : minor-triad, major-triad, and dominant-7th arpeggios on harmony channel
+##   port  : smooth portamento slides chaining the 16th-note rush run (slide)
+##   DCM   : thin 12.5% hollow attack → bright 50% punchy body → warm 75% resolution
+##
+## Play: node bin/beatbax play songs/digital_citadel.bax
+
+song name "Digital Citadel"
+song artist "The BeatBax Team"
+song description """An original fast-paced action theme in C minor at 168 BPM, evoking the relentless mechanical energy of classic Game Boy action-platformers. Opens with an NR10-swept ascending Cm fanfare over building percussion, launches into a punchy staccato 16th-note hook with power-fifth bass, lifts into a soaring Eb-major lyrical section, descends through a tense chromatic bridge with deep vibrato, then tears back with a duty-cycle-modulated reprise and closes on a shimmering tonic resolution. Demonstrates hardware sweep, vibrato, arpeggio, portamento, tremolo, and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song tags "original,action,platformer,fast,mechanical,chiptune,demo"
+
+chip gameboy
+bpm 168
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# Pulse1 — lead melody; four timbres providing the sweep intro and DCM reprise:
+#   mech_swept   50%   NR10 hardware downward sweep on every trigger — laser fanfare
+#   mech_bright  50%   full, sharp, balanced punchy attack              (main hook + default)
+#   mech_thin   12.5%  hollow, nasal, hard attack edge                  (DCM thin phase)
+#   mech_warm    75%   warm, rounded, full sustain                      (DCM warm landing)
+#
+# Pulse2 — harmony; two timbres for structural contrast:
+#   chip_arp     25%   crisp, staccato arpeggio tone                    (main sections)
+#   chip_wide    75%   wide, atmospheric sustain chord                  (tension bridge)
+#
+# Wave — iron_bass: sawtooth-inflected wavetable, hard and percussive bass line
+#
+# Noise — kit: kick (deep C5), snare (sharp C6), hat (bright C7)
+#
+
+inst mech_swept  type=pulse1 duty=50   env={"level":14,"direction":"down","period":2,"format":"gb"} sweep={"time":4,"direction":"down","shift":3} gm=81
+inst mech_bright type=pulse1 duty=50   env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst mech_thin   type=pulse1 duty=12.5 env={"level":14,"direction":"down","period":1,"format":"gb"} gm=81
+inst mech_warm   type=pulse1 duty=75   env={"level":12,"direction":"down","period":2,"format":"gb"} gm=57
+
+inst chip_arp    type=pulse2 duty=25   env={"level":9,"direction":"down","period":3,"format":"gb"}  gm=80
+inst chip_wide   type=pulse2 duty=75   env={"level":8,"direction":"down","period":5,"format":"gb"}  gm=80
+
+inst iron_bass   type=wave   wave=[0,2,5,8,11,13,15,15,14,12,10,8,6,5,4,3,2,2,1,1,1,0,0,0,0,0,0,0,0,0,0,0]
+
+inst kick        type=noise  env={"level":14,"direction":"down","period":1,"format":"gb"} note=C5
+inst snare       type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
+inst hat         type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  note=C7
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect mWobble  = vib:3,5,sine,4,1    # mechanical vibrato wobble — 1-step onset delay, authentic GB feel
+effect deepVib  = vib:5,2,triangle,6  # slow, deep triangle vibrato — dark tension bridge atmosphere
+effect shimmer  = trem:5,8,sine       # fast sparkle tremolo — reprise and coda climax notes
+
+effect minorArp = arp:3,7             # minor triad  (root + min3 + P5)
+effect majorArp = arp:4,7             # major triad  (root + maj3 + P5)
+effect dom7Arp  = arp:4,7,10          # dominant 7th (root + maj3 + P5 + min7)
+
+effect slide    = port:10             # smooth portamento glide — chains the 16th-note rush run
+
+# =============================================================================
+# Melody patterns  (Channel 1 — Pulse1)
+# C minor: i=Cm  III=Eb  iv=Fm  VI=Ab  VII=Bb  V=G  V7=G7
+# =============================================================================
+
+# fan_a: NR10-swept opening fanfare — ascending Cm arpeggio C5→Eb5→G5→C6
+# Each note triggers the hardware sweep, causing a characteristic downward pitch fall.
+# The four-step held C6 peak is the "hero announce" moment before the echo.
+# 16 steps: 2+2+2+4+2+2+2
+pat fan_a = inst mech_swept C5:2 Eb5:2 G5:2 C6:4 G5:2 Eb5:2 C5:2
+
+# fan_b: fanfare answer — switch to mech_bright; G5→Bb5→C6 with mWobble held notes
+# The Bb adds a bVII colour to the descending answer — eerie and resolute.
+# 16 steps: 2+2+4+2+2+4
+pat fan_b = inst mech_bright G5:2 Bb5:2 C6<mWobble>:4 G5:2 Eb5:2 C5<mWobble>:4
+
+# hook_a: main staccato action riff — 16th-note Cm punches with off-beat rests
+# The signature "punch-rest-punch" rhythm drives the mechanical platform feel.
+# Peaks on C6 then descends chromatically through Ab5 back to F5.
+# 16 steps: all single (16 tokens)
+pat hook_a = C5 . Eb5 G5 . C6 Bb5 . Ab5 G5 . Eb5 . G5 F5 .
+
+# hook_b: hook rising answer — chromatic scale ascent G5→C6, then graceful fall
+# The six ascending 16th notes G5→Ab5→Bb5→C6 give a sense of momentum cresting;
+# the descent through F5→Eb5→D5→Eb5→F5→G5 resolves back to the launching point.
+# 16 steps: all single (16 tokens)
+pat hook_b = G5 Ab5 Bb5 C6 . Bb5 Ab5 G5 F5 . Eb5 D5 Eb5 F5 G5 .
+
+# lft_a: soaring B-section lift — Eb6 peak descending through Eb-major flavoured phrase
+# Contrasts the punchy hook; long 8th-note steps create a lyrical, breathing quality.
+# Eb5→Eb6 is a two-octave lift — the hero "escapes the machinery" for a moment.
+# 16 steps: 4+2+2+2+2+2+2
+pat lft_a = Eb6:4 D6:2 C6:2 Bb5:2 Ab5:2 G5:2 F5:2
+
+# lft_b: B-section rising answer — climbs from Eb5 to C6 with mWobble on the peaks
+# The vibrato on G5 and C6 gives the ascending phrase a singing, expressive quality.
+# 16 steps: 2+2+4+2+2+4
+pat lft_b = Eb5:2 F5:2 G5<mWobble>:4 Ab5:2 Bb5:2 C6<mWobble>:4
+
+# brg_a: tension bridge opening — C6 held with deep vibrato, chromatic descent to F5
+# The triangle vibrato deepens on each held note, creating an unsettling atmosphere.
+# 16 steps: 4+2+2+4+4
+pat brg_a = C6<deepVib>:4 Bb5:2 Ab5:2 G5<deepVib>:4 F5:4
+
+# brg_b: bridge tension build — stepwise chromatic ascent Eb5→C6, falls back to Ab5
+# Rising chromaticism increases tension; the fall back to Ab5 leaves resolution unresolved.
+# 16 steps: 2+2+2+2+2+2+2+2
+pat brg_b = Eb5:2 F5:2 G5:2 Ab5:2 Bb5:2 C6:2 Bb5:2 Ab5:2
+
+# rush: 16th-note portamento ascent — slides chain C5→C6, shimmer burst at the summit
+# The portamento (slide) effect creates a blistering legato chromatic climb; the shimmer
+# on the final C5 signals the explosion back into the DCM reprise.
+# 16 steps: 1×8 + 2+2+4
+pat rush = C5<slide>:1 D5<slide>:1 Eb5<slide>:1 F5<slide>:1 G5<slide>:1 Ab5<slide>:1 Bb5<slide>:1 C6:1 Bb5:2 G5:2 C5<shimmer>:4
+
+# hook_a_dcm: DCM version — mech_thin hollow attack for the first six steps, then
+# mech_bright takes over for the heavier body, giving the reprise a harder edge.
+# 16 steps: all single (16 tokens)
+pat hook_a_dcm = inst mech_thin C5 . Eb5 G5 . C6 inst mech_bright Bb5 . Ab5 G5 . Eb5 . G5 F5 .
+
+# hook_b_dcm: DCM reprise answer — thin ascent through the chromatic run, warm landing
+# Ends with explicit inst mech_bright reset so the coda starts in a clean state.
+# 16 steps: all single (16 tokens)
+pat hook_b_dcm = inst mech_thin G5 Ab5 Bb5 C6 . Bb5 Ab5 G5 F5 inst mech_warm . Eb5 D5 Eb5 inst mech_bright F5 G5 .
+
+# coda_high: shimmer peak — C6 and Bb5 sparkling, then graceful descent to tonic C5
+# 16 steps: 4+2+2+4+4
+pat coda_high = C6<shimmer>:4 Bb5<shimmer>:2 G5:2 Eb5:4 C5:4
+
+# coda_end: warm tonic fade — long held C5 with mWobble, then silence until loop
+# 16 steps: 8 + 8 rests
+pat coda_end = inst mech_warm C5<mWobble>:8 . . . . . . .
+
+# =============================================================================
+# Harmony patterns  (Channel 2 — Pulse2)
+# C minor chord vocabulary:
+#   i   = Cm  (C  Eb  G)
+#   III = Eb  (Eb  G  Bb)
+#   iv  = Fm  (F   Ab  C)
+#   VI  = Ab  (Ab  C   Eb)
+#   VII = Bb  (Bb  D   F)
+#   V   = Gm  (G   Bb  D)
+#   V7  = G7  (G   B   D   F)
+# =============================================================================
+
+# harm_cm_ab: fanfare harmony — Cm tonic arpeggio then VI Ab for phrygian colour
+pat harm_cm_ab   = C3<minorArp>:8 Ab3<majorArp>:8
+
+# harm_cm_gm: i–v alternation — tonic and minor dominant, core action vamp
+pat harm_cm_gm   = C3<minorArp>:8 G3<minorArp>:8
+
+# harm_ab_bb: VI–VII — bVI to bVII gives drive and power-rock forward motion
+pat harm_ab_bb   = Ab3<majorArp>:8 Bb3<majorArp>:8
+
+# harm_fm_g: iv–V7 — subdominant to dominant seventh, strong cadential pull
+pat harm_fm_g    = F3<minorArp>:8 G3<dom7Arp>:8
+
+# harm_eb_bb: III–VII for the Eb-major lift — supports the soaring melody
+pat harm_eb_bb   = Eb3<majorArp>:8 Bb3<majorArp>:8
+
+# harm_ab_g: VI–V7 — bVI colours then dominant resolution, closing the B-section
+pat harm_ab_g    = Ab3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_bridge1: bridge Fm–Bb wide — chip_wide adds atmospheric body to the bridge
+pat harm_bridge1 = inst chip_wide F3<minorArp>:8 Bb3<majorArp>:8
+
+# harm_bridge2: bridge Ab–G7 wide — bVI dims into dominant, maximum bridge tension
+pat harm_bridge2 = inst chip_wide Ab3<majorArp>:8 G3<dom7Arp>:8
+
+# harm_run: transition reset — explicit chip_arp clears chip_wide; i then V7 drives rush
+pat harm_run     = inst chip_arp C3<minorArp>:8 G3<dom7Arp>:8
+
+# harm_coda: pure Cm tonic resolution — explicit chip_arp ensures clean timbre for coda
+pat harm_coda    = inst chip_arp C3<minorArp>:16
+
+# =============================================================================
+# Bass patterns  (Channel 3 — Wave)
+# Power-fifth chug for main sections; chromatic walk in the bridge; ascending run transition
+# =============================================================================
+
+# bass_fan_a: fanfare — held tonic C2 + G2 fifth, clean launch for the opening arpeggio
+pat bass_fan_a = C2:8 G2:8
+
+# bass_fan_b: fanfare answer — bVI bass Ab2 then resolves to V G2 under the echo
+pat bass_fan_b = Ab2:8 G2:8
+
+# bass_cm_gm: main theme power-fifth chug — C2/G2 alternation, the backbone of the hook
+pat bass_cm_gm = C2:4 G2:4 C2:4 G2:4
+
+# bass_ab_bb: bVI–bVII — Ab2+5th and Bb2+5th, power fifths matching the VI–VII harmony
+pat bass_ab_bb = Ab2:4 Eb3:4 Bb2:4 F3:4
+
+# bass_fm_g: iv–V — F2+5th then G2+5th, driving the subdominant-to-dominant cadence
+pat bass_fm_g  = F2:4 C3:4 G2:4 D3:4
+
+# bass_eb_bb: B-section III–VII — Eb2/Bb2 pedal, grounding the soaring lift melody
+pat bass_eb_bb = Eb2:4 Bb2:4 Eb2:4 Bb2:4
+
+# bass_ab_g: B-section VI–V — Ab2+5th descends a step to G2+5th, elegant bass motion
+pat bass_ab_g  = Ab2:4 Eb3:4 G2:4 D3:4
+
+# brg_bass_1: bridge chromatic descent — Ab2→G2→F2→Eb2 stepwise fall, adds gravity
+pat brg_bass_1 = Ab2:4 G2:4 F2:4 Eb2:4
+
+# brg_bass_2: bridge ascent to V — D2→Eb2→F2→G2 stepwise rise, builds dominant tension
+pat brg_bass_2 = D2:4 Eb2:4 F2:4 G2:4
+
+# bass_run: ascending 8th-note run — mirrors the melody rush climb, C2→C3 in one bar
+pat bass_run   = C2:2 D2:2 Eb2:2 F2:2 G2:2 Ab2:2 Bb2:2 C3:2
+
+# bass_coda: final tonic hold — long C2 pedal then fifth echo, settling the energy
+pat bass_coda  = C2:8 G2:4 C2:4
+
+# =============================================================================
+# Drum patterns  (Channel 4 — Noise)
+# Hard-driving platform groove: kick-heavy, snappy snare, constant 8th hi-hats
+# =============================================================================
+
+# drums_intro: sparse tension build — isolated kick hits, wide space for the fanfare
+pat drums_intro  = kick . . . kick . . . kick . . . kick . kick .
+
+# drums_drive: full platform groove — kick 1+3, snare 2+4, constant 8th hi-hats
+pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+
+# drums_heavy: double-kick surge — extra kick before each beat for maximum drive
+pat drums_heavy  = kick kick snare hat kick kick snare hat kick kick snare hat kick kick snare hat
+
+# drums_bridge: sparse atmospheric — wide breathing space for the tension bridge melody
+pat drums_bridge = kick . . hat snare . . . kick . . hat snare . . .
+
+# drums_fill: climactic fill — extra snares and rapid kick run at the peak energy point
+pat drums_fill   = kick hat snare hat kick kick snare hat kick hat kick hat snare snare kick kick
+
+# drums_coda: four-beat fade — last statement of groove pattern then descending silence
+pat drums_coda   = kick . . . snare . . . kick . . . . . . .
+
+# =============================================================================
+# Sequences  (grouped by song section — all four channels per section)
+# =============================================================================
+#
+# 17-bar structure:
+#   Bars  1– 2 : Opening fanfare
+#   Bars  3– 6 : Main hook A (×2)
+#   Bars  7– 8 : Soaring lift B
+#   Bars  9–10 : Tension bridge
+#   Bar  11    : Rush run — transition
+#   Bars 12–15 : DCM Reprise (×2)
+#   Bars 16–17 : Coda
+
+# --- Section 1: Opening Fanfare (Bars 1–2) ---
+seq intro_mel  = fan_a fan_b
+seq intro_harm = harm_cm_ab harm_cm_gm
+seq intro_bass = bass_fan_a bass_fan_b
+seq intro_perc = drums_intro drums_drive
+
+# --- Section 2: Main Hook A (Bars 3–6) ---
+seq theme_mel  = hook_a hook_b hook_a hook_b
+seq theme_harm = harm_cm_gm harm_ab_bb harm_fm_g harm_ab_bb
+seq theme_bass = bass_cm_gm bass_ab_bb bass_fm_g bass_ab_bb
+seq theme_perc = drums_drive drums_drive drums_heavy drums_fill
+
+# --- Section 3: Soaring Lift B (Bars 7–8) ---
+seq lift_mel  = lft_a lft_b
+seq lift_harm = harm_eb_bb harm_ab_g
+seq lift_bass = bass_eb_bb bass_ab_g
+seq lift_perc = drums_drive drums_heavy
+
+# --- Section 4: Tension Bridge (Bars 9–10) ---
+seq bridge_mel  = brg_a brg_b
+seq bridge_harm = harm_bridge1 harm_bridge2
+seq bridge_bass = brg_bass_1 brg_bass_2
+seq bridge_perc = drums_bridge drums_bridge
+
+# --- Section 5: Rush Run Transition (Bar 11) ---
+seq rush_mel  = rush
+seq rush_harm = harm_run
+seq rush_bass = bass_run
+seq rush_perc = drums_heavy
+
+# --- Section 6: DCM Reprise (Bars 12–15) ---
+seq reprise_mel  = hook_a_dcm hook_b_dcm hook_a_dcm hook_b_dcm
+seq reprise_harm = harm_cm_gm harm_ab_bb harm_fm_g harm_ab_bb
+seq reprise_bass = bass_cm_gm bass_ab_bb bass_fm_g bass_ab_bb
+seq reprise_perc = drums_heavy drums_heavy drums_heavy drums_fill
+
+# --- Section 7: Coda (Bars 16–17) ---
+seq coda_mel  = coda_high coda_end
+seq coda_harm = harm_coda harm_coda
+seq coda_bass = bass_coda bass_coda
+seq coda_perc = drums_coda drums_intro
+
+# =============================================================================
+channel 1 => inst mech_bright seq intro_mel  theme_mel  lift_mel  bridge_mel  rush_mel  reprise_mel  coda_mel
+channel 2 => inst chip_arp    seq intro_harm theme_harm lift_harm bridge_harm rush_harm reprise_harm coda_harm
+channel 3 => inst iron_bass   seq intro_bass theme_bass lift_bass bridge_bass rush_bass reprise_bass coda_bass
+channel 4 => inst kick        seq intro_perc theme_perc lift_perc bridge_perc rush_perc reprise_perc coda_perc
+
+play auto repeat
