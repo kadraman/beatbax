@@ -1,6 +1,6 @@
 ---
 title: "Web UI Refactoring: Tailwind CSS + nanostores + component split"
-status: in-progress
+status: complete
 authors: ["kadraman"]
 created: 2026-03-29
 issue: "https://github.com/kadraman/beatbax/issues/68"

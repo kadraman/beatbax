@@ -683,6 +683,7 @@ const menuBar = new MenuBar({
   onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
+      playbackManager.stop();
       editor.setValue?.('');
       loadedFilename = 'song';
       opLog(outputPanel, '📄 New song');
@@ -692,6 +693,7 @@ const menuBar = new MenuBar({
     openFilePicker({
       accept: '.bax',
       onLoad: (result) => {
+        playbackManager.stop();
         loadedFilename = fileBaseStem(result.filename);
         editor.setValue?.(result.content);
         opLog(outputPanel, `📂 Opened ${result.filename}`);
@@ -717,6 +719,7 @@ const menuBar = new MenuBar({
     opLog(outputPanel, `💾 Saved ${filename}`);
   },
   onLoadFile: (filename, content) => {
+    playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
     opLog(outputPanel, `🎵 Loaded ${filename}`);
@@ -752,6 +755,7 @@ toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
   onLoad: (filename, content) => {
+    playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
     opLog(outputPanel, `📂 Opened ${filename}`);
@@ -793,6 +797,7 @@ function doVerify(): void {
 // ─── Drag-and-drop ───────────────────────────────────────────────────────────
 const dragDrop = new DragDropHandler(document.body, {
   onDrop: (filename, content) => {
+    playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
     opLog(outputPanel, `🗂 Dropped ${filename}`);
