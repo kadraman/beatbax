@@ -40,6 +40,14 @@ export const StorageKey = {
   LOG_LEVEL: 'debug.logLevel',
   /** AI Assistant feature flag (boolean). */
   AI_ASSISTANT: 'feature.aiAssistant',
+  /** AI Copilot connection settings (JSON, apiKey always stored as ''). */
+  CHAT_SETTINGS: 'ai.settings',
+  /** AI Copilot interaction mode ('edit' | 'ask'). */
+  CHAT_MODE: 'ai.mode',
+  /** AI Copilot persisted message history (JSON array). */
+  CHAT_HISTORY: 'ai.chatHistory',
+  /** Last active right-pane tab ('channels' | 'help' | 'ai'). */
+  ACTIVE_RIGHT_TAB: 'ui.activeRightTab',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

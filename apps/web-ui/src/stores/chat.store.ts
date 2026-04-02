@@ -5,13 +5,14 @@
  * The ChatPanel writes to these stores; other components can subscribe
  * (e.g., status-bar badge showing unread message count).
  *
- * localStorage keys:
- *   bb-ai-settings  — endpoint, apiKey, model
- *   bb-ai-mode      — 'edit' | 'ask'
- *   bb-chat-history — persisted message array (capped at MAX_HISTORY)
+ * localStorage keys (all under the beatbax: prefix via BeatBaxStorage):
+ *   beatbax:ai.settings   — endpoint, apiKey (always ''), model
+ *   beatbax:ai.mode       — 'edit' | 'ask'
+ *   beatbax:ai.chatHistory — persisted message array (capped at MAX_HISTORY)
  */
 
 import { atom, map } from 'nanostores';
+import { storage, StorageKey } from '../utils/local-storage';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,7 @@ export interface ChatMessage {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const SETTINGS_KEY  = 'bb-ai-settings';
-const MODE_KEY      = 'bb-ai-mode';
-const HISTORY_KEY   = 'bb-chat-history';
-const MAX_HISTORY   = 50;
+const MAX_HISTORY = 50;
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────
 
@@ -45,30 +43,30 @@ function loadSettings(): AISettings {
     apiKey: '',
     model: 'gpt-4o-mini',
   };
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...defaults, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return defaults;
+  // Scrub any legacy key written by older versions of the app before the
+  // no-persist-apiKey policy was introduced.
+  try { localStorage.removeItem('bb-ai-settings'); } catch { /* ignore */ }
+
+  const saved = storage.getJSON<Partial<AISettings>>(StorageKey.CHAT_SETTINGS);
+  if (!saved) return defaults;
+
+  // Force apiKey to '' regardless of what is in storage — it must never be
+  // reused from a previous session.
+  if (saved.apiKey) {
+    // Overwrite the stored value so the key is not sitting in localStorage.
+    storage.setJSON(StorageKey.CHAT_SETTINGS, { ...saved, apiKey: '' });
+  }
+  return { ...defaults, ...saved, apiKey: '' };
 }
 
 function loadMode(): ChatMode {
-  try {
-    const raw = localStorage.getItem(MODE_KEY);
-    if (raw === 'ask' || raw === 'edit') return raw;
-  } catch { /* ignore */ }
-  return 'edit';
+  const raw = storage.get(StorageKey.CHAT_MODE);
+  return raw === 'ask' || raw === 'edit' ? raw : 'edit';
 }
 
 function loadHistory(): ChatMessage[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as ChatMessage[];
-      if (Array.isArray(parsed)) return parsed.slice(-MAX_HISTORY);
-    }
-  } catch { /* ignore */ }
-  return [];
+  const parsed = storage.getJSON<ChatMessage[]>(StorageKey.CHAT_HISTORY);
+  return Array.isArray(parsed) ? parsed.slice(-MAX_HISTORY) : [];
 }
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
@@ -91,23 +89,17 @@ export const chatUnreadCount = atom<number>(0);
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 chatSettings.subscribe((settings) => {
-  try {
-    // Never persist the API key to localStorage — require the user to re-enter it
-    const { apiKey: _apiKey, ...safe } = settings;
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...safe, apiKey: '' }));
-  } catch { /* ignore */ }
+  // Never persist the API key — require the user to re-enter it each session.
+  const { apiKey: _apiKey, ...safe } = settings;
+  storage.setJSON(StorageKey.CHAT_SETTINGS, { ...safe, apiKey: '' });
 });
 
 chatMode.subscribe((mode) => {
-  try {
-    localStorage.setItem(MODE_KEY, mode);
-  } catch { /* ignore */ }
+  storage.set(StorageKey.CHAT_MODE, mode);
 });
 
 chatHistory.subscribe((history) => {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
-  } catch { /* ignore */ }
+  storage.setJSON(StorageKey.CHAT_HISTORY, history.slice(-MAX_HISTORY));
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

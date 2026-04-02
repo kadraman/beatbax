@@ -7,6 +7,7 @@
  */
 
 import type { ThreePaneLayoutManager } from '../ui/layout';
+import { storage, StorageKey } from '../utils/local-storage';
 
 // ─── Bottom Tabs (Problems | Output) ─────────────────────────────────────────
 
@@ -141,7 +142,6 @@ const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   ai:       'Copilot',
 };
 const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help', 'ai'];
-const RIGHT_TAB_STORAGE_KEY = 'bb-active-right-tab';
 
 export interface RightTabsController {
   readonly tabContents:     Record<RightTabId, HTMLElement>;
@@ -172,7 +172,7 @@ export function buildRightTabs(
   // Capture the saved tab BEFORE switchTab('channels') overwrites it.
   let savedInitialTab: RightTabId | null = null;
   try {
-    const raw = localStorage.getItem(RIGHT_TAB_STORAGE_KEY);
+    const raw = storage.get(StorageKey.ACTIVE_RIGHT_TAB);
     if (raw && (RIGHT_TAB_ORDER as string[]).includes(raw)) {
       savedInitialTab = raw as RightTabId;
     }
@@ -189,7 +189,7 @@ export function buildRightTabs(
 
   const switchTab = (tab: RightTabId): void => {
     activeTab = tab;
-    try { localStorage.setItem(RIGHT_TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
+    try { storage.set(StorageKey.ACTIVE_RIGHT_TAB, tab); } catch { /* ignore */ }
     rightTabs.classList.remove('bb-right-tabs--empty');
     for (const t of RIGHT_TAB_ORDER) {
       tabButtons[t]?.classList.toggle('bb-right-tab--active',         t === tab);

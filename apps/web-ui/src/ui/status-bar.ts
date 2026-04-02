@@ -16,7 +16,6 @@ export interface StatusBarConfig {
 export interface StatusInfo {
   line: number;
   column: number;
-  errorCount: number;
   warningCount: number;
   bpm: number;
   chip: string;
@@ -32,7 +31,6 @@ export class StatusBar {
   private info: StatusInfo = {
     line: 1,
     column: 1,
-    errorCount: 0,
     warningCount: 0,
     bpm: 120,
     chip: 'gameboy',
@@ -66,7 +64,6 @@ export class StatusBar {
 
     // Validation counts
     validationErrors.listen((errors) => {
-      this.info.errorCount = errors.length;
       if (errors.length === 0) {
         if (this.info.status === 'Parse error') this.info.status = 'Ready';
       } else {
@@ -98,11 +95,7 @@ export class StatusBar {
     });
 
     playbackError.listen((msg) => {
-      if (msg !== null) {
-        this.setStatus('Playback error');
-        this.info.errorCount++;
-        this.render();
-      }
+      this.setStatus(msg !== null ? 'Playback error' : this.info.status);
     });
 
     // Export state
@@ -146,12 +139,14 @@ export class StatusBar {
           <span class="status-label">Ln ${this.info.line}, Col ${this.info.column}</span>
         </div>
 
-        ${this.info.errorCount > 0 ? `
+        ${(() => {
+          const errorCount = validationErrors.get().length + (playbackError.get() !== null ? 1 : 0);
+          return errorCount > 0 ? `
           <div class="status-section status-errors">
             <span class="status-icon">${icon('exclamation-circle', 'w-3.5 h-3.5 inline-block align-middle')}</span>
-            <span class="status-count">${this.info.errorCount}</span>
-          </div>
-        ` : ''}
+            <span class="status-count">${errorCount}</span>
+          </div>` : '';
+        })()}
 
         ${this.info.warningCount > 0 ? `
           <div class="status-section status-warnings">

@@ -6,21 +6,19 @@
  *
  * The ThemeManager writes to this store; UI components subscribe.
  *
- * localStorage key: 'beatbax:theme'
+ * Persistence is delegated to BeatBaxSettings (key: beatbax:ui.theme) so this
+ * store and ThemeManager share the same localStorage entry.
  */
 
 import { atom } from 'nanostores';
+import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage';
 
 export type Theme = 'dark' | 'light';
 
-const STORAGE_KEY = 'beatbax:theme';
-
 function loadTheme(): Theme {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'light' || saved === 'dark') return saved;
-  } catch { /* ignore */ }
-  // Fall back to OS preference
+  // Only read the persisted value when it has actually been saved; otherwise
+  // fall back to the OS colour-scheme preference so first-run respects it.
+  if (storage.has(StorageKey.THEME)) return BeatBaxSettings.getTheme();
   try {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   } catch {
@@ -31,12 +29,11 @@ function loadTheme(): Theme {
 /** Currently active theme. */
 export const activeTheme = atom<Theme>(loadTheme());
 
-/** Persist to localStorage and toggle the Tailwind `dark` / `light` class on <html>. */
+/** Toggle the Tailwind `dark` / `light` class on <html> when the theme changes.
+ *  Persistence is intentionally omitted here — callers that want to save the
+ *  user's choice must call BeatBaxSettings.setTheme() themselves (ThemeManager
+ *  does this via its `persist` flag). */
 activeTheme.subscribe((theme) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, theme);
-  } catch { /* ignore */ }
-
   // Apply data-theme attribute (used by CSS variable selectors)
   document.documentElement.setAttribute('data-theme', theme);
 

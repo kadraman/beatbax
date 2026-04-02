@@ -115,6 +115,7 @@ export class PlaybackManager {
 
       // Reset error state
       this.state.error = null;
+      playbackError.set(null);
 
       // Emit parsing event
       log.debug('Emitting parse:started');
@@ -387,6 +388,7 @@ export class PlaybackManager {
       playbackPositionAtom.set(0);
       playbackDuration.set(0);
       playbackTimeLabel.set('0:00');
+      playbackError.set(null);
     } catch (error) {
       log.error('Error stopping playback:', error);
     }
