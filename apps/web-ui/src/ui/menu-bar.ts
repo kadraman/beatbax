@@ -169,6 +169,13 @@ export class MenuBar {
 
   // ─── Public shortcut triggers (used by central KeyboardShortcuts registry) ──
 
+  /** Seed the internal visibility map from an external source (e.g. persisted state). */
+  seedPanelVisible(states: Record<string, boolean>): void {
+    for (const [panel, visible] of Object.entries(states)) {
+      this.panelVisible.set(panel, visible);
+    }
+  }
+
   triggerNew(): void { this.opts.onNew?.(); }
   triggerOpen(): void { this.opts.onOpen?.(); }
   triggerSave(): void { this.opts.onSave?.(); }
@@ -186,6 +193,13 @@ export class MenuBar {
     this.el.className = 'bb-menu-bar';
     this.el.setAttribute('role', 'menubar');
     this.el.setAttribute('aria-label', 'Application menu');
+
+    // App icon — mirroring the VS Code title-bar logo placement
+    const logoImg = document.createElement('img');
+    logoImg.src = '/favicon.svg';
+    logoImg.alt = 'BeatBax';
+    logoImg.className = 'bb-menu-bar__logo';
+    this.el.appendChild(logoImg);
 
     this.el.appendChild(this.buildMenu('file', 'File', this.fileItems()));
     this.el.appendChild(this.buildMenu('edit', 'Edit', this.editItems()));
@@ -348,6 +362,7 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Export',
+        icon: 'arrow-up-tray',
         id: 'export',
         children: [
           { type: 'item', icon: 'document',      label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
@@ -468,24 +483,24 @@ export class MenuBar {
       },
       {
         type: 'item',
-        label: 'Toggle Toolbar',
+        label: 'Toolbar',
         icon: 'bars-3',
         shortcut: 'Ctrl+Shift+B',
         action: () => this.emitPanelToggle('toolbar'),
       },
       {
         type: 'item',
-        label: 'Toggle Transport Bar',
+        label: 'Transport Bar',
         icon: 'queue-list',
         shortcut: 'Ctrl+Shift+R',
         action: () => this.emitPanelToggle('transport-bar'),
       },
       {
         type: 'item',
-        label: 'Mixer',
+        label: 'Channel Mixer',
         icon: 'squares-2x2',
         shortcut: 'Ctrl+Shift+Y',
-        action: () => this.emitPanelShow('channel-mixer'),
+        action: () => this.emitPanelToggle('channel-mixer'),
       },
 /*      {
         type: 'item',

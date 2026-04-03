@@ -76,6 +76,7 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
+import { BeatBaxStorage, StorageKey } from './utils/local-storage';
 
 const log = createLogger('ui:main');
 
@@ -94,6 +95,15 @@ function opWarn(panel: OutputPanel, message: string, source = 'app') {
 }
 function opError(panel: OutputPanel, message: string, source = 'app') {
   panel.addMessage({ type: 'error', message, source, timestamp: new Date() } as OutputMessage);
+}
+
+// ─── Panel visibility persistence ─────────────────────────────────────────────
+const _PANEL_VIS_PREFIX = 'beatbax:panel.';
+function readPanelVis(panel: string, defaultVal = true): boolean {
+  try { const v = localStorage.getItem(_PANEL_VIS_PREFIX + panel); return v === null ? defaultVal : v === 'true'; } catch { return defaultVal; }
+}
+function writePanelVis(panel: string, visible: boolean): void {
+  try { localStorage.setItem(_PANEL_VIS_PREFIX + panel, String(visible)); } catch { /* ignore */ }
 }
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -435,6 +445,8 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
+// Restore channel-mixer tab visibility
+if (!readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) rightTabs.close('channels');
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
@@ -459,12 +471,17 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'toolbar') {
     try {
       toolbar?.[visible ? 'show' : 'hide']?.();
+      writePanelVis(StorageKey.PANEL_VIS_TOOLBAR, visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'transport-bar') {
     try {
       transportBar?.[visible ? 'show' : 'hide']?.();
+      writePanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR, visible);
     } catch (_e) { /* ignore */ }
+  }
+  if (panel === 'channel-mixer') {
+    writePanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER, visible);
   }
 });
 
@@ -479,23 +496,63 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 
 // ─── TransportBar + TransportControls ────────────────────────────────────────
 const transportBar = new TransportBar({ container: layoutHost });
+if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
+
+// ── Runtime state for transport extras ───────────────────────────────────────
+let _currentBpm = 120;          // last BPM from AST (or nudged override)
+let _currentSig = 4;            // stepsPerBar from AST
+let _masterVolPct = 100;        // master volume 0-100 %
+let _loopMode = false;          // loop toggle state
 
 // Update transport display from parser / playback events
 eventBus.on('parse:success', ({ ast }) => {
   try {
-    const bpm = (ast as any)?.bpm ?? 120;
-    transportBar.setBpm(Number(bpm));
+    const bpm = Number((ast as any)?.bpm ?? 120);
+    _currentBpm = bpm;
+    transportBar.setBpm(bpm);
+
+    // `stepsPerBar` / `time` — keep _currentSig for BAR:BT calculation
+    let sig = Number((ast as any)?.stepsPerBar ?? (ast as any)?.time ?? 0);
+    if (!sig) {
+      const src = getSource();
+      const m = src.match(/^\s*(?:stepsPerBar|time)\s+(\d+)/m);
+      sig = m ? Number(m[1]) : 4;
+    }
+    _currentSig = sig;
   } catch (_e) {}
 });
 
 eventBus.on('playback:position', ({ current, total }) => {
   try {
-    // Format current seconds -> MM:SS if value appears to be seconds, otherwise show tick count
-    const label = typeof current === 'number'
-      ? `${Math.floor(current/60)}:${Math.floor(current%60).toString().padStart(2,'0')}`
-      : String(current);
-    transportBar.setTimeLabel(label);
+    const mins = Math.floor(current / 60);
+    const secs = Math.floor(current % 60);
+    transportBar.setTimeLabel(`${mins}:${secs.toString().padStart(2, '0')}`);
+
+    // Derive BAR:BEAT from elapsed seconds, BPM, and stepsPerBar
+    if (_currentBpm > 0 && _currentSig > 0) {
+      const secondsPerStep = 60 / _currentBpm;
+      const totalSteps     = Math.floor(current / secondsPerStep);
+      const bar  = Math.floor(totalSteps / _currentSig) + 1;
+      const beat = (totalSteps % _currentSig) + 1;
+      transportBar.setBarBeat(bar, beat);
+    }
   } catch (_e) {}
+});
+
+// Update STEP display from per-channel position events (use channel 1)
+eventBus.on('playback:position-changed', ({ channelId, position }) => {
+  if (channelId === 1) {
+    try {
+      const step  = (position.eventIndex  ?? 0) + 1;
+      const total = (position.totalEvents ?? 0) || 1;
+      transportBar.setStep(step, total);
+    } catch (_e) {}
+  }
+});
+
+// Reset position LCDs when playback stops
+eventBus.on('playback:stopped', () => {
+  try { transportBar.resetPosition(); } catch (_e) {}
 });
 
 const getSource = () => (editor?.getValue?.() as string) || '';
@@ -546,6 +603,103 @@ transportBar.liveButton.addEventListener('click', () => {
   }
 });
 
+// ─── Rewind button ───────────────────────────────────────────────────────────
+transportBar.rewindButton.addEventListener('click', () => {
+  const wasPlaying = playbackManager.isPlaying();
+  playbackManager.stop();
+  if (wasPlaying) {
+    setTimeout(() => playbackManager.play(getSource()), 80);
+  }
+});
+
+// ─── Loop button ─────────────────────────────────────────────────────────────
+transportBar.loopButton.addEventListener('click', () => {
+  _loopMode = !_loopMode;
+  transportBar.loopButton.classList.toggle('bb-loop-btn--active', _loopMode);
+  transportBar.loopButton.title = _loopMode ? 'Loop ON — click to disable' : 'Toggle loop playback';
+  transportBar.setLoopActive(_loopMode);
+  opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
+  playbackManager.setLoop(_loopMode);
+});
+
+// ─── BPM nudge buttons ───────────────────────────────────────────────────────
+
+/**
+ * Update the `bpm` directive in the editor source to `newBpm`.
+ * Uses Monaco's executeEdits so it is undoable and triggers the normal
+ * editor:changed / parse pipeline.
+ */
+function _applyBpmInEditor(newBpm: number): void {
+  const monacoEditor = editor?.editor;
+  if (!monacoEditor) return;
+  const model = monacoEditor.getModel();
+  if (!model) return;
+  const src = model.getValue();
+  // Match "bpm <digits>" on its own line (leading whitespace allowed)
+  const match = src.match(/^(\s*bpm\s+)(\d+)/m);
+  if (!match || match.index === undefined) return;
+  const startOffset = match.index + match[1].length;
+  const endOffset   = startOffset + match[2].length;
+  const startPos = model.getPositionAt(startOffset);
+  const endPos   = model.getPositionAt(endOffset);
+  monacoEditor.executeEdits('transport-bpm-nudge', [{
+    identifier: { major: 1, minor: 1 },
+    range: {
+      startLineNumber: startPos.lineNumber, startColumn: startPos.column,
+      endLineNumber:   endPos.lineNumber,   endColumn:   endPos.column,
+    },
+    text: String(newBpm),
+    forceMoveMarkers: true,
+  }]);
+}
+
+// ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
+function _attachHoldRepeat(
+  btn: HTMLButtonElement,
+  delta: number,
+  stepFn: (delta: number) => void,
+) {
+  let repeatTimer: ReturnType<typeof setTimeout> | null = null;
+  let intervalTimer: ReturnType<typeof setInterval> | null = null;
+
+  const stop = () => {
+    if (repeatTimer)  { clearTimeout(repeatTimer);  repeatTimer  = null; }
+    if (intervalTimer){ clearInterval(intervalTimer); intervalTimer = null; }
+  };
+
+  btn.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    stepFn(delta);
+    repeatTimer = setTimeout(() => {
+      intervalTimer = setInterval(() => stepFn(delta), 80);
+    }, 400);
+  });
+  btn.addEventListener('mouseup',    stop);
+  btn.addEventListener('mouseleave', stop);
+}
+
+// ─── BPM nudge buttons (click + hold-to-repeat) ──────────────────────────────
+function _applyBpmStep(delta: number) {
+  _currentBpm = Math.min(300, Math.max(20, _currentBpm + delta));
+  transportBar.setBpm(_currentBpm);
+  _applyBpmInEditor(_currentBpm);
+}
+
+_attachHoldRepeat(transportBar.bpmDownButton, -1, _applyBpmStep);
+_attachHoldRepeat(transportBar.bpmUpButton,   +1, _applyBpmStep);
+
+// ─── VOL stepper buttons (click + hold-to-repeat) ────────────────────────────
+transportBar.setVol(_masterVolPct);
+
+function _applyVolStep(delta: number) {
+  _masterVolPct = Math.min(100, Math.max(0, _masterVolPct + delta));
+  transportBar.setVol(_masterVolPct);
+  playbackManager.setMasterVolume(_masterVolPct / 100);
+}
+
+_attachHoldRepeat(transportBar.volDownButton, -5, _applyVolStep);
+_attachHoldRepeat(transportBar.volUpButton,   +5, _applyVolStep);
+
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
 // sole emitter of 'editor:changed'.)
@@ -559,6 +713,7 @@ eventBus.on('editor:changed', () => {
   clearTimeout((window as any).__bb_liveTimer);
   (window as any).__bb_liveTimer = setTimeout(() => playbackManager.play(getSource()), 800);
 });
+
 
 // ─── ExportManager ───────────────────────────────────────────────────────────
 const exportManager = new ExportManager(eventBus);
@@ -750,6 +905,13 @@ const menuBar = new MenuBar({
 
 (window as any).__beatbax_menuBar = menuBar;
 
+// Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
+menuBar.seedPanelVisible({
+  toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
+  'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
+  'channel-mixer':  readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
+});
+
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
 toolbar = new Toolbar({
   container: toolbarContainer,
@@ -766,7 +928,21 @@ toolbar = new Toolbar({
   },
   onExport: handleExport,
   onVerify: doVerify,
+  onNew:       () => menuBar.triggerNew(),
+  onSave:      () => menuBar.triggerSave(),
+  onUndo:      () => editor.editor?.trigger('toolbar', 'undo', null),
+  onRedo:      () => editor.editor?.trigger('toolbar', 'redo', null),
+  onFormat:    () => editor.editor?.getAction('editor.action.formatDocument')?.run(),
+  onSelectAll: () => editor.editor?.trigger('toolbar', 'editor.action.selectAll', null),
+  onToggleTheme: () => themeManager.toggle(),
+  onToggleWrap:  (wrap: boolean) => editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' }),
 });
+
+// Restore toolbar visibility
+if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
+// Sync theme icon with the current theme, then keep it updated
+toolbar.setThemeIcon(themeManager.currentTheme);
+eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => toolbar.setThemeIcon(theme));
 
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;

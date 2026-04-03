@@ -36,6 +36,7 @@ export const languages = {
   registerCodeLensProvider: jest.fn(),
   registerDocumentHighlightProvider: jest.fn(),
   registerDocumentSemanticTokensProvider: jest.fn(),
+  registerDocumentFormattingEditProvider: jest.fn(),
   registerSignatureHelpProvider: jest.fn(),
   typescript: {
     javascriptDefaults: {

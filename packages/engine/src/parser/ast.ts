@@ -140,6 +140,8 @@ export interface AST {
   arranges?: Record<string, ArrangeNode>;
   imports?: ImportNode[];
   bpm?: number;
+  time?: number;
+  stepsPerBar?: number;
   chip?: string;
   volume?: number;
   play?: PlayNode;
