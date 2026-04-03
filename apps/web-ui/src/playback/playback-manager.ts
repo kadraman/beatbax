@@ -448,6 +448,20 @@ export class PlaybackManager {
   }
 
   /**
+   * Set master output volume. volume is 0.0–1.0 (linear gain).
+   * Takes effect immediately if a song is playing.
+   */
+  setMasterVolume(volume: number): void {
+    const player = this.player as any;
+    if (!player) return;
+    const gain: GainNode | null = player.masterGain ?? null;
+    const ctx: AudioContext | null = player.ctx ?? null;
+    if (gain && ctx) {
+      gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), ctx.currentTime);
+    }
+  }
+
+  /**
    * Get the current AST
    */
   getAST(): any | null {

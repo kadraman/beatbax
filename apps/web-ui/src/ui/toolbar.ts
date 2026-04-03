@@ -22,10 +22,29 @@ export interface ToolbarOptions {
   onExport: (format: ExportFormat) => void;
   /** Called when the editor should be focused on its content */
   onVerify?: () => void;
+  /** Create a new empty document (Ctrl+N). */
+  onNew?: () => void;
+  /** Save / download the current document (Ctrl+S). */
+  onSave?: () => void;
+  /** Undo the last edit. */
+  onUndo?: () => void;
+  /** Redo the last undone edit. */
+  onRedo?: () => void;
+  /** Format / auto-indent the document. */
+  onFormat?: () => void;
+  /** Select all text in the editor. */
+  onSelectAll?: () => void;
+  /** Toggle dark/light theme. */
+  onToggleTheme?: () => void;
+  /** Toggle word-wrap. Receives the new enabled state. */
+  onToggleWrap?: (enabled: boolean) => void;
 }
 
 export class Toolbar {
   private el!: HTMLElement;
+  private _wrapEnabled = false;
+  private _themeToggleBtn?: HTMLButtonElement;
+  private _wrapToggleBtn?: HTMLButtonElement;
   /** Pre-fetched example content keyed by path, populated when dropdown first opens. */
   private exampleCache = new Map<string, string>();
   /** AbortController whose signal is passed to every document-level listener so they
@@ -44,6 +63,12 @@ export class Toolbar {
     this.el.className = 'bb-toolbar';
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-new" title="New song (Ctrl+N)">
+          ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} New
+        </button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-save" title="Save .bax file (Ctrl+S)">
+          ${icon('arrow-down-tray', 'w-4 h-4 inline-block align-text-bottom')} Save
+        </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-open" title="Open .bax file (Ctrl+O)">
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} Open
         </button>
@@ -61,6 +86,22 @@ export class Toolbar {
             `).join('')}
           </ul>
         </div>
+      </div>
+
+      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+
+      <div class="bb-toolbar__group bb-toolbar__group--edit">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" title="Undo (Ctrl+Z)">
+          ${icon('arrow-uturn-left', 'w-4 h-4 inline-block align-text-bottom')} Undo
+        </button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (Ctrl+Y)">
+          ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} Redo
+        </button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } Format</button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} Wrap</button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-selectall" title="Select All (Ctrl+A)">
+          ${icon('bars-3', 'w-4 h-4 inline-block align-text-bottom')} Select All
+        </button>
       </div>
 
       <div class="bb-toolbar__separator" aria-hidden="true"></div>
@@ -89,6 +130,14 @@ export class Toolbar {
         </button>
       </div>
 
+      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+
+      <div class="bb-toolbar__group bb-toolbar__group--view">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" title="Switch to light theme">
+          ${icon('sun', 'w-4 h-4 inline-block align-text-bottom')} Light
+        </button>
+      </div>
+
       <div class="bb-toolbar__status" id="tb-status" aria-live="polite"></div>
     `;
 
@@ -96,7 +145,17 @@ export class Toolbar {
   }
 
   private attachEvents(): void {
-    const { eventBus, onLoad, onExport, onVerify } = this.options;
+    const { eventBus, onLoad, onExport, onVerify,
+            onNew, onSave, onUndo, onRedo, onFormat, onSelectAll,
+            onToggleTheme, onToggleWrap } = this.options;
+
+    // New file
+    const newBtn = this.el.querySelector<HTMLButtonElement>('#tb-new');
+    if (newBtn) newBtn.addEventListener('click', () => onNew?.());
+
+    // Save file
+    const saveBtn = this.el.querySelector<HTMLButtonElement>('#tb-save');
+    if (saveBtn) saveBtn.addEventListener('click', () => onSave?.());
 
     // Open file
     const openBtn = this.el.querySelector<HTMLButtonElement>('#tb-open')!;
@@ -190,6 +249,32 @@ export class Toolbar {
       });
     }
 
+    // Undo / Redo / Format / Select All
+    const undoBtn = this.el.querySelector<HTMLButtonElement>('#tb-undo');
+    if (undoBtn) undoBtn.addEventListener('click', () => onUndo?.());
+    const redoBtn = this.el.querySelector<HTMLButtonElement>('#tb-redo');
+    if (redoBtn) redoBtn.addEventListener('click', () => onRedo?.());
+    const formatBtn = this.el.querySelector<HTMLButtonElement>('#tb-format');
+    if (formatBtn) formatBtn.addEventListener('click', () => onFormat?.());
+    const selectAllBtn = this.el.querySelector<HTMLButtonElement>('#tb-selectall');
+    if (selectAllBtn) selectAllBtn.addEventListener('click', () => onSelectAll?.());
+
+    // Theme toggle
+    this._themeToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-theme') ?? undefined;
+    if (this._themeToggleBtn) {
+      this._themeToggleBtn.addEventListener('click', () => onToggleTheme?.());
+    }
+
+    // Wrap toggle
+    this._wrapToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-wrap') ?? undefined;
+    if (this._wrapToggleBtn) {
+      this._wrapToggleBtn.addEventListener('click', () => {
+        this._wrapEnabled = !this._wrapEnabled;
+        this.setWrapActive(this._wrapEnabled);
+        onToggleWrap?.(this._wrapEnabled);
+      });
+    }
+
     // Listen for export events to show status
     const onExportStarted = (data: any) => {
       this.setStatus(`Exporting ${data.format?.toUpperCase() ?? ''}...`, 'info');
@@ -219,6 +304,22 @@ export class Toolbar {
         openBtn.click();
       }
     }, { signal: this.abortController.signal });
+  }
+
+  /** Update the theme toggle button to reflect the current theme. */
+  setThemeIcon(theme: 'dark' | 'light'): void {
+    if (!this._themeToggleBtn) return;
+    const isDark = theme === 'dark';
+    this._themeToggleBtn.innerHTML = isDark
+      ? `${icon('sun',  'w-4 h-4 inline-block align-text-bottom')} Light`
+      : `${icon('moon', 'w-4 h-4 inline-block align-text-bottom')} Dark`;
+    this._themeToggleBtn.title = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+
+  /** Set the active state of the word-wrap toggle. */
+  setWrapActive(wrap: boolean): void {
+    this._wrapEnabled = wrap;
+    this._wrapToggleBtn?.classList.toggle('bb-toolbar__btn--active', wrap);
   }
 
   /**

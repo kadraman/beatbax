@@ -510,6 +510,8 @@ export function parseWithPeggy(source: string): AST {
   const sequenceItems: SequenceItemMap | undefined = {};
 
   let topBpm: number | undefined = undefined;
+  let topTime: number | undefined = undefined;
+  let topStepsPerBar: number | undefined = undefined;
   let chipName: string | undefined = undefined;
   let chipLoc: SourceLocation | undefined = undefined;
   let topVolume: number | undefined = undefined;
@@ -534,6 +536,14 @@ export function parseWithPeggy(source: string): AST {
       }
       case 'BpmStmt': {
         topBpm = stmt.bpm;
+        break;
+      }
+      case 'TimeStmt': {
+        topTime = (stmt as any).time;
+        break;
+      }
+      case 'StepsPerBarStmt': {
+        topStepsPerBar = (stmt as any).stepsPerBar;
         break;
       }
       case 'VolumeStmt': {
@@ -741,6 +751,8 @@ export function parseWithPeggy(source: string): AST {
   const includeStructured = true;
 
   const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata };
+  if (topTime !== undefined) (ast as any).time = topTime;
+  if (topStepsPerBar !== undefined) (ast as any).stepsPerBar = topStepsPerBar;
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (imports.length > 0) ast.imports = imports;
