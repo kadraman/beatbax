@@ -503,6 +503,7 @@ let _currentBpm = 120;          // last BPM from AST (or nudged override)
 let _currentSig = 4;            // stepsPerBar from AST
 let _masterVolPct = 100;        // master volume 0-100 %
 let _loopMode = false;          // loop toggle state
+let _lastBeat = -1;             // last beat value, used to detect beat changes for LED
 
 // Update transport display from parser / playback events
 eventBus.on('parse:success', ({ ast }) => {
@@ -535,6 +536,11 @@ eventBus.on('playback:position', ({ current, total }) => {
       const bar  = Math.floor(totalSteps / _currentSig) + 1;
       const beat = (totalSteps % _currentSig) + 1;
       transportBar.setBarBeat(bar, beat);
+      // Flash the beat LED each time the beat number advances
+      if (beat !== _lastBeat) {
+        _lastBeat = beat;
+        transportBar.flashBeatLed();
+      }
     }
   } catch (_e) {}
 });
@@ -553,6 +559,7 @@ eventBus.on('playback:position-changed', ({ channelId, position }) => {
 // Reset position LCDs when playback stops
 eventBus.on('playback:stopped', () => {
   try { transportBar.resetPosition(); } catch (_e) {}
+  _lastBeat = -1;
 });
 
 const getSource = () => (editor?.getValue?.() as string) || '';

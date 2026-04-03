@@ -137,6 +137,32 @@
   flex-shrink: 0;
 }
 
+/* ── Beat indicator LED ──────────────────────────────────────────────────── */
+.bb-transport__beat-led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1a3a1a;
+  box-shadow:
+    0 0 2px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  flex-shrink: 0;
+  align-self: center;
+  margin-right: 6px;
+  transition: background 0.05s;
+}
+
+.bb-transport__beat-led--flash {
+  animation: bb-led-flash 80ms ease-out forwards;
+}
+
+@keyframes bb-led-flash {
+  0%   { background: #7fff7f; box-shadow: 0 0 6px 3px rgba(100,255,100,0.85), inset 0 1px 0 rgba(255,255,255,0.4); }
+  40%  { background: #3dff70; box-shadow: 0 0 10px 4px rgba(61,255,112,0.70), inset 0 1px 0 rgba(255,255,255,0.25); }
+  100% { background: #1a3a1a; box-shadow: 0 0 2px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.08); }
+}
+
 /* ── 3-D transport buttons ───────────────────────────────────────────────── */
 .bb-transport__btn {
   display: inline-flex;

@@ -53,6 +53,13 @@ export class TransportBar {
     timeLcd.lcd.classList.add('bb-transport__lcd--pri-4');
     loopLcd.lcd.classList.add('bb-transport__lcd--pri-2');
 
+    // ── Beat indicator LED ───────────────────────────────────────────────
+    const beatLed = document.createElement('span');
+    beatLed.className = 'bb-transport__beat-led';
+    beatLed.setAttribute('aria-hidden', 'true');
+    beatLed.title = 'Beat indicator';
+    infoWrap.prepend(beatLed);
+
     infoWrap.append(
       bpmLcd.lcd, timeLcd.lcd, barBeatLcd.lcd,
       stepLcd.lcd, loopLcd.lcd
@@ -135,6 +142,7 @@ export class TransportBar {
     this._loopEl    = loopLcd.value;
     this._loopLcd   = loopLcd.lcd;
     this._volEl     = volLcd.value;
+    this._beatLed   = beatLed;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
@@ -187,6 +195,7 @@ export class TransportBar {
   private _loopEl?:    HTMLElement;
   private _loopLcd?:   HTMLElement;
   private _volEl?:     HTMLElement;
+  private _beatLed?:   HTMLElement;
 
   // ── Public update API ────────────────────────────────────────────────────
 
@@ -236,5 +245,16 @@ export class TransportBar {
   /** Update the VOL display. pct is 0-100. */
   setVol(pct: number): void {
     if (this._volEl) this._volEl.textContent = `${String(pct).padStart(3, ' ')}%`;
+  }
+
+  /** Trigger a single beat-flash on the LED indicator. */
+  flashBeatLed(): void {
+    const led = this._beatLed;
+    if (!led) return;
+    // Remove first to allow re-triggering mid-animation
+    led.classList.remove('bb-transport__beat-led--flash');
+    // Force reflow so the class removal takes effect before re-adding
+    void led.offsetWidth;
+    led.classList.add('bb-transport__beat-led--flash');
   }
 }
