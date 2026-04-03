@@ -36,10 +36,257 @@
   border: 1px solid #569cd6;
 }
 
-/* Transport bar */
+/* ─── Transport Bar ──────────────────────────────────────────────────────── */
 .bb-transport {
   background: var(--bb-transport-bg);
   border-bottom: 1px solid var(--bb-transport-border);
+  /* Subtle bevel on the panel face */
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.10) 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  flex-shrink: 0;
+}
+
+/* ── LCD readout cluster ─────────────────────────────────────────────────── */
+.bb-transport__info {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: 4px;
+}
+
+/* Individual LCD window */
+.bb-transport__lcd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 62px;
+  padding: 3px 10px 4px;
+  background: #0b130b;
+  /* Outer bezel: bottom/right lighter edge gives the sunken-into-panel feel */
+  border: 1px solid;
+  border-color: #111 #2e4a2e #2e4a2e #111;
+  border-radius: 6px;
+  /* Deep inset shadow — top-left darkest, bottom-right hint of lift */
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.90),
+    inset 2px 0  4px rgba(0,0,0,0.40),
+    inset 0 0  2px rgba(0,0,0,0.60),
+    0 1px 0 rgba(255,255,255,0.08),
+    0 2px 0 rgba(255,255,255,0.04);
+}
+
+/* Tiny silk-screened label above the display */
+.bb-transport__lcd-label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: #2e622e;
+  line-height: 1;
+  margin-bottom: 1px;
+  user-select: none;
+}
+
+/* LCD digit value — pixel/segment font */
+.bb-transport__lcd-screen {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bb-transport__lcd-ghost,
+.bb-transport__lcd-value {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 2px;
+  user-select: none;
+}
+
+/* Ghost (inactive) segments — dimly lit green, no glow */
+.bb-transport__lcd-ghost {
+  color: rgba(61, 255, 112, 0.13);
+  text-shadow: none;
+  pointer-events: none;
+}
+
+/* Active value floats above the ghost */
+.bb-transport__lcd-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3dff70;
+  /* Phosphor glow */
+  text-shadow:
+    0 0 4px  rgba(61, 255, 112, 0.80),
+    0 0 10px rgba(61, 255, 112, 0.35);
+}
+
+/* ── Divider between LCD section and buttons ─────────────────────────────── */
+.bb-transport__separator {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, #555 30%, #555 70%, transparent);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── 3-D transport buttons ───────────────────────────────────────────────── */
+.bb-transport__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  /* Four-sided border: top/left lighter, bottom/right darker — raised look */
+  border: 1px solid;
+  border-color: #606060 #282828 #1e1e1e #606060;
+  color: #d4d4d4;
+  background: linear-gradient(to bottom, #525252 0%, #323232 100%);
+  box-shadow:
+    0 2px 5px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.13),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+  transition: filter 0.08s, color 0.08s;
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.bb-transport__btn:hover:not(:disabled) {
+  filter: brightness(1.18);
+  color: #ffffff;
+}
+
+/* Pressed — button sinks into the panel */
+.bb-transport__btn:active:not(:disabled) {
+  background: linear-gradient(to bottom, #2c2c2c 0%, #464646 100%);
+  border-color: #1e1e1e #606060 #606060 #1e1e1e;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.65),
+    0 1px 0 rgba(255,255,255,0.04);
+  transform: translateY(1px);
+  filter: none;
+}
+
+.bb-transport__btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+  filter: none;
+}
+
+/* Per-button colour accents: top-edge highlight + text tint */
+.bb-transport__btn--play  { border-top-color: #4caf50; color: #c8edca; }
+.bb-transport__btn--stop  { border-top-color: #d95050; color: #edcac8; }
+.bb-transport__btn--pause { border-top-color: #cc8800; color: #eddcb0; }
+.bb-transport__btn--apply { border-top-color: #4a8fd4; color: #c4d8ed; }
+.bb-transport__btn--live  { border-top-color: #4caf50; }
+
+/* ── Light mode overrides ────────────────────────────────────────────────── */
+[data-theme=light] .bb-transport {
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.60) 0%, rgba(0,0,0,0.04) 100%);
+}
+
+[data-theme=light] .bb-transport__lcd {
+  /* Light-mode sunken bezel: dark top/left shadow, near-white bottom/right highlight */
+  border-color: #999 #e8e8e8 #e8e8e8 #999;
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.28),
+    inset 2px 0  4px rgba(0,0,0,0.12),
+    inset 0 0  2px rgba(0,0,0,0.18),
+    0 1px 0 rgba(255,255,255,0.90),
+    0 2px 0 rgba(255,255,255,0.50);
+}
+
+[data-theme=light] .bb-transport__separator {
+  background: linear-gradient(to bottom, transparent, #aaa 30%, #aaa 70%, transparent);
+}
+
+[data-theme=light] .bb-transport__btn {
+  border-color: #d8d8d8 #8c8c8c #7a7a7a #d8d8d8;
+  color: #1e1e1e;
+  background: linear-gradient(to bottom, #f0f0f0 0%, #d4d4d4 100%);
+  box-shadow:
+    0 2px 5px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.80),
+    inset 0 -1px 0 rgba(0,0,0,0.10);
+}
+
+[data-theme=light] .bb-transport__btn:hover:not(:disabled) {
+  color: #000000;
+}
+
+[data-theme=light] .bb-transport__btn:active:not(:disabled) {
+  background: linear-gradient(to bottom, #c0c0c0 0%, #d8d8d8 100%);
+  border-color: #7a7a7a #d8d8d8 #d8d8d8 #7a7a7a;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.20),
+    0 1px 0 rgba(255,255,255,0.60);
+}
+
+/* Accent colours are darker/richer so they contrast on the light button face */
+[data-theme=light] .bb-transport__btn--play  { border-top-color: #2e7d32; color: #1b4d1e; }
+[data-theme=light] .bb-transport__btn--stop  { border-top-color: #c62828; color: #5a1010; }
+[data-theme=light] .bb-transport__btn--pause { border-top-color: #e65100; color: #5a2800; }
+[data-theme=light] .bb-transport__btn--apply { border-top-color: #1565c0; color: #0d2e5a; }
+[data-theme=light] .bb-transport__btn--live  { border-top-color: #2e7d32; }
+
+/* ── Responsive transport bar — priority hide cascade ────────────────────────
+ *
+ *  Priority classes control which controls disappear first at narrower widths.
+ *  Lower pri number = higher priority (hidden first at lowest BPs).
+ *
+ *  pri-1  → BAR:BT, STEP LCDs             hidden at < 1400 px
+ *  pri-2  → LOOP LCD; ⟳ Loop, ● Rec        hidden at < 1150 px
+ *  pri-3  → BPM nudge, VOL group           hidden at <  900 px
+ *  pri-4  → TIME LCD, ⏮ Rewind             hidden at <  720 px
+ *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply     hidden at <  550 px
+ *
+ *  Only ▶ Play and ⏹ Stop are always visible.
+ *  A safety-net overflow-x:auto prevents clipping if the window shrinks further.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Safety net — never clip, just allow horizontal scroll at any width */
+.bb-transport { overflow-x: auto; }
+
+/* 1400 px — hide BAR:BT and STEP LCDs */
+@media (max-width: 1399px) {
+  .bb-transport__lcd--pri-1 { display: none; }
+}
+
+/* 1150 px — hide LOOP LCD, ⟳ Loop, ● Rec */
+@media (max-width: 1149px) {
+  .bb-transport__lcd--pri-2,
+  .bb-transport__btn--pri-2 { display: none; }
+}
+
+/* 900 px — hide BPM nudge wrap, its separator, and the VOL group */
+@media (max-width: 899px) {
+  .bb-transport__nudge-wrap--pri-3,
+  .bb-transport__vol-group--pri-3,
+  .bb-transport__separator--pri-3 { display: none; }
+}
+
+/* 720 px — hide TIME LCD, ⏮ Rewind */
+@media (max-width: 719px) {
+  .bb-transport__lcd--pri-4,
+  .bb-transport__btn--pri-4 { display: none; }
+}
+
+/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply — keep ▶ Play / ⏹ Stop / BPM LCD */
+@media (max-width: 549px) {
+  .bb-transport__btn--pri-5 { display: none; }
+  /* Tighten spacing so BPM LCD + Play + Stop still fit comfortably */
+  .bb-transport { gap: 5px; padding: 6px 8px; }
 }
 
 /* Layout panes & splitters */
@@ -640,15 +887,115 @@
 .bb-shortcuts-modal-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
 
 /* ─── Transport Bar Live Button ──────────────────────────────────────────── */
-.bb-live-btn { border: 2px solid transparent; border-radius: 4px; transition: border-color 0.2s; }
+.bb-live-btn { transition: border-color 0.2s, box-shadow 0.2s; }
 .bb-live-btn--active {
-  border-color: #4caf50;
+  border-top-color: #4caf50 !important;
+  border-color: #3a8f3e #1e3f20 #1a361e #3a8f3e;
   animation: bb-live-pulse 1.4s ease-in-out infinite;
 }
 @keyframes bb-live-pulse {
-  0%, 100% { box-shadow: 0 0 4px 2px rgba(76,175,80,0.35); }
-  50%       { box-shadow: 0 0 12px 4px rgba(76,175,80,0.75); }
+  0%, 100% { box-shadow: 0 2px 5px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.13), 0 0 5px 2px rgba(76,175,80,0.30); }
+  50%       { box-shadow: 0 2px 5px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.13), 0 0 14px 5px rgba(76,175,80,0.70); }
 }
+
+/* ── Loop button — lit green when active ──────────────────────────────────── */
+.bb-loop-btn { transition: border-color 0.2s, box-shadow 0.2s; }
+.bb-loop-btn--active {
+  border-top-color: #4caf50 !important;
+  border-color: #3a8f3e #1e3f20 #1a361e #3a8f3e;
+  animation: bb-live-pulse 1.4s ease-in-out infinite;
+}
+
+/* ── Record button — pulses red when armed ───────────────────────────────── */
+.bb-transport__btn--record { border-top-color: #d95050; color: #edcac8; }
+.bb-record-btn--active {
+  border-top-color: #ff2020 !important;
+  animation: bb-rec-pulse 0.9s ease-in-out infinite;
+}
+@keyframes bb-rec-pulse {
+  0%, 100% { box-shadow: 0 2px 5px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.13), 0 0 5px 2px rgba(217,80,80,0.40); }
+  50%       { box-shadow: 0 2px 5px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.13), 0 0 16px 6px rgba(217,80,80,0.80); }
+}
+
+/* ── LOOP LCD active state — amber tint when looping ─────────────────────── */
+.bb-transport__lcd--active .bb-transport__lcd-value {
+  color: #ffd740;
+  text-shadow: 0 0 4px rgba(255,215,64,0.90), 0 0 10px rgba(255,215,64,0.40);
+}
+.bb-transport__lcd--active .bb-transport__lcd-ghost {
+  color: rgba(255,215,64,0.13);
+}
+
+/* ── BPM nudge / VOL nudge buttons ───────────────────────────────────────── */
+.bb-transport__nudge-wrap {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.bb-transport__vol-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+.bb-transport__nudge-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid;
+  border-color: #555 #222 #1a1a1a #555;
+  color: #aaa;
+  background: linear-gradient(to bottom, #484848 0%, #2e2e2e 100%);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.50),
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
+  transition: filter 0.08s, color 0.08s;
+  user-select: none;
+}
+.bb-transport__nudge-btn:hover:not(:disabled) {
+  filter: brightness(1.22);
+  color: #fff;
+}
+.bb-transport__nudge-btn:active:not(:disabled) {
+  background: linear-gradient(to bottom, #242424 0%, #404040 100%);
+  border-color: #1a1a1a #555 #555 #1a1a1a;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.04);
+  transform: translateY(1px);
+}
+.bb-transport__nudge-btn:disabled { opacity: 0.30; cursor: default; }
+
+/* ── Per-button colour accents: new buttons ──────────────────────────────── */
+.bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
+.bb-transport__btn--loop   { border-top-color: #4caf50; color: #c8edca; }
+
+/* ── VOL LCD: slightly narrower label ────────────────────────────────────── */
+.bb-transport__vol-group .bb-transport__lcd { min-width: 54px; }
+
+/* ── Light mode additions ─────────────────────────────────────────────────── */
+[data-theme=light] .bb-transport__btn--rewind { border-top-color: #1565c0; color: #0d2e5a; }
+[data-theme=light] .bb-transport__btn--loop   { border-top-color: #2e7d32; color: #1b4d1e; }
+[data-theme=light] .bb-transport__btn--record { border-top-color: #c62828; color: #5a1010; }
+[data-theme=light] .bb-transport__nudge-btn {
+  border-color: #cccccc #888 #777 #cccccc;
+  color: #333;
+  background: linear-gradient(to bottom, #e8e8e8 0%, #cccccc 100%);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.80),
+    inset 0 -1px 0 rgba(0,0,0,0.08);
+}
+[data-theme=light] .bb-transport__nudge-btn:hover:not(:disabled) { color: #000; }
+[data-theme=light] .bb-transport__nudge-btn:active:not(:disabled) {
+  background: linear-gradient(to bottom, #b8b8b8 0%, #d0d0d0 100%);
+  border-color: #777 #cccccc #cccccc #777;
+}
+
 
 /* ─── Toolbar ────────────────────────────────────────────────────────────── */
 .bb-toolbar {
@@ -699,6 +1046,19 @@
 .bb-toolbar__status[data-type="success"] { color: #4ec9b0; }
 .bb-toolbar__status[data-type="error"]   { color: #f48771; }
 .bb-toolbar__status[data-type="info"]    { color: #9cdcfe; }
+/* Active / toggled-on state for wrap and theme toggle buttons */
+.bb-toolbar__btn--active {
+  background: linear-gradient(to bottom, #1a331a 0%, #2a4a2a 100%);
+  border-color: #3a8040 #1c3d20 #183419 #3a8040;
+  color: #89d185;
+}
+.bb-toolbar__btn--active:hover:not(:disabled) { color: #b5e8b3; filter: brightness(1.15); }
+[data-theme="light"] .bb-toolbar__btn--active {
+  background: linear-gradient(to bottom, #d0ebd0 0%, #b8d4b8 100%);
+  border-color: #3a7a3a #245224 #1e4620 #3a7a3a;
+  color: #1b4d1e;
+}
+[data-theme="light"] .bb-toolbar__btn--active:hover:not(:disabled) { color: #0a300d; }
 [data-theme="light"] .bb-toolbar { background: var(--bb-toolbar-bg, #f3f3f3); border-bottom-color: var(--bb-toolbar-border, #ddd); }
 [data-theme="light"] .bb-toolbar__label { color: var(--bb-toolbar-label-fg, #666); }
 [data-theme="light"] .bb-toolbar__separator { background: var(--bb-toolbar-separator, #ddd); }
@@ -721,6 +1081,11 @@
   border-bottom: 1px solid #333; flex-shrink: 0; height: 28px;
   user-select: none; font-size: 13px; z-index: 1000; position: relative;
 }
+.bb-menu-bar__logo {
+  width: 16px; height: 16px; margin: 0 4px 0 8px; align-self: center;
+  flex-shrink: 0; display: block; opacity: 0.92; pointer-events: none; user-select: none;
+}
+[data-theme="light"] .bb-menu-bar__logo { filter: invert(1) hue-rotate(180deg) brightness(0.7); }
 .bb-menu { position: relative; display: flex; align-items: stretch; }
 .bb-menu__trigger {
   padding: 0 10px; background: transparent; border: none; color: #cccccc;
@@ -743,6 +1108,7 @@
 .bb-menu__item:focus:not(.bb-menu__item--disabled) { background: #094771; color: #ffffff; }
 .bb-menu__item--disabled { color: #666; cursor: default; }
 .bb-menu__item--submenu { position: relative; }
+.bb-menu__item-icon { width: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
 .bb-menu__item-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb-menu__item-shortcut { font-size: 11px; color: #888; white-space: nowrap; flex-shrink: 0; }
 .bb-menu__item:hover .bb-menu__item-shortcut,
@@ -771,52 +1137,223 @@
   display: flex; flex-direction: column;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 11px; color: #d4d4d4;
+  /* Rack-unit panel face */
+  background: linear-gradient(to bottom, #2a2a2a 0%, #222222 100%);
 }
-.bb-cp__header { font-weight: bold; font-size: 16px; padding: 10px 12px 8px; color: #d4d4d4; border-bottom: 2px solid #444; margin-bottom: 4px; }
+.bb-cp__header { font-weight: bold; font-size: 16px; padding: 10px 12px 8px; color: #d4d4d4; border-bottom: 2px solid #333; margin-bottom: 4px; }
 .bb-cp__empty { padding: 12px; color: #888; font-style: italic; }
-.bb-cp__toolbar { display: flex; justify-content: flex-end; padding: 6px 8px; gap: 8px; }
-.bb-cp__toolbar-btn { padding: 4px 8px; border-radius: 4px; border: 1px solid #555; background: #2f2f2f; color: #d4d4d4; cursor: pointer; font-size: 11px; }
+.bb-cp__toolbar {
+  display: flex; justify-content: flex-end; padding: 5px 8px; gap: 6px;
+  /* Inset strip at top of the rack panel */
+  background: linear-gradient(to bottom, #1a1a1a 0%, #272727 100%);
+  border-bottom: 1px solid #111;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.05);
+}
+.bb-cp__toolbar-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  border-color: #606060 #282828 #1e1e1e #606060;
+  background: linear-gradient(to bottom, #525252 0%, #323232 100%);
+  color: #d4d4d4;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.50),
+    inset 0 1px 0 rgba(255,255,255,0.13),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+  transition: filter 0.08s, color 0.08s;
+  user-select: none;
+}
+.bb-cp__toolbar-btn svg { width: 14px; height: 14px; stroke: currentColor; }
+.bb-cp__toolbar-btn:hover { filter: brightness(1.18); color: #fff; }
+.bb-cp__toolbar-btn:active {
+  background: linear-gradient(to bottom, #2c2c2c 0%, #464646 100%);
+  border-color: #1e1e1e #606060 #606060 #1e1e1e;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.04);
+  transform: translateY(1px);
+  filter: none;
+}
 .bb-cp__card {
-  display: flex; flex-direction: column; gap: 4px; padding: 6px 8px;
-  background: #2d2d2d; border: 1px solid #444; border-radius: 4px; margin: 3px 6px; transition: opacity 0.2s;
+  display: flex; flex-direction: column; gap: 4px; padding: 7px 9px;
+  /* Raised channel strip — asymmetric bevel like the transport buttons */
+  background: linear-gradient(to bottom, #363636 0%, #2a2a2a 100%);
+  border: 1px solid;
+  border-color: #555 #1e1e1e #161616 #555;
+  border-radius: 5px;
+  margin: 4px 6px;
+  box-shadow:
+    0 3px 6px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.30);
+  transition: opacity 0.2s;
 }
 .bb-cp__card--silent { opacity: 0.5; }
 .bb-cp__card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .bb-cp__header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 110px; text-align: right; }
-.bb-cp__wave-canvas { width: 80px; height: 24px; border-radius: 3px; background: transparent; display: block; }
-.bb-cp__level-bar { width: 6px; min-height: 18px; border-radius: 3px; flex-shrink: 0; transition: box-shadow 0.05s, opacity 0.15s; }
+.bb-cp__wave-canvas {
+  width: 80px; height: 24px; display: block;
+  /* LCD screen — always dark regardless of theme */
+  background: #070d07;
+  border: 1px solid;
+  border-color: #111 #2a402a #2a402a #111;
+  border-radius: 6px;
+  /* Deep inset — same technique as transport LCDs */
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.90),
+    inset 2px 0  4px rgba(0,0,0,0.40),
+    inset 0 0  2px rgba(0,0,0,0.60),
+    0 1px 0 rgba(255,255,255,0.07),
+    0 2px 0 rgba(255,255,255,0.03);
+}
+.bb-cp__level-bar {
+  width: 6px; min-height: 18px; border-radius: 3px; flex-shrink: 0;
+  transition: box-shadow 0.05s, opacity 0.15s;
+  /* Inset LED slot */
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.80), inset 0 0 1px rgba(0,0,0,0.5);
+  border: 1px solid rgba(0,0,0,0.40);
+}
 .bb-cp__title-block { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; align-items: flex-start; }
 .bb-cp__channel-title { font-weight: 600; font-size: 13px; color: #d4d4d4; }
 .bb-cp__chip-label { font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
 .bb-cp__inst { font-size: 11px; color: #4a9eff; font-family: 'Consolas', 'Courier New', monospace; min-height: 14px; }
 .bb-cp__pattern { font-size: 10px; color: #9cdcfe; font-family: 'Consolas', 'Courier New', monospace; min-height: 12px; }
-.bb-cp__progress-wrap { height: 3px; background: #1e1e1e; border-radius: 2px; overflow: hidden; border: 1px solid #444; }
+.bb-cp__progress-wrap {
+  height: 4px;
+  /* Inset track groove */
+  background: #131313;
+  border-radius: 2px; overflow: hidden;
+  border: 1px solid;
+  border-color: #0a0a0a #3a3a3a #3a3a3a #0a0a0a;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.80);
+}
 .bb-cp__progress-fill { height: 100%; width: 0%; background: #4a9eff; border-radius: 2px; transition: width 0.1s linear; }
 .bb-cp__position { font-size: 10px; color: #888; font-family: 'Consolas', 'Courier New', monospace; }
 .bb-cp__ctrl-row { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
 .bb-cp__btn {
   width: 18px; height: 18px; padding: 0; cursor: pointer;
-  border: 1px solid #555; background: #3a3a3a; color: #aaa;
+  border: 1px solid;
+  border-color: #5a5a5a #242424 #1a1a1a #5a5a5a;
+  background: linear-gradient(to bottom, #4a4a4a 0%, #2e2e2e 100%);
+  color: #aaa;
   border-radius: 3px; font-size: 10px; font-weight: 700; line-height: 1;
-  flex-shrink: 0; transition: all 0.15s;
+  flex-shrink: 0;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.50),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  transition: filter 0.08s, color 0.08s;
 }
 .bb-cp--full .bb-cp__btn { width: 22px; height: 22px; font-size: 11px; }
 .bb-cp--full .bb-cp__vol-wrap { min-width: 90px; }
 .bb-cp--compact .bb-cp__wave-canvas { display: none; }
 .bb-cp--full .bb-cp__wave-canvas { display: block; }
-.bb-cp__btn:hover { background: #4a4a4a; border-color: #777; }
-.bb-cp__btn--mute.bb-cp__btn--active { background: #7a2f2f; border-color: #c94e4e; color: #ffaaaa; }
-.bb-cp__btn--solo.bb-cp__btn--active { background: #2a4a7a; border-color: #4a9eff; color: #9cdcfe; }
+.bb-cp__btn:hover { filter: brightness(1.2); color: #ddd; }
+.bb-cp__btn:active {
+  background: linear-gradient(to bottom, #222 0%, #3a3a3a 100%);
+  border-color: #1a1a1a #5a5a5a #5a5a5a #1a1a1a;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.55);
+  transform: translateY(1px);
+  filter: none;
+}
+.bb-cp__btn--mute.bb-cp__btn--active {
+  background: linear-gradient(to bottom, #8c3232 0%, #6a2020 100%);
+  border-color: #c94e4e #4a1010 #3a0c0c #c94e4e;
+  color: #ffaaaa;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,100,100,0.20);
+}
+.bb-cp__btn--solo.bb-cp__btn--active {
+  background: linear-gradient(to bottom, #2e5a9a 0%, #1e3e72 100%);
+  border-color: #4a9eff #0e2040 #081830 #4a9eff;
+  color: #9cdcfe;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.50), inset 0 1px 0 rgba(100,180,255,0.20);
+}
 .bb-cp__vol-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 60px; }
 .bb-cp__vol-label { font-size: 11px; color: #888; white-space: nowrap; cursor: default; user-select: none; }
 .bb-cp__vol-slider { flex: 1; height: 4px; accent-color: #4a9eff; cursor: pointer; }
 .bb-cp__vol-wrap--disabled .bb-cp__vol-label { color: #555; }
 .bb-cp__vol-wrap--disabled .bb-cp__vol-slider { opacity: 0.3; cursor: not-allowed; accent-color: #555; }
-[data-theme="light"] .bb-cp { color: #333; }
-[data-theme="light"] .bb-cp__header { color: #333; border-color: #ddd; }
-[data-theme="light"] .bb-cp__card { background: #f3f3f3; border-color: #ddd; }
-[data-theme="light"] .bb-cp__btn { background: #e8e8e8; border-color: #ccc; color: #555; }
-[data-theme="light"] .bb-cp__btn:hover { background: #ddd; border-color: #aaa; }
+[data-theme="light"] .bb-cp { color: #333; background: linear-gradient(to bottom, #e8e8e8 0%, #e0e0e0 100%); }
+[data-theme="light"] .bb-cp__header { color: #333; border-color: #ccc; }
+[data-theme="light"] .bb-cp__toolbar {
+  background: linear-gradient(to bottom, #d4d4d4 0%, #dcdcdc 100%);
+  border-bottom-color: #bbb;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.70);
+}
+[data-theme="light"] .bb-cp__card {
+  background: linear-gradient(to bottom, #f4f4f4 0%, #ececec 100%);
+  border-color: #d8d8d8 #9a9a9a #8a8a8a #d8d8d8;
+  box-shadow:
+    0 3px 6px rgba(0,0,0,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.90),
+    inset 0 -1px 0 rgba(0,0,0,0.08);
+}
+[data-theme="light"] .bb-cp__channel-title { color: #111; }
+[data-theme="light"] .bb-cp__level-bar {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.30), inset 0 0 1px rgba(0,0,0,0.20);
+  border-color: rgba(0,0,0,0.18);
+}
+[data-theme="light"] .bb-cp__wave-canvas {
+  /* Keep the LCD screen dark in light mode — matches transport bar LCD panels */
+  background: #070d07;
+  border-color: #888 #d0d0d0 #d0d0d0 #888;
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.80),
+    inset 2px 0  4px rgba(0,0,0,0.30),
+    inset 0 0  2px rgba(0,0,0,0.50),
+    0 1px 0 rgba(255,255,255,0.90),
+    0 2px 0 rgba(255,255,255,0.50);
+}
+[data-theme="light"] .bb-cp__progress-wrap {
+  background: #cccccc;
+  border-color: #aaa #ddd #ddd #aaa;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.20);
+}
+[data-theme="light"] .bb-cp__vol-label { color: #555; }
+[data-theme="light"] .bb-cp__vol-wrap--disabled .bb-cp__vol-label { color: #aaa; }
+[data-theme="light"] .bb-cp__vol-wrap--disabled .bb-cp__vol-slider { accent-color: #aaa; }
+[data-theme="light"] .bb-cp__toolbar-btn {
+  border-color: #d8d8d8 #8c8c8c #7a7a7a #d8d8d8;
+  background: linear-gradient(to bottom, #f0f0f0 0%, #d4d4d4 100%);
+  color: #1e1e1e;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.80),
+    inset 0 -1px 0 rgba(0,0,0,0.08);
+}
+[data-theme="light"] .bb-cp__toolbar-btn:hover { color: #000; }
+[data-theme="light"] .bb-cp__toolbar-btn:active {
+  background: linear-gradient(to bottom, #c0c0c0 0%, #d8d8d8 100%);
+  border-color: #7a7a7a #d8d8d8 #d8d8d8 #7a7a7a;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.60);
+}
+[data-theme="light"] .bb-cp__btn {
+  border-color: #d0d0d0 #8c8c8c #7a7a7a #d0d0d0;
+  background: linear-gradient(to bottom, #efefef 0%, #d0d0d0 100%);
+  color: #444;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.80);
+}
+[data-theme="light"] .bb-cp__btn:hover { color: #000; }
+[data-theme="light"] .bb-cp__btn:active {
+  background: linear-gradient(to bottom, #b8b8b8 0%, #d0d0d0 100%);
+  border-color: #7a7a7a #d0d0d0 #d0d0d0 #7a7a7a;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.18);
+}
+[data-theme="light"] .bb-cp__btn--mute.bb-cp__btn--active {
+  background: linear-gradient(to bottom, #e57373 0%, #c62828 100%);
+  border-color: #ef9a9a #7f0000 #6d0000 #ef9a9a;
+  color: #fff;
+}
+[data-theme="light"] .bb-cp__btn--solo.bb-cp__btn--active {
+  background: linear-gradient(to bottom, #64b5f6 0%, #1565c0 100%);
+  border-color: #90caf9 #0d3a7a #0a2e63 #90caf9;
+  color: #fff;
+}
 [data-theme="light"] .bb-cp__progress-wrap { background: #e0e0e0; border-color: #ddd; }
 
 /* ─── Chat Panel ─────────────────────────────────────────────────────────── */
@@ -866,13 +1403,64 @@
 .bb-ai-banner-keep:hover { background: #1a9c70; }
 .bb-ai-banner-discard { padding: 3px 10px; font-size: 11px; background: #6e2020; color: #fff; border: none; border-radius: 3px; cursor: pointer; }
 .bb-ai-banner-discard:hover { background: #a02828; }
-.bb-chat-input-row { display: flex; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--border-color, #3c3c3c); flex-shrink: 0; align-items: flex-end; }
-.bb-chat-input { flex: 1; resize: none; background: var(--input-bg, #3c3c3c); color: var(--text-color, #d4d4d4); border: 1px solid var(--border-color, #3c3c3c); border-radius: 4px; padding: 6px 8px; font-size: 12px; font-family: inherit; line-height: 1.5; }
-.bb-chat-input:focus { outline: 1px solid #569cd6; border-color: #569cd6; }
+.bb-chat-input-row { padding: 6px 10px; border-top: 1px solid var(--border-color, #3c3c3c); flex-shrink: 0; }
+.bb-chat-input-wrap { position: relative; display: flex; }
+.bb-chat-input {
+  flex: 1; resize: none;
+  background: var(--input-bg, #3c3c3c); color: var(--text-color, #d4d4d4);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 6px;
+  padding: 7px 38px 7px 10px; /* right padding makes room for the inline button */
+  font-size: 12px; font-family: inherit; line-height: 1.5;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bb-chat-input:focus {
+  outline: none;
+  border-color: #569cd6;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35), 0 0 0 2px rgba(86,156,214,0.25);
+}
 .bb-chat-input:disabled { opacity: 0.5; }
-.bb-chat-send-btn { padding: 6px 12px; background: #0e639c; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; transition: background 0.1s; }
-.bb-chat-send-btn:hover:not(:disabled) { background: #1177bb; }
-.bb-chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Inline send / stop icon button */
+.bb-chat-send-btn {
+  position: absolute;
+  right: 5px; bottom: 5px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  background: #0e639c;
+  color: #fff;
+  border: 1px solid #0a4f7e;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, box-shadow 0.12s, transform 0.08s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+.bb-chat-send-btn:hover:not(:disabled) {
+  background: #1177bb;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.bb-chat-send-btn:active:not(:disabled) {
+  background: #0a4f7e;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.45);
+  transform: translateY(1px);
+}
+.bb-chat-send-btn:disabled { opacity: 0.4; cursor: default; }
+.bb-chat-send-btn svg { pointer-events: none; }
+
+/* Stop state — pulsing red */
+.bb-chat-send-btn--stop {
+  background: #8b1a1a;
+  border-color: #6a1010;
+  animation: bb-stop-pulse 1.2s ease-in-out infinite;
+}
+.bb-chat-send-btn--stop:hover:not(:disabled) { background: #b02020; }
+@keyframes bb-stop-pulse {
+  0%, 100% { box-shadow: 0 1px 3px rgba(0,0,0,0.40), 0 0 0 0   rgba(220,50,50,0.00); }
+  50%       { box-shadow: 0 1px 3px rgba(0,0,0,0.40), 0 0 0 5px rgba(220,50,50,0.40); }
+}
 .bb-chat-footer { display: flex; justify-content: space-between; align-items: center; padding: 4px 10px; border-top: 1px solid var(--border-color, #3c3c3c); flex-shrink: 0; }
 .bb-chat-clear-btn { background: none; border: none; color: var(--text-muted, #888); cursor: pointer; font-size: 11px; padding: 2px 4px; border-radius: 3px; transition: color 0.1s, background 0.1s; }
 .bb-chat-clear-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
@@ -888,6 +1476,29 @@
 .bb-chat-action-btn--primary { background: #16825d; }
 .bb-chat-action-btn--primary:hover { background: #1a9c70; }
 .bb-chat-markdown { line-height: 1.6; }
+
+/* ─── Chat Panel — Light mode overrides ──────────────────────────────────── */
+[data-theme=light] .bb-chat-code-block { background: #f6f8fa; }
+[data-theme=light] .bb-chat-code { color: #24292e; }
+[data-theme=light] .bb-chat-code-actions { background: #eaeef2; border-top-color: #d0d7de; }
+[data-theme=light] .bb-chat-undo-btn { background: #b45309; }
+[data-theme=light] .bb-chat-undo-btn:hover:not(:disabled) { background: #92400e; }
+[data-theme=light] .bb-chat-undo-btn:disabled { background: #ccc !important; }
+[data-theme=light] .bb-ai-change-banner {
+  background: #ffffff;
+  border-color: #ccc;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+[data-theme=light] .bb-chat-markdown code {
+  background: #eef0f2;
+  border-color: #d0d7de;
+  color: #24292e;
+}
+[data-theme=light] .bb-chat-markdown pre { background: #f6f8fa; }
+[data-theme=light] .bb-chat-markdown pre code { color: #24292e; }
+[data-theme=light] .bb-chat-msg--assistant .bb-chat-msg-label { color: #1a7a5e; }
+
 .bb-chat-markdown p { margin: 0 0 6px; }
 .bb-chat-markdown p:last-child { margin-bottom: 0; }
 .bb-chat-markdown h1, .bb-chat-markdown h2, .bb-chat-markdown h3,

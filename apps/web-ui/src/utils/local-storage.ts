@@ -48,6 +48,12 @@ export const StorageKey = {
   CHAT_HISTORY: 'ai.chatHistory',
   /** Last active right-pane tab ('channels' | 'help' | 'ai'). */
   ACTIVE_RIGHT_TAB: 'ui.activeRightTab',
+  /** Toolbar visible state (boolean). */
+  PANEL_VIS_TOOLBAR: 'panel.toolbar',
+  /** Transport bar visible state (boolean). */
+  PANEL_VIS_TRANSPORT_BAR: 'panel.transport-bar',
+  /** Channel mixer visible state (boolean). */
+  PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

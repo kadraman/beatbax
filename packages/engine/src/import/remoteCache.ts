@@ -199,7 +199,7 @@ export class RemoteInstrumentCache {
     // Check for any other non-standard properties that might be added
     const allowedKeys = new Set([
       'insts', 'imports', 'pats', 'seqs', 'channels', 'arranges', 'play',
-      'chip', 'bpm', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
+      'chip', 'bpm', 'time', 'stepsPerBar', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
     ]);
     
     for (const key of Object.keys(ast)) {

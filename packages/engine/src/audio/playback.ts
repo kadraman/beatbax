@@ -952,6 +952,17 @@ export class Player {
     }
   }
 
+  /**
+   * Set the master output gain. volume is 0.0–1.0 (linear gain).
+   * Takes effect immediately regardless of whether a song is playing.
+   */
+  public setMasterVolume(volume: number): void {
+    const clamped = Math.max(0, Math.min(1, volume));
+    if (this.masterGain) {
+      this.masterGain.gain.setValueAtTime(clamped, this.ctx.currentTime);
+    }
+  }
+
   stop() {
     // Clear paused flag
     this._isPaused = false;
