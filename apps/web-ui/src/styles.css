@@ -105,8 +105,63 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  /* Rack ears are 28px wide pseudo-elements; pad content away from the ends */
+  padding: 6px 12px 6px calc(28px + 12px);
+  padding-right: calc(28px + 12px);
+  position: relative;
   flex-shrink: 0;
+}
+
+/* ── Rack ears (::before = left, ::after = right) ────────────────────────── */
+/* No background set here — the parent's stripes + gradient show through.
+   Only the inner divider line and the countersunk screw are added. */
+.bb-transport::before,
+.bb-transport::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+}
+.bb-transport::before {
+  left: 0;
+  border-right: 1px solid rgba(0,0,0,0.45);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,0.08);
+  /* Countersunk screw — highlight arc + dark disc, transparent elsewhere */
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255,255,255,0.32) 0%, transparent 52%)
+      center / 12px 12px no-repeat,
+    radial-gradient(circle at 50% 50%, #181818 0%, #181818 38%, transparent 42%)
+      center / 12px 12px no-repeat;
+}
+.bb-transport::after {
+  right: 0;
+  border-left: 1px solid rgba(0,0,0,0.45);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.08);
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255,255,255,0.32) 0%, transparent 52%)
+      center / 12px 12px no-repeat,
+    radial-gradient(circle at 50% 50%, #181818 0%, #181818 38%, transparent 42%)
+      center / 12px 12px no-repeat;
+}
+/* Light mode: adjust divider and screw colour for aluminium face */
+[data-theme=light] .bb-transport::before {
+  border-right: 1px solid rgba(0,0,0,0.20);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,0.55);
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255,255,255,0.65) 0%, transparent 52%)
+      center / 12px 12px no-repeat,
+    radial-gradient(circle at 50% 50%, #8a8480 0%, #8a8480 38%, transparent 42%)
+      center / 12px 12px no-repeat;
+}
+[data-theme=light] .bb-transport::after {
+  border-left: 1px solid rgba(0,0,0,0.20);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.55);
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255,255,255,0.65) 0%, transparent 52%)
+      center / 12px 12px no-repeat,
+    radial-gradient(circle at 50% 50%, #8a8480 0%, #8a8480 38%, transparent 42%)
+      center / 12px 12px no-repeat;
 }
 
 /* ── LCD readout cluster ─────────────────────────────────────────────────── */
@@ -299,6 +354,7 @@
     inset 0 -1px 0 rgba(0,0,0,0.18),
     0 2px 4px rgba(0,0,0,0.14);
 }
+
 
 [data-theme=light] .bb-transport__lcd {
   /* Light-mode sunken bezel: dark top/left shadow, near-white bottom/right highlight */
