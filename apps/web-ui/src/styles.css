@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* ─── DSEG7 LCD font (self-hosted from public/fonts/) ───────────────────── */
+@font-face {
+  font-family: 'DSEG7-Classic';
+  src: url('/fonts/DSEG7Classic-Regular.woff2') format('woff2'),
+       url('/fonts/DSEG7Classic-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DSEG7-Classic';
+  src: url('/fonts/DSEG7Classic-Bold.woff2') format('woff2'),
+       url('/fonts/DSEG7Classic-Bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * BeatBax dark/light theme custom variant.
  * The theme-manager sets data-theme="dark"|"light" on <html>.
@@ -100,7 +119,7 @@
 
 .bb-transport__lcd-ghost,
 .bb-transport__lcd-value {
-  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-family: 'DSEG7-Classic', 'Share Tech Mono', 'Courier New', monospace;
   font-size: 20px;
   line-height: 1;
   letter-spacing: 2px;

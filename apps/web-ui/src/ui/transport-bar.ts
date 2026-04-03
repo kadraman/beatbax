@@ -45,7 +45,7 @@ export class TransportBar {
     const timeLcd    = this._mkLcd('TIME',   '00:00', '00:00');
     const barBeatLcd = this._mkLcd('BAR:BT', '001:1', '000:0');
     const stepLcd    = this._mkLcd('STEP',   '01/01', '00/00');
-    const loopLcd    = this._mkLcd('LOOP',   'OFF',   'OFF');
+    const loopLcd    = this._mkLcd('LOOP',   '0FF',   '000');
 
     // Priority classes drive the responsive hide cascade
     barBeatLcd.lcd.classList.add('bb-transport__lcd--pri-1');
@@ -231,7 +231,7 @@ export class TransportBar {
 
   /** Toggle the LOOP LCD and css active class. */
   setLoopActive(active: boolean): void {
-    if (this._loopEl)  this._loopEl.textContent = active ? ' ON' : 'OFF';
+    if (this._loopEl)  this._loopEl.textContent = active ? '0N ' : '0FF';
     if (this._loopLcd) this._loopLcd.classList.toggle('bb-transport__lcd--active', active);
   }
 

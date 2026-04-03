@@ -249,8 +249,8 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 
 ## Implementation Checklist
 
-- [ ] 1. DSEG7 font loaded and applied to BPM / position displays
-- [ ] 2. Beat indicator LED with CSS flash animation
+- [x] 1. DSEG7 font loaded and applied to BPM / position displays
+- [x] 2. Beat indicator LED with CSS flash animation
 - [ ] 3. VU-meter segment bars in Channel Mixer (depends on per-channel analyser)
 - [ ] 4. Skeuomorphic transport button and LCD panel styles
 - [ ] 5. Warm accent colour CSS custom properties replacing hard-coded blues
