@@ -170,6 +170,14 @@
   gap: 6px;
   align-items: center;
   margin-right: 4px;
+  /* Recessed panel tray — LCDs sit in a sunken bay cut into the metal face */
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow:
+    inset 0 2px 7px rgba(0, 0, 0, 0.72),
+    inset 0 1px 2px rgba(0, 0, 0, 0.50),
+    0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /* Individual LCD window */
@@ -184,13 +192,15 @@
   border: 1px solid;
   border-color: #111 #2e4a2e #2e4a2e #111;
   border-radius: 6px;
-  /* Deep inset shadow — top-left darkest, bottom-right hint of lift */
+  /* Deep inset shadow + faint phosphor ambient outer glow */
   box-shadow:
     inset 0 3px 7px rgba(0,0,0,0.90),
     inset 2px 0  4px rgba(0,0,0,0.40),
     inset 0 0  2px rgba(0,0,0,0.60),
     0 1px 0 rgba(255,255,255,0.08),
-    0 2px 0 rgba(255,255,255,0.04);
+    0 2px 0 rgba(255,255,255,0.04),
+    0 0 8px  rgba(61, 255, 112, 0.10),
+    0 0 16px rgba(61, 255, 112, 0.04);
 }
 
 /* Tiny silk-screened label above the display */
@@ -292,11 +302,14 @@
   border: 1px solid;
   border-color: #606060 #282828 #1e1e1e #606060;
   color: #d4d4d4;
-  background: linear-gradient(to bottom, #525252 0%, #323232 100%);
+  /* Domed surface: radial highlight at top-centre + linear dark-to-darker base */
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.10) 0%, transparent 65%),
+    linear-gradient(to bottom, #525252 0%, #323232 100%);
   box-shadow:
     0 2px 5px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.13),
-    inset 0 -1px 0 rgba(0,0,0,0.25);
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.30);
   transition: filter 0.08s, color 0.08s;
   user-select: none;
   white-space: nowrap;
@@ -356,6 +369,14 @@
 }
 
 
+[data-theme=light] .bb-transport__info {
+  background: rgba(0, 0, 0, 0.07);
+  box-shadow:
+    inset 0 2px 7px rgba(0, 0, 0, 0.22),
+    inset 0 1px 2px rgba(0, 0, 0, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.70);
+}
+
 [data-theme=light] .bb-transport__lcd {
   /* Light-mode sunken bezel: dark top/left shadow, near-white bottom/right highlight */
   border-color: #999 #e8e8e8 #e8e8e8 #999;
@@ -364,7 +385,8 @@
     inset 2px 0  4px rgba(0,0,0,0.12),
     inset 0 0  2px rgba(0,0,0,0.18),
     0 1px 0 rgba(255,255,255,0.90),
-    0 2px 0 rgba(255,255,255,0.50);
+    0 2px 0 rgba(255,255,255,0.50),
+    0 0 6px  rgba(61, 255, 112, 0.07);
 }
 
 [data-theme=light] .bb-transport__separator {
@@ -374,11 +396,13 @@
 [data-theme=light] .bb-transport__btn {
   border-color: #d8d8d8 #8c8c8c #7a7a7a #d8d8d8;
   color: #1e1e1e;
-  background: linear-gradient(to bottom, #f0f0f0 0%, #d4d4d4 100%);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.50) 0%, transparent 65%),
+    linear-gradient(to bottom, #f0f0f0 0%, #d4d4d4 100%);
   box-shadow:
     0 2px 5px rgba(0,0,0,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.80),
-    inset 0 -1px 0 rgba(0,0,0,0.10);
+    inset 0 1px 0 rgba(255,255,255,0.90),
+    inset 0 -1px 0 rgba(0,0,0,0.12);
 }
 
 [data-theme=light] .bb-transport__btn:hover:not(:disabled) {
