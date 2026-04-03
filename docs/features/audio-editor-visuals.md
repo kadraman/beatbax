@@ -256,7 +256,7 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 - [x] 5. Warm accent colour CSS custom properties replacing hard-coded blues
 - [ ] 6. Oscilloscope canvas strip in/near transport bar
 - [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
-- [ ] 8. Rack-panel brushed-metal gradient on transport bar background
+- [x] 8. Rack-panel brushed-metal gradient on transport bar background
 - [ ] 9. Rotary knob component replacing volume +/− buttons
 - [ ] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
 - [ ] 11. CRT scanline boot animation overlay

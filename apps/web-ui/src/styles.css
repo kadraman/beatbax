@@ -84,10 +84,24 @@
 
 /* ─── Transport Bar ──────────────────────────────────────────────────────── */
 .bb-transport {
-  background: var(--bb-transport-bg);
-  border-bottom: 1px solid var(--bb-transport-border);
-  /* Subtle bevel on the panel face */
-  background-image: linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.10) 100%);
+  /* Brushed-aluminium face: fine horizontal stripe over dark steel base */
+  background-color: var(--bb-transport-bg);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.035) 0px,
+      rgba(255,255,255,0.035) 1px,
+      transparent               1px,
+      transparent               3px
+    ),
+    linear-gradient(to bottom, #383838 0%, #252525 100%);
+  /* Machined-edge bevel: bright top highlight, dark bottom shadow */
+  border-top:    1px solid rgba(255,255,255,0.18);
+  border-bottom: 1px solid rgba(0,0,0,0.70);
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.40),
+    0 2px 6px rgba(0,0,0,0.50);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -251,7 +265,10 @@
 }
 
 .bb-transport__btn:disabled {
-  opacity: 0.32;
+  background: linear-gradient(to bottom, #363636 0%, #282828 100%);
+  border-color: #3e3e3e #222222 #1c1c1c #3e3e3e;
+  color: #555555;
+  box-shadow: none;
   cursor: default;
   filter: none;
 }
@@ -265,7 +282,22 @@
 
 /* ── Light mode overrides ────────────────────────────────────────────────── */
 [data-theme=light] .bb-transport {
-  background-image: linear-gradient(to bottom, rgba(255,255,255,0.60) 0%, rgba(0,0,0,0.04) 100%);
+  background-color: var(--bb-transport-bg);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent       0px,
+      transparent       2px,
+      rgba(0,0,0,0.045) 2px,
+      rgba(0,0,0,0.045) 3px
+    ),
+    linear-gradient(to bottom, #dcdad6 0%, #c4c2be 100%);
+  border-top:    1px solid rgba(255,255,255,0.95);
+  border-bottom: 1px solid rgba(0,0,0,0.28);
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,0.70),
+    inset 0 -1px 0 rgba(0,0,0,0.18),
+    0 2px 4px rgba(0,0,0,0.14);
 }
 
 [data-theme=light] .bb-transport__lcd {
@@ -303,6 +335,14 @@
   box-shadow:
     inset 0 2px 5px rgba(0,0,0,0.20),
     0 1px 0 rgba(255,255,255,0.60);
+}
+[data-theme=light] .bb-transport__btn:disabled {
+  background: linear-gradient(to bottom, #dcdcdc 0%, #cccccc 100%);
+  border-color: #c4c4c4 #aaaaaa #a0a0a0 #c4c4c4;
+  color: #aaaaaa;
+  box-shadow: none;
+  cursor: default;
+  filter: none;
 }
 
 /* Accent colours are darker/richer so they contrast on the light button face */
@@ -1040,7 +1080,13 @@
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.04);
   transform: translateY(1px);
 }
-.bb-transport__nudge-btn:disabled { opacity: 0.30; cursor: default; }
+.bb-transport__nudge-btn:disabled {
+  background: linear-gradient(to bottom, #323232 0%, #262626 100%);
+  border-color: #3a3a3a #1e1e1e #181818 #3a3a3a;
+  color: #484848;
+  box-shadow: none;
+  cursor: default;
+}
 
 /* ── Per-button colour accents: new buttons ──────────────────────────────── */
 .bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
@@ -1066,6 +1112,13 @@
 [data-theme=light] .bb-transport__nudge-btn:active:not(:disabled) {
   background: linear-gradient(to bottom, #b8b8b8 0%, #d0d0d0 100%);
   border-color: #777 #cccccc #cccccc #777;
+}
+[data-theme=light] .bb-transport__nudge-btn:disabled {
+  background: linear-gradient(to bottom, #d8d8d8 0%, #c8c8c8 100%);
+  border-color: #c0c0c0 #a0a0a0 #989898 #c0c0c0;
+  color: #aaaaaa;
+  box-shadow: none;
+  cursor: default;
 }
 
 
