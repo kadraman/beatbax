@@ -826,7 +826,7 @@ export function registerBeatBaxLanguage(): void {
       { token: 'identifier', foreground: 'DCDCAA' }, // Yellow - identifiers (instrument/pattern/seq references)
       { token: 'operator', foreground: 'D4D4D4' }, // White/gray - operators
       { token: 'delimiter', foreground: '808080' }, // Gray - delimiters
-      { token: 'keyword', foreground: '569CD6' }, // Blue - keywords like pat, seq, inst
+      { token: 'keyword', foreground: 'C8A227' }, // Amber - keywords like pat, seq, inst
       { token: 'keyword.control', foreground: 'C586C0' }, // Purple - play, export
       { token: 'comment', foreground: '6A9955' }, // Typical green - comments
     ],
@@ -856,7 +856,7 @@ export function registerBeatBaxLanguage(): void {
       { token: 'identifier', foreground: '001080' }, // Yellow - identifiers
       { token: 'operator', foreground: '000000' }, // White/gray - operators
       { token: 'delimiter', foreground: '000000' }, // Gray - delimiters
-      { token: 'keyword', foreground: '0000FF' }, // Blue - keywords
+      { token: 'keyword', foreground: '9A7110' }, // Amber - keywords
       { token: 'keyword.control', foreground: 'AF00DB' }, // Purple - keywords
       { token: 'comment', foreground: '008000' }, // Green - comments
     ],

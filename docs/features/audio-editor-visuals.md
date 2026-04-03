@@ -253,7 +253,7 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 - [x] 2. Beat indicator LED with CSS flash animation
 - [ ] 3. VU-meter segment bars in Channel Mixer (depends on per-channel analyser)
 - [ ] 4. Skeuomorphic transport button and LCD panel styles
-- [ ] 5. Warm accent colour CSS custom properties replacing hard-coded blues
+- [x] 5. Warm accent colour CSS custom properties replacing hard-coded blues
 - [ ] 6. Oscilloscope canvas strip in/near transport bar
 - [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
 - [ ] 8. Rack-panel brushed-metal gradient on transport bar background
@@ -270,7 +270,7 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 ## Open Questions
 
 - Should items 1 and 12 use a self-hosted font (to avoid CDN dependency) or a CDN link?
-- For item 5 (accent colour), should amber or green be the primary accent? Both have hardware precedent; amber leans retro/vintage, green leans Game Boy.
+- For item 5 (accent colour), should amber or green be the primary accent? Both have hardware precedent; amber leans retro/vintage, green leans Game Boy. **→ Amber chosen: `--bb-accent: #c8a227`. Green retained for LCD/LED elements.**
 - Should the oscilloscope (item 6) be always visible or user-togglable (persisted via `localStorage`)?
 - For item 9 (knob), should we use an existing library or hand-roll to avoid a new dependency?
 - For item 13–15 (rack styling), should the rack rail width be visible at all viewport widths, or hidden below a minimum window width to avoid crowding on smaller screens?
