@@ -862,6 +862,42 @@ export function registerBeatBaxLanguage(): void {
     ],
     colors: {},
   });
+
+  // ── Document formatter ────────────────────────────────────────────────────
+  monaco.languages.registerDocumentFormattingEditProvider('beatbax', {
+    provideDocumentFormattingEdits(model) {
+      const text = model.getValue();
+      const lines = text.split('\n');
+      const out: string[] = [];
+      let prevWasBlank = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        // Strip trailing whitespace only
+        const line = lines[i].replace(/\s+$/, '');
+
+        const isBlank = line.trim() === '';
+        const isTopLevel = /^\s*(song|chip|bpm|time|stepsPerBar|ticksPerStep|inst|pat|seq|channel|play|export|import)\b/.test(line);
+
+        // Insert a blank line before each top-level statement (except at start)
+        if (isTopLevel && out.length > 0 && !prevWasBlank) {
+          out.push('');
+        }
+
+        // Collapse multiple consecutive blank lines to one
+        if (isBlank && prevWasBlank) continue;
+
+        out.push(line);
+        prevWasBlank = isBlank;
+      }
+
+      // Remove trailing blank lines
+      while (out.length > 0 && out[out.length - 1].trim() === '') out.pop();
+
+      const formatted = out.join('\n') + '\n';
+      const fullRange = model.getFullModelRange();
+      return [{ range: fullRange, text: formatted }];
+    },
+  });
 }
 
 // ─── Note transposition helpers ──────────────────────────────────────────────

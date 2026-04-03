@@ -559,6 +559,10 @@ export class ChatPanel {
     const inputRow = document.createElement('div');
     inputRow.className = 'bb-chat-input-row';
 
+    // Wrapper gives us a positioning context for the inline send button
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'bb-chat-input-wrap';
+
     this.inputEl = document.createElement('textarea');
     this.inputEl.className = 'bb-chat-input';
     this.inputEl.placeholder = this.mode === 'edit'
@@ -574,7 +578,9 @@ export class ChatPanel {
 
     this.sendBtn = document.createElement('button');
     this.sendBtn.className = 'bb-chat-send-btn';
-    this.sendBtn.innerHTML = icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
+    this.sendBtn.title = 'Send message (Enter)';
+    this.sendBtn.setAttribute('aria-label', 'Send message');
+    this.sendBtn.innerHTML = icon('paper-airplane', 'w-5 h-5');
     this.sendBtn.addEventListener('click', () => {
       if (this.isLoading) {
         this.abortController?.abort();
@@ -583,8 +589,9 @@ export class ChatPanel {
       }
     });
 
-    inputRow.appendChild(this.inputEl);
-    inputRow.appendChild(this.sendBtn);
+    inputWrap.appendChild(this.inputEl);
+    inputWrap.appendChild(this.sendBtn);
+    inputRow.appendChild(inputWrap);
     this.el.appendChild(inputRow);
 
     // ── Footer ────────────────────────────────────────────────────────────────
@@ -1111,10 +1118,17 @@ export class ChatPanel {
     chatLoading.set(loading);
     this.sendBtn.disabled = false; // always clickable — acts as Stop when loading
     this.inputEl.disabled = loading;
-    this.sendBtn.innerHTML = loading
-      ? icon('stop', 'w-4 h-4 inline-block mr-1') + 'Stop'
-      : icon('paper-airplane', 'w-4 h-4 inline-block mr-1') + 'Send';
-    this.sendBtn.title = loading ? 'Cancel request' : '';
+    if (loading) {
+      this.sendBtn.innerHTML = icon('stop', 'w-5 h-5');
+      this.sendBtn.title = 'Cancel request';
+      this.sendBtn.setAttribute('aria-label', 'Cancel request');
+      this.sendBtn.classList.add('bb-chat-send-btn--stop');
+    } else {
+      this.sendBtn.innerHTML = icon('paper-airplane', 'w-5 h-5');
+      this.sendBtn.title = 'Send message (Enter)';
+      this.sendBtn.setAttribute('aria-label', 'Send message');
+      this.sendBtn.classList.remove('bb-chat-send-btn--stop');
+    }
     if (loading) {
       const el = document.createElement('div');
       el.className = 'bb-chat-typing';
