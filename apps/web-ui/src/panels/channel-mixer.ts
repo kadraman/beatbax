@@ -149,6 +149,7 @@ export class ChannelMixer {
     const card = document.createElement('div');
     card.className = 'bb-cp__card' + (!isAudible ? ' bb-cp__card--silent' : '');
     card.id = `bb-cp-card-${ch.id}`;
+    card.dataset.channel = String(ch.id);
 
     // ── Card header: level bar + channel name + chip label ──────────────────
     const cardHeader = document.createElement('div');

@@ -130,9 +130,37 @@
         border-radius: 9999px;
         animation: bb-spin 0.7s linear infinite;
       }
+
+      /* ── CRT power-on overlay (critical CSS) ─────────────────────────── */
+      @keyframes bb-crt-poweron {
+        0%   { filter: brightness(0) blur(4px); opacity: 1; }
+        8%   { filter: brightness(0.07) blur(2px); opacity: 1; }
+        18%  { filter: brightness(0.18) blur(1px); opacity: 1; }
+        35%  { filter: brightness(0.55) blur(0px); opacity: 1; }
+        60%  { filter: brightness(1.10) blur(0px); opacity: 1; }
+        80%  { filter: brightness(1.00) blur(0px); opacity: 1; }
+        100% { filter: brightness(1.00) blur(0px); opacity: 0; }
+      }
+      #bb-boot-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        pointer-events: none;
+        /* scanlines */
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 3px,
+            rgba(0, 0, 0, 0.22) 3px,
+            rgba(0, 0, 0, 0.22) 4px
+          );
+        animation: bb-crt-poweron 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
     </style>
   </head>
   <body>
+    <div id="bb-boot-overlay" aria-hidden="true"></div>
     <div id="bb-boot-spinner" aria-label="Loading BeatBax" role="status">
       <div class="bb-spinner-ring" aria-hidden="true"></div>
       <span>Loading BeatBax…</span>

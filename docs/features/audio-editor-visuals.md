@@ -258,8 +258,8 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 - [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
 - [x] 8. Rack-panel brushed-metal gradient on transport bar background
 - [ ] 9. Rotary knob component replacing volume +/− buttons
-- [ ] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
-- [ ] 11. CRT scanline boot animation overlay
+- [x] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
+- [x] 11. CRT scanline boot animation overlay
 - [x] 12. LCD font applied to note name readouts in Channel Mixer
 - [x] 13. Transport bar styled as a 1U rack panel with brushed-metal face and screw ears (CSS only)
 - [ ] 14. Full app frame rack cabinet rails (left/right fixed strips with slot holes)

@@ -42,6 +42,12 @@
   --bb-accent-btn:   #8a6500;
   --bb-accent-btn-h: #a87c00;
   --bb-accent-glow:  rgba(200, 162, 39, 0.28);
+
+  /* ── Channel colours (Game Boy APU) ──────────────────────────── */
+  --bb-ch1: #569cd6; /* Pulse 1  — blue       */
+  --bb-ch2: #9cdcfe; /* Pulse 2  — light blue  */
+  --bb-ch3: #4ec9b0; /* Wave     — teal        */
+  --bb-ch4: #ce9178; /* Noise    — salmon      */
 }
 
 [data-theme="light"] {
@@ -1398,7 +1404,19 @@
   transition: opacity 0.2s;
 }
 .bb-cp__card--silent { opacity: 0.5; }
-.bb-cp__card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bb-cp__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Leave room for the channel colour accent strip on the left of the card */
+  padding-left: 3px;
+}
+/* Per-channel left-border accent — matches Monaco syntax highlight colours */
+.bb-cp__card[data-channel="1"] { border-left: 3px solid var(--bb-ch1); }
+.bb-cp__card[data-channel="2"] { border-left: 3px solid var(--bb-ch2); }
+.bb-cp__card[data-channel="3"] { border-left: 3px solid var(--bb-ch3); }
+.bb-cp__card[data-channel="4"] { border-left: 3px solid var(--bb-ch4); }
 .bb-cp__header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 110px; text-align: right; }
 .bb-cp__wave-canvas {
   width: 80px; height: 24px; display: block;
@@ -1490,7 +1508,10 @@
 }
 [data-theme="light"] .bb-cp__card {
   background: linear-gradient(to bottom, #f4f4f4 0%, #ececec 100%);
-  border-color: #d8d8d8 #9a9a9a #8a8a8a #d8d8d8;
+  border-top-color:    #d8d8d8;
+  border-right-color:  #9a9a9a;
+  border-bottom-color: #8a8a8a;
+  /* border-left-color intentionally omitted — per-channel [data-channel] rule provides it */
   box-shadow:
     0 3px 6px rgba(0,0,0,0.14),
     inset 0 1px 0 rgba(255,255,255,0.90),
