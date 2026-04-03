@@ -579,6 +579,7 @@ export class ChatPanel {
     this.sendBtn = document.createElement('button');
     this.sendBtn.className = 'bb-chat-send-btn';
     this.sendBtn.title = 'Send message (Enter)';
+    this.sendBtn.setAttribute('aria-label', 'Send message');
     this.sendBtn.innerHTML = icon('paper-airplane', 'w-5 h-5');
     this.sendBtn.addEventListener('click', () => {
       if (this.isLoading) {
@@ -1120,10 +1121,12 @@ export class ChatPanel {
     if (loading) {
       this.sendBtn.innerHTML = icon('stop', 'w-5 h-5');
       this.sendBtn.title = 'Cancel request';
+      this.sendBtn.setAttribute('aria-label', 'Cancel request');
       this.sendBtn.classList.add('bb-chat-send-btn--stop');
     } else {
       this.sendBtn.innerHTML = icon('paper-airplane', 'w-5 h-5');
       this.sendBtn.title = 'Send message (Enter)';
+      this.sendBtn.setAttribute('aria-label', 'Send message');
       this.sendBtn.classList.remove('bb-chat-send-btn--stop');
     }
     if (loading) {

@@ -76,6 +76,7 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
+import { BeatBaxStorage, StorageKey } from './utils/local-storage';
 
 const log = createLogger('ui:main');
 
@@ -445,7 +446,7 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
 // Restore channel-mixer tab visibility
-if (!readPanelVis('channel-mixer')) rightTabs.close('channels');
+if (!readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) rightTabs.close('channels');
 
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
@@ -470,17 +471,17 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'toolbar') {
     try {
       toolbar?.[visible ? 'show' : 'hide']?.();
-      writePanelVis('toolbar', visible);
+      writePanelVis(StorageKey.PANEL_VIS_TOOLBAR, visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'transport-bar') {
     try {
       transportBar?.[visible ? 'show' : 'hide']?.();
-      writePanelVis('transport-bar', visible);
+      writePanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR, visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'channel-mixer') {
-    writePanelVis('channel-mixer', visible);
+    writePanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER, visible);
   }
 });
 
@@ -495,7 +496,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 
 // ─── TransportBar + TransportControls ────────────────────────────────────────
 const transportBar = new TransportBar({ container: layoutHost });
-if (!readPanelVis('transport-bar')) transportBar.hide();
+if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 
 // ── Runtime state for transport extras ───────────────────────────────────────
 let _currentBpm = 120;          // last BPM from AST (or nudged override)
@@ -618,23 +619,7 @@ transportBar.loopButton.addEventListener('click', () => {
   transportBar.loopButton.title = _loopMode ? 'Loop ON — click to disable' : 'Toggle loop playback';
   transportBar.setLoopActive(_loopMode);
   opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
-  // Wire natural song-end to restart when loop is on
-  const player = playbackManager.getPlayer() as any;
-  if (player) {
-    player.onComplete = _loopMode
-      ? () => { playbackManager.play(getSource()); }
-      : () => { playbackManager.stop(); };
-  }
-});
-
-// Keep loop callback in sync whenever a new song is started
-eventBus.on('playback:started', () => {
-  const player = playbackManager.getPlayer() as any;
-  if (player) {
-    player.onComplete = _loopMode
-      ? () => { playbackManager.play(getSource()); }
-      : () => { playbackManager.stop(); };
-  }
+  playbackManager.setLoop(_loopMode);
 });
 
 // ─── BPM nudge buttons ───────────────────────────────────────────────────────
@@ -922,9 +907,9 @@ const menuBar = new MenuBar({
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
 menuBar.seedPanelVisible({
-  toolbar:          readPanelVis('toolbar'),
-  'transport-bar':  readPanelVis('transport-bar'),
-  'channel-mixer':  readPanelVis('channel-mixer'),
+  toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
+  'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
+  'channel-mixer':  readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
 });
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
@@ -954,7 +939,7 @@ toolbar = new Toolbar({
 });
 
 // Restore toolbar visibility
-if (!readPanelVis('toolbar')) toolbar.hide();
+if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => toolbar.setThemeIcon(theme));

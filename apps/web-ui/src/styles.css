@@ -246,9 +246,9 @@
  *  Lower pri number = higher priority (hidden first at lowest BPs).
  *
  *  pri-1  → BAR:BT, STEP LCDs             hidden at < 1400 px
- *  pri-2  → SIG, LOOP LCDs; ⟳ Loop, ● Rec hidden at < 1150 px
+ *  pri-2  → LOOP LCD; ⟳ Loop, ● Rec        hidden at < 1150 px
  *  pri-3  → BPM nudge, VOL group           hidden at <  900 px
- *  pri-4  → TIME LCD, ⏮ Rewind, ⏭ Skip    hidden at <  720 px
+ *  pri-4  → TIME LCD, ⏮ Rewind             hidden at <  720 px
  *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply     hidden at <  550 px
  *
  *  Only ▶ Play and ⏹ Stop are always visible.
@@ -263,7 +263,7 @@
   .bb-transport__lcd--pri-1 { display: none; }
 }
 
-/* 1150 px — hide SIG + LOOP LCDs, ⟳ Loop, ● Rec */
+/* 1150 px — hide LOOP LCD, ⟳ Loop, ● Rec */
 @media (max-width: 1149px) {
   .bb-transport__lcd--pri-2,
   .bb-transport__btn--pri-2 { display: none; }
@@ -276,7 +276,7 @@
   .bb-transport__separator--pri-3 { display: none; }
 }
 
-/* 720 px — hide TIME LCD, ⏮ Rewind, ⏭ Skip */
+/* 720 px — hide TIME LCD, ⏮ Rewind */
 @media (max-width: 719px) {
   .bb-transport__lcd--pri-4,
   .bb-transport__btn--pri-4 { display: none; }
@@ -972,7 +972,6 @@
 
 /* ── Per-button colour accents: new buttons ──────────────────────────────── */
 .bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
-.bb-transport__btn--skip   { border-top-color: #4a8fd4; color: #c4d8ed; }
 .bb-transport__btn--loop   { border-top-color: #4caf50; color: #c8edca; }
 
 /* ── VOL LCD: slightly narrower label ────────────────────────────────────── */
@@ -980,7 +979,6 @@
 
 /* ── Light mode additions ─────────────────────────────────────────────────── */
 [data-theme=light] .bb-transport__btn--rewind { border-top-color: #1565c0; color: #0d2e5a; }
-[data-theme=light] .bb-transport__btn--skip   { border-top-color: #1565c0; color: #0d2e5a; }
 [data-theme=light] .bb-transport__btn--loop   { border-top-color: #2e7d32; color: #1b4d1e; }
 [data-theme=light] .bb-transport__btn--record { border-top-color: #c62828; color: #5a1010; }
 [data-theme=light] .bb-transport__nudge-btn {

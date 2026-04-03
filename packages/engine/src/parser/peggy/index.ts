@@ -539,11 +539,11 @@ export function parseWithPeggy(source: string): AST {
         break;
       }
       case 'TimeStmt': {
-        topTime = (stmt as any).time;
+        topTime = (stmt as TimeStmt).time;
         break;
       }
       case 'StepsPerBarStmt': {
-        topStepsPerBar = (stmt as any).stepsPerBar;
+        topStepsPerBar = (stmt as StepsPerBarStmt).stepsPerBar;
         break;
       }
       case 'VolumeStmt': {
@@ -750,9 +750,8 @@ export function parseWithPeggy(source: string): AST {
 
   const includeStructured = true;
 
-  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata };
-  if (topTime !== undefined) (ast as any).time = topTime;
-  if (topStepsPerBar !== undefined) (ast as any).stepsPerBar = topStepsPerBar;
+  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata,
+    time: topTime, stepsPerBar: topStepsPerBar };
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (imports.length > 0) ast.imports = imports;

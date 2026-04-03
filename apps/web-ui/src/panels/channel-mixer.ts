@@ -86,9 +86,11 @@ export class ChannelMixer {
     toggleBtn.className = 'bb-cp__toolbar-btn';
     toggleBtn.title = 'Toggle compact / full view';
     toggleBtn.innerHTML = this.compactMode ? icon('squares-2x2') : icon('list-bullet');
+    toggleBtn.setAttribute('aria-label', this.compactMode ? 'Switch to full view' : 'Switch to compact view');
     toggleBtn.addEventListener('click', () => {
       this.compactMode = !this.compactMode;
       toggleBtn.innerHTML = this.compactMode ? icon('squares-2x2') : icon('list-bullet');
+      toggleBtn.setAttribute('aria-label', this.compactMode ? 'Switch to full view' : 'Switch to compact view');
       root.classList.toggle('bb-cp--compact', this.compactMode);
       root.classList.toggle('bb-cp--full', !this.compactMode);
       try { localStorage.setItem('bb-channel-compact', String(this.compactMode)); } catch (e) {}

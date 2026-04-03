@@ -71,6 +71,7 @@ export class PlaybackManager {
   };
 
   private player: Player | null = null;
+  private _loop = false;
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
@@ -293,9 +294,20 @@ export class PlaybackManager {
         log.debug('Player.playAST:', this.player.playAST);
       }
 
-      // Set up completion callback to handle natural playback end
+      // Set up completion callback to handle natural playback end.
+      // When loop mode is active, replay the already-resolved AST directly
+      // (no re-parse) rather than stopping. The callback captures `resolved`
+      // so the same AST object is reused on every iteration.
       this.player.onComplete = () => {
-        this.stop();
+        if (this._loop) {
+          this.eventBus.emit('playback:repeated', undefined);
+          this.player!.playAST(resolved as any).catch((err: unknown) => {
+            log.error('Loop restart failed:', err);
+            this.stop();
+          });
+        } else {
+          this.stop();
+        }
       };
 
       // Set up repeat callback to notify UI when song loops
@@ -452,13 +464,16 @@ export class PlaybackManager {
    * Takes effect immediately if a song is playing.
    */
   setMasterVolume(volume: number): void {
-    const player = this.player as any;
-    if (!player) return;
-    const gain: GainNode | null = player.masterGain ?? null;
-    const ctx: AudioContext | null = player.ctx ?? null;
-    if (gain && ctx) {
-      gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), ctx.currentTime);
-    }
+    if (!this.player) return;
+    this.player.setMasterVolume(volume);
+  }
+
+  /**
+   * Enable or disable loop mode. When enabled, the song restarts from
+   * the resolved AST at the end of each playback iteration without re-parsing.
+   */
+  setLoop(enabled: boolean): void {
+    this._loop = enabled;
   }
 
   /**

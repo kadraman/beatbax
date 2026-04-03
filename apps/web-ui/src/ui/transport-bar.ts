@@ -67,6 +67,7 @@ export class TransportBar {
       const b = document.createElement('button');
       b.textContent = label;
       b.title = title;
+      b.setAttribute('aria-label', title);
       b.className = 'bb-transport__nudge-btn';
       return b as HTMLButtonElement;
     };
@@ -83,6 +84,7 @@ export class TransportBar {
       const b = document.createElement('button');
       b.textContent = label;
       b.title = title;
+      if (title) b.setAttribute('aria-label', title);
       b.className = `bb-transport__btn${variant ? ` bb-transport__btn--${variant}` : ''}`;
       return b as HTMLButtonElement;
     };
@@ -198,7 +200,7 @@ export class TransportBar {
     const raw = label.startsWith(prefix) ? label.slice(prefix.length) : label;
     const [mins, secs] = raw.split(':');
     this._timeEl.textContent = secs !== undefined
-      ? `${mins.padStart(2, '0')}:${secs}`
+      ? `${mins.padStart(2, '0')}:${secs.padStart(2, '0')}`
       : raw;
   }
 

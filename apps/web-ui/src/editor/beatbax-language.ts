@@ -876,7 +876,7 @@ export function registerBeatBaxLanguage(): void {
         const line = lines[i].replace(/\s+$/, '');
 
         const isBlank = line.trim() === '';
-        const isTopLevel = /^\s*(chip|bpm|time|stepsPerBar|ticksPerStep|inst|pat|seq|channel|play|export|import)\b/.test(line);
+        const isTopLevel = /^\s*(song|chip|bpm|time|stepsPerBar|ticksPerStep|inst|pat|seq|channel|play|export|import)\b/.test(line);
 
         // Insert a blank line before each top-level statement (except at start)
         if (isTopLevel && out.length > 0 && !prevWasBlank) {
