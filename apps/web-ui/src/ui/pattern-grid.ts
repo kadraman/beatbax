@@ -108,7 +108,8 @@ export class PatternGrid {
   constructor() {
     const el = document.createElement('div');
     el.className = 'bb-pgrid';
-    el.setAttribute('aria-hidden', 'true');
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Pattern grid');
     el.dataset['empty'] = 'true';
     this.el = el;
 
@@ -152,11 +153,15 @@ export class PatternGrid {
       // ── Row ──────────────────────────────────────────────────────────────
       const row = document.createElement('div');
       row.className = 'bb-pgrid__row';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', `Channel ${channelId}`);
 
       // ── Mute / Solo controls ─────────────────────────────────────────────
       const muteBtn = document.createElement('button');
       muteBtn.className = 'bb-pgrid__btn bb-pgrid__btn--mute';
       muteBtn.textContent = 'M';
+      muteBtn.setAttribute('aria-label', `Mute channel ${channelId}`);
+      muteBtn.setAttribute('aria-pressed', 'false');
       muteBtn.title = `Mute channel ${channelId}`;
       muteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -166,6 +171,8 @@ export class PatternGrid {
       const soloBtn = document.createElement('button');
       soloBtn.className = 'bb-pgrid__btn bb-pgrid__btn--solo';
       soloBtn.textContent = 'S';
+      soloBtn.setAttribute('aria-label', `Solo channel ${channelId}`);
+      soloBtn.setAttribute('aria-pressed', 'false');
       soloBtn.title = `Solo channel ${channelId}`;
       soloBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -177,12 +184,12 @@ export class PatternGrid {
       controls.append(muteBtn, soloBtn);
       row.appendChild(controls);
 
-      // Coloured channel dot
+      // Coloured channel dot (decorative)
       const dot = document.createElement('span');
       dot.className = 'bb-pgrid__dot';
+      dot.setAttribute('aria-hidden', 'true');
       dot.style.background = color;
       dot.style.boxShadow = `0 0 5px ${hexToRgba(color, 0.5)}`;
-      dot.title = `Ch ${channelId}`;
       row.appendChild(dot);
 
       // Track strip (blocks + cursor)
@@ -197,10 +204,20 @@ export class PatternGrid {
         block.className = 'bb-pgrid__block';
         block.style.flexGrow = String(seg.count);
         block.style.background = hexToRgba(color, segIdx % 2 === 0 ? 0.55 : 0.30);
-        block.title = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
-        // Click → navigate editor to the pat definition
+        const blockLabel = seg.seqName ? `${seg.seqName} › ${seg.patName}` : seg.patName;
+        block.title = blockLabel;
+        block.setAttribute('role', 'button');
+        block.setAttribute('tabindex', '0');
+        block.setAttribute('aria-label', `Navigate to pattern: ${blockLabel}`);
+        // Click or Enter/Space → navigate editor to the pat definition
         const patName = seg.patName;
         block.addEventListener('click', () => this.onNavigate?.(patName));
+        block.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            this.onNavigate?.(patName);
+          }
+        });
         block.style.cursor = 'pointer';
         track.appendChild(block);
         segIdx++;
@@ -215,9 +232,10 @@ export class PatternGrid {
         track.appendChild(filler);
       }
 
-      // Playback cursor line
+      // Playback cursor line (decorative)
       const cursor = document.createElement('div');
       cursor.className = 'bb-pgrid__cursor';
+      cursor.setAttribute('aria-hidden', 'true');
       cursor.style.display = 'none';
       track.appendChild(cursor);
 
@@ -285,7 +303,9 @@ export class PatternGrid {
       if (!info) continue;
       const audible = isChannelAudible(states, channelId);
       row.muteBtn.classList.toggle('bb-pgrid__btn--active', !!info.muted);
+      row.muteBtn.setAttribute('aria-pressed', String(!!info.muted));
       row.soloBtn.classList.toggle('bb-pgrid__btn--active', !!info.soloed);
+      row.soloBtn.setAttribute('aria-pressed', String(!!info.soloed));
       row.track.style.opacity = audible ? '1' : '0.4';
     }
   }

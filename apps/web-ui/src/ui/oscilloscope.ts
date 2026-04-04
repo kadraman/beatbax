@@ -18,6 +18,7 @@ export class Oscilloscope {
   private _buf: Float32Array<ArrayBuffer> | null = null;
   private _raf = 0;
   private _dpr = 1;
+  private _ro: ResizeObserver | null = null;
 
   constructor() {
     const c = document.createElement('canvas');
@@ -28,8 +29,8 @@ export class Oscilloscope {
     this._dpr = window.devicePixelRatio || 1;
 
     // Sync physical pixel size whenever the CSS box changes.
-    const ro = new ResizeObserver(() => this._syncSize());
-    ro.observe(c);
+    this._ro = new ResizeObserver(() => this._syncSize());
+    this._ro.observe(c);
   }
 
   /** Attach (or detach) an AnalyserNode. Pass null to return to idle flat-line. */
@@ -49,10 +50,23 @@ export class Oscilloscope {
     this._raf = requestAnimationFrame(tick);
   }
 
-  /** Stop the RAF draw loop (call when the canvas is removed from DOM). */
+  /** Stop the RAF draw loop. The canvas and ResizeObserver remain active. */
   stop(): void {
     cancelAnimationFrame(this._raf);
     this._raf = 0;
+  }
+
+  /**
+   * Fully tear down the oscilloscope: stop animation, disconnect the
+   * ResizeObserver, and release the analyser reference. Call this when the
+   * canvas element is removed from the DOM to avoid memory leaks.
+   */
+  dispose(): void {
+    this.stop();
+    this._ro?.disconnect();
+    this._ro = null;
+    this._analyser = null;
+    this._buf = null;
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
