@@ -1,9 +1,12 @@
+import { RotaryKnob } from './rotary-knob.js';
+import { Oscilloscope } from './oscilloscope.js';
+
 /**
  * TransportBar — DOM wrapper for transport controls.
  *
  * LCD readouts: BPM, TIME, BAR:BT, STEP, LOOP, VOL
  * Buttons: ⏮ Rew, ▶ Play, ⏸ Pause, ⏹ Stop, ↻ Apply, ⚡ Live, ⟳ Loop, ● Rec
- * Nudge controls: BPM «/», VOL −/+
+ * Nudge controls: BPM «/»; VOL via rotary knob
  */
 
 export interface TransportBarOptions {
@@ -29,8 +32,12 @@ export class TransportBar {
   // ── Nudge / stepper buttons ─────────────────────────────────────────────
   public bpmDownButton: HTMLButtonElement;
   public bpmUpButton:   HTMLButtonElement;
-  public volDownButton: HTMLButtonElement;
-  public volUpButton:   HTMLButtonElement;
+
+  // ── Volume rotary knob ───────────────────────────────────────────────────
+  public volKnob: RotaryKnob;
+
+  // ── Oscilloscope waveform strip ──────────────────────────────────────────
+  public oscilloscope: Oscilloscope;
 
   constructor(private opts: TransportBarOptions) {
     this.el = document.createElement('div');
@@ -45,13 +52,20 @@ export class TransportBar {
     const timeLcd    = this._mkLcd('TIME',   '00:00', '00:00');
     const barBeatLcd = this._mkLcd('BAR:BT', '001:1', '000:0');
     const stepLcd    = this._mkLcd('STEP',   '01/01', '00/00');
-    const loopLcd    = this._mkLcd('LOOP',   'OFF',   'OFF');
+    const loopLcd    = this._mkLcd('LOOP',   '0FF',   '000');
 
     // Priority classes drive the responsive hide cascade
     barBeatLcd.lcd.classList.add('bb-transport__lcd--pri-1');
     stepLcd.lcd.classList.add('bb-transport__lcd--pri-1');
     timeLcd.lcd.classList.add('bb-transport__lcd--pri-4');
     loopLcd.lcd.classList.add('bb-transport__lcd--pri-2');
+
+    // ── Beat indicator LED ───────────────────────────────────────────────
+    const beatLed = document.createElement('span');
+    beatLed.className = 'bb-transport__beat-led';
+    beatLed.setAttribute('aria-hidden', 'true');
+    beatLed.title = 'Beat indicator';
+    infoWrap.prepend(beatLed);
 
     infoWrap.append(
       bpmLcd.lcd, timeLcd.lcd, barBeatLcd.lcd,
@@ -73,9 +87,15 @@ export class TransportBar {
     };
     this.bpmDownButton = mkNudge('«', 'BPM −1');
     this.bpmUpButton   = mkNudge('»', 'BPM +1');
+    const bpmNudgeLabel = document.createElement('span');
+    bpmNudgeLabel.className = 'bb-transport__nudge-label';
+    bpmNudgeLabel.textContent = 'BPM';
+    const bpmNudgeRow = document.createElement('div');
+    bpmNudgeRow.className = 'bb-transport__nudge-row';
+    bpmNudgeRow.append(this.bpmDownButton, this.bpmUpButton);
     const bpmNudge = document.createElement('div');
     bpmNudge.className = 'bb-transport__nudge-wrap bb-transport__nudge-wrap--pri-3';
-    bpmNudge.append(this.bpmDownButton, this.bpmUpButton);
+    bpmNudge.append(bpmNudgeLabel, bpmNudgeRow);
     this.el.appendChild(bpmNudge);
 
     // ── Transport buttons ───────────────────────────────────────────────
@@ -111,17 +131,30 @@ export class TransportBar {
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
 
-    // ── Master volume stepper ───────────────────────────────────────────
+    // ── Master volume knob + LCD (knob embedded inside bezel) ─────────────
     const volSep = this._mkSep();
     volSep.classList.add('bb-transport__separator--pri-3');
     this.el.appendChild(volSep);
-    this.volDownButton = mkNudge('−', 'Volume −5%');
-    this.volUpButton   = mkNudge('+', 'Volume +5%');
+    this.volKnob = new RotaryKnob(28);
     const volLcd = this._mkLcd('VOL', '100%', '000%');
-    const volGroup = document.createElement('div');
-    volGroup.className = 'bb-transport__vol-group bb-transport__vol-group--pri-3';
-    volGroup.append(this.volDownButton, volLcd.lcd, this.volUpButton);
-    this.el.appendChild(volGroup);
+    volLcd.lcd.classList.add('bb-transport__lcd--vol', 'bb-transport__vol-group--pri-3');
+    // Move the screen into a row alongside the knob
+    const volScreen = volLcd.lcd.querySelector('.bb-transport__lcd-screen') as HTMLElement;
+    const volInner = document.createElement('div');
+    volInner.className = 'bb-transport__vol-inner';
+    volLcd.lcd.replaceChild(volInner, volScreen);
+    volInner.append(this.volKnob.el, volScreen);
+    this.el.appendChild(volLcd.lcd);
+
+    // ── Oscilloscope — LCD bezel, fills remaining right-side space ──────────
+    this.oscilloscope = new Oscilloscope();
+    const scopeWrap = document.createElement('div');
+    scopeWrap.className = 'bb-transport__lcd bb-transport__lcd--scope';
+    const scopeLabel = document.createElement('span');
+    scopeLabel.className = 'bb-transport__lcd-label';
+    scopeLabel.textContent = 'SCOPE';
+    scopeWrap.append(scopeLabel, this.oscilloscope.el);
+    this.el.appendChild(scopeWrap);
 
     // Insert at top of provided container (before existing children)
     const parent = this.opts.container;
@@ -135,6 +168,7 @@ export class TransportBar {
     this._loopEl    = loopLcd.value;
     this._loopLcd   = loopLcd.lcd;
     this._volEl     = volLcd.value;
+    this._beatLed   = beatLed;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
@@ -187,6 +221,7 @@ export class TransportBar {
   private _loopEl?:    HTMLElement;
   private _loopLcd?:   HTMLElement;
   private _volEl?:     HTMLElement;
+  private _beatLed?:   HTMLElement;
 
   // ── Public update API ────────────────────────────────────────────────────
 
@@ -222,7 +257,7 @@ export class TransportBar {
 
   /** Toggle the LOOP LCD and css active class. */
   setLoopActive(active: boolean): void {
-    if (this._loopEl)  this._loopEl.textContent = active ? ' ON' : 'OFF';
+    if (this._loopEl)  this._loopEl.textContent = active ? '0N ' : '0FF';
     if (this._loopLcd) this._loopLcd.classList.toggle('bb-transport__lcd--active', active);
   }
 
@@ -233,8 +268,20 @@ export class TransportBar {
     this.setTimeLabel('00:00');
   }
 
-  /** Update the VOL display. pct is 0-100. */
+  /** Update the VOL display and knob. pct is 0-100. */
   setVol(pct: number): void {
     if (this._volEl) this._volEl.textContent = `${String(pct).padStart(3, ' ')}%`;
+    this.volKnob?.setValue(pct);
+  }
+
+  /** Trigger a single beat-flash on the LED indicator. */
+  flashBeatLed(): void {
+    const led = this._beatLed;
+    if (!led) return;
+    // Remove first to allow re-triggering mid-animation
+    led.classList.remove('bb-transport__beat-led--flash');
+    // Force reflow so the class removal takes effect before re-adding
+    void led.offsetWidth;
+    led.classList.add('bb-transport__beat-led--flash');
   }
 }
