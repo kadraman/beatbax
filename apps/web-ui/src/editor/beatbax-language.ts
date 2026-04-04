@@ -123,7 +123,8 @@ export function registerBeatBaxLanguage(): void {
         // Definitions - use state to capture definition names
         [/\b(inst|pat|seq|effect|arrange)\b/, { token: 'keyword', next: '@definitionName' }],
         [/\bimport\b/, { token: 'keyword', next: '@importStatement' }],
-        [/\b(channel|from)\b/, 'keyword'],
+        [/\bchannel\b/, { token: 'keyword', next: '@channelNum' }],
+        [/\bfrom\b/, 'keyword'],
 
         // Commands
         [/\b(play|export)\b/, 'keyword.control'],
@@ -254,6 +255,18 @@ export function registerBeatBaxLanguage(): void {
         // Structural characters
         [/:/, 'delimiter'],
         [/,/, 'delimiter'],
+      ],
+
+      // Reads the channel number after the 'channel' keyword and emits a
+      // per-channel token so each number gets its own colour in the theme.
+      channelNum: [
+        [/\s+/, ''],
+        [/1\b/, { token: 'keyword.channel.1', next: '@pop' }],
+        [/2\b/, { token: 'keyword.channel.2', next: '@pop' }],
+        [/3\b/, { token: 'keyword.channel.3', next: '@pop' }],
+        [/4\b/, { token: 'keyword.channel.4', next: '@pop' }],
+        [/\d+/, { token: 'number', next: '@pop' }],
+        [/./, { token: '@rematch', next: '@pop' }],
       ],
     },
   });
@@ -826,7 +839,11 @@ export function registerBeatBaxLanguage(): void {
       { token: 'identifier', foreground: 'DCDCAA' }, // Yellow - identifiers (instrument/pattern/seq references)
       { token: 'operator', foreground: 'D4D4D4' }, // White/gray - operators
       { token: 'delimiter', foreground: '808080' }, // Gray - delimiters
-      { token: 'keyword', foreground: '569CD6' }, // Blue - keywords like pat, seq, inst
+      { token: 'keyword', foreground: 'C8A227' }, // Amber - keywords like pat, seq, inst
+      { token: 'keyword.channel.1', foreground: '569CD6' }, // Pulse 1 — blue
+      { token: 'keyword.channel.2', foreground: '9CDCFE' }, // Pulse 2 — light blue
+      { token: 'keyword.channel.3', foreground: '4EC9B0' }, // Wave    — teal
+      { token: 'keyword.channel.4', foreground: 'CE9178' }, // Noise   — salmon
       { token: 'keyword.control', foreground: 'C586C0' }, // Purple - play, export
       { token: 'comment', foreground: '6A9955' }, // Typical green - comments
     ],
@@ -856,7 +873,11 @@ export function registerBeatBaxLanguage(): void {
       { token: 'identifier', foreground: '001080' }, // Yellow - identifiers
       { token: 'operator', foreground: '000000' }, // White/gray - operators
       { token: 'delimiter', foreground: '000000' }, // Gray - delimiters
-      { token: 'keyword', foreground: '0000FF' }, // Blue - keywords
+      { token: 'keyword', foreground: '9A7110' }, // Amber - keywords
+      { token: 'keyword.channel.1', foreground: '1565C0' }, // Pulse 1 — darker blue
+      { token: 'keyword.channel.2', foreground: '0277BD' }, // Pulse 2 — mid blue
+      { token: 'keyword.channel.3', foreground: '00796B' }, // Wave    — darker teal
+      { token: 'keyword.channel.4', foreground: 'BF360C' }, // Noise   — darker salmon
       { token: 'keyword.control', foreground: 'AF00DB' }, // Purple - keywords
       { token: 'comment', foreground: '008000' }, // Green - comments
     ],

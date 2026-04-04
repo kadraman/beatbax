@@ -249,28 +249,28 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 
 ## Implementation Checklist
 
-- [ ] 1. DSEG7 font loaded and applied to BPM / position displays
-- [ ] 2. Beat indicator LED with CSS flash animation
-- [ ] 3. VU-meter segment bars in Channel Mixer (depends on per-channel analyser)
-- [ ] 4. Skeuomorphic transport button and LCD panel styles
-- [ ] 5. Warm accent colour CSS custom properties replacing hard-coded blues
-- [ ] 6. Oscilloscope canvas strip in/near transport bar
-- [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
-- [ ] 8. Rack-panel brushed-metal gradient on transport bar background
-- [ ] 9. Rotary knob component replacing volume +/− buttons
-- [ ] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
-- [ ] 11. CRT scanline boot animation overlay
-- [ ] 12. LCD font applied to note name readouts in Channel Mixer
-- [ ] 13. Transport bar styled as a 1U rack panel with brushed-metal face and screw ears (CSS only)
-- [ ] 14. Full app frame rack cabinet rails (left/right fixed strips with slot holes)
-- [ ] 15. All panels styled as rack modules snapping to 44 px multiples
+- [x] 1. DSEG7 font loaded and applied to BPM / position displays
+- [x] 2. Beat indicator LED with CSS flash animation
+- [ ] 3. VU-meter segment bars in Channel Mixer — **tracked separately in `docs/features/daw-channel-mixer.md`** (requires per-channel `AnalyserNode` and horizontal mixer redesign)
+- [x] 4. Skeuomorphic transport button and LCD panel styles
+- [x] 5. Warm accent colour CSS custom properties replacing hard-coded blues
+- [x] 6. Oscilloscope canvas strip in/near transport bar
+- [x] 7. Pattern grid mini-view panel — per-channel sequence blocks with live cursor, M/S buttons, click-to-navigate, pause-preserving cursor
+- [x] 8. Rack-panel brushed-metal gradient on transport bar background
+- [x] 9. Rotary knob component replacing volume +/− buttons
+- [x] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
+- [x] 11. CRT scanline boot animation overlay
+- [x] 12. LCD font applied to note name readouts in Channel Mixer
+- [x] 13. Transport bar styled as a 1U rack panel with brushed-metal face and screw ears (CSS only)
+- 14. ~~Full app frame rack cabinet rails~~ — **WON'T IMPLEMENT**: any repeating pattern on a narrow fixed strip looks like visual noise at screen resolution; plain rails look like wasted whitespace. The rack metaphor is sufficiently conveyed by items 8 and 13.
+- [ ] 15. All panels styled as rack modules snapping to 44 px multiples — **tracked separately in `docs/features/daw-channel-mixer.md`** (the horizontal mixer redesign supersedes the vertical panel rack-module approach)
 
 ---
 
 ## Open Questions
 
 - Should items 1 and 12 use a self-hosted font (to avoid CDN dependency) or a CDN link?
-- For item 5 (accent colour), should amber or green be the primary accent? Both have hardware precedent; amber leans retro/vintage, green leans Game Boy.
+- For item 5 (accent colour), should amber or green be the primary accent? Both have hardware precedent; amber leans retro/vintage, green leans Game Boy. **→ Amber chosen: `--bb-accent: #c8a227`. Green retained for LCD/LED elements.**
 - Should the oscilloscope (item 6) be always visible or user-togglable (persisted via `localStorage`)?
 - For item 9 (knob), should we use an existing library or hand-roll to avoid a new dependency?
 - For item 13–15 (rack styling), should the rack rail width be visible at all viewport widths, or hidden below a minimum window width to avoid crowding on smaller screens?

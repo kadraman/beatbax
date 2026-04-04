@@ -502,6 +502,13 @@ export class MenuBar {
         shortcut: 'Ctrl+Shift+Y',
         action: () => this.emitPanelToggle('channel-mixer'),
       },
+      {
+        type: 'item',
+        label: 'Pattern Grid',
+        icon: 'bars-3-center-left',
+        shortcut: 'Ctrl+Shift+G',
+        action: () => this.emitPanelToggle('pattern-grid'),
+      },
 /*      {
         type: 'item',
         label: 'Help',

@@ -63,6 +63,7 @@ import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
+import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
@@ -128,7 +129,7 @@ const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
 const appLayout = buildAppLayout(appContainer);
-const { menuBarContainer, toolbarContainer, layoutHost, editorPane, outputPane, rightPane } = appLayout;
+const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, editorPane, outputPane, rightPane } = appLayout;
 
 editor = createEditor({
   container: editorPane,
@@ -480,6 +481,10 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
       writePanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR, visible);
     } catch (_e) { /* ignore */ }
   }
+  if (panel === 'pattern-grid') {
+    patternGridContainer.style.display = visible ? '' : 'none';
+    writePanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, visible);
+  }
   if (panel === 'channel-mixer') {
     writePanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER, visible);
   }
@@ -498,11 +503,16 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 const transportBar = new TransportBar({ container: layoutHost });
 if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 
+// ─── Pattern Grid (sequence overview, sits below TransportBar) ─────────────────
+const patternGrid = new PatternGrid();
+patternGridContainer.appendChild(patternGrid.el);
+
 // ── Runtime state for transport extras ───────────────────────────────────────
 let _currentBpm = 120;          // last BPM from AST (or nudged override)
 let _currentSig = 4;            // stepsPerBar from AST
 let _masterVolPct = 100;        // master volume 0-100 %
 let _loopMode = false;          // loop toggle state
+let _lastBeat = -1;             // last beat value, used to detect beat changes for LED
 
 // Update transport display from parser / playback events
 eventBus.on('parse:success', ({ ast }) => {
@@ -522,6 +532,26 @@ eventBus.on('parse:success', ({ ast }) => {
   } catch (_e) {}
 });
 
+// Update pattern grid on each successful parse
+eventBus.on('parse:success', ({ song }: any) => {
+  try { if (song) patternGrid.setSong(song); } catch (_e) {}
+});
+
+// Navigate Monaco editor when user clicks a pattern block in the grid
+patternGrid.onNavigate = (patName: string) => {
+  try {
+    const source = getSource();
+    const lines = source.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^\s*pat\s+(\S+)/);
+      if (m && m[1] === patName) {
+        eventBus.emit('navigate:to', { line: i + 1, column: 1 });
+        break;
+      }
+    }
+  } catch (_e) {}
+};
+
 eventBus.on('playback:position', ({ current, total }) => {
   try {
     const mins = Math.floor(current / 60);
@@ -535,6 +565,11 @@ eventBus.on('playback:position', ({ current, total }) => {
       const bar  = Math.floor(totalSteps / _currentSig) + 1;
       const beat = (totalSteps % _currentSig) + 1;
       transportBar.setBarBeat(bar, beat);
+      // Flash the beat LED each time the beat number advances
+      if (beat !== _lastBeat) {
+        _lastBeat = beat;
+        transportBar.flashBeatLed();
+      }
     }
   } catch (_e) {}
 });
@@ -548,12 +583,23 @@ eventBus.on('playback:position-changed', ({ channelId, position }) => {
       transportBar.setStep(step, total);
     } catch (_e) {}
   }
+  // Advance pattern grid cursor for every channel
+  try { patternGrid.setPosition(channelId, position.progress ?? 0); } catch (_e) {}
 });
 
 // Reset position LCDs when playback stops
 eventBus.on('playback:stopped', () => {
   try { transportBar.resetPosition(); } catch (_e) {}
+  try { patternGrid.clearPositions(); } catch (_e) {}
+  _lastBeat = -1;
 });
+
+eventBus.on('playback:paused', () => {
+  try { patternGrid.pausePositions(); } catch (_e) {}
+});
+
+eventBus.on('playback:started',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
+eventBus.on('playback:resumed',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
 
 const getSource = () => (editor?.getValue?.() as string) || '';
 
@@ -688,17 +734,25 @@ function _applyBpmStep(delta: number) {
 _attachHoldRepeat(transportBar.bpmDownButton, -1, _applyBpmStep);
 _attachHoldRepeat(transportBar.bpmUpButton,   +1, _applyBpmStep);
 
-// ─── VOL stepper buttons (click + hold-to-repeat) ────────────────────────────
+// ─── VOL rotary knob ──────────────────────────────────────────────────────────
 transportBar.setVol(_masterVolPct);
+transportBar.volKnob.onChange((v) => {
+  _masterVolPct = v;
+  transportBar.setVol(v);
+  playbackManager.setMasterVolume(v / 100);
+});
 
-function _applyVolStep(delta: number) {
-  _masterVolPct = Math.min(100, Math.max(0, _masterVolPct + delta));
-  transportBar.setVol(_masterVolPct);
-  playbackManager.setMasterVolume(_masterVolPct / 100);
+// ─── Oscilloscope ────────────────────────────────────────────────────────────
+// Start the RAF loop immediately (draws a flat idle line until analyser is ready).
+transportBar.oscilloscope.start();
+// Feed the analyser whenever playback starts or resumes.
+function _updateScopeAnalyser() {
+  transportBar.oscilloscope.setAnalyser(playbackManager.getMasterAnalyser());
 }
-
-_attachHoldRepeat(transportBar.volDownButton, -5, _applyVolStep);
-_attachHoldRepeat(transportBar.volUpButton,   +5, _applyVolStep);
+eventBus.on('playback:started',  _updateScopeAnalyser);
+eventBus.on('playback:resumed',  _updateScopeAnalyser);
+// On stop/pause, keep the analyser connected so the waveform decays naturally.
+// (Passing null would immediately snap to the flat line — not needed here.)
 
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
@@ -757,12 +811,13 @@ async function emitParse(content: string): Promise<void> {
     // Use the async path when imports are present so remote/local imports
     // (github:, https://) don't throw in browser sync mode and don't
     // incorrectly mark a valid song as a parse error.
+    let song: any = null;
     try {
       const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
       if ((ast as any).imports?.length > 0) {
-        await resolveSongAsync(ast as any, resolveOpts);
+        song = await resolveSongAsync(ast as any, resolveOpts);
       } else {
-        resolveSong(ast as any, resolveOpts);
+        song = resolveSong(ast as any, resolveOpts);
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
@@ -789,7 +844,7 @@ async function emitParse(content: string): Promise<void> {
       diagnosticsManager?.clear?.();
     }
 
-    eventBus.emit('parse:success', { ast });
+    eventBus.emit('parse:success', { ast, song });
     parseStatus.set('success');
     parsedBpm.set((ast as any).bpm || 120);
     parsedChip.set((ast as any).chip || 'gameboy');
@@ -910,7 +965,13 @@ menuBar.seedPanelVisible({
   toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
   'channel-mixer':  readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
+  'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
+
+// Apply initial pattern-grid visibility
+if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
+  patternGridContainer.style.display = 'none';
+}
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
 toolbar = new Toolbar({

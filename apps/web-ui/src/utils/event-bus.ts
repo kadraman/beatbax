@@ -19,7 +19,7 @@ export interface BeatBaxEvents {
 
   // Parse events
   'parse:started': void;
-  'parse:success': { ast: any };
+  'parse:success': { ast: any; song?: any };
   'parse:error': { error: Error; message: string };
 
   // Playback events

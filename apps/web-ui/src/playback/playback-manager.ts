@@ -72,6 +72,7 @@ export class PlaybackManager {
 
   private player: Player | null = null;
   private _loop = false;
+  private _masterAnalyser: AnalyserNode | null = null;
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
@@ -466,6 +467,27 @@ export class PlaybackManager {
   setMasterVolume(volume: number): void {
     if (!this.player) return;
     this.player.setMasterVolume(volume);
+  }
+
+  /**
+   * Return (and lazily create) a master AnalyserNode tapped in parallel from
+   * the masterGain node. Returns null before the first playback starts.
+   * The analyser is connected as a side-branch (masterGain → analyser, floating);
+   * audio routing to the destination is unchanged.
+   */
+  getMasterAnalyser(): AnalyserNode | null {
+    if (!this.player) return null;
+    const gain = this.player.getMasterGain();
+    if (!gain) return null;
+    if (!this._masterAnalyser) {
+      const ctx = this.player.getAudioContext();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      gain.connect(analyser); // parallel tap — not wired to destination
+      this._masterAnalyser = analyser;
+    }
+    return this._masterAnalyser;
   }
 
   /**

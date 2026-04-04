@@ -963,6 +963,16 @@ export class Player {
     }
   }
 
+  /** Expose the AudioContext so UI consumers (e.g. oscilloscope) can create nodes. */
+  public getAudioContext(): AudioContext {
+    return this.ctx;
+  }
+
+  /** Expose the master GainNode so UI consumers can tap the post-gain signal. */
+  public getMasterGain(): GainNode | null {
+    return this.masterGain;
+  }
+
   stop() {
     // Clear paused flag
     this._isPaused = false;

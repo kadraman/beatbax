@@ -19,6 +19,7 @@ export class LoadingSpinner {
   /** Remove the static boot overlay from the DOM (call once, after editor init). */
   hideBoot(): void {
     document.getElementById('bb-boot-spinner')?.remove();
+    document.getElementById('bb-boot-overlay')?.remove();
   }
 
   /**

@@ -16,6 +16,8 @@ export interface AppLayout {
   toolbarContainer: HTMLElement;
   /** Host for the TransportBar (immediately below the toolbar). */
   layoutHost: HTMLElement;
+  /** Host for the PatternGrid (below TransportBar, above three-pane layout). */
+  patternGridContainer: HTMLElement;
   editorPane: HTMLElement;
   outputPane: HTMLElement;
   rightPane: HTMLElement;
@@ -43,6 +45,13 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
     'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px;';
   appContainer.appendChild(layoutHost);
 
+  // ─── Pattern grid host (between TransportBar and three-pane layout) ──────────────
+  // TransportBar.constructor does insertBefore(firstChild) on layoutHost, so
+  // it will push in above this element automatically.
+  const patternGridContainer = document.createElement('div');
+  patternGridContainer.id = 'bb-pattern-grid-host';
+  layoutHost.appendChild(patternGridContainer);
+
   const layout = createThreePaneLayout({ container: layoutHost, persist: true });
   const editorPane = layout.getEditorPane();
   const rightPane  = layout.getRightPane();
@@ -56,5 +65,5 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   outputPane.style.fontFamily    = '';
   outputPane.style.fontSize      = '';
 
-  return { menuBarContainer, toolbarContainer, layoutHost, editorPane, outputPane, rightPane, layout };
+  return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, editorPane, outputPane, rightPane, layout };
 }
