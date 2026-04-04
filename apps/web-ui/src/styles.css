@@ -1248,6 +1248,147 @@
 
 /* ── BPM nudge-button label + row (defined above near nudge-wrap) ─────────── */
 
+/* ── Pattern Grid ─────────────────────────────────────────────────────────── */
+/* Horizontal sequence overview — sits below TransportBar, above editor panes. */
+#bb-pattern-grid-host { line-height: 0; }
+
+.bb-pgrid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px 5px 8px;
+  background: #111318;
+  border-bottom: 1px solid rgba(0,0,0,0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),   /* top highlight */
+    0 3px 6px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+
+/* Hide grid entirely when no song has been parsed */
+.bb-pgrid[data-empty] { display: none; }
+
+.bb-pgrid__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+}
+
+/* Coloured channel-identity dot */
+.bb-pgrid__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Horizontal track — proportionally sized coloured blocks */
+.bb-pgrid__track {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  display: flex;
+  /* no gap — blocks use flex-grow so they fill exactly to align across channels */
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+}
+
+.bb-pgrid__block {
+  height: 100%;
+  /* flex-grow is set inline; flex-shrink/basis left at defaults */
+  min-width: 0;
+  border-radius: 1px;
+  transition: filter 0.08s;
+  cursor: default;
+}
+.bb-pgrid__block--filler {
+  /* transparent tail-filler for channels shorter than the longest channel */
+  background: transparent !important;
+  pointer-events: none;
+}
+.bb-pgrid__block:not(.bb-pgrid__block--filler):hover { filter: brightness(1.8); }
+
+/* Live playback cursor — thin vertical line */
+.bb-pgrid__cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: rgba(255,255,255,0.90);
+  box-shadow: 0 0 5px rgba(255,255,255,0.55);
+  pointer-events: none;
+  z-index: 2;
+  transform: translateX(-1px);
+  transition: opacity 0.15s;
+}
+/* Paused state — cursor stays visible but dimmed */
+.bb-pgrid__cursor--paused {
+  opacity: 0.35;
+  box-shadow: none;
+}
+
+/* Mute / Solo controls ── compact M/S buttons on each row */
+.bb-pgrid__controls {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.bb-pgrid__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 14px;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  font-family: inherit;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 2px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.35);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.bb-pgrid__btn:hover {
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.75);
+  border-color: rgba(255,255,255,0.25);
+}
+.bb-pgrid__btn--mute.bb-pgrid__btn--active {
+  background: rgba(220,60,60,0.40);
+  color: #ff6b6b;
+  border-color: rgba(255,80,80,0.5);
+}
+.bb-pgrid__btn--solo.bb-pgrid__btn--active {
+  background: rgba(200,162,39,0.40);
+  color: #c8a227;
+  border-color: rgba(200,162,39,0.5);
+}
+
+[data-theme=light] .bb-pgrid {
+  background: #d4d0c8;
+  border-bottom-color: #b5b0a8;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+[data-theme=light] .bb-pgrid__track { background: rgba(0,0,0,0.06); }
+[data-theme=light] .bb-pgrid__cursor { background: rgba(0,0,0,0.80); box-shadow: none; }
+[data-theme=light] .bb-pgrid__btn {
+  border-color: rgba(0,0,0,0.18);
+  background: rgba(0,0,0,0.06);
+  color: rgba(0,0,0,0.45);
+}
+[data-theme=light] .bb-pgrid__btn:hover { background: rgba(0,0,0,0.12); color: rgba(0,0,0,0.8); }
+[data-theme=light] .bb-pgrid__btn--mute.bb-pgrid__btn--active { background: rgba(200,40,40,0.20); color: #c02828; border-color: rgba(200,40,40,0.4); }
+[data-theme=light] .bb-pgrid__btn--solo.bb-pgrid__btn--active { background: rgba(180,140,20,0.20); color: #8a6a00; border-color: rgba(180,140,20,0.4); }
+
 /* ── Light mode additions ─────────────────────────────────────────────────── */
 [data-theme=light] .bb-transport__btn--rewind { border-top-color: #1565c0; color: #0d2e5a; }
 [data-theme=light] .bb-transport__btn--loop   { border-top-color: #2e7d32; color: #1b4d1e; }

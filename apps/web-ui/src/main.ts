@@ -63,6 +63,7 @@ import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
+import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
@@ -128,7 +129,7 @@ const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
 const appLayout = buildAppLayout(appContainer);
-const { menuBarContainer, toolbarContainer, layoutHost, editorPane, outputPane, rightPane } = appLayout;
+const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, editorPane, outputPane, rightPane } = appLayout;
 
 editor = createEditor({
   container: editorPane,
@@ -480,6 +481,10 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
       writePanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR, visible);
     } catch (_e) { /* ignore */ }
   }
+  if (panel === 'pattern-grid') {
+    patternGridContainer.style.display = visible ? '' : 'none';
+    writePanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, visible);
+  }
   if (panel === 'channel-mixer') {
     writePanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER, visible);
   }
@@ -497,6 +502,10 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 // ─── TransportBar + TransportControls ────────────────────────────────────────
 const transportBar = new TransportBar({ container: layoutHost });
 if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
+
+// ─── Pattern Grid (sequence overview, sits below TransportBar) ─────────────────
+const patternGrid = new PatternGrid();
+patternGridContainer.appendChild(patternGrid.el);
 
 // ── Runtime state for transport extras ───────────────────────────────────────
 let _currentBpm = 120;          // last BPM from AST (or nudged override)
@@ -522,6 +531,26 @@ eventBus.on('parse:success', ({ ast }) => {
     _currentSig = sig;
   } catch (_e) {}
 });
+
+// Update pattern grid on each successful parse
+eventBus.on('parse:success', ({ song }: any) => {
+  try { if (song) patternGrid.setSong(song); } catch (_e) {}
+});
+
+// Navigate Monaco editor when user clicks a pattern block in the grid
+patternGrid.onNavigate = (patName: string) => {
+  try {
+    const source = getSource();
+    const lines = source.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^\s*pat\s+(\S+)/);
+      if (m && m[1] === patName) {
+        eventBus.emit('navigate:to', { line: i + 1, column: 1 });
+        break;
+      }
+    }
+  } catch (_e) {}
+};
 
 eventBus.on('playback:position', ({ current, total }) => {
   try {
@@ -554,13 +583,23 @@ eventBus.on('playback:position-changed', ({ channelId, position }) => {
       transportBar.setStep(step, total);
     } catch (_e) {}
   }
+  // Advance pattern grid cursor for every channel
+  try { patternGrid.setPosition(channelId, position.progress ?? 0); } catch (_e) {}
 });
 
 // Reset position LCDs when playback stops
 eventBus.on('playback:stopped', () => {
   try { transportBar.resetPosition(); } catch (_e) {}
+  try { patternGrid.clearPositions(); } catch (_e) {}
   _lastBeat = -1;
 });
+
+eventBus.on('playback:paused', () => {
+  try { patternGrid.pausePositions(); } catch (_e) {}
+});
+
+eventBus.on('playback:started',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
+eventBus.on('playback:resumed',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
 
 const getSource = () => (editor?.getValue?.() as string) || '';
 
@@ -772,12 +811,13 @@ async function emitParse(content: string): Promise<void> {
     // Use the async path when imports are present so remote/local imports
     // (github:, https://) don't throw in browser sync mode and don't
     // incorrectly mark a valid song as a parse error.
+    let song: any = null;
     try {
       const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
       if ((ast as any).imports?.length > 0) {
-        await resolveSongAsync(ast as any, resolveOpts);
+        song = await resolveSongAsync(ast as any, resolveOpts);
       } else {
-        resolveSong(ast as any, resolveOpts);
+        song = resolveSong(ast as any, resolveOpts);
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
@@ -804,7 +844,7 @@ async function emitParse(content: string): Promise<void> {
       diagnosticsManager?.clear?.();
     }
 
-    eventBus.emit('parse:success', { ast });
+    eventBus.emit('parse:success', { ast, song });
     parseStatus.set('success');
     parsedBpm.set((ast as any).bpm || 120);
     parsedChip.set((ast as any).chip || 'gameboy');
@@ -925,7 +965,13 @@ menuBar.seedPanelVisible({
   toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
   'channel-mixer':  readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
+  'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
+
+// Apply initial pattern-grid visibility
+if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
+  patternGridContainer.style.display = 'none';
+}
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
 toolbar = new Toolbar({

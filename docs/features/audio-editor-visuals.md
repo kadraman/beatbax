@@ -251,11 +251,11 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 
 - [x] 1. DSEG7 font loaded and applied to BPM / position displays
 - [x] 2. Beat indicator LED with CSS flash animation
-- [ ] 3. VU-meter segment bars in Channel Mixer (depends on per-channel analyser)
+- [>] 3. VU-meter segment bars in Channel Mixer — **tracked separately in `docs/features/daw-channel-mixer.md`** (requires per-channel `AnalyserNode` and horizontal mixer redesign)
 - [x] 4. Skeuomorphic transport button and LCD panel styles
 - [x] 5. Warm accent colour CSS custom properties replacing hard-coded blues
 - [x] 6. Oscilloscope canvas strip in/near transport bar
-- [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
+- [x] 7. Pattern grid mini-view panel — per-channel sequence blocks with live cursor, M/S buttons, click-to-navigate, pause-preserving cursor
 - [x] 8. Rack-panel brushed-metal gradient on transport bar background
 - [x] 9. Rotary knob component replacing volume +/− buttons
 - [x] 10. Channel colour coding in Monaco theme, mixer, and pattern grid
@@ -263,7 +263,7 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 - [x] 12. LCD font applied to note name readouts in Channel Mixer
 - [x] 13. Transport bar styled as a 1U rack panel with brushed-metal face and screw ears (CSS only)
 - [~] 14. Full app frame rack cabinet rails — **WON'T IMPLEMENT**: any repeating pattern on a narrow fixed strip looks like visual noise at screen resolution; plain rails look like wasted whitespace. The rack metaphor is sufficiently conveyed by items 8 and 13.
-- [ ] 15. All panels styled as rack modules snapping to 44 px multiples
+- [>] 15. All panels styled as rack modules snapping to 44 px multiples — **tracked separately in `docs/features/daw-channel-mixer.md`** (the horizontal mixer redesign supersedes the vertical panel rack-module approach)
 
 ---
 
