@@ -1,4 +1,5 @@
 import { RotaryKnob } from './rotary-knob.js';
+import { Oscilloscope } from './oscilloscope.js';
 
 /**
  * TransportBar — DOM wrapper for transport controls.
@@ -34,6 +35,9 @@ export class TransportBar {
 
   // ── Volume rotary knob ───────────────────────────────────────────────────
   public volKnob: RotaryKnob;
+
+  // ── Oscilloscope waveform strip ──────────────────────────────────────────
+  public oscilloscope: Oscilloscope;
 
   constructor(private opts: TransportBarOptions) {
     this.el = document.createElement('div');
@@ -83,9 +87,15 @@ export class TransportBar {
     };
     this.bpmDownButton = mkNudge('«', 'BPM −1');
     this.bpmUpButton   = mkNudge('»', 'BPM +1');
+    const bpmNudgeLabel = document.createElement('span');
+    bpmNudgeLabel.className = 'bb-transport__nudge-label';
+    bpmNudgeLabel.textContent = 'BPM';
+    const bpmNudgeRow = document.createElement('div');
+    bpmNudgeRow.className = 'bb-transport__nudge-row';
+    bpmNudgeRow.append(this.bpmDownButton, this.bpmUpButton);
     const bpmNudge = document.createElement('div');
     bpmNudge.className = 'bb-transport__nudge-wrap bb-transport__nudge-wrap--pri-3';
-    bpmNudge.append(this.bpmDownButton, this.bpmUpButton);
+    bpmNudge.append(bpmNudgeLabel, bpmNudgeRow);
     this.el.appendChild(bpmNudge);
 
     // ── Transport buttons ───────────────────────────────────────────────
@@ -121,16 +131,30 @@ export class TransportBar {
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
 
-    // ── Master volume knob + LCD ─────────────────────────────────────────
+    // ── Master volume knob + LCD (knob embedded inside bezel) ─────────────
     const volSep = this._mkSep();
     volSep.classList.add('bb-transport__separator--pri-3');
     this.el.appendChild(volSep);
-    this.volKnob = new RotaryKnob(36);
+    this.volKnob = new RotaryKnob(28);
     const volLcd = this._mkLcd('VOL', '100%', '000%');
-    const volGroup = document.createElement('div');
-    volGroup.className = 'bb-transport__vol-group bb-transport__vol-group--pri-3';
-    volGroup.append(this.volKnob.el, volLcd.lcd);
-    this.el.appendChild(volGroup);
+    volLcd.lcd.classList.add('bb-transport__lcd--vol', 'bb-transport__vol-group--pri-3');
+    // Move the screen into a row alongside the knob
+    const volScreen = volLcd.lcd.querySelector('.bb-transport__lcd-screen') as HTMLElement;
+    const volInner = document.createElement('div');
+    volInner.className = 'bb-transport__vol-inner';
+    volLcd.lcd.replaceChild(volInner, volScreen);
+    volInner.append(this.volKnob.el, volScreen);
+    this.el.appendChild(volLcd.lcd);
+
+    // ── Oscilloscope — LCD bezel, fills remaining right-side space ──────────
+    this.oscilloscope = new Oscilloscope();
+    const scopeWrap = document.createElement('div');
+    scopeWrap.className = 'bb-transport__lcd bb-transport__lcd--scope';
+    const scopeLabel = document.createElement('span');
+    scopeLabel.className = 'bb-transport__lcd-label';
+    scopeLabel.textContent = 'SCOPE';
+    scopeWrap.append(scopeLabel, this.oscilloscope.el);
+    this.el.appendChild(scopeWrap);
 
     // Insert at top of provided container (before existing children)
     const parent = this.opts.container;

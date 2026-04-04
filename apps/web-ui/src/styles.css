@@ -1127,13 +1127,28 @@
 /* ── BPM nudge / VOL nudge buttons ───────────────────────────────────────── */
 .bb-transport__nudge-wrap {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 2px;
-  align-items: center;
 }
-.bb-transport__vol-group {
+.bb-transport__nudge-label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: rgba(180,180,180,0.55);
+  line-height: 1;
+  user-select: none;
+}
+.bb-transport__nudge-row {
   display: flex;
-  gap: 3px;
+  gap: 2px;
+}
+.bb-transport__vol-inner {
+  display: flex;
+  flex-direction: row;
   align-items: center;
+  gap: 6px;
 }
 .bb-transport__nudge-btn {
   width: 22px;
@@ -1178,8 +1193,8 @@
 .bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
 .bb-transport__btn--loop   { border-top-color: #4caf50; color: #c8edca; }
 
-/* ── VOL LCD: slightly narrower label ────────────────────────────────────── */
-.bb-transport__vol-group .bb-transport__lcd { min-width: 54px; }
+/* ── VOL LCD: knob + value row, compact width ──────────────────────────────── */
+.bb-transport__lcd--vol { min-width: 54px; }
 
 /* ── Rotary knob ─────────────────────────────────────────────────────────── */
 .bb-knob {
@@ -1209,6 +1224,29 @@
   z-index: 9999;
   box-shadow: 0 2px 6px rgba(0,0,0,0.55);
 }
+
+/* ── Oscilloscope waveform strip ────────────────────────────────────────────── */
+/* Scope LCD modifier — fills remaining transport space, stretches to bar height */
+.bb-transport__lcd--scope {
+  flex: 1 1 0;
+  min-width: 80px;
+  align-self: stretch;
+}
+
+/* Canvas fills available space inside the LCD bezel */
+.bb-scope {
+  display: block;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 18px;
+  background: #0b130b;
+  border-radius: 3px;
+}
+@media (max-width: 640px) {
+  .bb-transport__lcd--scope { display: none; }
+}
+
+/* ── BPM nudge-button label + row (defined above near nudge-wrap) ─────────── */
 
 /* ── Light mode additions ─────────────────────────────────────────────────── */
 [data-theme=light] .bb-transport__btn--rewind { border-top-color: #1565c0; color: #0d2e5a; }

@@ -703,6 +703,18 @@ transportBar.volKnob.onChange((v) => {
   playbackManager.setMasterVolume(v / 100);
 });
 
+// ─── Oscilloscope ────────────────────────────────────────────────────────────
+// Start the RAF loop immediately (draws a flat idle line until analyser is ready).
+transportBar.oscilloscope.start();
+// Feed the analyser whenever playback starts or resumes.
+function _updateScopeAnalyser() {
+  transportBar.oscilloscope.setAnalyser(playbackManager.getMasterAnalyser());
+}
+eventBus.on('playback:started',  _updateScopeAnalyser);
+eventBus.on('playback:resumed',  _updateScopeAnalyser);
+// On stop/pause, keep the analyser connected so the waveform decays naturally.
+// (Passing null would immediately snap to the flat line — not needed here.)
+
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
 // sole emitter of 'editor:changed'.)

@@ -254,7 +254,7 @@ Display note names (e.g. `C4`, `G#5`) in the Channel Mixer position readouts usi
 - [ ] 3. VU-meter segment bars in Channel Mixer (depends on per-channel analyser)
 - [x] 4. Skeuomorphic transport button and LCD panel styles
 - [x] 5. Warm accent colour CSS custom properties replacing hard-coded blues
-- [ ] 6. Oscilloscope canvas strip in/near transport bar
+- [x] 6. Oscilloscope canvas strip in/near transport bar
 - [ ] 7. Pattern grid mini-view panel (requires ISM data from last parse)
 - [x] 8. Rack-panel brushed-metal gradient on transport bar background
 - [x] 9. Rotary knob component replacing volume +/− buttons
