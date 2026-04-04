@@ -1,9 +1,11 @@
+import { RotaryKnob } from './rotary-knob.js';
+
 /**
  * TransportBar — DOM wrapper for transport controls.
  *
  * LCD readouts: BPM, TIME, BAR:BT, STEP, LOOP, VOL
  * Buttons: ⏮ Rew, ▶ Play, ⏸ Pause, ⏹ Stop, ↻ Apply, ⚡ Live, ⟳ Loop, ● Rec
- * Nudge controls: BPM «/», VOL −/+
+ * Nudge controls: BPM «/»; VOL via rotary knob
  */
 
 export interface TransportBarOptions {
@@ -29,8 +31,9 @@ export class TransportBar {
   // ── Nudge / stepper buttons ─────────────────────────────────────────────
   public bpmDownButton: HTMLButtonElement;
   public bpmUpButton:   HTMLButtonElement;
-  public volDownButton: HTMLButtonElement;
-  public volUpButton:   HTMLButtonElement;
+
+  // ── Volume rotary knob ───────────────────────────────────────────────────
+  public volKnob: RotaryKnob;
 
   constructor(private opts: TransportBarOptions) {
     this.el = document.createElement('div');
@@ -118,16 +121,15 @@ export class TransportBar {
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
 
-    // ── Master volume stepper ───────────────────────────────────────────
+    // ── Master volume knob + LCD ─────────────────────────────────────────
     const volSep = this._mkSep();
     volSep.classList.add('bb-transport__separator--pri-3');
     this.el.appendChild(volSep);
-    this.volDownButton = mkNudge('−', 'Volume −5%');
-    this.volUpButton   = mkNudge('+', 'Volume +5%');
+    this.volKnob = new RotaryKnob(36);
     const volLcd = this._mkLcd('VOL', '100%', '000%');
     const volGroup = document.createElement('div');
     volGroup.className = 'bb-transport__vol-group bb-transport__vol-group--pri-3';
-    volGroup.append(this.volDownButton, volLcd.lcd, this.volUpButton);
+    volGroup.append(this.volKnob.el, volLcd.lcd);
     this.el.appendChild(volGroup);
 
     // Insert at top of provided container (before existing children)
@@ -242,9 +244,10 @@ export class TransportBar {
     this.setTimeLabel('00:00');
   }
 
-  /** Update the VOL display. pct is 0-100. */
+  /** Update the VOL display and knob. pct is 0-100. */
   setVol(pct: number): void {
     if (this._volEl) this._volEl.textContent = `${String(pct).padStart(3, ' ')}%`;
+    this.volKnob?.setValue(pct);
   }
 
   /** Trigger a single beat-flash on the LED indicator. */

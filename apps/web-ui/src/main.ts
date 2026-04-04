@@ -695,17 +695,13 @@ function _applyBpmStep(delta: number) {
 _attachHoldRepeat(transportBar.bpmDownButton, -1, _applyBpmStep);
 _attachHoldRepeat(transportBar.bpmUpButton,   +1, _applyBpmStep);
 
-// ─── VOL stepper buttons (click + hold-to-repeat) ────────────────────────────
+// ─── VOL rotary knob ──────────────────────────────────────────────────────────
 transportBar.setVol(_masterVolPct);
-
-function _applyVolStep(delta: number) {
-  _masterVolPct = Math.min(100, Math.max(0, _masterVolPct + delta));
-  transportBar.setVol(_masterVolPct);
-  playbackManager.setMasterVolume(_masterVolPct / 100);
-}
-
-_attachHoldRepeat(transportBar.volDownButton, -5, _applyVolStep);
-_attachHoldRepeat(transportBar.volUpButton,   +5, _applyVolStep);
+transportBar.volKnob.onChange((v) => {
+  _masterVolPct = v;
+  transportBar.setVol(v);
+  playbackManager.setMasterVolume(v / 100);
+});
 
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
