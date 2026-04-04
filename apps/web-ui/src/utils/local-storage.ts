@@ -54,6 +54,8 @@ export const StorageKey = {
   PANEL_VIS_TRANSPORT_BAR: 'panel.transport-bar',
   /** Channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
+  /** Pattern grid visible state (boolean). */
+  PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];
