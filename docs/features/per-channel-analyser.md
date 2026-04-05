@@ -1,9 +1,9 @@
 ---
 title: "Per-channel Analyser (WebAudio)"
-status: planned
+status: proposed
 authors: ["GitHub Copilot","kadraman"]
 created: 2026-03-31
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/77"
 ---
 
 Goals

@@ -1,6 +1,6 @@
 ---
 title: "Audio Editor Visuals — Making the UI Feel Like a Hardware Audio Tool"
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2026-04-03
 issue: "https://github.com/kadraman/beatbax/issues/73"
