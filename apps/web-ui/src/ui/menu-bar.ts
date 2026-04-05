@@ -16,6 +16,8 @@ import { icon } from '../utils/icons';
 
 const log = createLogger('ui:menu-bar');
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+
 const RECENT_STORAGE_KEY = 'beatbax:menu.recentFiles';
 const MAX_RECENT = 8;
 const ABOUT_URL = 'https://github.com/kadraman/beatbax';
@@ -569,7 +571,7 @@ export class MenuBar {
         type: 'item',
         label: 'Settings…',
         icon: 'cog-6-tooth',
-        shortcut: 'Ctrl+,',
+        shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+,`,
         action: () => this.opts.onShowSettings?.(),
       },
     ];

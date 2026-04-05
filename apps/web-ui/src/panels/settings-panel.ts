@@ -142,6 +142,7 @@ export function buildSettingsModal(): SettingsModalController {
 
       const btn = document.createElement('button');
       btn.type = 'button';
+      btn.id = `bb-settings-tab-${sec.id}`;
       btn.className = 'bb-settings-nav-btn';
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', String(sec.id === activeSection));
@@ -198,16 +199,24 @@ export function buildSettingsModal(): SettingsModalController {
       panel.hidden = sid !== id;
     }
 
-    // Wire reset button
+    // Lazy-build section content if not yet populated (e.g. a gated section
+    // that became visible after a feature-flag:changed event fired while the
+    // modal was already open).
     const sec = SECTIONS.find(s => s.id === id);
+    const panel = sectionContents.get(id);
+    if (sec && panel && panel.children.length === 0) {
+      panel.appendChild(sec.build());
+    }
+
+    // Wire reset button
     resetBtn.onclick = () => {
       if (sec) {
         sec.reset();
         // Re-render active section content
-        const panel = sectionContents.get(id);
-        if (panel) {
-          panel.innerHTML = '';
-          panel.appendChild(sec.build());
+        const activePanel = sectionContents.get(id);
+        if (activePanel) {
+          activePanel.innerHTML = '';
+          activePanel.appendChild(sec.build());
         }
       }
     };

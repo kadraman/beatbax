@@ -66,13 +66,10 @@ export function buildPlaybackSection(): HTMLElement {
 }
 
 export function resetPlaybackDefaults(): void {
-  const defaults: Record<string, string> = {
-    [StorageKey.AUDIO_BACKEND]:       'auto',
-    [StorageKey.AUDIO_SAMPLE_RATE]:   '44100',
-    [StorageKey.PLAYBACK_LOOP]:       'false',
-    [StorageKey.AUDIO_BUFFER_FRAMES]: '4096',
-  };
-  for (const [key, val] of Object.entries(defaults)) storage.set(key, val);
+  settingAudioBackend.set('auto');
+  settingAudioSampleRate.set('44100');
+  settingDefaultLoop.set(false);
+  settingAudioBufferFrames.set('4096');
   // Sync loop button to off when resetting
   (window as any).__beatbax_setLoop?.(false);
 }

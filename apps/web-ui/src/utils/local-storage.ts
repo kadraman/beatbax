@@ -72,7 +72,7 @@ export const StorageKey = {
   FEATURE_PATTERN_GRID: 'feature.patternGrid',
   /** Hot reload feature flag (boolean). */
   FEATURE_HOT_RELOAD: 'feature.hotReload',
-  /** AI Copilot connection settings (JSON, apiKey always stored as ''). */
+  /** AI Copilot connection settings (JSON: endpoint, model, apiKey). apiKey is persisted across sessions; non-ASCII values are sanitized to '' on load. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */
   CHAT_MODE: 'ai.mode',

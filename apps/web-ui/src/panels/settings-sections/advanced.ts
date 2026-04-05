@@ -53,12 +53,9 @@ export function buildAdvancedSection(): HTMLElement {
 }
 
 export function resetAdvancedDefaults(): void {
-  const defaults: Record<string, string> = {
-    [StorageKey.LOG_LEVEL]:           'warn',
-    [StorageKey.DEBUG_OVERLAY]:       'false',
-    [StorageKey.DEBUG_EXPOSE_PLAYER]: 'true',
-  };
-  for (const [key, val] of Object.entries(defaults)) storage.set(key, val);
+  settingLogLevel.set('warn');
+  settingDebugOverlay.set(false);
+  settingDebugExposePlayer.set(true);
 }
 
 function resetAllSettings(): void {

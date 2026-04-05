@@ -22,6 +22,7 @@ export interface AISettings {
   endpoint: string;
   apiKey: string;
   model: string;
+  maxContextChars: number;
 }
 
 export interface ChatMessage {
@@ -42,6 +43,7 @@ function loadSettings(): AISettings {
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
     model: 'gpt-4o-mini',
+    maxContextChars: 3000,
   };
   // Scrub any legacy key written by older versions of the app before the
   // no-persist-apiKey policy was introduced.

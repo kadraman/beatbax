@@ -48,13 +48,10 @@ export function buildEditorSection(): HTMLElement {
 }
 
 export function resetEditorDefaults(): void {
-  const defaults: Record<string, string> = {
-    [StorageKey.AUTO_SAVE]:         'true',
-    [StorageKey.WORD_WRAP]:         'false',
-    [StorageKey.CODELENS]:          'true',
-    [StorageKey.BEAT_DECORATIONS]:  'true',
-    [StorageKey.BPM]:               '128',
-    [StorageKey.FONT_SIZE]:         '14',
-  };
-  for (const [key, val] of Object.entries(defaults)) storage.set(key, val);
+  settingAutoSave.set(true);
+  settingWordWrap.set(false);
+  settingCodeLens.set(true);
+  settingBeatDecorations.set(true);
+  settingDefaultBpm.set(128);
+  settingFontSize.set(14);
 }

@@ -189,7 +189,7 @@ Features:
 - **Play selected** (`Ctrl+Shift+Space`) — play one or more selected `pat`/`seq` lines simultaneously, each on its own channel
 - **Command palette** (`F1` or `Ctrl+Alt+P`) — export, validate, generate snippets, format, mute/solo by name
 - **BeatBax Copilot** — AI chat panel backed by any OpenAI-compatible endpoint (OpenAI, Groq, Ollama, LM Studio). Injects editor content and active diagnostics as context. **Edit mode** auto-applies generated code with up to 4 self-correction retries; **Ask mode** answers without touching the editor
-- **Settings panel** — unified modal (`Ctrl+,` or `View → Settings…`) with sections for General, Editor, Playback, Features, AI Copilot, and Advanced; all changes apply live without a page reload
+- **Settings panel** — unified modal (`Ctrl+,` or `View → Settings…`) with sections for General, Editor, Playback, Features, AI Copilot, and Advanced; most changes apply live without a page reload (exceptions: Auto-save and Audio backend / Sample rate take effect after reload)
 
 See [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) and [docs/ui/web-ui-syntax-highlighting.md](docs/ui/web-ui-syntax-highlighting.md) for details.
 

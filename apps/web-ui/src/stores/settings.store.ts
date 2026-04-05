@@ -15,7 +15,8 @@ function boolAtom(key: string, defaultVal: boolean) {
   const stored = storage.get(key);
   const initial = stored !== undefined ? stored === 'true' : defaultVal;
   const a = atom<boolean>(initial);
-  a.subscribe((v) => storage.set(key, v ? 'true' : 'false'));
+  let first = true;
+  a.subscribe((v) => { if (first) { first = false; return; } storage.set(key, v ? 'true' : 'false'); });
   return a;
 }
 
@@ -23,7 +24,8 @@ function stringAtom<T extends string>(key: string, defaultVal: T) {
   const stored = storage.get(key);
   const initial: T = (stored as T) ?? defaultVal;
   const a = atom<T>(initial);
-  a.subscribe((v) => storage.set(key, v));
+  let first = true;
+  a.subscribe((v) => { if (first) { first = false; return; } storage.set(key, v); });
   return a;
 }
 
@@ -32,16 +34,22 @@ function numberAtom(key: string, defaultVal: number) {
   const parsed = stored !== undefined ? Number(stored) : NaN;
   const initial = Number.isFinite(parsed) ? parsed : defaultVal;
   const a = atom<number>(initial);
-  a.subscribe((v) => storage.set(key, String(v)));
+  let first = true;
+  a.subscribe((v) => { if (first) { first = false; return; } storage.set(key, String(v)); });
   return a;
 }
 
 // ─── General ──────────────────────────────────────────────────────────────────
 
-export const settingTheme = stringAtom<'dark' | 'light' | 'system'>(
-  StorageKey.THEME,
-  'system',
-);
+// settingTheme is purely UI state — it does NOT write to StorageKey.THEME.
+// ThemeManager owns that key: 'dark'/'light' = explicit choice, absent = follow OS.
+// We read 'system' when the key is absent so the radio shows the correct selection.
+export const settingTheme = (() => {
+  const initial: 'dark' | 'light' | 'system' = storage.has(StorageKey.THEME)
+    ? (storage.get(StorageKey.THEME) as 'dark' | 'light')
+    : 'system';
+  return atom<'dark' | 'light' | 'system'>(initial);
+})();
 
 export const settingToolbarStyle = stringAtom<'icons+labels' | 'icons'>(
   StorageKey.TOOLBAR_STYLE,

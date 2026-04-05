@@ -6,6 +6,7 @@ import { storage, StorageKey } from '../../utils/local-storage';
 import { setFeatureEnabled, FeatureFlag } from '../../utils/feature-flags';
 import {
   settingFeatureAI,
+  settingFeaturePerChannelAnalyser,
   settingFeatureDawMixer,
   settingFeaturePatternGrid,
   settingFeatureHotReload,
@@ -115,12 +116,9 @@ export function buildFeaturesSection(): HTMLElement {
 }
 
 export function resetFeaturesDefaults(): void {
-  const defaults: Record<string, string> = {
-    [StorageKey.AI_ASSISTANT]:                  'false',
-    [StorageKey.FEATURE_PER_CHANNEL_ANALYSER]:  'false',
-    [StorageKey.FEATURE_DAW_MIXER]:             'false',
-    [StorageKey.FEATURE_PATTERN_GRID]:          'false',
-    [StorageKey.FEATURE_HOT_RELOAD]:            'false',
-  };
-  for (const [key, val] of Object.entries(defaults)) storage.set(key, val);
+  settingFeatureAI.set(false);
+  settingFeaturePerChannelAnalyser.set(false);
+  settingFeatureDawMixer.set(false);
+  settingFeaturePatternGrid.set(false);
+  settingFeatureHotReload.set(false);
 }

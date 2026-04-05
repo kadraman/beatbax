@@ -811,7 +811,7 @@ The modal divides settings into six tabs:
 | **AI** | API provider, endpoint URL, API key, model, interaction mode, max context chars |
 | **Advanced** | Log level, debug overlay, `window.__beatbax_player` exposure, reset-all |
 
-All changes apply **immediately** without a page reload. Each tab has a **Reset section to defaults** button. The **Advanced → Reset all settings** button clears all `beatbax:*` keys (with a confirmation prompt).
+Most changes apply **immediately** without a page reload. The following two settings are exceptions that take effect after reload: **Auto-save** (Editor tab) and **Audio backend / Sample rate** (Playback tab) — a note is shown inline beside each control. Each tab has a **Reset section to defaults** button. The **Advanced → Reset all settings** button clears all `beatbax:*` keys (with a confirmation prompt).
 
 ### Feature flags
 

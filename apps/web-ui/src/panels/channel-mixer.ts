@@ -54,7 +54,9 @@ export class ChannelMixer {
     this.container = options.container;
     this.eventBus = options.eventBus;
     // Read compact mode from typed StorageKey; fall back to legacy key.
-    const saved = storage.get(StorageKey.CHANNEL_COMPACT) ?? localStorage.getItem('bb-channel-compact');
+    let legacyCompact: string | null = null;
+    try { legacyCompact = localStorage.getItem('bb-channel-compact'); } catch { /* ignore */ }
+    const saved = storage.get(StorageKey.CHANNEL_COMPACT) ?? legacyCompact;
     if (saved !== null && saved !== undefined) this.compactMode = saved === 'true';
     this.render();
     this.setupEventListeners();

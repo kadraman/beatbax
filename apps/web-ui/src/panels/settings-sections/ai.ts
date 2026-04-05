@@ -7,7 +7,7 @@
  */
 
 import { storage, StorageKey } from '../../utils/local-storage';
-import { updateChatSettings } from '../../stores/chat.store';
+import { updateChatSettings, chatMode, chatSettings } from '../../stores/chat.store';
 import { sectionHeading, radioGroup, noteText } from './general';
 
 interface ChatSettings {
@@ -30,6 +30,23 @@ function saveChatSettings(patch: Partial<ChatSettings>): void {
   storage.setJSON(StorageKey.CHAT_SETTINGS, { ...current, ...patch });
 }
 
+/** Preset definitions — must stay in sync with ChatPanel PRESETS. */
+const PRESETS: Record<string, { endpoint: string; model: string }> = {
+  openai:   { endpoint: 'https://api.openai.com/v1',         model: 'gpt-4o-mini' },
+  groq:     { endpoint: 'https://api.groq.com/openai/v1',    model: 'llama-3.3-70b-versatile' },
+  ollama:   { endpoint: 'http://localhost:11434/v1',          model: 'llama3.2' },
+  lmstudio: { endpoint: 'http://localhost:1234/v1',           model: 'local-model' },
+  custom:   { endpoint: '', model: '' },
+};
+
+/** Derive the preset key from a stored endpoint, falling back to 'custom'. */
+function detectPreset(endpoint: string): string {
+  for (const [key, p] of Object.entries(PRESETS)) {
+    if (key !== 'custom' && endpoint === p.endpoint) return key;
+  }
+  return endpoint ? 'custom' : 'openai';
+}
+
 export function buildAISection(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'bb-settings-section';
@@ -40,42 +57,91 @@ export function buildAISection(): HTMLElement {
   warning.innerHTML = '⚠ The API key is stored in <code>localStorage</code> in plain text. Do not enter a high-spend production key.';
   el.appendChild(warning);
 
-  const cfg = loadChatSettings();
-  const mode = storage.get(StorageKey.CHAT_MODE, 'ask') as 'edit' | 'ask';
-
   el.appendChild(sectionHeading('Provider'));
 
-  // Provider preset
-  el.appendChild(radioGroup(
-    'Provider preset',
-    'bb-ai-provider',
-    [
-      { value: 'openai',    label: 'OpenAI' },
-      { value: 'groq',      label: 'Groq' },
-      { value: 'ollama',    label: 'Ollama' },
-      { value: 'lmstudio',  label: 'LM Studio' },
-      { value: 'custom',    label: 'Custom' },
-    ],
-    cfg.provider ?? 'openai',
-    (v) => saveChatSettings({ provider: v }),
-  ));
+  // ── Provider preset select ────────────────────────────────────────────────
+  const cfg = loadChatSettings();
+  const currentPreset = detectPreset(cfg.endpoint ?? '');
 
-  // API endpoint
-  el.appendChild(textRow('API endpoint (base URL)', cfg.endpoint ?? '', 'url', (v) => {
-    saveChatSettings({ endpoint: v });
-    updateChatSettings({ endpoint: v });
-  }));
+  const presetRow = document.createElement('div');
+  presetRow.className = 'bb-settings-row';
+  const presetLabel = document.createElement('label');
+  presetLabel.className = 'bb-settings-label';
+  presetLabel.textContent = 'Provider preset';
+  presetLabel.setAttribute('for', 'bb-ai-preset');
+  const presetSelect = document.createElement('select');
+  presetSelect.id = 'bb-ai-preset';
+  presetSelect.className = 'bb-settings-select';
+  for (const [key, p] of Object.entries(PRESETS)) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = key === 'openai' ? 'OpenAI'
+      : key === 'groq'     ? 'Groq (free, fast)'
+      : key === 'ollama'   ? 'Ollama (local)'
+      : key === 'lmstudio' ? 'LM Studio (local)'
+      : 'Custom';
+    if (key === currentPreset) opt.selected = true;
+    presetSelect.appendChild(opt);
+  }
+  presetRow.append(presetLabel, presetSelect);
+  el.appendChild(presetRow);
 
-  // API key
+  // ── API endpoint ──────────────────────────────────────────────────────────
+  const endpointRow = document.createElement('div');
+  endpointRow.className = 'bb-settings-row';
+  const endpointLabel = document.createElement('label');
+  endpointLabel.className = 'bb-settings-label';
+  endpointLabel.textContent = 'API endpoint (base URL)';
+  endpointLabel.setAttribute('for', 'bb-ai-endpoint');
+  const endpointInput = document.createElement('input');
+  endpointInput.type = 'url';
+  endpointInput.id = 'bb-ai-endpoint';
+  endpointInput.className = 'bb-settings-text';
+  endpointInput.value = cfg.endpoint ?? PRESETS.openai.endpoint;
+  endpointInput.addEventListener('change', () => {
+    saveChatSettings({ endpoint: endpointInput.value });
+    updateChatSettings({ endpoint: endpointInput.value });
+    // Update preset select to reflect custom entry
+    presetSelect.value = detectPreset(endpointInput.value);
+  });
+  endpointRow.append(endpointLabel, endpointInput);
+  el.appendChild(endpointRow);
+
+  // ── API key ───────────────────────────────────────────────────────────────
   el.appendChild(apiKeyRow());
 
-  // Model
-  el.appendChild(textRow('Model', cfg.model ?? '', 'text', (v) => {
-    saveChatSettings({ model: v });
-    updateChatSettings({ model: v });
-  }));
+  // ── Model ─────────────────────────────────────────────────────────────────
+  const modelRow = document.createElement('div');
+  modelRow.className = 'bb-settings-row';
+  const modelLabel = document.createElement('label');
+  modelLabel.className = 'bb-settings-label';
+  modelLabel.textContent = 'Model';
+  modelLabel.setAttribute('for', 'bb-ai-model');
+  const modelInput = document.createElement('input');
+  modelInput.type = 'text';
+  modelInput.id = 'bb-ai-model';
+  modelInput.className = 'bb-settings-text';
+  modelInput.value = cfg.model ?? PRESETS.openai.model;
+  modelInput.addEventListener('change', () => {
+    saveChatSettings({ model: modelInput.value });
+    updateChatSettings({ model: modelInput.value });
+  });
+  modelRow.append(modelLabel, modelInput);
+  el.appendChild(modelRow);
+
+  // ── Wire preset → endpoint + model ───────────────────────────────────────
+  presetSelect.addEventListener('change', () => {
+    const p = PRESETS[presetSelect.value];
+    if (!p || presetSelect.value === 'custom') return; // custom: leave inputs as-is
+    endpointInput.value = p.endpoint;
+    modelInput.value    = p.model;
+    saveChatSettings({ endpoint: p.endpoint, model: p.model });
+    updateChatSettings({ endpoint: p.endpoint, model: p.model });
+  });
 
   el.appendChild(sectionHeading('Behaviour'));
+
+  const mode = chatMode.get();
 
   // Interaction mode
   el.appendChild(radioGroup(
@@ -86,11 +152,11 @@ export function buildAISection(): HTMLElement {
       { value: 'edit', label: 'Edit mode' },
     ],
     mode,
-    (v) => storage.set(StorageKey.CHAT_MODE, v),
+    (v) => chatMode.set(v as 'edit' | 'ask'),
   ));
 
   // Max context chars
-  const maxCtx = loadChatSettings().maxContextChars ?? 3000;
+  const maxCtx = chatSettings.get().maxContextChars;
   const ctxRow = document.createElement('div');
   ctxRow.className = 'bb-settings-row';
   const ctxLabel = document.createElement('label');
@@ -103,7 +169,11 @@ export function buildAISection(): HTMLElement {
   ctxInput.max = '32000';
   ctxInput.value = String(maxCtx);
   ctxLabel.setAttribute('for', ctxInput.id = 'bb-ai-max-ctx');
-  ctxInput.addEventListener('change', () => saveChatSettings({ maxContextChars: Number(ctxInput.value) }));
+  ctxInput.addEventListener('change', () => {
+    const v = Number(ctxInput.value);
+    saveChatSettings({ maxContextChars: v });
+    updateChatSettings({ maxContextChars: v });
+  });
   ctxRow.append(ctxLabel, ctxInput);
   el.appendChild(ctxRow);
 
@@ -174,5 +244,5 @@ function apiKeyRow(): HTMLElement {
 
 export function resetAIDefaults(): void {
   storage.remove(StorageKey.CHAT_SETTINGS);
-  storage.set(StorageKey.CHAT_MODE, 'ask');
+  chatMode.set('ask');
 }

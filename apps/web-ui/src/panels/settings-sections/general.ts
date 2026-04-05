@@ -29,11 +29,13 @@ export function buildGeneralSection(): HTMLElement {
     settingTheme.get(),
     (v) => {
       settingTheme.set(v as any);
-      const resolved: 'dark' | 'light' = v === 'system'
-        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        : (v as 'dark' | 'light');
-      // Call themeManager directly — it applies DOM/Monaco changes, persists, and emits theme:changed
-      (window as any).__beatbax_themeManager?.setTheme(resolved);
+      if (v === 'system') {
+        // Remove the explicit choice; ThemeManager resumes following the OS.
+        (window as any).__beatbax_themeManager?.followSystem();
+      } else {
+        // Explicit dark/light: ThemeManager applies DOM/Monaco changes, persists, emits theme:changed.
+        (window as any).__beatbax_themeManager?.setTheme(v as 'dark' | 'light');
+      }
     },
   ));
 
@@ -92,16 +94,15 @@ export function buildGeneralSection(): HTMLElement {
 }
 
 export function resetGeneralDefaults(): void {
-  const defaults: Record<string, string> = {
-    [StorageKey.THEME]:                 'system',
-    [StorageKey.TOOLBAR_STYLE]:         'icons+labels',
-    [StorageKey.PANEL_VIS_TOOLBAR]:     'true',
-    [StorageKey.PANEL_VIS_TRANSPORT_BAR]: 'true',
-    [StorageKey.PANEL_VIS_PATTERN_GRID]:  'false',
-    [StorageKey.PANEL_VIS_CHANNEL_MIXER]: 'true',
-    [StorageKey.CHANNEL_COMPACT]:         'true',
-  };
-  for (const [key, val] of Object.entries(defaults)) storage.set(key, val);
+  settingTheme.set('system');
+  // Removing the stored theme key resumes OS-follow; no explicit persist needed.
+  (window as any).__beatbax_themeManager?.followSystem();
+  settingToolbarStyle.set('icons+labels');
+  settingShowToolbar.set(true);
+  settingShowTransportBar.set(true);
+  settingShowPatternGrid.set(false);
+  settingShowChannelMixer.set(true);
+  settingChannelCompact.set(true);
 }
 
 // ─── Shared form helpers ───────────────────────────────────────────────────

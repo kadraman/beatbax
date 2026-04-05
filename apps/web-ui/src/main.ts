@@ -490,7 +490,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) rightTabs.close('channels
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
 // is toggled from the Settings panel (no page reload needed for most flags).
 eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
-  if (flag === 'feature.aiAssistant') {
+  if (flag === FeatureFlag.AI_ASSISTANT) {
     if (enabled) {
       aiTabBtn?.classList.remove('bb-right-tab--hidden');
       rightTabs.tabOpen['ai'] = true;

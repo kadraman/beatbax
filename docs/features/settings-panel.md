@@ -241,7 +241,7 @@ Register `Ctrl+,` (Windows/Linux) / `Cmd+,` (macOS) in the existing key-binding 
 - [x] Wire entry points: `Ctrl+,`, menu bar item, toolbar overflow, Copilot ⚙ shortcut
 - [x] Migrate Copilot provider config UI from panel header into Settings → AI section
 - [x] Subscribe app bootstrap to `feature-flag:changed` to show/hide gated UI
-- [ ] Write unit and integration tests
+- [x] Write unit and integration tests (`apps/web-ui/tests/settings-panel.test.ts`)
 - [x] Document new `StorageKey` values and `FeatureFlag` constants in `docs/api/`
 
 ---

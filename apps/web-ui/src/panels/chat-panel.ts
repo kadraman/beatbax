@@ -632,8 +632,9 @@ export class ChatPanel {
 
   assembleContext(): string {
     const editorContent = this.opts.getEditorContent();
-    const truncated = editorContent.length > MAX_EDITOR_CHARS
-      ? editorContent.slice(0, MAX_EDITOR_CHARS) + '\n…[truncated]'
+    const maxChars = this.settings.maxContextChars;
+    const truncated = editorContent.length > maxChars
+      ? editorContent.slice(0, maxChars) + '\n…[truncated]'
       : editorContent;
 
     const diagnostics = this.opts.getDiagnostics();
