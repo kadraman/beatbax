@@ -8,3 +8,4 @@ export * from './editor.store';
 export * from './theme.store';
 export * from './ui.store';
 export * from './chat.store';
+export * from './settings.store';

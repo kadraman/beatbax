@@ -10,3 +10,6 @@ export type { ChannelMixerOptions } from './channel-mixer';
 
 export { HelpPanel } from './help-panel';
 export type { HelpPanelOptions } from './help-panel';
+
+export { buildSettingsModal } from './settings-panel';
+export type { SettingsModalController } from './settings-panel';

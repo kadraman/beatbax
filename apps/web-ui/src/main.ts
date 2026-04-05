@@ -21,7 +21,7 @@ import {
 
 // Core / editor imports
 import { eventBus } from './utils/event-bus';
-import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands } from './editor';
+import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations } from './editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
@@ -36,6 +36,7 @@ import { getInitialContent } from './app/bootstrap';
 import { buildAppLayout } from './app/layout';
 import { buildBottomTabs, buildRightTabs } from './app/tabs';
 import { buildShortcutsModal } from './app/modals';
+import { buildSettingsModal } from './panels/settings-panel';
 
 // Playback imports
 import { PlaybackManager } from './playback/playback-manager';
@@ -77,7 +78,7 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
-import { BeatBaxStorage, StorageKey } from './utils/local-storage';
+import { BeatBaxStorage, storage, StorageKey } from './utils/local-storage';
 
 const log = createLogger('ui:main');
 
@@ -136,13 +137,47 @@ editor = createEditor({
   value: getInitialContent(),
   theme: 'beatbax-dark',
   language: 'beatbax',
-  autoSaveDelay: 500,
+  autoSaveDelay: storage.getJSON<boolean>(StorageKey.AUTO_SAVE, true) !== false ? 500 : 0,
   emitChangedEvents: true,
+});
+
+// Expose the editor wrapper immediately so Settings panel can live-apply options.
+(window as any).__beatbax_editor = editor;
+
+// Apply any persisted editor options (word wrap, font size).
+const _storedWordWrap = storage.get(StorageKey.WORD_WRAP, 'false');
+const _storedFontSize = parseInt(storage.get(StorageKey.FONT_SIZE, '14') ?? '14', 10);
+editor.editor.updateOptions({
+  wordWrap: _storedWordWrap === 'true' ? 'on' : 'off',
+  fontSize: isNaN(_storedFontSize) ? 14 : _storedFontSize,
 });
 
 diagnosticsManager = createDiagnosticsManager(editor.editor);
 setupDiagnosticsIntegration(diagnosticsManager);
+
+// CodeLens previews: always register the provider (language-level, global),
+// then enable/disable via updateOptions based on stored preference.
+const _storedCodeLens = storage.get(StorageKey.CODELENS, 'true') !== 'false';
 setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
+editor.editor.updateOptions({ codeLens: _storedCodeLens });
+
+// Beat decorations: highlights downbeats/upbeats in the editor.
+// Returns a cleanup function so we can teardown when the setting is toggled off.
+const _storedBeatDecorations = storage.get(StorageKey.BEAT_DECORATIONS, 'true') !== 'false';
+let _beatDecorationsCleanup: (() => void) | null = null;
+if (_storedBeatDecorations) {
+  _beatDecorationsCleanup = setupBeatDecorations(editor.editor, eventBus);
+}
+// Expose a live-toggle function for the Settings panel
+(window as any).__beatbax_toggleBeatDecorations = (enabled: boolean) => {
+  if (enabled && !_beatDecorationsCleanup) {
+    _beatDecorationsCleanup = setupBeatDecorations(editor.editor, eventBus);
+  } else if (!enabled && _beatDecorationsCleanup) {
+    _beatDecorationsCleanup();
+    _beatDecorationsCleanup = null;
+  }
+};
+
 registerNoteEditCommands(editor.editor);
 
 // Navigate cursor when user clicks a Problems panel diagnostic row.
@@ -239,6 +274,9 @@ rightTabs.tabContents['help']!.appendChild(helpContainer);
 
 // ─── Keyboard Shortcuts modal ───────────────────────────────────────────────
 const shortcutsModal = buildShortcutsModal();
+
+// ─── Settings modal ─────────────────────────────────────────────────────────
+const settingsModal = buildSettingsModal();
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -449,6 +487,32 @@ rightTabs.restorePersistedTab();
 // Restore channel-mixer tab visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) rightTabs.close('channels');
 
+// Subscribe to feature-flag:changed so the UI reacts immediately when a flag
+// is toggled from the Settings panel (no page reload needed for most flags).
+eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
+  if (flag === FeatureFlag.AI_ASSISTANT) {
+    if (enabled) {
+      aiTabBtn?.classList.remove('bb-right-tab--hidden');
+      rightTabs.tabOpen['ai'] = true;
+      getChatPanel().show();
+      rightTabs.show('ai');
+    } else {
+      getChatPanel().hide();
+      rightTabs.close('ai');
+      aiTabBtn?.classList.add('bb-right-tab--hidden');
+      rightTabs.tabOpen['ai'] = false;
+    }
+    // Refresh Settings model sidebar so the AI section appears/disappears.
+    settingsModal.refresh();
+  }
+  if (flag === FeatureFlag.PATTERN_GRID) {
+    (window as any).__beatbax_togglePatternGrid?.(enabled);
+  }
+  if (flag === FeatureFlag.HOT_RELOAD) {
+    _applyLiveMode(enabled);
+  }
+});
+
 // Toggle panel visibility via panel:toggled
 eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'output') {
@@ -496,6 +560,11 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 (window as any).__beatbax_statusBar = statusBar;
 (window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
 (window as any).__beatbax_helpPanel = helpPanel;
+(window as any).__beatbax_settingsModal = settingsModal;
+(window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
+  patternGridContainer.style.display = visible ? '' : 'none';
+  writePanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, visible);
+};
 
 // Transport bar UI will be created by TransportBar
 
@@ -511,7 +580,7 @@ patternGridContainer.appendChild(patternGrid.el);
 let _currentBpm = 120;          // last BPM from AST (or nudged override)
 let _currentSig = 4;            // stepsPerBar from AST
 let _masterVolPct = 100;        // master volume 0-100 %
-let _loopMode = false;          // loop toggle state
+let _loopMode = storage.getJSON<boolean>(StorageKey.PLAYBACK_LOOP, false) ?? false;
 let _lastBeat = -1;             // last beat value, used to detect beat changes for LED
 
 // Update transport display from parser / playback events
@@ -637,16 +706,26 @@ eventBus.on('parse:error', () => setErrorState(true));
 eventBus.on('validation:errors', ({ errors }) => setErrorState(errors.length > 0));
 
 // ─── Live mode (handled by transportBar.liveButton) ──────────────────────────
-let liveMode = false;
-transportBar.liveButton.addEventListener('click', () => {
-  if (hasParseErrors) return; // button is disabled but guard anyway
-  liveMode = !liveMode;
+let liveMode = storage.getJSON<boolean>(StorageKey.FEATURE_HOT_RELOAD, false) ?? false;
+
+function _applyLiveMode(enabled: boolean): void {
+  liveMode = enabled;
+  storage.setJSON(StorageKey.FEATURE_HOT_RELOAD, liveMode);
   transportBar.liveButton.classList.toggle('bb-live-btn--active', liveMode);
   transportBar.liveButton.title = liveMode ? 'Live play ON — click to disable' : 'Toggle live-play mode';
+  if (!liveMode) clearTimeout((window as any).__bb_liveTimer);
+}
+
+(window as any).__beatbax_setLiveMode = (enabled: boolean) => {
+  if (hasParseErrors && enabled) return;
+  _applyLiveMode(enabled);
+  opLog(outputPanel, enabled ? '⚡ Live play enabled (settings)' : '⚡ Live play disabled (settings)');
+};
+
+transportBar.liveButton.addEventListener('click', () => {
+  if (hasParseErrors) return; // button is disabled but guard anyway
+  _applyLiveMode(!liveMode);
   opLog(outputPanel, liveMode ? '⚡ Live play enabled' : '⚡ Live play disabled');
-  if (!liveMode) {
-    clearTimeout((window as any).__bb_liveTimer);
-  }
 });
 
 // ─── Rewind button ───────────────────────────────────────────────────────────
@@ -659,14 +738,32 @@ transportBar.rewindButton.addEventListener('click', () => {
 });
 
 // ─── Loop button ─────────────────────────────────────────────────────────────
-transportBar.loopButton.addEventListener('click', () => {
-  _loopMode = !_loopMode;
+
+/** Shared helper — sets loop state, syncs the button UI, and notifies playback manager. */
+function _applyLoopMode(enabled: boolean): void {
+  _loopMode = enabled;
   transportBar.loopButton.classList.toggle('bb-loop-btn--active', _loopMode);
   transportBar.loopButton.title = _loopMode ? 'Loop ON — click to disable' : 'Toggle loop playback';
   transportBar.setLoopActive(_loopMode);
-  opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
   playbackManager.setLoop(_loopMode);
+}
+
+transportBar.loopButton.addEventListener('click', () => {
+  _applyLoopMode(!_loopMode);
+  opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
 });
+
+// Expose for Settings panel "Loop by default" toggle
+(window as any).__beatbax_setLoop = (enabled: boolean) => {
+  _applyLoopMode(enabled);
+  opLog(outputPanel, enabled ? '⟳ Loop enabled (settings)' : '⟳ Loop disabled (settings)');
+};
+
+// Apply stored default on startup (after loopButton exists in the DOM)
+if (_loopMode) _applyLoopMode(true);
+
+// Apply stored live mode on startup
+if (liveMode) _applyLiveMode(true);
 
 // ─── BPM nudge buttons ───────────────────────────────────────────────────────
 
@@ -890,6 +987,7 @@ const menuBar = new MenuBar({
   eventBus,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
   onShowShortcuts: () => shortcutsModal.open(),
+  onShowSettings: () => settingsModal.open(),
   onExport: (format) => handleExport(format),
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
@@ -1005,6 +1103,10 @@ if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 toolbar.setThemeIcon(themeManager.currentTheme);
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => toolbar.setThemeIcon(theme));
 
+// Apply persisted toolbar style (icons+labels or icons-only)
+const storedToolbarStyle = storage.get(StorageKey.TOOLBAR_STYLE, 'icons+labels') as 'icons+labels' | 'icons';
+toolbar.setStyle(storedToolbarStyle);
+
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;
 
@@ -1104,6 +1206,8 @@ monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { rightTabs.show('help');
 // Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
 // Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
 monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcutsModal.open(); });
+// Ctrl+, → Settings modal (standard VS Code convention; overrides Monaco's default).
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Comma, () => { settingsModal.open(); });
 // Alt+Shift+I → Show AI/Copilot tab (I for Intelligence/AI; no browser conflict).
 monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => {
   if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant();
@@ -1225,6 +1329,9 @@ ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help ta
 // Alt+Shift+K → open the Keyboard Shortcuts modal.
 ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
   action: () => shortcutsModal.open() });
+// Ctrl+, → open the Settings modal (standard VS Code / desktop convention).
+ks.register({ key: ',', ctrlKey: true, description: 'Open Settings', allowInInput: true,
+  action: () => settingsModal.open() });
 // Alt+Shift+I → Show AI/Copilot tab (or enable it if the feature flag is off).
 ks.register({ key: 'i', altKey: true, shiftKey: true, description: 'Show AI Copilot tab', allowInInput: true,
   action: () => { if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant(); } });

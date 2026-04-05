@@ -406,13 +406,7 @@ export class ChatPanel {
   private sendBtn!: HTMLButtonElement;
   private statusEl!: HTMLElement;
   private typingEl: HTMLElement | null = null;  // animated "thinking" indicator (created dynamically)
-  private settingsEl!: HTMLElement;
-  private settingsOpen = false;
 
-  // Settings form fields (populated in buildSettingsPanel)
-  private endpointInput!: HTMLInputElement;
-  private apiKeyInput!: HTMLInputElement;
-  private modelInput!: HTMLInputElement;
 
   /**
    * Local cache of the chat history used for API context assembly.
@@ -443,7 +437,7 @@ export class ChatPanel {
 
     // Keep local caches in sync with stores
     this.storeUnsubs.push(
-      chatSettings.subscribe(s  => { this.settings = s; }),
+      chatSettings.subscribe(s  => { this.settings = s; this.checkConfig(); }),
       chatMode.subscribe(m      => { this.mode = m; }),
       chatHistory.subscribe(h   => {
         this.messages = h.map(m => ({ role: m.role, content: m.content }));
@@ -502,9 +496,11 @@ export class ChatPanel {
     titleSpan.innerHTML = icon('sparkles', 'w-4 h-4 inline-block mr-1') + 'BeatBax Copilot';
     const settingsToggleBtn = document.createElement('button');
     settingsToggleBtn.className = 'bb-chat-settings-btn';
-    settingsToggleBtn.title = 'Configure AI provider';
+    settingsToggleBtn.title = 'Open AI settings';
     settingsToggleBtn.innerHTML = icon('cog-6-tooth', 'w-4 h-4');
-    settingsToggleBtn.addEventListener('click', () => this.toggleSettings());
+    settingsToggleBtn.addEventListener('click', () =>
+      (window as any).__beatbax_settingsModal?.open('ai')
+    );
     titleRow.appendChild(titleSpan);
     titleRow.appendChild(settingsToggleBtn);
     header.appendChild(titleRow);
@@ -515,11 +511,6 @@ export class ChatPanel {
     header.appendChild(subtitle);
 
     this.el.appendChild(header);
-
-    // ── Settings panel (collapsed) ────────────────────────────────────────────
-    this.settingsEl = this.buildSettingsPanel();
-    this.settingsEl.style.display = 'none';
-    this.el.appendChild(this.settingsEl);
 
     // ── Status bar ────────────────────────────────────────────────────────────
     this.statusEl = document.createElement('div');
@@ -624,122 +615,14 @@ export class ChatPanel {
     return preset ? `via ${preset.label}` : this.settings.endpoint;
   }
 
-  private buildSettingsPanel(): HTMLElement {
-    const panel = document.createElement('div');
-    panel.className = 'bb-chat-settings-panel';
-
-    // Preset selector
-    const presetsRow = document.createElement('div');
-    presetsRow.className = 'bb-chat-settings-row';
-    const presetsLabel = document.createElement('label');
-    presetsLabel.textContent = 'Preset:';
-    const presetsSelect = document.createElement('select');
-    presetsSelect.className = 'bb-chat-select';
-    const blankOpt = document.createElement('option');
-    blankOpt.value = '';
-    blankOpt.textContent = '— choose preset —';
-    presetsSelect.appendChild(blankOpt);
-    for (const p of PRESETS) {
-      const opt = document.createElement('option');
-      opt.value = p.label;
-      opt.textContent = p.label;
-      presetsSelect.appendChild(opt);
-    }
-    presetsSelect.addEventListener('change', () => {
-      const preset = PRESETS.find(p => p.label === presetsSelect.value);
-      if (preset) {
-        this.endpointInput.value = preset.endpoint;
-        this.modelInput.value = preset.model;
-        this.apiKeyInput.placeholder = preset.apiKeyPlaceholder;
-      }
-      presetsSelect.value = '';
-    });
-    presetsRow.appendChild(presetsLabel);
-    presetsRow.appendChild(presetsSelect);
-    panel.appendChild(presetsRow);
-
-    // Endpoint
-    const endpointRow = document.createElement('div');
-    endpointRow.className = 'bb-chat-settings-row';
-    const endpointLabel = document.createElement('label');
-    endpointLabel.textContent = 'Endpoint:';
-    this.endpointInput = document.createElement('input');
-    this.endpointInput.type = 'text';
-    this.endpointInput.className = 'bb-chat-input-field';
-    this.endpointInput.value = this.settings.endpoint;
-    this.endpointInput.placeholder = 'https://api.openai.com/v1';
-    endpointRow.appendChild(endpointLabel);
-    endpointRow.appendChild(this.endpointInput);
-    panel.appendChild(endpointRow);
-
-    // API Key
-    const keyRow = document.createElement('div');
-    keyRow.className = 'bb-chat-settings-row';
-    const keyLabel = document.createElement('label');
-    keyLabel.textContent = 'API Key:';
-    this.apiKeyInput = document.createElement('input');
-    this.apiKeyInput.type = 'password';
-    this.apiKeyInput.className = 'bb-chat-input-field';
-    this.apiKeyInput.value = this.settings.apiKey;
-    this.apiKeyInput.placeholder = 'sk-… (leave blank for Ollama / local)';
-    keyRow.appendChild(keyLabel);
-    keyRow.appendChild(this.apiKeyInput);
-    panel.appendChild(keyRow);
-
-    // Model
-    const modelRow = document.createElement('div');
-    modelRow.className = 'bb-chat-settings-row';
-    const modelLabel = document.createElement('label');
-    modelLabel.textContent = 'Model:';
-    this.modelInput = document.createElement('input');
-    this.modelInput.type = 'text';
-    this.modelInput.className = 'bb-chat-input-field';
-    this.modelInput.value = this.settings.model;
-    this.modelInput.placeholder = 'gpt-4o-mini';
-    modelRow.appendChild(modelLabel);
-    modelRow.appendChild(this.modelInput);
-    panel.appendChild(modelRow);
-
-    // Save button
-    const saveRow = document.createElement('div');
-    saveRow.className = 'bb-chat-settings-actions';
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'bb-chat-action-btn';
-    saveBtn.textContent = 'Save';
-    saveBtn.addEventListener('click', () => this.saveSettingsFromUI());
-    saveRow.appendChild(saveBtn);
-    panel.appendChild(saveRow);
-
-    return panel;
-  }
-
-  private toggleSettings(): void {
-    this.settingsOpen = !this.settingsOpen;
-    this.settingsEl.style.display = this.settingsOpen ? 'block' : 'none';
-  }
-
-  private saveSettingsFromUI(): void {
-    this.settings = {
-      endpoint: this.endpointInput.value.trim().replace(/\/$/, '') || 'https://api.openai.com/v1',
-      apiKey: this.apiKeyInput.value.trim(),
-      model: this.modelInput.value.trim() || 'gpt-4o-mini',
-    };
-    updateChatSettings(this.settings);
-    this.toggleSettings();
-    this.checkConfig();
-    const subtitle = this.el.querySelector('.bb-chat-subtitle') as HTMLElement | null;
-    if (subtitle) subtitle.textContent = this.getSubtitle();
-    const modelLabel = this.el.querySelector('.bb-chat-model-label') as HTMLElement | null;
-    if (modelLabel) modelLabel.textContent = this.settings.model;
-    this.setStatus('Settings saved.');
-    setTimeout(() => this.checkConfig(), 2000);
-  }
+  // Inline settings panel removed — settings now live in Settings modal (AI section).
+  // The gear button in the header opens the Settings modal at the AI tab.
 
   private checkConfig(): void {
     const isLocal = this.settings.endpoint.includes('localhost') ||
                     this.settings.endpoint.includes('127.0.0.1');
     if (!isLocal && !this.settings.apiKey) {
-      this.setStatus('⚠ No API key set. Click the settings icon to configure.');
+      this.setStatus('⚠ No API key set. Click ⚙ to open AI Settings.');
     } else {
       this.setStatus('');
     }
@@ -749,8 +632,9 @@ export class ChatPanel {
 
   assembleContext(): string {
     const editorContent = this.opts.getEditorContent();
-    const truncated = editorContent.length > MAX_EDITOR_CHARS
-      ? editorContent.slice(0, MAX_EDITOR_CHARS) + '\n…[truncated]'
+    const maxChars = this.settings.maxContextChars;
+    const truncated = editorContent.length > maxChars
+      ? editorContent.slice(0, maxChars) + '\n…[truncated]'
       : editorContent;
 
     const diagnostics = this.opts.getDiagnostics();
@@ -923,7 +807,12 @@ export class ChatPanel {
     const url = `${this.settings.endpoint}/chat/completions`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.settings.apiKey) {
-      headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
+      const key = this.settings.apiKey.trim();
+      // HTTP headers are ByteStrings (Latin-1); reject keys with non-ASCII characters
+      if (/[^\x20-\x7E]/.test(key)) {
+        throw new Error('API key contains invalid characters. Please re-enter your key in Settings (⚙).');
+      }
+      headers['Authorization'] = `Bearer ${key}`;
     }
 
     const res = await fetch(url, {

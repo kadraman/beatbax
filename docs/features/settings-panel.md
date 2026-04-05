@@ -1,8 +1,9 @@
 ---
 title: "Settings Panel (Web UI)"
-status: planned
+status: complete
 authors: ["GitHub Copilot", "kadraman"]
 created: 2026-04-05
+completed: 2026-04-05
 issue: "https://github.com/kadraman/beatbax/issues/78"
 ---
 
@@ -142,7 +143,7 @@ Only visible (and navigable from sidebar) when the **AI Copilot** feature flag i
 | Interaction mode | Radio | Edit mode / Ask mode |
 | Max context chars | Number | Max song characters sent per request (default 3000) |
 
-Note that the API key is stored in `localStorage` in plain text. A persistent warning in this section reminds the user not to enter a high-spend production key. A "Clear saved key" button is provided.
+Note that the API key is stored in `localStorage` in plain text and **persisted across sessions** so you do not need to re-enter it on every page load. A persistent warning in this section reminds the user not to enter a high-spend production key. A "Clear key" button wipes the stored value immediately. The key is validated to contain only printable ASCII characters before being sent in an `Authorization` header.
 
 ### Advanced
 
@@ -232,16 +233,16 @@ Register `Ctrl+,` (Windows/Linux) / `Cmd+,` (macOS) in the existing key-binding 
 
 ## Developer checklist
 
-- [ ] Add new `StorageKey` entries to `local-storage.ts`
-- [ ] Add new `FeatureFlag` constants and `feature-flag:changed` event to `feature-flags.ts`
-- [ ] Create `settings.store.ts` with nanostores for each setting
-- [ ] Build `settings-panel.ts` modal skeleton (header, sidebar, content area, footer)
-- [ ] Implement each section module (`settings-sections/general.ts`, etc.)
-- [ ] Wire entry points: `Ctrl+,`, menu bar item, toolbar overflow, Copilot ⚙ shortcut
-- [ ] Migrate Copilot provider config UI from panel header into Settings → AI section
-- [ ] Subscribe app bootstrap to `feature-flag:changed` to show/hide gated UI
-- [ ] Write unit and integration tests
-- [ ] Document new `StorageKey` values and `FeatureFlag` constants in `docs/api/`
+- [x] Add new `StorageKey` entries to `local-storage.ts`
+- [x] Add new `FeatureFlag` constants and `feature-flag:changed` event to `feature-flags.ts`
+- [x] Create `settings.store.ts` with nanostores for each setting
+- [x] Build `settings-panel.ts` modal skeleton (header, sidebar, content area, footer)
+- [x] Implement each section module (`settings-sections/general.ts`, editor.ts, playback.ts, features.ts, ai.ts, advanced.ts)
+- [x] Wire entry points: `Ctrl+,`, menu bar item, toolbar overflow, Copilot ⚙ shortcut
+- [x] Migrate Copilot provider config UI from panel header into Settings → AI section
+- [x] Subscribe app bootstrap to `feature-flag:changed` to show/hide gated UI
+- [x] Write unit and integration tests (`apps/web-ui/tests/settings-panel.test.ts`)
+- [x] Document new `StorageKey` values and `FeatureFlag` constants in `docs/api/`
 
 ---
 

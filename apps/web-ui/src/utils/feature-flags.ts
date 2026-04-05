@@ -11,19 +11,25 @@
  */
 
 import { storage, StorageKey } from './local-storage';
+import { eventBus } from './event-bus';
 
 // ─── Well-known flags ─────────────────────────────────────────────────────────
 
 export const FeatureFlag = {
-  AI_ASSISTANT: StorageKey.AI_ASSISTANT,
-  // future flags here
+  AI_ASSISTANT:           StorageKey.AI_ASSISTANT,
+  PER_CHANNEL_ANALYSER:   StorageKey.FEATURE_PER_CHANNEL_ANALYSER,
+  DAW_MIXER:              StorageKey.FEATURE_DAW_MIXER,
+  PATTERN_GRID:           StorageKey.FEATURE_PATTERN_GRID,
+  HOT_RELOAD:             StorageKey.FEATURE_HOT_RELOAD,
 } as const;
 
 // ─── URL-param overrides ──────────────────────────────────────────────────────
 
 /** Map from storage-key to URL param name. */
 const URL_PARAM_MAP: Record<string, string> = {
-  [FeatureFlag.AI_ASSISTANT]: 'ai',
+  [FeatureFlag.AI_ASSISTANT]:         'ai',
+  [FeatureFlag.PER_CHANNEL_ANALYSER]: 'perChannelAnalyser',
+  [FeatureFlag.HOT_RELOAD]:           'hotReload',
 };
 
 /**
@@ -63,11 +69,13 @@ export function isFeatureEnabled(flag: string): boolean {
 }
 
 /**
- * Persist the enabled/disabled state of a feature flag to localStorage.
+ * Persist the enabled/disabled state of a feature flag to localStorage and
+ * emit a `feature-flag:changed` event so subscribers can react immediately.
  * A URL override will still take precedence over the stored value on the
  * current page load, but the stored value will apply once the URL param
  * is removed.
  */
 export function setFeatureEnabled(flag: string, enabled: boolean): void {
   storage.set(flag, enabled ? 'true' : 'false');
+  eventBus.emit('feature-flag:changed', { flag, enabled });
 }
