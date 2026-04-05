@@ -1,11 +1,11 @@
-# BeatBax — Quick Tutorial
+# BeatBax — Tutorial
 
-This tutorial shows how to write `.bax` songs, use the CLI for playback and export, and work with the browser demo. BeatBax is a complete live-coding language for Game Boy-style chiptunes with deterministic playback and multiple export formats.
+This tutorial shows how to write `.bax` songs, use the CLI for playback and export, and use the Web UI at [app.beatbax.com](https://app.beatbax.com). BeatBax is a complete live-coding language for Game Boy-style chiptunes with deterministic playback and multiple export formats.
 
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
-- `apps/web-ui/` — browser demo UI that loads and plays `.bax` files.
-- `songs/metadata_example.bax` — example showing `song` metadata directives (name, artist, description, tags).
+- [app.beatbax.com](https://app.beatbax.com) — the Web UI for live editing and playback.
+- `songs/features/metadata_example.bax` — example showing `song` metadata directives (name, artist, description, tags).
 - See `docs/language/metadata-directives.md` for details on metadata syntax and export mapping.
 
 **Language Quick Reference**
@@ -19,7 +19,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - Cycle detection: recursive imports supported with automatic cycle prevention
   - Merging: last-wins semantics (local definitions override imported ones)
   - Browser: remote imports resolved at runtime by web UI; local imports not supported (blocked for security)
-  - See `songs/local_import_example.bax`, `songs/remote_import_example.bax`, and `docs/features/instrument-imports.md` for examples
+  - See `songs/features/local_import_example.bax`, `songs/features/remote_import_example.bax`, and `docs/features/complete/instrument-imports.md` for examples
 
 - inst definitions: define instruments and their params.
   - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`
@@ -131,7 +131,7 @@ pat drums = inst(kick) C2 . inst(snare) C6 . C5 .
 inst shifted_kick type=noise env=gb:12,down,1 uge_transpose=12
 ```
 
-See `songs/percussion_demo.bax` for a complete working example demonstrating the `note=` parameter.
+See `songs/demo/percussion_demo.bax` for a complete working example demonstrating the `note=` parameter.
 
 ### Panning (stereo)
 Panning controls stereo position and can be specified in multiple forms:
@@ -204,7 +204,7 @@ pat lead = C5 . E5<port:4> . G5<port:4> . E5<port:4> .
 pat gliss = C4 G4<port:32> C5<port:32> G5<port:32>
 ```
 
-See `songs/effects/port_effect_demo.bax` for a complete working example.
+See `songs/effects/portamento.bax` for a complete working example.
 
 ## Vibrato (`vib`) Effect
 
@@ -230,7 +230,7 @@ pat preset_demo = C5<wobble> E5<wobble>
 2. `rate` (required): Vibrato speed in Hz-like units (higher = faster modulation)
 3. `waveform` (optional): LFO shape - name or number 0-15. Default: `none` (0)
    - Common waveforms: `sine` (smooth), `square` (stepped), `triangle` (smooth), `saw` (rising/falling)
-   - See `/docs/features/effects-system.md` for complete list of 16 official hUGETracker waveforms
+   - See `docs/features/complete/effects-system.md` for complete list of 16 official hUGETracker waveforms
 4. `durationRows` (optional): Length in pattern rows. Default: full note duration
 
 **Export behavior:**
@@ -724,9 +724,9 @@ npm run cli -- export wav songs\sample.bax output.wav
 
 **UGE (hUGETracker v6 format)**
 ```powershell
-npm run cli -- export uge songs\features\panning_demo.bax output.uge
+npm run cli -- export uge songs\demo\panning_demo.bax output.uge
 # Use strict GB compatibility check to reject numeric pans instead of snapping:
-npm run cli -- export uge songs\features\panning_demo.bax output.uge --strict-gb
+npm run cli -- export uge songs\demo\panning_demo.bax output.uge --strict-gb
 ```
 Notes:
 - `--strict-gb` treats numeric `pan` values as an error to enforce exact NR51-only semantics for Game Boy exports. In non-strict mode numeric pans are deterministically snapped (pan < -0.33 → L, pan > 0.33 → R, otherwise C).
@@ -744,22 +744,18 @@ For faster iteration without rebuilding:
 npm run cli:dev -- play songs\sample.bax
 ```
 
-## Running the demo (local)
+## Using the Web UI
 
-1. Build the web UI bundle (TypeScript -> browser):
+The easiest way to use BeatBax is through the hosted Web UI at [app.beatbax.com](https://app.beatbax.com) — no installation required. Open it in any modern browser and start writing `.bax` songs immediately.
 
-```powershell
-npm run web-ui:build
-```
-
-2. Run the web UI dev server and open it in a browser:
+If you want to run the Web UI locally for development, you can still build and serve it from the repo:
 
 ```powershell
-npm run web-ui:dev
-# open the URL shown by Vite (usually http://127.0.0.1:5173)
+npm run web-ui:build   # compile the TypeScript bundle
+npm run web-ui:dev     # start the Vite dev server (usually http://127.0.0.1:5173)
 ```
 
-3. Controls in the demo:
+**Controls:**
 - Paste or load a `.bax` file into the editor and click `Play` / `Apply & Play`.
 - `Live` checkbox: when enabled, edits are applied (debounced) automatically.
 - Per‑channel `Mute` / `Solo` controls appear after applying a song.
@@ -801,7 +797,7 @@ BeatBax Copilot is a built-in AI chat assistant in the Web UI. It understands th
 
 ### Enabling the assistant
 
-1. Open the Web UI (`npm run web-ui:dev`).
+1. Open the Web UI at [app.beatbax.com](https://app.beatbax.com) (or run `npm run web-ui:dev` locally).
 2. Go to **View → AI Assistant** (or click the robot icon in the toolbar) to open the Copilot panel.
 3. Click the ⚙ gear icon in the panel header to configure your provider.
 

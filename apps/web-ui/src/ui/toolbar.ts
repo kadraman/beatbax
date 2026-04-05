@@ -63,16 +63,16 @@ export class Toolbar {
     this.el.className = 'bb-toolbar';
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-new" title="New song (Ctrl+N)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" title="New song (Ctrl+N)">
           ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} New
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-save" title="Save .bax file (Ctrl+S)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" title="Save .bax file (Ctrl+S)">
           ${icon('arrow-down-tray', 'w-4 h-4 inline-block align-text-bottom')} Save
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-open" title="Open .bax file (Ctrl+O)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (Ctrl+O)">
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} Open
         </button>
-        <div class="bb-toolbar__dropdown-wrap">
+        <div class="bb-toolbar__dropdown-wrap bb-toolbar__item--pri-examples">
           <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song">
             ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} Examples ${icon('chevron-down', 'w-3 h-3 inline-block align-middle')}
           </button>
@@ -88,7 +88,7 @@ export class Toolbar {
         </div>
       </div>
 
-      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+      <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--edit">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" title="Undo (Ctrl+Z)">
@@ -104,10 +104,10 @@ export class Toolbar {
         </button>
       </div>
 
-      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+      <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--export">
-        <span class="bb-toolbar__label">Export:</span>
+        <span class="bb-toolbar__label bb-toolbar__item--pri-export-label">Export:</span>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="json" title="Export as JSON (ISM format)">
           ${icon('document', 'w-4 h-4 inline-block align-text-bottom')} JSON
         </button>
@@ -122,7 +122,7 @@ export class Toolbar {
         </button>
       </div>
 
-      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+      <div class="bb-toolbar__separator bb-toolbar__sep--verify" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--verify">
         <button class="bb-toolbar__btn" id="tb-verify" title="Validate the current song (Alt+V)">
@@ -130,7 +130,7 @@ export class Toolbar {
         </button>
       </div>
 
-      <div class="bb-toolbar__separator" aria-hidden="true"></div>
+      <div class="bb-toolbar__separator bb-toolbar__sep--view" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--view">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" title="Switch to light theme">
