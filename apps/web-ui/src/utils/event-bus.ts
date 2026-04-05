@@ -52,6 +52,9 @@ export interface BeatBaxEvents {
   // Song load events
   'song:loaded': { filename: string };
 
+  // Feature flag events
+  'feature-flag:changed': { flag: string; enabled: boolean };
+
   // Validation events
   'validation:warnings': { warnings: Array<{ component: string; message: string; suggestion?: string; file?: string; loc?: any }> };
   'validation:errors': { errors: Array<{ component?: string; message: string; suggestion?: string; loc?: any }> };

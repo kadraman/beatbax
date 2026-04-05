@@ -116,6 +116,16 @@ export class ThemeManager {
   }
 
   /**
+   * Resume following the OS colour-scheme preference.
+   * Removes the stored explicit choice so ThemeManager tracks the OS again,
+   * then applies the OS preference immediately without persisting.
+   */
+  followSystem(): void {
+    storage.remove(StorageKey.THEME);
+    this.applyTheme(this.detectSystemTheme(), /* persist */ false);
+  }
+
+  /**
    * Toggle between dark and light.
    * Persists the choice and emits `theme:changed`.
    */

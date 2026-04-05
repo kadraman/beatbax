@@ -322,6 +322,11 @@ export class Toolbar {
     this._wrapToggleBtn?.classList.toggle('bb-toolbar__btn--active', wrap);
   }
 
+  /** Switch between icons+labels and icons-only display style. */
+  setStyle(style: 'icons+labels' | 'icons'): void {
+    this.el.setAttribute('data-style', style);
+  }
+
   /**
    * Remove all document-level event listeners and EventBus subscriptions.
    * Call this when the toolbar is unmounted or replaced (e.g. during HMR).
