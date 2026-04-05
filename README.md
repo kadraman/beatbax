@@ -1,53 +1,40 @@
+[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
+
 <p align="center"><img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/></p>
 
 # BeatBax
 
-[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
+**BeatBax** is a creative tool for making chiptune music in the style of classic game consoles. Instead of clicking through a tracker or a DAW, you write simple text scripts that describe your melodies, basslines, and beats — and BeatBax brings them to life with authentic retro sound. Whether you're a developer who loves the aesthetics of 8-bit audio or a musician who wants to explore the Game Boy sound chip, BeatBax gives you a fast, expressive way to compose, preview, and export your tracks. Not sure where to start? The built-in AI assistant can help you write and refine your songs just by describing what you want to hear.
 
-**BeatBax** is a live-coding language and toolchain for composing retro-console chiptunes. Target hardware is the Nintendo Game Boy (DMG-01) APU. The architecture is designed so additional chip backends (NES, SID, Genesis) can be added as plugins without reworking the core language or scheduler.
+Initial target hardware is the Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU. The architecture is designed so additional chip backends (NES, SID, Genesis) can be added later (see [ROADMAP](ROADMAP.md) for further details). BeatBax songs can be exported into multiple
+formats (JSON, MIDI, WAV) as well as chipset specific formats like hUGETracker (UGE) format for the
+Nintendo Gameboy.
 
----
+<p align="center">
+  <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
+  <br/>
+  <em>An example screenshot of the BeatBax Web-UI.</em>
+</p>
 
 ## Features
 
-- **Live-coding language** — instruments, patterns, sequences, transforms, and named effect presets in a concise `.bax` syntax
-- **11 effects** — pan, vibrato, portamento, pitch bend, sweep, arpeggio, volume slide, tremolo, note cut, retrigger, and echo
-- **Authentic Game Boy APU model** — 4-channel emulation (pulse1, pulse2, wave, noise) with hardware-accurate envelopes, duty cycles, wavetables, and LFSR noise
-- **Deterministic scheduler** — tick-accurate, reproducible playback independent of system timer jitter
-- **Multiple audio backends** — browser WebAudio, Node.js headless playback, and an offline PCM renderer for WAV export
-- **4 export formats** — ISM JSON, 4-track MIDI, hUGETracker v6 (`.uge`), WAV
-- **UGE import** — read and inspect existing hUGETracker v1–v6 files
-- **Reusable instrument libraries** — `.ins` files with local and remote (`github:`, `https://`) import, cycle detection, and last-wins merging
-- **Web UI IDE** — Monaco editor, live validation, CodeLens previews, channel mixer, ⚡ Live mode, and command palette
-- **BeatBax Copilot** — AI chat assistant in the Web UI backed by any OpenAI-compatible endpoint
-- **CLI** — `play`, `verify`, `export`, and `inspect` commands for headless workflows
+- **Simple text-based language** — write melodies, basslines, and beats in a readable `.bax` script; no GUI required
+- **11 built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
+- **Authentic Game Boy sound** — 4-channel emulation (pulse, wave, noise) with hardware-accurate envelopes, duty cycles, and wavetables
+- **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
+- **4 export formats** — MIDI, WAV, ISM JSON, and hUGETracker v6 (`.uge`) for use in trackers
+- **Web UI IDE** — live editor with syntax highlighting, real-time validation, channel mixer, and one-click playback
+- **BeatBax Copilot** — AI assistant that writes and edits songs from natural-language descriptions (bring your own API key)
+- **CLI tools** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
+- **Extensible architecture** — additional chip backends (NES, SID, C64) can be added as plugins without changing your songs
 
----
+> **Note:** BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) — no key is included or stored by BeatBax.
 
-<p align="center"><img src="./media/web-ui-screenshot-1.png" alt="BeatBax Web UI"/></p>
+## Quick Start
 
-*An example screenshot of the BeatBax Web-UI.*
+The quickest way to get started with BeatBax is to try out the Web UI which is available at:
+[app.beatbax.com](https://app.beatbax.com).
 
----
-
-## Quick start
-
-```powershell
-git clone https://github.com/kadraman/beatbax.git
-cd beatbax
-npm install
-npm run build-all
-node bin/beatbax play songs/sample.bax
-```
-
-Open the Web UI:
-
-```powershell
-npm run web-ui:dev
-# → http://localhost:5173
-```
-
----
 
 ## Language overview
 
@@ -90,7 +77,7 @@ arrange main = lead_seq | bass_seq | wave_seq | drums_seq
 play auto repeat
 ```
 
-The full language reference is in [docs/language/](docs/language/).
+Please see the [TUTORIAL](TUTORIAL.md) for more details on the BeatBax language format.
 
 ---
 
