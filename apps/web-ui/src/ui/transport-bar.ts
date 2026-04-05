@@ -131,19 +131,19 @@ export class TransportBar {
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
 
-    // ── Master volume knob + LCD (knob embedded inside bezel) ─────────────
-    const volSep = this._mkSep();
-    volSep.classList.add('bb-transport__separator--pri-3');
-    this.el.appendChild(volSep);
+    // ── Master volume knob — standalone directly on the transport bar ──────
+    // The knob is always visible (hides only at the pri-5 breakpoint, ≤549 px)
+    // so users retain volume control even when the numeric LCD is hidden.
     this.volKnob = new RotaryKnob(28);
+    this.volKnob.el.classList.add('bb-transport__vol-knob');
+    this.el.appendChild(this.volKnob.el);
+
+    // ── VOL LCD — separate numeric readout; hidden below 1200 px ──────────
+    const volLcdSep = this._mkSep();
+    volLcdSep.classList.add('bb-transport__separator--vol-lcd');
+    this.el.appendChild(volLcdSep);
     const volLcd = this._mkLcd('VOL', '100%', '000%');
-    volLcd.lcd.classList.add('bb-transport__lcd--vol', 'bb-transport__vol-group--pri-3');
-    // Move the screen into a row alongside the knob
-    const volScreen = volLcd.lcd.querySelector('.bb-transport__lcd-screen') as HTMLElement;
-    const volInner = document.createElement('div');
-    volInner.className = 'bb-transport__vol-inner';
-    volLcd.lcd.replaceChild(volInner, volScreen);
-    volInner.append(this.volKnob.el, volScreen);
+    volLcd.lcd.classList.add('bb-transport__lcd--vol');
     this.el.appendChild(volLcd.lcd);
 
     // ── Oscilloscope — LCD bezel, fills remaining right-side space ──────────

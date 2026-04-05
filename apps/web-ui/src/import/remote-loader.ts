@@ -178,6 +178,7 @@ export const EXAMPLE_SONGS: Array<{ label: string; path: string }> = [
   { label: 'sample.bax', path: '/songs/sample.bax' },
   { label: 'a_trainers_journey.bax', path: '/songs/a_trainers_journey.bax' },
   { label: 'crypt_of_fallen_kings.bax', path: '/songs/crypt_of_fallen_kings.bax' },
+  { label: 'digital_citadel.bax', path: '/songs/digital_citadel.bax' },
   { label: 'grassland_dash.bax', path: '/songs/grassland_dash.bax' },
   { label: 'graveyard_shift.bax', path: '/songs/graveyard_shift.bax' },
   { label: 'heroes_call.bax', path: '/songs/heroes_call.bax' },

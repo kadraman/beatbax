@@ -116,7 +116,23 @@
   padding-right: calc(28px + 12px);
   position: relative;
   flex-shrink: 0;
+  /*
+   * Safari / iOS fix: without min-width: 0 a flex item in a column container
+   * keeps min-width: max-content, which prevents overflow-x: auto from
+   * establishing a proper scroll container — children visually escape the bar.
+   */
+  min-width: 0;
+  /*
+   * overflow-x: auto keeps iOS WebKit from letting children escape the bar,
+   * but a visible scrollbar must never appear — suppress it on all engines.
+   */
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
+  scrollbar-width: none;              /* Firefox */
 }
+/* Chrome / Safari / iOS — hide the scrollbar track entirely */
+.bb-transport::-webkit-scrollbar { display: none; }
 
 /* ── Rack ears (::before = left, ::after = right) ────────────────────────── */
 /* No background set here — the parent's stripes + gradient show through.
@@ -443,18 +459,27 @@
  *  Priority classes control which controls disappear first at narrower widths.
  *  Lower pri number = higher priority (hidden first at lowest BPs).
  *
+ *  scope  → SCOPE oscilloscope             hidden at ≤ 1499 px
+ *            (BAR:BT + STEP LCDs reappear at 1400 px; the scope must wait
+ *             until ≥ 1500 px so it doesn't push into the rack-ear elements)
  *  pri-1  → BAR:BT, STEP LCDs             hidden at < 1400 px
  *  pri-2  → LOOP LCD; ⟳ Loop, ● Rec        hidden at < 1150 px
- *  pri-3  → BPM nudge, VOL group           hidden at <  900 px
+ *  pri-3  → BPM nudge (+ sep), VOL LCD     hidden at < 1200 px
+ *            (1200 px ensures both the vol LCD and BPM nudge are gone before
+ *             the pri-2 items at 1149 px reappear, preventing the ~1160 px
+ *             overflow that occurred when the two groups collided)
  *  pri-4  → TIME LCD, ⏮ Rewind             hidden at <  720 px
- *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply     hidden at <  550 px
+ *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply,    hidden at <  550 px
+ *            vol knob
+ *
+ *  The vol knob is separated from the VOL LCD so it persists as a compact
+ *  standalone control on the bar even when the numeric display is hidden.
  *
  *  Only ▶ Play and ⏹ Stop are always visible.
- *  A safety-net overflow-x:auto prevents clipping if the window shrinks further.
+ *  overflow-x: auto (set on the base rule) is the final safety net; the
+ *  min-width: 0 + overflow-y: hidden combo on .bb-transport makes it work
+ *  correctly in Safari / iOS WebKit.
  * ───────────────────────────────────────────────────────────────────────── */
-
-/* Safety net — never clip, just allow horizontal scroll at any width */
-.bb-transport { overflow-x: auto; }
 
 /* 1400 px — hide BAR:BT and STEP LCDs */
 @media (max-width: 1399px) {
@@ -467,11 +492,18 @@
   .bb-transport__btn--pri-2 { display: none; }
 }
 
-/* 900 px — hide BPM nudge wrap, its separator, and the VOL group */
-@media (max-width: 899px) {
+/* 1200 px — hide BPM nudge (+ sep) and VOL LCD (+ its sep).
+   Threshold sits above the pri-2 boundary (1149 px) so neither the nudge
+   nor the VOL LCD reappears at the same moment as Loop/Rec, preventing
+   the overflow that manifested at ~1160 px on desktop browsers. */
+@media (max-width: 1199px) {
   .bb-transport__nudge-wrap--pri-3,
-  .bb-transport__vol-group--pri-3,
-  .bb-transport__separator--pri-3 { display: none; }
+  .bb-transport__separator--pri-3,
+  .bb-transport__lcd--vol,
+  .bb-transport__separator--vol-lcd { display: none; }
+  /* Compact gap + smaller buttons to keep remaining items comfortable */
+  .bb-transport { gap: 6px; }
+  .bb-transport__btn { padding: 5px 9px; font-size: 12px; }
 }
 
 /* 720 px — hide TIME LCD, ⏮ Rewind */
@@ -480,11 +512,12 @@
   .bb-transport__btn--pri-4 { display: none; }
 }
 
-/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply — keep ▶ Play / ⏹ Stop / BPM LCD */
+/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply and the vol knob */
 @media (max-width: 549px) {
-  .bb-transport__btn--pri-5 { display: none; }
+  .bb-transport__btn--pri-5,
+  .bb-transport__vol-knob { display: none; }
   /* Tighten spacing so BPM LCD + Play + Stop still fit comfortably */
-  .bb-transport { gap: 5px; padding: 6px 8px; }
+  .bb-transport { gap: 4px; padding: 6px 8px; }
 }
 
 /* Layout panes & splitters */
@@ -1193,8 +1226,17 @@
 .bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
 .bb-transport__btn--loop   { border-top-color: #4caf50; color: #c8edca; }
 
-/* ── VOL LCD: knob + value row, compact width ──────────────────────────────── */
+/* ── VOL LCD: compact width (knob is now separate) ──────────────────────── */
 .bb-transport__lcd--vol { min-width: 54px; }
+
+/* ── Vol knob — standalone transport element ─────────────────────────────── */
+/* Sits directly on the bar after the transport buttons; the LCD is separate.
+   flex-shrink: 0 prevents the canvas from being squeezed in the flex row.
+   A small horizontal margin gives visual breathing room from adjacent items. */
+.bb-transport__vol-knob {
+  flex-shrink: 0;
+  margin: 0 2px;
+}
 
 /* ── Rotary knob ─────────────────────────────────────────────────────────── */
 .bb-knob {
@@ -1242,7 +1284,14 @@
   background: #0b130b;
   border-radius: 3px;
 }
-@media (max-width: 640px) {
+/*
+ * At ≤1499 px the scope's flex-grow space is consumed by other controls and
+ * it begins pushing into the rack-ear pseudo-elements at the bar ends.
+ * The BAR:BT and STEP LCDs reappear at ≥1400 px, so the scope must stay
+ * hidden until ≥1500 px where there is always enough room for a meaningful
+ * waveform display without overlapping the decorative rack ears.
+ */
+@media (max-width: 1499px) {
   .bb-transport__lcd--scope { display: none; }
 }
 
@@ -1425,8 +1474,10 @@
   background: #252526;
   border-bottom: 1px solid #3c3c3c;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;   /* never wrap — items are hidden progressively instead */
+  overflow: hidden;    /* clip any overflow cleanly rather than wrapping */
   min-height: 36px;
+  min-width: 0;        /* Safari flex-item fix */
   user-select: none;
 }
 .bb-toolbar__group { display: flex; align-items: center; gap: 2px; }
@@ -1492,6 +1543,55 @@
 [data-theme="light"] .bb-toolbar__status { color: var(--bb-toolbar-status-fg, #666); }
 [data-theme="light"] .bb-toolbar__status[data-type="success"] { color: #1a7a4c; }
 [data-theme="light"] .bb-toolbar__status[data-type="error"]   { color: #d73a49; }
+
+/* ── Toolbar responsive hide cascade ─────────────────────────────────────────
+ *
+ *  Items hide progressively as the viewport narrows (never wrap).
+ *
+ *  ≤ 1349 px  view group (theme toggle) + its separator
+ *  ≤ 1099 px  edit group (Undo/Redo/Format/Wrap/Select All) + flanking seps
+ *  ≤  799 px  New, Examples dropdown, Export: label, theme-toggle + its sep
+ *  ≤  679 px  Save
+ *  ≤  559 px  Verify group + its sep
+ *  ≤  479 px  Open, status text   (only the 4 export buttons + their sep remain)
+ *
+ *  All items have keyboard-shortcut equivalents so hiding them is safe.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1349px) {
+  /* Hide view (theme-toggle) group — accessible via View menu on the menu bar */
+  .bb-toolbar__group--view,
+  .bb-toolbar__sep--view { display: none; }
+}
+
+@media (max-width: 1099px) {
+  /* Hide entire edit group and its two flanking separators */
+  .bb-toolbar__group--edit,
+  .bb-toolbar__sep--edit { display: none; }
+}
+
+@media (max-width: 799px) {
+  /* Hide New, Examples dropdown, Export label */
+  .bb-toolbar__item--pri-new,
+  .bb-toolbar__item--pri-examples,
+  .bb-toolbar__item--pri-export-label { display: none; }
+}
+
+@media (max-width: 679px) {
+  .bb-toolbar__item--pri-save { display: none; }
+}
+
+@media (max-width: 559px) {
+  /* Hide Verify group and its preceding separator */
+  .bb-toolbar__group--verify,
+  .bb-toolbar__sep--verify { display: none; }
+}
+
+@media (max-width: 479px) {
+  /* Only the 4 export buttons remain; hide Open and status text */
+  .bb-toolbar__item--pri-open,
+  .bb-toolbar__status { display: none; }
+}
 [data-theme="light"] .bb-toolbar__status[data-type="info"]    { color: #0366d6; }
 
 /* ─── Menu Bar ───────────────────────────────────────────────────────────── */
