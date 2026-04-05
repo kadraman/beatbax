@@ -791,6 +791,41 @@ npm run web-ui:dev     # start the Vite dev server (usually http://127.0.0.1:517
 | BeatBax: Toggle Mute Channel… | Quick-pick a channel to toggle mute |
 | BeatBax: Solo Channel… | Quick-pick a channel to solo |
 
+## Settings Panel
+
+All persistent preferences live in a single **Settings** modal. Open it with:
+
+- `Ctrl+,` (Windows / Linux) / `Cmd+,` (macOS)
+- **View → Settings…** in the menu bar
+- The ⚙ gear icon in the BeatBax Copilot panel header (opens directly to the **AI** tab)
+- The `…` overflow menu in the toolbar → **Settings**
+
+The modal divides settings into six tabs:
+
+| Tab | What it controls |
+|---|---|
+| **General** | Theme (dark / light / system), toolbar style, panel visibility, compact mixer |
+| **Editor** | Auto-save, word wrap, CodeLens, beat decorations, default BPM, font size |
+| **Playback** | Audio backend, sample rate, default loop, offline render buffer size |
+| **Features** | Enable / disable gated features (Pattern Grid, Hot Reload, AI Copilot, DAW Mixer) |
+| **AI** | API provider, endpoint URL, API key, model, interaction mode, max context chars |
+| **Advanced** | Log level, debug overlay, `window.__beatbax_player` exposure, reset-all |
+
+All changes apply **immediately** without a page reload. Each tab has a **Reset section to defaults** button. The **Advanced → Reset all settings** button clears all `beatbax:*` keys (with a confirmation prompt).
+
+### Feature flags
+
+The **Features** tab controls which optional capabilities are active:
+
+| Feature | Badge | Notes |
+|---|---|---|
+| **Pattern Grid** | Stable | Visual step-sequencer overlay for patterns |
+| **Hot Reload** | Experimental | Auto-replays on every editor change (800 ms debounce); state survives page reloads |
+| **AI Copilot** | Beta | Requires an API key — configure in the **AI** tab |
+| **DAW Mixer** | Planned | Horizontal channel strip with VU meters (not yet interactive) |
+
+Enabling or disabling a feature takes effect immediately — no reload needed.
+
 ## BeatBax Copilot (AI Assistant)
 
 BeatBax Copilot is a built-in AI chat assistant in the Web UI. It understands the full BeatBax language and can write songs, answer questions, and help debug errors — powered by any OpenAI-compatible REST API.
@@ -798,8 +833,11 @@ BeatBax Copilot is a built-in AI chat assistant in the Web UI. It understands th
 ### Enabling the assistant
 
 1. Open the Web UI at [app.beatbax.com](https://app.beatbax.com) (or run `npm run web-ui:dev` locally).
-2. Go to **View → AI Assistant** (or click the robot icon in the toolbar) to open the Copilot panel.
-3. Click the ⚙ gear icon in the panel header to configure your provider.
+2. Press `Ctrl+,` (or **View → Settings…**) to open **Settings**, then go to the **Features** tab and enable **AI Copilot**.
+3. Switch to the **AI** tab in Settings to configure your provider (endpoint, API key, model).
+4. Close Settings. Go to **View → AI Assistant** (or click the robot icon in the toolbar) to open the Copilot panel.
+
+You can also jump directly to the AI settings tab at any time by clicking the ⚙ gear icon in the Copilot panel header.
 
 ### Configuring the API endpoint
 
@@ -812,7 +850,7 @@ Choose a built-in preset or enter a custom endpoint:
 | Ollama (local) | `http://localhost:11434/v1` | `llama3.2` |
 | LM Studio (local) | `http://localhost:1234/v1` | `local-model` |
 
-Enter your API key if required (Ollama and LM Studio run without one). Settings are saved to `localStorage`.
+Enter your API key if required (Ollama and LM Studio run without one). Settings are **persisted to `localStorage`** — your API key, endpoint, and model are remembered across page reloads so you only need to configure them once. To clear the saved key go to **Settings → AI → Clear key**.
 
 ### Edit mode vs Ask mode
 
@@ -848,7 +886,8 @@ On every request the assistant receives:
 
 ### Security notes
 
-- Your API key is stored in `localStorage` (plain text). Do not use a high-spend production key.
+- Your API key is stored in `localStorage` (plain text) and persisted across sessions. Do not use a high-spend production key. Use **Settings → AI → Clear key** to remove it at any time.
+- Only printable ASCII characters are accepted as API keys; non-ASCII values are rejected with a clear error message before any network request is made.
 - AI-generated code is validated by the BeatBax parser before being applied to the editor. It is treated as text, not executed as JavaScript.
 - All assistant responses are sanitised with DOMPurify before rendering to prevent XSS.
 - Users who point the endpoint at a local Ollama or LM Studio instance keep all data on-device.

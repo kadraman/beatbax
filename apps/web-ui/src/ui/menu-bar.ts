@@ -72,6 +72,8 @@ export interface MenuBarOptions {
   onToggleTheme?: () => void;
   /** Toggle the AI Copilot chat panel. */
   onToggleAI?: () => void;
+  /** Open the Settings panel (Ctrl+,). */
+  onShowSettings?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
   /**
@@ -185,6 +187,7 @@ export class MenuBar {
   triggerToggleTheme(): void { this.opts.onToggleTheme?.(); }
   triggerShowShortcuts(): void { this.opts.onShowShortcuts?.(); }
   triggerToggleAI(): void { this.opts.onToggleAI?.(); }
+  triggerShowSettings(): void { this.opts.onShowSettings?.(); }
 
   // ─── Rendering ──────────────────────────────────────────────────────────────
 
@@ -560,6 +563,14 @@ export class MenuBar {
         icon: 'sun',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'Settings…',
+        icon: 'cog-6-tooth',
+        shortcut: 'Ctrl+,',
+        action: () => this.opts.onShowSettings?.(),
       },
     ];
   }

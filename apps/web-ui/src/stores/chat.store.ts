@@ -6,7 +6,7 @@
  * (e.g., status-bar badge showing unread message count).
  *
  * localStorage keys (all under the beatbax: prefix via BeatBaxStorage):
- *   beatbax:ai.settings   — endpoint, apiKey (always ''), model
+ *   beatbax:ai.settings   — endpoint, apiKey, model
  *   beatbax:ai.mode       — 'edit' | 'ask'
  *   beatbax:ai.chatHistory — persisted message array (capped at MAX_HISTORY)
  */
@@ -49,14 +49,11 @@ function loadSettings(): AISettings {
 
   const saved = storage.getJSON<Partial<AISettings>>(StorageKey.CHAT_SETTINGS);
   if (!saved) return defaults;
-
-  // Force apiKey to '' regardless of what is in storage — it must never be
-  // reused from a previous session.
-  if (saved.apiKey) {
-    // Overwrite the stored value so the key is not sitting in localStorage.
-    storage.setJSON(StorageKey.CHAT_SETTINGS, { ...saved, apiKey: '' });
-  }
-  return { ...defaults, ...saved, apiKey: '' };
+  // Sanitize: strip any corrupt non-ASCII value that may have been stored previously
+  const apiKey = (typeof saved.apiKey === 'string' && /^[\x20-\x7E]*$/.test(saved.apiKey))
+    ? saved.apiKey
+    : '';
+  return { ...defaults, ...saved, apiKey };
 }
 
 function loadMode(): ChatMode {
@@ -89,9 +86,7 @@ export const chatUnreadCount = atom<number>(0);
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 chatSettings.subscribe((settings) => {
-  // Never persist the API key — require the user to re-enter it each session.
-  const { apiKey: _apiKey, ...safe } = settings;
-  storage.setJSON(StorageKey.CHAT_SETTINGS, { ...safe, apiKey: '' });
+  storage.setJSON(StorageKey.CHAT_SETTINGS, settings);
 });
 
 chatMode.subscribe((mode) => {

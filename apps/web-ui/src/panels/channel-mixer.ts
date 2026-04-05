@@ -23,6 +23,7 @@ import {
 } from '../stores/channel.store';
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
+import { storage, StorageKey } from '../utils/local-storage';
 
 const log = createLogger('ui:channel-panel');
 
@@ -52,7 +53,9 @@ export class ChannelMixer {
   constructor(options: ChannelMixerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
-    try { const saved = localStorage.getItem('bb-channel-compact'); if (saved !== null) this.compactMode = saved === 'true'; } catch (e) {}
+    // Read compact mode from typed StorageKey; fall back to legacy key.
+    const saved = storage.get(StorageKey.CHANNEL_COMPACT) ?? localStorage.getItem('bb-channel-compact');
+    if (saved !== null && saved !== undefined) this.compactMode = saved === 'true';
     this.render();
     this.setupEventListeners();
   }
@@ -65,6 +68,14 @@ export class ChannelMixer {
 
   private get volumeEnabled(): boolean {
     return VOLUME_SUPPORTED_CHIPS.has(this.activeChip);
+  }
+
+  // ─── Public API ─────────────────────────────────────────────────────────────
+
+  /** Set compact mode and immediately re-render the mixer. */
+  setCompact(v: boolean): void {
+    this.compactMode = v;
+    this.render();
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
