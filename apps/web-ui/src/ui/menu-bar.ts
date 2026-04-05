@@ -16,6 +16,8 @@ import { icon } from '../utils/icons';
 
 const log = createLogger('ui:menu-bar');
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+
 const RECENT_STORAGE_KEY = 'beatbax:menu.recentFiles';
 const MAX_RECENT = 8;
 const ABOUT_URL = 'https://github.com/kadraman/beatbax';
@@ -72,6 +74,8 @@ export interface MenuBarOptions {
   onToggleTheme?: () => void;
   /** Toggle the AI Copilot chat panel. */
   onToggleAI?: () => void;
+  /** Open the Settings panel (Ctrl+,). */
+  onShowSettings?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
   /**
@@ -185,6 +189,7 @@ export class MenuBar {
   triggerToggleTheme(): void { this.opts.onToggleTheme?.(); }
   triggerShowShortcuts(): void { this.opts.onShowShortcuts?.(); }
   triggerToggleAI(): void { this.opts.onToggleAI?.(); }
+  triggerShowSettings(): void { this.opts.onShowSettings?.(); }
 
   // ─── Rendering ──────────────────────────────────────────────────────────────
 
@@ -560,6 +565,14 @@ export class MenuBar {
         icon: 'sun',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'Settings…',
+        icon: 'cog-6-tooth',
+        shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+,`,
+        action: () => this.opts.onShowSettings?.(),
       },
     ];
   }

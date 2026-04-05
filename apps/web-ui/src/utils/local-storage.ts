@@ -28,19 +28,51 @@ export const STORAGE_PREFIX = 'beatbax:';
 export const StorageKey = {
   /** Last editor content (string). */
   EDITOR_CONTENT: 'editor.content',
-  /** Active colour theme ('dark' | 'light'). */
+  /** Active colour theme ('dark' | 'light' | 'system'). */
   THEME: 'ui.theme',
+  /** Toolbar style ('icons+labels' | 'icons'). */
+  TOOLBAR_STYLE: 'ui.toolbarStyle',
+  /** Compact channel mixer (boolean). */
+  CHANNEL_COMPACT: 'ui.channelCompact',
   /** BPM preference (number encoded as string). */
   BPM: 'editor.bpm',
   /** Auto-save enabled flag (boolean). */
   AUTO_SAVE: 'editor.autoSave',
+  /** Word wrap enabled flag (boolean). */
+  WORD_WRAP: 'editor.wordWrap',
+  /** CodeLens previews enabled (boolean). */
+  CODELENS: 'editor.codelens',
+  /** Beat decorations enabled (boolean). */
+  BEAT_DECORATIONS: 'editor.beatDecorations',
+  /** Editor font size (number). */
+  FONT_SIZE: 'editor.fontSize',
+  /** Audio backend ('auto' | 'browser' | 'node-webaudio'). */
+  AUDIO_BACKEND: 'audio.backend',
+  /** Audio sample rate (44100 | 48000 | 96000). */
+  AUDIO_SAMPLE_RATE: 'audio.sampleRate',
+  /** Audio buffer frames for offline render (1024 | 2048 | 4096 | 8192). */
+  AUDIO_BUFFER_FRAMES: 'audio.bufferFrames',
+  /** Default loop playback (boolean). */
+  PLAYBACK_LOOP: 'playback.loop',
   /** Last export format used. */
   LAST_EXPORT_FORMAT: 'export.lastFormat',
-  /** Logger level setting. */
+  /** Logger level setting ('error' | 'warn' | 'info' | 'debug'). */
   LOG_LEVEL: 'debug.logLevel',
+  /** Show debug overlay (boolean). */
+  DEBUG_OVERLAY: 'debug.overlay',
+  /** Expose window.__beatbax_player (boolean). */
+  DEBUG_EXPOSE_PLAYER: 'debug.exposePlayer',
   /** AI Assistant feature flag (boolean). */
   AI_ASSISTANT: 'feature.aiAssistant',
-  /** AI Copilot connection settings (JSON, apiKey always stored as ''). */
+  /** Per-channel waveform analyser feature flag (boolean). */
+  FEATURE_PER_CHANNEL_ANALYSER: 'feature.perChannelAnalyser',
+  /** DAW channel mixer feature flag (boolean). */
+  FEATURE_DAW_MIXER: 'feature.dawMixer',
+  /** Pattern grid feature flag (boolean). */
+  FEATURE_PATTERN_GRID: 'feature.patternGrid',
+  /** Hot reload feature flag (boolean). */
+  FEATURE_HOT_RELOAD: 'feature.hotReload',
+  /** AI Copilot connection settings (JSON: endpoint, model, apiKey). apiKey is persisted across sessions; non-ASCII values are sanitized to '' on load. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */
   CHAT_MODE: 'ai.mode',
