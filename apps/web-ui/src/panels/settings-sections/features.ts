@@ -48,6 +48,14 @@ const FEATURES: FeatureEntry[] = [
     atom: settingFeatureAI,
   },
   {
+    label: 'Per-channel waveform analyser',
+    description: 'Attaches a WebAudio AnalyserNode to each channel and streams real time-domain waveforms to the channel mixer. Shows the actual audio signal instead of synthetic pulses. Enable, then press Play to see real waveforms.',
+    badge: 'Stable',
+    flag: FeatureFlag.PER_CHANNEL_ANALYSER,
+    atom: settingFeaturePerChannelAnalyser,
+    onToggle: (enabled) => (window as any).__beatbax_setPerChannelAnalyser?.(enabled),
+  },
+  {
     label: 'DAW channel mixer',
     description: 'Horizontal channel strip with VU meters and faders docked at the bottom of the editor. Includes per-channel real-time waveform displays (WebAudio AnalyserNode — adds CPU overhead).',
     badge: 'Planned',
@@ -107,6 +115,8 @@ export function buildFeaturesSection(): HTMLElement {
       setFeatureEnabled(feat.flag, input.checked);
       feat.onToggle?.(input.checked);
     });
+    // Keep checkbox in sync when atom is changed externally (e.g. from ChannelMixer button)
+    feat.atom.subscribe((val) => { input.checked = val; });
 
     row.append(left, input);
     el.appendChild(row);

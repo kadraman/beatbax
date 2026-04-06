@@ -15,7 +15,7 @@
  */
 
 import type { EventBus } from '../utils/event-bus';
-import type { PlaybackPosition } from '../playback/playback-manager';
+import type { PlaybackPosition, PlaybackManager } from '../playback/playback-manager';
 import {
   channelStates, isChannelAudible,
   toggleChannelMuted, toggleChannelSoloed, setChannelVolume,
@@ -24,6 +24,7 @@ import {
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { storage, StorageKey } from '../utils/local-storage';
+import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
 
 const log = createLogger('ui:channel-panel');
 
@@ -40,19 +41,29 @@ const CHANNEL_META: Record<number, { label: string; color: string }> = {
 export interface ChannelMixerOptions {
   container: HTMLElement;
   eventBus: EventBus;
+  /** Optional PlaybackManager reference used to enable/disable per-channel analysers. */
+  playbackManager?: PlaybackManager;
 }
 
 export class ChannelMixer {
   private container: HTMLElement;
   private eventBus: EventBus;
+  private playbackManager: PlaybackManager | null;
   private ast: any = null;
   private unsubscribers: Array<() => void> = [];
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private compactMode = true;
+  /** Latest real waveform samples per channel from analyser events. */
+  private channelWaveforms: Map<number, Float32Array> = new Map();
+  /** Whether per-channel analyser waveforms are enabled. */
+  private analyserEnabled = false;
 
   constructor(options: ChannelMixerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
+    this.playbackManager = options.playbackManager ?? null;
+    // Restore per-channel analyser preference from the settings atom (unified with Settings panel)
+    this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
     // Read compact mode from typed StorageKey; fall back to legacy key.
     let legacyCompact: string | null = null;
     try { legacyCompact = localStorage.getItem('bb-channel-compact'); } catch { /* ignore */ }
@@ -133,6 +144,27 @@ export class ChannelMixer {
     toolbar.appendChild(toggleBtn);
     toolbar.appendChild(unmuteBtn);
     toolbar.appendChild(clearSoloBtn);
+
+    // Per-channel waveform analyser toggle
+    const waveformBtn = document.createElement('button');
+    waveformBtn.className = 'bb-cp__toolbar-btn' + (this.analyserEnabled ? ' bb-cp__toolbar-btn--active' : '');
+    waveformBtn.id = 'bb-cp-waveform-toggle';
+    waveformBtn.title = this.analyserEnabled ? 'Disable real waveforms' : 'Enable real waveforms';
+    waveformBtn.innerHTML = icon('waveform', 'w-3.5 h-3.5');
+    waveformBtn.addEventListener('click', () => {
+      this.analyserEnabled = !this.analyserEnabled;
+      waveformBtn.classList.toggle('bb-cp__toolbar-btn--active', this.analyserEnabled);
+      waveformBtn.title = this.analyserEnabled ? 'Disable real waveforms' : 'Enable real waveforms';
+      settingFeaturePerChannelAnalyser.set(this.analyserEnabled); // persists to storage + notifies Settings panel
+      if (this.playbackManager) {
+        this.playbackManager.setPerChannelAnalyser(this.analyserEnabled);
+      }
+      if (!this.analyserEnabled) {
+        this.channelWaveforms.clear();
+      }
+    });
+    toolbar.appendChild(waveformBtn);
+
     root.appendChild(toolbar);
 
     const channels = this.ast?.channels ?? [];
@@ -322,15 +354,36 @@ export class ChannelMixer {
 
       this.eventBus.on('playback:position-changed', ({ channelId, position }) => {
         this.updatePosition(channelId, position);
-        this.pulse(channelId);
+        // Pulse the level indicator; skip synthetic waveform draw when analyser is active
+        this.pulse(channelId, !this.analyserEnabled);
       }),
 
       this.eventBus.on('playback:stopped', () => {
         this.resetAllChannels();
         this.clearAllLevels();
+        this.channelWaveforms.clear();
+      }),
+
+      // Per-channel analyser waveform data: render real samples to canvas
+      this.eventBus.on('playback:channel-waveform', ({ channelId, samples }) => {
+        this.channelWaveforms.set(channelId, samples);
+        this.drawAnalyserWaveform(channelId, samples);
       }),
 
       // Subscribe to channel store for mute/solo/volume changes.
+      // Sync button visual when the Settings panel changes the analyser feature flag
+      settingFeaturePerChannelAnalyser.subscribe((val) => {
+        if (val === this.analyserEnabled) return;
+        this.analyserEnabled = val;
+        const btn = this.container.querySelector('#bb-cp-waveform-toggle') as HTMLButtonElement | null;
+        if (btn) {
+          btn.classList.toggle('bb-cp__toolbar-btn--active', val);
+          btn.title = val ? 'Disable real waveforms' : 'Enable real waveforms';
+        }
+        if (this.playbackManager) this.playbackManager.setPerChannelAnalyser(val);
+        if (!val) this.channelWaveforms.clear();
+      }),
+
       channelStates.subscribe((states) => {
         const anyMuted = Object.values(states).some(s => s.muted);
         const anySoloed = Object.values(states).some(s => s.soloed);
@@ -436,7 +489,7 @@ export class ChannelMixer {
 
   // ─── Level indicator (pulses on every position-changed event) ───────────────
 
-  private pulse(channelId: number): void {
+  private pulse(channelId: number, drawSynthetic = true): void {
     const bar = document.getElementById(`bb-cp-level-${channelId}`);
     if (!bar) return;
     const color = CHANNEL_META[channelId]?.color ?? '#569cd6';
@@ -448,6 +501,8 @@ export class ChannelMixer {
       bar.style.opacity = isChannelAudible(channelStates.get(), channelId) ? '0.35' : '0.15';
     }, 120));
 
+    // Skip synthetic waveform drawing when real analyser data is active
+    if (!drawSynthetic) return;
 
     // Animate mini waveform canvas — smoothed path, transparent background
     const canvas = document.getElementById(`bb-cp-wave-${channelId}`) as HTMLCanvasElement | null;
@@ -530,6 +585,55 @@ export class ChannelMixer {
       if (bar) { bar.style.boxShadow = 'none'; bar.style.opacity = '0.35'; }
     }
     this.levelTimers.clear();
+  }
+
+  /**
+   * Render real per-channel waveform samples from the AnalyserNode into the
+   * channel's mini canvas. Samples are expected to be float32 time-domain data
+   * in the range [-1, 1]. Replaces the synthetic waveform when analyser is active.
+   */
+  private drawAnalyserWaveform(channelId: number, samples: Float32Array): void {
+    const canvas = document.getElementById(`bb-cp-wave-${channelId}`) as HTMLCanvasElement | null;
+    if (!canvas || !canvas.getContext) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (samples.length === 0) return;
+
+    const color = CHANNEL_META[channelId]?.color ?? '#4a9eff';
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = color;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = color + '55';
+
+    // Build decimated points mapped to canvas dimensions
+    const step = Math.max(1, Math.floor(samples.length / w));
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let x = 0; x < w; x++) {
+      const sampleIdx = Math.min(Math.floor(x * samples.length / w), samples.length - 1);
+      const sample = samples[sampleIdx];
+      const y = (h / 2) * (1 - sample);  // map [-1,1] → [h, 0]
+      pts.push({ x, y: Math.max(0, Math.min(h, y)) });
+    }
+
+    // Draw smoothed quadratic path
+    ctx.beginPath();
+    if (pts.length > 0) {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const curr = pts[i];
+        const cx = (prev.x + curr.x) / 2;
+        const cy = (prev.y + curr.y) / 2;
+        ctx.quadraticCurveTo(prev.x, prev.y, cx, cy);
+      }
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
   private updateModeVisuals(root?: HTMLElement): void {

@@ -20,6 +20,35 @@ export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
 export const parseEnvelope = pulseParseEnvelope;
 
+/** Payload emitted on every analyser tick for one channel. */
+export interface ChannelWaveformPayload {
+  channelId: number;
+  timestamp: number;
+  samples: Float32Array<ArrayBuffer>;
+  format: 'float32';
+  sampleCount: number;
+  sampleRateHint: number;
+}
+
+/** Configuration for per-channel analyser nodes. */
+export interface AnalyserConfig {
+  fftSize?: number;
+  smoothingTimeConstant?: number;
+  uiUpdateHz?: number;
+  emittedSampleCount?: number;
+}
+
+/** Decimate a Float32Array to targetCount samples via nearest-neighbour. */
+function decimate(src: Float32Array<ArrayBuffer>, targetCount: number): Float32Array<ArrayBuffer> {
+  if (src.length <= targetCount) return src.slice() as Float32Array<ArrayBuffer>;
+  const out = new Float32Array(targetCount) as Float32Array<ArrayBuffer>;
+  const ratio = src.length / targetCount;
+  for (let i = 0; i < targetCount; i++) {
+    out[i] = src[Math.floor(i * ratio)];
+  }
+  return out;
+}
+
 /**
  * Create an AudioContext suitable for Node.js or browser environments.
  * In Node.js, dynamically imports standardized-audio-context polyfill.
@@ -93,11 +122,23 @@ export class Player {
   public onComplete?: () => void;
   public onRepeat?: () => void;
   public onPositionChange?: (channelId: number, eventIndex: number, totalEvents: number) => void;
+  /** Called on each analyser tick (throttled to uiUpdateHz) when per-channel analysers are enabled. */
+  public onChannelWaveform?: (payload: ChannelWaveformPayload) => void;
   private currentEventIndex: Map<number, number> = new Map(); // channelId → event index
   private totalEvents: Map<number, number> = new Map(); // channelId → total count
   private _repeatTimer: any = null;
   private _preScheduleTimer: any = null; // Timer for seamless loop pre-scheduling
   private _loopEndTime: number = 0; // Absolute AudioContext time when current loop iteration ends
+  // ─── Per-channel analyser state ─────────────────────────────────────────────
+  private _enableAnalyser: boolean = false;
+  private _analyserFftSize: number = 512;
+  private _analyserSmoothing: number = 0.6;
+  private _uiUpdateHz: number = 30;
+  private _emittedSampleCount: number = 128;
+  private _channelAnalysers: Map<number, AnalyserNode> = new Map();
+  private _channelBuses: Map<number, GainNode> = new Map();
+  private _analyserBuffers: Map<number, Float32Array<ArrayBuffer>> = new Map();
+  private _analyserTimer: any = null;
   private _completionTimer: any = null;
   private _completionTimeoutMs: number = 0; // Total timeout duration
   private _playbackStartTimestamp: number = 0; // When playback started
@@ -114,7 +155,17 @@ export class Player {
            localStorage.getItem('beatbax-debug-playback') === 'true';
   }
 
-  constructor(ctx?: any, opts: { buffered?: boolean; segmentDuration?: number; bufferedLookahead?: number; maxPreRenderSegments?: number } = {}) {
+  constructor(ctx?: any, opts: {
+    buffered?: boolean;
+    segmentDuration?: number;
+    bufferedLookahead?: number;
+    maxPreRenderSegments?: number;
+    enablePerChannelAnalyser?: boolean;
+    analyserFftSize?: number;
+    analyserSmoothing?: number;
+    uiUpdateHz?: number;
+    emittedSampleCount?: number;
+  } = {}) {
     if (!ctx) {
       const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
       if (!Ctor) {
@@ -126,6 +177,13 @@ export class Player {
     }
     this.scheduler = createScheduler(this.ctx) as TickScheduler;
     this._debugLog = Player.isDebugEnabled(); // Initialize debug flag from localStorage
+    if (opts.enablePerChannelAnalyser) {
+      this._enableAnalyser = true;
+      if (opts.analyserFftSize) this._analyserFftSize = opts.analyserFftSize;
+      if (opts.analyserSmoothing !== undefined) this._analyserSmoothing = opts.analyserSmoothing;
+      if (opts.uiUpdateHz) this._uiUpdateHz = opts.uiUpdateHz;
+      if (opts.emittedSampleCount) this._emittedSampleCount = opts.emittedSampleCount;
+    }
     if (opts.buffered) {
       (this as any)._buffered = new BufferedRenderer(this.ctx, this.scheduler as any, { segmentDuration: opts.segmentDuration, lookahead: opts.bufferedLookahead, maxPreRenderSegments: opts.maxPreRenderSegments });
     }
@@ -178,6 +236,14 @@ export class Player {
 
     // Start the scheduler to begin firing scheduled events
     this.scheduler.start();
+
+    // Start analyser sampling loop when enabled.
+    // Channel buses are created lazily when the first notes play (~100ms from now),
+    // so we must NOT gate on _channelAnalysers.size here — start the loop and let
+    // it pick up channels as they appear.
+    if (this._enableAnalyser) {
+      this._startAnalyserSampling();
+    }
 
     // Set up repeat or one-shot completion
     try {
@@ -431,7 +497,7 @@ export class Player {
             return;
           }
           if (this._debugLog) log.debug(`Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
-          const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this.masterGain || undefined);
+          const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this._getChannelDest(chId));
           const endTime0 = time + dur + 0.1;
           for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime0 });
         });
@@ -482,11 +548,11 @@ export class Player {
               return;
             }
             if (this._debugLog) log.debug(`Playing ch${chId} pulse at ${time.toFixed(2)}s`);
-            const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
+            const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId));
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
-            this.tryApplyPan(this.ctx, nodes, panVal);
+            this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             const endTime1 = time + dur + 0.1;
@@ -520,10 +586,10 @@ export class Player {
               return;
             }
             if (this._debugLog) log.debug(`Playing ch${chId} wave at ${time.toFixed(2)}s`);
-            const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this.masterGain || undefined);
+            const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId));
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
-            this.tryApplyPan(this.ctx, nodes, panVal);
+            this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, freq, capturedInst, chId, token, tickSeconds, panVal);
             const endTime2 = time + dur + 0.1;
@@ -555,10 +621,10 @@ export class Player {
               return;
             }
             if (this._debugLog) log.debug(`Playing ch${chId} noise at ${time.toFixed(2)}s`);
-            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
+            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId));
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
-            this.tryApplyPan(this.ctx, nodes, panVal);
+            this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
             this.tryScheduleRetriggers(nodes, 0, inst, chId, token, tickSeconds, panVal);
             const endTime3 = time + dur + 0.1;
@@ -580,8 +646,8 @@ export class Player {
           }
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this.masterGain || undefined);
-          this.tryApplyPan(this.ctx, nodes, panVal);
+          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId));
+          this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
           const endTime4 = time + dur + 0.1;
           for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime4 });
         });
@@ -675,14 +741,14 @@ export class Player {
         this.scheduler.schedule(capturedTime, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const retrigNodes = playPulse(this.ctx, freq, duty, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          const retrigNodes = playPulse(this.ctx, freq, duty, capturedTime, retrigDur, capturedInst, this.scheduler, this._getChannelDest(chId));
           // Don't apply retrigger effect recursively, but apply other effects
           const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
             const fxType = fx && fx.type ? fx.type : fx;
             return fxType !== 'retrig';
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
-          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal, this._getChannelDest(chId));
           const retrigEnd1 = capturedTime + retrigDur + 0.1;
           for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd1 });
         });
@@ -691,13 +757,13 @@ export class Player {
         this.scheduler.schedule(capturedTime, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const retrigNodes = playWavetable(this.ctx, freq, wav, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          const retrigNodes = playWavetable(this.ctx, freq, wav, capturedTime, retrigDur, capturedInst, this.scheduler, this._getChannelDest(chId));
           const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
             const fxType = fx && fx.type ? fx.type : fx;
             return fxType !== 'retrig';
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
-          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal, this._getChannelDest(chId));
           const retrigEnd2 = capturedTime + retrigDur + 0.1;
           for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd2 });
         });
@@ -705,13 +771,13 @@ export class Player {
         this.scheduler.schedule(capturedTime, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const retrigNodes = playNoise(this.ctx, capturedTime, retrigDur, capturedInst, this.scheduler, this.masterGain || undefined);
+          const retrigNodes = playNoise(this.ctx, capturedTime, retrigDur, capturedInst, this.scheduler, this._getChannelDest(chId));
           const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
             const fxType = fx && fx.type ? fx.type : fx;
             return fxType !== 'retrig';
           });
           this.tryApplyEffects(this.ctx, retrigNodes, effectsWithoutRetrig, capturedTime, retrigDur, chId, tickSeconds, capturedInst);
-          this.tryApplyPan(this.ctx, retrigNodes, panVal);
+          this.tryApplyPan(this.ctx, retrigNodes, panVal, this._getChannelDest(chId));
           const retrigEnd3 = capturedTime + retrigDur + 0.1;
           for (const n of retrigNodes) this.activeNodes.push({ node: n, chId, endTime: retrigEnd3 });
         });
@@ -841,7 +907,7 @@ export class Player {
     }
   }
 
-  private tryApplyPan(ctx: any, nodes: any[], panSpec: any) {
+  private tryApplyPan(ctx: any, nodes: any[], panSpec: any, channelDest?: AudioNode) {
     if (!panSpec) return;
     let p = undefined as number | undefined;
     if (typeof panSpec === 'number') p = Math.max(-1, Math.min(1, panSpec));
@@ -862,8 +928,8 @@ export class Player {
     try {
       const gain = nodes && nodes.length >= 2 ? nodes[1] : null;
       if (!gain || typeof gain.connect !== 'function') return;
-      // Determine the actual destination (masterGain if available, otherwise ctx.destination)
-      const dest = this.masterGain || (ctx as any).destination;
+      // Determine the actual destination (channel bus when analyser enabled, otherwise masterGain)
+      const dest = channelDest || this.masterGain || (ctx as any).destination;
       // create StereoPannerNode if available
       const createPanner = (ctx as any).createStereoPanner;
       if (typeof createPanner === 'function') {
@@ -911,6 +977,9 @@ export class Player {
     if (this.ctx && typeof this.ctx.suspend === 'function' && this.ctx.state === 'running') {
       await this.ctx.suspend();
     }
+
+    // Pause the analyser sampling loop
+    this._stopAnalyserSampling();
   }
 
   /**
@@ -950,6 +1019,11 @@ export class Player {
     if (this.ctx && typeof this.ctx.resume === 'function' && this.ctx.state === 'suspended') {
       await this.ctx.resume();
     }
+
+    // Restart the analyser sampling loop
+    if (this._enableAnalyser) {
+      this._startAnalyserSampling();
+    }
   }
 
   /**
@@ -971,6 +1045,126 @@ export class Player {
   /** Expose the master GainNode so UI consumers can tap the post-gain signal. */
   public getMasterGain(): GainNode | null {
     return this.masterGain;
+  }
+
+  /**
+   * Enable or disable per-channel analyser nodes at runtime.
+   * When enabled, AnalyserNode + GainNode buses are created for each channel
+   * and wired in parallel so audio output is unaffected.
+   * The sampling loop starts immediately if playback is active.
+   *
+   * NOTE: disabling only STOPS the sampling loop — it does NOT tear down the
+   * channel buses. Buses are intentional passthroughs (gain=1) and are kept
+   * alive so that re-enabling restarts instantly without waiting for the next
+   * loop iteration to recreate them. Full teardown happens in stop().
+   */
+  public setPerChannelAnalyser(enabled: boolean, config?: AnalyserConfig): void {
+    this._enableAnalyser = enabled;
+    if (config) {
+      if (config.fftSize) this._analyserFftSize = config.fftSize;
+      if (config.smoothingTimeConstant !== undefined) this._analyserSmoothing = config.smoothingTimeConstant;
+      if (config.uiUpdateHz) this._uiUpdateHz = config.uiUpdateHz;
+      if (config.emittedSampleCount) this._emittedSampleCount = config.emittedSampleCount;
+    }
+    if (!enabled) {
+      this._stopAnalyserSampling();
+      // Do NOT call _teardownAnalysers() here — keep buses connected so
+      // re-enabling during active playback works without a song restart.
+    } else {
+      // Start (or restart) the sampling loop immediately using whatever
+      // channel analysers are already wired up.
+      this._startAnalyserSampling();
+    }
+  }
+
+  /**
+   * Return the most-recent analyser buffer for a channel (pull-based consumers).
+   * Returns null when the analyser is disabled or the channel hasn't been set up.
+   */
+  public getChannelAnalyserData(channelId: number): { samples: Float32Array<ArrayBuffer>; sampleRateHint: number } | null {
+    const analyser = this._channelAnalysers.get(channelId);
+    const buf = this._analyserBuffers.get(channelId);
+    if (!analyser || !buf) return null;
+    analyser.getFloatTimeDomainData(buf);
+    const decimated = decimate(buf, this._emittedSampleCount);
+    return { samples: decimated, sampleRateHint: this.ctx.sampleRate };
+  }
+
+  /** Get or create the per-channel bus GainNode for the given channel. */
+  private _getChannelBus(chId: number): GainNode {
+    let bus = this._channelBuses.get(chId);
+    if (!bus) {
+      bus = (this.ctx as any).createGain() as GainNode;
+      bus.gain.value = 1;
+      bus.connect(this.masterGain || (this.ctx as any).destination);
+      // Create and wire analyser in parallel
+      const analyser = (this.ctx as any).createAnalyser() as AnalyserNode;
+      analyser.fftSize = this._analyserFftSize;
+      analyser.smoothingTimeConstant = this._analyserSmoothing;
+      bus.connect(analyser);
+      this._channelAnalysers.set(chId, analyser);
+      this._analyserBuffers.set(chId, new Float32Array(this._analyserFftSize) as Float32Array<ArrayBuffer>);
+      this._channelBuses.set(chId, bus);
+    }
+    return bus;
+  }
+
+  /** Return the AudioNode that should be used as the destination for a channel.
+   * Always routes through the per-channel bus (gain=1 passthrough) so that audio
+   * is available to the AnalyserNode tap regardless of whether the sampling loop
+   * is currently running. Enable/disable only controls the sampling timer. */
+  private _getChannelDest(chId: number): AudioNode {
+    return this._getChannelBus(chId);
+  }
+
+  /** Start the throttled sampling loop that emits onChannelWaveform events. */
+  private _startAnalyserSampling(): void {
+    if (this._analyserTimer) return;
+    const intervalMs = Math.max(16, Math.round(1000 / this._uiUpdateHz));
+    this._analyserTimer = setInterval(() => {
+      if (this._isPaused) return;
+      if (typeof document !== 'undefined' && (document as any).hidden) return;
+      for (const [chId, analyser] of this._channelAnalysers) {
+        const buf = this._analyserBuffers.get(chId);
+        if (!buf) continue;
+        analyser.getFloatTimeDomainData(buf);
+        const decimated = decimate(buf, this._emittedSampleCount);
+        if (this.onChannelWaveform) {
+          try {
+            this.onChannelWaveform({
+              channelId: chId,
+              timestamp: Date.now(),
+              samples: decimated,
+              format: 'float32',
+              sampleCount: this._emittedSampleCount,
+              sampleRateHint: this.ctx.sampleRate,
+            });
+          } catch (_) {}
+        }
+      }
+    }, intervalMs);
+  }
+
+  /** Stop the sampling loop (called on pause/stop). */
+  private _stopAnalyserSampling(): void {
+    if (this._analyserTimer) {
+      clearInterval(this._analyserTimer);
+      this._analyserTimer = null;
+    }
+  }
+
+  /** Disconnect and destroy all analyser/channel-bus nodes. */
+  private _teardownAnalysers(): void {
+    this._stopAnalyserSampling();
+    for (const [, analyser] of this._channelAnalysers) {
+      try { analyser.disconnect(); } catch (_) {}
+    }
+    for (const [, bus] of this._channelBuses) {
+      try { bus.disconnect(); } catch (_) {}
+    }
+    this._channelAnalysers.clear();
+    this._channelBuses.clear();
+    this._analyserBuffers.clear();
   }
 
   stop() {
@@ -1004,6 +1198,9 @@ export class Player {
 
     // Clear effect state (e.g., portamento frequency tracking)
     clearEffectState();
+
+    // Tear down per-channel analysers and buses
+    this._teardownAnalysers();
 
     for (const entry of this.activeNodes) {
       try { if (entry.node && typeof entry.node.stop === 'function') entry.node.stop(); } catch (e) {}
