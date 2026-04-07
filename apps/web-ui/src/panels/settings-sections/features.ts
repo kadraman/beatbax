@@ -48,6 +48,14 @@ const FEATURES: FeatureEntry[] = [
     atom: settingFeatureAI,
   },
   {
+    label: 'Per-channel waveform analyser',
+    description: 'Attaches a WebAudio AnalyserNode to each channel and streams real time-domain waveforms to the channel mixer. Shows the actual audio signal instead of synthetic pulses. Enable, then press Play to see real waveforms.',
+    badge: 'Stable',
+    flag: FeatureFlag.PER_CHANNEL_ANALYSER,
+    atom: settingFeaturePerChannelAnalyser,
+    onToggle: (enabled) => (window as any).__beatbax_setPerChannelAnalyser?.(enabled),
+  },
+  {
     label: 'DAW channel mixer',
     description: 'Horizontal channel strip with VU meters and faders docked at the bottom of the editor. Includes per-channel real-time waveform displays (WebAudio AnalyserNode — adds CPU overhead).',
     badge: 'Planned',
@@ -69,6 +77,10 @@ export function buildFeaturesSection(): HTMLElement {
   el.className = 'bb-settings-section';
 
   el.appendChild(sectionHeading('Optional capabilities'));
+
+  // Collect all nanostores unsubscribe functions so we can tear them down
+  // when this section is removed from the DOM (e.g. on "Reset to defaults").
+  const unsubs: Array<() => void> = [];
 
   for (const feat of FEATURES) {
     const row = document.createElement('div');
@@ -107,10 +119,38 @@ export function buildFeaturesSection(): HTMLElement {
       setFeatureEnabled(feat.flag, input.checked);
       feat.onToggle?.(input.checked);
     });
+    // Keep checkbox in sync when atom is changed externally (e.g. from ChannelMixer button).
+    // Store the returned unsubscribe so we can clean up on section disposal.
+    unsubs.push(feat.atom.subscribe((val: boolean) => { input.checked = val; }));
 
     row.append(left, input);
     el.appendChild(row);
   }
+
+  // Dispose all subscriptions as soon as this element is detached from the DOM.
+  // A MutationObserver on the parent is the simplest hook that doesn't require
+  // callers to invoke a teardown function.
+  let observer: MutationObserver | null = new MutationObserver(() => {
+    if (!el.isConnected) {
+      unsubs.forEach(fn => fn());
+      unsubs.length = 0;
+      observer!.disconnect();
+      observer = null;
+    }
+  });
+  // Begin observing once the element is inserted (defer one microtask so that
+  // the caller has time to attach it to the document).
+  Promise.resolve().then(() => {
+    if (el.isConnected && observer) {
+      observer.observe(el.parentElement!, { childList: true });
+    } else if (observer) {
+      // Element was never inserted — nothing to observe; release immediately.
+      unsubs.forEach(fn => fn());
+      unsubs.length = 0;
+      observer.disconnect();
+      observer = null;
+    }
+  });
 
   return el;
 }
