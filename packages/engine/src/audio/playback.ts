@@ -38,15 +38,23 @@ export interface AnalyserConfig {
   emittedSampleCount?: number;
 }
 
-/** Decimate a Float32Array to targetCount samples via nearest-neighbour. */
-function decimate(src: Float32Array<ArrayBuffer>, targetCount: number): Float32Array<ArrayBuffer> {
-  if (src.length <= targetCount) return src.slice() as Float32Array<ArrayBuffer>;
-  const out = new Float32Array(targetCount) as Float32Array<ArrayBuffer>;
+/**
+ * Decimate `src` into `out` (nearest-neighbour), writing exactly `out.length`
+ * samples. Both arrays must be pre-allocated by the caller — no heap allocation
+ * occurs here.
+ */
+function decimateInto(src: Float32Array, out: Float32Array): void {
+  const targetCount = out.length;
+  if (src.length <= targetCount) {
+    // Source is already at or below target resolution — copy what fits, zero the rest.
+    out.set(src.subarray(0, Math.min(src.length, targetCount)));
+    if (src.length < targetCount) out.fill(0, src.length);
+    return;
+  }
   const ratio = src.length / targetCount;
   for (let i = 0; i < targetCount; i++) {
     out[i] = src[Math.floor(i * ratio)];
   }
-  return out;
 }
 
 /**
@@ -138,6 +146,7 @@ export class Player {
   private _channelAnalysers: Map<number, AnalyserNode> = new Map();
   private _channelBuses: Map<number, GainNode> = new Map();
   private _analyserBuffers: Map<number, Float32Array<ArrayBuffer>> = new Map();
+  private _decimatedBuffers: Map<number, Float32Array<ArrayBuffer>> = new Map(); // preallocated output per channel
   private _analyserTimer: any = null;
   private _completionTimer: any = null;
   private _completionTimeoutMs: number = 0; // Total timeout duration
@@ -146,6 +155,7 @@ export class Player {
   private _isRepeatMode: boolean = false; // Whether song is in repeat mode
   private _currentAST: any = null; // Current AST for repeat playback
   private _isPaused: boolean = false; // Whether playback is currently paused
+  private _isPlaying: boolean = false; // True only after scheduler.start() and before stop()
   private _debugLog: boolean = false; // Whether to log playback events (controlled by localStorage)
 
   /** Check localStorage for debug flag (browser only) */
@@ -236,11 +246,13 @@ export class Player {
 
     // Start the scheduler to begin firing scheduled events
     this.scheduler.start();
+    this._isPlaying = true;
 
     // Start analyser sampling loop when enabled.
-    // Channel buses are created lazily when the first notes play (~100ms from now),
-    // so we must NOT gate on _channelAnalysers.size here — start the loop and let
-    // it pick up channels as they appear.
+    // Channel buses (and their AnalyserNode taps) are created lazily when the
+    // first notes play (~100ms from now), so we must NOT gate on
+    // _channelAnalysers.size here — start the loop and let it pick up channels
+    // as they appear.
     if (this._enableAnalyser) {
       this._startAnalyserSampling();
     }
@@ -1051,7 +1063,20 @@ export class Player {
    * Enable or disable per-channel analyser nodes at runtime.
    * When enabled, AnalyserNode + GainNode buses are created for each channel
    * and wired in parallel so audio output is unaffected.
-   * The sampling loop starts immediately if playback is active.
+   *
+   * Config changes (fftSize, smoothingTimeConstant, uiUpdateHz, emittedSampleCount)
+   * take effect immediately even when the sampler is already running:
+   * - uiUpdateHz: the sampling interval is restarted with the new period.
+   * - fftSize: all live AnalyserNodes are reconfigured and their read-buffers
+   *   are reallocated to match.
+   * - smoothingTimeConstant: applied to all live AnalyserNodes immediately.
+   * - emittedSampleCount: used on the next sampling tick automatically.
+   *
+   * The sampling loop is only started when playback is actually active
+   * (i.e. after playAST() has started the scheduler). If called before
+   * playAST(), the flag is toggled so the loop begins automatically on the
+   * next playAST() or resume(). This avoids idle CPU wakeups when the player
+   * has not started yet.
    *
    * NOTE: disabling only STOPS the sampling loop — it does NOT tear down the
    * channel buses. Buses are intentional passthroughs (gain=1) and are kept
@@ -1060,20 +1085,72 @@ export class Player {
    */
   public setPerChannelAnalyser(enabled: boolean, config?: AnalyserConfig): void {
     this._enableAnalyser = enabled;
+
+    // Track which dimensions of config actually changed so we know what to
+    // update on already-running AnalyserNodes / the sampling timer.
+    let intervalChanged = false;
+    let analyserParamsChanged = false;
+
     if (config) {
-      if (config.fftSize) this._analyserFftSize = config.fftSize;
-      if (config.smoothingTimeConstant !== undefined) this._analyserSmoothing = config.smoothingTimeConstant;
-      if (config.uiUpdateHz) this._uiUpdateHz = config.uiUpdateHz;
-      if (config.emittedSampleCount) this._emittedSampleCount = config.emittedSampleCount;
+      if (config.fftSize && config.fftSize !== this._analyserFftSize) {
+        this._analyserFftSize = config.fftSize;
+        analyserParamsChanged = true;
+      }
+      if (config.smoothingTimeConstant !== undefined && config.smoothingTimeConstant !== this._analyserSmoothing) {
+        this._analyserSmoothing = config.smoothingTimeConstant;
+        analyserParamsChanged = true;
+      }
+      if (config.uiUpdateHz && config.uiUpdateHz !== this._uiUpdateHz) {
+        this._uiUpdateHz = config.uiUpdateHz;
+        intervalChanged = true;
+      }
+      if (config.emittedSampleCount && config.emittedSampleCount !== this._emittedSampleCount) {
+        this._emittedSampleCount = config.emittedSampleCount;
+        // Resize all preallocated decimated output buffers to the new length.
+        for (const [chId] of this._decimatedBuffers) {
+          this._decimatedBuffers.set(chId, new Float32Array(this._emittedSampleCount) as Float32Array<ArrayBuffer>);
+        }
+      }
     }
+
     if (!enabled) {
       this._stopAnalyserSampling();
       // Do NOT call _teardownAnalysers() here — keep buses connected so
       // re-enabling during active playback works without a song restart.
-    } else {
-      // Start (or restart) the sampling loop immediately using whatever
-      // channel analysers are already wired up.
-      this._startAnalyserSampling();
+      return;
+    }
+
+    // Retrofit AnalyserNodes onto any buses that were created while the
+    // feature was disabled (i.e. channels already playing mid-song).
+    for (const [chId, bus] of this._channelBuses) {
+      this._attachAnalyser(chId, bus);
+    }
+
+    // Apply fftSize / smoothingTimeConstant changes to all live AnalyserNodes.
+    // fftSize also requires the read-buffer to be reallocated to match the new
+    // frequencyBinCount (= fftSize / 2 for frequency data, fftSize for time-domain).
+    if (analyserParamsChanged) {
+      for (const [chId, analyser] of this._channelAnalysers) {
+        try { analyser.fftSize = this._analyserFftSize; } catch (_) {}
+        try { analyser.smoothingTimeConstant = this._analyserSmoothing; } catch (_) {}
+        // Reallocate the read-buffer to match the (possibly changed) fftSize.
+        this._analyserBuffers.set(chId, new Float32Array(this._analyserFftSize) as Float32Array<ArrayBuffer>);
+        // Decimated output buffer size depends on _emittedSampleCount, not fftSize —
+        // but reallocate anyway to ensure the pair stays consistent.
+        this._decimatedBuffers.set(chId, new Float32Array(this._emittedSampleCount) as Float32Array<ArrayBuffer>);
+      }
+    }
+
+    // Restart the sampling loop when the timer interval changed (uiUpdateHz),
+    // or when first enabling. Only start if playback is actually active —
+    // if called before playAST(), playAST() will start the loop itself.
+    if (this._isPlaying && !this._isPaused) {
+      if (intervalChanged || !this._analyserTimer) {
+        // _startAnalyserSampling stops any existing timer before starting a new
+        // one, so calling it here is always safe even when the loop is running.
+        this._stopAnalyserSampling();
+        this._startAnalyserSampling();
+      }
     }
   }
 
@@ -1084,42 +1161,69 @@ export class Player {
   public getChannelAnalyserData(channelId: number): { samples: Float32Array<ArrayBuffer>; sampleRateHint: number } | null {
     const analyser = this._channelAnalysers.get(channelId);
     const buf = this._analyserBuffers.get(channelId);
-    if (!analyser || !buf) return null;
+    const out = this._decimatedBuffers.get(channelId);
+    if (!analyser || !buf || !out) return null;
     analyser.getFloatTimeDomainData(buf);
-    const decimated = decimate(buf, this._emittedSampleCount);
-    return { samples: decimated, sampleRateHint: this.ctx.sampleRate };
+    decimateInto(buf, out);
+    return { samples: out, sampleRateHint: this.ctx.sampleRate };
   }
 
-  /** Get or create the per-channel bus GainNode for the given channel. */
+  /**
+   * Get or create the per-channel bus GainNode for the given channel.
+   * The AnalyserNode and its buffer are only created/connected when
+   * _enableAnalyser is true, keeping the path zero-overhead by default.
+   */
   private _getChannelBus(chId: number): GainNode {
     let bus = this._channelBuses.get(chId);
     if (!bus) {
       bus = (this.ctx as any).createGain() as GainNode;
       bus.gain.value = 1;
       bus.connect(this.masterGain || (this.ctx as any).destination);
-      // Create and wire analyser in parallel
-      const analyser = (this.ctx as any).createAnalyser() as AnalyserNode;
-      analyser.fftSize = this._analyserFftSize;
-      analyser.smoothingTimeConstant = this._analyserSmoothing;
-      bus.connect(analyser);
-      this._channelAnalysers.set(chId, analyser);
-      this._analyserBuffers.set(chId, new Float32Array(this._analyserFftSize) as Float32Array<ArrayBuffer>);
       this._channelBuses.set(chId, bus);
+      // Only wire the AnalyserNode when the feature is opted in.
+      if (this._enableAnalyser) {
+        this._attachAnalyser(chId, bus);
+      }
     }
     return bus;
   }
 
-  /** Return the AudioNode that should be used as the destination for a channel.
-   * Always routes through the per-channel bus (gain=1 passthrough) so that audio
-   * is available to the AnalyserNode tap regardless of whether the sampling loop
-   * is currently running. Enable/disable only controls the sampling timer. */
+  /**
+   * Create and wire an AnalyserNode tap onto an existing bus.
+   * Safe to call multiple times — skips channels that already have one.
+   */
+  private _attachAnalyser(chId: number, bus: GainNode): void {
+    if (this._channelAnalysers.has(chId)) return;
+    const analyser = (this.ctx as any).createAnalyser() as AnalyserNode;
+    analyser.fftSize = this._analyserFftSize;
+    analyser.smoothingTimeConstant = this._analyserSmoothing;
+    bus.connect(analyser);
+    this._channelAnalysers.set(chId, analyser);
+    this._analyserBuffers.set(chId, new Float32Array(this._analyserFftSize) as Float32Array<ArrayBuffer>);
+    this._decimatedBuffers.set(chId, new Float32Array(this._emittedSampleCount) as Float32Array<ArrayBuffer>);
+  }
+
+  /**
+   * Return the AudioNode that should be used as the destination for a channel.
+   * When the per-channel analyser is disabled, notes are routed directly to
+   * masterGain / destination — no bus GainNode is created, so there is zero
+   * overhead for the default (opt-out) case.
+   * When enabled, notes go through a per-channel bus so the AnalyserNode tap
+   * can observe the signal.
+   */
   private _getChannelDest(chId: number): AudioNode {
-    return this._getChannelBus(chId);
+    if (this._enableAnalyser) {
+      return this._getChannelBus(chId);
+    }
+    return this.masterGain || (this.ctx as any).destination;
   }
 
   /** Start the throttled sampling loop that emits onChannelWaveform events. */
   private _startAnalyserSampling(): void {
-    if (this._analyserTimer) return;
+    // Stop any existing timer first — this method may be called to restart
+    // the loop after a config change (e.g. uiUpdateHz), so we must not assume
+    // the timer is absent.
+    this._stopAnalyserSampling();
     const intervalMs = Math.max(16, Math.round(1000 / this._uiUpdateHz));
     this._analyserTimer = setInterval(() => {
       if (this._isPaused) return;
@@ -1128,13 +1232,15 @@ export class Player {
         const buf = this._analyserBuffers.get(chId);
         if (!buf) continue;
         analyser.getFloatTimeDomainData(buf);
-        const decimated = decimate(buf, this._emittedSampleCount);
+        const out = this._decimatedBuffers.get(chId);
+        if (!out) continue;
+        decimateInto(buf, out);
         if (this.onChannelWaveform) {
           try {
             this.onChannelWaveform({
               channelId: chId,
               timestamp: Date.now(),
-              samples: decimated,
+              samples: out,
               format: 'float32',
               sampleCount: this._emittedSampleCount,
               sampleRateHint: this.ctx.sampleRate,
@@ -1165,11 +1271,13 @@ export class Player {
     this._channelAnalysers.clear();
     this._channelBuses.clear();
     this._analyserBuffers.clear();
+    this._decimatedBuffers.clear();
   }
 
   stop() {
     // Clear paused flag
     this._isPaused = false;
+    this._isPlaying = false;
 
     if (this._preScheduleTimer) {
       try { clearTimeout(this._preScheduleTimer); } catch (e) {}

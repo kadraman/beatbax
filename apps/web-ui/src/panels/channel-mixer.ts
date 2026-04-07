@@ -611,7 +611,6 @@ export class ChannelMixer {
     ctx.shadowColor = color + '55';
 
     // Build decimated points mapped to canvas dimensions
-    const step = Math.max(1, Math.floor(samples.length / w));
     const pts: Array<{ x: number; y: number }> = [];
     for (let x = 0; x < w; x++) {
       const sampleIdx = Math.min(Math.floor(x * samples.length / w), samples.length - 1);

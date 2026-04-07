@@ -49,7 +49,13 @@ describe('Player per-channel analyser', () => {
     player.masterGain = ctx.createGain();
     player.setPerChannelAnalyser(true);
     expect(player._enableAnalyser).toBe(true);
-    expect(player._analyserTimer).not.toBeNull(); // sampling loop started
+    // Sampling loop should NOT start until _isPlaying is true (opt-in / idle-safe behaviour).
+    expect(player._analyserTimer).toBeNull();
+    // Simulate playback being active, then re-enable — loop should start now.
+    player._isPlaying = true;
+    player.setPerChannelAnalyser(false);
+    player.setPerChannelAnalyser(true);
+    expect(player._analyserTimer).not.toBeNull();
     player.setPerChannelAnalyser(false);
     expect(player._enableAnalyser).toBe(false);
     expect(player._analyserTimer).toBeNull();     // sampling loop stopped
@@ -98,14 +104,14 @@ describe('Player per-channel analyser', () => {
     expect(dest).toBe(player._channelBuses.get(3));
   });
 
-  test('_getChannelDest always routes through channel bus regardless of analyser state', () => {
+  test('_getChannelDest returns masterGain when analyser is disabled', () => {
     const ctx = makeAudioContext();
     const player: any = new Player(ctx);
     player.masterGain = ctx.createGain();
-    // Analyser is disabled by default — bus should still be created
+    // Analyser is disabled by default — dest should be masterGain, NOT a bus.
     const dest = player._getChannelDest(1);
-    expect(dest).toBe(player._channelBuses.get(1));
-    expect(player._channelBuses.size).toBe(1);
+    expect(dest).toBe(player.masterGain);
+    expect(player._channelBuses.size).toBe(0); // no bus created
   });
 
   test('getChannelAnalyserData returns null when analyser not set up', () => {
@@ -159,7 +165,8 @@ describe('Player per-channel analyser', () => {
     player.masterGain = ctx.createGain();
     player._getChannelBus(1);
 
-    // Enable → start sampling
+    // Enable → start sampling (requires _isPlaying)
+    player._isPlaying = true;
     player._startAnalyserSampling();
     expect(player._analyserTimer).not.toBeNull();
 
@@ -169,7 +176,7 @@ describe('Player per-channel analyser', () => {
     expect(player._channelBuses.size).toBe(1); // buses NOT torn down
     expect(player._channelAnalysers.size).toBe(1);
 
-    // Re-enable → sampling restarts immediately
+    // Re-enable while _isPlaying → sampling restarts immediately
     const received: any[] = [];
     player.onChannelWaveform = (p: any) => received.push(p);
     player.setPerChannelAnalyser(true);
