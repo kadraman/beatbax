@@ -724,6 +724,21 @@ export class MenuBar {
     // Prevent click-inside from triggering the document close
     this.el.addEventListener('click', (e) => e.stopPropagation(), { signal: sig });
 
+    // Always support closing menus with Escape (even when global shortcuts are disabled)
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // If a menu is open, close it and restore focus to its trigger
+        if (this.openMenu) {
+          const wrap = this.el.querySelector<HTMLElement>(`[data-menu-id="${this.openMenu}"]`);
+          const trigger = wrap?.querySelector<HTMLButtonElement>('.bb-menu__trigger');
+          this.closeAll();
+          try { trigger?.focus(); } catch { /* ignore focus errors */ }
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }
+    }, { signal: sig });
+
     // Only register the global keydown handler when the central keyboard
     // shortcuts registry is NOT in use (enableGlobalShortcuts defaults to true).
     if (this.opts.enableGlobalShortcuts !== false) {
@@ -833,7 +848,6 @@ export class MenuBar {
   }
 
   // ─── Styles ───────────────────────────────────────────────────────────────────
-
 }
 
 // ─── Internal menu-item descriptor types ──────────────────────────────────────

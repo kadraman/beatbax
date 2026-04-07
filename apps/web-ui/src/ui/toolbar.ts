@@ -183,11 +183,22 @@ export class Toolbar {
     const examplesList = this.el.querySelector<HTMLElement>('#tb-examples-list')!;
 
     examplesBtn.addEventListener('click', () => {
-      const hidden = examplesList.hidden;
-      examplesList.hidden = !hidden;
-      examplesBtn.setAttribute('aria-expanded', String(hidden));
+      const wasHidden = examplesList.hidden;
+      // Toggle visibility
+      examplesList.hidden = !wasHidden;
+      // Reflect the new state accurately
+      examplesBtn.setAttribute('aria-expanded', String(!examplesList.hidden));
+
+      // Lazily populate the dropdown contents the first time it is opened.
+      // Use a robust selector to detect whether items exist (ignores whitespace/text).
+      if (wasHidden && examplesList.querySelectorAll('[data-example]').length === 0) {
+        examplesList.innerHTML = EXAMPLE_SONGS.map(s => `\n              <li>\n                <button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">\n                  ${s.label}\n                </button>\n              </li>\n            `).join('');
+        // Ensure the dropdown is visible when we populate it programmatically
+        examplesList.hidden = false;
+      }
+
       // Pre-fetch all examples into cache the first time the dropdown opens
-      if (hidden && this.exampleCache.size === 0) {
+      if (wasHidden && this.exampleCache.size === 0) {
         this.prefetchExamples();
       }
     });
@@ -197,6 +208,19 @@ export class Toolbar {
       if (!examplesBtn.contains(e.target as Node) && !examplesList.contains(e.target as Node)) {
         examplesList.hidden = true;
         examplesBtn.setAttribute('aria-expanded', 'false');
+      }
+    }, { signal: this.abortController.signal });
+
+    // Close the examples dropdown with Escape key (like VS Code menus)
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (!examplesList.hidden) {
+          examplesList.hidden = true;
+          examplesBtn.setAttribute('aria-expanded', 'false');
+          try { examplesBtn.focus(); } catch { /* ignore focus failures */ }
+          e.stopPropagation();
+          e.preventDefault();
+        }
       }
     }, { signal: this.abortController.signal });
 
