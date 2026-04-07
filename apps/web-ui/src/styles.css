@@ -1834,13 +1834,14 @@
 .bb-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #252526;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #1f1f1f;
   border-bottom: 1px solid #3c3c3c;
   flex-shrink: 0;
   flex-wrap: nowrap;   /* never wrap — items are hidden progressively instead */
-  overflow: hidden;    /* clip any overflow cleanly rather than wrapping */
+  /* Allow dropdowns to overflow the toolbar so popovers (Examples) are visible */
+  overflow: visible;
   min-height: 36px;
   min-width: 0;        /* Safari flex-item fix */
   user-select: none;
@@ -1908,71 +1909,6 @@
 [data-theme="light"] .bb-toolbar__status { color: var(--bb-toolbar-status-fg, #666); }
 [data-theme="light"] .bb-toolbar__status[data-type="success"] { color: #1a7a4c; }
 [data-theme="light"] .bb-toolbar__status[data-type="error"]   { color: #d73a49; }
-
-/* ── Toolbar icons-only style ────────────────────────────────────────────────
- * When data-style="icons" is set on .bb-toolbar, text labels are hidden via
- * font-size:0 on icon-bearing buttons; SVG dimensions are set by Tailwind
- * w-4/h-4 (width/height attributes) so they are unaffected by font-size.
- */
-.bb-toolbar[data-style="icons"] .bb-toolbar__btn--icon {
-  font-size: 0;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-.bb-toolbar[data-style="icons"] .bb-toolbar__btn--icon svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* ── Toolbar responsive hide cascade ─────────────────────────────────────────
- *
- *  Items hide progressively as the viewport narrows (never wrap).
- *
- *  ≤ 1349 px  view group (theme toggle) + its separator
- *  ≤ 1099 px  edit group (Undo/Redo/Format/Wrap/Select All) + flanking seps
- *  ≤  799 px  New, Examples dropdown, Export: label, theme-toggle + its sep
- *  ≤  679 px  Save
- *  ≤  559 px  Verify group + its sep
- *  ≤  479 px  Open, status text   (only the 4 export buttons + their sep remain)
- *
- *  All items have keyboard-shortcut equivalents so hiding them is safe.
- * ─────────────────────────────────────────────────────────────────────────── */
-
-@media (max-width: 1349px) {
-  /* Hide view (theme-toggle) group — accessible via View menu on the menu bar */
-  .bb-toolbar__group--view,
-  .bb-toolbar__sep--view { display: none; }
-}
-
-@media (max-width: 1099px) {
-  /* Hide entire edit group and its two flanking separators */
-  .bb-toolbar__group--edit,
-  .bb-toolbar__sep--edit { display: none; }
-}
-
-@media (max-width: 799px) {
-  /* Hide New, Examples dropdown, Export label */
-  .bb-toolbar__item--pri-new,
-  .bb-toolbar__item--pri-examples,
-  .bb-toolbar__item--pri-export-label { display: none; }
-}
-
-@media (max-width: 679px) {
-  .bb-toolbar__item--pri-save { display: none; }
-}
-
-@media (max-width: 559px) {
-  /* Hide Verify group and its preceding separator */
-  .bb-toolbar__group--verify,
-  .bb-toolbar__sep--verify { display: none; }
-}
-
-@media (max-width: 479px) {
-  /* Only the 4 export buttons remain; hide Open and status text */
-  .bb-toolbar__item--pri-open,
-  .bb-toolbar__status { display: none; }
-}
-[data-theme="light"] .bb-toolbar__status[data-type="info"]    { color: #0366d6; }
 
 /* ─── Menu Bar ───────────────────────────────────────────────────────────── */
 .bb-menu-bar {
@@ -2303,7 +2239,7 @@
 .bb-chat-applied-badge span { font-size: 11px; color: #4ec94e; padding: 3px 4px; font-style: italic; }
 .bb-chat-undo-btn { background: #7a4f00; margin-left: 4px; }
 .bb-chat-undo-btn:hover:not(:disabled) { background: #a06800; }
-.bb-chat-undo-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #444 !important; }
+.bb-chat-undo-btn:disabled { background: #ccc !important; }
 .bb-chat-mode-bar { display: flex; padding: 5px 10px; gap: 4px; border-bottom: 1px solid var(--border-color, #3c3c3c); flex-shrink: 0; background: var(--header-bg, #252526); }
 .bb-chat-mode-btn { flex: 1; padding: 4px 0; font-size: 12px; background: none; color: var(--text-muted, #888); border: 1px solid var(--border-color, #3c3c3c); border-radius: 3px; cursor: pointer; transition: background 0.1s, color 0.1s; }
 .bb-chat-mode-btn:hover { background: var(--button-hover-bg, #2a2d2e); color: var(--text-color, #d4d4d4); }
