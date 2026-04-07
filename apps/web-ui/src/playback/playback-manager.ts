@@ -8,6 +8,7 @@ import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { storage, StorageKey } from '../utils/local-storage';
 import {
   playbackStatus,
   playbackBpm,
@@ -83,10 +84,17 @@ export class PlaybackManager {
   private channelNoteEvents: Map<number, any[]> = new Map();
   private _lastKnownSeq: Map<number, string> = new Map();
   private _lastKnownPat: Map<number, string> = new Map();
+  private _perChannelAnalyserEnabled: boolean = false;
 
   constructor(
     private eventBus: EventBus,
   ) {
+    // Restore per-channel analyser preference from localStorage
+    try {
+      this._perChannelAnalyserEnabled =
+        storage.get(StorageKey.FEATURE_PER_CHANNEL_ANALYSER) === 'true';
+    } catch { /* ignore */ }
+
     // Live-sync mute/solo to the Player whenever the store changes during playback.
     channelStates.subscribe((states) => {
       if (!this.player) return;
@@ -295,6 +303,17 @@ export class PlaybackManager {
         log.debug('Player.playAST:', this.player.playAST);
       }
 
+      // Wire per-channel analyser when enabled
+      if (this._perChannelAnalyserEnabled) {
+        this.player.setPerChannelAnalyser(true);
+        this.player.onChannelWaveform = (payload) => {
+          this.eventBus.emit('playback:channel-waveform', payload);
+        };
+      } else {
+        this.player.setPerChannelAnalyser(false);
+        this.player.onChannelWaveform = undefined;
+      }
+
       // Set up completion callback to handle natural playback end.
       // When loop mode is active, replay the already-resolved AST directly
       // (no re-parse) rather than stopping. The callback captures `resolved`
@@ -488,6 +507,39 @@ export class PlaybackManager {
       this._masterAnalyser = analyser;
     }
     return this._masterAnalyser;
+  }
+
+  /**
+   * Enable or disable per-channel analyser nodes.
+   * Enabled state is persisted to localStorage via the unified feature key.
+   * When enabled, `playback:channel-waveform` events are emitted at ~30 Hz.
+   */
+  setPerChannelAnalyser(enabled: boolean): void {
+    this._perChannelAnalyserEnabled = enabled;
+    try { storage.set(StorageKey.FEATURE_PER_CHANNEL_ANALYSER, String(enabled)); } catch { /* ignore */ }
+    if (this.player) {
+      this.player.setPerChannelAnalyser(enabled);
+      if (enabled) {
+        this.player.onChannelWaveform = (payload) => {
+          this.eventBus.emit('playback:channel-waveform', payload);
+        };
+      } else {
+        this.player.onChannelWaveform = undefined;
+      }
+    }
+  }
+
+  /** Return current per-channel analyser enabled state. */
+  isPerChannelAnalyserEnabled(): boolean {
+    return this._perChannelAnalyserEnabled;
+  }
+
+  /**
+   * Pull the latest analyser buffer for a channel without waiting for an event.
+   * Returns null when the analyser is disabled or the channel has no data yet.
+   */
+  getChannelAnalyserData(channelId: number): { samples: Float32Array; sampleRateHint: number } | null {
+    return this.player?.getChannelAnalyserData(channelId) ?? null;
   }
 
   /**

@@ -263,7 +263,7 @@ rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
 const channelMixer = withErrorBoundary(
   'ChannelMixer',
-  () => new ChannelMixer({ container: ccContainer, eventBus }),
+  () => new ChannelMixer({ container: ccContainer, eventBus, playbackManager }),
   ccContainer,
 );
 
@@ -508,6 +508,9 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
   }
+  if (flag === FeatureFlag.PER_CHANNEL_ANALYSER) {
+    playbackManager.setPerChannelAnalyser(enabled);
+  }
   if (flag === FeatureFlag.HOT_RELOAD) {
     _applyLiveMode(enabled);
   }
@@ -555,6 +558,9 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 });
 
 (window as any).__beatbax_playbackManager = playbackManager;
+(window as any).__beatbax_setPerChannelAnalyser = (enabled: boolean) => {
+  playbackManager.setPerChannelAnalyser(enabled);
+};
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;

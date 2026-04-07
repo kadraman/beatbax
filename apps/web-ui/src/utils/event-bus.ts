@@ -32,6 +32,15 @@ export interface BeatBaxEvents {
   'playback:position': { current: number; total: number };
   // Real-time position tracking
   'playback:position-changed': { channelId: number; position: any };
+  /** Per-channel analyser waveform data (emitted at uiUpdateHz when analyser is enabled). */
+  'playback:channel-waveform': {
+    channelId: number;
+    timestamp: number;
+    samples: Float32Array<ArrayBuffer>;
+    format: 'float32';
+    sampleCount: number;
+    sampleRateHint: number;
+  };
 
   // Export events
   'export:started': { format: string };

@@ -1,6 +1,6 @@
 ---
 title: "Per-channel Analyser (WebAudio)"
-status: proposed
+status: complete
 authors: ["GitHub Copilot","kadraman"]
 created: 2026-03-31
 issue: "https://github.com/kadraman/beatbax/issues/77"
@@ -73,7 +73,7 @@ UI integration
 Configuration & feature flags
 
 - Engine-side option: `playerOptions.enablePerChannelAnalyser`.
-- UI-side toggle: `bb-channel-waveforms` localStorage key; persist per-user preference.
+- UI-side toggle: `feature.perChannelAnalyser` localStorage key (`StorageKey.FEATURE_PER_CHANNEL_ANALYSER`); persist per-user preference.
 - Provide presets: `default`, `low-power` (lower `uiUpdateHz` and smaller sample count).
 
 Performance considerations & recommended defaults
@@ -112,13 +112,13 @@ Rollout plan
 
 Developer checklist
 
-- [ ] Add `enablePerChannelAnalyser` option to `Player` / `PlaybackManager`.
-- [ ] Create `AnalyserNode` per channel and wire into audio graph (only when enabled).
-- [ ] Implement sampling loop with decimation and event emission.
-- [ ] Add `getChannelAnalyserData(channelId)` getter to Player API.
-- [ ] Add a simple UI toggle and `ChannelMixer` consumer to render real waveforms.
-- [ ] Add unit and integration tests plus a perf benchmark page.
-- [ ] Document feature and usage in `docs/features` (this file).
+- [x] Add `enablePerChannelAnalyser` option to `Player` / `PlaybackManager`.
+- [x] Create `AnalyserNode` per channel and wire into audio graph (only when enabled).
+- [x] Implement sampling loop with decimation and event emission.
+- [x] Add `getChannelAnalyserData(channelId)` getter to Player API.
+- [x] Add a simple UI toggle and `ChannelMixer` consumer to render real waveforms.
+- [x] Add unit and integration tests (13 engine tests + 6 UI tests, all passing). Perf benchmark page deferred post-MVP.
+- [x] Document feature and usage in `docs/features` (this file).
 
 Example pseudocode
 
