@@ -77,13 +77,7 @@ export class Toolbar {
             ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} Examples ${icon('chevron-down', 'w-3 h-3 inline-block align-middle')}
           </button>
           <ul class="bb-toolbar__dropdown" id="tb-examples-list" aria-label="Example songs" hidden>
-            ${EXAMPLE_SONGS.map(s => `
-              <li>
-                <button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">
-                  ${s.label}
-                </button>
-              </li>
-            `).join('')}
+            ${EXAMPLE_SONGS.map(s => `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`).join('')}
           </ul>
         </div>
       </div>
@@ -192,7 +186,9 @@ export class Toolbar {
       // Lazily populate the dropdown contents the first time it is opened.
       // Use a robust selector to detect whether items exist (ignores whitespace/text).
       if (wasHidden && examplesList.querySelectorAll('[data-example]').length === 0) {
-        examplesList.innerHTML = EXAMPLE_SONGS.map(s => `\n              <li>\n                <button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">\n                  ${s.label}\n                </button>\n              </li>\n            `).join('');
+        examplesList.innerHTML = EXAMPLE_SONGS.map(s =>
+          `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`
+        ).join('');
         // Ensure the dropdown is visible when we populate it programmatically
         examplesList.hidden = false;
       }

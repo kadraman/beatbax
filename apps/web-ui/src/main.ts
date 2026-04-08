@@ -1255,7 +1255,10 @@ toolbar = new Toolbar({
 if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
-eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => toolbar.setThemeIcon(theme));
+eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
+  toolbar.setThemeIcon(theme);
+  transportBar.volKnob.redraw();
+});
 
 // Apply persisted toolbar style (icons+labels or icons-only)
 const storedToolbarStyle = storage.get(StorageKey.TOOLBAR_STYLE, 'icons+labels') as 'icons+labels' | 'icons';
