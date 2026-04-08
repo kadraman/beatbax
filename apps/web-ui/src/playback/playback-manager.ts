@@ -73,6 +73,7 @@ export class PlaybackManager {
 
   private player: Player | null = null;
   private _loop = false;
+  private _bpmOverride: number | null = null;
   private _masterAnalyser: AnalyserNode | null = null;
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
@@ -288,8 +289,20 @@ export class PlaybackManager {
       // Store AST
       this.state.ast = resolved;
 
-      // Emit parse success
-      this.eventBus.emit('parse:success', { ast: resolved });
+      // Capture the source BPM before any override so subscribers can detect
+      // real source edits vs transport-bar nudges.
+      const sourceBpm: number = (resolved as any).bpm ?? 120;
+
+      // Apply BPM override (set via transport bar nudge buttons) before playback.
+      // This mutates the resolved AST copy so the Player and scheduler use the
+      // overridden tempo without touching the editor source.
+      if (this._bpmOverride !== null) {
+        (resolved as any).bpm = this._bpmOverride;
+      }
+
+      // Emit parse success — include sourceBpm (pre-override) so the transport
+      // bar can distinguish a real source edit from a nudge override.
+      this.eventBus.emit('parse:success', { ast: resolved, sourceBpm });
       parseStatus.set('success');
       parsedBpm.set((resolved as any).bpm || 120);
       parsedChip.set((resolved as any).chip || 'gameboy');
@@ -548,6 +561,20 @@ export class PlaybackManager {
    */
   setLoop(enabled: boolean): void {
     this._loop = enabled;
+  }
+
+  /**
+   * Set a runtime BPM override. When non-null, this value replaces the BPM from
+   * the parsed AST on the next call to play(). Pass null to clear the override
+   * (BPM will be read from the AST again on the next play()).
+   */
+  setBpmOverride(bpm: number | null): void {
+    this._bpmOverride = bpm;
+  }
+
+  /** Return the current BPM override, or null if none is set. */
+  getBpmOverride(): number | null {
+    return this._bpmOverride;
   }
 
   /**

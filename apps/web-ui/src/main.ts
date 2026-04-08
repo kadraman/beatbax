@@ -1,3 +1,43 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  * BeatBax Web UI — main entry point
  * Bootstraps the full IDE: Monaco editor, diagnostics, layout, playback, exports,
@@ -583,18 +623,47 @@ const patternGrid = new PatternGrid();
 patternGridContainer.appendChild(patternGrid.el);
 
 // ── Runtime state for transport extras ───────────────────────────────────────
-let _currentBpm = 120;          // last BPM from AST (or nudged override)
+let _currentBpm = 120;          // last BPM from AST (or nudged override) — drives the transport display
+let _lastAstBpm = 120;          // last BPM seen from the AST — used to detect direct source edits
 let _currentSig = 4;            // stepsPerBar from AST
 let _masterVolPct = 100;        // master volume 0-100 %
 let _loopMode = storage.getJSON<boolean>(StorageKey.PLAYBACK_LOOP, false) ?? false;
 let _lastBeat = -1;             // last beat value, used to detect beat changes for LED
+// When true the user has manually toggled loop since the last song load,
+// so AST-driven auto-sync is suppressed until the next song:loaded event.
+let _loopUserOverride = false;
+// When true the user has nudged BPM since the last song load,
+// so AST-driven BPM sync is suppressed until the next song:loaded event.
+let _bpmUserOverride = false;
 
 // Update transport display from parser / playback events
-eventBus.on('parse:success', ({ ast }) => {
+eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
   try {
-    const bpm = Number((ast as any)?.bpm ?? 120);
-    _currentBpm = bpm;
-    transportBar.setBpm(bpm);
+    // Use sourceBpm from the event when available (emitted by PlaybackManager
+    // *before* any BPM override is applied). Fall back to ast.bpm for events
+    // emitted by emitParse(), which always reflects the raw source value.
+    const bpm = Number(evtSourceBpm ?? (ast as any)?.bpm ?? 120);
+    if (!_bpmUserOverride) {
+      // No nudge active — always sync display and tracking to the AST BPM.
+      _currentBpm = bpm;
+      _lastAstBpm = bpm;
+      transportBar.setBpm(bpm);
+    } else if (bpm !== _lastAstBpm) {
+      // The user has edited the bpm directive directly in the editor.
+      // Their source edit wins — clear the nudge override and sync to the new value.
+      _bpmUserOverride = false;
+      playbackManager.setBpmOverride(null);
+      _clearBpmOverrideDecoration();
+      _currentBpm = bpm;
+      _lastAstBpm = bpm;
+      transportBar.setBpm(bpm);
+    } else {
+      // Override still active, AST BPM unchanged.
+      // Keep _lastAstBpm current so future change-detection stays accurate,
+      // then re-anchor the decoration in case the bpm line moved.
+      _lastAstBpm = bpm;
+      _applyBpmOverrideDecoration(_currentBpm);
+    }
 
     // `stepsPerBar` / `time` — keep _currentSig for BAR:BT calculation
     let sig = Number((ast as any)?.stepsPerBar ?? (ast as any)?.time ?? 0);
@@ -604,6 +673,20 @@ eventBus.on('parse:success', ({ ast }) => {
       sig = m ? Number(m[1]) : 4;
     }
     _currentSig = sig;
+
+    // Sync loop button with the `play` directive: enable loop when
+    // `play … repeat` is present, disable it when absent.
+    // Skipped if the user has manually overridden loop since the last file load.
+    // When the AST has no repeat directive, fall back to the "Loop by default"
+    // setting rather than unconditionally disabling loop.
+    if (!_loopUserOverride) {
+      const songHasRepeat = (ast as any)?.play?.repeat === true;
+      const loopDefault = storage.getJSON<boolean>(StorageKey.PLAYBACK_LOOP, false) ?? false;
+      const desired = songHasRepeat || loopDefault;
+      if (desired !== _loopMode) {
+        _applyLoopMode(desired);
+      }
+    }
   } catch (_e) {}
 });
 
@@ -675,6 +758,17 @@ eventBus.on('playback:paused', () => {
 
 eventBus.on('playback:started',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
 eventBus.on('playback:resumed',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
+
+// When a new file is loaded, clear the manual loop override so the next
+// parse:success can re-sync the loop button from the incoming song's play directive.
+// Also clear the BPM override so the song's own BPM takes effect again.
+eventBus.on('song:loaded', () => {
+  _loopUserOverride = false;
+  _bpmUserOverride = false;
+  _lastAstBpm = 120;
+  playbackManager.setBpmOverride(null);
+  _clearBpmOverrideDecoration();
+});
 
 const getSource = () => (editor?.getValue?.() as string) || '';
 
@@ -755,12 +849,14 @@ function _applyLoopMode(enabled: boolean): void {
 }
 
 transportBar.loopButton.addEventListener('click', () => {
+  _loopUserOverride = true;   // user is explicitly choosing; suppress AST sync
   _applyLoopMode(!_loopMode);
   opLog(outputPanel, _loopMode ? '⟳ Loop enabled' : '⟳ Loop disabled');
 });
 
 // Expose for Settings panel "Loop by default" toggle
 (window as any).__beatbax_setLoop = (enabled: boolean) => {
+  _loopUserOverride = true;   // settings change counts as a manual override
   _applyLoopMode(enabled);
   opLog(outputPanel, enabled ? '⟳ Loop enabled (settings)' : '⟳ Loop disabled (settings)');
 };
@@ -770,37 +866,6 @@ if (_loopMode) _applyLoopMode(true);
 
 // Apply stored live mode on startup
 if (liveMode) _applyLiveMode(true);
-
-// ─── BPM nudge buttons ───────────────────────────────────────────────────────
-
-/**
- * Update the `bpm` directive in the editor source to `newBpm`.
- * Uses Monaco's executeEdits so it is undoable and triggers the normal
- * editor:changed / parse pipeline.
- */
-function _applyBpmInEditor(newBpm: number): void {
-  const monacoEditor = editor?.editor;
-  if (!monacoEditor) return;
-  const model = monacoEditor.getModel();
-  if (!model) return;
-  const src = model.getValue();
-  // Match "bpm <digits>" on its own line (leading whitespace allowed)
-  const match = src.match(/^(\s*bpm\s+)(\d+)/m);
-  if (!match || match.index === undefined) return;
-  const startOffset = match.index + match[1].length;
-  const endOffset   = startOffset + match[2].length;
-  const startPos = model.getPositionAt(startOffset);
-  const endPos   = model.getPositionAt(endOffset);
-  monacoEditor.executeEdits('transport-bpm-nudge', [{
-    identifier: { major: 1, minor: 1 },
-    range: {
-      startLineNumber: startPos.lineNumber, startColumn: startPos.column,
-      endLineNumber:   endPos.lineNumber,   endColumn:   endPos.column,
-    },
-    text: String(newBpm),
-    forceMoveMarkers: true,
-  }]);
-}
 
 // ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
 function _attachHoldRepeat(
@@ -828,10 +893,93 @@ function _attachHoldRepeat(
 }
 
 // ─── BPM nudge buttons (click + hold-to-repeat) ──────────────────────────────
+
+/** Inject once-only CSS for the BPM override inline annotation. */
+function _injectBpmOverrideStyles() {
+  if (document.getElementById('bb-bpm-override-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'bb-bpm-override-styles';
+  style.textContent = `
+    .bb-bpm-override-after {
+      font-style: italic;
+      opacity: 0.6;
+      color: #f0a050;
+      pointer-events: none;
+    }
+    [data-theme="light"] .bb-bpm-override-after {
+      color: #c07020;
+    }
+  `;
+  document.head.appendChild(style);
+}
+_injectBpmOverrideStyles();
+
+/** Lazily-created decorations collection for the BPM override annotation. */
+let _bpmOverrideCollection: ReturnType<typeof editor.editor.createDecorationsCollection> | null = null;
+
+/** Find the 1-based line number of the `bpm` directive in the editor source. */
+function _findBpmLine(): number {
+  const source = (editor?.getValue?.() as string) || '';
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*bpm\s+\d/.test(lines[i])) return i + 1;
+  }
+  return -1;
+}
+
+/** Apply (or refresh) a Monaco after-line decoration showing the overridden BPM. */
+function _applyBpmOverrideDecoration(bpm: number): void {
+  const monacoEditor = editor?.editor;
+  if (!monacoEditor) return;
+  const line = _findBpmLine();
+  if (line < 1) { _clearBpmOverrideDecoration(); return; }
+
+  // `after` injected text attaches at range.endColumn on range.endLineNumber.
+  // getLineMaxColumn returns (lineLength + 1) — the column just past the last
+  // character — which is exactly where we want the annotation to appear.
+  const model = monacoEditor.getModel();
+  const endCol = model ? model.getLineMaxColumn(line) : 1;
+
+  const decoration = {
+    range: {
+      startLineNumber: line,
+      startColumn: endCol,
+      endLineNumber: line,
+      endColumn: endCol,
+    },
+    options: {
+      showIfCollapsed: true,    // required: allows after-text on a zero-width (collapsed) range
+      after: {
+        content: `  ← runtime: ${bpm} BPM`,
+        inlineClassName: 'bb-bpm-override-after',
+      },
+    },
+  };
+
+  // Always clear and recreate the collection to avoid stale-ID issues after
+  // a previous clear() call left the collection in an empty-but-non-null state.
+  if (_bpmOverrideCollection) {
+    _bpmOverrideCollection.clear();
+    _bpmOverrideCollection = null;
+  }
+  _bpmOverrideCollection = monacoEditor.createDecorationsCollection([decoration]);
+}
+
+/** Remove the BPM override decoration from the editor. */
+function _clearBpmOverrideDecoration(): void {
+  if (_bpmOverrideCollection) {
+    _bpmOverrideCollection.clear();
+  }
+}
+
 function _applyBpmStep(delta: number) {
+  _bpmUserOverride = true;   // suppress AST re-sync until next song:loaded
   _currentBpm = Math.min(300, Math.max(20, _currentBpm + delta));
   transportBar.setBpm(_currentBpm);
-  _applyBpmInEditor(_currentBpm);
+  // Propagate the override to PlaybackManager so the next play() uses this tempo.
+  playbackManager.setBpmOverride(_currentBpm);
+  // Annotate the bpm line in the editor with a non-mutating inline hint.
+  _applyBpmOverrideDecoration(_currentBpm);
 }
 
 _attachHoldRepeat(transportBar.bpmDownButton, -1, _applyBpmStep);
@@ -947,7 +1095,7 @@ async function emitParse(content: string): Promise<void> {
       diagnosticsManager?.clear?.();
     }
 
-    eventBus.emit('parse:success', { ast, song });
+    eventBus.emit('parse:success', { ast, song, sourceBpm: (ast as any).bpm ?? 120 });
     parseStatus.set('success');
     parsedBpm.set((ast as any).bpm || 120);
     parsedChip.set((ast as any).chip || 'gameboy');
