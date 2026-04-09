@@ -26,7 +26,7 @@ export function buildPlaybackSection(): HTMLElement {
     settingAudioBackend.get() === 'browser' ? 'browser' : 'auto',
     (v) => settingAudioBackend.set(v as any),
   ));
-  el.appendChild(noteText('Auto uses the browser\'s built-in WebAudio API (the only option in the web UI). Browser forces this explicitly. Changes take effect after a page reload.'));
+  el.appendChild(noteText('Auto uses the browser\'s built-in WebAudio API (the only option in the web UI). Browser forces this explicitly.'));
 
   el.appendChild(selectField(
     'Sample rate',
@@ -38,7 +38,7 @@ export function buildPlaybackSection(): HTMLElement {
     settingAudioSampleRate.get(),
     (v) => settingAudioSampleRate.set(v as any),
   ));
-  el.appendChild(noteText('Higher sample rates use more CPU. Most Game Boy audio is inaudible above 44 100 Hz. Takes effect after a page reload.'));
+  el.appendChild(noteText('Higher sample rates use more CPU. Most Game Boy audio is inaudible above 44 100 Hz. Applied on the next Play and on WAV export.'));
 
   el.appendChild(sectionHeading('Playback'));
 
@@ -60,7 +60,7 @@ export function buildPlaybackSection(): HTMLElement {
     settingAudioBufferFrames.get(),
     (v) => settingAudioBufferFrames.set(v as any),
   ));
-  el.appendChild(noteText('Larger buffers reduce crackling during WAV export but use more memory.'));
+  el.appendChild(noteText('Larger buffers reduce crackling during WAV export but use more memory. Applied on the next WAV export.'));
 
   return el;
 }

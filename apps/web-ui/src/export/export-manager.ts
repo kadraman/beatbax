@@ -19,6 +19,7 @@ import {
   ExportHistory,
 } from './download-helper';
 import { getCapturedWrite, clearCapturedWrite } from '../utils/browser-fs';
+import { settingAudioSampleRate, settingAudioBufferFrames } from '../stores/settings.store';
 
 const log = createLogger('ui:export-manager');
 
@@ -263,21 +264,27 @@ export class ExportManager {
       throw new Error('OfflineAudioContext is not available in this browser.');
     }
 
-    const sampleRate = 44100;
+    const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
+    const bufferFrames = parseInt(settingAudioBufferFrames.get(), 10) || 4096;
     const lengthInSamples = Math.ceil(duration * sampleRate);
     const offlineCtx = new OfflineCtxCtor(2, lengthInSamples, sampleRate);
 
     // Create player — buffered mode OFF so all events go to the scheduler queue
     const offlinePlayer = new Player(offlineCtx, { buffered: false });
 
-    // Override the scheduler's tick to drain ALL queued events immediately,
-    // regardless of their scheduled time. With OfflineAudioContext, currentTime
-    // stays at 0 until startRendering(), so the normal real-time tick would
-    // never fire any events and the rendered buffer would be silent.
+    // Override the scheduler's tick to drain ALL queued events in chunks of
+    // bufferFrames to balance memory and rendering speed.
     const scheduler = (offlinePlayer as any).scheduler;
     if (scheduler) {
       scheduler.tick = function () {
         const q: Array<{ time: number; fn: () => void }> = (this as any).queue ?? [];
+        let processed = 0;
+        while (q.length > 0 && processed < bufferFrames) {
+          const ev = q.shift()!;
+          try { ev.fn(); } catch (_e) { /* ignore */ }
+          processed++;
+        }
+        // Drain any remainder
         while (q.length > 0) {
           const ev = q.shift()!;
           try { ev.fn(); } catch (_e) { /* ignore */ }

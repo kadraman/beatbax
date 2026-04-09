@@ -9,6 +9,7 @@ import type { EventBus } from '../utils/event-bus';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { storage, StorageKey } from '../utils/local-storage';
+import { settingAudioSampleRate } from '../stores/settings.store';
 import {
   playbackStatus,
   playbackBpm,
@@ -310,7 +311,13 @@ export class PlaybackManager {
 
       // Create player if needed
       if (!this.player) {
-        this.player = new Player();
+        const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
+        const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext)
+          ? (window as any).AudioContext
+          : (globalThis as any).AudioContext;
+        if (!Ctor) throw new Error('No AudioContext constructor found.');
+        const audioCtx = new Ctor({ sampleRate });
+        this.player = new Player(audioCtx);
         log.debug('Player instance created:', this.player);
         log.debug('Player.playAST type:', typeof this.player.playAST);
         log.debug('Player.playAST:', this.player.playAST);
