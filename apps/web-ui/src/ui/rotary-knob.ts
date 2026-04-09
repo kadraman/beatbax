@@ -73,6 +73,11 @@ export class RotaryKnob {
     this._draw();
   }
 
+  /** Re-paint the knob (e.g. after a theme change). Does not fire onChange. */
+  redraw(): void {
+    this._draw();
+  }
+
   /** Register a change listener fired when the user interacts. */
   onChange(cb: (value: number) => void): void {
     this._cb = cb;
@@ -163,6 +168,8 @@ export class RotaryKnob {
     const size = this._SIZE;
     const ctx  = this.el.getContext('2d')!;
 
+    const isLight = document.documentElement.dataset['theme'] === 'light';
+
     ctx.save();
     ctx.clearRect(0, 0, size * dpr, size * dpr);
     ctx.scale(dpr, dpr);
@@ -185,7 +192,7 @@ export class RotaryKnob {
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     const shadowRing = ctx.createRadialGradient(cx, cy, outerR - 2, cx, cy, outerR + 1);
     shadowRing.addColorStop(0, 'rgba(0,0,0,0)');
-    shadowRing.addColorStop(1, 'rgba(0,0,0,0.65)');
+    shadowRing.addColorStop(1, isLight ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.65)');
     ctx.strokeStyle = shadowRing;
     ctx.lineWidth   = 4;
     ctx.stroke();
@@ -193,7 +200,7 @@ export class RotaryKnob {
     // ── Track groove (dark recess) ────────────────────────────────────────
     ctx.beginPath();
     ctx.arc(cx, cy, ringR, MIN_ANG, MIN_ANG + SWEEP);
-    ctx.strokeStyle = '#0d0d0d';
+    ctx.strokeStyle = isLight ? '#b0aea8' : '#0d0d0d';
     ctx.lineWidth   = trackW + 2;
     ctx.lineCap     = 'butt';
     ctx.stroke();
@@ -201,7 +208,7 @@ export class RotaryKnob {
     // Track inner hi-light (gives groove depth)
     ctx.beginPath();
     ctx.arc(cx, cy, ringR, MIN_ANG, MIN_ANG + SWEEP);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = isLight ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.05)';
     ctx.lineWidth   = 1;
     ctx.stroke();
 
@@ -209,7 +216,7 @@ export class RotaryKnob {
     if (this._value > 0) {
       ctx.beginPath();
       ctx.arc(cx, cy, ringR, MIN_ANG, valAng);
-      ctx.strokeStyle = '#e8b84b';
+      ctx.strokeStyle = isLight ? '#c07820' : '#e8b84b';
       ctx.lineWidth   = trackW;
       ctx.lineCap     = 'round';
       ctx.stroke();
@@ -217,16 +224,16 @@ export class RotaryKnob {
       // Glow pass — wider + translucent
       ctx.beginPath();
       ctx.arc(cx, cy, ringR, MIN_ANG, valAng);
-      ctx.strokeStyle = 'rgba(200,162,39,0.30)';
+      ctx.strokeStyle = isLight ? 'rgba(160,100,20,0.22)' : 'rgba(200,162,39,0.30)';
       ctx.lineWidth   = trackW + 4;
       ctx.lineCap     = 'round';
       ctx.stroke();
     }
 
-    // ── Knob body — deep shadow base ─────────────────────────────────────
+    // ── Knob body — base shadow ───────────────────────────────────────────
     ctx.beginPath();
     ctx.arc(cx, cy, bodyR + 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = isLight ? 'rgba(0,0,0,0.12)' : '#0a0a0a';
     ctx.fill();
 
     // Main body sphere — off-centre radial gradient for 3D pop
@@ -236,10 +243,17 @@ export class RotaryKnob {
       cx - bodyR * 0.35, cy - bodyR * 0.40, bodyR * 0.04,
       cx + bodyR * 0.10, cy + bodyR * 0.10, bodyR * 1.05
     );
-    body.addColorStop(0.00, '#6e6e6e');  // bright specular centre
-    body.addColorStop(0.18, '#4a4a4a');  // mid-tone
-    body.addColorStop(0.60, '#252525');  // dark face
-    body.addColorStop(1.00, '#111111');  // deep shadow edge
+    if (isLight) {
+      body.addColorStop(0.00, '#f0eeea');  // bright specular centre
+      body.addColorStop(0.18, '#d8d6d2');  // mid-tone
+      body.addColorStop(0.60, '#b8b6b2');  // shaded face
+      body.addColorStop(1.00, '#909090');  // edge shadow
+    } else {
+      body.addColorStop(0.00, '#6e6e6e');
+      body.addColorStop(0.18, '#4a4a4a');
+      body.addColorStop(0.60, '#252525');
+      body.addColorStop(1.00, '#111111');
+    }
     ctx.fillStyle = body;
     ctx.fill();
 
@@ -250,7 +264,7 @@ export class RotaryKnob {
       cx - bodyR * 0.36, cy - bodyR * 0.38, 0,
       cx - bodyR * 0.30, cy - bodyR * 0.32, bodyR * 0.22
     );
-    hilight.addColorStop(0, 'rgba(255,255,255,0.38)');
+    hilight.addColorStop(0, isLight ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.38)');
     hilight.addColorStop(1, 'rgba(255,255,255,0.00)');
     ctx.fillStyle = hilight;
     ctx.fill();
@@ -258,12 +272,12 @@ export class RotaryKnob {
     // Rim bevel — thin top-left bright arc, bottom-right dark arc
     ctx.beginPath();
     ctx.arc(cx, cy, bodyR, Math.PI * 1.25, Math.PI * 0.25);  // top-left arc
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.strokeStyle = isLight ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.18)';
     ctx.lineWidth   = 1;
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(cx, cy, bodyR, Math.PI * 0.25, Math.PI * 1.25);  // bottom-right arc
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.55)';
     ctx.lineWidth   = 1;
     ctx.stroke();
 
@@ -274,7 +288,7 @@ export class RotaryKnob {
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(valAng) * (lineStart + 0.8), cy + Math.sin(valAng) * (lineStart + 0.8));
     ctx.lineTo(cx + Math.cos(valAng) * (lineEnd   + 0.8), cy + Math.sin(valAng) * (lineEnd   + 0.8));
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.55)';
     ctx.lineWidth   = 2.5;
     ctx.lineCap     = 'round';
     ctx.stroke();
@@ -282,7 +296,7 @@ export class RotaryKnob {
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(valAng) * lineStart, cy + Math.sin(valAng) * lineStart);
     ctx.lineTo(cx + Math.cos(valAng) * lineEnd,   cy + Math.sin(valAng) * lineEnd);
-    ctx.strokeStyle = 'rgba(255,255,255,0.82)';
+    ctx.strokeStyle = isLight ? 'rgba(60,40,10,0.75)' : 'rgba(255,255,255,0.82)';
     ctx.lineWidth   = 1.5;
     ctx.lineCap     = 'round';
     ctx.stroke();

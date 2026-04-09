@@ -396,6 +396,68 @@ Developer tips
   - `localStorage.removeItem('beatbax-debug')` - Disable debug logs (clean console)
   - Reload the page after setting/removing flags
 
+### Debug Overlay (Web UI)
+
+The web UI includes a live **debug overlay** HUD that displays real-time audio and playback diagnostics without opening DevTools. It is off by default and intended for development and troubleshooting.
+
+#### Enabling the overlay
+
+Open **Settings → Advanced** (gear icon or `Ctrl+,`) and enable **Show debug overlay**. The overlay appears immediately — no page reload required.
+
+#### What it shows
+
+```
+╔══ BeatBax Debug Overlay ══════════════╗
+  Status      : playing
+  BPM         : 128
+  Chip        : gameboy
+├── AudioContext ───────────────────────┤
+  State       : running
+  Sample rate : 44100 Hz
+  Current time: 4.271 s
+  Base latency: 5.8 ms
+├── Scheduler ─────────────────────────┤
+  Queue depth : 3
+  Tick count  : —
+├── Master ────────────────────────────┤
+  Gain        : 1.00
+├── Channels ──────────────────────────┤
+  ch1:  42%  lead      melody
+  ch2:  42%  bass      bass_pat
+  ch3:  38%  wave1     intro
+  ch4:  51%  sn        fill
+╚═══════════════════════════════════════╝
+```
+
+| Field | Description |
+|---|---|
+| **Status** | Playback state: `stopped`, `playing`, or `paused` |
+| **BPM / Chip** | Values from the last successfully parsed AST |
+| **AudioContext State** | `running` (normal), `suspended` (autoplay blocked), or `closed` |
+| **Sample rate** | Active sample rate of the `AudioContext` — set in Settings → Playback |
+| **Current time** | `AudioContext.currentTime` in seconds — advances monotonically while running |
+| **Base latency** | Hardware output buffer latency reported by the browser (`AudioContext.baseLatency`) |
+| **Queue depth** | Number of events pending in the scheduler queue |
+| **Gain** | Current master gain value (1.00 = 100%) |
+| **Channels** | Per-channel: progress %, active instrument name, active pattern name |
+
+#### Configuring the overlay
+
+All options live in **Settings → Advanced** and take effect immediately:
+
+| Setting | Options | Default |
+|---|---|---|
+| **Overlay position** | Top right, Top left, Bottom right, Bottom left | Top right |
+| **Overlay opacity** | 10–100% (slider, step 5) | 70% |
+| **Overlay font size** | 10–16px (dropdown) | 11px |
+
+Settings are persisted in `localStorage` under `debug.overlay.*` keys and survive page reloads.
+
+#### Other Advanced debug tools
+
+- **Log level** — controls console verbosity (`warn` by default; set to `debug` to see per-tick scheduler traces and event resolution steps).
+- **Expose `window.__beatbax_player`** — when enabled, the live `Player` instance is accessible from the browser console as `window.__beatbax_player`. Useful for inspecting the scheduler queue, AudioContext nodes, and channel state at runtime. The reference is refreshed automatically after each `play()` call.
+
 ## Development Workflow
 
 ### Making Engine Changes for Web UI

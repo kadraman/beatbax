@@ -45,7 +45,7 @@ export function buildGeneralSection(): HTMLElement {
     'Toolbar style',
     'bb-settings-toolbar-style',
     [
-      { value: 'icons+labels', label: 'Icons + labels' },
+      { value: 'icons+labels', label: 'Icons with labels' },
       { value: 'icons',        label: 'Icons only' },
     ],
     settingToolbarStyle.get(),
@@ -65,6 +65,7 @@ export function buildGeneralSection(): HTMLElement {
       // Live-apply on the running mixer instance
       (window as any).__beatbax_channelMixer?.setCompact(v);
     },
+    settingChannelCompact.subscribe,
   ));
 
   // ── Panels ────────────────────────────────────────────────────────────────
@@ -73,22 +74,22 @@ export function buildGeneralSection(): HTMLElement {
   el.appendChild(toggle('Show toolbar', settingShowToolbar.get(), (v) => {
     settingShowToolbar.set(v);
     eventBus.emit('panel:toggled', { panel: 'toolbar', visible: v });
-  }));
+  }, settingShowToolbar.subscribe));
 
   el.appendChild(toggle('Show transport bar', settingShowTransportBar.get(), (v) => {
     settingShowTransportBar.set(v);
     eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: v });
-  }));
+  }, settingShowTransportBar.subscribe));
 
   el.appendChild(toggle('Show pattern grid', settingShowPatternGrid.get(), (v) => {
     settingShowPatternGrid.set(v);
     eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: v });
-  }));
+  }, settingShowPatternGrid.subscribe));
 
   el.appendChild(toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: v });
-  }));
+  }, settingShowChannelMixer.subscribe));
 
   return el;
 }
@@ -118,6 +119,8 @@ export function toggle(
   label: string,
   initial: boolean,
   onChange: (v: boolean) => void,
+  /** Optional nanostores-compatible subscribe fn to keep the checkbox in sync with an external store. */
+  externalSubscribe?: (listener: (v: boolean) => void) => () => void,
 ): HTMLElement {
   const row = document.createElement('label');
   row.className = 'bb-settings-row bb-settings-toggle-row';
@@ -131,6 +134,30 @@ export function toggle(
   input.className = 'bb-settings-toggle';
   input.checked = initial;
   input.addEventListener('change', () => onChange(input.checked));
+
+  // If an external store subscribe fn is provided, keep the checkbox in sync.
+  if (externalSubscribe) {
+    // nanostores calls the listener immediately with the current value (first call),
+    // then on every subsequent change.
+    let first = true;
+    const unsub = externalSubscribe((v) => {
+      if (first) { first = false; return; } // skip the immediate call — initial already set
+      input.checked = v;
+    });
+
+    // Use a MutationObserver to detect when the row is removed from the DOM
+    // and unsubscribe at that point. Standard DOM elements never fire a
+    // 'disconnected' event, so the previous approach leaked the subscription.
+    const observer = new MutationObserver(() => {
+      if (!row.isConnected) {
+        unsub();
+        observer.disconnect();
+      }
+    });
+    // Observe the nearest ancestor that is guaranteed to be in the document
+    // when the row is live. document.body is always a safe fallback.
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
 
   row.append(span, input);
   return row;
@@ -239,3 +266,47 @@ export function noteText(text: string): HTMLElement {
   p.textContent = text;
   return p;
 }
+
+export function rangeField(
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  initial: number,
+  unit: string,
+  onChange: (v: number) => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'bb-settings-row bb-settings-range-row';
+
+  const lbl = document.createElement('label');
+  lbl.className = 'bb-settings-label';
+  lbl.textContent = label;
+
+  const right = document.createElement('div');
+  right.className = 'bb-settings-range-right';
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'bb-settings-range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(initial);
+  lbl.setAttribute('for', input.id = `bb-range-${label.replace(/\s+/g, '-').toLowerCase()}`);
+
+  const valueLabel = document.createElement('span');
+  valueLabel.className = 'bb-settings-range-value';
+  valueLabel.textContent = `${initial}${unit}`;
+
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    valueLabel.textContent = `${v}${unit}`;
+    onChange(v);
+  });
+
+  right.append(input, valueLabel);
+  row.append(lbl, right);
+  return row;
+}
+

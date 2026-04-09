@@ -64,26 +64,20 @@ export class Toolbar {
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" title="New song (Ctrl+N)">
-          ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} New
+          ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">New</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" title="Save .bax file (Ctrl+S)">
-          ${icon('arrow-down-tray', 'w-4 h-4 inline-block align-text-bottom')} Save
+          ${icon('arrow-down-tray', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Save</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (Ctrl+O)">
-          ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} Open
+          ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Open</span>
         </button>
         <div class="bb-toolbar__dropdown-wrap bb-toolbar__item--pri-examples">
           <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song">
-            ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} Examples ${icon('chevron-down', 'w-3 h-3 inline-block align-middle')}
+            ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Examples</span> ${icon('chevron-down', 'w-3 h-3 inline-block align-middle bb-toolbar__btn-label')}
           </button>
           <ul class="bb-toolbar__dropdown" id="tb-examples-list" aria-label="Example songs" hidden>
-            ${EXAMPLE_SONGS.map(s => `
-              <li>
-                <button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">
-                  ${s.label}
-                </button>
-              </li>
-            `).join('')}
+            ${EXAMPLE_SONGS.map(s => `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`).join('')}
           </ul>
         </div>
       </div>
@@ -92,33 +86,33 @@ export class Toolbar {
 
       <div class="bb-toolbar__group bb-toolbar__group--edit">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" title="Undo (Ctrl+Z)">
-          ${icon('arrow-uturn-left', 'w-4 h-4 inline-block align-text-bottom')} Undo
+          ${icon('arrow-uturn-left', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Undo</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (Ctrl+Y)">
-          ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} Redo
+          ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Redo</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } Format</button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} Wrap</button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-selectall" title="Select All (Ctrl+A)">
-          ${icon('bars-3', 'w-4 h-4 inline-block align-text-bottom')} Select All
+          ${icon('bars-3', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Select All</span>
         </button>
       </div>
 
       <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--export">
-        <span class="bb-toolbar__label bb-toolbar__item--pri-export-label">Export:</span>
+        <span class="bb-toolbar__label bb-toolbar__item--pri-export-label bb-toolbar__btn-label">Export:</span>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="json" title="Export as JSON (ISM format)">
-          ${icon('document', 'w-4 h-4 inline-block align-text-bottom')} JSON
+          ${icon('document', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">JSON</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="midi" title="Export as MIDI (4-track Standard MIDI File)">
-          ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} MIDI
+          ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">MIDI</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="uge" title="Export as UGE (hUGETracker v6)">
-          ${icon('cpu-chip', 'w-4 h-4 inline-block align-text-bottom')} UGE
+          ${icon('cpu-chip', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">UGE</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="wav" title="Export as WAV (rendered audio)">
-          ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} WAV
+          ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">WAV</span>
         </button>
       </div>
 
@@ -126,7 +120,7 @@ export class Toolbar {
 
       <div class="bb-toolbar__group bb-toolbar__group--verify">
         <button class="bb-toolbar__btn" id="tb-verify" title="Validate the current song (Alt+V)">
-          ${icon('check-circle', 'w-4 h-4 inline-block align-text-bottom')} Verify
+          ${icon('check-circle', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Verify</span>
         </button>
       </div>
 
@@ -134,7 +128,7 @@ export class Toolbar {
 
       <div class="bb-toolbar__group bb-toolbar__group--view">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" title="Switch to light theme">
-          ${icon('sun', 'w-4 h-4 inline-block align-text-bottom')} Light
+          ${icon('sun', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Light</span>
         </button>
       </div>
 
@@ -192,7 +186,9 @@ export class Toolbar {
       // Lazily populate the dropdown contents the first time it is opened.
       // Use a robust selector to detect whether items exist (ignores whitespace/text).
       if (wasHidden && examplesList.querySelectorAll('[data-example]').length === 0) {
-        examplesList.innerHTML = EXAMPLE_SONGS.map(s => `\n              <li>\n                <button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">\n                  ${s.label}\n                </button>\n              </li>\n            `).join('');
+        examplesList.innerHTML = EXAMPLE_SONGS.map(s =>
+          `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`
+        ).join('');
         // Ensure the dropdown is visible when we populate it programmatically
         examplesList.hidden = false;
       }
@@ -335,8 +331,8 @@ export class Toolbar {
     if (!this._themeToggleBtn) return;
     const isDark = theme === 'dark';
     this._themeToggleBtn.innerHTML = isDark
-      ? `${icon('sun',  'w-4 h-4 inline-block align-text-bottom')} Light`
-      : `${icon('moon', 'w-4 h-4 inline-block align-text-bottom')} Dark`;
+      ? `${icon('sun',  'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Light</span>`
+      : `${icon('moon', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Dark</span>`;
     this._themeToggleBtn.title = isDark ? 'Switch to light theme' : 'Switch to dark theme';
   }
 
