@@ -46,6 +46,8 @@ export const StorageKey = {
   BEAT_DECORATIONS: 'editor.beatDecorations',
   /** Editor font size (number). */
   FONT_SIZE: 'editor.fontSize',
+  /** Selected audio backend ('webaudio' | 'offline' | etc.). */
+  AUDIO_BACKEND: 'audio.backend',
   /** Audio sample rate (44100 | 48000 | 96000). */
   AUDIO_SAMPLE_RATE: 'audio.sampleRate',
   /** Audio buffer frames for offline render (1024 | 2048 | 4096 | 8192). */

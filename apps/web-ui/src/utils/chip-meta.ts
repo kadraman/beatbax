@@ -76,7 +76,7 @@ CHIP_CHANNEL_META['dmg'] = CHIP_CHANNEL_META['gameboy'];
 
 /**
  * Deterministic colour palette used when a chip has no entry in CHIP_CHANNEL_META
- * or when the channel ID exceeds the defined list. Matches the palette in pattern-grid.ts.
+ * or when the channel ID exceeds the defined list.
  */
 const FALLBACK_COLOR_PALETTE: readonly string[] = [
   '#569cd6', '#9cdcfe', '#4ec9b0', '#ce9178',

@@ -144,7 +144,19 @@ export function toggle(
       if (first) { first = false; return; } // skip the immediate call — initial already set
       input.checked = v;
     });
-    row.addEventListener('disconnected' as any, () => unsub(), { once: true });
+
+    // Use a MutationObserver to detect when the row is removed from the DOM
+    // and unsubscribe at that point. Standard DOM elements never fire a
+    // 'disconnected' event, so the previous approach leaked the subscription.
+    const observer = new MutationObserver(() => {
+      if (!row.isConnected) {
+        unsub();
+        observer.disconnect();
+      }
+    });
+    // Observe the nearest ancestor that is guaranteed to be in the document
+    // when the row is live. document.body is always a safe fallback.
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   row.append(span, input);
