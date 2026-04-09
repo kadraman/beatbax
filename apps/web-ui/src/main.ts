@@ -93,10 +93,13 @@ import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
   settingWordWrap, settingDefaultBpm,
+  settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
+  settingDebugOverlayFontSize, settingDebugExposePlayer,
 } from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
+import { DebugOverlay } from './ui/debug-overlay';
 
 // Export / import imports
 import { Toolbar } from './ui/toolbar';
@@ -265,6 +268,20 @@ document.body.appendChild(statusBarContainer);
 // ─── Core components ─────────────────────────────────────────────────────────────────
 setupGlyphMargin(editor.editor, eventBus);
 const playbackManager = new PlaybackManager(eventBus);
+
+// ─── Debug overlay ────────────────────────────────────────────────────────────
+const debugOverlay = new DebugOverlay(
+  playbackManager,
+  settingDebugOverlayPosition.get(),
+  settingDebugOverlayOpacity.get(),
+  settingDebugOverlayFontSize.get(),
+);
+debugOverlay.toggle(settingDebugOverlay.get());
+settingDebugOverlay.subscribe((enabled) => debugOverlay.toggle(enabled));
+settingDebugOverlayPosition.subscribe((pos) => debugOverlay.setPosition(pos));
+settingDebugOverlayOpacity.subscribe((pct) => debugOverlay.setOpacity(pct));
+settingDebugOverlayFontSize.subscribe((px) => debugOverlay.setFontSize(px));
+
 const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
@@ -606,6 +623,24 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 (window as any).__beatbax_setPerChannelAnalyser = (enabled: boolean) => {
   playbackManager.setPerChannelAnalyser(enabled);
 };
+
+// ─── Expose player to window (controlled by Settings → Advanced) ──────────────
+function applyExposePlayer(enabled: boolean): void {
+  if (enabled) {
+    (window as any).__beatbax_player = playbackManager.getPlayer();
+  } else {
+    delete (window as any).__beatbax_player;
+  }
+}
+applyExposePlayer(settingDebugExposePlayer.get());
+settingDebugExposePlayer.subscribe((enabled) => applyExposePlayer(enabled));
+// Keep the player reference fresh after each play() call
+eventBus.on('playback:started', () => {
+  if (settingDebugExposePlayer.get()) {
+    (window as any).__beatbax_player = playbackManager.getPlayer();
+  }
+});
+
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;

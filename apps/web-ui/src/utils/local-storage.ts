@@ -46,8 +46,6 @@ export const StorageKey = {
   BEAT_DECORATIONS: 'editor.beatDecorations',
   /** Editor font size (number). */
   FONT_SIZE: 'editor.fontSize',
-  /** Audio backend ('auto' | 'browser' | 'node-webaudio'). */
-  AUDIO_BACKEND: 'audio.backend',
   /** Audio sample rate (44100 | 48000 | 96000). */
   AUDIO_SAMPLE_RATE: 'audio.sampleRate',
   /** Audio buffer frames for offline render (1024 | 2048 | 4096 | 8192). */
@@ -60,6 +58,12 @@ export const StorageKey = {
   LOG_LEVEL: 'debug.logLevel',
   /** Show debug overlay (boolean). */
   DEBUG_OVERLAY: 'debug.overlay',
+  /** Debug overlay position ('top-right' | 'top-left' | 'bottom-right' | 'bottom-left'). */
+  DEBUG_OVERLAY_POSITION: 'debug.overlay.position',
+  /** Debug overlay opacity 10–100 (integer percent). */
+  DEBUG_OVERLAY_OPACITY: 'debug.overlay.opacity',
+  /** Debug overlay font size 8–20 (integer px). */
+  DEBUG_OVERLAY_FONT_SIZE: 'debug.overlay.fontSize',
   /** Expose window.__beatbax_player (boolean). */
   DEBUG_EXPOSE_PLAYER: 'debug.exposePlayer',
   /** AI Assistant feature flag (boolean). */

@@ -254,3 +254,47 @@ export function noteText(text: string): HTMLElement {
   p.textContent = text;
   return p;
 }
+
+export function rangeField(
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  initial: number,
+  unit: string,
+  onChange: (v: number) => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'bb-settings-row bb-settings-range-row';
+
+  const lbl = document.createElement('label');
+  lbl.className = 'bb-settings-label';
+  lbl.textContent = label;
+
+  const right = document.createElement('div');
+  right.className = 'bb-settings-range-right';
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'bb-settings-range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(initial);
+  lbl.setAttribute('for', input.id = `bb-range-${label.replace(/\s+/g, '-').toLowerCase()}`);
+
+  const valueLabel = document.createElement('span');
+  valueLabel.className = 'bb-settings-range-value';
+  valueLabel.textContent = `${initial}${unit}`;
+
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    valueLabel.textContent = `${v}${unit}`;
+    onChange(v);
+  });
+
+  right.append(input, valueLabel);
+  row.append(lbl, right);
+  return row;
+}
+

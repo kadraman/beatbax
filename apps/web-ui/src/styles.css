@@ -1305,6 +1305,26 @@
 }
 .bb-settings-number:focus { outline: 1px solid #569cd6; }
 
+/* Range slider row */
+.bb-settings-range-row { align-items: center; }
+.bb-settings-range-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+.bb-settings-range {
+  flex: 1 1 auto;
+  accent-color: #c8a227;
+  cursor: pointer;
+}
+.bb-settings-range-value {
+  font-size: 11px;
+  color: #aaa;
+  min-width: 32px;
+  text-align: right;
+}
+
 /* Text / URL / password input */
 .bb-settings-text {
   background: #2d2d2d;
@@ -2389,3 +2409,23 @@
   animation: bb-spin 0.7s linear infinite;
 }
 #bb-activity-spinner .bb-spinner-label { letter-spacing: 0.03em; opacity: 0.85; }
+
+/* ─── Debug overlay ──────────────────────────────────────────────────────────── */
+#bb-debug-overlay {
+  position: fixed;
+  z-index: 9800;
+  background: rgba(10, 10, 14, 0.75);
+  color: #c8a227;     /* --bb-accent */
+  border: 1px solid rgba(200, 162, 39, 0.35);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre;
+  pointer-events: none;   /* never captures mouse clicks */
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  user-select: none;
+  /* position (top/bottom/left/right) and opacity are set inline by DebugOverlay */
+}
