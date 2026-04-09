@@ -72,7 +72,7 @@ import {
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
-import { getInitialContent } from './app/bootstrap';
+import { getInitialContent, getStarterSong } from './app/bootstrap';
 import { buildAppLayout } from './app/layout';
 import { buildBottomTabs, buildRightTabs } from './app/tabs';
 import { buildShortcutsModal } from './app/modals';
@@ -92,6 +92,7 @@ import {
 import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
+  settingWordWrap, settingDefaultBpm,
 } from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
@@ -178,7 +179,7 @@ const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, ed
 
 editor = createEditor({
   container: editorPane,
-  value: getInitialContent(),
+  value: getInitialContent(settingDefaultBpm.get()),
   theme: 'beatbax-dark',
   language: 'beatbax',
   autoSaveDelay: storage.getJSON<boolean>(StorageKey.AUTO_SAVE, true) !== false ? 500 : 0,
@@ -1150,10 +1151,13 @@ const menuBar = new MenuBar({
   onNew: () => {
     if (confirm('Clear the editor and start a new song?')) {
       playbackManager.stop();
-      editor.setValue?.('');
-      storage.set(StorageKey.EDITOR_CONTENT, '');
+      const newSong = getStarterSong(settingDefaultBpm.get());
+      editor.setValue?.(newSong);
+      storage.set(StorageKey.EDITOR_CONTENT, newSong);
       loadedFilename = 'song';
       opLog(outputPanel, '📄 New song');
+      emitParse(newSong);
+      toolbar?.setExportEnabled(true);
     }
   },
   onOpen: () => {
@@ -1256,11 +1260,16 @@ toolbar = new Toolbar({
   onFormat:    () => editor.editor?.getAction('editor.action.formatDocument')?.run(),
   onSelectAll: () => editor.editor?.trigger('toolbar', 'editor.action.selectAll', null),
   onToggleTheme: () => themeManager.toggle(),
-  onToggleWrap:  (wrap: boolean) => editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' }),
+  onToggleWrap:  (wrap: boolean) => {
+    settingWordWrap.set(wrap);
+    editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
+  },
 });
 
 // Restore toolbar visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
+// Sync the Wrap button active state with the persisted word-wrap setting
+toolbar.setWrapActive(settingWordWrap.get());
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {

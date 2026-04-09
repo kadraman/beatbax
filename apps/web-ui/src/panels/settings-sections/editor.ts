@@ -23,7 +23,8 @@ export function buildEditorSection(): HTMLElement {
   el.appendChild(toggle('Word wrap', settingWordWrap.get(), (v) => {
     settingWordWrap.set(v);
     (window as any).__beatbax_editor?.editor?.updateOptions?.({ wordWrap: v ? 'on' : 'off' });
-  }));
+    (window as any).__beatbax_toolbar?.setWrapActive(v);
+  }, settingWordWrap.subscribe));
 
   el.appendChild(toggle('Show CodeLens previews', settingCodeLens.get(), (v) => {
     settingCodeLens.set(v);
