@@ -1147,6 +1147,7 @@ const menuBar = new MenuBar({
     if (confirm('Clear the editor and start a new song?')) {
       playbackManager.stop();
       editor.setValue?.('');
+      storage.set(StorageKey.EDITOR_CONTENT, '');
       loadedFilename = 'song';
       opLog(outputPanel, '📄 New song');
     }
@@ -1158,6 +1159,7 @@ const menuBar = new MenuBar({
         playbackManager.stop();
         loadedFilename = fileBaseStem(result.filename);
         editor.setValue?.(result.content);
+        storage.set(StorageKey.EDITOR_CONTENT, result.content);
         opLog(outputPanel, `📂 Opened ${result.filename}`);
         eventBus.emit('song:loaded', { filename: result.filename });
         menuBar.recordRecent(result.filename);
@@ -1184,6 +1186,7 @@ const menuBar = new MenuBar({
     playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
+    storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🎵 Loaded ${filename}`);
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
@@ -1233,6 +1236,7 @@ toolbar = new Toolbar({
     playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
+    storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `📂 Opened ${filename}`);
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
@@ -1296,6 +1300,7 @@ const dragDrop = new DragDropHandler(document.body, {
     playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
+    storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🗂 Dropped ${filename}`);
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
@@ -1319,6 +1324,7 @@ const dragDrop = new DragDropHandler(document.body, {
       const filename = songParam.split('/').pop() || 'song.bax';
       loadedFilename = fileBaseStem(filename);
       editor.setValue?.(result.content);
+      storage.set(StorageKey.EDITOR_CONTENT, result.content);
       opLog(outputPanel, `🌐 Loaded from URL: ${filename}`);
       eventBus.emit('song:loaded', { filename });
       menuBar.recordRecent(filename);
