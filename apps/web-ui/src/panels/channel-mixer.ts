@@ -25,18 +25,12 @@ import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { storage, StorageKey } from '../utils/local-storage';
 import { settingFeaturePerChannelAnalyser, settingChannelCompact } from '../stores/settings.store';
+import { getChannelMeta } from '../utils/chip-meta';
 
 const log = createLogger('ui:channel-panel');
 
 /** Chips that expose a per-channel volume register writable at runtime. */
 const VOLUME_SUPPORTED_CHIPS = new Set(['nes', 'sid', 'genesis', 'snes']);
-
-const CHANNEL_META: Record<number, { label: string; color: string }> = {
-  1: { label: 'Pulse 1', color: '#569cd6' },
-  2: { label: 'Pulse 2', color: '#9cdcfe' },
-  3: { label: 'Wave',    color: '#4ec9b0' },
-  4: { label: 'Noise',   color: '#ce9178' },
-};
 
 export interface ChannelMixerOptions {
   container: HTMLElement;
@@ -185,7 +179,7 @@ export class ChannelMixer {
   }
 
   private buildCard(ch: any): HTMLElement {
-    const meta = CHANNEL_META[ch.id as number] ?? { label: `Ch${ch.id}`, color: '#888888' };
+    const meta = getChannelMeta(this.activeChip, ch.id as number);
     const info = channelStates.get()[ch.id];
     const isMuted = info?.muted ?? false;
     const isSoloed = info?.soloed ?? false;
@@ -493,7 +487,7 @@ export class ChannelMixer {
   private pulse(channelId: number, drawSynthetic = true): void {
     const bar = document.getElementById(`bb-cp-level-${channelId}`);
     if (!bar) return;
-    const color = CHANNEL_META[channelId]?.color ?? '#569cd6';
+    const color = getChannelMeta(this.activeChip, channelId).color;
     bar.style.boxShadow = `0 0 6px 2px ${color}`;
     bar.style.opacity = '1';
     clearTimeout(this.levelTimers.get(channelId));
@@ -513,11 +507,11 @@ export class ChannelMixer {
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
         ctx.lineWidth = 1.2;
-        ctx.strokeStyle = CHANNEL_META[channelId]?.color ?? '#4a9eff';
+        ctx.strokeStyle = getChannelMeta(this.activeChip, channelId).color;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         ctx.shadowBlur = 6;
-        ctx.shadowColor = (CHANNEL_META[channelId]?.color ?? '#4a9eff') + '33';
+        ctx.shadowColor = getChannelMeta(this.activeChip, channelId).color + '33';
 
         // Build sampled points depending on channel type
         const pts: Array<{ x: number; y: number }> = [];
@@ -603,7 +597,7 @@ export class ChannelMixer {
     ctx.clearRect(0, 0, w, h);
     if (samples.length === 0) return;
 
-    const color = CHANNEL_META[channelId]?.color ?? '#4a9eff';
+    const color = getChannelMeta(this.activeChip, channelId).color;
     ctx.lineWidth = 1.2;
     ctx.strokeStyle = color;
     ctx.lineJoin = 'round';
