@@ -4,29 +4,16 @@
 
 import { storage, StorageKey } from '../../utils/local-storage';
 import {
-  settingAudioBackend, settingAudioSampleRate,
+  settingAudioSampleRate,
   settingDefaultLoop, settingAudioBufferFrames,
 } from '../../stores/settings.store';
-import { sectionHeading, toggle, radioGroup, selectField, noteText } from './general';
+import { sectionHeading, toggle, selectField, noteText } from './general';
 
 export function buildPlaybackSection(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'bb-settings-section';
 
   el.appendChild(sectionHeading('Audio'));
-
-  el.appendChild(radioGroup(
-    'Audio backend',
-    'bb-settings-audio-backend',
-    [
-      { value: 'auto',    label: 'Auto' },
-      { value: 'browser', label: 'Browser (WebAudio)' },
-    ],
-    // Normalise any legacy 'node-webaudio' value to 'auto'
-    settingAudioBackend.get() === 'browser' ? 'browser' : 'auto',
-    (v) => settingAudioBackend.set(v as any),
-  ));
-  el.appendChild(noteText('Auto uses the browser\'s built-in WebAudio API (the only option in the web UI). Browser forces this explicitly. Changes take effect after a page reload.'));
 
   el.appendChild(selectField(
     'Sample rate',
@@ -38,7 +25,7 @@ export function buildPlaybackSection(): HTMLElement {
     settingAudioSampleRate.get(),
     (v) => settingAudioSampleRate.set(v as any),
   ));
-  el.appendChild(noteText('Higher sample rates use more CPU. Most Game Boy audio is inaudible above 44 100 Hz. Takes effect after a page reload.'));
+  el.appendChild(noteText('Higher sample rates use more CPU. Most Game Boy audio is inaudible above 44 100 Hz. Applied on the next Play and on WAV export.'));
 
   el.appendChild(sectionHeading('Playback'));
 
@@ -60,13 +47,12 @@ export function buildPlaybackSection(): HTMLElement {
     settingAudioBufferFrames.get(),
     (v) => settingAudioBufferFrames.set(v as any),
   ));
-  el.appendChild(noteText('Larger buffers reduce crackling during WAV export but use more memory.'));
+  el.appendChild(noteText('Larger buffers reduce crackling during WAV export but use more memory. Applied on the next WAV export.'));
 
   return el;
 }
 
 export function resetPlaybackDefaults(): void {
-  settingAudioBackend.set('auto');
   settingAudioSampleRate.set('44100');
   settingDefaultLoop.set(false);
   settingAudioBufferFrames.set('4096');

@@ -275,7 +275,7 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
-      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
+      ${def.icon ? `<span class="bb-menu__item-icon" aria-hidden="true">${icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom')}</span>` : ''}
       <span class="bb-menu__item-label">${esc(def.label)}</span>
       ${def.shortcut ? `<span class="bb-menu__item-shortcut" aria-hidden="true">${esc(def.shortcut)}</span>` : ''}
     `;

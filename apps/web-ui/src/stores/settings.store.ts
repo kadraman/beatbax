@@ -73,11 +73,6 @@ export const settingFontSize        = numberAtom(StorageKey.FONT_SIZE,         1
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
 
-export const settingAudioBackend = stringAtom<'auto' | 'browser' | 'node-webaudio'>(
-  StorageKey.AUDIO_BACKEND,
-  'auto',
-);
-
 export const settingAudioSampleRate = stringAtom<'44100' | '48000' | '96000'>(
   StorageKey.AUDIO_SAMPLE_RATE,
   '44100',
@@ -106,6 +101,12 @@ export const settingLogLevel = stringAtom<'error' | 'warn' | 'info' | 'debug'>(
 );
 
 export const settingDebugOverlay      = boolAtom(StorageKey.DEBUG_OVERLAY,       false);
+export const settingDebugOverlayPosition = stringAtom<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>(
+  StorageKey.DEBUG_OVERLAY_POSITION,
+  'top-right',
+);
+export const settingDebugOverlayOpacity = numberAtom(StorageKey.DEBUG_OVERLAY_OPACITY, 70);
+export const settingDebugOverlayFontSize = numberAtom(StorageKey.DEBUG_OVERLAY_FONT_SIZE, 11);
 export const settingDebugExposePlayer = boolAtom(StorageKey.DEBUG_EXPOSE_PLAYER, true);
 
 // ─── Reset helpers ────────────────────────────────────────────────────────────
@@ -130,7 +131,6 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.FONT_SIZE,
   ],
   playback: [
-    StorageKey.AUDIO_BACKEND,
     StorageKey.AUDIO_SAMPLE_RATE,
     StorageKey.PLAYBACK_LOOP,
     StorageKey.AUDIO_BUFFER_FRAMES,
@@ -149,6 +149,9 @@ export const SECTION_KEYS: Record<string, string[]> = {
   advanced: [
     StorageKey.LOG_LEVEL,
     StorageKey.DEBUG_OVERLAY,
+    StorageKey.DEBUG_OVERLAY_POSITION,
+    StorageKey.DEBUG_OVERLAY_OPACITY,
+    StorageKey.DEBUG_OVERLAY_FONT_SIZE,
     StorageKey.DEBUG_EXPOSE_PLAYER,
   ],
 };

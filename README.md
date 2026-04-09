@@ -72,7 +72,10 @@ seq wave_seq  = melody:oct(-1):inst(wave1) melody:oct(-2):inst(wave1)
 seq drums_seq = drum_pat*2
 
 # Channel arrangement
-arrange main = lead_seq | bass_seq | wave_seq | drums_seq
+channel 1 => inst lead seq lead_seq
+channel 2 => inst bass seq bass_seq
+channel 3 => inst wave1 seq wave_seq
+channel 4 => inst snare seq drums_seq
 
 play auto repeat
 ```

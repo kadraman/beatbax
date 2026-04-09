@@ -761,6 +761,15 @@ npm run web-ui:dev     # start the Vite dev server (usually http://127.0.0.1:517
 - Per‑channel `Mute` / `Solo` controls appear after applying a song.
 - Help panel: click the ❓ icon or the Show Help button (H / ? toggles the panel). The help panel surfaces the commented documentation inside `songs/sample.bax`.
 
+**BPM nudge (transport bar)**
+
+The transport bar's `«` and `»` buttons step the playback tempo down or up by 1 BPM per click without editing the source. Hold either button for rapid stepping.
+
+- The BPM LCD readout updates immediately and the running song tempo changes on the next scheduler tick.
+- The editor annotates the `bpm` directive line with a dimmed italic hint showing the overridden value, e.g. `bpm 140  ← runtime: 141 BPM`.
+- The annotation is purely cosmetic — the source text is never modified.
+- **Clearing the override:** editing the `bpm` value directly in the editor, or loading a new file, clears the override and removes the annotation. The transport bar snaps back to the source BPM.
+
 **CodeLens inline previews** — the editor shows clickable actions directly above definitions:
 - `▶ Preview` above a `pat` or `seq` line: plays that pattern or sequence in isolation and then stops automatically.
 - `↺ Loop` above a `pat` or `seq` line: plays the pattern or sequence on repeat. Each new iteration re-parses the source, so edits you make while looping are heard on the next pass.
@@ -819,7 +828,7 @@ The **Features** tab controls which optional capabilities are active:
 
 | Feature | Badge | Notes |
 |---|---|---|
-| **Pattern Grid** | Stable | Visual step-sequencer overlay for patterns |
+| **Pattern Grid** | Experimental | Visual step-sequencer overlay for patterns |
 | **Hot Reload** | Experimental | Auto-replays on every editor change (800 ms debounce); state survives page reloads |
 | **AI Copilot** | Beta | Requires an API key — configure in the **AI** tab |
 | **DAW Mixer** | Planned | Horizontal channel strip with VU meters (not yet interactive) |
