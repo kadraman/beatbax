@@ -89,6 +89,10 @@ import {
   validationErrors as validationErrorsAtom,
   validationWarnings as validationWarningsAtom,
 } from './stores/editor.store';
+import {
+  settingShowToolbar, settingShowTransportBar,
+  settingShowPatternGrid, settingShowChannelMixer,
+} from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
@@ -579,21 +583,21 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'toolbar') {
     try {
       toolbar?.[visible ? 'show' : 'hide']?.();
-      writePanelVis(StorageKey.PANEL_VIS_TOOLBAR, visible);
+      settingShowToolbar.set(visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'transport-bar') {
     try {
       transportBar?.[visible ? 'show' : 'hide']?.();
-      writePanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR, visible);
+      settingShowTransportBar.set(visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'pattern-grid') {
     patternGridContainer.style.display = visible ? '' : 'none';
-    writePanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, visible);
+    settingShowPatternGrid.set(visible);
   }
   if (panel === 'channel-mixer') {
-    writePanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER, visible);
+    settingShowChannelMixer.set(visible);
   }
 });
 
@@ -609,7 +613,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
   patternGridContainer.style.display = visible ? '' : 'none';
-  writePanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, visible);
+  settingShowPatternGrid.set(visible);
 };
 
 // Transport bar UI will be created by TransportBar

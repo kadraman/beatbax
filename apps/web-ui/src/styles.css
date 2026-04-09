@@ -1885,6 +1885,8 @@
 .bb-toolbar__status[data-type="success"] { color: #4ec9b0; }
 .bb-toolbar__status[data-type="error"]   { color: #f48771; }
 .bb-toolbar__status[data-type="info"]    { color: #9cdcfe; }
+/* Icons-only toolbar style: hide all label spans and the "Export:" label */
+.bb-toolbar[data-style="icons"] .bb-toolbar__btn-label { display: none; }
 /* Active / toggled-on state for wrap and theme toggle buttons */
 .bb-toolbar__btn--active {
   background: linear-gradient(to bottom, #1a331a 0%, #2a4a2a 100%);

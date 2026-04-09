@@ -24,7 +24,7 @@ import {
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { storage, StorageKey } from '../utils/local-storage';
-import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
+import { settingFeaturePerChannelAnalyser, settingChannelCompact } from '../stores/settings.store';
 
 const log = createLogger('ui:channel-panel');
 
@@ -117,7 +117,8 @@ export class ChannelMixer {
       toggleBtn.setAttribute('aria-label', this.compactMode ? 'Switch to full view' : 'Switch to compact view');
       root.classList.toggle('bb-cp--compact', this.compactMode);
       root.classList.toggle('bb-cp--full', !this.compactMode);
-      try { localStorage.setItem('bb-channel-compact', String(this.compactMode)); } catch (e) {}
+      // Update the shared settings store so the Settings panel stays in sync.
+      settingChannelCompact.set(this.compactMode);
       this.updateModeVisuals(root);
     });
 

@@ -45,7 +45,7 @@ export function buildGeneralSection(): HTMLElement {
     'Toolbar style',
     'bb-settings-toolbar-style',
     [
-      { value: 'icons+labels', label: 'Icons + labels' },
+      { value: 'icons+labels', label: 'Icons with labels' },
       { value: 'icons',        label: 'Icons only' },
     ],
     settingToolbarStyle.get(),
@@ -65,6 +65,7 @@ export function buildGeneralSection(): HTMLElement {
       // Live-apply on the running mixer instance
       (window as any).__beatbax_channelMixer?.setCompact(v);
     },
+    settingChannelCompact.subscribe,
   ));
 
   // ── Panels ────────────────────────────────────────────────────────────────
@@ -73,22 +74,22 @@ export function buildGeneralSection(): HTMLElement {
   el.appendChild(toggle('Show toolbar', settingShowToolbar.get(), (v) => {
     settingShowToolbar.set(v);
     eventBus.emit('panel:toggled', { panel: 'toolbar', visible: v });
-  }));
+  }, settingShowToolbar.subscribe));
 
   el.appendChild(toggle('Show transport bar', settingShowTransportBar.get(), (v) => {
     settingShowTransportBar.set(v);
     eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: v });
-  }));
+  }, settingShowTransportBar.subscribe));
 
   el.appendChild(toggle('Show pattern grid', settingShowPatternGrid.get(), (v) => {
     settingShowPatternGrid.set(v);
     eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: v });
-  }));
+  }, settingShowPatternGrid.subscribe));
 
   el.appendChild(toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: v });
-  }));
+  }, settingShowChannelMixer.subscribe));
 
   return el;
 }
@@ -118,6 +119,8 @@ export function toggle(
   label: string,
   initial: boolean,
   onChange: (v: boolean) => void,
+  /** Optional nanostores-compatible subscribe fn to keep the checkbox in sync with an external store. */
+  externalSubscribe?: (listener: (v: boolean) => void) => () => void,
 ): HTMLElement {
   const row = document.createElement('label');
   row.className = 'bb-settings-row bb-settings-toggle-row';
@@ -131,6 +134,18 @@ export function toggle(
   input.className = 'bb-settings-toggle';
   input.checked = initial;
   input.addEventListener('change', () => onChange(input.checked));
+
+  // If an external store subscribe fn is provided, keep the checkbox in sync.
+  if (externalSubscribe) {
+    // nanostores calls the listener immediately with the current value (first call),
+    // then on every subsequent change.
+    let first = true;
+    const unsub = externalSubscribe((v) => {
+      if (first) { first = false; return; } // skip the immediate call — initial already set
+      input.checked = v;
+    });
+    row.addEventListener('disconnected' as any, () => unsub(), { once: true });
+  }
 
   row.append(span, input);
   return row;
