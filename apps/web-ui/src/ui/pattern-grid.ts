@@ -18,31 +18,7 @@
  */
 
 import { channelStates, toggleChannelMuted, toggleChannelSoloed, isChannelAudible } from '../stores/channel.store';
-
-// ── Channel colour palette ────────────────────────────────────────────────────
-// First four entries match Game Boy channels and CHANNEL_META in channel-mixer.ts.
-// Additional entries support chips with more channels (NES=5, YM2612=9, etc.).
-// For channel IDs beyond the palette length the index wraps around.
-const CHANNEL_COLOR_PALETTE: readonly string[] = [
-  '#569cd6', // 1 — GB Pulse 1 / blue
-  '#9cdcfe', // 2 — GB Pulse 2 / light blue
-  '#4ec9b0', // 3 — GB Wave    / teal
-  '#ce9178', // 4 — GB Noise   / salmon
-  '#dcdcaa', // 5 — NES Triangle / yellow-green
-  '#c586c0', // 6 — NES DMC / purple
-  '#6a9955', // 7 — green
-  '#f44747', // 8 — red
-  '#b5cea8', // 9 — pale green
-  '#4fc1ff', // 10 — sky blue
-  '#e8c07d', // 11 — warm amber
-  '#a8cc8c', // 12 — mint
-];
-
-/** Return a deterministic colour for any 1-based channel ID. */
-function getChannelColor(channelId: number): string {
-  const idx = (channelId - 1) % CHANNEL_COLOR_PALETTE.length;
-  return CHANNEL_COLOR_PALETTE[Math.max(0, idx)];
-}
+import { getChannelColor } from '../utils/chip-meta';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,9 +120,10 @@ export class PatternGrid {
     this._globalNoteTotal  = maxNotes;
 
     // ── Second pass: build rows ───────────────────────────────────────────────
+    const chip: string = song?.chip ?? 'gameboy';
     for (const ch of channels) {
       const channelId: number = ch.id ?? 0;
-      const color = getChannelColor(channelId);
+      const color = getChannelColor(chip, channelId);
       const events: any[] = ch.events ?? [];
       const segs = buildSegments(events);
 

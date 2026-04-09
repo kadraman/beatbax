@@ -27,7 +27,7 @@ const FEATURES: FeatureEntry[] = [
   {
     label: 'Pattern grid',
     description: 'Visual sequence overview displayed below the transport bar. Shows all pattern blocks for every channel and tracks the playback cursor in real time. Click a block to jump to its definition in the editor.',
-    badge: 'Stable',
+    badge: 'Experimental',
     flag: FeatureFlag.PATTERN_GRID,
     atom: settingFeaturePatternGrid,
     onToggle: (enabled) => (window as any).__beatbax_togglePatternGrid?.(enabled),

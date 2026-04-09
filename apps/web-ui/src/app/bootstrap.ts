@@ -4,40 +4,39 @@
  * song.  Kept separate from main.ts so it can be unit-tested without a DOM.
  */
 
-const STARTER_SONG = `# BeatBax Web IDE
-# Use the menu bar (File / Edit / View / Help) for all operations.
-# Drag-and-drop a .bax file to load it, or use File → Open.
+/** Default BPM used in the starter song when no setting is available. */
+const DEFAULT_STARTER_BPM = 128;
+
+/**
+ * Build the starter song template with the given BPM.
+ * Used both for the initial bootstrap and when the user creates a new song.
+ */
+export function getStarterSong(bpm: number = DEFAULT_STARTER_BPM): string {
+  return `# Use the menu bar or toolbar to load an existing .bax file, or drag-and-drop a .bax file here to load it.
+# See Help->Help Panel (Shift-F1) for language syntax and examples.
+# Below is a simple 1-channel song with a single lead instrument and a repeating 4-note melody.
 
 chip gameboy
-bpm 140
-time 4
+bpm ${bpm}
 
-inst lead  type=pulse1 duty=50 env=12,down
-inst bass  type=pulse2 duty=25 env=10,down
-inst kick  type=noise  env=12,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst lead type=pulse1 duty=50
 
-pat melody  = C5 E5 G5 C6
-pat bassline = C3 . G2 .
-pat beat    = C6 . . C6 . C6 C6 .
+pat melody = C5 E5 G5 C6
 
-seq main  = melody melody melody melody
-seq groove = bassline bassline
-seq perc  = beat beat beat beat
+seq main  = melody melody:oct(-1) melody melody:oct(-2)
 
-channel 1 => inst lead  seq main
-channel 2 => inst bass  seq groove:oct(-1)
-channel 3 => inst wave1 seq main:oct(-1)
-channel 4 => inst kick  seq perc
+channel 1 => inst lead seq main
 
 play
 `;
+}
 
 /**
  * Returns the editor's initial content, preferring the most recent auto-save
  * in localStorage and falling back to the built-in starter song.
+ * Pass the current default BPM setting so the starter song reflects it.
  */
-export function getInitialContent(): string {
+export function getInitialContent(defaultBpm: number = DEFAULT_STARTER_BPM): string {
   try {
     const saved = localStorage.getItem('beatbax:editor.content');
     if (saved) return saved;
@@ -45,5 +44,5 @@ export function getInitialContent(): string {
     const legacy = localStorage.getItem('beatbax-editor-content');
     if (legacy) return legacy;
   } catch (_e) { /* ignore */ }
-  return STARTER_SONG;
+  return getStarterSong(defaultBpm);
 }

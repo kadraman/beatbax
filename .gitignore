@@ -168,3 +168,4 @@ test.ps1
 # generate GitHub Issues
 .github/ISSUES
 t.cmd
+README.bax

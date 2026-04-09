@@ -46,6 +46,8 @@ export const editorFilename = atom<string>('');
 
 /** Persist content to localStorage on every change. */
 editorContent.subscribe((content) => {
+  if (content === '') return; // Don't persist empty content (e.g., on initialization)
+  // Persist the content to localStorage for auto-recovery on reload.
   try {
     localStorage.setItem(STORAGE_KEY, content);
   } catch { /* ignore */ }
