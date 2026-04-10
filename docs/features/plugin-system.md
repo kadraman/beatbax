@@ -112,11 +112,25 @@ export interface ChipPlugin {
   // Create a channel backend instance
   createChannel(channelIndex: number, audioContext: AudioContext): ChipChannelBackend;
   
+  // Optional: Resolve a named sample asset to an ArrayBuffer.
+  // Used by chips with sampled audio channels (e.g. NES DMC, SID samples).
+  // The `ref` string follows the same multi-environment conventions as `import`:
+  //   - "@<chip>/<name>" — resolve from the plugin's built-in sample library
+  //   - "local:<path>"   — resolve from the local file system (CLI/Node.js only)
+  //   - "https://..."    — resolve via fetch() (browser and Node.js 18+)
+  // Implementations must block "local:" references in browser contexts.
+  resolveSampleAsset?(ref: string): Promise<ArrayBuffer>;
+
+  // Optional: Built-in named sample library (for "@<chip>/<name>" references).
+  // Keys are sample names; values are base64-encoded .dmc/.raw content.
+  bundledSamples?: Record<string, string>;
+  
   // Optional: Convert instrument to native format
   instrumentToNative?(inst: InstrumentDef): any;
   
-  // Optional: Export support
-  exportToNative?(song: SongModel): Uint8Array;
+  // Optional: Export support (NSF, .ftm, .fms, etc.)
+  // May return multiple exports keyed by format name.
+  exportToNative?(song: SongModel, format?: string): Uint8Array;
 }
 ```
 
@@ -323,11 +337,13 @@ The engine tries loading strategies in order:
 - [ ] Document plugin API in `/docs/plugin-api.md`
 
 ### Phase 3: Create First External Plugin (NES)
-- [ ] Create `packages/plugins/chip-nes/` with proper structure
+- [ ] Create `packages/plugins/chip-nes/` with proper structure (see `docs/features/nes-apu-chip-plugin.md` for full implementation plan)
 - [ ] Implement NES APU channels (2 pulse, 1 triangle, 1 noise, 1 DMC)
-- [ ] Add NES period tables and frequency mappings
+- [ ] Add NES period tables and frequency mappings (61 MIDI notes, C2–C7)
+- [ ] Implement `bundledSamples` for DMC channel built-in library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`)
+- [ ] Implement `resolveSampleAsset()` supporting `@nes/`, `local:`, and `https://` references
 - [ ] Write tests for NES plugin
-- [ ] Add example NES song in `/songs/nes-example.bax`
+- [ ] Add example NES songs in `/songs/` (e.g. `nes_wily_fortress.bax`, `nes_kingdom_hall.bax`)
 
 ### Phase 4: CLI Auto-Discovery
 - [ ] Implement `discoverPlugins()` in CLI
@@ -389,6 +405,10 @@ The engine tries loading strategies in order:
 - **Code review:** Document recommended vetting for third-party chips (code review, minimal API surface, no network access).
 - **Sandboxing:** Consider Web Workers or isolated contexts for untrusted plugins (post-v1).
 - **Official plugins:** Plugins published under `@beatbax/*` namespace are reviewed and maintained by core team.
+- **Sample asset loading:** Plugins that use sampled audio (e.g. `@beatbax/plugin-chip-nes` DMC channel) must follow the same import security model as BeatBax imports (see `docs/language/import-security.md`):
+  - `"@<chip>/<name>"` — bundled library (always safe; embedded in plugin package)
+  - `"local:<path>"` — file system access; blocked automatically in browser contexts; path-traversal guard applies in Node.js/CLI
+  - `"https://..."` — remote fetch; allowed in browser and Node.js 18+; plugins should not load samples from untrusted origins
 
 ## Open Questions
 

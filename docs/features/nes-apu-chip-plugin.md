@@ -3,7 +3,7 @@ title: "NES Ricoh 2A03 APU Chip Plugin"
 status: proposed
 authors: ["kadraman"]
 created: 2026-04-09
-issue: "https://github.com/kadraman/beatbax/issues/TBD"
+issue: ""
 ---
 
 ## Summary
@@ -31,7 +31,7 @@ Create `packages/plugins/chip-nes/` as a standalone npm package (`@beatbax/plugi
 - Ships an NTSC period table (`periodTables.ts`) covering C2–C7 for pulse channels and C2–C7 for triangle
 - Validates NES-specific instrument fields (duty, sweep, noise mode/period, DMC rate/sample)
 - Renders audio using the WebAudio API, faithfully modelling the non-linear mixer, hardware sweep units, and LFSR noise
-- (Optional, post-v1) exports to `.nsf` (NES Sound Format) via `exportToNative()`
+- (Optional, post-v1) exports to `.nsf` (NES Sound Format), FamiTracker `.ftm`, or FamiStudio `.fms` via `exportToNative()`
 
 ### Package Structure
 
@@ -74,7 +74,9 @@ inst sweep_lead  type=pulse1  duty=25  env=13,down  env_period=2
                  sweep_en=true  sweep_period=3  sweep_dir=down  sweep_shift=2
 
 ; ── Triangle ────────────────────────────────────────────────
-inst bass   type=triangle  vol=15
+; Triangle has no hardware volume control — it is always at full amplitude when gated on.
+; `vol=15` is a software gate convenience (same as omitting vol); any other value silences the channel.
+inst bass   type=triangle
 
 ; short percussive triangle ping (kick reinforcement)
 inst tri_kick  type=triangle  linear=4
@@ -87,8 +89,15 @@ inst crash  type=noise  noise_mode=normal  noise_period=3   env=12,down  env_per
 inst metal  type=noise  noise_mode=loop    noise_period=5   vol=10
 
 ; ── DMC ─────────────────────────────────────────────────────
-inst bass_hit  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="bass_c2.dmc"
-inst kick_dmc  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="kick.dmc"
+; Named sample from the plugin's built-in sample library (works in all environments)
+inst bass_hit  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="@nes/bass_c2"
+inst kick_dmc  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="@nes/kick"
+
+; URL-based loading (CLI and browser)
+inst bass_url  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="https://example.com/samples/bass.dmc"
+
+; Local file import (CLI only — blocked in browser for security)
+inst bass_file type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="local:samples/bass_c2.dmc"
 ```
 
 #### Channel Routing
@@ -136,7 +145,7 @@ New instrument fields required by the NES chip that do not exist in the Game Boy
 | `dmc_rate` | `0`–`15` | DMC playback rate index |
 | `dmc_loop` | `boolean` | DMC sample loops |
 | `dmc_level` | `0`–`127` | Initial DAC level |
-| `dmc_sample` | `string` | Path to `.dmc` delta-encoded sample file |
+| `dmc_sample` | `string` | Sample reference: `"@nes/<name>"` for bundled library, `"local:<path>"` for CLI file, `"https://..."` for URL |
 
 **Parser changes:**
 - Add the above fields to the instrument definition grammar (Peggy grammar file)
@@ -152,15 +161,17 @@ New instrument fields required by the NES chip that do not exist in the Game Boy
 
 #### 3.1 `periodTables.ts`
 
-Pre-computed NTSC period values for C2–C7 (72 notes). Two tables:
+Pre-computed NTSC period values for MIDI 36–96 (61 notes, C2–C7). Two tables:
 
 ```typescript
 // Pulse period: f = 1789773 / (16 × (period + 1))
-export const PULSE_PERIOD: Record<number, number> = { /* MIDI 36–96 */ };
+export const PULSE_PERIOD: Record<number, number> = { /* MIDI 36–96, 61 entries */ };
 
 // Triangle period: f = 1789773 / (32 × (period + 1))
-// Triangle plays one octave lower than pulse at same period
-export const TRIANGLE_PERIOD: Record<number, number> = { /* MIDI 36–96 */ };
+// At the same period register value, triangle sounds one octave lower than pulse.
+// TRIANGLE_PERIOD stores values that produce the CORRECT concert pitch on the triangle channel,
+// so TRIANGLE_PERIOD[n] ≈ PULSE_PERIOD[n + 12] ≈ PULSE_PERIOD[n] / 2.
+export const TRIANGLE_PERIOD: Record<number, number> = { /* MIDI 36–96, 61 entries */ };
 ```
 
 Values are taken directly from `docs/chips/nes.md` Appendix A. Both tables are keyed by MIDI note number.
@@ -201,14 +212,14 @@ Implements `ChipChannelBackend` for `type=noise`.
 
 Key behaviours:
 
-- **LFSR simulation:** Implement the 15-bit LFSR using a `ScriptProcessorNode` or `AudioWorkletNode`:
+- **LFSR simulation:** Implement the 15-bit LFSR using an `AudioWorkletNode`, or approximate hardware output with pre-generated noise buffers:
   - `noise_mode=normal`: feedback from bits 1 and 0 → long period (32,767 steps), white noise character
   - `noise_mode=loop`: feedback from bits 6 and 0 → short period (93 or 31 steps), metallic/tonal character
 - **Noise period:** `noise_period` indexes into the 16-entry NTSC timer table to set the LFSR clock rate (maps to `BufferSourceNode.playbackRate` scaling if using a pre-generated noise buffer per mode)
 - **Volume envelope:** Same envelope model as pulse channels; `GainNode` automation driven by `env_period` and `env_loop`
 - **Constant volume mode:** `vol` field sets `GainNode.gain` directly
 
-> **Implementation note:** For performance, pre-generate one long-period buffer and one short-period buffer per noise mode at startup; vary playback rate to approximate the 16 timer periods. This avoids `AudioWorkletNode` overhead for the common case.
+> **Implementation note:** Prefer pre-generating one long-mode buffer and one short-mode buffer per noise mode at startup; vary `AudioBufferSourceNode.playbackRate` to approximate the 16 timer periods. This avoids `AudioWorkletNode` overhead for the common case. Use `AudioWorkletNode` only when direct real-time LFSR generation is required for accuracy validation.
 
 #### 3.5 `dmc.ts` — DMC Channel Backend
 
@@ -216,20 +227,26 @@ Implements `ChipChannelBackend` for `type=dmc`.
 
 Key behaviours:
 
-- **Sample decoding:** Read `.dmc` files (1-bit delta-encoded, standard NES format); decode into a `Float32Array` for WebAudio playback
+- **Sample resolution (multi-environment):** `dmc_sample` supports three reference schemes:
+  - `"@nes/<name>"` — resolves from the plugin's built-in sample library (works in all environments: browser, Node.js, CLI)
+  - `"local:<path>"` — resolves from the local file system via the path-traversal guard (CLI/Node.js only; blocked in browser, matching the existing import security model in `docs/language/import-security.md`)
+  - `"https://..."` — fetches remotely via `fetch()` (works in browser and Node.js 18+)
+- **Sample decoding:** Decode the loaded `.dmc` content (1-bit delta-encoded, standard NES format) into a `Float32Array` for WebAudio playback
 - **Playback rate:** Map `dmc_rate` index to NTSC sample rate (16 values, 4181–33144 Hz); pass as `AudioBufferSourceNode.playbackRate` relative to `audioContext.sampleRate`
 - **Loop mode:** `dmc_loop=true` sets `AudioBufferSourceNode.loop = true`
 - **Initial level:** `dmc_level` sets a DC offset on `ConstantSourceNode` to initialise the DAC counter simulation
 - **Trigger on note-on:** DMC is a sample trigger, not a pitched synthesiser; note pitch is ignored; the sample plays from its start address on each note-on event
-- **Security:** Validate `dmc_sample` path against the path-traversal guard documented in `docs/language/import-security.md` before loading
+- **Security:** `local:` paths pass through the same path-traversal guard as instrument imports; browser environments block local paths automatically
 
 #### 3.6 `mixer.ts` — Non-Linear Mixer
 
 Approximate the NES non-linear mixing formula:
 
 ```typescript
-// Linear approximation of the NES non-linear mixer
-// Pulse channels use pulse lookup table; tri/noise/DMC use tnd table
+// Linear approximation of the NES non-linear mixer gain weights.
+// On real hardware, pulse channels are summed via a dedicated lookup table and
+// triangle/noise/DMC via a second table. This linear approximation captures the
+// relative channel weighting without a full lookup-table simulation.
 export function nesMix(p1: number, p2: number, tri: number, noise: number, dmc: number): number {
   const pulse = 0.00752 * (p1 + p2);
   const tnd = 0.00851 * tri + 0.00494 * noise + 0.00335 * dmc;
@@ -281,15 +298,35 @@ export default nesPlugin;
 - Add `--chip nes` hint in CLI help text once NES is available
 - Export from `packages/engine/src/index.ts` the 5-channel channel count constant so the scheduler allocates 5 channel slots for NES songs
 
-### Phase 6 — NSF Export (Optional / Post-v1)
+### Phase 6 — Native Format Exports (Optional / Post-v1)
 
-The NES Sound Format (`.nsf`) is a standard way to play NES music in emulators and on original hardware. NSF export requires:
+Three NES-native export formats are targeted, in order of priority:
+
+#### NSF (NES Sound Format)
+Standard way to play NES music in emulators and on original hardware. NSF export requires:
 
 - 6502 assembly player stub (init/play routines at fixed ROM locations)
 - APU register write stream generated from the ISM event list
 - NSF header: magic bytes `NESM\x1a`, version, total songs, starting song, load/init/play addresses, title, artist, copyright, speed, bankswitch info
 
-This is significantly more complex than binary ISM export and is deferred to a post-v1 phase. The `exportToNative()` slot in the `ChipPlugin` interface reserves the extension point.
+This is significantly more complex than binary ISM export and is deferred to a post-v1 phase.
+
+#### FamiTracker `.ftm`
+FamiTracker is the most widely used NES music tracker for homebrew game development. Its native `.ftm` format is a structured binary containing:
+
+- Song header (title, author, copyright, speed/tempo)
+- Instrument table (pulse, triangle, noise, DPCM instruments with envelope sequences)
+- Pattern table (64-row patterns with note, instrument, volume, and effect columns)
+- Frame order (pattern sequence per channel)
+
+The ISM → FamiTracker mapping is more direct than NSF because FamiTracker uses a tracker-style representation (patterns, frames, instruments) that aligns closely with BeatBax's `pat`/`seq`/`inst` model. FamiTracker also natively supports DPCM samples referenced by filename or embedded data, making it the preferred target for songs that use the DMC channel.
+
+#### FamiStudio `.fms`
+FamiStudio is a more modern NES music tool popular for its clean UI and EPSM expansion support. Its `.fms` format is JSON-based, making it the easiest to target programmatically. FamiStudio's effect model (note attacks, slide notes, vibrato speed/depth, volume envelopes) maps cleanly to BeatBax's effect system.
+
+FamiStudio is the recommended first implementation target for native export, because its JSON format can be generated without 6502 assembly stubs and the mapping from BeatBax's ISM is straightforward.
+
+**Priority order for implementation:** FamiStudio `.fms` → FamiTracker `.ftm` → NSF
 
 ---
 
@@ -302,9 +339,9 @@ This is significantly more complex than binary ISM export and is deferred to a p
 | `pulse.test.ts` | Duty cycle waveform generation, envelope automation curves, sweep muting conditions (period < 8, target > 2047), sweep negate difference between Pulse 1 and Pulse 2 |
 | `triangle.test.ts` | Fixed 32-step waveform correctness, linear counter scheduling, no-envelope behaviour, frequency formula vs pulse formula |
 | `noise.test.ts` | LFSR output for both modes, all 16 period values map to expected rates, envelope loop behaviour |
-| `dmc.test.ts` | `.dmc` file decoding (test vector with known decoded output), all 16 rate indices, loop flag, security rejection of path-traversal sample paths |
+| `dmc.test.ts` | `.dmc` content decoding (test vector with known decoded output), all 16 rate indices, loop flag, `@nes/` bundled library resolution, security rejection of `local:` paths in browser, remote URL loading |
 | `mixer.test.ts` | Linear approximation matches expected output levels for known input combinations; pulse channels weighted higher than triangle/noise/DMC |
-| `periodTables.test.ts` | All 72 MIDI notes in PULSE_PERIOD and TRIANGLE_PERIOD are within ±0.5 cents of equal-temperament A4=440 Hz |
+| `periodTables.test.ts` | All 61 MIDI notes from MIDI 36–96 inclusive in PULSE_PERIOD and TRIANGLE_PERIOD are within ±0.5 cents of equal-temperament A4=440 Hz |
 | `nes-plugin.test.ts` | Full plugin registration via `ChipRegistry`; `chip nes` directive resolves to NES plugin; all 5 channels created without error; mock `AudioContext` used for headless test |
 
 ### Integration Tests
@@ -318,9 +355,9 @@ This is significantly more complex than binary ISM export and is deferred to a p
 
 ### Hardware Accuracy Tests
 
-- NTSC period table values match the reference table in `docs/chips/nes.md` Appendix A exactly (bit-for-bit)
-- Pulse frequency for A4 (MIDI 69, period 294) = 440.0 ± 0.5 Hz
-- Triangle frequency for A4 (MIDI 69, period 588) = 220.0 ± 0.5 Hz (one octave lower than pulse at same period)
+- NTSC period table values verified against the hardware formula `f = 1,789,773 / (16 × (period + 1))` for pulse and `f = 1,789,773 / (32 × (period + 1))` for triangle
+- Pulse frequency for A4 (MIDI 69, period 253) = 440.0 ± 0.5 Hz
+- Triangle frequency for A4 (MIDI 69, period 126) = 440.0 ± 0.5 Hz (triangle uses ÷32 formula; period values compensate so both tables produce concert pitch)
 - Sweep muting: `period=7` silences pulse channel (period < 8 rule)
 - Sweep muting: target period > 2047 silences pulse channel
 
@@ -335,7 +372,6 @@ Demonstrates: pulse arpeggios, triangle kick-reinforcement, noise drum kit, 150 
 ```bax
 chip nes
 bpm 150
-time 4
 
 ; ── Instruments ──────────────────────────────────────────────
 inst lead   type=pulse1  duty=25   env=13,down  env_period=2
@@ -381,9 +417,6 @@ channel 4 => inst kick   seq groove
 channel 5 => inst tkick  seq tkick_pat
 
 play
-
-export json  "wily_fortress.json"
-export midi  "wily_fortress.mid"
 ```
 
 ---
@@ -395,7 +428,6 @@ Demonstrates: 50% duty harmony, triangle bass with kick reinforcement, gentle no
 ```bax
 chip nes
 bpm 110
-time 4
 
 ; ── Instruments ──────────────────────────────────────────────
 inst melody type=pulse1  duty=25   env=12,down  env_period=5
@@ -433,9 +465,6 @@ channel 4 => inst perc    seq drums
 channel 5 => inst tkick   seq kick_beat
 
 play
-
-export json "kingdom_hall.json"
-export midi "kingdom_hall.mid"
 ```
 
 ---
@@ -447,7 +476,6 @@ Demonstrates: 12.5% duty nasal lead, tritone harmony, slow-decay noise atmospher
 ```bax
 chip nes
 bpm 75
-time 4
 
 ; ── Instruments ──────────────────────────────────────────────
 inst eerie  type=pulse1  duty=12  env=10,down  env_period=6
@@ -486,9 +514,6 @@ channel 3 => inst deep   seq bass_d
 channel 4 => inst atmos  seq amb
 
 play
-
-export json "dungeon_below.json"
-export midi "dungeon_below.mid"
 ```
 
 ---
@@ -500,7 +525,6 @@ Demonstrates: DMC channel for bass hit reinforcement, full 5-channel NES arrange
 ```bax
 chip nes
 bpm 160
-time 4
 
 ; ── Instruments ──────────────────────────────────────────────
 inst lead      type=pulse1  duty=25  env=14,down  env_period=1
@@ -508,7 +532,8 @@ inst bass_sq   type=pulse2  duty=50  env=11,down  env_period=4
 inst tri       type=triangle
 inst snare     type=noise   noise_mode=normal  noise_period=6   env=14,down  env_period=1
 inst hihat     type=noise   noise_mode=normal  noise_period=3   env=7,down   env_period=0
-inst bass_hit  type=dmc     dmc_rate=7  dmc_loop=false  dmc_sample="bass_c2.dmc"
+; Use builtin sample reference — works in browser and CLI
+inst bass_hit  type=dmc     dmc_rate=7  dmc_loop=false  dmc_sample="@nes/bass_c2"
 
 ; ── Patterns ─────────────────────────────────────────────────
 pat riff_a  = E5 G5 A5 . E5 G5 A5 B5
@@ -534,10 +559,200 @@ channel 4 => inst snare     seq drum_seq
 channel 5 => inst bass_hit  seq dmc_seq
 
 play
-
-export json  "late_era_thunder.json"
-export midi  "late_era_thunder.mid"
 ```
+
+---
+
+## Effects Support
+
+This section documents how BeatBax's existing effect system applies to the NES chip and what additional effects the NES APU enables.
+
+### Effects Available on NES (Carried Over from Game Boy)
+
+All of BeatBax's software effects work on the NES because they operate on the event stream before hardware rendering. The table below lists each effect, its NES behaviour, and export support across NES-native formats.
+
+| Effect | Syntax | NES behaviour | MIDI | JSON | FamiStudio `.fms` | FamiTracker `.ftm` | NSF |
+|--------|--------|--------------|------|------|-------------------|-------------------|-----|
+| **Arpeggio** | `arp:x,y[,z…]` | Rapid period cycling on pulse or triangle — same as GB | ✅ | ✅ | ✅ `0xy` effect | ✅ `0xy` effect | ✅ via period writes |
+| **Vibrato** | `vib:d,r[,shape[,dur[,delay]]]` | Software period LFO on all channels (no hardware support) | ✅ CC1 | ✅ | ✅ speed/depth fields | ✅ `4xy` effect | ✅ via period writes |
+| **Tremolo** | `trem:d,r[,shape]` | Software gain LFO via envelope automation | ✅ CC7 | ✅ | ✅ volume envelope | ✅ `7xy` effect | ✅ via volume writes |
+| **Portamento** | `port:speed` | Software glide via period interpolation | ✅ CC65 | ✅ | ✅ slide notes | ✅ `3xx` effect | ✅ via period writes |
+| **Duty cycle modulation** | `inst` switch | Change pulse duty per note using multiple instruments | ✅ | ✅ | ✅ duty sequence | ✅ duty sequence | ✅ |
+| **Volume slide** | `vol_slide:rate` | Envelope ramp via gain automation | ✅ CC11 | ✅ | ✅ | ✅ `Axy` effect | ✅ |
+| **Note cut** | `notecut:ticks` | Trigger note-off after N ticks | ✅ | ✅ | ✅ | ✅ `Sxx` effect | ✅ |
+| **Retrigger** | `retrig:rate` | Periodic re-trigger of note-on event | ✅ | ✅ | ✅ | ✅ `Exx` effect | ✅ via period writes |
+| **Echo** | `echo:delay,decay` | Software delay line on rendered audio | ✅ | ✅ | ❌ no native equivalent | ❌ | ❌ |
+| **Pitch bend** | `bend:semitones,rate` | Software period sweep (not hardware sweep) | ✅ | ✅ | ✅ slide notes | ✅ `3xx`/`1xx`/`2xx` | ✅ |
+
+### NES-Specific Effects
+
+The NES APU adds hardware features beyond the Game Boy's capabilities:
+
+#### Hardware Sweep (Pulse 1 and Pulse 2)
+
+Unlike the Game Boy where hardware sweep is only available on Pulse 1, the NES provides hardware sweep on **both** pulse channels. This is the defining effect for NES "laser", "falling bomb", and "rising riser" sounds.
+
+**Instrument-level sweep** (BeatBax syntax):
+```bax
+inst laser  type=pulse1  duty=50  env=15,flat  sweep_en=true  sweep_period=4  sweep_dir=down  sweep_shift=7
+inst riser  type=pulse2  duty=25  env=14,flat  sweep_en=true  sweep_period=7  sweep_dir=up    sweep_shift=3
+```
+
+**Inline sweep effect** (per-note override):
+```bax
+; Hardware sweep as an inline effect on pulse channels
+pat lasers = C5<sweep:4,down,7>:8 . E5<sweep:2,down,5>:8 . G5<sweep:4,down,6>:8 .
+```
+
+> **Export note:** Instrument-level sweep exports directly to hardware registers in NSF, FamiTracker `Hxx`/`Ixx` effects, and FamiStudio's sweep fields. Inline sweep is approximated as a pitch-bend curve in FamiTracker and FamiStudio.
+
+#### Noise LFSR Mode Switch
+
+Switching between `noise_mode=normal` and `noise_mode=loop` mid-song creates dramatic timbral contrasts — the "metal" loop mode produces a pitched, metallic percussive sound distinct from the white-noise `normal` mode.
+
+```bax
+; Mode switch mid-pattern (use multiple instruments)
+inst snare  type=noise  noise_mode=normal  noise_period=6   env=14,down  env_period=1
+inst metal  type=noise  noise_mode=loop    noise_period=5   vol=10
+
+pat perc_fill = inst snare C3 . . . inst metal C3 inst metal C3 . .
+```
+
+#### Triangle Linear Counter
+
+The triangle's `linear` counter provides a hardware-accurate note gate that stops the channel after a fixed duration at 240 Hz. This is used for short, percussive triangle pings (kick reinforcement).
+
+```bax
+; Short triangle ping — gate cuts off after 4 × (1/240s) ≈ 16 ms
+inst tkick  type=triangle  linear=4
+
+; Longer triangle bass note with controlled decay (not looping)
+inst tbass  type=triangle  linear=60   ; ~250 ms before gate cuts
+```
+
+### Famous NES Effects — Illustrated Examples
+
+The following patterns demonstrate effects used in iconic NES compositions. These serve as test cases for the NES plugin implementation.
+
+#### 1. Dr. Wily Stage 1 Arpeggio (Mega Man 2 — Manami Matsumae, Takashi Tateishi)
+Fast minor arpeggio cycling that creates a dense, aggressive harmonic texture. Pairs a 3-voice chord arpeggio on Pulse 1 with a parallel fifth on Pulse 2.
+
+```bax
+chip nes
+bpm 160
+
+inst lead   type=pulse1  duty=25   env=14,down  env_period=1
+inst harm   type=pulse2  duty=25   env=11,down  env_period=3
+inst bass   type=triangle
+
+effect minArp  = arp:3,7   ; minor triad (m3 + P5)
+effect majArp  = arp:4,7   ; major triad (M3 + P5)
+
+; Arpeggiated riff — 3-note chord implied from single channel
+pat wily_riff = C5<minArp>:4 G5<minArp>:4 Bb4<minArp>:4 F5<minArp>:4
+pat wily_harm = C4:8 . G4:8 .
+pat wily_bass = C3 . G2 . Bb2 . F2 .
+
+seq main = wily_riff wily_riff wily_harm wily_harm
+
+channel 1 => inst lead  seq main
+channel 2 => inst harm  seq main:oct(-1)
+channel 3 => inst bass  seq wily_bass
+
+play
+```
+
+#### 2. Vampire Killer Sweep (Castlevania — Kinuyo Yamashita)
+Hardware sweep with downward pitch on attack for a powerful, punchy bass hit. Classic Castlevania technique for adding "weight" to sustained bass notes.
+
+```bax
+chip nes
+bpm 160
+
+; Sweep-bass on Pulse 2 — downward sweep on attack note
+inst sweep_bass  type=pulse2  duty=50  env=14,down  env_period=2
+                 sweep_en=true  sweep_period=3  sweep_dir=down  sweep_shift=3
+
+inst melody      type=pulse1  duty=25  env=13,down  env_period=2
+inst tri         type=triangle
+
+pat castlevania_bass = inst sweep_bass C3:8 . G2:8 . F2:8 . G2:8 .
+
+channel 2 => inst sweep_bass  seq castlevania_bass
+
+play
+```
+
+#### 3. Zelda Dungeon Vibrato (The Legend of Zelda — Koji Kondo)
+Slow vibrato with onset delay on the triangle channel, used as a flute/ocarina melody voice. The `linear` counter provides the note gate; the delayed vibrato creates the authentic "live" feel.
+
+```bax
+chip nes
+bpm 90
+
+inst tri_flute  type=triangle  linear=96   ; ~400 ms gate
+
+effect flute_vib = vib:3,4,sine,0,2   ; depth=3, rate=4 Hz, sine, 2-row onset delay
+
+pat zelda_dungeon = D5<flute_vib>:8 . F5<flute_vib>:8 . D5<flute_vib>:4 . A4:4 .
+
+channel 3 => inst tri_flute  seq zelda_dungeon
+
+play
+```
+
+#### 4. Ninja Gaiden Duty Cycle Modulation (Ninja Gaiden — Keiji Yamagishi)
+Thin (12.5%) duty on approach notes, switching to 25% on accented beats. Creates the nasal, urgent melodic style characteristic of Ninja Gaiden's action cues.
+
+```bax
+chip nes
+bpm 150
+
+inst thin   type=pulse1  duty=12  env=13,down  env_period=2   ; nasal, cutting
+inst bright type=pulse1  duty=25  env=14,down  env_period=1   ; punchy, accented
+
+; DCM: alternate duty per phrase for dynamic interest
+pat ng_riff_a = inst thin   B4:4 C5:4 D5:4 E5:2 D5:2
+pat ng_riff_b = inst bright E5:4 D5:4 C5:4 B4:8 .
+
+seq ng_main = ng_riff_a ng_riff_b ng_riff_a ng_riff_b
+
+channel 1 => inst thin  seq ng_main
+
+play
+```
+
+#### 5. Metroid Kraid LFSR Metal Effect (Metroid — Hirokazu Tanaka)
+Slow-decay loop-mode LFSR noise combined with a triangle drone. The `noise_mode=loop` produces a pitched, industrial metallic tone; paired with `env_period=12` gives a long fade.
+
+```bax
+chip nes
+bpm 60
+
+inst drone   type=triangle
+inst metal   type=noise  noise_mode=loop    noise_period=5   env=12,down  env_period=12
+
+; Sparse, unsettling industrial soundscape
+pat metal_hit  = inst metal C3 . . . . . . .
+pat drone_line = C2 . . . . . . .
+
+channel 3 => inst drone  seq drone_line
+channel 4 => inst metal  seq metal_hit
+
+play
+```
+
+### Effects Export Compatibility Summary
+
+| Export format | arp | vib | trem | sweep | duty modulation | vol slide | noise mode |
+|--------------|-----|-----|------|-------|-----------------|-----------|-----------|
+| **JSON (ISM)** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MIDI** | ✅ | ✅ CC1 | ✅ CC7 | ✅ pitch bend | ✅ program change | ✅ CC11 | ✅ (map to GM perc) |
+| **FamiStudio `.fms`** | ✅ `0xy` | ✅ speed/depth | ✅ vol env | ✅ native fields | ✅ duty sequence | ✅ | ✅ |
+| **FamiTracker `.ftm`** | ✅ `0xy` | ✅ `4xy` | ✅ `7xy` | ✅ `Hxx`/`Ixx` | ✅ duty sequence | ✅ `Axy` | ✅ |
+| **NSF** | ✅ | ✅ period writes | ✅ envelope | ✅ hardware regs | ✅ | ✅ | ✅ |
+
+> **Echo effect on NES native formats:** The `echo` effect is a software delay line applied to the rendered audio buffer. It has no NES hardware equivalent and cannot be exported to NSF, FamiTracker, or FamiStudio. In those exports, echo is silently dropped with a warning.
 
 ---
 
@@ -564,10 +779,10 @@ export midi  "late_era_thunder.mid"
 
 ### Phase 3 — NES Period Tables
 - [ ] Create `packages/plugins/chip-nes/src/periodTables.ts`
-- [ ] Populate `PULSE_PERIOD` table (MIDI 36–96) from Appendix A in `docs/chips/nes.md`
-- [ ] Populate `TRIANGLE_PERIOD` table (MIDI 36–96) from Appendix A in `docs/chips/nes.md`
+- [ ] Populate `PULSE_PERIOD` table (MIDI 36–96, 61 entries) from the hardware formula, verified against Appendix A in `docs/chips/nes.md`
+- [ ] Populate `TRIANGLE_PERIOD` table (MIDI 36–96, 61 entries) from the hardware formula
 - [ ] Unit test: all period values within ±0.5 cents of A4=440 Hz equal temperament
-- [ ] Unit test: triangle period = 2 × pulse period at same MIDI note (one-octave offset)
+- [ ] Unit test: for overlapping range, `TRIANGLE_PERIOD[n]` ≈ `PULSE_PERIOD[n + 12]` (same concert pitch; triangle uses ÷32 vs pulse ÷16)
 
 ### Phase 4 — Pulse Channel Backend
 - [ ] Create `packages/plugins/chip-nes/src/pulse.ts`
@@ -599,12 +814,15 @@ export midi  "late_era_thunder.mid"
 
 ### Phase 7 — DMC Channel Backend
 - [ ] Create `packages/plugins/chip-nes/src/dmc.ts`
-- [ ] Implement `.dmc` file decoder (1-bit delta encoding → `Float32Array`)
+- [ ] Ship minimal built-in sample library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`) embedded as base64 in `src/samples/index.ts`
+- [ ] Implement `"@nes/<name>"` resolution from the built-in library (works in all environments)
+- [ ] Implement `"local:<path>"` resolution for CLI/Node.js using the existing import security guard; throw a descriptive error in browser contexts
+- [ ] Implement `"https://..."` resolution via `fetch()` for both browser and Node.js 18+
+- [ ] Implement `.dmc` content decoder (1-bit delta encoding → `Float32Array`)
 - [ ] Map all 16 `dmc_rate` indices to NTSC sample rates
 - [ ] Implement `dmc_loop` using `AudioBufferSourceNode.loop`
 - [ ] Implement `dmc_level` as DC offset initialisation
-- [ ] Validate `dmc_sample` path against import security guard (`docs/language/import-security.md`)
-- [ ] Unit tests including path-traversal rejection test vector
+- [ ] Unit tests: bundled library resolution, `local:` browser rejection, URL loading, decoder correctness (reference test vector)
 
 ### Phase 8 — Mixer
 - [ ] Create `packages/plugins/chip-nes/src/mixer.ts`
@@ -630,12 +848,15 @@ export midi  "late_era_thunder.mid"
 - [ ] Update JSON (ISM) export to include NES-specific instrument fields
 - [ ] Update MIDI export: 5 tracks for NES; map channel 5 (DMC) to MIDI channel 10 (percussion)
 - [ ] Confirm UGE export gracefully rejects NES songs with a clear error (UGE is Game Boy only)
-- [ ] (Post-v1) Implement NSF export via `exportToNative()` method on plugin
+- [ ] (Post-v1) Implement FamiStudio `.fms` JSON export via `exportToNative()` (first native format — simplest to implement)
+- [ ] (Post-v1) Implement FamiTracker `.ftm` binary export via `exportToNative()`
+- [ ] (Post-v1) Implement NSF export via `exportToNative()` (requires 6502 player stub)
 
 ### Phase 12 — Documentation
 - [ ] Create `docs/chips/nes-instrument-reference.md` (quick-start instrument field table)
 - [ ] Add NES section to `docs/language/instruments.md`
 - [ ] Update `docs/formats/ast-schema.md` with new NES instrument fields
+- [ ] Document NES effects support in `docs/language/effects.md` (which effects carry over from Game Boy, which are NES-specific, export support per format)
 - [ ] Add NES examples to `TUTORIAL.md`
 - [ ] Update `ROADMAP.md` to mark NES plugin as in-progress → complete
 
@@ -655,28 +876,33 @@ The NES plugin introduces no breaking changes to existing Game Boy songs. The mi
 
 ## Future Enhancements
 
-- **NSF Export:** Generate `.nsf` (NES Sound Format) files playable in emulators and on hardware, requiring a 6502 player stub and APU register write stream
-- **Famicom Expansion Audio:** Support mapper-specific extra channels (VRC6 adds 2 extra pulse + sawtooth; N163 adds up to 8 wavetable channels). These would be separate sub-plugins or options within the NES plugin
-- **PAL Mode:** Add `nes_region=pal` instrument/song parameter to use PAL clock (1.662607 MHz) and adjust all period tables accordingly
-- **Hardware Verification:** Cross-reference audio output against a cycle-accurate emulator (Mesen, Nintendulator) to confirm period table accuracy and envelope timing
-- **Web UI Integration:** Add NES channel type icons and `noise_period` visual selector to the Web UI instrument editor panel
-- **Vibrato LFO:** Implement software vibrato (period register modulation) as a built-in transform or instrument parameter
+- **FamiStudio Export (`.fms`):** JSON-based format for the popular FamiStudio NES composition tool. First recommended native export target due to its clean JSON structure and effect model that aligns well with BeatBax's ISM.
+- **FamiTracker Export (`.ftm`):** Binary tracker format for the widely used FamiTracker homebrew tool. Enables round-tripping BeatBax compositions into the standard homebrew NES development toolchain.
+- **NSF Export (`.nsf`):** Generate `.nsf` (NES Sound Format) files playable in emulators and on original hardware, requiring a 6502 player stub and APU register write stream. Most complex format — deferred post-FamiStudio/FamiTracker.
+- **Famicom Expansion Audio:** Support mapper-specific extra channels (VRC6 adds 2 extra pulse + sawtooth; N163 adds up to 8 wavetable channels). These would be separate sub-plugins or options within the NES plugin.
+- **PAL Mode:** Add `nes_region=pal` instrument/song parameter to use PAL clock (1.662607 MHz) and adjust all period tables accordingly.
+- **Hardware Verification:** Cross-reference audio output against a cycle-accurate emulator (Mesen, Nintendulator) to confirm period table accuracy and envelope timing.
+- **Web UI Integration:** Add NES channel type icons and `noise_period` visual selector to the Web UI instrument editor panel.
+- **Software Vibrato:** Implement software vibrato (period register modulation) as a built-in BeatBax effect available on all NES channels, matching the LFO depth/rate parameters of the existing `vib:` effect.
 
 ---
 
 ## Open Questions
 
 - **Q:** Should the NES plugin ship a pre-built `.dmc` sample library (kick, snare, etc.) or leave sample loading entirely to the user?  
-  **A:** TBD. A minimal bundled sample set (< 2 KB) would lower the barrier for new users; security review needed.
+  **A:** Yes — ship a minimal bundled library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`) embedded as base64 in `src/samples/index.ts`. This makes the plugin immediately useful in browser environments without requiring users to host samples externally. Additional samples can be provided via `local:` (CLI) or `https://` (browser+CLI).
 
 - **Q:** Should NSF export be in v1 of the plugin or strictly post-v1?  
-  **A:** Post-v1. NSF requires a 6502 player stub and substantially more work than JSON/MIDI export.
+  **A:** Post-v1. NSF requires a 6502 player stub and substantially more work than JSON/MIDI export. FamiStudio `.fms` export is the recommended first native format due to its simpler JSON structure.
 
 - **Q:** How should the non-linear mixer be handled in the Web UI preview (which uses WebAudio and has no hardware lookup tables)?  
   **A:** Use the linear approximation from `mixer.ts` (§3.6). The perceptual difference is minor and acceptable for a DAW-style preview.
 
 - **Q:** Should `channel 5` (DMC) be mandatory in NES songs or optional?  
   **A:** Optional. Songs without a DMC channel are valid NES songs (most early-era titles didn't use DMC musically).
+
+- **Q:** For FamiTracker/FamiStudio export, how should BeatBax effects map to tracker effect columns?  
+  **A:** TBD during implementation. The primary mappings are: `arp:x,y` → FamiTracker `0xy` effect; `vib:d,r` → FamiTracker `4xy` effect; hardware sweep → FamiTracker `Hxx`/`Ixx` effects; `vol` → FamiTracker volume column. Effects with no direct tracker equivalent (e.g., complex portamento curves) are approximated.
 
 ---
 
@@ -693,6 +919,8 @@ The NES plugin introduces no breaking changes to existing Game Boy songs. The mi
 - [Ricoh 2A03 Datasheet (reconstructed)](https://www.nesdev.org/2A03%20technical%20reference.txt)
 - Mega Man 2 OST (Manami Matsumae, Takashi Tateishi) — Reference composition for action-style NES techniques
 - The Legend of Zelda OST (Koji Kondo) — Reference for triangle melody and atmospheric composition
+- [FamiStudio Documentation](https://famistudio.org/doc/) — Reference for FamiStudio `.fms` format
+- [FamiTracker Documentation](http://famitracker.com/documentation.php) — Reference for FamiTracker `.ftm` format
 
 ---
 
@@ -702,3 +930,4 @@ The NES plugin introduces no breaking changes to existing Game Boy songs. The mi
 - The Pulse 1 vs Pulse 2 sweep negate difference (one's complement vs two's complement) is rarely audible in practice. It must be modelled correctly for hardware accuracy but composers need not understand the distinction; `sweep_dir=up|down` abstracts it away.
 - When `chip nes` is active and a user references `export uge`, the CLI should emit a clear error: `UGE export is only supported for chip gameboy`.
 - The NES plugin is the first validation of the `ChipPlugin` interface in production. Any gaps discovered during implementation should be fed back to `plugin-system.md` and the engine interface definition.
+- The `@nes/` bundled sample prefix is reserved for the built-in library shipped with `@beatbax/plugin-chip-nes`. Custom sample sets should use a different prefix (e.g., `@myproject/`) to avoid naming collisions if a sample registration mechanism is added later.
