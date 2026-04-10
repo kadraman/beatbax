@@ -14,7 +14,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.7.0",
+    "@beatbax/engine": "^0.8.0",
     "@tailwindcss/vite": "^4.2.2",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
