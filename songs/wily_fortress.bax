@@ -1,4 +1,4 @@
-## nes_wily_fortress.bax
+## wily_fortress.bax
 ## Original action-platformer chiptune — in the spirit of late-1980s NES boss-stage soundtracks.
 ## Key: A minor | Tempo: 160 BPM | Style: Fast, aggressive, NES action
 ##
@@ -30,7 +30,7 @@
 ##   - Triangle bass uses linear counter for natural gate decay
 ##   - Noise drum kit uses normal-mode LFSR with period presets
 ##
-## Play: node bin/beatbax play songs/nes_wily_fortress.bax
+## Play: node bin/beatbax play songs/wily_fortress.bax
 
 song name "Wily's Fortress"
 song artist "The BeatBax Team"

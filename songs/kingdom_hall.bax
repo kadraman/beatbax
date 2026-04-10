@@ -1,4 +1,4 @@
-## nes_kingdom_hall.bax
+## kingdom_hall.bax
 ## Original RPG-adventure chiptune — in the spirit of late-1980s NES castle/throne themes.
 ## Key: C major / A minor modal mix | Tempo: 108 BPM | Style: Grand, sweeping, orchestral
 ##
@@ -32,7 +32,7 @@
 ##   - Slow env_period (4–6) gives sustained, choir-like pulse timbre
 ##   - Triangle linear=64 ≈ 267 ms gate gives natural plucked-bass articulation
 ##
-## Play: node bin/beatbax play songs/nes_kingdom_hall.bax
+## Play: node bin/beatbax play songs/kingdom_hall.bax
 
 song name "The Kingdom's Hall"
 song artist "The BeatBax Team"

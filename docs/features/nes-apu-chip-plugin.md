@@ -3,7 +3,7 @@ title: "NES Ricoh 2A03 APU Chip Plugin"
 status: proposed
 authors: ["kadraman"]
 created: 2026-04-09
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/83"
 ---
 
 ## Summary
@@ -28,9 +28,9 @@ Create `packages/plugins/chip-nes/` as a standalone npm package (`@beatbax/plugi
 
 - Implements the `ChipPlugin` interface from `packages/engine/src/chips/types.ts`
 - Provides five channel backends: `pulse.ts` (×2), `triangle.ts`, `noise.ts`, `dmc.ts`
-- Ships an NTSC period table (`periodTables.ts`) covering C2–C7 for pulse channels and C2–C7 for triangle
+- Ships an NTSC period table (`periodTables.ts`) covering C2–C7 (61 notes, MIDI 36–96) for pulse channels and C2–C7 (61 notes, MIDI 36–96) for triangle
 - Validates NES-specific instrument fields (duty, sweep, noise mode/period, DMC rate/sample)
-- Renders audio using the WebAudio API, faithfully modelling the non-linear mixer, hardware sweep units, and LFSR noise
+- Renders audio using the WebAudio API, approximating the hardware's non-linear mixer with a linear weighted-sum `GainNode` network (see §3.6), plus hardware sweep units and LFSR noise
 - (Optional, post-v1) exports to `.nsf` (NES Sound Format), FamiTracker `.ftm`, or FamiStudio `.fms` via `exportToNative()`
 
 ### Package Structure
@@ -168,9 +168,13 @@ Pre-computed NTSC period values for MIDI 36–96 (61 notes, C2–C7). Two tables
 export const PULSE_PERIOD: Record<number, number> = { /* MIDI 36–96, 61 entries */ };
 
 // Triangle period: f = 1789773 / (32 × (period + 1))
-// At the same period register value, triangle sounds one octave lower than pulse.
-// TRIANGLE_PERIOD stores values that produce the CORRECT concert pitch on the triangle channel,
-// so TRIANGLE_PERIOD[n] ≈ PULSE_PERIOD[n + 12] ≈ PULSE_PERIOD[n] / 2.
+// Because triangle divides by 32 (vs 16 for pulse), it needs HALF the period register
+// value to produce the same frequency as pulse:
+//   TRIANGLE_PERIOD[n] ≈ PULSE_PERIOD[n] / 2   ← triangle period is SMALLER, not larger
+// Cross-check: this equals the period pulse uses one octave HIGHER (n+12), because going
+// up one octave on pulse doubles the frequency and therefore halves the period value:
+//   TRIANGLE_PERIOD[n] ≈ PULSE_PERIOD[n + 12]  (same register number, different pitches:
+//                                                triangle plays note n; pulse plays note n+12)
 export const TRIANGLE_PERIOD: Record<number, number> = { /* MIDI 36–96, 61 entries */ };
 ```
 
@@ -201,7 +205,8 @@ Implements `ChipChannelBackend` for `type=triangle`.
 Key behaviours:
 
 - **Fixed waveform:** Generate a 32-step quantised triangle wave as a `PeriodicWave` (odd harmonics only, amplitudes fall as 1/n²). The waveform is computed once and reused across all notes.
-- **No volume envelope:** Triangle has no amplitude control; `GainNode.gain` is always 1.0 when active, 0 when gated off
+- **No hardware volume envelope:** Triangle has no hardware amplitude control. `GainNode.gain` is always 1.0 when the channel is active.
+- **Software gate via `vol`:** `vol=0` silences the channel (software mute, not hardware-authentic); any other `vol` value is treated as full amplitude and is otherwise ignored. This is not a continuous gain: values 1–15 all produce the same full-amplitude output.
 - **Linear counter:** `linear` field specifies duration in ticks at 240 Hz; schedule note-off via `GainNode.gain.setValueAtTime(0, noteOnTime + linearDuration)`
 - **Frequency formula:** Use `TRIANGLE_PERIOD` table (period = 32-step equivalent, plays one octave lower than pulse at same period value)
 - **Pop prevention:** Ramp `GainNode.gain` to 0 over 1 ms on note-off to prevent DC offset click
@@ -212,14 +217,17 @@ Implements `ChipChannelBackend` for `type=noise`.
 
 Key behaviours:
 
-- **LFSR simulation:** Implement the 15-bit LFSR using an `AudioWorkletNode`, or approximate hardware output with pre-generated noise buffers:
-  - `noise_mode=normal`: feedback from bits 1 and 0 → long period (32,767 steps), white noise character
-  - `noise_mode=loop`: feedback from bits 6 and 0 → short period (93 or 31 steps), metallic/tonal character
-- **Noise period:** `noise_period` indexes into the 16-entry NTSC timer table to set the LFSR clock rate (maps to `BufferSourceNode.playbackRate` scaling if using a pre-generated noise buffer per mode)
-- **Volume envelope:** Same envelope model as pulse channels; `GainNode` automation driven by `env_period` and `env_loop`
-- **Constant volume mode:** `vol` field sets `GainNode.gain` directly
+- **LFSR simulation (preferred — pre-generated buffers):** At plugin initialisation, generate two buffers using the 15-bit LFSR algorithm in JavaScript (not on the audio thread):
+  - `noise_mode=normal`: feedback from bits 1 and 0 → long period (32,767 samples), white noise character
+  - `noise_mode=loop`: feedback from bits 6 and 0 → short period (93 samples), metallic/tonal character
+  Pre-load each buffer into an `AudioBufferSourceNode` with `loop=true`. This approach works in all environments (browser and Node.js), requires no worklet packaging, and has negligible runtime overhead.
+- **Noise period:** `noise_period` indexes into the 16-entry NTSC timer table to set the LFSR clock rate; map to `AudioBufferSourceNode.playbackRate` relative to `audioContext.sampleRate`.
+- **Volume envelope:** Same envelope model as pulse channels; `GainNode` automation driven by `env_period` and `env_loop`.
+- **Constant volume mode:** `vol` field sets `GainNode.gain` directly.
 
-> **Implementation note:** Prefer pre-generating one long-mode buffer and one short-mode buffer per noise mode at startup; vary `AudioBufferSourceNode.playbackRate` to approximate the 16 timer periods. This avoids `AudioWorkletNode` overhead for the common case. Use `AudioWorkletNode` only when direct real-time LFSR generation is required for accuracy validation.
+> **Real-time LFSR via `AudioWorkletNode` (accuracy validation only):** An `AudioWorkletProcessor` that runs the LFSR shift register sample-by-sample on the audio thread is more hardware-accurate but adds packaging complexity and message-passing overhead. Implement this path only when bit-exact LFSR output is required for hardware verification tests — not as the default rendering path.
+>
+> **Do not use `ScriptProcessorNode`:** This API is deprecated in the WebAudio specification, produces main-thread audio callbacks with unpredictable latency, and is being removed from browsers. It must not be used in any BeatBax audio backend implementation.
 
 #### 3.5 `dmc.ts` — DMC Channel Backend
 
@@ -238,9 +246,9 @@ Key behaviours:
 - **Trigger on note-on:** DMC is a sample trigger, not a pitched synthesiser; note pitch is ignored; the sample plays from its start address on each note-on event
 - **Security:** `local:` paths pass through the same path-traversal guard as instrument imports; browser environments block local paths automatically
 
-#### 3.6 `mixer.ts` — Non-Linear Mixer
+#### 3.6 `mixer.ts` — Mixer (Linear Weighted-Sum Approximation)
 
-Approximate the NES non-linear mixing formula:
+The NES hardware mixer is genuinely non-linear: pulse channels are summed through a dedicated DAC lookup table, and triangle/noise/DMC through a second table, producing a warm soft-clip characteristic at high volumes. WebAudio has no equivalent; the implementation uses a **linear weighted-sum** `GainNode` network whose weights are derived from the first-order approximation of each table's slope near mid-range. The gain constants below are taken from the standard NESDev linear-approximation formulae:
 
 ```typescript
 // Linear approximation of the NES non-linear mixer gain weights.
@@ -254,7 +262,7 @@ export function nesMix(p1: number, p2: number, tri: number, noise: number, dmc: 
 }
 ```
 
-In WebAudio, model the mixer as a `GainNode` network with channel-specific gain weights. This approximates the non-linear summing without requiring a lookup-table-based custom processor.
+In WebAudio, wire all five channel outputs through `GainNode` nodes with the gain constants above and sum them into the master output. This is a **linear** approximation — it preserves the relative perceived loudness of each channel group but does not reproduce the hardware's soft-clip compression at high volumes. An `AudioWorkletNode` with a lookup-table processor could model the non-linearity more faithfully but adds significant complexity; the linear approximation is acceptable for DAW-style preview use.
 
 ### Phase 4 — Plugin Entry Point
 
@@ -782,7 +790,7 @@ play
 - [ ] Populate `PULSE_PERIOD` table (MIDI 36–96, 61 entries) from the hardware formula, verified against Appendix A in `docs/chips/nes.md`
 - [ ] Populate `TRIANGLE_PERIOD` table (MIDI 36–96, 61 entries) from the hardware formula
 - [ ] Unit test: all period values within ±0.5 cents of A4=440 Hz equal temperament
-- [ ] Unit test: for overlapping range, `TRIANGLE_PERIOD[n]` ≈ `PULSE_PERIOD[n + 12]` (same concert pitch; triangle uses ÷32 vs pulse ÷16)
+- [ ] Unit test: `TRIANGLE_PERIOD[n]` ≈ `PULSE_PERIOD[n] / 2` for all n — triangle period is **half** the pulse period for the same MIDI note (÷32 requires half the timer value of ÷16 to produce equal frequency); equivalently `TRIANGLE_PERIOD[n]` ≈ `PULSE_PERIOD[n + 12]` because one octave up on pulse also halves its period value (note: same register number, different pitches — triangle produces note n; pulse at that same value would produce note n+12)
 
 ### Phase 4 — Pulse Channel Backend
 - [ ] Create `packages/plugins/chip-nes/src/pulse.ts`
@@ -889,19 +897,19 @@ The NES plugin introduces no breaking changes to existing Game Boy songs. The mi
 
 ## Open Questions
 
-- **Q:** Should the NES plugin ship a pre-built `.dmc` sample library (kick, snare, etc.) or leave sample loading entirely to the user?  
+- **Q:** Should the NES plugin ship a pre-built `.dmc` sample library (kick, snare, etc.) or leave sample loading entirely to the user?
   **A:** Yes — ship a minimal bundled library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`) embedded as base64 in `src/samples/index.ts`. This makes the plugin immediately useful in browser environments without requiring users to host samples externally. Additional samples can be provided via `local:` (CLI) or `https://` (browser+CLI).
 
-- **Q:** Should NSF export be in v1 of the plugin or strictly post-v1?  
+- **Q:** Should NSF export be in v1 of the plugin or strictly post-v1?
   **A:** Post-v1. NSF requires a 6502 player stub and substantially more work than JSON/MIDI export. FamiStudio `.fms` export is the recommended first native format due to its simpler JSON structure.
 
-- **Q:** How should the non-linear mixer be handled in the Web UI preview (which uses WebAudio and has no hardware lookup tables)?  
+- **Q:** How should the non-linear mixer be handled in the Web UI preview (which uses WebAudio and has no hardware lookup tables)?
   **A:** Use the linear approximation from `mixer.ts` (§3.6). The perceptual difference is minor and acceptable for a DAW-style preview.
 
-- **Q:** Should `channel 5` (DMC) be mandatory in NES songs or optional?  
+- **Q:** Should `channel 5` (DMC) be mandatory in NES songs or optional?
   **A:** Optional. Songs without a DMC channel are valid NES songs (most early-era titles didn't use DMC musically).
 
-- **Q:** For FamiTracker/FamiStudio export, how should BeatBax effects map to tracker effect columns?  
+- **Q:** For FamiTracker/FamiStudio export, how should BeatBax effects map to tracker effect columns?
   **A:** TBD during implementation. The primary mappings are: `arp:x,y` → FamiTracker `0xy` effect; `vib:d,r` → FamiTracker `4xy` effect; hardware sweep → FamiTracker `Hxx`/`Ixx` effects; `vol` → FamiTracker volume column. Effects with no direct tracker equivalent (e.g., complex portamento curves) are approximated.
 
 ---

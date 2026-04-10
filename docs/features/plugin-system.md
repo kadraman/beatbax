@@ -105,13 +105,13 @@ export interface ChipPlugin {
   name: string;                    // 'gameboy', 'nes', 'sid', etc.
   version: string;                 // Semver
   channels: number;                // Number of audio channels
-  
+
   // Validate instrument definition for this chip
   validateInstrument(inst: InstrumentDef): ValidationError[];
-  
+
   // Create a channel backend instance
   createChannel(channelIndex: number, audioContext: AudioContext): ChipChannelBackend;
-  
+
   // Optional: Resolve a named sample asset to an ArrayBuffer.
   // Used by chips with sampled audio channels (e.g. NES DMC, SID samples).
   // The `ref` string follows the same multi-environment conventions as `import`:
@@ -124,10 +124,10 @@ export interface ChipPlugin {
   // Optional: Built-in named sample library (for "@<chip>/<name>" references).
   // Keys are sample names; values are base64-encoded .dmc/.raw content.
   bundledSamples?: Record<string, string>;
-  
+
   // Optional: Convert instrument to native format
   instrumentToNative?(inst: InstrumentDef): any;
-  
+
   // Optional: Export support (NSF, .ftm, .fms, etc.)
   // May return multiple exports keyed by format name.
   exportToNative?(song: SongModel, format?: string): Uint8Array;
@@ -141,27 +141,27 @@ export interface ChipPlugin {
 
 export class ChipRegistry {
   private plugins = new Map<string, ChipPlugin>();
-  
+
   constructor() {
     // Game Boy is always available (built-in)
     this.register(gameboyPlugin);
   }
-  
+
   register(plugin: ChipPlugin): void {
     if (this.plugins.has(plugin.name)) {
       throw new Error(`Chip plugin '${plugin.name}' is already registered`);
     }
     this.plugins.set(plugin.name, plugin);
   }
-  
+
   get(chipName: string): ChipPlugin | undefined {
     return this.plugins.get(chipName);
   }
-  
+
   has(chipName: string): boolean {
     return this.plugins.has(chipName);
   }
-  
+
   list(): string[] {
     return Array.from(this.plugins.keys());
   }
@@ -178,21 +178,21 @@ export const chipRegistry = new ChipRegistry();
 
 export class BeatBaxEngine {
   private registry = chipRegistry;
-  
+
   registerChipPlugin(plugin: ChipPlugin): void {
     this.registry.register(plugin);
   }
-  
+
   loadScript(script: string): void {
     const ast = parse(script);
     const chipName = ast.chip || 'gameboy';
-    
+
     if (!this.registry.has(chipName)) {
       throw new Error(
         `Chip '${chipName}' is not available. Install @beatbax/plugin-chip-${chipName}`
       );
     }
-    
+
     // Continue with compilation...
   }
 }
@@ -250,7 +250,7 @@ export function discoverPlugins(): ChipPlugin[] {
   const plugins: ChipPlugin[] = [];
   const pkgJson = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
   const deps = { ...pkgJson.dependencies, ...pkgJson.devDependencies };
-  
+
   for (const [name, version] of Object.entries(deps)) {
     if (name.startsWith('@beatbax/plugin-chip-')) {
       try {
@@ -261,7 +261,7 @@ export function discoverPlugins(): ChipPlugin[] {
       }
     }
   }
-  
+
   return plugins;
 }
 ```
@@ -343,7 +343,7 @@ The engine tries loading strategies in order:
 - [ ] Implement `bundledSamples` for DMC channel built-in library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`)
 - [ ] Implement `resolveSampleAsset()` supporting `@nes/`, `local:`, and `https://` references
 - [ ] Write tests for NES plugin
-- [ ] Add example NES songs in `/songs/` (e.g. `nes_wily_fortress.bax`, `nes_kingdom_hall.bax`)
+- [ ] Add example NES songs in `/songs/` (e.g. `wily_fortress.bax`, `kingdom_hall.bax`)
 
 ### Phase 4: CLI Auto-Discovery
 - [ ] Implement `discoverPlugins()` in CLI
@@ -412,19 +412,19 @@ The engine tries loading strategies in order:
 
 ## Open Questions
 
-- **Q:** Should plugins be able to extend the language syntax (e.g., SID-specific filter commands)?  
+- **Q:** Should plugins be able to extend the language syntax (e.g., SID-specific filter commands)?
   **A:** Not in v1. Use `inst` parameters for chip-specific features. Language extensions are v2+.
 
-- **Q:** Should plugins include export support (e.g., NSF export for NES)?  
+- **Q:** Should plugins include export support (e.g., NSF export for NES)?
   **A:** Yes, via optional `exportToNative()` method. Each plugin can provide native format export.
 
-- **Q:** How do we handle version compatibility between engine and plugins?  
+- **Q:** How do we handle version compatibility between engine and plugins?
   **A:** Use `peerDependencies` with semver ranges. Engine validates plugin API version on registration.
 
-- **Q:** Can multiple plugins be active simultaneously?  
+- **Q:** Can multiple plugins be active simultaneously?
   **A:** No, one chip per song (defined by `chip` directive). Future multi-chip songs are out of scope.
 
-- **Q:** How do bundlers handle optional plugins?  
+- **Q:** How do bundlers handle optional plugins?
   **A:** Use static registry with conditional imports. Tree-shaking eliminates unused plugins.
 
 ## Related Features
@@ -437,7 +437,7 @@ The engine tries loading strategies in order:
 
 This spec absorbs the original `dynamic-chip-loading.md` proposal, which focused on:
 - Runtime module selection (`import()` vs static registry)
-- Adapter interface for chip backends  
+- Adapter interface for chip backends
 - Bundler fallback strategies
 - Security considerations for third-party chips
 
