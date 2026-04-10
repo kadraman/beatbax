@@ -555,7 +555,8 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
   const unique = [...new Set(candidates)];
 
   for (const pkgName of unique) {
-    // Skip the built-in gameboy plugin
+    // Skip the built-in Game Boy plugin if it ever gets published as a
+    // standalone package — it is always pre-registered by ChipRegistry.
     if (pkgName === '@beatbax/plugin-chip-gameboy') continue;
     try {
       const mod = await import(pkgName);

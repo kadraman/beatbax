@@ -122,20 +122,23 @@ export function midiToTriangleFreq(midi: number): number {
 
 /**
  * Convert a note name + octave to MIDI note number.
+ * Accidentals: '#' for sharp, 'B' or 'b' after any note letter for flat.
+ * Because 'B' is also a note name, flat is only recognised when it follows
+ * another note letter (i.e. not when the input is exactly 'B' or 'B#').
  * Returns null if the note name is not recognised.
  */
 export function noteNameToMidi(name: string, octave: number): number | null {
-  const m = name.match(/^([A-G])([#B]?)$/i);
-  if (!m) return null;
-  const letter = m[1].toUpperCase();
-  const acc = (m[2] || '').toUpperCase();
+  // Normalise: upper-case the note letter, keep accidental case-sensitive
+  const upper = name.toUpperCase();
   const noteMap: Record<string, number> = {
     C: 0, 'C#': 1, DB: 1, D: 2, 'D#': 3, EB: 3,
-    E: 4, F: 5, 'F#': 6, GB: 6, G: 7, 'G#': 8,
-    AB: 8, A: 9, 'A#': 10, BB: 10, B: 11
+    E: 4, FB: 4, 'E#': 5, F: 5, 'F#': 6, GB: 6,
+    G: 7, 'G#': 8, AB: 8, A: 9, 'A#': 10, BB: 10,
+    B: 11, 'B#': 12, CB: 11,
   };
-  const key = letter + (acc === 'B' ? 'B' : acc === '#' ? '#' : '');
-  const semi = noteMap[key as keyof typeof noteMap];
+  const semi = noteMap[upper];
   if (semi === undefined) return null;
+  // 'B#' is enharmonic to C of the next octave (MIDI +1)
+  if (upper === 'B#') return (octave + 2) * 12 + 0;
   return (octave + 1) * 12 + semi;
 }

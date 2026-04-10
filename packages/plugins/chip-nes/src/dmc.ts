@@ -174,8 +174,8 @@ export class NESDMCBackend implements ChipChannelBackend {
     }
   }
 
-  /** Inject pre-loaded sample data (used in tests). */
-  _loadSampleSync(data: Float32Array): void {
+  /** Inject pre-loaded sample data (used in tests to avoid async loading). */
+  loadSampleForTest(data: Float32Array): void {
     this.sampleData = data;
   }
 

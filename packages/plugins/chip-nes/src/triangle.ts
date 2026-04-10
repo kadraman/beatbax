@@ -44,14 +44,14 @@ export class NESTriangleBackend implements ChipChannelBackend {
     this.phase = 0;
     this.sampleCount = 0;
 
-    // Linear counter: `linear` field in ticks at 240 Hz
+    // Linear counter: `linear` field in ticks at 240 Hz; 0 = no counter (infinite duration)
     const linear = instrument.linear !== undefined ? Number(instrument.linear) : 0;
     if (linear > 0) {
-      const linearHz = 240;
       this.linearCounterSamples = Infinity; // computed in render where sampleRate is known
       // Store the linear value for use in render
       (this as any)._linearTicks = Math.max(1, Math.min(127, linear));
     } else {
+      // linear=0 means no linear counter (sustain indefinitely)
       this.linearCounterSamples = Infinity;
       (this as any)._linearTicks = 0;
     }

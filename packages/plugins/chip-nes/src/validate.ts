@@ -80,7 +80,8 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
   // ── Triangle-specific fields ───────────────────────────────────────────────
   if (type === 'triangle') {
     if (inst.linear !== undefined) {
-      checkRange(Number(inst.linear), 1, 127, 'linear', errors);
+      // linear=0 means no linear counter (infinite duration); 1-127 are valid counter values
+      checkRange(Number(inst.linear), 0, 127, 'linear', errors);
     }
     if (inst.vol !== undefined) {
       const vol = Number(inst.vol);

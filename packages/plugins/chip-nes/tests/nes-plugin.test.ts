@@ -140,6 +140,9 @@ describe('NES period tables', () => {
     expect(noteNameToMidi('C', 4)).toBe(60);
     expect(noteNameToMidi('C', 2)).toBe(36);
     expect(noteNameToMidi('C', 7)).toBe(96);
+    // Sharps and flats
+    expect(noteNameToMidi('C#', 4)).toBe(61);
+    expect(noteNameToMidi('DB', 4)).toBe(61); // Db = C#
   });
 });
 
@@ -378,7 +381,7 @@ describe('NES DMC channel', () => {
     const backend = new NESDMCBackend();
     // Manually inject sample data (bypasses async loading)
     const sampleData = new Float32Array(256).fill(0.5);
-    backend._loadSampleSync(sampleData);
+    backend.loadSampleForTest(sampleData);
     backend.noteOn(0, { type: 'dmc', dmc_rate: 7 });
 
     const buf = new Float32Array(256);
@@ -396,7 +399,7 @@ describe('NES DMC channel', () => {
   test('loop=true repeats the sample', () => {
     const backend = new NESDMCBackend();
     const sampleData = new Float32Array(100).fill(0.3);
-    backend._loadSampleSync(sampleData);
+    backend.loadSampleForTest(sampleData);
     backend.noteOn(0, { type: 'dmc', dmc_rate: 15, dmc_loop: true });
 
     // Render more than one sample length
@@ -410,7 +413,7 @@ describe('NES DMC channel', () => {
   test('is silent after noteOff', () => {
     const backend = new NESDMCBackend();
     const sampleData = new Float32Array(256).fill(0.5);
-    backend._loadSampleSync(sampleData);
+    backend.loadSampleForTest(sampleData);
     backend.noteOn(0, { type: 'dmc', dmc_rate: 7 });
     backend.noteOff();
     const buf = new Float32Array(256);
@@ -538,6 +541,11 @@ describe('NES instrument validation', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  test('accepts linear=0 for triangle (infinite duration)', () => {
+    const errors = validateNesInstrument({ type: 'triangle', linear: 0 });
+    expect(errors).toHaveLength(0);
+  });
+
   test('rejects sweep_period > 7', () => {
     const errors = validateNesInstrument({ type: 'pulse1', sweep_en: true, sweep_period: 8 });
     expect(errors.length).toBeGreaterThan(0);
@@ -565,8 +573,8 @@ describe('NES mixer gain weights', () => {
     expect(pulseOutput).toBeGreaterThan(noiseOutput);
   });
 
-  test('total max output does not clip (< 1.0)', () => {
-    const { nesMix } = require('../src/mixer.js');
+  test('total max output does not clip (< 1.0)', async () => {
+    const { nesMix } = await import('../src/mixer.js');
     const maxOut = nesMix(15, 15, 15, 15, 127);
     expect(maxOut).toBeLessThan(1.0);
   });

@@ -186,10 +186,14 @@ export class NESPulseBackend implements ChipChannelBackend {
           const delta = this.currentPeriod >> sweep.shift;
           let newPeriod: number;
           if (sweep.direction === 'up') {
-            // Pulse 1: negate uses one's complement; Pulse 2: two's complement
-            // Both produce similar results in practice
-            newPeriod = this.currentPeriod - delta;
+            // Sweep up = decrease period (raise pitch)
+            // Pulse 1 uses one's complement negate (~delta), pulse 2 uses two's complement (-delta)
+            // In practice the difference is negligible (1 step at most), but we model it accurately.
+            newPeriod = this.channelType === 'pulse1'
+              ? this.currentPeriod - delta - 1  // one's complement
+              : this.currentPeriod - delta;     // two's complement
           } else {
+            // Sweep down = increase period (lower pitch)
             newPeriod = this.currentPeriod + delta;
           }
           if (newPeriod < 8 || newPeriod > 2047) {
