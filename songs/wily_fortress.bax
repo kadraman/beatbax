@@ -1,0 +1,172 @@
+## wily_fortress.bax
+## Original action-platformer chiptune — in the spirit of late-1980s NES boss-stage soundtracks.
+## Key: A minor | Tempo: 160 BPM | Style: Fast, aggressive, NES action
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It demonstrates the full 5-channel NES APU arrangement: two pulse leads, a triangle
+## bass, a noise drum kit, and a DMC bass-hit layer for late-era punch.
+##
+## Structure (16 bars):
+##   Bars  1– 4 : Main riff A   (arpeggiated Am on Pulse 1, fifth harmony on Pulse 2)
+##   Bars  5– 8 : Main riff B   (Dm variation with DMC reinforcement on every root)
+##   Bars  9–12 : Bridge        (Pulse 2 counter-melody over sustained Pulse 1 pedal)
+##   Bars 13–16 : Reprise A     (original riff with additional triangle kick hits)
+##
+## Channels:
+##   Ch1 (Pulse 1) : Lead melody — 25% duty, fast envelope, arpeggiated chords
+##   Ch2 (Pulse 2) : Harmony — 50% duty, fifth-interval counter-melody
+##   Ch3 (Triangle): Bass line — root-fifth walking bass
+##   Ch4 (Noise)   : Drums — snare backbeat + hi-hat 8ths + triangle kick reinforcement
+##   Ch5 (DMC)     : Bass hit reinforcement — sub-bass transient on every root hit
+##
+## Effects demonstrated:
+##   arp   : minor-triad arpeggio cycling on Pulse 1 (action chord fill)
+##   sweep : downward hardware sweep on Pulse 2 for punchy bass stabs
+##   vol   : fast attack, fast decay gives staccato articulation
+##
+## NES chip notes:
+##   - All 5 channels are used, demonstrating the full 2A03 APU
+##   - DMC sample uses built-in "@nes/bass_c2" — no external file required
+##   - Triangle bass uses linear counter for natural gate decay
+##   - Noise drum kit uses normal-mode LFSR with period presets
+##
+## Play: node bin/beatbax play songs/wily_fortress.bax
+
+song name "Wily's Fortress"
+song artist "The BeatBax Team"
+song description """Original NES-style action-platformer chiptune at 160 BPM in A minor. Demonstrates all five 2A03 APU channels: arpeggiated pulse lead, fifth-interval harmony, walking triangle bass, four-on-the-floor noise drums, and DMC bass-hit reinforcement. Uses minor-triad arpeggio, downward hardware sweep on bass stabs, and a fast staccato envelope for driving intensity."""
+song tags "nes,action,platformer,example,demo"
+
+chip nes
+bpm 160
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# Pulse 1 — lead melody; 25% duty for sharp, cutting timbre
+inst lead    type=pulse1  duty=25  env=13,down  env_period=1
+
+# Pulse 1 variant — slightly wider 50% duty for the bridge
+inst lead50  type=pulse1  duty=50  env=12,down  env_period=2
+
+# Pulse 2 — harmony; 50% duty for warm counter-melody
+inst harm    type=pulse2  duty=50  env=10,down  env_period=3
+
+# Pulse 2 bass-stab with downward hardware sweep (punchy attack)
+inst sweep_bass  type=pulse2  duty=50  env=14,down  env_period=1  sweep_en=true  sweep_period=3  sweep_dir=down  sweep_shift=3
+
+# Triangle — walking bass line; always full amplitude when gated
+inst tri     type=triangle
+
+# Short triangle ping for kick reinforcement (~16 ms gate via linear counter)
+inst tkick   type=triangle  linear=4
+
+# Noise — drum kit
+inst kick    type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=3
+inst snare   type=noise  noise_mode=normal  noise_period=6   env=14,down  env_period=1
+inst hihat   type=noise  noise_mode=normal  noise_period=3   env=8,down   env_period=0
+
+# DMC — bass hit reinforcement (built-in sample, works in browser and CLI)
+inst bass_hit  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="@nes/bass_c2"
+
+# =============================================================================
+# Effect Presets
+# =============================================================================
+effect minArp  = arp:3,7    # minor triad (root + m3 + P5)
+effect majArp  = arp:4,7    # major triad (root + M3 + P5)
+effect domArp  = arp:4,7,10 # dominant 7th
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+# ── Section A: Main riff (Am) ────────────────────────────────────────────────
+# Lead: fast minor-arpeggio cycling on each note
+pat riff_a1  = A4<minArp>:4 C5<minArp>:4 E5<minArp>:4 G5<minArp>:4
+pat riff_a2  = E5<minArp>:4 G5<minArp>:4 A5<minArp>:4 E5<minArp>:4
+
+# Harmony: fifth-interval sustained chord support
+pat harm_a1  = E4:8 . C4:8 .
+pat harm_a2  = E4:8 . A4:8 .
+
+# Bass: root-fifth walking pattern (16 steps)
+pat bass_a   = A2 . E3 . A2 . G2 .
+
+# DMC hit on root note of each bar
+pat dmc_a    = inst bass_hit A2 . . . inst bass_hit A2 . .
+
+# ── Section B: Variation (Dm) ────────────────────────────────────────────────
+pat riff_b1  = D5<minArp>:4 F5<minArp>:4 A5<minArp>:4 C6<minArp>:4
+pat riff_b2  = A5<minArp>:4 C6<minArp>:4 D6<minArp>:4 A5<minArp>:4
+
+pat harm_b1  = A4:8 . F4:8 .
+pat harm_b2  = A4:8 . D4:8 .
+
+pat bass_b   = D3 . A2 . D3 . C3 .
+pat dmc_b    = inst bass_hit D3 . . . inst bass_hit D3 . .
+
+# ── Bridge: Pulse 2 counter-melody, Pulse 1 pedal ────────────────────────────
+pat pedal_c  = A4:16             # sustained pedal on Pulse 1
+pat ctr_c1   = E5:4 F5:4 G5:4 E5:4
+pat ctr_c2   = C5:4 D5:4 E5:4 C5:4
+pat bass_c   = A2 . C3 . E3 . C3 .
+
+# ── Drums: kick on 1&3, snare on 2&4, hi-hat every 8th note ─────────────────
+pat beat     = inst kick C2 inst hihat C2 inst snare C2 inst hihat C2
+               inst kick C2 inst hihat C2 inst snare C2 inst hihat C2
+
+# Triangle kick reinforcement layer
+pat tkick_pat = inst tkick C2 . . . inst tkick C2 . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+seq lead_main = riff_a1 riff_a2 riff_a1 riff_a2
+                riff_b1 riff_b2 riff_b1 riff_b2
+                pedal_c pedal_c ctr_c1 ctr_c2
+                riff_a1 riff_a2 riff_a1 riff_a2
+
+seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2
+                harm_b1 harm_b2 harm_b1 harm_b2
+                ctr_c1 ctr_c2 ctr_c1 ctr_c2
+                harm_a1 harm_a2 harm_a1 harm_a2
+
+seq bass_main = bass_a bass_a bass_a bass_a
+                bass_b bass_b bass_b bass_b
+                bass_c bass_c bass_c bass_c
+                bass_a bass_a bass_a bass_a
+
+seq drum_main = beat beat beat beat
+                beat beat beat beat
+                beat beat beat beat
+                beat beat beat beat
+
+seq tkick_main = tkick_pat tkick_pat tkick_pat tkick_pat
+                 tkick_pat tkick_pat tkick_pat tkick_pat
+                 tkick_pat tkick_pat tkick_pat tkick_pat
+                 tkick_pat tkick_pat tkick_pat tkick_pat
+
+seq dmc_main  = dmc_a dmc_a dmc_a dmc_a
+                dmc_b dmc_b dmc_b dmc_b
+                dmc_a dmc_a dmc_a dmc_a
+                dmc_a dmc_a dmc_a dmc_a
+
+# =============================================================================
+# Channels
+# =============================================================================
+# Channel 1 → Pulse 1  (lead melody)
+# Channel 2 → Pulse 2  (harmony)
+# Channel 3 → Triangle (bass)
+# Channel 4 → Noise    (drums — kick + snare + hi-hat)
+# Channel 5 → DMC      (bass hit reinforcement)
+channel 1 => inst lead      seq lead_main
+channel 2 => inst harm      seq harm_main
+channel 3 => inst tri       seq bass_main
+channel 4 => inst kick      seq drum_main
+channel 5 => inst bass_hit  seq dmc_main
+
+# =============================================================================
+# Playback
+# =============================================================================
+play auto repeat
