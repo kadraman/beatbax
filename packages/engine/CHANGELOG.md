@@ -1,5 +1,17 @@
 # @beatbax/engine
 
+## 0.8.0
+
+### Minor Changes
+
+- 0874961: implemented per-channel analyser to support actual waveform visualization
+
+### Patch Changes
+
+- 677f0f2: Update pcmRenderer to use 32-nibble 4-bit wavetable by default
+- 6817844: expose getAudioContext() and getMasterGain() on Player for UI audio tapping
+- 9a42f1e: updated type support for time and stepsPerBar
+
 ## 0.7.0
 
 ### Minor Changes

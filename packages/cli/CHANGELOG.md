@@ -1,5 +1,15 @@
 # @beatbax/cli
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [677f0f2]
+- Updated dependencies [0874961]
+- Updated dependencies [6817844]
+- Updated dependencies [9a42f1e]
+  - @beatbax/engine@0.8.0
+
 ## 0.2.4
 
 ### Patch Changes
