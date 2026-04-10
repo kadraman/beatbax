@@ -190,7 +190,7 @@ The triangle channel frequency formula:
 
 $$f = \frac{1789773}{32 \times (\text{period} + 1)}$$
 
-The factor of 32 (versus 16 for pulse channels) means the triangle plays **one octave lower** than a pulse channel at the same period value — analogous to the Game Boy's wave channel octave offset. Bass parts on the triangle are written and entered at the pitch they should sound; BeatBax automatically compensates for the formula difference.
+The factor of 32 (versus 16 for pulse channels) means the triangle plays **one octave lower** than a pulse channel at the same period register value. BeatBax compensates by using **half** the period register value for triangle compared to pulse at the same MIDI note — `TRIANGLE_PERIOD[n] ≈ PULSE_PERIOD[n] / 2`. Do not double the period to compensate; that would produce a frequency one-quarter of the target (two octaves below). Bass parts on the triangle are written at the pitch they should sound; the period table handles the compensation automatically.
 
 **Practical note range:** The triangle channel is most useful from approximately C2 to C5. At very high pitches (short period values), the 32-step quantisation becomes audible as a raspy, buzzy artefact — a characteristic of the NES sound in the upper registers.
 
@@ -750,73 +750,73 @@ The chiptune genre that emerged from the NES APU remains a major influence on in
 
 ## Appendix A — NTSC Period Table (A4 = 440 Hz)
 
-Reference period values for standard chromatic pitches on NTSC hardware. These are the values BeatBax uses internally for pulse and triangle channel note-to-period mapping.
+Reference period values for standard chromatic pitches on NTSC hardware. These are the values BeatBax uses internally for pulse and triangle channel note-to-period mapping. The table covers **61 notes, MIDI 36–96 (C2–C7 inclusive)**. Note: C2–C7 spans 5 complete octaves plus the endpoint C7, giving 61 semitones — not 6 × 12 = 72.
 
 | Note | MIDI | Pulse Period | Triangle Period |
 |------|------|-------------|----------------|
-| C2 | 36 | 1985 | 3971 |
-| C#2 | 37 | 1874 | 3748 |
-| D2 | 38 | 1769 | 3538 |
-| D#2 | 39 | 1670 | 3340 |
-| E2 | 40 | 1576 | 3152 |
-| F2 | 41 | 1488 | 2976 |
-| F#2 | 42 | 1404 | 2808 |
-| G2 | 43 | 1325 | 2650 |
-| G#2 | 44 | 1250 | 2500 |
-| A2 | 45 | 1180 | 2360 |
-| A#2 | 46 | 1113 | 2226 |
-| B2 | 47 | 1051 | 2102 |
-| C3 | 48 | 991 | 1982 |
-| C#3 | 49 | 936 | 1872 |
-| D3 | 50 | 883 | 1766 |
-| D#3 | 51 | 834 | 1668 |
-| E3 | 52 | 787 | 1574 |
-| F3 | 53 | 743 | 1486 |
-| F#3 | 54 | 701 | 1402 |
-| G3 | 55 | 661 | 1322 |
-| G#3 | 56 | 624 | 1248 |
-| A3 | 57 | 589 | 1178 |
-| A#3 | 58 | 556 | 1112 |
-| B3 | 59 | 525 | 1050 |
-| C4 | 60 | 495 | 990 |
-| C#4 | 61 | 467 | 934 |
-| D4 | 62 | 441 | 882 |
-| D#4 | 63 | 416 | 832 |
-| E4 | 64 | 393 | 786 |
-| F4 | 65 | 371 | 742 |
-| F#4 | 66 | 350 | 700 |
-| G4 | 67 | 330 | 660 |
-| G#4 | 68 | 312 | 624 |
-| A4 | 69 | 294 | 588 |
-| A#4 | 70 | 278 | 556 |
-| B4 | 71 | 262 | 524 |
-| C5 | 72 | 247 | 494 |
-| C#5 | 73 | 233 | 466 |
-| D5 | 74 | 220 | 440 |
-| D#5 | 75 | 208 | 416 |
-| E5 | 76 | 196 | 392 |
-| F5 | 77 | 185 | 370 |
-| F#5 | 78 | 175 | 350 |
-| G5 | 79 | 165 | 330 |
-| G#5 | 80 | 155 | 310 |
-| A5 | 81 | 147 | 294 |
-| A#5 | 82 | 139 | 278 |
-| B5 | 83 | 131 | 262 |
-| C6 | 84 | 123 | 246 |
-| C#6 | 85 | 116 | 232 |
-| D6 | 86 | 110 | 220 |
-| D#6 | 87 | 104 | 208 |
-| E6 | 88 | 98 | 196 |
-| F6 | 89 | 92 | 184 |
-| F#6 | 90 | 87 | 174 |
-| G6 | 91 | 82 | 164 |
-| G#6 | 92 | 78 | 156 |
-| A6 | 93 | 73 | 146 |
-| A#6 | 94 | 69 | 138 |
-| B6 | 95 | 65 | 130 |
-| C7 | 96 | 61 | 122 |
+| C2 | 36 | 1709 | 854 |
+| C#2 | 37 | 1613 | 806 |
+| D2 | 38 | 1523 | 761 |
+| D#2 | 39 | 1437 | 718 |
+| E2 | 40 | 1356 | 678 |
+| F2 | 41 | 1280 | 640 |
+| F#2 | 42 | 1208 | 604 |
+| G2 | 43 | 1140 | 570 |
+| G#2 | 44 | 1076 | 538 |
+| A2 | 45 | 1016 | 507 |
+| A#2 | 46 | 959 | 479 |
+| B2 | 47 | 905 | 452 |
+| C3 | 48 | 854 | 427 |
+| C#3 | 49 | 806 | 403 |
+| D3 | 50 | 761 | 380 |
+| D#3 | 51 | 718 | 359 |
+| E3 | 52 | 678 | 338 |
+| F3 | 53 | 640 | 319 |
+| F#3 | 54 | 604 | 301 |
+| G3 | 55 | 570 | 284 |
+| G#3 | 56 | 538 | 268 |
+| A3 | 57 | 507 | 253 |
+| A#3 | 58 | 479 | 239 |
+| B3 | 59 | 452 | 225 |
+| C4 | 60 | 427 | 213 |
+| C#4 | 61 | 403 | 201 |
+| D4 | 62 | 380 | 189 |
+| D#4 | 63 | 359 | 179 |
+| E4 | 64 | 338 | 169 |
+| F4 | 65 | 319 | 159 |
+| F#4 | 66 | 301 | 150 |
+| G4 | 67 | 284 | 142 |
+| G#4 | 68 | 268 | 134 |
+| A4 | 69 | 253 | 126 |
+| A#4 | 70 | 239 | 119 |
+| B4 | 71 | 225 | 112 |
+| C5 | 72 | 213 | 106 |
+| C#5 | 73 | 201 | 100 |
+| D5 | 74 | 189 | 94 |
+| D#5 | 75 | 179 | 89 |
+| E5 | 76 | 169 | 84 |
+| F5 | 77 | 159 | 79 |
+| F#5 | 78 | 150 | 75 |
+| G5 | 79 | 142 | 70 |
+| G#5 | 80 | 134 | 66 |
+| A5 | 81 | 126 | 63 |
+| A#5 | 82 | 119 | 59 |
+| B5 | 83 | 112 | 56 |
+| C6 | 84 | 106 | 52 |
+| C#6 | 85 | 100 | 49 |
+| D6 | 86 | 94 | 47 |
+| D#6 | 87 | 89 | 44 |
+| E6 | 88 | 84 | 41 |
+| F6 | 89 | 79 | 39 |
+| F#6 | 90 | 75 | 37 |
+| G6 | 91 | 70 | 35 |
+| G#6 | 92 | 66 | 33 |
+| A6 | 93 | 63 | 31 |
+| A#6 | 94 | 59 | 29 |
+| B6 | 95 | 56 | 27 |
+| C7 | 96 | 52 | 26 |
 
-*Note: Triangle periods above approximately 1985 are outside the sweep mute boundary. Pulse periods below 8 are silenced by the hardware sweep unit.*
+*Note: Values are NTSC 11-bit timer reload values (t) written to APU registers; hardware divides by (t+1). Derived from `t = round(f_CPU / (16 × f)) − 1` for pulse and `t = round(f_CPU / (32 × f)) − 1` for triangle, with f_CPU = 1,789,773 Hz and A4 = 440 Hz. Pulse periods below 8 are silenced by the hardware sweep unit. All values in this table are within the valid 11-bit range (0–2047).*
 
 ---
 
@@ -847,13 +847,13 @@ inst harm type=pulse2 duty=50 env=8,down vol=10
 ### Triangle
 
 ```
-inst bass type=triangle vol=15
+inst bass type=triangle
 ```
 
 | Field | Values | Description |
 |-------|--------|-------------|
 | `type` | `triangle` | Channel assignment |
-| `vol` | `0` or `15` | Gate only — triangle is always full volume when on |
+| `vol` | `0` or omitted | Software gate only — `vol=0` silences the channel (software mute, not hardware-authentic); any other value, including omitting `vol`, produces full amplitude. Triangle has no hardware volume control. |
 | `linear` | `1`–`127` | Linear counter duration in ticks |
 
 ### Noise
