@@ -355,3 +355,10 @@ function writeString(view: DataView, offset: number, string: string): void {
 export { exportJSON, exportMIDI, exportWAV };
 export { renderSongToPCM } from './audio/pcmRenderer.js';
 export * from './import/index.js';
+
+// ─── Plugin system ────────────────────────────────────────────────────────────
+
+export type { ChipPlugin, ChipChannelBackend, ValidationError } from './chips/types.js';
+export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
+export { BeatBaxEngine } from './engine.js';
+
