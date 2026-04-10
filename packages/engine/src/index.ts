@@ -356,6 +356,9 @@ export { exportJSON, exportMIDI, exportWAV };
 export { renderSongToPCM } from './audio/pcmRenderer.js';
 export * from './import/index.js';
 
+// AST types — re-exported for external consumers (e.g. chip plugins)
+export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelNode, EnvelopeAST, SweepAST, NoiseAST } from './parser/ast.js';
+
 // ─── Plugin system ────────────────────────────────────────────────────────────
 
 export type { ChipPlugin, ChipChannelBackend, ValidationError } from './chips/types.js';

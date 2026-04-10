@@ -6,6 +6,7 @@
   "type": "module",
   "workspaces": [
     "packages/*",
+    "packages/plugins/*",
     "apps/*"
   ],
   "scripts": {
@@ -20,6 +21,8 @@
     "cli:dev": "npm run engine:build && npm -w @beatbax/cli run dev",
     "cli:clean": "npm -w @beatbax/cli run clean",
     "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
+    "nes:build": "npm -w @beatbax/plugin-chip-nes run build",
+    "nes:test": "npm -w @beatbax/plugin-chip-nes test",
     "web-ui:build": "npm -w @beatbax/web-ui run build",
     "web-ui:test": "npm -w @beatbax/web-ui test",
     "web-ui:dev": "npm -w @beatbax/web-ui run dev",

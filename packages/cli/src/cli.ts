@@ -1,5 +1,6 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
+import { playFile, readUGEFile, getUGESummary, chipRegistry, BeatBaxEngine } from '@beatbax/engine';
+import type { ChipPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { configureLogging } from '@beatbax/engine/util/logger';
@@ -486,6 +487,135 @@ program
       const globalOpts = program.opts();
       console.error('Failed to inspect file:', extractErrorMessage(err, globalOpts && globalOpts.debug));
       process.exitCode = 2;
+    }
+  });
+
+// ─── Plugin auto-discovery ────────────────────────────────────────────────────
+
+/**
+ * Auto-discover and register BeatBax chip plugins from the local node_modules.
+ *
+ * Searches for npm packages whose name matches `@beatbax/plugin-chip-*` and
+ * `beatbax-plugin-chip-*` patterns. Each discovered package is loaded as a
+ * dynamic ESM import; if it exports a default `ChipPlugin` object with a
+ * `name` string, it is registered with the global `chipRegistry`.
+ *
+ * Discovery happens synchronously at CLI startup and is intentionally
+ * fire-and-forget for non-critical errors (e.g. a malformed plugin will not
+ * crash the CLI — it prints a warning and skips registration).
+ */
+async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<ChipPlugin[]> {
+  const discovered: ChipPlugin[] = [];
+  const { createRequire } = await import('module');
+  const req = createRequire(import.meta.url);
+
+  // Collect candidate package names from node_modules
+  const candidates: string[] = [];
+  try {
+    const { readdirSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const cliDir = dirname(fileURLToPath(import.meta.url));
+
+    // Walk up to find node_modules
+    const searchPaths = [
+      join(cliDir, '..', '..', 'node_modules'),         // packages/node_modules
+      join(cliDir, '..', '..', '..', 'node_modules'),   // root node_modules
+      join(process.cwd(), 'node_modules'),               // cwd node_modules
+    ];
+
+    for (const nmDir of searchPaths) {
+      try {
+        const entries = readdirSync(nmDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          // Scoped packages (e.g. @beatbax/plugin-chip-nes)
+          if (entry.name === '@beatbax') {
+            const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
+            for (const scoped of scopedEntries) {
+              if (scoped.isDirectory() && scoped.name.startsWith('plugin-chip-')) {
+                candidates.push(`@beatbax/${scoped.name}`);
+              }
+            }
+          }
+          // Unscoped community plugins (e.g. beatbax-plugin-chip-sid)
+          if (entry.name.startsWith('beatbax-plugin-chip-')) {
+            candidates.push(entry.name);
+          }
+        }
+      } catch (_) {
+        // node_modules dir doesn't exist here — skip
+      }
+    }
+  } catch (_) {
+    // Filesystem scan failed — continue without auto-discovery
+  }
+
+  // Remove duplicates
+  const unique = [...new Set(candidates)];
+
+  for (const pkgName of unique) {
+    // Skip the built-in gameboy plugin
+    if (pkgName === '@beatbax/plugin-chip-gameboy') continue;
+    try {
+      const mod = await import(pkgName);
+      const plugin: ChipPlugin = mod.default || mod;
+
+      if (typeof plugin?.name !== 'string' || typeof plugin?.createChannel !== 'function') {
+        if (options.verbose) {
+          console.warn(`[WARN] Skipping '${pkgName}': missing required ChipPlugin fields (name, createChannel)`);
+        }
+        continue;
+      }
+
+      if (!chipRegistry.has(plugin.name)) {
+        chipRegistry.register(plugin);
+        discovered.push(plugin);
+        if (options.verbose) {
+          console.log(`[plugin] Loaded chip plugin: '${plugin.name}' from ${pkgName} v${plugin.version}`);
+        }
+      }
+    } catch (err: any) {
+      if (options.verbose) {
+        console.warn(`[WARN] Failed to load chip plugin '${pkgName}':`, err.message);
+      }
+    }
+  }
+
+  return discovered;
+}
+
+program
+  .command('list-chips')
+  .description('List all available chip backends (built-in and plugin-discovered)')
+  .option('--json', 'Output JSON format')
+  .action(async (options) => {
+    const globalOpts = program.opts();
+    const verbose = globalOpts?.verbose === true;
+
+    // Auto-discover plugins
+    await discoverPlugins({ verbose });
+
+    const chips = chipRegistry.list();
+
+    if (options.json) {
+      const details = chips.map(name => {
+        const plugin = chipRegistry.get(name)!;
+        return { name: plugin.name, version: plugin.version, channels: plugin.channels };
+      });
+      console.log(JSON.stringify(details, null, 2));
+      return;
+    }
+
+    console.log('Available chip backends:');
+    console.log('');
+    for (const name of chips) {
+      const plugin = chipRegistry.get(name)!;
+      const star = name === 'gameboy' ? ' (built-in)' : '';
+      console.log(`  • ${name}${star}`);
+      console.log(`      Version:  ${plugin.version}`);
+      console.log(`      Channels: ${plugin.channels}`);
+      console.log('');
     }
   });
 

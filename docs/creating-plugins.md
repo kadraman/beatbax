@@ -1,0 +1,329 @@
+# Creating BeatBax Chip Plugins
+
+This guide explains how to build, publish, and install chip plugins for BeatBax. Chip plugins extend the engine with new audio backends — enabling music production for additional retro hardware platforms (NES, SID, YM2612, etc.) without changes to the core engine.
+
+---
+
+## Overview
+
+A BeatBax chip plugin is a plain npm package that:
+
+1. Exports a default object implementing the `ChipPlugin` interface.
+2. Is published under the npm naming convention `@beatbax/plugin-chip-<name>` (official) or `beatbax-plugin-chip-<name>` (community).
+3. Registered with the engine via `engine.registerChipPlugin(plugin)` or auto-discovered by the CLI.
+
+The Game Boy plugin (`packages/engine/src/chips/gameboy/plugin.ts`) is the built-in reference implementation and the simplest example to study.
+
+---
+
+## Interfaces
+
+### `ChipPlugin`
+
+```typescript
+import type { ChipPlugin } from '@beatbax/engine';
+
+const myPlugin: ChipPlugin = {
+  name: 'my-chip',            // Used in `chip my-chip` directive
+  version: '1.0.0',           // Semver
+  channels: 4,                // Number of audio channels
+
+  validateInstrument(inst) {
+    // Return [] if valid; array of ValidationError if not
+    return [];
+  },
+
+  createChannel(channelIndex, audioContext) {
+    // Return a ChipChannelBackend for the given channel
+    return new MyChannelBackend(channelIndex);
+  },
+};
+```
+
+### `ChipChannelBackend`
+
+```typescript
+import type { ChipChannelBackend } from '@beatbax/engine';
+
+class MyChannelBackend implements ChipChannelBackend {
+  reset(): void { /* reset all state */ }
+
+  noteOn(frequency: number, instrument: InstrumentNode): void {
+    // Trigger a note: store frequency and instrument state
+  }
+
+  noteOff(): void {
+    // Silence the channel (release)
+  }
+
+  applyEnvelope(frame: number): void {
+    // Advance per-frame envelope/sweep automation (called once per audio frame)
+  }
+
+  render(buffer: Float32Array, sampleRate: number): void {
+    // ADD your channel's audio output to `buffer` (do NOT overwrite)
+    // buffer.length is the number of samples to render
+  }
+}
+```
+
+> **Important:** `render()` must **add** to the buffer (`buffer[i] += ...`), not overwrite it. Multiple channels are mixed by accumulation.
+
+---
+
+## Step-by-step Guide
+
+### Step 1: Create the package
+
+Use the naming convention for auto-discovery:
+
+```bash
+mkdir -p my-chip-plugin/src my-chip-plugin/tests
+cd my-chip-plugin
+```
+
+**`package.json`:**
+
+```json
+{
+  "name": "@beatbax/plugin-chip-my-chip",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "peerDependencies": {
+    "@beatbax/engine": "^0.8.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "jest --config ./jest.config.cjs"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.3",
+    "typescript": "^5.6.3"
+  }
+}
+```
+
+### Step 2: Define channel backends
+
+Create one backend class per channel type. Each class implements `ChipChannelBackend`.
+
+```typescript
+// src/pulse.ts
+import type { ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
+
+export class MyPulseBackend implements ChipChannelBackend {
+  private active = false;
+  private freq = 0;
+  private phase = 0;
+
+  reset() { this.active = false; this.freq = 0; this.phase = 0; }
+
+  noteOn(frequency: number, _instrument: InstrumentNode) {
+    this.freq = frequency;
+    this.active = true;
+    this.phase = 0;
+  }
+
+  noteOff() { this.active = false; }
+
+  applyEnvelope(_frame: number) { /* add envelope automation here */ }
+
+  render(buffer: Float32Array, sampleRate: number) {
+    if (!this.active || this.freq <= 0) return;
+    const phaseInc = this.freq / sampleRate;
+    for (let i = 0; i < buffer.length; i++) {
+      buffer[i] += this.phase < 0.5 ? 0.3 : -0.3;   // square wave
+      this.phase = (this.phase + phaseInc) % 1;
+    }
+  }
+}
+```
+
+### Step 3: Create the plugin entry point
+
+```typescript
+// src/index.ts
+import type { ChipPlugin } from '@beatbax/engine';
+import { MyPulseBackend } from './pulse.js';
+
+const myPlugin: ChipPlugin = {
+  name: 'my-chip',
+  version: '1.0.0',
+  channels: 2,
+
+  validateInstrument(inst) {
+    const errors = [];
+    if (!['pulse1', 'pulse2'].includes((inst.type || '').toLowerCase())) {
+      errors.push({ field: 'type', message: `Unknown type '${inst.type}'` });
+    }
+    return errors;
+  },
+
+  createChannel(channelIndex, _audioContext) {
+    switch (channelIndex) {
+      case 0: return new MyPulseBackend();
+      case 1: return new MyPulseBackend();
+      default: throw new Error(`my-chip: invalid channel index ${channelIndex}`);
+    }
+  },
+};
+
+export default myPlugin;
+```
+
+### Step 4: Register with the engine
+
+```typescript
+import { BeatBaxEngine } from '@beatbax/engine';
+import myPlugin from '@beatbax/plugin-chip-my-chip';
+
+const engine = new BeatBaxEngine();
+engine.registerChipPlugin(myPlugin);
+
+console.log(engine.listChips()); // ['gameboy', 'my-chip']
+console.log(engine.validateChip('my-chip')); // true
+```
+
+### Step 5: Use in BeatBax scripts
+
+```bax
+chip my-chip
+bpm 120
+
+inst lead type=pulse1 duty=50
+inst bass type=pulse2 duty=25
+
+pat melody = C4 E4 G4 E4
+seq main = melody melody
+
+channel 1 => inst lead seq main
+channel 2 => inst bass seq main:oct(-1)
+
+play
+```
+
+---
+
+## CLI Auto-Discovery
+
+The BeatBax CLI automatically discovers installed plugins matching:
+- `@beatbax/plugin-chip-*` — official plugins
+- `beatbax-plugin-chip-*` — community plugins
+
+After installing your plugin (`npm install @beatbax/plugin-chip-my-chip`), it is available in all CLI commands without any configuration:
+
+```bash
+# List all available chips (built-in + plugins)
+beatbax list-chips
+
+# Verify a NES song file (after installing @beatbax/plugin-chip-nes)
+beatbax verify song.bax
+
+# Export with any registered chip
+beatbax export json song.bax output.json
+```
+
+---
+
+## Naming Conventions
+
+| Pattern | Use |
+|---------|-----|
+| `@beatbax/plugin-chip-<name>` | Official BeatBax-maintained plugins |
+| `beatbax-plugin-chip-<name>` | Community plugins (auto-discovered) |
+| `name` field in `ChipPlugin` | Must match the string used in `chip <name>` directive |
+
+---
+
+## Sample Asset Resolution
+
+Plugins that support sampled audio (like NES DMC) can implement `resolveSampleAsset()`:
+
+```typescript
+const myPlugin: ChipPlugin = {
+  // ...
+  bundledSamples: {
+    'my-drum': '<base64-encoded-data>',
+  },
+
+  async resolveSampleAsset(ref: string): Promise<ArrayBuffer> {
+    if (ref.startsWith('@my-chip/')) {
+      const name = ref.slice(9);
+      const b64 = this.bundledSamples![name];
+      if (!b64) throw new Error(`Unknown bundled sample: ${name}`);
+      // Decode base64 and return ArrayBuffer
+      const binaryStr = atob(b64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      return bytes.buffer;
+    }
+    throw new Error(`Unsupported sample scheme: ${ref}`);
+  },
+};
+```
+
+Security guidelines follow the BeatBax import security model (`docs/language/import-security.md`):
+- `@<chip>/<name>` — bundled library (safe in all environments)
+- `https://...` — remote fetch (browser + Node.js 18+)
+- `local:<path>` — file system (Node.js only; reject path traversal with `..`)
+
+---
+
+## Testing
+
+Use the `ChipRegistry` directly in tests:
+
+```typescript
+import { ChipRegistry } from '@beatbax/engine';
+import myPlugin from '../src/index.js';
+
+test('plugin registers successfully', () => {
+  const reg = new ChipRegistry();
+  reg.register(myPlugin);
+  expect(reg.has('my-chip')).toBe(true);
+});
+
+test('channel 0 renders audio', () => {
+  const backend = myPlugin.createChannel(0, {} as BaseAudioContext);
+  backend.noteOn(440, { type: 'pulse1' });
+  const buf = new Float32Array(256);
+  backend.render(buf, 44100);
+  expect(buf.some(s => s !== 0)).toBe(true);
+});
+```
+
+For Jest configuration, map `@beatbax/engine` to the plugin API entry point to avoid ESM issues:
+
+```javascript
+// jest.config.cjs
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@beatbax/engine$': '<rootDir>/node_modules/@beatbax/engine/dist/plugin-api.js',
+  },
+};
+```
+
+---
+
+## Reference: Built-in Plugins
+
+| Plugin | Package | Channels | Status |
+|--------|---------|----------|--------|
+| Game Boy DMG-01 APU | built-in | 4 | ✅ Complete |
+| NES Ricoh 2A03 APU | `@beatbax/plugin-chip-nes` | 5 | ✅ Complete |
+| C64 SID | `@beatbax/plugin-chip-sid` | 3 | 📋 Planned |
+| Sega Genesis YM2612 + PSG | `@beatbax/plugin-chip-genesis` | 10 | 📋 Planned |
+
+See `docs/features/plugin-system.md` for the complete plugin system specification and roadmap.
