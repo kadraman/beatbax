@@ -1,0 +1,166 @@
+## kingdom_hall.bax
+## Original RPG-adventure chiptune — in the spirit of late-1980s NES castle/throne themes.
+## Key: C major / A minor modal mix | Tempo: 108 BPM | Style: Grand, sweeping, orchestral
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## It demonstrates a lyrical, RPG-style NES arrangement: a smooth pulse melody with vibrato,
+## a sustained pulse harmony, a triangle bass line, gentle noise percussion, and no DMC
+## (illustrating that DMC is optional — most early-era NES RPG titles omit it).
+##
+## Structure (20 bars):
+##   Bars  1– 4 : Intro         (triangle bass + solo Pulse 1 melody, no harmony)
+##   Bars  5– 8 : Verse A       (full 4-channel arrangement, C major melody)
+##   Bars  9–12 : Verse B       (relative Am section, more intense)
+##   Bars 13–16 : Bridge        (Pulse 2 takes the counter-melody; Pulse 1 holds pedal)
+##   Bars 17–20 : Reprise       (Verse A melody returns over full arrangement)
+##
+## Channels:
+##   Ch1 (Pulse 1) : Lead melody — 25% duty, smooth sustain, vibrato on held notes
+##   Ch2 (Pulse 2) : Harmony    — 50% duty, sustained thirds/fifths below the melody
+##   Ch3 (Triangle): Bass line  — root-fifth arpeggiated bass
+##   Ch4 (Noise)   : Light perc — soft hi-hat pattern; snare only on strong beats
+##   (No DMC channel — typical early-era NES RPG arrangement)
+##
+## Effects demonstrated:
+##   vib    : vibrato with 2-row onset delay on sustained Pulse 1 melody notes
+##   env    : long envelope period for smooth decay (slow fade, RPG feel)
+##   linear : triangle linear counter for natural bass note gating
+##
+## NES chip notes:
+##   - Only 4 channels used — demonstrates that DMC is optional
+##   - Vibrato uses BeatBax software vib effect (period modulation)
+##   - Slow env_period (4–6) gives sustained, choir-like pulse timbre
+##   - Triangle linear=64 ≈ 267 ms gate gives natural plucked-bass articulation
+##
+## Play: node bin/beatbax play songs/kingdom_hall.bax
+
+song name "The Kingdom's Hall"
+song artist "The BeatBax Team"
+song description """Original NES-style RPG-adventure chiptune at 108 BPM in C major / A minor. Demonstrates a lyrical 4-channel NES arrangement without DMC: smooth 25% Pulse 1 melody with vibrato, sustained 50% Pulse 2 harmony, plucked triangle bass with linear-counter gating, and a gentle noise hi-hat groove. Uses slow envelope decay for an orchestral, sustained feel typical of NES RPG soundtracks."""
+song tags "nes,rpg,adventure,example,demo"
+
+chip nes
+bpm 108
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# Pulse 1 — lead melody; 25% duty, slow envelope for smooth sustain
+inst melody   type=pulse1  duty=25  env=12,down  env_period=5
+
+# Pulse 1 variant — 50% for the bridge counter-melody
+inst melody50 type=pulse1  duty=50  env=11,down  env_period=4
+
+# Pulse 2 — harmony; 50% duty for warm, full harmonic support
+inst chord    type=pulse2  duty=50  env=9,down  env_period=6
+
+# Triangle — bass; linear counter gives natural pluck-decay articulation (~267 ms)
+inst bass     type=triangle  linear=64
+
+# Short triangle kick reinforcement
+inst tkick    type=triangle  linear=3
+
+# Noise — gentle percussion
+inst hihat    type=noise  noise_mode=normal  noise_period=3   env=6,down   env_period=0
+inst snare    type=noise  noise_mode=normal  noise_period=6   env=10,down  env_period=2
+inst kick     type=noise  noise_mode=normal  noise_period=12  env=13,down  env_period=3
+
+# =============================================================================
+# Effect Presets
+# =============================================================================
+effect warm_vib = vib:3,4,sine,0,2   # gentle vibrato, 2-row onset delay (authentic NES feel)
+
+# =============================================================================
+# Patterns — all 8-step (half-bar at 4/4, 108 BPM)
+# =============================================================================
+
+# ── Intro: solo melody (no harmony, sparse texture) ─────────────────────────
+pat intro_a  = C5:8 . E5:8 . G5:4 E5:4
+pat intro_b  = D5:8 . F5:8 . E5:8 .
+
+# ── Verse A: C major melody ──────────────────────────────────────────────────
+pat mel_a1   = C5<warm_vib>:8 . E5:8 . G5<warm_vib>:8 .
+pat mel_a2   = G5<warm_vib>:8 . A5:4 G5:4 F5:8 .
+pat mel_a3   = E5<warm_vib>:8 . D5:4 C5:4 E5:8 .
+pat mel_a4   = C5:4 D5:4 E5:4 G5:4
+
+# Harmony — thirds and fifths below the melody
+pat chd_a1   = G4:8 . B4:8 . E4:8 .
+pat chd_a2   = E4:8 . F4:4 E4:4 D4:8 .
+pat chd_a3   = C4:8 . B3:4 A3:4 C4:8 .
+pat chd_a4   = G3:4 A3:4 B3:4 E4:4
+
+# ── Verse B: A minor variation ───────────────────────────────────────────────
+pat mel_b1   = A4<warm_vib>:8 . C5:8 . E5<warm_vib>:8 .
+pat mel_b2   = E5<warm_vib>:8 . F5:4 E5:4 D5:8 .
+pat mel_b3   = C5<warm_vib>:8 . B4:4 A4:4 C5:8 .
+pat mel_b4   = A4:4 B4:4 C5:4 E5:4
+
+pat chd_b1   = E4:8 . G4:8 . A3:8 .
+pat chd_b2   = C4:8 . D4:4 C4:4 B3:8 .
+pat chd_b3   = A3:8 . G3:4 F3:4 A3:8 .
+pat chd_b4   = E3:4 F3:4 G3:4 C4:4
+
+# ── Bridge: Pulse 2 takes counter-melody, Pulse 1 sustains ──────────────────
+pat pedal_c  = G5<warm_vib>:16               # long pedal on Pulse 1
+pat ctr_c1   = E5:4 F5:4 G5:4 A5:4          # ascending counter on Pulse 2
+pat ctr_c2   = G5:4 F5:4 E5:4 D5:4          # descending resolution
+
+# ── Bass: root-fifth arpeggiated (triangle) ──────────────────────────────────
+pat walk_c   = C3 . G3 . C3 . E3 .
+pat walk_Am  = A2 . E3 . A2 . G2 .
+pat walk_G   = G2 . D3 . G2 . B2 .
+
+# ── Drums: sparse RPG groove ─────────────────────────────────────────────────
+# Gentle: kick on 1, snare on 3, hi-hat every 8th
+pat light_beat = inst kick C2 inst hihat C2 inst hihat C2 inst snare C2
+                 inst hihat C2 inst hihat C2 inst hihat C2 inst hihat C2
+
+# Triangle kick reinforcement on beat 1 and 3
+pat tkick_pat  = inst tkick C2 . . . inst tkick C2 . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+seq pulse1_main = intro_a intro_b intro_a intro_b
+                  mel_a1 mel_a2 mel_a3 mel_a4
+                  mel_b1 mel_b2 mel_b3 mel_b4
+                  pedal_c pedal_c pedal_c pedal_c
+                  mel_a1 mel_a2 mel_a3 mel_a4
+
+seq pulse2_main = chd_a1 chd_a2 chd_a3 chd_a4    # intro: chord harmony follows melody
+                  chd_a1 chd_a2 chd_a3 chd_a4
+                  chd_b1 chd_b2 chd_b3 chd_b4
+                  ctr_c1 ctr_c2 ctr_c1 ctr_c2
+                  chd_a1 chd_a2 chd_a3 chd_a4
+
+seq bass_main   = walk_c walk_c walk_c walk_c
+                  walk_c walk_c walk_c walk_c
+                  walk_Am walk_Am walk_Am walk_Am
+                  walk_G walk_G walk_c walk_c
+                  walk_c walk_c walk_c walk_c
+
+seq drum_main   = light_beat light_beat light_beat light_beat
+                  light_beat light_beat light_beat light_beat
+                  light_beat light_beat light_beat light_beat
+                  light_beat light_beat light_beat light_beat
+                  light_beat light_beat light_beat light_beat
+
+# =============================================================================
+# Channels
+# =============================================================================
+# Channel 1 → Pulse 1  (lead melody with vibrato)
+# Channel 2 → Pulse 2  (harmony / bridge counter-melody)
+# Channel 3 → Triangle (walking bass, natural pluck articulation)
+# Channel 4 → Noise    (sparse RPG percussion)
+# (No channel 5 / DMC — early-era RPG style, 4-channel arrangement)
+channel 1 => inst melody  seq pulse1_main
+channel 2 => inst chord   seq pulse2_main
+channel 3 => inst bass    seq bass_main
+channel 4 => inst kick    seq drum_main
+
+# =============================================================================
+# Playback
+# =============================================================================
+play auto repeat
