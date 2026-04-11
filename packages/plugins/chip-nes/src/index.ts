@@ -29,10 +29,9 @@ import type { InstrumentNode } from '@beatbax/engine';
 import { createPulseChannel } from './pulse.js';
 import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
-import { createDmcChannel } from './dmc.js';
+import { createDmcChannel, resolveRawDMCSample } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
-import { resolveDMCSample } from './dmc.js';
 
 const nesPlugin: ChipPlugin = {
   name: 'nes',
@@ -57,9 +56,8 @@ const nesPlugin: ChipPlugin = {
   },
 
   async resolveSampleAsset(ref: string): Promise<ArrayBuffer> {
-    const decoded = await resolveDMCSample(ref);
-    // Return the raw Float32 buffer as ArrayBuffer
-    return decoded.buffer as ArrayBuffer;
+    // Return the raw DMC byte stream; decoding happens inside the DMC backend.
+    return resolveRawDMCSample(ref);
   },
 };
 
@@ -70,4 +68,4 @@ export { nesPlugin };
 export { PULSE_PERIOD, TRIANGLE_PERIOD, NOISE_PERIOD_TABLE, DMC_RATE_TABLE } from './periodTables.js';
 export { nesMix, getNesGainWeights, NES_MIX_GAIN } from './mixer.js';
 export { validateNesInstrument } from './validate.js';
-export { decodeDMC, resolveDMCSample } from './dmc.js';
+export { decodeDMC, resolveDMCSample, resolveRawDMCSample } from './dmc.js';

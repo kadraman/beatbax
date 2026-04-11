@@ -20,8 +20,8 @@ import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
 /**
  * Decode a raw NES DMC byte stream into a Float32Array.
- * The DMC format uses 1-bit delta encoding: each bit represents ±1 step
- * from the previous DAC level (clamped to 0–127).
+ * The DMC format uses 1-bit delta encoding: each bit adjusts the DAC level
+ * by ±2 (clamped to 0–127), matching NES hardware behaviour.
  */
 export function decodeDMC(data: Uint8Array): Float32Array {
   const samples: number[] = [];
@@ -45,6 +45,50 @@ export function decodeDMC(data: Uint8Array): Float32Array {
     out[i] = (samples[i] - 64) / 64;
   }
   return out;
+}
+
+/**
+ * Resolve a DMC sample reference to the raw NES DMC byte stream (no decoding).
+ *
+ * This is the correct format for `ChipPlugin.resolveSampleAsset()` — the engine
+ * receives raw asset bytes and passes them to the backend for decoding.
+ */
+export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
+  if (ref.startsWith('@nes/')) {
+    const name = ref.slice(5);
+    const b64 = BUNDLED_SAMPLES[name];
+    if (!b64) {
+      throw new Error(`NES DMC: bundled sample '@nes/${name}' not found. Available: ${Object.keys(BUNDLED_SAMPLES).join(', ')}`);
+    }
+    const binaryStr = atob(b64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  if (ref.startsWith('https://')) {
+    const res = await fetch(ref);
+    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}': HTTP ${res.status}`);
+    return res.arrayBuffer();
+  }
+
+  if (ref.startsWith('local:')) {
+    if (isBrowser) {
+      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>' or 'https://' instead.`);
+    }
+    const path = ref.slice(6);
+    // Normalise separators then check for '..' as a path segment (not as part of
+    // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
+    const normalized = path.replace(/\\/g, '/');
+    if (/(^|\/)\.\.($|\/)/.test(normalized)) {
+      throw new Error(`NES DMC: path traversal detected in sample reference '${ref}'`);
+    }
+    const { readFileSync } = await import('fs');
+    const bytes = readFileSync(path);
+    return new Uint8Array(bytes).buffer;
+  }
+
+  throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', or 'local:'`);
 }
 
 // ─── Sample resolver ──────────────────────────────────────────────────────────
@@ -85,8 +129,10 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
       throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>' or 'https://' instead.`);
     }
     const path = ref.slice(6);
-    // Validate for path traversal
-    if (path.includes('..')) {
+    // Normalise separators then check for '..' as a path segment (not as part of
+    // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
+    const normalized = path.replace(/\\/g, '/');
+    if (/(^|\/)\.\.($|\/)/.test(normalized)) {
       throw new Error(`NES DMC: path traversal detected in sample reference '${ref}'`);
     }
     // Dynamic import of 'fs' so this module stays browser-safe at parse time
@@ -179,6 +225,79 @@ export class NESDMCBackend implements ChipChannelBackend {
     this.sampleData = data;
   }
 
+  // ── Web Audio path ──────────────────────────────────────────────────────────
+
+  /**
+   * Create Web Audio nodes for browser playback.
+   * Returns [BufferSourceNode, GainNode] with the decoded DMC sample upsampled
+   * to ctx.sampleRate. Sample is sourced synchronously from the cache/bundled
+   * library so it plays immediately on the first trigger.
+   */
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    _freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    _scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null {
+    if (typeof (ctx as any).createBuffer !== 'function') return null;
+
+    const rateIdx = Math.max(0, Math.min(15, Number(inst.dmc_rate ?? 7)));
+    const dmcHz = DMC_RATE_TABLE[rateIdx];
+    const loopSample = inst.dmc_loop === true || inst.dmc_loop === 'true';
+
+    // Get sample data synchronously: check cache first, then decode bundled sample
+    const sampleRef = inst.dmc_sample;
+    let sampleData: Float32Array | null = this.sampleData;
+    if (!sampleData && typeof sampleRef === 'string') {
+      const cached = NESDMCBackend.sampleCache.get(sampleRef);
+      if (cached) {
+        sampleData = cached;
+      } else if (sampleRef.startsWith('@nes/')) {
+        sampleData = decodeDMCSampleSync(sampleRef) ?? null;
+        if (sampleData) NESDMCBackend.sampleCache.set(sampleRef, sampleData);
+      }
+    }
+    if (!sampleData) return null;
+
+    const sampleRate = ctx.sampleRate;
+    // Upsample DMC sample from dmcHz to ctx.sampleRate
+    const phaseInc = dmcHz / sampleRate;
+    const gain = NES_MIX_GAIN.dmc * 127;
+    const maxSamples = Math.ceil((dur + 0.1) * sampleRate);
+    const abuf = (ctx as any).createBuffer(1, maxSamples, sampleRate);
+    const data = abuf.getChannelData(0);
+    let pos = 0;
+    let phase = 0;
+    const srcLen = sampleData.length;
+    for (let i = 0; i < maxSamples; i++) {
+      const srcIdx = Math.floor(pos);
+      if (srcIdx >= srcLen) {
+        if (loopSample) { pos = 0; phase = 0; } else break;
+      }
+      data[i] = (sampleData[Math.min(srcIdx, srcLen - 1)] ?? 0) * gain;
+      phase += phaseInc;
+      const steps = Math.floor(phase);
+      if (steps > 0) { pos += steps; phase -= steps; }
+    }
+
+    const source = (ctx as any).createBufferSource();
+    source.buffer = abuf;
+
+    const gainNode = (ctx as any).createGain();
+    gainNode.gain.value = 1;
+
+    source.connect(gainNode);
+    gainNode.connect(destination || (ctx as any).destination);
+
+    try { source.start(start); } catch (e) { try { source.start(); } catch (_) {} }
+    try { source.stop(start + dur + 0.1); } catch (_) {}
+
+    return [source, gainNode];
+  }
+
   private _loadSampleAsync(ref: string): void {
     const cached = NESDMCBackend.sampleCache.get(ref);
     if (cached) {
@@ -194,6 +313,27 @@ export class NESDMCBackend implements ChipChannelBackend {
         // Non-fatal: channel will be silent if sample fails to load
         console.warn(`NES DMC: failed to load sample '${ref}':`, err.message);
       });
+  }
+}
+
+// ─── Synchronous bundled sample decoder ──────────────────────────────────────
+
+/**
+ * Decode a bundled `@nes/<name>` sample reference synchronously.
+ * Returns null if the reference is not a bundled sample or decoding fails.
+ */
+function decodeDMCSampleSync(ref: string): Float32Array | undefined {
+  if (!ref.startsWith('@nes/')) return undefined;
+  const name = ref.slice(5);
+  const b64 = BUNDLED_SAMPLES[name];
+  if (!b64) return undefined;
+  try {
+    const binaryStr = atob(b64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    return decodeDMC(bytes);
+  } catch (_) {
+    return undefined;
   }
 }
 

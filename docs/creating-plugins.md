@@ -279,6 +279,79 @@ Security guidelines follow the BeatBax import security model (`docs/language/imp
 
 ---
 
+## Dual Rendering: PCM and Web Audio
+
+BeatBax uses two audio rendering paths depending on the runtime environment:
+
+| Path | Used when | Effects support |
+|------|-----------|-----------------|
+| **PCM** (`render()`) | CLI, headless, Node.js | None (no AudioParam automation) |
+| **Web Audio** (`createPlaybackNodes()`) | Browser / Electron | Full (arp, vib, portamento, retrigger, echo…) |
+
+**Melodic channels** (pulse, triangle) should implement **both** so that:
+- The CLI produces audio via the `render()` PCM loop.
+- The web-ui uses `createPlaybackNodes()` and gets the full effects system for free.
+
+**Percussion/sample channels** (noise, DMC) only need `render()` since they don't use melodic effects.
+
+### Implementing `createPlaybackNodes()`
+
+```typescript
+import type { ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
+
+class MyPulseBackend implements ChipChannelBackend {
+  // ... PCM fields / reset / noteOn / noteOff / applyEnvelope / render ...
+
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    freq: number,
+    start: number,       // absolute AudioContext time for the note onset
+    dur: number,         // note duration in seconds
+    inst: InstrumentNode,
+    _scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null {
+    if (typeof (ctx as any).createOscillator !== 'function') return null;
+
+    const osc = (ctx as any).createOscillator();
+    const gain = (ctx as any).createGain();
+
+    // 1. Set waveform (PeriodicWave or built-in type)
+    osc.type = 'square';
+
+    // 2. Set frequency; MUST store _baseFreq so the arp effect can read it
+    osc.frequency.setValueAtTime(freq, start);
+    (osc as any)._baseFreq = freq;
+
+    // 3. Wire nodes: oscillator → gain → destination
+    osc.connect(gain);
+    gain.connect(destination);
+
+    // 4. Schedule amplitude envelope on gain.gain AudioParam
+    const vol = Number(inst.vol ?? 1);
+    gain.gain.setValueAtTime(vol, start);
+    gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+
+    // 5. Schedule note lifetime
+    osc.start(start);
+    osc.stop(start + dur + 0.02);
+
+    // 6. Return [oscillatorNode, gainNode] — the engine applies effects to these
+    return [osc, gain];
+  }
+}
+```
+
+**Key requirements:**
+- `(osc as any)._baseFreq` must be set **before** returning so the `arp` effect can read the base pitch for semitone offsets.
+- Return `null` if the context is not a Web Audio context (e.g. a mock in tests) to fall back to PCM.
+- Connect `osc → gain → destination`; the engine inserts effects (pan, echo) between `gain` and `destination` automatically.
+- Call `osc.start(start)` / `osc.stop(start + dur + 0.02)` using the provided `start` time, not `ctx.currentTime`.
+
+**The NES plugin** (`packages/plugins/chip-nes/src/pulse.ts` and `triangle.ts`) is the canonical example of the dual-path pattern with duty-cycle `PeriodicWave`, envelope scheduling, and hardware sweep animation.
+
+---
+
 ## Testing
 
 Use the `ChipRegistry` directly in tests:

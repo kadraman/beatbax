@@ -24,6 +24,7 @@ import {
   patternEventsToTokens,
 } from '../structured.js';
 import { parseSweep } from '../../chips/gameboy/pulse.js';
+import { chipRegistry } from '../../chips/index.js';
 import { warn } from '../../util/diag.js';
 import { applyModsToTokens } from '../../expand/refExpander.js';
 import { createLogger } from '../../util/logger.js';
@@ -641,8 +642,9 @@ export function parseWithPeggy(source: string): AST {
   const diag = (level: ParseDiagnostic['level'], component: string, message: string, loc?: SourceLocation) =>
     diagnostics.push({ level, component, message, loc });
 
-  // Chip name validation
-  const VALID_CHIPS = ['gameboy', 'gb', 'dmg'];
+  // Chip name validation — check the registry (includes plugins loaded at runtime)
+  const registeredChips = chipRegistry.list();
+  const VALID_CHIPS = [...new Set(['gameboy', 'gb', 'dmg', ...registeredChips])];
   if (chipName && !VALID_CHIPS.includes(String(chipName).toLowerCase())) {
     diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${VALID_CHIPS.join(', ')}.`, chipLoc);
   }
@@ -656,7 +658,15 @@ export function parseWithPeggy(source: string): AST {
   }
 
   // Instrument type and property validation
-  const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
+  // Collect valid types from registry if a plugin chip is in use
+  const resolvedChipName = chipName ? String(chipName).toLowerCase() : 'gameboy';
+  const activePlugin = chipRegistry.get(resolvedChipName);
+  const VALID_INST_TYPES_BUILTIN = ['pulse1', 'pulse2', 'wave', 'noise'];
+  // When a plugin chip is active, skip built-in type validation — the plugin's
+  // validateInstrument() is responsible for its own instrument types.
+  const VALID_INST_TYPES: string[] | null = activePlugin
+    ? null   // null = skip type checking (plugin handles it)
+    : VALID_INST_TYPES_BUILTIN;
   const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
   const INST_TYPE_PROPS: Record<string, Set<string>> = {
     pulse1: new Set(['duty', 'sweep', 'width']),
@@ -668,9 +678,9 @@ export function parseWithPeggy(source: string): AST {
     const p = instDef as any;
     const instLoc: SourceLocation | undefined = p.__loc;
     const type: string | undefined = p.type;
-    if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
+    if (VALID_INST_TYPES && type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
       diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
-    } else {
+    } else if (!activePlugin) {
       const typeKey = type ? String(type).toLowerCase() : '';
       const allowedProps = new Set([...INST_COMMON_PROPS, ...(INST_TYPE_PROPS[typeKey] ?? [])]);
       for (const key of Object.keys(p)) {

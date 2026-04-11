@@ -63,12 +63,12 @@ function parseNoiseEnvelope(inst: InstrumentNode): NESNoiseEnvelope {
 
   if (inst.env) {
     const parts = String(inst.env).split(',').map(s => s.trim());
-    if (parts.length >= 1) initial = Math.max(0, Math.min(15, parseInt(parts[0], 10) || 15));
+    if (parts.length >= 1) { const v = parseInt(parts[0], 10); initial = Math.max(0, Math.min(15, isNaN(v) ? 15 : v)); }
     if (parts.length >= 2) {
       const dir = parts[1].toLowerCase();
       direction = dir === 'up' ? 'up' : dir === 'flat' ? 'flat' : 'down';
     }
-    if (parts.length >= 3) period = Math.max(0, Math.min(15, parseInt(parts[2], 10) || 0));
+    if (parts.length >= 3) { const v = parseInt(parts[2], 10); period = Math.max(0, Math.min(15, isNaN(v) ? 0 : v)); }
   }
 
   if (inst.env_period !== undefined) period = Math.max(0, Math.min(15, Number(inst.env_period)));
@@ -172,6 +172,118 @@ export class NESNoiseBackend implements ChipChannelBackend {
       }
     }
   }
+
+  // ── Web Audio path ──────────────────────────────────────────────────────────
+
+  /**
+   * Create Web Audio nodes for browser playback.
+   * Returns [BufferSourceNode, GainNode] with the LFSR noise pre-rendered into
+   * an AudioBuffer at the context sample rate, plus NES envelope automation.
+   * Each percussion hit gets its own independent AudioBuffer so multiple
+   * simultaneous triggers (kick, snare, hihat) don't overwrite each other.
+   */
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    _freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    _scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null {
+    if (typeof (ctx as any).createBuffer !== 'function') return null;
+
+    const periodIdx = Math.max(0, Math.min(15, Number(inst.noise_period ?? 8)));
+    const timerPeriod = NOISE_PERIOD_TABLE[periodIdx];
+    const lfsrHz = NES_CLOCK / (timerPeriod * 2);
+
+    const mode = (inst.noise_mode || 'normal').toString().toLowerCase();
+    const srcBuf = (mode === 'loop') ? LOOP_LFSR_BUF : NORMAL_LFSR_BUF;
+
+    // Build upsampled LFSR buffer limited to note duration + tail
+    const sampleRate = ctx.sampleRate;
+    const totalSamples = Math.ceil((dur + 0.05) * sampleRate);
+    const abuf = (ctx as any).createBuffer(1, totalSamples, sampleRate);
+    const data = abuf.getChannelData(0);
+    const phaseInc = lfsrHz / sampleRate;
+    let phase = 0;
+    let lfsrIdx = 0;
+    const lfsrLen = srcBuf.length;
+    for (let i = 0; i < totalSamples; i++) {
+      data[i] = srcBuf[lfsrIdx];
+      phase += phaseInc;
+      const steps = Math.floor(phase);
+      if (steps > 0) {
+        lfsrIdx = (lfsrIdx + steps) % lfsrLen;
+        phase -= steps;
+      }
+    }
+
+    const source = (ctx as any).createBufferSource();
+    source.buffer = abuf;
+
+    const gainNode = (ctx as any).createGain();
+    applyNESNoiseEnvelopeToGain(gainNode.gain, parseNoiseEnvelope(inst), start, dur);
+
+    source.connect(gainNode);
+    gainNode.connect(destination || (ctx as any).destination);
+
+    try { source.start(start); } catch (e) { try { source.start(); } catch (_) {} }
+    try { source.stop(start + dur + 0.05); } catch (_) {}
+
+    return [source, gainNode];
+  }
+}
+
+// ─── Web Audio envelope helper ────────────────────────────────────────────────
+
+const NES_NOISE_FRAME_RATE = 60;
+
+function applyNESNoiseEnvelopeToGain(
+  gainParam: any,
+  env: NESNoiseEnvelope,
+  start: number,
+  dur: number
+): void {
+  const mixGain = NES_MIX_GAIN.noise;
+  const initialGain = (env.initial / 15) * mixGain;
+
+  if (env.direction === 'flat' || env.period === 0) {
+    try { gainParam.setValueAtTime(initialGain, start); } catch (_) {}
+    try {
+      gainParam.setValueAtTime(Math.max(0.0001, initialGain), start + dur);
+      gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+    } catch (_) {}
+    return;
+  }
+
+  const stepInterval = (env.period + 1) / NES_NOISE_FRAME_RATE;
+  const vals: number[] = [];
+  let cur = env.initial;
+  vals.push((cur / 15) * mixGain);
+  while (vals.length < 256) {
+    if (env.direction === 'down') cur = Math.max(0, cur - 1);
+    else cur = Math.min(15, cur + 1);
+    vals.push((cur / 15) * mixGain);
+    if (env.loop) {
+      if (env.direction === 'down' && cur === 0) cur = 15;
+      else if (env.direction === 'up' && cur === 15) cur = 0;
+    } else {
+      if (cur === 0 || cur === 15) break;
+    }
+  }
+
+  const curve = new Float32Array(vals);
+  const curveDuration = (vals.length - 1) * stepInterval;
+  try {
+    gainParam.setValueCurveAtTime(curve, start, Math.min(curveDuration, dur > 0 ? dur : curveDuration));
+  } catch (_) {
+    try { gainParam.setValueAtTime(vals[0], start); } catch (_) {}
+  }
+  try {
+    gainParam.setValueAtTime(0.0001, start + dur);
+    gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+  } catch (_) {}
 }
 
 export function createNoiseChannel(_audioContext: BaseAudioContext): ChipChannelBackend {

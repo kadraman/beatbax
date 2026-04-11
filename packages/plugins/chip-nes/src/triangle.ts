@@ -7,10 +7,19 @@
  *   - Software gate: `vol=0` silences the channel; any other value gives full amplitude
  *   - Linear counter: `linear` field (1–127 ticks at 240 Hz) controls note duration
  *   - Frequency formula: f = 1,789,773 / (32 × (period + 1))
+ *
+ * Dual rendering paths:
+ *   - PCM (CLI/headless): `render()` fills a Float32Array sample buffer directly.
+ *   - Web Audio (browser): `createPlaybackNodes()` returns [OscillatorNode, GainNode]
+ *     using an odd-harmonic PeriodicWave that closely matches the NES 32-step
+ *     staircase. This enables arp, vib, and portamento effects in the web-ui.
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NES_MIX_GAIN } from './mixer.js';
+
+/** Constant output gain for the triangle Web Audio path (no hardware envelope). */
+const NES_TRIANGLE_WEB_GAIN = 0.5;
 
 /** 32-step quantised triangle waveform (hardware NES values, 0–15 each step). */
 const TRIANGLE_WAVE_32: number[] = [
@@ -27,6 +36,7 @@ export class NESTriangleBackend implements ChipChannelBackend {
   // Linear counter state (in samples)
   private linearCounterSamples: number = Infinity;
   private sampleCount: number = 0;
+  private linearTicks: number = 0;
 
   reset(): void {
     this.active = false;
@@ -35,6 +45,7 @@ export class NESTriangleBackend implements ChipChannelBackend {
     this.phase = 0;
     this.linearCounterSamples = Infinity;
     this.sampleCount = 0;
+    this.linearTicks = 0;
   }
 
   noteOn(frequency: number, instrument: InstrumentNode): void {
@@ -47,13 +58,12 @@ export class NESTriangleBackend implements ChipChannelBackend {
     // Linear counter: `linear` field in ticks at 240 Hz; 0 = no counter (infinite duration)
     const linear = instrument.linear !== undefined ? Number(instrument.linear) : 0;
     if (linear > 0) {
-      this.linearCounterSamples = Infinity; // computed in render where sampleRate is known
-      // Store the linear value for use in render
-      (this as any)._linearTicks = Math.max(1, Math.min(127, linear));
+      this.linearCounterSamples = Infinity; // computed in render() where sampleRate is known
+      this.linearTicks = Math.max(1, Math.min(127, linear));
     } else {
       // linear=0 means no linear counter (sustain indefinitely)
       this.linearCounterSamples = Infinity;
-      (this as any)._linearTicks = 0;
+      this.linearTicks = 0;
     }
   }
 
@@ -61,8 +71,69 @@ export class NESTriangleBackend implements ChipChannelBackend {
     this.active = false;
   }
 
+  /** Update frequency mid-note without resetting phase or linear counter (used by arpeggio). */
+  setFrequency(frequency: number): void {
+    if (!this.active) return;
+    this.freq = frequency;
+  }
+
   applyEnvelope(_frame: number): void {
     // Triangle has no hardware envelope; linear counter is handled in render
+  }
+
+  // ── Web Audio path ─────────────────────────────────────────────────────────
+
+  /**
+   * Create Web Audio nodes for browser playback.
+   * Returns [OscillatorNode, GainNode] using an odd-harmonic PeriodicWave
+   * that closely matches the NES 32-step triangle staircase. Since the
+   * triangle has no volume envelope, gain is held constant (or silenced
+   * when `vol=0` is set on the instrument).
+   */
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    _scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null {
+    if (typeof (ctx as any).createOscillator !== 'function') return null;
+
+    const osc = (ctx as any).createOscillator();
+    const gain = (ctx as any).createGain();
+
+    // Approximate NES 32-step staircase with an odd-harmonic PeriodicWave
+    const pw = createNESTriangleWave(ctx);
+    try { osc.setPeriodicWave(pw); } catch (_) { try { osc.type = 'triangle'; } catch (_) {} }
+
+    // Align frequency to NES triangle period table: f = 1,789,773 / (32 × (period + 1))
+    let alignedFreq = freq;
+    if (freq > 0) {
+      const period = Math.round(1789773 / (32 * freq) - 1);
+      if (period >= 2 && period <= 2047) alignedFreq = 1789773 / (32 * (period + 1));
+    }
+    const safeFreq = Math.max(1, alignedFreq);
+    try { osc.frequency.setValueAtTime(safeFreq, start); } catch (_) {}
+    // _baseFreq is read by the arp effect to determine base pitch before automation
+    (osc as any)._baseFreq = safeFreq;
+
+    osc.connect(gain);
+    gain.connect(destination || (ctx as any).destination);
+
+    // Triangle has no envelope: constant gain unless vol=0 (software mute)
+    const vol = (inst.vol !== undefined && Number(inst.vol) === 0) ? 0 : NES_TRIANGLE_WEB_GAIN;
+    try { gain.gain.setValueAtTime(vol, start); } catch (_) {}
+    try {
+      gain.gain.setValueAtTime(Math.max(0.0001, vol), start + dur);
+      gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+    } catch (_) {}
+
+    try { osc.start(start); } catch (e) { try { osc.start(); } catch (_) {} }
+    try { osc.stop(start + dur + 0.02); } catch (_) {}
+
+    return [osc, gain];
   }
 
   render(buffer: Float32Array, sampleRate: number): void {
@@ -75,10 +146,9 @@ export class NESTriangleBackend implements ChipChannelBackend {
     if (freq <= 0) return;
 
     // Set up linear counter (in samples) on first render for this note
-    const linearTicks: number = (this as any)._linearTicks ?? 0;
-    if (linearTicks > 0 && this.linearCounterSamples === Infinity) {
+    if (this.linearTicks > 0 && this.linearCounterSamples === Infinity) {
       // linear ticks at 240 Hz
-      this.linearCounterSamples = Math.floor((linearTicks / 240) * sampleRate);
+      this.linearCounterSamples = Math.floor((this.linearTicks / 240) * sampleRate);
     }
 
     // Gain: triangle is always at maximum (half scale to mix with other channels)
@@ -99,6 +169,31 @@ export class NESTriangleBackend implements ChipChannelBackend {
       this.sampleCount++;
     }
   }
+}
+
+// ─── Web Audio helpers ────────────────────────────────────────────────────────
+
+/**
+ * Build a PeriodicWave that closely approximates the NES 32-step triangle
+ * staircase using only odd harmonics with alternating signs.
+ *
+ * Standard triangle Fourier series (odd harmonics only):
+ *   b_n = (8 / (π² × n²)) × (-1)^((n-1)/2)  for odd n
+ *
+ * This matches the NES hardware waveform closely; any residual staircase
+ * artefacts are inaudible at typical NES frequencies (below 2 kHz).
+ */
+function createNESTriangleWave(ctx: BaseAudioContext): any {
+  const size = 256;
+  const real = new Float32Array(size);
+  const imag = new Float32Array(size);
+  // Only odd harmonics: 1, 3, 5, ...
+  for (let k = 0; (2 * k + 1) < size; k++) {
+    const n = 2 * k + 1;
+    const sign = (k % 2 === 0) ? 1 : -1;
+    imag[n] = sign * (8 / (Math.PI * Math.PI * n * n));
+  }
+  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
 }
 
 export function createTriangleChannel(_audioContext: BaseAudioContext): ChipChannelBackend {

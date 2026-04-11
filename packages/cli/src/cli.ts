@@ -1,5 +1,5 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary, chipRegistry, BeatBaxEngine } from '@beatbax/engine';
+import { playFile, readUGEFile, getUGESummary, chipRegistry } from '@beatbax/engine';
 import type { ChipPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
@@ -506,8 +506,6 @@ program
  */
 async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<ChipPlugin[]> {
   const discovered: ChipPlugin[] = [];
-  const { createRequire } = await import('module');
-  const req = createRequire(import.meta.url);
 
   // Collect candidate package names from node_modules
   const candidates: string[] = [];
@@ -528,12 +526,12 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
       try {
         const entries = readdirSync(nmDir, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
+          if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
           // Scoped packages (e.g. @beatbax/plugin-chip-nes)
           if (entry.name === '@beatbax') {
             const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
             for (const scoped of scopedEntries) {
-              if (scoped.isDirectory() && scoped.name.startsWith('plugin-chip-')) {
+              if ((scoped.isDirectory() || scoped.isSymbolicLink()) && scoped.name.startsWith('plugin-chip-')) {
                 candidates.push(`@beatbax/${scoped.name}`);
               }
             }
@@ -594,9 +592,6 @@ program
     const globalOpts = program.opts();
     const verbose = globalOpts?.verbose === true;
 
-    // Auto-discover plugins
-    await discoverPlugins({ verbose });
-
     const chips = chipRegistry.list();
 
     if (options.json) {
@@ -620,4 +615,12 @@ program
     }
   });
 
-program.parse();
+// Auto-discover chip plugins once at startup, before program.parse(), so that
+// every command (play, verify, export, list-chips) sees third-party chips.
+// We cannot rely on a preAction hook because program.opts() is unavailable
+// before parse() runs, and async hooks may race with synchronous startup code.
+(async () => {
+  const verbose = process.argv.includes('--verbose') || process.argv.includes('-v');
+  await discoverPlugins({ verbose });
+  program.parse();
+})();

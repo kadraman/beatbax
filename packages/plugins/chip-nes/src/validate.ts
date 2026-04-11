@@ -85,14 +85,11 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
     }
     if (inst.vol !== undefined) {
       const vol = Number(inst.vol);
-      if (vol !== 0 && vol !== 15 && vol !== 1) {
-        // Only 0 (mute) or non-zero (full amplitude) are meaningful
-        // Warn but don't error for intermediate values
-        errors.push({
-          field: 'vol',
-          message: `Triangle channel ignores vol values other than 0 (mute). Got ${vol} — treating as full amplitude`
-        });
+      if (vol === 0) {
+        // vol=0 means mute; any non-zero value is treated as full amplitude —
+        // the triangle channel has no hardware volume control.
       }
+      // Intermediate values (1-14) are silently accepted and treated as full amplitude.
     }
   }
 
@@ -138,7 +135,7 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
 
     if (inst.dmc_sample !== undefined) {
       const ref = String(inst.dmc_sample);
-      const validSchemes = ref.startsWith('@nes/') || ref.startsWith('https://') || ref.startsWith('http://') || ref.startsWith('local:');
+      const validSchemes = ref.startsWith('@nes/') || ref.startsWith('https://') || ref.startsWith('local:');
       if (!validSchemes) {
         errors.push({
           field: 'dmc_sample',

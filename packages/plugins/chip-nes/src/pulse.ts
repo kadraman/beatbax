@@ -7,6 +7,13 @@
  *   - Volume envelope with period and loop control
  *   - Hardware pitch sweep with muting conditions (period < 8 or target > 2047)
  *   - Constant volume mode when `vol` is specified
+ *
+ * Dual rendering paths:
+ *   - PCM (CLI/headless): `render()` fills a Float32Array sample buffer directly.
+ *   - Web Audio (browser): `createPlaybackNodes()` returns [OscillatorNode, GainNode]
+ *     with envelope and sweep automation scheduled on AudioParams. This enables
+ *     the full effects system (arp, vib, portamento, etc.) in the web-ui, exactly
+ *     as the built-in Game Boy pulse channels work.
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
@@ -48,12 +55,12 @@ function parseNESEnvelope(inst: InstrumentNode): NESEnvelope {
   if (inst.env) {
     const envStr = String(inst.env);
     const parts = envStr.split(',').map(s => s.trim());
-    if (parts.length >= 1) initial = Math.max(0, Math.min(15, parseInt(parts[0], 10) || 15));
+    if (parts.length >= 1) { const v = parseInt(parts[0], 10); initial = Math.max(0, Math.min(15, isNaN(v) ? 15 : v)); }
     if (parts.length >= 2) {
       const dir = parts[1].toLowerCase();
       direction = (dir === 'up' ? 'up' : (dir === 'flat' ? 'flat' : 'down'));
     }
-    if (parts.length >= 3) period = Math.max(0, Math.min(15, parseInt(parts[2], 10) || 0));
+    if (parts.length >= 3) { const v = parseInt(parts[2], 10); period = Math.max(0, Math.min(15, isNaN(v) ? 0 : v)); }
   }
 
   if (inst.env_period !== undefined) {
@@ -158,6 +165,18 @@ export class NESPulseBackend implements ChipChannelBackend {
     this.active = false;
   }
 
+  /** Update frequency mid-note without resetting envelope or phase (used by arpeggio). */
+  setFrequency(frequency: number): void {
+    if (!this.active) return;
+    this.freq = frequency;
+    if (frequency > 0) {
+      this.currentPeriod = Math.round(1789773 / (16 * frequency) - 1);
+      this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
+    } else {
+      this.muted = true;
+    }
+  }
+
   applyEnvelope(frame: number): void {
     if (!this.active || !this.currentInst) return;
     const env = parseNESEnvelope(this.currentInst);
@@ -228,6 +247,154 @@ export class NESPulseBackend implements ChipChannelBackend {
       this.phase = (this.phase + phaseInc);
       if (this.phase >= 8) this.phase -= 8;
     }
+  }
+
+  // ── Web Audio path ─────────────────────────────────────────────────────────
+
+  /**
+   * Create Web Audio nodes for browser playback.
+   * Returns [OscillatorNode, GainNode] with NES duty-cycle PeriodicWave,
+   * envelope automation, and (optional) hardware sweep automation on the
+   * oscillator frequency. The engine then applies effects (arp, vib, etc.)
+   * to the returned nodes via AudioParam automation.
+   */
+  createPlaybackNodes(
+    ctx: BaseAudioContext,
+    freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null {
+    if (typeof (ctx as any).createOscillator !== 'function') return null;
+
+    const dutyRatio = Number(inst.duty ?? 50) / 100;
+    const osc = (ctx as any).createOscillator();
+    const gain = (ctx as any).createGain();
+
+    // NES-accurate duty PeriodicWave (Fourier series of a pulse wave)
+    const pw = createNESPulseWave(ctx, dutyRatio);
+    try { osc.setPeriodicWave(pw); } catch (_) { try { osc.type = 'square'; } catch (_) {} }
+
+    // Align frequency to NES period table: f = 1,789,773 / (16 × (period + 1))
+    let alignedFreq = freq;
+    if (freq > 0) {
+      const period = Math.round(1789773 / (16 * freq) - 1);
+      if (period >= 8 && period <= 2047) alignedFreq = 1789773 / (16 * (period + 1));
+    }
+    const safeFreq = Math.max(1, alignedFreq);
+    try { osc.frequency.setValueAtTime(safeFreq, start); } catch (_) {}
+    // _baseFreq is read by the arp effect to determine base pitch before automation
+    (osc as any)._baseFreq = safeFreq;
+
+    // Hardware sweep — scheduled as discrete setValueAtTime steps on osc.frequency
+    const sweep = parseNESSweep(inst);
+    if (sweep.enabled && sweep.shift > 0 && freq > 0) {
+      const initialPeriod = Math.round(1789773 / (16 * freq) - 1);
+      applyNESSweepToFreq(osc.frequency, initialPeriod, start, dur, sweep);
+    }
+
+    osc.connect(gain);
+    gain.connect(destination || (ctx as any).destination);
+
+    // Volume envelope: setValueCurveAtTime stepping at the NES frame rate
+    applyNESEnvelopeToGain(gain.gain, parseNESEnvelope(inst), start, dur);
+
+    try { osc.start(start); } catch (e) { try { osc.start(); } catch (_) {} }
+    try { osc.stop(start + dur + 0.02); } catch (_) {}
+
+    return [osc, gain];
+  }
+}
+
+// ─── Web Audio helpers ────────────────────────────────────────────────────────
+
+const NES_FRAME_RATE = 60; // NTSC ~60.1 Hz; close enough for envelope/sweep timing
+
+/**
+ * Build a PeriodicWave matching an NES pulse duty cycle.
+ * Uses the same Fourier-series approach as the built-in Game Boy pulse channel.
+ */
+function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
+  const size = 4096;
+  const real = new Float32Array(size);
+  const imag = new Float32Array(size);
+  const d = Math.max(0, Math.min(1, dutyRatio));
+  for (let n = 1; n < 201; n++) {
+    const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * d);
+    imag[n] = Number.isFinite(a) ? a : 0;
+  }
+  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+}
+
+/**
+ * Schedule NES volume-envelope automation on a GainNode.gain AudioParam.
+ * Steps through volume levels at the NES hardware frame rate.
+ */
+function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number, dur: number): void {
+  const initialGain = env.initial / 15;
+
+  if (env.direction === 'flat' || env.period === 0) {
+    try { gainParam.setValueAtTime(initialGain, start); } catch (_) {}
+    try {
+      gainParam.setValueAtTime(Math.max(0.0001, initialGain), start + dur);
+      gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+    } catch (_) {}
+    return;
+  }
+
+  // Build gain curve: one value per envelope step
+  const stepInterval = (env.period + 1) / NES_FRAME_RATE;
+  const vals: number[] = [];
+  let cur = env.initial;
+  vals.push(cur / 15);
+  while (vals.length < 256) {
+    if (env.direction === 'down') cur = Math.max(0, cur - 1);
+    else cur = Math.min(15, cur + 1);
+    vals.push(cur / 15);
+    if (env.loop) {
+      if (env.direction === 'down' && cur === 0) cur = 15;
+      else if (env.direction === 'up' && cur === 15) cur = 0;
+    } else {
+      if (cur === 0 || cur === 15) break;
+    }
+  }
+
+  const curve = new Float32Array(vals);
+  const curveDuration = (vals.length - 1) * stepInterval;
+  try {
+    gainParam.setValueCurveAtTime(curve, start, Math.min(curveDuration, dur > 0 ? dur : curveDuration));
+  } catch (_) {
+    try { gainParam.setValueAtTime(vals[0], start); } catch (_) {}
+  }
+  try {
+    gainParam.setValueAtTime(0.0001, start + dur);
+    gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+  } catch (_) {}
+}
+
+/**
+ * Schedule NES hardware pitch-sweep automation on an OscillatorNode.frequency
+ * AudioParam. Fires one `setValueAtTime` per sweep step.
+ */
+function applyNESSweepToFreq(freqParam: any, initialPeriod: number, start: number, dur: number, sweep: NESSweep): void {
+  const stepInterval = sweep.period / NES_FRAME_RATE;
+  let currentPeriod = initialPeriod;
+  const numSteps = Math.floor(dur / stepInterval);
+  for (let i = 1; i <= numSteps; i++) {
+    const t = start + i * stepInterval;
+    const delta = currentPeriod >> sweep.shift;
+    // BeatBax uses intuitive musical direction: 'up' = pitch rises (period shrinks),
+    // 'down' = pitch falls (period grows). This is opposite to the NES negate flag
+    // where negate=1 ("down") subtracts from the period and raises pitch.
+    const newPeriod = sweep.direction === 'up' ? currentPeriod - delta : currentPeriod + delta;
+    if (newPeriod < 8 || newPeriod > 2047) {
+      try { freqParam.setValueAtTime(0, t); } catch (_) {}
+      break;
+    }
+    currentPeriod = newPeriod;
+    try { freqParam.setValueAtTime(1789773 / (16 * (currentPeriod + 1)), t); } catch (_) {}
   }
 }
 

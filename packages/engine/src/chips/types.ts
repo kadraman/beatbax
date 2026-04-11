@@ -32,6 +32,17 @@ export interface ChipChannelBackend {
   noteOff(): void;
 
   /**
+   * Update the channel frequency without resetting envelope or phase state.
+   * Used by the arpeggio effect on PCM-based backends (e.g. NES plugin) to
+   * cycle through chord tones at the chip frame rate without re-triggering
+   * the amplitude envelope on each step.
+   *
+   * Optional — backends that do not support mid-note frequency changes may
+   * omit this method; the engine will fall back to `noteOn` if absent.
+   */
+  setFrequency?(frequency: number): void;
+
+  /**
    * Advance per-frame envelope/sweep automation.
    * @param frame - Frame counter (incremented each audio frame).
    */
@@ -45,6 +56,46 @@ export interface ChipChannelBackend {
    * @param sampleRate - Audio context sample rate in Hz.
    */
   render(buffer: Float32Array, sampleRate: number): void;
+
+  /**
+   * Create Web Audio nodes for real-time browser playback of a single note.
+   *
+   * When present, the engine uses these nodes instead of the PCM `render()` path.
+   * This allows the full effects system (arp, vib, portamento, retrigger, echo,
+   * etc.) to work via `AudioParam` automation — exactly as it does for the
+   * built-in Game Boy channels.
+   *
+   * Implementations should:
+   *   1. Create an `OscillatorNode` (or `AudioBufferSourceNode` for samples).
+   *   2. Create a `GainNode` and schedule the instrument's amplitude envelope.
+   *   3. Connect: oscillator → gain → `destination`.
+   *   4. Call `oscillator.start(start)` and `oscillator.stop(start + dur + 0.02)`.
+   *   5. Store the base frequency as `(osc as any)._baseFreq` so the arp effect
+   *      can read it before automating `osc.frequency`.
+   *   6. Return `[oscillatorNode, gainNode]` so the engine can apply effects.
+   *
+   * Optional — backends that omit this method fall back to PCM rendering.
+   * Percussion and sample channels (noise, DMC) typically omit it; melodic
+   * channels (pulse, triangle) implement it to gain full effect support.
+   *
+   * @param ctx      - The current BaseAudioContext.
+   * @param freq     - Note frequency in Hz.
+   * @param start    - Absolute AudioContext time when the note begins.
+   * @param dur      - Note duration in seconds.
+   * @param inst     - The resolved instrument node.
+   * @param scheduler - The engine tick scheduler (for aligned scheduling).
+   * @param destination - AudioNode to connect the gain output to.
+   * @returns `[oscillatorNode, gainNode]`, or `null` to fall back to PCM.
+   */
+  createPlaybackNodes?(
+    ctx: BaseAudioContext,
+    freq: number,
+    start: number,
+    dur: number,
+    inst: InstrumentNode,
+    scheduler: any,
+    destination: AudioNode
+  ): AudioNode[] | null;
 }
 
 // ─── Plugin ───────────────────────────────────────────────────────────────────
