@@ -55,5 +55,5 @@ export const BUNDLED_SAMPLES: Record<string, string> = {
   snare:   makeSyntheticDMC(SNARE_PATTERN, 24),
   hihat:   makeSyntheticDMC(HIHAT_PATTERN, 16),
   crash:   makeSyntheticDMC(CRASH_PATTERN, 48),
-  bass:    makeSyntheticDMC(BASS_PATTERN, 64),
+  bass_c2: makeSyntheticDMC(BASS_PATTERN, 64),
 };

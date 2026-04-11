@@ -272,8 +272,7 @@ PatternRhs
     }
 
 PatternSep
-  = WS0 Comment? Newline WS1
-  / WS1
+  = (WS1 / Comment)+ WS0
 
 PatternItem
   = GroupRepeat
@@ -373,9 +372,7 @@ SeqRhs
     }
 
 SeqSep
-  = "," WS0
-  / WS0 Comment? Newline WS1
-  / WS1
+  = ("," WS0) / (WS1) / (Comment WS0)
 
 SeqItem
   = SeqGroupRepeat
