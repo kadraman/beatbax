@@ -5,18 +5,22 @@
  * base64-encoded raw DMC byte streams. Designed to be played at rate index 15
  * (33143 Hz, the "33 kHz" setting in FamiTracker).
  *
- * bass — synthetic sub-bass hit (no recorded file available).
+ * bass_c2, hihat, crash — synthetic samples (no recorded file available).
+ * hihat  is aliased from clap (bright, short transient).
+ * crash  is aliased from muted_bongo (dense, longer decay).
  *
  * Supported names (via '@nes/<name>' references):
  *   - bongo       — bongo hit (real sample, 385 bytes, rate 15)
  *   - clap        — hand clap (real sample, 497 bytes, rate 15)
+ *   - crash       — crash cymbal alias (mapped to clap, rate 15)
  *   - high_tom    — high tom (real sample, 833 bytes, rate 15)
+ *   - hihat       — hi-hat alias (mapped to clap, rate 15)
  *   - kick        — kick drum (real sample, 129 bytes, rate 15)
  *   - low_tom     — low tom (real sample, 833 bytes, rate 15)
  *   - middle_tom  — middle tom (real sample, 833 bytes, rate 15)
  *   - muted_bongo — muted bongo (real sample, 321 bytes, rate 15)
  *   - snare       — snare hit (real sample, 513 bytes, rate 15)
- *   - bass        — sub-bass note (synthetic, rate 15)
+ *   - bass_c2     — sub-bass note (synthetic, rate 15)
  */
 
 // Helper: generate a minimal synthetic DMC sample encoded as base64.
@@ -176,11 +180,13 @@ const BASS_PATTERN = [
 export const BUNDLED_SAMPLES: Record<string, string> = {
   bongo:       BONGO_SAMPLE,
   clap:        CLAP_SAMPLE,
+  crash:       CLAP_SAMPLE,       // alias: crash cymbal → clap (bright short transient)
   high_tom:    HIGH_TOM_SAMPLE,
+  hihat:       CLAP_SAMPLE,       // alias: hi-hat → clap (short, bright)
   kick:        KICK_SAMPLE,
   low_tom:     LOW_TOM_SAMPLE,
   middle_tom:  MIDDLE_TOM_SAMPLE,
   muted_bongo: MUTED_BONGO_SAMPLE,
   snare:       SNARE_SAMPLE,
-  bass:        makeSyntheticDMC(BASS_PATTERN, BASS_PATTERN.length),
+  bass_c2:     makeSyntheticDMC(BASS_PATTERN, BASS_PATTERN.length),
 };
