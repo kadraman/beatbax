@@ -346,12 +346,23 @@ function renderChannel(
     if (!inst) continue;
 
     const startSample = Math.floor(time * sampleRate);
-    const durationSamples = Math.floor(dur * sampleRate);
+    let durationSamples = Math.floor(dur * sampleRate);
 
-    // Debug: log first note duration for channel 1 to diagnose headless vs browser
-    try {
-        // diagnostic removed
-    } catch (e) {}
+    // For sample-based (DMC) instruments, extend the render window to the
+    // time of the next non-rest event so the sample rings out naturally,
+    // matching NES hardware behaviour (a sample plays until the next DMC
+    // note or until the sample ends, whichever comes first).
+    if (pluginBackend && inst.type && inst.type.toLowerCase() === 'dmc') {
+      let nextIdx = ch.events.length;
+      for (let j = i + 1; j < ch.events.length; j++) {
+        if (ch.events[j].type !== 'rest' && ch.events[j].type !== 'sustain') {
+          nextIdx = j;
+          break;
+        }
+      }
+      const extendedDur = (nextIdx - i) * tickSeconds;
+      if (extendedDur > dur) durationSamples = Math.floor(extendedDur * sampleRate);
+    }
 
     if (ev.type === 'note') {
       renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);

@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "clean-all": "npm -w @beatbax/engine run clean && npm -w @beatbax/plugin-chip-nes run clean && npm -w @beatbax/cli run clean && npm -w @beatbax/web-ui run clean",
-    "build-all": "npm run clean-all && npm run engine:build && npm run nes:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs",
+    "build-all": "npm run clean-all && npm run engine:build && npm run nes:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs && node scripts/link-local-plugins.cjs",
     "engine:build": "npm -w @beatbax/engine run build",
     "engine:test": "npm -w @beatbax/engine test",
     "engine:dev": "npm -w @beatbax/engine run dev",
@@ -45,7 +45,6 @@
     "beatbax": "bin/beatbax"
   },
   "dependencies": {
-    "@beatbax/plugin-chip-nes": "^0.1.0",
     "commander": "^12.0.0",
     "marked": "^5.1.1",
     "midiconvert": "^0.4.7",

@@ -6,9 +6,10 @@
   "scripts": {
     "clean": "rimraf dist",
     "prepare-engine": "node scripts/prepare-engine.js",
-    "dev": "npm run prepare-engine && vite --force",
-    "dev:clean": "npm run prepare-engine && vite --force",
-    "build": "npm run prepare-engine && vite build",
+    "prepare-plugins": "node scripts/prepare-plugins.js",
+    "dev": "npm run prepare-engine && node scripts/prepare-plugins.js && vite --force",
+    "dev:clean": "npm run prepare-engine && node scripts/prepare-plugins.js && vite --force",
+    "build": "npm run prepare-engine && node scripts/prepare-plugins.js && vite build",
     "test": "jest",
     "test:watch": "jest --watch",
     "preview": "vite preview"

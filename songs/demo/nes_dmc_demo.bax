@@ -1,0 +1,186 @@
+## nes_dmc_demo.bax
+## NES APU full-kit demo — exercises all bundled DMC samples alongside the noise channel.
+##
+## Purpose: verify and arrange every built-in @nes/ DMC sample in a musical context.
+## Channel 4 (noise) drives hi-hats and snare colour; channel 5 (DMC) drives all
+## pitched/sampled percussion.  Each instrument is defined three times to demonstrate
+## the three supported sample-source syntaxes (@nes/ bundled, local: file, github: shorthand).
+## Note: "local:" instruments will not resolve in the Web UI.
+##
+## Bundled DMC samples (no external files needed):
+##   @nes/kick        — kick drum (129 bytes, real sample)
+##   @nes/snare       — snare hit  (513 bytes, real sample)
+##   @nes/clap        — hand clap  (497 bytes, real sample)
+##   @nes/bongo       — bongo hit  (385 bytes, real sample)
+##   @nes/muted_bongo — muted bongo (321 bytes, real sample)
+##   @nes/high_tom    — high tom   (833 bytes, real sample)
+##   @nes/middle_tom  — middle tom (833 bytes, real sample)
+##   @nes/low_tom     — low tom    (833 bytes, real sample)
+##   @nes/bass        — sub-bass hit (synthetic)
+##
+## Noise channel instruments (type=noise, channel 4):
+##   hat_closed  — short closed hi-hat (noise_period=1, fast decay)
+##   hat_open    — open hi-hat          (noise_period=2, slow decay)
+##   snare_n     — noise-layer snare    (noise_period=6, medium decay)
+##   rim         — rimshot / sidestick  (noise_period=12, sharp)
+##
+## External sample file syntax examples:
+##   local:  inst ext type=dmc dmc_rate=15 dmc_sample="local:samples/dmc/kick.dmc"
+##   github: inst ext type=dmc dmc_rate=15 dmc_sample="github:beatbax/samples/dmc/kick.dmc"
+##   https:  inst ext type=dmc dmc_rate=15 dmc_sample="https://github.com/beatbax/samples/blob/main/dmc/kick.dmc"
+##
+## DMC rate index reference (NTSC):
+##   Index  0 =  4182 Hz (slowest clock — longest/deepest playback)
+##   Index  4 =  6258 Hz
+##   Index  7 =  7919 Hz
+##   Index 11 = 13981 Hz
+##   Index 15 = 33144 Hz (fastest clock — standard for drums at full pitch)
+##
+## Song structure (2 bars = 32 ticks per section at 120 BPM, 4/4):
+##   Section A — kick groove:      kick on 1&3, snare_d on 2&4, closed hat throughout
+##   Section B — snare + clap:     kick + snare_d + clap accents, open hat on beat 4
+##   Section C — bongo groove:     bongo/muted_bongo call-and-response, rimshot off-beats
+##   Section D — tom cascade:      high→middle→low descending fill, steady hat pulse
+##   Section E — bass pulse:       bass DMC on 1&3, bass_slow colour hit, open hat on 2&4
+##   Section F — full kit:         all DMC samples cycling, noise hat+snare underneath
+##   Bonus     — source showcase:  one bar each cycling @nes/, local:, github: variants
+
+chip nes
+bpm 120
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# ── Noise channel (ch4) — hi-hats, snare colour, rimshot ─────────────────────
+# noise_mode=normal: 32767-step LFSR → white noise character (hi-hats, snares, all percussion)
+# noise_mode=loop  : 93-step repeating LFSR → buzzy/tonal character. NOT for hi-hats —
+#                    produces a harsh tone, not noise. Reserved for NES metallic effects.
+#
+# noise_period (0–15) selects from 16 fixed LFSR timer rates ($400E bits 3:0).
+# Higher index = longer timer period = slower LFSR clock = lower-pitched noise.
+#   Index 0–3  : ultra-high to hi-hat range (~112 kHz – ~14 kHz)  → crisp, bright
+#   Index 4–7  : open hi-hat to low snare   (~7 kHz – ~2.8 kHz)   → mid-range noise
+#   Index 8–11 : tom range                  (~2.2 kHz – ~880 Hz)   → beefy / thuddy
+#   Index 12–15: kick to sub-bass rumble    (~590 Hz – ~110 Hz)    → deep, low noise
+#
+# Note names on noise instruments are TRIGGERS only — they do not affect LFSR rate.
+# Define each percussion sound as a separate instrument with its own noise_period.
+#
+# env_period=0: fastest decay (one vol step per 60Hz frame = ~16.7ms per step).
+# env_period>0: slower decay at 60Hz / (period+1) per step.
+inst hat_closed  type=noise  noise_mode=normal  noise_period=1   env=9,down   env_period=0
+inst hat_open    type=noise  noise_mode=normal  noise_period=2   env=9,down   env_period=2
+inst snare_n     type=noise  noise_mode=normal  noise_period=6   env=13,down  env_period=1
+inst rim         type=noise  noise_mode=normal  noise_period=12  env=11,down  env_period=0
+
+# ── DMC kick (ch5) ────────────────────────────────────────────────────────────
+inst kick        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+inst kick_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/kick.dmc"
+inst kick_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/kick.dmc"
+
+# ── DMC snare (ch5) ──────────────────────────────────────────────────────────
+inst snare_d     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+inst snare_loc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/snare.dmc"
+inst snare_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/snare.dmc"
+
+# ── DMC clap (ch5) ───────────────────────────────────────────────────────────
+inst clap        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/clap"
+inst clap_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/clap.dmc"
+inst clap_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/clap.dmc"
+
+# ── DMC bongos (ch5) ─────────────────────────────────────────────────────────
+inst bongo       type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/bongo"
+inst bongo_loc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/bongo.dmc"
+inst bongo_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/bongo.dmc"
+inst mbongo      type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/muted_bongo"
+inst mbongo_loc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/muted_bongo.dmc"
+inst mbongo_gh   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/muted_bongo.dmc"
+
+# ── DMC toms (ch5) ───────────────────────────────────────────────────────────
+inst htom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/high_tom"
+inst htom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/high_tom.dmc"
+inst htom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/high_tom.dmc"
+inst mtom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/middle_tom"
+inst mtom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/middle_tom.dmc"
+inst mtom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/middle_tom.dmc"
+inst ltom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/low_tom"
+inst ltom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/low_tom.dmc"
+inst ltom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/low_tom.dmc"
+
+# ── DMC bass (ch5) ────────────────────────────────────────────────────────────
+inst bass        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/bass"
+inst bass_slow   type=dmc  dmc_rate=4   dmc_loop=false  dmc_sample="@nes/bass"
+
+# =============================================================================
+# Patterns (8 events = 1 bar at 120 BPM, 4/4)
+# Notation: each token = one step; . = rest
+# =============================================================================
+
+# ── Section A — kick groove ───────────────────────────────────────────────────
+# ch5: kick on beats 1 & 3, snare_d on beats 2 & 4
+# ch4: closed hat on every step, snare_n doubling beats 2 & 4
+pat a_dmc  = kick . snare_d . kick . snare_d .
+pat a_hat  = hat_closed hat_closed snare_n hat_closed hat_closed hat_closed snare_n hat_closed
+
+# ── Section B — snare + clap variation ───────────────────────────────────────
+# ch5: kick on 1, clap on 2, kick on 3, snare_d+clap accent on 4
+# ch4: hat every step, open hat swells on beat 4 and the "and" of 2
+pat b_dmc  = kick clap snare_d . kick clap snare_d clap
+pat b_hat  = hat_closed hat_open hat_closed hat_closed hat_closed hat_open hat_closed hat_open
+
+# ── Section C — bongo / muted bongo call-and-response ────────────────────────
+# ch5: alternate bongo and muted bongo; final two steps use local/github sources
+# ch4: rimshot on every off-beat
+pat c_dmc  = bongo mbongo bongo mbongo bongo_loc mbongo_loc bongo_gh mbongo_gh
+pat c_hat  = . rim . rim . rim . rim
+
+# ── Section D — tom cascade fill ─────────────────────────────────────────────
+# ch5: high → middle → low tom descending, then reverse climb back up
+# ch4: steady closed hat on beats 1 & 3 only (sparse, keeps toms in focus)
+pat d_dmc  = htom mtom ltom mtom htom mtom ltom htom
+pat d_hat  = hat_closed . . . hat_closed . . .
+
+# ── Section E — bass pulse with open hat ─────────────────────────────────────
+# ch5: bass on beats 1 & 3; bass_slow (rate=4) on the "and" of 2 for pitch depth
+# ch4: open hat swell on beats 2 & 4 for a half-time feel
+pat e_dmc  = bass . bass_slow . bass . bass_slow .
+pat e_hat  = hat_closed . hat_closed hat_open hat_closed . hat_closed hat_open
+
+# ── Section F — full kit convergence ─────────────────────────────────────────
+# ch5: kick(1), htom fill(1+), snare_d(2), bongo(2+), clap(3), snare_d(4), htom(4+)
+# ch4: hat on every step, snare_n reinforcing beats 2 & 4
+pat f_dmc  = kick htom snare_d bongo clap . snare_d htom
+pat f_hat  = hat_closed hat_closed snare_n hat_closed hat_closed hat_closed snare_n hat_open
+
+# ── Bonus — sample-source showcase ───────────────────────────────────────────
+# Four one-bar patterns each cycling through the three source variants in turn
+# to confirm @nes/, local: and github: all resolve to the same audio.
+pat src_kick  = kick kick_loc kick_gh kick kick_loc kick_gh kick kick_gh
+pat src_snare = snare_d snare_loc snare_gh snare_d snare_loc snare_gh snare_d snare_gh
+pat src_clap  = clap clap_loc clap_gh clap clap_loc clap_gh clap clap_gh
+pat src_tom   = htom htom_loc mtom mtom_loc ltom ltom_loc htom_gh ltom_gh
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+# DMC channel (ch5): A groove → B variation → C bongos → D toms → E bass → F full kit → source showcase
+seq dmc_seq = a_dmc a_dmc b_dmc b_dmc c_dmc c_dmc d_dmc d_dmc e_dmc e_dmc f_dmc f_dmc src_kick src_snare src_clap src_tom
+
+# Noise channel (ch4): mirrors the DMC section structure
+seq hat_seq = a_hat a_hat b_hat b_hat c_hat c_hat d_hat d_hat e_hat e_hat f_hat f_hat a_hat b_hat c_hat d_hat
+
+# =============================================================================
+# Channels
+# =============================================================================
+# NES channel mapping (1-based in BeatBax):
+#   Channel 1 = pulse1   Channel 2 = pulse2   Channel 3 = triangle
+#   Channel 4 = noise    Channel 5 = DMC
+channel 4 => inst hat_closed  seq hat_seq
+channel 5 => inst kick        seq dmc_seq
+
+# =============================================================================
+# Playback
+# =============================================================================
+play

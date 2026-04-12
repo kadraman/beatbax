@@ -335,7 +335,9 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
 function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number, dur: number): void {
   const initialGain = env.initial / 15;
 
-  if (env.direction === 'flat' || env.period === 0) {
+  // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
+  // Constant volume is indicated solely by direction === 'flat'.
+  if (env.direction === 'flat') {
     try { gainParam.setValueAtTime(initialGain, start); } catch (_) {}
     try {
       gainParam.setValueAtTime(Math.max(0.0001, initialGain), start + dur);

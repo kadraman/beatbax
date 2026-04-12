@@ -16,6 +16,47 @@ import { DMC_RATE_TABLE, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
+// ─── GitHub URL resolution ─────────────────────────────────────────────────────
+
+/**
+ * Convert a `github:` shorthand or a `https://github.com/` blob/raw URL to a
+ * fetchable `https://raw.githubusercontent.com/` URL.
+ *
+ * Supported forms:
+ *   - `github:owner/repo/path/to/file.dmc`
+ *       → `https://raw.githubusercontent.com/owner/repo/main/path/to/file.dmc`
+ *   - `https://github.com/owner/repo/blob/branch/path/to/file.dmc`
+ *       → `https://raw.githubusercontent.com/owner/repo/branch/path/to/file.dmc`
+ *   - `https://github.com/owner/repo/raw/branch/path/to/file.dmc`
+ *       → `https://raw.githubusercontent.com/owner/repo/branch/path/to/file.dmc`
+ *   - Any other URL is returned unchanged.
+ */
+export function resolveGitHubUrl(ref: string): string {
+  if (ref.startsWith('github:')) {
+    // Format: github:owner/repo/path/to/file  (branch defaults to 'main')
+    const rest = ref.slice('github:'.length);
+    const parts = rest.split('/');
+    if (parts.length < 3) {
+      throw new Error(`NES DMC: invalid 'github:' reference '${ref}'. Expected 'github:owner/repo/path/to/file'`);
+    }
+    const owner = parts[0];
+    const repo  = parts[1];
+    const filePath = parts.slice(2).join('/');
+    return `https://raw.githubusercontent.com/${owner}/${repo}/main/${filePath}`;
+  }
+
+  if (ref.startsWith('https://github.com/')) {
+    // Rewrite blob/raw viewer URLs to raw.githubusercontent.com
+    const blobMatch = ref.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(blob|raw)\/([^/]+)\/(.+)$/);
+    if (blobMatch) {
+      const [, owner, repo, , branch, filePath] = blobMatch;
+      return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+    }
+  }
+
+  return ref; // already a raw or other URL — return unchanged
+}
+
 // ─── DMC decoding ─────────────────────────────────────────────────────────────
 
 /**
@@ -66,15 +107,16 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
     return bytes.buffer;
   }
 
-  if (ref.startsWith('https://')) {
-    const res = await fetch(ref);
-    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}': HTTP ${res.status}`);
+  if (ref.startsWith('github:') || ref.startsWith('https://')) {
+    const url = resolveGitHubUrl(ref);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}' (resolved: ${url}): HTTP ${res.status}`);
     return res.arrayBuffer();
   }
 
   if (ref.startsWith('local:')) {
     if (isBrowser) {
-      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>' or 'https://' instead.`);
+      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
     }
     const path = ref.slice(6);
     // Normalise separators then check for '..' as a path segment (not as part of
@@ -88,7 +130,7 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
     return new Uint8Array(bytes).buffer;
   }
 
-  throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', or 'local:'`);
+  throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', 'github:', or 'local:'`);
 }
 
 // ─── Sample resolver ──────────────────────────────────────────────────────────
@@ -117,16 +159,17 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
     return decodeDMC(bytes);
   }
 
-  if (ref.startsWith('https://') || ref.startsWith('http://')) {
-    const res = await fetch(ref);
-    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}': HTTP ${res.status}`);
+  if (ref.startsWith('github:') || ref.startsWith('https://') || ref.startsWith('http://')) {
+    const url = resolveGitHubUrl(ref);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}' (resolved: ${url}): HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
     return decodeDMC(new Uint8Array(buf));
   }
 
   if (ref.startsWith('local:')) {
     if (isBrowser) {
-      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>' or 'https://' instead.`);
+      throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
     }
     const path = ref.slice(6);
     // Normalise separators then check for '..' as a path segment (not as part of
@@ -141,7 +184,7 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
     return decodeDMC(new Uint8Array(bytes));
   }
 
-  throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', or 'local:'`);
+  throw new Error(`NES DMC: unsupported sample reference scheme '${ref}'. Use '@nes/<name>', 'https://', 'github:', or 'local:'`);
 }
 
 // ─── DMC backend ──────────────────────────────────────────────────────────────
@@ -157,6 +200,16 @@ export class NESDMCBackend implements ChipChannelBackend {
 
   // Cache loaded samples by reference to avoid redundant I/O
   private static sampleCache = new Map<string, Float32Array>();
+
+  /** Insert a decoded sample into the shared cache (used by preloading). */
+  static setCached(ref: string, data: Float32Array): void {
+    NESDMCBackend.sampleCache.set(ref, data);
+  }
+
+  /** Check whether a ref is already in the shared cache. */
+  static hasCached(ref: string): boolean {
+    return NESDMCBackend.sampleCache.has(ref);
+  }
 
   reset(): void {
     this.active = false;
@@ -263,10 +316,14 @@ export class NESDMCBackend implements ChipChannelBackend {
     if (!sampleData) return null;
 
     const sampleRate = ctx.sampleRate;
-    // Upsample DMC sample from dmcHz to ctx.sampleRate
+    // Upsample DMC sample from dmcHz to ctx.sampleRate.
+    // Use the natural sample duration (not the note step duration) so the
+    // sample rings out fully — DMC samples play to completion on hardware.
     const phaseInc = dmcHz / sampleRate;
     const gain = NES_MIX_GAIN.dmc * 127;
-    const maxSamples = Math.ceil((dur + 0.1) * sampleRate);
+    const naturalDurSec = loopSample ? (dur + 0.1) : (sampleData.length / dmcHz + 0.05);
+    const playDur = loopSample ? naturalDurSec : Math.max(dur, naturalDurSec);
+    const maxSamples = Math.ceil(playDur * sampleRate);
     const abuf = (ctx as any).createBuffer(1, maxSamples, sampleRate);
     const data = abuf.getChannelData(0);
     let pos = 0;
@@ -293,7 +350,11 @@ export class NESDMCBackend implements ChipChannelBackend {
     gainNode.connect(destination || (ctx as any).destination);
 
     try { source.start(start); } catch (e) { try { source.start(); } catch (_) {} }
-    try { source.stop(start + dur + 0.1); } catch (_) {}
+    // Let the AudioBufferSource stop itself when the buffer ends (natural sample end).
+    // Only set an explicit stop for very long looped samples.
+    if (loopSample) {
+      try { source.stop(start + playDur); } catch (_) {}
+    }
 
     return [source, gainNode];
   }
@@ -304,6 +365,18 @@ export class NESDMCBackend implements ChipChannelBackend {
       this.sampleData = cached;
       return;
     }
+    // Synchronous path for bundled @nes/ samples — avoids an async gap that
+    // would leave sampleData null when the PCM renderer calls render() immediately
+    // after noteOn() in the same tick.
+    if (ref.startsWith('@nes/')) {
+      const data = decodeDMCSampleSync(ref);
+      if (data) {
+        NESDMCBackend.sampleCache.set(ref, data);
+        this.sampleData = data;
+        return;
+      }
+    }
+    // Async path for remote (https://) and local: refs
     resolveDMCSample(ref)
       .then(data => {
         NESDMCBackend.sampleCache.set(ref, data);
@@ -339,4 +412,25 @@ function decodeDMCSampleSync(ref: string): Float32Array | undefined {
 
 export function createDmcChannel(_audioContext: BaseAudioContext): ChipChannelBackend {
   return new NESDMCBackend();
+}
+
+/**
+ * Pre-populate the static DMC sample cache with all sample references found
+ * in the given instrument map. This is called by the `preloadForPCM` plugin
+ * hook so that the synchronous PCM renderer has data available from the first
+ * `noteOn` + `render()` call, avoiding silent notes caused by the async gap.
+ */
+export async function preloadDMCSamples(refs: Iterable<string>): Promise<void> {
+  const promises: Promise<void>[] = [];
+  for (const ref of refs) {
+    if (NESDMCBackend.hasCached(ref)) continue; // already loaded
+    promises.push(
+      resolveDMCSample(ref)
+        .then(data => { NESDMCBackend.setCached(ref, data); })
+        .catch(err => {
+          console.warn(`NES DMC preload: failed to load '${ref}':`, err.message);
+        })
+    );
+  }
+  await Promise.all(promises);
 }

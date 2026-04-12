@@ -82,7 +82,7 @@ inst bass     type=triangle  linear=96
 # ── Noise (type=noise) ────────────────────────────────────────────────────────
 #
 # hihat — high-frequency noise burst for a gentle 8th-note hi-hat shimmer.
-#   noise_period=3 → LFSR clock ≈ 4,400 Hz (bright, cymbal-like texture).
+#   noise_period=3 → LFSR clock ≈ 14 kHz (bright, cymbal-like texture).
 #   env=5,down env_period=0 : starts at 5/15 and decays in a single frame
 #                             (one step per 16 ms at 60 Hz). Very short, barely
 #                             audible shimmer — keeps the hi-hat subtle and the
@@ -90,14 +90,14 @@ inst bass     type=triangle  linear=96
 inst hihat    type=noise  noise_mode=normal  noise_period=3   env=5,down   env_period=0
 
 # snare — mid-frequency noise crack for a subtle backbeat.
-#   noise_period=6 → LFSR clock ≈ 1,000 Hz (papery, snare-drum-like texture).
+#   noise_period=6 → LFSR clock ≈ 3.5 kHz (papery, snare-drum-like texture).
 #   env=9,down env_period=1 : starts at 9/15, decays one step per NES frame
 #                             → ≈250 ms total decay. Audible without competing
 #                             with the melody at 108 BPM.
 inst snare    type=noise  noise_mode=normal  noise_period=6   env=9,down   env_period=1
 
 # kick — low-frequency noise burst for a soft bass-drum hit.
-#   noise_period=12 → LFSR clock ≈ 400 Hz (deep, thuddy texture).
+#   noise_period=12 → LFSR clock ≈ 590 Hz (deep, thuddy texture).
 #   env=11,down env_period=2 : starts at 11/15, decays one step every 3 frames
 #                              → ≈550 ms total. Solid thud that anchors beat 1
 #                              and 3 without overwhelming the bass line.
@@ -183,8 +183,7 @@ pat walk_G   = G2 . . . D3 . . . G2 . . . B2 . . .  # G major: root-5th-root-3rd
 #   hit:  KCK   .   HHT   .   SNR   .   HHT   .   KCK   .   HHT   .   SNR   .   HHT   .
 # Kick on beats 1 & 3 (ticks 0, 8); snare on beats 2 & 4 (ticks 4, 12);
 # hi-hat on the "and" of each beat (ticks 2, 6, 10, 14).  Each hit + dot = 2 ticks.
-pat light_beat = inst kick  C2 . inst hihat C2 . inst snare C2 . inst hihat C2 .
-                 inst kick  C2 . inst hihat C2 . inst snare C2 . inst hihat C2 .  # 16 ticks
+pat light_beat = inst kick C2 . inst hihat C2 . inst snare C2 . inst hihat C2 . inst kick C2 . inst hihat C2 . inst snare C2 . inst hihat C2 .  # 16 ticks
 
 # =============================================================================
 # Sequences — 20 patterns × 16 ticks = 320 ticks per channel (all channels aligned)
@@ -196,11 +195,7 @@ pat light_beat = inst kick  C2 . inst hihat C2 . inst snare C2 . inst hihat C2 .
 #   Bars  9–12 : Verse B — Am melody with warm_vib on held notes
 #   Bars 13–16 : Bridge  — whole-note G5 pedal in 50% duty (via inst transform)
 #   Bars 17–20 : Reprise — Verse A returns
-seq pulse1_main = intro_a intro_b intro_a intro_b
-                  mel_a1 mel_a2 mel_a3 mel_a4
-                  mel_b1 mel_b2 mel_b3 mel_b4
-                  pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50)
-                  mel_a1 mel_a2 mel_a3 mel_a4
+seq pulse1_main = intro_a intro_b intro_a intro_b mel_a1 mel_a2 mel_a3 mel_a4 mel_b1 mel_b2 mel_b3 mel_b4 pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) mel_a1 mel_a2 mel_a3 mel_a4
 
 # Pulse 2 harmony:
 #   Bars  1– 4 : Intro   — silent (Pulse 2 rests so solo melody intro reads clearly)
@@ -208,31 +203,19 @@ seq pulse1_main = intro_a intro_b intro_a intro_b
 #   Bars  9–12 : Verse B — parallel harmony below Am melody
 #   Bars 13–16 : Bridge  — counter-melody in pairs (ascending/descending)
 #   Bars 17–20 : Reprise — Verse A harmony returns
-seq pulse2_main = intro_silence intro_silence intro_silence intro_silence
-                  chd_a1 chd_a2 chd_a3 chd_a4
-                  chd_b1 chd_b2 chd_b3 chd_b4
-                  ctr_c1 ctr_c2 ctr_c1 ctr_c2
-                  chd_a1 chd_a2 chd_a3 chd_a4
+seq pulse2_main = intro_silence intro_silence intro_silence intro_silence chd_a1 chd_a2 chd_a3 chd_a4 chd_b1 chd_b2 chd_b3 chd_b4 ctr_c1 ctr_c2 ctr_c1 ctr_c2 chd_a1 chd_a2 chd_a3 chd_a4
 
 # Triangle bass:
 #   C major walking bass for intro, verse A, and reprise.
 #   A minor walking bass for verse B.
 #   G major for the first half of the bridge (underlining the G pedal), then
 #   C major for the second half (resolution back toward the tonic before reprise).
-seq bass_main   = walk_c  walk_c  walk_c  walk_c
-                  walk_c  walk_c  walk_c  walk_c
-                  walk_Am walk_Am walk_Am walk_Am
-                  walk_G  walk_G  walk_c  walk_c
-                  walk_c  walk_c  walk_c  walk_c
+seq bass_main   = walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_Am walk_Am walk_Am walk_Am walk_G walk_G walk_c walk_c walk_c walk_c walk_c walk_c
 
 # Noise drums:
 #   Same sparse kick-snare-hihat groove throughout all 20 bars for a steady,
 #   unobtrusive rhythmic foundation — typical of early NES RPG percussion.
-seq drum_main   = light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
+seq drum_main   = light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat
 
 # =============================================================================
 # Channels

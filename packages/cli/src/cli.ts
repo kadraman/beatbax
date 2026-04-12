@@ -140,23 +140,57 @@ program
 
 program
   .command('play')
-  .description('Play a song file (.bax). Defaults to headless playback in Node.js.')
-  .argument('<file>', 'Path to the .bax song file')
+  .description('Play a .bax song file or a raw .dmc sample file.')
+  .argument('<file>', 'Path to the .bax song file or .dmc sample file')
   .option('-b, --browser', 'Launch browser-based playback (opens web UI)')
   .option('--headless', 'Force headless Node.js playback (default in Node)')
   .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
+  .option('--rate <index>', 'DMC rate table index 0-15 (only for .dmc files, default 15 = 33 kHz)', '15')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const globalOpts = program.opts();
-
-    // Configure logger based on CLI flags
     configureLoggerFromCLI(options, globalOpts);
-
     const verbose = options.verbose === true || (globalOpts && globalOpts.verbose === true);
-    // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
+
+    // ── .dmc sample playback ──────────────────────────────────────────────
+    if (file.toLowerCase().endsWith('.dmc')) {
+      const { playAudioBuffer } = await import('./nodeAudioPlayer.js');
+      const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
+      const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
+      const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));
+      const dmcHz = DMC_RATE_TABLE[rateIdx];
+      const sampleRate = parseInt(globalOpts.sampleRate, 10) || 44100;
+      const rawBytes = readFileSync(file);
+      const decoded = decodeDMC(new Uint8Array(rawBytes));
+      const durationSec = decoded.length / dmcHz;
+      if (verbose) {
+        console.log(`Playing DMC sample: ${file}`);
+        console.log(`  Size: ${rawBytes.length} bytes (${decoded.length} samples)`);
+        console.log(`  Rate index: ${rateIdx} (${dmcHz.toFixed(2)} Hz)`);
+        console.log(`  Duration: ${durationSec.toFixed(3)}s`);
+      } else {
+        console.log(`Playing ${file} (rate=${rateIdx}, ${durationSec.toFixed(2)}s)`);
+      }
+      // Upsample from dmcHz to sampleRate
+      const phaseInc = dmcHz / sampleRate;
+      const outLen = Math.ceil(decoded.length / phaseInc);
+      const pcm = new Float32Array(outLen);
+      let pos = 0;
+      let phase = 0;
+      for (let i = 0; i < outLen && pos < decoded.length; i++) {
+        pcm[i] = decoded[Math.floor(pos)];
+        phase += phaseInc;
+        const steps = Math.floor(phase);
+        if (steps > 0) { pos += steps; phase -= steps; }
+      }
+      await playAudioBuffer(pcm, { channels: 1, sampleRate });
+      return;
+    }
+
+    // ── .bax song playback ────────────────────────────────────────────────
     const src = readFileSync(file, 'utf8');
     const { errors, warnings } = await validateSource(src, file);
     if (errors.length > 0) {

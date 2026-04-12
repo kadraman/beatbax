@@ -85,6 +85,24 @@ function parseNoiseEnvelope(inst: InstrumentNode): NESNoiseEnvelope {
 
 // ─── Noise backend ────────────────────────────────────────────────────────────
 
+// ─── Noise period resolution ─────────────────────────────────────────────────
+//
+// noise_period (0–15) indexes the NES NOISE_PERIOD_TABLE ($400E bits 3:0).
+// Higher index = longer timer = slower LFSR clocking = lower-pitched noise:
+//   Index 0–3  : ultra-high to hi-hat range (~112 kHz – ~14 kHz)
+//   Index 4–7  : open hi-hat to low snare   (~7 kHz – ~2.8 kHz)
+//   Index 8–11 : tom range                  (~2.2 kHz – ~880 Hz)
+//   Index 12–15: kick to sub-bass rumble    (~590 Hz – ~110 Hz)
+//
+// Note names in noise patterns are triggers only — they do not alter the LFSR
+// rate. Use a separate instrument definition with noise_period for each sound.
+function resolveNoisePeriodIdx(instrument: InstrumentNode): number {
+  if (instrument.noise_period !== undefined && instrument.noise_period !== null) {
+    return Math.max(0, Math.min(15, Number(instrument.noise_period)));
+  }
+  return 8; // default; override via noise_period on the instrument
+}
+
 export class NESNoiseBackend implements ChipChannelBackend {
   private active: boolean = false;
   private currentInst: InstrumentNode | null = null;
@@ -94,6 +112,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
   private lfsrHz: number = 0;
   private phase: number = 0;
   private lfsrIndex: number = 0;
+  /** Resolved noise period index (0-15) for the current note. */
+  private periodIdx: number = 8;
 
   reset(): void {
     this.active = false;
@@ -102,6 +122,7 @@ export class NESNoiseBackend implements ChipChannelBackend {
     this.envFrameCounter = 0;
     this.phase = 0;
     this.lfsrIndex = 0;
+    this.periodIdx = 8;
   }
 
   noteOn(_frequency: number, instrument: InstrumentNode): void {
@@ -118,9 +139,9 @@ export class NESNoiseBackend implements ChipChannelBackend {
     const mode = (instrument.noise_mode || 'normal').toString().toLowerCase();
     this.lfsrBuf = (mode === 'loop') ? LOOP_LFSR_BUF : NORMAL_LFSR_BUF;
 
-    // Compute LFSR clock rate from noise_period index
-    const periodIdx = Math.max(0, Math.min(15, Number(instrument.noise_period ?? 8)));
-    const timerPeriod = NOISE_PERIOD_TABLE[periodIdx];
+    // Resolve period index from instrument definition; note pitch is ignored.
+    this.periodIdx = resolveNoisePeriodIdx(instrument);
+    const timerPeriod = NOISE_PERIOD_TABLE[this.periodIdx];
     // NTSC CPU clock / (timer period * 2) = LFSR step rate
     this.lfsrHz = NES_CLOCK / (timerPeriod * 2);
   }
@@ -132,7 +153,9 @@ export class NESNoiseBackend implements ChipChannelBackend {
   applyEnvelope(_frame: number): void {
     if (!this.active || !this.currentInst) return;
     const env = parseNoiseEnvelope(this.currentInst);
-    if (env.direction === 'flat' || env.period === 0) return;
+    // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
+    // Only direction === 'flat' means constant volume — the period value does not override this.
+    if (env.direction === 'flat') return;
 
     this.envFrameCounter++;
     const divider = env.period + 1;
@@ -152,7 +175,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
     if (!this.active || !this.currentInst) return;
 
     const env = parseNoiseEnvelope(this.currentInst);
-    const volume = (env.direction === 'flat' && env.period === 0 && this.currentInst.vol !== undefined)
+    // Use vol property only for pure-vol instruments (direction=flat); envVolume for everything else.
+    const volume = (env.direction === 'flat' && this.currentInst.vol !== undefined)
       ? Math.max(0, Math.min(15, Number(this.currentInst.vol)))
       : this.envVolume;
 
@@ -184,7 +208,7 @@ export class NESNoiseBackend implements ChipChannelBackend {
    */
   createPlaybackNodes(
     ctx: BaseAudioContext,
-    _freq: number,
+    freq: number,
     start: number,
     dur: number,
     inst: InstrumentNode,
@@ -193,7 +217,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
   ): AudioNode[] | null {
     if (typeof (ctx as any).createBuffer !== 'function') return null;
 
-    const periodIdx = Math.max(0, Math.min(15, Number(inst.noise_period ?? 8)));
+    // Resolve period index from the instrument definition; note pitch is ignored.
+    const periodIdx = resolveNoisePeriodIdx(inst);
     const timerPeriod = NOISE_PERIOD_TABLE[periodIdx];
     const lfsrHz = NES_CLOCK / (timerPeriod * 2);
 
@@ -245,10 +270,17 @@ function applyNESNoiseEnvelopeToGain(
   start: number,
   dur: number
 ): void {
+  // Match the PCM render path exactly: gain = NES_MIX_GAIN.noise * volume (0-15).
+  // The original code divided by 15 before multiplying by mixGain, which made
+  // Web Audio noise 15× quieter than the CLI PCM output.
+  // LFSR buffer values are ±1, so gain = cur * NES_MIX_GAIN.noise gives a peak
+  // amplitude of 0.0741 at vol=15 — identical to the render() path.
   const mixGain = NES_MIX_GAIN.noise;
-  const initialGain = (env.initial / 15) * mixGain;
+  const initialGain = env.initial * mixGain;
 
-  if (env.direction === 'flat' || env.period === 0) {
+  // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
+  // Constant volume is indicated solely by direction === 'flat'.
+  if (env.direction === 'flat') {
     try { gainParam.setValueAtTime(initialGain, start); } catch (_) {}
     try {
       gainParam.setValueAtTime(Math.max(0.0001, initialGain), start + dur);
@@ -260,11 +292,11 @@ function applyNESNoiseEnvelopeToGain(
   const stepInterval = (env.period + 1) / NES_NOISE_FRAME_RATE;
   const vals: number[] = [];
   let cur = env.initial;
-  vals.push((cur / 15) * mixGain);
+  vals.push(cur * mixGain);
   while (vals.length < 256) {
     if (env.direction === 'down') cur = Math.max(0, cur - 1);
     else cur = Math.min(15, cur + 1);
-    vals.push((cur / 15) * mixGain);
+    vals.push(cur * mixGain);
     if (env.loop) {
       if (env.direction === 'down' && cur === 0) cur = 15;
       else if (env.direction === 'up' && cur === 15) cur = 0;

@@ -135,11 +135,11 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
 
     if (inst.dmc_sample !== undefined) {
       const ref = String(inst.dmc_sample);
-      const validSchemes = ref.startsWith('@nes/') || ref.startsWith('https://') || ref.startsWith('local:');
+      const validSchemes = ref.startsWith('@nes/') || ref.startsWith('https://') || ref.startsWith('github:') || ref.startsWith('local:');
       if (!validSchemes) {
         errors.push({
           field: 'dmc_sample',
-          message: `dmc_sample must start with '@nes/', 'https://', or 'local:'. Got '${ref}'`
+          message: `dmc_sample must start with '@nes/', 'https://', 'github:', or 'local:'. Got '${ref}'`
         });
       }
       // Path traversal guard for local: references

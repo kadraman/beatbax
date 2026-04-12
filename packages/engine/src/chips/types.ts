@@ -154,6 +154,17 @@ export interface ChipPlugin {
   bundledSamples?: Record<string, string>;
 
   /**
+   * Optional hook called before headless PCM rendering begins.
+   * Plugins that load sample data asynchronously (e.g. NES DMC `local:` or
+   * `https://` references) should implement this to pre-populate their sample
+   * cache so that the synchronous PCM render path has data available from the
+   * very first `noteOn` + `render()` call.
+   *
+   * @param insts - All instrument definitions in the current song.
+   */
+  preloadForPCM?(insts: Record<string, InstrumentNode>): Promise<void>;
+
+  /**
    * Optional conversion of an instrument to the chip's native format.
    * Used for native format export (e.g. NSF, FTM).
    */

@@ -280,7 +280,14 @@ export class Player {
       }
     }
 
+    // Pre-load plugin samples (e.g. remote DMC files) so createPlaybackNodes()
+    // finds them in cache on the first call, avoiding silent notes.
+    if (activePlugin?.preloadForPCM && ast.insts) {
+      await activePlugin.preloadForPCM(ast.insts as Record<string, any>);
+    }
+
     // Schedule all channels starting 100ms from now on the audio clock
+    // (computed after preload so the timestamp is current)
     const loopStart = this.ctx.currentTime + 0.1;
     const globalDurationSec = this._scheduleAllChannels(ast, loopStart);
     this._loopEndTime = loopStart + globalDurationSec;

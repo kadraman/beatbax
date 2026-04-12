@@ -93,11 +93,17 @@ export const NOISE_PERIOD_TABLE: number[] = [
 
 /**
  * NTSC DMC rate table.
- * Index 0 (fastest) through 15 (slowest); maps to DMC playback rates in Hz.
+ * Index 0 through 15; maps to DMC output sample rates in Hz.
+ * Derived from the NTSC CPU clock (1,789,773 Hz) divided by the hardware
+ * cycle counts (428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142,
+ * 128, 106, 84, 72, 54). Source: NESDev wiki — APU DMC.
+ *
+ * Index 0  = 4181.71 Hz  (slowest / lowest pitch)
+ * Index 15 = 33143.94 Hz (fastest — "33 kHz" in FamiTracker)
  */
 export const DMC_RATE_TABLE: number[] = [
-  4181.71, 2090.86, 1395.24, 1047.43, 838.86, 699.62, 559.70, 525.37,
-  419.43, 349.81, 279.85, 209.91, 174.86, 139.93, 104.95, 69.97
+  4181.71, 4709.93, 5264.04, 5593.04, 6257.95, 7046.35, 7918.51, 8363.42,
+  9419.86, 11186.08, 12604.03, 13981.28, 16884.65, 21306.82, 24857.95, 33143.94
 ];
 
 /**
