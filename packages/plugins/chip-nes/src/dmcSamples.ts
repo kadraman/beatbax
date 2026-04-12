@@ -7,7 +7,7 @@
  *
  * bass_c2, hihat, crash — synthetic samples (no recorded file available).
  * hihat  is aliased from clap (bright, short transient).
- * crash  is aliased from muted_bongo (dense, longer decay).
+ * crash  is aliased from clap (bright, short transient).
  *
  * Supported names (via '@nes/<name>' references):
  *   - bongo       — bongo hit (real sample, 385 bytes, rate 15)
