@@ -309,8 +309,7 @@ export class HorizontalMixer {
     fader.max = '100';
     fader.step = '1';
     fader.value = String(Math.round((info?.volume ?? 1) * 100));
-    (fader as any).orient = 'vertical'; // Firefox non-standard attribute
-    fader.setAttribute('orient', 'vertical');
+    fader.setAttribute('orient', 'vertical'); // Firefox non-standard attribute for vertical sliders
     fader.disabled = !this.volumeEnabled;
 
     if (!this.volumeEnabled) {
@@ -573,7 +572,7 @@ export class HorizontalMixer {
   private stopRaf(): void {
     if (this.rafId !== null) {
       if (typeof cancelAnimationFrame !== 'undefined') {
-        cancelAnimationFrame(this.rafId as number);
+        cancelAnimationFrame(this.rafId);
       }
       this.rafId = null;
     }
@@ -598,9 +597,11 @@ export class HorizontalMixer {
       if (!vuEl) continue;
 
       const segs = vuEl.querySelectorAll<HTMLElement>('.bb-hmix__vu-seg');
-      // segs are rendered in DOM order top-to-bottom (highest segment index first
-      // because we iterate VU_SEGMENTS-1 down to 0 during buildStrip).
-      // seg[0] = segment index VU_SEGMENTS-1 (top), seg[VU_SEGMENTS-1] = index 0 (bottom).
+      // segs are appended in DOM order from the highest segment index to the lowest
+      // (buildStrip iterates from VU_SEGMENTS-1 down to 0). The CSS `justify-content: flex-end`
+      // inside `.bb-hmix__vu` ensures visual rendering is bottom-to-top (lowest segment at
+      // the bottom, highest at the top), even though DOM order is highest-first.
+      // Therefore: segs[0] = segment VU_SEGMENTS-1 (visually top), segs[VU_SEGMENTS-1] = segment 0 (bottom).
       for (let domIdx = 0; domIdx < segs.length; domIdx++) {
         const segIdx = VU_SEGMENTS - 1 - domIdx; // actual 0-based segment number
         const seg = segs[domIdx];

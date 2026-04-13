@@ -518,8 +518,8 @@ rightTabs.restorePersistedTab();
 // Restore legacy channel-mixer tab visibility.
 // The legacy right-pane mixer is hidden by default when the DAW Mixer is present;
 // set the 'panel.channel-mixer-legacy' localStorage key to 'true' to re-enable it.
-const _legacyMixerEnabled = readPanelVis(StorageKey.PANEL_CHANNEL_MIXER_LEGACY, false);
-if (!_legacyMixerEnabled || !readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) {
+const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_CHANNEL_MIXER_LEGACY, false);
+if (!legacyMixerEnabled || !readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) {
   rightTabs.close('channels');
 }
 
