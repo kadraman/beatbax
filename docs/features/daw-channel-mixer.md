@@ -8,7 +8,7 @@ issue: "https://github.com/kadraman/beatbax/issues/75"
 
 ## Summary
 
-Replace the current vertical side-panel Channel Mixer with a traditional DAW-style horizontal strip docked at the bottom of the screen. Each Game Boy channel (Pulse 1, Pulse 2, Wave, Noise) is presented as a vertical channel strip arranged side by side — matching the layout of mixers in Ableton Live, FL Studio, Logic Pro X, and hardware consoles such as the Neve 8078 and SSL 4000.
+Replace the current vertical side-panel Channel Mixer with a traditional DAW-style horizontal strip docked at the bottom of the screen. Each Sound Chip channel (Pulse 1, Pulse 2, Wave, Noise, etc) is presented as a vertical channel strip arranged side by side — matching the layout of mixers in Ableton Live, FL Studio, Logic Pro X, and hardware consoles such as the Neve 8078 and SSL 4000.
 
 The redesign also introduces animated **VU-meter segment bars** driven by real-time `AnalyserNode` data per channel.
 
@@ -116,16 +116,16 @@ If `getChannelAnalyser` returns `null` (engine not running, OfflineAudioContext 
 
 ## Acceptance Criteria
 
-- [ ] Four horizontal channel strips rendered at the bottom of the app, one per Game Boy channel.
+- [ ] Horizontal channel strips rendered at the bottom of the app, one per channel.
 - [ ] Each strip shows channel name, colour accent, mute/solo buttons, instrument name, pattern name.
 - [ ] VU meter animates in real time during playback; shows idle (all bars unlit) when stopped.
 - [ ] Peak-hold segment lingers for ~1.5 s then falls.
-- [ ] Volume fader present but locked (greyed-out) for Game Boy chip; active for future chips.
+- [ ] Volume fader present but locked (greyed-out) for chips that dont support it.
 - [ ] Mixer strip height is user-adjustable via drag; state persists in `localStorage`.
 - [ ] Collapse/expand toggle: collapsed mode shows only channel label + VU meter.
 - [ ] View menu item `Ctrl+Shift+M` toggles mixer visibility; state persists.
 - [ ] All existing mute/solo behaviour (channel store, pattern grid, glyph margin) continues to work via `channelStates` store — no behaviour regression.
-- [ ] Light-mode styles applied.
+- [ ] Supports Dark and Light-mode styles.
 - [ ] No TypeScript errors; existing tests continue to pass.
 
 ---
