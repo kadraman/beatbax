@@ -96,11 +96,12 @@ interface PreviewState {
 /** Map instrument type → channel id (1-5). Channel 5 is the NES DMC channel. */
 function instChannelId(instName: string, ast: any): number {
   switch ((ast.insts?.[instName]?.type ?? '').toLowerCase()) {
-    case 'pulse2': return 2;
-    case 'wave':   return 3;
-    case 'noise':  return 4;
-    case 'dmc':    return 5;
-    default:       return 1;
+    case 'pulse2':   return 2;
+    case 'wave':     return 3;   // Game Boy wave channel
+    case 'triangle': return 3;   // NES triangle channel
+    case 'noise':    return 4;
+    case 'dmc':      return 5;
+    default:         return 1;
   }
 }
 
