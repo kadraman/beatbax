@@ -226,7 +226,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   // (some render paths may temporarily modify instrument objects). Cloning
   // ensures each note render sees a stable, independent instrument object.
   const instsClone = song.insts ? JSON.parse(JSON.stringify(song.insts)) : {};
-  const chipType = (song.chip || 'gameboy').toLowerCase();
+  const chipType = chipRegistry.resolve((song.chip || 'gameboy').toLowerCase());
   const isGameBoy = chipType === 'gameboy';
   const vibDepthScale = typeof opts.vibDepthScale === 'number' ? opts.vibDepthScale : EXPORTER_VIB_DEPTH_SCALE;
   const regPerTrackerBaseFactor = typeof opts.regPerTrackerBaseFactor === 'number' ? opts.regPerTrackerBaseFactor : RENDER_REG_PER_TRACKER_BASE_FACTOR;

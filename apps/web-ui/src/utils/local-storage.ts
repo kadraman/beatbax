@@ -94,6 +94,8 @@ export const StorageKey = {
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
   /** Pattern grid visible state (boolean). */
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
+  /** Enabled chip plugin IDs (JSON string[]). */
+  ENABLED_PLUGINS: 'plugins.enabled',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

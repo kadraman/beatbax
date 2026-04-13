@@ -14,6 +14,7 @@
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
 import nesPlugin from '@beatbax/plugin-chip-nes';
+import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
 
@@ -48,21 +49,14 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'beatbax:enabled-plugins';
 const DEFAULT_ENABLED = ['nes'];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Return the list of plugin IDs currently enabled in localStorage. */
 export function getEnabledPluginIds(): string[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_ENABLED;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_ENABLED;
-  } catch {
-    return DEFAULT_ENABLED;
-  }
+  const parsed = storage.getJSON<string[]>(StorageKey.ENABLED_PLUGINS);
+  return Array.isArray(parsed) ? parsed : DEFAULT_ENABLED;
 }
 
 /** Persist a new set of enabled plugin IDs. Triggers a page reload. */
@@ -71,7 +65,7 @@ export function setPluginEnabled(id: string, enabled: boolean): void {
   const next = enabled
     ? [...new Set([...current, id])]
     : current.filter((x) => x !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  storage.setJSON(StorageKey.ENABLED_PLUGINS, next);
   // Chip registry has no unregister — reload to apply cleanly.
   window.location.reload();
 }

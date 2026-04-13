@@ -116,9 +116,9 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
   // Pre-load plugin samples (e.g. local: / remote DMC files) before rendering.
   // Without this, async sample loads (local: paths) never resolve during the
   // synchronous PCM render loop, leaving those notes silent.
-  const chipType = ((song as any).chip || 'gameboy').toLowerCase();
+  const { chipRegistry } = await import('../chips/registry.js');
+  const chipType = chipRegistry.resolve(((song as any).chip || 'gameboy').toLowerCase());
   if (chipType !== 'gameboy') {
-    const { chipRegistry } = await import('../chips/registry.js');
     const plugin = chipRegistry.get(chipType);
     if (plugin?.preloadForPCM && (song as any).insts) {
       await plugin.preloadForPCM((song as any).insts as Record<string, any>);

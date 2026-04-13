@@ -155,7 +155,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
       // Pre-load any async samples (e.g. NES DMC local:/https:// refs) so the
       // synchronous PCM render path finds cached data from the first noteOn().
-      const chipType = (ast.chip || 'gameboy').toLowerCase();
+      const chipType = chipRegistry.resolve((ast.chip || 'gameboy').toLowerCase());
       if (chipType !== 'gameboy') {
         const plugin = chipRegistry.get(chipType);
         if (plugin?.preloadForPCM && song.insts) {

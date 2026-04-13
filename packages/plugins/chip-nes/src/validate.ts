@@ -142,12 +142,20 @@ export function validateNesInstrument(inst: InstrumentNode): ValidationError[] {
           message: `dmc_sample must start with '@nes/', 'https://', 'github:', or 'local:'. Got '${ref}'`
         });
       }
-      // Path traversal guard for local: references
-      if (ref.startsWith('local:') && ref.includes('..')) {
-        errors.push({
-          field: 'dmc_sample',
-          message: `dmc_sample 'local:' path must not contain '..' (path traversal)`
-        });
+      // Path traversal guard for local: references.
+      // Mirrors the segment-based check in importResolver.ts and dmc.ts:
+      // normalise backslashes first, then match '..' only when it is a
+      // standalone path segment (preceded by '/' or start-of-string AND
+      // followed by '/' or end-of-string).  This correctly allows safe
+      // filenames like 'file..dmc' while still blocking '../' traversal.
+      if (ref.startsWith('local:')) {
+        const localPath = ref.slice('local:'.length).replace(/\\/g, '/');
+        if (/(^|\/)\.\.($|\/)/.test(localPath)) {
+          errors.push({
+            field: 'dmc_sample',
+            message: `dmc_sample 'local:' path must not contain '..' path segments (path traversal)`
+          });
+        }
       }
     }
   }
