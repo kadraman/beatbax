@@ -60,6 +60,7 @@ export const settingShowToolbar        = boolAtom(StorageKey.PANEL_VIS_TOOLBAR, 
 export const settingShowTransportBar   = boolAtom(StorageKey.PANEL_VIS_TRANSPORT_BAR,  true);
 export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_GRID,   false);
 export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
+export const settingShowDawMixer       = boolAtom(StorageKey.PANEL_VIS_DAW_MIXER,      true);
 export const settingChannelCompact     = boolAtom(StorageKey.CHANNEL_COMPACT,          true);
 
 // ─── Editor ───────────────────────────────────────────────────────────────────

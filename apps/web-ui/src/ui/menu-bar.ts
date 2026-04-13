@@ -143,6 +143,7 @@ export class MenuBar {
     ['help', true],
     ['shortcuts', true],
     ['channel-mixer', true],
+    ['daw-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
     ['ai-assistant', false],
@@ -509,6 +510,13 @@ export class MenuBar {
       },
       {
         type: 'item',
+        label: 'DAW Mixer',
+        icon: 'adjustments-horizontal',
+        shortcut: 'Ctrl+Shift+M',
+        action: () => this.emitPanelToggle('daw-mixer'),
+      },
+      {
+        type: 'item',
         label: 'Pattern Grid',
         icon: 'bars-3-center-left',
         shortcut: 'Ctrl+Shift+G',
@@ -808,7 +816,7 @@ export class MenuBar {
           break;
         case 'm':
           e.preventDefault();
-          this.emitPanelToggle('channel-mixer');
+          this.emitPanelToggle('daw-mixer');
           break;
         case 'b':
           e.preventDefault();

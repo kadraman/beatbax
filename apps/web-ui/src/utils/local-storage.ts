@@ -92,8 +92,16 @@ export const StorageKey = {
   PANEL_VIS_TRANSPORT_BAR: 'panel.transport-bar',
   /** Channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
+  /** DAW mixer (horizontal strip) visible state (boolean). */
+  PANEL_VIS_DAW_MIXER: 'panel.daw-mixer',
   /** Pattern grid visible state (boolean). */
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
+  /** Legacy channel mixer visible in right pane (boolean). */
+  PANEL_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
+  /** DAW mixer collapsed state (boolean). */
+  DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
+  /** DAW mixer height in pixels (number). */
+  DAW_MIXER_HEIGHT: 'ui.dawMixerHeight',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

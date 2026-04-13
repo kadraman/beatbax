@@ -1,6 +1,6 @@
 ---
 title: "DAW-Style Horizontal Channel Mixer with VU Meters"
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-04-04
 issue: "https://github.com/kadraman/beatbax/issues/75"

@@ -18,6 +18,8 @@ export interface AppLayout {
   layoutHost: HTMLElement;
   /** Host for the PatternGrid (below TransportBar, above three-pane layout). */
   patternGridContainer: HTMLElement;
+  /** Host for the HorizontalMixer (DAW-style strip, below three-pane layout). */
+  mixerHostContainer: HTMLElement;
   editorPane: HTMLElement;
   outputPane: HTMLElement;
   rightPane: HTMLElement;
@@ -65,5 +67,10 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   outputPane.style.fontFamily    = '';
   outputPane.style.fontSize      = '';
 
-  return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, editorPane, outputPane, rightPane, layout };
+  // ─── DAW mixer host (below three-pane layout) ─────────────────────────────
+  const mixerHostContainer = document.createElement('div');
+  mixerHostContainer.id = 'bb-mixer-host';
+  layoutHost.appendChild(mixerHostContainer);
+
+  return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, editorPane, outputPane, rightPane, layout };
 }
