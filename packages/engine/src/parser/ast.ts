@@ -56,6 +56,16 @@ export interface InstrumentNode {
   // Noise can be provided as CSV or as a normalized object
   noise?: string | NoiseAST | null;
   sweep?: string | SweepAST | null;
+  // Software macro envelopes (FamiStudio/FamiTracker style).
+  // Formatted as "[v0,v1,...|loopPoint]" or a number array.
+  // vol_env:   volume levels 0-15  (overrides hardware env when present)
+  // duty_env:  duty indices 0-3    (0=12.5%, 1=25%, 2=50%, 3=75%)
+  // arp_env:   semitone offsets    (0=root; pattern-level arp overrides completely)
+  // pitch_env: pitch offsets in semitones, absolute from note root (default mode)
+  vol_env?: string | number[];
+  duty_env?: string | number[];
+  arp_env?: string | number[];
+  pitch_env?: string | number[];
   [key: string]: any;
 }
 

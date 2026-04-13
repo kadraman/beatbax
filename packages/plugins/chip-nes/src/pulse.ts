@@ -19,6 +19,12 @@ import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
+import {
+  parseMacro, makeMacroState, getMacroValue, advanceMacro,
+  buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
+  DUTY_ENV_INDEX_TO_KEY,
+  type ParsedMacro, type MacroState,
+} from './macros.js';
 
 // ─── Duty cycle sequences (8-step NES sequences) ─────────────────────────────
 
@@ -104,9 +110,10 @@ export class NESPulseBackend implements ChipChannelBackend {
   private channelType: 'pulse1' | 'pulse2';
   private active: boolean = false;
   private freq: number = 440;
+  private baseFreq: number = 440;   // unchanged base for arp_env / pitch_env
   private currentInst: InstrumentNode | null = null;
 
-  // Envelope state
+  // Hardware envelope state
   private envVolume: number = 15;
   private envFrameCounter: number = 0;
 
@@ -114,6 +121,18 @@ export class NESPulseBackend implements ChipChannelBackend {
   private sweepFrameCounter: number = 0;
   private currentPeriod: number = 0;
   private muted: boolean = false;
+
+  // Software macro state (null when macro not present on instrument)
+  private volEnvMacro:   ParsedMacro | null = null;
+  private dutyEnvMacro:  ParsedMacro | null = null;
+  private arpEnvMacro:   ParsedMacro | null = null;
+  private pitchEnvMacro: ParsedMacro | null = null;
+  private volEnvState:   MacroState = makeMacroState();
+  private dutyEnvState:  MacroState = makeMacroState();
+  private arpEnvState:   MacroState = makeMacroState();
+  private pitchEnvState: MacroState = makeMacroState();
+  // Cached duty index: read in applyEnvelope before advancing, used in render()
+  private currentDutyIdx: number = 0;
 
   // Phase accumulator for PCM rendering
   private phase: number = 0;
@@ -126,6 +145,7 @@ export class NESPulseBackend implements ChipChannelBackend {
   reset(): void {
     this.active = false;
     this.freq = 440;
+    this.baseFreq = 440;
     this.currentInst = null;
     this.envVolume = 15;
     this.envFrameCounter = 0;
@@ -134,10 +154,20 @@ export class NESPulseBackend implements ChipChannelBackend {
     this.muted = false;
     this.phase = 0;
     this.seqStep = 0;
+    this.volEnvMacro = null;
+    this.dutyEnvMacro = null;
+    this.arpEnvMacro = null;
+    this.pitchEnvMacro = null;
+    this.volEnvState = makeMacroState();
+    this.dutyEnvState = makeMacroState();
+    this.arpEnvState = makeMacroState();
+    this.pitchEnvState = makeMacroState();
+    this.currentDutyIdx = 0;
   }
 
   noteOn(frequency: number, instrument: InstrumentNode): void {
     this.freq = frequency;
+    this.baseFreq = frequency;
     this.currentInst = instrument;
     this.active = true;
     this.muted = false;
@@ -147,6 +177,18 @@ export class NESPulseBackend implements ChipChannelBackend {
     const env = parseNESEnvelope(instrument);
     this.envVolume = env.initial;
     this.envFrameCounter = 0;
+
+    // Parse software macros (null when property absent)
+    this.volEnvMacro   = parseMacro(instrument.vol_env);
+    this.dutyEnvMacro  = parseMacro(instrument.duty_env);
+    this.arpEnvMacro   = parseMacro(instrument.arp_env);
+    this.pitchEnvMacro = parseMacro(instrument.pitch_env);
+    this.volEnvState   = makeMacroState();
+    this.dutyEnvState  = makeMacroState();
+    this.arpEnvState   = makeMacroState();
+    this.pitchEnvState = makeMacroState();
+    // Initialise duty index from first macro value so render() is correct before first applyEnvelope
+    this.currentDutyIdx = this.dutyEnvMacro ? getMacroValue(this.dutyEnvMacro, this.dutyEnvState) : 0;
 
     // Compute period from frequency
     if (frequency > 0) {
@@ -179,24 +221,63 @@ export class NESPulseBackend implements ChipChannelBackend {
 
   applyEnvelope(frame: number): void {
     if (!this.active || !this.currentInst) return;
-    const env = parseNESEnvelope(this.currentInst);
-    if (env.direction === 'flat' || env.period === 0) return;
 
-    this.envFrameCounter++;
-    const divider = env.period + 1;
-    if (this.envFrameCounter >= divider) {
-      this.envFrameCounter = 0;
-      if (env.direction === 'down') {
-        if (this.envVolume > 0) this.envVolume--;
-        else if (env.loop) this.envVolume = 15;
-      } else {
-        if (this.envVolume < 15) this.envVolume++;
-        else if (env.loop) this.envVolume = 0;
+    // ── Software vol_env macro ────────────────────────────────────────────────
+    if (this.volEnvMacro) {
+      this.envVolume = getMacroValue(this.volEnvMacro, this.volEnvState);
+      advanceMacro(this.volEnvMacro, this.volEnvState);
+    } else {
+      // Hardware envelope fallback
+      const env = parseNESEnvelope(this.currentInst);
+      if (env.direction !== 'flat' && env.period >= 0) {
+        this.envFrameCounter++;
+        const divider = env.period + 1;
+        if (this.envFrameCounter >= divider) {
+          this.envFrameCounter = 0;
+          if (env.direction === 'down') {
+            if (this.envVolume > 0) this.envVolume--;
+            else if (env.loop) this.envVolume = 15;
+          } else {
+            if (this.envVolume < 15) this.envVolume++;
+            else if (env.loop) this.envVolume = 0;
+          }
+        }
       }
     }
 
-    // Apply sweep if enabled
-    if (this.currentInst) {
+    // ── Software duty_env macro ───────────────────────────────────────────────
+    // Read THEN advance so render() uses the value for THIS frame, not the next.
+    if (this.dutyEnvMacro) {
+      this.currentDutyIdx = getMacroValue(this.dutyEnvMacro, this.dutyEnvState);
+      advanceMacro(this.dutyEnvMacro, this.dutyEnvState);
+    }
+
+    // ── Software arp_env macro ────────────────────────────────────────────────
+    if (this.arpEnvMacro) {
+      const semitones = getMacroValue(this.arpEnvMacro, this.arpEnvState);
+      advanceMacro(this.arpEnvMacro, this.arpEnvState);
+      const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
+      this.freq = newFreq;
+      if (newFreq > 0) {
+        this.currentPeriod = Math.round(1789773 / (16 * newFreq) - 1);
+        this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
+      }
+    }
+
+    // ── Software pitch_env macro ──────────────────────────────────────────────
+    if (this.pitchEnvMacro) {
+      const semitones = getMacroValue(this.pitchEnvMacro, this.pitchEnvState);
+      advanceMacro(this.pitchEnvMacro, this.pitchEnvState);
+      const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
+      this.freq = newFreq;
+      if (newFreq > 0) {
+        this.currentPeriod = Math.round(1789773 / (16 * newFreq) - 1);
+        this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
+      }
+    }
+
+    // ── Hardware sweep (only when no pitch macros override freq) ─────────────
+    if (!this.arpEnvMacro && !this.pitchEnvMacro && this.currentInst) {
       const sweep = parseNESSweep(this.currentInst);
       if (sweep.enabled && sweep.shift > 0) {
         this.sweepFrameCounter++;
@@ -205,14 +286,10 @@ export class NESPulseBackend implements ChipChannelBackend {
           const delta = this.currentPeriod >> sweep.shift;
           let newPeriod: number;
           if (sweep.direction === 'up') {
-            // Sweep up = decrease period (raise pitch)
-            // Pulse 1 uses one's complement negate (~delta), pulse 2 uses two's complement (-delta)
-            // In practice the difference is negligible (1 step at most), but we model it accurately.
             newPeriod = this.channelType === 'pulse1'
-              ? this.currentPeriod - delta - 1  // one's complement
-              : this.currentPeriod - delta;     // two's complement
+              ? this.currentPeriod - delta - 1
+              : this.currentPeriod - delta;
           } else {
-            // Sweep down = increase period (lower pitch)
             newPeriod = this.currentPeriod + delta;
           }
           if (newPeriod < 8 || newPeriod > 2047) {
@@ -229,14 +306,24 @@ export class NESPulseBackend implements ChipChannelBackend {
   render(buffer: Float32Array, sampleRate: number): void {
     if (!this.active || this.muted || !this.currentInst) return;
 
-    const dutySeq = getDutySequence(this.currentInst.duty);
+    // duty_env: use value cached by applyEnvelope() so there's no off-by-one.
+    let dutySeq: number[];
+    if (this.dutyEnvMacro) {
+      dutySeq = getDutySequence(DUTY_ENV_INDEX_TO_KEY[Math.max(0, Math.min(3, this.currentDutyIdx))]);
+    } else {
+      dutySeq = getDutySequence(this.currentInst.duty);
+    }
+
     const freq = this.freq;
     if (freq <= 0) return;
 
+    // vol_env: when macro present, this.envVolume is already advancing in applyEnvelope
     const env = parseNESEnvelope(this.currentInst);
-    const volume = (env.direction === 'flat' && env.period === 0 && this.currentInst.vol !== undefined)
-      ? Math.max(0, Math.min(15, Number(this.currentInst.vol)))
-      : this.envVolume;
+    const volume = this.volEnvMacro
+      ? this.envVolume
+      : ((env.direction === 'flat' && env.period === 0 && this.currentInst.vol !== undefined)
+          ? Math.max(0, Math.min(15, Number(this.currentInst.vol)))
+          : this.envVolume);
 
     const gain = NES_MIX_GAIN.pulse * volume;
     const phaseInc = (freq * 8) / sampleRate; // 8 steps per cycle
@@ -269,7 +356,16 @@ export class NESPulseBackend implements ChipChannelBackend {
   ): AudioNode[] | null {
     if (typeof (ctx as any).createOscillator !== 'function') return null;
 
-    const dutyRatio = Number(inst.duty ?? 50) / 100;
+    // duty_env: use first value for initial PeriodicWave (WebAudio can't change wave dynamically)
+    const dutyEnvM = parseMacro(inst.duty_env);
+    let dutyRatio: number;
+    if (dutyEnvM && dutyEnvM.values.length > 0) {
+      const idx = Math.max(0, Math.min(3, dutyEnvM.values[0]));
+      const key = DUTY_ENV_INDEX_TO_KEY[idx];
+      dutyRatio = parseFloat(key) / 100;
+    } else {
+      dutyRatio = Number(inst.duty ?? 50) / 100;
+    }
     const osc = (ctx as any).createOscillator();
     const gain = (ctx as any).createGain();
 
@@ -288,18 +384,43 @@ export class NESPulseBackend implements ChipChannelBackend {
     // _baseFreq is read by the arp effect to determine base pitch before automation
     (osc as any)._baseFreq = safeFreq;
 
-    // Hardware sweep — scheduled as discrete setValueAtTime steps on osc.frequency
-    const sweep = parseNESSweep(inst);
-    if (sweep.enabled && sweep.shift > 0 && freq > 0) {
-      const initialPeriod = Math.round(1789773 / (16 * freq) - 1);
-      applyNESSweepToFreq(osc.frequency, initialPeriod, start, dur, sweep);
-    }
-
     osc.connect(gain);
     gain.connect(destination || (ctx as any).destination);
 
-    // Volume envelope: setValueCurveAtTime stepping at the NES frame rate
-    applyNESEnvelopeToGain(gain.gain, parseNESEnvelope(inst), start, dur);
+    // ── Frequency macros (arp_env takes priority over pitch_env) ─────────────
+    const arpEnvM  = parseMacro(inst.arp_env);
+    const pitchEnvM = parseMacro(inst.pitch_env);
+    if (arpEnvM) {
+      scheduleArpEnvToFreq(osc.frequency, safeFreq, arpEnvM, start, dur);
+    } else if (pitchEnvM) {
+      schedulePitchEnvToFreq(osc.frequency, safeFreq, pitchEnvM, start, dur);
+    } else {
+      // Hardware sweep (only when no pitch macros)
+      const sweep = parseNESSweep(inst);
+      if (sweep.enabled && sweep.shift > 0 && freq > 0) {
+        const initialPeriod = Math.round(1789773 / (16 * freq) - 1);
+        applyNESSweepToFreq(osc.frequency, initialPeriod, start, dur, sweep);
+      }
+    }
+
+    // ── Volume macro or hardware envelope ────────────────────────────────────
+    const volEnvM = parseMacro(inst.vol_env);
+    if (volEnvM) {
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.pulse, dur);
+      try {
+        gain.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
+      } catch (_) {
+        if (curve.length > 0) {
+          try { gain.gain.setValueAtTime(curve[0], start); } catch (_) {}
+        }
+      }
+      try {
+        gain.gain.setValueAtTime(0.0001, start + dur);
+        gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      } catch (_) {}
+    } else {
+      applyNESEnvelopeToGain(gain.gain, parseNESEnvelope(inst), start, dur);
+    }
 
     try { osc.start(start); } catch (e) { try { osc.start(); } catch (_) {} }
     try { osc.stop(start + dur + 0.02); } catch (_) {}
@@ -333,7 +454,11 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
  * Steps through volume levels at the NES hardware frame rate.
  */
 function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number, dur: number): void {
-  const initialGain = env.initial / 15;
+  // Match the PCM render path exactly: gain = NES_MIX_GAIN.pulse * volume (0-15).
+  // This ensures WebAudio pulse loudness matches the CLI PCM output and applies
+  // the correct NES hardware mixer weighting relative to triangle/noise/dmc.
+  const mixGain = NES_MIX_GAIN.pulse;
+  const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
   // Constant volume is indicated solely by direction === 'flat'.
@@ -350,11 +475,11 @@ function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number,
   const stepInterval = (env.period + 1) / NES_FRAME_RATE;
   const vals: number[] = [];
   let cur = env.initial;
-  vals.push(cur / 15);
+  vals.push(cur * mixGain);
   while (vals.length < 256) {
     if (env.direction === 'down') cur = Math.max(0, cur - 1);
     else cur = Math.min(15, cur + 1);
-    vals.push(cur / 15);
+    vals.push(cur * mixGain);
     if (env.loop) {
       if (env.direction === 'down' && cur === 0) cur = 15;
       else if (env.direction === 'up' && cur === 15) cur = 0;

@@ -17,9 +17,18 @@
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NES_MIX_GAIN } from './mixer.js';
+import {
+  parseMacro, makeMacroState, getMacroValue, advanceMacro,
+  schedulePitchEnvToFreq, scheduleArpEnvToFreq,
+  type ParsedMacro, type MacroState,
+} from './macros.js';
 
-/** Constant output gain for the triangle Web Audio path (no hardware envelope). */
-const NES_TRIANGLE_WEB_GAIN = 0.5;
+/**
+ * Constant output gain for the triangle Web Audio path (no hardware envelope).
+ * Matches the PCM render path: NES_MIX_GAIN.triangle × 15 (maximum triangle amplitude).
+ * This keeps the WebAudio triangle level consistent with CLI PCM output.
+ */
+const NES_TRIANGLE_WEB_GAIN = NES_MIX_GAIN.triangle * 15;
 
 /** 32-step quantised triangle waveform (hardware NES values, 0–15 each step). */
 const TRIANGLE_WAVE_32: number[] = [
@@ -30,6 +39,7 @@ const TRIANGLE_WAVE_32: number[] = [
 export class NESTriangleBackend implements ChipChannelBackend {
   private active: boolean = false;
   private freq: number = 440;
+  private baseFreq: number = 440;
   private currentInst: InstrumentNode | null = null;
   private phase: number = 0;
 
@@ -38,22 +48,40 @@ export class NESTriangleBackend implements ChipChannelBackend {
   private sampleCount: number = 0;
   private linearTicks: number = 0;
 
+  // Software macro state
+  private arpEnvMacro:   ParsedMacro | null = null;
+  private pitchEnvMacro: ParsedMacro | null = null;
+  private arpEnvState:   MacroState = makeMacroState();
+  private pitchEnvState: MacroState = makeMacroState();
+
   reset(): void {
     this.active = false;
     this.freq = 440;
+    this.baseFreq = 440;
     this.currentInst = null;
     this.phase = 0;
     this.linearCounterSamples = Infinity;
     this.sampleCount = 0;
     this.linearTicks = 0;
+    this.arpEnvMacro = null;
+    this.pitchEnvMacro = null;
+    this.arpEnvState = makeMacroState();
+    this.pitchEnvState = makeMacroState();
   }
 
   noteOn(frequency: number, instrument: InstrumentNode): void {
     this.freq = frequency;
+    this.baseFreq = frequency;
     this.currentInst = instrument;
     this.active = true;
     this.phase = 0;
     this.sampleCount = 0;
+
+    // Parse macros
+    this.arpEnvMacro   = parseMacro(instrument.arp_env);
+    this.pitchEnvMacro = parseMacro(instrument.pitch_env);
+    this.arpEnvState   = makeMacroState();
+    this.pitchEnvState = makeMacroState();
 
     // Linear counter: `linear` field in ticks at 240 Hz; 0 = no counter (infinite duration)
     const linear = instrument.linear !== undefined ? Number(instrument.linear) : 0;
@@ -78,6 +106,20 @@ export class NESTriangleBackend implements ChipChannelBackend {
   }
 
   applyEnvelope(_frame: number): void {
+    if (!this.active) return;
+
+    if (this.arpEnvMacro) {
+      const semitones = getMacroValue(this.arpEnvMacro, this.arpEnvState);
+      advanceMacro(this.arpEnvMacro, this.arpEnvState);
+      this.freq = this.baseFreq * Math.pow(2, semitones / 12);
+    }
+
+    if (this.pitchEnvMacro) {
+      const semitones = getMacroValue(this.pitchEnvMacro, this.pitchEnvState);
+      advanceMacro(this.pitchEnvMacro, this.pitchEnvState);
+      this.freq = this.baseFreq * Math.pow(2, semitones / 12);
+    }
+
     // Triangle has no hardware envelope; linear counter is handled in render
   }
 
@@ -121,6 +163,15 @@ export class NESTriangleBackend implements ChipChannelBackend {
 
     osc.connect(gain);
     gain.connect(destination || (ctx as any).destination);
+
+    // Frequency macros (arp_env takes priority over pitch_env)
+    const arpEnvM  = parseMacro(inst.arp_env);
+    const pitchEnvM = parseMacro(inst.pitch_env);
+    if (arpEnvM) {
+      scheduleArpEnvToFreq(osc.frequency, safeFreq, arpEnvM, start, dur);
+    } else if (pitchEnvM) {
+      schedulePitchEnvToFreq(osc.frequency, safeFreq, pitchEnvM, start, dur);
+    }
 
     // Triangle has no envelope: constant gain unless vol=0 (software mute)
     const vol = (inst.vol !== undefined && Number(inst.vol) === 0) ? 0 : NES_TRIANGLE_WEB_GAIN;

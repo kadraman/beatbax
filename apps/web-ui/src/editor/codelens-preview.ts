@@ -115,7 +115,7 @@ async function startPatternPreview(
   // Minimal single-channel AST so the resolver only expands this one pattern
   const previewAst = {
     ...rawAst,
-    channels: [{ id: 1, inst: instName, pat: patternName }],
+    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: patternName }],
     play: { auto: false },
   };
 
@@ -209,7 +209,7 @@ async function startSeqPreview(
 
   const previewAst = {
     ...rawAst,
-    channels: [{ id: 1, inst: instName, pat: seqName }],
+    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: seqName }],
     play: { auto: false },
   };
 

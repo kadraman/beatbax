@@ -14,6 +14,11 @@ import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NOISE_PERIOD_TABLE, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
+import {
+  parseMacro, makeMacroState, getMacroValue, advanceMacro,
+  buildVolEnvGainCurve,
+  type ParsedMacro, type MacroState,
+} from './macros.js';
 
 // ─── LFSR buffer generation ───────────────────────────────────────────────────
 
@@ -115,6 +120,10 @@ export class NESNoiseBackend implements ChipChannelBackend {
   /** Resolved noise period index (0-15) for the current note. */
   private periodIdx: number = 8;
 
+  // Software macro state
+  private volEnvMacro:  ParsedMacro | null = null;
+  private volEnvState:  MacroState = makeMacroState();
+
   reset(): void {
     this.active = false;
     this.currentInst = null;
@@ -123,6 +132,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
     this.phase = 0;
     this.lfsrIndex = 0;
     this.periodIdx = 8;
+    this.volEnvMacro = null;
+    this.volEnvState = makeMacroState();
   }
 
   noteOn(_frequency: number, instrument: InstrumentNode): void {
@@ -134,6 +145,10 @@ export class NESNoiseBackend implements ChipChannelBackend {
     const env = parseNoiseEnvelope(instrument);
     this.envVolume = env.initial;
     this.envFrameCounter = 0;
+
+    // Parse vol_env macro
+    this.volEnvMacro = parseMacro(instrument.vol_env);
+    this.volEnvState = makeMacroState();
 
     // Select LFSR mode
     const mode = (instrument.noise_mode || 'normal').toString().toLowerCase();
@@ -152,21 +167,24 @@ export class NESNoiseBackend implements ChipChannelBackend {
 
   applyEnvelope(_frame: number): void {
     if (!this.active || !this.currentInst) return;
-    const env = parseNoiseEnvelope(this.currentInst);
-    // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
-    // Only direction === 'flat' means constant volume — the period value does not override this.
-    if (env.direction === 'flat') return;
 
-    this.envFrameCounter++;
-    const divider = env.period + 1;
-    if (this.envFrameCounter >= divider) {
-      this.envFrameCounter = 0;
-      if (env.direction === 'down') {
-        if (this.envVolume > 0) this.envVolume--;
-        else if (env.loop) this.envVolume = 15;
-      } else {
-        if (this.envVolume < 15) this.envVolume++;
-        else if (env.loop) this.envVolume = 0;
+    if (this.volEnvMacro) {
+      this.envVolume = getMacroValue(this.volEnvMacro, this.volEnvState);
+      advanceMacro(this.volEnvMacro, this.volEnvState);
+    } else {
+      const env = parseNoiseEnvelope(this.currentInst);
+      if (env.direction === 'flat') return;
+      this.envFrameCounter++;
+      const divider = env.period + 1;
+      if (this.envFrameCounter >= divider) {
+        this.envFrameCounter = 0;
+        if (env.direction === 'down') {
+          if (this.envVolume > 0) this.envVolume--;
+          else if (env.loop) this.envVolume = 15;
+        } else {
+          if (this.envVolume < 15) this.envVolume++;
+          else if (env.loop) this.envVolume = 0;
+        }
       }
     }
   }
@@ -175,10 +193,12 @@ export class NESNoiseBackend implements ChipChannelBackend {
     if (!this.active || !this.currentInst) return;
 
     const env = parseNoiseEnvelope(this.currentInst);
-    // Use vol property only for pure-vol instruments (direction=flat); envVolume for everything else.
-    const volume = (env.direction === 'flat' && this.currentInst.vol !== undefined)
-      ? Math.max(0, Math.min(15, Number(this.currentInst.vol)))
-      : this.envVolume;
+    // vol_env macro takes priority; then constant vol; then hardware envVolume
+    const volume = this.volEnvMacro
+      ? this.envVolume
+      : ((env.direction === 'flat' && this.currentInst.vol !== undefined)
+          ? Math.max(0, Math.min(15, Number(this.currentInst.vol)))
+          : this.envVolume);
 
     const gain = NES_MIX_GAIN.noise * volume;
     if (gain === 0) return;
@@ -248,7 +268,23 @@ export class NESNoiseBackend implements ChipChannelBackend {
     source.buffer = abuf;
 
     const gainNode = (ctx as any).createGain();
-    applyNESNoiseEnvelopeToGain(gainNode.gain, parseNoiseEnvelope(inst), start, dur);
+    const volEnvM = parseMacro(inst.vol_env);
+    if (volEnvM) {
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise, dur);
+      try {
+        gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
+      } catch (_) {
+        if (curve.length > 0) {
+          try { gainNode.gain.setValueAtTime(curve[0], start); } catch (_) {}
+        }
+      }
+      try {
+        gainNode.gain.setValueAtTime(0.0001, start + dur);
+        gainNode.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      } catch (_) {}
+    } else {
+      applyNESNoiseEnvelopeToGain(gainNode.gain, parseNoiseEnvelope(inst), start, dur);
+    }
 
     source.connect(gainNode);
     gainNode.connect(destination || (ctx as any).destination);
