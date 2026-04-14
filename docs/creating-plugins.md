@@ -37,6 +37,13 @@ const myPlugin: ChipPlugin = {
     // Return a ChipChannelBackend for the given channel
     return new MyChannelBackend(channelIndex);
   },
+
+  // Optional: tailor the web editor experience to this chip
+  uiContributions: {
+    copilotSystemPrompt: '...hardware description and style guide...',
+    hoverDocs: { inst: '...', pulse1: '...' },
+    helpSections: [{ id: 'instruments', title: 'Instruments (My Chip)', content: [] }],
+  },
 };
 ```
 
@@ -181,6 +188,73 @@ const myPlugin: ChipPlugin = {
 export default myPlugin;
 ```
 
+### Step 3b: Add web UI contributions (optional)
+
+If your plugin will be used with the BeatBax web editor, add a `uiContributions` object so the editor shows chip-correct hover documentation, help panel content, and Copilot prompts when a song using your chip is active. See the [Web UI Contributions](#web-ui-contributions) section below for the full interface and rules.
+
+```typescript
+// src/ui-contributions.ts
+import type { ChipUIContributions } from '@beatbax/engine';
+
+export const myChipUIContributions: ChipUIContributions = {
+  copilotSystemPrompt: `
+══ MY CHIP HARDWARE — READ FIRST ══
+... hardware layout ...
+`.trim(),
+
+  hoverDocs: {
+    inst: [
+      '**Instrument definition** — declares a named instrument with channel type and parameters.',
+      '\`\`\`\ninst <name> type=<type> [field=value …]\n\`\`\`',
+      '**Common fields (all chips):**',
+      '- \`note\` — default note when instrument name is used as a hit token, e.g. \`note=C2\`',
+      '- \`gm\` — General MIDI program number for MIDI export (0–127)',
+      '',
+      '**My Chip instrument types:**',
+      '- \`type=pulse1\` — ...',
+      '- \`type=pulse2\` — ...',
+      '',
+      'Example: \`inst lead type=pulse1 duty=50\`',
+    ].join('\n\n'),
+    pulse1: '**Pulse 1** — ...',
+  },
+
+  helpSections: [
+    {
+      id: 'instruments',       // replaces the built-in 'instruments' placeholder
+      title: 'Instruments (My Chip)',
+      content: [
+        { kind: 'text', text: 'My Chip has two pulse channels...' },
+        { kind: 'snippet', label: 'Pulse instrument', code: 'inst lead type=pulse1 duty=50' },
+      ],
+    },
+    {
+      id: 'examples',          // replaces the built-in 'examples' placeholder
+      title: 'Examples — Click to Insert (My Chip)',
+      content: [
+        {
+          kind: 'snippet',
+          label: 'Minimal song',
+          code: `chip my-chip\nbpm 120\n\ninst lead type=pulse1 duty=50\n\npat a = C4 E4 G4\nseq main = a a\n\nchannel 1 => inst lead seq main\n\nplay`,
+        },
+      ],
+    },
+  ],
+};
+```
+
+Then wire it into your plugin:
+
+```typescript
+// src/index.ts (updated)
+import { myChipUIContributions } from './ui-contributions.js';
+
+const myPlugin: ChipPlugin = {
+  // ... audio fields ...
+  uiContributions: myChipUIContributions,
+};
+```
+
 ### Step 4: Register with the engine
 
 ```typescript
@@ -242,6 +316,95 @@ beatbax export json song.bax output.json
 | `@beatbax/plugin-chip-<name>` | Official BeatBax-maintained plugins |
 | `beatbax-plugin-chip-<name>` | Community plugins (auto-discovered) |
 | `name` field in `ChipPlugin` | Must match the string used in `chip <name>` directive |
+
+---
+
+## Web UI Contributions
+
+Plugins can provide an optional `uiContributions` object on the `ChipPlugin` to tailor the BeatBax web editor experience whenever a song using that chip is the active document. The web editor uses three surfaces:
+
+| Surface | When used | What it does |
+|---------|-----------|---------------|
+| **Copilot system prompt** | Sent with every AI chat request | Describes the chip's hardware layout and style guide to the AI |
+| **Hover docs** | User hovers over a keyword in the editor | Shows chip-specific Markdown documentation for that token |
+| **Help panel sections** | Help & Reference panel is open | Provides chip-specific instrument definitions and click-to-insert examples |
+
+All three surfaces switch automatically when the parser detects a `chip <name>` directive change — no user action required.
+
+### Interface
+
+```typescript
+import type { ChipUIContributions, ChipHelpSection } from '@beatbax/engine';
+
+// One section of the Help & Reference panel
+interface ChipHelpSection {
+  /** Matches an existing built-in section id to *replace* it, or a new id to *append* it. */
+  id: string;
+  title: string;
+  content: Array<
+    | { kind: 'text';    text: string }
+    | { kind: 'snippet'; label: string; code: string }
+  >;
+}
+
+interface ChipUIContributions {
+  /** Injected into the AI system prompt in place of the default hardware block. */
+  copilotSystemPrompt: string;
+
+  /** keyword → Markdown string; merged *over* built-in hover docs (chip wins). */
+  hoverDocs: Record<string, string>;
+
+  /**
+   * Sections to add or replace in the Help panel.
+   * id='instruments' and id='examples' replace the built-in chip-agnostic placeholders.
+   * Any other id is appended after the built-in sections.
+   */
+  helpSections: ChipHelpSection[];
+}
+```
+
+### Hover doc conventions
+
+All chips should follow the same structure for the `inst` hover entry so the docs are consistent across chips:
+
+```typescript
+hoverDocs: {
+  inst: [
+    '**Instrument definition** — declares a named instrument with channel type and parameters.',
+    '```\ninst <name> type=<type> [field=value …]\n```',
+    '**Common fields (all chips):**',
+    '- `note` — default note when instrument name is used as a hit token, e.g. `note=C2`',
+    '- `gm` — General MIDI program number for MIDI export (0–127)',
+    '',
+    '**My Chip instrument types:**',
+    '- `type=pulse1` — `duty`, `env`, ...',
+    '- `type=pulse2` — ...',
+    '',
+    'Example: `inst lead type=pulse1 duty=50`',
+  ].join('\n\n'),
+},
+```
+
+### Help section ids
+
+The built-in Help panel contains placeholder sections for `instruments` and `examples` that show a generic message until a chip plugin replaces them. Use these ids to supply chip-specific content:
+
+| `id` | Built-in placeholder | What to put here |
+|------|---------------------|------------------|
+| `instruments` | "Load a song to see chip docs" | All instrument types with code snippets |
+| `examples` | "Load a song to see examples" | Click-to-insert full song examples |
+
+Any `id` that does not match an existing built-in section is **appended** at the bottom of the panel — use this for entirely new sections (e.g. `'dmc-samples'`).
+
+### Copilot prompt guidelines
+
+- Open with a clear hardware header: `══ MY CHIP HARDWARE — READ FIRST ══`
+- List channel count, fixed channel-to-type mapping, and hard constraints (e.g. "channel 5 is DMC only").
+- Document all `inst` fields relevant to the chip.
+- Follow the header with a style guide section describing characteristic techniques.
+- Keep it concise — the prompt is injected verbatim and counts against the AI context window.
+
+See `packages/engine/src/chips/gameboy/ui-contributions.ts` and `packages/plugins/chip-nes/src/ui-contributions.ts` for complete reference implementations.
 
 ---
 

@@ -8,6 +8,7 @@
  */
 import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
+import { gameboyUIContributions } from './ui-contributions.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -187,7 +188,9 @@ export const gameboyPlugin: ChipPlugin = {
 
   createChannel(channelIndex: number, _audioContext: BaseAudioContext): ChipChannelBackend {
     return new GBChannelBackend(channelIndex);
-  }
+  },
+
+  uiContributions: gameboyUIContributions,
 };
 
 export default gameboyPlugin;

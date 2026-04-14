@@ -98,6 +98,50 @@ export interface ChipChannelBackend {
   ): AudioNode[] | null;
 }
 
+// ─── Plugin UI contributions ──────────────────────────────────────────────────
+
+/**
+ * A section of content for the Help & Reference panel, contributed by a chip
+ * plugin so the panel can show chip-specific documentation.
+ */
+export interface ChipHelpSection {
+  /** Stable identifier — matches an existing section to *replace* it, or a new id to *add* it. */
+  id: string;
+  title: string;
+  content: Array<
+    | { kind: 'text'; text: string }
+    | { kind: 'snippet'; label: string; code: string }
+  >;
+}
+
+/**
+ * Optional UI contributions provided by a chip plugin.
+ * These are consumed by the web-UI at runtime to tailor the editor experience
+ * (CoPilot prompt, hover docs, help sections) to the active chip.
+ */
+export interface ChipUIContributions {
+  /**
+   * Hardware description and style guide injected into the BeatBax Copilot
+   * system prompt in place of the default Game Boy hardware block.
+   * Use plain text; multi-line strings are fine.
+   */
+  copilotSystemPrompt: string;
+
+  /**
+   * Keyword → Markdown hover documentation.
+   * Entries here are *merged over* the built-in GameBoy hover docs, so only
+   * provide keys you want to add or override.
+   */
+  hoverDocs: Record<string, string>;
+
+  /**
+   * Help-panel sections to add or replace when this chip is active.
+   * A section whose `id` matches an existing built-in section completely
+   * replaces it; unknown ids are appended after the built-in sections.
+   */
+  helpSections: ChipHelpSection[];
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 /**
@@ -176,4 +220,11 @@ export interface ChipPlugin {
    * @param format - Target format name (plugin-defined, e.g. `'nsf'`).
    */
   exportToNative?(song: SongModel, format?: string): Uint8Array;
+
+  /**
+   * Optional UI contributions for the BeatBax web editor.
+   * When provided these override the default Game Boy content inside the
+   * CoPilot system prompt, hover docs, and Help panel.
+   */
+  uiContributions?: ChipUIContributions;
 }

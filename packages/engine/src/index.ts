@@ -375,7 +375,7 @@ export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelN
 
 // ─── Plugin system ────────────────────────────────────────────────────────────
 
-export type { ChipPlugin, ChipChannelBackend, ValidationError } from './chips/types.js';
+export type { ChipPlugin, ChipChannelBackend, ValidationError, ChipUIContributions, ChipHelpSection } from './chips/types.js';
 export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
 export { BeatBaxEngine } from './engine.js';
 

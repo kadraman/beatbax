@@ -9,6 +9,6 @@
  * ```
  */
 
-export type { ChipPlugin, ChipChannelBackend, ValidationError } from './types.js';
+export type { ChipPlugin, ChipChannelBackend, ValidationError, ChipUIContributions, ChipHelpSection } from './types.js';
 export { ChipRegistry, chipRegistry } from './registry.js';
 export { gameboyPlugin } from './gameboy/plugin.js';

@@ -32,6 +32,7 @@ import { createNoiseChannel } from './noise.js';
 import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
+import { nesUIContributions } from './ui-contributions.js';
 
 const nesPlugin: ChipPlugin = {
   name: 'nes',
@@ -71,6 +72,8 @@ const nesPlugin: ChipPlugin = {
       await preloadDMCSamples(refs);
     }
   },
+
+  uiContributions: nesUIContributions,
 };
 
 export default nesPlugin;

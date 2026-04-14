@@ -125,12 +125,38 @@ export interface ChipPlugin {
   // Keys are sample names; values are base64-encoded .dmc/.raw content.
   bundledSamples?: Record<string, string>;
 
+  // Optional: Pre-load sample data before headless PCM rendering begins.
+  // Implement this when your chip loads samples asynchronously (e.g. DMC).
+  preloadForPCM?(insts: Record<string, InstrumentDef>): Promise<void>;
+
   // Optional: Convert instrument to native format
   instrumentToNative?(inst: InstrumentDef): any;
 
   // Optional: Export support (NSF, .ftm, .fms, etc.)
   // May return multiple exports keyed by format name.
   exportToNative?(song: SongModel, format?: string): Uint8Array;
+
+  // Optional: Web editor UI contributions.
+  // When present, the web UI uses these in place of the default Game Boy
+  // content for the Copilot system prompt, hover documentation, and Help panel.
+  // See docs/creating-plugins.md § "Web UI Contributions" for the full interface.
+  uiContributions?: ChipUIContributions;
+}
+
+// Provided by each chip plugin to tailor the web editor experience.
+export interface ChipUIContributions {
+  copilotSystemPrompt: string;                  // injected into the AI system prompt
+  hoverDocs: Record<string, string>;            // keyword → Markdown (overrides built-ins)
+  helpSections: ChipHelpSection[];              // replace or append Help panel sections
+}
+
+export interface ChipHelpSection {
+  id: string;       // 'instruments' or 'examples' replace built-in placeholders; others append
+  title: string;
+  content: Array<
+    | { kind: 'text';    text: string }
+    | { kind: 'snippet'; label: string; code: string }
+  >;
 }
 ```
 
