@@ -1,5 +1,18 @@
 # @beatbax/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- 7b431d8: The CLI now auto-discovers and registers `@beatbax/plugin-chip-*` and `beatbax-plugin-chip-*` npm packages at startup. Added a `list-chips` command to list all available chip backends (built-in and plugin-discovered), with a `--json` flag for machine-readable output.
+
+### Patch Changes
+
+- Updated dependencies [7b431d8]
+- Updated dependencies [7b431d8]
+  - @beatbax/plugin-chip-nes@1.0.0
+  - @beatbax/engine@0.9.0
+
 ## 0.2.5
 
 ### Patch Changes
