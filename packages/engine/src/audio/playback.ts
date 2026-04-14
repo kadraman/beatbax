@@ -13,12 +13,36 @@ import createScheduler from '../scheduler/index.js';
 import BufferedRenderer from './bufferedRenderer.js';
 import { get as getEffect, clearEffectState } from '../effects/index.js';
 import { createLogger } from '../util/logger.js';
+import { chipRegistry } from '../chips/index.js';
 
 const log = createLogger('player');
 
 export { midiToFreq, noteNameToMidi };
 export { parseWaveTable };
 export const parseEnvelope = pulseParseEnvelope;
+
+/**
+ * Derive a playback frequency from an instrument object's `note` field.
+ * Returns 0 when the field is absent, unparseable, or the instrument is
+ * noise/DMC (which use register values, not frequency).
+ *
+ * This is used by the named-instrument plugin paths so that melodic instruments
+ * (e.g. `inst lead type=pulse1 note=C4`) play at the correct pitch when
+ * referenced as a bare instrument-name token rather than a note token.
+ */
+function instNoteToFreq(inst: any): number {
+  if (!inst) return 0;
+  // Noise and DMC instruments are not pitch-driven — return 0 so the backend
+  // can handle them in its own register-based way.
+  const t = inst.type ? String(inst.type).toLowerCase() : '';
+  if (t.includes('noise') || t.includes('dmc')) return 0;
+  const noteStr: string | undefined = inst.note;
+  if (!noteStr) return 0;
+  const m = noteStr.match(/^([A-G][#Bb]?)(-?\d+)$/i);
+  if (!m) return 0;
+  const midi = noteNameToMidi(m[1].toUpperCase(), parseInt(m[2], 10));
+  return midi !== null ? midiToFreq(midi) : 0;
+}
 
 /** Payload emitted on every analyser tick for one channel. */
 export interface ChannelWaveformPayload {
@@ -157,6 +181,9 @@ export class Player {
   private _isPaused: boolean = false; // Whether playback is currently paused
   private _isPlaying: boolean = false; // True only after scheduler.start() and before stop()
   private _debugLog: boolean = false; // Whether to log playback events (controlled by localStorage)
+  // ─── Plugin chip state ─────────────────────────────────────────────────────
+  private _pluginBackends: any[] = [];
+  private _pluginProcessor: any = null;
 
   /** Check localStorage for debug flag (browser only) */
   private static isDebugEnabled(): boolean {
@@ -231,15 +258,78 @@ export class Player {
     }
     this.masterGain.gain.setValueAtTime(masterVolume, this.ctx.currentTime);
 
-    const chip = ast.chip || 'gameboy';
-    if (chip !== 'gameboy') {
-      throw new Error(`Unsupported chip: ${chip}. Only 'gameboy' is supported at this time.`);
+    const chip = chipRegistry.resolve(ast.chip || 'gameboy');
+    const isGameboy = chip === 'gameboy';
+    const activePlugin = !isGameboy ? chipRegistry.get(chip) : null;
+    if (!isGameboy && !activePlugin) {
+      throw new Error(`Unsupported chip: ${ast.chip ?? chip}. No plugin registered for this chip.`);
     }
 
     // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
-    (this.ctx as any)._chipType = ast.chip || 'gameboy';
+    (this.ctx as any)._chipType = chip;
+
+    // Tear down any previous plugin processor before setting up a new one
+    if (this._pluginProcessor) {
+      try { this._pluginProcessor.disconnect(); } catch (_e) {}
+      this._pluginProcessor = null;
+    }
+    for (const b of this._pluginBackends) { try { b.reset(); } catch (_e) {} }
+    this._pluginBackends = [];
+
+    // Set up plugin channel backends and a ScriptProcessorNode for non-gameboy chips
+    if (activePlugin) {
+      this._pluginBackends = Array.from({ length: activePlugin.channels }, (_, i) =>
+        activePlugin.createChannel(i, this.ctx)
+      );
+      if (typeof (this.ctx as any).createScriptProcessor === 'function') {
+        const plugBufSize = 4096;
+        const proc = (this.ctx as any).createScriptProcessor(plugBufSize, 0, 1);
+        const backends = this._pluginBackends;
+        const plugTempBuf = new Float32Array(plugBufSize);
+        // Envelope/macro timing must be driven at the chip frame rate (~60 Hz for NES/GB),
+        // NOT once per ScriptProcessorNode callback.  A 4096-sample buffer at 44100 Hz
+        // fires every ~93 ms — far too slow for envelope steps that are supposed to tick
+        // every ~16.7 ms.  Mirror the accumulator approach used in pcmRenderer.ts:
+        // count rendered samples and call applyEnvelope() once per samplesPerFrame samples.
+        let plugFrameCounter = 0;       // counts completed 60 Hz frames (passed to applyEnvelope)
+        let samplesSinceFrame = 0;      // accumulates rendered samples between frame ticks
+        // samplesPerFrame is computed lazily on first callback so it uses the actual
+        // AudioContext sample rate (which may differ from 44100 in some environments).
+        let samplesPerFrame = 0;
+        proc.onaudioprocess = (_e: any) => {
+          const sampleRate: number = _e.outputBuffer.sampleRate;
+          if (samplesPerFrame === 0) {
+            // ~60 Hz for NES/GB; if the chip exposes its own frame rate, prefer that
+            samplesPerFrame = Math.floor(sampleRate / 60);
+          }
+          const outBuf = _e.outputBuffer.getChannelData(0);
+          outBuf.fill(0);
+          // Advance the envelope clock by the number of samples in this callback.
+          samplesSinceFrame += plugBufSize;
+          while (samplesSinceFrame >= samplesPerFrame) {
+            for (const b of backends) b.applyEnvelope(plugFrameCounter);
+            plugFrameCounter++;
+            samplesSinceFrame -= samplesPerFrame;
+          }
+          for (const b of backends) {
+            plugTempBuf.fill(0);
+            b.render(plugTempBuf, sampleRate);
+            for (let i = 0; i < plugBufSize; i++) outBuf[i] += plugTempBuf[i];
+          }
+        };
+        proc.connect(this.masterGain!);
+        this._pluginProcessor = proc;
+      }
+    }
+
+    // Pre-load plugin samples (e.g. remote DMC files) so createPlaybackNodes()
+    // finds them in cache on the first call, avoiding silent notes.
+    if (activePlugin?.preloadForPCM && ast.insts) {
+      await activePlugin.preloadForPCM(ast.insts as Record<string, any>);
+    }
 
     // Schedule all channels starting 100ms from now on the audio clock
+    // (computed after preload so the timestamp is current)
     const loopStart = this.ctx.currentTime + 0.1;
     const globalDurationSec = this._scheduleAllChannels(ast, loopStart);
     this._loopEndTime = loopStart + globalDurationSec;
@@ -487,6 +577,49 @@ export class Player {
 
     if (instsMap && typeof token === 'string' && instsMap[token]) {
       const alt = instsMap[token];
+      // Plugin chip path — named instrument token triggers noteOn on the channel backend
+      if (this._pluginBackends.length > 0) {
+        const backendIdx = chId - 1;
+        const backend = this._pluginBackends[backendIdx];
+        if (backend) {
+          const capturedAlt = alt;
+          const capturedChId = chId;
+          const capturedDur = dur;
+          // Derive pitch from the instrument's note= field so melodic plugin instruments
+          // play at the correct frequency, not silently at 0 Hz.
+          const capturedFreqFromInst = instNoteToFreq(alt);
+          try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur, eventIndex: currentIdx, totalEvents: totalEvts }); } } catch (e) {}
+          if (typeof backend.createPlaybackNodes === 'function') {
+            // ── Web Audio path for named-inst percussion ──────────────────────
+            this.scheduler.schedule(time, () => {
+              if (this.onPositionChange) {
+                try { this.onPositionChange(capturedChId, currentIdx, totalEvts); } catch (e) {}
+              }
+              if (this.solo !== null && this.solo !== capturedChId) return;
+              if (this.muted.has(capturedChId)) return;
+              const nodes = backend.createPlaybackNodes(this.ctx, capturedFreqFromInst, time, capturedDur, capturedAlt, this.scheduler, this._getChannelDest(capturedChId));
+              if (nodes && nodes.length > 0) {
+                const endTime = time + capturedDur + 0.1;
+                for (const n of nodes) this.activeNodes.push({ node: n, chId: capturedChId, endTime });
+              }
+            });
+          } else {
+            // ── PCM fallback path ─────────────────────────────────────────────
+            this.scheduler.schedule(time, () => {
+              if (this.onPositionChange) {
+                try { this.onPositionChange(capturedChId, currentIdx, totalEvts); } catch (e) {}
+              }
+              if (this.solo !== null && this.solo !== capturedChId) return;
+              if (this.muted.has(capturedChId)) return;
+              // Use the instrument's note= frequency; fall back to A4 (440 Hz) only when
+              // no note field is defined and the instrument is not noise/DMC.
+              backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
+            });
+            this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+          }
+        }
+        return;
+      }
       if (alt.type && String(alt.type).toLowerCase().includes('noise')) {
         try { if (typeof (this as any).onSchedule === 'function') { (this as any).onSchedule({ chId, inst: alt, token, time, dur, eventIndex: currentIdx, totalEvents: totalEvts }); } } catch (e) {}
         this.scheduler.schedule(time, () => {
@@ -532,6 +665,55 @@ export class Player {
       const midi = noteNameToMidi(note, octave);
       if (midi === null) return;
       const freq = midiToFreq(midi);
+      // Plugin chip path — delegate note events to ChipChannelBackend.
+      // If the backend provides createPlaybackNodes(), use the Web Audio path so
+      // effects (arp, vib, portamento, retrigger, echo, etc.) work via AudioParam
+      // automation — identical to the built-in Game Boy channels.
+      // Otherwise fall back to PCM rendering via the ScriptProcessorNode loop.
+      if (this._pluginBackends.length > 0) {
+        const backendIdx = chId - 1;
+        const backend = this._pluginBackends[backendIdx];
+        if (backend) {
+          const capturedInst = inst;
+          const capturedFreq = freq;
+          const capturedChId = chId;
+          const capturedDur = dur;
+          const capturedToken = token;
+          const capturedPanVal = panVal;
+          const capturedTickSec = tickSeconds;
+          if (typeof backend.createPlaybackNodes === 'function') {
+            // ── Web Audio path ────────────────────────────────────────────────
+            this.scheduler.schedule(time, () => {
+              if (this.onPositionChange) {
+                try { this.onPositionChange(capturedChId, currentIdx, totalEvts); } catch (e) {}
+              }
+              if (this.solo !== null && this.solo !== capturedChId) return;
+              if (this.muted.has(capturedChId)) return;
+              const nodes = backend.createPlaybackNodes(this.ctx, capturedFreq, time, capturedDur, capturedInst, this.scheduler, this._getChannelDest(capturedChId));
+              if (nodes && nodes.length > 0) {
+                this.tryApplyEffects(this.ctx, nodes, capturedToken && capturedToken.effects ? capturedToken.effects : [], time, capturedDur, capturedChId, capturedTickSec, capturedInst);
+                this.tryApplyPan(this.ctx, nodes, capturedPanVal, this._getChannelDest(capturedChId));
+                this.tryScheduleEcho(nodes);
+                this.tryScheduleRetriggers(nodes, capturedFreq, capturedInst, capturedChId, capturedToken, capturedTickSec, capturedPanVal);
+                const endTime = time + capturedDur + 0.1;
+                for (const n of nodes) this.activeNodes.push({ node: n, chId: capturedChId, endTime });
+              }
+            });
+          } else {
+            // ── PCM fallback path ─────────────────────────────────────────────
+            this.scheduler.schedule(time, () => {
+              if (this.onPositionChange) {
+                try { this.onPositionChange(capturedChId, currentIdx, totalEvts); } catch (e) {}
+              }
+              if (this.solo !== null && this.solo !== capturedChId) return;
+              if (this.muted.has(capturedChId)) return;
+              backend.noteOn(capturedFreq, capturedInst);
+            });
+            this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+          }
+        }
+        return;
+      }
       if (inst.type && inst.type.toLowerCase().includes('pulse')) {
         const duty = inst.duty ? parseFloat(inst.duty) / 100 : 0.5;
         const buffered = (this as any)._buffered as any;
@@ -1303,6 +1485,14 @@ export class Player {
       this.scheduler.clear();
       this.scheduler.stop();
     }
+
+    // Clean up plugin channel backends and ScriptProcessorNode
+    if (this._pluginProcessor) {
+      try { this._pluginProcessor.disconnect(); } catch (e) {}
+      this._pluginProcessor = null;
+    }
+    for (const b of this._pluginBackends) { try { b.reset(); } catch (e) {} }
+    this._pluginBackends = [];
 
     // Clear effect state (e.g., portamento frequency tracking)
     clearEffectState();

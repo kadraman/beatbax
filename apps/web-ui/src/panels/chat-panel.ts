@@ -15,6 +15,7 @@ import type { EventBus } from '../utils/event-bus';
 import type { Diagnostic } from '../editor/diagnostics';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
+import { chipRegistry } from '@beatbax/engine/chips';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import {
@@ -81,29 +82,11 @@ function detectChip(source: string): string {
   return (raw === 'gb' || raw === 'dmg') ? 'gameboy' : raw;
 }
 
-const HARDWARE_GAMEBOY = `
-══ GAME BOY HARDWARE — READ FIRST ══
-Exactly 4 channels. Each channel number (1–4) must appear AT MOST ONCE per song.
-Channel-to-type mapping is FIXED — you cannot swap these:
-  channel 1 → type=pulse1   (melodic) — typically: lead melody
-  channel 2 → type=pulse2   (melodic) — typically: harmony, counter-melody, or bass
-  channel 3 → type=wave     (wavetable, no envelope volume) — typically: bass or accompaniment
-  channel 4 → type=noise    (drums/percussion) — typically: kick, snare, hi-hat
-NEVER write two "channel <number> =>" lines. NEVER define instruments inside pat bodies.
-
-INSTRUMENTS  (inst <name> <fields>)
-  type=pulse1|pulse2    duty=<12|25|50|75>   env=<0-15>,<up|down|flat>
-  type=wave             wave=[<16 values 0-15>]  (no env)
-  type=noise            env=<0-15>,<up|down|flat>
-  Extended GB envelope: env=gb:<vol>,<dir>,<period>  e.g. env=gb:12,down,1
-  sweep effect is only valid on channel 1 (pulse1).
-  For percussion, define NAMED noise instruments (e.g. kick, snare, hihat) with
-  different envelopes to distinguish timbres. You can have multiple noise instruments.`.trim();
-
 function buildLanguageRef(chip: string): string {
-  const hardwareSection = chip === 'gameboy'
-    ? HARDWARE_GAMEBOY
-    : `══ CHIP: ${chip.toUpperCase()} ══\nOnly "gameboy" is fully documented. Use standard directives and define instruments appropriate to this chip.`;
+  // Use chip plugin's custom copilot prompt if provided; fall back to a generic stub.
+  const plugin = chipRegistry.get(chip);
+  const hardwareSection = plugin?.uiContributions?.copilotSystemPrompt
+    ?? `══ CHIP: ${chip.toUpperCase()} ══\nUse standard directives and define instruments appropriate to this chip.`;
 
   return `BeatBax Language Reference (chip: ${chip}):
 

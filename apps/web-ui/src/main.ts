@@ -10,6 +10,14 @@ import { Buffer } from 'buffer';
 
 import './styles.css';
 
+// ─── Chip plugin registration ─────────────────────────────────────────────────
+// Register all plugins that are enabled in localStorage (defaults: nes).
+// This runs before any parse/playback calls so the chipRegistry is fully
+// populated when the parser validates `chip` directives.
+import { loadPluginsFromStorage } from './plugins/registry-config';
+loadPluginsFromStorage();
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {
@@ -41,7 +49,7 @@ import { buildSettingsModal } from './panels/settings-panel';
 // Playback imports
 import { PlaybackManager } from './playback/playback-manager';
 import { TransportControls } from './playback/transport-controls';
-import { toggleChannelMuted, toggleChannelSoloed } from './stores/channel.store';
+import { toggleChannelMuted, toggleChannelSoloed, ensureChannels } from './stores/channel.store';
 import {
   parseStatus,
   parsedBpm,
@@ -691,8 +699,15 @@ eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
 });
 
 // Update pattern grid on each successful parse
-eventBus.on('parse:success', ({ song }: any) => {
-  try { if (song) patternGrid.setSong(song); } catch (_e) {}
+eventBus.on('parse:success', ({ ast, song }: any) => {
+  try {
+    // Ensure the channel store has entries for every channel in this song
+    // so mute/solo work for all channels (e.g. NES channel 5 DMC).
+    if (ast?.channels?.length) {
+      ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
+    }
+    if (song) patternGrid.setSong(song);
+  } catch (_e) {}
 });
 
 // Navigate Monaco editor when user clicks a pattern block in the grid

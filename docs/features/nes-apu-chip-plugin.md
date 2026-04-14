@@ -1,6 +1,6 @@
 ---
 title: "NES Ricoh 2A03 APU Chip Plugin"
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2026-04-09
 issue: "https://github.com/kadraman/beatbax/issues/83"
@@ -135,6 +135,10 @@ New instrument fields required by the NES chip that do not exist in the Game Boy
 |-------|------|-------------|
 | `env_period` | `0`–`15` | Envelope decay period (Game Boy uses combined `env=vol,dir`) |
 | `env_loop` | `boolean` | Envelope loops (repeating sawtooth LFO) |
+| `vol_env` | `[v0,v1,…\|N]` | Software volume macro: per-frame levels 0–15; optional `\|N` loop point; overrides `env` decay when present |
+| `arp_env` | `[0,s1,s2,…\|N]` | Software arpeggio macro: per-frame semitone offsets, looping for continuous chord shimmer |
+| `pitch_env` | `[s0,s1,…\|N]` | Software pitch macro: per-frame absolute semitone offset from root (e.g. pitch rip / fall-in) |
+| `duty_env` | `[d0,d1,…\|N]` | Software duty macro: per-frame duty index (0=12.5%, 1=25%, 2=50%, 3=75%) for timbral modulation |
 | `sweep_en` | `boolean` | Enable hardware pitch sweep |
 | `sweep_period` | `1`–`7` | Sweep divider period |
 | `sweep_dir` | `"up"│"down"` | Sweep direction (natural terminology, not hardware negate) |

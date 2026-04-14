@@ -17,32 +17,47 @@ export interface ChannelInfo {
 }
 
 const STORAGE_KEY = 'beatbax-channel-state';
-const MAX_CHANNELS = 4;
 
-function defaultChannels(): Record<number, ChannelInfo> {
-  const record: Record<number, ChannelInfo> = {};
-  for (let i = 1; i <= MAX_CHANNELS; i++) {
-    record[i] = { id: i, muted: false, soloed: false, volume: 1.0 };
-  }
-  return record;
+function makeDefaultChannel(id: number): ChannelInfo {
+  return { id, muted: false, soloed: false, volume: 1.0 };
 }
 
-/** Load persisted state from localStorage and merge with defaults. */
+/** Load persisted state from localStorage. Returns only the channels that were saved. */
 function loadChannels(): Record<number, ChannelInfo> {
-  const base = defaultChannels();
+  const base: Record<number, ChannelInfo> = {};
+  // Seed at least 4 channels so gameboy songs work without a parse:success event
+  for (let i = 1; i <= 4; i++) base[i] = makeDefaultChannel(i);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return base;
     const saved = JSON.parse(raw) as Array<ChannelInfo>;
     if (Array.isArray(saved)) {
       for (const ch of saved) {
-        if (ch.id >= 1 && ch.id <= MAX_CHANNELS) {
-          base[ch.id] = { ...base[ch.id], ...ch };
+        if (ch.id >= 1) {
+          base[ch.id] = { ...makeDefaultChannel(ch.id), ...ch };
         }
       }
     }
   } catch { /* ignore */ }
   return base;
+}
+
+/**
+ * Ensure the store has entries for all provided channel IDs.
+ * Called after a successful parse so per-song channel counts are reflected.
+ * Preserves existing mute/solo/volume state for channels already in the store.
+ */
+export function ensureChannels(ids: number[]): void {
+  const current = channelStates.get();
+  let changed = false;
+  const next = { ...current };
+  for (const id of ids) {
+    if (!next[id]) {
+      next[id] = makeDefaultChannel(id);
+      changed = true;
+    }
+  }
+  if (changed) channelStates.set(next);
 }
 
 /** Reactive per-channel state map. Key = channel id (1–4). */
@@ -73,22 +88,26 @@ export function setChannelVolume(id: number, volume: number): void {
 }
 
 export function resetChannels(): void {
-  channelStates.set(defaultChannels());
+  const base: Record<number, ChannelInfo> = {};
+  for (let i = 1; i <= 4; i++) base[i] = makeDefaultChannel(i);
+  channelStates.set(base);
 }
 
-/** Toggle mute for a single channel. */
+/** Toggle mute for a single channel. Auto-creates the entry if absent. */
 export function toggleChannelMuted(id: number): void {
   const current = channelStates.get();
-  if (current[id]) setChannelMuted(id, !current[id].muted);
+  if (!current[id]) channelStates.setKey(id, makeDefaultChannel(id));
+  setChannelMuted(id, !(channelStates.get()[id].muted));
 }
 
 /**
- * Toggle solo for a channel.
+ * Toggle solo for a channel. Auto-creates the entry if absent.
  * Soloing a channel unsolos all others; unsoloing clears solo for just that channel.
  */
 export function toggleChannelSoloed(id: number): void {
   const current = channelStates.get();
-  const wasSoloed = current[id]?.soloed ?? false;
+  if (!current[id]) channelStates.setKey(id, makeDefaultChannel(id));
+  const wasSoloed = channelStates.get()[id]?.soloed ?? false;
   if (wasSoloed) {
     setChannelSoloed(id, false);
   } else {
@@ -104,7 +123,8 @@ export function toggleChannelSoloed(id: number): void {
  */
 export function isChannelAudible(states: Record<number, ChannelInfo>, id: number): boolean {
   const ch = states[id];
-  if (!ch) return false;
+  // If the channel isn't in the store yet, treat it as audible (not muted/soloed)
+  if (!ch) return true;
   if (ch.muted) return false;
   const anySoloed = Object.values(states).some(c => c.soloed);
   if (!anySoloed) return true;

@@ -93,13 +93,15 @@ interface PreviewState {
   cancelLoop?: () => void;
 }
 
-/** Map instrument type → Game Boy channel id (1-4). */
+/** Map instrument type → channel id (1-5). Channel 5 is the NES DMC channel. */
 function instChannelId(instName: string, ast: any): number {
   switch ((ast.insts?.[instName]?.type ?? '').toLowerCase()) {
-    case 'pulse2': return 2;
-    case 'wave':   return 3;
-    case 'noise':  return 4;
-    default:       return 1;
+    case 'pulse2':   return 2;
+    case 'wave':     return 3;   // Game Boy wave channel
+    case 'triangle': return 3;   // NES triangle channel
+    case 'noise':    return 4;
+    case 'dmc':      return 5;
+    default:         return 1;
   }
 }
 
@@ -114,7 +116,7 @@ async function startPatternPreview(
   // Minimal single-channel AST so the resolver only expands this one pattern
   const previewAst = {
     ...rawAst,
-    channels: [{ id: 1, inst: instName, pat: patternName }],
+    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: patternName }],
     play: { auto: false },
   };
 
@@ -208,7 +210,7 @@ async function startSeqPreview(
 
   const previewAst = {
     ...rawAst,
-    channels: [{ id: 1, inst: instName, pat: seqName }],
+    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: seqName }],
     play: { auto: false },
   };
 
@@ -899,16 +901,37 @@ export function setupCodeLensPreview(
           continue;
         }
 
-        // ── inst definitions — one clickable lens per preview note ─────────
+        // ── inst definitions ──────────────────────────────────────────────
         const instMatch = line.match(/^\s*inst\s+([A-Za-z0-9_-]+)\s+/);
         if (instMatch) {
           const instName = instMatch[1];
-          for (const note of INST_PREVIEW_NOTES) {
-            lenses.push({
-              range: new monaco.Range(ln, 1, ln, 1),
-              id: `bb-inst-${instName}-${note}`,
-              command: { id: 'beatbax.previewInstNote', title: note, arguments: [instName, note] },
-            });
+          // Sample-based instruments (type=dmc) get a single ▶ Sample button
+          // instead of individual note buttons — DMC samples have no meaningful pitch.
+          const isSampleBased = /\btype=dmc\b/.test(line);
+          if (isSampleBased) {
+            const activeKey = previewState?.key;
+            const isActive = activeKey === `inst-note:${instName}:C4`;
+            if (isActive) {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-inst-sample-stop-${instName}`,
+                command: { id: 'beatbax.stopPreview', title: '⬛ Stop', arguments: [] },
+              });
+            } else {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-inst-sample-${instName}`,
+                command: { id: 'beatbax.previewInstNote', title: '▶ Sample', arguments: [instName, 'C4'] },
+              });
+            }
+          } else {
+            for (const note of INST_PREVIEW_NOTES) {
+              lenses.push({
+                range: new monaco.Range(ln, 1, ln, 1),
+                id: `bb-inst-${instName}-${note}`,
+                command: { id: 'beatbax.previewInstNote', title: note, arguments: [instName, note] },
+              });
+            }
           }
           continue;
         }

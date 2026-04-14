@@ -48,6 +48,10 @@
   --bb-ch2: #9cdcfe; /* Pulse 2  — light blue  */
   --bb-ch3: #4ec9b0; /* Wave     — teal        */
   --bb-ch4: #ce9178; /* Noise    — salmon      */
+  --bb-ch5: #dcdcaa; /* Ch 5     — yellow      */
+  --bb-ch6: #c586c0; /* Ch 6     — purple      */
+  --bb-ch7: #6a9955; /* Ch 7     — green       */
+  --bb-ch8: #f44747; /* Ch 8     — red         */
 }
 
 [data-theme="light"] {
@@ -2066,6 +2070,10 @@
 .bb-cp__card[data-channel="2"] { border-left: 3px solid var(--bb-ch2); }
 .bb-cp__card[data-channel="3"] { border-left: 3px solid var(--bb-ch3); }
 .bb-cp__card[data-channel="4"] { border-left: 3px solid var(--bb-ch4); }
+.bb-cp__card[data-channel="5"] { border-left: 3px solid var(--bb-ch5); }
+.bb-cp__card[data-channel="6"] { border-left: 3px solid var(--bb-ch6); }
+.bb-cp__card[data-channel="7"] { border-left: 3px solid var(--bb-ch7); }
+.bb-cp__card[data-channel="8"] { border-left: 3px solid var(--bb-ch8); }
 .bb-cp__header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 110px; text-align: right; }
 .bb-cp__wave-canvas {
   width: 80px; height: 24px; display: block;

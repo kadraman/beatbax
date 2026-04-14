@@ -164,6 +164,7 @@ tools
 *.mid
 output.*
 test.ps1
+songs/*.txt
 
 # generate GitHub Issues
 .github/ISSUES

@@ -1,5 +1,6 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary } from '@beatbax/engine';
+import { playFile, readUGEFile, getUGESummary, chipRegistry } from '@beatbax/engine';
+import type { ChipPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { configureLogging } from '@beatbax/engine/util/logger';
@@ -139,23 +140,57 @@ program
 
 program
   .command('play')
-  .description('Play a song file (.bax). Defaults to headless playback in Node.js.')
-  .argument('<file>', 'Path to the .bax song file')
+  .description('Play a .bax song file or a raw .dmc sample file.')
+  .argument('<file>', 'Path to the .bax song file or .dmc sample file')
   .option('-b, --browser', 'Launch browser-based playback (opens web UI)')
   .option('--headless', 'Force headless Node.js playback (default in Node)')
   .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
+  .option('--rate <index>', 'DMC rate table index 0-15 (only for .dmc files, default 15 = 33 kHz)', '15')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
     const globalOpts = program.opts();
-
-    // Configure logger based on CLI flags
     configureLoggerFromCLI(options, globalOpts);
-
     const verbose = options.verbose === true || (globalOpts && globalOpts.verbose === true);
-    // Read and validate before starting playback to avoid playing invalid files.
     ensureFileExists(file);
+
+    // ── .dmc sample playback ──────────────────────────────────────────────
+    if (file.toLowerCase().endsWith('.dmc')) {
+      const { playAudioBuffer } = await import('./nodeAudioPlayer.js');
+      const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
+      const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
+      const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));
+      const dmcHz = DMC_RATE_TABLE[rateIdx];
+      const sampleRate = parseInt(globalOpts.sampleRate, 10) || 44100;
+      const rawBytes = readFileSync(file);
+      const decoded = decodeDMC(new Uint8Array(rawBytes));
+      const durationSec = decoded.length / dmcHz;
+      if (verbose) {
+        console.log(`Playing DMC sample: ${file}`);
+        console.log(`  Size: ${rawBytes.length} bytes (${decoded.length} samples)`);
+        console.log(`  Rate index: ${rateIdx} (${dmcHz.toFixed(2)} Hz)`);
+        console.log(`  Duration: ${durationSec.toFixed(3)}s`);
+      } else {
+        console.log(`Playing ${file} (rate=${rateIdx}, ${durationSec.toFixed(2)}s)`);
+      }
+      // Upsample from dmcHz to sampleRate
+      const phaseInc = dmcHz / sampleRate;
+      const outLen = Math.ceil(decoded.length / phaseInc);
+      const pcm = new Float32Array(outLen);
+      let pos = 0;
+      let phase = 0;
+      for (let i = 0; i < outLen && pos < decoded.length; i++) {
+        pcm[i] = decoded[Math.floor(pos)];
+        phase += phaseInc;
+        const steps = Math.floor(phase);
+        if (steps > 0) { pos += steps; phase -= steps; }
+      }
+      await playAudioBuffer(pcm, { channels: 1, sampleRate });
+      return;
+    }
+
+    // ── .bax song playback ────────────────────────────────────────────────
     const src = readFileSync(file, 'utf8');
     const { errors, warnings } = await validateSource(src, file);
     if (errors.length > 0) {
@@ -489,4 +524,137 @@ program
     }
   });
 
-program.parse();
+// ─── Plugin auto-discovery ────────────────────────────────────────────────────
+
+/**
+ * Auto-discover and register BeatBax chip plugins from the local node_modules.
+ *
+ * Searches for npm packages whose name matches `@beatbax/plugin-chip-*` and
+ * `beatbax-plugin-chip-*` patterns. Each discovered package is loaded as a
+ * dynamic ESM import; if it exports a default `ChipPlugin` object with a
+ * `name` string, it is registered with the global `chipRegistry`.
+ *
+ * Discovery happens synchronously at CLI startup and is intentionally
+ * fire-and-forget for non-critical errors (e.g. a malformed plugin will not
+ * crash the CLI — it prints a warning and skips registration).
+ */
+async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<ChipPlugin[]> {
+  const discovered: ChipPlugin[] = [];
+
+  // Collect candidate package names from node_modules
+  const candidates: string[] = [];
+  try {
+    const { readdirSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const cliDir = dirname(fileURLToPath(import.meta.url));
+
+    // Walk up to find node_modules
+    const searchPaths = [
+      join(cliDir, '..', '..', 'node_modules'),         // packages/node_modules
+      join(cliDir, '..', '..', '..', 'node_modules'),   // root node_modules
+      join(process.cwd(), 'node_modules'),               // cwd node_modules
+    ];
+
+    for (const nmDir of searchPaths) {
+      try {
+        const entries = readdirSync(nmDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+          // Scoped packages (e.g. @beatbax/plugin-chip-nes)
+          if (entry.name === '@beatbax') {
+            const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
+            for (const scoped of scopedEntries) {
+              if ((scoped.isDirectory() || scoped.isSymbolicLink()) && scoped.name.startsWith('plugin-chip-')) {
+                candidates.push(`@beatbax/${scoped.name}`);
+              }
+            }
+          }
+          // Unscoped community plugins (e.g. beatbax-plugin-chip-sid)
+          if (entry.name.startsWith('beatbax-plugin-chip-')) {
+            candidates.push(entry.name);
+          }
+        }
+      } catch (_) {
+        // node_modules dir doesn't exist here — skip
+      }
+    }
+  } catch (_) {
+    // Filesystem scan failed — continue without auto-discovery
+  }
+
+  // Remove duplicates
+  const unique = [...new Set(candidates)];
+
+  for (const pkgName of unique) {
+    // Skip the built-in Game Boy plugin if it ever gets published as a
+    // standalone package — it is always pre-registered by ChipRegistry.
+    if (pkgName === '@beatbax/plugin-chip-gameboy') continue;
+    try {
+      const mod = await import(pkgName);
+      const plugin: ChipPlugin = mod.default || mod;
+
+      if (typeof plugin?.name !== 'string' || typeof plugin?.createChannel !== 'function') {
+        if (options.verbose) {
+          console.warn(`[WARN] Skipping '${pkgName}': missing required ChipPlugin fields (name, createChannel)`);
+        }
+        continue;
+      }
+
+      if (!chipRegistry.has(plugin.name)) {
+        chipRegistry.register(plugin);
+        discovered.push(plugin);
+        if (options.verbose) {
+          console.log(`[plugin] Loaded chip plugin: '${plugin.name}' from ${pkgName} v${plugin.version}`);
+        }
+      }
+    } catch (err: any) {
+      if (options.verbose) {
+        console.warn(`[WARN] Failed to load chip plugin '${pkgName}':`, err.message);
+      }
+    }
+  }
+
+  return discovered;
+}
+
+program
+  .command('list-chips')
+  .description('List all available chip backends (built-in and plugin-discovered)')
+  .option('--json', 'Output JSON format')
+  .action(async (options) => {
+    const globalOpts = program.opts();
+    const verbose = globalOpts?.verbose === true;
+
+    const chips = chipRegistry.list();
+
+    if (options.json) {
+      const details = chips.map(name => {
+        const plugin = chipRegistry.get(name)!;
+        return { name: plugin.name, version: plugin.version, channels: plugin.channels };
+      });
+      console.log(JSON.stringify(details, null, 2));
+      return;
+    }
+
+    console.log('Available chip backends:');
+    console.log('');
+    for (const name of chips) {
+      const plugin = chipRegistry.get(name)!;
+      const star = name === 'gameboy' ? ' (built-in)' : '';
+      console.log(`  • ${name}${star}`);
+      console.log(`      Version:  ${plugin.version}`);
+      console.log(`      Channels: ${plugin.channels}`);
+      console.log('');
+    }
+  });
+
+// Auto-discover chip plugins once at startup, before program.parse(), so that
+// every command (play, verify, export, list-chips) sees third-party chips.
+// We cannot rely on a preAction hook because program.opts() is unavailable
+// before parse() runs, and async hooks may race with synchronous startup code.
+(async () => {
+  const verbose = process.argv.includes('--verbose') || process.argv.includes('-v');
+  await discoverPlugins({ verbose });
+  program.parse();
+})();
