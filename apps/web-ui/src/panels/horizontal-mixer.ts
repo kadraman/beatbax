@@ -26,6 +26,7 @@ import {
   unmuteAll, clearAllSolo,
 } from '../stores/channel.store';
 import { storage, StorageKey } from '../utils/local-storage';
+import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags';
 import { getChannelMeta } from '../utils/chip-meta';
 import { icon } from '../utils/icons';
 
@@ -110,7 +111,11 @@ export class HorizontalMixer {
     this.height = isNaN(parsedHeight) ? DEFAULT_HEIGHT_PX : Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, parsedHeight));
 
     const rawVisible = storage.get(StorageKey.PANEL_VIS_DAW_MIXER);
-    this.visible = rawVisible === undefined ? true : rawVisible === 'true';
+    // If the DAW_MIXER feature flag is disabled, always start hidden regardless
+    // of what was persisted, so the mixer is never shown when the feature is off.
+    this.visible = isFeatureEnabled(FeatureFlag.DAW_MIXER)
+      ? (rawVisible === undefined ? true : rawVisible === 'true')
+      : false;
 
     const rawDock = storage.get(StorageKey.DAW_MIXER_DOCK_MODE);
     this.dockMode = rawDock === 'inline' ? 'inline' : 'docked';

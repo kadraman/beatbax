@@ -576,6 +576,8 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
         rightTabs.show('channels');
       }
     } catch (_e) { /* ignore */ }
+    // Sync the View → Channel Mixer menu item enabled state.
+    (window as any).__beatbax_menuBar?.setItemEnabled('channel-mixer-toggle', enabled);
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
@@ -602,6 +604,8 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     settingShowChannelMixerLegacy.set(visible);
   }
   if (panel === 'daw-mixer') {
+    // Only honour show/hide requests when the Channel Mixer feature is enabled.
+    if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
     try {
       horizontalMixer?.[visible ? 'show' : 'hide']?.();
       settingShowChannelMixer.set(visible);
@@ -1302,6 +1306,8 @@ menuBar.seedPanelVisible({
   'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
   'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
+// Reflect initial feature-flag state on the View → Channel Mixer menu item.
+menuBar.setItemEnabled('channel-mixer-toggle', isFeatureEnabled(FeatureFlag.DAW_MIXER));
 
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
@@ -1473,6 +1479,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
 // Ctrl+Shift+M → Toggle Channel Mixer strip (Monaco captures this key when focused).
 // Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
+  if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
   const vis = horizontalMixer?.isVisible?.() ?? false;
   eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
 });
@@ -1564,6 +1571,7 @@ ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel
 });
 ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
+    if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
     const vis = horizontalMixer?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
   },

@@ -180,6 +180,15 @@ export class MenuBar {
     }
   }
 
+  /** Enable or disable a menu item at runtime by its id. */
+  setItemEnabled(id: string, enabled: boolean): void {
+    const li = this.el.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    if (!li) return;
+    li.classList.toggle('bb-menu__item--disabled', !enabled);
+    li.setAttribute('aria-disabled', String(!enabled));
+    if (enabled) { li.tabIndex = -1; } else { li.removeAttribute('tabindex'); }
+  }
+
   triggerNew(): void { this.opts.onNew?.(); }
   triggerOpen(): void { this.opts.onOpen?.(); }
   triggerSave(): void { this.opts.onSave?.(); }
@@ -283,14 +292,17 @@ export class MenuBar {
     if (!def.disabled && def.action) {
       li.tabIndex = -1;
       li.addEventListener('click', () => {
+        if (li.classList.contains('bb-menu__item--disabled')) return;
         this.closeAll();
         def.action!();
       });
       li.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          this.closeAll();
-          def.action!();
+          if (!li.classList.contains('bb-menu__item--disabled')) {
+            this.closeAll();
+            def.action!();
+          }
         }
         this.handleItemKeydown(e, li);
       });
@@ -505,6 +517,7 @@ export class MenuBar {
         label: 'Channel Mixer',
         icon: 'adjustments-horizontal',
         shortcut: 'Ctrl+Shift+M',
+        id: 'channel-mixer-toggle',
         action: () => this.emitPanelToggle('daw-mixer'),
       },
       {

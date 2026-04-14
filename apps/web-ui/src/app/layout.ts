@@ -20,7 +20,7 @@ export interface AppLayout {
   patternGridContainer: HTMLElement;
   /** Host for the Channel Mixer in full-width docked mode (below all three panes). */
   mixerHostContainer: HTMLElement;
-  /** Host for the Channel Mixer in inline mode (below output/problems, not covering right pane). */
+  /** Host for the Channel Mixer in inline mode (bottom of the left content column, below the output pane). */
   inlineMixerContainer: HTMLElement;
   editorPane: HTMLElement;
   outputPane: HTMLElement;
@@ -69,12 +69,15 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   outputPane.style.fontFamily    = '';
   outputPane.style.fontSize      = '';
 
-  // ─── Inline mixer host (below output/problems tabs, inside the left content area).
-  // When the Channel Mixer is in "inline" dock mode it lives here so the right pane
-  // is not obscured.
+  // ─── Inline mixer host (bottom of the left content column, below the output pane).
+  // Placing it here (in leftContentArea, not inside outputPane) means its full height
+  // is always visible regardless of how small the output pane is dragged — the output
+  // pane (flex: 1) absorbs the remaining space above it.
+  // flex-shrink: 0 ensures the mixer is never compressed by the flex algorithm.
   const inlineMixerContainer = document.createElement('div');
   inlineMixerContainer.id = 'bb-inline-mixer-host';
-  outputPane.appendChild(inlineMixerContainer);
+  inlineMixerContainer.style.flexShrink = '0';
+  layout.getLeftContentArea().appendChild(inlineMixerContainer);
 
   // ─── Docked mixer host (full-width, below all three panes) ───────────────
   const mixerHostContainer = document.createElement('div');
