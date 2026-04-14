@@ -1,8 +1,9 @@
 ---
 title: Plugin System for Chip Backends
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2025-12-12
+implemented: 2026-04-14
 issue: "https://github.com/kadraman/beatbax/issues/4"
 ---
 
@@ -349,37 +350,37 @@ The engine tries loading strategies in order:
 ## Implementation Checklist
 
 ### Phase 1: Core Plugin API (Engine)
-- [ ] Define `ChipPlugin` and `ChipChannelBackend` interfaces in `packages/engine/src/chips/types.ts`
-- [ ] Create `ChipRegistry` class in `packages/engine/src/chips/registry.ts`
-- [ ] Refactor existing Game Boy chip to implement `ChipPlugin` interface
-- [ ] Update `BeatBaxEngine` to use registry for chip selection
-- [ ] Update parser to validate chip names against registry
-- [ ] Add error messages for missing plugins
-- [ ] Write unit tests for registry and plugin loading
+- [x] Define `ChipPlugin` and `ChipChannelBackend` interfaces in `packages/engine/src/chips/types.ts`
+- [x] Create `ChipRegistry` class in `packages/engine/src/chips/registry.ts`
+- [x] Refactor existing Game Boy chip to implement `ChipPlugin` interface
+- [x] Update `BeatBaxEngine` to use registry for chip selection
+- [x] Update parser to validate chip names against registry
+- [x] Add error messages for missing plugins
+- [x] Write unit tests for registry and plugin loading
 
 ### Phase 2: Extract Game Boy as Plugin (Proof of Concept)
-- [ ] Keep Game Boy built-in but implement it as a plugin internally
-- [ ] Verify no regressions in existing tests
-- [ ] Document plugin API in `/docs/plugin-api.md`
+- [x] Keep Game Boy built-in but implement it as a plugin internally
+- [x] Verify no regressions in existing tests
+- [x] Document plugin API in `/docs/creating-plugins.md`
 
 ### Phase 3: Create First External Plugin (NES)
-- [ ] Create `packages/plugins/chip-nes/` with proper structure (see `docs/features/nes-apu-chip-plugin.md` for full implementation plan)
-- [ ] Implement NES APU channels (2 pulse, 1 triangle, 1 noise, 1 DMC)
-- [ ] Add NES period tables and frequency mappings (61 MIDI notes, C2–C7)
-- [ ] Implement `bundledSamples` for DMC channel built-in library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`)
-- [ ] Implement `resolveSampleAsset()` supporting `@nes/`, `local:`, and `https://` references
-- [ ] Write tests for NES plugin
-- [ ] Add example NES songs in `/songs/` (e.g. `wily_fortress.bax`, `kingdom_hall.bax`)
+- [x] Create `packages/plugins/chip-nes/` with proper structure (see `docs/features/nes-apu-chip-plugin.md` for full implementation plan)
+- [x] Implement NES APU channels (2 pulse, 1 triangle, 1 noise, 1 DMC)
+- [x] Add NES period tables and frequency mappings (61 MIDI notes, C2–C7)
+- [x] Implement `bundledSamples` for DMC channel built-in library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`)
+- [x] Implement `resolveSampleAsset()` supporting `@nes/`, `local:`, `github:`, and `https://` references
+- [x] Write tests for NES plugin
+- [x] Add example NES songs in `/songs/` (e.g. `wily_fortress.bax`, `kingdom_hall.bax`)
 
 ### Phase 4: CLI Auto-Discovery
-- [ ] Implement `discoverPlugins()` in CLI
-- [ ] Auto-register discovered plugins on startup
-- [ ] Add `--list-chips` flag to show available chips
-- [ ] Update CLI help text to mention plugin system
+- [x] Implement `discoverPlugins()` in CLI
+- [x] Auto-register discovered plugins on startup
+- [x] Add `list-chips` command to show available chips (with `--json` flag)
+- [x] Updated CLI help text to mention plugin system
 
 ### Phase 5: Documentation & Examples
-- [ ] Create `/docs/creating-plugins.md` guide
-- [ ] Document plugin lifecycle and best practices
+- [x] Create `/docs/creating-plugins.md` guide
+- [x] Document plugin lifecycle and best practices
 - [ ] Add TypeScript template for new plugins
 - [ ] Create example plugin repository as a starter
 
