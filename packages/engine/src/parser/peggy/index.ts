@@ -1,5 +1,6 @@
 import { parse as peggyParse } from './generated/parser.js';
 import { expandPattern, transposePattern } from '../../patterns/expand.js';
+import { chipRegistry } from '../../chips/registry.js';
 import {
   AST,
   ChannelNode,
@@ -195,6 +196,10 @@ const parseInstRhs = (name: string, rhs: string, insts: InstMap, loc?: SourceLoc
           props[k] = v;
         }
       } else {
+        // Strip surrounding quotes so dmc_sample="@nes/bass" and dmc_sample=@nes/bass are equivalent
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1);
+        }
         props[k] = v;
       }
     } else if (p.trim()) {
@@ -641,10 +646,10 @@ export function parseWithPeggy(source: string): AST {
   const diag = (level: ParseDiagnostic['level'], component: string, message: string, loc?: SourceLocation) =>
     diagnostics.push({ level, component, message, loc });
 
-  // Chip name validation
-  const VALID_CHIPS = ['gameboy', 'gb', 'dmg'];
-  if (chipName && !VALID_CHIPS.includes(String(chipName).toLowerCase())) {
-    diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${VALID_CHIPS.join(', ')}.`, chipLoc);
+  // Chip name validation — consult the live registry so plugin-registered chips are accepted
+  const registeredChips = chipRegistry.list();
+  if (chipName && !registeredChips.includes(String(chipName).toLowerCase())) {
+    diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${registeredChips.join(', ')}.`, chipLoc);
   }
 
   // Play flag validation
@@ -655,7 +660,12 @@ export function parseWithPeggy(source: string): AST {
     }
   }
 
-  // Instrument type and property validation
+  // Instrument type and property validation.
+  // When the song targets a registered chip plugin, delegate to its validateInstrument()
+  // so the plugin can accept its own types (e.g. 'triangle', 'dmc' for NES) and
+  // known properties (e.g. sweep_en, noise_period) without false warnings.
+  const activePlugin = chipName ? chipRegistry.get(String(chipName).toLowerCase()) : undefined;
+
   const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
   const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
   const INST_TYPE_PROPS: Record<string, Set<string>> = {
@@ -668,16 +678,28 @@ export function parseWithPeggy(source: string): AST {
     const p = instDef as any;
     const instLoc: SourceLocation | undefined = p.__loc;
     const type: string | undefined = p.type;
-    if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
-      diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
+
+    if (activePlugin) {
+      // Delegate fully to the plugin — it knows its own valid types and properties
+      const errors = activePlugin.validateInstrument(p as any);
+      for (const e of errors) {
+        // Type errors are hard errors; property errors are warnings (keep parity with GB behaviour)
+        const level = e.field === 'type' ? 'error' : 'warning';
+        diag(level, 'parser', `Instrument '${instName}': ${e.message}`, instLoc);
+      }
     } else {
-      const typeKey = type ? String(type).toLowerCase() : '';
-      const allowedProps = new Set([...INST_COMMON_PROPS, ...(INST_TYPE_PROPS[typeKey] ?? [])]);
-      for (const key of Object.keys(p)) {
-        if (key === '__loc') continue;
-        const bare = key.includes(':') ? key.split(':').pop()! : key;
-        if (!allowedProps.has(bare.toLowerCase())) {
-          diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);
+      // Fallback: built-in Game Boy validation
+      if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
+        diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
+      } else {
+        const typeKey = type ? String(type).toLowerCase() : '';
+        const allowedProps = new Set([...INST_COMMON_PROPS, ...(INST_TYPE_PROPS[typeKey] ?? [])]);
+        for (const key of Object.keys(p)) {
+          if (key === '__loc') continue;
+          const bare = key.includes(':') ? key.split(':').pop()! : key;
+          if (!allowedProps.has(bare.toLowerCase())) {
+            diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);
+          }
         }
       }
     }

@@ -413,7 +413,15 @@ IdentifierWithArgs
 // -----------------------------
 
 RestOfLine
-  = s:$( (!(Newline / Comment) .)* ) { return s.trim(); }
+  = s:$(RestOfLinePart*) { return s.trim(); }
+
+// A single unit within a rest-of-line: either a quoted string (treated as
+// opaque so '//' inside quotes is never mistaken for a comment) or any
+// character that is not a newline or the start of an unquoted comment.
+RestOfLinePart
+  = '"' DoubleChar* '"'
+  / "'" SingleChar* "'"
+  / !(Newline / Comment) .
 
 Identifier
   = $([A-Za-z_][A-Za-z0-9_\-]*)

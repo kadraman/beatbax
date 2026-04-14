@@ -12,6 +12,7 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { ShortcutDescriptor } from '../utils/keyboard-shortcuts';
+import { chipRegistry } from '@beatbax/engine/chips';
 import { icon } from '../utils/icons';
 
 export interface HelpPanelOptions {
@@ -62,10 +63,9 @@ bpm 128
 time 4
 ticksPerStep 16` },
       { kind: 'snippet', label: 'Define an instrument', code:
-`inst lead  type=pulse1 duty=50 env=12,down
-inst bass  type=pulse2 duty=25 env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst kick  type=noise  env=12,down` },
+`# Instrument syntax is chip-specific — see the Instruments section below.
+# Example (Game Boy): inst lead  type=pulse1 duty=50 env=12,down
+# Example (NES):      inst lead  type=pulse1 duty=50 env=15,flat` },
       { kind: 'snippet', label: 'Define a pattern', code:
 `pat melody  = C5 E5 G5 C6
 pat bassline = C3 . G2 .
@@ -76,8 +76,6 @@ seq intro = melody:inst(bass) bassline` },
       { kind: 'snippet', label: 'Assign channels and play', code:
 `channel 1 => inst lead  seq main
 channel 2 => inst bass  seq main:oct(-1)
-channel 3 => inst wave1 seq intro
-channel 4 => inst kick  seq main
 
 play` },
     ],
@@ -98,17 +96,7 @@ pat sharps  = C#4 D#4 F#4 G#4 A#4` },
     id: 'instruments',
     title: 'Instruments',
     content: [
-      { kind: 'text', text: 'All four Game Boy channels have their own instrument type.' },
-      { kind: 'snippet', label: 'Pulse channel (type=pulse1 or pulse2)', code:
-`inst lead type=pulse1 duty=50 env=12,down
-# duty: 12 | 25 | 50 | 75
-# env: <volume>,<direction>  direction = up | down | flat` },
-      { kind: 'snippet', label: 'Wave channel (type=wave)', code:
-`inst wv type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-# wave: 16 nibble values (0-15) defining the 4-bit wavetable` },
-      { kind: 'snippet', label: 'Noise channel (type=noise)', code:
-`inst sn type=noise env=12,down
-# LFSR noise with envelope` },
+      { kind: 'text', text: 'Instrument definitions are chip-specific. Load a song or type `chip <name>` to see documentation for the active chip\'s instrument types.' },
       { kind: 'snippet', label: 'Inline instrument switch in a pattern', code:
 `pat groove = inst lead C5 E5 inst bass G3 .
 # Switches instrument for remaining notes in pattern` },
@@ -155,8 +143,8 @@ pat staccato = C4<cut:2>:8 E4<cut:2>:8 G4<cut:2>:8` },
       { kind: 'snippet', label: 'Trem — tremolo (volume LFO)', code:
 `# trem:<depth>,<rate>
 pat tremolo = C4<trem:4,8>:16` },
-      { kind: 'snippet', label: 'Sweep — GB hardware sweep (ch1 only)', code:
-`# sweep:<time>,<direction>,<shift>
+      { kind: 'snippet', label: 'Sweep — hardware pitch sweep', code:
+`# sweep:<time>,<direction>,<shift>  (see chip documentation for availability)
 pat sweep = C4<sweep:7,down,2>:16` },
     ],
   },
@@ -207,74 +195,7 @@ seq slow = melody:slow` },
     id: 'examples',
     title: 'Examples — Click to Insert',
     content: [
-      { kind: 'snippet', label: 'Minimal song', code:
-`chip gameboy
-bpm 120
-time 4
-
-inst lead type=pulse1 duty=50 env=12,down
-
-pat a = C5 E5 G5 C6
-
-seq main = a a a a
-
-channel 1 => inst lead seq main
-
-play` },
-      { kind: 'snippet', label: '4-channel chiptune', code:
-`chip gameboy
-bpm 140
-time 4
-
-inst lead  type=pulse1 duty=50  env=12,down
-inst bass  type=pulse2 duty=25  env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
-inst kick  type=noise  env=12,down
-
-pat melody  = C5 E5 G5 C6
-pat bassline = C3 . G2 .
-pat beat    = C6 . . C6 . C6 C6 .
-
-seq main   = melody melody melody melody
-seq groove = bassline bassline
-seq perc   = beat beat beat beat
-
-channel 1 => inst lead  seq main
-channel 2 => inst bass  seq groove:oct(-1)
-channel 3 => inst wave1 seq main:oct(-1)
-channel 4 => inst kick  seq perc
-
-play` },
-      { kind: 'snippet', label: 'Arpeggio pattern', code:
-`chip gameboy
-bpm 160
-
-inst arp type=pulse1 duty=50 env=15,flat
-
-pat upArp = C5 E5 G5 B5 C6 B5 G5 E5
-
-seq run = upArp upArp upArp upArp
-
-channel 1 => inst arp seq run
-
-play` },
-      { kind: 'snippet', label: 'Wave + noise percussion', code:
-`chip gameboy
-bpm 120
-
-inst wv   type=wave  wave=[15,15,14,12,10,8,6,4,3,2,1,0,0,0,0,0]
-inst kick type=noise env=15,down
-
-pat wave_mel = C4 E4 G4 C5
-pat kick_pat = C6 . C6 .
-
-seq wseq = wave_mel wave_mel
-seq kseq = kick_pat kick_pat kick_pat kick_pat
-
-channel 3 => inst wv   seq wseq
-channel 4 => inst kick seq kseq
-
-play` },
+      { kind: 'text', text: 'Chip-specific song examples are provided by the active chip plugin. Load a song or type `chip <name>` to see clickable examples for that chip.' },
     ],
   },
 ];
@@ -295,6 +216,8 @@ export class HelpPanel {
   private searchQuery = '';
   private collapsedSections = new Set<string>();
   private abortCtrl = new AbortController();
+  /** The canonicalised chip name from the last successful parse. */
+  private currentChip: string = 'gameboy';
 
   constructor(options: HelpPanelOptions) {
     this.container = options.container;
@@ -447,21 +370,51 @@ export class HelpPanel {
     this.container.appendChild(root);
   }
 
+  private buildSections(): Section[] {
+    // 1. Start with built-in sections
+    let sections: Section[] = HELP_SECTIONS;
+
+    // 2. Apply live keyboard shortcuts if provided
+    if (this.getShortcuts) {
+      const live = this.getShortcuts();
+      sections = sections.map(s => {
+        if (s.id !== 'shortcuts') return s;
+        return {
+          ...s,
+          content: live.map(d => ({
+            kind: 'shortcut' as const,
+            keys: this.descriptorToKeys(d),
+            desc: d.description,
+          })),
+        };
+      });
+    }
+
+    // 3. Merge chip-plugin sections: replace matching ids, append new ones
+    const pluginSections = chipRegistry.get(this.currentChip)?.uiContributions?.helpSections;
+    if (pluginSections && pluginSections.length > 0) {
+      const replacedIds = new Set(pluginSections.map(ps => ps.id));
+      // Replace existing sections by id, preserving order
+      sections = sections.map(s =>
+        replacedIds.has(s.id)
+          ? (pluginSections.find(ps => ps.id === s.id) as Section)
+          : s,
+      );
+      // Append sections whose id didn't match any built-in section
+      const builtinIds = new Set(HELP_SECTIONS.map(s => s.id));
+      for (const ps of pluginSections) {
+        if (!builtinIds.has(ps.id)) {
+          sections = [...sections, ps as Section];
+        }
+      }
+    }
+
+    return sections;
+  }
+
+  /** @deprecated renamed to buildSections(); kept for compatibility */
   private buildShortcutSections(): Section[] {
-    // If a live registry is available, replace the static shortcuts section content
-    if (!this.getShortcuts) return HELP_SECTIONS;
-    const live = this.getShortcuts();
-    return HELP_SECTIONS.map(s => {
-      if (s.id !== 'shortcuts') return s;
-      return {
-        ...s,
-        content: live.map(d => ({
-          kind: 'shortcut' as const,
-          keys: this.descriptorToKeys(d),
-          desc: d.description,
-        })),
-      };
-    });
+    return this.buildSections();
   }
 
   /** Convert a ShortcutDescriptor to a human-readable key array like ['Ctrl', 'S'] */
@@ -657,6 +610,23 @@ export class HelpPanel {
   // ─── Event subscriptions ─────────────────────────────────────────────────
 
   private subscribe(): void {
+    // Track active chip for chip-specific section merging.
+    // Both embedded and overlay panels need this subscription.
+    this.unsubscribers.push(
+      this.eventBus.on('parse:success', ({ ast }) => {
+        const raw: string = ((ast?.chip ?? 'gameboy') as string).toLowerCase();
+        const chip = chipRegistry.resolve(raw);
+        if (chip !== this.currentChip) {
+          this.currentChip = chip;
+          // Re-render the body if visible so sections update immediately
+          if (this.visible || this.embedded) {
+            const body = this.container.querySelector<HTMLElement>('.bb-help__body');
+            if (body) this.renderBody(body);
+          }
+        }
+      }),
+    );
+
     // Embedded panels skip overlay-specific subscriptions; the tab container in
     // main.ts handles visibility and keyboard routing via switchRightTab().
     if (this.embedded) return;

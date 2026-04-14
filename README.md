@@ -20,13 +20,13 @@ Nintendo Gameboy.
 
 - **Simple text-based language** — write melodies, basslines, and beats in a readable `.bax` script; no GUI required
 - **11 built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
-- **Authentic Game Boy sound** — 4-channel emulation (pulse, wave, noise) with hardware-accurate envelopes, duty cycles, and wavetables
+- **Authentic retro sound** — 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **4 export formats** — MIDI, WAV, ISM JSON, and hUGETracker v6 (`.uge`) for use in trackers
 - **Web UI IDE** — live editor with syntax highlighting, real-time validation, channel mixer, and one-click playback
 - **BeatBax Copilot** — AI assistant that writes and edits songs from natural-language descriptions (bring your own API key)
 - **CLI tools** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
-- **Extensible architecture** — additional chip backends (NES, SID, C64) can be added as plugins without changing your songs
+- **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
 
 > **Note:** BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) — no key is included or stored by BeatBax.
 
@@ -296,6 +296,8 @@ beatbax/
 | Logger API | [docs/api/logger.md](docs/api/logger.md) |
 | UGE reader API | [docs/api/uge-reader.md](docs/api/uge-reader.md) |
 | Game Boy chip reference | [docs/chips/gameboy.md](docs/chips/gameboy.md) |
+| NES chip reference | [docs/chips/nes.md](docs/chips/nes.md) |
+| NES plugin | [packages/plugins/chip-nes/README.md](packages/plugins/chip-nes/README.md) |
 | Web UI syntax highlighting | [docs/ui/web-ui-syntax-highlighting.md](docs/ui/web-ui-syntax-highlighting.md) |
 | AI Copilot assistant | [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) |
 | Plugin system (post-MVP) | [docs/features/plugin-system.md](docs/features/plugin-system.md) |

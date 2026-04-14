@@ -5,11 +5,16 @@
 
 import * as monaco from 'monaco-editor';
 import { parse } from '@beatbax/engine/parser';
+import { chipRegistry } from '@beatbax/engine/chips';
 import { eventBus } from '../utils/event-bus';
 
 let latestAST: any = null;
+/** Chip name resolved from the latest successfully-parsed AST. */
+let latestChip: string = 'gameboy';
 eventBus.on('parse:success', ({ ast }) => {
   latestAST = ast;
+  const raw: string = (ast?.chip ?? 'gameboy').toLowerCase();
+  latestChip = chipRegistry.resolve(raw);
 });
 
 /** Cached semantic-token result. Invalidated whenever the model version changes. */
@@ -439,22 +444,7 @@ export function registerBeatBaxLanguage(): void {
         time: 'Sets beats per bar (time signature numerator). Example: `time 4`',
         stepsPerBar: 'Alternative to `time`. Sets steps per bar.',
         ticksPerStep: 'Sets tick resolution per step. Example: `ticksPerStep 16`',
-        inst: [
-          '**Instrument definition** — declares a named instrument with channel type and parameters.',
-          '```\ninst <name> type=<channel> [duty=<…>] [env=<…>] [sweep=<…>] [wave=[…]] [width=<…>] [note=<…>] [volume=<…>] [gm=<…>]\n```',
-          '**Common fields:**',
-          '- `type` — `pulse1` · `pulse2` · `wave` · `noise`',
-          '- `duty` — pulse duty cycle: `12.5` · `25` · `50` · `75` (pulse only)',
-          '- `env` — envelope; see `env` hover for all formats',
-          '- `sweep` — hardware pitch sweep (pulse1 only); see `sweep` hover',
-          '- `wave` — wavetable data (wave type only); see `wave` hover',
-          '- `width` — LFSR width: `7` (metallic) or `15` (full); noise only',
-          '- `note` — default note when instrument name is used as a token, e.g. `note=C2`',
-          '- `volume` — wave output level: `0` · `25` · `50` · `100` (wave only)',
-          '- `gm` — General MIDI program number for MIDI export (0-127)',
-          '',
-          'Example: `inst lead type=pulse1 duty=50 env=gb:12,down,1`',
-        ].join('\n\n'),
+        inst: 'Declares a named instrument. Syntax: `inst <name> type=<channel-type> [...]`. Hover over type values or fields for chip-specific documentation.',
         pat: 'Defines a pattern. Example: `pat melody = C4 E4 G4 C5`',
         seq: [
           '**Sequence definition** — an ordered list of pattern references, each optionally with transforms.',
@@ -476,45 +466,6 @@ export function registerBeatBaxLanguage(): void {
         export: 'Exports song to format. Example: `export midi "song.mid"`',
         import: 'Imports instruments from file. Example: `import * from "lib/instruments.bax"`',
         volume: 'Sets global volume (0.0-1.0). Example: `volume 0.8`',
-        pulse1: 'Game Boy Pulse 1 channel — square wave with duty control, envelope, and hardware frequency sweep (NR10–NR14)',
-        pulse2: 'Game Boy Pulse 2 channel — square wave with duty control and envelope; no hardware sweep (NR21–NR23)',
-        wave: [
-          '**Wave channel** — Game Boy wavetable synthesizer (NR30–NR34 + Wave RAM).',
-          'The `wave=` parameter accepts three formats:',
-          '```\n# 16-entry array (0–15 per sample; duplicated to fill 32-nibble Wave RAM on export)\nwave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]\n\n# 32-entry array (full Wave RAM — each value 0–15)\nwave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]\n\n# 32-nibble hex string (hUGETracker format — one hex digit per nibble)\nwave="0478ABBB986202467776420146777631"\n```',
-          '- Values are **4-bit** (0–15). Values outside this range are clamped on export.',
-          '- Maximise peak (near 15) for good perceived loudness; avoid strong DC offset.',
-          '- Use `volume=` (`0` · `25` · `50` · `100`) to set the hardware output-level selector.',
-        ].join('\n\n'),
-        noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad).',
-        env: [
-          '**Envelope** — controls how amplitude changes over the note\'s life.',
-          '**Three accepted formats:**',
-          '```\n# Short form — level (0–15), direction, optional period (0–7)\nenv=12,down\nenv=14,up,2\nenv=10,flat\n\n# GB-prefixed form — explicit Game Boy mapping\nenv=gb:12,down,1\n\n# JSON form — verbose, most explicit\nenv={"level":12,"direction":"down","period":1,"format":"gb"}\n```',
-          '- `level` — initial volume 0–15',
-          '- `direction` — `down` (fade out) · `up` (fade in) · `flat` (constant)',
-          '- `period` — envelope step speed 0–7; `0` = constant (no change), `1` = fastest, `7` = slowest',
-          '',
-          '*Tip: short, high initial level + `down` gives plucky staccato; `flat` holds volume steady.*',
-        ].join('\n\n'),
-        duty: [
-          '**Duty cycle** — sets the pulse-width of a square wave. Valid for `pulse1` and `pulse2` only.',
-          '```\nduty=<value>\n```',
-          '- `12.5` — thin, cutting (arpeggios, trebly leads)',
-          '- `25` — classic, hollow timbre',
-          '- `50` — balanced, full-sounding',
-          '- `75` — darker, thicker tone (same timbre as 25%, phase-inverted)',
-          '',
-          '*Tip: experiment with duty together with envelope to shape the attack character.*',
-        ].join('\n\n'),
-        width: [
-          '**LFSR width** — selects the noise generator mode for the `noise` channel.',
-          '```\nwidth=<bits>\n```',
-          '- `7` — **7-bit** LFSR: short repeating pattern → metallic, tonal noise (hi-hats, shakers)',
-          '- `15` — **15-bit** LFSR: long random sequence → broad, full noise (snares, kicks, ambience)',
-          '',
-          'Combine with `env=` level + period and an appropriate `note=` value to sculpt drum sounds.',
-        ].join('\n\n'),
         oct: 'Octave shift transform. Example: `pat:oct(+1)`',
         rev: 'Reverse pattern. Example: `pat:rev`',
         slow: 'Slow down pattern (double duration). Example: `pat:slow`',
@@ -610,20 +561,6 @@ export function registerBeatBaxLanguage(): void {
           '',
           '**Export:** JSON ✓  MIDI ✗  UGE ✗ (7xx = note delay, not retrigger)  Audio ✓',
         ].join('\n\n'),
-        sweep: [
-          '**Pitch Sweep** — hardware frequency sweep (Pulse 1 only, via NR10 register).',
-          '**Instrument-level** — declared on an `inst` (applies at note-on via NR10):',
-          '```\n# Short form\ninst laser type=pulse1 sweep=<time>,<direction>,<shift>\n\n# JSON form\ninst laser type=pulse1 sweep={"time":4,"direction":"down","shift":7}\n```',
-          '**Inline per-note effect** — applied inside a pattern:',
-          '```\nC4<sweep:4,down,7>\n```',
-          '- `time` — sweep period 0–7 in 1/128 Hz units (0 = disabled)',
-          '- `direction` — `up` / `+` for rising pitch · `down` / `−` for falling pitch',
-          '- `shift` — frequency shift per step 0–7 (higher = more dramatic, default 1)',
-          '',
-          'Example instrument: `inst laser type=pulse1 sweep=4,down,7` — fast falling pitch  \nExample note: `C4<sweep:4,down,7>` — same params, per-note only',
-          '',
-          '**Export:** JSON ✓  MIDI ✓ (pitch-bend approx)  UGE ✓ instrument-level / ⚠ inline  Audio ✓',
-        ].join('\n\n'),
         bend: [
           '**Pitch Bend** — smoothly slides pitch by a set number of semitones.',
           '```\nbend:<semitones>[,<curve>[,<delay>[,<time>]]]\n```',
@@ -647,7 +584,9 @@ export function registerBeatBaxLanguage(): void {
         ].join('\n\n'),
       };
 
-      const doc = hoverDocs[word.word];
+      const doc =
+        (chipRegistry.get(latestChip)?.uiContributions?.hoverDocs ?? {})[word.word]
+        ?? hoverDocs[word.word];
       if (doc) {
         return {
           contents: [{ value: doc }],

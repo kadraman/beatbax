@@ -22,12 +22,13 @@ import { buildGeneralSection,  resetGeneralDefaults  } from './settings-sections
 import { buildEditorSection,   resetEditorDefaults   } from './settings-sections/editor';
 import { buildPlaybackSection, resetPlaybackDefaults } from './settings-sections/playback';
 import { buildFeaturesSection, resetFeaturesDefaults } from './settings-sections/features';
+import { buildPluginsSection,  resetPluginsDefaults  } from './settings-sections/plugins';
 import { buildAISection,       resetAIDefaults       } from './settings-sections/ai';
 import { buildAdvancedSection, resetAdvancedDefaults } from './settings-sections/advanced';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SectionId = 'general' | 'editor' | 'playback' | 'features' | 'ai' | 'advanced';
+type SectionId = 'general' | 'editor' | 'playback' | 'features' | 'plugins' | 'ai' | 'advanced';
 
 interface SectionDef {
   id: SectionId;
@@ -44,6 +45,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'editor',   label: 'Editor',   icon: '✏',  build: buildEditorSection,   reset: resetEditorDefaults   },
   { id: 'playback', label: 'Playback', icon: '▶',  build: buildPlaybackSection, reset: resetPlaybackDefaults },
   { id: 'features', label: 'Features', icon: '⬡',  build: buildFeaturesSection, reset: resetFeaturesDefaults },
+  { id: 'plugins',  label: 'Plugins',  icon: '🔌', build: buildPluginsSection,  reset: resetPluginsDefaults  },
   {
     id: 'ai', label: 'AI Copilot', icon: '✦',
     build: buildAISection,

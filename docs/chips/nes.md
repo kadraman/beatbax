@@ -687,6 +687,58 @@ Because the NES mixer is non-linear, the perceived "loudness" of two-square voic
 
 ---
 
+### 9.13 Software Macros — Per-Frame Envelope Automation
+
+**The context:** BeatBax implements FamiStudio/FamiTracker-style software macros — per-note frame-accurate envelope sequences that run at the NES frame rate (60 Hz NTSC). Unlike the hardware envelope (which uses a fixed-period decrement), software macros give you arbitrary, programmable sequences at full 60 Hz resolution.
+
+Four macro types are available, declared as instrument properties:
+
+| Macro | Applied to | Description |
+|-------|------------|-------------|
+| `vol_env` | pulse1, pulse2, noise | Volume level (0–15) per frame |
+| `duty_env` | pulse1, pulse2 | Duty cycle index (0–3) per frame (0=12.5%, 1=25%, 2=50%, 3=75%) |
+| `arp_env` | pulse1, pulse2, triangle | Semitone offset per frame (0 = root; higher = transposed up) |
+| `pitch_env` | pulse1, pulse2, triangle | Absolute pitch offset in semitones per frame |
+
+**Syntax:** Macros are declared as a bracketed comma-separated value list, optionally followed by a loop point using `|N`:
+
+```
+vol_env=[15,12,8,4,2,1]          ; play once, hold last value (no loop)
+vol_env=[1,2,3,4,5,6,7,8,9,10|9] ; play to end, then loop from index 9 forever
+arp_env=[0,4,7|0]                  ; C-E-G major triad cycling continuously
+pitch_env=[5,4,3,2,1,0,0,0]       ; fall 5 semitones down to root on attack
+duty_env=[2,2,2,2,0,0,0,0|0]      ; alternate between 50% (warm) and 12.5% (thin)
+```
+
+**Loop point:** The `|N` suffix sets the index to return to when the sequence ends. Index 0 = return to the beginning (infinite loop); any other index creates a partial loop (attack-then-sustain-loop pattern).
+
+**Macro timing:** One frame = 1/60 second (~16.7 ms) on NTSC. A 10-frame `vol_env` decays over ~167 ms regardless of the BPM or `ticksPerStep` setting. Macros reset on every `noteOn`.
+
+**Common patterns:**
+
+```bax
+; Attack-only pitch rip — each note "falls in" 5 semitones from above
+inst i_rip  type=pulse1  duty=25  vol=10  pitch_env=[5,4,3,2,1,0,0,0]
+
+; Percussion decay on noise kick (faster than hardware env allows)
+inst kick   type=noise   noise_mode=normal  noise_period=12  vol_env=[15,12,8,4,2,1]
+
+; Cycling major triad arpeggio at 60 Hz
+inst arp    type=pulse2  duty=50  vol=10  arp_env=[0,4,7|0]
+
+; Timbre wah — oscillate between 50% (warm) and 12.5% (thin) duty
+inst wah    type=pulse1  duty=50  vol=10  duty_env=[2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]
+
+; Volume swell — slow attack from silence to full over 10 frames, then hold
+inst swell  type=pulse1  duty=25  vol_env=[1,2,3,4,5,6,7,8,9,10|9]
+```
+
+**Interaction with hardware envelope:** Software macros (e.g. `vol_env`) and hardware envelope (`env` + `env_period`) are mutually exclusive — if `vol_env` is present on an instrument, it overrides the `env` decay. Use `vol` (constant) or `vol_env` for macro-driven volumes; use `env` + `env_period` for hardware-mapped envelope when not using macros.
+
+**Demo song:** See `songs/features/nes_software_macros_demo.bax` for a complete four-channel demonstration, one macro type per channel.
+
+---
+
 ## 10. Channel Roles in Practice
 
 The following de facto standard emerged across professional NES soundtracks:
@@ -839,6 +891,11 @@ inst harm type=pulse2 duty=50 env=8,down vol=10
 | `env_period` | `0`–`15` | Envelope decay period (0 = fastest) |
 | `env_loop` | `true\|false` | Loop envelope (repeating sawtooth volume LFO) |
 | `vol` | `0`–`15` | Constant volume (disables envelope decay) |
+| `vol_env` | `[v0,v1,…\|loop]` | Software volume macro: per-frame levels 0–15; optional `\|N` loop point |
+| `arp_env` | `[0,s1,s2,…\|loop]` | Software arpeggio macro: per-frame semitone offsets (0 = root); looping for chords |
+| `pitch_env` | `[s0,s1,…\|loop]` | Software pitch macro: per-frame absolute semitone offset from root |
+| `duty_env` | `[d0,d1,…\|loop]` | Software duty macro: per-frame duty index (0=12.5%, 1=25%, 2=50%, 3=75%) |
+| `note` | note name (e.g. `C5`) | Default pitch when instrument name is used as a pattern token |
 | `sweep_en` | `true\|false` | Enable hardware sweep unit |
 | `sweep_period` | `1`–`7` | Sweep divider period |
 | `sweep_dir` | `up\|down` | Sweep pitch direction (up = higher pitch, down = lower) |
@@ -871,6 +928,8 @@ inst hihat type=noise noise_mode=normal noise_period=3  env=8,down  env_period=0
 | `noise_period` | `0`–`15` | Noise frequency preset (see period table in §5.2) |
 | `env` | `N,up\|down` | Initial volume and envelope direction |
 | `env_period` | `0`–`15` | Envelope decay rate |
+| `vol_env` | `[v0,v1,…\|loop]` | Software volume macro: per-frame levels 0–15; overrides `env` when present |
+| `note` | note name (e.g. `C5`) | Default pitch when instrument name is used as a pattern token (noise pitch is timbral, not tonal) |
 
 ### DMC
 
@@ -884,40 +943,49 @@ inst bass_hit type=dmc dmc_rate=7 dmc_loop=false dmc_sample="bass_c2.dmc"
 | `dmc_rate` | `0`–`15` | Playback rate index (see §6.3) |
 | `dmc_loop` | `true\|false` | Loop sample continuously |
 | `dmc_level` | `0`–`127` | Initial DAC level |
-| `dmc_sample` | `"filename.dmc"` | Path to 1-bit delta-encoded sample file |
+| `dmc_sample` | `"@nes/<name>"`, `"local:<path>"`, `"https://…"`, `"github:owner/repo/path"` | Sample reference: bundled library, local file (CLI only), remote URL, or GitHub shorthand |
 
 ---
 
 ## Appendix C — BeatBax NES Song Example
 
-```
-chip nes
+The example below shows a complete NES song using hardware envelopes, software macros (`vol_env`, `arp_env`), named instrument tokens, and sectioned sequences:
 
+```bax
+chip nes
 bpm 150
 
 ; ── Instruments ──────────────────────────────────────────────
-inst lead   type=pulse1  duty=25  env=13,down  env_period=2
-inst harm   type=pulse2  duty=50  env=10,down  env_period=4
+; Pulse lead with pitch-rip macro on every note attack
+inst lead   type=pulse1  duty=25  vol=10  pitch_env=[3,2,1,0,0,0,0,0]
+; Pulse harmony with cycling major-triad arpeggio
+inst harm   type=pulse2  duty=50  vol=8   arp_env=[0,4,7|0]
+; Triangle bass (no volume envelope)
 inst bass   type=triangle
-inst kick   type=noise   noise_mode=normal  noise_period=12  env=15,down  env_period=3
-inst snare  type=noise   noise_mode=normal  noise_period=6   env=14,down  env_period=1
-inst hihat  type=noise   noise_mode=normal  noise_period=3   env=8,down   env_period=0
+; Noise drum kit — named tokens using note= for shorthand triggers
+inst kick   type=noise  noise_mode=normal  noise_period=12  vol_env=[15,12,8,4,2,1]  note=C5
+inst snare  type=noise  noise_mode=normal  noise_period=6   vol_env=[14,10,6,3,1]    note=C5
+inst hihat  type=noise  noise_mode=normal  noise_period=3   env=8,down  env_period=0 note=C5
 
 ; ── Patterns ─────────────────────────────────────────────────
 pat melody   = C5 . E5 . G5 . E5 .
 pat counter  = G4 A4 B4 . G4 . F#4 .
 pat bassline = C3 . G2 . C3 . G2 .
-pat beat     = inst kick C3 . inst snare C3 inst hihat C3 . inst snare C3 .
+; Drum pattern using named instrument tokens (note= on each drum handles the pitch)
+pat beat     = kick . snare . kick . hihat hihat
 
-; ── Sequences ────────────────────────────────────────────────
-seq main  = melody counter melody counter
-seq intro = melody:inst(harm)
+; ── Sectioned sequences ──────────────────────────────────────
+seq lead_main   = melody melody counter melody
+seq harm_intro  = counter:inst(harm)
+seq harm_main   = counter melody counter melody
+seq bass_main   = bassline bassline bassline bassline
+seq drum_main   = beat beat beat beat
 
 ; ── Channels ─────────────────────────────────────────────────
-channel 1 => inst lead   seq main
-channel 2 => inst harm   seq intro
-channel 3 => inst bass   seq main:oct(-2)
-channel 4 => inst kick   seq beat
+channel 1 => inst lead   seq harm_intro lead_main
+channel 2 => inst harm   seq harm_intro harm_main
+channel 3 => inst bass   seq bass_main
+channel 4 => inst kick   seq drum_main
 
 play
 ```

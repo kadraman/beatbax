@@ -3,6 +3,8 @@ import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope } from '../chips/gameboy/pulse.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
+import { chipRegistry } from '../chips/registry.js';
+import type { ChipChannelBackend } from '../chips/types.js';
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -142,6 +144,58 @@ function clearPCMEffectState() {
  * @param opts Rendering options (sampleRate, channels, bpm, etc.).
  * @returns a Float32Array containing the interleaved PCM samples.
  */
+
+// ─── Plugin backend PCM helper ────────────────────────────────────────────────
+
+const PCM_PLUGIN_CHUNK = 512;
+
+/**
+ * Render a note using a plugin chip backend into the PCM buffer.
+ * Drives the backend's noteOn → render (in chunks) → noteOff lifecycle and
+ * writes the resulting samples into `buffer` at the correct position.
+ */
+function renderWithPluginBackend(
+  backend: ChipChannelBackend,
+  freq: number,
+  inst: InstrumentNode,
+  buffer: Float32Array,
+  startSample: number,
+  durationSamples: number,
+  sampleRate: number,
+  numChannels: number,
+  gains: { left: number; right: number } = { left: 1, right: 1 }
+): void {
+  backend.noteOn(freq, inst);
+  const chunk = new Float32Array(PCM_PLUGIN_CHUNK);
+  const samplesPerFrame = Math.floor(sampleRate / 60);
+  let rendered = 0;
+  let frame = 0;
+  let samplesSinceFrame = 0;
+  while (rendered < durationSamples) {
+    const len = Math.min(PCM_PLUGIN_CHUNK, durationSamples - rendered);
+    // Drive envelope at ~60 Hz
+    samplesSinceFrame += len;
+    while (samplesSinceFrame >= samplesPerFrame) {
+      backend.applyEnvelope(frame++);
+      samplesSinceFrame -= samplesPerFrame;
+    }
+    const slice = len < PCM_PLUGIN_CHUNK ? chunk.subarray(0, len) : chunk;
+    slice.fill(0);
+    backend.render(slice, sampleRate);
+    const outStart = (startSample + rendered) * numChannels;
+    if (numChannels === 1) {
+      for (let i = 0; i < len; i++) buffer[outStart + i] += slice[i];
+    } else {
+      for (let i = 0; i < len; i++) {
+        buffer[outStart + i * 2]     += slice[i] * gains.left;
+        buffer[outStart + i * 2 + 1] += slice[i] * gains.right;
+      }
+    }
+    rendered += len;
+  }
+  backend.noteOff();
+}
+
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
@@ -172,14 +226,30 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   // (some render paths may temporarily modify instrument objects). Cloning
   // ensures each note render sees a stable, independent instrument object.
   const instsClone = song.insts ? JSON.parse(JSON.stringify(song.insts)) : {};
-  const chipType = (song.chip || 'gameboy').toLowerCase();
+  const chipType = chipRegistry.resolve((song.chip || 'gameboy').toLowerCase());
   const isGameBoy = chipType === 'gameboy';
   const vibDepthScale = typeof opts.vibDepthScale === 'number' ? opts.vibDepthScale : EXPORTER_VIB_DEPTH_SCALE;
   const regPerTrackerBaseFactor = typeof opts.regPerTrackerBaseFactor === 'number' ? opts.regPerTrackerBaseFactor : RENDER_REG_PER_TRACKER_BASE_FACTOR;
   const regPerTrackerUnit = typeof opts.regPerTrackerUnit === 'number' ? opts.regPerTrackerUnit : RENDER_REG_PER_TRACKER_UNIT;
 
+  // Create per-channel plugin backends for non-GameBoy chips.
+  // The registry must have been populated via chipRegistry.register() before
+  // renderSongToPCM is called (the CLI does this via discoverPlugins()).
+  const pluginBackendsMap = new Map<number, ChipChannelBackend>();
+  if (!isGameBoy) {
+    const plugin = chipRegistry.get(chipType);
+    if (plugin) {
+      for (let idx = 0; idx < plugin.channels; idx++) {
+        try {
+          pluginBackendsMap.set(idx + 1, plugin.createChannel(idx, null as any));
+        } catch (_) {}
+      }
+    }
+  }
+
   for (const ch of song.channels) {
     if (renderChannels.includes(ch.id)) {
+      const pluginBackend = pluginBackendsMap.get(ch.id) ?? null;
       renderChannel(
         ch,
         instsClone,
@@ -191,7 +261,8 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
         isGameBoy,
         vibDepthScale,
         regPerTrackerBaseFactor,
-        regPerTrackerUnit
+        regPerTrackerUnit,
+        pluginBackend
       );
     }
   }
@@ -235,7 +306,8 @@ function renderChannel(
   isGameBoy: boolean,
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
-  regPerTrackerUnit: number
+  regPerTrackerUnit: number,
+  pluginBackend: ChipChannelBackend | null = null
 ) {
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
@@ -274,15 +346,26 @@ function renderChannel(
     if (!inst) continue;
 
     const startSample = Math.floor(time * sampleRate);
-    const durationSamples = Math.floor(dur * sampleRate);
+    let durationSamples = Math.floor(dur * sampleRate);
 
-    // Debug: log first note duration for channel 1 to diagnose headless vs browser
-    try {
-        // diagnostic removed
-    } catch (e) {}
+    // For sample-based (DMC) instruments, extend the render window to the
+    // time of the next non-rest event so the sample rings out naturally,
+    // matching NES hardware behaviour (a sample plays until the next DMC
+    // note or until the sample ends, whichever comes first).
+    if (pluginBackend && inst.type && inst.type.toLowerCase() === 'dmc') {
+      let nextIdx = ch.events.length;
+      for (let j = i + 1; j < ch.events.length; j++) {
+        if (ch.events[j].type !== 'rest' && ch.events[j].type !== 'sustain') {
+          nextIdx = j;
+          break;
+        }
+      }
+      const extendedDur = (nextIdx - i) * tickSeconds;
+      if (extendedDur > dur) durationSamples = Math.floor(extendedDur * sampleRate);
+    }
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -294,7 +377,7 @@ function renderChannel(
       }
     } else if (ev.type === 'named') {
       // Named instrument token (like drum hits)
-      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id);
+      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -371,7 +454,8 @@ function renderNoteEvent(
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
   regPerTrackerUnit: number,
-  channelId: number
+  channelId: number,
+  pluginBackend: ChipChannelBackend | null = null
 ) {
   try {
     // removed debug logging
@@ -386,6 +470,15 @@ function renderNoteEvent(
   if (midi === null) return;
 
   const freq = midiToFreq(midi);
+
+  // ── Plugin chip delegation ────────────────────────────────────────────────
+  if (!isGameBoy && pluginBackend) {
+    const panSpec = resolveEventPan(ev, inst);
+    const gains = panToGains(panSpec);
+    renderWithPluginBackend(pluginBackend, freq, inst, buffer, startSample, durationSamples, sampleRate, channels, gains);
+    return;
+  }
+
   // Align frequency to Game Boy period table like the WebAudio path does
   const alignedFreq = freqFromRegister(registerFromFreq(freq));
 
@@ -461,8 +554,27 @@ function renderNamedEvent(
   vibDepthScale?: number,
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
-  channelId?: number
+  channelId?: number,
+  pluginBackend: ChipChannelBackend | null = null
 ) {
+  // ── Plugin chip delegation ──────────────────────────────────────────────────
+  if (!isGameBoy && pluginBackend) {
+    const panSpec = resolveEventPan(ev, inst);
+    const gains = panToGains(panSpec);
+    // Resolve frequency: use defaultNote pitch for melodic instruments;
+    // noise/dmc backends ignore the frequency parameter.
+    let freq = 0;
+    if (ev.defaultNote) {
+      const m = ev.defaultNote.match(/^([A-G][#B]?)(-?\d+)$/i);
+      if (m) {
+        const midi = noteNameToMidi(m[1].toUpperCase(), parseInt(m[2], 10));
+        if (midi !== null) freq = midiToFreq(midi);
+      }
+    }
+    renderWithPluginBackend(pluginBackend, freq, inst, buffer, startSample, durationSamples, sampleRate, channels, gains);
+    return;
+  }
+
   // For noise instruments, ignore defaultNote and render as noise
   // (noise doesn't use traditional pitch; defaultNote is not applicable)
   if (inst.type && inst.type.toLowerCase().includes('noise')) {

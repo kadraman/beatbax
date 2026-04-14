@@ -1,0 +1,103 @@
+# =============================================================================
+# nes_software_macros_demo.bax
+#
+# Each channel demonstrates one NES software macro type in isolation.
+#
+#   Ch1 (pulse1)   — pitch_env:  programmatic pitch rip on every note attack
+#   Ch2 (pulse2)   — duty_env:   timbre morph 50% (warm) ↔ 12.5% (thin/nasal)
+#   Ch3 (triangle) — arp_env:    rapid chord shimmer on held notes
+#   Ch4 (noise)    — vol_env:    sharply shaped percussive decay
+#
+# The kick on ch4 also shows vol_env for melodic use: swap `inst i_kick` for
+# `inst i_vol` on channel 4 and add one of its seq patterns to hear a melody
+# whose amplitude swells from near-silence on every attack.
+#
+#   node bin/beatbax play songs/features/nes_software_macros_demo.bax
+# =============================================================================
+
+chip nes
+bpm 100
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INSTRUMENTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ch1 — pitch_env: note "FALL-IN" rip.
+#   [5,4,3,2,1,0,0,0]: every attack opens 5 semitones ABOVE the written note
+#   (e.g. F4 when note is C4) and steps down one semitone per NES frame until
+#   it lands on the written pitch at frame 5, then holds.
+#   One rip = 5 frames = ~83ms. Reset happens on EVERY new noteOn.
+inst i_pitch  type=pulse1  duty=50  vol=10  pitch_env=[5,4,3,2,1,0,0,0]
+
+# Ch2 — duty_env: timbre MORPH between warm and thin.
+#   [2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]:
+#     8 frames at duty-index 2 (50% — square-like, warm, only odd harmonics)
+#     8 frames at duty-index 0 (12.5% — narrow pulse, thin/nasal, rich harmonics)
+#     loop.  Each half = 8/60s ≈ 133ms → ~3.7 "wah" cycles per second.
+#
+#   50% and 12.5% are the most perceptually different NES duty cycles:
+#   50% sounds full/warm; 12.5% sounds reedy/nasal. The contrast is clear
+#   on a held note.  (75% is spectrally identical to 25% — avoid for demos.)
+inst i_duty   type=pulse2  duty=50  vol=10  duty_env=[2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]
+
+# Ch3 — arp_env: C-major triad cycling at 60 Hz.
+#   [0,4,7|0]: root → +4 semitones (major 3rd) → +7 (perfect 5th) → loop.
+#   One full triad = 3 frames = ~50ms. A held note shimmers with all three tones.
+inst i_arp    type=triangle  arp_env=[0,4,7|0]
+
+# Ch4 — vol_env on noise kick.
+#   [15,12,8,4,2,1]: sharp attack + fast exponential-style decay over 6 frames.
+inst i_kick   type=noise  noise_mode=normal  noise_period=12  vol_env=[15,12,8,4,2,1]
+# hihat — high-frequency tick (period=2 → LFSR clock ≈ 28 kHz = crisp metallic sizzle).
+#   env=6,down  env_period=0 : low volume, instantaneous decay (one frame ≈ 16 ms).
+#   Sits well above kick and snare in frequency; provides rhythmic texture only.
+inst i_hihat    type=noise  noise_mode=normal  noise_period=2   env=6,down   env_period=0
+
+# ── vol_env melodic reference ─────────────────────────────────────────────────
+# Swap `inst i_vol` into channel 4 (or any pulse channel) to hear vol_env on
+# a melodic instrument: each note swells from near-silence (volume 1) to 10
+# over 10 frames (~167ms), then sustains (loopPoint=9 → holds at value 10).
+# Completely different to a hardware env which uses a divider for step timing.
+inst i_vol    type=pulse1  duty=50  vol_env=[1,2,3,4,5,6,7,8,9,10|9]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERNS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# pitch_env — ascending phrase C4 D4 E4 F4, each held 8 steps (2-step rest gap).
+#   Without pitch_env: four clean ascending onsets.
+#   With pitch_env: each attack falls in 5 st above the target — C4 rips from F4,
+#   D4 from G4, E4 from A4, F4 from Bb4 — then settles at frame 5.
+pat p_pitch  = C4:8 . . D4:8 . . E4:8 . . F4:8 . .
+
+# duty_env — ascending phrase C4 D4 E4 F4, each held 8 steps (~4.8s, 2-step rest gap).
+#   Each held note produces ~18 wah periods (267ms/cycle at 60 Hz).
+pat p_duty   = C4:8 . . D4:8 . . E4:8 . . F4:8 . .
+
+# arp_env — ascending phrase; rapid C-E-G shimmer fires continuously on each held note.
+pat p_arp    = C4:8 . . D4:8 . . E4:8 . . F4:8 . .
+
+# kick on beat 1, hihat on beat 3 of each bar (stepsPerBar=4 default).
+pat p_kick   = (i_kick . i_hihat .)*10
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEQUENCES  (2 repetitions each)
+# ─────────────────────────────────────────────────────────────────────────────
+seq s_pitch  = p_pitch  p_pitch
+seq s_duty   = p_duty   p_duty
+seq s_arp    = p_arp    p_arp
+seq s_kick   = p_kick   p_kick
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANNELS
+#   Ch1: pitch_env — each note falls in from +5 st above; rip resets on every attack
+#   Ch2: duty_env  — warm 50% ↔ thin 12.5% wah on ascending phrase
+#   Ch3: arp_env   — C-E-G shimmer on held triangle notes
+#   Ch4: vol_env   — shaped percussion decay on noise kick
+# ─────────────────────────────────────────────────────────────────────────────
+channel 1 => inst i_pitch  seq s_pitch
+channel 2 => inst i_duty   seq s_duty
+channel 3 => inst i_arp    seq s_arp
+channel 4 => inst i_kick   seq s_kick
+
+play

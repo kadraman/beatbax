@@ -1,0 +1,458 @@
+## duck_tales.bax
+## "The Moon" from Duck Tales (NES) — Hiroshige Tonomura / Capcom, 1989
+##
+## Transcribed from the FamiStudio export (duck_tales.txt) for the BeatBax NES plugin.
+## This version is for plugin validation / reference accuracy purposes.
+## © 1989 Capcom. Used for educational/compatibility testing only.
+##
+## Song Structure (19 patterns, loop from pattern 6):
+##   Patterns 0–4  : Intro (5 patterns on Square1, Square2 arpeggios, Triangle bass harmony)
+##   Patterns 5     : Intro lead-in + drum fill
+##   Patterns 6–13  : Main melody loop (8 patterns)
+##   Patterns 14–18 : Bridge section
+##
+## Channel mapping:
+##   Ch1 (Pulse 1) : Lead melody / intro sweep
+##   Ch2 (Pulse 2) : Arpeggio counter-melody
+##   Ch3 (Triangle): Bass
+##   Ch4 (Noise)   : Drums
+##
+## Tempo note:
+##   FamiStudio NoteLength=10 ticks, BeatLength=2 (2 rows per beat = 8th note rows).
+##   At 60fps NES: BPM = 60×60/10/2 = 180 BPM in quarter-note terms.
+##   However each FamiStudio row = 1 8th note. In BeatBax each step = 1 row.
+##   With bpm=90 and ticksPerStep=16: one step = one 8th note = 180 BPM row. ✓
+##   Intro patterns 0–4: 15 steps each (custom PatternLength=15).
+##   Main/bridge patterns 5–18: 16 steps each (PatternLength=16).
+##   WAV duration check: 5×15 + 14×16 = 299 rows @ 10frames/row @ 60fps = 49.75s ✓
+##
+## Play: node bin/beatbax play songs/duck_tales.bax
+
+song name "The Moon (Duck Tales)"
+song artist "Hiroshige Tonomura"
+song description "The Moon theme from Duck Tales (NES, 1989, Capcom). Transcribed for BeatBax NES plugin validation."
+song tags "nes,capcom,classic,reference,ducktales"
+
+chip nes
+bpm 90
+ticksPerStep 16
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+## Square 1 — Lead melody instruments
+## LeadIntro: attack volume — ramps up (1→10) over 10 frames, holds at 10
+## FamiStudio LeadIntro Volume envelope [1,2,3,4,5,6,7,8,9,10] with loopPoint=9
+inst lead_intro  type=pulse1  duty=75   vol_env=[1,2,3,4,5,6,7,8,9,10|9]
+
+## Lead: constant volume 10/15, FamiStudio Volume=[10], duty=3 (75%)
+inst lead        type=pulse1  duty=75   vol=10
+
+## LeadLo: Square 2 low harmony, constant vol=7, FamiStudio duty=0 (12.5%)
+## FamiStudio BleepIntro: Volume [7,7,7,7,7,7,7,1], duty=1 (25%)
+inst lead_lo     type=pulse2  duty=25   vol=7
+
+## Square 2 — Arpeggio backing instruments
+## BleepIntro: FamiStudio Volume [7,7,7,7,7,7,7,1], duty=1 (25%)
+inst bleep_intro type=pulse2  duty=25   vol_env=[7,7,7,7,7,7,7,1]
+
+## Bleep: FamiStudio Volume [7,7,7,5,5,5,5,1], duty=3 (75%)
+inst bleep       type=pulse2  duty=75   vol_env=[7,7,7,5,5,5,5,1]
+
+## Triangle — Bass (no volume control on NES triangle)
+inst bass        type=triangle
+
+## Noise — Drums (vol_env macros matching FamiStudio Volume envelopes exactly)
+## note=C5 on all drum instruments allows using the instrument name directly as a pattern token
+## DrumHi  : FamiStudio Volume [10,4]
+inst drum_hi     type=noise  noise_mode=normal  noise_period=2   vol_env=[10,4]       note=C5
+
+## DrumIntro: FamiStudio Volume [10,10,10,5]
+inst drum_intro  type=noise  noise_mode=normal  noise_period=7   vol_env=[10,10,10,5] note=C5
+
+## DrumLo  : FamiStudio Volume [10,10,10,2]
+inst drum_lo     type=noise  noise_mode=normal  noise_period=12  vol_env=[10,10,10,2] note=C5
+
+## DrumMed : FamiStudio Volume [10,10,10,6,6,6,6,2]
+inst drum_med    type=noise  noise_mode=normal  noise_period=7   vol_env=[10,10,10,6,6,6,6,2] note=C5
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+# FamiStudio VibratoSpeed=8 maps to a moderate rate. Each row=1 step.
+# We use a 4-step onset delay matching FamiStudio's delayed vibrato onset.
+effect vib_slow   = vib:4,5,sine,0,4     # delay=4 rows (intro1)
+effect vib_slow3  = vib:4,5,sine,0,3     # delay=3 rows (intro2: A#4 at row 4, vib at row 7)
+effect vib_fast   = vib:5,5,sine,0,4     # delay=4 rows (mel2/3/4/6)
+effect vib_soft   = vib:2,5,sine,0,3     # delay=3 rows (intro4)
+effect vib_soft4  = vib:2,5,sine,0,4     # delay=4 rows (bridge5)
+
+# =============================================================================
+# Square 1 — Lead melody patterns
+# =============================================================================
+# Mapping: FamiStudio Time=X → step X/10 (0-based).  Duration=D → ceil(D/10) steps.
+# Staccato (dur=9) = 1 step. Rests fill gaps between notes.
+# Intro patterns: 15 steps (rows 0-14). Main/Bridge: 16 steps (rows 0-15).
+#
+# Vibrato markers (Time= VibratoSpeed= only, no Value=) split preceding note:
+#   pre-vib steps + vib-onset steps at the same pitch with <vib> effect.
+
+# ── Intro1 (15 steps: rows 0–14) ──────────────────────────────────────────
+# Time=0   C#4 dur=89 → rows 0–8 (9 steps); vib kicks in at Time=40 → row 4
+# Time=90  F#4 dur=19 → rows 9–10 (2 steps)
+# Time=110 G#4 dur=19 → rows 11–12 (2 steps)
+# Time=130 B4  dur=19 → rows 13–14 (2 steps)
+# C#4: first 4 steps plain, then 5 steps with vib (row 4 is vib onset)
+pat sq1_intro1  = C#4<vib_slow>:9 F#4:2 G#4:2 B4:2
+
+# ── Intro2 (15 steps: rows 0–14) ──────────────────────────────────────────
+# Time=0   B4  dur=29 → rows 0–2 (3 steps)
+# Time=30  A#4 dur=9  → row 3 (1 step, re-trigger)
+# Time=40  A#4 dur=69 → rows 4–10 (7 steps); vib at Time=70 → row 7 (4 steps in)
+# Time=110 G#4 dur=19 → rows 11–12 (2 steps); vib off
+# Time=130 F#4 dur=19 → rows 13–14 (2 steps)
+# A#4: rows 4–6 plain (3 steps), rows 7–10 with vib (4 steps)
+pat sq1_intro2  = B4:3 A#4 A#4<vib_slow3>:7 G#4:2 F#4:2
+
+# ── Intro3 (15 steps: rows 0–14) ──────────────────────────────────────────
+# Time=0   C#5 dur=59 → rows 0–5 (6 steps)
+# Time=60  F#4 dur=59 → rows 6–11 (6 steps)
+# Time=120 F#5 dur=149 → rows 12–14 (3 steps, capped at pattern end)
+pat sq1_intro3  = C#5:6 F#4:6 F#5:3
+
+# ── Intro4 (15 steps: rows 0–14) ──────────────────────────────────────────
+# F#5 carried from Intro3 (continues ringing). No new note until row 12.
+# Time=30  vib onset (row 3) on the held F#5
+# Time=120 G#5 dur=19 → rows 12–13 (2 steps); vib off
+# Time=140 F#5 dur=9  → row 14 (1 step)
+# Rows 0–2: F#5 plain (3 steps), rows 3–11: F#5 with vib (9 steps)
+pat sq1_intro4  = F#5<vib_soft>:12 G#5:2 F#5
+
+# ── Intro5 (15 steps: rows 0–14) ──────────────────────────────────────────
+# Time=0   C#6 dur=159 → rows 0–14 (15 steps); vib at Time=80 → row 8
+# Vib end marker at Time=159 → row 15 (beyond pattern, so vib stays through end)
+# Rows 0–7 plain (8 steps), rows 8–14 with vib (7 steps)
+pat sq1_intro5  = C#6<vib:2,5,sine,0,8>:15
+
+# ── Melody1 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=40  A#3 dur=9  → row 4 (1 step)
+# Time=50  B3  dur=9  → row 5 (1 step)
+# Time=60  C#4 dur=9  → row 6 (1 step)
+# Time=70  C#4 dur=29 → rows 7–9 (3 steps)
+# Time=100 F#4 dur=19 → rows 10–11 (2 steps)
+# Time=120 F4  dur=19 → rows 12–13 (2 steps)
+# Time=140 F#4 dur=19 → rows 14–15 (2 steps)
+# Rows 0–3 are rests (no note before row 4)
+pat sq1_mel1    = . . . . A#3 B3 C#4 C#4:3 F#4:2 F4:2 F#4:2
+
+# ── Melody2 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   G#4 dur=19 → rows 0–1 (2 steps)
+# Time=20  A#4 dur=9  → row 2 (1 step)
+# Time=30  F#4 dur=109 → rows 3–13 (11 steps); vib at Time=70 → row 7 (4 steps in)
+# Time=140 F4  dur=9  → row 14 (1 step); vib off
+# Time=150 F#4 dur=9  → row 15 (1 step)
+# F#4: rows 3–6 plain (4 steps), rows 7–13 with vib (7 steps)
+pat sq1_mel2    = G#4:2 A#4 F#4<vib_fast>:11 F4 F#4
+
+# ── Melody3 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   C#5 dur=29 → rows 0–2 (3 steps)
+# Time=30  F#4 dur=9  → row 3 (1 step)
+# Time=40  F#4 dur=109 → rows 4–14 (11 steps); vib at Time=80 → row 8 (4 steps in)
+# Time=140 vib off (no new note until Time=150)
+# Time=150 F#4 dur=9  → row 15 (1 step)
+# F#4 rows 4–7 plain (4 steps), rows 8–14 with vib (7 steps)
+pat sq1_mel3    = C#5:3 F#4 F#4<vib_fast>:11 F#4
+
+# ── Melody4 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   F#4 dur=39 → rows 0–3 (4 steps)
+# Time=40  →  rest (gap to row 5; F#4 ends at row 3, row 4 is rest)
+# Time=50  G#4 dur=9  → row 5 (1 step)
+# Time=60  F#4 dur=9  → row 6 (1 step)
+# Time=70  F4  dur=89 → rows 7–15 (9 steps); vib at Time=110 → row 11 (4 steps in)
+# F4: rows 7–10 plain (4 steps), rows 11–15 with vib (5 steps)
+pat sq1_mel4    = F#4:4 . G#4 F#4 F4<vib_fast>:9
+
+# ── Melody5 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   A#3 dur=39 → rows 0–3 (4 steps); vib off (explicit VibratoSpeed=0)
+# Time=40  → rest (gap)
+# Time=50  G#3 dur=9  → row 5 (1 step)
+# Time=60  F#3 dur=9  → row 6 (1 step)
+# Time=70  C#4 dur=39 → rows 7–10 (4 steps)
+# Time=110 → rest (gap)
+# Time=120 F#4 dur=19 → rows 12–13 (2 steps)
+# Time=140 G#4 dur=19 → rows 14–15 (2 steps)
+pat sq1_mel5    = A#3:4 . G#3 F#3 C#4:4 . F#4:2 G#4:2
+
+# ── Melody6 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   B4  dur=29 → rows 0–2 (3 steps)
+# Time=30  A#4 dur=9  → row 3  (1 step)
+# Time=40  A#4 dur=79 → rows 4–11 (8 steps); vib at Time=80 → row 8 (4 steps in)
+# Time=120 C#5 dur=19 → rows 12–13 (2 steps); vib off
+# Time=140 B4  dur=19 → rows 14–15 (2 steps)
+# A#4: rows 4–7 plain (4 steps), rows 8–11 with vib (4 steps)
+pat sq1_mel6    = B4:3 A#4 A#4<vib_fast>:8 C#5:2 B4:2
+
+# ── Melody7 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   A#4 dur=9  → row 0  (1 step)
+# Time=10  B4  dur=9  → row 1  (1 step)
+# Time=20  A#4 dur=9  → row 2  (1 step)
+# Time=30  F#4 dur=19 → rows 3–4 (2 steps)
+# Time=50  C#4 dur=39 → rows 5–8 (4 steps)
+# Time=90  G#4 dur=9  → row 9  (1 step)
+# Time=100 F#4 dur=9  → row 10 (1 step)
+# Time=110 F4  dur=9  → row 11 (1 step)
+# Time=120 D#4 dur=9  → row 12 (1 step)
+# Time=130 F4  dur=29 → rows 13–15 (3 steps)
+pat sq1_mel7    = A#4 B4 A#4 F#4:2 C#4:4 G#4 F#4 F4 D#4 F4:3
+
+# ── Melody8 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   F#4 dur=9  → row 0  (1 step)
+# Time=10–20: rest (rows 1–2)
+# Time=30  F#4 dur=9  → row 3  (1 step)
+# Time=40–50: rest (rows 4–5)
+# Time=60  F#4 dur=19 → rows 6–7 (2 steps)
+# Time=80–86: rest (rows 8-8, since next note at Time=87)
+# Time=87  A#2 slide→C#4 dur=72 → rows 8–15 (8 steps, approximated as portamento)
+#   FamiStudio uses a pitch slide (SlideTarget). We use port:semitones to C#4 from A#2 = +27 semitones
+#   Volume ramps 2→14 across the slide; we set lead vol higher and let env handle it
+# Rows 8–15: A#2 with portamento upward (8 steps)
+pat sq1_mel8    = F#4 . . F#4 . . F#4:2 A#2<port:27>:8
+
+# ── Bridge1 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   F#4 dur=9  → row 0  (1 step)
+# Time=10  F#4 dur=9  → row 1  (1 step)
+# Time=20–29: rest (rows 2–3)
+# Time=40  G#4 dur=9  → row 4  (1 step)
+# Time=50  G#4 dur=9  → row 5  (1 step)
+# Time=60–69: rest (row 6)
+# Time=70  E4  dur=39 → rows 7–10 (4 steps)
+# Time=110 C#4 dur=19 → rows 11–12 (2 steps)
+# Time=130 E4  dur=9  → row 13 (1 step)
+# Time=140: B3 dur=3 → row 14 partial, C4 dur=3, B3 dur=2 — these are sub-row ornaments
+#   Approx as single B3 step, C4 step within row 14
+#   Since durations are <10 ticks they fit in one step each; combine as grace note B3 then C4 at row 14
+#   For simplicity: row 14 = B3 (grace ornament — just use B3 for 1 step)
+# Time=150 A3  dur=9  → row 15 (1 step)
+pat sq1_bridge1 = F#4 F#4 . . G#4 G#4 . E4:4 C#4:2 E4 B3 A3
+
+# ── Bridge2 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   B3  dur=19 → rows 0–1 (2 steps)
+# Time=20  A3  dur=9  → row 2  (1 step)
+# Time=30  B3  dur=9  → row 3  (1 step)
+# Time=40: rest (row 4)
+# Time=50  A3  dur=9  → row 5  (1 step)
+# Time=60: rest (row 6)
+# Time=70  C#4 dur=79 → rows 7–14 (8 steps)
+# Row 15: rest (C#4 ends at row 14)
+pat sq1_bridge2 = B3:2 A3 B3 . A3 . C#4:8 .
+
+# ── Bridge3 (16 steps: rows 0–15) ─────────────────────────────────────────
+# Time=0   F#4 dur=9  → row 0  (1 step)
+# Time=10  F#4 dur=9  → row 1  (1 step)
+# Time=20–29: rest (rows 2–3)
+# Time=40  G#4 dur=9  → row 4  (1 step)
+# Time=50  G#4 dur=9  → row 5  (1 step)
+# Time=60: rest (row 6)
+# Time=70  A4  dur=19 → rows 7–8  (2 steps)
+# Time=90  E4  dur=19 → rows 9–10 (2 steps)
+# Time=110 E4  dur=19 → rows 11–12 (2 steps)
+# Time=130 E4  dur=9  → row 13 (1 step)
+# Time=140 A4  dur=9  → row 14 (1 step)
+# Time=150 B4  dur=69 → row 15 (1 step, rest of dur spills into Bridge4)
+pat sq1_bridge3 = F#4 F#4 . . G#4 G#4 . A4:2 E4:2 E4:2 E4 A4 B4
+
+# ── Bridge4 (16 steps: rows 0–15) ─────────────────────────────────────────
+# B4 held from Bridge3 (dur=69 → 7 steps: rows 0–6 of Bridge4)
+# Time=60  A4  dur=9  → row 6  (1 step, end of B4; actually at row 6 of bridge4)
+# In FamiStudio timing within bridge4 pattern:
+# Time=60  A4  dur=9  → row 6
+# Time=70  C#5 dur=59 → rows 7–12 (6 steps)
+# Time=130 C#5 dur=9  → row 13 (1 step)
+# Time=140 C#5 dur=9  → row 14 (1 step)
+# Time=150 C#5 dur=129 → row 15 (spills beyond, sustained)
+# Rows 0–5: B4 held (6 steps), row 6: A4, rows 7–12: C#5, rows 13–15: C#5
+pat sq1_bridge4 = B4:6 A4 C#5:6 C#5 C#5 C#5
+
+# ── Bridge5 (16 steps: rows 0–15) ─────────────────────────────────────────
+# C#5 carried from Bridge4 (continues). Vib at Time=40 → row 4 of bridge5.
+# Time=120 D2  dur=19 → rows 12–13 (2 steps, vib off)
+# Time=140 E2  dur=19 → rows 14–15 (2 steps)
+# Rows 0–3: C#5 plain (4 steps), rows 4–11: C#5 with vib (8 steps)
+pat sq1_bridge5 = C#5<vib_soft4>:12 D2:2 E2:2
+
+# =============================================================================
+# Square 2 — Arpeggio counter-melody
+# =============================================================================
+# All BeepIntro/BeepLoop notes are staccato (dur=9 → 1 step each, every 10 ticks)
+# BeepIntro1 has 15 notes (rows 0–14, pattern length=15)
+# BeepLoop1 has 16 notes (rows 0–15, pattern length=16)
+
+# BeepIntro1 (15 steps): 15 staccato arpeggios, rows 0-14
+pat sq2_beepin1 = F#4 C#5 F#5 G#5 C#5 F#5 G#5 B5 C#5 B5 A#5 C#5 A#5 G#5 F#5
+
+# BeepLoop1 (16 steps): 16 staccato arpeggios, rows 0-15
+pat sq2_beeplo1 = F#4 C#5 F#5 G#5 C#5 F#5 G#5 C#5 B5 C#5 B5 A#5 C#5 A#5 G#5 F#5
+
+# BeepLoop2 (16 steps): alternate descending arpeggio, rows 0-15
+pat sq2_beeplo2 = F#5 A4 D5 G#5 B4 G#5 B5 A#5 F#5 C#5 B4 A#4 F#4 C#4 B3 A#3
+
+# Square2 Bridge1 (16 steps)
+# Rows 0-1: A3 (lead_lo, staccato ×2, rows 0,1)
+# Row 2-3: rest
+# Rows 4-5: B3 (lead_lo, staccato ×2, rows 4,5)
+# Row 6: rest
+# Rows 7-8: A3 sustained (dur=19, rows 7-8)
+# Row 9: rest (gap to row 9)
+# Rows 9-14: bleep_intro arpeggios (G#4, A4, E5, rest, G#5, A5, E6)
+# Time=90: G#4, Time=100: A4, Time=110: E5, Time=120: rest, Time=130: G#5, Time=140: A5, Time=150: E6
+pat sq2_brid1   = inst lead_lo A3 A3 . . B3 B3 . A3:2 . inst bleep_intro G#4 A4 E5 . G#5 A5
+
+# Square2 Bridge2 (16 steps)
+# Time=0: D3 dur=19 → rows 0-1; Time=20: D3 staccato → row 2; Time=30: D3 staccato → row 3
+# Time=40: rest; Time=50: D3 staccato → row 5; Time=60: rest; Time=70: F3 dur=79 → rows 7-14
+# Row 15: rest
+pat sq2_brid2   = inst lead_lo D3:2 D3 D3 . D3 . F3:8 .
+
+# Square2 Bridge3 (16 steps)
+# Time=0: D4×1, Time=10: D4×1, Time=20-30: rest, Time=40: B3, Time=50: B3, Time=60: rest
+# Time=70: C#4 dur=19 rows 7-8, Time=90: C#4 dur=19 rows 9-10, Time=110: C#4 dur=19 rows 11-12
+# Time=130: C#4 row 13, Time=140: E4 row 14, Time=150: F#4 dur=59 → row 15 (spills to bridge4)
+pat sq2_brid3   = inst lead_lo D4 D4 . . B3 B3 . C#4:2 C#4:2 C#4:2 C#4 E4 F#4
+
+# Square2 Bridge4 (16 steps)
+# F#4 carried from bridge3; Time=60: F#4 row 6; Time=70: F4 dur=59 rows 7-12;
+# Time=130: F4 row 13; Time=140: F4 row 14; Time=150: F#4 row 15
+# Rows 0-5: F#4 held (6 steps), row 6: F#4, rows 7-12: F4, rows 13-14: F4, row 15: F#4
+pat sq2_brid4   = inst lead_lo F#4:7 F4:6 F4 F4 F#4
+
+# =============================================================================
+# Triangle — Bass patterns
+# =============================================================================
+# All bass patterns: staccato 16th notes or longer sustained notes on triangle.
+# Triangle has no volume envelope — just on/off.
+
+# BassIntro1 (15 steps): F#3 rows 0-2 (3 steps), C#4 rows 3-5 (3 steps), F#4 rows 6-14 (9 steps)
+pat tri_intro1  = F#3:3 C#4:3 F#4:9
+
+# BassIntro2 (15 steps): E3×3, B3×3, E4×9
+pat tri_intro2  = E3:3 B3:3 E4:9
+
+# BassIntro3 (15 steps): D#3×3, A#3×3, D#4×9
+pat tri_intro3  = D#3:3 A#3:3 D#4:9
+
+# BassIntro4 (15 steps): D3×3, A3×3, D4×9
+pat tri_intro4  = D3:3 A3:3 D4:9
+
+# BassIntro5 (15 steps): F#4 staccato × 15 (each row is a new note trigger)
+pat tri_intro5  = F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4
+
+# Bass1: F#4 × 8 staccato, F4 × 8 staccato (16 steps)
+pat tri_bass1   = F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 F4 F4 F4 F4 F4 F4 F4 F4
+
+# Bass2: D#4 × 8, C#4 × 8
+pat tri_bass2   = D#4 D#4 D#4 D#4 D#4 D#4 D#4 D#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4
+
+# Bass3: B3 × 8, C4 × 8
+pat tri_bass3   = B3 B3 B3 B3 B3 B3 B3 B3 C4 C4 C4 C4 C4 C4 C4 C4
+
+# Bass4: C#4 × 16
+pat tri_bass4   = C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4
+
+# Bass5: F#4 × 8, E4 × 8
+pat tri_bass5   = F#4 F#4 F#4 F#4 F#4 F#4 F#4 F#4 E4 E4 E4 E4 E4 E4 E4 E4
+
+# Bass6: D#4 × 8, D4 × 8
+pat tri_bass6   = D#4 D#4 D#4 D#4 D#4 D#4 D#4 D#4 D4 D4 D4 D4 D4 D4 D4 D4
+
+# Bass7: C#4 × 8, C4 × 4, C#4 × 4
+pat tri_bass7   = C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C4 C4 C4 C4 C#4 C#4 C#4 C#4
+
+# Bass8: D4 row 0, rest rows 1-2, E4 row 3, rest rows 4-5, F#4 rows 6-8 (dur=29→3), F#3 rows 9-15 (7 steps)
+# Time=0: D4 dur=9→1, Time=30: E4 dur=9→1, Time=60: F#4 dur=29→3, Time=90: F#3 dur=9×7
+pat tri_bass8   = D4 . . E4 . . F#4:3 F#3 F#3 F#3 F#3 F#3 F#3 F#3
+
+# BassBridge1 (16 steps)
+# Time=0: B3 row 0, Time=10: B3 row 1, rows 2-3: rest
+# Time=40: E4 row 4, Time=50: E4 row 5, row 6: rest
+# Time=70: A3 dur=19 rows 7-8, then A3 staccato rows 9-15 (7 more)
+pat tri_bbrid1  = B3 B3 . . E4 E4 . A3:2 A3 A3 A3 A3 A3 A3 A3
+
+# BassBridge2 (16 steps): B3 × 8, C#4 × 8
+pat tri_bbrid2  = B3 B3 B3 B3 B3 B3 B3 B3 C#4 C#4 C#4 C#4 C#4 C#4 C#4 C#4
+
+# BassBridge3 (16 steps)
+# Time=0: D4 staccato rows 0-7 (8 steps), rows 8-11: rest (gap)
+# Time=120: D4 dur=19 rows 12-13, Time=140: E4 dur=19 rows 14-15
+pat tri_bbrid3  = D4 D4 D4 D4 D4 D4 D4 D4 . . . . D4:2 E4:2
+
+# =============================================================================
+# Noise — Drum patterns
+# =============================================================================
+
+# DrumIntro (15 steps): sparse hits at rows 11-14 of the intro pattern 4 slot
+# FamiStudio Time=110→row11, 120→row12, 130→row13, 140→row14
+pat drum_intro_p = . . . . . . . . . . . drum_intro drum_intro drum_intro drum_intro
+
+# DrumLoop (16 steps): kick/hat/snare groove
+# Row  0: kick (DrumLo)
+# Row  1: hi-hat (DrumHi)
+# Row  2: snare (DrumMed)
+# Row  3: hi-hat (DrumHi)
+# Row  4: kick
+# Row  5: hi-hat
+# Row  6: snare
+# Row  7: hi-hat
+# Row  8: kick
+# Row  9: hi-hat
+# Row 10: snare
+# Row 11: hi-hat
+# Row 12: kick
+# Row 13: hi-hat
+# Row 14: snare
+# Row 15: snare (double snare at end, per FamiStudio)
+pat drum_loop_p = drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_med
+
+# =============================================================================
+# Silent filler pattern (for channels with no notes in a slot)
+# =============================================================================
+pat silence = . . . . . . . . . . . . . . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+# PatternInstance layout (0-indexed): 19 slots total (0–18), loop from slot 6
+# Slot 0 is empty/silent on all channels except Square2.
+# Square1 PatternInstance starts at slot 1 (Intro1).
+# Triangle PatternInstance starts at slot 1 (BassIntro1).
+# Noise PatternInstance starts at slot 4 (DrumIntro) then slot 5 onwards.
+
+# ── Square 1 (Lead melody) ────────────────────────────────────────────────
+seq sq1_intro  = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
+seq sq1_main   = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
+seq sq1_bridge = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
+
+# ── Square 2 (Arpeggio counter-melody) ───────────────────────────────────
+seq sq2_intro  = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
+seq sq2_main   = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
+seq sq2_bridge = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
+
+# ── Triangle (Bass) ───────────────────────────────────────────────────────
+seq tri_intro  = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
+seq tri_main   = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
+seq tri_bridge = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
+
+# ── Noise (Drums) ─────────────────────────────────────────────────────────
+seq drum_intro  = silence silence silence silence drum_intro_p
+seq drum_main   = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+seq drum_bridge = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+
+# =============================================================================
+# Channels
+# =============================================================================
+channel 1 => inst lead_intro  seq sq1_intro  sq1_main  sq1_bridge
+channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge
+channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge
+channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge
+
+play
