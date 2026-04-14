@@ -32,7 +32,7 @@
     "dev": "npm run engine:build && npm -w @beatbax/engine run dev",
     "cli": "node scripts/cli-wrapper.js",
     "cli:ensure": "npm run cli:build --if-present",
-    "test": "npm run engine:test && npm run cli:test",
+    "test": "npm run engine:test && npm run nes:test && npm run cli:test",
     "bin": "node bin/beatbax",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
