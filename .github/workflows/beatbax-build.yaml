@@ -41,6 +41,9 @@ jobs:
       - name: Build Node assets
         run: npm run build-all
 
+      - name: Build web-ui
+        run: npm run web-ui:build
+
 # Please do not touch the following action
       - name: Store deployment content
         uses: ionos-deploy-now/artifact-action@v1
