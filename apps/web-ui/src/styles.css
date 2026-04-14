@@ -1082,6 +1082,27 @@
 .bb-right-tab-content--active { display: flex; }
 .bb-right-tabs--empty .bb-right-tab-content { display: none !important; }
 
+/* ── Right-pane collapse button ─────────────────────────────────────────────── */
+.bb-right-tab-collapse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 100%;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  color: var(--text-muted, #888);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  margin-left: auto;
+}
+.bb-right-tab-collapse-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
+.bb-right-tab-collapse-btn--collapsed { color: var(--bb-accent, #c8a227); }
+
 /* ─── Keyboard Shortcuts Modal ───────────────────────────────────────────── */
 .bb-shortcuts-modal-backdrop {
   display: none;
@@ -2638,6 +2659,7 @@
 }
 
 .bb-hmix__inst,
+.bb-hmix__seq,
 .bb-hmix__pat {
   font-size: 8px;
   overflow: hidden;
@@ -2648,6 +2670,8 @@
 }
 
 .bb-hmix__inst { color: #4affaf; }
+/* sequence shown above pattern in a slightly muted accent tone */
+.bb-hmix__seq  { color: #c8a227; font-style: italic; }
 .bb-hmix__pat  { color: #9cdcfe; }
 
 /* ── Volume fader ─────────────────────────────────────────────────────────── */
@@ -2719,6 +2743,7 @@
 [data-theme="light"] .bb-hmix__vu-seg--red    { background: #e8c0c0; }
 
 [data-theme="light"] .bb-hmix__inst { color: #007050; }
+[data-theme="light"] .bb-hmix__seq  { color: #9a7110; }
 [data-theme="light"] .bb-hmix__pat  { color: #0060a0; }
 
 [data-theme="light"] .bb-hmix__label { color: inherit; }

@@ -18,8 +18,10 @@ export interface AppLayout {
   layoutHost: HTMLElement;
   /** Host for the PatternGrid (below TransportBar, above three-pane layout). */
   patternGridContainer: HTMLElement;
-  /** Host for the HorizontalMixer (DAW-style strip, below three-pane layout). */
+  /** Host for the Channel Mixer in full-width docked mode (below all three panes). */
   mixerHostContainer: HTMLElement;
+  /** Host for the Channel Mixer in inline mode (below output/problems, not covering right pane). */
+  inlineMixerContainer: HTMLElement;
   editorPane: HTMLElement;
   outputPane: HTMLElement;
   rightPane: HTMLElement;
@@ -67,10 +69,17 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   outputPane.style.fontFamily    = '';
   outputPane.style.fontSize      = '';
 
-  // ─── DAW mixer host (below three-pane layout) ─────────────────────────────
+  // ─── Inline mixer host (below output/problems tabs, inside the left content area).
+  // When the Channel Mixer is in "inline" dock mode it lives here so the right pane
+  // is not obscured.
+  const inlineMixerContainer = document.createElement('div');
+  inlineMixerContainer.id = 'bb-inline-mixer-host';
+  outputPane.appendChild(inlineMixerContainer);
+
+  // ─── Docked mixer host (full-width, below all three panes) ───────────────
   const mixerHostContainer = document.createElement('div');
   mixerHostContainer.id = 'bb-mixer-host';
   layoutHost.appendChild(mixerHostContainer);
 
-  return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, editorPane, outputPane, rightPane, layout };
+  return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, inlineMixerContainer, editorPane, outputPane, rightPane, layout };
 }

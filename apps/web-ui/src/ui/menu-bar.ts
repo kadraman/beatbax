@@ -142,7 +142,6 @@ export class MenuBar {
     ['problems', true],
     ['help', true],
     ['shortcuts', true],
-    ['channel-mixer', true],
     ['daw-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
@@ -504,13 +503,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Channel Mixer',
-        icon: 'squares-2x2',
-        shortcut: 'Ctrl+Shift+Y',
-        action: () => this.emitPanelToggle('channel-mixer'),
-      },
-      {
-        type: 'item',
-        label: 'DAW Mixer',
         icon: 'adjustments-horizontal',
         shortcut: 'Ctrl+Shift+M',
         action: () => this.emitPanelToggle('daw-mixer'),

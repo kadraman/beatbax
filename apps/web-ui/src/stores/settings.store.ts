@@ -59,8 +59,8 @@ export const settingToolbarStyle = stringAtom<'icons+labels' | 'icons'>(
 export const settingShowToolbar        = boolAtom(StorageKey.PANEL_VIS_TOOLBAR,        true);
 export const settingShowTransportBar   = boolAtom(StorageKey.PANEL_VIS_TRANSPORT_BAR,  true);
 export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_GRID,   false);
-export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
-export const settingShowDawMixer       = boolAtom(StorageKey.PANEL_VIS_DAW_MIXER,      true);
+export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_DAW_MIXER,      true);
+export const settingShowChannelMixerLegacy = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER_LEGACY, false);
 export const settingChannelCompact     = boolAtom(StorageKey.CHANNEL_COMPACT,          true);
 
 // ─── Editor ───────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.PANEL_VIS_TOOLBAR,
     StorageKey.PANEL_VIS_TRANSPORT_BAR,
     StorageKey.PANEL_VIS_PATTERN_GRID,
-    StorageKey.PANEL_VIS_CHANNEL_MIXER,
+    StorageKey.PANEL_VIS_DAW_MIXER,
     StorageKey.CHANNEL_COMPACT,
   ],
   editor: [

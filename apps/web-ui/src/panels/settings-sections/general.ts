@@ -88,7 +88,7 @@ export function buildGeneralSection(): HTMLElement {
 
   el.appendChild(toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
-    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: v });
+    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: v });
   }, settingShowChannelMixer.subscribe));
 
   return el;

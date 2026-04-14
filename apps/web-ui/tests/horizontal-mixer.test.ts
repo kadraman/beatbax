@@ -75,9 +75,9 @@ describe('HorizontalMixer', () => {
     expect(container.innerHTML).toContain('No channels defined');
   });
 
-  it('renders the MIXER toolbar label', () => {
+  it('renders the CHANNEL MIXER toolbar label', () => {
     const label = container.querySelector('.bb-hmix__toolbar-label');
-    expect(label?.textContent).toBe('MIXER');
+    expect(label?.textContent).toBe('CHANNEL MIXER');
   });
 
   // ── parse:success ───────────────────────────────────────────────────────────
@@ -125,6 +125,15 @@ describe('HorizontalMixer', () => {
     const instEl = document.getElementById('bb-hmix-inst-1');
     expect(instEl).not.toBeNull();
     expect(instEl?.textContent).toContain('inst1');
+  });
+
+  it('renders sequence and pattern display elements', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1]) });
+
+    const seqEl = document.getElementById('bb-hmix-seq-1');
+    const patEl = document.getElementById('bb-hmix-pat-1');
+    expect(seqEl).not.toBeNull();
+    expect(patEl).not.toBeNull();
   });
 
   it('renders mute and solo buttons', () => {
@@ -205,9 +214,11 @@ describe('HorizontalMixer', () => {
       position: makePosition({ channelId: 1, sourceSequence: 'main', currentPattern: 'melody' }),
     });
 
+    // Sequence shown in seq element, pattern shown in pat element (separate lines)
+    const seqEl = document.getElementById('bb-hmix-seq-1');
     const patEl = document.getElementById('bb-hmix-pat-1');
-    expect(patEl?.textContent).toContain('main');
-    expect(patEl?.textContent).toContain('melody');
+    expect(seqEl?.textContent).toBe('main');
+    expect(patEl?.textContent).toBe('melody');
   });
 
   it('shows bar number when no pattern name is available', () => {
@@ -242,12 +253,14 @@ describe('HorizontalMixer', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
-      position: makePosition({ channelId: 1, currentPattern: 'melody' }),
+      position: makePosition({ channelId: 1, currentPattern: 'melody', sourceSequence: 'main' }),
     });
 
     eventBus.emit('playback:stopped', undefined);
 
+    const seqEl = document.getElementById('bb-hmix-seq-1');
     const patEl = document.getElementById('bb-hmix-pat-1');
+    expect(seqEl?.textContent).toBe('—');
     expect(patEl?.textContent).toBe('—');
   });
 
@@ -387,8 +400,8 @@ describe('HorizontalMixer', () => {
     eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
     expect(document.getElementById('bb-hmix-strip-1')).not.toBeNull();
 
+    // song:loaded now triggers render() with no AST → shows empty placeholder
     eventBus.emit('song:loaded', { filename: 'new.bax' });
-    eventBus.emit('parse:success', { ast: makeAst([]) });
 
     expect(document.getElementById('bb-hmix-strip-1')).toBeNull();
     expect(container.innerHTML).toContain('No channels defined');
@@ -405,10 +418,83 @@ describe('HorizontalMixer', () => {
     expect(litSegs?.length ?? 0).toBe(0);
   });
 
+  // ── Dock mode ─────────────────────────────────────────────────────────────────
+
+  it('defaults to docked mode', () => {
+    expect(mixer.getDockMode()).toBe('docked');
+  });
+
+  it('setDockMode("inline") moves root to inline container', () => {
+    const dockedContainer = document.createElement('div');
+    const inlineContainer = document.createElement('div');
+    document.body.appendChild(dockedContainer);
+    document.body.appendChild(inlineContainer);
+    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    mixer2.setDockMode('inline');
+    expect(inlineContainer.querySelector('.bb-hmix')).not.toBeNull();
+    expect(dockedContainer.querySelector('.bb-hmix')).toBeNull();
+    mixer2.destroy();
+    document.body.removeChild(dockedContainer);
+    document.body.removeChild(inlineContainer);
+  });
+
+  it('setDockMode("docked") moves root back to docked container', () => {
+    const dockedContainer = document.createElement('div');
+    const inlineContainer = document.createElement('div');
+    document.body.appendChild(dockedContainer);
+    document.body.appendChild(inlineContainer);
+    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    mixer2.setDockMode('inline');
+    mixer2.setDockMode('docked');
+    expect(dockedContainer.querySelector('.bb-hmix')).not.toBeNull();
+    expect(inlineContainer.querySelector('.bb-hmix')).toBeNull();
+    mixer2.destroy();
+    document.body.removeChild(dockedContainer);
+    document.body.removeChild(inlineContainer);
+  });
+
+  it('inline mode adds bb-hmix--inline class to root', () => {
+    const dockedContainer = document.createElement('div');
+    const inlineContainer = document.createElement('div');
+    document.body.appendChild(dockedContainer);
+    document.body.appendChild(inlineContainer);
+    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    mixer2.setDockMode('inline');
+    const root = inlineContainer.querySelector('.bb-hmix');
+    expect(root?.classList.contains('bb-hmix--inline')).toBe(true);
+    mixer2.destroy();
+    document.body.removeChild(dockedContainer);
+    document.body.removeChild(inlineContainer);
+  });
+
+  // ── Separate sequence/pattern readout ─────────────────────────────────────────
+
+  it('shows sequence name in seq element and pattern in pat element separately', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1]) });
+    eventBus.emit('playback:position-changed', {
+      channelId: 1,
+      position: makePosition({ channelId: 1, sourceSequence: 'intro', currentPattern: 'fill' }),
+    });
+
+    expect(document.getElementById('bb-hmix-seq-1')?.textContent).toBe('intro');
+    expect(document.getElementById('bb-hmix-pat-1')?.textContent).toBe('fill');
+  });
+
+  it('shows — for sequence when not provided', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1]) });
+    eventBus.emit('playback:position-changed', {
+      channelId: 1,
+      position: makePosition({ channelId: 1, sourceSequence: undefined, currentPattern: 'pat1' }),
+    });
+
+    expect(document.getElementById('bb-hmix-seq-1')?.textContent).toBe('—');
+    expect(document.getElementById('bb-hmix-pat-1')?.textContent).toBe('pat1');
+  });
+
   // ── destroy ───────────────────────────────────────────────────────────────────
 
   it('destroy() removes the root element', () => {
     mixer.destroy();
-    expect(document.getElementById('bb-horizontal-mixer')).toBeNull();
+    expect(container.querySelector('.bb-hmix')).toBeNull();
   });
 });

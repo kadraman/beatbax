@@ -92,16 +92,18 @@ export const StorageKey = {
   PANEL_VIS_TRANSPORT_BAR: 'panel.transport-bar',
   /** Channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
-  /** DAW mixer (horizontal strip) visible state (boolean). */
+  /** Channel mixer (horizontal strip) visible state (boolean). */
   PANEL_VIS_DAW_MIXER: 'panel.daw-mixer',
   /** Pattern grid visible state (boolean). */
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
-  /** Legacy channel mixer visible in right pane (boolean). */
-  PANEL_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
-  /** DAW mixer collapsed state (boolean). */
+  /** Legacy (right-pane) channel mixer visible state (boolean). */
+  PANEL_VIS_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
+  /** Channel mixer collapsed state (boolean). */
   DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
-  /** DAW mixer height in pixels (number). */
+  /** Channel mixer height in pixels (number). */
   DAW_MIXER_HEIGHT: 'ui.dawMixerHeight',
+  /** Channel mixer dock mode ('docked' = full-width bottom | 'inline' = beside output panel). */
+  DAW_MIXER_DOCK_MODE: 'ui.dawMixerDockMode',
   /** Enabled chip plugin IDs (JSON string[]). */
   ENABLED_PLUGINS: 'plugins.enabled',
 } as const;

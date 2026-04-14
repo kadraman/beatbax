@@ -14,6 +14,7 @@
  *  - Mute / Solo buttons wired to the shared channelStates store
  *  - Resize handle at the top edge (drag to change height, persisted)
  *  - Collapse/expand toggle (persisted in localStorage)
+ *  - Dock-mode toggle: full-width bottom strip ↔ inline below output/problems panel
  *  - Show/hide via the View menu or Ctrl+Shift+M
  */
 
@@ -47,8 +48,13 @@ const DEFAULT_HEIGHT_PX = 200;
 const MIN_HEIGHT_PX = 80;
 const MAX_HEIGHT_PX = 400;
 
+export type MixerDockMode = 'docked' | 'inline';
+
 export interface HorizontalMixerOptions {
+  /** Container for full-width docked mode (below all three panes). */
   container: HTMLElement;
+  /** Container for inline mode (inside the left-content / output area). */
+  inlineContainer?: HTMLElement;
   eventBus: EventBus;
   playbackManager?: PlaybackManager;
 }
@@ -63,7 +69,8 @@ interface ChannelVuState {
 }
 
 export class HorizontalMixer {
-  private container: HTMLElement;
+  private dockedContainer: HTMLElement;
+  private inlineContainer: HTMLElement | null;
   private eventBus: EventBus;
   private playbackManager: PlaybackManager | null;
 
@@ -73,6 +80,10 @@ export class HorizontalMixer {
   private collapsed: boolean;
   private visible: boolean;
   private height: number;
+  private dockMode: MixerDockMode;
+
+  /** Whether the per-channel analyser is providing waveforms (suppresses position-based VU). */
+  private analyserActive = false;
 
   /** Per-channel VU state. Key = channel id. */
   private vuState: Map<number, ChannelVuState> = new Map();
@@ -81,11 +92,12 @@ export class HorizontalMixer {
   /** Last RAF frame timestamp. */
   private lastFrameTime = 0;
 
-  /** Root element appended to this.container. */
+  /** Root element appended to the active container. */
   private rootEl: HTMLElement | null = null;
 
   constructor(options: HorizontalMixerOptions) {
-    this.container = options.container;
+    this.dockedContainer = options.container;
+    this.inlineContainer = options.inlineContainer ?? null;
     this.eventBus = options.eventBus;
     this.playbackManager = options.playbackManager ?? null;
 
@@ -98,7 +110,10 @@ export class HorizontalMixer {
     this.height = isNaN(parsedHeight) ? DEFAULT_HEIGHT_PX : Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, parsedHeight));
 
     const rawVisible = storage.get(StorageKey.PANEL_VIS_DAW_MIXER);
-    this.visible = rawVisible === null ? true : rawVisible === 'true';
+    this.visible = rawVisible === undefined ? true : rawVisible === 'true';
+
+    const rawDock = storage.get(StorageKey.DAW_MIXER_DOCK_MODE);
+    this.dockMode = rawDock === 'inline' ? 'inline' : 'docked';
 
     this.render();
     this.setupEventListeners();
@@ -129,6 +144,23 @@ export class HorizontalMixer {
     return this.visible;
   }
 
+  getDockMode(): MixerDockMode {
+    return this.dockMode;
+  }
+
+  setDockMode(mode: MixerDockMode): void {
+    if (mode === this.dockMode) return;
+    this.dockMode = mode;
+    storage.set(StorageKey.DAW_MIXER_DOCK_MODE, mode);
+    // Move the root element to the appropriate container
+    if (this.rootEl) {
+      this.rootEl.remove();
+      const target = this.activeContainer;
+      target.appendChild(this.rootEl);
+      this.updateDockModeButton();
+    }
+  }
+
   destroy(): void {
     this.stopRaf();
     for (const unsub of this.unsubscribers) unsub();
@@ -137,7 +169,13 @@ export class HorizontalMixer {
     this.rootEl = null;
   }
 
-  // ─── Chip capability ─────────────────────────────────────────────────────────
+  // ─── Private helpers ─────────────────────────────────────────────────────────
+
+  private get activeContainer(): HTMLElement {
+    return (this.dockMode === 'inline' && this.inlineContainer)
+      ? this.inlineContainer
+      : this.dockedContainer;
+  }
 
   private get activeChip(): string {
     return (this.ast?.chip ?? 'gameboy').toLowerCase();
@@ -153,11 +191,14 @@ export class HorizontalMixer {
     // Remove previous root if present
     this.rootEl?.remove();
     this.rootEl = null;
+    // Clear VU state so orphaned channel IDs from the previous render don't linger
+    this.vuState.clear();
 
     const root = document.createElement('div');
     root.className = 'bb-hmix';
     root.id = 'bb-horizontal-mixer';
     if (this.collapsed) root.classList.add('bb-hmix--collapsed');
+    if (this.dockMode === 'inline') root.classList.add('bb-hmix--inline');
     if (!this.visible) root.style.display = 'none';
     root.style.setProperty('--bb-hmix-height', `${this.height}px`);
 
@@ -188,6 +229,7 @@ export class HorizontalMixer {
     unmuteBtn.className = 'bb-hmix__toolbar-btn';
     unmuteBtn.id = 'bb-hmix-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
+    unmuteBtn.setAttribute('aria-label', 'Unmute all channels');
     unmuteBtn.disabled = !anyMuted0;
     unmuteBtn.innerHTML = icon('speaker-wave', 'w-3.5 h-3.5');
     unmuteBtn.addEventListener('click', () => unmuteAll());
@@ -197,14 +239,25 @@ export class HorizontalMixer {
     clearSoloBtn.className = 'bb-hmix__toolbar-btn';
     clearSoloBtn.id = 'bb-hmix-clear-solo';
     clearSoloBtn.title = 'Clear solo';
+    clearSoloBtn.setAttribute('aria-label', 'Clear solo on all channels');
     clearSoloBtn.disabled = !anySoloed0;
     clearSoloBtn.innerHTML = icon('eye', 'w-3.5 h-3.5');
     clearSoloBtn.addEventListener('click', () => clearAllSolo());
     toolbar.appendChild(clearSoloBtn);
 
+    // Dock-mode toggle button
+    const dockBtn = document.createElement('button');
+    dockBtn.className = 'bb-hmix__toolbar-btn';
+    dockBtn.id = 'bb-hmix-dock-mode';
+    this.applyDockModeBtn(dockBtn);
+    dockBtn.addEventListener('click', () => {
+      this.setDockMode(this.dockMode === 'docked' ? 'inline' : 'docked');
+    });
+    toolbar.appendChild(dockBtn);
+
     const mixerLabel = document.createElement('span');
     mixerLabel.className = 'bb-hmix__toolbar-label';
-    mixerLabel.textContent = 'MIXER';
+    mixerLabel.textContent = 'CHANNEL MIXER';
     toolbar.appendChild(mixerLabel);
 
     root.appendChild(toolbar);
@@ -228,8 +281,30 @@ export class HorizontalMixer {
 
     root.appendChild(strips);
 
-    this.container.appendChild(root);
+    this.activeContainer.appendChild(root);
     this.rootEl = root;
+  }
+
+  private applyDockModeBtn(btn: HTMLButtonElement): void {
+    const isDocked = this.dockMode === 'docked';
+    btn.title = isDocked
+      ? 'Switch to inline mode (beside output panel)'
+      : 'Switch to full-width docked mode';
+    btn.setAttribute('aria-label', btn.title);
+    btn.classList.toggle('bb-hmix__toolbar-btn--active', !isDocked);
+    // Use adjustments-horizontal icon for docked, chevron-right for inline
+    btn.innerHTML = isDocked
+      ? icon('arrows-pointing-in', 'w-3.5 h-3.5')
+      : icon('adjustments-horizontal', 'w-3.5 h-3.5');
+  }
+
+  private updateDockModeButton(): void {
+    const btn = document.getElementById('bb-hmix-dock-mode') as HTMLButtonElement | null;
+    if (btn) this.applyDockModeBtn(btn);
+    // Also update the --inline class on root
+    if (this.rootEl) {
+      this.rootEl.classList.toggle('bb-hmix--inline', this.dockMode === 'inline');
+    }
   }
 
   private buildStrip(ch: any): HTMLElement {
@@ -262,7 +337,8 @@ export class HorizontalMixer {
     const vu = document.createElement('div');
     vu.className = 'bb-hmix__vu';
     vu.id = `bb-hmix-vu-${ch.id}`;
-    // Segments are rendered bottom-to-top (flex-column-reverse)
+    // Segments are appended in DOM order high→low; CSS uses a normal column
+    // with bottom alignment (justify-content: flex-end), not column-reverse.
     for (let i = VU_SEGMENTS - 1; i >= 0; i--) {
       const seg = document.createElement('div');
       seg.className = 'bb-hmix__vu-seg';
@@ -277,9 +353,9 @@ export class HorizontalMixer {
     }
     strip.appendChild(vu);
 
-    // ── Info block (instrument + pattern) ─────────────────────────────────────
-    const info2 = document.createElement('div');
-    info2.className = 'bb-hmix__info';
+    // ── Info block (instrument + sequence + pattern) ───────────────────────────
+    const infoBlock = document.createElement('div');
+    infoBlock.className = 'bb-hmix__info';
 
     const instEl = document.createElement('div');
     instEl.className = 'bb-hmix__inst';
@@ -287,15 +363,23 @@ export class HorizontalMixer {
     instEl.dataset.defaultInst = defaultInstName;
     instEl.textContent = defaultInstName;
     instEl.title = `Instrument: ${defaultInstName}`;
-    info2.appendChild(instEl);
+    infoBlock.appendChild(instEl);
 
+    // Sequence name (shown above pattern)
+    const seqEl = document.createElement('div');
+    seqEl.className = 'bb-hmix__seq';
+    seqEl.id = `bb-hmix-seq-${ch.id}`;
+    seqEl.textContent = '—';
+    infoBlock.appendChild(seqEl);
+
+    // Pattern name (shown below sequence)
     const patEl = document.createElement('div');
     patEl.className = 'bb-hmix__pat';
     patEl.id = `bb-hmix-pat-${ch.id}`;
     patEl.textContent = '—';
-    info2.appendChild(patEl);
+    infoBlock.appendChild(patEl);
 
-    strip.appendChild(info2);
+    strip.appendChild(infoBlock);
 
     // ── Volume fader (vertical slider) ────────────────────────────────────────
     const faderWrap = document.createElement('div');
@@ -362,6 +446,7 @@ export class HorizontalMixer {
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
     btn.textContent = 'M';
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
+    btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-pressed', String(muted));
     btn.classList.toggle('bb-cp__btn--active', muted);
   }
@@ -369,6 +454,7 @@ export class HorizontalMixer {
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
     btn.textContent = 'S';
     btn.title = soloed ? 'Unsolo channel' : 'Solo channel';
+    btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-pressed', String(soloed));
     btn.classList.toggle('bb-cp__btn--active', soloed);
   }
@@ -425,24 +511,29 @@ export class HorizontalMixer {
 
       this.eventBus.on('song:loaded', () => {
         this.ast = null;
+        // Clear stale channel/instrument readouts immediately
+        this.render();
       }),
 
       this.eventBus.on('playback:position-changed', ({ channelId, position }) => {
         this.updatePosition(channelId, position);
-        // Feed VU level from position progress (0→1 mapped to 0→VU_SEGMENTS)
-        const vuLevel = Math.round(position.progress * VU_SEGMENTS);
-        this.updateVuLevel(channelId, vuLevel);
+        // Only use position-based VU when the per-channel analyser is not active
+        if (!this.analyserActive) {
+          const vuLevel = Math.round(position.progress * VU_SEGMENTS);
+          this.updateVuLevel(channelId, vuLevel);
+        }
       }),
 
       this.eventBus.on('playback:channel-waveform', ({ channelId, samples }) => {
+        this.analyserActive = true;
         // Compute RMS from waveform samples and map to VU segments
         const rms = computeRms(samples);
-        // Map 0–1 RMS to 0–VU_SEGMENTS (with a non-linear curve)
         const level = Math.round(Math.sqrt(rms) * VU_SEGMENTS);
         this.updateVuLevel(channelId, level);
       }),
 
       this.eventBus.on('playback:stopped', () => {
+        this.analyserActive = false;
         this.resetAllChannels();
         // Fade VU meters to zero
         for (const state of this.vuState.values()) {
@@ -488,8 +579,8 @@ export class HorizontalMixer {
     if (!this.ast.channels && !newAst.channels) return false;
     if (!this.ast.channels || !newAst.channels) return true;
     if (this.ast.channels.length !== newAst.channels.length) return true;
-    const oldIds = this.ast.channels.map((c: any) => c.id).sort();
-    const newIds = newAst.channels.map((c: any) => c.id).sort();
+    const oldIds = this.ast.channels.map((c: any) => c.id).sort((a: number, b: number) => a - b);
+    const newIds = newAst.channels.map((c: any) => c.id).sort((a: number, b: number) => a - b);
     return oldIds.some((id: number, i: number) => id !== newIds[i]);
   }
 
@@ -502,16 +593,20 @@ export class HorizontalMixer {
       instEl.title = `Instrument: ${position.currentInstrument}`;
     }
 
+    const seqEl = document.getElementById(`bb-hmix-seq-${channelId}`);
+    if (seqEl) {
+      seqEl.textContent = position.sourceSequence ?? '—';
+    }
+
     const patEl = document.getElementById(`bb-hmix-pat-${channelId}`);
     if (patEl) {
-      const parts: string[] = [];
-      if (position.sourceSequence) parts.push(position.sourceSequence);
       if (position.currentPattern) {
-        parts.push(position.currentPattern);
+        patEl.textContent = position.currentPattern;
       } else if (position.barNumber != null) {
-        parts.push(`Bar ${position.barNumber + 1}`);
+        patEl.textContent = `Bar ${position.barNumber + 1}`;
+      } else {
+        patEl.textContent = '—';
       }
-      patEl.textContent = parts.length > 0 ? parts.join(' • ') : '—';
     }
   }
 
@@ -524,6 +619,8 @@ export class HorizontalMixer {
         instEl.textContent = defaultInst;
         instEl.title = `Instrument: ${defaultInst}`;
       }
+      const seqEl = document.getElementById(`bb-hmix-seq-${ch.id}`);
+      if (seqEl) seqEl.textContent = '—';
       const patEl = document.getElementById(`bb-hmix-pat-${ch.id}`);
       if (patEl) patEl.textContent = '—';
     }

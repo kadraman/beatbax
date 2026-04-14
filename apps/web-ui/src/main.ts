@@ -60,7 +60,7 @@ import {
 import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
-  settingShowDawMixer,
+  settingShowChannelMixerLegacy,
   settingWordWrap, settingDefaultBpm,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
@@ -118,12 +118,16 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 }
 
 // ─── Panel visibility persistence ─────────────────────────────────────────────
-const _PANEL_VIS_PREFIX = 'beatbax:panel.';
-function readPanelVis(panel: string, defaultVal = true): boolean {
-  try { const v = localStorage.getItem(_PANEL_VIS_PREFIX + panel); return v === null ? defaultVal : v === 'true'; } catch { return defaultVal; }
+// readPanelVis reads through BeatBaxStorage so the key namespace matches what
+// HorizontalMixer and other components write (beatbax: prefix, no double 'panel.panel.' issue).
+function readPanelVis(key: string, defaultVal = true): boolean {
+  try {
+    const v = storage.get(key);
+    return v === undefined ? defaultVal : v === 'true';
+  } catch { return defaultVal; }
 }
-function writePanelVis(panel: string, visible: boolean): void {
-  try { localStorage.setItem(_PANEL_VIS_PREFIX + panel, String(visible)); } catch { /* ignore */ }
+function writePanelVis(key: string, visible: boolean): void {
+  try { storage.set(key, String(visible)); } catch { /* ignore */ }
 }
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -148,7 +152,7 @@ const appContainer = document.getElementById('app') as HTMLElement;
 if (!appContainer) throw new Error('#app container not found');
 
 const appLayout = buildAppLayout(appContainer);
-const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, editorPane, outputPane, rightPane } = appLayout;
+const { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, inlineMixerContainer, editorPane, outputPane, rightPane } = appLayout;
 
 editor = createEditor({
   container: editorPane,
@@ -299,10 +303,17 @@ const channelMixer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── HorizontalMixer — bottom-docked DAW-style channel strip ─────────────────
+// ─── Channel Mixer — horizontal strip at the bottom ─────────────────────────
+// The mixer is gated by the DAW_MIXER feature flag; it can be shown/hidden via
+// the View → Channel Mixer menu item or Settings → General → Show channel mixer.
 const horizontalMixer = withErrorBoundary(
   'HorizontalMixer',
-  () => new HorizontalMixer({ container: mixerHostContainer, eventBus, playbackManager }),
+  () => new HorizontalMixer({
+    container: mixerHostContainer,
+    inlineContainer: inlineMixerContainer,
+    eventBus,
+    playbackManager,
+  }),
   mixerHostContainer,
 );
 
@@ -523,11 +534,11 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
-// Restore legacy channel-mixer tab visibility.
-// The legacy right-pane mixer is hidden by default when the DAW Mixer is present;
-// set the 'panel.channel-mixer-legacy' localStorage key to 'true' to re-enable it.
-const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_CHANNEL_MIXER_LEGACY, false);
-if (!legacyMixerEnabled || !readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER)) {
+// The legacy right-pane Channel Mixer (ChannelMixer) tab is hidden by default when
+// the horizontal Channel Mixer is enabled via Settings → Features → Channel Mixer.
+// It can be revealed by setting the storage key 'panel.channel-mixer-legacy' to 'true'.
+const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER_LEGACY, false);
+if (!legacyMixerEnabled) {
   rightTabs.close('channels');
 }
 
@@ -549,6 +560,23 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     // Refresh Settings model sidebar so the AI section appears/disappears.
     settingsModal.refresh();
   }
+  if (flag === FeatureFlag.DAW_MIXER) {
+    // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
+    // and update the legacy right-pane mixer accordingly.
+    try {
+      if (enabled) {
+        horizontalMixer?.show?.();
+        settingShowChannelMixer.set(true);
+        // Hide legacy right-pane mixer
+        rightTabs.close('channels');
+      } else {
+        horizontalMixer?.hide?.();
+        settingShowChannelMixer.set(false);
+        // Show legacy right-pane mixer when the new one is disabled
+        rightTabs.show('channels');
+      }
+    } catch (_e) { /* ignore */ }
+  }
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
   }
@@ -569,13 +597,14 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
   if (panel === 'channel-mixer') {
+    // 'channel-mixer' now always refers to the legacy right-pane mixer
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
-    settingShowChannelMixer.set(visible);
+    settingShowChannelMixerLegacy.set(visible);
   }
   if (panel === 'daw-mixer') {
     try {
       horizontalMixer?.[visible ? 'show' : 'hide']?.();
-      settingShowDawMixer.set(visible);
+      settingShowChannelMixer.set(visible);
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'help') {
@@ -630,13 +659,27 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
-(window as any).__beatbax_channelMixer = channelMixer; // unified ChannelMixer (in right pane)
-(window as any).__beatbax_horizontalMixer = horizontalMixer; // DAW-style bottom mixer
+(window as any).__beatbax_channelMixer = channelMixer; // legacy right-pane ChannelMixer
+(window as any).__beatbax_horizontalMixer = horizontalMixer; // new horizontal Channel Mixer
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
   patternGridContainer.style.display = visible ? '' : 'none';
   settingShowPatternGrid.set(visible);
+};
+// Called by Features settings when the Channel Mixer feature flag is toggled
+(window as any).__beatbax_toggleChannelMixer = (enabled: boolean) => {
+  try {
+    if (enabled) {
+      horizontalMixer?.show?.();
+      settingShowChannelMixer.set(true);
+      rightTabs.close('channels');
+    } else {
+      horizontalMixer?.hide?.();
+      settingShowChannelMixer.set(false);
+      rightTabs.show('channels');
+    }
+  } catch (_e) { /* ignore */ }
 };
 
 // Transport bar UI will be created by TransportBar
@@ -1256,7 +1299,6 @@ const menuBar = new MenuBar({
 menuBar.seedPanelVisible({
   toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'channel-mixer':  readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
   'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
   'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
@@ -1424,13 +1466,15 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify
 // Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
 // here via addCommand overrides that default while Monaco has focus.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
-// Ctrl+Shift+Y → Switch to Channel Mixer tab (Monaco captures this key when focused).
+// Ctrl+Shift+Y → Switch to Channel Mixer (Legacy) tab (Monaco captures this key when focused).
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
   rightTabs.show('channels');
 });
-// Ctrl+Shift+M → Toggle DAW Mixer strip (Monaco captures this key when focused).
+// Ctrl+Shift+M → Toggle Channel Mixer strip (Monaco captures this key when focused).
+// Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
-  horizontalMixer?.toggle?.();
+  const vis = horizontalMixer?.isVisible?.() ?? false;
+  eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
 });
 // Ctrl+Alt+P → Monaco Command Palette.
 // NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
@@ -1515,11 +1559,14 @@ ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowIn
 ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
   action: () => bottomTabs.show('problems'),
 });
-ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel Mixer tab', allowInInput: true,
+ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel Mixer (Legacy) tab', allowInInput: true,
   action: () => rightTabs.show('channels'),
 });
-ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle DAW Mixer', allowInInput: true,
-  action: () => horizontalMixer?.toggle?.(),
+ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
+  action: () => {
+    const vis = horizontalMixer?.isVisible?.() ?? false;
+    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
+  },
 });
 ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
   action: () => {
