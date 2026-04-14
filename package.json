@@ -6,11 +6,12 @@
   "type": "module",
   "workspaces": [
     "packages/*",
+    "packages/plugins/*",
     "apps/*"
   ],
   "scripts": {
-    "clean-all": "npm -w @beatbax/engine run clean && npm -w @beatbax/cli run clean && npm -w @beatbax/web-ui run clean",
-    "build-all": "npm run engine:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-engine.cjs",
+    "clean-all": "npm -w @beatbax/engine run clean && npm -w @beatbax/plugin-chip-nes run clean && npm -w @beatbax/cli run clean && npm -w @beatbax/web-ui run clean",
+    "build-all": "npm run clean-all && npm run engine:build && node scripts/link-local-engine.cjs && npm run nes:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-plugins.cjs",
     "engine:build": "npm -w @beatbax/engine run build",
     "engine:test": "npm -w @beatbax/engine test",
     "engine:dev": "npm -w @beatbax/engine run dev",
@@ -20,6 +21,8 @@
     "cli:dev": "npm run engine:build && npm -w @beatbax/cli run dev",
     "cli:clean": "npm -w @beatbax/cli run clean",
     "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
+    "nes:build": "npm -w @beatbax/plugin-chip-nes run build",
+    "nes:test": "npm -w @beatbax/plugin-chip-nes test",
     "web-ui:build": "npm -w @beatbax/web-ui run build",
     "web-ui:test": "npm -w @beatbax/web-ui test",
     "web-ui:dev": "npm -w @beatbax/web-ui run dev",

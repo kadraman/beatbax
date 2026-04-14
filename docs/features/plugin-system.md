@@ -125,12 +125,38 @@ export interface ChipPlugin {
   // Keys are sample names; values are base64-encoded .dmc/.raw content.
   bundledSamples?: Record<string, string>;
 
+  // Optional: Pre-load sample data before headless PCM rendering begins.
+  // Implement this when your chip loads samples asynchronously (e.g. DMC).
+  preloadForPCM?(insts: Record<string, InstrumentDef>): Promise<void>;
+
   // Optional: Convert instrument to native format
   instrumentToNative?(inst: InstrumentDef): any;
 
   // Optional: Export support (NSF, .ftm, .fms, etc.)
   // May return multiple exports keyed by format name.
   exportToNative?(song: SongModel, format?: string): Uint8Array;
+
+  // Optional: Web editor UI contributions.
+  // When present, the web UI uses these in place of the default Game Boy
+  // content for the Copilot system prompt, hover documentation, and Help panel.
+  // See docs/creating-plugins.md § "Web UI Contributions" for the full interface.
+  uiContributions?: ChipUIContributions;
+}
+
+// Provided by each chip plugin to tailor the web editor experience.
+export interface ChipUIContributions {
+  copilotSystemPrompt: string;                  // injected into the AI system prompt
+  hoverDocs: Record<string, string>;            // keyword → Markdown (overrides built-ins)
+  helpSections: ChipHelpSection[];              // replace or append Help panel sections
+}
+
+export interface ChipHelpSection {
+  id: string;       // 'instruments' or 'examples' replace built-in placeholders; others append
+  title: string;
+  content: Array<
+    | { kind: 'text';    text: string }
+    | { kind: 'snippet'; label: string; code: string }
+  >;
 }
 ```
 
@@ -427,7 +453,160 @@ The engine tries loading strategies in order:
 - **Q:** How do bundlers handle optional plugins?
   **A:** Use static registry with conditional imports. Tree-shaking eliminates unused plugins.
 
-## Related Features
+## Web UI Plugin Loading
+
+The web UI ships with all official plugins **pre-bundled** by the Vite build (static imports, fully tree-shakeable). Users toggle them on/off through **Settings → Plugins** and the choice is persisted to `localStorage`. A page reload cleanly re-registers the enabled set.
+
+### Option A: Pre-bundled plugins (current implementation)
+
+Every officially supported plugin is a static import in `apps/web-ui/src/plugins/registry-config.ts`. Vite bundles them at build time; the user toggles render checkboxes and storage state only.
+
+**Adding a new plugin to the web UI:**
+
+```typescript
+// apps/web-ui/src/plugins/registry-config.ts
+import sidPlugin from '@beatbax/plugin-chip-sid';  // 1. add import
+
+export const AVAILABLE_PLUGINS: PluginEntry[] = [
+  { id: 'nes', label: 'NES (Ricoh 2A03)', ... plugin: nesPlugin },
+  { id: 'sid', label: 'C64 SID',          ... plugin: sidPlugin }, // 2. add entry
+];
+```
+
+Then:
+```bash
+npm install --workspace=apps/web-ui @beatbax/plugin-chip-sid
+```
+
+**Pros:** No CSP issues, full tree-shaking, zero network requests at runtime.
+**Limitation:** Adding a new plugin requires a code change + rebuild + redeploy.
+
+---
+
+### Option B: CDN dynamic loading (planned — community plugins)
+
+This approach lets users install arbitrary `@beatbax/plugin-chip-*` packages at runtime — no rebuild required. It is **not yet implemented**; this section is the implementation spec.
+
+#### Scope guard (security)
+
+Only `@beatbax/plugin-chip-*` scoped packages are permitted. All other package names are rejected before any network request is made:
+
+```typescript
+function assertSafePluginPackage(name: string): void {
+  if (!/^@beatbax\/plugin-chip-[a-z0-9-]+$/.test(name)) {
+    throw new Error(
+      `Unsafe plugin package '${name}'. Only @beatbax/plugin-chip-* packages are allowed.`
+    );
+  }
+}
+```
+
+#### CDN loading
+
+Packages are loaded via [esm.sh](https://esm.sh), which converts any npm package to a browser-safe ESM bundle on demand:
+
+```typescript
+async function installPluginFromCDN(packageName: string): Promise<void> {
+  assertSafePluginPackage(packageName);
+
+  const url = `https://esm.sh/${packageName}`;
+  const mod = await import(/* @vite-ignore */ url);
+  const plugin = mod.default ?? mod;
+
+  if (typeof plugin?.name !== 'string' || typeof plugin?.createChannel !== 'function') {
+    throw new Error(`'${packageName}' does not export a valid ChipPlugin.`);
+  }
+
+  chipRegistry.register(plugin);
+
+  // Persist for next reload
+  const stored = JSON.parse(localStorage.getItem('beatbax:cdn-plugins') ?? '[]');
+  localStorage.setItem(
+    'beatbax:cdn-plugins',
+    JSON.stringify([...new Set([...stored, packageName])])
+  );
+}
+```
+
+#### Re-loading persisted CDN plugins on startup
+
+```typescript
+export async function loadCDNPluginsFromStorage(): Promise<void> {
+  const stored: string[] = JSON.parse(
+    localStorage.getItem('beatbax:cdn-plugins') ?? '[]'
+  );
+  for (const pkg of stored) {
+    try {
+      await installPluginFromCDN(pkg);
+    } catch (err) {
+      console.warn(`[plugins] Failed to reload '${pkg}' from CDN:`, err);
+    }
+  }
+}
+```
+
+Call `loadCDNPluginsFromStorage()` in `main.ts` after `loadPluginsFromStorage()`.
+
+#### CSP requirements
+
+The following CSP header additions are required:
+
+```http
+Content-Security-Policy:
+  script-src 'self' https://esm.sh;
+  connect-src 'self' https://esm.sh https://registry.npmjs.org;
+```
+
+#### UI — plugin install panel
+
+The Settings → Plugins section should render a second sub-section ("Community plugins") with:
+
+- A text input for the package name (e.g. `@beatbax/plugin-chip-sid`)
+- An "Install" button that calls `installPluginFromCDN()`
+- A loading spinner while the CDN import is in flight
+- An error message if the package fails to load or fails the scope guard
+- A list of already-installed CDN plugins with a "Remove" button that deletes from localStorage and reloads
+
+#### Uninstalling a CDN plugin
+
+Since `chipRegistry` has no `unregister()` method, removal is handled by deleting the entry from storage and reloading:
+
+```typescript
+function removeCDNPlugin(packageName: string): void {
+  const stored: string[] = JSON.parse(
+    localStorage.getItem('beatbax:cdn-plugins') ?? '[]'
+  );
+  localStorage.setItem(
+    'beatbax:cdn-plugins',
+    JSON.stringify(stored.filter(p => p !== packageName))
+  );
+  window.location.reload();
+}
+```
+
+#### Version pinning
+
+By default, `esm.sh` resolves the latest version. To pin:
+
+```
+https://esm.sh/@beatbax/plugin-chip-sid@1.2.3
+```
+
+The plugin install UI should expose a version field (optional; defaults to `latest`).
+
+#### Tradeoffs vs Option A
+
+| | Option A (pre-bundled) | Option B (CDN) |
+|---|---|---|
+| Security | ✅ No external code at runtime | ⚠ Requires CSP allowlist; scope guard mandatory |
+| Build requirement | Change + rebuild for new plugin | Zero rebuild |
+| Offline support | ✅ Full offline | ❌ Requires esm.sh reachable |
+| Tree-shaking | ✅ Vite removes unused code | ❌ Full bundle always loaded |
+| Best for | Official plugins | Community / experimental plugins |
+
+---
+
+
 
 - **Monorepo Refactoring:** Required to create separate `packages/plugins/*` structure
 - **Dynamic Chip Loading:** Original design doc in `/docs/features/dynamic-chip-loading.md` (merged into this spec)

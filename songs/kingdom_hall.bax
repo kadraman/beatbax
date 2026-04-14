@@ -3,40 +3,38 @@
 ## Key: C major / A minor modal mix | Tempo: 108 BPM | Style: Grand, sweeping, orchestral
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
-## It demonstrates a lyrical, RPG-style NES arrangement: a smooth pulse melody with vibrato,
-## a sustained pulse harmony, a triangle bass line, gentle noise percussion, and no DMC
-## (illustrating that DMC is optional — most early-era NES RPG titles omit it).
+## A lyrical, RPG-style NES arrangement: nasal 25% Pulse 1 melody with delayed vibrato,
+## sustained 50% Pulse 2 harmony in parallel motion, triangle walking bass with natural
+## pluck articulation, and gentle noise percussion. No DMC — early-era NES RPG style.
+##
+## Timing reference (108 BPM):
+##   1 tick  = 1/16 note ≈ 138.9 ms
+##   4 ticks = 1 quarter note  (one beat)
+##   8 ticks = 1 half note     (two beats)
+##  12 ticks = dotted half note (three beats)
+##  16 ticks = 1 whole bar     (four beats)
+##
+## All patterns are exactly 16 ticks. All sequences are exactly 320 ticks (20 × 16).
 ##
 ## Structure (20 bars):
-##   Bars  1– 4 : Intro         (triangle bass + solo Pulse 1 melody, no harmony)
+##   Bars  1– 4 : Intro         (bass + solo Pulse 1 melody; Pulse 2 silent)
 ##   Bars  5– 8 : Verse A       (full 4-channel arrangement, C major melody)
-##   Bars  9–12 : Verse B       (relative Am section, more intense)
-##   Bars 13–16 : Bridge        (Pulse 2 takes the counter-melody; Pulse 1 holds pedal)
+##   Bars  9–12 : Verse B       (relative Am section, more expressive)
+##   Bars 13–16 : Bridge        (Pulse 1 whole-note pedal in 50% duty; Pulse 2 counter-melody)
 ##   Bars 17–20 : Reprise       (Verse A melody returns over full arrangement)
 ##
 ## Channels:
-##   Ch1 (Pulse 1) : Lead melody — 25% duty, smooth sustain, vibrato on held notes
-##   Ch2 (Pulse 2) : Harmony    — 50% duty, sustained thirds/fifths below the melody
-##   Ch3 (Triangle): Bass line  — root-fifth arpeggiated bass
-##   Ch4 (Noise)   : Light perc — soft hi-hat pattern; snare only on strong beats
-##   (No DMC channel — typical early-era NES RPG arrangement)
-##
-## Effects demonstrated:
-##   vib    : vibrato with 2-row onset delay on sustained Pulse 1 melody notes
-##   env    : long envelope period for smooth decay (slow fade, RPG feel)
-##   linear : triangle linear counter for natural bass note gating
-##
-## NES chip notes:
-##   - Only 4 channels used — demonstrates that DMC is optional
-##   - Vibrato uses BeatBax software vib effect (period modulation)
-##   - Slow env_period (4–6) gives sustained, choir-like pulse timbre
-##   - Triangle linear=64 ≈ 267 ms gate gives natural plucked-bass articulation
+##   Ch1 (Pulse 1) : Lead melody — 25% duty nasal pulse, flat sustain, vibrato on held notes
+##   Ch2 (Pulse 2) : Harmony    — 50% duty warm pulse, parallel thirds/sixths below melody
+##   Ch3 (Triangle): Bass line  — quarter-note walking bass, linear-counter pluck decay
+##   Ch4 (Noise)   : Percussion — sparse RPG groove; kick 1&3, snare 2&4, hi-hat on 8ths
+##   (No DMC channel — illustrates that DMC is optional; most early-era NES RPGs omit it)
 ##
 ## Play: node bin/beatbax play songs/kingdom_hall.bax
 
 song name "The Kingdom's Hall"
 song artist "The BeatBax Team"
-song description """Original NES-style RPG-adventure chiptune at 108 BPM in C major / A minor. Demonstrates a lyrical 4-channel NES arrangement without DMC: smooth 25% Pulse 1 melody with vibrato, sustained 50% Pulse 2 harmony, plucked triangle bass with linear-counter gating, and a gentle noise hi-hat groove. Uses slow envelope decay for an orchestral, sustained feel typical of NES RPG soundtracks."""
+song description """Original NES-style RPG-adventure chiptune at 108 BPM in C major / A minor. Demonstrates a lyrical 4-channel NES arrangement without DMC: nasal 25% Pulse 1 melody with flat sustain and delayed vibrato on held notes, warm 50% Pulse 2 harmony in parallel motion, triangle quarter-note walking bass with linear-counter pluck gating, and a gentle noise percussion groove. All patterns are exactly 16 ticks for precise rhythmic alignment."""
 song tags "nes,rpg,adventure,example,demo"
 
 chip nes
@@ -46,114 +44,186 @@ bpm 108
 # Instruments
 # =============================================================================
 
-# Pulse 1 — lead melody; 25% duty, slow envelope for smooth sustain
-inst melody   type=pulse1  duty=25  env=12,down  env_period=5
+# ── Pulse 1 (type=pulse1) ─────────────────────────────────────────────────────
+#
+# melody — lead voice; 25% duty for the classic nasal NES pulse timbre.
+#   env=12,flat  : constant volume at 12/15 for the full note duration — no decay.
+#                  Melody notes at 108 BPM can last up to 8 ticks (≈1.1 s); flat
+#                  envelope ensures every held note sustains fully and supports the
+#                  warm_vib vibrato effect which begins 2 rows into each long note.
+inst melody   type=pulse1  duty=25  env=12,flat
 
-# Pulse 1 variant — 50% for the bridge counter-melody
-inst melody50 type=pulse1  duty=50  env=11,down  env_period=4
+# melody50 — 50% duty (true square) for the bridge whole-note pedal.
+#   Switching from 25% to 50% duty creates an organ-like warmth on the sustained
+#   pedal tone — a common NES texture trick to signal a structural section change.
+#   env=11,flat  : slightly softer than melody so the counter-melody on Pulse 2
+#                  reads clearly above the pedal.
+#   Applied via seq transform: pedal_c:inst(melody50) in pulse1_main.
+inst melody50 type=pulse1  duty=50  env=11,flat
 
-# Pulse 2 — harmony; 50% duty for warm, full harmonic support
-inst chord    type=pulse2  duty=50  env=9,down  env_period=6
+# ── Pulse 2 (type=pulse2) ─────────────────────────────────────────────────────
+#
+# chord — harmony voice; 50% duty for a warm, full tone that complements melody.
+#   env=9,flat   : constant volume at 9/15, keeping the harmony clearly below the
+#                  melody in the mix. Flat envelope ensures long notes (8 ticks ≈ 1.1 s)
+#                  sustain at a steady level through the full bar alongside the melody.
+inst chord    type=pulse2  duty=50  env=9,flat
 
-# Triangle — bass; linear counter gives natural pluck-decay articulation (~267 ms)
-inst bass     type=triangle  linear=64
+# ── Triangle (type=triangle) ──────────────────────────────────────────────────
+#
+# bass — NES triangle channel quarter-note walking bass.
+#   linear=96    : NES linear counter gates the channel for ≈400 ms
+#                  (96 / 240 Hz ≈ 400 ms). At 108 BPM a quarter note = 556 ms,
+#                  so the note sounds for ≈72% of the beat then cuts clean —
+#                  a natural plucked bass articulation typical of NES RPG tracks.
+#                  Raise to linear=200 for a more sustained, legato bass.
+inst bass     type=triangle  linear=96
 
-# Short triangle kick reinforcement
-inst tkick    type=triangle  linear=3
+# ── Noise (type=noise) ────────────────────────────────────────────────────────
+#
+# hihat — high-frequency noise burst for a gentle 8th-note hi-hat shimmer.
+#   noise_period=3 → LFSR clock ≈ 14 kHz (bright, cymbal-like texture).
+#   env=5,down env_period=0 : starts at 5/15 and decays in a single frame
+#                             (one step per 16 ms at 60 Hz). Very short, barely
+#                             audible shimmer — keeps the hi-hat subtle and the
+#                             melody clearly dominant.
+inst hihat    type=noise  noise_mode=normal  noise_period=3   env=5,down   env_period=0
 
-# Noise — gentle percussion
-inst hihat    type=noise  noise_mode=normal  noise_period=3   env=6,down   env_period=0
-inst snare    type=noise  noise_mode=normal  noise_period=6   env=10,down  env_period=2
-inst kick     type=noise  noise_mode=normal  noise_period=12  env=13,down  env_period=3
+# snare — mid-frequency noise crack for a subtle backbeat.
+#   noise_period=6 → LFSR clock ≈ 3.5 kHz (papery, snare-drum-like texture).
+#   env=9,down env_period=1 : starts at 9/15, decays one step per NES frame
+#                             → ≈250 ms total decay. Audible without competing
+#                             with the melody at 108 BPM.
+inst snare    type=noise  noise_mode=normal  noise_period=6   env=9,down   env_period=1
+
+# kick — low-frequency noise burst for a soft bass-drum hit.
+#   noise_period=12 → LFSR clock ≈ 590 Hz (deep, thuddy texture).
+#   env=11,down env_period=2 : starts at 11/15, decays one step every 3 frames
+#                              → ≈550 ms total. Solid thud that anchors beat 1
+#                              and 3 without overwhelming the bass line.
+inst kick     type=noise  noise_mode=normal  noise_period=12  env=11,down  env_period=2
 
 # =============================================================================
 # Effect Presets
 # =============================================================================
-effect warm_vib = vib:3,4,sine,0,2   # gentle vibrato, 2-row onset delay (authentic NES feel)
+
+# warm_vib — gentle pitch vibrato with a 2-row onset delay.
+#   Matches authentic NES RPG feel: notes begin clean and plain, then
+#   develop a soft shimmer mid-note — the classic "choir breath" technique.
+#   depth=2 : ±2 semi-register units of pitch modulation (subtly perceptible).
+#   rate=4  : 4 Hz LFO — one cycle per 250 ms, a natural breath-like speed.
+#   sine    : smooth sine wave for a choir/strings quality (no hard steps).
+#   delay=2 : vibrato begins after 2 rows (≈278 ms), giving each note clarity
+#             at onset before the shimmer develops.
+effect warm_vib = vib:2,4,sine,2
 
 # =============================================================================
-# Patterns — all 8-step (half-bar at 4/4, 108 BPM)
+# Patterns — all exactly 16 ticks (1 bar at 108 BPM)
+# =============================================================================
+#
+# Notation:
+#   :N        = note lasts N ticks  (sum of all note+rest durations = 16 per pattern)
+#   .         = 1-tick rest
+#   . . .     = 3-tick rest (fills the remaining beat after a 1-tick note)
+#   inst X    = switch to instrument X (does not consume ticks)
+#   <effect>  = apply named effect preset to this note
+
+# ── Intro: solo Pulse 1 melody (majestic, unadorned opening; no vibrato yet) ──
+# Two 2-bar phrases: tonic statement then raised-subdominant answer.
+pat intro_a  = C5:8 E5:4 G5:4          # half C5, quarter E5, quarter G5 = 16 ticks
+pat intro_b  = D5:4 F5:4 E5:8          # quarter D5, quarter F5, half E5 = 16 ticks
+
+# Pulse 2 is silent during the intro — 16 one-tick rests = 16 ticks.
+pat intro_silence = . . . . . . . . . . . . . . . .
+
+# ── Verse A: C major melody (bars 5–8) ───────────────────────────────────────
+# Vibrato begins here; long notes shimmer after 2-tick onset delay.
+pat mel_a1   = C5<warm_vib>:8 E5:4 G5:4        # half C5 vib → quarter E5, quarter G5 = 16
+pat mel_a2   = G5<warm_vib>:8 A5:2 G5:2 F5:4   # half G5 vib → 8th A5, 8th G5, quarter F5 = 16
+pat mel_a3   = E5<warm_vib>:8 D5:2 C5:2 E5:4   # half E5 vib → 8th D5, 8th C5, quarter E5 = 16
+pat mel_a4   = C5:4 D5:4 E5:4 G5:4             # ascending quarter-note run C→D→E→G = 16
+
+# Verse A harmony — Pulse 2 plays in parallel motion below melody.
+# Rhythm mirrors the corresponding melody pattern for tight alignment.
+pat chd_a1   = G4:8 B4:4 E4:4                  # mirrors mel_a1 — open 5th + 3rd voicing = 16
+pat chd_a2   = E4:8 F4:2 E4:2 D4:4             # mirrors mel_a2 — stepwise lower voice = 16
+pat chd_a3   = C4:8 B3:2 A3:2 C4:4             # mirrors mel_a3 — descending inner voice = 16
+pat chd_a4   = G3:4 A3:4 B3:4 E4:4             # mirrors mel_a4 — ascending lower run = 16
+
+# ── Verse B: A minor melody (bars 9–12) ──────────────────────────────────────
+pat mel_b1   = A4<warm_vib>:8 C5:4 E5:4        # half A4 vib → quarter C5, quarter E5 = 16
+pat mel_b2   = E5<warm_vib>:8 F5:2 E5:2 D5:4   # half E5 vib → 8th F5, 8th E5, quarter D5 = 16
+pat mel_b3   = C5<warm_vib>:8 B4:2 A4:2 C5:4   # half C5 vib → 8th B4, 8th A4, quarter C5 = 16
+pat mel_b4   = A4:4 B4:4 C5:4 E5:4             # ascending Am quarter-note run = 16
+
+# Verse B harmony — Pulse 2 follows the A minor lower voice.
+pat chd_b1   = E4:8 G4:4 A3:4                  # mirrors mel_b1 — Am root + 5th + voicing = 16
+pat chd_b2   = C4:8 D4:2 C4:2 B3:4             # mirrors mel_b2 — Am relative upper voice = 16
+pat chd_b3   = A3:8 G3:2 F3:2 A3:4             # mirrors mel_b3 — descending Am inner line = 16
+pat chd_b4   = E3:4 F3:4 G3:4 C4:4             # mirrors mel_b4 — ascending lower run = 16
+
+# ── Bridge: Pulse 1 whole-note pedal + Pulse 2 counter-melody (bars 13–16) ───
+# pedal_c is played via pulse1_main with :inst(melody50) transform so it uses
+# the warmer 50% duty — this makes the texture change audible.
+pat pedal_c  = G5<warm_vib>:16                  # whole-note pedal sustain = 16 ticks
+
+# Counter-melody on Pulse 2 — ascending then descending over 2-bar pairs.
+pat ctr_c1   = E5:4 F5:4 G5:4 A5:4             # ascending quarter-note line = 16
+pat ctr_c2   = G5:4 F5:4 E5:4 D5:4             # descending resolution = 16
+
+# ── Bass: triangle quarter-note walking bass ──────────────────────────────────
+# Each note = 1 tick trigger + 3 rests = 4-tick quarter note (standard NES bass format).
+pat walk_c   = C3 . . . G3 . . . C3 . . . E3 . . .  # C major: root-5th-root-3rd = 16
+pat walk_Am  = A2 . . . E3 . . . A2 . . . G2 . . .  # A minor: root-5th-root-b7th = 16
+pat walk_G   = G2 . . . D3 . . . G2 . . . B2 . . .  # G major: root-5th-root-3rd = 16
+
+# ── Drums: sparse RPG percussion groove ──────────────────────────────────────
+# Layout (each unit = 1 tick):
+#   tick:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#   hit:  KCK   .   HHT   .   SNR   .   HHT   .   KCK   .   HHT   .   SNR   .   HHT   .
+# Kick on beats 1 & 3 (ticks 0, 8); snare on beats 2 & 4 (ticks 4, 12);
+# hi-hat on the "and" of each beat (ticks 2, 6, 10, 14).  Each hit + dot = 2 ticks.
+pat light_beat = inst kick C2 . inst hihat C2 . inst snare C2 . inst hihat C2 . inst kick C2 . inst hihat C2 . inst snare C2 . inst hihat C2 .  # 16 ticks
+
+# =============================================================================
+# Sequences — 20 patterns × 16 ticks = 320 ticks per channel (all channels aligned)
 # =============================================================================
 
-# ── Intro: solo melody (no harmony, sparse texture) ─────────────────────────
-pat intro_a  = C5:8 . E5:8 . G5:4 E5:4
-pat intro_b  = D5:8 . F5:8 . E5:8 .
+# Pulse 1 lead:
+#   Bars  1– 4 : Intro   — clean melody (no vibrato), two 2-bar phrases × 2
+#   Bars  5– 8 : Verse A — C major melody with warm_vib on held notes
+#   Bars  9–12 : Verse B — Am melody with warm_vib on held notes
+#   Bars 13–16 : Bridge  — whole-note G5 pedal in 50% duty (via inst transform)
+#   Bars 17–20 : Reprise — Verse A returns
+seq pulse1_main = intro_a intro_b intro_a intro_b mel_a1 mel_a2 mel_a3 mel_a4 mel_b1 mel_b2 mel_b3 mel_b4 pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) pedal_c:inst(melody50) mel_a1 mel_a2 mel_a3 mel_a4
 
-# ── Verse A: C major melody ──────────────────────────────────────────────────
-pat mel_a1   = C5<warm_vib>:8 . E5:8 . G5<warm_vib>:8 .
-pat mel_a2   = G5<warm_vib>:8 . A5:4 G5:4 F5:8 .
-pat mel_a3   = E5<warm_vib>:8 . D5:4 C5:4 E5:8 .
-pat mel_a4   = C5:4 D5:4 E5:4 G5:4
+# Pulse 2 harmony:
+#   Bars  1– 4 : Intro   — silent (Pulse 2 rests so solo melody intro reads clearly)
+#   Bars  5– 8 : Verse A — parallel harmony below C major melody
+#   Bars  9–12 : Verse B — parallel harmony below Am melody
+#   Bars 13–16 : Bridge  — counter-melody in pairs (ascending/descending)
+#   Bars 17–20 : Reprise — Verse A harmony returns
+seq pulse2_main = intro_silence intro_silence intro_silence intro_silence chd_a1 chd_a2 chd_a3 chd_a4 chd_b1 chd_b2 chd_b3 chd_b4 ctr_c1 ctr_c2 ctr_c1 ctr_c2 chd_a1 chd_a2 chd_a3 chd_a4
 
-# Harmony — thirds and fifths below the melody
-pat chd_a1   = G4:8 . B4:8 . E4:8 .
-pat chd_a2   = E4:8 . F4:4 E4:4 D4:8 .
-pat chd_a3   = C4:8 . B3:4 A3:4 C4:8 .
-pat chd_a4   = G3:4 A3:4 B3:4 E4:4
+# Triangle bass:
+#   C major walking bass for intro, verse A, and reprise.
+#   A minor walking bass for verse B.
+#   G major for the first half of the bridge (underlining the G pedal), then
+#   C major for the second half (resolution back toward the tonic before reprise).
+seq bass_main   = walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_c walk_Am walk_Am walk_Am walk_Am walk_G walk_G walk_c walk_c walk_c walk_c walk_c walk_c
 
-# ── Verse B: A minor variation ───────────────────────────────────────────────
-pat mel_b1   = A4<warm_vib>:8 . C5:8 . E5<warm_vib>:8 .
-pat mel_b2   = E5<warm_vib>:8 . F5:4 E5:4 D5:8 .
-pat mel_b3   = C5<warm_vib>:8 . B4:4 A4:4 C5:8 .
-pat mel_b4   = A4:4 B4:4 C5:4 E5:4
-
-pat chd_b1   = E4:8 . G4:8 . A3:8 .
-pat chd_b2   = C4:8 . D4:4 C4:4 B3:8 .
-pat chd_b3   = A3:8 . G3:4 F3:4 A3:8 .
-pat chd_b4   = E3:4 F3:4 G3:4 C4:4
-
-# ── Bridge: Pulse 2 takes counter-melody, Pulse 1 sustains ──────────────────
-pat pedal_c  = G5<warm_vib>:16               # long pedal on Pulse 1
-pat ctr_c1   = E5:4 F5:4 G5:4 A5:4          # ascending counter on Pulse 2
-pat ctr_c2   = G5:4 F5:4 E5:4 D5:4          # descending resolution
-
-# ── Bass: root-fifth arpeggiated (triangle) ──────────────────────────────────
-pat walk_c   = C3 . G3 . C3 . E3 .
-pat walk_Am  = A2 . E3 . A2 . G2 .
-pat walk_G   = G2 . D3 . G2 . B2 .
-
-# ── Drums: sparse RPG groove ─────────────────────────────────────────────────
-# Gentle: kick on 1, snare on 3, hi-hat every 8th
-pat light_beat = inst kick C2 inst hihat C2 inst hihat C2 inst snare C2
-                 inst hihat C2 inst hihat C2 inst hihat C2 inst hihat C2
-
-# Triangle kick reinforcement on beat 1 and 3
-pat tkick_pat  = inst tkick C2 . . . inst tkick C2 . . .
-
-# =============================================================================
-# Sequences
-# =============================================================================
-seq pulse1_main = intro_a intro_b intro_a intro_b
-                  mel_a1 mel_a2 mel_a3 mel_a4
-                  mel_b1 mel_b2 mel_b3 mel_b4
-                  pedal_c pedal_c pedal_c pedal_c
-                  mel_a1 mel_a2 mel_a3 mel_a4
-
-seq pulse2_main = chd_a1 chd_a2 chd_a3 chd_a4    # intro: chord harmony follows melody
-                  chd_a1 chd_a2 chd_a3 chd_a4
-                  chd_b1 chd_b2 chd_b3 chd_b4
-                  ctr_c1 ctr_c2 ctr_c1 ctr_c2
-                  chd_a1 chd_a2 chd_a3 chd_a4
-
-seq bass_main   = walk_c walk_c walk_c walk_c
-                  walk_c walk_c walk_c walk_c
-                  walk_Am walk_Am walk_Am walk_Am
-                  walk_G walk_G walk_c walk_c
-                  walk_c walk_c walk_c walk_c
-
-seq drum_main   = light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
-                  light_beat light_beat light_beat light_beat
+# Noise drums:
+#   Same sparse kick-snare-hihat groove throughout all 20 bars for a steady,
+#   unobtrusive rhythmic foundation — typical of early NES RPG percussion.
+seq drum_main   = light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat light_beat
 
 # =============================================================================
 # Channels
 # =============================================================================
-# Channel 1 → Pulse 1  (lead melody with vibrato)
+# Channel 1 → Pulse 1  (lead melody with delayed vibrato)
 # Channel 2 → Pulse 2  (harmony / bridge counter-melody)
-# Channel 3 → Triangle (walking bass, natural pluck articulation)
-# Channel 4 → Noise    (sparse RPG percussion)
+# Channel 3 → Triangle (quarter-note walking bass, linear-counter pluck)
+# Channel 4 → Noise    (sparse RPG percussion groove)
 # (No channel 5 / DMC — early-era RPG style, 4-channel arrangement)
 channel 1 => inst melody  seq pulse1_main
 channel 2 => inst chord   seq pulse2_main
