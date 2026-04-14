@@ -292,10 +292,10 @@ export class HorizontalMixer {
       : 'Switch to full-width docked mode';
     btn.setAttribute('aria-label', btn.title);
     btn.classList.toggle('bb-hmix__toolbar-btn--active', !isDocked);
-    // Use adjustments-horizontal icon for docked, chevron-right for inline
+    // arrows-pointing-in = switch to inline (smaller), arrows-pointing-out = switch back to full-width
     btn.innerHTML = isDocked
       ? icon('arrows-pointing-in', 'w-3.5 h-3.5')
-      : icon('adjustments-horizontal', 'w-3.5 h-3.5');
+      : icon('arrows-pointing-out', 'w-3.5 h-3.5');
   }
 
   private updateDockModeButton(): void {
