@@ -3,6 +3,7 @@ import { parse } from './parser/index.js';
 import { exportJSON, exportMIDI, exportWAV } from './export/index.js';
 import { warn, error } from './util/diag.js';
 import { createLogger } from './util/logger.js';
+import { chipRegistry } from './chips/index.js';
 
 const log = createLogger('engine-play');
 
@@ -151,6 +152,19 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       if (hasEchoEffects) {
         warn('play', 'Echo/delay effects detected in song but are not supported in PCM renderer (CLI playback). Echo effects will be ignored. Use --browser flag for echo support.');
       }
+
+      // Pre-load any async samples (e.g. NES DMC local:/https:// refs) so the
+      // synchronous PCM render path finds cached data from the first noteOn().
+      const chipType = chipRegistry.resolve((ast.chip || 'gameboy').toLowerCase());
+      if (chipType !== 'gameboy') {
+        const plugin = chipRegistry.get(chipType);
+        if (plugin?.preloadForPCM && song.insts) {
+          log.info('Pre-loading chip samples for PCM render...');
+          await plugin.preloadForPCM(song.insts as Record<string, any>);
+          log.info('Sample pre-load complete');
+        }
+      }
+
       const sampleRate = options.sampleRate || 44100;
       const duration = options.duration;
       const bpm = ast.bpm || 128;
@@ -355,3 +369,13 @@ function writeString(view: DataView, offset: number, string: string): void {
 export { exportJSON, exportMIDI, exportWAV };
 export { renderSongToPCM } from './audio/pcmRenderer.js';
 export * from './import/index.js';
+
+// AST types — re-exported for external consumers (e.g. chip plugins)
+export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelNode, EnvelopeAST, SweepAST, NoiseAST } from './parser/ast.js';
+
+// ─── Plugin system ────────────────────────────────────────────────────────────
+
+export type { ChipPlugin, ChipChannelBackend, ValidationError, ChipUIContributions, ChipHelpSection } from './chips/types.js';
+export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
+export { BeatBaxEngine } from './engine.js';
+

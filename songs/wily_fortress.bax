@@ -6,35 +6,33 @@
 ## It demonstrates the full 5-channel NES APU arrangement: two pulse leads, a triangle
 ## bass, a noise drum kit, and a DMC bass-hit layer for late-era punch.
 ##
-## Structure (16 bars):
-##   Bars  1– 4 : Main riff A   (arpeggiated Am on Pulse 1, fifth harmony on Pulse 2)
-##   Bars  5– 8 : Main riff B   (Dm variation with DMC reinforcement on every root)
-##   Bars  9–12 : Bridge        (Pulse 2 counter-melody over sustained Pulse 1 pedal)
-##   Bars 13–16 : Reprise A     (original riff with additional triangle kick hits)
+## Structure (16 bars, each bar = 16 scheduler ticks at 160 BPM):
+##   Bars  1– 4 : Section A  — Am arpeggios (Pulse 1), chord support (Pulse 2), quarter-note bass
+##   Bars  5– 8 : Section B  — Dm arpeggios (Pulse 1), sweep stabs (Pulse 2), Dm bass
+##   Bars  9–12 : Bridge     — Am arpeggio chord pad (Pulse 1, 50% duty), counter-melody (Pulse 2)
+##                              bars 11–12 both pulses play counter-melody in unison for impact
+##   Bars 13–16 : Reprise A  — return to Am material with full-ensemble drive
 ##
 ## Channels:
-##   Ch1 (Pulse 1) : Lead melody — 25% duty, fast envelope, arpeggiated chords
-##   Ch2 (Pulse 2) : Harmony — 50% duty, fifth-interval counter-melody
-##   Ch3 (Triangle): Bass line — root-fifth walking bass
-##   Ch4 (Noise)   : Drums — snare backbeat + hi-hat 8ths + triangle kick reinforcement
-##   Ch5 (DMC)     : Bass hit reinforcement — sub-bass transient on every root hit
+##   Ch1 (Pulse 1) : Lead melody — 25% duty sharp arpeggio, 50% duty for bridge pedal
+##   Ch2 (Pulse 2) : Harmony — chord tones (sec A), software-bend stabs (sec B), counter-melody (bridge)
+##   Ch3 (Triangle): Walking bass — quarter-note root/fifth pattern, no envelope (always on)
+##   Ch4 (Noise)   : Drums — 8th-note hi-hat groove (kick 1&3, snare 2&4, hat offbeats)
+##   Ch5 (DMC)     : Percussion — bundled @nes/ kick on beats 1 & 3, snare on beats 2 & 4
 ##
-## Effects demonstrated:
-##   arp   : minor-triad arpeggio cycling on Pulse 1 (action chord fill)
-##   sweep : downward hardware sweep on Pulse 2 for punchy bass stabs
-##   vol   : fast attack, fast decay gives staccato articulation
+## Timing reference (160 BPM, 4 ticks per beat):
+##   1 tick  = 1/16 note  ≈  93.75 ms
+##   4 ticks = 1 quarter note  (one beat)
+##   8 ticks = 1 half note     (two beats)
+##  16 ticks = 1 whole bar     (four beats)
 ##
-## NES chip notes:
-##   - All 5 channels are used, demonstrating the full 2A03 APU
-##   - DMC sample uses built-in "@nes/bass_c2" — no external file required
-##   - Triangle bass uses linear counter for natural gate decay
-##   - Noise drum kit uses normal-mode LFSR with period presets
+## All patterns are exactly 16 ticks.  All sequences are exactly 256 ticks (16 × 16).
 ##
 ## Play: node bin/beatbax play songs/wily_fortress.bax
 
 song name "Wily's Fortress"
 song artist "The BeatBax Team"
-song description """Original NES-style action-platformer chiptune at 160 BPM in A minor. Demonstrates all five 2A03 APU channels: arpeggiated pulse lead, fifth-interval harmony, walking triangle bass, four-on-the-floor noise drums, and DMC bass-hit reinforcement. Uses minor-triad arpeggio, downward hardware sweep on bass stabs, and a fast staccato envelope for driving intensity."""
+song description """Original NES-style action-platformer chiptune at 160 BPM in A minor. Demonstrates all five 2A03 APU channels: arpeggiated pulse lead, software-bend stab harmony, quarter-note triangle bass, 8th-note noise groove, and bundled @nes/ DMC kick/snare reinforcement. Uses minor-triad arpeggio on the lead, immediate exponential pitch-bend stabs (perfect 5th, gated at 3 ticks) on Pulse 2 section B, and a 50% duty bridge pedal for textural contrast."""
 song tags "nes,action,platformer,example,demo"
 
 chip nes
@@ -44,127 +42,181 @@ bpm 160
 # Instruments
 # =============================================================================
 
-# Pulse 1 — lead melody; 25% duty for sharp, cutting timbre
-inst lead    type=pulse1  duty=25  env=13,down  env_period=1
+# ── Pulse 1 (type=pulse1) ─────────────────────────────────────────────────────
+#
+# lead — sharp 25% duty square wave; the nasal timbre cuts through bass and noise.
+#   env=15,down  : start at full volume (15/15) for maximum transient punch.
+#   env_period=1 : NES envelope divider 1 → one volume step per frame → full decay
+#                  in 15 frames ≈ 250 ms at 60 Hz.  Short enough to keep every
+#                  arpeggiated note distinct at 160 BPM (quarter = 375 ms).
+inst lead     type=pulse1  duty=25  env=15,down  env_period=1
 
-# Pulse 1 variant — slightly wider 50% duty for the bridge
-inst lead50  type=pulse1  duty=50  env=12,down  env_period=2
+# lead50 — 50% duty (true square) for the bridge arpeggio chord pad.
+#   50% duty produces a hollow, organ-like tone — warmer than the nasal 25% lead.
+#   env=12,flat  : constant volume at 12/15 for the full note duration — no decay.
+#                  The arp effect cycles through Am chord tones; flat envelope lets
+#                  every arp step sound at equal volume, creating an implied chord.
+#   Used via seq transform: pedal_c:inst(lead50) in lead_main.
+inst lead50   type=pulse1  duty=50  env=12,flat
 
-# Pulse 2 — harmony; 50% duty for warm counter-melody
-inst harm    type=pulse2  duty=50  env=10,down  env_period=3
+# ── Pulse 2 (type=pulse2) ─────────────────────────────────────────────────────
+#
+# harm — wide 50% duty for full-bodied chord support in section A and bridge.
+#   env=10,flat  : constant volume at 10/15 for the full note duration — no decay.
+#                  Half-note chord tones (8 ticks ≈ 750 ms at 160 BPM) need to stay
+#                  audible to the very end; a decaying envelope would fade to near-silence
+#                  before the note finishes.  Clean articulation comes from the note
+#                  boundary (scheduler fires a new noteOn at each tick boundary).
+inst harm     type=pulse2  duty=50  env=10,flat
 
-# Pulse 2 bass-stab with downward hardware sweep (punchy attack)
-inst sweep_bass  type=pulse2  duty=50  env=14,down  env_period=1  sweep_en=true  sweep_period=3  sweep_dir=down  sweep_shift=3
+# stab — punchy stab for section B using software pitch bend + note cut.
+#   env=15,down  env_period=1 : max-volume burst decaying in ≈250 ms — tight transient.
+#   bend:7,exp,0,0.094 applied per-note : immediate exponential rise of a perfect 5th (+7 st), completing in ≈1 tick
+#                from note start — mimics the classic NES rising-punch riser without
+#                relying on hardware sweep registers (which silence the channel on
+#                overflow). Software bend is also MIDI-exportable (pitch wheel) and
+#                will map to FamiStudio slide notes when the .fms exporter is built.
+#   cut:3 applied per-note : gates the note off after 3 ticks (≈281 ms at 160 BPM)
+#                so each stab punches in and out quickly, keeping the groove tight.
+#   Used via seq transform: harm_b1:inst(stab) in harm_main.
+inst stab  type=pulse2  duty=50  env=15,down  env_period=1
 
-# Triangle — walking bass line; always full amplitude when gated
-inst tri     type=triangle
+# ── Triangle (type=triangle) ──────────────────────────────────────────────────
+#
+# tri — NES triangle channel: fixed-amplitude 32-step staircase waveform.
+#   No hardware volume envelope; the channel is either on (full amplitude) or off.
+#   The linear counter gates the channel naturally — no extra parameters needed.
+#   Provides the characteristic NES sub-bass with zero CPU envelope overhead.
+inst tri      type=triangle
 
-# Short triangle ping for kick reinforcement (~16 ms gate via linear counter)
-inst tkick   type=triangle  linear=4
+# ── Noise (type=noise) ────────────────────────────────────────────────────────
+#
+# kick — low-frequency noise burst (period=12 → LFSR clock ≈ 590 Hz = deep thud).
+#   env=15,down  env_period=2 : sharp transient, full decay in ≈500 ms.
+#   Tight enough not to blur into the hi-hat at 160 BPM while still having weight.
+inst kick     type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=2
 
-# Noise — drum kit
-inst kick    type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=3
-inst snare   type=noise  noise_mode=normal  noise_period=6   env=14,down  env_period=1
-inst hihat   type=noise  noise_mode=normal  noise_period=3   env=8,down   env_period=0
+# snare — mid-frequency crack (period=7 → LFSR clock ≈ 2.8 kHz = papery crack).
+#   env=14,down  env_period=2 : slightly softer than kick; same tight decay.
+#   Period 7 sits between kick (12) and hi-hat (2) for clear spectral separation.
+inst snare    type=noise  noise_mode=normal  noise_period=7   env=14,down  env_period=2
 
-# DMC — bass hit reinforcement (built-in sample, works in browser and CLI)
-inst bass_hit  type=dmc  dmc_rate=7  dmc_loop=false  dmc_sample="@nes/bass_c2"
+# hihat — high-frequency tick (period=2 → LFSR clock ≈ 28 kHz = crisp metallic sizzle).
+#   env=6,down  env_period=0 : low volume, instantaneous decay (one frame ≈ 16 ms).
+#   Sits well above kick and snare in frequency; provides rhythmic texture only.
+inst hihat    type=noise  noise_mode=normal  noise_period=2   env=6,down   env_period=0
+
+# ── DMC (type=dmc) ────────────────────────────────────────────────────────────
+#
+# kick_dmc  — bundled @nes/kick sample (no external file needed).
+# snare_dmc — bundled @nes/snare sample (no external file needed).
+#   dmc_rate=15 : NTSC rate index 15 → 33.1 kHz — highest quality, standard for drums.
+#   Note names in DMC patterns are triggers only; DMC does not re-pitch samples.
+inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
 
 # =============================================================================
 # Effect Presets
 # =============================================================================
-effect minArp  = arp:3,7    # minor triad (root + m3 + P5)
-effect majArp  = arp:4,7    # major triad (root + M3 + P5)
-effect domArp  = arp:4,7,10 # dominant 7th
+effect minArp = arp:3,7    # minor triad — root, minor 3rd (+3 st), perfect 5th (+7 st)
+effect majArp = arp:4,7    # major triad — root, major 3rd (+4 st), perfect 5th (+7 st)
 
 # =============================================================================
-# Patterns
+# Patterns — every pattern is exactly 16 ticks (one bar at 160 BPM)
 # =============================================================================
 
-# ── Section A: Main riff (Am) ────────────────────────────────────────────────
-# Lead: fast minor-arpeggio cycling on each note
-pat riff_a1  = A4<minArp>:4 C5<minArp>:4 E5<minArp>:4 G5<minArp>:4
-pat riff_a2  = E5<minArp>:4 G5<minArp>:4 A5<minArp>:4 E5<minArp>:4
+# ── Section A: Main riff (A minor) ────────────────────────────────────────────
+# Pulse 1 lead: each note is a quarter note (:4 = 4 ticks) with minArp cycling.
+pat riff_a1 = A4<minArp>:4 C5<minArp>:4 E5<minArp>:4 G5<minArp>:4  # 4+4+4+4 = 16
+pat riff_a2 = E5<minArp>:4 G5<minArp>:4 A5<minArp>:4 E5<minArp>:4  # 4+4+4+4 = 16
 
-# Harmony: fifth-interval sustained chord support
-pat harm_a1  = E4:8 . C4:8 .
-pat harm_a2  = E4:8 . A4:8 .
+# Pulse 2 harmony: two half-note chord tones back-to-back fill the bar.
+# Flat envelope means each note sounds at full volume until the next noteOn fires.
+pat harm_a1 = E4:8 C4:8   # 8+8 = 16  (E and C over Am = 5th and 3rd)
+pat harm_a2 = E4:8 A4:8   # 8+8 = 16  (E and A over Am = 5th and root)
 
-# Bass: root-fifth walking pattern (16 steps)
-pat bass_a   = A2 . E3 . A2 . G2 .
+# Triangle bass: quarter-note root–fifth–root–subtonic walking line.
+# Each note is one tick; three rests pad to a full quarter note (:=1+3 ticks).
+pat bass_a  = A2 . . . E3 . . . A2 . . . G2 . . .  # (1+3)×4 = 16
 
-# DMC hit on root note of each bar
-pat dmc_a    = inst bass_hit A2 . . . inst bass_hit A2 . .
+# DMC percussion: kick on beats 1 & 3 (ticks 0, 8), snare on beats 2 & 4 (ticks 4, 12).
+# Note names are triggers only — DMC does not re-pitch samples.
+pat dmc_a   = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .  # 4+4+4+4 = 16
 
-# ── Section B: Variation (Dm) ────────────────────────────────────────────────
-pat riff_b1  = D5<minArp>:4 F5<minArp>:4 A5<minArp>:4 C6<minArp>:4
-pat riff_b2  = A5<minArp>:4 C6<minArp>:4 D6<minArp>:4 A5<minArp>:4
+# ── Section B: Variation (D minor) ────────────────────────────────────────────
+pat riff_b1 = D5<minArp>:4 F5<minArp>:4 A5<minArp>:4 C6<minArp>:4  # 4+4+4+4 = 16
+pat riff_b2 = A5<minArp>:4 C6<minArp>:4 D6<minArp>:4 A5<minArp>:4  # 4+4+4+4 = 16
 
-pat harm_b1  = A4:8 . F4:8 .
-pat harm_b2  = A4:8 . D4:8 .
+# Harmony patterns for section B; stab inst applied via seq transform.
+# Each half-note slot carries bend:7,exp,0.25 (almost immediate 5th-up chirp) and cut:3 (tight gate).
+# The 5 rests after each stab let the chirp ring briefly then leave space — more musical
+# than a sustained tone that clips with the hardware sweep.
+pat harm_b1 = A4<bend:7,exp,0.25,0.094><cut:3>:8 F4<bend:7,exp,0.25,0.094><cut:3>:8  # 8+8 = 16
+pat harm_b2 = A4<bend:7,exp,0.25,0.094><cut:3>:8 D4<bend:7,exp,0.25,0.094><cut:3>:8  # 8+8 = 16
 
-pat bass_b   = D3 . A2 . D3 . C3 .
-pat dmc_b    = inst bass_hit D3 . . . inst bass_hit D3 . .
+# Triangle bass follows D minor: root–fifth–root–subtonic.
+pat bass_b  = D3 . . . A2 . . . D3 . . . C3 . . .  # (1+3)×4 = 16
 
-# ── Bridge: Pulse 2 counter-melody, Pulse 1 pedal ────────────────────────────
-pat pedal_c  = A4:16             # sustained pedal on Pulse 1
-pat ctr_c1   = E5:4 F5:4 G5:4 E5:4
-pat ctr_c2   = C5:4 D5:4 E5:4 C5:4
-pat bass_c   = A2 . C3 . E3 . C3 .
+# DMC follows the same kick/snare pattern in the D minor section.
+pat dmc_b   = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .  # 4+4+4+4 = 16
 
-# ── Drums: kick on 1&3, snare on 2&4, hi-hat every 8th note ─────────────────
-pat beat     = inst kick C2 inst hihat C2 inst snare C2 inst hihat C2
-               inst kick C2 inst hihat C2 inst snare C2 inst hihat C2
+# ── Bridge: Pulse 1 chord pad + Pulse 2 counter-melody ──────────────────────────
+# pedal_c: Pulse 1 arpeggios the Am triad — A→C→E cycling — for the full bar
+#   (lead50 inst applied in seq). This is the idiomatic NES "implied chord" technique:
+#   rapid arpeggio on a single channel creates the perception of a sustained chord.
+pat pedal_c = A4<minArp>:16                           # 16 = 16
 
-# Triangle kick reinforcement layer
-pat tkick_pat = inst tkick C2 . . . inst tkick C2 . . .
+# Counter-melody fragments; both channels play in unison for bars 11–12.
+pat ctr_c1  = E5:4 F5:4 G5:4 E5:4                    # 4+4+4+4 = 16
+pat ctr_c2  = C5:4 D5:4 E5:4 C5:4                    # 4+4+4+4 = 16
+
+# Triangle bass for bridge: ascending Am arpeggio (Am → C → E → C walk-back).
+pat bass_c  = A2 . . . C3 . . . E3 . . . C3 . . .  # (1+3)×4 = 16
+
+# ── Drums: 8th-note hi-hat groove ─────────────────────────────────────────────
+# Layout per bar (each column = 1 tick):
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   hit:  KCK  .  HHT  .  SNR  .  HHT  .  KCK  .  HHT  .  SNR  .  HHT  .
+# Kick on beats 1 & 3 (ticks 0, 8); snare on beats 2 & 4 (ticks 4, 12);
+# hi-hat on the "and" of each beat (ticks 2, 6, 10, 14).  Rests preserve grid.
+pat beat    = kick . hihat . snare . hihat . kick . hihat . snare . hihat .  # 16
 
 # =============================================================================
-# Sequences
+# Sequences — 16 patterns × 16 ticks = 256 ticks per channel
 # =============================================================================
-seq lead_main = riff_a1 riff_a2 riff_a1 riff_a2
-                riff_b1 riff_b2 riff_b1 riff_b2
-                pedal_c pedal_c ctr_c1 ctr_c2
-                riff_a1 riff_a2 riff_a1 riff_a2
 
-seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2
-                harm_b1 harm_b2 harm_b1 harm_b2
-                ctr_c1 ctr_c2 ctr_c1 ctr_c2
-                harm_a1 harm_a2 harm_a1 harm_a2
+# Pulse 1 lead:
+#   Sections A & B  — fast minor-arpeggio riffs
+##   Bridge bars 9–10 — Am arpeggio chord pad using the warmer 50% duty lead50 inst
+#   Bridge bars 11–12 — counter-melody (joins Pulse 2 in unison for impact)
+#   Reprise A         — return to original Am material
+seq lead_main = riff_a1 riff_a2 riff_a1 riff_a2 riff_b1 riff_b2 riff_b1 riff_b2 pedal_c:inst(lead50) pedal_c:inst(lead50) ctr_c1 ctr_c2 riff_a1 riff_a2 riff_a1 riff_a2
 
-seq bass_main = bass_a bass_a bass_a bass_a
-                bass_b bass_b bass_b bass_b
-                bass_c bass_c bass_c bass_c
-                bass_a bass_a bass_a bass_a
+# Pulse 2 harmony:
+#   Section A  — sustained chord tones (harm inst, slow decay for half-note fill)
+#   Section B  — sweep-stab punches (sweep_bass inst applied via transform)
+#   Bridge     — Pulse 2 leads the counter-melody while Pulse 1 holds pedal,
+#                then both converge for the final two bars
+#   Reprise A  — return to chord support
+seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2 harm_b1:inst(stab) harm_b2:inst(stab) harm_b1:inst(stab) harm_b2:inst(stab) ctr_c1 ctr_c2 ctr_c1 ctr_c2 harm_a1 harm_a2 harm_a1 harm_a2
 
-seq drum_main = beat beat beat beat
-                beat beat beat beat
-                beat beat beat beat
-                beat beat beat beat
+# Triangle bass: quarter-note walking line through all sections.
+seq bass_main = bass_a bass_a bass_a bass_a bass_b bass_b bass_b bass_b bass_c bass_c bass_c bass_c bass_a bass_a bass_a bass_a
 
-seq tkick_main = tkick_pat tkick_pat tkick_pat tkick_pat
-                 tkick_pat tkick_pat tkick_pat tkick_pat
-                 tkick_pat tkick_pat tkick_pat tkick_pat
-                 tkick_pat tkick_pat tkick_pat tkick_pat
+# Noise drums: same 8th-note groove through all 16 bars.
+seq drum_main = beat beat beat beat beat beat beat beat beat beat beat beat beat beat beat beat
 
-seq dmc_main  = dmc_a dmc_a dmc_a dmc_a
-                dmc_b dmc_b dmc_b dmc_b
-                dmc_a dmc_a dmc_a dmc_a
-                dmc_a dmc_a dmc_a dmc_a
+# DMC percussion: kick/snare groove through all 16 bars (dmc_b labels the D minor section).
+seq dmc_main  = dmc_a dmc_a dmc_a dmc_a dmc_b dmc_b dmc_b dmc_b dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a dmc_a
 
 # =============================================================================
 # Channels
 # =============================================================================
-# Channel 1 → Pulse 1  (lead melody)
-# Channel 2 → Pulse 2  (harmony)
-# Channel 3 → Triangle (bass)
-# Channel 4 → Noise    (drums — kick + snare + hi-hat)
-# Channel 5 → DMC      (bass hit reinforcement)
-channel 1 => inst lead      seq lead_main
-channel 2 => inst harm      seq harm_main
-channel 3 => inst tri       seq bass_main
-channel 4 => inst kick      seq drum_main
-channel 5 => inst bass_hit  seq dmc_main
+channel 1 => inst lead     seq lead_main   # Pulse 1  — lead melody
+channel 2 => inst harm     seq harm_main   # Pulse 2  — harmony / stabs
+channel 3 => inst tri      seq bass_main   # Triangle — walking bass
+channel 4 => inst kick     seq drum_main   # Noise    — drums
+channel 5 => inst kick_dmc seq dmc_main    # DMC      — kick/snare reinforcement
 
 # =============================================================================
 # Playback

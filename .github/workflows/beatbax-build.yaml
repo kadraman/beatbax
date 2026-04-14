@@ -21,6 +21,9 @@ jobs:
   build-project:
     name: build beatbax
     runs-on: ubuntu-latest
+    env:
+      CI: true
+      SITE_URL: ${{ inputs.site-url }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -32,22 +35,13 @@ jobs:
         with:
           node-version: v22.x
 
-      - name: Build Node assets - install dependencies
-        env:
-          CI: true
-          SITE_URL: ${{ inputs.site-url }}
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build Node assets - build engine
-        env:
-          CI: true
-          SITE_URL: ${{ inputs.site-url }}
-        run: npm run engine:build
+      - name: Build Node assets
+        run: npm run build-all
 
-      - name: Build Node assets - web-ui
-        env:
-          CI: true
-          SITE_URL: ${{ inputs.site-url }}
+      - name: Build web-ui
         run: npm run web-ui:build
 
 # Please do not touch the following action

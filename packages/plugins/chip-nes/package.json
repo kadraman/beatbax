@@ -1,0 +1,52 @@
+{
+  "name": "@beatbax/plugin-chip-nes",
+  "version": "1.0.0",
+  "description": "NES Ricoh 2A03 APU chip plugin for BeatBax.",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "beatbax",
+    "plugin",
+    "nes",
+    "chiptune",
+    "2a03",
+    "apu",
+    "famicom"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kadraman/beatbax.git",
+    "directory": "packages/plugins/chip-nes"
+  },
+  "license": "MIT",
+  "author": "BeatBax Contributors",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -b",
+    "test": "jest --config ./jest.config.cjs --passWithNoTests",
+    "pretest": "npm run build --if-present"
+  },
+  "peerDependencies": {
+    "@beatbax/engine": "^0.9.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^22.7.4",
+    "jest": "^29.7.0",
+    "rimraf": "^6.1.2",
+    "ts-jest": "^29.3.3",
+    "typescript": "^5.6.3"
+  }
+}

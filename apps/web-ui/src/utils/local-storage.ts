@@ -102,6 +102,8 @@ export const StorageKey = {
   DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
   /** DAW mixer height in pixels (number). */
   DAW_MIXER_HEIGHT: 'ui.dawMixerHeight',
+  /** Enabled chip plugin IDs (JSON string[]). */
+  ENABLED_PLUGINS: 'plugins.enabled',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

@@ -1,6 +1,6 @@
 ---
 title: Dynamic Chip Module Loading
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/3"
