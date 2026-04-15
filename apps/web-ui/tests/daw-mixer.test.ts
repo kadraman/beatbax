@@ -1,12 +1,12 @@
 /**
- * Tests for HorizontalMixer panel
+ * Tests for DawMixer panel
  *
  * Covers: initial render, parse:success rendering, channel strips, VU meters,
  * instrument/pattern readouts, mute/solo controls, volume fader chip-dependence,
  * collapse/expand, show/hide, playback:stopped reset, and channel store updates.
  */
 
-import { HorizontalMixer } from '../src/panels/horizontal-mixer';
+import { DawMixer } from '../src/panels/daw-mixer';
 import { EventBus } from '../src/utils/event-bus';
 import * as channelStore from '../src/stores/channel.store';
 import type { PlaybackPosition } from '../src/playback/playback-manager';
@@ -43,10 +43,10 @@ function makePosition(overrides: Partial<PlaybackPosition> = {}): PlaybackPositi
 
 // ─── Suite ───────────────────────────────────────────────────────────────────
 
-describe('HorizontalMixer', () => {
+describe('DawMixer', () => {
   let container: HTMLElement;
   let eventBus: EventBus;
-  let mixer: HorizontalMixer;
+  let mixer: DawMixer;
 
   beforeEach(() => {
     localStorage.clear();
@@ -54,7 +54,7 @@ describe('HorizontalMixer', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     eventBus = new EventBus();
-    mixer = new HorizontalMixer({ container, eventBus });
+    mixer = new DawMixer({ container, eventBus });
     jest.useFakeTimers();
   });
 
@@ -68,7 +68,7 @@ describe('HorizontalMixer', () => {
   // ── Initial render ──────────────────────────────────────────────────────────
 
   it('renders the root element with correct id', () => {
-    expect(document.getElementById('bb-horizontal-mixer')).not.toBeNull();
+    expect(document.getElementById('bb-daw-mixer')).not.toBeNull();
   });
 
   it('shows "No channels defined" placeholder when no AST is set', () => {
@@ -340,14 +340,14 @@ describe('HorizontalMixer', () => {
 
   it('hide() sets display:none on root element', () => {
     mixer.hide();
-    const root = document.getElementById('bb-horizontal-mixer');
+    const root = document.getElementById('bb-daw-mixer');
     expect(root?.style.display).toBe('none');
   });
 
   it('show() removes display:none from root element', () => {
     mixer.hide();
     mixer.show();
-    const root = document.getElementById('bb-horizontal-mixer');
+    const root = document.getElementById('bb-daw-mixer');
     expect(root?.style.display).not.toBe('none');
   });
 
@@ -369,7 +369,7 @@ describe('HorizontalMixer', () => {
   // ── Collapse / expand ─────────────────────────────────────────────────────────
 
   it('strips container is visible in expanded state (default)', () => {
-    const root = document.getElementById('bb-horizontal-mixer');
+    const root = document.getElementById('bb-daw-mixer');
     expect(root?.classList.contains('bb-hmix--collapsed')).toBe(false);
   });
 
@@ -387,8 +387,8 @@ describe('HorizontalMixer', () => {
     // Create a new mixer that reads persisted state
     const container2 = document.createElement('div');
     document.body.appendChild(container2);
-    const mixer2 = new HorizontalMixer({ container: container2, eventBus });
-    const root2 = container2.querySelector('#bb-horizontal-mixer');
+    const mixer2 = new DawMixer({ container: container2, eventBus });
+    const root2 = container2.querySelector('#bb-daw-mixer');
     expect(root2?.classList.contains('bb-hmix--collapsed')).toBe(true);
     mixer2.destroy();
     document.body.removeChild(container2);
@@ -429,7 +429,7 @@ describe('HorizontalMixer', () => {
     const inlineContainer = document.createElement('div');
     document.body.appendChild(dockedContainer);
     document.body.appendChild(inlineContainer);
-    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    const mixer2 = new DawMixer({ container: dockedContainer, inlineContainer, eventBus });
     mixer2.setDockMode('inline');
     expect(inlineContainer.querySelector('.bb-hmix')).not.toBeNull();
     expect(dockedContainer.querySelector('.bb-hmix')).toBeNull();
@@ -443,7 +443,7 @@ describe('HorizontalMixer', () => {
     const inlineContainer = document.createElement('div');
     document.body.appendChild(dockedContainer);
     document.body.appendChild(inlineContainer);
-    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    const mixer2 = new DawMixer({ container: dockedContainer, inlineContainer, eventBus });
     mixer2.setDockMode('inline');
     mixer2.setDockMode('docked');
     expect(dockedContainer.querySelector('.bb-hmix')).not.toBeNull();
@@ -458,7 +458,7 @@ describe('HorizontalMixer', () => {
     const inlineContainer = document.createElement('div');
     document.body.appendChild(dockedContainer);
     document.body.appendChild(inlineContainer);
-    const mixer2 = new HorizontalMixer({ container: dockedContainer, inlineContainer, eventBus });
+    const mixer2 = new DawMixer({ container: dockedContainer, inlineContainer, eventBus });
     mixer2.setDockMode('inline');
     const root = inlineContainer.querySelector('.bb-hmix');
     expect(root?.classList.contains('bb-hmix--inline')).toBe(true);

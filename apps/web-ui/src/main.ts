@@ -84,7 +84,7 @@ import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { ChannelMixer } from './panels/channel-mixer';
-import { HorizontalMixer } from './panels/horizontal-mixer';
+import { DawMixer } from './panels/daw-mixer';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
@@ -119,7 +119,7 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 
 // ─── Panel visibility persistence ─────────────────────────────────────────────
 // readPanelVis reads through BeatBaxStorage so the key namespace matches what
-// HorizontalMixer and other components write (beatbax: prefix, no double 'panel.panel.' issue).
+// DawMixer and other components write (beatbax: prefix, no double 'panel.panel.' issue).
 function readPanelVis(key: string, defaultVal = true): boolean {
   try {
     const v = storage.get(key);
@@ -303,12 +303,12 @@ const channelMixer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── Channel Mixer — horizontal strip at the bottom ─────────────────────────
+// ─── DawMixer — horizontal strip at the bottom ──────────────────────────────
 // The mixer is gated by the DAW_MIXER feature flag; it can be shown/hidden via
 // the View → Channel Mixer menu item or Settings → General → Show channel mixer.
-const horizontalMixer = withErrorBoundary(
-  'HorizontalMixer',
-  () => new HorizontalMixer({
+const dawMixer = withErrorBoundary(
+  'DawMixer',
+  () => new DawMixer({
     container: mixerHostContainer,
     inlineContainer: inlineMixerContainer,
     eventBus,
@@ -563,15 +563,14 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
   if (flag === FeatureFlag.DAW_MIXER) {
     // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
     // and update the legacy right-pane mixer accordingly.
+    // Route show/hide through panel:toggled so the MenuBar panelVisible map and
+    // settingShowChannelMixer atom are updated by the single canonical handler.
     try {
+      eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: enabled });
       if (enabled) {
-        horizontalMixer?.show?.();
-        settingShowChannelMixer.set(true);
-        // Hide legacy right-pane mixer
+        // Hide legacy right-pane mixer when the new one is enabled
         rightTabs.close('channels');
       } else {
-        horizontalMixer?.hide?.();
-        settingShowChannelMixer.set(false);
         // Show legacy right-pane mixer when the new one is disabled
         rightTabs.show('channels');
       }
@@ -607,7 +606,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     // Only honour show/hide requests when the Channel Mixer feature is enabled.
     if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
     try {
-      horizontalMixer?.[visible ? 'show' : 'hide']?.();
+      dawMixer?.[visible ? 'show' : 'hide']?.();
       settingShowChannelMixer.set(visible);
     } catch (_e) { /* ignore */ }
   }
@@ -664,23 +663,25 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
 (window as any).__beatbax_channelMixer = channelMixer; // legacy right-pane ChannelMixer
-(window as any).__beatbax_horizontalMixer = horizontalMixer; // new horizontal Channel Mixer
+(window as any).__beatbax_dawMixer = dawMixer; // DAW channel mixer strip
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
   patternGridContainer.style.display = visible ? '' : 'none';
   settingShowPatternGrid.set(visible);
 };
-// Called by Features settings when the Channel Mixer feature flag is toggled
+// Called by Features settings when the Channel Mixer feature flag is toggled.
+// Routes through panel:toggled so the MenuBar panelVisible map, the
+// settingShowChannelMixer atom, and any other panel:toggled listeners all
+// stay in sync — same as the View menu and keyboard shortcut paths.
 (window as any).__beatbax_toggleChannelMixer = (enabled: boolean) => {
   try {
+    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: enabled });
+    // Legacy tab is a feature-flag side-effect, not a visibility concern,
+    // so it stays here rather than inside the panel:toggled handler.
     if (enabled) {
-      horizontalMixer?.show?.();
-      settingShowChannelMixer.set(true);
       rightTabs.close('channels');
     } else {
-      horizontalMixer?.hide?.();
-      settingShowChannelMixer.set(false);
       rightTabs.show('channels');
     }
   } catch (_e) { /* ignore */ }
@@ -1480,7 +1481,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
 // Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
   if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
-  const vis = horizontalMixer?.isVisible?.() ?? false;
+  const vis = dawMixer?.isVisible?.() ?? false;
   eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
 });
 // Ctrl+Alt+P → Monaco Command Palette.
@@ -1572,7 +1573,7 @@ ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel
 ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
     if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
-    const vis = horizontalMixer?.isVisible?.() ?? false;
+    const vis = dawMixer?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
   },
 });

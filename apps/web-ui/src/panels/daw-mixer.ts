@@ -1,5 +1,5 @@
 /**
- * HorizontalMixer — DAW-style bottom-docked horizontal channel strip.
+ * DawMixer — DAW-style bottom-docked horizontal channel strip.
  *
  * Replaces the vertical ChannelMixer card list for the bottom-panel position.
  * Each sound-chip channel is rendered as a vertical strip side-by-side, matching
@@ -9,7 +9,8 @@
  * Features:
  *  - 12-segment animated VU meter per channel (green 1–8, yellow 9–10, red 11–12)
  *  - Peak-hold: highest lit segment lingers ~1.5 s then decays one segment at a time
- *  - Live instrument and pattern name readouts from playback:position-changed events
+ *  - Live instrument name readout from playback:position-changed events
+ *  - Pattern and sequence readouts moved to the Channel Visualizer panel
  *  - Volume fader (vertical slider) — disabled/greyed for Game Boy (envelope-only)
  *  - Mute / Solo buttons wired to the shared channelStates store
  *  - Resize handle at the top edge (drag to change height, persisted)
@@ -29,6 +30,7 @@ import { storage, StorageKey } from '../utils/local-storage';
 import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags';
 import { getChannelMeta } from '../utils/chip-meta';
 import { icon } from '../utils/icons';
+import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
 
 /** Chips that expose a per-channel volume register writable at runtime. */
 const VOLUME_SUPPORTED_CHIPS = new Set(['nes', 'sid', 'genesis', 'snes']);
@@ -51,7 +53,7 @@ const MAX_HEIGHT_PX = 400;
 
 export type MixerDockMode = 'docked' | 'inline';
 
-export interface HorizontalMixerOptions {
+export interface DawMixerOptions {
   /** Container for full-width docked mode (below all three panes). */
   container: HTMLElement;
   /** Container for inline mode (inside the left-content / output area). */
@@ -67,9 +69,15 @@ interface ChannelVuState {
   peak: number;
   /** Timestamp when the peak was last updated. */
   peakTime: number;
+  /**
+   * Timestamp of the last incoming level update (waveform or position event).
+   * The RAF decay step only runs when no update has arrived within the current
+   * frame window, preventing premature decay between waveform events.
+   */
+  lastUpdateTime: number;
 }
 
-export class HorizontalMixer {
+export class DawMixer {
   private dockedContainer: HTMLElement;
   private inlineContainer: HTMLElement | null;
   private eventBus: EventBus;
@@ -83,8 +91,18 @@ export class HorizontalMixer {
   private height: number;
   private dockMode: MixerDockMode;
 
-  /** Whether the per-channel analyser is providing waveforms (suppresses position-based VU). */
-  private analyserActive = false;
+  /**
+   * Whether the per-channel analyser feature is enabled (mirrors settingFeaturePerChannelAnalyser).
+   * When true, position-based VU fallback is suppressed for all channels; real RMS values from
+   * playback:channel-waveform are used instead — matching ChannelMixer's pulse(..., !analyserEnabled) logic.
+   */
+  private analyserEnabled = false;
+  /**
+   * Set of channel IDs that have received at least one waveform frame in the current playback session.
+   * Used as a per-channel guard: if the analyser is enabled but hasn't fired for a specific channel
+   * yet, that channel still gets position-based VU until its first waveform event.
+   */
+  private channelsWithActiveAnalyser: Set<number> = new Set();
 
   /** Per-channel VU state. Key = channel id. */
   private vuState: Map<number, ChannelVuState> = new Map();
@@ -96,7 +114,7 @@ export class HorizontalMixer {
   /** Root element appended to the active container. */
   private rootEl: HTMLElement | null = null;
 
-  constructor(options: HorizontalMixerOptions) {
+  constructor(options: DawMixerOptions) {
     this.dockedContainer = options.container;
     this.inlineContainer = options.inlineContainer ?? null;
     this.eventBus = options.eventBus;
@@ -119,6 +137,9 @@ export class HorizontalMixer {
 
     const rawDock = storage.get(StorageKey.DAW_MIXER_DOCK_MODE);
     this.dockMode = rawDock === 'inline' ? 'inline' : 'docked';
+
+    // Sync analyser-enabled flag with the shared settings atom (same as ChannelMixer)
+    this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
 
     this.render();
     this.setupEventListeners();
@@ -196,12 +217,15 @@ export class HorizontalMixer {
     // Remove previous root if present
     this.rootEl?.remove();
     this.rootEl = null;
-    // Clear VU state so orphaned channel IDs from the previous render don't linger
+    // Clear both VU state and per-channel analyser tracking so orphaned channel IDs
+    // from a previous render (e.g. chip switch, different song with fewer channels)
+    // don't linger and get iterated every RAF frame or corrupt the analyser gate.
     this.vuState.clear();
+    this.channelsWithActiveAnalyser.clear();
 
     const root = document.createElement('div');
     root.className = 'bb-hmix';
-    root.id = 'bb-horizontal-mixer';
+    root.id = 'bb-daw-mixer';
     if (this.collapsed) root.classList.add('bb-hmix--collapsed');
     if (this.dockMode === 'inline') root.classList.add('bb-hmix--inline');
     if (!this.visible) root.style.display = 'none';
@@ -219,6 +243,7 @@ export class HorizontalMixer {
     toolbar.className = 'bb-hmix__toolbar';
 
     const collapseBtn = document.createElement('button');
+    collapseBtn.type = 'button';
     collapseBtn.className = 'bb-hmix__toolbar-btn' + (this.collapsed ? ' bb-hmix__toolbar-btn--active' : '');
     collapseBtn.title = this.collapsed ? 'Expand mixer' : 'Collapse mixer';
     collapseBtn.setAttribute('aria-label', this.collapsed ? 'Expand mixer' : 'Collapse mixer');
@@ -231,27 +256,33 @@ export class HorizontalMixer {
     const anySoloed0 = Object.values(states0).some(s => s.soloed);
 
     const unmuteBtn = document.createElement('button');
+    unmuteBtn.type = 'button';
     unmuteBtn.className = 'bb-hmix__toolbar-btn';
     unmuteBtn.id = 'bb-hmix-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
     unmuteBtn.setAttribute('aria-label', 'Unmute all channels');
-    unmuteBtn.disabled = !anyMuted0;
+    // Use aria-disabled instead of the native disabled attribute so the button
+    // stays in the tab order and screen readers can announce it as "unavailable"
+    // rather than making it completely invisible to keyboard and AT users.
+    setAriaDisabled(unmuteBtn, !anyMuted0);
     unmuteBtn.innerHTML = icon('speaker-wave', 'w-3.5 h-3.5');
-    unmuteBtn.addEventListener('click', () => unmuteAll());
+    unmuteBtn.addEventListener('click', () => { if (!unmuteBtn.dataset.ariaDisabled) unmuteAll(); });
     toolbar.appendChild(unmuteBtn);
 
     const clearSoloBtn = document.createElement('button');
+    clearSoloBtn.type = 'button';
     clearSoloBtn.className = 'bb-hmix__toolbar-btn';
     clearSoloBtn.id = 'bb-hmix-clear-solo';
     clearSoloBtn.title = 'Clear solo';
     clearSoloBtn.setAttribute('aria-label', 'Clear solo on all channels');
-    clearSoloBtn.disabled = !anySoloed0;
+    setAriaDisabled(clearSoloBtn, !anySoloed0);
     clearSoloBtn.innerHTML = icon('eye', 'w-3.5 h-3.5');
-    clearSoloBtn.addEventListener('click', () => clearAllSolo());
+    clearSoloBtn.addEventListener('click', () => { if (!clearSoloBtn.dataset.ariaDisabled) clearAllSolo(); });
     toolbar.appendChild(clearSoloBtn);
 
     // Dock-mode toggle button
     const dockBtn = document.createElement('button');
+    dockBtn.type = 'button';
     dockBtn.className = 'bb-hmix__toolbar-btn';
     dockBtn.id = 'bb-hmix-dock-mode';
     this.applyDockModeBtn(dockBtn);
@@ -279,7 +310,7 @@ export class HorizontalMixer {
       strips.appendChild(empty);
     } else {
       for (const ch of channels) {
-        this.vuState.set(ch.id, { level: 0, peak: 0, peakTime: 0 });
+        this.vuState.set(ch.id, { level: 0, peak: 0, peakTime: 0, lastUpdateTime: 0 });
         strips.appendChild(this.buildStrip(ch));
       }
     }
@@ -400,6 +431,9 @@ export class HorizontalMixer {
     strip.appendChild(mid);
 
     // ── Info labels below mid (instrument / sequence / pattern) ──────────────
+    // Instrument name — the only text readout kept in the strip.
+    // Pattern and sequence names have moved to the Channel Visualizer panel
+    // (channel-visualizer.ts) where there is dedicated space for them.
     const instEl = document.createElement('div');
     instEl.className = 'bb-hmix__inst';
     instEl.id = `bb-hmix-inst-${ch.id}`;
@@ -407,18 +441,6 @@ export class HorizontalMixer {
     instEl.textContent = defaultInstName;
     instEl.title = `Instrument: ${defaultInstName}`;
     strip.appendChild(instEl);
-
-    const patEl = document.createElement('div');
-    patEl.className = 'bb-hmix__pat';
-    patEl.id = `bb-hmix-pat-${ch.id}`;
-    patEl.textContent = '—';
-    strip.appendChild(patEl);
-
-    const seqEl = document.createElement('div');
-    seqEl.className = 'bb-hmix__seq';
-    seqEl.id = `bb-hmix-seq-${ch.id}`;
-    seqEl.textContent = '—';
-    strip.appendChild(seqEl);
 
     // ── Mute / Solo buttons ───────────────────────────────────────────────────
     const btnRow = document.createElement('div');
@@ -561,29 +583,43 @@ export class HorizontalMixer {
 
       this.eventBus.on('playback:position-changed', ({ channelId, position }) => {
         this.updatePosition(channelId, position);
-        // Only use position-based VU when the per-channel analyser is not active
-        if (!this.analyserActive) {
-          const vuLevel = Math.round(position.progress * VU_SEGMENTS);
-          this.updateVuLevel(channelId, vuLevel);
+        // Gate position-based VU: only use it when the analyser feature is disabled,
+        // OR when the analyser is enabled but hasn't yet emitted a waveform for this
+        // specific channel (first-frame grace period). Mirrors ChannelMixer's
+        // pulse(channelId, !this.analyserEnabled) logic.
+        const channelAnalyserActive = this.analyserEnabled && this.channelsWithActiveAnalyser.has(channelId);
+        if (!channelAnalyserActive) {
+          // position.progress is 0–1 playback *progress*, not amplitude — never use
+          // it as a VU level (it would make the meter crawl from 0 to full over the
+          // song duration). Instead show a fixed nominal level so the user can see
+          // that the channel is active. The analyser (Settings → Per-Channel Analyser)
+          // must be enabled to get real RMS-based levels.
+          this.updateVuLevel(channelId, Math.round(VU_SEGMENTS * 0.5));
         }
       }),
 
       this.eventBus.on('playback:channel-waveform', ({ channelId, samples }) => {
-        this.analyserActive = true;
-        // Compute RMS from waveform samples and map to VU segments
+        // Mark this channel as having an active analyser so position-based VU is suppressed for it
+        this.channelsWithActiveAnalyser.add(channelId);
+        // computeRms() already returns a true RMS value in the 0–1 range
+        // (sqrt(sum/n)). Map it linearly to VU segments — do NOT apply sqrt
+        // again here; a double-sqrt would compress loud signals and boost quiet
+        // ones, making the meter look wrong (low at start, creeping up over time).
         const rms = computeRms(samples);
-        const level = Math.round(Math.sqrt(rms) * VU_SEGMENTS);
+        const level = Math.round(rms * VU_SEGMENTS);
         this.updateVuLevel(channelId, level);
       }),
 
       this.eventBus.on('playback:stopped', () => {
-        this.analyserActive = false;
+        // Clear per-channel analyser tracking so the next playback session starts fresh
+        this.channelsWithActiveAnalyser.clear();
         this.resetAllChannels();
         // Fade VU meters to zero
         for (const state of this.vuState.values()) {
           state.level = 0;
           state.peak = 0;
           state.peakTime = 0;
+          state.lastUpdateTime = 0;
         }
       }),
 
@@ -601,9 +637,9 @@ export class HorizontalMixer {
         const anySoloed = Object.values(states).some(s => s.soloed);
 
         const unmuteAllBtn = document.getElementById('bb-hmix-unmute-all') as HTMLButtonElement | null;
-        if (unmuteAllBtn) unmuteAllBtn.disabled = !anyMuted;
+        if (unmuteAllBtn) setAriaDisabled(unmuteAllBtn, !anyMuted);
         const clearSoloAllBtn = document.getElementById('bb-hmix-clear-solo') as HTMLButtonElement | null;
-        if (clearSoloAllBtn) clearSoloAllBtn.disabled = !anySoloed;
+        if (clearSoloAllBtn) setAriaDisabled(clearSoloAllBtn, !anySoloed);
 
         for (const [id, info] of Object.entries(states)) {
           const channelId = Number(id);
@@ -615,6 +651,18 @@ export class HorizontalMixer {
           const thumbEl = document.getElementById(`bb-hmix-fader-${channelId}`) as HTMLElement | null;
           if (thumbEl) thumbEl.style.top = ((1 - (info.volume ?? 1)) * 100) + '%';
           this.updateAudibilityVisual(channelId);
+        }
+      }),
+
+      // Keep analyserEnabled in sync with the shared settings atom so that the
+      // position-based VU gate is immediately correct when the user toggles the
+      // per-channel analyser feature (matches ChannelMixer's subscription pattern).
+      settingFeaturePerChannelAnalyser.subscribe((val) => {
+        this.analyserEnabled = val;
+        if (!val) {
+          // Analyser turned off: discard stale per-channel tracking so the next
+          // position event is allowed to drive VU meters right away.
+          this.channelsWithActiveAnalyser.clear();
         }
       }),
     );
@@ -634,26 +682,12 @@ export class HorizontalMixer {
   // ─── Real-time updates ───────────────────────────────────────────────────────
 
   private updatePosition(channelId: number, position: PlaybackPosition): void {
+    // Only the instrument name is shown in the DawMixer strip.
+    // Pattern, sequence, and bar readouts are shown in the Channel Visualizer panel.
     const instEl = document.getElementById(`bb-hmix-inst-${channelId}`);
     if (instEl && position.currentInstrument) {
       instEl.textContent = position.currentInstrument;
       instEl.title = `Instrument: ${position.currentInstrument}`;
-    }
-
-    const seqEl = document.getElementById(`bb-hmix-seq-${channelId}`);
-    if (seqEl) {
-      seqEl.textContent = position.sourceSequence ?? '—';
-    }
-
-    const patEl = document.getElementById(`bb-hmix-pat-${channelId}`);
-    if (patEl) {
-      if (position.currentPattern) {
-        patEl.textContent = position.currentPattern;
-      } else if (position.barNumber != null) {
-        patEl.textContent = `Bar ${position.barNumber + 1}`;
-      } else {
-        patEl.textContent = '—';
-      }
     }
   }
 
@@ -666,10 +700,7 @@ export class HorizontalMixer {
         instEl.textContent = defaultInst;
         instEl.title = `Instrument: ${defaultInst}`;
       }
-      const seqEl = document.getElementById(`bb-hmix-seq-${ch.id}`);
-      if (seqEl) seqEl.textContent = '—';
-      const patEl = document.getElementById(`bb-hmix-pat-${ch.id}`);
-      if (patEl) patEl.textContent = '—';
+      // Pattern / sequence readouts live in the Channel Visualizer panel — not reset here.
     }
   }
 
@@ -683,14 +714,16 @@ export class HorizontalMixer {
   private updateVuLevel(channelId: number, level: number): void {
     let state = this.vuState.get(channelId);
     if (!state) {
-      state = { level: 0, peak: 0, peakTime: 0 };
+      state = { level: 0, peak: 0, peakTime: 0, lastUpdateTime: 0 };
       this.vuState.set(channelId, state);
     }
+    const now = Date.now();
     const clamped = Math.max(0, Math.min(VU_SEGMENTS, level));
     state.level = clamped;
+    state.lastUpdateTime = now;
     if (clamped >= state.peak) {
       state.peak = clamped;
-      state.peakTime = Date.now();
+      state.peakTime = now;
     }
   }
 
@@ -732,8 +765,11 @@ export class HorizontalMixer {
         if (state.peak > 0) state.peakTime = now;
       }
 
-      // Naturally decay level (faster than peak)
-      if (state.level > 0) {
+      // Only decay the live level when no update arrived in the current frame
+      // window. Without this guard, level is decremented every ~33 ms by the
+      // RAF loop even while waveform events are actively arriving (just at a
+      // slightly lower rate), making the meter read falsely low.
+      if (state.level > 0 && now - state.lastUpdateTime > RAF_INTERVAL_MS) {
         state.level = Math.max(0, state.level - 1);
       }
 
@@ -741,10 +777,10 @@ export class HorizontalMixer {
       if (!vuEl) continue;
 
       const segs = vuEl.querySelectorAll<HTMLElement>('.bb-hmix__vu-seg');
-      // segs are appended in DOM order from the highest segment index to the lowest
-      // (buildStrip iterates from VU_SEGMENTS-1 down to 0). The CSS `justify-content: flex-end`
-      // inside `.bb-hmix__vu` ensures visual rendering is bottom-to-top (lowest segment at
-      // the bottom, highest at the top), even though DOM order is highest-first.
+      // `.bb-hmix__vu` uses `flex-direction: column` (no reversal). Segments are appended
+      // in DOM order from the highest index down to 0 (buildStrip iterates VU_SEGMENTS-1 → 0),
+      // so the first child in the DOM is the topmost segment visually. No CSS trick is needed:
+      // DOM insertion order alone places the highest segment at the top and the lowest at the bottom.
       // Therefore: segs[0] = segment VU_SEGMENTS-1 (visually top), segs[VU_SEGMENTS-1] = segment 0 (bottom).
       for (let domIdx = 0; domIdx < segs.length; domIdx++) {
         const segIdx = VU_SEGMENTS - 1 - domIdx; // actual 0-based segment number
@@ -767,4 +803,24 @@ function computeRms(samples: Float32Array): number {
     sum += samples[i] * samples[i];
   }
   return Math.sqrt(sum / samples.length);
+}
+
+/**
+ * Toggle the ARIA-disabled state of a toolbar button without using the native
+ * `disabled` attribute. Native `disabled` removes the element from the tab order
+ * entirely, making it invisible to keyboard users and screen readers. Using
+ * `aria-disabled="true"` instead keeps the button focusable and lets AT announce
+ * it as "unavailable", satisfying WCAG 4.1.2 (Name, Role, Value).
+ *
+ * A `data-aria-disabled` mirror is set so click handlers can cheaply bail out
+ * without a DOM attribute lookup each time.
+ */
+function setAriaDisabled(btn: HTMLButtonElement, disabled: boolean): void {
+  if (disabled) {
+    btn.setAttribute('aria-disabled', 'true');
+    btn.dataset.ariaDisabled = 'true';
+  } else {
+    btn.removeAttribute('aria-disabled');
+    delete btn.dataset.ariaDisabled;
+  }
 }
