@@ -2576,9 +2576,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 64px;
-  max-width: 80px;
+  gap: 3px;
+  min-width: 58px;
+  max-width: 76px;
   flex: 1 1 0;
   padding: 4px 4px 6px;
   background: #252526;
@@ -2592,8 +2592,7 @@
   opacity: 0.45;
 }
 
-/* ── Colour accent bar ─────────────────────────────────────────────────────── */
-
+/* Colour accent bar */
 .bb-hmix__accent {
   width: 100%;
   height: 3px;
@@ -2601,8 +2600,7 @@
   flex-shrink: 0;
 }
 
-/* ── Channel label ─────────────────────────────────────────────────────────── */
-
+/* Channel label */
 .bb-hmix__label {
   font-size: 9px;
   font-weight: 700;
@@ -2612,96 +2610,166 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
+  margin-bottom: 10px;
 }
 
-/* ── VU meter ──────────────────────────────────────────────────────────────── */
+/* Mid row: fader (left) and VU meter (right), same fixed width, fills strip height */
+.bb-hmix__mid {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 50px;
+}
+
+/* ---- DAW fader ------------------------------------------------------------ */
+
+.bb-hmix__fader-col {
+  width: 22px;
+  flex-shrink: 0;
+  position: relative;
+  cursor: ns-resize;
+}
+
+.bb-hmix__fader-col--disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* The inner shaft fills the flex-stretched height of fader-col */
+.bb-hmix__fader-shaft {
+  position: absolute;
+  inset: 0;
+}
+
+/* Center rail (pseudo-element) */
+.bb-hmix__fader-shaft::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #666 0%, #3a3a3a 100%);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* Tick marks positioned absolutely within the shaft */
+.bb-hmix__fader-tick {
+  position: absolute;
+  right: 1px;
+  height: 1px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.bb-hmix__fader-tick--major {
+  width: 8px;
+  background: #777;
+}
+
+.bb-hmix__fader-tick--minor {
+  width: 5px;
+  background: #4a4a4a;
+}
+
+/* Draggable fader thumb — horizontal capsule */
+.bb-hmix__fader-thumb {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  height: 8px;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #c0c0c0 0%, #909090 50%, #606060 100%);
+  border: 1px solid #888;
+  border-radius: 2px;
+  cursor: ns-resize;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  z-index: 2;
+}
+
+/* Centre groove line on thumb */
+.bb-hmix__fader-thumb::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.4);
+}
+
+/* ---- VU meter ------------------------------------------------------------ */
 
 .bb-hmix__vu {
+  width: 22px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 1px;
-  width: 18px;
-  flex: 1 1 0;
-  justify-content: flex-end;
+  padding: 5px 0; /* match shaft top/bottom padding so segments align with fader travel */
 }
 
 .bb-hmix__vu-seg {
-  width: 14px;
-  height: 5px;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 3px;
+  max-height: 8px;
   border-radius: 1px;
-  flex-shrink: 0;
   transition: background 0.04s, box-shadow 0.04s;
 }
 
-/* Unlit state (very dim) */
+/* Unlit */
 .bb-hmix__vu-seg--green  { background: #1a3a1a; }
 .bb-hmix__vu-seg--yellow { background: #3a3010; }
 .bb-hmix__vu-seg--red    { background: #3a1010; }
 
-/* Lit state */
+/* Lit */
 .bb-hmix__vu-seg--green.bb-hmix__vu-seg--lit  { background: #4ec94e; box-shadow: 0 0 4px #4ec94e88; }
 .bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--lit { background: #d4b800; box-shadow: 0 0 4px #d4b80088; }
 .bb-hmix__vu-seg--red.bb-hmix__vu-seg--lit    { background: #e04040; box-shadow: 0 0 4px #e0404088; }
 
-/* Peak-hold segment (brighter) */
+/* Peak-hold */
 .bb-hmix__vu-seg--green.bb-hmix__vu-seg--peak  { background: #80ff80; box-shadow: 0 0 6px #80ff8088; }
 .bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--peak { background: #ffe040; box-shadow: 0 0 6px #ffe04088; }
 .bb-hmix__vu-seg--red.bb-hmix__vu-seg--peak    { background: #ff6060; box-shadow: 0 0 6px #ff606088; }
 
-/* ── Info block ──────────────────────────────────────────────────────────────── */
+/* ---- Info labels (below mid) --------------------------------------------- */
 
-.bb-hmix__info {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.bb-hmix__inst,
-.bb-hmix__seq,
-.bb-hmix__pat {
-  font-size: 8px;
+.bb-hmix__inst {
+  font-size: 9px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  max-width: 100%;
-}
-
-.bb-hmix__inst { color: #4affaf; }
-/* sequence shown above pattern in a slightly muted accent tone */
-.bb-hmix__seq  { color: #c8a227; font-style: italic; }
-.bb-hmix__pat  { color: #9cdcfe; }
-
-/* ── Volume fader ─────────────────────────────────────────────────────────── */
-
-.bb-hmix__fader-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  height: 36px;
+  color: #4affaf;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
-.bb-hmix__fader-wrap--disabled {
-  opacity: 0.35;
-  pointer-events: none;
+.bb-hmix__seq,
+.bb-hmix__pat {
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  text-align: center;
+  flex-shrink: 0;
 }
 
-.bb-hmix__fader {
-  -webkit-appearance: slider-vertical;
-  appearance: auto;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 10px;
-  height: 32px;
-  accent-color: var(--bb-accent, #c8a227);
-  cursor: pointer;
-}
+.bb-hmix__seq { color: #c8a227; font-style: italic; }
+.bb-hmix__pat { color: #9cdcfe; }
 
-/* ── Mute/Solo button row ─────────────────────────────────────────────────── */
+/* ---- Mute/Solo button row ------------------------------------------------ */
 
 .bb-hmix__btn-row {
   display: flex;
@@ -2710,7 +2778,7 @@
   flex-shrink: 0;
 }
 
-/* ── Light-mode overrides ─────────────────────────────────────────────────── */
+/* ---- Light-mode overrides ------------------------------------------------ */
 
 [data-theme="light"] .bb-hmix {
   background: #f5f5f5;
@@ -2741,6 +2809,10 @@
 [data-theme="light"] .bb-hmix__vu-seg--green  { background: #c8e8c8; }
 [data-theme="light"] .bb-hmix__vu-seg--yellow { background: #e8e0a0; }
 [data-theme="light"] .bb-hmix__vu-seg--red    { background: #e8c0c0; }
+
+[data-theme="light"] .bb-hmix__fader-shaft::before { background: #bbb; }
+[data-theme="light"] .bb-hmix__fader-tick--major { background: #999; }
+[data-theme="light"] .bb-hmix__fader-thumb { background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%); border-color: #aaa; }
 
 [data-theme="light"] .bb-hmix__inst { color: #007050; }
 [data-theme="light"] .bb-hmix__seq  { color: #9a7110; }

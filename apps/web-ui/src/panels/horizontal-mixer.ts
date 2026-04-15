@@ -338,12 +338,52 @@ export class HorizontalMixer {
     label.style.color = meta.color;
     strip.appendChild(label);
 
-    // ── VU meter ──────────────────────────────────────────────────────────────
+    // ── Mid section: [VOL FADER left] | [VU METER right] ────────────────────
+    const mid = document.createElement('div');
+    mid.className = 'bb-hmix__mid';
+
+    // Volume fader column — LEFT of VU (custom DAW-style fader)
+    const faderCol = document.createElement('div');
+    faderCol.className = 'bb-hmix__fader-col' + (!this.volumeEnabled ? ' bb-hmix__fader-col--disabled' : '');
+    if (!this.volumeEnabled) {
+      const chipName = this.activeChip.charAt(0).toUpperCase() + this.activeChip.slice(1);
+      faderCol.title = `${chipName} uses envelope-driven amplitude — no per-channel volume available`;
+    }
+
+    // Inner shaft (position: absolute so it fills fader-col's flex-stretched height)
+    const shaft = document.createElement('div');
+    shaft.className = 'bb-hmix__fader-shaft';
+
+    // Tick marks at 0% (top/max), 25%, 50%, 75%, 100% (bottom/min)
+    const tickDefs = [0, 25, 50, 75, 100];
+    for (const pct of tickDefs) {
+      const tick = document.createElement('div');
+      const isMajor = pct % 50 === 0;
+      tick.className = 'bb-hmix__fader-tick ' + (isMajor ? 'bb-hmix__fader-tick--major' : 'bb-hmix__fader-tick--minor');
+      tick.style.top = pct + '%';
+      shaft.appendChild(tick);
+    }
+
+    // Draggable thumb
+    const thumbEl = document.createElement('div');
+    thumbEl.className = 'bb-hmix__fader-thumb';
+    thumbEl.id = `bb-hmix-fader-${ch.id}`;
+    const initialVol = info?.volume ?? 1;
+    thumbEl.style.top = ((1 - initialVol) * 100) + '%';
+    shaft.appendChild(thumbEl);
+
+    faderCol.appendChild(shaft);
+    mid.appendChild(faderCol);
+
+    if (this.volumeEnabled) {
+      this.wireFaderDrag(shaft, thumbEl, ch.id);
+    }
+
+    // VU meter — RIGHT of fader
     const vu = document.createElement('div');
     vu.className = 'bb-hmix__vu';
     vu.id = `bb-hmix-vu-${ch.id}`;
-    // Segments are appended in DOM order high→low; CSS uses a normal column
-    // with bottom alignment (justify-content: flex-end), not column-reverse.
+    // Segments appended high→low; CSS justify-content:flex-end keeps lowest at bottom
     for (let i = VU_SEGMENTS - 1; i >= 0; i--) {
       const seg = document.createElement('div');
       seg.className = 'bb-hmix__vu-seg';
@@ -356,63 +396,29 @@ export class HorizontalMixer {
       }
       vu.appendChild(seg);
     }
-    strip.appendChild(vu);
+    mid.appendChild(vu);
+    strip.appendChild(mid);
 
-    // ── Info block (instrument + sequence + pattern) ───────────────────────────
-    const infoBlock = document.createElement('div');
-    infoBlock.className = 'bb-hmix__info';
-
+    // ── Info labels below mid (instrument / sequence / pattern) ──────────────
     const instEl = document.createElement('div');
     instEl.className = 'bb-hmix__inst';
     instEl.id = `bb-hmix-inst-${ch.id}`;
     instEl.dataset.defaultInst = defaultInstName;
     instEl.textContent = defaultInstName;
     instEl.title = `Instrument: ${defaultInstName}`;
-    infoBlock.appendChild(instEl);
+    strip.appendChild(instEl);
 
-    // Sequence name (shown above pattern)
-    const seqEl = document.createElement('div');
-    seqEl.className = 'bb-hmix__seq';
-    seqEl.id = `bb-hmix-seq-${ch.id}`;
-    seqEl.textContent = '—';
-    infoBlock.appendChild(seqEl);
-
-    // Pattern name (shown below sequence)
     const patEl = document.createElement('div');
     patEl.className = 'bb-hmix__pat';
     patEl.id = `bb-hmix-pat-${ch.id}`;
     patEl.textContent = '—';
-    infoBlock.appendChild(patEl);
+    strip.appendChild(patEl);
 
-    strip.appendChild(infoBlock);
-
-    // ── Volume fader (vertical slider) ────────────────────────────────────────
-    const faderWrap = document.createElement('div');
-    faderWrap.className = 'bb-hmix__fader-wrap' + (!this.volumeEnabled ? ' bb-hmix__fader-wrap--disabled' : '');
-
-    const fader = document.createElement('input');
-    fader.type = 'range';
-    fader.className = 'bb-hmix__fader';
-    fader.id = `bb-hmix-fader-${ch.id}`;
-    fader.min = '0';
-    fader.max = '100';
-    fader.step = '1';
-    fader.value = String(Math.round((info?.volume ?? 1) * 100));
-    fader.setAttribute('orient', 'vertical'); // Firefox non-standard attribute for vertical sliders
-    fader.disabled = !this.volumeEnabled;
-
-    if (!this.volumeEnabled) {
-      const chipName = this.activeChip.charAt(0).toUpperCase() + this.activeChip.slice(1);
-      const tooltip = `${chipName} uses envelope-driven amplitude — no per-channel volume available`;
-      fader.title = tooltip;
-      faderWrap.title = tooltip;
-    } else {
-      fader.addEventListener('input', () => {
-        setChannelVolume(ch.id, parseInt(fader.value, 10) / 100);
-      });
-    }
-    faderWrap.appendChild(fader);
-    strip.appendChild(faderWrap);
+    const seqEl = document.createElement('div');
+    seqEl.className = 'bb-hmix__seq';
+    seqEl.id = `bb-hmix-seq-${ch.id}`;
+    seqEl.textContent = '—';
+    strip.appendChild(seqEl);
 
     // ── Mute / Solo buttons ───────────────────────────────────────────────────
     const btnRow = document.createElement('div');
@@ -446,6 +452,39 @@ export class HorizontalMixer {
       return instNode.name ?? instNode.id ?? `Ch${ch.id}`;
     }
     return `Ch${ch.id}`;
+  }
+
+  private wireFaderDrag(shaft: HTMLElement, thumb: HTMLElement, channelId: number): void {
+    const getPct = (e: MouseEvent): number => {
+      const rect = shaft.getBoundingClientRect();
+      if (rect.height === 0) return 0;
+      return Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    };
+    const applyPct = (pct: number) => {
+      thumb.style.top = (pct * 100) + '%';
+      setChannelVolume(channelId, parseFloat((1 - pct).toFixed(3)));
+    };
+    const startDrag = (e: MouseEvent) => {
+      e.preventDefault();
+      const onMove = (ev: MouseEvent) => applyPct(getPct(ev));
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.userSelect = '';
+      };
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+    thumb.addEventListener('mousedown', (e: MouseEvent) => {
+      e.stopPropagation();
+      startDrag(e);
+    });
+    shaft.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.target === thumb) return;
+      applyPct(getPct(e));
+      startDrag(e);
+    });
   }
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
@@ -572,6 +611,9 @@ export class HorizontalMixer {
           if (muteBtn) this.applyMuteStyle(muteBtn, info.muted);
           const soloBtn = document.getElementById(`bb-hmix-solo-${channelId}`) as HTMLButtonElement | null;
           if (soloBtn) this.applySoloStyle(soloBtn, info.soloed);
+          // Sync fader thumb position with current volume (e.g. when changed externally)
+          const thumbEl = document.getElementById(`bb-hmix-fader-${channelId}`) as HTMLElement | null;
+          if (thumbEl) thumbEl.style.top = ((1 - (info.volume ?? 1)) * 100) + '%';
           this.updateAudibilityVisual(channelId);
         }
       }),
