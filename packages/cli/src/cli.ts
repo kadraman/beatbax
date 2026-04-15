@@ -6,7 +6,7 @@ import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/e
 import { configureLogging } from '@beatbax/engine/util/logger';
 import { readFileSync, statSync, existsSync } from 'fs';
 import { resolve as resolvePath } from 'path';
-import { parse } from '@beatbax/engine/parser';
+import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
 const { getUGEDetailedJSON } = engineImports as any;
@@ -54,12 +54,15 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  let ast: any;
-  try {
-    ast = parse(src);
-  } catch (parseErr: any) {
-    const formattedError = filename ? formatParseError(parseErr, filename) : extractErrorMessage(parseErr);
-    errors.push({ message: formattedError });
+  const parseResult = parseWithPeggy(src);
+  let ast: any = parseResult.ast;
+
+  if (parseResult.hasErrors) {
+    for (const parseErr of parseResult.errors) {
+      const errObj: any = { message: parseErr.message, location: parseErr.loc };
+      const formattedError = filename ? formatParseError(errObj, filename) : parseErr.message;
+      errors.push({ message: formattedError, loc: parseErr.loc, component: 'parser' });
+    }
     return { errors, warnings, ast: null as any };
   }
 

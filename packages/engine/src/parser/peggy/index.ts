@@ -4,6 +4,8 @@ import { chipRegistry } from '../../chips/registry.js';
 import {
   AST,
   ChannelNode,
+  ParseError,
+  ParseResult,
   InstMap,
   ParseDiagnostic,
   PatternEvent,
@@ -139,6 +141,7 @@ interface ArrangeStmt extends BaseStmt { nodeType: 'ArrangeStmt'; name: string; 
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
 interface PlayStmt extends BaseStmt { nodeType: 'PlayStmt'; args: string }
 interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; path: string }
+interface ErrorStmt extends BaseStmt { nodeType: 'ErrorStmt'; raw: string }
 
 type Statement =
   | ChipStmt
@@ -156,7 +159,8 @@ type Statement =
   | ArrangeStmt
   | ChannelStmt
   | PlayStmt
-  | ExportStmt;
+  | ExportStmt
+  | ErrorStmt;
 
 interface ProgramNode {
   nodeType: 'Program';
@@ -486,19 +490,103 @@ function enhanceParseError(error: any, source: string): Error {
   return error;
 }
 
-export function parseWithPeggy(source: string): AST {
+const VALID_KEYWORDS = [
+  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep',
+  'song', 'import', 'inst', 'effect', 'pat', 'seq', 'arrange',
+  'channel', 'play', 'export',
+];
+
+function toSourceLocation(loc: any): SourceLocation | undefined {
+  if (!loc?.start) return undefined;
+  return {
+    start: {
+      offset: Number(loc.start.offset ?? 0),
+      line: Number(loc.start.line ?? 1),
+      column: Number(loc.start.column ?? 1),
+    },
+    end: {
+      offset: Number(loc.end?.offset ?? loc.start.offset ?? 0),
+      line: Number(loc.end?.line ?? loc.start.line ?? 1),
+      column: Number(loc.end?.column ?? loc.start.column ?? 1),
+    },
+  };
+}
+
+function createEmptyAST(): AST {
+  return { pats: {}, insts: {}, seqs: {}, channels: [] };
+}
+
+function levenshtein(a: string, b: string): number {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function suggestKeyword(word: string): string | null {
+  const lower = word.toLowerCase();
+  let best: { keyword: string; distance: number } | null = null;
+  for (const kw of VALID_KEYWORDS) {
+    const distance = levenshtein(lower, kw);
+    if (!best || distance < best.distance) best = { keyword: kw, distance };
+  }
+  return best && best.distance <= 2 ? best.keyword : null;
+}
+
+function parseRecoveryError(stmt: ErrorStmt): ParseError {
+  const raw = String(stmt.raw ?? '').trim();
+  const firstWord = raw.split(/\s+/)[0] ?? '';
+  const firstWordLower = firstWord.toLowerCase();
+  let message = `Invalid statement syntax: '${raw || '<empty>'}'.`;
+
+  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !VALID_KEYWORDS.includes(firstWordLower)) {
+    const suggestion = suggestKeyword(firstWord);
+    message = suggestion
+      ? `Unknown keyword '${firstWord}'. Did you mean '${suggestion}'?`
+      : `Unknown keyword '${firstWord}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+  } else if (/^channel\b/i.test(raw) && !raw.includes('=>')) {
+    message = `Channel statement is missing '=>'. Expected: channel <n> => ...`;
+  } else if (/^inst\b/i.test(raw) && /=\s*$/.test(raw)) {
+    message = `Instrument statement is incomplete: missing value after '='.`;
+  } else if (/^seq\b/i.test(raw) && /=\s*$/.test(raw)) {
+    message = `Sequence statement is incomplete: missing sequence content after '='.`;
+  } else if (/^pat\b/i.test(raw) && /=\s*$/.test(raw)) {
+    message = `Pattern statement is incomplete: missing pattern content after '='.`;
+  }
+
+  return { message, loc: stmt.loc, type: 'recovery' };
+}
+
+export function parseWithPeggy(source: string): ParseResult {
   // reset per-parse-run warning flag
   _csvNormalizationWarned = false;
 
   log.debug('Parsing source code', { length: source.length });
 
   let program: ProgramNode;
+  const parseErrors: ParseError[] = [];
   try {
     program = peggyParse(source, {}) as ProgramNode;
     log.debug('Peggy parse complete', { statements: program.body.length });
   } catch (e: any) {
-    log.error('Parse error', e);
-    throw enhanceParseError(e, source);
+    const enhanced = enhanceParseError(e, source) as any;
+    const loc = toSourceLocation(e?.location ?? enhanced?.location);
+    parseErrors.push({
+      message: enhanced?.message ?? String(e),
+      loc,
+      type: 'syntax',
+    });
+    return { ast: createEmptyAST(), errors: parseErrors, hasErrors: true };
   }
   const pats: Record<string, string[]> = {};
   const insts: InstMap = {};
@@ -609,6 +697,10 @@ export function parseWithPeggy(source: string): AST {
       case 'PlayStmt': {
         playNode = parsePlay(stmt.args);
         playLoc = stmt.loc;
+        break;
+      }
+      case 'ErrorStmt': {
+        parseErrors.push(parseRecoveryError(stmt as ErrorStmt));
         break;
       }
       default:
@@ -792,5 +884,5 @@ export function parseWithPeggy(source: string): AST {
 
   log.info(`Parsed successfully: ${Object.keys(pats).length} patterns, ${Object.keys(seqs).length} sequences, ${Object.keys(insts).length} instruments`);
 
-  return ast;
+  return { ast, errors: parseErrors, hasErrors: parseErrors.length > 0 };
 }
