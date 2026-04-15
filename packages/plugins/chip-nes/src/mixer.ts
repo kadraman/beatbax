@@ -25,6 +25,31 @@ export const NES_MIX_GAIN = {
 } as const;
 
 /**
+ * Web Audio loudness normalization factor for NES tone channels.
+ *
+ * The NES hardware mixer weights (NES_MIX_GAIN) are calibrated for combined
+ * PCM output where all five channels sum to ~0.855 at maximum.  In the Web
+ * Audio path each channel feeds directly to `AudioContext.destination`, so
+ * the hardware weights produce gains far below 1.0 per channel (e.g. a pulse
+ * channel at max volume reaches only 15 × 0.00752 ≈ 0.113).
+ *
+ * The built-in Game Boy backends output each channel in the 0–1 range, making
+ * NES songs sound ~9× quieter and the VU meter segments barely light.
+ *
+ * This factor (≈ 8.865) is applied in `createPlaybackNodes()` for pulse,
+ * triangle and noise so that a single tone channel at maximum volume produces
+ * approximately the same loudness as a Game Boy channel at maximum volume.
+ *
+ * The PCM render path (`render()`) intentionally uses the raw NES_MIX_GAIN
+ * values and is unaffected, preserving hardware-accurate CLI output.
+ *
+ * DMC is excluded: its gain is baked into the AudioBuffer during decoding, and
+ * its percussion nature (short transients, 7-bit DPCM) already sits at a
+ * reasonable level relative to the normalised tone channels.
+ */
+export const NES_WEB_AUDIO_NORM = 1.0 / (NES_MIX_GAIN.pulse * 15);
+
+/**
  * Compute the mixed NES output sample using the linear approximation.
  *
  * All inputs should be in the range [0, max] where max matches the hardware

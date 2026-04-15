@@ -44,6 +44,8 @@ export interface LayoutManager {
 export interface ThreePaneLayoutManager extends LayoutManager {
   /** Get the right panel element (for channel controls) */
   getRightPane: () => HTMLElement;
+  /** Get the left content area element (contains editor + output vertically) */
+  getLeftContentArea: () => HTMLElement;
   /** Get the splitter between editor and output (vertical/row resize) */
   getVerticalSplitter: () => HTMLElement;
   /** Get the splitter between left area and right panel (horizontal/col resize) */
@@ -423,6 +425,16 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   leftContentArea.style.flexDirection = 'column';
   leftContentArea.style.overflow = 'hidden';
 
+  // Inner wrapper that takes flex:1 inside leftContentArea so that any extra
+  // children appended to leftContentArea (e.g. the inline mixer host) reserve
+  // their own space without compressing the editor or output pane.
+  const topWrapper = document.createElement('div');
+  topWrapper.style.flex = '1';
+  topWrapper.style.display = 'flex';
+  topWrapper.style.flexDirection = 'column';
+  topWrapper.style.overflow = 'hidden';
+  topWrapper.style.minHeight = '0';
+
   // Editor pane (top of left area)
   const editorPane = document.createElement('div');
   editorPane.id = 'editor-pane';
@@ -458,10 +470,13 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   outputPane.style.fontFamily = 'monospace';
   outputPane.style.fontSize = '12px';
 
-  // Assemble left content area
-  leftContentArea.appendChild(editorPane);
-  leftContentArea.appendChild(verticalSplitter);
-  leftContentArea.appendChild(outputPane);
+  // Assemble left content area: topWrapper holds editor+splitter+output;
+  // leftContentArea holds topWrapper plus any externally appended children
+  // (e.g. the inline mixer host) which get their natural flex-shrink:0 space.
+  topWrapper.appendChild(editorPane);
+  topWrapper.appendChild(verticalSplitter);
+  topWrapper.appendChild(outputPane);
+  leftContentArea.appendChild(topWrapper);
 
   // ========== HORIZONTAL SPLITTER (between left and right) ==========
   const horizontalSplitter = document.createElement('div');
@@ -507,7 +522,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   const handleVerticalMouseMove = (e: MouseEvent) => {
     if (!isVerticalDragging) return;
 
-    const containerRect = leftContentArea.getBoundingClientRect();
+    const containerRect = topWrapper.getBoundingClientRect();
     const newEditorHeight = e.clientY - containerRect.top;
     const containerHeight = containerRect.height;
 
@@ -638,6 +653,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
     container: mainContainer,
     getEditorPane: () => editorPane,
     getOutputPane: () => outputPane,
+    getLeftContentArea: () => leftContentArea,
     getRightPane: () => rightPane,
     getVerticalSplitter: () => verticalSplitter,
     getHorizontalSplitter: () => horizontalSplitter,

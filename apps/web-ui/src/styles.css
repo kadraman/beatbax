@@ -1082,6 +1082,27 @@
 .bb-right-tab-content--active { display: flex; }
 .bb-right-tabs--empty .bb-right-tab-content { display: none !important; }
 
+/* ── Right-pane collapse button ─────────────────────────────────────────────── */
+.bb-right-tab-collapse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 100%;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  color: var(--text-muted, #888);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  margin-left: auto;
+}
+.bb-right-tab-collapse-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
+.bb-right-tab-collapse-btn--collapsed { color: var(--bb-accent, #c8a227); }
+
 /* ─── Keyboard Shortcuts Modal ───────────────────────────────────────────── */
 .bb-shortcuts-modal-backdrop {
   display: none;
@@ -2437,3 +2458,364 @@
   user-select: none;
   /* position (top/bottom/left/right) and opacity are set inline by DebugOverlay */
 }
+
+/* ─── HorizontalMixer — DAW-style bottom-docked channel strip ──────────────── */
+
+#bb-mixer-host {
+  flex-shrink: 0;
+}
+
+.bb-hmix {
+  display: flex;
+  flex-direction: column;
+  height: var(--bb-hmix-height, 200px);
+  background: var(--bb-right-pane-bg, #1e1e1e);
+  border-top: 2px solid var(--bb-accent, #c8a227);
+  overflow: hidden;
+  position: relative;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--bb-fg, #d4d4d4);
+  user-select: none;
+}
+
+.bb-hmix--collapsed {
+  height: 36px !important;
+}
+
+.bb-hmix--collapsed .bb-hmix__strips {
+  display: none;
+}
+
+/* ── Resize handle ─────────────────────────────────────────────────────────── */
+
+.bb-hmix__resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+  background: transparent;
+  z-index: 10;
+}
+
+.bb-hmix__resize-handle:hover {
+  background: var(--bb-accent, #c8a227);
+  opacity: 0.4;
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+
+.bb-hmix__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 28px;
+  flex-shrink: 0;
+  background: var(--bb-toolbar-bg, #2d2d2d);
+  border-bottom: 1px solid var(--bb-toolbar-border, #3c3c3c);
+}
+
+.bb-hmix__toolbar-label {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--bb-accent, #c8a227);
+  text-transform: uppercase;
+}
+
+.bb-hmix__toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #2a2a2a;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.bb-hmix__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
+.bb-hmix__toolbar-btn--active { background: var(--bb-accent-bg, #3d2d08); border-color: var(--bb-accent, #c8a227); color: var(--bb-accent, #c8a227); }
+
+/* ── Strips container ─────────────────────────────────────────────────────── */
+
+.bb-hmix__strips {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 1px;
+  flex: 1 1 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #1a1a1a;
+  padding: 4px;
+}
+
+.bb-hmix__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: #555;
+  font-size: 11px;
+  padding: 8px;
+}
+
+/* ── Channel strip ─────────────────────────────────────────────────────────── */
+
+.bb-hmix__strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 58px;
+  max-width: 76px;
+  flex: 1 1 0;
+  padding: 4px 4px 6px;
+  background: #252526;
+  border: 1px solid #333;
+  border-radius: 4px;
+  position: relative;
+  transition: opacity 0.15s;
+}
+
+.bb-hmix__strip--silent {
+  opacity: 0.45;
+}
+
+/* Colour accent bar */
+.bb-hmix__accent {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  flex-shrink: 0;
+}
+
+/* Channel label */
+.bb-hmix__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* Mid row: fader (left) and VU meter (right), same fixed width, fills strip height */
+.bb-hmix__mid {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 50px;
+}
+
+/* ---- DAW fader ------------------------------------------------------------ */
+
+.bb-hmix__fader-col {
+  width: 22px;
+  flex-shrink: 0;
+  position: relative;
+  cursor: ns-resize;
+}
+
+.bb-hmix__fader-col--disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* The inner shaft fills the flex-stretched height of fader-col */
+.bb-hmix__fader-shaft {
+  position: absolute;
+  inset: 0;
+}
+
+/* Center rail (pseudo-element) */
+.bb-hmix__fader-shaft::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #666 0%, #3a3a3a 100%);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* Tick marks positioned absolutely within the shaft */
+.bb-hmix__fader-tick {
+  position: absolute;
+  right: 1px;
+  height: 1px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.bb-hmix__fader-tick--major {
+  width: 8px;
+  background: #777;
+}
+
+.bb-hmix__fader-tick--minor {
+  width: 5px;
+  background: #4a4a4a;
+}
+
+/* Draggable fader thumb — horizontal capsule */
+.bb-hmix__fader-thumb {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  height: 8px;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #c0c0c0 0%, #909090 50%, #606060 100%);
+  border: 1px solid #888;
+  border-radius: 2px;
+  cursor: ns-resize;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  z-index: 2;
+}
+
+/* Centre groove line on thumb */
+.bb-hmix__fader-thumb::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.4);
+}
+
+/* ---- VU meter ------------------------------------------------------------ */
+
+.bb-hmix__vu {
+  width: 22px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 5px 0; /* match shaft top/bottom padding so segments align with fader travel */
+}
+
+.bb-hmix__vu-seg {
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 3px;
+  max-height: 8px;
+  border-radius: 1px;
+  transition: background 0.04s, box-shadow 0.04s;
+}
+
+/* Unlit */
+.bb-hmix__vu-seg--green  { background: #1a3a1a; }
+.bb-hmix__vu-seg--yellow { background: #3a3010; }
+.bb-hmix__vu-seg--red    { background: #3a1010; }
+
+/* Lit */
+.bb-hmix__vu-seg--green.bb-hmix__vu-seg--lit  { background: #4ec94e; box-shadow: 0 0 4px #4ec94e88; }
+.bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--lit { background: #d4b800; box-shadow: 0 0 4px #d4b80088; }
+.bb-hmix__vu-seg--red.bb-hmix__vu-seg--lit    { background: #e04040; box-shadow: 0 0 4px #e0404088; }
+
+/* Peak-hold */
+.bb-hmix__vu-seg--green.bb-hmix__vu-seg--peak  { background: #80ff80; box-shadow: 0 0 6px #80ff8088; }
+.bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--peak { background: #ffe040; box-shadow: 0 0 6px #ffe04088; }
+.bb-hmix__vu-seg--red.bb-hmix__vu-seg--peak    { background: #ff6060; box-shadow: 0 0 6px #ff606088; }
+
+/* ---- Info labels (below mid) --------------------------------------------- */
+
+.bb-hmix__inst {
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  width: 100%;
+  color: #4affaf;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.bb-hmix__seq,
+.bb-hmix__pat {
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.bb-hmix__seq { color: #c8a227; font-style: italic; }
+.bb-hmix__pat { color: #9cdcfe; }
+
+/* ---- Mute/Solo button row ------------------------------------------------ */
+
+.bb-hmix__btn-row {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* ---- Light-mode overrides ------------------------------------------------ */
+
+[data-theme="light"] .bb-hmix {
+  background: #f5f5f5;
+  border-top-color: var(--bb-accent, #9a7110);
+  color: #333;
+}
+
+[data-theme="light"] .bb-hmix__toolbar {
+  background: #ebebeb;
+  border-bottom-color: #ccc;
+}
+
+[data-theme="light"] .bb-hmix__toolbar-btn {
+  background: #e0e0e0;
+  border-color: #bbb;
+  color: #555;
+}
+
+[data-theme="light"] .bb-hmix__strips {
+  background: #e8e8e8;
+}
+
+[data-theme="light"] .bb-hmix__strip {
+  background: #f0f0f0;
+  border-color: #ccc;
+}
+
+[data-theme="light"] .bb-hmix__vu-seg--green  { background: #c8e8c8; }
+[data-theme="light"] .bb-hmix__vu-seg--yellow { background: #e8e0a0; }
+[data-theme="light"] .bb-hmix__vu-seg--red    { background: #e8c0c0; }
+
+[data-theme="light"] .bb-hmix__fader-shaft::before { background: #bbb; }
+[data-theme="light"] .bb-hmix__fader-tick--major { background: #999; }
+[data-theme="light"] .bb-hmix__fader-thumb { background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%); border-color: #aaa; }
+
+[data-theme="light"] .bb-hmix__inst { color: #007050; }
+[data-theme="light"] .bb-hmix__seq  { color: #9a7110; }
+[data-theme="light"] .bb-hmix__pat  { color: #0060a0; }
+
+[data-theme="light"] .bb-hmix__label { color: inherit; }
