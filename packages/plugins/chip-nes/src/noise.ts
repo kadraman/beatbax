@@ -13,7 +13,7 @@
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NOISE_PERIOD_TABLE, NES_CLOCK } from './periodTables.js';
-import { NES_MIX_GAIN } from './mixer.js';
+import { NES_MIX_GAIN, NES_WEB_AUDIO_NORM } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve,
@@ -270,7 +270,7 @@ export class NESNoiseBackend implements ChipChannelBackend {
     const gainNode = (ctx as any).createGain();
     const volEnvM = parseMacro(inst.vol_env);
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise * NES_WEB_AUDIO_NORM, dur);
       try {
         gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -306,12 +306,10 @@ function applyNESNoiseEnvelopeToGain(
   start: number,
   dur: number
 ): void {
-  // Match the PCM render path exactly: gain = NES_MIX_GAIN.noise * volume (0-15).
-  // The original code divided by 15 before multiplying by mixGain, which made
-  // Web Audio noise 15× quieter than the CLI PCM output.
-  // LFSR buffer values are ±1, so gain = cur * NES_MIX_GAIN.noise gives a peak
-  // amplitude of 0.0741 at vol=15 — identical to the render() path.
-  const mixGain = NES_MIX_GAIN.noise;
+  // Apply NES_WEB_AUDIO_NORM so the noise channel sits at a comparable loudness to
+  // the Game Boy backends in the browser.  The PCM render() path uses raw NES_MIX_GAIN
+  // and is unaffected.
+  const mixGain = NES_MIX_GAIN.noise * NES_WEB_AUDIO_NORM;
   const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.

@@ -9,6 +9,7 @@ import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
   settingChannelCompact,
+  settingFeatureDawMixer,
 } from '../../stores/settings.store';
 
 export function buildGeneralSection(): HTMLElement {
@@ -86,10 +87,33 @@ export function buildGeneralSection(): HTMLElement {
     eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: v });
   }, settingShowPatternGrid.subscribe));
 
-  el.appendChild(toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
+  const mixerRow = toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
-    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: v });
-  }, settingShowChannelMixer.subscribe));
+    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: v });
+  }, settingShowChannelMixer.subscribe);
+  // Disable the toggle when the Channel Mixer feature flag is off.
+  const mixerInput = mixerRow.querySelector<HTMLInputElement>('input');
+  const applyMixerFeatureGate = (featureEnabled: boolean): void => {
+    if (!mixerInput) return;
+    mixerInput.disabled = !featureEnabled;
+    (mixerRow as HTMLElement).style.opacity = featureEnabled ? '' : '0.5';
+    (mixerRow as HTMLElement).title = featureEnabled
+      ? ''
+      : 'Enable Channel Mixer in Settings → Features first';
+  };
+  let firstMixerFeatCall = true;
+  const unsubMixerFeat = settingFeatureDawMixer.subscribe((v) => {
+    if (firstMixerFeatCall) { firstMixerFeatCall = false; }
+    applyMixerFeatureGate(v);
+  });
+  const mixerFeatObserver = new MutationObserver(() => {
+    if (!(mixerRow as HTMLElement).isConnected) {
+      unsubMixerFeat();
+      mixerFeatObserver.disconnect();
+    }
+  });
+  mixerFeatObserver.observe(document.body, { childList: true, subtree: true });
+  el.appendChild(mixerRow);
 
   return el;
 }

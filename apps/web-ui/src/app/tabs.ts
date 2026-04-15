@@ -262,6 +262,33 @@ export function buildRightTabs(
     rightTabs.appendChild(content);
   }
 
+  // ── Collapse / expand button at the far right of the tab bar ─────────────
+  // Mirrors the HorizontalMixer collapse button so users can hide the right
+  // pane without closing individual tabs.
+  let rightPaneCollapsed = false;
+  const collapseBtn = document.createElement('button');
+  collapseBtn.className = 'bb-right-tab-collapse-btn';
+  collapseBtn.title = 'Collapse panel';
+  collapseBtn.setAttribute('aria-label', 'Collapse right panel');
+  collapseBtn.textContent = '⟩';
+  collapseBtn.addEventListener('click', () => {
+    rightPaneCollapsed = !rightPaneCollapsed;
+    if (rightPaneCollapsed) {
+      layout.setRightPaneVisible(false);
+      collapseBtn.title = 'Expand panel';
+      collapseBtn.setAttribute('aria-label', 'Expand right panel');
+      collapseBtn.textContent = '⟨';
+      collapseBtn.classList.add('bb-right-tab-collapse-btn--collapsed');
+    } else {
+      layout.setRightPaneVisible(true);
+      collapseBtn.title = 'Collapse panel';
+      collapseBtn.setAttribute('aria-label', 'Collapse right panel');
+      collapseBtn.textContent = '⟩';
+      collapseBtn.classList.remove('bb-right-tab-collapse-btn--collapsed');
+    }
+  });
+  tabBar.appendChild(collapseBtn);
+
   // Initial switch (writes 'channels' to localStorage — saved tab was already captured above).
   switchTab('channels');
 
