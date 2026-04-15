@@ -1,6 +1,6 @@
 ---
 title: "DAW-Style Horizontal Channel Mixer with VU Meters"
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-04-04
 issue: "https://github.com/kadraman/beatbax/issues/75"
@@ -72,7 +72,7 @@ Each channel strip from left to right:
 
 ### In scope
 
-- New `HorizontalMixer` component (`apps/web-ui/src/panels/horizontal-mixer.ts`) replacing the current `ChannelMixer` class in `channel-mixer.ts` for the bottom-docked position.
+- New `DawMixer` component (`apps/web-ui/src/panels/daw-mixer.ts`) replacing the current `ChannelMixer` class in `channel-mixer.ts` for the bottom-docked position.
 - Per-channel **VU-meter** bars: 12 vertical segments per channel, animated at ~30 fps via `requestAnimationFrame`.
   - Segment colours: green (segs 1–8), yellow (segs 9–10), red (segs 11–12).
   - Peak-hold: highest segment lit for ~1.5 s then decays.
@@ -99,7 +99,7 @@ Each channel needs its own `AnalyserNode` tapped from the audio graph, consisten
 
 1. In `GameBoyAPU` (or whichever chip backend), a `GainNode → AnalyserNode` tap is inserted before each channel feeds the master output.
 2. The analyser nodes are exposed via the playback engine API (e.g. `playbackEngine.getChannelAnalyser(channelId): AnalyserNode | null`).
-3. The `HorizontalMixer` calls `getFloatFrequencyData` / `getByteTimeDomainData` on each analyser inside its RAF loop.
+3. The `DawMixer` calls `getFloatFrequencyData` / `getByteTimeDomainData` on each analyser inside its RAF loop.
 
 If `getChannelAnalyser` returns `null` (engine not running, OfflineAudioContext render, or no audio context), the VU meters show zero / idle state with no error.
 
@@ -107,9 +107,9 @@ If `getChannelAnalyser` returns `null` (engine not running, OfflineAudioContext 
 
 ## Migration Plan
 
-1. The existing `ChannelMixer` (`channel-mixer.ts`) is **kept as-is** during development and removed once `HorizontalMixer` reaches feature parity.
+1. The existing `ChannelMixer` (`channel-mixer.ts`) is **kept as-is** during development and removed once `DawMixer` reaches feature parity.
 2. The bottom-docked host `div` (`#bb-mixer-host`) is added to `buildAppLayout()` below the three-pane layout.
-3. `main.ts` instantiates `HorizontalMixer` and wires the same events (`parse:success`, `playback:position-changed`, `playback:stopped`, `playback:paused`, `playback:resumed`).
+3. `main.ts` instantiates `DawMixer` and wires the same events (`parse:success`, `playback:position-changed`, `playback:stopped`, `playback:paused`, `playback:resumed`).
 4. The old right-pane channel mixer is hidden by default; a flag in `localStorage` (`panel.channel-mixer-legacy`) can re-enable it during transition.
 
 ---

@@ -101,7 +101,7 @@ describe('SECTION_KEYS', () => {
   it('general section includes all panel visibility keys', () => {
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_TOOLBAR);
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_TRANSPORT_BAR);
-    expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_CHANNEL_MIXER);
+    expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_DAW_MIXER);
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_PATTERN_GRID);
   });
 

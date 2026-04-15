@@ -56,12 +56,12 @@ const FEATURES: FeatureEntry[] = [
     onToggle: (enabled) => (window as any).__beatbax_setPerChannelAnalyser?.(enabled),
   },
   {
-    label: 'DAW channel mixer',
-    description: 'Horizontal channel strip with VU meters and faders docked at the bottom of the editor. Includes per-channel real-time waveform displays (WebAudio AnalyserNode — adds CPU overhead).',
-    badge: 'Planned',
+    label: 'Channel Mixer',
+    description: 'Horizontal channel strip with VU meters docked at the bottom of the editor. Each channel shows instrument, sequence, and pattern readouts plus mute/solo controls. Can be toggled between full-width and inline (beside the output panel) dock modes.',
+    badge: 'Beta',
     flag: FeatureFlag.DAW_MIXER,
     atom: settingFeatureDawMixer,
-    planned: true,
+    onToggle: (enabled) => (window as any).__beatbax_toggleChannelMixer?.(enabled),
   },
 ];
 

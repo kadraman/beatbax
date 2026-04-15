@@ -142,7 +142,7 @@ export class MenuBar {
     ['problems', true],
     ['help', true],
     ['shortcuts', true],
-    ['channel-mixer', true],
+    ['daw-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
     ['ai-assistant', false],
@@ -178,6 +178,15 @@ export class MenuBar {
     for (const [panel, visible] of Object.entries(states)) {
       this.panelVisible.set(panel, visible);
     }
+  }
+
+  /** Enable or disable a menu item at runtime by its id. */
+  setItemEnabled(id: string, enabled: boolean): void {
+    const li = this.el.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    if (!li) return;
+    li.classList.toggle('bb-menu__item--disabled', !enabled);
+    li.setAttribute('aria-disabled', String(!enabled));
+    if (enabled) { li.tabIndex = -1; } else { li.removeAttribute('tabindex'); }
   }
 
   triggerNew(): void { this.opts.onNew?.(); }
@@ -283,14 +292,17 @@ export class MenuBar {
     if (!def.disabled && def.action) {
       li.tabIndex = -1;
       li.addEventListener('click', () => {
+        if (li.classList.contains('bb-menu__item--disabled')) return;
         this.closeAll();
         def.action!();
       });
       li.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          this.closeAll();
-          def.action!();
+          if (!li.classList.contains('bb-menu__item--disabled')) {
+            this.closeAll();
+            def.action!();
+          }
         }
         this.handleItemKeydown(e, li);
       });
@@ -503,9 +515,10 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Channel Mixer',
-        icon: 'squares-2x2',
-        shortcut: 'Ctrl+Shift+Y',
-        action: () => this.emitPanelToggle('channel-mixer'),
+        icon: 'adjustments-horizontal',
+        shortcut: 'Ctrl+Shift+M',
+        id: 'channel-mixer-toggle',
+        action: () => this.emitPanelToggle('daw-mixer'),
       },
       {
         type: 'item',
@@ -808,7 +821,7 @@ export class MenuBar {
           break;
         case 'm':
           e.preventDefault();
-          this.emitPanelToggle('channel-mixer');
+          this.emitPanelToggle('daw-mixer');
           break;
         case 'b':
           e.preventDefault();
