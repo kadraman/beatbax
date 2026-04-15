@@ -11,6 +11,7 @@ export function parse(source: string): AST {
   const result = parseWithPeggy(normalized);
   if (result.hasErrors) {
     const first = result.errors[0];
+    if (!first) throw new Error('Parse error');
     const err: any = new Error(first?.message ?? 'Parse error');
     if (first?.loc) {
       err.location = first.loc;

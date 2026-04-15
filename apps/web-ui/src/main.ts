@@ -1144,9 +1144,7 @@ async function emitParse(content: string): Promise<void> {
       if (d.level === 'error') errors.push(entry); else warnings.push(entry);
     }
 
-    // If grammar recovery produced syntax errors, skip resolver but still surface
-    // all diagnostics in one pass so users can fix multiple issues at once.
-    if (parseResult.hasErrors) {
+    const publishValidation = () => {
       eventBus.emit('validation:errors', { errors });
       validationErrorsAtom.set(errors);
       eventBus.emit('validation:warnings', { warnings });
@@ -1155,7 +1153,17 @@ async function emitParse(content: string): Promise<void> {
         ...errors.map(e => ({ ...e, level: 'error' as const })),
         ...warnings.map(w => ({ ...w, level: 'warning' as const })),
       ];
-      diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
+      if (allDiags.length > 0) {
+        diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
+      } else {
+        diagnosticsManager?.clear?.();
+      }
+    };
+
+    // If grammar recovery produced syntax errors, skip resolver but still surface
+    // all diagnostics in one pass so users can fix multiple issues at once.
+    if (parseResult.hasErrors) {
+      publishValidation();
       parseStatus.set('error');
       return;
     }
@@ -1178,24 +1186,7 @@ async function emitParse(content: string): Promise<void> {
       return;
     }
 
-    // Emit errors (disables Play button, shows in Problems > Errors)
-    eventBus.emit('validation:errors', { errors });
-    validationErrorsAtom.set(errors);
-
-    // Emit warnings (informational only)
-    eventBus.emit('validation:warnings', { warnings });
-    validationWarningsAtom.set(warnings);
-
-    // Update Monaco markers for both (preserve level so errors get red squiggles)
-    const allDiags = [
-      ...errors.map(e => ({ ...e, level: 'error' as const })),
-      ...warnings.map(w => ({ ...w, level: 'warning' as const })),
-    ];
-    if (allDiags.length > 0) {
-      diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
-    } else {
-      diagnosticsManager?.clear?.();
-    }
+    publishValidation();
 
     eventBus.emit('parse:success', { ast, song, sourceBpm: (ast as any).bpm ?? 120 });
     parseStatus.set('success');
