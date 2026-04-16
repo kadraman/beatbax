@@ -1,5 +1,13 @@
 # @beatbax/plugin-chip-nes
 
+## 2.0.0
+
+### Patch Changes
+
+- 1a07f2f: Normalised volume so that maximum amplitude matches the Game Boy backends in the browser.
+- Updated dependencies [30f54a1]
+  - @beatbax/engine@0.10.0
+
 ## 1.0.0
 
 ### Minor Changes
