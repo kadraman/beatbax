@@ -55,6 +55,8 @@ export interface ThreePaneLayoutManager extends LayoutManager {
    * the full width when hidden, or restoring layout sizes when shown.
    */
   setRightPaneVisible: (visible: boolean) => void;
+  /** Get the thin expand strip shown when the right pane is collapsed. */
+  getRightPaneExpandStrip: () => HTMLElement;
   /**
    * Show or hide the output pane + its splitter, expanding the editor to fill
    * the full height when hidden, or restoring layout sizes when shown.
@@ -503,10 +505,16 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   rightPane.style.overflow = 'auto';
   rightPane.style.padding = '10px';
 
+  // Thin strip shown when the right pane is collapsed, so the user can expand it again.
+  const rightPaneExpandStrip = document.createElement('div');
+  rightPaneExpandStrip.className = 'bb-right-expand-strip';
+  rightPaneExpandStrip.style.display = 'none';
+
   // Assemble main layout
   mainContainer.appendChild(leftContentArea);
   mainContainer.appendChild(horizontalSplitter);
   mainContainer.appendChild(rightPane);
+  mainContainer.appendChild(rightPaneExpandStrip);
   container.appendChild(mainContainer);
 
   // ========== VERTICAL DRAGGING LOGIC (editor/output split) ==========
@@ -660,9 +668,11 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
     setRightPaneVisible(visible: boolean): void {
       rightPane.style.display = visible ? '' : 'none';
       horizontalSplitter.style.display = visible ? '' : 'none';
+      rightPaneExpandStrip.style.display = visible ? 'none' : 'flex';
       leftContentArea.style.width = visible ? `${leftAreaWidth}%` : '100%';
       window.dispatchEvent(new Event('resize'));
     },
+    getRightPaneExpandStrip: () => rightPaneExpandStrip,
     setOutputPaneVisible(visible: boolean): void {
       // Use 'flex' (not '') to restore — outputPane is repurposed as a flex
       // column tab container by main.ts, so '' would revert to block and

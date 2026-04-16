@@ -171,20 +171,51 @@ export async function loadFromQueryParams(
   }
 }
 
+/** A single song entry inside an example group. */
+export interface ExampleSong {
+  label: string;
+  path: string;
+}
+
+/** A named group of songs, e.g. for a specific chip. */
+export interface ExampleSongGroup {
+  /** Display label for the group (e.g. "Game Boy", "NES"). */
+  group: string;
+  songs: ExampleSong[];
+}
+
 /**
- * Built-in example songs (relative paths served by Vite)
+ * Built-in example songs grouped by chip / category (paths served by Vite).
  */
-export const EXAMPLE_SONGS: Array<{ label: string; path: string }> = [
-  { label: 'sample.bax', path: '/songs/sample.bax' },
-  { label: 'a_trainers_journey.bax', path: '/songs/a_trainers_journey.bax' },
-  { label: 'crypt_of_fallen_kings.bax', path: '/songs/crypt_of_fallen_kings.bax' },
-  { label: 'digital_citadel.bax', path: '/songs/digital_citadel.bax' },
-  { label: 'grassland_dash.bax', path: '/songs/grassland_dash.bax' },
-  { label: 'graveyard_shift.bax', path: '/songs/graveyard_shift.bax' },
-  { label: 'heroes_call.bax', path: '/songs/heroes_call.bax' },
-  { label: 'mystic_voyage.bax', path: '/songs/mystic_voyage.bax' },
-  { label: 'night_hawk.bax', path: '/songs/night_hawk.bax' },
+export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
+  {
+    group: 'Game Boy',
+    songs: [
+      { label: 'a_trainers_journey.bax',     path: '/songs/gameboy/a_trainers_journey.bax' },
+      { label: 'crypt_of_fallen_kings.bax',  path: '/songs/gameboy/crypt_of_fallen_kings.bax' },
+      { label: 'digital_citadel.bax',        path: '/songs/gameboy/digital_citadel.bax' },
+      { label: 'grassland_dash.bax',         path: '/songs/gameboy/grassland_dash.bax' },
+      { label: 'graveyard_shift.bax',        path: '/songs/gameboy/graveyard_shift.bax' },
+      { label: 'heroes_call.bax',            path: '/songs/gameboy/heroes_call.bax' },
+      { label: 'mystic_voyage.bax',          path: '/songs/gameboy/mystic_voyage.bax' },
+      { label: 'night_hawk.bax',             path: '/songs/gameboy/night_hawk.bax' },
+    ],
+  },
+  {
+    group: 'NES',
+    songs: [
+      { label: 'duck_tales.bax',             path: '/songs/gameboy/duck_tales.bax' },
+      { label: 'kingdom_hall.bax',           path: '/songs/gameboy/kingdom_hall.bax' },
+      { label: 'wily_fortress.bax',          path: '/songs/nes/wily_fortress.bax' },
+    ],
+  },
 ];
+
+/**
+ * Flat list of all example songs — kept for backward compatibility with code
+ * that still consumes the old `EXAMPLE_SONGS` array.
+ */
+export const EXAMPLE_SONGS: ExampleSong[] = EXAMPLE_SONG_GROUPS.flatMap(g => g.songs);
 
 /**
  * RemoteLoader class - manages remote URL loading

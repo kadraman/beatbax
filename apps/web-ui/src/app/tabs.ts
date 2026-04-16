@@ -271,22 +271,41 @@ export function buildRightTabs(
   collapseBtn.title = 'Collapse panel';
   collapseBtn.setAttribute('aria-label', 'Collapse right panel');
   collapseBtn.textContent = '⟩';
+
+  // ── Expand strip (thin sidebar visible when pane is collapsed) ────────────
+  const expandStrip = layout.getRightPaneExpandStrip();
+  expandStrip.title = 'Expand panel';
+  expandStrip.setAttribute('aria-label', 'Expand right panel');
+  const expandStripBtn = document.createElement('button');
+  expandStripBtn.className = 'bb-right-expand-strip__btn';
+  expandStripBtn.title = 'Expand panel';
+  expandStripBtn.setAttribute('aria-label', 'Expand right panel');
+  expandStripBtn.textContent = '⟨';
+  expandStrip.appendChild(expandStripBtn);
+
+  const doCollapse = () => {
+    rightPaneCollapsed = true;
+    layout.setRightPaneVisible(false);
+    collapseBtn.title = 'Expand panel';
+    collapseBtn.setAttribute('aria-label', 'Expand right panel');
+    collapseBtn.textContent = '⟨';
+    collapseBtn.classList.add('bb-right-tab-collapse-btn--collapsed');
+  };
+
+  const doExpand = () => {
+    rightPaneCollapsed = false;
+    layout.setRightPaneVisible(true);
+    collapseBtn.title = 'Collapse panel';
+    collapseBtn.setAttribute('aria-label', 'Collapse right panel');
+    collapseBtn.textContent = '⟩';
+    collapseBtn.classList.remove('bb-right-tab-collapse-btn--collapsed');
+  };
+
   collapseBtn.addEventListener('click', () => {
-    rightPaneCollapsed = !rightPaneCollapsed;
-    if (rightPaneCollapsed) {
-      layout.setRightPaneVisible(false);
-      collapseBtn.title = 'Expand panel';
-      collapseBtn.setAttribute('aria-label', 'Expand right panel');
-      collapseBtn.textContent = '⟨';
-      collapseBtn.classList.add('bb-right-tab-collapse-btn--collapsed');
-    } else {
-      layout.setRightPaneVisible(true);
-      collapseBtn.title = 'Collapse panel';
-      collapseBtn.setAttribute('aria-label', 'Collapse right panel');
-      collapseBtn.textContent = '⟩';
-      collapseBtn.classList.remove('bb-right-tab-collapse-btn--collapsed');
-    }
+    rightPaneCollapsed ? doExpand() : doCollapse();
   });
+  expandStripBtn.addEventListener('click', doExpand);
+  expandStrip.addEventListener('click', doExpand);
   tabBar.appendChild(collapseBtn);
 
   // Initial switch (writes 'channels' to localStorage — saved tab was already captured above).

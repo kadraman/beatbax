@@ -268,6 +268,12 @@ export class HelpPanel {
     });
   }
 
+  /** Re-render the body in-place (e.g. after shortcuts are registered). */
+  refresh(): void {
+    const body = this.container.querySelector<HTMLElement>('.bb-help__body');
+    if (body) this.renderBody(body);
+  }
+
   dispose(): void {
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
