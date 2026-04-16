@@ -14,7 +14,7 @@ describe('Peggy structured parsing', () => {
   // Peggy is the only supported parser now; no runtime parser selection.
 
   test('emits structured patternEvents and sequenceItems', () => {
-    const ast = parseWithPeggy(sampleSource);
+    const ast = parseWithPeggy(sampleSource).ast;
 
     expect(ast.patternEvents?.main?.[0]).toMatchObject({ kind: 'note', value: 'C4', duration: 2 });
     expect(ast.patternEvents?.main?.[1]).toMatchObject({ kind: 'temp-inst', name: 'bass', duration: 2 });
@@ -26,7 +26,7 @@ describe('Peggy structured parsing', () => {
   });
 
   test('resolver consumes structured data when token maps are empty', () => {
-    const ast = parseWithPeggy(sampleSource);
+    const ast = parseWithPeggy(sampleSource).ast;
     ast.pats = {};
     ast.seqs = {};
 
@@ -38,7 +38,7 @@ describe('Peggy structured parsing', () => {
   });
 
   test('resolver prioritizes structured when both structured and legacy maps exist', () => {
-    const ast = parseWithPeggy(sampleSource);
+    const ast = parseWithPeggy(sampleSource).ast;
     // Legacy maps with different content to ensure structured wins
     ast.pats = { main: ['LEGACY'] };
     ast.seqs = { chorus: ['LEGACY_SEQ'] };

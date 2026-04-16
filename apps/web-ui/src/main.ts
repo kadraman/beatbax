@@ -18,7 +18,7 @@ import { loadPluginsFromStorage } from './plugins/registry-config';
 loadPluginsFromStorage();
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { parse } from '@beatbax/engine/parser';
+import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
 import {
   createLogger,
@@ -1130,14 +1130,42 @@ async function emitParse(content: string): Promise<void> {
   try {
     eventBus.emit('parse:started', undefined);
     parseStatus.set('parsing');
-    const ast = parse(content);
+    const parseResult = parseWithPeggy(content);
+    const ast = parseResult.ast;
 
     // Split parser diagnostics into errors and warnings
     const errors: Array<{ component: string; message: string; loc?: any }> = [];
     const warnings: Array<{ component: string; message: string; loc?: any }> = [];
+    for (const e of parseResult.errors) {
+      errors.push({ component: 'parser', message: e.message, loc: e.loc });
+    }
     for (const d of ((ast as any).diagnostics ?? [])) {
       const entry = { component: d.component ?? 'parser', message: d.message, loc: d.loc };
       if (d.level === 'error') errors.push(entry); else warnings.push(entry);
+    }
+
+    const publishValidation = () => {
+      eventBus.emit('validation:errors', { errors });
+      validationErrorsAtom.set(errors);
+      eventBus.emit('validation:warnings', { warnings });
+      validationWarningsAtom.set(warnings);
+      const allDiags = [
+        ...errors.map(e => ({ ...e, level: 'error' as const })),
+        ...warnings.map(w => ({ ...w, level: 'warning' as const })),
+      ];
+      if (allDiags.length > 0) {
+        diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
+      } else {
+        diagnosticsManager?.clear?.();
+      }
+    };
+
+    // If grammar recovery produced syntax errors, skip resolver but still surface
+    // all diagnostics in one pass so users can fix multiple issues at once.
+    if (parseResult.hasErrors) {
+      publishValidation();
+      parseStatus.set('error');
+      return;
     }
 
     // Run the resolver to surface arrange/expand warnings.
@@ -1158,24 +1186,7 @@ async function emitParse(content: string): Promise<void> {
       return;
     }
 
-    // Emit errors (disables Play button, shows in Problems > Errors)
-    eventBus.emit('validation:errors', { errors });
-    validationErrorsAtom.set(errors);
-
-    // Emit warnings (informational only)
-    eventBus.emit('validation:warnings', { warnings });
-    validationWarningsAtom.set(warnings);
-
-    // Update Monaco markers for both (preserve level so errors get red squiggles)
-    const allDiags = [
-      ...errors.map(e => ({ ...e, level: 'error' as const })),
-      ...warnings.map(w => ({ ...w, level: 'warning' as const })),
-    ];
-    if (allDiags.length > 0) {
-      diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
-    } else {
-      diagnosticsManager?.clear?.();
-    }
+    publishValidation();
 
     eventBus.emit('parse:success', { ast, song, sourceBpm: (ast as any).bpm ?? 120 });
     parseStatus.set('success');

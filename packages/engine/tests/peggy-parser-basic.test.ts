@@ -24,7 +24,7 @@ describe('peggy parser parity', () => {
   });
 
   test('parse() delegates to Peggy parser', () => {
-    const peggyAst = parseWithPeggy(sampleSource);
+    const peggyAst = parseWithPeggy(sampleSource).ast;
     const topAst = parse(sampleSource);
     // Structured fields are additive; ensure top-level parse uses Peggy implementation
     expect(topAst).toEqual(peggyAst);
