@@ -782,13 +782,9 @@ export function parseWithPeggy(source: string): ParseResult {
     } else {
       // Fallback: built-in Game Boy validation
       const typeKey = type ? String(type).toLowerCase() : '';
-      const knownTypeProps = new Set<string>();
-      for (const set of Object.values(INST_TYPE_PROPS)) {
-        for (const prop of set) knownTypeProps.add(prop);
-      }
       const allowedProps = new Set([
         ...INST_COMMON_PROPS,
-        ...(INST_TYPE_PROPS[typeKey] ?? Array.from(knownTypeProps)),
+        ...(INST_TYPE_PROPS[typeKey] ?? []),
       ]);
       if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
         diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
