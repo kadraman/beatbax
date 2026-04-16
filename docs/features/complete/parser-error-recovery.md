@@ -1,6 +1,6 @@
 ---
 title: "Parser Error Recovery for Multiple Syntax Errors"
-status: partial
+status: complete
 authors: ["GitHub Copilot","kadraman"]
 created: 2026-02-16
 issue: "https://github.com/kadraman/beatbax/issues/67"
