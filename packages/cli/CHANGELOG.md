@@ -1,5 +1,15 @@
 # @beatbax/cli
 
+## 0.3.1
+
+### Patch Changes
+
+- 30f54a1: updated to use parser error recovery with multi-error reporting changes
+- Updated dependencies [1a07f2f]
+- Updated dependencies [30f54a1]
+  - @beatbax/plugin-chip-nes@2.0.0
+  - @beatbax/engine@0.10.0
+
 ## 0.3.0
 
 ### Minor Changes
