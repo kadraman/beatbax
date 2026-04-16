@@ -55,7 +55,17 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  const parseResult = parseWithPeggy(src);
+  let parseResult: ReturnType<typeof parseWithPeggy>;
+  try {
+    parseResult = parseWithPeggy(src);
+  } catch (parseThrown: any) {
+    const loc = parseThrown?.location ?? parseThrown?.loc ?? undefined;
+    const message = filename
+      ? formatParseError({ message: extractErrorMessage(parseThrown), location: loc }, filename)
+      : extractErrorMessage(parseThrown);
+    errors.push({ message, loc, component: PARSER_COMPONENT });
+    return { errors, warnings, ast: null as any };
+  }
   let ast: any = parseResult.ast;
 
   for (const parseErr of parseResult.errors) {

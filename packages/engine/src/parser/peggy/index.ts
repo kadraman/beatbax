@@ -537,7 +537,7 @@ function suggestKeyword(word: string): string | null {
   const lower = word.toLowerCase();
   let best: { keyword: string; distance: number } | null = null;
   for (const kw of VALID_KEYWORDS) {
-    const distance = levenshtein(lower, kw);
+    const distance = levenshtein(lower, kw.toLowerCase());
     if (!best || distance < best.distance) best = { keyword: kw, distance };
   }
   return best && best.distance <= 2 ? best.keyword : null;
@@ -549,7 +549,7 @@ function parseRecoveryError(stmt: ErrorStmt): ParseError {
   const firstWordLower = firstWord.toLowerCase();
   let message = `Invalid statement syntax: '${raw || '<empty>'}'.`;
 
-  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !VALID_KEYWORDS.includes(firstWordLower)) {
+  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !VALID_KEYWORDS.some(kw => kw.toLowerCase() === firstWordLower)) {
     const suggestion = suggestKeyword(firstWord);
     message = suggestion
       ? `Unknown keyword '${firstWord}'. Did you mean '${suggestion}'?`
@@ -610,7 +610,9 @@ export function parseWithPeggy(source: string): ParseResult {
   let topVolume: number | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
   let playLoc: SourceLocation | undefined = undefined;
+  const diagnostics: ParseDiagnostic[] = [];
 
+  try {
   for (const stmt of program.body) {
     switch (stmt.nodeType) {
       case 'SongMetaStmt': {
@@ -734,7 +736,6 @@ export function parseWithPeggy(source: string): ParseResult {
   }
 
   // --- Semantic validation pass: populate ast.diagnostics ---
-  const diagnostics: ParseDiagnostic[] = [];
   const diag = (level: ParseDiagnostic['level'], component: string, message: string, loc?: SourceLocation) =>
     diagnostics.push({ level, component, message, loc });
 
@@ -863,6 +864,14 @@ export function parseWithPeggy(source: string): ParseResult {
       }
     }
   }
+  } catch (e: any) {
+    const loc = toSourceLocation((e as any)?.location ?? (e as any)?.loc);
+    parseErrors.push({
+      message: (e as any)?.message ?? String(e),
+      loc,
+      type: 'recovery',
+    });
+  }
 
   const includeStructured = true;
 
@@ -884,7 +893,11 @@ export function parseWithPeggy(source: string): ParseResult {
     imports: imports.length,
   });
 
-  log.info(`Parsed successfully: ${Object.keys(pats).length} patterns, ${Object.keys(seqs).length} sequences, ${Object.keys(insts).length} instruments`);
+  if (parseErrors.length > 0) {
+    log.warn(`Parsed with ${parseErrors.length} error(s): ${Object.keys(pats).length} patterns, ${Object.keys(seqs).length} sequences, ${Object.keys(insts).length} instruments`);
+  } else {
+    log.info(`Parsed successfully: ${Object.keys(pats).length} patterns, ${Object.keys(seqs).length} sequences, ${Object.keys(insts).length} instruments`);
+  }
 
   return { ast, errors: parseErrors, hasErrors: parseErrors.length > 0 };
 }
