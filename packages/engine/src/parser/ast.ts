@@ -139,6 +139,20 @@ export interface ParseDiagnostic {
   loc?: SourceLocation;
 }
 
+
+export type ParseErrorType = 'syntax' | 'recovery';
+
+export interface ParseError {
+  message: string;
+  loc?: SourceLocation;
+  type: ParseErrorType;
+}
+
+export interface ParseResult {
+  ast: AST;
+  errors: ParseError[];
+  hasErrors: boolean;
+}
 export interface AST {
   pats: PatternMap;
   insts: InstMap;

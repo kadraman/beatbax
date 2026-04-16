@@ -6,7 +6,7 @@ import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/e
 import { configureLogging } from '@beatbax/engine/util/logger';
 import { readFileSync, statSync, existsSync } from 'fs';
 import { resolve as resolvePath } from 'path';
-import { parse } from '@beatbax/engine/parser';
+import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
 const { getUGEDetailedJSON } = engineImports as any;
@@ -18,6 +18,7 @@ interface SourceLocation {
 
 type ValidationIssue = { message: string; loc?: SourceLocation; component?: string };
 type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
+const PARSER_COMPONENT = 'parser';
 
 /**
  * Configure logger based on CLI flags.
@@ -54,18 +55,29 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  let ast: any;
+  let parseResult: ReturnType<typeof parseWithPeggy>;
   try {
-    ast = parse(src);
-  } catch (parseErr: any) {
-    const formattedError = filename ? formatParseError(parseErr, filename) : extractErrorMessage(parseErr);
-    errors.push({ message: formattedError });
+    parseResult = parseWithPeggy(src);
+  } catch (parseThrown: any) {
+    const loc = parseThrown?.location ?? parseThrown?.loc ?? undefined;
+    const message = filename
+      ? formatParseError({ message: extractErrorMessage(parseThrown), location: loc }, filename)
+      : extractErrorMessage(parseThrown);
+    errors.push({ message, loc, component: PARSER_COMPONENT });
     return { errors, warnings, ast: null as any };
   }
+  let ast: any = parseResult.ast;
+
+  for (const parseErr of parseResult.errors) {
+    const errObj: any = { message: parseErr.message, location: parseErr.loc };
+    const formattedError = filename ? formatParseError(errObj, filename) : parseErr.message;
+    errors.push({ message: formattedError, loc: parseErr.loc, component: PARSER_COMPONENT });
+  }
+  const hasSyntaxErrors = parseResult.hasErrors;
 
   // Resolve imports BEFORE promoting diagnostics so that instruments/sequences
   // introduced by imports are visible when we decide which diagnostics are real.
-  if (ast.imports && ast.imports.length > 0 && filename) {
+  if (!hasSyntaxErrors && ast.imports && ast.imports.length > 0 && filename) {
     try {
       const absoluteFilePath = resolvePath(filename);
       ast = await resolveImports(ast, {
