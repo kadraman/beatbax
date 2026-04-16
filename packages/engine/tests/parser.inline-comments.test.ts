@@ -22,7 +22,7 @@ describe('Inline comments', () => {
       channel 1 => inst test seq seq1 #seq2 seq3
     `;
 
-    const ast = parseWithPeggy(code);
+    const ast = parseWithPeggy(code).ast;
     const resolved = resolveSong(ast);
 
     // Channel 1 should only have 2 notes (from pattern 'a')
@@ -51,7 +51,7 @@ describe('Inline comments', () => {
       channel 1 => inst test seq seq1 //seq2
     `;
 
-    const ast = parseWithPeggy(code);
+    const ast = parseWithPeggy(code).ast;
     const resolved = resolveSong(ast);
 
     const ch1 = resolved.channels.find((ch: any) => ch.id === 1);

@@ -11,7 +11,7 @@ import { parseWithPeggy } from '../src/parser/peggy';
 describe('IdentWithEffects grammar rule', () => {
   test('reconstructs identifier with single effect correctly', () => {
     const src = 'pat test = myId<arp:3,7>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     // Check the patternEvents structured output
     expect(ast.patternEvents?.test).toBeDefined();
@@ -26,7 +26,7 @@ describe('IdentWithEffects grammar rule', () => {
 
   test('reconstructs identifier with multiple effects correctly', () => {
     const src = 'pat test = myId<pan:L><vib:4>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const token = ast.patternEvents!.test[0] as any;
 
@@ -39,7 +39,7 @@ describe('IdentWithEffects grammar rule', () => {
   test('note with effects uses separate effects array', () => {
     // Notes with effects should have effects array, not concatenated
     const src = 'pat test = C4<arp:3,7>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const note = ast.patternEvents!.test[0] as any;
 
@@ -52,7 +52,7 @@ describe('IdentWithEffects grammar rule', () => {
 
   test('note with multiple effects has correct effects array', () => {
     const src = 'pat test = C4<pan:L><vib:4,6>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const note = ast.patternEvents!.test[0] as any;
 
@@ -64,7 +64,7 @@ describe('IdentWithEffects grammar rule', () => {
 
   test('plain identifier without effects works correctly', () => {
     const src = 'pat test = myId\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const token = ast.patternEvents!.test[0] as any;
 
@@ -76,7 +76,7 @@ describe('IdentWithEffects grammar rule', () => {
 
   test('complex effect parameters are preserved correctly', () => {
     const src = 'pat test = myId<vib:3,5,sine,4>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const token = ast.patternEvents!.test[0] as any;
 
@@ -87,7 +87,7 @@ describe('IdentWithEffects grammar rule', () => {
 
   test('effect with namespace is reconstructed correctly', () => {
     const src = 'pat test = myId<gb:pan:R>\nchannel 1 => inst lead pat test';
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     const token = ast.patternEvents!.test[0] as any;
 

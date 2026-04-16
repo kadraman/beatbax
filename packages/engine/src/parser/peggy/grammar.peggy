@@ -69,6 +69,13 @@ Statement
   / ChannelStmt
   / PlayStmt
   / ExportStmt
+  / ErrorStmt
+
+
+ErrorStmt
+  = raw:$([^\r\n]+) {
+      return { nodeType: "ErrorStmt", raw: raw.trim(), loc: loc(location()) };
+    }
 
 // -----------------------------
 // Top-level directives

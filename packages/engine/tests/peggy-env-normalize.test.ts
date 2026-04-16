@@ -25,7 +25,7 @@ inst n type=noise noise=3,7,2
 `;
 
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     expect(ast.insts.bass).toBeDefined();
     expect(ast.insts.bass.env).toMatchObject({ level: 10, direction: 'down', period: 7 });
@@ -45,7 +45,7 @@ chip gameboy
 inst lead type=pulse1 duty=50 env={"level":15,"direction":"up","period":3}
 `;
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const ast = parseWithPeggy(src);
+    const ast = parseWithPeggy(src).ast;
 
     expect(ast.insts.lead).toBeDefined();
     expect(ast.insts.lead.env).toMatchObject({ level: 15, direction: 'up', period: 3 });
