@@ -781,17 +781,23 @@ export function parseWithPeggy(source: string): ParseResult {
       }
     } else {
       // Fallback: built-in Game Boy validation
+      const typeKey = type ? String(type).toLowerCase() : '';
+      const knownTypeProps = new Set<string>();
+      for (const set of Object.values(INST_TYPE_PROPS)) {
+        for (const prop of set) knownTypeProps.add(prop);
+      }
+      const allowedProps = new Set([
+        ...INST_COMMON_PROPS,
+        ...(INST_TYPE_PROPS[typeKey] ?? Array.from(knownTypeProps)),
+      ]);
       if (type && !VALID_INST_TYPES.includes(String(type).toLowerCase())) {
         diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
-      } else {
-        const typeKey = type ? String(type).toLowerCase() : '';
-        const allowedProps = new Set([...INST_COMMON_PROPS, ...(INST_TYPE_PROPS[typeKey] ?? [])]);
-        for (const key of Object.keys(p)) {
-          if (key === '__loc') continue;
-          const bare = key.includes(':') ? key.split(':').pop()! : key;
-          if (!allowedProps.has(bare.toLowerCase())) {
-            diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);
-          }
+      }
+      for (const key of Object.keys(p)) {
+        if (key === '__loc') continue;
+        const bare = key.includes(':') ? key.split(':').pop()! : key;
+        if (!allowedProps.has(bare.toLowerCase())) {
+          diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);
         }
       }
     }

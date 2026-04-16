@@ -18,6 +18,7 @@ interface SourceLocation {
 
 type ValidationIssue = { message: string; loc?: SourceLocation; component?: string };
 type ValidationResult = { errors: ValidationIssue[]; warnings: ValidationIssue[]; ast: any };
+const PARSER_COMPONENT = 'parser';
 
 /**
  * Configure logger based on CLI flags.
@@ -57,18 +58,16 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   const parseResult = parseWithPeggy(src);
   let ast: any = parseResult.ast;
 
-  if (parseResult.hasErrors) {
-    for (const parseErr of parseResult.errors) {
-      const errObj: any = { message: parseErr.message, location: parseErr.loc };
-      const formattedError = filename ? formatParseError(errObj, filename) : parseErr.message;
-      errors.push({ message: formattedError, loc: parseErr.loc, component: 'parser' });
-    }
-    return { errors, warnings, ast: null as any };
+  for (const parseErr of parseResult.errors) {
+    const errObj: any = { message: parseErr.message, location: parseErr.loc };
+    const formattedError = filename ? formatParseError(errObj, filename) : parseErr.message;
+    errors.push({ message: formattedError, loc: parseErr.loc, component: PARSER_COMPONENT });
   }
+  const hasSyntaxErrors = parseResult.hasErrors;
 
   // Resolve imports BEFORE promoting diagnostics so that instruments/sequences
   // introduced by imports are visible when we decide which diagnostics are real.
-  if (ast.imports && ast.imports.length > 0 && filename) {
+  if (!hasSyntaxErrors && ast.imports && ast.imports.length > 0 && filename) {
     try {
       const absoluteFilePath = resolvePath(filename);
       ast = await resolveImports(ast, {
