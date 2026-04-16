@@ -204,8 +204,9 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
   {
     group: 'NES',
     songs: [
-      { label: 'duck_tales.bax',             path: '/songs/gameboy/duck_tales.bax' },
-      { label: 'kingdom_hall.bax',           path: '/songs/gameboy/kingdom_hall.bax' },
+      { label: 'iron_keep.bax',              path: '/songs/nes/iron_keep.bax' },
+      { label: 'kingdom_hall.bax',           path: '/songs/nes/kingdom_hall.bax' },
+      { label: 'shadow_temple.bax',          path: '/songs/nes/shadow_temple.bax' },
       { label: 'wily_fortress.bax',          path: '/songs/nes/wily_fortress.bax' },
     ],
   },

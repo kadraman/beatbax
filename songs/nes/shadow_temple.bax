@@ -1,0 +1,439 @@
+## shadow_temple.bax
+## Original NES atmospheric RPG chiptune — 4-channel 2A03 APU demonstration.
+## Key: D natural minor | Tempo: 90 BPM | Style: Eerie, lyrical, RPG dungeon/cave
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## Written to exercise the same BeatBax NES plugin techniques as duck_tales.bax:
+##   vol_env arrays with loop-point |  note= on drum instruments  |  vigrated
+##   effect presets (vib_slow/fast/soft)  |  note-split vib entry  |  inline inst
+##   changes  |  inst(name,N) temporary overrides  |  portamento  |  silence filler
+##   patterns  |  15-step intro patterns  |  multi-seq channel routing.
+##
+## Song Structure (19 pattern slots per channel):
+##   Slot 0       : Silence (Square 1 / Triangle / Noise only; Square 2 plays immediately)
+##   Slots 1– 5   : Intro — 5 × 15-step patterns: solo arpeggios + melody build-up
+##   Slots 6–13   : Main — 8 × 16-step patterns: full 4-channel arrangement
+##   Slots 14–18  : Bridge — 5 × 16-step patterns: variant Section
+##
+## Channel mapping:
+##   Ch1 (Pulse 1) : Lead melody with flat-sustain + ramped intro vol + vibrato
+##   Ch2 (Pulse 2) : Fast 16th-note arpeggio counter-melody; bridge uses lead_lo + bleep swap
+##   Ch3 (Triangle): Staccato 16th-note bass (root, 5th, octave patterns)
+##   Ch4 (Noise)   : Drums — enter in last 4 rows of intro slot 4, then full loop
+##
+## Timing (same model as duck_tales.bax):
+##   bpm=90, ticksPerStep=16: one scheduler step = one 8th-note row at 180 BPM.
+##   16 steps × bpm=90 → one bar (4 quarter-note beats) at 90 BPM. ✓
+##   Intro patterns: 15 steps each (15 rows × ~111 ms = ~1.67 s per pattern).
+##   Main/Bridge patterns: 16 steps each.
+##   Total: 1×15 + 5×15 + 8×16 + 5×16 = 15+75+128+80 = 298 steps ≈ 33 s.
+##
+## Play: node bin/beatbax play songs/nes/shadow_temple.bax
+
+song name "Shadow Temple"
+song artist "The BeatBax Team"
+song description """Original NES-style atmospheric RPG dungeon chiptune at 90 BPM in D natural minor. Demonstrates all BeatBax NES plugin techniques: vol_env arrays with loop-points, note-triggered drum instruments (note=C5), delayed-vibrato effect presets, per-note vibrato split (same pitch restated with vib effect), inline inst channel changes, inst(name,N) temporary overrides, portamento, 15-step intro patterns, silence filler slots, and multi-sequence channel routing. Exercises 4 channels: Pulse 1 melody, Pulse 2 arpeggio, Triangle bass, Noise drums."""
+song tags "nes,rpg,atmospheric,dungeon,example,demo"
+
+chip nes
+bpm 90
+ticksPerStep 16
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+## ── Square 1 — Lead melody ────────────────────────────────────────────────────
+
+## lead_intro : fade-in envelope during the intro solo — ramps 1→10 over 10 frames,
+##   then loops at frame 9 (holds at 10).  Mimics a FamiStudio ramp-up volume macro.
+##   duty=75 (3=75% in 2A03 notation): rich, full-bodied tone for the lyrical melody.
+inst lead_intro  type=pulse1  duty=75  vol_env=[1,2,3,4,5,6,7,8,9,10|9]
+
+## lead : constant vol=10/15, same duty for the main loop and bridge melody.
+inst lead        type=pulse1  duty=75  vol=10
+
+## ── Square 2 — Arpeggio voices ────────────────────────────────────────────────
+
+## lead_lo : lower-register harmony during bridge sections; quiet 25% duty pulse.
+##   Constant vol=7; used via inline `inst lead_lo` token inside bridge patterns.
+inst lead_lo     type=pulse2  duty=25  vol=7
+
+## bleep_intro : fast arpeggio voice for the intro section.
+##   vol_env=[7,7,7,7,7,7,7,1] — holds vol 7 for 7 frames then drops to 1 on frame 8.
+##   Gives each staccato 16th-note its own brief sustain + soft tail before the next hit.
+inst bleep_intro type=pulse2  duty=25  vol_env=[7,7,7,7,7,7,7,1]
+
+## bleep : main-loop arpeggio voice; slightly more percussive envelope shape.
+##   vol_env=[7,7,7,5,5,5,5,1] — 3 frames full, 4 frames stepped down, 1 frame tail.
+inst bleep       type=pulse2  duty=75  vol_env=[7,7,7,5,5,5,5,1]
+
+## ── Triangle — Bass ───────────────────────────────────────────────────────────
+
+## bass : triangle channel, no hardware volume envelope.
+##   Staccato 16th-note bass patterns; each note fires a new linear-counter reload
+##   which gates cleanly, producing the characteristic NES plucked-bass articulation.
+inst bass        type=triangle
+
+## ── Noise — Drums ────────────────────────────────────────────────────────────
+##
+## All drum instruments carry note=C5 so pattern tokens can use the instrument name
+## directly as a trigger (e.g. `drum_lo drum_hi`) without writing a pitch every time.
+## The vol_env arrays match envelope shapes typical of NES percussion macros.
+
+## drum_hi  : hi-hat — high-pitch period=2 LFSR, fast 2-frame decay [10,4].
+inst drum_hi    type=noise  noise_mode=normal  noise_period=2   vol_env=[10,4]          note=C5
+
+## drum_intro : fill / ghost hit — mid-period=7, 4-frame medium decay [10,10,10,5].
+##   Used for the first drum hits in the tail of intro slot 4.
+inst drum_intro type=noise  noise_mode=normal  noise_period=7   vol_env=[10,10,10,5]    note=C5
+
+## drum_lo  : kick drum — low period=12 LFSR, deep 4-frame decay [10,10,10,2].
+inst drum_lo    type=noise  noise_mode=normal  noise_period=12  vol_env=[10,10,10,2]    note=C5
+
+## drum_med : snare — period=7, longer textured decay [10,10,10,6,6,6,6,2].
+inst drum_med   type=noise  noise_mode=normal  noise_period=7   vol_env=[10,10,10,6,6,6,6,2] note=C5
+
+# =============================================================================
+# Effect Presets
+# =============================================================================
+## Vibrato preset naming and parameters mirror duck_tales.bax exactly so the
+## same engine code paths are exercised.  The delay parameter (last value) controls
+## how many rows the note plays plain before vibrato engages.
+
+## vib_slow  : rate=4, depth=5, sine, phase=0, onset delay=4 rows
+effect vib_slow   = vib:4,5,sine,0,4
+
+## vib_slow3 : same rate/depth, shorter onset delay of 3 rows (used where the
+##   preceding note is shorter so vibrato must enter one row earlier).
+effect vib_slow3  = vib:4,5,sine,0,3
+
+## vib_fast  : slightly higher rate=5 for faster wobble on main-loop hold notes.
+effect vib_fast   = vib:5,5,sine,0,4
+
+## vib_soft  : low rate=2 for a subtle bridge pedal shimmer, onset delay=3.
+effect vib_soft   = vib:2,5,sine,0,3
+
+## vib_soft4 : same rate=2, slightly longer onset delay=4 for bridge5 sustained note.
+effect vib_soft4  = vib:2,5,sine,0,4
+
+# =============================================================================
+# Silence filler
+# =============================================================================
+## 16-step silence used for channel slots that have no activity in a section.
+## The same pattern works for both intro (15-step) and main/bridge (16-step) sequences
+## because a silent slot merely adds rest time; slight length differences do not
+## affect the other channels' timing within their own sequence.
+pat silence = . . . . . . . . . . . . . . . .
+
+# =============================================================================
+# Square 1 — Lead melody patterns
+# =============================================================================
+#
+# Timing convention (same as duck_tales.bax):
+#   Each step = 1 scheduler row = 1 8th-note at 180 BPM.
+#   Duration suffix :N means the note lasts N rows.  No suffix = 1 row (staccato).
+#   "vib kicks in at row R" means the effect onset delay matches the row offset
+#   of the effect preset, e.g. vib_slow has onset delay=4 → vibrato starts on row 4
+#   of the note (counting from the note's first row).
+
+# ── Intro1 (15 steps: rows 0–14) ─────────────────────────────────────────────
+# Time=0   D5 dur=89 → rows 0–8 (9 steps); vib kicks in at Time=40 → row 4
+# Time=90  F5 dur=19 → rows 9–10 (2 steps)
+# Time=110 A5 dur=19 → rows 11–12 (2 steps)
+# Time=130 G5 dur=19 → rows 13–14 (2 steps)
+# D5: first 4 steps plain (onset delay=4), then 5 steps with vib, all as one :9 note.
+pat sq1_intro1  = D5<vib_slow>:9 F5:2 A5:2 G5:2
+
+# ── Intro2 (15 steps: rows 0–14) ─────────────────────────────────────────────
+# Time=0   A5 dur=29 → rows 0–2 (3 steps)
+# Time=30  G5 dur=9  → row 3 (1 step, re-trigger for articulation)
+# Time=40  G5 dur=69 → rows 4–10 (7 steps); vib at Time=70 → row 7 (3 steps in → vib_slow3)
+# Time=110 F5 dur=19 → rows 11–12 (2 steps); vib off
+# Time=130 E5 dur=19 → rows 13–14 (2 steps) — E natural (Dorian ♮6 colour)
+# G5: rows 4–6 plain (3 steps), rows 7–10 with vib (4 steps); all as one :7 note.
+pat sq1_intro2  = A5:3 G5 G5<vib_slow3>:7 F5:2 E5:2
+
+# ── Intro3 (15 steps: rows 0–14) ─────────────────────────────────────────────
+# Time=0   D5 dur=59 → rows 0–5 (6 steps)
+# Time=60  A4 dur=59 → rows 6–11 (6 steps)
+# Time=120 Bb4 dur=149 → rows 12–14 (3 steps, capped at pattern end)
+pat sq1_intro3  = D5:6 A4:6 Bb4:3
+
+# ── Intro4 (15 steps: rows 0–14) ─────────────────────────────────────────────
+# Bb4 carried from Intro3.  No new note until row 12.
+# Time=30  vib onset (row 3) on the held Bb4 (vib_soft: onset delay=3)
+# Time=120 C5 dur=19 → rows 12–13 (2 steps); vib off
+# Time=140 Bb4 dur=9 → row 14 (1 step)
+# Rows 0–2: Bb4 plain (3 steps), rows 3–11: Bb4 with vib (9 steps).
+pat sq1_intro4  = Bb4<vib_soft>:12 C5:2 Bb4
+
+# ── Intro5 (15 steps: rows 0–14) ─────────────────────────────────────────────
+# Time=0   F5 dur=149 → rows 0–14 (15 steps); vib at Time=80 → row 8
+# Vib end marker beyond pattern → vibrato active through end.
+# Rows 0–7 plain (8 steps), rows 8–14 with vib (7 steps).
+pat sq1_intro5  = F5<vib:2,5,sine,0,8>:15
+
+# ── Melody1 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Opening rests (rows 0–3) then ascending D-minor scale run.
+# Time=40  D4 → rows 4–7 (four 16th-note triggers, 1 step each)
+# Time=80  A4 → rows 8–11
+# Time=120 Bb3 → row 12;  A3 → row 13;  G3 → row 14;  A3 → row 15
+pat sq1_mel1    = . . . . D4 E4 F4 G4 A4 F4 D4 C4 Bb3 A3 G3 A3
+
+# ── Melody2 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Time=0   A3 dur=19 → rows 0–1 (2 steps)
+# Time=20  C4 dur=9  → row 2 (1 step)
+# Time=30  A3 dur=9  → row 3 (1 step)
+# Time=40  A4 dur=109 → rows 4–14 (11 steps); vib at Time=80 → row 8 (4 steps in)
+# Time=150 F4 dur=9  → row 15 (1 step)
+# A4: rows 4–7 plain (4 steps), rows 8–14 with vib (7 steps).
+pat sq1_mel2    = A3:2 C4 A3 A4<vib_fast>:11 F4
+
+# ── Melody3 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Time=0   D4 dur=29 → rows 0–2 (3 steps)
+# Time=30  A3 dur=9  → row 3 (1 step, re-trigger)
+# Time=40  A3 dur=109 → rows 4–14 (11 steps); vib at Time=80 → row 8 (4 steps in)
+# Time=150 A3 dur=9  → row 15 (1 step)
+# A3: rows 4–7 plain (4 steps), rows 8–14 with vib (7 steps).
+pat sq1_mel3    = D4:3 A3 A3<vib_fast>:11 A3
+
+# ── Melody4 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Time=0   F4 dur=39 → rows 0–3 (4 steps)
+# Time=40  →  rest (row 4)
+# Time=50  G4 dur=9  → row 5 (1 step)
+# Time=60  F4 dur=9  → row 6 (1 step)
+# Time=70  Bb3 dur=89 → rows 7–15 (9 steps); vib at Time=110 → row 11 (4 steps in)
+# Bb3: rows 7–10 plain (4 steps), rows 11–15 with vib (5 steps).
+pat sq1_mel4    = F4:4 . G4 F4 Bb3<vib_fast>:9
+
+# ── Melody5 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Low-register phrase — demonstrates motion in the sub-octave register.
+# Time=0   C3 dur=39 → rows 0–3 (4 steps); vib off (plain tone)
+# Time=40  →  rest (row 4)
+# Time=50  Bb2 dur=9 → row 5
+# Time=60  A2  dur=9 → row 6
+# Time=70  D3 dur=39 → rows 7–10 (4 steps)
+# Time=110 →  rest (row 11)
+# Time=120 G3 dur=19 → rows 12–13 (2 steps)
+# Time=140 A3 dur=19 → rows 14–15 (2 steps)
+pat sq1_mel5    = C3:4 . Bb2 A2 D3:4 . G3:2 A3:2
+
+# ── Melody6 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Time=0   Bb3 dur=29 → rows 0–2 (3 steps)
+# Time=30  C4  dur=9  → row 3 (1 step)
+# Time=40  D4  dur=79 → rows 4–11 (8 steps); vib at Time=80 → row 8 (4 steps in)
+# Time=120 F4  dur=19 → rows 12–13 (2 steps); vib off
+# Time=140 E4  dur=19 → rows 14–15 (2 steps) — E natural (Dorian colour)
+# D4: rows 4–7 plain (4 steps), rows 8–11 with vib (4 steps).
+pat sq1_mel6    = Bb3:3 C4 D4<vib_fast>:8 F4:2 E4:2
+
+# ── Melody7 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Ornamental run — mirror of duck_tales mel7 technique (many 1-step notes + rests).
+# Time=0   C4 → row 0; Time=10 D4 → row 1; Time=20 C4 → row 2
+# Time=30  A3 dur=19 → rows 3–4 (2 steps)
+# Time=50  F3 dur=39 → rows 5–8 (4 steps)
+# Time=90  G3 → row 9; Time=100 A3 → row 10; Time=110 Bb3 → row 11
+# Time=120 G3 → row 12; Time=130 F3 dur=29 → rows 13–15 (3 steps)
+pat sq1_mel7    = C4 D4 C4 A3:2 F3:4 G3 A3 Bb3 G3 F3:3
+
+# ── Melody8 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Portamento sweep — same technique as duck_tales mel8.
+# Time=0   A4 → row 0; Time=10–20: rest; Time=30 A4 → row 3
+# Time=40–50: rest; Time=60 A4 dur=19 → rows 6–7 (2 steps)
+# Time=80  A2 dur=79 → rows 8–15 (8 steps): portamento glide up 24 semitones to A4.
+#   port:24 = +24 semitones = two octaves up; A2 → A4. Full range sweep ✓.
+pat sq1_mel8    = A4 . . A4 . . A4:2 A2<port:24>:8
+
+# ── Bridge1 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Staccato double-tap technique (same structural pattern as duck_tales bridge1).
+# Time=0   D4 staccato × 2 → rows 0–1; rests rows 2–3
+# Time=40  F4 staccato × 2 → rows 4–5; rest row 6
+# Time=70  A3 dur=39 → rows 7–10 (4 steps)
+# Time=110 G3 dur=19 → rows 11–12 (2 steps)
+# Time=130 A3 → row 13; Time=140 G3 → row 14; Time=150 F3 → row 15
+pat sq1_bridge1 = D4 D4 . . F4 F4 . A3:4 G3:2 A3 G3 F3
+
+# ── Bridge2 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Lyrical descent — mirrors duck_tales bridge2 structure.
+# Time=0   C4 dur=19 → rows 0–1 (2 steps)
+# Time=20  Bb3 → row 2; Time=30 A3 → row 3; Time=40 rest; Time=50 G3 → row 5
+# Time=60  rest; Time=70 F3 dur=79 → rows 7–14 (8 steps); Time=150 rest → row 15
+pat sq1_bridge2 = C4:2 Bb3 A3 . G3 . F3:8 .
+
+# ── Bridge3 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Staccato double-tap on different pitches (upper register variant of bridge1).
+# Time=0   F4 × 2 → rows 0–1; rests 2–3; G4 × 2 → rows 4–5; rest row 6
+# Time=70  A4 dur=19 → rows 7–8; Time=90 F4 dur=19 → rows 9–10
+# Time=110 E4 dur=19 → rows 11–12; Time=130 F4 → row 13; A4 → row 14; C5 → row 15
+pat sq1_bridge3 = F4 F4 . . G4 G4 . A4:2 F4:2 E4:2 F4 A4 C5
+
+# ── Bridge4 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Sustained resolution — mirrors duck_tales bridge4 structure.
+# C5 held from bridge3 (dur carries into rows 0–5 of this pattern = 6 steps)
+# Time=60  Bb4 dur=9 → row 6; Time=70 F4 dur=59 → rows 7–12 (6 steps)
+# Time=130 G4 → row 13; Time=140 A4 → row 14; Time=150 Bb4 → row 15
+pat sq1_bridge4 = C5:6 Bb4 F4:6 G4 A4 Bb4
+
+# ── Bridge5 (16 steps: rows 0–15) ────────────────────────────────────────────
+# Sustained C5 with late vibrato + dramatic low-register tail (mirrors duck_tales bridge5).
+# C5 carried from bridge4; vib soft4 onset at row 4.
+# Time=120 E2 dur=19 → rows 12–13 (2 steps); Time=140 F2 dur=19 → rows 14–15
+pat sq1_bridge5 = C5<vib_soft4>:12 E2:2 F2:2
+
+# =============================================================================
+# Square 2 — Arpeggio counter-melody patterns
+# =============================================================================
+# All notes are staccato (1 step each) unless otherwise noted.
+# Dm chord tones: D F A C    Am tones: A C E G    Gm tones: G Bb D F
+# Each arpeggio pattern cycles through chord tones to imply harmony without chords.
+
+# ── BeepIntro1 (15 steps) ─────────────────────────────────────────────────────
+# Dm arpeggio — 15 staccato notes, rows 0–14.
+pat sq2_beepin1 = D4 F4 A4 D5 A4 F4 A4 D5 F5 D5 C5 D5 C5 Bb4 A4
+
+# ── BeepLoop1 (16 steps) ──────────────────────────────────────────────────────
+# Dm arpeggio — 16 staccato notes, standard main-loop pattern.
+pat sq2_beeplo1 = D4 F4 A4 D5 F4 A4 D5 F5 A4 D5 A4 G4 Bb4 G4 F4 D4
+
+# ── BeepLoop2 (16 steps) ──────────────────────────────────────────────────────
+# Am / C7 variant — shifts harmonic colour toward Am and C for contrast.
+pat sq2_beeplo2 = A4 C4 E4 A4 C5 E4 C5 Bb4 A4 G4 A4 G4 F4 E4 D4 C4
+
+# ── Square 2 Bridge1 (16 steps) ───────────────────────────────────────────────
+# Inline inst change: lead_lo for staccato duo, then bleep_intro for arpeggio tail.
+# Rows 0–1: lead_lo D3 staccato × 2; rows 2–3: rest
+# Rows 4–5: lead_lo F3 staccato × 2; row 6: rest
+# Rows 7–8: lead_lo D3 sustained dur=19; row 9: rest
+# Rows 10–15: bleep_intro Dm arpeggios (A3 Bb3 F4 A4 Bb4 E5)
+pat sq2_brid1   = inst lead_lo D3 D3 . . F3 F3 . D3:2 . inst bleep_intro A3 Bb3 F4 A4 Bb4 E5
+
+# ── Square 2 Bridge2 (16 steps) ───────────────────────────────────────────────
+# lead_lo sustained low-register line.
+pat sq2_brid2   = inst lead_lo G3:2 G3 G3 . G3 . Bb3:8 .
+
+# ── Square 2 Bridge3 (16 steps) ───────────────────────────────────────────────
+# lead_lo double-taps mirroring Square 1 bridge3 staccato shape.
+pat sq2_brid3   = inst lead_lo F4 F4 . . D4 D4 . E4:2 E4:2 E4:2 E4 G4 A4
+
+# ── Square 2 Bridge4 (16 steps) ───────────────────────────────────────────────
+# lead_lo sustained across the resolution bar; held into Bb4 at end.
+pat sq2_brid4   = inst lead_lo A4:7 Bb4:6 Bb4 Bb4 A4
+
+# =============================================================================
+# Triangle — Bass patterns
+# =============================================================================
+# All bass patterns use staccato 16th notes (1 step each) — this produces the
+# classic NES staccato pluck via linear-counter reload on each note trigger.
+
+# ── Bass Intro patterns (15 steps each) ───────────────────────────────────────
+# Each intro bass pattern follows root–fifth–octave layout:
+pat tri_intro1  = D3:3  A3:3  D4:9      # Dm   root–5th–octave
+pat tri_intro2  = C3:3  G3:3  C4:9      # Cm   root–5th–octave
+pat tri_intro3  = Bb2:3 F3:3  Bb3:9     # Bbm  root–5th–octave
+pat tri_intro4  = A2:3  E3:3  A3:9      # Am   root–5th–octave
+pat tri_intro5  = D4 D4 D4 D4 D4 D4 D4 D4 D4 D4 D4 D4 D4 D4 D4
+
+# ── Bass main-loop patterns (16 steps, all staccato 16th notes) ───────────────
+pat tri_bass1   = D4 D4 D4 D4 D4 D4 D4 D4 C4 C4 C4 C4 C4 C4 C4 C4
+pat tri_bass2   = Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 A3 A3 A3 A3 A3 A3 A3 A3
+pat tri_bass3   = G3 G3 G3 G3 G3 G3 G3 G3 A3 A3 A3 A3 A3 A3 A3 A3
+pat tri_bass4   = A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3 A3
+pat tri_bass5   = D4 D4 D4 D4 D4 D4 D4 D4 C4 C4 C4 C4 C4 C4 C4 C4
+pat tri_bass6   = Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 A3 A3 A3 A3 A3 A3 A3 A3
+pat tri_bass7   = A3 A3 A3 A3 A3 A3 A3 A3 G3 G3 G3 G3 A3 A3 A3 A3
+
+# tri_bass8 — portamento-support pattern; mirrors duck_tales tri_bass8 mixed-duration layout.
+# D4 row 0; rests rows 1–2; A3 row 3; rests rows 4–5; D4:3 rows 6–8;
+# then D3 staccato × 7 for rows 9–15 (low sub-bass tail).
+pat tri_bass8   = D4 . . A3 . . D4:3 D3 D3 D3 D3 D3 D3 D3
+
+# ── Bass bridge patterns (16 steps each) ──────────────────────────────────────
+# tri_bbrid1 — Am feel: A staccato ×2, rest×2, E4 ×2, rest, then A3 fill.
+pat tri_bbrid1  = A3 A3 . . E4 E4 . A3:2 A3 A3 A3 A3 A3 A3 A3
+
+# tri_bbrid2 — Bb → C motion: Bb3 ×8 then C4 ×8.
+pat tri_bbrid2  = Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 C4 C4 C4 C4 C4 C4 C4 C4
+
+# tri_bbrid3 — sparse resolution: F3 ×8, rests ×4, F3:2, G3:2.
+pat tri_bbrid3  = F3 F3 F3 F3 F3 F3 F3 F3 . . . . F3:2 G3:2
+
+# =============================================================================
+# Noise — Drum patterns
+# =============================================================================
+
+# drum_intro_p (15 steps) — sparse fill at the tail of the fifth intro slot.
+# Rows 0–10: silent (no drums during most of intro). Rows 11–14: four drum_intro hits.
+# This mirrors duck_tales' approach of drums only entering in the very last bars of
+# the intro, building anticipation before the full main loop begins.
+pat drum_intro_p = . . . . . . . . . . . drum_intro drum_intro drum_intro drum_intro
+
+# drum_loop_p (16 steps) — standard NES kick/hat/snare groove.
+# Layout:
+#   row  0: kick  (drum_lo)   — beat 1
+#   row  1: hi-hat (drum_hi)
+#   row  2: snare (drum_med)  — beat 2
+#   row  3: hi-hat
+#   row  4: kick              — beat 3
+#   row  5: hi-hat
+#   row  6: snare             — beat 4
+#   row  7: hi-hat
+#   (repeat rows 0–6 for rows 8–14)
+#   row 15: double snare (same as duck_tales loop_p double hit at end)
+pat drum_loop_p = drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_med
+
+# =============================================================================
+# Sequences
+# =============================================================================
+#
+# Each channel uses three sequences (intro / main / bridge) passed after seq on the
+# channel line. The engine plays them in order: intro → main → bridge.
+#
+# Timing summary:
+#   Intro  : silence(16) + 5 × 15-step patterns = 16 + 75 = 91 ticks on sq1/tri/drums
+#           (sq2 plays 5 × 15-step patterns = 75 ticks, no silence slot)
+#   Main   : 8 × 16-step patterns = 128 ticks
+#   Bridge : 5 × 16-step patterns = 80 ticks
+
+# ── Square 1 (Lead melody) ────────────────────────────────────────────────────
+# Intro: silence for slot 0 (Square 2 plays alone), then 5 intro melody patterns.
+# Main:  8 melody patterns (mel1–mel8).
+# Bridge: 5 bridge patterns (bridge1–bridge5).
+seq sq1_intro  = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
+seq sq1_main   = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
+seq sq1_bridge = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
+
+# ── Square 2 (Arpeggio counter-melody) ────────────────────────────────────────
+# Intro: 5 × beepin1 (arpeggios play from bar 1, no silence slot — Square 2 leads).
+# Main:  beeplo1 × 8 then beeplo2 for the final pattern (harmonic variety).
+# Bridge: two bridge arpeggio patterns, then two more, ending on beeplo1.
+seq sq2_intro  = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
+seq sq2_main   = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
+seq sq2_bridge = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
+
+# ── Triangle (Bass) ───────────────────────────────────────────────────────────
+# Intro: silence for slot 0, then 5 intro bass ramps (root→5th→octave builds).
+# Main:  8 bass patterns cycling through Dm/Am/Gm/C area roots.
+# Bridge: 3 bridge bass patterns (alternating Am and Bbm feel) then resolution.
+seq tri_intro  = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
+seq tri_main   = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
+seq tri_bridge = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
+
+# ── Noise (Drums) ─────────────────────────────────────────────────────────────
+# Intro: silence × 4 then drum_intro_p (hits only in last 4 rows of the 5th intro slot).
+# Main:  9 × drum_loop_p (full groove for all 8 main + 1 extra to align with sq2).
+# Bridge: 5 × drum_loop_p (groove continues through bridge).
+seq drum_intro  = silence silence silence silence drum_intro_p
+seq drum_main   = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+seq drum_bridge = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+
+# =============================================================================
+# Channel routing
+# =============================================================================
+
+channel 1 => inst lead_intro  seq sq1_intro  sq1_main  sq1_bridge
+channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge
+channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge
+channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge
+
+play

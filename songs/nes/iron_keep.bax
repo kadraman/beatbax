@@ -1,0 +1,276 @@
+## iron_keep.bax
+## Original NES action-RPG dungeon chiptune — full 5-channel 2A03 APU demonstration.
+## Key: A minor | Tempo: 150 BPM | Style: Tense, driving dungeon/action
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## Written to exercise all five 2A03 APU channels and validate local DMC sample loading,
+## using ik_bassdrum.dmc and ik_snare.dmc from the songs/nes/ directory.
+##
+## Structure (16 bars, each bar = 16 scheduler ticks at 150 BPM):
+##   Bars  1– 4 : Section A  — A minor main motif (fast 16th-note melodic runs)
+##   Bars  5– 8 : Section B  — C major / G major contrast (brightens the texture)
+##   Bars  9–12 : Bridge     — Pulse 1 tonic pedal w/ vibrato, Pulse 2 counter-melody
+##   Bars 13–16 : Reprise A  — A minor return, full ensemble with DMC reinforcement
+##
+## Channels:
+##   Ch1 (Pulse 1) : Lead melody — 25% duty nasal pulse (50% duty for bridge pedal)
+##   Ch2 (Pulse 2) : Harmony — 50% duty warm chord intervals (louder for bridge counter-mel)
+##   Ch3 (Triangle): Walking bass — quarter-note root / fifth / subtonic patterns
+##   Ch4 (Noise)   : Drums — plain 4/4 intro, then 8th-note hi-hat groove for main sections
+##   Ch5 (DMC)     : Percussion — ik_bassdrum.dmc kick + ik_snare.dmc snare reinforcement
+##
+## DMC build arc: intro bars 1–2 = kicks only → bars 3+ = full kick + snare.
+##               Bridge bars 9–12 drops back to kicks only → reprise restores full hit.
+##
+## Timing reference (150 BPM):
+##   1 tick  = 1/16 note  ≈  100 ms
+##   4 ticks = 1 quarter note  (one beat)
+##   8 ticks = 1 half note     (two beats)
+##  16 ticks = 1 whole bar     (four beats)
+##
+## All patterns are exactly 16 ticks.  All sequences are exactly 256 ticks (16 × 16).
+##
+## Play: node bin/beatbax play songs/nes/iron_keep.bax
+
+song name "Iron Keep"
+song artist "The BeatBax Team"
+song description """Original NES-style action-RPG dungeon chiptune at 150 BPM in A minor. Exercises all five 2A03 APU channels: nasal 25% Pulse 1 lead with 50% duty bridge pedal, warm 50% Pulse 2 chord harmony switching to counter-melody in the bridge, triangle quarter-note walking bass, 8th-note noise groove with sparse intro/bridge variants, and local DMC percussion (ik_bassdrum + ik_snare) with a build arc from kicks-only intro to full kick/snare drive."""
+song tags "nes,action,rpg,dungeon,example,demo,dmc"
+
+chip nes
+bpm 150
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# ── Pulse 1 (type=pulse1) ─────────────────────────────────────────────────────
+#
+# lead — 25% duty (nasal/thin NES square); biting tone that cuts through the mix.
+#   env=12,flat  : constant volume at 12/15 — no decay — so fast 16th-note runs at
+#                  150 BPM (each note ≈ 100 ms) all sound at equal volume. The attack
+#                  transient is still crisp because each note boundary fires a fresh
+#                  noteOn. This is the standard NES "melody lead" approach for action
+#                  tracks: flat envelope for rhythmically tight melodic passages.
+inst lead     type=pulse1  duty=25  env=12,flat
+
+# lead_vib — 50% duty (true square) for the bridge tonic pedal.
+#   Switching from 25% to 50% duty creates an organ-like warmth on the sustained tones —
+#   a common NES texture trick to signal a structural section change.
+#   env=10,flat  : slightly softer than lead so the Pulse 2 counter-melody reads clearly
+#                  above the pedal. Vibrato applied via the vib_slow effect preset in seq.
+inst lead_vib type=pulse1  duty=50  env=10,flat
+
+# ── Pulse 2 (type=pulse2) ─────────────────────────────────────────────────────
+#
+# chord — 50% duty warm pulse; half-note chord intervals fill bars in sections A & B.
+#   env=9,flat   : constant at 9/15 so half-note tones (8 ticks ≈ 533 ms at 150 BPM)
+#                  do not fade before the bar ends. Lower volume than lead keeps the
+#                  melody prominent.
+inst chord    type=pulse2  duty=50  env=9,flat
+
+# chord_hi — bridge counter-melody variant; same duty, higher volume.
+#   env=11,flat  : Pulse 2 leads melodically in the bridge so it needs more presence
+#                  above the Pulse 1 pedal. Applied via seq transform on bridge patterns.
+inst chord_hi type=pulse2  duty=50  env=11,flat
+
+# ── Triangle (type=triangle) ──────────────────────────────────────────────────
+#
+# tri — NES triangle channel: fixed-amplitude 32-step staircase, no hardware volume.
+#   Quarter-note root/fifth walking bass; no extra params required.
+inst tri      type=triangle
+
+# ── Noise (type=noise) ────────────────────────────────────────────────────────
+#
+# kick_n — low-frequency noise burst (period=12 → LFSR ≈ 590 Hz = deep thud).
+#   env=15,down  env_period=2 : max-volume attack, full decay in ≈ 500 ms.
+inst kick_n   type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=2
+
+# snare_n — mid-frequency noise crack (period=7 → LFSR ≈ 2.8 kHz = papery snap).
+#   env=14,down  env_period=2 : slightly softer than kick; same tight decay.
+inst snare_n  type=noise  noise_mode=normal  noise_period=7   env=14,down  env_period=2
+
+# hihat — high-frequency tick (period=2 → LFSR ≈ 28 kHz = crisp metallic sizzle).
+#   env=5,down  env_period=0 : low volume, near-instantaneous decay (≈ 16 ms).
+inst hihat    type=noise  noise_mode=normal  noise_period=2   env=5,down   env_period=0
+
+# ── DMC (type=dmc) ────────────────────────────────────────────────────────────
+#
+# kick_dmc — ik_bassdrum.dmc (local) for NES DMC kick reinforcement.
+#   dmc_rate=15  : NTSC rate index 15 → 33.1 kHz — highest quality for percussion.
+#   dmc_loop=false : one-shot single hit per trigger.
+#   Local path for CLI usage; switch to the https:// URI (commented below) once the
+#   sample has been pushed to the GitHub repository.
+inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:songs/nes/ik_bassdrum.dmc"
+## inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="https://raw.githubusercontent.com/kadraman/beatbax.main/main/songs/nes/ik_bassdrum.dmc"
+
+# snare_dmc — ik_snare.dmc (local) for NES DMC snare reinforcement.
+#   Same rate and loop settings as kick_dmc.
+inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:songs/nes/ik_snare.dmc"
+## inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="https://raw.githubusercontent.com/kadraman/beatbax.main/main/songs/nes/ik_snare.dmc"
+
+# =============================================================================
+# Effect Presets
+# =============================================================================
+
+# vib_slow — delayed vibrato for sustained notes (rate=4 cents, depth=5, 4-tick onset).
+#   Used on the bridge tonic pedal; onset delay lets the note establish pitch first.
+effect vib_slow = vib:4,5,sine,0,4
+
+# =============================================================================
+# Patterns — every pattern is exactly 16 ticks (one bar at 150 BPM)
+# =============================================================================
+
+# ── Section A: Main motif (A natural minor = A B C D E F G) ──────────────────
+#
+# mel_a1 — fast 16th-note run: upward leap to C6 then cascading descent.
+#   tick:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: E5 G5 A5 C6 B5 A5 G5 E5 D5 E5 F5 E5 D5 C5 B4 A4
+pat mel_a1   = E5 G5 A5 C6 B5 A5 G5 E5 D5 E5 F5 E5 D5 C5 B4 A4   # 16 × 1 tick = 16 ✓
+
+# mel_a2 — sustained triadic rise then descending answer.
+#   A4:2 C5:2 E5:4 D5:2 C5:2 A4:4   → 2+2+4+2+2+4 = 16 ✓
+pat mel_a2   = A4:2 C5:2 E5:4 D5:2 C5:2 A4:4
+
+# harm_a1 — Pulse 2 chord support: Am root + perfect 5th across the full bar.
+pat harm_a1  = A3:8 E4:8     # 8+8 = 16 ✓
+
+# harm_a2 — F major root + perfect 5th (chromatic neighbour chord in Am context).
+pat harm_a2  = F3:8 C4:8     # 8+8 = 16 ✓
+
+# bass_a — Triangle quarter-note walking bass: root–5th–root–subtonic.
+#   Each note slot = 1 tick note + 3 rest ticks = 4 ticks (quarter note). 4 × 4 = 16 ✓
+pat bass_a   = A2 . . . E3 . . . A2 . . . G2 . . .
+
+# ── Section B: Contrast (C major / G major area) ─────────────────────────────
+#
+# mel_b1 — ascending C major run then descending; brightens after the minor intro.
+#   tick:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: G5 B5 C6 D6 C6 B5 G5 F5 E5 F5 G5 F5 E5 D5 C5 B4
+pat mel_b1   = G5 B5 C6 D6 C6 B5 G5 F5 E5 F5 G5 F5 E5 D5 C5 B4   # 16 × 1 tick = 16 ✓
+
+# mel_b2 — sustained C-area phrase; lands on D as half-step tension toward the reprise.
+#   C5:2 E5:2 G5:4 F5:2 E5:2 D5:4   → 2+2+4+2+2+4 = 16 ✓
+pat mel_b2   = C5:2 E5:2 G5:4 F5:2 E5:2 D5:4
+
+# harm_b1 — C major root + perfect 5th.
+pat harm_b1  = C4:8 G4:8     # 8+8 = 16 ✓
+
+# harm_b2 — G major root + perfect 5th (leading back to Am).
+pat harm_b2  = G3:8 D4:8     # 8+8 = 16 ✓
+
+# bass_b — Triangle walking bass for C/G area: C–G–F–G.
+pat bass_b   = C3 . . . G2 . . . F2 . . . G2 . . .   # (1+3)×4 = 16 ✓
+
+# ── Bridge: Tonic pedal + Pulse 2 counter-melody (bars 9–12) ─────────────────
+#
+# bridge_lead1 — whole-bar A5 tonic pedal with slow delayed vibrato.
+#   lead_vib inst (50% duty) applied via seq transform. Vibrato onset at tick 4.
+pat bridge_lead1 = A5<vib_slow>:16    # 16 ✓
+
+# bridge_lead2 — stepwise descent through Am: A5 → G5 → F5 → E5.
+#   A5:4 G5:4 F5:4 E5:4   → 4+4+4+4 = 16 ✓
+pat bridge_lead2 = A5:4 G5:4 F5:4 E5:4
+
+# bridge_lead3 — upward motion from E5 back toward G5, building tension into reprise.
+#   E5:8 F5:4 G5:4   → 8+4+4 = 16 ✓
+pat bridge_lead3 = E5:8 F5:4 G5:4
+
+# bridge_pickup — 8-tick rest then a 16th-note pickup launching into the reprise.
+#   . . . . . . . . E5:2 G5:2 A5:2 C6:2   → 8+2+2+2+2 = 16 ✓
+pat bridge_pickup = . . . . . . . . E5:2 G5:2 A5:2 C6:2
+
+# Bridge Pulse 2 counter-melody (chord_hi inst applied via seq transform).
+#
+# bridge_harm1 — descending scale fragment E5→D5→C5→B4 answering Pulse 1 pedal.
+#   E5:4 D5:4 C5:4 B4:4   → 4+4+4+4 = 16 ✓
+pat bridge_harm1 = E5:4 D5:4 C5:4 B4:4
+
+# bridge_harm2 — land on sustained Am chord tones A4–E4.
+pat bridge_harm2 = A4:8 E4:8    # 8+8 = 16 ✓
+
+# bridge_harm3 — ascending F4→G4→A4 leading into next bar.
+#   F4:4 G4:4 A4:8   → 4+4+8 = 16 ✓
+pat bridge_harm3 = F4:4 G4:4 A4:8
+
+# bridge_harm4 — step-up pickup mirroring bridge_pickup on Pulse 1.
+#   E4:4 F4:4 G4:4 A4:4   → 4+4+4+4 = 16 ✓
+pat bridge_harm4 = E4:4 F4:4 G4:4 A4:4
+
+# bridge bass — slow tonic pedal: root–root–5th–5th (less motion during bridge).
+pat bass_c   = A2 . . . A2 . . . E3 . . . E3 . . .   # (1+3)×4 = 16 ✓
+
+# ── Noise drum patterns ───────────────────────────────────────────────────────
+#
+# beat_intro — simple 4/4: kick on 1 & 3, snare on 2 & 4, no hi-hat (sparse opening).
+#   (1+3)×4 = 16 ✓
+pat beat_intro  = kick_n . . . snare_n . . . kick_n . . . snare_n . . .
+
+# beat_full — 8th-note hi-hat groove: kick on 1 & 3, snare on 2 & 4, hi-hat on "ands".
+#   tick:  0      1     2      3     4       5     6      7     8      9     10     11    12      13    14     15
+#   hit:  KICK   .    HHAT   .    SNARE   .    HHAT   .    KICK   .    HHAT   .    SNARE   .    HHAT   .
+pat beat_full   = kick_n . hihat . snare_n . hihat . kick_n . hihat . snare_n . hihat .  # 16 tokens = 16 ✓
+
+# beat_sparse — bridge pattern: kick only on beats 1 & 3, no snare, no hi-hat.
+#   (1+7)×2 = 16 ✓
+pat beat_sparse = kick_n . . . . . . . kick_n . . . . . . .
+
+# ── DMC patterns ──────────────────────────────────────────────────────────────
+#
+# dmc_intro — intro / bridge DMC: bass drum only on beats 1 & 3 (no snare yet).
+#   Builds anticipation; snare joins in bar 3 when beat_full also kicks in.
+#   (1+7)×2 = 16 ✓
+pat dmc_intro  = kick_dmc . . . . . . . kick_dmc . . . . . . .
+
+# dmc_std — full DMC hit: kick on beats 1 & 3, snare on beats 2 & 4.
+#   (1+3)×4 = 16 ✓
+pat dmc_std    = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .
+
+# =============================================================================
+# Sequences — 16 patterns × 16 ticks = 256 ticks per channel
+# =============================================================================
+
+# Pulse 1 lead:
+#   Sections A & B  — fast melodic runs using lead (25% duty)
+#   Bridge bars 9–11 — tonic pedal using lead_vib (50% duty) via inst() transform
+#   Bridge bar 12    — pickup run back to Section A, plain lead
+#   Reprise A        — return to fast Section A runs
+seq lead_main  = mel_a1 mel_a2 mel_a1 mel_a2  mel_b1 mel_b2 mel_b1 mel_b2  bridge_lead1:inst(lead_vib) bridge_lead2:inst(lead_vib) bridge_lead3:inst(lead_vib) bridge_pickup  mel_a1 mel_a2 mel_a1 mel_a2
+
+# Pulse 2 harmony:
+#   Sections A & B  — half-note chord intervals using chord (9/15 vol)
+#   Bridge bars 9–12 — lyrical counter-melody using chord_hi (11/15 vol) via inst() transform
+#   Reprise A        — back to chord support
+seq harm_main  = harm_a1 harm_a2 harm_a1 harm_a2  harm_b1 harm_b2 harm_b1 harm_b2  bridge_harm1:inst(chord_hi) bridge_harm2:inst(chord_hi) bridge_harm3:inst(chord_hi) bridge_harm4:inst(chord_hi)  harm_a1 harm_a2 harm_a1 harm_a2
+
+# Triangle bass:
+#   Sections A & B  — walking bass patterns matching each tonal area
+#   Bridge          — slow tonic pedal bass_c
+#   Reprise A       — back to bass_a walking line
+seq bass_main  = bass_a bass_a bass_a bass_a  bass_b bass_b bass_b bass_b  bass_c bass_c bass_c bass_c  bass_a bass_a bass_a bass_a
+
+# Noise drums:
+#   Bars 1–2 : intro — simple 4/4 kick/snare, no hi-hat (sparse opening)
+#   Bars 3–8 : sections A & B full groove — 8th-note hi-hat drive
+#   Bars 9–12: bridge — sparse kick-only to thin the texture
+#   Bars 13–16: reprise — full groove returns
+seq noise_main = beat_intro beat_intro beat_full beat_full  beat_full beat_full beat_full beat_full  beat_sparse beat_sparse beat_sparse beat_sparse  beat_full beat_full beat_full beat_full
+
+# DMC percussion:
+#   Bars 1–2 : kick-only build (no snare yet — matches noise intro)
+#   Bars 3–8 : full kick + snare
+#   Bars 9–12: kick-only bridge (snare drops out alongside noise_main)
+#   Bars 13–16: full kick + snare return
+seq dmc_main   = dmc_intro dmc_intro dmc_std dmc_std  dmc_std dmc_std dmc_std dmc_std  dmc_intro dmc_intro dmc_intro dmc_intro  dmc_std dmc_std dmc_std dmc_std
+
+# =============================================================================
+# Channel routing
+# =============================================================================
+
+channel 1 => inst lead      seq lead_main
+channel 2 => inst chord     seq harm_main
+channel 3 => inst tri       seq bass_main
+channel 4 => inst kick_n    seq noise_main
+channel 5 => inst kick_dmc  seq dmc_main
+
+play
