@@ -1629,6 +1629,11 @@ ks.register({ key: 'p', ctrlKey: true, altKey: true, description: 'Open Command 
 
 ks.mount();
 
+// Refresh the embedded HelpPanel now that all shortcuts are registered.
+// helpPanel was constructed before ks.register() calls so its shortcuts
+// section was initially empty; refresh() re-renders the body in-place.
+helpPanel?.refresh();
+
 // ─── Command Palette — BeatBax-specific commands in the Monaco palette ────────
 setupCommandPalette({
   editor: monacoInst,

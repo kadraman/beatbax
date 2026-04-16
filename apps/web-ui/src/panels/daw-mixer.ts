@@ -229,14 +229,6 @@ export class DawMixer {
     if (this.collapsed) root.classList.add('bb-hmix--collapsed');
     if (this.dockMode === 'inline') root.classList.add('bb-hmix--inline');
     if (!this.visible) root.style.display = 'none';
-    root.style.setProperty('--bb-hmix-height', `${this.height}px`);
-
-    // ── Resize handle (top edge) ──────────────────────────────────────────────
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'bb-hmix__resize-handle';
-    resizeHandle.title = 'Drag to resize mixer';
-    this.wireResizeHandle(resizeHandle, root);
-    root.appendChild(resizeHandle);
 
     // ── Toolbar ──────────────────────────────────────────────────────────────
     const toolbar = document.createElement('div');
@@ -244,7 +236,7 @@ export class DawMixer {
 
     const collapseBtn = document.createElement('button');
     collapseBtn.type = 'button';
-    collapseBtn.className = 'bb-hmix__toolbar-btn' + (this.collapsed ? ' bb-hmix__toolbar-btn--active' : '');
+    collapseBtn.className = 'bb-hmix__toolbar-btn';
     collapseBtn.title = this.collapsed ? 'Expand mixer' : 'Collapse mixer';
     collapseBtn.setAttribute('aria-label', this.collapsed ? 'Expand mixer' : 'Collapse mixer');
     collapseBtn.innerHTML = this.collapsed ? icon('chevron-up') : icon('chevron-down');
@@ -327,7 +319,6 @@ export class DawMixer {
       ? 'Switch to inline mode (beside output panel)'
       : 'Switch to full-width docked mode';
     btn.setAttribute('aria-label', btn.title);
-    btn.classList.toggle('bb-hmix__toolbar-btn--active', !isDocked);
     // arrows-pointing-in = switch to inline (smaller), arrows-pointing-out = switch back to full-width
     btn.innerHTML = isDocked
       ? icon('arrows-pointing-in', 'w-3.5 h-3.5')
@@ -528,7 +519,6 @@ export class DawMixer {
   private toggleCollapse(btn: HTMLButtonElement, root: HTMLElement): void {
     this.collapsed = !this.collapsed;
     root.classList.toggle('bb-hmix--collapsed', this.collapsed);
-    btn.classList.toggle('bb-hmix__toolbar-btn--active', this.collapsed);
     btn.title = this.collapsed ? 'Expand mixer' : 'Collapse mixer';
     btn.setAttribute('aria-label', btn.title);
     btn.innerHTML = this.collapsed ? icon('chevron-up') : icon('chevron-down');
