@@ -2099,6 +2099,122 @@
 [data-theme="light"] .bb-menu__sep { background: #e0e0e0; }
 
 /* ─── Channel Mixer ──────────────────────────────────────────────────────── */
+.bb-viz {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+.bb-viz__toolbar { display: flex; align-items: center; gap: 6px; }
+.bb-viz__toolbar-btn {
+  border: 1px solid #444;
+  background: #2d2d2d;
+  color: #ddd;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.bb-viz__bg-select {
+  border: 1px solid #444;
+  background: #232323;
+  color: #ddd;
+  border-radius: 4px;
+  height: 28px;
+  padding: 0 8px;
+  margin-left: auto;
+}
+.bb-viz__channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.bb-viz__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #2a2a2a;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+}
+.bb-viz__card--silent { opacity: 0.5; }
+.bb-viz__card[data-channel="1"] { border-left: 3px solid var(--bb-ch1); }
+.bb-viz__card[data-channel="2"] { border-left: 3px solid var(--bb-ch2); }
+.bb-viz__card[data-channel="3"] { border-left: 3px solid var(--bb-ch3); }
+.bb-viz__card[data-channel="4"] { border-left: 3px solid var(--bb-ch4); }
+.bb-viz__card-header { display: flex; gap: 8px; align-items: flex-start; }
+.bb-viz__level-bar { width: 6px; min-height: 18px; border-radius: 3px; }
+.bb-viz__title-block { display: flex; flex-direction: column; gap: 2px; min-width: 72px; }
+.bb-viz__channel-title { font-weight: 600; font-size: 12px; }
+.bb-viz__chip-label { font-size: 10px; text-transform: uppercase; }
+.bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.bb-viz__inst { font-size: 11px; color: #4a9eff; }
+.bb-viz__pattern { font-size: 10px; color: #9cdcfe; min-height: 12px; }
+.bb-viz__wave-canvas {
+  width: 100%;
+  height: 80px;
+  background: #070d07;
+  border: 1px solid #2a402a;
+  border-radius: 6px;
+}
+.bb-viz__progress-wrap { height: 4px; background: #151515; border-radius: 2px; overflow: hidden; }
+.bb-viz__progress-fill { height: 100%; width: 0; background: #4a9eff; transition: width 0.1s linear; }
+.bb-viz__position { font-size: 11px; color: #777; }
+.bb-viz__ctrl-row { display: flex; gap: 4px; }
+.bb-viz__btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #5a5a5a;
+  background: #3a3a3a;
+  color: #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.bb-viz__btn--active { outline: 1px solid #4a9eff; }
+.bb-viz--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  padding: 12px;
+}
+.bb-viz--fullscreen .bb-viz__toolbar { opacity: 0.92; }
+.bb-viz--fullscreen .bb-viz__channels {
+  flex: 1;
+  align-content: stretch;
+}
+.bb-viz--fullscreen .bb-viz__wave-canvas { height: clamp(120px, 22vh, 280px); }
+.bb-viz--fullscreen .bb-viz__progress-wrap,
+.bb-viz--fullscreen .bb-viz__position { display: none; }
+#bb-viz-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.bb-viz__bg-hidden { display: none; }
+.bb-viz__exit-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  border: 1px solid #666;
+  background: rgba(20, 20, 20, 0.8);
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
 .bb-cp {
   display: flex; flex-direction: column;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

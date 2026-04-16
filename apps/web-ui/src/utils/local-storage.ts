@@ -98,6 +98,10 @@ export const StorageKey = {
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
   /** Legacy (right-pane) channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
+  /** Song visualizer (right-pane) visible state (boolean). */
+  PANEL_VIS_SONG_VISUALIZER: 'panel.song-visualizer',
+  /** Song visualizer background effect id. */
+  VIZ_BG_EFFECT: 'viz.bgEffect',
   /** Channel mixer collapsed state (boolean). */
   DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
   /** Channel mixer height in pixels (number). */

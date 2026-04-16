@@ -514,9 +514,9 @@ export class MenuBar {
       },
       {
         type: 'item',
-        label: 'Channel Mixer',
+        label: 'Song Visualizer',
         icon: 'adjustments-horizontal',
-        shortcut: 'Ctrl+Shift+M',
+        shortcut: 'Ctrl+Shift+V',
         id: 'channel-mixer-toggle',
         action: () => this.emitPanelToggle('daw-mixer'),
       },
