@@ -108,6 +108,6 @@ describe('SongVisualizer', () => {
     visualizer.dispose();
     visualizer = new SongVisualizer({ container, eventBus });
     const shownCanvas = document.getElementById('bb-viz-bg');
-    expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(true); // visible only in fullscreen
+    expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(true); // hidden until fullscreen is active
   });
 });

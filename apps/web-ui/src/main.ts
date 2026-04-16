@@ -534,7 +534,7 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
-// The legacy right-pane Channel Mixer (ChannelMixer) tab is hidden by default when
+// The Song Visualizer tab is hidden by default when
 // the horizontal Channel Mixer is enabled via Settings → Features → Channel Mixer.
 // It can be revealed by setting the storage key 'panel.song-visualizer' to 'true'.
 const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
@@ -575,8 +575,8 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
         rightTabs.show('channels');
       }
     } catch (_e) { /* ignore */ }
-    // Sync the View → Channel Mixer menu item enabled state.
-    (window as any).__beatbax_menuBar?.setItemEnabled('channel-mixer-toggle', enabled);
+    // Sync the View → Song Visualizer menu item enabled state.
+    (window as any).__beatbax_menuBar?.setItemEnabled('song-visualizer-toggle', enabled);
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
@@ -1318,8 +1318,8 @@ menuBar.seedPanelVisible({
   'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
   'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
-// Reflect initial feature-flag state on the View → Channel Mixer menu item.
-menuBar.setItemEnabled('channel-mixer-toggle', isFeatureEnabled(FeatureFlag.DAW_MIXER));
+// Reflect initial feature-flag state on the View → Song Visualizer menu item.
+menuBar.setItemEnabled('song-visualizer-toggle', isFeatureEnabled(FeatureFlag.DAW_MIXER));
 
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
@@ -1488,7 +1488,7 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menu
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
   rightTabs.show('channels');
 });
-// Ctrl+Shift+M → Toggle Channel Mixer strip (Monaco captures this key when focused).
+// Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
 // Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
   if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
