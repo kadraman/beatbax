@@ -26,7 +26,7 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
 
 ### Summary
 
-1. **Rename** `ChannelMixer` → `ChannelVisualizer` (file: `channel-visualizer.ts`, class: `ChannelVisualizer`).
+1. **Rename** `ChannelMixer` → `SongVisualizer` (file: `song-visualizer.ts`, class: `SongVisualizer`).
 2. **Remove** the volume fader, per-channel compact/full toggle, and the waveform-analyser toolbar button from the Visualizer. These live in the `DawMixer` now.
 3. **Expand** each channel's oscilloscope canvas to use the freed vertical space — larger canvas height (e.g. 80px) for a more readable waveform.
 4. **Migrate** the pattern / sequence / bar readouts from the `DawMixer` strips into the Visualizer cards (they were already in `ChannelMixer`; `DawMixer` strips now show only instrument name).
@@ -35,9 +35,11 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
 
 ### Panel Layout (normal mode)
 
+Horizontal or vertical layout of channels:
+
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ [⬡ Waveforms] [⛶ Full screen]            CHANNEL VISUALIZER     │  toolbar
+│ [⬡ Waveforms] [⛶ Full screen]            SONG VISUALIZER     │  toolbar
 ├────────────────┬────────────────┬────────────────┬───────────────┤
 │  CH 1 PULSE 1  │  CH 2 PULSE 2  │   CH 3 WAVE    │  CH 4 NOISE  │  channel label
 │ ╭──────────╮  │ ╭──────────╮  │ ╭──────────╮  │ ╭──────────╮  │
@@ -52,6 +54,7 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
 
 ### Full-Screen Performance Mode Layout
 
+Horizontal or Vertical layout of waveforms, with or without text, e.g. in horizontial mode waveform encompass whole width of screen.
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                  ░░░░░░ background graphics ░░░░░░               │
@@ -73,7 +76,7 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
 
 ### In scope
 
-- Rename `ChannelMixer` → `ChannelVisualizer` (`channel-visualizer.ts`, class `ChannelVisualizer`).
+- Rename `ChannelMixer` → `SongVisualizer` (`song-visualizer.ts`, class `SongVisualizer`).
 - Remove from Visualizer (now in DawMixer):
   - Volume fader / slider
   - Compact/full layout toggle
@@ -95,11 +98,12 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
   - Initial built-in effect: **CRT Scanlines** — horizontal semi-transparent lines overlaid at a fixed interval, giving a retro monitor look.
   - Effect selection persisted to `localStorage` (`StorageKey.VIZ_BG_EFFECT`).
   - When no effect is selected (`'none'`), the background canvas is hidden (pure black).
+  - Optional scrolling text with song metadata, e.g. name, description.
 - `StorageKey` additions:
-  - `PANEL_VIS_CHANNEL_VISUALIZER` — panel show/hide
+  - `PANEL_VIS_SONG_VISUALIZER` — panel show/hide
   - `VIZ_BG_EFFECT` — active background effect id (`'none'` | `'starfield'` | `'scanlines'`)
-- View menu: rename "Channel Mixer" → "Channel Visualizer"; keep the same keyboard shortcut or assign a new one (open question — see below).
-- Update `main.ts`: replace `ChannelMixer` instantiation with `ChannelVisualizer`.
+- View menu: rename "Channel Mixer" → "Song Visualizer"; keep the same keyboard shortcut or assign a new one (open question — see below).
+- Update `main.ts`: replace `ChannelMixer` instantiation with `SongVisualizer`.
 - Update `docs/features/daw-channel-mixer.md` acceptance criteria to reflect that pattern/sequence readouts have moved to the Visualizer.
 
 ### Out of scope (future enhancements — see below)
@@ -113,29 +117,17 @@ Live coders performing on stage also need a clean, distraction-free full-screen 
 
 ---
 
-## DawMixer Strip Changes (co-delivered)
-
-As part of this feature, the `DawMixer` channel strips are simplified:
-
-- **Remove** the `bb-hmix__pat` (pattern name) and `bb-hmix__seq` (sequence name) elements from each strip's DOM.
-- **Remove** the corresponding `updatePosition` writes to `#bb-hmix-pat-*` and `#bb-hmix-seq-*`.
-- **Keep** only the instrument name (`bb-hmix__inst`) below the VU meter — the strip becomes: accent → label → VU/fader mid → instrument → mute/solo.
-- The freed vertical space in the strip can be used to slightly taller VU meters, or just whitespace for breathing room.
-- Update `docs/features/daw-channel-mixer.md` to reflect the simplified strip layout.
-
----
-
 ## Implementation Plan
 
 ### File changes
 
 | Action | File |
 |---|---|
-| Rename + refactor | `apps/web-ui/src/panels/channel-mixer.ts` → `channel-visualizer.ts` |
+| Rename + refactor | `apps/web-ui/src/panels/channel-mixer.ts` → `song-visualizer.ts` |
 | Update | `apps/web-ui/src/main.ts` |
 | Update | `apps/web-ui/src/utils/local-storage.ts` (new `StorageKey` values) |
 | Update | `apps/web-ui/src/styles.css` (canvas sizing, full-screen overrides, bg canvas) |
-| Update | `apps/web-ui/tests/channel-mixer.test.ts` → `channel-visualizer.test.ts` |
+| Update | `apps/web-ui/tests/channel-mixer.test.ts` → `song-visualizer.test.ts` |
 | Update | `docs/features/daw-channel-mixer.md` |
 | New | `docs/features/channel-visualizer.md` (this document) |
 
@@ -189,7 +181,7 @@ Built-in effects are registered in an internal `BG_EFFECTS: BgEffect[]` array. F
 
 ### Unit Tests
 
-- `ChannelVisualizer` renders one card per channel (same structure as current `ChannelMixer` tests).
+- `SongVisualizer` renders one card per channel (same structure as current `ChannelMixer` tests).
 - Waveform canvas exists per channel and has correct dimensions.
 - Full-screen mode: toggling `isFullscreen()` attaches / removes the `bb-viz--fullscreen` class and the background canvas.
 - `playback:position-changed` updates instrument, sequence, pattern, and progress elements.
@@ -199,14 +191,14 @@ Built-in effects are registered in an internal `BG_EFFECTS: BgEffect[]` array. F
 ### Integration Tests
 
 - `DawMixer` strips no longer contain `bb-hmix__pat` or `bb-hmix__seq` elements after this change.
-- `ChannelVisualizer` and `DawMixer` can coexist without duplicate element IDs (all IDs use distinct prefixes: `bb-hmix-*` vs `bb-viz-*`).
+- `SongVisualizer` and `DawMixer` can coexist without duplicate element IDs (all IDs use distinct prefixes: `bb-hmix-*` vs `bb-viz-*`).
 
 ---
 
 ## Migration Path
 
 1. The existing `channel-mixer.ts` is refactored in-place (renamed, volume fader removed, canvas enlarged, full-screen added).
-2. `main.ts` import and instantiation updated from `ChannelMixer` to `ChannelVisualizer`.
+2. `main.ts` import and instantiation updated from `ChannelMixer` to `SongVisualizer`.
 3. `StorageKey.CHANNEL_COMPACT` becomes unused and can be deprecated (no compact mode in Visualizer).
 4. Any code referencing `bb-cp-*` element IDs is updated to `bb-viz-*`.
 
@@ -214,19 +206,17 @@ Built-in effects are registered in an internal `BG_EFFECTS: BgEffect[]` array. F
 
 ## Implementation Checklist
 
-- [ ] `channel-visualizer.ts` created from `channel-mixer.ts`; class renamed, volume fader removed, canvas height increased to 80px
+- [ ] `song-visualizer.ts` created from `channel-mixer.ts`; class renamed, volume fader removed, canvas height increased to 80px
 - [ ] `DawMixer` strips: `bb-hmix__pat` and `bb-hmix__seq` elements removed; `updatePosition` writes removed
 - [ ] Full-screen mode: toolbar button, Fullscreen API call, CSS overlay class, exit button and Escape handling
 - [ ] Background canvas element added to full-screen DOM; `BgEffect` interface implemented
 - [ ] Built-in `starfield` effect implemented (stars + RMS brightness)
 - [ ] Built-in `scanlines` effect implemented (static CRT overlay)
-- [ ] `StorageKey.VIZ_BG_EFFECT` and `StorageKey.PANEL_VIS_CHANNEL_VISUALIZER` added
-- [ ] View menu item updated: "Channel Mixer" → "Channel Visualizer"
-- [ ] `main.ts` updated to instantiate `ChannelVisualizer`
-- [ ] `channel-visualizer.test.ts` passes (adapted from `channel-mixer.test.ts`)
-- [ ] `daw-mixer.test.ts` updated: assert no `bb-hmix__pat` / `bb-hmix__seq` elements in strips
+- [ ] `StorageKey.VIZ_BG_EFFECT` and `StorageKey.PANEL_VIS_SONG_VISUALIZER` added
+- [ ] View menu item updated: "Channel Mixer" → "Song Visualizer"
+- [ ] `main.ts` updated to instantiate SongVisualizer`
+- [ ] `song-visualizer.test.ts` passes (adapted from `channel-mixer.test.ts`)
 - [ ] No TypeScript errors; all existing tests pass
-- [ ] `docs/features/daw-channel-mixer.md` acceptance criteria updated
 
 ---
 
@@ -244,7 +234,7 @@ Built-in effects are registered in an internal `BG_EFFECTS: BgEffect[]` array. F
 
 ## Open Questions
 
-1. **Keyboard shortcut** — should "Channel Visualizer" reuse `Ctrl+Shift+M` (currently "Channel Mixer") or get a new shortcut (e.g. `Ctrl+Shift+V`)? Repurposing is less disruptive but changes the meaning.
+1. **Keyboard shortcut** — should "Song Visualizer" reuse `Ctrl+Shift+M` (currently "Channel Mixer") or get a new shortcut (e.g. `Ctrl+Shift+V`)? Repurposing is less disruptive but changes the meaning. Lets use Ctrl+Shift+V if not already taken.
 2. **Mute/Solo in Visualizer** — keep them as secondary controls (useful when the DawMixer is collapsed), or remove to keep the Visualizer read-only? Leaning towards keeping them.
 3. **Background effect in windowed mode** — should the starfield/scanlines be available in normal (non-full-screen) mode too, or only in full-screen? Starting with full-screen only keeps the normal panel clean.
 4. **Effect selector UI** — a dropdown in the toolbar, or a small settings panel that slides in? Toolbar dropdown is simpler for the initial implementation.
