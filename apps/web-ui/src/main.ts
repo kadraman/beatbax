@@ -60,7 +60,7 @@ import {
 import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
-  settingShowChannelMixerLegacy,
+  settingShowSongVisualizer,
   settingWordWrap, settingDefaultBpm,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
@@ -537,8 +537,8 @@ rightTabs.restorePersistedTab();
 // The Song Visualizer tab is hidden by default when
 // the horizontal Channel Mixer is enabled via Settings → Features → Channel Mixer.
 // It can be revealed by setting the storage key 'panel.song-visualizer' to 'true'.
-const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
-if (!legacyMixerEnabled) {
+const songVisualizerEnabled = readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
+if (!songVisualizerEnabled) {
   rightTabs.close('channels');
 }
 
@@ -575,8 +575,6 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
         rightTabs.show('channels');
       }
     } catch (_e) { /* ignore */ }
-    // Sync the View → Song Visualizer menu item enabled state.
-    (window as any).__beatbax_menuBar?.setItemEnabled('song-visualizer-toggle', enabled);
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
@@ -597,10 +595,10 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'problems') {
     visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
-  if (panel === 'channel-mixer') {
-    // 'channel-mixer' now always refers to the legacy right-pane mixer
+  if (panel === 'channel-mixer' || panel === 'song-visualizer') {
+    // Song Visualizer in the right pane (accept legacy 'channel-mixer' id too)
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
-    settingShowChannelMixerLegacy.set(visible);
+    settingShowSongVisualizer.set(visible);
   }
   if (panel === 'daw-mixer') {
     // Only honour show/hide requests when the Channel Mixer feature is enabled.
@@ -1318,9 +1316,6 @@ menuBar.seedPanelVisible({
   'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
   'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
 });
-// Reflect initial feature-flag state on the View → Song Visualizer menu item.
-menuBar.setItemEnabled('song-visualizer-toggle', isFeatureEnabled(FeatureFlag.DAW_MIXER));
-
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
   patternGridContainer.style.display = 'none';
@@ -1578,7 +1573,7 @@ ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowIn
 ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
   action: () => bottomTabs.show('problems'),
 });
-ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer tab', allowInInput: true,
+ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
   action: () => rightTabs.show('channels'),
 });
 ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,

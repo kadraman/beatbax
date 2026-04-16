@@ -21,6 +21,7 @@ export const panelVisibility = map<Record<string, boolean>>({
   problems: true,
   help: true,
   'channel-mixer': true,
+  'song-visualizer': true,
   toolbar: true,
   'transport-bar': true,
   'ai-assistant': false,

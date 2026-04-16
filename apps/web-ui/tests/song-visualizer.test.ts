@@ -95,7 +95,7 @@ describe('SongVisualizer', () => {
     });
   });
 
-  it('background effect none hides canvas and starfield shows canvas', () => {
+  it('background effect none hides canvas and starfield is visible in fullscreen', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
 
     storage.set(StorageKey.VIZ_BG_EFFECT, 'none');
@@ -107,7 +107,14 @@ describe('SongVisualizer', () => {
     storage.set(StorageKey.VIZ_BG_EFFECT, 'starfield');
     visualizer.dispose();
     visualizer = new SongVisualizer({ container, eventBus });
-    const shownCanvas = document.getElementById('bb-viz-bg');
-    expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(true); // hidden until fullscreen is active
+    const requestFullscreen = jest.fn().mockRejectedValue(new Error('unsupported'));
+    const root = document.getElementById('bb-viz-root') as any;
+    root.requestFullscreen = requestFullscreen;
+    (document.getElementById('bb-viz-fullscreen') as HTMLButtonElement).click();
+
+    return Promise.resolve().then(() => {
+      const shownCanvas = document.getElementById('bb-viz-bg');
+      expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(false);
+    });
   });
 });
