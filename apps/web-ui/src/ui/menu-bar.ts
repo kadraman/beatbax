@@ -10,7 +10,7 @@
  */
 
 import type { EventBus } from '../utils/event-bus';
-import { EXAMPLE_SONGS, loadRemote } from '../import/remote-loader';
+import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 
@@ -650,10 +650,15 @@ export class MenuBar {
   }
 
   private exampleItems(): MenuItemDef[] {
-    return EXAMPLE_SONGS.map(s => ({
-      type: 'item' as const,
-      label: s.label,
-      action: () => this.loadExample(s.path, s.label),
+    return EXAMPLE_SONG_GROUPS.map(group => ({
+      type: 'submenu' as const,
+      label: group.group,
+      icon: 'cpu-chip',
+      children: group.songs.map(s => ({
+        type: 'item' as const,
+        label: s.label,
+        action: () => this.loadExample(s.path, s.label),
+      })),
     }));
   }
 

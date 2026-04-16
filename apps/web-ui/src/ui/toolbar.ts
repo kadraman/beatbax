@@ -5,7 +5,7 @@
 
 import type { EventBus } from '../utils/event-bus';
 import type { ExportFormat } from '../export/export-manager';
-import { EXAMPLE_SONGS, loadRemote } from '../import/remote-loader';
+import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 
@@ -73,12 +73,11 @@ export class Toolbar {
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Open</span>
         </button>
         <div class="bb-toolbar__dropdown-wrap bb-toolbar__item--pri-examples">
-          <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song">
+          <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song"
+            aria-haspopup="true" aria-expanded="false">
             ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Examples</span> ${icon('chevron-down', 'w-3 h-3 inline-block align-middle bb-toolbar__btn-label')}
           </button>
-          <ul class="bb-toolbar__dropdown" id="tb-examples-list" aria-label="Example songs" hidden>
-            ${EXAMPLE_SONGS.map(s => `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`).join('')}
-          </ul>
+          <div class="bb-examples-panel" id="tb-examples-panel" hidden></div>
         </div>
       </div>
 
@@ -172,84 +171,127 @@ export class Toolbar {
       });
     });
 
-    // Examples dropdown
-    const examplesBtn = this.el.querySelector<HTMLButtonElement>('#tb-examples-btn')!;
-    const examplesList = this.el.querySelector<HTMLElement>('#tb-examples-list')!;
+    // Examples two-column panel
+    const examplesBtn  = this.el.querySelector<HTMLButtonElement>('#tb-examples-btn')!;
+    const examplesPanel = this.el.querySelector<HTMLElement>('#tb-examples-panel')!;
+    let examplesPanelReady = false;
+
+    const buildExamplesPanel = () => {
+      if (examplesPanelReady) return;
+      examplesPanelReady = true;
+
+      // Left column: chip group buttons
+      const leftCol = document.createElement('ul');
+      leftCol.className = 'bb-examples-panel__groups';
+      leftCol.setAttribute('role', 'listbox');
+      leftCol.setAttribute('aria-label', 'Chip groups');
+
+      // Right column: song list for the active group
+      const rightCol = document.createElement('ul');
+      rightCol.className = 'bb-examples-panel__songs';
+      rightCol.setAttribute('role', 'listbox');
+      rightCol.setAttribute('aria-label', 'Songs');
+
+      const showGroup = (groupIndex: number) => {
+        // Update active state on group buttons
+        leftCol.querySelectorAll<HTMLElement>('.bb-examples-panel__group-btn').forEach((el, i) => {
+          el.classList.toggle('bb-examples-panel__group-btn--active', i === groupIndex);
+          el.setAttribute('aria-selected', String(i === groupIndex));
+        });
+        // Populate song list
+        rightCol.innerHTML = '';
+        const group = EXAMPLE_SONG_GROUPS[groupIndex];
+        for (const song of group.songs) {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.className = 'bb-examples-panel__song-btn';
+          btn.textContent = song.label;
+          btn.title = song.label;
+          btn.dataset.example = song.path;
+          li.appendChild(btn);
+          rightCol.appendChild(li);
+        }
+      };
+
+      EXAMPLE_SONG_GROUPS.forEach((group, i) => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.className = 'bb-examples-panel__group-btn';
+        btn.textContent = group.group;
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', 'false');
+        btn.addEventListener('click', () => showGroup(i));
+        btn.addEventListener('mouseenter', () => showGroup(i));
+        li.appendChild(btn);
+        leftCol.appendChild(li);
+      });
+
+      examplesPanel.appendChild(leftCol);
+      examplesPanel.appendChild(rightCol);
+
+      // Default to first group
+      showGroup(0);
+
+      // Song click handler
+      rightCol.addEventListener('click', async (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-example]');
+        if (!btn) return;
+        const path = btn.dataset.example!;
+        examplesPanel.hidden = true;
+        examplesBtn.setAttribute('aria-expanded', 'false');
+
+        const cached = this.exampleCache.get(path);
+        if (cached !== undefined) {
+          const filename = path.split('/').pop() || 'example.bax';
+          onLoad(filename, cached);
+          this.setStatus(`Loaded ${filename}`, 'success');
+          return;
+        }
+
+        this.setStatus('Loading...', 'info');
+        try {
+          const result = await loadRemote(path);
+          const filename = path.split('/').pop() || 'example.bax';
+          this.exampleCache.set(path, result.content);
+          onLoad(filename, result.content);
+          this.setStatus(`Loaded ${filename}`, 'success');
+        } catch (err: any) {
+          log.error('Failed to load example:', err);
+          this.setStatus(`Failed to load: ${err.message}`, 'error');
+        }
+      });
+    };
 
     examplesBtn.addEventListener('click', () => {
-      const wasHidden = examplesList.hidden;
-      // Toggle visibility
-      examplesList.hidden = !wasHidden;
-      // Reflect the new state accurately
-      examplesBtn.setAttribute('aria-expanded', String(!examplesList.hidden));
-
-      // Lazily populate the dropdown contents the first time it is opened.
-      // Use a robust selector to detect whether items exist (ignores whitespace/text).
-      if (wasHidden && examplesList.querySelectorAll('[data-example]').length === 0) {
-        examplesList.innerHTML = EXAMPLE_SONGS.map(s =>
-          `<li><button class="bb-toolbar__dropdown-item" data-example="${s.path}" title="${s.label}">${s.label}</button></li>`
-        ).join('');
-        // Ensure the dropdown is visible when we populate it programmatically
-        examplesList.hidden = false;
-      }
-
-      // Pre-fetch all examples into cache the first time the dropdown opens
-      if (wasHidden && this.exampleCache.size === 0) {
-        this.prefetchExamples();
+      const wasHidden = examplesPanel.hidden;
+      examplesPanel.hidden = !wasHidden;
+      examplesBtn.setAttribute('aria-expanded', String(!examplesPanel.hidden));
+      if (wasHidden) {
+        buildExamplesPanel();
+        if (this.exampleCache.size === 0) this.prefetchExamples();
       }
     });
 
-    // Close dropdown when clicking outside
+    // Close panel when clicking outside
     document.addEventListener('click', (e) => {
-      if (!examplesBtn.contains(e.target as Node) && !examplesList.contains(e.target as Node)) {
-        examplesList.hidden = true;
+      if (!examplesBtn.contains(e.target as Node) && !examplesPanel.contains(e.target as Node)) {
+        examplesPanel.hidden = true;
         examplesBtn.setAttribute('aria-expanded', 'false');
       }
     }, { signal: this.abortController.signal });
 
-    // Close the examples dropdown with Escape key (like VS Code menus)
+    // Close the examples panel with Escape
     document.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (!examplesList.hidden) {
-          examplesList.hidden = true;
+        if (!examplesPanel.hidden) {
+          examplesPanel.hidden = true;
           examplesBtn.setAttribute('aria-expanded', 'false');
-          try { examplesBtn.focus(); } catch { /* ignore focus failures */ }
+          try { examplesBtn.focus(); } catch { /* ignore */ }
           e.stopPropagation();
           e.preventDefault();
         }
       }
     }, { signal: this.abortController.signal });
-
-    examplesList.addEventListener('click', async (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-example]');
-      if (!btn) return;
-
-      const path = btn.dataset.example!;
-      examplesList.hidden = true;
-
-      // Serve from cache if already pre-fetched; otherwise fetch now
-      const cached = this.exampleCache.get(path);
-      if (cached !== undefined) {
-        const filename = path.split('/').pop() || 'example.bax';
-        onLoad(filename, cached);
-        this.setStatus(`Loaded ${filename}`, 'success');
-        log.debug(`Loaded example from cache: ${path}`);
-        return;
-      }
-
-      this.setStatus('Loading...', 'info');
-      try {
-        const result = await loadRemote(path);
-        const filename = path.split('/').pop() || 'example.bax';
-        this.exampleCache.set(path, result.content);
-        onLoad(filename, result.content);
-        this.setStatus(`Loaded ${filename}`, 'success');
-        log.debug(`Loaded example: ${path}`);
-      } catch (err: any) {
-        log.error('Failed to load example:', err);
-        this.setStatus(`Failed to load: ${err.message}`, 'error');
-      }
-    });
 
     // Export buttons
     const exportBtns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
