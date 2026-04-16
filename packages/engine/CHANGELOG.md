@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.10.0
+
+### Minor Changes
+
+- 30f54a1: updated to use parser error recovery with multi-error reporting changes
+
 ## 0.9.0
 
 ### Minor Changes
