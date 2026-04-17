@@ -16,11 +16,11 @@ import { getChannelMeta } from '../utils/chip-meta';
 
 const log = createLogger('ui:song-visualizer');
 
-type BgEffectId = 'none' | 'starfield' | 'scanlines';
+type BgEffectId = 'none' | 'starfield' | 'scanlines' | 'custom-image';
+type VizLayout = 'horizontal' | 'vertical';
 
 interface BgEffect {
-  id: Exclude<BgEffectId, 'none'>;
-  label: string;
+  id: Exclude<BgEffectId, 'none' | 'custom-image'>;
   init(canvas: HTMLCanvasElement): void;
   draw(canvas: HTMLCanvasElement, rmsValues: Map<number, number>): void;
   dispose(): void;
@@ -29,7 +29,6 @@ interface BgEffect {
 const BG_EFFECTS: BgEffect[] = [
   {
     id: 'starfield',
-    label: 'Starfield',
     init(canvas) {
       const stars = Array.from({ length: 120 }, () => ({
         x: Math.random() * canvas.width,
@@ -46,7 +45,7 @@ const BG_EFFECTS: BgEffect[] = [
         ? Array.from(rmsValues.values()).reduce((a, b) => a + b, 0) / rmsValues.size
         : 0;
       const brightness = Math.min(1, 0.2 + avgRms * 1.8);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillStyle = 'rgba(0,0,0,0.38)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const s of stars) {
         s.y += s.z;
@@ -54,7 +53,7 @@ const BG_EFFECTS: BgEffect[] = [
           s.y = 0;
           s.x = Math.random() * canvas.width;
         }
-        ctx.fillStyle = `rgba(180,220,255,${Math.min(1, brightness * (0.25 + s.z * 0.35))})`;
+        ctx.fillStyle = `rgba(180,220,255,${Math.min(1, brightness * (0.22 + s.z * 0.35))})`;
         ctx.fillRect(s.x, s.y, Math.max(1, s.z), Math.max(1, s.z));
       }
     },
@@ -64,7 +63,6 @@ const BG_EFFECTS: BgEffect[] = [
   },
   {
     id: 'scanlines',
-    label: 'CRT Scanlines',
     init() {
       // no-op
     },
@@ -98,37 +96,63 @@ export class SongVisualizer {
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private channelWaveforms: Map<number, Float32Array> = new Map();
   private analyserEnabled = false;
-  private fullscreenFallback = false;
-  private bgEffectId: BgEffectId;
+  private bgEffectId: BgEffectId = 'none';
+  private layoutMode: VizLayout = 'horizontal';
+  private bgImageData = '';
+  private bgImage: HTMLImageElement | null = null;
   private activeBgEffect: BgEffect | null = null;
   private bgRafId: number | null = null;
+  private performanceMode = false;
 
   constructor(options: SongVisualizerOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
     this.playbackManager = options.playbackManager ?? null;
     this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
-    const storedEffect = storage.get(StorageKey.VIZ_BG_EFFECT, 'none');
-    this.bgEffectId = (storedEffect === 'starfield' || storedEffect === 'scanlines') ? storedEffect : 'none';
+    this.refreshSettingsFromStorage();
     this.render();
     this.setupEventListeners();
+  }
+
+  private refreshSettingsFromStorage(): void {
+    const savedEffect = storage.get(StorageKey.VIZ_BG_EFFECT, 'none');
+    this.bgEffectId = (savedEffect === 'starfield' || savedEffect === 'scanlines' || savedEffect === 'custom-image')
+      ? savedEffect
+      : 'none';
+
+    const savedLayout = storage.get(StorageKey.VIZ_LAYOUT, 'horizontal');
+    this.layoutMode = savedLayout === 'vertical' ? 'vertical' : 'horizontal';
+
+    this.bgImageData = storage.get(StorageKey.VIZ_BG_IMAGE, '') ?? '';
+    if (!this.bgImageData) {
+      this.bgImage = null;
+      if (this.bgEffectId === 'custom-image') this.bgEffectId = 'none';
+      return;
+    }
+    const img = new Image();
+    img.src = this.bgImageData;
+    this.bgImage = img;
   }
 
   private get activeChip(): string {
     return (this.ast?.chip ?? 'gameboy').toLowerCase();
   }
 
-  private get isFullscreenActive(): boolean {
-    const hasApiFullscreen = !!document.fullscreenElement;
-    return hasApiFullscreen || this.fullscreenFallback;
+  private get isPerformanceMode(): boolean {
+    return this.performanceMode;
   }
 
   render(): void {
     this.stopBgLoop();
     this.container.innerHTML = '';
+    this.applyRightPaneConstraints();
 
     const root = document.createElement('div');
-    root.className = 'bb-viz' + (this.isFullscreenActive ? ' bb-viz--fullscreen' : '');
+    root.className = [
+      'bb-viz',
+      this.isPerformanceMode ? 'bb-viz--fullscreen' : '',
+      this.layoutMode === 'vertical' ? 'bb-viz--layout-vertical' : 'bb-viz--layout-horizontal',
+    ].filter(Boolean).join(' ');
     root.id = 'bb-viz-root';
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', 'Song Visualizer');
@@ -137,6 +161,7 @@ export class SongVisualizer {
     toolbar.className = 'bb-viz__toolbar';
 
     const unmuteBtn = document.createElement('button');
+    unmuteBtn.type = 'button';
     unmuteBtn.className = 'bb-viz__toolbar-btn';
     unmuteBtn.id = 'bb-viz-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
@@ -145,6 +170,7 @@ export class SongVisualizer {
     unmuteBtn.addEventListener('click', () => unmuteAll());
 
     const clearSoloBtn = document.createElement('button');
+    clearSoloBtn.type = 'button';
     clearSoloBtn.className = 'bb-viz__toolbar-btn';
     clearSoloBtn.id = 'bb-viz-clear-solo';
     clearSoloBtn.title = 'Clear solo';
@@ -152,44 +178,32 @@ export class SongVisualizer {
     clearSoloBtn.innerHTML = icon('eye', 'w-3.5 h-3.5');
     clearSoloBtn.addEventListener('click', () => clearAllSolo());
 
-    const bgSelect = document.createElement('select');
-    bgSelect.className = 'bb-viz__bg-select';
-    bgSelect.id = 'bb-viz-bg-select';
-    bgSelect.innerHTML = [
-      '<option value="none">BG: None</option>',
-      '<option value="starfield">BG: Starfield</option>',
-      '<option value="scanlines">BG: Scanlines</option>',
-    ].join('');
-    bgSelect.value = this.bgEffectId;
-    bgSelect.addEventListener('change', () => {
-      this.bgEffectId = bgSelect.value as BgEffectId;
-      storage.set(StorageKey.VIZ_BG_EFFECT, this.bgEffectId);
+    const performanceBtn = document.createElement('button');
+    performanceBtn.type = 'button';
+    performanceBtn.className = 'bb-viz__toolbar-btn';
+    performanceBtn.id = 'bb-viz-fullscreen';
+    performanceBtn.title = this.isPerformanceMode ? 'Exit performance mode' : 'Enter performance mode';
+    performanceBtn.innerHTML = this.isPerformanceMode ? icon('arrows-pointing-in') : icon('arrows-pointing-out');
+    performanceBtn.addEventListener('click', () => {
+      this.performanceMode = !this.performanceMode;
       this.render();
-    });
-
-    const fullscreenBtn = document.createElement('button');
-    fullscreenBtn.className = 'bb-viz__toolbar-btn';
-    fullscreenBtn.id = 'bb-viz-fullscreen';
-    fullscreenBtn.title = this.isFullscreenActive ? 'Exit full screen' : 'Enter full screen';
-    fullscreenBtn.innerHTML = this.isFullscreenActive ? icon('arrows-pointing-in') : icon('arrows-pointing-out');
-    fullscreenBtn.addEventListener('click', () => {
-      if (this.isFullscreenActive) this.exitFullscreen();
-      else this.enterFullscreen(root);
     });
 
     toolbar.appendChild(unmuteBtn);
     toolbar.appendChild(clearSoloBtn);
-    toolbar.appendChild(bgSelect);
-    toolbar.appendChild(fullscreenBtn);
+    toolbar.appendChild(performanceBtn);
     root.appendChild(toolbar);
 
     const bgCanvas = document.createElement('canvas');
     bgCanvas.id = 'bb-viz-bg';
-    bgCanvas.className = this.isFullscreenActive && this.bgEffectId !== 'none' ? '' : 'bb-viz__bg-hidden';
+    bgCanvas.className = this.isPerformanceMode && this.bgEffectId !== 'none' ? '' : 'bb-viz__bg-hidden';
     root.appendChild(bgCanvas);
 
     const channelsWrap = document.createElement('div');
-    channelsWrap.className = 'bb-viz__channels';
+    channelsWrap.className = [
+      'bb-viz__channels',
+      this.layoutMode === 'vertical' ? 'bb-viz__channels--vertical' : 'bb-viz__channels--horizontal',
+    ].join(' ');
 
     const channels = this.ast?.channels ?? [];
     if (channels.length === 0) {
@@ -203,18 +217,49 @@ export class SongVisualizer {
 
     root.appendChild(channelsWrap);
 
-    if (this.isFullscreenActive) {
+    if (this.isPerformanceMode) {
       const exitBtn = document.createElement('button');
       exitBtn.className = 'bb-viz__exit-btn';
       exitBtn.id = 'bb-viz-exit';
       exitBtn.innerHTML = `${icon('x-mark', 'w-3.5 h-3.5')} Exit`;
-      exitBtn.addEventListener('click', () => this.exitFullscreen());
+      exitBtn.addEventListener('click', () => {
+        this.performanceMode = false;
+        this.render();
+      });
       root.appendChild(exitBtn);
     }
 
     this.container.appendChild(root);
     this.syncCanvasResolution();
     this.refreshBgEffect();
+  }
+
+  private applyRightPaneConstraints(): void {
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane && !this.performanceMode) {
+      rightPane.style.minWidth = '300px';
+    }
+    if (rightPane) {
+      const mainContainer = rightPane.parentElement;
+      const leftPane = mainContainer?.children?.[0] as HTMLElement | undefined;
+      const splitter = mainContainer?.children?.[1] as HTMLElement | undefined;
+      if (this.performanceMode) {
+        if (leftPane) {
+          leftPane.dataset.prevDisplay = leftPane.style.display;
+          leftPane.style.display = 'none';
+        }
+        if (splitter) {
+          splitter.dataset.prevDisplay = splitter.style.display;
+          splitter.style.display = 'none';
+        }
+      } else {
+        if (leftPane) leftPane.style.display = leftPane.dataset.prevDisplay ?? '';
+        if (splitter) splitter.style.display = splitter.dataset.prevDisplay ?? '';
+      }
+    }
+
+    document.body.classList.toggle('bb-viz-wide-mode', this.performanceMode);
+    window.dispatchEvent(new Event('resize'));
   }
 
   private buildCard(ch: any): HTMLElement {
@@ -271,7 +316,7 @@ export class SongVisualizer {
     waveCanvas.className = 'bb-viz__wave-canvas';
     waveCanvas.id = `bb-viz-wave-${ch.id}`;
     waveCanvas.width = 320;
-    waveCanvas.height = this.isFullscreenActive ? 220 : 80;
+    waveCanvas.height = this.isPerformanceMode ? 220 : 80;
 
     right.appendChild(instEl);
     right.appendChild(patternEl);
@@ -303,12 +348,14 @@ export class SongVisualizer {
     ctrlRow.className = 'bb-viz__ctrl-row';
 
     const muteBtn = document.createElement('button');
+    muteBtn.type = 'button';
     muteBtn.className = 'bb-viz__btn bb-viz__btn--mute';
     muteBtn.id = `bb-viz-mute-${ch.id}`;
     this.applyMuteStyle(muteBtn, isMuted);
     muteBtn.addEventListener('click', () => toggleChannelMuted(ch.id));
 
     const soloBtn = document.createElement('button');
+    soloBtn.type = 'button';
     soloBtn.className = 'bb-viz__btn bb-viz__btn--solo';
     soloBtn.id = `bb-viz-solo-${ch.id}`;
     this.applySoloStyle(soloBtn, isSoloed);
@@ -345,6 +392,10 @@ export class SongVisualizer {
         this.channelWaveforms.set(channelId, samples);
         this.drawAnalyserWaveform(channelId, samples);
       }),
+      this.eventBus.on('song-visualizer:settings-changed', () => {
+        this.refreshSettingsFromStorage();
+        this.render();
+      }),
       settingFeaturePerChannelAnalyser.subscribe((val) => {
         if (val === this.analyserEnabled) return;
         this.analyserEnabled = val;
@@ -369,16 +420,9 @@ export class SongVisualizer {
       }),
     );
 
-    const onFullscreenChange = () => {
-      this.fullscreenFallback = false;
-      this.render();
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    this.unsubscribers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && this.fullscreenFallback) {
-        this.fullscreenFallback = false;
+      if (e.key === 'Escape' && this.performanceMode) {
+        this.performanceMode = false;
         this.render();
       }
     };
@@ -547,15 +591,15 @@ export class SongVisualizer {
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
     btn.innerHTML = muted
-      ? icon('speaker-x-mark', 'w-3.5 h-3.5 inline-block')
-      : icon('speaker-wave', 'w-3.5 h-3.5 inline-block');
+      ? icon('speaker-x-mark', 'w-3.5 h-3.5')
+      : icon('speaker-wave', 'w-3.5 h-3.5');
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
     btn.setAttribute('aria-pressed', String(muted));
     btn.classList.toggle('bb-viz__btn--active', muted);
   }
 
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
-    btn.innerHTML = icon('eye', 'w-3.5 h-3.5 inline-block');
+    btn.innerHTML = icon('eye', 'w-3.5 h-3.5');
     btn.title = soloed ? 'Remove solo' : 'Solo this channel';
     btn.setAttribute('aria-pressed', String(soloed));
     btn.classList.toggle('bb-viz__btn--active', soloed);
@@ -574,31 +618,6 @@ export class SongVisualizer {
       }
     }
     return `Ch${ch.id}`;
-  }
-
-  private enterFullscreen(root: HTMLElement): void {
-    const request = root.requestFullscreen?.bind(root);
-    if (request) {
-      request().catch(() => {
-        this.fullscreenFallback = true;
-        this.render();
-      });
-      return;
-    }
-    this.fullscreenFallback = true;
-    this.render();
-  }
-
-  private exitFullscreen(): void {
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {
-        this.fullscreenFallback = false;
-        this.render();
-      });
-      return;
-    }
-    this.fullscreenFallback = false;
-    this.render();
   }
 
   private syncCanvasResolution(): void {
@@ -622,7 +641,7 @@ export class SongVisualizer {
   }
 
   private refreshBgEffect(): void {
-    if (!this.isFullscreenActive || this.bgEffectId === 'none') {
+    if (!this.isPerformanceMode || this.bgEffectId === 'none') {
       this.activeBgEffect?.dispose();
       this.activeBgEffect = null;
       return;
@@ -630,6 +649,11 @@ export class SongVisualizer {
 
     const bgCanvas = this.container.querySelector<HTMLCanvasElement>('#bb-viz-bg');
     if (!bgCanvas) return;
+
+    if (this.bgEffectId === 'custom-image') {
+      this.startBgLoop();
+      return;
+    }
 
     const effect = BG_EFFECTS.find(e => e.id === this.bgEffectId) ?? null;
     if (!effect) return;
@@ -640,21 +664,55 @@ export class SongVisualizer {
     this.startBgLoop();
   }
 
+  private drawCustomBackground(bgCanvas: HTMLCanvasElement): void {
+    if (!this.bgImage || !this.bgImage.complete) return;
+    const ctx = bgCanvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+    const img = this.bgImage;
+    const canvasRatio = bgCanvas.width / bgCanvas.height;
+    const imgRatio = img.width / img.height;
+
+    let drawWidth = bgCanvas.width;
+    let drawHeight = bgCanvas.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (imgRatio > canvasRatio) {
+      drawHeight = bgCanvas.height;
+      drawWidth = drawHeight * imgRatio;
+      offsetX = (bgCanvas.width - drawWidth) / 2;
+    } else {
+      drawWidth = bgCanvas.width;
+      drawHeight = drawWidth / imgRatio;
+      offsetY = (bgCanvas.height - drawHeight) / 2;
+    }
+
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+  }
+
   private startBgLoop(): void {
-    if (this.bgRafId !== null || !this.activeBgEffect) return;
+    if (this.bgRafId !== null) return;
     const tick = () => {
       const bgCanvas = this.container.querySelector<HTMLCanvasElement>('#bb-viz-bg');
-      if (!bgCanvas || !this.activeBgEffect) {
+      if (!bgCanvas || !this.isPerformanceMode) {
         this.bgRafId = null;
         return;
       }
-      const rmsValues = new Map<number, number>();
-      for (const [ch, samples] of this.channelWaveforms.entries()) {
-        let sum = 0;
-        for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
-        rmsValues.set(ch, samples.length ? Math.sqrt(sum / samples.length) : 0);
+
+      if (this.bgEffectId === 'custom-image') {
+        this.drawCustomBackground(bgCanvas);
+      } else if (this.activeBgEffect) {
+        const rmsValues = new Map<number, number>();
+        for (const [ch, samples] of this.channelWaveforms.entries()) {
+          let sum = 0;
+          for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+          rmsValues.set(ch, samples.length ? Math.sqrt(sum / samples.length) : 0);
+        }
+        this.activeBgEffect.draw(bgCanvas, rmsValues);
       }
-      this.activeBgEffect.draw(bgCanvas, rmsValues);
+
       this.bgRafId = requestAnimationFrame(tick);
     };
     this.bgRafId = requestAnimationFrame(tick);
@@ -670,10 +728,15 @@ export class SongVisualizer {
   }
 
   dispose(): void {
+    this.performanceMode = false;
+    this.applyRightPaneConstraints();
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
     this.levelTimers.forEach(t => clearTimeout(t));
     this.levelTimers.clear();
     this.stopBgLoop();
+    document.body.classList.remove('bb-viz-wide-mode');
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane) rightPane.style.minWidth = '';
   }
 }

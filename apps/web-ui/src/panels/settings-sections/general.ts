@@ -7,7 +7,8 @@ import { eventBus } from '../../utils/event-bus';
 import {
   settingTheme, settingToolbarStyle,
   settingShowToolbar, settingShowTransportBar,
-  settingShowPatternGrid, settingShowChannelMixer,
+  settingShowPatternGrid, settingShowChannelMixer, settingShowSongVisualizer,
+  settingVizBgEffect, settingVizLayout, settingVizBgImage,
   settingChannelCompact,
   settingFeatureDawMixer,
 } from '../../stores/settings.store';
@@ -115,6 +116,79 @@ export function buildGeneralSection(): HTMLElement {
   mixerFeatObserver.observe(document.body, { childList: true, subtree: true });
   el.appendChild(mixerRow);
 
+  el.appendChild(toggle('Show song visualizer', settingShowSongVisualizer.get(), (v) => {
+    settingShowSongVisualizer.set(v);
+    eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: v });
+  }, settingShowSongVisualizer.subscribe));
+
+  el.appendChild(selectField(
+    'Song visualizer layout',
+    [
+      { value: 'horizontal', label: 'Horizontal' },
+      { value: 'vertical', label: 'Vertical' },
+    ],
+    settingVizLayout.get(),
+    (v) => {
+      settingVizLayout.set(v as 'horizontal' | 'vertical');
+      eventBus.emit('song-visualizer:settings-changed', { key: 'layout', value: v });
+    },
+  ));
+
+  el.appendChild(selectField(
+    'Song visualizer background',
+    [
+      { value: 'none', label: 'None' },
+      { value: 'starfield', label: 'Starfield' },
+      { value: 'scanlines', label: 'Scanlines' },
+      { value: 'custom-image', label: 'Custom image' },
+    ],
+    settingVizBgEffect.get(),
+    (v) => {
+      settingVizBgEffect.set(v as 'none' | 'starfield' | 'scanlines' | 'custom-image');
+      eventBus.emit('song-visualizer:settings-changed', { key: 'bgEffect', value: v });
+    },
+  ));
+
+  const bgUploadRow = document.createElement('div');
+  bgUploadRow.className = 'bb-settings-row';
+  const bgUploadLabel = document.createElement('label');
+  bgUploadLabel.className = 'bb-settings-label';
+  bgUploadLabel.textContent = 'Visualizer background image';
+  const bgUploadInput = document.createElement('input');
+  bgUploadInput.type = 'file';
+  bgUploadInput.accept = 'image/png,image/jpeg';
+  bgUploadInput.className = 'bb-settings-input';
+  bgUploadInput.addEventListener('change', () => {
+    const file = bgUploadInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) return;
+      settingVizBgImage.set(result);
+      eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: 'updated' });
+    };
+    reader.readAsDataURL(file);
+  });
+  bgUploadRow.append(bgUploadLabel, bgUploadInput);
+  el.appendChild(bgUploadRow);
+
+  const clearBgRow = document.createElement('div');
+  clearBgRow.className = 'bb-settings-row';
+  const clearBgBtn = document.createElement('button');
+  clearBgBtn.className = 'bb-settings-button';
+  clearBgBtn.type = 'button';
+  clearBgBtn.textContent = 'Clear custom visualizer image';
+  clearBgBtn.disabled = !settingVizBgImage.get();
+  clearBgBtn.addEventListener('click', () => {
+    settingVizBgImage.set('');
+    clearBgBtn.disabled = true;
+    eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: 'cleared' });
+  });
+  settingVizBgImage.subscribe(v => { clearBgBtn.disabled = !v; });
+  clearBgRow.append(clearBgBtn);
+  el.appendChild(clearBgRow);
+
   return el;
 }
 
@@ -127,6 +201,10 @@ export function resetGeneralDefaults(): void {
   settingShowTransportBar.set(true);
   settingShowPatternGrid.set(false);
   settingShowChannelMixer.set(true);
+  settingShowSongVisualizer.set(false);
+  settingVizBgEffect.set('none');
+  settingVizLayout.set('horizontal');
+  settingVizBgImage.set('');
   settingChannelCompact.set(true);
 }
 
@@ -333,4 +411,3 @@ export function rangeField(
   row.append(lbl, right);
   return row;
 }
-

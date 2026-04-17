@@ -79,20 +79,9 @@ describe('SongVisualizer', () => {
   it('toggles fullscreen class and shows exit button', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
 
-    const requestFullscreen = jest.fn().mockRejectedValue(new Error('unsupported'));
-    const root = document.getElementById('bb-viz-root') as any;
-    root.requestFullscreen = requestFullscreen;
-
-    (document as any).fullscreenElement = null;
-    (document as any).exitFullscreen = jest.fn();
-
     (document.getElementById('bb-viz-fullscreen') as HTMLButtonElement).click();
-    expect(requestFullscreen).toHaveBeenCalled();
-
-    return Promise.resolve().then(() => {
-      expect(document.getElementById('bb-viz-root')?.classList.contains('bb-viz--fullscreen')).toBe(true);
-      expect(document.getElementById('bb-viz-exit')).not.toBeNull();
-    });
+    expect(document.getElementById('bb-viz-root')?.classList.contains('bb-viz--fullscreen')).toBe(true);
+    expect(document.getElementById('bb-viz-exit')).not.toBeNull();
   });
 
   it('background effect none hides canvas and starfield is visible in fullscreen', () => {
@@ -107,14 +96,9 @@ describe('SongVisualizer', () => {
     storage.set(StorageKey.VIZ_BG_EFFECT, 'starfield');
     visualizer.dispose();
     visualizer = new SongVisualizer({ container, eventBus });
-    const requestFullscreen = jest.fn().mockRejectedValue(new Error('unsupported'));
-    const root = document.getElementById('bb-viz-root') as any;
-    root.requestFullscreen = requestFullscreen;
+    eventBus.emit('song-visualizer:settings-changed', { key: 'bgEffect', value: 'starfield' });
     (document.getElementById('bb-viz-fullscreen') as HTMLButtonElement).click();
-
-    return Promise.resolve().then(() => {
-      const shownCanvas = document.getElementById('bb-viz-bg');
-      expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(false);
-    });
+    const shownCanvas = document.getElementById('bb-viz-bg');
+    expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(false);
   });
 });

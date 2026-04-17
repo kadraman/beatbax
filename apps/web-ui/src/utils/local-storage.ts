@@ -102,6 +102,10 @@ export const StorageKey = {
   PANEL_VIS_SONG_VISUALIZER: 'panel.song-visualizer',
   /** Song visualizer background effect id. */
   VIZ_BG_EFFECT: 'viz.bgEffect',
+  /** Song visualizer layout mode ('horizontal' | 'vertical'). */
+  VIZ_LAYOUT: 'viz.layout',
+  /** Song visualizer custom background image data URL. */
+  VIZ_BG_IMAGE: 'viz.bgImage',
   /** Channel mixer collapsed state (boolean). */
   DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
   /** Channel mixer height in pixels (number). */

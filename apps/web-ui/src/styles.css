@@ -2105,6 +2105,8 @@
   flex-direction: column;
   gap: 6px;
   height: 100%;
+  background: #000;
+  color: #d4d4d4;
 }
 .bb-viz__toolbar { display: flex; align-items: center; gap: 6px; }
 .bb-viz__toolbar-btn {
@@ -2117,32 +2119,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  line-height: 0;
   cursor: pointer;
-}
-.bb-viz__bg-select {
-  border: 1px solid #444;
-  background: #232323;
-  color: #ddd;
-  border-radius: 4px;
-  height: 28px;
-  padding: 0 8px;
-  margin-left: auto;
 }
 .bb-viz__channels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
   position: relative;
   z-index: 1;
+  min-width: 0;
+}
+.bb-viz__channels--horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.bb-viz__channels--vertical {
+  grid-template-columns: 1fr;
 }
 .bb-viz__card {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: #2a2a2a;
-  border: 1px solid #3c3c3c;
+  background: inherit;
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
+  min-width: 0;
 }
 .bb-viz__card--silent { opacity: 0.5; }
 .bb-viz__card[data-channel="1"] { border-left: 3px solid var(--bb-ch1); }
@@ -2154,9 +2155,18 @@
 .bb-viz__title-block { display: flex; flex-direction: column; gap: 2px; min-width: 72px; }
 .bb-viz__channel-title { font-weight: 600; font-size: 12px; }
 .bb-viz__chip-label { font-size: 10px; text-transform: uppercase; }
-.bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.bb-viz__inst,
+.bb-viz__pattern {
+  background: #070d07;
+  color: #9cdcfe;
+  border: 1px solid #203020;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-height: 16px;
+}
 .bb-viz__inst { font-size: 11px; color: #4a9eff; }
-.bb-viz__pattern { font-size: 10px; color: #9cdcfe; min-height: 12px; }
+.bb-viz__pattern { font-size: 10px; }
 .bb-viz__wave-canvas {
   width: 100%;
   height: 80px;
@@ -2175,13 +2185,18 @@
   background: #3a3a3a;
   color: #ddd;
   border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
   cursor: pointer;
 }
+.bb-viz__btn svg { width: 14px; height: 14px; display: block; }
 .bb-viz__btn--active { outline: 1px solid #4a9eff; }
 .bb-viz--fullscreen {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 9999;
+  z-index: 1200;
   background: #000;
   padding: 12px;
 }
@@ -2214,6 +2229,36 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
+}
+.bb-viz-wide-mode #right-pane {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.bb-viz-wide-mode #right-pane > div:first-child {
+  width: 100%;
+}
+.bb-viz-wide-mode #right-pane + .bb-splitter {
+  display: none !important;
+}
+.bb-viz-wide-mode #right-pane {
+  position: relative;
+}
+[data-theme="light"] .bb-viz {
+  background: #fff;
+  color: #222;
+}
+[data-theme="light"] .bb-viz__card {
+  border-color: #ddd;
+}
+[data-theme="light"] .bb-viz__inst,
+[data-theme="light"] .bb-viz__pattern,
+[data-theme="light"] .bb-viz__wave-canvas {
+  background: #fff;
+  border-color: #ddd;
+}
+[data-theme="light"] .bb-viz--fullscreen {
+  background: #fff;
 }
 .bb-cp {
   display: flex; flex-direction: column;
