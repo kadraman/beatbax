@@ -103,6 +103,7 @@ export const settingFeaturePerChannelAnalyser = boolAtom(StorageKey.FEATURE_PER_
 export const settingFeatureDawMixer        = boolAtom(StorageKey.FEATURE_DAW_MIXER,         false);
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
+export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
 
 // ─── Advanced ─────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.FEATURE_DAW_MIXER,
     StorageKey.FEATURE_PATTERN_GRID,
     StorageKey.FEATURE_HOT_RELOAD,
+    StorageKey.FEATURE_SONG_VISUALIZER,
   ],
   ai: [
     StorageKey.CHAT_SETTINGS,

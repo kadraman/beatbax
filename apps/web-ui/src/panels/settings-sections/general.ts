@@ -8,7 +8,7 @@ import {
   settingTheme, settingToolbarStyle,
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer, settingShowSongVisualizer,
-  settingVizBgEffect, settingVizLayout, settingVizBgImage,
+  settingVizBgEffect,
   settingChannelCompact,
   settingFeatureDawMixer,
 } from '../../stores/settings.store';
@@ -122,25 +122,11 @@ export function buildGeneralSection(): HTMLElement {
   }, settingShowSongVisualizer.subscribe));
 
   el.appendChild(selectField(
-    'Song visualizer layout',
-    [
-      { value: 'horizontal', label: 'Horizontal' },
-      { value: 'vertical', label: 'Vertical' },
-    ],
-    settingVizLayout.get(),
-    (v) => {
-      settingVizLayout.set(v as 'horizontal' | 'vertical');
-      eventBus.emit('song-visualizer:settings-changed', { key: 'layout', value: v });
-    },
-  ));
-
-  el.appendChild(selectField(
     'Song visualizer background',
     [
       { value: 'none', label: 'None' },
       { value: 'starfield', label: 'Starfield' },
-      { value: 'scanlines', label: 'Scanlines' },
-      { value: 'custom-image', label: 'Custom image' },
+      { value: 'scanlines', label: 'Spectrum analyser' },
     ],
     settingVizBgEffect.get(),
     (v) => {
@@ -148,46 +134,6 @@ export function buildGeneralSection(): HTMLElement {
       eventBus.emit('song-visualizer:settings-changed', { key: 'bgEffect', value: v });
     },
   ));
-
-  const bgUploadRow = document.createElement('div');
-  bgUploadRow.className = 'bb-settings-row';
-  const bgUploadLabel = document.createElement('label');
-  bgUploadLabel.className = 'bb-settings-label';
-  bgUploadLabel.textContent = 'Visualizer background image';
-  const bgUploadInput = document.createElement('input');
-  bgUploadInput.type = 'file';
-  bgUploadInput.accept = 'image/png,image/jpeg';
-  bgUploadInput.className = 'bb-settings-input';
-  bgUploadInput.addEventListener('change', () => {
-    const file = bgUploadInput.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      if (!result) return;
-      settingVizBgImage.set(result);
-      eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: 'updated' });
-    };
-    reader.readAsDataURL(file);
-  });
-  bgUploadRow.append(bgUploadLabel, bgUploadInput);
-  el.appendChild(bgUploadRow);
-
-  const clearBgRow = document.createElement('div');
-  clearBgRow.className = 'bb-settings-row';
-  const clearBgBtn = document.createElement('button');
-  clearBgBtn.className = 'bb-settings-button';
-  clearBgBtn.type = 'button';
-  clearBgBtn.textContent = 'Clear custom visualizer image';
-  clearBgBtn.disabled = !settingVizBgImage.get();
-  clearBgBtn.addEventListener('click', () => {
-    settingVizBgImage.set('');
-    clearBgBtn.disabled = true;
-    eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: 'cleared' });
-  });
-  settingVizBgImage.subscribe(v => { clearBgBtn.disabled = !v; });
-  clearBgRow.append(clearBgBtn);
-  el.appendChild(clearBgRow);
 
   return el;
 }
@@ -203,8 +149,6 @@ export function resetGeneralDefaults(): void {
   settingShowChannelMixer.set(true);
   settingShowSongVisualizer.set(false);
   settingVizBgEffect.set('none');
-  settingVizLayout.set('horizontal');
-  settingVizBgImage.set('');
   settingChannelCompact.set(true);
 }
 

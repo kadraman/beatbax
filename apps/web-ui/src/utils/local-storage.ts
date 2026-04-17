@@ -78,6 +78,8 @@ export const StorageKey = {
   FEATURE_PATTERN_GRID: 'feature.patternGrid',
   /** Hot reload feature flag (boolean). */
   FEATURE_HOT_RELOAD: 'feature.hotReload',
+  /** Song Visualizer feature flag (boolean). */
+  FEATURE_SONG_VISUALIZER: 'feature.songVisualizer',
   /** AI Copilot connection settings (JSON: endpoint, model, apiKey). apiKey is persisted across sessions; non-ASCII values are sanitized to '' on load. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */

@@ -30,10 +30,10 @@ const BG_EFFECTS: BgEffect[] = [
   {
     id: 'starfield',
     init(canvas) {
-      const stars = Array.from({ length: 120 }, () => ({
+      const stars = Array.from({ length: 220 }, () => ({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        z: 0.2 + Math.random() * 1.2,
+        z: 0.8 + Math.random() * 3.0,
       }));
       (canvas as any).__bbStars = stars;
     },
@@ -44,17 +44,19 @@ const BG_EFFECTS: BgEffect[] = [
       const avgRms = rmsValues.size > 0
         ? Array.from(rmsValues.values()).reduce((a, b) => a + b, 0) / rmsValues.size
         : 0;
-      const brightness = Math.min(1, 0.2 + avgRms * 1.8);
-      ctx.fillStyle = 'rgba(0,0,0,0.38)';
+      const brightness = Math.min(1, 0.35 + avgRms * 2.0);
+      ctx.fillStyle = 'rgba(0,0,0,0.40)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const s of stars) {
-        s.y += s.z;
+        s.y += s.z * 0.8;
         if (s.y > canvas.height) {
           s.y = 0;
           s.x = Math.random() * canvas.width;
         }
-        ctx.fillStyle = `rgba(180,220,255,${Math.min(1, brightness * (0.22 + s.z * 0.35))})`;
-        ctx.fillRect(s.x, s.y, Math.max(1, s.z), Math.max(1, s.z));
+        const size = Math.max(2, s.z * 1.8);
+        const alpha = Math.min(1, brightness * (0.45 + s.z * 0.22));
+        ctx.fillStyle = `rgba(200,230,255,${alpha})`;
+        ctx.fillRect(s.x, s.y, size, size);
       }
     },
     dispose() {
@@ -63,16 +65,58 @@ const BG_EFFECTS: BgEffect[] = [
   },
   {
     id: 'scanlines',
-    init() {
-      // no-op
+    init(canvas) {
+      // Pre-allocate per-channel bar state
+      (canvas as any).__bbBars = {};
     },
-    draw(canvas) {
+    draw(canvas, rmsValues) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      for (let y = 0; y < canvas.height; y += 4) {
-        ctx.fillRect(0, y, canvas.width, 1);
+      // Fade trail
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const channelColors = ['#569cd6', '#9cdcfe', '#4ec9b0', '#ce9178', '#dcdcaa', '#c586c0'];
+      const channels = rmsValues.size > 0 ? rmsValues.size : 4;
+      const barW = Math.floor(canvas.width / channels);
+
+      let i = 0;
+      for (const [ch, rms] of rmsValues) {
+        const color = channelColors[(ch - 1) % channelColors.length];
+        const barH = Math.max(4, Math.floor(rms * canvas.height * 0.85));
+        const x = i * barW;
+        const y = canvas.height - barH;
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = color;
+        // Gradient bar: bright top, fades to bottom
+        const grad = ctx.createLinearGradient(x, y, x, canvas.height);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'rgba(0,0,0,0.1)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + 2, y, barW - 4, barH);
+        // Peak dot
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(x + 2, y, barW - 4, 3);
+        ctx.restore();
+        i++;
+      }
+
+      // If no audio data yet, draw idle low bars
+      if (rmsValues.size === 0) {
+        for (let j = 0; j < 4; j++) {
+          const color = channelColors[j];
+          const x = j * barW;
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.25;
+          ctx.fillRect(x + 2, canvas.height - 8, barW - 4, 6);
+          ctx.restore();
+        }
       }
     },
     dispose() {
@@ -186,6 +230,11 @@ export class SongVisualizer {
     performanceBtn.innerHTML = this.isPerformanceMode ? icon('arrows-pointing-in') : icon('arrows-pointing-out');
     performanceBtn.addEventListener('click', () => {
       this.performanceMode = !this.performanceMode;
+      if (this.performanceMode) {
+        document.documentElement.requestFullscreen?.().catch(() => { /* ignore */ });
+      } else if (document.fullscreenElement) {
+        document.exitFullscreen?.();
+      }
       this.render();
     });
 
@@ -200,9 +249,10 @@ export class SongVisualizer {
     root.appendChild(bgCanvas);
 
     const channelsWrap = document.createElement('div');
+    const effectiveLayout = this.isPerformanceMode ? 'vertical' : this.layoutMode;
     channelsWrap.className = [
       'bb-viz__channels',
-      this.layoutMode === 'vertical' ? 'bb-viz__channels--vertical' : 'bb-viz__channels--horizontal',
+      effectiveLayout === 'vertical' ? 'bb-viz__channels--vertical' : 'bb-viz__channels--horizontal',
     ].join(' ');
 
     const channels = this.ast?.channels ?? [];
@@ -224,6 +274,7 @@ export class SongVisualizer {
       exitBtn.innerHTML = `${icon('x-mark', 'w-3.5 h-3.5')} Exit`;
       exitBtn.addEventListener('click', () => {
         this.performanceMode = false;
+        if (document.fullscreenElement) document.exitFullscreen?.();
         this.render();
       });
       root.appendChild(exitBtn);
@@ -239,26 +290,6 @@ export class SongVisualizer {
     if (rightPane && !this.performanceMode) {
       rightPane.style.minWidth = '300px';
     }
-    if (rightPane) {
-      const mainContainer = rightPane.parentElement;
-      const leftPane = mainContainer?.children?.[0] as HTMLElement | undefined;
-      const splitter = mainContainer?.children?.[1] as HTMLElement | undefined;
-      if (this.performanceMode) {
-        if (leftPane) {
-          leftPane.dataset.prevDisplay = leftPane.style.display;
-          leftPane.style.display = 'none';
-        }
-        if (splitter) {
-          splitter.dataset.prevDisplay = splitter.style.display;
-          splitter.style.display = 'none';
-        }
-      } else {
-        if (leftPane) leftPane.style.display = leftPane.dataset.prevDisplay ?? '';
-        if (splitter) splitter.style.display = splitter.dataset.prevDisplay ?? '';
-      }
-    }
-
-    document.body.classList.toggle('bb-viz-wide-mode', this.performanceMode);
     window.dispatchEvent(new Event('resize'));
   }
 
@@ -316,7 +347,7 @@ export class SongVisualizer {
     waveCanvas.className = 'bb-viz__wave-canvas';
     waveCanvas.id = `bb-viz-wave-${ch.id}`;
     waveCanvas.width = 320;
-    waveCanvas.height = this.isPerformanceMode ? 220 : 80;
+    waveCanvas.height = this.isPerformanceMode ? 220 : 44;
 
     right.appendChild(instEl);
     right.appendChild(patternEl);
@@ -421,13 +452,31 @@ export class SongVisualizer {
     );
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && this.performanceMode) {
+      if (e.key === 'Escape' && this.performanceMode && !document.fullscreenElement) {
         this.performanceMode = false;
         this.render();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     this.unsubscribers.push(() => window.removeEventListener('keydown', onKeyDown));
+
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement && this.performanceMode) {
+        // Double rAF: first lets the browser apply fullscreen layout,
+        // second ensures paint + reflow are complete before syncing canvas sizes
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            this.syncCanvasResolution();
+            this.refreshBgEffect();
+          });
+        });
+      } else if (!document.fullscreenElement && this.performanceMode) {
+        this.performanceMode = false;
+        this.render();
+      }
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    this.unsubscribers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
   }
 
   private hasChannelStructureChanged(newAst: any): boolean {
@@ -519,34 +568,34 @@ export class SongVisualizer {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    const pts: Array<{ x: number; y: number }> = [];
+    ctx.beginPath();
     if (channelId === 3) {
-      for (let x = 0; x < w; x += 3) {
+      // Wave channel: smooth sine curve
+      ctx.moveTo(0, h / 2 + Math.sin(0) * (h / 3));
+      for (let x = 1; x < w; x++) {
         const t = (x / w) * Math.PI * 4;
-        pts.push({ x, y: h / 2 + Math.sin(t) * (h / 3) });
+        ctx.lineTo(x, h / 2 + Math.sin(t) * (h / 3));
       }
     } else if (channelId === 4) {
-      for (let x = 0; x < w; x += 3) {
-        pts.push({ x, y: h / 2 + (Math.random() - 0.5) * h * 0.75 });
+      // Noise channel: random jitter
+      ctx.moveTo(0, h / 2);
+      for (let x = 1; x < w; x += 2) {
+        ctx.lineTo(x, h / 2 + (Math.random() - 0.5) * h * 0.75);
       }
     } else {
+      // Pulse channels 1 & 2: proper square wave with hard vertical edges
       const period = Math.max(10, Math.floor(w / 6));
-      for (let x = 0; x < w; x += 3) {
-        const phase = Math.floor(x / period) % 2;
-        pts.push({ x, y: phase ? h * 0.28 : h * 0.72 });
+      let curY = h * 0.72;
+      ctx.moveTo(0, curY);
+      for (let x = 1; x < w; x++) {
+        const targetY = Math.floor(x / period) % 2 ? h * 0.28 : h * 0.72;
+        if (targetY !== curY) {
+          ctx.lineTo(x, curY);    // horizontal segment up to edge
+          ctx.lineTo(x, targetY); // vertical edge
+          curY = targetY;
+        }
       }
-    }
-
-    ctx.beginPath();
-    if (pts.length > 0) {
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) {
-        const prev = pts[i - 1];
-        const curr = pts[i];
-        const cx = (prev.x + curr.x) / 2;
-        const cy = (prev.y + curr.y) / 2;
-        ctx.quadraticCurveTo(prev.x, prev.y, cx, cy);
-      }
+      ctx.lineTo(w, curY);
     }
     ctx.stroke();
   }
@@ -636,6 +685,21 @@ export class SongVisualizer {
       if (rect.width > 0 && rect.height > 0) {
         bg.width = Math.max(1, Math.floor(rect.width));
         bg.height = Math.max(1, Math.floor(rect.height));
+      }
+    }
+
+    // Resizing canvas attributes clears the pixel buffer — redraw stored waveforms
+    this.redrawWaveforms();
+  }
+
+  private redrawWaveforms(): void {
+    for (const [channelId, samples] of this.channelWaveforms.entries()) {
+      this.drawAnalyserWaveform(channelId, samples);
+    }
+    // For channels with no analyser data, draw synthetic pulses
+    if (this.channelWaveforms.size === 0 && !this.analyserEnabled) {
+      for (const ch of (this.ast?.channels ?? [])) {
+        this.pulse(ch.id, true);
       }
     }
   }

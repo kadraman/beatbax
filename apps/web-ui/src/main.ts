@@ -534,13 +534,14 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
-// The Song Visualizer tab is hidden by default when
-// the horizontal Channel Mixer is enabled via Settings → Features → Channel Mixer.
-// It can be revealed by setting the storage key 'panel.song-visualizer' to 'true'.
-const songVisualizerEnabled = readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
+// Show the Song Visualizer tab only when its feature flag is enabled.
+const songVisualizerEnabled = isFeatureEnabled(FeatureFlag.SONG_VISUALIZER);
 if (!songVisualizerEnabled) {
   rightTabs.close('channels');
 }
+(window as any).__beatbax_toggleSongVisualizer = (enabled: boolean) => {
+  enabled ? rightTabs.show('channels') : rightTabs.close('channels');
+};
 
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
 // is toggled from the Settings panel (no page reload needed for most flags).
@@ -584,6 +585,9 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
   }
   if (flag === FeatureFlag.HOT_RELOAD) {
     _applyLiveMode(enabled);
+  }
+  if (flag === FeatureFlag.SONG_VISUALIZER) {
+    (window as any).__beatbax_toggleSongVisualizer?.(enabled);
   }
 });
 
