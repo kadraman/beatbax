@@ -78,6 +78,8 @@ export const StorageKey = {
   FEATURE_PATTERN_GRID: 'feature.patternGrid',
   /** Hot reload feature flag (boolean). */
   FEATURE_HOT_RELOAD: 'feature.hotReload',
+  /** Song Visualizer feature flag (boolean). */
+  FEATURE_SONG_VISUALIZER: 'feature.songVisualizer',
   /** AI Copilot connection settings (JSON: endpoint, model, apiKey). apiKey is persisted across sessions; non-ASCII values are sanitized to '' on load. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */
@@ -98,6 +100,12 @@ export const StorageKey = {
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
   /** Legacy (right-pane) channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER_LEGACY: 'panel.channel-mixer-legacy',
+  /** Song visualizer (right-pane) visible state (boolean). */
+  PANEL_VIS_SONG_VISUALIZER: 'panel.song-visualizer',
+  /** Song visualizer background effect id. */
+  VIZ_BG_EFFECT: 'viz.bgEffect',
+  /** Song visualizer custom background image data URL. */
+  VIZ_BG_IMAGE: 'viz.bgImage',
   /** Channel mixer collapsed state (boolean). */
   DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
   /** Channel mixer height in pixels (number). */

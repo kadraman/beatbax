@@ -514,11 +514,11 @@ export class MenuBar {
       },
       {
         type: 'item',
-        label: 'Channel Mixer',
+        label: 'Song Visualizer',
         icon: 'adjustments-horizontal',
-        shortcut: 'Ctrl+Shift+M',
-        id: 'channel-mixer-toggle',
-        action: () => this.emitPanelToggle('daw-mixer'),
+        shortcut: 'Ctrl+Shift+V',
+        id: 'song-visualizer-toggle',
+        action: () => this.emitPanelToggle('song-visualizer'),
       },
       {
         type: 'item',
