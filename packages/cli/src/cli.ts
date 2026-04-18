@@ -415,7 +415,7 @@ program
       return;
     }
 
-    const validationErrors = exporter.validate?.(song as any) ?? [];
+    const validationErrors = exporter.validate?.(song) ?? [];
     if (validationErrors.length > 0) {
       console.error(`Exporter validation failed for '${requestedFormat}':`);
       for (const message of validationErrors) console.error('  -', message);

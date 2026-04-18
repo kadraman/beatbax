@@ -335,7 +335,7 @@ export class ExportManager {
 
     const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
     const filename = ensureExtension(baseFilename, ext);
-    const data = await plugin.export(resolved as any, { outputPath: filename });
+    const data = await plugin.export(resolved, { outputPath: filename });
 
     if (typeof data === 'string') {
       downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');

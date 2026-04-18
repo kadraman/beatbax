@@ -10,7 +10,7 @@ export const jsonExporterPlugin: ExporterPlugin = {
   supportedChips: ['*'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'json' requires an outputPath`);
+      throw new Error(`Exporter 'json' requires an outputPath (Node.js/CLI mode)`);
     }
     await exportJSON(song, options.outputPath, { debug: options.debug, verbose: options.verbose });
   },

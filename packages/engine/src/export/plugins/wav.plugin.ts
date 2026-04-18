@@ -10,7 +10,7 @@ export const wavExporterPlugin: ExporterPlugin = {
   supportedChips: ['*'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'wav' requires an outputPath`);
+      throw new Error(`Exporter 'wav' requires an outputPath (Node.js/CLI mode)`);
     }
     await exportWAVFromSong(
       song,

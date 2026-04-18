@@ -10,7 +10,7 @@ export const ugeExporterPlugin: ExporterPlugin = {
   supportedChips: ['gameboy', 'gb', 'dmg'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'uge' requires an outputPath`);
+      throw new Error(`Exporter 'uge' requires an outputPath (Node.js/CLI mode)`);
     }
     await exportUGE(song, options.outputPath, {
       debug: options.debug,

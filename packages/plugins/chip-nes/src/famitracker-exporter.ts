@@ -17,13 +17,13 @@ export const famitrackerExporterPlugin: ExporterPlugin = {
   mimeType: 'application/octet-stream',
   supportedChips: ['nes'],
   validate(song): string[] {
-    const chip = String((song as any)?.chip || 'gameboy').toLowerCase();
+    const chip = String(song?.chip || 'gameboy').toLowerCase();
     return chip === 'nes' ? [] : [`Exporter 'famitracker' only supports chip 'nes' (got '${chip}')`];
   },
   export(song): Uint8Array {
-    const name = String((song as any)?.title || (song as any)?.metadata?.name || 'untitled');
-    const bpm = Number((song as any)?.bpm ?? 120);
-    const channelCount = Array.isArray((song as any)?.channels) ? (song as any).channels.length : 0;
+    const name = String(song.metadata?.name || 'untitled');
+    const bpm = Number(song.bpm ?? 120);
+    const channelCount = Array.isArray(song.channels) ? song.channels.length : 0;
     const placeholder =
       `; BeatBax placeholder FamiTracker export\n` +
       `; chip=nes\n` +
