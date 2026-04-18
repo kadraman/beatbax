@@ -104,14 +104,15 @@ describe('Player per-channel analyser', () => {
     expect(dest).toBe(player._channelBuses.get(3));
   });
 
-  test('_getChannelDest returns masterGain when analyser is disabled', () => {
+  test('_getChannelDest always returns a channel bus (for per-channel volume)', () => {
     const ctx = makeAudioContext();
     const player: any = new Player(ctx);
     player.masterGain = ctx.createGain();
-    // Analyser is disabled by default — dest should be masterGain, NOT a bus.
+    // Even without the analyser enabled, a channel bus is created so that
+    // per-channel volume (setChannelVolume) can be applied via its GainNode.
     const dest = player._getChannelDest(1);
-    expect(dest).toBe(player.masterGain);
-    expect(player._channelBuses.size).toBe(0); // no bus created
+    expect(dest).toBe(player._channelBuses.get(1));
+    expect(player._channelBuses.size).toBe(1);
   });
 
   test('getChannelAnalyserData returns null when analyser not set up', () => {

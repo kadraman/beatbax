@@ -26,6 +26,7 @@
  */
 import type { ChipPlugin, ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
+import { version } from './version.js';
 import { createPulseChannel } from './pulse.js';
 import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
@@ -36,8 +37,18 @@ import { nesUIContributions } from './ui-contributions.js';
 
 const nesPlugin: ChipPlugin = {
   name: 'nes',
-  version: '0.1.0',
+  version,
   channels: 5,
+  supportsPerChannelVolume: true,
+  instrumentVolumeRange: { min: 0, max: 15 },
+
+  supportsVolumeForChannel(channelIndex: number): boolean {
+    // Pulse1 (0) and Pulse2 (1) have a hardware volume envelope register.
+    // Noise (3) also has a volume envelope register.
+    // Triangle (2) has no hardware volume control — always full amplitude.
+    // DMC (4) volume is baked into the sample data; not adjustable at runtime.
+    return channelIndex === 0 || channelIndex === 1 || channelIndex === 3;
+  },
 
   bundledSamples: BUNDLED_SAMPLES,
 

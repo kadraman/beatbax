@@ -372,6 +372,75 @@ Testing
 Parser selection
 - The Peggy parser lives in `packages/engine/src/parser/peggy/` and is the default. The legacy parser has been removed after the Peggy migration. The full engine suite passes under Peggy.
 
+## Plugin Version Pattern
+
+**Do NOT import version from `package.json` in plugin source files.** Node.js v22+ ESM requires a `with { type: 'json' }` import assertion for JSON modules, which TypeScript does not emit. The result is `ERR_IMPORT_ATTRIBUTE_MISSING` at runtime.
+
+**Correct pattern** — use a dedicated `src/version.ts` constant file per package:
+
+```typescript
+// packages/engine/src/version.ts  (or packages/plugins/chip-nes/src/version.ts)
+export const version = '0.10.0';  // keep in sync with package.json
+```
+
+```typescript
+// packages/engine/src/chips/gameboy/plugin.ts
+import { version } from '../../version.js';
+```
+
+Both `packages/engine/src/version.ts` and `packages/plugins/chip-nes/src/version.ts` follow this pattern. When bumping the package version, update `package.json` **and** the corresponding `version.ts`.
+
+## ChipPlugin Interface Additions
+
+**`instrumentVolumeRange`** (optional field on `ChipPlugin`, added 2026-04-18):
+
+```typescript
+instrumentVolumeRange?: { min: number; max: number; isAttenuation?: boolean };
+```
+
+- Describes the integer range used by `vol` and `env` level fields in instrument definitions.
+- Drives the instrument volume reference indicator in the web-ui Channel Mixer.
+- Defaults to `{ min: 0, max: 15 }` when absent.
+- `isAttenuation: true` means min=loudest, max=silent (Sega Genesis YM2612 model).
+- Current values: Game Boy / NES → `{ min: 0, max: 15 }`.
+
+## ChipRegistry API Additions
+
+Two new methods added to `ChipRegistry` (2026-04-18):
+
+- **`listCanonical(): string[]`** — returns only the canonical plugin names (no aliases). Use this wherever you need to enumerate distinct chip backends (e.g. Settings panel, `list-chips` CLI).
+- **`aliasesFor(canonical: string): string[]`** — returns all registered aliases that resolve to the given canonical name (e.g. `aliasesFor('gameboy')` → `['gb', 'dmg']`).
+
+The existing `list()` method still returns canonical + alias names combined (required for parser validation so `chip gb` is accepted).
+
+The `list-chips` CLI command now uses `listCanonical()` and appends aliases inline:
+
+```
+• gameboy (built-in)  [also: gb, dmg]
+• nes
+```
+
+`--json` output now includes an `aliases` array per entry.
+
+## Web-UI: Settings → Plugins Panel
+
+The Settings → Plugins section now groups chips as **Built-in** and **Optional**:
+
+- **Built-in** — always-on chips (Game Boy) shown with a locked "Built-in" pill and their version from `gameboyPlugin.version`.
+- **Optional** — toggleable plugin entries showing `v{plugin.version}` beside the name.
+
+Version strings come from each plugin's `instrumentVolumeRange`-aware `ChipPlugin` object, which in turn reads from the package's `src/version.ts` constant.
+
+## Web-UI: Channel Mixer — Instrument Volume Column
+
+The Channel Mixer now shows a chip-aware instrument volume reference column to the right of each VU meter:
+
+- A thin vertical shaft with 5 evenly-spaced scale ticks (chip-aware: ascending for normal chips, descending for attenuation chips like Genesis).
+- An amber notch indicating the instrument's authored `vol`/`env` level relative to the chip's full range.
+- A `vol N/max` text readout below the instrument name LCD.
+- Uses `ChipPlugin.instrumentVolumeRange` for the scale; falls back to `{ min: 0, max: 15 }`.
+- Updates live via `updatePosition()` when the active instrument changes during playback.
+
 ## Hardware Parity and Frequency Logic
 
 BeatBax aims for bit-accurate parity with Game Boy hardware and hUGETracker.

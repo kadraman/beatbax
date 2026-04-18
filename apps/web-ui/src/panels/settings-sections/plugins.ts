@@ -7,6 +7,7 @@
 
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
 import { sectionHeading, noteText } from './general';
+import { gameboyPlugin } from '@beatbax/engine/chips';
 
 const BADGE_CLASS: Record<string, string> = {
   Stable:       'bb-settings-badge--stable',
@@ -25,6 +26,41 @@ export function buildPluginsSection(): HTMLElement {
     'Changes take effect after a page reload.'
   ));
 
+  // ── Built-in chips (always on, no toggle) ──────────────────────────────────
+  el.appendChild(builtinSubheading('Built-in'));
+
+  const gbRow = document.createElement('div');
+  gbRow.className = 'bb-settings-feature-row';
+
+  const gbLeft = document.createElement('div');
+  gbLeft.className = 'bb-settings-feature-info';
+
+  const gbTitle = document.createElement('div');
+  gbTitle.className = 'bb-settings-feature-title';
+  const gbName = document.createElement('span');
+  gbName.textContent = 'Game Boy DMG-01 APU';
+  const gbVer = document.createElement('span');
+  gbVer.className = 'bb-settings-plugin-version';
+  gbVer.textContent = `v${gameboyPlugin.version}`;
+  const gbBadge = document.createElement('span');
+  gbBadge.className = 'bb-settings-badge bb-settings-badge--stable';
+  gbBadge.textContent = 'Stable';
+  gbTitle.append(gbName, gbVer, gbBadge);
+
+  const gbDesc = document.createElement('span');
+  gbDesc.className = 'bb-settings-feature-desc';
+  gbDesc.textContent = '4-channel APU — 2 pulse, wave, and noise. Enables `chip gameboy` in .bax scripts.';
+  gbLeft.append(gbTitle, gbDesc);
+
+  const gbLocked = document.createElement('span');
+  gbLocked.className = 'bb-settings-plugin-builtin';
+  gbLocked.textContent = 'Built-in';
+  gbRow.append(gbLeft, gbLocked);
+  el.appendChild(gbRow);
+
+  // ── Optional plugins (togglable) ───────────────────────────────────────────
+  el.appendChild(builtinSubheading('Optional'));
+
   const enabled = getEnabledPluginIds();
 
   for (const entry of AVAILABLE_PLUGINS) {
@@ -40,10 +76,14 @@ export function buildPluginsSection(): HTMLElement {
     const nameSpan = document.createElement('span');
     nameSpan.textContent = entry.label;
 
+    const verSpan = document.createElement('span');
+    verSpan.className = 'bb-settings-plugin-version';
+    verSpan.textContent = `v${entry.plugin.version}`;
+
     const badge = document.createElement('span');
     badge.className = `bb-settings-badge ${BADGE_CLASS[entry.badge] ?? ''}`;
     badge.textContent = entry.badge;
-    titleLine.append(nameSpan, badge);
+    titleLine.append(nameSpan, verSpan, badge);
 
     const desc = document.createElement('span');
     desc.className = 'bb-settings-feature-desc';
@@ -65,6 +105,13 @@ export function buildPluginsSection(): HTMLElement {
   }
 
   return el;
+}
+
+function builtinSubheading(text: string): HTMLElement {
+  const h = document.createElement('div');
+  h.className = 'bb-settings-subheading';
+  h.textContent = text;
+  return h;
 }
 
 export function resetPluginsDefaults(): void {

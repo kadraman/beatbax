@@ -79,6 +79,20 @@ export class ChipRegistry {
   list(): string[] {
     return [...Array.from(this.plugins.keys()), ...Array.from(this.aliases.keys())];
   }
+
+  /** Return only the canonical plugin names (no aliases). */
+  listCanonical(): string[] {
+    return Array.from(this.plugins.keys());
+  }
+
+  /** Return all aliases that map to the given canonical chip name. */
+  aliasesFor(canonical: string): string[] {
+    const result: string[] = [];
+    for (const [alias, target] of this.aliases) {
+      if (target === canonical) result.push(alias);
+    }
+    return result;
+  }
 }
 
 /**
