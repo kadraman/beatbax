@@ -13,6 +13,7 @@ import type { EventBus } from '../utils/event-bus';
 import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
+import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
 
 const log = createLogger('ui:menu-bar');
 
@@ -303,8 +304,8 @@ export class MenuBar {
       ${def.shortcut ? `<span class="bb-menu__item-shortcut" aria-hidden="true">${esc(def.shortcut)}</span>` : ''}
     `;
 
-    if (!def.disabled && def.action) {
-      li.tabIndex = -1;
+    if (def.action) {
+      if (!def.disabled) li.tabIndex = -1;
       li.addEventListener('click', () => {
         if (li.classList.contains('bb-menu__item--disabled')) return;
         this.closeAll();
@@ -528,10 +529,20 @@ export class MenuBar {
       },
       {
         type: 'item',
+        label: 'Channel Mixer',
+        icon: 'adjustments-vertical',
+        shortcut: 'Ctrl+Shift+M',
+        id: 'channel-mixer-toggle',
+        disabled: !isFeatureEnabled(FeatureFlag.CHANNEL_MIXER),
+        action: () => this.emitPanelToggle('channel-mixer'),
+      },
+      {
+        type: 'item',
         label: 'Song Visualizer',
         icon: 'adjustments-horizontal',
         shortcut: 'Ctrl+Shift+V',
         id: 'song-visualizer-toggle',
+        disabled: !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
         action: () => this.emitPanelToggle('song-visualizer'),
       },
       {
@@ -539,6 +550,8 @@ export class MenuBar {
         label: 'Pattern Grid',
         icon: 'bars-3-center-left',
         shortcut: 'Ctrl+Shift+G',
+        id: 'pattern-grid-toggle',
+        disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
       },
 /*      {
@@ -561,6 +574,7 @@ export class MenuBar {
         icon: 'sparkles',
         shortcut: 'Alt+Shift+I',
         id: 'ai-assistant',
+        disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
         action: () => this.opts.onToggleAI?.(),
       },
       { type: 'separator' },
@@ -870,6 +884,14 @@ export class MenuBar {
     // who emitted it (keyboard shortcuts, toolbar buttons, other components).
     this.opts.eventBus.on('panel:toggled', ({ panel, visible }) => {
       this.panelVisible.set(panel, visible);
+    });
+
+    // Disable / re-enable feature-gated menu items when the flag is toggled.
+    this.opts.eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
+      if (flag === FeatureFlag.SONG_VISUALIZER) this.setItemEnabled('song-visualizer-toggle', enabled);
+      if (flag === FeatureFlag.PATTERN_GRID)    this.setItemEnabled('pattern-grid-toggle', enabled);
+      if (flag === FeatureFlag.AI_ASSISTANT)    this.setItemEnabled('ai-assistant', enabled);
+      if (flag === FeatureFlag.CHANNEL_MIXER)   this.setItemEnabled('channel-mixer-toggle', enabled);
     });
   }
 
