@@ -97,7 +97,7 @@ export class PlaybackManager {
         storage.get(StorageKey.FEATURE_PER_CHANNEL_ANALYSER) === 'true';
     } catch { /* ignore */ }
 
-    // Live-sync mute/solo to the Player whenever the store changes during playback.
+    // Live-sync mute/solo/volume to the Player whenever the store changes during playback.
     channelStates.subscribe((states) => {
       if (!this.player) return;
       const soloedId = Object.values(states).find(s => s.soloed)?.id ?? null;
@@ -106,6 +106,12 @@ export class PlaybackManager {
       if (soloedId === null) {
         for (const info of Object.values(states)) {
           if (info.muted) this.player.muted.add(info.id);
+        }
+      }
+      // Push per-channel volume to the Player's channel bus gain nodes.
+      for (const info of Object.values(states)) {
+        if (info.volume !== undefined) {
+          this.player.setChannelVolume(info.id, info.volume);
         }
       }
     });

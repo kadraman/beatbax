@@ -1386,18 +1386,26 @@ export class Player {
   }
 
   /**
+   * Set the volume (0–1) for a specific channel by id.
+   * Adjusts the per-channel bus gain, which is applied after the instrument
+   * envelope — equivalent to the channel fader on a mixing desk.
+   * Has no effect when the channel bus does not yet exist (e.g. before playback starts).
+   */
+  setChannelVolume(channelId: number, volume: number): void {
+    const bus = this._channelBuses.get(channelId);
+    if (bus) {
+      bus.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.ctx.currentTime);
+    }
+  }
+
+  /**
    * Return the AudioNode that should be used as the destination for a channel.
-   * When the per-channel analyser is disabled, notes are routed directly to
-   * masterGain / destination — no bus GainNode is created, so there is zero
-   * overhead for the default (opt-out) case.
-   * When enabled, notes go through a per-channel bus so the AnalyserNode tap
-   * can observe the signal.
+   * Notes always route through a per-channel bus GainNode so that per-channel
+   * volume (set via `setChannelVolume`) is applied after the instrument envelope.
+   * The AnalyserNode tap is only wired to the bus when `_enableAnalyser` is true.
    */
   private _getChannelDest(chId: number): AudioNode {
-    if (this._enableAnalyser) {
-      return this._getChannelBus(chId);
-    }
-    return this.masterGain || (this.ctx as any).destination;
+    return this._getChannelBus(chId);
   }
 
   /** Start the throttled sampling loop that emits onChannelWaveform events. */

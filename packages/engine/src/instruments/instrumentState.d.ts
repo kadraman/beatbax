@@ -5,8 +5,9 @@
  * and provides utilities for resolving an instrument reference for an
  * event given the instrument table and optional defaults.
  */
-export declare function getInstrumentByName(insts: Record<string, Record<string, string>>, name?: string): Record<string, string> | undefined;
-export declare function applyInstrumentToEvent(insts: Record<string, Record<string, string>>, event: any): any;
+import { InstMap } from '../parser/ast.js';
+export declare function getInstrumentByName(insts: InstMap, name?: string): import("../parser/ast.js").InstrumentNode | undefined;
+export declare function applyInstrumentToEvent(insts: InstMap, event: any): any;
 declare const _default: {
     getInstrumentByName: typeof getInstrumentByName;
     applyInstrumentToEvent: typeof applyInstrumentToEvent;

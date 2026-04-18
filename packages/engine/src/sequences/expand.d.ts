@@ -1,11 +1,6 @@
-/**
- * Expand sequence definitions into flat token arrays by resolving pattern
- * references and applying sequence-level transforms (oct, rev, slow, fast,
- * semitone transposition, and inst(name) override which is emitted as an
- * `inst(name)` token preceding the pattern tokens).
- */
-export declare function expandSequenceItems(items: string[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>, presets?: Record<string, string>): string[];
-export declare function expandAllSequences(seqs: Record<string, string[]>, pats: Record<string, string[]>, insts?: Record<string, any>, presets?: Record<string, string>): Record<string, string[]>;
+import { SequenceItem } from '../parser/ast.js';
+export declare function expandSequenceItems(items: (string | SequenceItem)[], pats: Record<string, string[]>, insts?: Record<string, any>, _missingWarned?: Set<string>, presets?: Record<string, string>, seqs?: Record<string, string[] | SequenceItem[]>, _seqVisiting?: Set<string>): string[];
+export declare function expandAllSequences(seqs: Record<string, string[] | SequenceItem[]>, pats: Record<string, string[]>, insts?: Record<string, any>, presets?: Record<string, string>): Record<string, string[]>;
 declare const _default: {
     expandSequenceItems: typeof expandSequenceItems;
     expandAllSequences: typeof expandAllSequences;
