@@ -62,7 +62,6 @@ export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_G
 export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
 export const settingShowSongVisualizer = boolAtom(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
 export const settingShowChannelMixerLegacy = settingShowSongVisualizer;
-export const settingChannelCompact     = boolAtom(StorageKey.CHANNEL_COMPACT,          true);
 export const settingVizBgEffect        = stringAtom<'none' | 'starfield' | 'scanlines' | 'custom-image'>(
   StorageKey.VIZ_BG_EFFECT,
   'none',
@@ -129,7 +128,6 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.PANEL_VIS_PATTERN_GRID,
     StorageKey.PANEL_VIS_CHANNEL_MIXER,
     StorageKey.PANEL_VIS_SONG_VISUALIZER,
-    StorageKey.CHANNEL_COMPACT,
     StorageKey.VIZ_BG_EFFECT,
     StorageKey.VIZ_BG_IMAGE,
   ],

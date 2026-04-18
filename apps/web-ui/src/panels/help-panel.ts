@@ -59,9 +59,7 @@ const HELP_SECTIONS: Section[] = [
       { kind: 'text', text: 'BeatBax is a concise live-coding language for Game Boy chiptunes.' },
       { kind: 'snippet', label: 'Top-level directives', code:
 `chip gameboy
-bpm 128
-time 4
-ticksPerStep 16` },
+bpm 128` },
       { kind: 'snippet', label: 'Define an instrument', code:
 `# Instrument syntax is chip-specific — see the Instruments section below.
 # Example (Game Boy): inst lead  type=pulse1 duty=50 env=12,down

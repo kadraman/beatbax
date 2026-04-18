@@ -2966,7 +2966,7 @@
   /* position (top/bottom/left/right) and opacity are set inline by DebugOverlay */
 }
 
-/* ─── HorizontalMixer — DAW-style bottom-docked channel strip ──────────────── */
+/* ─── ChannelMixer — DAW-style bottom-docked channel strip ──────────────── */
 
 #bb-mixer-host {
   flex-shrink: 0;
@@ -3191,7 +3191,7 @@
   min-height: 60px;
 }
 
-/* ---- DAW fader ------------------------------------------------------------ */
+/* ---- Channel Mixer fader ------------------------------------------------------------ */
 
 .bb-channel-mixer__fader-col {
   width: 22px;
