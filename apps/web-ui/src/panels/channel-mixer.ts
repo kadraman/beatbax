@@ -31,9 +31,7 @@ import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags';
 import { getChannelMeta } from '../utils/chip-meta';
 import { icon } from '../utils/icons';
 import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
-
-/** Chips that expose a per-channel volume register writable at runtime. */
-const VOLUME_SUPPORTED_CHIPS = new Set(['nes', 'sid', 'genesis', 'snes']);
+import { chipRegistry } from '@beatbax/engine/chips';
 
 /** Number of VU-meter segments per channel strip. */
 const VU_SEGMENTS = 12;
@@ -207,8 +205,19 @@ export class ChannelMixer {
     return (this.ast?.chip ?? 'gameboy').toLowerCase();
   }
 
-  private get volumeEnabled(): boolean {
-    return VOLUME_SUPPORTED_CHIPS.has(this.activeChip);
+  /**
+   * Whether a specific channel (by 1-based AST id) supports runtime volume control.
+   * Delegates to `supportsVolumeForChannel(index)` on the plugin when available;
+   * falls back to the chip-level `supportsPerChannelVolume` flag.
+   */
+  private volumeEnabledForChannel(channelId: number): boolean {
+    const plugin = chipRegistry.get(this.activeChip);
+    if (!plugin) return false;
+    if (typeof plugin.supportsVolumeForChannel === 'function') {
+      // Channel IDs are 1-based; backend indices are 0-based.
+      return plugin.supportsVolumeForChannel(channelId - 1);
+    }
+    return plugin.supportsPerChannelVolume ?? false;
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -341,6 +350,7 @@ export class ChannelMixer {
     const isSoloed = info?.soloed ?? false;
     const isAudible = isChannelAudible(channelStates.get(), ch.id);
     const defaultInstName = this.getInstrumentName(ch);
+    const instDef = this.ast?.insts?.[defaultInstName];
 
     const strip = document.createElement('div');
     strip.className = 'bb-channel-mixer__strip' + (!isAudible ? ' bb-channel-mixer__strip--silent' : '');
@@ -365,11 +375,19 @@ export class ChannelMixer {
     mid.className = 'bb-channel-mixer__mid';
 
     // Volume fader column — LEFT of VU (custom DAW-style fader)
+    const volEnabled = this.volumeEnabledForChannel(ch.id);
     const faderCol = document.createElement('div');
-    faderCol.className = 'bb-channel-mixer__fader-col' + (!this.volumeEnabled ? ' bb-channel-mixer__fader-col--disabled' : '');
-    if (!this.volumeEnabled) {
-      const chipName = this.activeChip.charAt(0).toUpperCase() + this.activeChip.slice(1);
-      faderCol.title = `${chipName} uses envelope-driven amplitude — no per-channel volume available`;
+    faderCol.className = 'bb-channel-mixer__fader-col' + (!volEnabled ? ' bb-channel-mixer__fader-col--disabled' : '');
+    if (!volEnabled) {
+      const plugin = chipRegistry.get(this.activeChip);
+      const chipSupports = plugin?.supportsPerChannelVolume ?? false;
+      if (chipSupports) {
+        // Chip supports volume on some channels but not this one (e.g. NES Triangle/DMC)
+        faderCol.title = `This channel has fixed amplitude — no runtime volume available`;
+      } else {
+        const chipName = this.activeChip.charAt(0).toUpperCase() + this.activeChip.slice(1);
+        faderCol.title = `${chipName} uses envelope-driven amplitude — no per-channel volume available`;
+      }
     }
 
     // Inner shaft (position: absolute so it fills fader-col's flex-stretched height)
@@ -397,7 +415,7 @@ export class ChannelMixer {
     faderCol.appendChild(shaft);
     mid.appendChild(faderCol);
 
-    if (this.volumeEnabled) {
+    if (volEnabled) {
       this.wireFaderDrag(shaft, thumbEl, ch.id);
     }
 
@@ -419,6 +437,56 @@ export class ChannelMixer {
       vu.appendChild(seg);
     }
     mid.appendChild(vu);
+
+    // ── Instrument-native-volume reference column — RIGHT of VU meter ────────
+    // A read-only mini scale (0–15) with an amber notch at the instrument's
+    // authored vol= / env= level.  Kept separate from the fader so there is
+    // no ambiguity: left fader = runtime post-envelope gain, right column =
+    // the volume baked into the instrument definition.
+    const volRange = this.getInstrumentVolumeRange();
+    const instNativeVol = this.extractInstrumentVolume(instDef, volRange);
+    const instVolCol = document.createElement('div');
+    instVolCol.className = 'bb-channel-mixer__inst-vol-col';
+    instVolCol.title = `Instrument native volume (${volRange.min}\u2013${volRange.max} scale${volRange.isAttenuation ? ', attenuation' : ''})`;
+
+    const instVolShaft = document.createElement('div');
+    instVolShaft.className = 'bb-channel-mixer__inst-vol-shaft';
+
+    // Scale ticks: top = loudest end, bottom = silent end, 4 evenly-spaced marks.
+    // For attenuation chips the loudest end is min (0); for level chips it is max.
+    const { min, max, isAttenuation } = volRange;
+    const range = max - min;
+    for (let i = 0; i <= 4; i++) {
+      // raw value at this tick position (loudest at top, quietest at bottom)
+      const rawVal = isAttenuation
+        ? min + Math.round((i / 4) * range)       // 0 (loud) → max (quiet)
+        : max - Math.round((i / 4) * range);       // max (loud) → 0 (quiet)
+      const topPct = (i / 4) * 100;
+      const tick = document.createElement('div');
+      tick.className = 'bb-channel-mixer__inst-vol-tick';
+      tick.style.top = topPct + '%';
+      tick.title = String(rawVal);
+      instVolShaft.appendChild(tick);
+    }
+
+    // Amber notch — always created; hidden when no vol/env is defined
+    const instVolNotch = document.createElement('div');
+    instVolNotch.className = 'bb-channel-mixer__inst-vol-notch';
+    instVolNotch.id = `bb-channel-mixer-ref-${ch.id}`;
+    if (instNativeVol !== null) {
+      instVolNotch.style.top = ((1 - instNativeVol) * 100) + '%';
+      const raw = Math.round(isAttenuation
+        ? instNativeVol * range + min
+        : instNativeVol * range + min);
+      instVolNotch.title = `Instrument level: ${raw}/${max} (${Math.round(instNativeVol * 100)}%)`;
+    } else {
+      instVolNotch.style.display = 'none';
+    }
+    instVolShaft.appendChild(instVolNotch);
+
+    instVolCol.appendChild(instVolShaft);
+    mid.appendChild(instVolCol);
+
     strip.appendChild(mid);
 
     // ── Info labels below mid (instrument / sequence / pattern) ──────────────
@@ -432,6 +500,20 @@ export class ChannelMixer {
     instEl.textContent = defaultInstName;
     instEl.title = `Instrument: ${defaultInstName}`;
     strip.appendChild(instEl);
+
+    // Volume readout — shows the instrument's native level (vol= / env= field)
+    // in compact notation so the composer can cross-reference the fader.
+    const volReadout = document.createElement('div');
+    volReadout.className = 'bb-channel-mixer__vol-readout';
+    volReadout.id = `bb-channel-mixer-vol-${ch.id}`;
+    if (instNativeVol !== null) {
+      const raw = Math.round(instNativeVol * 15);
+      volReadout.textContent = `vol ${raw}/${volRange.max}`;
+      volReadout.title = `Instrument native volume: ${raw}/${volRange.max} (${Math.round(instNativeVol * 100)}%)`;
+    } else {
+      volReadout.textContent = '';
+    }
+    strip.appendChild(volReadout);
 
     // ── Mute / Solo buttons ───────────────────────────────────────────────────
     const btnRow = document.createElement('div');
@@ -457,6 +539,56 @@ export class ChannelMixer {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns the instrument volume range for the currently active chip.
+   * Falls back to `{ min: 0, max: 15 }` when the plugin does not declare one.
+   */
+  private getInstrumentVolumeRange(): { min: number; max: number; isAttenuation: boolean } {
+    const plugin = chipRegistry.get(this.activeChip);
+    const r = plugin?.instrumentVolumeRange;
+    return {
+      min: r?.min ?? 0,
+      max: r?.max ?? 15,
+      isAttenuation: r?.isAttenuation ?? false,
+    };
+  }
+
+  /**
+   * Extract the native volume level from an instrument definition as a 0–1 value
+   * normalised against the chip's `instrumentVolumeRange`.
+   * For level chips (isAttenuation=false): 0 = silent, max = full → result 0–1.
+   * For attenuation chips (isAttenuation=true): 0 = full, max = silent → result
+   * is inverted so 1 always means loudest in the returned 0–1 scale.
+   * Returns `null` when neither `vol` nor `env` is present on the instrument.
+   */
+  private extractInstrumentVolume(
+    inst: any,
+    range?: { min: number; max: number; isAttenuation?: boolean },
+  ): number | null {
+    if (!inst) return null;
+    const { min, max, isAttenuation } = {
+      min: range?.min ?? 0,
+      max: range?.max ?? 15,
+      isAttenuation: range?.isAttenuation ?? false,
+    };
+    const span = max - min;
+    const parse = (raw: number): number => {
+      const clamped = Math.max(min, Math.min(max, raw));
+      const norm = (clamped - min) / span;          // 0–1 within [min,max]
+      return isAttenuation ? 1 - norm : norm;        // flip so 1 = loudest
+    };
+    if (inst.vol !== undefined) {
+      const v = Number(inst.vol);
+      return isNaN(v) ? null : parse(v);
+    }
+    if (inst.env) {
+      const first = String(inst.env).split(',')[0].trim();
+      const v = parseInt(first, 10);
+      return isNaN(v) ? null : parse(v);
+    }
+    return null;
+  }
 
   private getInstrumentName(ch: any): string {
     const instNode = ch.inst ?? ch.instrument;
@@ -678,6 +810,39 @@ export class ChannelMixer {
     if (instEl && position.currentInstrument) {
       instEl.textContent = position.currentInstrument;
       instEl.title = `Instrument: ${position.currentInstrument}`;
+      // Update the vol readout and reference notch for the now-active instrument.
+      const instDef = this.ast?.insts?.[position.currentInstrument];
+      const volRange = this.getInstrumentVolumeRange();
+      const vol = this.extractInstrumentVolume(instDef, volRange);
+      const volReadout = document.getElementById(`bb-channel-mixer-vol-${channelId}`);
+      if (volReadout) {
+        if (vol !== null) {
+          const raw = Math.round(vol * (volRange.max - volRange.min) + volRange.min);
+          // For attenuation chips, "raw" is already normalized to loudest=low,
+          // so re-derive display value correctly:
+          const displayRaw = volRange.isAttenuation
+            ? Math.round((1 - vol) * (volRange.max - volRange.min) + volRange.min)
+            : raw;
+          volReadout.textContent = `vol ${displayRaw}/${volRange.max}`;
+          volReadout.title = `Instrument native volume: ${displayRaw}/${volRange.max} (${Math.round(vol * 100)}%)`;
+        } else {
+          volReadout.textContent = '';
+          volReadout.title = '';
+        }
+      }
+      const refMark = document.getElementById(`bb-channel-mixer-ref-${channelId}`);
+      if (refMark) {
+        if (vol !== null) {
+          refMark.style.top = ((1 - vol) * 100) + '%';
+          refMark.style.display = '';
+          const displayRaw = volRange.isAttenuation
+            ? Math.round((1 - vol) * (volRange.max - volRange.min) + volRange.min)
+            : Math.round(vol * (volRange.max - volRange.min) + volRange.min);
+          refMark.title = `Instrument level: ${displayRaw}/${volRange.max} (${Math.round(vol * 100)}%)`;
+        } else {
+          refMark.style.display = 'none';
+        }
+      }
     }
   }
 
