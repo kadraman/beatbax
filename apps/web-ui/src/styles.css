@@ -463,9 +463,6 @@
  *  Priority classes control which controls disappear first at narrower widths.
  *  Lower pri number = higher priority (hidden first at lowest BPs).
  *
- *  scope  → SCOPE oscilloscope             hidden at ≤ 1499 px
- *            (BAR:BT + STEP LCDs reappear at 1400 px; the scope must wait
- *             until ≥ 1500 px so it doesn't push into the rack-ear elements)
  *  pri-1  → BAR:BT, STEP LCDs             hidden at < 1400 px
  *  pri-2  → LOOP LCD; ⟳ Loop, ● Rec        hidden at < 1150 px
  *  pri-3  → BPM nudge (+ sep), VOL LCD     hidden at < 1200 px
@@ -1756,34 +1753,6 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.55);
 }
 
-/* ── Oscilloscope waveform strip ────────────────────────────────────────────── */
-/* Scope LCD modifier — fills remaining transport space, stretches to bar height */
-.bb-transport__lcd--scope {
-  flex: 1 1 0;
-  min-width: 80px;
-  align-self: stretch;
-}
-
-/* Canvas fills available space inside the LCD bezel */
-.bb-scope {
-  display: block;
-  width: 100%;
-  flex: 1 1 0;
-  min-height: 18px;
-  background: #0b130b;
-  border-radius: 3px;
-}
-/*
- * At ≤1499 px the scope's flex-grow space is consumed by other controls and
- * it begins pushing into the rack-ear pseudo-elements at the bar ends.
- * The BAR:BT and STEP LCDs reappear at ≥1400 px, so the scope must stay
- * hidden until ≥1500 px where there is always enough room for a meaningful
- * waveform display without overlapping the decorative rack ears.
- */
-@media (max-width: 1499px) {
-  .bb-transport__lcd--scope { display: none; }
-}
-
 /* ── BPM nudge-button label + row (defined above near nudge-wrap) ─────────── */
 
 /* ── Pattern Grid ─────────────────────────────────────────────────────────── */
@@ -2099,6 +2068,21 @@
   flex-shrink: 0; display: block; opacity: 0.92; pointer-events: none; user-select: none;
 }
 [data-theme="light"] .bb-menu-bar__logo { filter: invert(1) hue-rotate(180deg) brightness(0.7); }
+.bb-menu-bar__song-name {
+  margin-left: auto;
+  padding: 0 12px;
+  align-self: center;
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  pointer-events: none;
+  user-select: none;
+  font-style: italic;
+}
+[data-theme="light"] .bb-menu-bar__song-name { color: #666; }
 .bb-menu { position: relative; display: flex; align-items: stretch; }
 .bb-menu__trigger {
   padding: 0 10px; background: transparent; border: none; color: #cccccc;

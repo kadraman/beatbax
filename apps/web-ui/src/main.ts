@@ -1079,18 +1079,6 @@ transportBar.volKnob.onChange((v) => {
   playbackManager.setMasterVolume(v / 100);
 });
 
-// ─── Oscilloscope ────────────────────────────────────────────────────────────
-// Start the RAF loop immediately (draws a flat idle line until analyser is ready).
-transportBar.oscilloscope.start();
-// Feed the analyser whenever playback starts or resumes.
-function _updateScopeAnalyser() {
-  transportBar.oscilloscope.setAnalyser(playbackManager.getMasterAnalyser());
-}
-eventBus.on('playback:started',  _updateScopeAnalyser);
-eventBus.on('playback:resumed',  _updateScopeAnalyser);
-// On stop/pause, keep the analyser connected so the waveform decays naturally.
-// (Passing null would immediately snap to the flat line — not needed here.)
-
 // React to content changes via the EditorState-emitted event.
 // (BeatBaxEditor wrapper has no onDidChangeModelContent; EditorState is the
 // sole emitter of 'editor:changed'.)
@@ -1247,6 +1235,7 @@ const menuBar = new MenuBar({
       editor.setValue?.(newSong);
       storage.set(StorageKey.EDITOR_CONTENT, newSong);
       loadedFilename = 'song';
+      menuBar.setSongName('untitled');
       opLog(outputPanel, '📄 New song');
       emitParse(newSong);
       toolbar?.setExportEnabled(true);
@@ -1258,6 +1247,7 @@ const menuBar = new MenuBar({
       onLoad: (result) => {
         playbackManager.stop();
         loadedFilename = fileBaseStem(result.filename);
+        menuBar.setSongName(loadedFilename);
         editor.setValue?.(result.content);
         storage.set(StorageKey.EDITOR_CONTENT, result.content);
         opLog(outputPanel, `📂 Opened ${result.filename}`);
@@ -1280,11 +1270,13 @@ const menuBar = new MenuBar({
     const filename = raw.endsWith('.bax') ? raw : `${raw}.bax`;
     downloadText(getSource(), filename, 'text/plain');
     loadedFilename = fileBaseStem(filename);
+    menuBar.setSongName(loadedFilename);
     opLog(outputPanel, `💾 Saved ${filename}`);
   },
   onLoadFile: (filename, content) => {
     playbackManager.stop();
     loadedFilename = fileBaseStem(filename);
+    menuBar.setSongName(loadedFilename);
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🎵 Loaded ${filename}`);
@@ -1314,6 +1306,14 @@ const menuBar = new MenuBar({
 });
 
 (window as any).__beatbax_menuBar = menuBar;
+
+// Keep the menu bar song name in sync with the parsed metadata.name directive.
+// Falls back to the loaded filename stem when no name directive is present.
+// 'song' is the internal sentinel for "no file loaded" — display as 'untitled'.
+eventBus.on('parse:success', ({ ast }: any) => {
+  const metaName = (ast as any)?.metadata?.name;
+  menuBar.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
+});
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
 menuBar.seedPanelVisible({
