@@ -130,6 +130,7 @@ function esc(str: string): string {
 
 export class MenuBar {
   private el!: HTMLElement;
+  private songNameEl!: HTMLElement;
   /** Currently open menu id, or null. */
   private openMenu: string | null = null;
   /** AbortController for all document-level listeners. */
@@ -200,6 +201,12 @@ export class MenuBar {
   triggerToggleAI(): void { this.opts.onToggleAI?.(); }
   triggerShowSettings(): void { this.opts.onShowSettings?.(); }
 
+  /** Update the song name shown in the menu bar title area. */
+  setSongName(name: string): void {
+    this.songNameEl.textContent = name || 'untitled';
+    this.songNameEl.title = name || 'untitled';
+  }
+
   // ─── Rendering ──────────────────────────────────────────────────────────────
 
   private render(): void {
@@ -219,6 +226,13 @@ export class MenuBar {
     this.el.appendChild(this.buildMenu('edit', 'Edit', this.editItems()));
     this.el.appendChild(this.buildMenu('view', 'View', this.viewItems()));
     this.el.appendChild(this.buildMenu('help', 'Help', this.helpItems()));
+
+    // ── Song name — right-aligned in the remaining menu bar space ──────────
+    this.songNameEl = document.createElement('span');
+    this.songNameEl.className = 'bb-menu-bar__song-name';
+    this.songNameEl.textContent = 'untitled';
+    this.songNameEl.title = 'untitled';
+    this.el.appendChild(this.songNameEl);
 
     this.opts.container.appendChild(this.el);
   }
