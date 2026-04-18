@@ -1,9 +1,9 @@
 ---
 title: "Channel Visualizer — Repurposed Legacy Channel Mixer"
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2026-04-15
-issue: ""
+issue: "https://github.com/kadraman/beatbax/issues/88"
 ---
 
 ## Summary
