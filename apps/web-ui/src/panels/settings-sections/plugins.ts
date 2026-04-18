@@ -38,7 +38,7 @@ export function buildPluginsSection(): HTMLElement {
   const gbTitle = document.createElement('div');
   gbTitle.className = 'bb-settings-feature-title';
   const gbName = document.createElement('span');
-  gbName.textContent = 'Game Boy DMG (Ricoh LR35902)';
+  gbName.textContent = 'Game Boy DMG-01 APU';
   const gbVer = document.createElement('span');
   gbVer.className = 'bb-settings-plugin-version';
   gbVer.textContent = `v${gameboyPlugin.version}`;
