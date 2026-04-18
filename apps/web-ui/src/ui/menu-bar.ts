@@ -88,7 +88,7 @@ export interface MenuBarOptions {
   /** Open the Keyboard Shortcuts section of the Help Panel (Alt+Shift+K). */
   onShowShortcuts?: () => void;
   /** Export callback for File → Export menu */
-  onExport?: (format: 'json' | 'midi' | 'uge' | 'wav') => void;
+  onExport?: (format: 'json' | 'midi' | 'uge' | 'wav' | 'famitracker') => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -401,6 +401,7 @@ export class MenuBar {
           { type: 'item', icon: 'musical-note',  label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
           { type: 'item', icon: 'cpu-chip',      label: 'Export as UGE',  action: () => this.opts.onExport?.('uge') },
           { type: 'item', icon: 'speaker-wave',  label: 'Export as WAV',  action: () => this.opts.onExport?.('wav') },
+          { type: 'item', icon: 'command-line',  label: 'Export as FamiTracker (.ftm)', action: () => this.opts.onExport?.('famitracker') },
         ],
       },
       {

@@ -84,7 +84,7 @@ export function registerBeatBaxLanguage(): void {
     inlineEffects: ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep'],
 
     // Export formats
-    exportFormats: ['json', 'midi', 'uge', 'wav'],
+    exportFormats: ['json', 'midi', 'uge', 'wav', 'famitracker'],
 
     // Chip types
     chipTypes: ['gameboy', 'gb', 'dmg'],
@@ -992,4 +992,3 @@ export function registerNoteEditCommands(
   editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Period,        () => transposeCurrentNote(editor,  12));
   editor.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.Comma,         () => transposeCurrentNote(editor, -12));
 }
-

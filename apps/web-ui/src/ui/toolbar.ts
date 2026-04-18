@@ -113,6 +113,9 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="wav" title="Export as WAV (rendered audio)">
           ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">WAV</span>
         </button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="famitracker" title="Export as FamiTracker (.ftm) [placeholder]">
+          ${icon('command-line', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">FTM</span>
+        </button>
       </div>
 
       <div class="bb-toolbar__separator bb-toolbar__sep--verify" aria-hidden="true"></div>

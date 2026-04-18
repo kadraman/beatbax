@@ -41,6 +41,24 @@ afterEach(() => {
 });
 
 describe('Toolbar — setExportEnabled', () => {
+  it('includes famitracker export button and dispatches the format on click', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const eventBus = new EventBus();
+    const onExport = jest.fn();
+    new Toolbar({
+      container,
+      eventBus,
+      onLoad: jest.fn(),
+      onExport,
+    });
+
+    const btn = container.querySelector<HTMLButtonElement>('[data-format="famitracker"]');
+    expect(btn).not.toBeNull();
+    btn!.click();
+    expect(onExport).toHaveBeenCalledWith('famitracker');
+  });
+
   it('disables all export buttons and appends hint when called with false', () => {
     const { container, toolbar } = makeToolbar();
 

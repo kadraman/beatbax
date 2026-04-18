@@ -8,6 +8,7 @@
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
 import { sectionHeading, noteText } from './general';
 import { gameboyPlugin } from '@beatbax/engine/chips';
+import { exporterRegistry } from '@beatbax/engine';
 
 const BADGE_CLASS: Record<string, string> = {
   Stable:       'bb-settings-badge--stable',
@@ -101,6 +102,47 @@ export function buildPluginsSection(): HTMLElement {
     });
 
     row.append(left, input);
+    el.appendChild(row);
+  }
+
+  // ── Installed exporter plugins (read-only) ─────────────────────────────────
+  el.appendChild(builtinSubheading('Installed exporter plugins'));
+  el.appendChild(noteText(
+    'Exporter plugins are provided by the engine and enabled chip plugins. ' +
+    'Built-ins include JSON, MIDI, UGE, and WAV.'
+  ));
+
+  const exporters = exporterRegistry.all().slice().sort((a, b) => a.id.localeCompare(b.id));
+  for (const plugin of exporters) {
+    const row = document.createElement('div');
+    row.className = 'bb-settings-feature-row';
+
+    const left = document.createElement('div');
+    left.className = 'bb-settings-feature-info';
+
+    const titleLine = document.createElement('div');
+    titleLine.className = 'bb-settings-feature-title';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = plugin.label;
+
+    const verSpan = document.createElement('span');
+    verSpan.className = 'bb-settings-plugin-version';
+    verSpan.textContent = `v${plugin.version}`;
+    titleLine.append(nameSpan, verSpan);
+
+    const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
+    const desc = document.createElement('span');
+    desc.className = 'bb-settings-feature-desc';
+    desc.textContent = `${plugin.id} (${ext}) — chips: ${plugin.supportedChips.join(', ')}`;
+
+    left.append(titleLine, desc);
+
+    const status = document.createElement('span');
+    status.className = 'bb-settings-plugin-builtin';
+    status.textContent = 'Installed';
+
+    row.append(left, status);
     el.appendChild(row);
   }
 

@@ -5,6 +5,7 @@
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
+import { exporterRegistry } from '@beatbax/engine';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 import type { EventBus } from '../utils/event-bus';
@@ -26,7 +27,7 @@ const log = createLogger('ui:export-manager');
 /**
  * Available export formats
  */
-export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav';
+export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav' | 'famitracker';
 
 /**
  * Export options
@@ -117,8 +118,12 @@ export class ExportManager {
         case 'wav':
           result = await this.exportWAV(source, resolved, baseFilename);
           break;
+        case 'famitracker':
+          result = await this.exportViaPlugin(resolved, baseFilename, format);
+          break;
         default:
-          throw new Error(`Unknown export format: ${format}`);
+          result = await this.exportViaPlugin(resolved, baseFilename, format);
+          break;
       }
 
       result.warnings = warnings;
@@ -144,10 +149,16 @@ export class ExportManager {
       return {
         success: false,
         format,
-        filename: ensureExtension(baseFilename, format === 'midi' ? 'mid' : format),
+        filename: ensureExtension(baseFilename, this.extensionForFormat(format)),
         error,
       };
     }
+  }
+
+  private extensionForFormat(format: string): string {
+    if (format === 'midi') return 'mid';
+    if (format === 'famitracker') return 'ftm';
+    return format;
   }
 
   /**
@@ -312,6 +323,36 @@ export class ExportManager {
       filename,
       size: wavData.byteLength,
     };
+  }
+
+  private async exportViaPlugin(
+    resolved: any,
+    baseFilename: string,
+    format: string,
+  ): Promise<ExportResult> {
+    const plugin = exporterRegistry.get(format);
+    if (!plugin) throw new Error(`Unknown export format: ${format}`);
+
+    const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
+    const filename = ensureExtension(baseFilename, ext);
+    const data = await plugin.export(resolved as any, { outputPath: filename });
+
+    if (typeof data === 'string') {
+      downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
+      return { success: true, format: format as ExportFormat, filename, size: data.length };
+    }
+
+    if (data instanceof Uint8Array) {
+      downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
+      return { success: true, format: format as ExportFormat, filename, size: data.byteLength };
+    }
+
+    if (data instanceof ArrayBuffer) {
+      downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
+      return { success: true, format: format as ExportFormat, filename, size: data.byteLength };
+    }
+
+    throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
   }
 
   /**

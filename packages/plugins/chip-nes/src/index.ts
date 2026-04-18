@@ -34,11 +34,13 @@ import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
+import { famitrackerExporterPlugin } from './famitracker-exporter.js';
 
 const nesPlugin: ChipPlugin = {
   name: 'nes',
   version,
   channels: 5,
+  exporterPlugins: [famitrackerExporterPlugin],
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },
 
@@ -95,3 +97,4 @@ export { PULSE_PERIOD, TRIANGLE_PERIOD, NOISE_PERIOD_TABLE, DMC_RATE_TABLE } fro
 export { nesMix, getNesGainWeights, NES_MIX_GAIN } from './mixer.js';
 export { validateNesInstrument } from './validate.js';
 export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';
+export { famitrackerExporterPlugin } from './famitracker-exporter.js';
