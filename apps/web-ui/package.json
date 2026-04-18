@@ -15,8 +15,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.10.0",
-    "@beatbax/plugin-chip-nes": "^2.0.0",
+    "@beatbax/engine": "^0.10.1",
+    "@beatbax/plugin-chip-nes": "^0.2.1",
     "@tailwindcss/vite": "^4.2.2",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",

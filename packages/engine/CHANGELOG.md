@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.10.1
+
+### Patch Changes
+
+- 110f990: Added instrumentVolumeRange to ChipPlugin interface (min/max/isAttenuation) with chip-aware defaults.
+
 ## 0.10.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @beatbax/plugin-chip-nes
 
+## 0.2.1
+
+### Patch Changes
+
+- 110f990: Added individual channel volume specifications.
+- Updated dependencies [110f990]
+  - @beatbax/engine@0.10.1
+
 ## 0.2.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @beatbax/cli
 
+## 0.3.2
+
+### Patch Changes
+
+- 110f990: Added aliases for gb,dmg to gameboy so to appear as single chip.
+- Updated dependencies [110f990]
+  - @beatbax/plugin-chip-nes@0.2.1
+  - @beatbax/engine@0.10.1
+
 ## 0.3.1
 
 ### Patch Changes
