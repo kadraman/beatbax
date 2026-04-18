@@ -9,8 +9,9 @@ import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer, settingShowSongVisualizer,
   settingVizBgEffect, settingVizBgImage,
-  settingChannelCompact,
   settingFeatureChannelMixer,
+  settingFeaturePatternGrid,
+  settingFeatureSongVisualizer,
 } from '../../stores/settings.store';
 
 export function buildGeneralSection(): HTMLElement {
@@ -57,19 +58,6 @@ export function buildGeneralSection(): HTMLElement {
     },
   ));
 
-  el.appendChild(toggle(
-    'Compact channel mixer',
-    settingChannelCompact.get(),
-    (v) => {
-      settingChannelCompact.set(v);
-      // Persist old key for ChannelMixer compatibility
-      try { localStorage.setItem('bb-channel-compact', String(v)); } catch { /* ignore */ }
-      // Live-apply on the running mixer instance
-      (window as any).__beatbax_channelMixer?.setCompact(v);
-    },
-    settingChannelCompact.subscribe,
-  ));
-
   // ── Panels ────────────────────────────────────────────────────────────────
   el.appendChild(sectionHeading('Panels'));
 
@@ -83,10 +71,33 @@ export function buildGeneralSection(): HTMLElement {
     eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: v });
   }, settingShowTransportBar.subscribe));
 
-  el.appendChild(toggle('Show pattern grid', settingShowPatternGrid.get(), (v) => {
+  const patternGridRow = toggle('Show pattern grid', settingShowPatternGrid.get(), (v) => {
     settingShowPatternGrid.set(v);
     eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: v });
-  }, settingShowPatternGrid.subscribe));
+  }, settingShowPatternGrid.subscribe);
+  // Disable the toggle when the Pattern Grid feature flag is off.
+  const patternGridInput = patternGridRow.querySelector<HTMLInputElement>('input');
+  const applyPatternGridFeatureGate = (featureEnabled: boolean): void => {
+    if (!patternGridInput) return;
+    patternGridInput.disabled = !featureEnabled;
+    (patternGridRow as HTMLElement).style.opacity = featureEnabled ? '' : '0.5';
+    (patternGridRow as HTMLElement).title = featureEnabled
+      ? ''
+      : 'Enable Pattern Grid in Settings → Features first';
+  };
+  let firstPatternGridFeatCall = true;
+  const unsubPatternGridFeat = settingFeaturePatternGrid.subscribe((v) => {
+    if (firstPatternGridFeatCall) { firstPatternGridFeatCall = false; }
+    applyPatternGridFeatureGate(v);
+  });
+  const patternGridFeatObserver = new MutationObserver(() => {
+    if (!(patternGridRow as HTMLElement).isConnected) {
+      unsubPatternGridFeat();
+      patternGridFeatObserver.disconnect();
+    }
+  });
+  patternGridFeatObserver.observe(document.body, { childList: true, subtree: true });
+  el.appendChild(patternGridRow);
 
   const mixerRow = toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
@@ -116,10 +127,37 @@ export function buildGeneralSection(): HTMLElement {
   mixerFeatObserver.observe(document.body, { childList: true, subtree: true });
   el.appendChild(mixerRow);
 
-  el.appendChild(toggle('Show song visualizer', settingShowSongVisualizer.get(), (v) => {
+  const vizRow = toggle('Show song visualizer', settingShowSongVisualizer.get(), (v) => {
     settingShowSongVisualizer.set(v);
     eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: v });
-  }, settingShowSongVisualizer.subscribe));
+  }, settingShowSongVisualizer.subscribe);
+  // Disable the toggle when the Song Visualizer feature flag is off.
+  const vizInput = vizRow.querySelector<HTMLInputElement>('input');
+  const applyVizFeatureGate = (featureEnabled: boolean): void => {
+    if (!vizInput) return;
+    vizInput.disabled = !featureEnabled;
+    (vizRow as HTMLElement).style.opacity = featureEnabled ? '' : '0.5';
+    (vizRow as HTMLElement).title = featureEnabled
+      ? ''
+      : 'Enable Song Visualizer in Settings → Features first';
+  };
+  let firstVizFeatCall = true;
+  const unsubVizFeat = settingFeatureSongVisualizer.subscribe((v) => {
+    if (firstVizFeatCall) { firstVizFeatCall = false; }
+    applyVizFeatureGate(v);
+  });
+  const vizFeatObserver = new MutationObserver(() => {
+    if (!(vizRow as HTMLElement).isConnected) {
+      unsubVizFeat();
+      vizFeatObserver.disconnect();
+    }
+  });
+  vizFeatObserver.observe(document.body, { childList: true, subtree: true });
+  el.appendChild(vizRow);
+
+  // ── Song visualizer background options (only shown when feature is enabled) ─
+  const vizBgContainer = document.createElement('div');
+  vizBgContainer.style.display = settingFeatureSongVisualizer.get() ? '' : 'none';
 
   const bgEffectSelect = selectField(
     'Song visualizer background',
@@ -147,6 +185,22 @@ export function buildGeneralSection(): HTMLElement {
     },
   );
   el.appendChild(bgEffectSelect);
+
+  // Subscribe to feature flag so the background options appear/disappear live.
+  let firstVizBgFeatCall = true;
+  const unsubVizBgFeat = settingFeatureSongVisualizer.subscribe((enabled) => {
+    if (firstVizBgFeatCall) { firstVizBgFeatCall = false; return; }
+    vizBgContainer.style.display = enabled ? '' : 'none';
+  });
+  const vizBgFeatObserver = new MutationObserver(() => {
+    if (!vizBgContainer.isConnected) {
+      unsubVizBgFeat();
+      vizBgFeatObserver.disconnect();
+    }
+  });
+  vizBgFeatObserver.observe(document.body, { childList: true, subtree: true });
+
+  vizBgContainer.appendChild(bgEffectSelect);
 
   // ── Visualizer background image (only shown when Custom image is selected) ─
   const fileInput = document.createElement('input');
@@ -240,7 +294,8 @@ export function buildGeneralSection(): HTMLElement {
   imagePreviewWrap.append(imgPreview, fileNameEl);
 
   imageRow.append(imageLbl, imageControls, imagePreviewWrap);
-  el.appendChild(imageRow);
+  vizBgContainer.appendChild(imageRow);
+  el.appendChild(vizBgContainer);
 
   return el;
 }
@@ -257,7 +312,6 @@ export function resetGeneralDefaults(): void {
   settingShowSongVisualizer.set(false);
   settingVizBgEffect.set('none');
   settingVizBgImage.set('');
-  settingChannelCompact.set(true);
 }
 
 // ─── Shared form helpers ───────────────────────────────────────────────────

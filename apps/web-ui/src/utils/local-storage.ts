@@ -32,8 +32,6 @@ export const StorageKey = {
   THEME: 'ui.theme',
   /** Toolbar style ('icons+labels' | 'icons'). */
   TOOLBAR_STYLE: 'ui.toolbarStyle',
-  /** Compact channel mixer (boolean). */
-  CHANNEL_COMPACT: 'ui.channelCompact',
   /** BPM preference (number encoded as string). */
   BPM: 'editor.bpm',
   /** Auto-save enabled flag (boolean). */
@@ -72,7 +70,7 @@ export const StorageKey = {
   AI_ASSISTANT: 'feature.aiAssistant',
   /** Per-channel waveform analyser feature flag (boolean). */
   FEATURE_PER_CHANNEL_ANALYSER: 'feature.perChannelAnalyser',
-  /** DAW channel mixer feature flag (boolean). */
+  /** DAW style channel mixer feature flag (boolean). */
   FEATURE_CHANNEL_MIXER: 'feature.channelMixer',
   /** Pattern grid feature flag (boolean). */
   FEATURE_PATTERN_GRID: 'feature.patternGrid',
