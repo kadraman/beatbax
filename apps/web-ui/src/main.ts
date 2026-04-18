@@ -84,7 +84,7 @@ import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
-import { DawMixer } from './panels/daw-mixer';
+import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
@@ -119,7 +119,7 @@ function opError(panel: OutputPanel, message: string, source = 'app') {
 
 // ─── Panel visibility persistence ─────────────────────────────────────────────
 // readPanelVis reads through BeatBaxStorage so the key namespace matches what
-// DawMixer and other components write (beatbax: prefix, no double 'panel.panel.' issue).
+// ChannelMixer and other components write (beatbax: prefix, no double 'panel.panel.' issue).
 function readPanelVis(key: string, defaultVal = true): boolean {
   try {
     const v = storage.get(key);
@@ -303,12 +303,12 @@ const songVisualizer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── DawMixer — horizontal strip at the bottom ──────────────────────────────
-// The mixer is gated by the DAW_MIXER feature flag; it can be shown/hidden via
+// ─── ChannelMixer — horizontal strip at the bottom ──────────────────────────
+// The mixer is gated by the CHANNEL_MIXER feature flag; it can be shown/hidden via
 // the View → Channel Mixer menu item or Settings → General → Show channel mixer.
-const dawMixer = withErrorBoundary(
-  'DawMixer',
-  () => new DawMixer({
+const channelMixer = withErrorBoundary(
+  'ChannelMixer',
+  () => new ChannelMixer({
     container: mixerHostContainer,
     inlineContainer: inlineMixerContainer,
     eventBus,
@@ -561,13 +561,13 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     // Refresh Settings model sidebar so the AI section appears/disappears.
     settingsModal.refresh();
   }
-  if (flag === FeatureFlag.DAW_MIXER) {
+  if (flag === FeatureFlag.CHANNEL_MIXER) {
     // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
     // and update the legacy right-pane mixer accordingly.
     // Route show/hide through panel:toggled so the MenuBar panelVisible map and
     // settingShowChannelMixer atom are updated by the single canonical handler.
     try {
-      eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: enabled });
+      eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
       if (enabled) {
         // Hide legacy right-pane mixer when the new one is enabled
         rightTabs.close('channels');
@@ -599,18 +599,18 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'problems') {
     visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
-  if (panel === 'channel-mixer' || panel === 'song-visualizer') {
-    // Song Visualizer in the right pane (accept legacy 'channel-mixer' id too).
+  if (panel === 'song-visualizer') {
+    // Song Visualizer in the right pane.
     // Only honour show requests when the Song Visualizer feature is enabled.
     if (visible && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
     settingShowSongVisualizer.set(visible);
   }
-  if (panel === 'daw-mixer') {
+  if (panel === 'channel-mixer') {
     // Only honour show/hide requests when the Channel Mixer feature is enabled.
-    if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
+    if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
     try {
-      dawMixer?.[visible ? 'show' : 'hide']?.();
+      channelMixer?.[visible ? 'show' : 'hide']?.();
       settingShowChannelMixer.set(visible);
     } catch (_e) { /* ignore */ }
   }
@@ -667,7 +667,7 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
 (window as any).__beatbax_songVisualizer = songVisualizer;
-(window as any).__beatbax_dawMixer = dawMixer; // DAW channel mixer strip
+(window as any).__beatbax_channelMixer = channelMixer; // channel mixer strip
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
@@ -680,7 +680,7 @@ eventBus.on('playback:started', () => {
 // stay in sync — same as the View menu and keyboard shortcut paths.
 (window as any).__beatbax_toggleChannelMixer = (enabled: boolean) => {
   try {
-    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: enabled });
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
     // Legacy tab is a feature-flag side-effect, not a visibility concern,
     // so it stays here rather than inside the panel:toggled handler.
     if (enabled) {
@@ -1319,7 +1319,7 @@ eventBus.on('parse:success', ({ ast }: any) => {
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'daw-mixer':         readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
+  'channel-mixer':     readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
   'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
   'song-visualizer':   readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
 });
@@ -1493,9 +1493,9 @@ monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
 // Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
 // Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
-  if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
-  const vis = dawMixer?.isVisible?.() ?? false;
-  eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
+  if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
+  const vis = channelMixer?.isVisible?.() ?? false;
+  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
 });
 // Ctrl+Alt+P → Monaco Command Palette.
 // NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
@@ -1585,9 +1585,9 @@ ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song V
 });
 ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
   action: () => {
-    if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
-    const vis = dawMixer?.isVisible?.() ?? false;
-    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: !vis });
+    if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
+    const vis = channelMixer?.isVisible?.() ?? false;
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
   },
 });
 ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,

@@ -73,7 +73,7 @@ export const StorageKey = {
   /** Per-channel waveform analyser feature flag (boolean). */
   FEATURE_PER_CHANNEL_ANALYSER: 'feature.perChannelAnalyser',
   /** DAW channel mixer feature flag (boolean). */
-  FEATURE_DAW_MIXER: 'feature.dawMixer',
+  FEATURE_CHANNEL_MIXER: 'feature.channelMixer',
   /** Pattern grid feature flag (boolean). */
   FEATURE_PATTERN_GRID: 'feature.patternGrid',
   /** Hot reload feature flag (boolean). */
@@ -94,8 +94,6 @@ export const StorageKey = {
   PANEL_VIS_TRANSPORT_BAR: 'panel.transport-bar',
   /** Channel mixer visible state (boolean). */
   PANEL_VIS_CHANNEL_MIXER: 'panel.channel-mixer',
-  /** Channel mixer (horizontal strip) visible state (boolean). */
-  PANEL_VIS_DAW_MIXER: 'panel.daw-mixer',
   /** Pattern grid visible state (boolean). */
   PANEL_VIS_PATTERN_GRID: 'panel.pattern-grid',
   /** Legacy (right-pane) channel mixer visible state (boolean). */
@@ -107,11 +105,11 @@ export const StorageKey = {
   /** Song visualizer custom background image data URL. */
   VIZ_BG_IMAGE: 'viz.bgImage',
   /** Channel mixer collapsed state (boolean). */
-  DAW_MIXER_COLLAPSED: 'ui.dawMixerCollapsed',
+  CHANNEL_MIXER_COLLAPSED: 'ui.channelMixerCollapsed',
   /** Channel mixer height in pixels (number). */
-  DAW_MIXER_HEIGHT: 'ui.dawMixerHeight',
+  CHANNEL_MIXER_HEIGHT: 'ui.channelMixerHeight',
   /** Channel mixer dock mode ('docked' = full-width bottom | 'inline' = beside output panel). */
-  DAW_MIXER_DOCK_MODE: 'ui.dawMixerDockMode',
+  CHANNEL_MIXER_DOCK_MODE: 'ui.channelMixerDockMode',
   /** Enabled chip plugin IDs (JSON string[]). */
   ENABLED_PLUGINS: 'plugins.enabled',
 } as const;

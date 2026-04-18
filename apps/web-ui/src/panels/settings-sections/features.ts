@@ -7,7 +7,7 @@ import { setFeatureEnabled, FeatureFlag } from '../../utils/feature-flags';
 import {
   settingFeatureAI,
   settingFeaturePerChannelAnalyser,
-  settingFeatureDawMixer,
+  settingFeatureChannelMixer,
   settingFeaturePatternGrid,
   settingFeatureHotReload,
   settingFeatureSongVisualizer,
@@ -37,8 +37,8 @@ const FEATURES: FeatureEntry[] = [
     label: 'Channel Mixer',
     description: 'Horizontal channel strip with VU meters docked at the bottom of the editor. Each channel shows instrument, sequence, and pattern readouts plus mute/solo controls. Can be toggled between full-width and inline (beside the output panel) dock modes.',
     badge: 'Beta',
-    flag: FeatureFlag.DAW_MIXER,
-    atom: settingFeatureDawMixer,
+    flag: FeatureFlag.CHANNEL_MIXER,
+    atom: settingFeatureChannelMixer,
     onToggle: (enabled) => (window as any).__beatbax_toggleChannelMixer?.(enabled),
   },
   {
@@ -167,7 +167,7 @@ export function buildFeaturesSection(): HTMLElement {
 export function resetFeaturesDefaults(): void {
   settingFeatureAI.set(false);
   settingFeaturePerChannelAnalyser.set(false);
-  settingFeatureDawMixer.set(false);
+  settingFeatureChannelMixer.set(false);
   settingFeaturePatternGrid.set(false);
   settingFeatureHotReload.set(false);
 }

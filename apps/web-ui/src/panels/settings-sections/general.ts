@@ -10,7 +10,7 @@ import {
   settingShowPatternGrid, settingShowChannelMixer, settingShowSongVisualizer,
   settingVizBgEffect, settingVizBgImage,
   settingChannelCompact,
-  settingFeatureDawMixer,
+  settingFeatureChannelMixer,
 } from '../../stores/settings.store';
 
 export function buildGeneralSection(): HTMLElement {
@@ -90,7 +90,7 @@ export function buildGeneralSection(): HTMLElement {
 
   const mixerRow = toggle('Show channel mixer', settingShowChannelMixer.get(), (v) => {
     settingShowChannelMixer.set(v);
-    eventBus.emit('panel:toggled', { panel: 'daw-mixer', visible: v });
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: v });
   }, settingShowChannelMixer.subscribe);
   // Disable the toggle when the Channel Mixer feature flag is off.
   const mixerInput = mixerRow.querySelector<HTMLInputElement>('input');
@@ -103,7 +103,7 @@ export function buildGeneralSection(): HTMLElement {
       : 'Enable Channel Mixer in Settings → Features first';
   };
   let firstMixerFeatCall = true;
-  const unsubMixerFeat = settingFeatureDawMixer.subscribe((v) => {
+  const unsubMixerFeat = settingFeatureChannelMixer.subscribe((v) => {
     if (firstMixerFeatCall) { firstMixerFeatCall = false; }
     applyMixerFeatureGate(v);
   });

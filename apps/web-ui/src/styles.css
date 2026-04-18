@@ -2972,7 +2972,7 @@
   flex-shrink: 0;
 }
 
-.bb-hmix {
+.bb-channel-mixer {
   display: flex;
   flex-direction: column;
   height: 230px;
@@ -2993,17 +2993,17 @@
   user-select: none;
 }
 
-.bb-hmix--collapsed {
+.bb-channel-mixer--collapsed {
   height: 36px !important;
 }
 
-.bb-hmix--collapsed .bb-hmix__strips {
+.bb-channel-mixer--collapsed .bb-channel-mixer__strips {
   display: none;
 }
 
 /* ── Toolbar ───────────────────────────────────────────────────────────────── */
 
-.bb-hmix__toolbar {
+.bb-channel-mixer__toolbar {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -3031,8 +3031,8 @@
 }
 
 /* Rack ears — countersunk screws at each end of the toolbar face */
-.bb-hmix__toolbar::before,
-.bb-hmix__toolbar::after {
+.bb-channel-mixer__toolbar::before,
+.bb-channel-mixer__toolbar::after {
   content: '';
   position: absolute;
   top: 0;
@@ -3040,7 +3040,7 @@
   width: 28px;
   pointer-events: none;
 }
-.bb-hmix__toolbar::before {
+.bb-channel-mixer__toolbar::before {
   left: 0;
   border-right: 1px solid rgba(0,0,0,0.45);
   box-shadow: inset -1px 0 0 rgba(255,255,255,0.08);
@@ -3050,7 +3050,7 @@
     radial-gradient(circle at 50% 50%, #181818 0%, #181818 38%, transparent 42%)
       center / 12px 12px no-repeat;
 }
-.bb-hmix__toolbar::after {
+.bb-channel-mixer__toolbar::after {
   right: 0;
   border-left: 1px solid rgba(0,0,0,0.45);
   box-shadow: inset 1px 0 0 rgba(255,255,255,0.08);
@@ -3061,7 +3061,7 @@
       center / 12px 12px no-repeat;
 }
 
-.bb-hmix__toolbar-label {
+.bb-channel-mixer__toolbar-label {
   margin-left: 6px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 11px;
@@ -3071,7 +3071,7 @@
   text-transform: uppercase;
 }
 
-.bb-hmix__toolbar-btn {
+.bb-channel-mixer__toolbar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3087,12 +3087,12 @@
   flex-shrink: 0;
 }
 
-.bb-hmix__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
-.bb-hmix__toolbar-btn--active { background: var(--bb-accent-bg, #3d2d08); border-color: var(--bb-accent, #c8a227); color: var(--bb-accent, #c8a227); }
+.bb-channel-mixer__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
+.bb-channel-mixer__toolbar-btn--active { background: var(--bb-accent-bg, #3d2d08); border-color: var(--bb-accent, #c8a227); color: var(--bb-accent, #c8a227); }
 
 /* ── Strips container ─────────────────────────────────────────────────────── */
 
-.bb-hmix__strips {
+.bb-channel-mixer__strips {
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -3108,7 +3108,7 @@
   padding: 8px 6px;
 }
 
-.bb-hmix__empty {
+.bb-channel-mixer__empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3120,7 +3120,7 @@
 
 /* ── Channel strip ─────────────────────────────────────────────────────────── */
 
-.bb-hmix__strip {
+.bb-channel-mixer__strip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3152,12 +3152,12 @@
   transition: opacity 0.15s;
 }
 
-.bb-hmix__strip--silent {
+.bb-channel-mixer__strip--silent {
   opacity: 0.45;
 }
 
 /* Colour accent bar — channel ID stripe at the top of the module face */
-.bb-hmix__accent {
+.bb-channel-mixer__accent {
   width: 100%;
   height: 4px;
   border-radius: 1px 1px 0 0;
@@ -3166,7 +3166,7 @@
 }
 
 /* Channel label — silk-screened nameplate on the panel face */
-.bb-hmix__label {
+.bb-channel-mixer__label {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -3181,7 +3181,7 @@
 }
 
 /* Mid row: fader (left) and VU meter (right), same fixed width, fills strip height */
-.bb-hmix__mid {
+.bb-channel-mixer__mid {
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -3193,27 +3193,27 @@
 
 /* ---- DAW fader ------------------------------------------------------------ */
 
-.bb-hmix__fader-col {
+.bb-channel-mixer__fader-col {
   width: 22px;
   flex-shrink: 0;
   position: relative;
   cursor: ns-resize;
 }
 
-.bb-hmix__fader-col--disabled {
+.bb-channel-mixer__fader-col--disabled {
   opacity: 0.35;
   pointer-events: none;
   cursor: default;
 }
 
 /* The inner shaft fills the flex-stretched height of fader-col */
-.bb-hmix__fader-shaft {
+.bb-channel-mixer__fader-shaft {
   position: absolute;
   inset: 0;
 }
 
 /* Center rail (pseudo-element) */
-.bb-hmix__fader-shaft::before {
+.bb-channel-mixer__fader-shaft::before {
   content: '';
   position: absolute;
   left: 50%;
@@ -3227,7 +3227,7 @@
 }
 
 /* Tick marks positioned absolutely within the shaft */
-.bb-hmix__fader-tick {
+.bb-channel-mixer__fader-tick {
   position: absolute;
   right: 1px;
   height: 1px;
@@ -3235,18 +3235,18 @@
   pointer-events: none;
 }
 
-.bb-hmix__fader-tick--major {
+.bb-channel-mixer__fader-tick--major {
   width: 8px;
   background: #777;
 }
 
-.bb-hmix__fader-tick--minor {
+.bb-channel-mixer__fader-tick--minor {
   width: 5px;
   background: #4a4a4a;
 }
 
 /* Draggable fader thumb — horizontal capsule */
-.bb-hmix__fader-thumb {
+.bb-channel-mixer__fader-thumb {
   position: absolute;
   left: 1px;
   right: 1px;
@@ -3261,7 +3261,7 @@
 }
 
 /* Centre groove line on thumb */
-.bb-hmix__fader-thumb::after {
+.bb-channel-mixer__fader-thumb::after {
   content: '';
   position: absolute;
   left: 3px;
@@ -3274,7 +3274,7 @@
 
 /* ---- VU meter ------------------------------------------------------------ */
 
-.bb-hmix__vu {
+.bb-channel-mixer__vu {
   width: 20px;
   flex-shrink: 0;
   display: flex;
@@ -3292,7 +3292,7 @@
     inset 1px 0 3px rgba(0,0,0,0.40);
 }
 
-.bb-hmix__vu-seg {
+.bb-channel-mixer__vu-seg {
   width: 100%;
   flex: 1 1 0;
   min-height: 3px;
@@ -3302,23 +3302,23 @@
 }
 
 /* Unlit */
-.bb-hmix__vu-seg--green  { background: #1a3a1a; }
-.bb-hmix__vu-seg--yellow { background: #3a3010; }
-.bb-hmix__vu-seg--red    { background: #3a1010; }
+.bb-channel-mixer__vu-seg--green  { background: #1a3a1a; }
+.bb-channel-mixer__vu-seg--yellow { background: #3a3010; }
+.bb-channel-mixer__vu-seg--red    { background: #3a1010; }
 
 /* Lit */
-.bb-hmix__vu-seg--green.bb-hmix__vu-seg--lit  { background: #4ec94e; box-shadow: 0 0 4px #4ec94e88; }
-.bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--lit { background: #d4b800; box-shadow: 0 0 4px #d4b80088; }
-.bb-hmix__vu-seg--red.bb-hmix__vu-seg--lit    { background: #e04040; box-shadow: 0 0 4px #e0404088; }
+.bb-channel-mixer__vu-seg--green.bb-channel-mixer__vu-seg--lit  { background: #4ec94e; box-shadow: 0 0 4px #4ec94e88; }
+.bb-channel-mixer__vu-seg--yellow.bb-channel-mixer__vu-seg--lit { background: #d4b800; box-shadow: 0 0 4px #d4b80088; }
+.bb-channel-mixer__vu-seg--red.bb-channel-mixer__vu-seg--lit    { background: #e04040; box-shadow: 0 0 4px #e0404088; }
 
 /* Peak-hold */
-.bb-hmix__vu-seg--green.bb-hmix__vu-seg--peak  { background: #80ff80; box-shadow: 0 0 6px #80ff8088; }
-.bb-hmix__vu-seg--yellow.bb-hmix__vu-seg--peak { background: #ffe040; box-shadow: 0 0 6px #ffe04088; }
-.bb-hmix__vu-seg--red.bb-hmix__vu-seg--peak    { background: #ff6060; box-shadow: 0 0 6px #ff606088; }
+.bb-channel-mixer__vu-seg--green.bb-channel-mixer__vu-seg--peak  { background: #80ff80; box-shadow: 0 0 6px #80ff8088; }
+.bb-channel-mixer__vu-seg--yellow.bb-channel-mixer__vu-seg--peak { background: #ffe040; box-shadow: 0 0 6px #ffe04088; }
+.bb-channel-mixer__vu-seg--red.bb-channel-mixer__vu-seg--peak    { background: #ff6060; box-shadow: 0 0 6px #ff606088; }
 
 /* ---- Info labels (below mid) --------------------------------------------- */
 
-.bb-hmix__inst {
+.bb-channel-mixer__inst {
   /* Recessed LCD display matching transport bar style */
   display: block;
   width: 100%;
@@ -3347,8 +3347,8 @@
   flex-shrink: 0;
 }
 
-.bb-hmix__seq,
-.bb-hmix__pat {
+.bb-channel-mixer__seq,
+.bb-channel-mixer__pat {
   font-size: 9px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3358,12 +3358,12 @@
   flex-shrink: 0;
 }
 
-.bb-hmix__seq { color: #c8a227; font-style: italic; }
-.bb-hmix__pat { color: #9cdcfe; }
+.bb-channel-mixer__seq { color: #c8a227; font-style: italic; }
+.bb-channel-mixer__pat { color: #9cdcfe; }
 
 /* ---- Mute/Solo button row ------------------------------------------------ */
 
-.bb-hmix__btn-row {
+.bb-channel-mixer__btn-row {
   display: flex;
   flex-direction: row;
   gap: 3px;
@@ -3372,7 +3372,7 @@
 
 /* ---- Light-mode overrides ------------------------------------------------ */
 
-[data-theme="light"] .bb-hmix {
+[data-theme="light"] .bb-channel-mixer {
   background-color: #d0d0d2;
   background-image: linear-gradient(to bottom, #dcdcde 0%, #c8c8ca 100%);
   border-top-color: rgba(255,255,255,0.80);
@@ -3380,7 +3380,7 @@
   color: #1a1a1a;
 }
 
-[data-theme="light"] .bb-hmix__toolbar {
+[data-theme="light"] .bb-channel-mixer__toolbar {
   background-color: #b8b8ba;
   background-image:
     repeating-linear-gradient(
@@ -3395,8 +3395,8 @@
   border-bottom-color: rgba(0,0,0,0.20);
 }
 
-[data-theme="light"] .bb-hmix__toolbar::before,
-[data-theme="light"] .bb-hmix__toolbar::after {
+[data-theme="light"] .bb-channel-mixer__toolbar::before,
+[data-theme="light"] .bb-channel-mixer__toolbar::after {
   border-color: rgba(0,0,0,0.15);
   background:
     radial-gradient(circle at 40% 40%, rgba(255,255,255,0.65) 0%, transparent 52%)
@@ -3405,18 +3405,18 @@
       center / 12px 12px no-repeat;
 }
 
-[data-theme="light"] .bb-hmix__toolbar-btn {
+[data-theme="light"] .bb-channel-mixer__toolbar-btn {
   background: #cacaca;
   border-color: #aaa;
   color: #444;
 }
 
-[data-theme="light"] .bb-hmix__strips {
+[data-theme="light"] .bb-channel-mixer__strips {
   background: #909092;
   box-shadow: inset 0 4px 12px rgba(0,0,0,0.30), inset 0 1px 2px rgba(0,0,0,0.20);
 }
 
-[data-theme="light"] .bb-hmix__strip {
+[data-theme="light"] .bb-channel-mixer__strip {
   background-color: #c8c8ca;
   background-image:
     repeating-linear-gradient(
@@ -3430,19 +3430,19 @@
   border-color: rgba(255,255,255,0.70) rgba(0,0,0,0.18) rgba(0,0,0,0.18) rgba(255,255,255,0.35);
 }
 
-[data-theme="light"] .bb-hmix__label {
+[data-theme="light"] .bb-channel-mixer__label {
   color: rgba(0,0,0,0.80);
   text-shadow: 0 1px 0 rgba(255,255,255,0.50), 0 -1px 0 rgba(0,0,0,0.10);
 }
 
-[data-theme="light"] .bb-hmix__vu-seg--green  { background: #c8e8c8; }
-[data-theme="light"] .bb-hmix__vu-seg--yellow { background: #e8e0a0; }
-[data-theme="light"] .bb-hmix__vu-seg--red    { background: #e8c0c0; }
+[data-theme="light"] .bb-channel-mixer__vu-seg--green  { background: #c8e8c8; }
+[data-theme="light"] .bb-channel-mixer__vu-seg--yellow { background: #e8e0a0; }
+[data-theme="light"] .bb-channel-mixer__vu-seg--red    { background: #e8c0c0; }
 
-[data-theme="light"] .bb-hmix__fader-shaft::before { background: #bbb; }
-[data-theme="light"] .bb-hmix__fader-tick--major { background: #999; }
-[data-theme="light"] .bb-hmix__fader-thumb { background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%); border-color: #aaa; }
+[data-theme="light"] .bb-channel-mixer__fader-shaft::before { background: #bbb; }
+[data-theme="light"] .bb-channel-mixer__fader-tick--major { background: #999; }
+[data-theme="light"] .bb-channel-mixer__fader-thumb { background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%); border-color: #aaa; }
 
-[data-theme="light"] .bb-hmix__inst { color: #007050; }
-[data-theme="light"] .bb-hmix__seq  { color: #9a7110; }
-[data-theme="light"] .bb-hmix__pat  { color: #0060a0; }
+[data-theme="light"] .bb-channel-mixer__inst { color: #007050; }
+[data-theme="light"] .bb-channel-mixer__seq  { color: #9a7110; }
+[data-theme="light"] .bb-channel-mixer__pat  { color: #0060a0; }

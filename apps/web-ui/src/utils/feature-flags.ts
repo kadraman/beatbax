@@ -18,7 +18,7 @@ import { eventBus } from './event-bus';
 export const FeatureFlag = {
   AI_ASSISTANT:           StorageKey.AI_ASSISTANT,
   PER_CHANNEL_ANALYSER:   StorageKey.FEATURE_PER_CHANNEL_ANALYSER,
-  DAW_MIXER:              StorageKey.FEATURE_DAW_MIXER,
+  CHANNEL_MIXER:          StorageKey.FEATURE_CHANNEL_MIXER,
   PATTERN_GRID:           StorageKey.FEATURE_PATTERN_GRID,
   HOT_RELOAD:             StorageKey.FEATURE_HOT_RELOAD,
   SONG_VISUALIZER:        StorageKey.FEATURE_SONG_VISUALIZER,

@@ -59,7 +59,7 @@ export const settingToolbarStyle = stringAtom<'icons+labels' | 'icons'>(
 export const settingShowToolbar        = boolAtom(StorageKey.PANEL_VIS_TOOLBAR,        true);
 export const settingShowTransportBar   = boolAtom(StorageKey.PANEL_VIS_TRANSPORT_BAR,  true);
 export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_GRID,   false);
-export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_DAW_MIXER,      true);
+export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
 export const settingShowSongVisualizer = boolAtom(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
 export const settingShowChannelMixerLegacy = settingShowSongVisualizer;
 export const settingChannelCompact     = boolAtom(StorageKey.CHANNEL_COMPACT,          true);
@@ -96,7 +96,7 @@ export const settingAudioBufferFrames = stringAtom<'1024' | '2048' | '4096' | '8
 
 export const settingFeatureAI              = boolAtom(StorageKey.AI_ASSISTANT,              false);
 export const settingFeaturePerChannelAnalyser = boolAtom(StorageKey.FEATURE_PER_CHANNEL_ANALYSER, false);
-export const settingFeatureDawMixer        = boolAtom(StorageKey.FEATURE_DAW_MIXER,         false);
+export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL_MIXER,      false);
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
 export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
@@ -127,7 +127,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.PANEL_VIS_TOOLBAR,
     StorageKey.PANEL_VIS_TRANSPORT_BAR,
     StorageKey.PANEL_VIS_PATTERN_GRID,
-    StorageKey.PANEL_VIS_DAW_MIXER,
+    StorageKey.PANEL_VIS_CHANNEL_MIXER,
     StorageKey.PANEL_VIS_SONG_VISUALIZER,
     StorageKey.CHANNEL_COMPACT,
     StorageKey.VIZ_BG_EFFECT,
@@ -149,7 +149,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
   features: [
     StorageKey.AI_ASSISTANT,
     StorageKey.FEATURE_PER_CHANNEL_ANALYSER,
-    StorageKey.FEATURE_DAW_MIXER,
+    StorageKey.FEATURE_CHANNEL_MIXER,
     StorageKey.FEATURE_PATTERN_GRID,
     StorageKey.FEATURE_HOT_RELOAD,
     StorageKey.FEATURE_SONG_VISUALIZER,
