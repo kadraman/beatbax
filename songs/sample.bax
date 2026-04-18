@@ -1,0 +1,133 @@
+## sample.bax
+## BeatBax sample — illustrates common language features across all four Game Boy channels.
+## Key: C major | Tempo: 128 BPM | Style: Demonstration, tutorial
+##
+## This is an original demonstration song — it does not reproduce any copyrighted material.
+## Illustrates common BeatBax language features mapped to all four Game Boy channels:
+## Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
+##
+## Structure (8 bars):
+##   Bars 1–4 : Theme A (×2)   — melody + bass + arpeggio + percussion
+##   Bars 5–8 : Theme A (×2)   — same sequences looped (demonstration repeat)
+##
+## Channels:
+##   Ch1 (Pulse1): Melody — twinkle-style motif with fill phrases (leadA, 60% duty)
+##   Ch2 (Pulse2): Bass — low-end root movement transposed one octave down (leadB, 30% duty)
+##   Ch3 (Wave  ): Harmony — wavetable arpeggio cycling shifted down one octave (wave1)
+##   Ch4 (Noise ): Percussion — snare backbeat with hi-hat fills (perc, snare, hihat)
+##
+## Effects demonstrated:
+##   arp  : arpeggiated chord cycling on wave channel arpeggio patterns
+##   oct  : octave shift transform applied to Pulse2 bass and Wave harmony channels
+##
+## Play: node bin/beatbax play songs/sample.bax
+
+song name "Sample Song"
+song artist "The BeatBax Team"
+song description """BeatBax Sample song — illustrates common language features and maps them to 4 Game Boy-like channels (Pulse1, Pulse2, Wave, Noise)."""
+song tags "example,imported,metadata"
+
+chip gameboy
+bpm 128
+
+# =============================================================================
+# Instruments
+# =============================================================================
+# Each `inst` defines a Game Boy-style instrument. Fields:
+#  - `type`: one of `pulse1`, `pulse2`, `wave`, `noise`
+#  - `duty`: duty cycle percentage for pulse channels (controls timbre)
+#  - `env`: envelope. Prefer the structured object form:
+#      `env={"level":12,"direction":"down","period":1,"format":"gb"}`
+#      Example: this sets initial volume=12 (0-15), direction `down`, period=1.
+#      For backwards compatibility the legacy CSV form `env=12,down,1` is still accepted and will be normalized by the parser.
+#  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
+#
+# The instruments below are chosen to show different channel roles.
+# You may optionally annotate instruments with a General MIDI program number
+# using `gm=<0-127>`. The exporter will use this value for Program Change
+# messages when exporting MIDI. Example: `inst leadA ... gm=81` (Lead 1).
+inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81   # Bright pulse lead, slightly wider duty (GM 81)
+inst leadB type=pulse2 duty=30 env={"level":7,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
+inst wave1 type=wave  wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82  # Wavetable arpeggio voice (GM 82)
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
+inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+# Patterns are sequences of tokens (notes like C4, rests `.` and identifiers).
+# They may include grouping with `(...)` and repetition with `*N`.
+# Inline tokens like `inst(name)` or `inst(name,N)` temporarily change the
+# instrument for the following notes (temporary override count `N` decrements
+# when non-rest notes are played).
+
+# Melodic pattern for the lead channel.
+# - Twinkle-style motif arranged into a fixed 16-token pattern (two 8-step phrases).
+pat melody_pat      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
+
+# Alternative, sparser lead pattern for variation (16 tokens total).
+pat melody_alt_pat  = (C5 . C5 . G5 . G5 E5) * 2
+
+# Simple bass pattern that follows the root movement of the melody (16 tokens).
+pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
+
+# Wavetable arpeggio pattern to add harmonic color under the melody (16 tokens).
+pat arp_pat      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
+
+# Reduced percussion pattern: fewer explicit hits spread over 16 tokens.
+pat drums_pat      = (snare . . .) (snare . . .) (snare . . .) (snare . hihat .)
+
+# Short melodic fill used between phrases (16 tokens).
+pat fill_pat      = (C5 E5 G5 C6) * 4
+
+# =============================================================================
+# SHORTHAND EXAMPLES
+# =============================================================================
+# You can use `name*n` as a concise shorthand to emit the named instrument
+# hit 4 times in a row (equivalent to `hit(name,4)`). This is useful for
+# percussion stabs where you want immediate repeated hits without inserting
+# explicit note tokens. `inst(name,N)` still acts as a temporary override
+# for the next N non-rest notes.
+pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
+
+# =============================================================================
+# SEQUENCES AND CHANNELS
+# =============================================================================
+# Map logical channels to instruments and patterns. Each `channel N => ...`
+# line sets the channel ID (1-4) and a default instrument plus the sequence
+# to play. `bpm=` controls tempo for that channel.
+# - Channel 1: Pulse 1 lead (primary melody)
+# - Channel 2: Pulse 2 lead (harmonic/alternate melody)
+# - Channel 3: Wave channel (wavetable arpeggio) transposed down one octave
+# - Channel 4: Noise/percussion channel
+
+# Example sequencing: create separate sequences per part and map to channels
+# Each channel consumes its own sequence. This keeps parts independent and
+# lets you modify/loop them separately in the tracker or live UI.
+
+# Lead sequence (primary melody)
+seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat
+
+# Bass sequence (low-end walking bass)
+seq bass_seq = bass_pat bass_pat bass_pat bass_pat
+
+# Wave sequence (wavetable arpeggios)
+seq wave_seq = arp_pat arp_pat arp_pat
+
+# Drums/percussion sequence
+seq drums_seq = drums_pat drums_alt_pat drums_pat drums_alt_pat
+
+# Map channels to their separate sequences.
+channel 1 => inst leadA seq lead_seq lead_seq
+channel 2 => inst leadB seq bass_seq:oct(-1) bass_seq:oct(-1)
+channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-1) arp_pat arp_pat
+channel 4 => inst perc  seq drums_seq drums_seq
+
+# =============================================================================
+# PLAYBACK
+# =============================================================================
+# The `play` directive starts playback in the web UI player. In the CLI this
+# would trigger immediate rendering or playback; in the web UI the UI uses the
+# parsed AST to schedule audio.
+play auto repeat

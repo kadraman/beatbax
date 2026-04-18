@@ -117,7 +117,8 @@ If `getChannelAnalyser` returns `null` (engine not running, OfflineAudioContext 
 ## Acceptance Criteria
 
 - [ ] Horizontal channel strips rendered at the bottom of the app, one per channel.
-- [ ] Each strip shows channel name, colour accent, mute/solo buttons, instrument name, pattern name.
+- [ ] Each strip shows channel name, colour accent, mute/solo buttons, and instrument name.
+- [ ] Pattern/sequence readouts are shown in the Song Visualizer panel, not in DawMixer strips.
 - [ ] VU meter animates in real time during playback; shows idle (all bars unlit) when stopped.
 - [ ] Peak-hold segment lingers for ~1.5 s then falls.
 - [ ] Volume fader present but locked (greyed-out) for chips that dont support it.

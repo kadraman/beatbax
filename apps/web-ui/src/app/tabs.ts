@@ -137,7 +137,7 @@ export function buildBottomTabs(
 export type RightTabId = 'channels' | 'help' | 'ai';
 
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
-  channels: 'Mixer',
+  channels: 'Visualizer',
   help:     'Help',
   ai:       'Copilot',
 };

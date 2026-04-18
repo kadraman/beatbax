@@ -60,7 +60,7 @@ import {
 import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
-  settingShowChannelMixerLegacy,
+  settingShowSongVisualizer,
   settingWordWrap, settingDefaultBpm,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
@@ -83,7 +83,7 @@ import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
-import { ChannelMixer } from './panels/channel-mixer';
+import { SongVisualizer } from './panels/song-visualizer';
 import { DawMixer } from './panels/daw-mixer';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText } from './export/download-helper';
@@ -289,17 +289,17 @@ const rightTabs = buildRightTabs(rightPane, appLayout.layout);
 
 
 
-// ─── Unified Channel Panel (ChannelMixer) in the channels tab ──────────────
-// The ChannelMixer lives in a dedicated scoped div so its render() (which
+// ─── Unified Channel Panel (SongVisualizer) in the channels tab ─────────────
+// The SongVisualizer lives in a dedicated scoped div so its render() (which
 // clears innerHTML on every parse:success) never conflicts with sibling nodes.
 const ccContainer = document.createElement('div');
 ccContainer.id = 'bb-channel-controls-host';
 ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
 rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
-const channelMixer = withErrorBoundary(
-  'ChannelMixer',
-  () => new ChannelMixer({ container: ccContainer, eventBus, playbackManager }),
+const songVisualizer = withErrorBoundary(
+  'SongVisualizer',
+  () => new SongVisualizer({ container: ccContainer, eventBus, playbackManager }),
   ccContainer,
 );
 
@@ -534,13 +534,14 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
-// The legacy right-pane Channel Mixer (ChannelMixer) tab is hidden by default when
-// the horizontal Channel Mixer is enabled via Settings → Features → Channel Mixer.
-// It can be revealed by setting the storage key 'panel.channel-mixer-legacy' to 'true'.
-const legacyMixerEnabled = readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER_LEGACY, false);
-if (!legacyMixerEnabled) {
+// Show the Song Visualizer tab only when its feature flag is enabled.
+const songVisualizerEnabled = isFeatureEnabled(FeatureFlag.SONG_VISUALIZER);
+if (!songVisualizerEnabled) {
   rightTabs.close('channels');
 }
+(window as any).__beatbax_toggleSongVisualizer = (enabled: boolean) => {
+  enabled ? rightTabs.show('channels') : rightTabs.close('channels');
+};
 
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
 // is toggled from the Settings panel (no page reload needed for most flags).
@@ -575,8 +576,6 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
         rightTabs.show('channels');
       }
     } catch (_e) { /* ignore */ }
-    // Sync the View → Channel Mixer menu item enabled state.
-    (window as any).__beatbax_menuBar?.setItemEnabled('channel-mixer-toggle', enabled);
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
     (window as any).__beatbax_togglePatternGrid?.(enabled);
@@ -586,6 +585,9 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
   }
   if (flag === FeatureFlag.HOT_RELOAD) {
     _applyLiveMode(enabled);
+  }
+  if (flag === FeatureFlag.SONG_VISUALIZER) {
+    (window as any).__beatbax_toggleSongVisualizer?.(enabled);
   }
 });
 
@@ -597,10 +599,12 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   if (panel === 'problems') {
     visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
-  if (panel === 'channel-mixer') {
-    // 'channel-mixer' now always refers to the legacy right-pane mixer
+  if (panel === 'channel-mixer' || panel === 'song-visualizer') {
+    // Song Visualizer in the right pane (accept legacy 'channel-mixer' id too).
+    // Only honour show requests when the Song Visualizer feature is enabled.
+    if (visible && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
-    settingShowChannelMixerLegacy.set(visible);
+    settingShowSongVisualizer.set(visible);
   }
   if (panel === 'daw-mixer') {
     // Only honour show/hide requests when the Channel Mixer feature is enabled.
@@ -662,7 +666,7 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_problemsPanel = problemsPanel;
 (window as any).__beatbax_outputPanel = outputPanel;
 (window as any).__beatbax_statusBar = statusBar;
-(window as any).__beatbax_channelMixer = channelMixer; // legacy right-pane ChannelMixer
+(window as any).__beatbax_songVisualizer = songVisualizer;
 (window as any).__beatbax_dawMixer = dawMixer; // DAW channel mixer strip
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
@@ -1313,14 +1317,12 @@ const menuBar = new MenuBar({
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
 menuBar.seedPanelVisible({
-  toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
-  'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
-  'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
+  toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
+  'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
+  'daw-mixer':         readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
+  'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
+  'song-visualizer':   readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
 });
-// Reflect initial feature-flag state on the View → Channel Mixer menu item.
-menuBar.setItemEnabled('channel-mixer-toggle', isFeatureEnabled(FeatureFlag.DAW_MIXER));
-
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
   patternGridContainer.style.display = 'none';
@@ -1484,11 +1486,11 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify
 // Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
 // here via addCommand overrides that default while Monaco has focus.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
-// Ctrl+Shift+Y → Switch to Channel Mixer (Legacy) tab (Monaco captures this key when focused).
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY, () => {
+// Ctrl+Shift+V → Switch to Song Visualizer tab (Monaco captures this key when focused).
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
   rightTabs.show('channels');
 });
-// Ctrl+Shift+M → Toggle Channel Mixer strip (Monaco captures this key when focused).
+// Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
 // Emits through eventBus so MenuBar state stays in sync.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
   if (!isFeatureEnabled(FeatureFlag.DAW_MIXER)) return;
@@ -1578,7 +1580,7 @@ ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowIn
 ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
   action: () => bottomTabs.show('problems'),
 });
-ks.register({ key: 'y', altKey: true, shiftKey: true, description: 'Show Channel Mixer (Legacy) tab', allowInInput: true,
+ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
   action: () => rightTabs.show('channels'),
 });
 ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,

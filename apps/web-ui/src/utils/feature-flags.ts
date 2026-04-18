@@ -21,6 +21,7 @@ export const FeatureFlag = {
   DAW_MIXER:              StorageKey.FEATURE_DAW_MIXER,
   PATTERN_GRID:           StorageKey.FEATURE_PATTERN_GRID,
   HOT_RELOAD:             StorageKey.FEATURE_HOT_RELOAD,
+  SONG_VISUALIZER:        StorageKey.FEATURE_SONG_VISUALIZER,
 } as const;
 
 // ─── URL-param overrides ──────────────────────────────────────────────────────
