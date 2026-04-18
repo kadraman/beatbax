@@ -1,5 +1,4 @@
 import { RotaryKnob } from './rotary-knob.js';
-import { Oscilloscope } from './oscilloscope.js';
 
 /**
  * TransportBar — DOM wrapper for transport controls.
@@ -36,9 +35,6 @@ export class TransportBar {
   // ── Volume rotary knob ───────────────────────────────────────────────────
   public volKnob: RotaryKnob;
 
-  // ── Oscilloscope waveform strip ──────────────────────────────────────────
-  public oscilloscope: Oscilloscope;
-
   constructor(private opts: TransportBarOptions) {
     this.el = document.createElement('div');
     this.el.id = 'bb-transport-bar';
@@ -51,7 +47,7 @@ export class TransportBar {
     const bpmLcd     = this._mkLcd('BPM',    '120',   '000');
     const timeLcd    = this._mkLcd('TIME',   '00:00', '00:00');
     const barBeatLcd = this._mkLcd('BAR:BT', '001:1', '000:0');
-    const stepLcd    = this._mkLcd('STEP',   '01/01', '00/00');
+    const stepLcd    = this._mkLcd('STEP',   '001/001', '000/000');
     const loopLcd    = this._mkLcd('LOOP',   '0FF',   '000');
 
     // Priority classes drive the responsive hide cascade
@@ -146,16 +142,6 @@ export class TransportBar {
     volLcd.lcd.classList.add('bb-transport__lcd--vol');
     this.el.appendChild(volLcd.lcd);
 
-    // ── Oscilloscope — LCD bezel, fills remaining right-side space ──────────
-    this.oscilloscope = new Oscilloscope();
-    const scopeWrap = document.createElement('div');
-    scopeWrap.className = 'bb-transport__lcd bb-transport__lcd--scope';
-    const scopeLabel = document.createElement('span');
-    scopeLabel.className = 'bb-transport__lcd-label';
-    scopeLabel.textContent = 'SCOPE';
-    scopeWrap.append(scopeLabel, this.oscilloscope.el);
-    this.el.appendChild(scopeWrap);
-
     // Insert at top of provided container (before existing children)
     const parent = this.opts.container;
     parent.insertBefore(this.el, parent.firstChild ?? null);
@@ -249,8 +235,8 @@ export class TransportBar {
   /** Update the STEP display. step and total are 1-based. */
   setStep(step: number, total: number): void {
     if (this._stepEl) {
-      const s = String(Math.max(1, step)).padStart(2, '0');
-      const t = String(Math.max(1, total)).padStart(2, '0');
+      const s = String(Math.max(1, step)).padStart(3, '0');
+      const t = String(Math.max(1, total)).padStart(3, '0');
       this._stepEl.textContent = `${s}/${t}`;
     }
   }
