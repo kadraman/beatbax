@@ -60,8 +60,14 @@ export const settingShowToolbar        = boolAtom(StorageKey.PANEL_VIS_TOOLBAR, 
 export const settingShowTransportBar   = boolAtom(StorageKey.PANEL_VIS_TRANSPORT_BAR,  true);
 export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_GRID,   false);
 export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_DAW_MIXER,      true);
-export const settingShowChannelMixerLegacy = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER_LEGACY, false);
+export const settingShowSongVisualizer = boolAtom(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
+export const settingShowChannelMixerLegacy = settingShowSongVisualizer;
 export const settingChannelCompact     = boolAtom(StorageKey.CHANNEL_COMPACT,          true);
+export const settingVizBgEffect        = stringAtom<'none' | 'starfield' | 'scanlines' | 'custom-image'>(
+  StorageKey.VIZ_BG_EFFECT,
+  'none',
+);
+export const settingVizBgImage         = stringAtom<string>(StorageKey.VIZ_BG_IMAGE, '');
 
 // ─── Editor ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +99,7 @@ export const settingFeaturePerChannelAnalyser = boolAtom(StorageKey.FEATURE_PER_
 export const settingFeatureDawMixer        = boolAtom(StorageKey.FEATURE_DAW_MIXER,         false);
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
+export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
 
 // ─── Advanced ─────────────────────────────────────────────────────────────────
 
@@ -121,7 +128,10 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.PANEL_VIS_TRANSPORT_BAR,
     StorageKey.PANEL_VIS_PATTERN_GRID,
     StorageKey.PANEL_VIS_DAW_MIXER,
+    StorageKey.PANEL_VIS_SONG_VISUALIZER,
     StorageKey.CHANNEL_COMPACT,
+    StorageKey.VIZ_BG_EFFECT,
+    StorageKey.VIZ_BG_IMAGE,
   ],
   editor: [
     StorageKey.AUTO_SAVE,
@@ -142,6 +152,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.FEATURE_DAW_MIXER,
     StorageKey.FEATURE_PATTERN_GRID,
     StorageKey.FEATURE_HOT_RELOAD,
+    StorageKey.FEATURE_SONG_VISUALIZER,
   ],
   ai: [
     StorageKey.CHAT_SETTINGS,

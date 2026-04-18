@@ -137,8 +137,8 @@ describe('Toolbar — dispose()', () => {
     const { container, toolbar } = makeToolbar();
 
     // Manually open the dropdown
-    const examplesList = container.querySelector<HTMLElement>('#tb-examples-list')!;
-    examplesList.hidden = false;
+    const examplesPanel = container.querySelector<HTMLElement>('#tb-examples-panel')!;
+    examplesPanel.hidden = false;
 
     toolbar.dispose();
 

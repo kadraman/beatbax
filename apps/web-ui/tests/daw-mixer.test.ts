@@ -127,13 +127,13 @@ describe('DawMixer', () => {
     expect(instEl?.textContent).toContain('inst1');
   });
 
-  it('renders sequence and pattern display elements', () => {
+  it('does not render sequence and pattern display elements in strip', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
 
     const seqEl = document.getElementById('bb-hmix-seq-1');
     const patEl = document.getElementById('bb-hmix-pat-1');
-    expect(seqEl).not.toBeNull();
-    expect(patEl).not.toBeNull();
+    expect(seqEl).toBeNull();
+    expect(patEl).toBeNull();
   });
 
   it('renders mute and solo buttons', () => {
@@ -177,21 +177,21 @@ describe('DawMixer', () => {
   it('disables volume fader for gameboy (envelope-driven chip)', () => {
     eventBus.emit('parse:success', { ast: makeAst([1], 'gameboy') });
 
-    const faderWrap = container.querySelector('.bb-hmix__fader-wrap');
-    expect(faderWrap?.classList.contains('bb-hmix__fader-wrap--disabled')).toBe(true);
+    const faderCol = container.querySelector('.bb-hmix__fader-col');
+    expect(faderCol?.classList.contains('bb-hmix__fader-col--disabled')).toBe(true);
 
-    const fader = document.getElementById('bb-hmix-fader-1') as HTMLInputElement | null;
-    expect(fader?.disabled).toBe(true);
+    const fader = document.getElementById('bb-hmix-fader-1') as HTMLElement | null;
+    expect(fader).not.toBeNull();
   });
 
   it('enables volume fader for nes (runtime volume chip)', () => {
     eventBus.emit('parse:success', { ast: makeAst([1], 'nes') });
 
-    const faderWrap = container.querySelector('.bb-hmix__fader-wrap');
-    expect(faderWrap?.classList.contains('bb-hmix__fader-wrap--disabled')).toBe(false);
+    const faderCol = container.querySelector('.bb-hmix__fader-col');
+    expect(faderCol?.classList.contains('bb-hmix__fader-col--disabled')).toBe(false);
 
-    const fader = document.getElementById('bb-hmix-fader-1') as HTMLInputElement | null;
-    expect(fader?.disabled).toBe(false);
+    const fader = document.getElementById('bb-hmix-fader-1') as HTMLElement | null;
+    expect(fader).not.toBeNull();
   });
 
   // ── playback:position-changed ─────────────────────────────────────────────────
@@ -207,29 +207,28 @@ describe('DawMixer', () => {
     expect(instEl?.textContent).toBe('lead');
   });
 
-  it('updates pattern display on playback:position-changed', () => {
+  it('does not render pattern/sequence fields on playback:position-changed', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
       position: makePosition({ channelId: 1, sourceSequence: 'main', currentPattern: 'melody' }),
     });
 
-    // Sequence shown in seq element, pattern shown in pat element (separate lines)
     const seqEl = document.getElementById('bb-hmix-seq-1');
     const patEl = document.getElementById('bb-hmix-pat-1');
-    expect(seqEl?.textContent).toBe('main');
-    expect(patEl?.textContent).toBe('melody');
+    expect(seqEl).toBeNull();
+    expect(patEl).toBeNull();
   });
 
-  it('shows bar number when no pattern name is available', () => {
+  it('keeps strip focused on instrument even when no pattern is available', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
       position: makePosition({ channelId: 1, currentPattern: null, barNumber: 2 }),
     });
 
-    const patEl = document.getElementById('bb-hmix-pat-1');
-    expect(patEl?.textContent).toContain('Bar 3');
+    const instEl = document.getElementById('bb-hmix-inst-1');
+    expect(instEl).not.toBeNull();
   });
 
   // ── playback:stopped ──────────────────────────────────────────────────────────
@@ -249,7 +248,7 @@ describe('DawMixer', () => {
     expect(instEl?.textContent).toBe('inst1'); // back to default
   });
 
-  it('resets pattern display to "—" on playback:stopped', () => {
+  it('does not use removed pattern/sequence fields on playback:stopped', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
@@ -258,10 +257,8 @@ describe('DawMixer', () => {
 
     eventBus.emit('playback:stopped', undefined);
 
-    const seqEl = document.getElementById('bb-hmix-seq-1');
-    const patEl = document.getElementById('bb-hmix-pat-1');
-    expect(seqEl?.textContent).toBe('—');
-    expect(patEl?.textContent).toBe('—');
+    expect(document.getElementById('bb-hmix-seq-1')).toBeNull();
+    expect(document.getElementById('bb-hmix-pat-1')).toBeNull();
   });
 
   // ── Mute / Solo ───────────────────────────────────────────────────────────────
@@ -316,24 +313,24 @@ describe('DawMixer', () => {
 
   it('unmute-all button is disabled when no channels are muted', () => {
     const btn = document.getElementById('bb-hmix-unmute-all') as HTMLButtonElement | null;
-    expect(btn?.disabled).toBe(true);
+    expect(btn?.dataset.ariaDisabled).toBe('true');
   });
 
   it('unmute-all button becomes enabled when a channel is muted', () => {
     channelStore.toggleChannelMuted(1);
     const btn = document.getElementById('bb-hmix-unmute-all') as HTMLButtonElement | null;
-    expect(btn?.disabled).toBe(false);
+    expect(btn?.dataset.ariaDisabled).toBeUndefined();
   });
 
   it('clear-solo button is disabled when no channels are soloed', () => {
     const btn = document.getElementById('bb-hmix-clear-solo') as HTMLButtonElement | null;
-    expect(btn?.disabled).toBe(true);
+    expect(btn?.dataset.ariaDisabled).toBe('true');
   });
 
   it('clear-solo button becomes enabled when a channel is soloed', () => {
     channelStore.toggleChannelSoloed(1);
     const btn = document.getElementById('bb-hmix-clear-solo') as HTMLButtonElement | null;
-    expect(btn?.disabled).toBe(false);
+    expect(btn?.dataset.ariaDisabled).toBeUndefined();
   });
 
   // ── Show / hide ───────────────────────────────────────────────────────────────
@@ -467,28 +464,29 @@ describe('DawMixer', () => {
     document.body.removeChild(inlineContainer);
   });
 
-  // ── Separate sequence/pattern readout ─────────────────────────────────────────
+  // ── Sequence/pattern readouts live in Song Visualizer ─────────────────────────
 
-  it('shows sequence name in seq element and pattern in pat element separately', () => {
+  it('does not render sequence/pattern text fields in DawMixer strip', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
       position: makePosition({ channelId: 1, sourceSequence: 'intro', currentPattern: 'fill' }),
     });
 
-    expect(document.getElementById('bb-hmix-seq-1')?.textContent).toBe('intro');
-    expect(document.getElementById('bb-hmix-pat-1')?.textContent).toBe('fill');
+    expect(document.getElementById('bb-hmix-seq-1')).toBeNull();
+    expect(document.getElementById('bb-hmix-pat-1')).toBeNull();
   });
 
-  it('shows — for sequence when not provided', () => {
+  it('keeps instrument text as primary readout when sequence absent', () => {
     eventBus.emit('parse:success', { ast: makeAst([1]) });
     eventBus.emit('playback:position-changed', {
       channelId: 1,
       position: makePosition({ channelId: 1, sourceSequence: undefined, currentPattern: 'pat1' }),
     });
 
-    expect(document.getElementById('bb-hmix-seq-1')?.textContent).toBe('—');
-    expect(document.getElementById('bb-hmix-pat-1')?.textContent).toBe('pat1');
+    expect(document.getElementById('bb-hmix-inst-1')).not.toBeNull();
+    expect(document.getElementById('bb-hmix-seq-1')).toBeNull();
+    expect(document.getElementById('bb-hmix-pat-1')).toBeNull();
   });
 
   // ── destroy ───────────────────────────────────────────────────────────────────

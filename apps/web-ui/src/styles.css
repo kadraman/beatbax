@@ -1290,6 +1290,10 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.bb-settings-row--column {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .bb-settings-toggle-row {
   justify-content: space-between;
   cursor: pointer;
@@ -1438,6 +1442,49 @@
 .bb-settings-badge--planned      { background: #282828; color: #666; }
 .bb-settings-badge--stable       { background: #1a3a1a; color: #6ec96e; }
 
+/* Buttons */
+.bb-settings-btn {
+  background: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 14px;
+  transition: background 0.15s;
+}
+.bb-settings-btn:hover { background: #3a3a3a; }
+.bb-settings-btn--danger {
+  background: #3a1a1a;
+  border-color: #6a3030;
+  color: #e07070;
+}
+.bb-settings-btn--danger:hover { background: #481f1f; }
+.bb-settings-img-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bb-settings-img-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.bb-settings-img-preview {
+  width: 80px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid #444;
+  background: #1e1e1e;
+  flex-shrink: 0;
+}
+.bb-settings-img-name {
+  font-size: 11px;
+  color: #999;
+  word-break: break-all;
+}
 /* Buttons */
 .bb-settings-btn-primary {
   background: #264f78;
@@ -2099,6 +2146,401 @@
 [data-theme="light"] .bb-menu__sep { background: #e0e0e0; }
 
 /* ─── Channel Mixer ──────────────────────────────────────────────────────── */
+.bb-viz {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  background: #000;
+  color: #d4d4d4;
+}
+.bb-viz__toolbar { display: flex; align-items: center; gap: 6px; }
+.bb-viz__toolbar-btn {
+  border: 1px solid #444;
+  background: #2d2d2d;
+  color: #ddd;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  cursor: pointer;
+}
+.bb-viz__channels {
+  display: grid;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.bb-viz__channels--horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.bb-viz__channels--vertical {
+  grid-template-columns: 1fr;
+}
+
+/* ── Base card (shared by normal + fullscreen) ──────────────────────────── */
+.bb-viz__card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 7px;
+  min-width: 0;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.50);
+  /* Brushed-aluminium module face */
+  background-color: #2c2c2e;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.022) 0px,
+      rgba(255,255,255,0.022) 1px,
+      transparent              1px,
+      transparent              3px
+    ),
+    linear-gradient(to bottom, #333335 0%, #222224 100%);
+  border-color: rgba(255,255,255,0.14) rgba(0,0,0,0.50) rgba(0,0,0,0.50) rgba(255,255,255,0.06);
+  box-shadow:
+    inset  0  1px 0 rgba(255,255,255,0.07),
+    inset  0 -1px 0 rgba(0,0,0,0.30),
+    0 1px 4px rgba(0,0,0,0.55);
+}
+.bb-viz__card--silent { opacity: 0.45; }
+
+/* Channel-colour top accent bar via border-top override */
+.bb-viz__card[data-channel="1"] { border-top: 3px solid var(--bb-ch1); }
+.bb-viz__card[data-channel="2"] { border-top: 3px solid var(--bb-ch2); }
+.bb-viz__card[data-channel="3"] { border-top: 3px solid var(--bb-ch3); }
+.bb-viz__card[data-channel="4"] { border-top: 3px solid var(--bb-ch4); }
+
+.bb-viz__card-header { display: flex; gap: 8px; align-items: flex-start; }
+
+/* Level bar: vertical VU strip */
+.bb-viz__level-bar {
+  width: 5px;
+  min-height: 18px;
+  border-radius: 2px;
+  align-self: stretch;
+  opacity: 0.40;
+  box-shadow: 0 0 4px rgba(255,255,255,0.08);
+}
+
+/* Title block */
+.bb-viz__title-block { display: flex; flex-direction: column; gap: 2px; min-width: 68px; }
+
+.bb-viz__channel-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.80);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.70), 0 -1px 0 rgba(255,255,255,0.06);
+}
+
+.bb-viz__chip-label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  opacity: 0.80;
+}
+
+.bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+
+/* LCD display panel — instrument name */
+.bb-viz__inst,
+.bb-viz__pattern {
+  background: #0b130b;
+  border: 1px solid;
+  border-color: #111 #2e4a2e #2e4a2e #111;
+  border-radius: 4px;
+  padding: 2px 7px;
+  min-height: 17px;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.85),
+    0 0 6px rgba(61,255,112,0.07);
+}
+.bb-viz__inst {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #3dff70;
+  text-shadow: 0 0 4px rgba(61,255,112,0.80), 0 0 8px rgba(61,255,112,0.30);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-viz__pattern {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 10px;
+  color: rgba(61,255,112,0.70);
+  text-shadow: 0 0 3px rgba(61,255,112,0.40);
+}
+
+/* Oscilloscope-style wave canvas */
+.bb-viz__wave-canvas {
+  width: 100%;
+  height: 44px;
+  background: #040d04;
+  border: 1px solid #1a3a1a;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 2px 8px rgba(0,0,0,0.80),
+    0 0 8px rgba(61,255,112,0.05);
+}
+
+.bb-viz__progress-wrap { height: 3px; background: #0e1e0e; border-radius: 2px; overflow: hidden; }
+.bb-viz__progress-fill { height: 100%; width: 0; background: #3dff70; box-shadow: 0 0 4px rgba(61,255,112,0.60); transition: width 0.1s linear; }
+.bb-viz__position { font-size: 10px; color: #555; }
+.bb-viz__ctrl-row { display: flex; gap: 4px; }
+
+/* 3-D raised buttons — matches transport bar style */
+.bb-viz__btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid;
+  border-color: #606060 #282828 #1e1e1e #606060;
+  color: #ccc;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.10) 0%, transparent 65%),
+    linear-gradient(to bottom, #525252 0%, #323232 100%);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.55),
+    inset 0  1px 0 rgba(255,255,255,0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+  transition: filter 0.08s, color 0.08s;
+}
+.bb-viz__btn:hover { filter: brightness(1.2); color: #fff; }
+.bb-viz__btn svg { width: 14px; height: 14px; display: block; }
+.bb-viz__btn--active {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.25) 0%, transparent 65%),
+    linear-gradient(to bottom, #4a3c10 0%, #2e2408 100%);
+  border-color: var(--bb-accent, #c8a227) #281c04 #1c1402 var(--bb-accent, #c8a227);
+  color: var(--bb-accent, #c8a227);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.60),
+    inset 0 1px 3px rgba(0,0,0,0.50),
+    0 0 6px rgba(200,162,39,0.18);
+}
+
+/* ── Normal-mode (non-fullscreen) visualizer shell ─────────────────────── */
+.bb-viz:not(.bb-viz--fullscreen) {
+  background-color: #111112;
+  background-image: linear-gradient(to bottom, #1a1a1b 0%, #0e0e0f 100%);
+  border-top: 1px solid rgba(255,255,255,0.10);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar {
+  background-color: #2e2e2e;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.03) 0px,
+      rgba(255,255,255,0.03) 1px,
+      transparent             1px,
+      transparent             3px
+    ),
+    linear-gradient(to bottom, #383838 0%, #252525 100%);
+  border-top: 1px solid rgba(255,255,255,0.15);
+  border-bottom: 1px solid rgba(0,0,0,0.55);
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+}
+.bb-viz:not(.bb-viz--fullscreen) .bb-viz__channels {
+  padding: 8px 6px;
+  background: #0b0b0c;
+  box-shadow: inset 0 6px 16px rgba(0,0,0,0.85), inset 0 1px 3px rgba(0,0,0,0.60);
+}
+
+.bb-viz--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.bb-viz--fullscreen .bb-viz__toolbar { opacity: 0.92; flex-shrink: 0; position: relative; z-index: 2; }
+/* Keep disabled toolbar buttons visible in fullscreen */
+.bb-viz--fullscreen .bb-viz__toolbar-btn:disabled { opacity: 0.45; }
+.bb-viz--fullscreen .bb-viz__channels {
+  flex: 1;
+  min-height: 0;
+  height: 0; /* force flex child to honour min-height: 0 so fr rows get definite height */
+  grid-template-columns: 1fr !important;
+  grid-auto-rows: minmax(60px, 1fr);
+  overflow: hidden;
+  align-content: stretch;
+}
+.bb-viz--fullscreen .bb-viz__card {
+  min-height: 60px;
+  overflow: hidden;
+  position: relative; /* anchor for absolute canvas */
+  /* Fully transparent — background animation shows through */
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+/* Card header + ctrl-row float above the canvas */
+.bb-viz--fullscreen .bb-viz__card-header,
+.bb-viz--fullscreen .bb-viz__ctrl-row {
+  position: relative;
+  z-index: 1;
+}
+.bb-viz--fullscreen .bb-viz__header-right {
+  flex: 1;
+  min-height: 0;
+}
+/* Wave canvas fills the full card as a background layer */
+.bb-viz--fullscreen .bb-viz__wave-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: 0;
+}
+.bb-viz--fullscreen .bb-viz__inst,
+.bb-viz--fullscreen .bb-viz__pattern {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+/* Vivid LCD-style mute/solo buttons in fullscreen */
+.bb-viz--fullscreen .bb-viz__btn {
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(61, 255, 112, 0.55) !important;
+  color: rgba(61, 255, 112, 0.90) !important;
+  box-shadow: 0 0 6px rgba(61,255,112,0.20), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(4px);
+}
+.bb-viz--fullscreen .bb-viz__btn:hover {
+  background: rgba(0, 0, 0, 0.75) !important;
+  border-color: rgba(61, 255, 112, 0.90) !important;
+  color: #3dff70 !important;
+  box-shadow: 0 0 10px rgba(61,255,112,0.45) !important;
+}
+.bb-viz--fullscreen .bb-viz__btn--active {
+  background: rgba(61, 255, 112, 0.18) !important;
+  border-color: #3dff70 !important;
+  color: #3dff70 !important;
+  box-shadow: 0 0 10px rgba(61,255,112,0.50), inset 0 0 6px rgba(61,255,112,0.20) !important;
+}
+/* Channel title / chip label readable over animation */
+.bb-viz--fullscreen .bb-viz__channel-title {
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.90), 0 0 8px rgba(0,0,0,0.70);
+}
+.bb-viz--fullscreen .bb-viz__inst {
+  text-shadow: 0 0 6px rgba(61,255,112,0.90), 0 0 12px rgba(61,255,112,0.40);
+}
+.bb-viz--fullscreen .bb-viz__progress-wrap,
+.bb-viz--fullscreen .bb-viz__position { display: none; }
+#bb-viz-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.bb-viz__bg-hidden { display: none; }
+/* Toolbar + exit buttons: neon blue in fullscreen */
+.bb-viz--fullscreen .bb-viz__toolbar-btn {
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(61, 161, 255, 0.55) !important;
+  color: rgba(61, 161, 255, 0.90) !important;
+  box-shadow: 0 0 6px rgba(61,161,255,0.20), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(4px);
+}
+.bb-viz--fullscreen .bb-viz__toolbar-btn:hover {
+  background: rgba(0, 0, 0, 0.75) !important;
+  border-color: rgba(61, 161, 255, 0.90) !important;
+  color: #3da1ff !important;
+  box-shadow: 0 0 10px rgba(61,161,255,0.45) !important;
+}
+.bb-viz--fullscreen .bb-viz__exit-btn {
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(61, 161, 255, 0.55) !important;
+  color: rgba(61, 161, 255, 0.90) !important;
+  box-shadow: 0 0 6px rgba(61,161,255,0.20), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(4px);
+}
+.bb-viz--fullscreen .bb-viz__exit-btn:hover {
+  background: rgba(0, 0, 0, 0.75) !important;
+  border-color: rgba(61, 161, 255, 0.90) !important;
+  color: #3da1ff !important;
+  box-shadow: 0 0 10px rgba(61,161,255,0.45) !important;
+}
+.bb-viz__exit-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  border: 1px solid #666;
+  background: rgba(20, 20, 20, 0.8);
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.bb-viz-wide-mode #right-pane {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.bb-viz-wide-mode #right-pane > div:first-child {
+  width: 100%;
+}
+.bb-viz-wide-mode #right-pane + .bb-splitter {
+  display: none !important;
+}
+.bb-viz-wide-mode #right-pane {
+  position: relative;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) {
+  background: #e8e8e8;
+  color: #222;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__card {
+  background-color: #d8d8d8;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.40) 0px,
+      rgba(255,255,255,0.40) 1px,
+      transparent             1px,
+      transparent             3px
+    ),
+    linear-gradient(to bottom, #dcdcdc 0%, #c8c8c8 100%);
+  border-color: rgba(255,255,255,0.80) rgba(0,0,0,0.20) rgba(0,0,0,0.20) rgba(255,255,255,0.80);
+}
+[data-theme="light"] .bb-viz--fullscreen {
+  background: #fff;
+}
 .bb-cp {
   display: flex; flex-direction: column;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

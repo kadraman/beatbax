@@ -7,7 +7,8 @@ import { eventBus } from '../../utils/event-bus';
 import {
   settingTheme, settingToolbarStyle,
   settingShowToolbar, settingShowTransportBar,
-  settingShowPatternGrid, settingShowChannelMixer,
+  settingShowPatternGrid, settingShowChannelMixer, settingShowSongVisualizer,
+  settingVizBgEffect, settingVizBgImage,
   settingChannelCompact,
   settingFeatureDawMixer,
 } from '../../stores/settings.store';
@@ -115,6 +116,132 @@ export function buildGeneralSection(): HTMLElement {
   mixerFeatObserver.observe(document.body, { childList: true, subtree: true });
   el.appendChild(mixerRow);
 
+  el.appendChild(toggle('Show song visualizer', settingShowSongVisualizer.get(), (v) => {
+    settingShowSongVisualizer.set(v);
+    eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: v });
+  }, settingShowSongVisualizer.subscribe));
+
+  const bgEffectSelect = selectField(
+    'Song visualizer background',
+    [
+      { value: 'none',         label: 'None' },
+      { value: 'starfield',    label: 'Starfield' },
+      { value: 'scanlines',    label: 'CRT Scanlines' },
+      { value: 'custom-image', label: 'Custom image' },
+    ],
+    settingVizBgEffect.get(),
+    (v) => {
+      const next = v as 'none' | 'starfield' | 'scanlines' | 'custom-image';
+      settingVizBgEffect.set(next);
+      // Show image row only when custom-image is selected
+      imageRow.style.display = next === 'custom-image' ? '' : 'none';
+      if (next !== 'custom-image') {
+        // Clear stored image when switching away from the image mode
+        settingVizBgImage.set('');
+        fileInput.value = '';
+        uploadBtn.textContent = 'Upload image';
+        clearBtn.style.display = 'none';
+        eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: '' });
+      }
+      eventBus.emit('song-visualizer:settings-changed', { key: 'bgEffect', value: v });
+    },
+  );
+  el.appendChild(bgEffectSelect);
+
+  // ── Visualizer background image (only shown when Custom image is selected) ─
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.className = 'bb-settings-file';
+  fileInput.style.display = 'none';
+  fileInput.id = 'bb-viz-bg-image-input';
+
+  // Thumbnail + filename shown after an image is chosen
+  const imgPreview = document.createElement('img');
+  imgPreview.className = 'bb-settings-img-preview';
+  imgPreview.alt = 'Background preview';
+
+  const fileNameEl = document.createElement('span');
+  fileNameEl.className = 'bb-settings-img-name';
+
+  // Restore preview from stored data URL (page reload with existing image)
+  const storedImg = settingVizBgImage.get();
+  if (storedImg) {
+    imgPreview.src = storedImg;
+    imgPreview.style.display = '';
+    fileNameEl.textContent = 'Current image';
+    fileNameEl.style.display = '';
+  } else {
+    imgPreview.style.display = 'none';
+    fileNameEl.style.display = 'none';
+  }
+
+  const uploadBtn = document.createElement('button');
+  uploadBtn.type = 'button';
+  uploadBtn.className = 'bb-settings-btn';
+  uploadBtn.textContent = storedImg ? 'Replace image' : 'Upload image';
+  uploadBtn.addEventListener('click', () => fileInput.click());
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'bb-settings-btn bb-settings-btn--danger';
+  clearBtn.textContent = 'Clear';
+  clearBtn.style.display = storedImg ? '' : 'none';
+  clearBtn.addEventListener('click', () => {
+    settingVizBgImage.set('');
+    settingVizBgEffect.set('none');
+    const sel = bgEffectSelect.querySelector<HTMLSelectElement>('select');
+    if (sel) sel.value = 'none';
+    uploadBtn.textContent = 'Upload image';
+    clearBtn.style.display = 'none';
+    fileInput.value = '';
+    imgPreview.src = '';
+    imgPreview.style.display = 'none';
+    fileNameEl.textContent = '';
+    fileNameEl.style.display = 'none';
+    imageRow.style.display = 'none';
+    eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: '' });
+    eventBus.emit('song-visualizer:settings-changed', { key: 'bgEffect', value: 'none' });
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) return;
+      settingVizBgImage.set(dataUrl);
+      imgPreview.src = dataUrl;
+      imgPreview.style.display = '';
+      fileNameEl.textContent = file.name;
+      fileNameEl.style.display = '';
+      uploadBtn.textContent = 'Replace image';
+      clearBtn.style.display = '';
+      eventBus.emit('song-visualizer:settings-changed', { key: 'bgImage', value: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const imageRow = document.createElement('div');
+  imageRow.className = 'bb-settings-row bb-settings-row--column';
+  imageRow.style.display = settingVizBgEffect.get() === 'custom-image' ? '' : 'none';
+
+  const imageLbl = document.createElement('span');
+  imageLbl.className = 'bb-settings-label';
+  imageLbl.textContent = 'Visualizer background image';
+
+  const imageControls = document.createElement('div');
+  imageControls.className = 'bb-settings-img-controls';
+  imageControls.append(fileInput, uploadBtn, clearBtn);
+
+  const imagePreviewWrap = document.createElement('div');
+  imagePreviewWrap.className = 'bb-settings-img-preview-wrap';
+  imagePreviewWrap.append(imgPreview, fileNameEl);
+
+  imageRow.append(imageLbl, imageControls, imagePreviewWrap);
+  el.appendChild(imageRow);
+
   return el;
 }
 
@@ -127,6 +254,9 @@ export function resetGeneralDefaults(): void {
   settingShowTransportBar.set(true);
   settingShowPatternGrid.set(false);
   settingShowChannelMixer.set(true);
+  settingShowSongVisualizer.set(false);
+  settingVizBgEffect.set('none');
+  settingVizBgImage.set('');
   settingChannelCompact.set(true);
 }
 
@@ -333,4 +463,3 @@ export function rangeField(
   row.append(lbl, right);
   return row;
 }
-

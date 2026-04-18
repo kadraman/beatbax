@@ -63,6 +63,8 @@ export interface BeatBaxEvents {
 
   // Feature flag events
   'feature-flag:changed': { flag: string; enabled: boolean };
+  // Song visualizer settings events
+  'song-visualizer:settings-changed': { key: string; value: string };
 
   // Validation events
   'validation:warnings': { warnings: Array<{ component: string; message: string; suggestion?: string; file?: string; loc?: any }> };
