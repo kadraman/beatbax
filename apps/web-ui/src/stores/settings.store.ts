@@ -67,10 +67,6 @@ export const settingVizBgEffect        = stringAtom<'none' | 'starfield' | 'scan
   StorageKey.VIZ_BG_EFFECT,
   'none',
 );
-export const settingVizLayout          = stringAtom<'horizontal' | 'vertical'>(
-  StorageKey.VIZ_LAYOUT,
-  'horizontal',
-);
 export const settingVizBgImage         = stringAtom<string>(StorageKey.VIZ_BG_IMAGE, '');
 
 // ─── Editor ───────────────────────────────────────────────────────────────────
@@ -135,7 +131,6 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.PANEL_VIS_SONG_VISUALIZER,
     StorageKey.CHANNEL_COMPACT,
     StorageKey.VIZ_BG_EFFECT,
-    StorageKey.VIZ_LAYOUT,
     StorageKey.VIZ_BG_IMAGE,
   ],
   editor: [

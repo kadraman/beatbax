@@ -1290,6 +1290,10 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.bb-settings-row--column {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .bb-settings-toggle-row {
   justify-content: space-between;
   cursor: pointer;
@@ -1438,6 +1442,49 @@
 .bb-settings-badge--planned      { background: #282828; color: #666; }
 .bb-settings-badge--stable       { background: #1a3a1a; color: #6ec96e; }
 
+/* Buttons */
+.bb-settings-btn {
+  background: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 14px;
+  transition: background 0.15s;
+}
+.bb-settings-btn:hover { background: #3a3a3a; }
+.bb-settings-btn--danger {
+  background: #3a1a1a;
+  border-color: #6a3030;
+  color: #e07070;
+}
+.bb-settings-btn--danger:hover { background: #481f1f; }
+.bb-settings-img-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bb-settings-img-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.bb-settings-img-preview {
+  width: 80px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid #444;
+  background: #1e1e1e;
+  flex-shrink: 0;
+}
+.bb-settings-img-name {
+  font-size: 11px;
+  color: #999;
+  word-break: break-all;
+}
 /* Buttons */
 .bb-settings-btn-primary {
   background: #264f78;

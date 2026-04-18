@@ -600,7 +600,9 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     visible ? bottomTabs.show('problems') : bottomTabs.close('problems');
   }
   if (panel === 'channel-mixer' || panel === 'song-visualizer') {
-    // Song Visualizer in the right pane (accept legacy 'channel-mixer' id too)
+    // Song Visualizer in the right pane (accept legacy 'channel-mixer' id too).
+    // Only honour show requests when the Song Visualizer feature is enabled.
+    if (visible && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
     settingShowSongVisualizer.set(visible);
   }
@@ -1315,10 +1317,11 @@ const menuBar = new MenuBar({
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
 menuBar.seedPanelVisible({
-  toolbar:          readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
-  'transport-bar':  readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'daw-mixer':      readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
-  'pattern-grid':   readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
+  toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
+  'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
+  'daw-mixer':         readPanelVis(StorageKey.PANEL_VIS_DAW_MIXER),
+  'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
+  'song-visualizer':   readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
 });
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {

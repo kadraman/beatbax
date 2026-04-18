@@ -17,7 +17,6 @@ import { getChannelMeta } from '../utils/chip-meta';
 const log = createLogger('ui:song-visualizer');
 
 type BgEffectId = 'none' | 'starfield' | 'scanlines' | 'custom-image';
-type VizLayout = 'horizontal' | 'vertical';
 
 interface BgEffect {
   id: Exclude<BgEffectId, 'none' | 'custom-image'>;
@@ -66,58 +65,109 @@ const BG_EFFECTS: BgEffect[] = [
   {
     id: 'scanlines',
     init(canvas) {
-      // Pre-allocate per-channel bar state
-      (canvas as any).__bbBars = {};
+      (canvas as any).__bbScanState = { beamY: 0 };
     },
     draw(canvas, rmsValues) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      // Fade trail
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const channelColors = ['#569cd6', '#9cdcfe', '#4ec9b0', '#ce9178', '#dcdcaa', '#c586c0'];
-      const channels = rmsValues.size > 0 ? rmsValues.size : 4;
-      const barW = Math.floor(canvas.width / channels);
+      const W = canvas.width;
+      const H = canvas.height;
+      const avgRms = rmsValues.size > 0
+        ? Array.from(rmsValues.values()).reduce((a, b) => a + b, 0) / rmsValues.size
+        : 0;
 
-      let i = 0;
-      for (const [ch, rms] of rmsValues) {
-        const color = channelColors[(ch - 1) % channelColors.length];
-        const barH = Math.max(4, Math.floor(rms * canvas.height * 0.85));
-        const x = i * barW;
-        const y = canvas.height - barH;
-        ctx.save();
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 18;
-        ctx.fillStyle = color;
-        // Gradient bar: bright top, fades to bottom
-        const grad = ctx.createLinearGradient(x, y, x, canvas.height);
-        grad.addColorStop(0, color);
-        grad.addColorStop(1, 'rgba(0,0,0,0.1)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(x + 2, y, barW - 4, barH);
-        // Peak dot
-        ctx.fillStyle = '#fff';
-        ctx.shadowBlur = 10;
-        ctx.fillRect(x + 2, y, barW - 4, 3);
-        ctx.restore();
-        i++;
+      // ── Bezel ──────────────────────────────────────────────────────────────
+      // Fill entire canvas with bezel colour first (corners will show through).
+      ctx.fillStyle = '#1a1a1e';
+      ctx.fillRect(0, 0, W, H);
+
+      // Bezel inset — the screen sits inside a border.
+      const bevel = Math.min(W, H) * 0.045;
+      const scrX = bevel;
+      const scrY = bevel;
+      const scrW = W - bevel * 2;
+      const scrH = H - bevel * 2;
+      // Corner radius: larger radius = more CRT barrel look.
+      const r = Math.min(scrW, scrH) * 0.12;
+
+      // Helper: draw a rounded-rect path.
+      function roundedRect(x: number, y: number, w: number, h: number, cr: number): void {
+        ctx.beginPath();
+        ctx.moveTo(x + cr, y);
+        ctx.lineTo(x + w - cr, y);
+        ctx.quadraticCurveTo(x + w, y,       x + w, y + cr);
+        ctx.lineTo(x + w, y + h - cr);
+        ctx.quadraticCurveTo(x + w, y + h,   x + w - cr, y + h);
+        ctx.lineTo(x + cr, y + h);
+        ctx.quadraticCurveTo(x, y + h,       x, y + h - cr);
+        ctx.lineTo(x, y + cr);
+        ctx.quadraticCurveTo(x, y,           x + cr, y);
+        ctx.closePath();
       }
 
-      // If no audio data yet, draw idle low bars
-      if (rmsValues.size === 0) {
-        for (let j = 0; j < 4; j++) {
-          const color = channelColors[j];
-          const x = j * barW;
-          ctx.save();
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 8;
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 0.25;
-          ctx.fillRect(x + 2, canvas.height - 8, barW - 4, 6);
-          ctx.restore();
-        }
+      // ── Screen area (clipped to rounded rect) ──────────────────────────────
+      ctx.save();
+      roundedRect(scrX, scrY, scrW, scrH, r);
+      ctx.clip();
+
+      // Dark phosphor background
+      ctx.fillStyle = '#000804';
+      ctx.fillRect(scrX, scrY, scrW, scrH);
+
+      // CRT scanlines: 1 px dark band every 3 px
+      ctx.fillStyle = 'rgba(0,0,0,0.50)';
+      for (let y = scrY; y < scrY + scrH; y += 3) {
+        ctx.fillRect(scrX, y, scrW, 1);
       }
+
+      // Sweeping phosphor beam
+      const state = (canvas as any).__bbScanState as { beamY: number };
+      state.beamY = (state.beamY + 1.5 + avgRms * 10) % scrH;
+      const beamAbsY = scrY + state.beamY;
+      const beamAlpha = 0.10 + avgRms * 0.30;
+      const beamGrad = ctx.createLinearGradient(0, beamAbsY - 12, 0, beamAbsY + 12);
+      beamGrad.addColorStop(0,   'rgba(0,255,120,0)');
+      beamGrad.addColorStop(0.5, `rgba(0,255,120,${beamAlpha})`);
+      beamGrad.addColorStop(1,   'rgba(0,255,120,0)');
+      ctx.fillStyle = beamGrad;
+      ctx.fillRect(scrX, beamAbsY - 12, scrW, 24);
+
+      // Screen-space vignette (dark edges, bright centre)
+      const vigCx = scrX + scrW / 2;
+      const vigCy = scrY + scrH / 2;
+      const vig = ctx.createRadialGradient(vigCx, vigCy, scrH * 0.25, vigCx, vigCy, scrH * 0.82);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.62)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(scrX, scrY, scrW, scrH);
+
+      // Barrel-distortion illusion: subtle bright horizontal glare at top
+      const glare = ctx.createLinearGradient(0, scrY, 0, scrY + scrH * 0.18);
+      glare.addColorStop(0,   'rgba(255,255,255,0.04)');
+      glare.addColorStop(1,   'rgba(255,255,255,0)');
+      ctx.fillStyle = glare;
+      ctx.fillRect(scrX, scrY, scrW, scrH * 0.18);
+
+      ctx.restore(); // end screen clip
+
+      // ── Bezel border over the screen ──────────────────────────────────────
+      // Inner shadow / bevel around the screen opening.
+      roundedRect(scrX, scrY, scrW, scrH, r);
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Outer bezel highlight (top/left brighter, bottom/right darker = 3-D look)
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = bevel * 0.6;
+      roundedRect(bevel * 0.3, bevel * 0.3, W - bevel * 0.6, H - bevel * 0.6, r + bevel * 0.3);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = bevel * 0.35;
+      roundedRect(bevel * 0.6, bevel * 0.6, W - bevel * 1.2, H - bevel * 1.2, r + bevel * 0.1);
+      ctx.stroke();
     },
     dispose() {
       // no-op
@@ -141,7 +191,6 @@ export class SongVisualizer {
   private channelWaveforms: Map<number, Float32Array> = new Map();
   private analyserEnabled = false;
   private bgEffectId: BgEffectId = 'none';
-  private layoutMode: VizLayout = 'horizontal';
   private bgImageData = '';
   private bgImage: HTMLImageElement | null = null;
   private activeBgEffect: BgEffect | null = null;
@@ -163,9 +212,6 @@ export class SongVisualizer {
     this.bgEffectId = (savedEffect === 'starfield' || savedEffect === 'scanlines' || savedEffect === 'custom-image')
       ? savedEffect
       : 'none';
-
-    const savedLayout = storage.get(StorageKey.VIZ_LAYOUT, 'horizontal');
-    this.layoutMode = savedLayout === 'vertical' ? 'vertical' : 'horizontal';
 
     this.bgImageData = storage.get(StorageKey.VIZ_BG_IMAGE, '') ?? '';
     if (!this.bgImageData) {
@@ -190,12 +236,13 @@ export class SongVisualizer {
     this.stopBgLoop();
     this.container.innerHTML = '';
     this.applyRightPaneConstraints();
+    document.body.classList.toggle('bb-viz-wide-mode', this.performanceMode);
 
     const root = document.createElement('div');
     root.className = [
       'bb-viz',
       this.isPerformanceMode ? 'bb-viz--fullscreen' : '',
-      this.layoutMode === 'vertical' ? 'bb-viz--layout-vertical' : 'bb-viz--layout-horizontal',
+      'bb-viz--layout-horizontal',
     ].filter(Boolean).join(' ');
     root.id = 'bb-viz-root';
     root.setAttribute('role', 'region');
@@ -249,10 +296,9 @@ export class SongVisualizer {
     root.appendChild(bgCanvas);
 
     const channelsWrap = document.createElement('div');
-    const effectiveLayout = this.isPerformanceMode ? 'vertical' : this.layoutMode;
     channelsWrap.className = [
       'bb-viz__channels',
-      effectiveLayout === 'vertical' ? 'bb-viz__channels--vertical' : 'bb-viz__channels--horizontal',
+      this.isPerformanceMode ? 'bb-viz__channels--vertical' : 'bb-viz__channels--horizontal',
     ].join(' ');
 
     const channels = this.ast?.channels ?? [];
@@ -347,7 +393,7 @@ export class SongVisualizer {
     waveCanvas.className = 'bb-viz__wave-canvas';
     waveCanvas.id = `bb-viz-wave-${ch.id}`;
     waveCanvas.width = 320;
-    waveCanvas.height = this.isPerformanceMode ? 220 : 44;
+    waveCanvas.height = this.isPerformanceMode ? 220 : 80;
 
     right.appendChild(instEl);
     right.appendChild(patternEl);
