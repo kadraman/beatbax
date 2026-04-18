@@ -1,5 +1,5 @@
 /**
- * DawMixer — DAW-style bottom-docked horizontal channel strip.
+ * ChannelMixer — DAW-style bottom-docked horizontal channel strip.
  *
  * Replaces the vertical ChannelMixer card list for the bottom-panel position.
  * Each sound-chip channel is rendered as a vertical strip side-by-side, matching
@@ -53,7 +53,7 @@ const MAX_HEIGHT_PX = 400;
 
 export type MixerDockMode = 'docked' | 'inline';
 
-export interface DawMixerOptions {
+export interface ChannelMixerOptions {
   /** Container for full-width docked mode (below all three panes). */
   container: HTMLElement;
   /** Container for inline mode (inside the left-content / output area). */
@@ -77,7 +77,7 @@ interface ChannelVuState {
   lastUpdateTime: number;
 }
 
-export class DawMixer {
+export class ChannelMixer {
   private dockedContainer: HTMLElement;
   private inlineContainer: HTMLElement | null;
   private eventBus: EventBus;
@@ -114,28 +114,28 @@ export class DawMixer {
   /** Root element appended to the active container. */
   private rootEl: HTMLElement | null = null;
 
-  constructor(options: DawMixerOptions) {
+  constructor(options: ChannelMixerOptions) {
     this.dockedContainer = options.container;
     this.inlineContainer = options.inlineContainer ?? null;
     this.eventBus = options.eventBus;
     this.playbackManager = options.playbackManager ?? null;
 
     // Restore persisted state
-    const rawCollapsed = storage.get(StorageKey.DAW_MIXER_COLLAPSED);
+    const rawCollapsed = storage.get(StorageKey.CHANNEL_MIXER_COLLAPSED);
     this.collapsed = rawCollapsed === 'true';
 
-    const rawHeight = storage.get(StorageKey.DAW_MIXER_HEIGHT);
+    const rawHeight = storage.get(StorageKey.CHANNEL_MIXER_HEIGHT);
     const parsedHeight = rawHeight ? parseInt(rawHeight, 10) : NaN;
     this.height = isNaN(parsedHeight) ? DEFAULT_HEIGHT_PX : Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, parsedHeight));
 
-    const rawVisible = storage.get(StorageKey.PANEL_VIS_DAW_MIXER);
-    // If the DAW_MIXER feature flag is disabled, always start hidden regardless
+    const rawVisible = storage.get(StorageKey.PANEL_VIS_CHANNEL_MIXER);
+    // If the CHANNEL_MIXER feature flag is disabled, always start hidden regardless
     // of what was persisted, so the mixer is never shown when the feature is off.
-    this.visible = isFeatureEnabled(FeatureFlag.DAW_MIXER)
+    this.visible = isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
       ? (rawVisible === undefined ? true : rawVisible === 'true')
       : false;
 
-    const rawDock = storage.get(StorageKey.DAW_MIXER_DOCK_MODE);
+    const rawDock = storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE);
     this.dockMode = rawDock === 'inline' ? 'inline' : 'docked';
 
     // Sync analyser-enabled flag with the shared settings atom (same as ChannelMixer)
@@ -150,14 +150,14 @@ export class DawMixer {
 
   show(): void {
     this.visible = true;
-    storage.set(StorageKey.PANEL_VIS_DAW_MIXER, 'true');
+    storage.set(StorageKey.PANEL_VIS_CHANNEL_MIXER, 'true');
     if (this.rootEl) this.rootEl.style.display = '';
     this.startRaf();
   }
 
   hide(): void {
     this.visible = false;
-    storage.set(StorageKey.PANEL_VIS_DAW_MIXER, 'false');
+    storage.set(StorageKey.PANEL_VIS_CHANNEL_MIXER, 'false');
     if (this.rootEl) this.rootEl.style.display = 'none';
     this.stopRaf();
   }
@@ -177,7 +177,7 @@ export class DawMixer {
   setDockMode(mode: MixerDockMode): void {
     if (mode === this.dockMode) return;
     this.dockMode = mode;
-    storage.set(StorageKey.DAW_MIXER_DOCK_MODE, mode);
+    storage.set(StorageKey.CHANNEL_MIXER_DOCK_MODE, mode);
     // Move the root element to the appropriate container
     if (this.rootEl) {
       this.rootEl.remove();
@@ -224,19 +224,19 @@ export class DawMixer {
     this.channelsWithActiveAnalyser.clear();
 
     const root = document.createElement('div');
-    root.className = 'bb-hmix';
-    root.id = 'bb-daw-mixer';
-    if (this.collapsed) root.classList.add('bb-hmix--collapsed');
-    if (this.dockMode === 'inline') root.classList.add('bb-hmix--inline');
+    root.className = 'bb-channel-mixer';
+    root.id = 'bb-channel-mixer';
+    if (this.collapsed) root.classList.add('bb-channel-mixer--collapsed');
+    if (this.dockMode === 'inline') root.classList.add('bb-channel-mixer--inline');
     if (!this.visible) root.style.display = 'none';
 
     // ── Toolbar ──────────────────────────────────────────────────────────────
     const toolbar = document.createElement('div');
-    toolbar.className = 'bb-hmix__toolbar';
+    toolbar.className = 'bb-channel-mixer__toolbar';
 
     const collapseBtn = document.createElement('button');
     collapseBtn.type = 'button';
-    collapseBtn.className = 'bb-hmix__toolbar-btn';
+    collapseBtn.className = 'bb-channel-mixer__toolbar-btn';
     collapseBtn.title = this.collapsed ? 'Expand mixer' : 'Collapse mixer';
     collapseBtn.setAttribute('aria-label', this.collapsed ? 'Expand mixer' : 'Collapse mixer');
     collapseBtn.innerHTML = this.collapsed ? icon('chevron-up') : icon('chevron-down');
@@ -249,8 +249,8 @@ export class DawMixer {
 
     const unmuteBtn = document.createElement('button');
     unmuteBtn.type = 'button';
-    unmuteBtn.className = 'bb-hmix__toolbar-btn';
-    unmuteBtn.id = 'bb-hmix-unmute-all';
+    unmuteBtn.className = 'bb-channel-mixer__toolbar-btn';
+    unmuteBtn.id = 'bb-channel-mixer-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
     unmuteBtn.setAttribute('aria-label', 'Unmute all channels');
     // Use aria-disabled instead of the native disabled attribute so the button
@@ -263,8 +263,8 @@ export class DawMixer {
 
     const clearSoloBtn = document.createElement('button');
     clearSoloBtn.type = 'button';
-    clearSoloBtn.className = 'bb-hmix__toolbar-btn';
-    clearSoloBtn.id = 'bb-hmix-clear-solo';
+    clearSoloBtn.className = 'bb-channel-mixer__toolbar-btn';
+    clearSoloBtn.id = 'bb-channel-mixer-clear-solo';
     clearSoloBtn.title = 'Clear solo';
     clearSoloBtn.setAttribute('aria-label', 'Clear solo on all channels');
     setAriaDisabled(clearSoloBtn, !anySoloed0);
@@ -275,8 +275,8 @@ export class DawMixer {
     // Dock-mode toggle button
     const dockBtn = document.createElement('button');
     dockBtn.type = 'button';
-    dockBtn.className = 'bb-hmix__toolbar-btn';
-    dockBtn.id = 'bb-hmix-dock-mode';
+    dockBtn.className = 'bb-channel-mixer__toolbar-btn';
+    dockBtn.id = 'bb-channel-mixer-dock-mode';
     this.applyDockModeBtn(dockBtn);
     dockBtn.addEventListener('click', () => {
       this.setDockMode(this.dockMode === 'docked' ? 'inline' : 'docked');
@@ -284,7 +284,7 @@ export class DawMixer {
     toolbar.appendChild(dockBtn);
 
     const mixerLabel = document.createElement('span');
-    mixerLabel.className = 'bb-hmix__toolbar-label';
+    mixerLabel.className = 'bb-channel-mixer__toolbar-label';
     mixerLabel.textContent = 'CHANNEL MIXER';
     toolbar.appendChild(mixerLabel);
 
@@ -292,12 +292,12 @@ export class DawMixer {
 
     // ── Channel strips ────────────────────────────────────────────────────────
     const strips = document.createElement('div');
-    strips.className = 'bb-hmix__strips';
+    strips.className = 'bb-channel-mixer__strips';
 
     const channels = this.ast?.channels ?? [];
     if (channels.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'bb-hmix__empty';
+      empty.className = 'bb-channel-mixer__empty';
       empty.textContent = 'No channels defined — parse a song to see channels';
       strips.appendChild(empty);
     } else {
@@ -326,11 +326,11 @@ export class DawMixer {
   }
 
   private updateDockModeButton(): void {
-    const btn = document.getElementById('bb-hmix-dock-mode') as HTMLButtonElement | null;
+    const btn = document.getElementById('bb-channel-mixer-dock-mode') as HTMLButtonElement | null;
     if (btn) this.applyDockModeBtn(btn);
     // Also update the --inline class on root
     if (this.rootEl) {
-      this.rootEl.classList.toggle('bb-hmix--inline', this.dockMode === 'inline');
+      this.rootEl.classList.toggle('bb-channel-mixer--inline', this.dockMode === 'inline');
     }
   }
 
@@ -343,30 +343,30 @@ export class DawMixer {
     const defaultInstName = this.getInstrumentName(ch);
 
     const strip = document.createElement('div');
-    strip.className = 'bb-hmix__strip' + (!isAudible ? ' bb-hmix__strip--silent' : '');
-    strip.id = `bb-hmix-strip-${ch.id}`;
+    strip.className = 'bb-channel-mixer__strip' + (!isAudible ? ' bb-channel-mixer__strip--silent' : '');
+    strip.id = `bb-channel-mixer-strip-${ch.id}`;
     strip.dataset.channel = String(ch.id);
 
     // ── Colour accent bar (top) ───────────────────────────────────────────────
     const accent = document.createElement('div');
-    accent.className = 'bb-hmix__accent';
+    accent.className = 'bb-channel-mixer__accent';
     accent.style.background = meta.color;
     strip.appendChild(accent);
 
     // ── Channel label ─────────────────────────────────────────────────────────
     const label = document.createElement('div');
-    label.className = 'bb-hmix__label';
+    label.className = 'bb-channel-mixer__label';
     label.textContent = meta.label.toUpperCase();
     label.style.color = meta.color;
     strip.appendChild(label);
 
     // ── Mid section: [VOL FADER left] | [VU METER right] ────────────────────
     const mid = document.createElement('div');
-    mid.className = 'bb-hmix__mid';
+    mid.className = 'bb-channel-mixer__mid';
 
     // Volume fader column — LEFT of VU (custom DAW-style fader)
     const faderCol = document.createElement('div');
-    faderCol.className = 'bb-hmix__fader-col' + (!this.volumeEnabled ? ' bb-hmix__fader-col--disabled' : '');
+    faderCol.className = 'bb-channel-mixer__fader-col' + (!this.volumeEnabled ? ' bb-channel-mixer__fader-col--disabled' : '');
     if (!this.volumeEnabled) {
       const chipName = this.activeChip.charAt(0).toUpperCase() + this.activeChip.slice(1);
       faderCol.title = `${chipName} uses envelope-driven amplitude — no per-channel volume available`;
@@ -374,22 +374,22 @@ export class DawMixer {
 
     // Inner shaft (position: absolute so it fills fader-col's flex-stretched height)
     const shaft = document.createElement('div');
-    shaft.className = 'bb-hmix__fader-shaft';
+    shaft.className = 'bb-channel-mixer__fader-shaft';
 
     // Tick marks at 0% (top/max), 25%, 50%, 75%, 100% (bottom/min)
     const tickDefs = [0, 25, 50, 75, 100];
     for (const pct of tickDefs) {
       const tick = document.createElement('div');
       const isMajor = pct % 50 === 0;
-      tick.className = 'bb-hmix__fader-tick ' + (isMajor ? 'bb-hmix__fader-tick--major' : 'bb-hmix__fader-tick--minor');
+      tick.className = 'bb-channel-mixer__fader-tick ' + (isMajor ? 'bb-channel-mixer__fader-tick--major' : 'bb-channel-mixer__fader-tick--minor');
       tick.style.top = pct + '%';
       shaft.appendChild(tick);
     }
 
     // Draggable thumb
     const thumbEl = document.createElement('div');
-    thumbEl.className = 'bb-hmix__fader-thumb';
-    thumbEl.id = `bb-hmix-fader-${ch.id}`;
+    thumbEl.className = 'bb-channel-mixer__fader-thumb';
+    thumbEl.id = `bb-channel-mixer-fader-${ch.id}`;
     const initialVol = info?.volume ?? 1;
     thumbEl.style.top = ((1 - initialVol) * 100) + '%';
     shaft.appendChild(thumbEl);
@@ -403,18 +403,18 @@ export class DawMixer {
 
     // VU meter — RIGHT of fader
     const vu = document.createElement('div');
-    vu.className = 'bb-hmix__vu';
-    vu.id = `bb-hmix-vu-${ch.id}`;
+    vu.className = 'bb-channel-mixer__vu';
+    vu.id = `bb-channel-mixer-vu-${ch.id}`;
     // Segments appended high→low; CSS justify-content:flex-end keeps lowest at bottom
     for (let i = VU_SEGMENTS - 1; i >= 0; i--) {
       const seg = document.createElement('div');
-      seg.className = 'bb-hmix__vu-seg';
+      seg.className = 'bb-channel-mixer__vu-seg';
       if (i >= VU_RED_THRESHOLD) {
-        seg.classList.add('bb-hmix__vu-seg--red');
+        seg.classList.add('bb-channel-mixer__vu-seg--red');
       } else if (i >= VU_YELLOW_THRESHOLD) {
-        seg.classList.add('bb-hmix__vu-seg--yellow');
+        seg.classList.add('bb-channel-mixer__vu-seg--yellow');
       } else {
-        seg.classList.add('bb-hmix__vu-seg--green');
+        seg.classList.add('bb-channel-mixer__vu-seg--green');
       }
       vu.appendChild(seg);
     }
@@ -426,8 +426,8 @@ export class DawMixer {
     // Pattern and sequence names have moved to the Channel Visualizer panel
     // (channel-visualizer.ts) where there is dedicated space for them.
     const instEl = document.createElement('div');
-    instEl.className = 'bb-hmix__inst';
-    instEl.id = `bb-hmix-inst-${ch.id}`;
+    instEl.className = 'bb-channel-mixer__inst';
+    instEl.id = `bb-channel-mixer-inst-${ch.id}`;
     instEl.dataset.defaultInst = defaultInstName;
     instEl.textContent = defaultInstName;
     instEl.title = `Instrument: ${defaultInstName}`;
@@ -435,17 +435,17 @@ export class DawMixer {
 
     // ── Mute / Solo buttons ───────────────────────────────────────────────────
     const btnRow = document.createElement('div');
-    btnRow.className = 'bb-hmix__btn-row';
+    btnRow.className = 'bb-channel-mixer__btn-row';
 
     const muteBtn = document.createElement('button');
     muteBtn.className = 'bb-cp__btn bb-cp__btn--mute';
-    muteBtn.id = `bb-hmix-mute-${ch.id}`;
+    muteBtn.id = `bb-channel-mixer-mute-${ch.id}`;
     this.applyMuteStyle(muteBtn, isMuted);
     muteBtn.addEventListener('click', () => toggleChannelMuted(ch.id));
 
     const soloBtn = document.createElement('button');
     soloBtn.className = 'bb-cp__btn bb-cp__btn--solo';
-    soloBtn.id = `bb-hmix-solo-${ch.id}`;
+    soloBtn.id = `bb-channel-mixer-solo-${ch.id}`;
     this.applySoloStyle(soloBtn, isSoloed);
     soloBtn.addEventListener('click', () => toggleChannelSoloed(ch.id));
 
@@ -518,11 +518,11 @@ export class DawMixer {
 
   private toggleCollapse(btn: HTMLButtonElement, root: HTMLElement): void {
     this.collapsed = !this.collapsed;
-    root.classList.toggle('bb-hmix--collapsed', this.collapsed);
+    root.classList.toggle('bb-channel-mixer--collapsed', this.collapsed);
     btn.title = this.collapsed ? 'Expand mixer' : 'Collapse mixer';
     btn.setAttribute('aria-label', btn.title);
     btn.innerHTML = this.collapsed ? icon('chevron-up') : icon('chevron-down');
-    storage.set(StorageKey.DAW_MIXER_COLLAPSED, String(this.collapsed));
+    storage.set(StorageKey.CHANNEL_MIXER_COLLAPSED, String(this.collapsed));
   }
 
   // ─── Resize handle ──────────────────────────────────────────────────────────
@@ -535,14 +535,14 @@ export class DawMixer {
       const delta = startY - e.clientY;
       const newHeight = Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, startHeight + delta));
       this.height = newHeight;
-      root.style.setProperty('--bb-hmix-height', `${newHeight}px`);
+      root.style.setProperty('--bb-channel-mixer-height', `${newHeight}px`);
     };
 
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
       document.body.style.userSelect = '';
-      storage.set(StorageKey.DAW_MIXER_HEIGHT, String(this.height));
+      storage.set(StorageKey.CHANNEL_MIXER_HEIGHT, String(this.height));
     };
 
     handle.addEventListener('mousedown', (e: MouseEvent) => {
@@ -626,19 +626,19 @@ export class DawMixer {
         const anyMuted = Object.values(states).some(s => s.muted);
         const anySoloed = Object.values(states).some(s => s.soloed);
 
-        const unmuteAllBtn = document.getElementById('bb-hmix-unmute-all') as HTMLButtonElement | null;
+        const unmuteAllBtn = document.getElementById('bb-channel-mixer-unmute-all') as HTMLButtonElement | null;
         if (unmuteAllBtn) setAriaDisabled(unmuteAllBtn, !anyMuted);
-        const clearSoloAllBtn = document.getElementById('bb-hmix-clear-solo') as HTMLButtonElement | null;
+        const clearSoloAllBtn = document.getElementById('bb-channel-mixer-clear-solo') as HTMLButtonElement | null;
         if (clearSoloAllBtn) setAriaDisabled(clearSoloAllBtn, !anySoloed);
 
         for (const [id, info] of Object.entries(states)) {
           const channelId = Number(id);
-          const muteBtn = document.getElementById(`bb-hmix-mute-${channelId}`) as HTMLButtonElement | null;
+          const muteBtn = document.getElementById(`bb-channel-mixer-mute-${channelId}`) as HTMLButtonElement | null;
           if (muteBtn) this.applyMuteStyle(muteBtn, info.muted);
-          const soloBtn = document.getElementById(`bb-hmix-solo-${channelId}`) as HTMLButtonElement | null;
+          const soloBtn = document.getElementById(`bb-channel-mixer-solo-${channelId}`) as HTMLButtonElement | null;
           if (soloBtn) this.applySoloStyle(soloBtn, info.soloed);
           // Sync fader thumb position with current volume (e.g. when changed externally)
-          const thumbEl = document.getElementById(`bb-hmix-fader-${channelId}`) as HTMLElement | null;
+          const thumbEl = document.getElementById(`bb-channel-mixer-fader-${channelId}`) as HTMLElement | null;
           if (thumbEl) thumbEl.style.top = ((1 - (info.volume ?? 1)) * 100) + '%';
           this.updateAudibilityVisual(channelId);
         }
@@ -672,9 +672,9 @@ export class DawMixer {
   // ─── Real-time updates ───────────────────────────────────────────────────────
 
   private updatePosition(channelId: number, position: PlaybackPosition): void {
-    // Only the instrument name is shown in the DawMixer strip.
+    // Only the instrument name is shown in the ChannelMixer strip.
     // Pattern, sequence, and bar readouts are shown in the Channel Visualizer panel.
-    const instEl = document.getElementById(`bb-hmix-inst-${channelId}`);
+    const instEl = document.getElementById(`bb-channel-mixer-inst-${channelId}`);
     if (instEl && position.currentInstrument) {
       instEl.textContent = position.currentInstrument;
       instEl.title = `Instrument: ${position.currentInstrument}`;
@@ -684,7 +684,7 @@ export class DawMixer {
   private resetAllChannels(): void {
     const channels = this.ast?.channels ?? [];
     for (const ch of channels) {
-      const instEl = document.getElementById(`bb-hmix-inst-${ch.id}`);
+      const instEl = document.getElementById(`bb-channel-mixer-inst-${ch.id}`);
       if (instEl) {
         const defaultInst = instEl.dataset.defaultInst ?? `Ch${ch.id}`;
         instEl.textContent = defaultInst;
@@ -695,8 +695,8 @@ export class DawMixer {
   }
 
   private updateAudibilityVisual(channelId: number): void {
-    const strip = document.getElementById(`bb-hmix-strip-${channelId}`);
-    if (strip) strip.classList.toggle('bb-hmix__strip--silent', !isChannelAudible(channelStates.get(), channelId));
+    const strip = document.getElementById(`bb-channel-mixer-strip-${channelId}`);
+    if (strip) strip.classList.toggle('bb-channel-mixer__strip--silent', !isChannelAudible(channelStates.get(), channelId));
   }
 
   // ─── VU meter ────────────────────────────────────────────────────────────────
@@ -763,11 +763,11 @@ export class DawMixer {
         state.level = Math.max(0, state.level - 1);
       }
 
-      const vuEl = document.getElementById(`bb-hmix-vu-${channelId}`);
+      const vuEl = document.getElementById(`bb-channel-mixer-vu-${channelId}`);
       if (!vuEl) continue;
 
-      const segs = vuEl.querySelectorAll<HTMLElement>('.bb-hmix__vu-seg');
-      // `.bb-hmix__vu` uses `flex-direction: column` (no reversal). Segments are appended
+      const segs = vuEl.querySelectorAll<HTMLElement>('.bb-channel-mixer__vu-seg');
+      // `.bb-channel-mixer__vu` uses `flex-direction: column` (no reversal). Segments are appended
       // in DOM order from the highest index down to 0 (buildStrip iterates VU_SEGMENTS-1 → 0),
       // so the first child in the DOM is the topmost segment visually. No CSS trick is needed:
       // DOM insertion order alone places the highest segment at the top and the lowest at the bottom.
@@ -777,8 +777,8 @@ export class DawMixer {
         const seg = segs[domIdx];
         const isLit = segIdx < state.level;
         const isPeak = segIdx === state.peak - 1 && state.peak > 0;
-        seg.classList.toggle('bb-hmix__vu-seg--lit', isLit);
-        seg.classList.toggle('bb-hmix__vu-seg--peak', isPeak && !isLit);
+        seg.classList.toggle('bb-channel-mixer__vu-seg--lit', isLit);
+        seg.classList.toggle('bb-channel-mixer__vu-seg--peak', isPeak && !isLit);
       }
     }
   }

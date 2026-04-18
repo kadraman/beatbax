@@ -143,7 +143,7 @@ export class MenuBar {
     ['problems', true],
     ['help', true],
     ['shortcuts', true],
-    ['daw-mixer', true],
+    ['channel-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
     ['ai-assistant', false],
@@ -840,7 +840,7 @@ export class MenuBar {
           break;
         case 'm':
           e.preventDefault();
-          this.emitPanelToggle('daw-mixer');
+          this.emitPanelToggle('channel-mixer');
           break;
         case 'b':
           e.preventDefault();
