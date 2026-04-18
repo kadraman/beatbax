@@ -1,0 +1,6 @@
+# Build artefacts that tsc emits alongside .ts source files.
+# Correct output goes to dist/ — nothing below should be tracked in src/.
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map

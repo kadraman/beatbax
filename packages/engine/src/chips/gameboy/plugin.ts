@@ -9,6 +9,7 @@
 import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
 import { gameboyUIContributions } from './ui-contributions.js';
+import { version } from '../../version.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -179,8 +180,10 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
 
 export const gameboyPlugin: ChipPlugin = {
   name: 'gameboy',
-  version: '1.0.0',
+  version,
   channels: 4,
+  supportsPerChannelVolume: false,
+  instrumentVolumeRange: { min: 0, max: 15 },
 
   validateInstrument(inst: InstrumentNode): ValidationError[] {
     return validateGBInstrument(inst);

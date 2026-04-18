@@ -168,6 +168,49 @@ export interface ChipPlugin {
   channels: number;
 
   /**
+   * When `true`, this chip exposes a per-channel volume register that can be
+   * set at runtime (e.g. via `setChannelVolume()`). Chips that use
+   * envelope-driven amplitude (e.g. Game Boy DMG) should omit this or set it
+   * to `false` — their volume is baked into the instrument envelope and cannot
+   * be overridden independently.
+   *
+   * Prefer `supportsVolumeForChannel()` for chips with mixed per-channel support.
+   */
+  supportsPerChannelVolume?: boolean;
+
+  /**
+   * Fine-grained per-channel volume capability query.
+   *
+   * Returns `true` when the given channel index (0-based) has a runtime volume
+   * register that can be controlled independently of the instrument envelope.
+   * Returns `false` for channels with fixed amplitude (e.g. NES Triangle) or
+   * where volume is baked into sample data (e.g. NES DMC).
+   *
+   * When present, this method takes precedence over the chip-level
+   * `supportsPerChannelVolume` flag. When absent, fall back to
+   * `supportsPerChannelVolume ?? false` for every channel.
+   */
+  supportsVolumeForChannel?(channelIndex: number): boolean;
+
+  /**
+   * The integer range used by `vol` and `env` level fields in instrument
+   * definitions for this chip.
+   *
+   * - `min` and `max` are the inclusive raw hardware values.
+   * - `isAttenuation`: when `true`, `min` (0) = loudest and `max` = silent
+   *   (e.g. Sega Genesis YM2612 uses 0–127 attenuation).  When `false` or
+   *   omitted, `max` = loudest and `min` (0) = silent (e.g. Game Boy, NES).
+   *
+   * Defaults to `{ min: 0, max: 15 }` when absent.
+   *
+   * Examples:
+   *   - Game Boy / NES:   `{ min: 0, max: 15 }`
+   *   - PC-Engine:        `{ min: 0, max: 31 }`
+   *   - Sega Genesis:     `{ min: 0, max: 127, isAttenuation: true }`
+   */
+  instrumentVolumeRange?: { min: number; max: number; isAttenuation?: boolean };
+
+  /**
    * Validate a parsed instrument definition for this chip.
    * Return an empty array when the instrument is valid.
    */

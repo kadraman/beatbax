@@ -25,8 +25,23 @@ import type { ChipPlugin } from '@beatbax/engine';
 
 const myPlugin: ChipPlugin = {
   name: 'my-chip',            // Used in `chip my-chip` directive
-  version: '1.0.0',           // Semver
+  version: '1.0.0',           // Semver (see Step 3 for the recommended pattern)
   channels: 4,                // Number of audio channels
+
+  /**
+   * The integer range used by `vol` and `env` level fields in instrument
+   * definitions for this chip. Drives the instrument volume indicator in the
+   * web-ui Channel Mixer.
+   *
+   * - `min`/`max` are inclusive raw hardware values.
+   * - `isAttenuation`: when true, min=loudest, max=silent (e.g. Genesis YM2612).
+   * Defaults to { min: 0, max: 15 } when omitted.
+   *
+   * Common values:  Game Boy / NES: { min:0, max:15 }
+   *                 PC-Engine:       { min:0, max:31 }
+   *                 Sega Genesis:    { min:0, max:127, isAttenuation:true }
+   */
+  instrumentVolumeRange: { min: 0, max: 15 },
 
   validateInstrument(inst) {
     // Return [] if valid; array of ValidationError if not
@@ -158,14 +173,24 @@ export class MyPulseBackend implements ChipChannelBackend {
 
 ### Step 3: Create the plugin entry point
 
+Create a dedicated `src/version.ts` that exports the version as a plain constant. This is required to avoid the Node.js v22+ `ERR_IMPORT_ATTRIBUTE_MISSING` error that occurs when importing JSON with `import { version } from '../package.json'` (ESM JSON imports need a `with { type: 'json' }` assertion that TypeScript doesn't emit):
+
+```typescript
+// src/version.ts — keep in sync with package.json manually or via a build script
+export const version = '0.1.0';
+```
+
+Then import it in your entry point:
+
 ```typescript
 // src/index.ts
 import type { ChipPlugin } from '@beatbax/engine';
+import { version } from './version.js';
 import { MyPulseBackend } from './pulse.js';
 
 const myPlugin: ChipPlugin = {
   name: 'my-chip',
-  version: '1.0.0',
+  version,
   channels: 2,
 
   validateInstrument(inst) {
@@ -299,7 +324,40 @@ After installing your plugin (`npm install @beatbax/plugin-chip-my-chip`), it is
 ```bash
 # List all available chips (built-in + plugins)
 beatbax list-chips
+```
 
+The command shows only canonical chip names (no duplicate alias entries). Registered aliases are shown inline:
+
+```
+Available chip backends:
+
+  • gameboy (built-in)  [also: gb, dmg]
+      Version:  0.10.0
+      Channels: 4
+
+  • nes
+      Version:  0.2.0
+      Channels: 5
+
+  • my-chip
+      Version:  0.1.0
+      Channels: 2
+```
+
+Use `--json` for machine-readable output (includes an `aliases` array per entry):
+
+```bash
+beatbax list-chips --json
+```
+
+```json
+[
+  { "name": "gameboy", "version": "0.10.0", "channels": 4, "aliases": ["gb", "dmg"] },
+  { "name": "nes",     "version": "0.2.0",  "channels": 5, "aliases": [] }
+]
+```
+
+```bash
 # Verify a NES song file (after installing @beatbax/plugin-chip-nes)
 beatbax verify song.bax
 
@@ -527,6 +585,20 @@ test('plugin registers successfully', () => {
   const reg = new ChipRegistry();
   reg.register(myPlugin);
   expect(reg.has('my-chip')).toBe(true);
+  // listCanonical() returns only real plugin names, not aliases
+  expect(reg.listCanonical()).toContain('my-chip');
+});
+
+test('aliases are listed correctly', () => {
+  const reg = new ChipRegistry();
+  reg.register(myPlugin);
+  reg.registerAlias('mc', 'my-chip');
+  // aliasesFor() returns all aliases pointing to a canonical name
+  expect(reg.aliasesFor('my-chip')).toEqual(['mc']);
+  // list() still includes both canonical and alias names (for parser validation)
+  expect(reg.list()).toContain('mc');
+  // listCanonical() does NOT include aliases
+  expect(reg.listCanonical()).not.toContain('mc');
 });
 
 test('channel 0 renders audio', () => {

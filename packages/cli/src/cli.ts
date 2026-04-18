@@ -638,12 +638,13 @@ program
     const globalOpts = program.opts();
     const verbose = globalOpts?.verbose === true;
 
-    const chips = chipRegistry.list();
+    const chips = chipRegistry.listCanonical();
 
     if (options.json) {
       const details = chips.map(name => {
         const plugin = chipRegistry.get(name)!;
-        return { name: plugin.name, version: plugin.version, channels: plugin.channels };
+        const aliases = chipRegistry.aliasesFor(name);
+        return { name: plugin.name, version: plugin.version, channels: plugin.channels, aliases };
       });
       console.log(JSON.stringify(details, null, 2));
       return;
@@ -654,7 +655,9 @@ program
     for (const name of chips) {
       const plugin = chipRegistry.get(name)!;
       const star = name === 'gameboy' ? ' (built-in)' : '';
-      console.log(`  • ${name}${star}`);
+      const aliases = chipRegistry.aliasesFor(name);
+      const aliasSuffix = aliases.length ? `  [also: ${aliases.join(', ')}]` : '';
+      console.log(`  • ${name}${star}${aliasSuffix}`);
       console.log(`      Version:  ${plugin.version}`);
       console.log(`      Channels: ${plugin.channels}`);
       console.log('');

@@ -1439,6 +1439,39 @@
 .bb-settings-badge--planned      { background: #282828; color: #666; }
 .bb-settings-badge--stable       { background: #1a3a1a; color: #6ec96e; }
 
+/* Plugin version tag — shown beside plugin name */
+.bb-settings-plugin-version {
+  font-size: 10px;
+  color: #666;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  margin-left: 4px;
+}
+
+/* "Built-in" label replacing the toggle for always-on chips */
+.bb-settings-plugin-builtin {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #555;
+  padding: 1px 6px;
+  border: 1px solid #444;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* Sub-group heading within the plugins section */
+.bb-settings-subheading {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #555;
+  margin: 10px 0 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
 /* Buttons */
 .bb-settings-btn {
   background: #2d2d2d;
@@ -3245,6 +3278,71 @@
   background: #4a4a4a;
 }
 
+/* Instrument-native-volume reference column — RIGHT of VU meter.
+   A narrow read-only scale (0–15) with an amber notch marking the authored
+   vol= / env= level.  Visually distinct from the fader to avoid confusion:
+   fader (left) = runtime gain, this column (right) = instrument definition. */
+.bb-channel-mixer__inst-vol-col {
+  width: 12px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.bb-channel-mixer__inst-vol-shaft {
+  position: absolute;
+  inset: 0;
+}
+
+/* Center rail */
+.bb-channel-mixer__inst-vol-shaft::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  transform: translateX(-50%);
+  background: #3a3a3a;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* Scale tick marks — extend to the left of the center rail */
+.bb-channel-mixer__inst-vol-tick {
+  position: absolute;
+  right: 3px;
+  width: 4px;
+  height: 1px;
+  transform: translateY(-50%);
+  background: #4a4a4a;
+  pointer-events: none;
+}
+
+/* Amber notch — spans the full column width, with a left-pointing diamond */
+.bb-channel-mixer__inst-vol-notch {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-50%);
+  background: #f59e0b;
+  box-shadow: 0 0 4px rgba(245,158,11,0.7);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.bb-channel-mixer__inst-vol-notch::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 5px;
+  height: 5px;
+  background: #f59e0b;
+  box-shadow: 0 0 3px rgba(245,158,11,0.9);
+}
+
 /* Draggable fader thumb — horizontal capsule */
 .bb-channel-mixer__fader-thumb {
   position: absolute;
@@ -3347,6 +3445,26 @@
   flex-shrink: 0;
 }
 
+/* Compact instrument-volume readout (e.g. "vol 12/15") displayed below the
+   instrument name LCD.  Uses a dimmer amber to echo the fader reference notch. */
+.bb-channel-mixer__vol-readout {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 4px 1px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #b07020;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 10px;
+}
+
 .bb-channel-mixer__seq,
 .bb-channel-mixer__pat {
   font-size: 9px;
@@ -3442,7 +3560,12 @@
 [data-theme="light"] .bb-channel-mixer__fader-shaft::before { background: #bbb; }
 [data-theme="light"] .bb-channel-mixer__fader-tick--major { background: #999; }
 [data-theme="light"] .bb-channel-mixer__fader-thumb { background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%); border-color: #aaa; }
+[data-theme="light"] .bb-channel-mixer__inst-vol-shaft::before { background: #ccc; }
+[data-theme="light"] .bb-channel-mixer__inst-vol-tick { background: #aaa; }
+[data-theme="light"] .bb-channel-mixer__inst-vol-notch { background: #d97706; box-shadow: 0 0 3px rgba(217,119,6,0.6); }
+[data-theme="light"] .bb-channel-mixer__inst-vol-notch::before { background: #d97706; }
 
 [data-theme="light"] .bb-channel-mixer__inst { color: #007050; }
+[data-theme="light"] .bb-channel-mixer__vol-readout { color: #a05010; }
 [data-theme="light"] .bb-channel-mixer__seq  { color: #9a7110; }
 [data-theme="light"] .bb-channel-mixer__pat  { color: #0060a0; }
