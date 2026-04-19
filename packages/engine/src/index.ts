@@ -377,5 +377,6 @@ export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelN
 
 export type { ChipPlugin, ChipChannelBackend, ValidationError, ChipUIContributions, ChipHelpSection } from './chips/types.js';
 export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
+export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
+export { ExporterRegistry, exporterRegistry } from './export/registry.js';
 export { BeatBaxEngine } from './engine.js';
-

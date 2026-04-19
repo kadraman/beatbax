@@ -1,10 +1,9 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary, chipRegistry } from '@beatbax/engine';
-import type { ChipPlugin } from '@beatbax/engine';
+import { playFile, readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
-import { exportJSON, exportMIDI, exportUGE, exportWAVFromSong } from '@beatbax/engine/export';
 import { configureLogging } from '@beatbax/engine/util/logger';
-import { readFileSync, statSync, existsSync } from 'fs';
+import { readFileSync, statSync, existsSync, writeFileSync } from 'fs';
 import { resolve as resolvePath } from 'path';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
@@ -49,6 +48,19 @@ function ensureFileExists(file: string) {
     console.error(`Error: File not found: ${file}`);
     process.exit(1);
   }
+}
+
+function resolveExporterForChip(format: string, chipName: string): ExporterPlugin | undefined {
+  const chip = chipRegistry.resolve(chipName.toLowerCase());
+  return exporterRegistry.list(chip).find((p) => p.id.toLowerCase() === format.toLowerCase());
+}
+
+function listExporterIds(chipName?: string): string[] {
+  return (chipName ? exporterRegistry.list(chipName) : exporterRegistry.all()).map((p) => p.id).sort();
+}
+
+function formatOutputExtension(plugin: ExporterPlugin): string {
+  return plugin.extension.replace(/^\./, '') || plugin.id;
 }
 
 async function validateSource(src: string, filename?: string): Promise<ValidationResult> {
@@ -319,8 +331,8 @@ program
 
 program
   .command('export')
-  .description('Export a song to various formats (JSON, MIDI, UGE, WAV)')
-  .addArgument(new Argument('<format>', 'Target format').choices(['json', 'midi', 'uge', 'wav']))
+  .description('Export a song using a registered exporter plugin')
+  .addArgument(new Argument('<format>', 'Target format (run `list-exporters` to see available formats)'))
   .argument('<file>', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
@@ -330,6 +342,7 @@ program
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .option('--strict-gb', 'Fail export when numeric pan values are present (strict Game Boy compatibility)', false)
   .action(async (format, file, output, options) => {
+    const requestedFormat = String(format).toLowerCase();
     ensureFileExists(file);
     const globalOpts = program.opts();
 
@@ -386,10 +399,33 @@ program
 
     let outPath = output || options.out;
 
+    const chipName = chipRegistry.resolve(String(ast.chip || 'gameboy').toLowerCase());
+    const exporter = resolveExporterForChip(requestedFormat, chipName);
+    if (!exporter) {
+      const forChip = listExporterIds(chipName);
+      const all = listExporterIds();
+      console.error(`Unknown export format '${requestedFormat}' for chip '${chipName}'.`);
+      if (forChip.length > 0) {
+        console.error(`Available formats for '${chipName}': ${forChip.join(', ')}`);
+      } else {
+        console.error(`No exporters are registered for chip '${chipName}'.`);
+      }
+      console.error(`All registered formats: ${all.join(', ')}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    const validationErrors = exporter.validate?.(song) ?? [];
+    if (validationErrors.length > 0) {
+      console.error(`Exporter validation failed for '${requestedFormat}':`);
+      for (const message of validationErrors) console.error('  -', message);
+      process.exitCode = 2;
+      return;
+    }
+
     // If no output path provided, generate one based on input filename and format
     if (!outPath) {
-      const ext = format === 'json' ? '.json' : (format === 'midi' ? '.mid' : (format === 'uge' ? '.uge' : '.wav'));
-      outPath = file.replace(/\.[^/.]+$/, "") + ext;
+      outPath = file.replace(/\.[^/.]+$/, "") + `.${formatOutputExtension(exporter)}`;
     }
 
     const channels = options.channels
@@ -441,20 +477,35 @@ program
       process.exit(1);
     }
 
-    if (format === 'json') await exportJSON(song, outPath, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
-    else if (format === 'midi') await exportMIDI(song, outPath, { duration, channels }, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
-    else if (format === 'uge') await exportUGE(song, outPath, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true, strictGb: Boolean((options as any).strictGb) });
-    else if (format === 'wav') {
-      await exportWAVFromSong(song, outPath, {
-        duration,
-        renderChannels: channels,
-        sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
-        bitDepth: bitDepth as 16 | 24 | 32,
-        normalize: options.normalize === true
-      }, { debug: globalOpts && globalOpts.debug === true, verbose: globalOpts && globalOpts.verbose === true });
+    const payload = await exporter.export(song, {
+      outputPath: outPath,
+      sourcePath: file,
+      duration,
+      channels,
+      bitDepth: bitDepth as 16 | 24 | 32,
+      normalize: options.normalize === true,
+      strictGb: Boolean((options as any).strictGb),
+      sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
+      debug: globalOpts && globalOpts.debug === true,
+      verbose: globalOpts && globalOpts.verbose === true,
+    });
+
+    if (!existsSync(outPath) && payload !== undefined) {
+      if (typeof payload === 'string') {
+        writeFileSync(outPath, payload, 'utf8');
+      } else if (payload instanceof Uint8Array) {
+        writeFileSync(outPath, Buffer.from(payload));
+      } else if (payload instanceof ArrayBuffer) {
+        writeFileSync(outPath, Buffer.from(payload));
+      } else {
+        console.error(`Exporter '${requestedFormat}' returned unsupported payload type.`);
+        process.exitCode = 2;
+        return;
+      }
     }
-    else {
-      console.error('Unknown export format:', format);
+
+    if (!existsSync(outPath)) {
+      console.error(`Exporter '${requestedFormat}' completed but did not write an output file.`);
       process.exitCode = 2;
       return;
     }
@@ -462,18 +513,18 @@ program
     const stats = statSync(outPath);
     let debugInfo = '';
     if (globalOpts && globalOpts.debug) {
-      if (format === 'wav') {
+      if (requestedFormat === 'wav') {
         const sr = globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100;
         debugInfo = ` [DEBUG: ${sr}Hz, ${bitDepth}-bit, 2ch]`;
-      } else if (format === 'midi') {
+      } else if (requestedFormat === 'midi') {
         debugInfo = ` [DEBUG: ${song.channels.length} tracks]`;
-      } else if (format === 'uge') {
+      } else if (requestedFormat === 'uge') {
         debugInfo = ` [DEBUG: v6]`;
-      } else if (format === 'json') {
+      } else if (requestedFormat === 'json') {
         debugInfo = ` [DEBUG: v1]`;
       }
     }
-    console.log(`[OK] Exported ${format.toUpperCase()} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
+    console.log(`[OK] Exported ${requestedFormat.toUpperCase()} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
   });
 
 program
@@ -630,6 +681,85 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
   return discovered;
 }
 
+async function discoverExporterPlugins(options: { verbose?: boolean } = {}): Promise<ExporterPlugin[]> {
+  const discovered: ExporterPlugin[] = [];
+  const candidates: string[] = [];
+
+  try {
+    const { readdirSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const cliDir = dirname(fileURLToPath(import.meta.url));
+
+    const searchPaths = [
+      join(cliDir, '..', '..', 'node_modules'),
+      join(cliDir, '..', '..', '..', 'node_modules'),
+      join(process.cwd(), 'node_modules'),
+    ];
+
+    for (const nmDir of searchPaths) {
+      try {
+        const entries = readdirSync(nmDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+          if (entry.name === '@beatbax') {
+            const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
+            for (const scoped of scopedEntries) {
+              if ((scoped.isDirectory() || scoped.isSymbolicLink()) && scoped.name.startsWith('plugin-exporter-')) {
+                candidates.push(`@beatbax/${scoped.name}`);
+              }
+            }
+          }
+          if (entry.name.startsWith('beatbax-plugin-exporter-')) {
+            candidates.push(entry.name);
+          }
+        }
+      } catch (_) {
+        // node_modules dir doesn't exist here — skip
+      }
+    }
+  } catch (_) {
+    // Filesystem scan failed — continue without auto-discovery
+  }
+
+  for (const pkgName of [...new Set(candidates)]) {
+    try {
+      const mod = await import(pkgName);
+      const candidatesFromModule = Array.isArray(mod?.default)
+        ? mod.default
+        : (Array.isArray(mod?.exporterPlugins)
+            ? mod.exporterPlugins
+            : [mod?.default || mod?.exporterPlugin || mod]);
+      const plugins = candidatesFromModule.filter((plugin: any): plugin is ExporterPlugin =>
+        typeof plugin?.id === 'string' && typeof plugin?.export === 'function',
+      );
+
+      if (plugins.length === 0) {
+        if (options.verbose) {
+          console.warn(`[WARN] Skipping '${pkgName}': missing required ExporterPlugin fields (id, export)`);
+        }
+        continue;
+      }
+
+      for (const plugin of plugins) {
+        if (!exporterRegistry.has(plugin.id)) {
+          exporterRegistry.register(plugin);
+          discovered.push(plugin);
+          if (options.verbose) {
+            console.log(`[plugin] Loaded exporter plugin: '${plugin.id}' from ${pkgName} v${plugin.version}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      if (options.verbose) {
+        console.warn(`[WARN] Failed to load exporter plugin '${pkgName}':`, err.message);
+      }
+    }
+  }
+
+  return discovered;
+}
+
 program
   .command('list-chips')
   .description('List all available chip backends (built-in and plugin-discovered)')
@@ -664,6 +794,44 @@ program
     }
   });
 
+program
+  .command('list-exporters')
+  .description('List all available exporter plugins (built-in and plugin-discovered)')
+  .option('--chip <name>', 'Filter exporters by chip name')
+  .option('--json', 'Output JSON format')
+  .action(async (options) => {
+    const chip = options.chip ? chipRegistry.resolve(String(options.chip).toLowerCase()) : undefined;
+    const exporters = chip ? exporterRegistry.list(chip) : exporterRegistry.all();
+
+    if (options.json) {
+      const details = exporters.map((plugin) => ({
+        id: plugin.id,
+        label: plugin.label,
+        version: plugin.version,
+        extension: plugin.extension,
+        mimeType: plugin.mimeType,
+        supportedChips: plugin.supportedChips,
+      }));
+      console.log(JSON.stringify(details, null, 2));
+      return;
+    }
+
+    if (chip) {
+      console.log(`Available exporters for chip '${chip}':`);
+    } else {
+      console.log('Available exporters:');
+    }
+    console.log('');
+    for (const plugin of exporters) {
+      const chips = plugin.supportedChips.join(', ');
+      console.log(`  • ${plugin.id} (.${plugin.extension.replace(/^\./, '')})`);
+      console.log(`      Label:   ${plugin.label}`);
+      console.log(`      Version: ${plugin.version}`);
+      console.log(`      Chips:   ${chips}`);
+      console.log('');
+    }
+  });
+
 // Auto-discover chip plugins once at startup, before program.parse(), so that
 // every command (play, verify, export, list-chips) sees third-party chips.
 // We cannot rely on a preAction hook because program.opts() is unavailable
@@ -671,5 +839,6 @@ program
 (async () => {
   const verbose = process.argv.includes('--verbose') || process.argv.includes('-v');
   await discoverPlugins({ verbose });
+  await discoverExporterPlugins({ verbose });
   program.parse();
 })();

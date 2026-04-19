@@ -14,6 +14,15 @@ import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
+import { exporterRegistry } from '@beatbax/engine/export';
+
+/** Fallback icon per built-in exporter id (matches toolbar defaults). */
+const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
+  json: 'document',
+  midi: 'musical-note',
+  wav:  'speaker-wave',
+  uge:  'cpu-chip',
+};
 
 const log = createLogger('ui:menu-bar');
 
@@ -88,7 +97,7 @@ export interface MenuBarOptions {
   /** Open the Keyboard Shortcuts section of the Help Panel (Alt+Shift+K). */
   onShowShortcuts?: () => void;
   /** Export callback for File → Export menu */
-  onExport?: (format: 'json' | 'midi' | 'uge' | 'wav') => void;
+  onExport?: (format: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -134,6 +143,8 @@ export class MenuBar {
   private songNameEl!: HTMLElement;
   /** Currently open menu id, or null. */
   private openMenu: string | null = null;
+  /** Active chip — used to filter chip-specific export items. */
+  private activeChip = 'gameboy';
   /** AbortController for all document-level listeners. */
   private abort = new AbortController();
   /** Cached example content keyed by path. */
@@ -201,6 +212,14 @@ export class MenuBar {
   triggerShowShortcuts(): void { this.opts.onShowShortcuts?.(); }
   triggerToggleAI(): void { this.opts.onToggleAI?.(); }
   triggerShowSettings(): void { this.opts.onShowSettings?.(); }
+
+  /**
+   * Notify the menu bar of the active chip so that chip-specific export
+   * items are shown / hidden the next time the Export submenu opens.
+   */
+  setChip(chip: string): void {
+    this.activeChip = (chip || 'gameboy').toLowerCase();
+  }
 
   /** Update the song name shown in the menu bar title area. */
   setSongName(name: string): void {
@@ -396,12 +415,7 @@ export class MenuBar {
         label: 'Export',
         icon: 'arrow-up-tray',
         id: 'export',
-        children: [
-          { type: 'item', icon: 'document',      label: 'Export as JSON', action: () => this.opts.onExport?.('json') },
-          { type: 'item', icon: 'musical-note',  label: 'Export as MIDI', action: () => this.opts.onExport?.('midi') },
-          { type: 'item', icon: 'cpu-chip',      label: 'Export as UGE',  action: () => this.opts.onExport?.('uge') },
-          { type: 'item', icon: 'speaker-wave',  label: 'Export as WAV',  action: () => this.opts.onExport?.('wav') },
-        ],
+        lazyChildren: () => this.exportItems(),
       },
       {
         type: 'item',
@@ -660,6 +674,43 @@ export class MenuBar {
   }
 
   // ─── Dynamic item builders ────────────────────────────────────────────────────
+
+  private exportItems(): MenuItemDef[] {
+    const plugins = exporterRegistry.all().slice().sort((a, b) => {
+      const aUniversal = a.supportedChips.includes('*');
+      const bUniversal = b.supportedChips.includes('*');
+      if (aUniversal !== bUniversal) return aUniversal ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
+
+    const universal: MenuItemDef[] = [];
+
+    for (const plugin of plugins) {
+      // Menu bar intentionally shows only chip-agnostic exporters.
+      // Chip-specific exporters are available from the toolbar (chip-aware).
+      const isUniversal = plugin.supportedChips.includes('*');
+      if (!isUniversal) continue;
+
+      const iconName = plugin.uiContributions?.toolbarIcon
+        ?? EXPORTER_DEFAULT_ICONS[plugin.id]
+        ?? 'document-arrow-down';
+      const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
+      const item: MenuItemDef = {
+        type: 'item',
+        icon: iconName,
+        label: `Export as ${plugin.label} (${ext})`,
+        action: () => this.opts.onExport?.(plugin.id),
+      };
+
+      universal.push(item);
+    }
+
+    if (universal.length === 0) {
+      return [{ type: 'item', label: '(no exporters available)', disabled: true, action: () => {} }];
+    }
+
+    return universal;
+  }
 
   private recentFileItems(): MenuItemDef[] {
     const recent = loadRecentFiles();
