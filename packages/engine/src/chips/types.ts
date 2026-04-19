@@ -7,6 +7,7 @@
  */
 import { InstrumentNode } from '../parser/ast.js';
 import { SongModel } from '../song/songModel.js';
+import type { ExporterPlugin } from '../export/types.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -158,6 +159,13 @@ export interface ChipUIContributions {
  * ```
  */
 export interface ChipPlugin {
+  /**
+   * Optional exporter plugins bundled with this chip plugin.
+   * These are auto-registered into the global `exporterRegistry` when the chip
+   * plugin is registered.
+   */
+  exporterPlugins?: ExporterPlugin[];
+
   /** Chip identifier used in the `chip` directive (e.g. `'gameboy'`, `'nes'`). */
   name: string;
 
@@ -259,6 +267,7 @@ export interface ChipPlugin {
 
   /**
    * Optional native format export (e.g. NSF for NES, FMS for FamiStudio).
+   * @deprecated Prefer declaring one or more `exporterPlugins`.
    * @param song - Fully-resolved song model.
    * @param format - Target format name (plugin-defined, e.g. `'nsf'`).
    */

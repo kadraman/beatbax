@@ -1,3 +1,16 @@
+# Plugin System Updates (2026-04)
+
+**Recent changes and best practices for plugin developers:**
+
+- The `instrumentVolumeRange` field was added to the `ChipPlugin` interface (2026-04-18). This allows plugins to specify the integer range for instrument volume/envelope fields, and whether the scale is attenuation-based (e.g., Genesis YM2612). The web UI and Channel Mixer now use this for correct scale display.
+- **Version import:** Plugins must NOT import the version from package.json directly. Instead, create a `src/version.ts` file that exports a version constant, and import that in your plugin entry point. This avoids ESM import assertion errors in Node.js v22+.
+- The `ChipRegistry` API now includes `listCanonical()` (returns only canonical plugin names) and `aliasesFor(canonical)` (returns all aliases for a chip). The CLI and web UI use these for correct chip/plugin listing and alias handling.
+- The web UI Plugins panel now groups chips as Built-in (always-on, e.g. Game Boy) and Optional (toggleable plugins), showing version info from the plugin’s `version` field.
+- The Channel Mixer in the web UI now displays a chip-aware instrument volume reference column, using the plugin’s `instrumentVolumeRange` (or defaulting to `{ min: 0, max: 15 }`).
+- **Dual rendering:** Melodic channels should implement both `render()` (PCM, for CLI/headless) and `createPlaybackNodes()` (Web Audio, for browser/Electron) for full compatibility and effects support.
+- For sample-based plugins, implement `resolveSampleAsset()` and follow the import security model for asset resolution.
+- See the NES plugin for a canonical example of dual-path rendering and UI contributions.
+
 # BeatBax — Developer Notes
 
 This document captures architecture, implementation details, and testing notes for the completed MVP: a live-coding language targeting a Game Boy 4-channel sound model with deterministic scheduling, WebAudio playback, and multiple export formats.

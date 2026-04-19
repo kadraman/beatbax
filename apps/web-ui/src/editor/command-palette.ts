@@ -21,7 +21,7 @@ import { KeyCode, KeyMod } from 'monaco-editor';
 // Types
 // ---------------------------------------------------------------------------
 
-export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav';
+export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav' | 'famitracker';
 
 export interface CommandPaletteOptions {
   /** The Monaco editor instance. */
@@ -230,6 +230,13 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     label: 'BeatBax: Export → WAV',
     keybindings: [],
     run: () => onExport('wav'),
+  });
+
+  reg({
+    id: 'beatbax.exportFamitracker',
+    label: 'BeatBax: Export → FamiTracker (.ftm)',
+    keybindings: [],
+    run: () => onExport('famitracker'),
   });
 
   // ── BeatBax: Validate ─────────────────────────────────────────────────────
