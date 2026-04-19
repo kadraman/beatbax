@@ -7,6 +7,7 @@
  */
 import { ChipPlugin } from './types.js';
 import { gameboyPlugin } from './gameboy/plugin.js';
+import { exporterRegistry } from '../export/registry.js';
 
 export class ChipRegistry {
   private plugins = new Map<string, ChipPlugin>();
@@ -15,7 +16,7 @@ export class ChipRegistry {
 
   constructor() {
     // Register the built-in Game Boy plugin immediately.
-    this.plugins.set(gameboyPlugin.name, gameboyPlugin);
+    this.register(gameboyPlugin);
     // Register well-known aliases so `chip gb` and `chip dmg` are accepted
     // everywhere the registry is consulted (parser, player, renderers).
     this.aliases.set('gb', 'gameboy');
@@ -31,6 +32,11 @@ export class ChipRegistry {
       throw new Error(`Chip plugin '${plugin.name}' is already registered`);
     }
     this.plugins.set(plugin.name, plugin);
+    for (const exporterPlugin of plugin.exporterPlugins ?? []) {
+      if (!exporterRegistry.has(exporterPlugin.id)) {
+        exporterRegistry.register(exporterPlugin);
+      }
+    }
   }
 
   /**

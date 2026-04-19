@@ -41,6 +41,28 @@ afterEach(() => {
 });
 
 describe('Toolbar — setExportEnabled', () => {
+  it('shows famitracker export only for NES chip and dispatches on click', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const eventBus = new EventBus();
+    const onExport = jest.fn();
+    const toolbar = new Toolbar({
+      container,
+      eventBus,
+      onLoad: jest.fn(),
+      onExport,
+    });
+
+    const btn = container.querySelector<HTMLButtonElement>('[data-format="famitracker"]');
+    expect(btn).not.toBeNull();
+    toolbar.setChip('gameboy');
+    expect(btn!.hidden).toBe(true);
+    toolbar.setChip('nes');
+    expect(btn!.hidden).toBe(false);
+    btn!.click();
+    expect(onExport).toHaveBeenCalledWith('famitracker');
+  });
+
   it('disables all export buttons and appends hint when called with false', () => {
     const { container, toolbar } = makeToolbar();
 

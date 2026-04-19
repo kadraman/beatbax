@@ -36,6 +36,7 @@ describe('NES plugin metadata', () => {
     expect(nesPlugin.bundledSamples!['crash']).toBeDefined();
     expect(nesPlugin.bundledSamples!['bass_c2']).toBeDefined();
   });
+
 });
 
 // ─── Registry integration ─────────────────────────────────────────────────────

@@ -8,6 +8,15 @@ import type { ExportFormat } from '../export/export-manager';
 import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
+import { exporterRegistry } from '@beatbax/engine/export';
+
+/** Fallback toolbar icon per built-in exporter id. */
+const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
+  json: 'document',
+  midi: 'musical-note',
+  wav:  'speaker-wave',
+  uge:  'cpu-chip',
+};
 
 const log = createLogger('ui:toolbar');
 
@@ -42,6 +51,7 @@ export interface ToolbarOptions {
 
 export class Toolbar {
   private el!: HTMLElement;
+  private activeChip = 'gameboy';
   private _wrapEnabled = false;
   private _themeToggleBtn?: HTMLButtonElement;
   private _wrapToggleBtn?: HTMLButtonElement;
@@ -99,20 +109,8 @@ export class Toolbar {
 
       <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
 
-      <div class="bb-toolbar__group bb-toolbar__group--export">
+      <div class="bb-toolbar__group bb-toolbar__group--export" id="tb-export-group">
         <span class="bb-toolbar__label bb-toolbar__item--pri-export-label bb-toolbar__btn-label">Export:</span>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="json" title="Export as JSON (ISM format)">
-          ${icon('document', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">JSON</span>
-        </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="midi" title="Export as MIDI (4-track Standard MIDI File)">
-          ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">MIDI</span>
-        </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="uge" title="Export as UGE (hUGETracker v6)">
-          ${icon('cpu-chip', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">UGE</span>
-        </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="wav" title="Export as WAV (rendered audio)">
-          ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">WAV</span>
-        </button>
       </div>
 
       <div class="bb-toolbar__separator bb-toolbar__sep--verify" aria-hidden="true"></div>
@@ -123,18 +121,70 @@ export class Toolbar {
         </button>
       </div>
 
-      <div class="bb-toolbar__separator bb-toolbar__sep--view" aria-hidden="true"></div>
+      <div class="bb-toolbar__status" id="tb-status" aria-live="polite"></div>
 
-      <div class="bb-toolbar__group bb-toolbar__group--view">
+      <div class="bb-toolbar__group bb-toolbar__group--view bb-toolbar__group--right">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" title="Switch to light theme">
           ${icon('sun', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Light</span>
         </button>
       </div>
-
-      <div class="bb-toolbar__status" id="tb-status" aria-live="polite"></div>
     `;
 
     container.appendChild(this.el);
+    this.buildExportButtons();
+    this.setChip(this.activeChip);
+  }
+
+  /**
+   * Populate the export group dynamically from the exporter registry.
+   * Universal exporters (supportedChips: ['*']) come first (alphabetical),
+   * chip-specific exporters follow (alphabetical). Called once at render time
+   * and again whenever the active set of plugins changes (e.g. after reload).
+   */
+  private buildExportButtons(): void {
+    const group = this.el.querySelector<HTMLElement>('#tb-export-group');
+    if (!group) return;
+
+    // Remove any previously built buttons (keep the label span)
+    group.querySelectorAll<HTMLButtonElement>('[data-format]').forEach(b => b.remove());
+
+    const plugins = exporterRegistry.all().slice().sort((a, b) => {
+      const aUniversal = a.supportedChips.includes('*');
+      const bUniversal = b.supportedChips.includes('*');
+      if (aUniversal !== bUniversal) return aUniversal ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const plugin of plugins) {
+      const btn = document.createElement('button');
+      btn.className = 'bb-toolbar__btn bb-toolbar__btn--export';
+      btn.dataset.format = plugin.id;
+
+      const isUniversal = plugin.supportedChips.includes('*');
+      if (!isUniversal) {
+        btn.dataset.supportedChips = plugin.supportedChips.join(',');
+      }
+
+      const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
+      const chipLabel = isUniversal ? 'all chips' : plugin.supportedChips.join(', ');
+      btn.title = `Export as ${plugin.label} (${ext}) — ${chipLabel}`;
+
+      const iconName = plugin.uiContributions?.toolbarIcon
+        ?? EXPORTER_DEFAULT_ICONS[plugin.id]
+        ?? 'document-arrow-down';
+      const label = plugin.uiContributions?.toolbarLabel ?? plugin.id.toUpperCase();
+
+      btn.innerHTML = `${icon(iconName, 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">${label}</span>`;
+
+      btn.addEventListener('click', () => {
+        this.options.onExport(plugin.id as ExportFormat);
+      });
+
+      group.appendChild(btn);
+    }
+
+    // Re-apply chip visibility after rebuilding buttons
+    this.setChip(this.activeChip);
   }
 
   private attachEvents(): void {
@@ -243,7 +293,9 @@ export class Toolbar {
         const cached = this.exampleCache.get(path);
         if (cached !== undefined) {
           const filename = path.split('/').pop() || 'example.bax';
-          onLoad(filename, cached);
+          // Pass a better base name for loadedFilename (strip .bax)
+          const baseName = filename.replace(/\.[^.]+$/, '') || 'example';
+          onLoad(baseName + '.bax', cached);
           this.setStatus(`Loaded ${filename}`, 'success');
           return;
         }
@@ -252,8 +304,9 @@ export class Toolbar {
         try {
           const result = await loadRemote(path);
           const filename = path.split('/').pop() || 'example.bax';
+          const baseName = filename.replace(/\.[^.]+$/, '') || 'example';
           this.exampleCache.set(path, result.content);
-          onLoad(filename, result.content);
+          onLoad(baseName + '.bax', result.content);
           this.setStatus(`Loaded ${filename}`, 'success');
         } catch (err: any) {
           log.error('Failed to load example:', err);
@@ -293,15 +346,7 @@ export class Toolbar {
       }
     }, { signal: this.abortController.signal });
 
-    // Export buttons
-    const exportBtns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
-    exportBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const format = btn.dataset.format as ExportFormat;
-        log.debug(`Export requested: ${format}`);
-        onExport(format);
-      });
-    });
+    // Export buttons are wired individually in buildExportButtons()
 
     // Verify button
     const verifyBtn = this.el.querySelector<HTMLButtonElement>('#tb-verify');
@@ -473,6 +518,20 @@ export class Toolbar {
       btn.title = enabled
         ? btn.dataset.originalTitle
         : `${btn.dataset.originalTitle} (parse first)`;
+    });
+  }
+
+  /** Show/hide chip-specific export actions based on the current parsed chip. */
+  setChip(chip: string): void {
+    this.activeChip = (chip || 'gameboy').toLowerCase();
+    const btns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
+    btns.forEach((btn) => {
+      const supported = (btn.dataset.supportedChips || '*')
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean);
+      const visible = supported.includes('*') || supported.includes(this.activeChip);
+      btn.hidden = !visible;
     });
   }
 

@@ -15,6 +15,8 @@ export const MIME_TYPES: Record<string, string> = {
   midi: 'audio/midi',
   uge: 'application/octet-stream',
   wav: 'audio/wav',
+  ftm: 'application/octet-stream',
+  famitracker: 'application/octet-stream',
   bax: 'text/plain',
 };
 

@@ -198,6 +198,8 @@ describe('MIME_TYPES', () => {
     expect(MIME_TYPES.wav).toBe('audio/wav');
     expect(MIME_TYPES.midi).toBe('audio/midi');
     expect(MIME_TYPES.uge).toBe('application/octet-stream');
+    expect(MIME_TYPES.ftm).toBe('application/octet-stream');
+    expect(MIME_TYPES.famitracker).toBe('application/octet-stream');
     expect(MIME_TYPES.bax).toBe('text/plain');
   });
 });
