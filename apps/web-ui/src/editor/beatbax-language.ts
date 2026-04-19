@@ -84,7 +84,7 @@ export function registerBeatBaxLanguage(): void {
     inlineEffects: ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep'],
 
     // Export formats
-    exportFormats: ['json', 'midi', 'uge', 'wav', 'famitracker'],
+    exportFormats: ['json', 'midi', 'uge', 'wav', 'famitracker', 'famitracker-text'],
 
     // Chip types
     chipTypes: ['gameboy', 'gb', 'dmg'],
@@ -148,7 +148,9 @@ export function registerBeatBaxLanguage(): void {
         [/\b(pulse1|pulse2|wave|noise)\b/, 'type'],
 
         // Export formats (teal/cyan like constants)
-        [/\b(json|midi|uge|wav)\b/, 'constant.language'],
+        // famitracker-text must come before famitracker to avoid partial match
+        [/\bfamitracker-text\b/, 'constant.language'],
+        [/\b(json|midi|uge|wav|famitracker)\b/, 'constant.language'],
 
         // Chip types
         [/\b(gameboy|gb|dmg)\b/, 'type'],
@@ -391,6 +393,16 @@ export function registerBeatBaxLanguage(): void {
           label: 'export wav',
           detail: 'Export to WAV',
           insertText: 'export wav "song.wav"',
+        },
+        {
+          label: 'export famitracker',
+          detail: 'Export to FamiTracker Binary (.ftm) — NES only',
+          insertText: 'export famitracker "song.ftm"',
+        },
+        {
+          label: 'export famitracker-text',
+          detail: 'Export to FamiTracker Text (.txt) — NES only',
+          insertText: 'export famitracker-text "song.txt"',
         },
       ];
 

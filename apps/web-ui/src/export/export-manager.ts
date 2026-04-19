@@ -336,7 +336,15 @@ export class ExportManager {
     const plugin = exporterRegistry.get(format);
     if (!plugin) throw new Error(`Unknown export format: ${format}`);
 
-    const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
+    // Validate with plugin's validate() if available
+    if (typeof plugin.validate === 'function') {
+      const errors = plugin.validate(resolved);
+      if (Array.isArray(errors) && errors.length > 0) {
+        throw new Error(`Export failed: ${errors.join('; ')}`);
+      }
+    }
+
+    const ext = plugin.extension.replace(/^./, '') || this.extensionForFormat(format);
     const filename = ensureExtension(baseFilename, ext);
     const data = await plugin.export(resolved, { outputPath: filename });
 

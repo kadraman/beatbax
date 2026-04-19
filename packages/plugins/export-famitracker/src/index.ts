@@ -19,9 +19,10 @@ function placeholderHeader(song: Parameters<Required<ExporterPlugin>['export']>[
   const title = String(song.metadata?.name || 'untitled');
   const bpm = Number(song.bpm ?? 120);
   const channels = Array.isArray(song.channels) ? song.channels.length : 0;
+  const chip = String(song?.chip || 'gameboy').toLowerCase();
   return (
     `; BeatBax FamiTracker placeholder export\n` +
-    `; chip=nes\n` +
+    `; chip=${chip}\n` +
     `; title=${title}\n` +
     `; bpm=${bpm}\n` +
     `; channels=${channels}\n`
@@ -39,6 +40,8 @@ export const famitrackerBinaryExporterPlugin: ExporterPlugin = {
     return ensureNes(song);
   },
   export(song): Uint8Array {
+    const errors = ensureNes(song);
+    if (errors.length) throw new Error(errors.join('; '));
     const payload = placeholderHeader(song) + '; mode=binary-ftm\n';
     return toUint8Array(payload);
   },
@@ -59,6 +62,8 @@ export const famitrackerTextExporterPlugin: ExporterPlugin = {
     return ensureNes(song);
   },
   export(song): string {
+    const errors = ensureNes(song);
+    if (errors.length) throw new Error(errors.join('; '));
     return placeholderHeader(song) + '; mode=text-export\n';
   },
   uiContributions: {
