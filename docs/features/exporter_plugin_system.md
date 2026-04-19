@@ -1,6 +1,6 @@
 ---
 title: "Exporter Plugin System"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-04015
 issue: "https://github.com/kadraman/beatbax/issues/89"
@@ -72,3 +72,21 @@ The full interface design, `ExporterRegistry` implementation, CLI diff, file cha
 2. **Hard-code each new format as it is added.** Rejected because it requires modifying two core files (`cli.ts` and `export/index.ts`) for every new format, cannot accommodate community-contributed formats, and makes the CLI aware of chip internals that belong in chip plugins.
 
 3. **Make exporter plugins part of standalone `@beatbax/plugin-exporter-*` packages only (no bundling in chip plugins).** Rejected because it creates installation friction for the common case where a chip and its native tracker format are permanently coupled (e.g. UGE is only ever useful alongside the Game Boy chip). The `exporterPlugins` field on `ChipPlugin` solves this; standalone packages remain available for large or multi-chip exporters.
+
+## Implementation Status (2026-04-19)
+
+All spec items are implemented. 9 of 10 items are fully complete; item 9 is structurally complete with a stub export body pending real format encoding.
+
+| # | Item | Status |
+|---|------|--------|
+| 1 | `ExporterPlugin` interface in `export/types.ts` | ✅ Complete |
+| 2 | `ExporterRegistry` + `exporterRegistry` singleton | ✅ Complete |
+| 3 | Built-in exporters (JSON, MIDI, UGE, WAV) auto-registered | ✅ Complete |
+| 4 | `ChipPlugin.exporterPlugins` forwarded to `exporterRegistry` | ✅ Complete |
+| 5 | Public API exports from `plugin-api.ts` | ✅ Complete |
+| 6 | CLI `export` uses dynamic registry (no hard-coded choices) | ✅ Complete |
+| 7 | CLI `list-exporters [--chip] [--json]` command | ✅ Complete |
+| 8 | CLI auto-discovery for `@beatbax/plugin-exporter-*` | ✅ Complete |
+| 9 | `@beatbax/plugin-exporter-famitracker` real `.ftm`/`.txt` output | ⚠️ Stub — tracked in `docs/features/famitracker-export.md` |
+| 10 | `@beatbax/plugin-chip-nes` declares `exporterPlugins` | ✅ Complete |
+
