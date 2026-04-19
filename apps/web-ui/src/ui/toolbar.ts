@@ -42,6 +42,7 @@ export interface ToolbarOptions {
 
 export class Toolbar {
   private el!: HTMLElement;
+  private activeChip = 'gameboy';
   private _wrapEnabled = false;
   private _themeToggleBtn?: HTMLButtonElement;
   private _wrapToggleBtn?: HTMLButtonElement;
@@ -107,13 +108,13 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="midi" title="Export as MIDI (4-track Standard MIDI File)">
           ${icon('musical-note', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">MIDI</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="uge" title="Export as UGE (hUGETracker v6)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="uge" data-supported-chips="gameboy,gb,dmg" title="Export as UGE (hUGETracker v6)">
           ${icon('cpu-chip', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">UGE</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="wav" title="Export as WAV (rendered audio)">
           ${icon('speaker-wave', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">WAV</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="famitracker" title="Export as FamiTracker (.ftm) [placeholder]">
+        <button class="bb-toolbar__btn bb-toolbar__btn--export" data-format="famitracker" data-supported-chips="nes" title="Export as FamiTracker (.ftm) [placeholder]">
           ${icon('command-line', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">FTM</span>
         </button>
       </div>
@@ -138,6 +139,7 @@ export class Toolbar {
     `;
 
     container.appendChild(this.el);
+    this.setChip(this.activeChip);
   }
 
   private attachEvents(): void {
@@ -476,6 +478,20 @@ export class Toolbar {
       btn.title = enabled
         ? btn.dataset.originalTitle
         : `${btn.dataset.originalTitle} (parse first)`;
+    });
+  }
+
+  /** Show/hide chip-specific export actions based on the current parsed chip. */
+  setChip(chip: string): void {
+    this.activeChip = (chip || 'gameboy').toLowerCase();
+    const btns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
+    btns.forEach((btn) => {
+      const supported = (btn.dataset.supportedChips || '*')
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean);
+      const visible = supported.includes('*') || supported.includes(this.activeChip);
+      btn.hidden = !visible;
     });
   }
 

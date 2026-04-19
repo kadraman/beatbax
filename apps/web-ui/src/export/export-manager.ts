@@ -5,7 +5,7 @@
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
-import { exporterRegistry } from '@beatbax/engine';
+import { exporterRegistry } from '@beatbax/engine/export';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 import type { EventBus } from '../utils/event-bus';
@@ -156,8 +156,11 @@ export class ExportManager {
   }
 
   private extensionForFormat(format: string): string {
+    const plugin = exporterRegistry.get(format);
+    if (plugin) {
+      return plugin.extension.replace(/^\./, '') || format;
+    }
     if (format === 'midi') return 'mid';
-    if (format === 'famitracker') return 'ftm';
     return format;
   }
 

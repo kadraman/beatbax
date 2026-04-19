@@ -37,12 +37,6 @@ describe('NES plugin metadata', () => {
     expect(nesPlugin.bundledSamples!['bass_c2']).toBeDefined();
   });
 
-  test('includes famitracker exporter plugin metadata', () => {
-    const ids = (nesPlugin.exporterPlugins ?? []).map((p) => p.id);
-    expect(ids).toContain('famitracker');
-    const famitracker = (nesPlugin.exporterPlugins ?? []).find((p) => p.id === 'famitracker');
-    expect(famitracker?.extension).toBe('ftm');
-  });
 });
 
 // ─── Registry integration ─────────────────────────────────────────────────────

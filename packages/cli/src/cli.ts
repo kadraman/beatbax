@@ -725,20 +725,29 @@ async function discoverExporterPlugins(options: { verbose?: boolean } = {}): Pro
   for (const pkgName of [...new Set(candidates)]) {
     try {
       const mod = await import(pkgName);
-      const plugin: ExporterPlugin = mod.default || mod.exporterPlugin || mod;
+      const candidatesFromModule = Array.isArray(mod?.default)
+        ? mod.default
+        : (Array.isArray(mod?.exporterPlugins)
+            ? mod.exporterPlugins
+            : [mod?.default || mod?.exporterPlugin || mod]);
+      const plugins = candidatesFromModule.filter((plugin: any): plugin is ExporterPlugin =>
+        typeof plugin?.id === 'string' && typeof plugin?.export === 'function',
+      );
 
-      if (typeof plugin?.id !== 'string' || typeof plugin?.export !== 'function') {
+      if (plugins.length === 0) {
         if (options.verbose) {
           console.warn(`[WARN] Skipping '${pkgName}': missing required ExporterPlugin fields (id, export)`);
         }
         continue;
       }
 
-      if (!exporterRegistry.has(plugin.id)) {
-        exporterRegistry.register(plugin);
-        discovered.push(plugin);
-        if (options.verbose) {
-          console.log(`[plugin] Loaded exporter plugin: '${plugin.id}' from ${pkgName} v${plugin.version}`);
+      for (const plugin of plugins) {
+        if (!exporterRegistry.has(plugin.id)) {
+          exporterRegistry.register(plugin);
+          discovered.push(plugin);
+          if (options.verbose) {
+            console.log(`[plugin] Loaded exporter plugin: '${plugin.id}' from ${pkgName} v${plugin.version}`);
+          }
         }
       }
     } catch (err: any) {

@@ -110,6 +110,8 @@ export const StorageKey = {
   CHANNEL_MIXER_DOCK_MODE: 'ui.channelMixerDockMode',
   /** Enabled chip plugin IDs (JSON string[]). */
   ENABLED_PLUGINS: 'plugins.enabled',
+  /** Enabled exporter plugin IDs (JSON string[]). */
+  ENABLED_EXPORTER_PLUGINS: 'plugins.exporters.enabled',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

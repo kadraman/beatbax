@@ -15,7 +15,9 @@ import './styles.css';
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { loadPluginsFromStorage } from './plugins/registry-config';
+import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
 loadPluginsFromStorage();
+loadExporterPluginsFromStorage();
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
@@ -1313,6 +1315,7 @@ const menuBar = new MenuBar({
 eventBus.on('parse:success', ({ ast }: any) => {
   const metaName = (ast as any)?.metadata?.name;
   menuBar.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
+  toolbar?.setChip((ast as any)?.chip || 'gameboy');
 });
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
@@ -1364,6 +1367,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 toolbar.setWrapActive(settingWordWrap.get());
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
+toolbar.setChip(parsedChip.get());
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
   toolbar.setThemeIcon(theme);
   transportBar.volKnob.redraw();
