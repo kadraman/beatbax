@@ -1198,6 +1198,22 @@ async function handleExport(format: ExportFormat) {
     opWarn(problemsPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
     return;
   }
+
+  // Pre-validate: parse the source before handing off to the export pipeline.
+  // If the song is invalid we show errors in the Problems panel and bail early
+  // rather than surfacing a cryptic export-pipeline failure.
+  try {
+    parse(source);
+  } catch (parseErr: any) {
+    const msg = parseErr?.message ?? String(parseErr);
+    opError(problemsPanel, `Cannot export — fix song errors first: ${msg}`, 'export');
+    bottomTabs.show('problems');
+    if (diagnosticsManager && parseErr.loc) {
+      diagnosticsManager.setMarkers([parseErrorToDiagnostic(parseErr)]);
+    }
+    return;
+  }
+
   const result = await exportManager.export(source, format, { filename: loadedFilename });
   if (result.success) {
     opLog(outputPanel, `✓ Exported ${result.filename} (${result.size ?? 0} bytes)`, 'export');
@@ -1240,7 +1256,6 @@ const menuBar = new MenuBar({
       menuBar.setSongName('untitled');
       opLog(outputPanel, '📄 New song');
       emitParse(newSong);
-      toolbar?.setExportEnabled(true);
     }
   },
   onOpen: () => {
@@ -1256,7 +1271,6 @@ const menuBar = new MenuBar({
         eventBus.emit('song:loaded', { filename: result.filename });
         menuBar.recordRecent(result.filename);
         emitParse(result.content);
-        toolbar?.setExportEnabled(true);
       },
     });
   },
@@ -1285,7 +1299,6 @@ const menuBar = new MenuBar({
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
-    toolbar?.setExportEnabled(true);
   },
   onUndo: () => editor.editor?.trigger('menu', 'undo', null),
   onRedo: () => editor.editor?.trigger('menu', 'redo', null),
@@ -1316,6 +1329,12 @@ eventBus.on('parse:success', ({ ast }: any) => {
   const metaName = (ast as any)?.metadata?.name;
   menuBar.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
   toolbar?.setChip((ast as any)?.chip || 'gameboy');
+  menuBar.setChip((ast as any)?.chip || 'gameboy');
+  toolbar?.setExportEnabled(true);
+});
+
+eventBus.on('parse:error', () => {
+  toolbar?.setExportEnabled(false);
 });
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
@@ -1344,7 +1363,6 @@ toolbar = new Toolbar({
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
-    toolbar.setExportEnabled(true);
   },
   onExport: handleExport,
   onVerify: doVerify,
@@ -1368,6 +1386,7 @@ toolbar.setWrapActive(settingWordWrap.get());
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 toolbar.setChip(parsedChip.get());
+menuBar.setChip(parsedChip.get());
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
   toolbar.setThemeIcon(theme);
   transportBar.volKnob.redraw();
@@ -1389,10 +1408,14 @@ function doVerify(): void {
   }
   try {
     parse(source);
+    // Clear runtime and export errors from Problems panel on successful verify
+    problemsPanel.clearMessagesBySource('runtime', 'error');
+    problemsPanel.clearMessagesBySource('export', 'error');
+    problemsPanel.clearMessagesBySource('verify', 'error');
     opLog(outputPanel, '✔ Verification passed', 'verify');
     bottomTabs.show('output');
-    diagnosticsManager?.clearAll?.();
     toolbar.setExportEnabled(true);
+    diagnosticsManager?.clearAll?.();
   } catch (err: any) {
     opError(problemsPanel, `✗ Verification failed: ${err.message ?? err}`, 'verify');
     bottomTabs.show('problems');
@@ -1414,7 +1437,6 @@ const dragDrop = new DragDropHandler(document.body, {
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
-    toolbar.setExportEnabled(true);
     setTimeout(() => playbackManager.play(getSource()), 200);
   },
 });
@@ -1438,7 +1460,6 @@ const dragDrop = new DragDropHandler(document.body, {
       eventBus.emit('song:loaded', { filename });
       menuBar.recordRecent(filename);
       emitParse(result.content);
-      toolbar.setExportEnabled(true);
       setTimeout(() => playbackManager.play(getSource()), 300);
     }
   } catch (err: any) {
@@ -1453,12 +1474,6 @@ const dragDrop = new DragDropHandler(document.body, {
 // are populated without requiring the user to press Play first.
 (async () => {
   const content = getSource();
-  try {
-    parse(content); // validate first so we know whether to enable exports
-    toolbar.setExportEnabled(true);
-  } catch {
-    toolbar.setExportEnabled(false);
-  }
   emitParse(content);
 })();
 

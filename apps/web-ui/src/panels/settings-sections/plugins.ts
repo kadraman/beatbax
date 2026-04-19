@@ -124,7 +124,12 @@ export function buildPluginsSection(): HTMLElement {
   const builtInExporters = exporterRegistry
     .all()
     .filter((plugin) => BUILTIN_EXPORTER_IDS.includes(plugin.id))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => {
+      const aUniversal = a.supportedChips.includes('*');
+      const bUniversal = b.supportedChips.includes('*');
+      if (aUniversal !== bUniversal) return aUniversal ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
 
   for (const plugin of builtInExporters) {
     const row = document.createElement('div');
@@ -142,7 +147,11 @@ export function buildPluginsSection(): HTMLElement {
     const verSpan = document.createElement('span');
     verSpan.className = 'bb-settings-plugin-version';
     verSpan.textContent = `v${plugin.version}`;
-    titleLine.append(nameSpan, verSpan);
+
+    const stableBadge = document.createElement('span');
+    stableBadge.className = `bb-settings-badge ${BADGE_CLASS['Stable']}`;
+    stableBadge.textContent = 'Stable';
+    titleLine.append(nameSpan, verSpan, stableBadge);
 
     const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
     const desc = document.createElement('span');

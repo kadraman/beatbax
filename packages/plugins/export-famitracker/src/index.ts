@@ -30,7 +30,7 @@ function placeholderHeader(song: Parameters<Required<ExporterPlugin>['export']>[
 
 export const famitrackerBinaryExporterPlugin: ExporterPlugin = {
   id: 'famitracker',
-  label: 'FamiTracker Binary (.ftm)',
+  label: 'FamiTracker Binary',
   version,
   extension: 'ftm',
   mimeType: 'application/octet-stream',
@@ -50,7 +50,7 @@ export const famitrackerBinaryExporterPlugin: ExporterPlugin = {
 
 export const famitrackerTextExporterPlugin: ExporterPlugin = {
   id: 'famitracker-text',
-  label: 'FamiTracker Text (.txt)',
+  label: 'FamiTracker Text',
   version,
   extension: 'txt',
   mimeType: 'text/plain',
@@ -60,6 +60,10 @@ export const famitrackerTextExporterPlugin: ExporterPlugin = {
   },
   export(song): string {
     return placeholderHeader(song) + '; mode=text-export\n';
+  },
+  uiContributions: {
+    toolbarLabel: 'FTXT',
+    toolbarIcon: 'document-text',
   },
 };
 

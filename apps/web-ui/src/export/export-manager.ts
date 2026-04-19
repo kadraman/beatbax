@@ -25,9 +25,9 @@ import { settingAudioSampleRate, settingAudioBufferFrames } from '../stores/sett
 const log = createLogger('ui:export-manager');
 
 /**
- * Available export formats
+ * Available export formats — open string so plugin-provided IDs are accepted.
  */
-export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav' | 'famitracker';
+export type ExportFormat = string;
 
 /**
  * Export options
@@ -342,17 +342,17 @@ export class ExportManager {
 
     if (typeof data === 'string') {
       downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
-      return { success: true, format: format as ExportFormat, filename, size: data.length };
+      return { success: true, format, filename, size: data.length };
     }
 
     if (data instanceof Uint8Array) {
       downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format: format as ExportFormat, filename, size: data.byteLength };
+      return { success: true, format, filename, size: data.byteLength };
     }
 
     if (data instanceof ArrayBuffer) {
       downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format: format as ExportFormat, filename, size: data.byteLength };
+      return { success: true, format, filename, size: data.byteLength };
     }
 
     throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
