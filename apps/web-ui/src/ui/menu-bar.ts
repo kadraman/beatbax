@@ -676,7 +676,6 @@ export class MenuBar {
   // ─── Dynamic item builders ────────────────────────────────────────────────────
 
   private exportItems(): MenuItemDef[] {
-    const chip = this.activeChip;
     const plugins = exporterRegistry.all().slice().sort((a, b) => {
       const aUniversal = a.supportedChips.includes('*');
       const bUniversal = b.supportedChips.includes('*');
@@ -685,15 +684,12 @@ export class MenuBar {
     });
 
     const universal: MenuItemDef[] = [];
-    const chipSpecific: MenuItemDef[] = [];
 
     for (const plugin of plugins) {
+      // Menu bar intentionally shows only chip-agnostic exporters.
+      // Chip-specific exporters are available from the toolbar (chip-aware).
       const isUniversal = plugin.supportedChips.includes('*');
-      if (!isUniversal) {
-        // Only include chip-specific exporters for the current chip
-        const supported = plugin.supportedChips.map(s => s.toLowerCase());
-        if (!supported.includes(chip)) continue;
-      }
+      if (!isUniversal) continue;
 
       const iconName = plugin.uiContributions?.toolbarIcon
         ?? EXPORTER_DEFAULT_ICONS[plugin.id]
@@ -706,23 +702,14 @@ export class MenuBar {
         action: () => this.opts.onExport?.(plugin.id),
       };
 
-      if (isUniversal) {
-        universal.push(item);
-      } else {
-        chipSpecific.push(item);
-      }
+      universal.push(item);
     }
 
-    if (universal.length === 0 && chipSpecific.length === 0) {
+    if (universal.length === 0) {
       return [{ type: 'item', label: '(no exporters available)', disabled: true, action: () => {} }];
     }
 
-    const items: MenuItemDef[] = [...universal];
-    if (chipSpecific.length > 0) {
-      if (universal.length > 0) items.push({ type: 'separator' });
-      items.push(...chipSpecific);
-    }
-    return items;
+    return universal;
   }
 
   private recentFileItems(): MenuItemDef[] {
