@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-chip-nes",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "NES Ricoh 2A03 APU chip plugin for BeatBax.",
   "private": false,
   "type": "module",
@@ -37,6 +37,9 @@
     "build": "tsc -b",
     "test": "jest --config ./jest.config.cjs --passWithNoTests",
     "pretest": "npm run build --if-present"
+  },
+  "dependencies": {
+    "@beatbax/plugin-exporter-famitracker": "^0.1.0"
   },
   "peerDependencies": {
     "@beatbax/engine": ">=0.11.0"

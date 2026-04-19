@@ -1,5 +1,11 @@
 # @beatbax/plugin-chip-nes
 
+## 0.3.0
+
+### Minor Changes
+
+- Wire FamiTracker exporters into nesPlugin via exporterPlugins field; installing plugin-chip-nes now auto-registers famitracker and famitracker-text exporters.
+
 ## 0.2.2
 
 ### Patch Changes

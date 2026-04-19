@@ -27,6 +27,7 @@
 import type { ChipPlugin, ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { version } from './version.js';
+import { famitrackerBinaryExporterPlugin, famitrackerTextExporterPlugin } from '@beatbax/plugin-exporter-famitracker';
 import { createPulseChannel } from './pulse.js';
 import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
@@ -85,6 +86,7 @@ const nesPlugin: ChipPlugin = {
   },
 
   uiContributions: nesUIContributions,
+  exporterPlugins: [famitrackerBinaryExporterPlugin, famitrackerTextExporterPlugin],
 };
 
 export default nesPlugin;
