@@ -1,5 +1,16 @@
 # @beatbax/engine
 
+## 0.11.0
+
+### Minor Changes
+
+- d72b0c6: Added instrumentVolumeRange to the ChipPlugin interface, allowing plugins to specify min/max (and attenuation) for instrument volume/envelope fields. The web UI and Channel Mixer now use this for correct scale display.
+- d72b0c6: The plugin system is fully implemented: ChipPlugin and ChipChannelBackend interfaces, ChipRegistry for runtime registration/lookup, and UI contribution hooks for plugin-driven web UI.
+- d72b0c6: Added listCanonical() and aliasesFor() to ChipRegistry for canonical chip/plugin listing and alias handling.
+- d72b0c6: Plugins must now use a src/version.ts file for version constants (no direct package.json import).
+- d72b0c6: Dual rendering: melodic channels should implement both render() (PCM) and createPlaybackNodes() (Web Audio).
+- d72b0c6: Exporter plugin system is designed (see exporter_plugin_system.md), but core engine still uses built-in exporters.
+
 ## 0.10.1
 
 ### Patch Changes

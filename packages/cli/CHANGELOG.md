@@ -1,5 +1,18 @@
 # @beatbax/cli
 
+## 0.3.3
+
+### Patch Changes
+
+- d72b0c6: CLI auto-discovers and registers @beatbax/plugin-chip-* and beatbax-plugin-chip-* npm packages at startup.
+- d72b0c6: Added list-chips command to list all available chip backends, with a --json flag for machine-readable output.
+- d72b0c6: CLI now uses canonical chip/plugin names and aliases for all commands.
+- d72b0c6: Updated to use parser error recovery and multi-error reporting from engine.
+- Updated dependencies [d72b0c6]
+  - @beatbax/engine@0.11.0
+  - @beatbax/plugin-exporter-famitracker@1.0.0
+  - @beatbax/plugin-chip-nes@1.0.0
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @beatbax/plugin-chip-nes
 
+## 0.2.2
+
+### Patch Changes
+
+- d72b0c6: Implements dual rendering and UI contributions for web UI.
+- d72b0c6: (If present) Bundles exporter plugins for native tracker formats.
+- Updated dependencies [d72b0c6]
+  - @beatbax/engine@0.11.0
+
 ## 0.2.1
 
 ### Patch Changes
