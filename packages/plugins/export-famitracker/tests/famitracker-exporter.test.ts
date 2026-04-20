@@ -20,7 +20,8 @@ describe('famitracker exporter plugins', () => {
   test('text exporter returns .txt payload', () => {
     const data = famitrackerTextExporterPlugin.export(nesSong);
     expect(typeof data).toBe('string');
-    expect(String(data)).toContain('mode=text-export');
+    expect(String(data)).toContain('FamiTracker text export');
+    expect(String(data)).toContain('TITLE');
     expect(famitrackerTextExporterPlugin.extension).toBe('txt');
   });
 

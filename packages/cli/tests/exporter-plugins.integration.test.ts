@@ -64,8 +64,7 @@ play
     expect(output).toContain('[OK] Exported FAMITRACKER file');
     expect(existsSync(TEST_FTM_PATH)).toBe(true);
     const body = readFileSync(TEST_FTM_PATH, 'utf8');
-    expect(body).toContain('FamiTracker placeholder export');
-    expect(body).toContain('chip=nes');
+    expect(body).toContain('FamiTracker Module');
   });
 
   it('exports NES songs with the famitracker text placeholder plugin', () => {
@@ -87,8 +86,7 @@ play
     expect(output).toContain('[OK] Exported FAMITRACKER-TEXT file');
     expect(existsSync(TEST_FTXT_PATH)).toBe(true);
     const body = readFileSync(TEST_FTXT_PATH, 'utf8');
-    expect(body).toContain('mode=text-export');
-    expect(body).toContain('chip=nes');
+    expect(body).toContain('FamiTracker text export');
   });
 
   it('exports famitracker-text for dedicated macro verification sample songs', () => {
@@ -105,8 +103,7 @@ play
         expect(output).toContain('[OK] Exported FAMITRACKER-TEXT file');
         expect(existsSync(outPath)).toBe(true);
         const body = readFileSync(outPath, 'utf8');
-        expect(body).toContain('mode=text-export');
-        expect(body).toContain('chip=nes');
+        expect(body).toContain('FamiTracker text export');
       } finally {
         if (existsSync(outPath)) unlinkSync(outPath);
       }
