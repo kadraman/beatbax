@@ -83,8 +83,8 @@ describe('writeFtmText', () => {
     expect(output).toContain('VIBRATO  1');
   });
 
-  test('includes MACRO VOLUME for flat envelope', () => {
-    expect(output).toContain('MACRO VOLUME');
+  test('includes MACRO 0 (VOLUME) for flat envelope', () => {
+    expect(output).toContain('MACRO 0');
   });
 
   test('includes INST2A03 entries for each instrument', () => {
@@ -230,7 +230,7 @@ describe('writeFtmText with vol_env / arp_env macros', () => {
       ],
     };
     const text = writeFtmText(song);
-    expect(text).toContain('MACRO VOLUME');
+    expect(text).toContain('MACRO 0');  // 0 = VOLUME
     expect(text).toContain('15 12 8 4 2 1');
   });
 
@@ -266,7 +266,7 @@ describe('writeFtmText with vol_env / arp_env macros', () => {
       ],
     };
     const text = writeFtmText(song);
-    expect(text).toContain('MACRO ARPEGGIO');
+    expect(text).toContain('MACRO 1');  // 1 = ARPEGGIO
     expect(text).toContain('0 4 7');
   });
 });

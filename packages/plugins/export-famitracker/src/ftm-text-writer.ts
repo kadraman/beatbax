@@ -15,6 +15,7 @@ import {
   FtmPattern,
   FtmRow,
   FtmTrack,
+  MACRO_TYPE_INDEX,
   MacroTypeName,
   NesChannelType,
   SongLike,
@@ -265,16 +266,6 @@ function buildTrack(
 
 // ─── Text serialisation ───────────────────────────────────────────────────────
 
-function macroTypeFtm(type: MacroTypeName): string {
-  switch (type) {
-    case 'VOLUME': return 'VOLUME';
-    case 'ARPEGGIO': return 'ARPEGGIO';
-    case 'PITCH': return 'PITCH';
-    case 'HIPITCH': return 'HIPITCH';
-    case 'DUTYSEQ': return 'DUTYSEQ';
-  }
-}
-
 function serializeRow(row: FtmRow, numEffectCols: number): string {
   const effects = [];
   for (let e = 0; e < numEffectCols; e++) {
@@ -331,7 +322,7 @@ export function writeFtmText(song: SongLike): string {
     const list = macrosByType.get(type) ?? [];
     for (const m of list) {
       lines.push(
-        `MACRO ${macroTypeFtm(m.type)} ${m.index} ${m.loop} ${m.release} ${m.setting} : ${m.values.join(' ')}`,
+        `MACRO ${MACRO_TYPE_INDEX[m.type]} ${m.index} ${m.loop} ${m.release} ${m.setting} : ${m.values.join(' ')}`,
       );
     }
   }

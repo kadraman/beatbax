@@ -332,8 +332,8 @@ program
 program
   .command('export')
   .description('Export a song using a registered exporter plugin')
-  .addArgument(new Argument('<format>', 'Target format (run `list-exporters` to see available formats)'))
-  .argument('<file>', 'Path to the .bax song file')
+  .addArgument(new Argument('[format]', 'Target export format'))
+  .argument('[file]', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
   .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
@@ -342,8 +342,26 @@ program
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .option('--strict-gb', 'Fail export when numeric pan values are present (strict Game Boy compatibility)', false)
   .action(async (format, file, output, options) => {
-    const requestedFormat = String(format).toLowerCase();
+    // No format given — list all available export formats and exit
+    if (!format) {
+      const all = listExporterIds();
+      console.log('Available export formats:');
+      for (const id of all) console.log(`  ${id}`);
+      console.log('\nUsage: beatbax export <format> <file> [output]');
+      console.log('       beatbax export <format> --help   (format-specific help)');
+      return;
+    }
+    // If format looks like a file path (no file arg given), the user probably forgot format
+    if (!file) {
+      console.error(`Error: missing required argument 'file'`);
+      const all = listExporterIds();
+      console.error(`Available export formats: ${all.join(', ')}`);
+      console.error(`Usage: beatbax export <format> <file> [output]`);
+      process.exitCode = 1;
+      return;
+    }
     ensureFileExists(file);
+    const requestedFormat = String(format).toLowerCase();
     const globalOpts = program.opts();
 
     // Configure logger based on CLI flags

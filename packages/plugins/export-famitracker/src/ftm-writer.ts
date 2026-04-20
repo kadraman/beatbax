@@ -130,9 +130,8 @@ export function writeFtmBinary(song: SongLike): Uint8Array {
   const out = new BinaryWriter();
 
   // ── File header ────────────────────────────────────────────────────────────
-  // "FamiTracker Module\0" (19 chars + null = 20 bytes)
+  // "FamiTracker Module\0" — exactly 19 bytes (18 chars + null), then version.
   out.writeStringPadded(FTM_MAGIC, 19);
-  out.writeUint8(0); // explicit null terminator
   out.writeUint32LE(FTM_VERSION);
 
   const bpm = Number(song.bpm ?? 120);
@@ -143,14 +142,16 @@ export function writeFtmBinary(song: SongLike): Uint8Array {
   const rowsPerPattern = 16;
 
   // ── PARAMS block ──────────────────────────────────────────────────────────
+  // PARAMS v6: expansion_chip, channels, machine, engine_speed, vibrato_style,
+  //            highlight1, highlight2
   writeBlock(out, BLOCK.PARAMS, BLOCK_VERSION.PARAMS, (bw) => {
-    bw.writeUint8(0);               // expansion chip: 0 = none (2A03 only)
+    bw.writeUint8(0);               // expansion chip: 0 = 2A03 only
     bw.writeUint32LE(numChannels);  // number of channels
     bw.writeUint32LE(0);            // machine: 0 = NTSC
-    bw.writeUint32LE(speed);        // engine speed (tempo base)
-    bw.writeUint32LE(tempo);        // tempo
-    bw.writeUint32LE(rowsPerPattern); // pattern length
-    bw.writeUint32LE(1);            // song count
+    bw.writeUint32LE(0);            // engine speed: 0 = default (matches FRAMERATE 0)
+    bw.writeUint32LE(1);            // vibrato style: 1 = new (matches VIBRATO 1)
+    bw.writeUint32LE(4);            // highlight1 (rows per beat, default 4)
+    bw.writeUint32LE(16);           // highlight2 (rows per bar / SPLIT, default 16)
   });
 
   // ── INFO block ────────────────────────────────────────────────────────────
@@ -164,21 +165,22 @@ export function writeFtmBinary(song: SongLike): Uint8Array {
   });
 
   // ── HEADER block ──────────────────────────────────────────────────────────
+  // HEADER v3: song_count (uint8), then for each song: name[32] + one uint8
+  // per channel (extra effect column count, 0 = 1 column).
   writeBlock(out, BLOCK.HEADER, BLOCK_VERSION.HEADER, (bw) => {
-    bw.writeUint8(1); // song count
-    // Song name (32 bytes)
-    bw.writeStringPadded(title, 32);
-    // Channel ID table: one uint8 per channel (NES 2A03 channel IDs: 0-4)
+    bw.writeUint8(1); // song count = 1
+    bw.writeStringPadded(title, 32); // song name (32-byte null-padded)
+    // Effect column count per channel: 0 = 1 effect column (minimum)
     for (let c = 0; c < numChannels; c++) {
-      bw.writeUint8(c); // channel ID = channel index for standard 2A03
-    }
-    // Effect column counts per channel (1 each)
-    for (let c = 0; c < numChannels; c++) {
-      bw.writeUint8(1);
+      bw.writeUint8(0);
     }
   });
 
   // ── INSTRUMENTS block ─────────────────────────────────────────────────────
+  // INSTRUMENTS v6: count (uint32), then for each:
+  //   index (uint32), type (uint8: 0=2A03, 1=DPCM),
+  //   5 x seq_index (int32: -1 = no sequence),
+  //   name_len (uint32), name (char[name_len]) — length-prefixed, no null.
   const insts = Object.entries(song.insts ?? {});
   writeBlock(out, BLOCK.INSTRUMENTS, BLOCK_VERSION.INSTRUMENTS, (bw) => {
     bw.writeUint32LE(insts.length);
@@ -186,12 +188,13 @@ export function writeFtmBinary(song: SongLike): Uint8Array {
       const [name, inst] = insts[idx];
       const itype = String((inst as any).type ?? '').toLowerCase();
       bw.writeUint32LE(idx);       // instrument index
-      bw.writeUint8(itype === 'dmc' ? 1 : 0); // type: 0=2A03, 1=DPCM
-      // Sequence indices: volSeq, arpSeq, pitchSeq, hipitchSeq, dutySeq
-      // For simplicity, write -1 (no sequence) for all; text writer handles the real mapping
+      bw.writeUint8(itype === 'dmc' ? 1 : 0); // 0=2A03, 1=DPCM
+      // Sequence indices: vol, arp, pitch, hipitch, duty  (all -1 = unused)
       for (let s = 0; s < 5; s++) bw.writeUint32LE(0xffffffff); // -1 as uint32
-      // Name (32 bytes null-padded)
-      bw.writeStringPadded(name.slice(0, 31), 32);
+      // Length-prefixed name (no null terminator)
+      const trimName = name.slice(0, 255);
+      bw.writeUint32LE(trimName.length);
+      for (let i = 0; i < trimName.length; i++) bw.writeUint8(trimName.charCodeAt(i));
     }
   });
 
