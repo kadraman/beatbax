@@ -95,7 +95,7 @@ play
     for (const baxPath of FAMITRACKER_SAMPLE_BAX_PATHS) {
       const outPath = join(
         TEST_OUTPUT_DIR,
-        `${basename(baxPath, '.bax') || 'sample'}.txt`,
+        `${basename(baxPath, '.bax')}.txt`,
       );
       try {
         const output = execSync(
