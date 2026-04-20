@@ -25,7 +25,7 @@ const NOTE_SEMITONES: Record<string, number> = {
   'A#': 10,
   BB: 10,
   B: 11,
-  CB: 11,
+  // CB is handled specially in noteToFtm (Cb = B of the previous octave)
 };
 
 /**
@@ -53,21 +53,19 @@ export function noteToFtm(token: string): string {
   const ftmOctave = beatbaxOctave - 2;
 
   const key = letter + (acc === '#' ? '#' : acc === 'b' || acc === 'B' ? 'B' : '');
+
+  // Cb is enharmonically B of the previous octave
+  if (letter === 'C' && (acc === 'b' || acc === 'B')) {
+    const actualOctave = ftmOctave - 1;
+    if (actualOctave < 0 || actualOctave > 7) return '...';
+    return `B-${actualOctave}`;
+  }
+
   const semi = NOTE_SEMITONES[key];
   if (semi === undefined) return '...';
 
-  // Bb wraps to A# (same semitone), which is already handled via NOTE_SEMITONES.
-  // Cb = B of previous octave.
-  let actualOctave = ftmOctave;
-  let actualSemi = semi;
-  if ((acc === 'b' || acc === 'B') && letter === 'C') {
-    // Cb → B of previous octave
-    actualSemi = 11;
-    actualOctave = ftmOctave - 1;
-  }
-
-  if (actualOctave < 0 || actualOctave > 7) return '...';
-  return `${FTM_NOTE_NAMES[actualSemi]}${actualOctave}`;
+  if (ftmOctave < 0 || ftmOctave > 7) return '...';
+  return `${FTM_NOTE_NAMES[semi]}${ftmOctave}`;
 }
 
 /** Noise period index 0-15 (normal mode) to FTM noise note string. */
@@ -228,6 +226,14 @@ function effectPriority(code: string): number {
   return EFFECT_PRIORITY[code[0]] ?? 99;
 }
 
+/** Reusable empty row — returned for rest and sustain events. */
+const EMPTY_ROW: FtmRow = Object.freeze({
+  note: '...',
+  instrument: '..',
+  volume: '.',
+  effects: [],
+});
+
 /**
  * Build a single FtmRow for an ISM event. */
 export function buildRow(
@@ -237,19 +243,12 @@ export function buildRow(
   maxEffectCols: number,
   warnings: string[],
 ): FtmRow {
-  const EMPTY: FtmRow = {
-    note: '...',
-    instrument: '..',
-    volume: '.',
-    effects: [],
-  };
-
   if (event.type === 'rest') {
-    return EMPTY;
+    return EMPTY_ROW;
   }
 
   if (event.type === 'sustain') {
-    return EMPTY;
+    return EMPTY_ROW;
   }
 
   if (event.type === 'note' || event.type === 'named') {
@@ -265,12 +264,12 @@ export function buildRow(
       note = 'C-2'; // DMC trigger note (ignored by FTM; pitch from instrument)
     } else if (ev.token) {
       note = noteToFtm(ev.token);
-      if (note === '...') return EMPTY; // out of range
+      if (note === '...') return EMPTY_ROW; // out of range
     } else if (ev.defaultNote) {
       note = noteToFtm(ev.defaultNote);
-      if (note === '...') return EMPTY;
+      if (note === '...') return EMPTY_ROW;
     } else {
-      return EMPTY;
+      return EMPTY_ROW;
     }
 
     const instrument = instIndex !== null ? toHex2(instIndex) : '..';
@@ -310,7 +309,7 @@ export function buildRow(
     return { note, instrument, volume, effects };
   }
 
-  return EMPTY;
+  return EMPTY_ROW;
 }
 
 // ─── Pattern grouping ─────────────────────────────────────────────────────────
