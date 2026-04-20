@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from '@jest/globals';
 import { execSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { basename, join } from 'path';
 
 const TEST_OUTPUT_DIR = join(__dirname, '..', '..', '..', 'tmp');
 const CLI_PATH = join(__dirname, '..', 'dist', 'cli.js');
@@ -95,7 +95,7 @@ play
     for (const baxPath of FAMITRACKER_SAMPLE_BAX_PATHS) {
       const outPath = join(
         TEST_OUTPUT_DIR,
-        `${baxPath.split('/').pop()?.replace('.bax', '') || 'sample'}.txt`,
+        `${basename(baxPath, '.bax') || 'sample'}.txt`,
       );
       try {
         const output = execSync(
