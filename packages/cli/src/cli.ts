@@ -351,9 +351,10 @@ program
       console.log('       beatbax export <format> --help   (format-specific help)');
       return;
     }
-    // If format looks like a file path (no file arg given), the user probably forgot format
+    // `file` is missing — user ran `beatbax export <format>` without a file,
+    // or provided only one positional arg that was consumed as `format`.
     if (!file) {
-      console.error(`Error: missing required argument 'file'`);
+      console.error(`Error: 'format' and 'file' are both required.`);
       const all = listExporterIds();
       console.error(`Available export formats: ${all.join(', ')}`);
       console.error(`Usage: beatbax export <format> <file> [output]`);
