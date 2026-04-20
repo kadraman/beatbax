@@ -8,6 +8,22 @@ const CLI_PATH = join(__dirname, '..', 'dist', 'cli.js');
 const TEST_NES_BAX_PATH = join(TEST_OUTPUT_DIR, 'cli_nes_export_test.bax');
 const TEST_FTM_PATH = join(TEST_OUTPUT_DIR, 'cli_nes_export_test.ftm');
 const TEST_FTXT_PATH = join(TEST_OUTPUT_DIR, 'cli_nes_export_test.txt');
+const FAMITRACKER_SAMPLE_DIR = join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'songs',
+  'features',
+  'famitracker',
+);
+const FAMITRACKER_SAMPLE_BAX_PATHS = [
+  join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_vol_env_loop.bax'),
+  join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_pitch_env.bax'),
+  join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_arp_triangle.bax'),
+  join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_duty_env.bax'),
+  join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_noise_vol_env_oneshot.bax'),
+];
 
 beforeAll(() => {
   if (!existsSync(TEST_OUTPUT_DIR)) {
@@ -73,5 +89,27 @@ play
     const body = readFileSync(TEST_FTXT_PATH, 'utf8');
     expect(body).toContain('mode=text-export');
     expect(body).toContain('chip=nes');
+  });
+
+  it('exports famitracker-text for dedicated macro verification sample songs', () => {
+    for (const baxPath of FAMITRACKER_SAMPLE_BAX_PATHS) {
+      const outPath = join(
+        TEST_OUTPUT_DIR,
+        `${baxPath.split('/').pop()?.replace('.bax', '') || 'sample'}.txt`,
+      );
+      try {
+        const output = execSync(
+          `node "${CLI_PATH}" export famitracker-text "${baxPath}" "${outPath}"`,
+          { encoding: 'utf-8' },
+        );
+        expect(output).toContain('[OK] Exported FAMITRACKER-TEXT file');
+        expect(existsSync(outPath)).toBe(true);
+        const body = readFileSync(outPath, 'utf8');
+        expect(body).toContain('mode=text-export');
+        expect(body).toContain('chip=nes');
+      } finally {
+        if (existsSync(outPath)) unlinkSync(outPath);
+      }
+    }
   });
 });

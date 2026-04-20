@@ -449,6 +449,12 @@ Types: `FtmMacro`, `FtmInstrument2A03`, `FtmInstrumentDPCM`, `FtmDpcmSample`, `F
   - Ch2 (`i_duty`): MACRO DUTY present with 16 values, loop=0 (cycling wah)
   - Ch3 (`i_arp`): MACRO ARPEGGIO present with `[0,4,7]`, loop=0 (continuous triad shimmer); written on triangle instrument
   - Ch4 (`i_kick`): MACRO VOLUME `[15,12,8,4,2,1]`, loop=-1 (one-shot decay); written on noise instrument
+- Small focused fixtures in `songs/features/famitracker/`:
+  - `nes_macro_vol_env_loop.bax` (looping `vol_env`)
+  - `nes_macro_pitch_env.bax` (`pitch_env` semitone-to-FTM conversion coverage)
+  - `nes_macro_arp_triangle.bax` (`arp_env` on triangle)
+  - `nes_macro_duty_env.bax` (`duty_env` loop behaviour)
+  - `nes_macro_noise_vol_env_oneshot.bax` (noise one-shot `vol_env` without loop)
 - Effects songs (from `songs/effects/`):
   - `arpeggio.bax` (chip gameboy, but run through NES chip for coverage): `arpMajor7` (3 offsets) → warning + truncated to `047`
   - `notecut.bax` → all `cut:N` tokens produce `Sxx` with correct values
@@ -480,7 +486,7 @@ The `export()` functions are internal to the plugin. The `ExporterPlugin` interf
 - [ ] Update `index.ts`: remove `placeholderHeader()`, wire real writers
 - [ ] Unit tests: macros (including pitch_env ×16, arp_env on triangle, vol_env no-loop)
 - [ ] Unit tests: patterns, note encoding, all supported effects + dropped effects with warning
-- [ ] Integration tests: all four NES example songs + nes_software_macros_demo.bax
+- [ ] Integration tests: all four NES example songs + nes_software_macros_demo.bax + `songs/features/famitracker/*.bax`
 - [ ] Golden-file test for `kingdom_hall.bax`
 - [ ] Update `packages/plugins/export-famitracker/README.md`
 - [ ] Document known limitations in the README
@@ -515,6 +521,7 @@ The `export()` functions are internal to the plugin. The `ExporterPlugin` interf
 - `packages/plugins/chip-nes/src/` — NES channel backends
 - `songs/nes/` — four NES example songs covering all field combinations used in practice
 - `songs/features/nes_software_macros_demo.bax` — definitive source for instrument-level macro behaviour (`pitch_env`, `duty_env`, `arp_env` on triangle, `vol_env` on noise)
+- `songs/features/famitracker/*.bax` — compact macro-focused fixtures for fast exporter verification
 - `songs/effects/` — eleven effect demo songs covering all per-note effect types and their export constraints
 - `docs/features/exporter_plugin_system.md` — parent feature (complete)
 
