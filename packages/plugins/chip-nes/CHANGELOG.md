@@ -1,5 +1,11 @@
 # @beatbax/plugin-chip-nes
 
+## 0.3.1
+
+### Patch Changes
+
+- corrected dependency order
+
 ## 0.3.0
 
 ### Minor Changes
