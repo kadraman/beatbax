@@ -16,6 +16,12 @@ import './styles.css';
 // populated when the parser validates `chip` directives.
 import { loadPluginsFromStorage } from './plugins/registry-config';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
+import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
+import { storage, StorageKey } from './utils/local-storage';
+
+const storedNesMixMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);
+setNesWebAudioMixMode(storedNesMixMode === 'hardware' ? 'hardware' : ('normalized' as NesWebAudioMixMode));
+
 loadPluginsFromStorage();
 loadExporterPluginsFromStorage();
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +104,7 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
-import { BeatBaxStorage, storage, StorageKey } from './utils/local-storage';
+import { BeatBaxStorage } from './utils/local-storage';
 
 const log = createLogger('ui:main');
 

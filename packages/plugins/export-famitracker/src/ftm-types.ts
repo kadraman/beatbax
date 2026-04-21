@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for FamiTracker binary and text export.
+ * Shared type definitions for FamiTracker text export.
  */
 
 import type { InstrumentNode } from '@beatbax/engine';

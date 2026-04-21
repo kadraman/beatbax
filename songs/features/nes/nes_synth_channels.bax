@@ -1,0 +1,28 @@
+# NES synth channel verification song.
+# Covers pulse1, pulse2, triangle, and noise in one export fixture.
+
+song name "FTM NES Synth Channels Test"
+chip nes
+bpm 120
+
+inst i_pulse1 type=pulse1 duty=25 vol=10
+inst i_pulse2 type=pulse2 duty=50 vol=8
+inst i_tri    type=triangle linear=96
+inst i_noise  type=noise  noise_mode=normal  noise_period=6   env=12,down   env_period=1
+
+pat p_pulse1 = C4:4 E4:4 G4:4 C5:4
+pat p_pulse2 = C3:4 . G3:4 .
+pat p_tri    = C2:8 G2:8
+pat p_noise  = . . . i_noise . . . C2 . . . i_noise . . . C2
+
+seq s_pulse1 = p_pulse1 p_pulse1
+seq s_pulse2 = p_pulse2 p_pulse2
+seq s_tri    = p_tri p_tri
+seq s_noise  = p_noise p_noise
+
+channel 1 => inst i_pulse1 seq s_pulse1
+channel 2 => inst i_pulse2 seq s_pulse2
+channel 3 => inst i_tri    seq s_tri
+channel 4 => inst i_noise  seq s_noise
+
+play

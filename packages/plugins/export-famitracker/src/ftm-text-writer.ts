@@ -47,17 +47,79 @@ function channelIdToIndex(id: number): number {
 interface ResolvedInstruments {
   insts2a03: FtmInstrument2A03[];
   instsDpcm: FtmInstrumentDPCM[];
+  dpcmSamples: Array<{ index: number; name: string; data: Uint8Array }>;
+  dmcTriggerNoteByInstrument: Map<string, number>;
   allMacros: FtmMacro[];
   instIndexByName: Map<string, number>;
   warnings: string[];
 }
 
-function resolveInstruments(song: SongLike): ResolvedInstruments {
+interface WriterOptions {
+  resolveSampleAsset?: (ref: string) => Promise<ArrayBuffer>;
+  onWarn?: (message: string) => void;
+}
+
+function parseBooleanLoose(value: unknown): boolean {
+  const norm = String(value ?? '').trim().toLowerCase();
+  return norm === 'true' || norm === '1' || norm === 'yes' || norm === 'on';
+}
+
+function toSampleName(ref: string, fallback: string): string {
+  const trimmed = String(ref || '').trim();
+  if (!trimmed) return fallback;
+  const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  const name = slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
+  return name || fallback;
+}
+
+function toUint8Array(data: ArrayBuffer): Uint8Array {
+  return new Uint8Array(data);
+}
+
+function encodeDpcmDataLines(bytes: Uint8Array): string[] {
+  const lines: string[] = [];
+  const chunkSize = 32;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize);
+    const hex = Array.from(chunk, (b) => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+    lines.push(`DPCM : ${hex}`);
+  }
+  return lines;
+}
+
+async function resolveInstruments(song: SongLike, options?: WriterOptions): Promise<ResolvedInstruments> {
   const warnings: string[] = [];
   const allMacros: FtmMacro[] = [];
   const insts2a03: FtmInstrument2A03[] = [];
   const instsDpcm: FtmInstrumentDPCM[] = [];
+  const dpcmSamples: Array<{ index: number; name: string; data: Uint8Array }> = [];
+  const dmcTriggerNoteByInstrument = new Map<string, number>();
   const instIndexByName = new Map<string, number>();
+  const dpcmSampleIndexByRef = new Map<string, number>();
+
+  const addDpcmSample = (sampleRef: string, sampleBytes: Uint8Array): number => {
+    const key = sampleRef || `__inline_${dpcmSamples.length}`;
+    const existing = dpcmSampleIndexByRef.get(key);
+    if (existing !== undefined) return existing;
+    const index = dpcmSamples.length;
+    dpcmSamples.push({
+      index,
+      name: toSampleName(sampleRef, `beatbax_sample_${index}.dmc`),
+      data: sampleBytes.length > 0 ? sampleBytes : new Uint8Array([0x00]),
+    });
+    dpcmSampleIndexByRef.set(key, index);
+    return index;
+  };
+
+  const ensureSilenceSample = (): number => {
+    const key = '__silence__';
+    const existing = dpcmSampleIndexByRef.get(key);
+    if (existing !== undefined) return existing;
+    const index = dpcmSamples.length;
+    dpcmSamples.push({ index, name: 'beatbax_silence.dmc', data: new Uint8Array([0x00]) });
+    dpcmSampleIndexByRef.set(key, index);
+    return index;
+  };
 
   // Determine which channel each instrument belongs to by scanning channel events
   const instChannelType = new Map<string, NesChannelType>();
@@ -92,25 +154,66 @@ function resolveInstruments(song: SongLike): ResolvedInstruments {
 
   let instIdx = 0;
 
+  let sharedDmcInstIndex: number | null = null;
+  let sharedDmcInst: FtmInstrumentDPCM | null = null;
+  let dmcNoteCursor = 36; // C-2
+
   for (const [name, inst] of Object.entries(song.insts ?? {})) {
     const chType = instChannelType.get(name) ?? 'pulse1';
 
     if (chType === 'dmc') {
-      // DPCM instrument — placeholder for now (no bundled sample resolution at export time)
-      const dpcmInst: FtmInstrumentDPCM = {
-        index: instIdx,
-        name,
-        notes: new Map(),
-      };
-      // Map note C-2 (MIDI 36 in standard) as the default trigger
-      dpcmInst.notes.set(36, {
-        sampleIndex: 0,
+      if (sharedDmcInstIndex === null || sharedDmcInst === null) {
+        sharedDmcInstIndex = instIdx;
+        const i2a03: FtmInstrument2A03 = {
+          index: sharedDmcInstIndex,
+          name: 'dmc-kit',
+          volSeq: -1,
+          arpSeq: -1,
+          pitchSeq: -1,
+          hipitchSeq: -1,
+          dutySeq: -1,
+        };
+        insts2a03.push(i2a03);
+        sharedDmcInst = {
+          index: sharedDmcInstIndex,
+          name: 'dmc-kit',
+          notes: new Map(),
+        };
+        instsDpcm.push(sharedDmcInst);
+        instIdx++;
+      }
+
+      let sampleIndex: number | undefined;
+      const sampleRef = String((inst as any).dmc_sample ?? '').trim();
+      if (sampleRef) {
+        if (typeof options?.resolveSampleAsset === 'function') {
+          try {
+            const resolved = await options.resolveSampleAsset(sampleRef);
+            sampleIndex = addDpcmSample(sampleRef, toUint8Array(resolved));
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            warnings.push(`DMC instrument '${name}' could not resolve sample '${sampleRef}': ${message}`);
+          }
+        } else {
+          warnings.push(`DMC instrument '${name}' references '${sampleRef}' but no sample resolver was provided; using silence sample`);
+        }
+      }
+      if (sampleIndex === undefined) {
+        sampleIndex = ensureSilenceSample();
+      }
+
+      const noteIndex = Math.max(0, Math.min(95, dmcNoteCursor));
+      dmcNoteCursor += 1;
+
+      // Map each DMC source instrument to its own trigger note in the shared DPCM instrument.
+      sharedDmcInst.notes.set(noteIndex, {
+        sampleIndex,
         pitch: Number((inst as any).dmc_rate ?? 15),
-        loop: Boolean((inst as any).dmc_loop ?? false),
+        loop: parseBooleanLoose((inst as any).dmc_loop ?? 'false'),
         delta: (inst as any).dmc_level !== undefined ? Number((inst as any).dmc_level) : -1,
       });
-      instsDpcm.push(dpcmInst);
-      instIndexByName.set(name, instIdx++);
+      dmcTriggerNoteByInstrument.set(name, noteIndex);
+      instIndexByName.set(name, sharedDmcInstIndex);
       continue;
     }
 
@@ -164,7 +267,7 @@ function resolveInstruments(song: SongLike): ResolvedInstruments {
     delete i.__dutyMacroPos;
   }
 
-  return { insts2a03, instsDpcm, allMacros, instIndexByName, warnings };
+  return { insts2a03, instsDpcm, dpcmSamples, dmcTriggerNoteByInstrument, allMacros, instIndexByName, warnings };
 }
 
 // ─── Track / pattern assembly ─────────────────────────────────────────────────
@@ -172,20 +275,26 @@ function resolveInstruments(song: SongLike): ResolvedInstruments {
 function buildTrack(
   song: SongLike,
   instIndexByName: Map<string, number>,
+  dmcTriggerNoteByInstrument: Map<string, number>,
   warnings: string[],
 ): FtmTrack {
+  const NES_CHANNEL_COUNT = 5;
   const bpm = Number(song.bpm ?? 120);
   const speed = 6;
   const tempo = Math.max(32, Math.min(255, Math.round(bpm)));
 
-  const channels = song.channels;
-  const numChannels = Math.max(1, channels.length);
+  const channelsByIndex = new Map<number, SongLike['channels'][number]>();
+  for (const ch of song.channels ?? []) {
+    channelsByIndex.set(channelIdToIndex(ch.id), ch);
+  }
+  const numChannels = NES_CHANNEL_COUNT;
 
   // Per-channel frame grouping
   const channelFrames: ChannelEventLike[][][] = [];
-  for (const ch of channels) {
+  for (let c = 0; c < numChannels; c++) {
+    const ch = channelsByIndex.get(c);
     const frames = groupEventsIntoFrames(
-      ch.events,
+      ch?.events ?? [],
       song.pats ?? {},
     );
     channelFrames.push(frames);
@@ -213,16 +322,15 @@ function buildTrack(
   // patternIndex per channel (monotonically increasing, 0-based)
   const channelPatternCounters: number[] = Array(numChannels).fill(0);
   // For deduplication: hash → assigned pattern index per channel
-  const channelPatternHash = channels.map(() => new Map<string, number>());
+  const channelPatternHash = Array.from({ length: numChannels }, () => new Map<string, number>());
 
   const frames: FtmFrame[] = [];
 
   for (let f = 0; f < numFrames; f++) {
     const framePatternIndices: number[] = [];
 
-    for (let c = 0; c < channels.length; c++) {
-      const ch = channels[c];
-      const chIdx = channelIdToIndex(ch.id);
+    for (let c = 0; c < numChannels; c++) {
+      const chIdx = c;
       const chType = nesChannelType(chIdx);
       const frameEvents = channelFrames[c][f] ?? [];
 
@@ -233,6 +341,7 @@ function buildTrack(
         instIndexByName,
         chType,
         warnings,
+        dmcTriggerNoteByInstrument,
       );
 
       // Simple hash for deduplication
@@ -274,10 +383,15 @@ function serializeRow(row: FtmRow, numEffectCols: number): string {
   return `${row.note} ${row.instrument} ${row.volume} ${effects.join(' ')}`;
 }
 
+function emptyRowSegment(numEffectCols: number): string {
+  const effects = Array.from({ length: numEffectCols }, () => '...');
+  return `... .. . ${effects.join(' ')}`;
+}
+
 /**
  * Produce a complete FamiTracker text export string for an NES SongLike.
  */
-export function writeFtmText(song: SongLike): string {
+export async function writeFtmText(song: SongLike, options?: WriterOptions): Promise<string> {
   const chip = String(song.chip ?? 'gameboy').toLowerCase();
   if (chip !== 'nes') {
     throw new Error(
@@ -307,7 +421,8 @@ export function writeFtmText(song: SongLike): string {
   lines.push('');
 
   // ── Instruments ──────────────────────────────────────────────────────────
-  const { insts2a03, instsDpcm, allMacros, instIndexByName } = resolveInstruments(song);
+  const { insts2a03, instsDpcm, dpcmSamples, dmcTriggerNoteByInstrument, allMacros, instIndexByName, warnings: instrumentWarnings } = await resolveInstruments(song, options);
+  warnings.push(...instrumentWarnings);
 
   // ── Macros ─────────────────────────────────────────────────────────────────
   // Group by type for ordered output
@@ -328,6 +443,15 @@ export function writeFtmText(song: SongLike): string {
   }
   if (allMacros.length > 0) lines.push('');
 
+  // ── DPCM SAMPLE DATA ──────────────────────────────────────────────────────
+  if (instsDpcm.length > 0) {
+    for (const sample of dpcmSamples) {
+      lines.push(`DPCMDEF ${sample.index} ${sample.data.length} "${sample.name}"`);
+      lines.push(...encodeDpcmDataLines(sample.data));
+      lines.push('');
+    }
+  }
+
   // ── INST2A03 ───────────────────────────────────────────────────────────────
   for (const inst of insts2a03) {
     lines.push(
@@ -335,15 +459,23 @@ export function writeFtmText(song: SongLike): string {
     );
   }
 
-  // ── DPCM INSTRUMENTS ──────────────────────────────────────────────────────
+  // ── DPCM KEY MAPPINGS ─────────────────────────────────────────────────────
   for (const dpcm of instsDpcm) {
-    lines.push(`INSDPCM ${dpcm.index} "${dpcm.name}"`);
+    const entries = [...dpcm.notes.entries()].sort((a, b) => a[0] - b[0]);
+    for (const [noteIndex, mapping] of entries) {
+      // FamiTracker's KEYDPCM octave field is offset by -1 from MIDI-style octave numbering.
+      const octave = Math.max(0, Math.floor(noteIndex / 12) - 1);
+      const key = Math.max(0, Math.min(11, noteIndex % 12));
+      lines.push(
+        `KEYDPCM ${dpcm.index} ${octave} ${key} ${mapping.sampleIndex} ${mapping.pitch} ${mapping.loop ? 1 : 0} 0 ${mapping.delta}`,
+      );
+    }
   }
 
   if (insts2a03.length + instsDpcm.length > 0) lines.push('');
 
   // ── Track ──────────────────────────────────────────────────────────────────
-  const track = buildTrack(song, instIndexByName, warnings);
+  const track = buildTrack(song, instIndexByName, dmcTriggerNoteByInstrument, warnings);
 
   const colLine = track.effectColumns.join(' ');
   lines.push(`TRACK  ${track.rowsPerPattern} ${track.speed} ${track.tempo} "${track.title}"`);
@@ -358,31 +490,49 @@ export function writeFtmText(song: SongLike): string {
   lines.push('');
 
   // ── PATTERNS ──────────────────────────────────────────────────────────────
-  // Group patterns by channelIndex for output
-  const patsByChannel = new Map<number, FtmPattern[]>();
+  // FamiTracker text uses one PATTERN block where each ROW contains all channel columns.
+  const byChannelAndPattern = new Map<string, FtmPattern>();
   for (const pat of track.patterns.values()) {
-    if (!patsByChannel.has(pat.channelIndex)) patsByChannel.set(pat.channelIndex, []);
-    patsByChannel.get(pat.channelIndex)!.push(pat);
+    byChannelAndPattern.set(`${pat.channelIndex}_${pat.patternIndex}`, pat);
   }
 
-  for (let c = 0; c < song.channels.length; c++) {
-    const chPats = patsByChannel.get(c) ?? [];
-    chPats.sort((a, b) => a.patternIndex - b.patternIndex);
-    const numCols = track.effectColumns[c] ?? 1;
+  const patternIndices = new Set<number>();
+  for (const frame of track.frames) {
+    for (const p of frame.patterns) patternIndices.add(p);
+  }
+  if (patternIndices.size === 0) patternIndices.add(0);
 
-    for (const pat of chPats) {
-      lines.push(`PATTERN ${pat.patternIndex.toString(16).toUpperCase().padStart(2, '0')}`);
-      for (let r = 0; r < pat.rows.length; r++) {
-        const row = pat.rows[r];
-        const rowHex = r.toString(16).toUpperCase().padStart(2, '0');
-        lines.push(`ROW ${rowHex} : ${serializeRow(row, numCols)}`);
+  const sortedPatternIndices = [...patternIndices].sort((a, b) => a - b);
+  const numChannels = track.effectColumns.length;
+
+  for (const patIdx of sortedPatternIndices) {
+    lines.push(`PATTERN ${patIdx.toString(16).toUpperCase().padStart(2, '0')}`);
+
+    for (let r = 0; r < track.rowsPerPattern; r++) {
+      const rowHex = r.toString(16).toUpperCase().padStart(2, '0');
+      const segments: string[] = [];
+
+      for (let c = 0; c < numChannels; c++) {
+        const numCols = track.effectColumns[c] ?? 1;
+        const pat = byChannelAndPattern.get(`${c}_${patIdx}`);
+        const row = pat?.rows[r];
+        segments.push(row ? serializeRow(row, numCols) : emptyRowSegment(numCols));
       }
-      lines.push('');
+
+      lines.push(`ROW ${rowHex} : ${segments.join(' : ')}`);
     }
+
+    lines.push('');
   }
 
   // ── Warnings (appended as comments) ───────────────────────────────────────
   if (warnings.length > 0) {
+    if (typeof options?.onWarn === 'function') {
+      for (const w of warnings) {
+        options.onWarn(w);
+      }
+    }
+
     lines.push('# BeatBax export warnings:');
     for (const w of warnings) {
       lines.push(`# ${w}`);

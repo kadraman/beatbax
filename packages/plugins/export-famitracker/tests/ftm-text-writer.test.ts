@@ -59,8 +59,8 @@ function makeNesSong(): SongLike {
 describe('writeFtmText', () => {
   let output: string;
 
-  beforeAll(() => {
-    output = writeFtmText(makeNesSong());
+  beforeAll(async () => {
+    output = await writeFtmText(makeNesSong());
   });
 
   test('output starts with FamiTracker text header comment', () => {
@@ -111,10 +111,10 @@ describe('writeFtmText', () => {
   });
 
   test('pattern rows contain note conversions', () => {
-    // C5 in BeatBax → C-3 in FTM
-    expect(output).toContain('C-3');
-    // E5 → E-3
-    expect(output).toContain('E-3');
+    // C5 in BeatBax → C-5 in FTM
+    expect(output).toContain('C-5');
+    // E5 → E-5
+    expect(output).toContain('E-5');
   });
 
   test('pattern rows contain instrument index 00', () => {
@@ -125,14 +125,14 @@ describe('writeFtmText', () => {
     expect(output).toContain('...');
   });
 
-  test('non-NES chip raises error', () => {
+  test('non-NES chip raises error', async () => {
     const gbSong: SongLike = { ...makeNesSong(), chip: 'gameboy' };
-    expect(() => writeFtmText(gbSong)).toThrow(/nes/i);
+    await expect(writeFtmText(gbSong)).rejects.toThrow(/nes/i);
   });
 });
 
 describe('writeFtmText with effects', () => {
-  test('arp effect appears in pattern row', () => {
+  test('arp effect appears in pattern row', async () => {
     const song: SongLike = {
       chip: 'nes',
       bpm: 120,
@@ -160,11 +160,11 @@ describe('writeFtmText with effects', () => {
         },
       ],
     };
-    const text = writeFtmText(song);
+    const text = await writeFtmText(song);
     expect(text).toContain('037');
   });
 
-  test('cut effect appears in pattern row', () => {
+  test('cut effect appears in pattern row', async () => {
     const song: SongLike = {
       chip: 'nes',
       bpm: 120,
@@ -192,13 +192,13 @@ describe('writeFtmText with effects', () => {
         },
       ],
     };
-    const text = writeFtmText(song);
+    const text = await writeFtmText(song);
     expect(text).toContain('S03');
   });
 });
 
 describe('writeFtmText with vol_env / arp_env macros', () => {
-  test('vol_env produces correct MACRO VOLUME line', () => {
+  test('vol_env produces correct MACRO VOLUME line', async () => {
     const song: SongLike = {
       chip: 'nes',
       bpm: 120,
@@ -229,12 +229,12 @@ describe('writeFtmText with vol_env / arp_env macros', () => {
         },
       ],
     };
-    const text = writeFtmText(song);
+    const text = await writeFtmText(song);
     expect(text).toContain('MACRO 0');  // 0 = VOLUME
     expect(text).toContain('15 12 8 4 2 1');
   });
 
-  test('arp_env produces MACRO ARPEGGIO line with correct values', () => {
+  test('arp_env produces MACRO ARPEGGIO line with correct values', async () => {
     const song: SongLike = {
       chip: 'nes',
       bpm: 120,
@@ -265,8 +265,140 @@ describe('writeFtmText with vol_env / arp_env macros', () => {
         },
       ],
     };
-    const text = writeFtmText(song);
+    const text = await writeFtmText(song);
     expect(text).toContain('MACRO 1');  // 1 = ARPEGGIO
     expect(text).toContain('0 4 7');
+  });
+});
+
+describe('writeFtmText DPCM mapping lines', () => {
+  test('exports KEYDPCM mappings for dmc instruments', async () => {
+    const song: SongLike = {
+      chip: 'nes',
+      bpm: 120,
+      metadata: { name: 'dpcm line test' },
+      pats: { p: ['C4', '.', '.', '.'] },
+      insts: {
+        kick: { type: 'dmc', dmc_rate: 15, dmc_loop: false } as any,
+      },
+      seqs: {},
+      channels: [
+        {
+          id: 5,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'note',
+              token: 'C4',
+              instrument: 'kick',
+              instProps: { type: 'dmc', dmc_rate: 15, dmc_loop: false },
+              effects: [],
+              sourcePattern: 'p',
+            },
+            { type: 'rest', sourcePattern: 'p' },
+            { type: 'rest', sourcePattern: 'p' },
+            { type: 'rest', sourcePattern: 'p' },
+          ],
+        },
+      ],
+    };
+
+    const text = await writeFtmText(song);
+    expect(text).toContain('DPCMDEF 0 1 "beatbax_silence.dmc"');
+    expect(text).toContain('KEYDPCM 0 2 0 0 15 0 0 -1');
+    expect(text).not.toContain('INSDPCM');
+  });
+
+  test('embeds resolved DPCM sample bytes and maps KEYDPCM index', async () => {
+    const song: SongLike = {
+      chip: 'nes',
+      bpm: 120,
+      metadata: { name: 'dpcm embed test' },
+      pats: { p: ['C4'] },
+      insts: {
+        kick: { type: 'dmc', dmc_sample: '@nes/kick', dmc_rate: 12, dmc_loop: 'false' } as any,
+      },
+      seqs: {},
+      channels: [
+        {
+          id: 5,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'note',
+              token: 'C4',
+              instrument: 'kick',
+              instProps: { type: 'dmc', dmc_sample: '@nes/kick', dmc_rate: 12, dmc_loop: 'false' },
+              effects: [],
+              sourcePattern: 'p',
+            },
+          ],
+        },
+      ],
+    };
+
+    const text = await writeFtmText(song, {
+      resolveSampleAsset: async () => new Uint8Array([0xAA, 0xBB, 0xCC]).buffer,
+    });
+
+    expect(text).toContain('DPCMDEF 0 3 "kick"');
+    expect(text).toContain('DPCM : AA BB CC');
+    expect(text).toContain('KEYDPCM 0 2 0 0 12 0 0 -1');
+  });
+
+  test('uses one DPCM instrument with multi-note KEYDPCM mappings by default', async () => {
+    const song: SongLike = {
+      chip: 'nes',
+      bpm: 120,
+      metadata: { name: 'dpcm kit mapping test' },
+      pats: { p: ['C4', '.', '.', '.', 'C4'] },
+      insts: {
+        kick: { type: 'dmc', dmc_sample: '@nes/kick', dmc_rate: 15, dmc_loop: false } as any,
+        snare: { type: 'dmc', dmc_sample: '@nes/snare', dmc_rate: 15, dmc_loop: false } as any,
+      },
+      seqs: {},
+      channels: [
+        {
+          id: 5,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'note',
+              token: 'C4',
+              instrument: 'kick',
+              instProps: { type: 'dmc', dmc_sample: '@nes/kick', dmc_rate: 15, dmc_loop: false },
+              effects: [],
+              sourcePattern: 'p',
+            },
+            { type: 'rest', sourcePattern: 'p' },
+            { type: 'rest', sourcePattern: 'p' },
+            { type: 'rest', sourcePattern: 'p' },
+            {
+              type: 'note',
+              token: 'C4',
+              instrument: 'snare',
+              instProps: { type: 'dmc', dmc_sample: '@nes/snare', dmc_rate: 15, dmc_loop: false },
+              effects: [],
+              sourcePattern: 'p',
+            },
+          ],
+        },
+      ],
+    };
+
+    const text = await writeFtmText(song, {
+      resolveSampleAsset: async (ref: string) => {
+        if (ref === '@nes/kick') return new Uint8Array([0xAA]).buffer;
+        return new Uint8Array([0xBB]).buffer;
+      },
+    });
+
+    const dmcInstLines = text.split('\n').filter((line) => line.startsWith('INST2A03'));
+    expect(dmcInstLines.length).toBe(1);
+    expect(dmcInstLines[0]).toContain('"dmc-kit"');
+    expect(text).toContain('KEYDPCM 0 2 0 0 15 0 0 -1');
+    expect(text).toContain('KEYDPCM 0 2 1 1 15 0 0 -1');
+    expect(text).toContain('ROW 00 : ... .. . ... : ... .. . ... : ... .. . ... : ... .. . ... : C-2 00 . ...');
+    expect(text).toContain('ROW 04 : ... .. . ... : ... .. . ... : ... .. . ... : ... .. . ... : C#2 00 . ...');
   });
 });

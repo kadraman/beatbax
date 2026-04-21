@@ -6,7 +6,7 @@
  */
 
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
-import { sectionHeading, noteText } from './general';
+import { sectionHeading, noteText, selectField } from './general';
 import { gameboyPlugin } from '@beatbax/engine/chips';
 import { exporterRegistry } from '@beatbax/engine/export';
 import {
@@ -17,6 +17,11 @@ import {
   setExporterPluginEnabled,
 } from '../../plugins/exporter-registry-config';
 import { StorageKey, storage } from '../../utils/local-storage';
+import {
+  setNesWebAudioMixMode,
+  getNesWebAudioMixMode,
+  type NesWebAudioMixMode,
+} from '@beatbax/plugin-chip-nes';
 
 const BADGE_CLASS: Record<string, string> = {
   Stable:       'bb-settings-badge--stable',
@@ -111,6 +116,27 @@ export function buildPluginsSection(): HTMLElement {
 
     row.append(left, input);
     el.appendChild(row);
+  }
+
+  if (enabled.includes('nes')) {
+    el.appendChild(sectionHeading('NES plugin audio'));
+    const currentMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);
+    const initialMode: NesWebAudioMixMode = currentMode === 'hardware' ? 'hardware' : getNesWebAudioMixMode();
+
+    el.appendChild(selectField(
+      'NES WebAudio mix mode',
+      [
+        { value: 'normalized', label: 'Normalized (BeatBax parity, louder)' },
+        { value: 'hardware', label: 'Hardware-accurate (quieter, tracker-like)' },
+      ],
+      initialMode,
+      (v) => {
+        const mode: NesWebAudioMixMode = v === 'hardware' ? 'hardware' : 'normalized';
+        storage.set(StorageKey.NES_WEB_AUDIO_MIX_MODE, mode);
+        setNesWebAudioMixMode(mode);
+      },
+    ));
+    el.appendChild(noteText('Applied immediately to NES playback and Web UI WAV export. Choose Hardware-accurate for closer level matching with FamiTracker/hardware renders.'));
   }
 
   // ── Exporter plugins ────────────────────────────────────────────────────────
@@ -228,5 +254,6 @@ function builtinSubheading(text: string): HTMLElement {
 export function resetPluginsDefaults(): void {
   storage.setJSON(StorageKey.ENABLED_PLUGINS, ['nes']);
   storage.setJSON(StorageKey.ENABLED_EXPORTER_PLUGINS, OPTIONAL_EXPORTER_PLUGINS.map((entry) => entry.id));
+  storage.set(StorageKey.NES_WEB_AUDIO_MIX_MODE, 'normalized');
   window.location.reload();
 }

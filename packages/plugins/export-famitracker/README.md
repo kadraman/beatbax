@@ -2,9 +2,8 @@
 
 Standalone FamiTracker exporter plugin package for BeatBax.
 
-Exports two NES-only placeholder exporter plugins:
+Exports one NES-only exporter plugin:
 
-- `famitracker` → binary-style `.ftm`
 - `famitracker-text` → text `.txt`
 
 ```ts

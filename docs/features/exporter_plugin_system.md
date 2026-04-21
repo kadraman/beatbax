@@ -87,6 +87,6 @@ All spec items are implemented. 9 of 10 items are fully complete; item 9 is stru
 | 6 | CLI `export` uses dynamic registry (no hard-coded choices) | ✅ Complete |
 | 7 | CLI `list-exporters [--chip] [--json]` command | ✅ Complete |
 | 8 | CLI auto-discovery for `@beatbax/plugin-exporter-*` | ✅ Complete |
-| 9 | `@beatbax/plugin-exporter-famitracker` real `.ftm`/`.txt` output | ⚠️ Stub — tracked in `docs/features/famitracker-export.md` |
+| 9 | `@beatbax/plugin-exporter-famitracker` real `.txt` output (`famitracker-text`) | ✅ Complete |
 | 10 | `@beatbax/plugin-chip-nes` declares `exporterPlugins` | ✅ Complete |
 

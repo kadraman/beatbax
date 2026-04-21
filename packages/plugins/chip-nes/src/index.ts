@@ -27,7 +27,7 @@
 import type { ChipPlugin, ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { version } from './version.js';
-import { famitrackerBinaryExporterPlugin, famitrackerTextExporterPlugin } from '@beatbax/plugin-exporter-famitracker';
+import { famitrackerTextExporterPlugin } from '@beatbax/plugin-exporter-famitracker';
 import { createPulseChannel } from './pulse.js';
 import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
@@ -86,7 +86,7 @@ const nesPlugin: ChipPlugin = {
   },
 
   uiContributions: nesUIContributions,
-  exporterPlugins: [famitrackerBinaryExporterPlugin, famitrackerTextExporterPlugin],
+  exporterPlugins: [famitrackerTextExporterPlugin],
 };
 
 export default nesPlugin;
@@ -94,6 +94,14 @@ export { nesPlugin };
 
 // Re-export useful utilities
 export { PULSE_PERIOD, TRIANGLE_PERIOD, NOISE_PERIOD_TABLE, DMC_RATE_TABLE } from './periodTables.js';
-export { nesMix, getNesGainWeights, NES_MIX_GAIN } from './mixer.js';
+export {
+  nesMix,
+  getNesGainWeights,
+  NES_MIX_GAIN,
+  setNesWebAudioMixMode,
+  getNesWebAudioMixMode,
+  getNesWebAudioNorm,
+  type NesWebAudioMixMode,
+} from './mixer.js';
 export { validateNesInstrument } from './validate.js';
 export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';

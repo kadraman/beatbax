@@ -1,0 +1,41 @@
+# NES/FamiTracker unsupported-effect coverage fixture.
+# Intentionally includes effects that are dropped by the FamiTracker exporter.
+
+song name "FTM NES Unsupported Effects Demo"
+chip nes
+bpm 128
+
+inst i_p1    type=pulse1 duty=25 env=12,down
+inst i_p2    type=pulse2 duty=50 env=10,down
+inst i_tri   type=triangle linear=96
+inst i_noise type=noise noise_mode=normal noise_period=10 env=10,down env_period=1
+inst i_dmc   type=dmc dmc_sample=@nes/snare dmc_rate=15 dmc_loop=false
+
+# Globally unsupported in FamiTracker export: trem, echo, retrig
+pat p_unsupported_global = C4<trem:6,4,sine,0,1>:8 E4<echo:0.25,40,25>:8 G4<retrig:2,-3>:8 C5<trem:8,5,square,0,1>:8
+
+# Channel-invalid for pulse2: sweep (pulse1-only)
+pat p_invalid_p2 = C3<sweep:4,down,7>:8 D3<sweep:3,up,2>:8 E3<sweep:2,down,6>:8 G3<sweep:5,up,3>:8
+
+# Channel-invalid for triangle: volSlide
+pat p_invalid_tri = C3<volSlide:+6>:8 E3<volSlide:-4,4>:8 G3<volSlide:+3>:8 C4<volSlide:-2>:8
+
+# Channel-invalid for noise: vib, arp, bend, port, sweep
+pat p_invalid_noise = C2<vib:4,6,sine,0,1> C2<arp:3,7> C2<bend:+5,exp,0,1> C2<port:8> C2<sweep:4,down,7> . . .
+
+# Channel-invalid for DMC: everything except cut is dropped.
+pat p_invalid_dmc = C2<vib:3,5,sine,0,1> C2<arp:3,7> C2<bend:-4,log,0,1> C2<port:10> C2<volSlide:+5> C2<sweep:4,down,7> . .
+
+seq s_p1 = p_unsupported_global p_unsupported_global
+seq s_p2 = p_invalid_p2 p_invalid_p2
+seq s_tri = p_invalid_tri p_invalid_tri
+seq s_noise = p_invalid_noise p_invalid_noise
+seq s_dmc = p_invalid_dmc p_invalid_dmc
+
+channel 1 => inst i_p1 seq s_p1
+channel 2 => inst i_p2 seq s_p2
+channel 3 => inst i_tri seq s_tri
+channel 4 => inst i_noise seq s_noise
+channel 5 => inst i_dmc seq s_dmc
+
+play

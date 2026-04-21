@@ -24,6 +24,20 @@ export const NES_MIX_GAIN = {
   dmc:      0.00335,
 } as const;
 
+export type NesWebAudioMixMode = 'normalized' | 'hardware';
+
+const NES_WEB_AUDIO_MIX_MODE_KEY = '__beatbax_nes_web_audio_mix_mode';
+
+function readGlobalMixMode(): NesWebAudioMixMode | null {
+  const raw = (globalThis as Record<string, unknown>)[NES_WEB_AUDIO_MIX_MODE_KEY];
+  if (raw === 'hardware' || raw === 'normalized') return raw;
+  return null;
+}
+
+function writeGlobalMixMode(mode: NesWebAudioMixMode): void {
+  (globalThis as Record<string, unknown>)[NES_WEB_AUDIO_MIX_MODE_KEY] = mode;
+}
+
 /**
  * Web Audio loudness normalization factor for NES tone channels.
  *
@@ -48,6 +62,25 @@ export const NES_MIX_GAIN = {
  * reasonable level relative to the normalised tone channels.
  */
 export const NES_WEB_AUDIO_NORM = 1.0 / (NES_MIX_GAIN.pulse * 15);
+
+/** Set WebAudio loudness mode for NES browser playback/rendering. */
+export function setNesWebAudioMixMode(mode: NesWebAudioMixMode): void {
+  writeGlobalMixMode(mode);
+}
+
+/** Get current WebAudio loudness mode for NES browser playback/rendering. */
+export function getNesWebAudioMixMode(): NesWebAudioMixMode {
+  return readGlobalMixMode() ?? 'normalized';
+}
+
+/**
+ * Return the effective WebAudio normalization factor for the current mode.
+ * - normalized: loudness parity with BeatBax Game Boy backends.
+ * - hardware: raw NES linear-mixer scaling (closer to tracker/hardware output level).
+ */
+export function getNesWebAudioNorm(): number {
+  return getNesWebAudioMixMode() === 'hardware' ? 1 : NES_WEB_AUDIO_NORM;
+}
 
 /**
  * Compute the mixed NES output sample using the linear approximation.

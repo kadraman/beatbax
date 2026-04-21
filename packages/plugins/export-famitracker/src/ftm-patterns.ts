@@ -38,9 +38,9 @@ const FTM_NOTE_NAMES = [
 
 /**
  * Convert a BeatBax note token (e.g. "C4", "A#3", "Bb5") to a FamiTracker
- * text note string (e.g. "C-2", "A#1", "A#3").
+ * text note string (e.g. "C-4", "A#3", "A#5").
  *
- * Octave conversion: ftm_octave = beatbax_octave - 2.
+ * Octave conversion: preserve BeatBax octave numbering.
  * Returns "..." if the note is out of FTM range or cannot be parsed.
  */
 export function noteToFtm(token: string): string {
@@ -50,7 +50,7 @@ export function noteToFtm(token: string): string {
   const letter = match[1].toUpperCase();
   const acc = match[2];
   const beatbaxOctave = parseInt(match[3], 10);
-  const ftmOctave = beatbaxOctave - 2;
+  const ftmOctave = beatbaxOctave;
 
   const key = letter + (acc === '#' ? '#' : acc === 'b' || acc === 'B' ? 'B' : '');
 
@@ -68,23 +68,19 @@ export function noteToFtm(token: string): string {
   return `${FTM_NOTE_NAMES[semi]}${ftmOctave}`;
 }
 
-/** Noise period index 0-15 (normal mode) to FTM noise note string. */
-const NOISE_NOTES_NORMAL = [
-  'C-0', 'C#0', 'D-0', 'D#0', 'E-0', 'F-0', 'F#0', 'G-0', 'G#0', 'A-0', 'A#0', 'B-0',
-  'C-1', 'C#1', 'D-1', 'D#1',
-];
-
-/** Noise period index 0-15 (loop mode) to FTM noise note string. */
-const NOISE_NOTES_LOOP = [
-  'C-1', 'C#1', 'D-1', 'D#1', 'E-1', 'F-1', 'F#1', 'G-1', 'G#1', 'A-1', 'A#1', 'B-1',
-  'C-2', 'C#2', 'D-2', 'D#2',
-];
+function noteIndexToFtm(noteIndex: number): string {
+  const idx = Math.max(0, Math.min(95, Math.floor(noteIndex)));
+  const semitone = idx % 12;
+  // DPCM key display in FamiTracker is offset by -1 octave versus MIDI-style note numbers.
+  const octave = Math.max(0, Math.floor(idx / 12) - 1);
+  return `${FTM_NOTE_NAMES[semitone]}${octave}`;
+}
 
 /** Get the FTM noise note for an instrument's noise_period and noise_mode. */
 export function noiseNoteToFtm(inst: Record<string, any>): string {
   const period = Math.max(0, Math.min(15, Math.round(Number(inst.noise_period ?? 12))));
-  const loop = String(inst.noise_mode ?? 'normal').toLowerCase() === 'loop';
-  return loop ? NOISE_NOTES_LOOP[period] : NOISE_NOTES_NORMAL[period];
+  // FamiTracker text format encodes noise notes as hex period nibble + "-#".
+  return `${period.toString(16).toUpperCase()}-#`;
 }
 
 // ─── Effect encoding ──────────────────────────────────────────────────────────
@@ -107,6 +103,44 @@ function toHex1(n: number): string {
 function toHex2(n: number): string {
   return Math.max(0, Math.min(255, Math.round(n))).toString(16).toUpperCase().padStart(2, '0');
 }
+
+function resolveNoteVolumeHex(instProps: Record<string, any> | undefined, channelType: NesChannelType): string {
+  if (!instProps) return '.';
+  if (channelType === 'triangle' || channelType === 'dmc') return '.';
+
+  const directVol = Number(instProps.vol);
+  if (Number.isFinite(directVol)) {
+    return Math.max(0, Math.min(15, Math.round(directVol))).toString(16).toUpperCase();
+  }
+
+  const envRaw = instProps.env;
+  if (typeof envRaw === 'string') {
+    const m = envRaw.match(/^\s*(-?\d+)\s*,/);
+    if (m) {
+      const v = Number(m[1]);
+      if (Number.isFinite(v)) {
+        return Math.max(0, Math.min(15, Math.round(v))).toString(16).toUpperCase();
+      }
+    }
+  }
+
+  return '.';
+}
+
+function toPersistentClearCode(prefix: string): string | null {
+  switch (prefix) {
+    case '1': return '100';
+    case '2': return '200';
+    case '3': return '300';
+    case '4': return '400';
+    case 'A': return 'A00';
+    case 'H': return 'H00';
+    case 'I': return 'I00';
+    default: return null;
+  }
+}
+
+const PERSISTENT_EFFECT_PREFIXES = new Set(['1', '2', '3', '4', 'A', 'H', 'I']);
 
 /**
  * Encode one BeatBax effect to a FTM effect string.
@@ -161,17 +195,20 @@ export function encodeEffect(
           `Effect 'volSlide' with 'steps' parameter exported as continuous slide (FTM limitation)`,
         );
       }
+      // FTM volslide units are strong per tick; scale BeatBax deltas down for safer defaults.
+      const scaled = Math.max(1, Math.min(15, Math.round(Math.abs(delta) / 2)));
       if (delta > 0) {
-        return `A${toHex1(Math.min(15, Math.abs(delta)))}0`;
+        return `A${toHex1(scaled)}0`;
       } else {
-        return `A0${toHex1(Math.min(15, Math.abs(delta)))}`;
+        return `A0${toHex1(scaled)}`;
       }
     }
 
     case 'vib': {
       // 4xy: x = speed (rate), y = depth
-      const depth = Math.max(0, Math.min(15, Math.round(Number(params[0] ?? 1))));
-      const rate = Math.max(1, Math.min(15, Math.round(Number(params[1] ?? 4))));
+      // FTM vibrato reacts strongly at high values; scale both rate and depth down.
+      const depth = Math.max(1, Math.min(15, Math.round(Number(params[0] ?? 1) / 2)));
+      const rate = Math.max(1, Math.min(15, Math.round(Number(params[1] ?? 4) / 2)));
       return `4${toHex1(rate)}${toHex1(depth)}`;
     }
 
@@ -179,26 +216,28 @@ export function encodeEffect(
       // 1xx (slide up) or 2xx (slide down): xx = speed
       const semitones = Number(params[0] ?? 0);
       if (semitones === 0) return null;
-      // Approximate: 4 period-units per semitone in mid-range
-      const speed = Math.max(1, Math.min(255, Math.round(Math.abs(semitones) * 4)));
+      // Conservative mapping: 1 unit per semitone is more musically controllable in FTM.
+      const speed = Math.max(1, Math.min(255, Math.round(Math.abs(semitones))));
       const code = semitones > 0 ? '1' : '2';
       return `${code}${toHex2(speed)}`;
     }
 
     case 'port': {
       // 3xx: portamento speed
-      const speed = Math.max(0, Math.min(255, Math.round(Number(params[0] ?? 8))));
+      // Portamento is similarly sensitive in FTM; scale down by half.
+      const speed = Math.max(0, Math.min(255, Math.round(Number(params[0] ?? 8) / 2)));
       return `3${toHex2(speed)}`;
     }
 
     case 'sweep': {
-      // Hxy: x = period (1-7), y = shift (0-7 | 8 for down)
+      // Hxy/Ixy: x = period (1-7), y = shift (0-7)
+      // H = up, I = down (Pulse 1 only)
       // Only valid on pulse1; pulse2/others are filtered above.
       const period = Math.max(1, Math.min(7, Math.round(Number(params[0] ?? 4))));
       const dirStr = String(params[1] ?? 'down').toLowerCase();
       const shift = Math.max(0, Math.min(7, Math.round(Number(params[2] ?? 1))));
-      const yNibble = shift | (dirStr === 'down' || dirStr === '-' ? 8 : 0);
-      return `H${toHex1(period)}${toHex1(yNibble)}`;
+      const code = (dirStr === 'down' || dirStr === '-') ? 'I' : 'H';
+      return `${code}${toHex1(period)}${toHex1(shift)}`;
     }
 
     default:
@@ -220,6 +259,7 @@ const EFFECT_PRIORITY: Record<string, number> = {
   '3': 3,  // portamento
   '4': 4,  // vib
   'H': 5,  // sweep
+  'I': 5,  // sweep
 };
 
 function effectPriority(code: string): number {
@@ -242,6 +282,7 @@ export function buildRow(
   channelType: NesChannelType,
   maxEffectCols: number,
   warnings: string[],
+  dmcTriggerNoteByInstrument?: Map<string, number>,
 ): FtmRow {
   if (event.type === 'rest') {
     return EMPTY_ROW;
@@ -261,7 +302,8 @@ export function buildRow(
     if (channelType === 'noise' || instType === 'noise') {
       note = noiseNoteToFtm(instProps ?? {});
     } else if (channelType === 'dmc' || instType === 'dmc') {
-      note = 'C-2'; // DMC trigger note (ignored by FTM; pitch from instrument)
+      const mapped = ev.instrument ? dmcTriggerNoteByInstrument?.get(ev.instrument) : undefined;
+      note = mapped !== undefined ? noteIndexToFtm(mapped) : 'C-2';
     } else if (ev.token) {
       note = noteToFtm(ev.token);
       if (note === '...') return EMPTY_ROW; // out of range
@@ -273,7 +315,7 @@ export function buildRow(
     }
 
     const instrument = instIndex !== null ? toHex2(instIndex) : '..';
-    const volume = '.';
+    const volume = resolveNoteVolumeHex(instProps, channelType);
 
     // Encode effects
     const rawEffects = Array.isArray(ev.effects) ? ev.effects : [];
@@ -382,22 +424,96 @@ export function buildPatternRows(
   instMap: Map<string, number>,
   channelType: NesChannelType,
   warnings: string[],
+  dmcTriggerNoteByInstrument?: Map<string, number>,
 ): FtmRow[] {
   const rows: FtmRow[] = [];
   const MAX_EFFECT_COLS = 4;
+  const pendingClearPrefixes = new Set<string>();
 
   for (let r = 0; r < rowCount; r++) {
     const ev = r < events.length ? events[r] : undefined;
     if (!ev) {
-      rows.push({ note: '...', instrument: '..', volume: '.', effects: [] });
+      const clearEffects = [...pendingClearPrefixes]
+        .map((p) => toPersistentClearCode(p))
+        .filter((c): c is string => c !== null)
+        .slice(0, MAX_EFFECT_COLS)
+        .map((code) => ({ code }));
+      rows.push({ note: '...', instrument: '..', volume: '.', effects: clearEffects });
+      if (clearEffects.length > 0) pendingClearPrefixes.clear();
       continue;
     }
 
     const ev2 = ev as ChannelEventLike;
+    const isSustain = ev2.type === 'sustain';
     const instName: string | undefined = ev2.instrument;
     const instIndex = instName !== undefined ? (instMap.get(instName) ?? null) : null;
 
-    rows.push(buildRow(ev, instIndex, channelType, MAX_EFFECT_COLS, warnings));
+    let row = buildRow(ev, instIndex, channelType, MAX_EFFECT_COLS, warnings, dmcTriggerNoteByInstrument);
+
+    if (!isSustain && row.note === '...' && row.effects.length === 0 && pendingClearPrefixes.size > 0) {
+      const clearEffects = [...pendingClearPrefixes]
+        .map((p) => toPersistentClearCode(p))
+        .filter((c): c is string => c !== null)
+        .slice(0, MAX_EFFECT_COLS)
+        .map((code) => ({ code }));
+      row = { note: '...', instrument: '..', volume: '.', effects: clearEffects };
+      pendingClearPrefixes.clear();
+    }
+
+    // On note/rest transitions, clear previously latched persistent effects unless
+    // the same effect prefix is overwritten on this row.
+    if (!isSustain && pendingClearPrefixes.size > 0 && row.effects.length < MAX_EFFECT_COLS) {
+      const currentPrefixes = new Set(row.effects.map((e) => e.code[0]));
+      const toClear = [...pendingClearPrefixes].filter((p) => !currentPrefixes.has(p));
+      const clearEffects = toClear
+        .map((p) => toPersistentClearCode(p))
+        .filter((c): c is string => c !== null)
+        .slice(0, MAX_EFFECT_COLS - row.effects.length)
+        .map((code) => ({ code }));
+      if (clearEffects.length > 0) {
+        row.effects.push(...clearEffects);
+        for (const code of clearEffects) pendingClearPrefixes.delete(code.code[0]);
+      }
+    }
+
+    rows.push(row);
+
+    const activePersistent = row.effects
+      .map((e) => e.code)
+      .filter((code) => PERSISTENT_EFFECT_PREFIXES.has(code[0]) && code.slice(1) !== '00')
+      .map((code) => code[0]);
+    if (activePersistent.length > 0) {
+      pendingClearPrefixes.clear();
+      for (const p of activePersistent) pendingClearPrefixes.add(p);
+      continue;
+    }
+
+    // If no new persistent effect is active and clears couldn't fit this row,
+    // pending prefixes remain and will be cleared on the next non-sustain row.
+  }
+
+  // Pattern loops in FamiTracker can carry persistent effects back into row 00.
+  // Ensure we explicitly clear any still-latched effects on the final row.
+  if (pendingClearPrefixes.size > 0 && rows.length > 0) {
+    const last = rows[rows.length - 1];
+    if (last.effects.length < MAX_EFFECT_COLS) {
+      const currentPrefixes = new Set(last.effects.map((e) => e.code[0]));
+      const clearEffects = [...pendingClearPrefixes]
+        .filter((p) => !currentPrefixes.has(p))
+        .map((p) => toPersistentClearCode(p))
+        .filter((c): c is string => c !== null)
+        .slice(0, MAX_EFFECT_COLS - last.effects.length)
+        .map((code) => ({ code }));
+
+      if (clearEffects.length > 0) {
+        rows[rows.length - 1] = {
+          note: last.note,
+          instrument: last.instrument,
+          volume: last.volume,
+          effects: [...last.effects, ...clearEffects],
+        };
+      }
+    }
   }
 
   return rows;

@@ -14,40 +14,40 @@ import {
 import type { ChannelEventLike } from '../src/ftm-types.js';
 
 describe('noteToFtm', () => {
-  test('C5 → C-3 (octave - 2)', () => {
-    expect(noteToFtm('C5')).toBe('C-3');
+  test('C5 → C-5 (octave preserved)', () => {
+    expect(noteToFtm('C5')).toBe('C-5');
   });
 
-  test('A3 → A-1', () => {
-    expect(noteToFtm('A3')).toBe('A-1');
+  test('A3 → A-3', () => {
+    expect(noteToFtm('A3')).toBe('A-3');
   });
 
-  test('G#5 → G#3', () => {
-    expect(noteToFtm('G#5')).toBe('G#3');
+  test('G#5 → G#5', () => {
+    expect(noteToFtm('G#5')).toBe('G#5');
   });
 
-  test('Bb4 → A#2 (flat to sharp)', () => {
-    expect(noteToFtm('Bb4')).toBe('A#2');
+  test('Bb4 → A#4 (flat to sharp)', () => {
+    expect(noteToFtm('Bb4')).toBe('A#4');
   });
 
-  test('Eb5 → D#3', () => {
-    expect(noteToFtm('Eb5')).toBe('D#3');
+  test('Eb5 → D#5', () => {
+    expect(noteToFtm('Eb5')).toBe('D#5');
   });
 
-  test('Cb4 → B-1 (C flat = B of lower octave)', () => {
-    expect(noteToFtm('Cb4')).toBe('B-1');
+  test('Cb4 → B-3 (C flat = B of lower octave)', () => {
+    expect(noteToFtm('Cb4')).toBe('B-3');
   });
 
-  test('C2 → C-0 (minimum octave = 0)', () => {
-    expect(noteToFtm('C2')).toBe('C-0');
+  test('C2 → C-2', () => {
+    expect(noteToFtm('C2')).toBe('C-2');
   });
 
-  test('C9 → C-7 (near maximum)', () => {
-    expect(noteToFtm('C9')).toBe('C-7');
+  test('C9 → ... (out of FTM range)', () => {
+    expect(noteToFtm('C9')).toBe('...');
   });
 
-  test('C0 → ... (octave -2 = out of FTM range)', () => {
-    expect(noteToFtm('C0')).toBe('...');
+  test('C0 → C-0', () => {
+    expect(noteToFtm('C0')).toBe('C-0');
   });
 
   test('bad token → ...', () => {
@@ -56,20 +56,20 @@ describe('noteToFtm', () => {
 });
 
 describe('noiseNoteToFtm', () => {
-  test('noise_period=11, normal mode → B-0', () => {
-    expect(noiseNoteToFtm({ noise_period: 11, noise_mode: 'normal' })).toBe('B-0');
+  test('noise_period=11, normal mode → B-#', () => {
+    expect(noiseNoteToFtm({ noise_period: 11, noise_mode: 'normal' })).toBe('B-#');
   });
 
-  test('noise_period=7, normal mode → G-0', () => {
-    expect(noiseNoteToFtm({ noise_period: 7, noise_mode: 'normal' })).toBe('G-0');
+  test('noise_period=7, normal mode → 7-#', () => {
+    expect(noiseNoteToFtm({ noise_period: 7, noise_mode: 'normal' })).toBe('7-#');
   });
 
-  test('noise_period=2, normal mode → D-0', () => {
-    expect(noiseNoteToFtm({ noise_period: 2, noise_mode: 'normal' })).toBe('D-0');
+  test('noise_period=2, normal mode → 2-#', () => {
+    expect(noiseNoteToFtm({ noise_period: 2, noise_mode: 'normal' })).toBe('2-#');
   });
 
-  test('default period=12 when not specified → C-1', () => {
-    expect(noiseNoteToFtm({})).toBe('C-1');
+  test('default period=12 when not specified → C-#', () => {
+    expect(noiseNoteToFtm({})).toBe('C-#');
   });
 });
 
@@ -92,35 +92,32 @@ describe('encodeEffect', () => {
     expect(encodeEffect('cut', [3], 'pulse1', w)).toBe('S03');
   });
 
-  test('volSlide:5 → "A50"', () => {
-    expect(encodeEffect('volSlide', [5], 'pulse1', w)).toBe('A50');
+  test('volSlide:5 → "A30" (scaled)', () => {
+    expect(encodeEffect('volSlide', [5], 'pulse1', w)).toBe('A30');
   });
 
-  test('volSlide:-3 → "A03"', () => {
-    expect(encodeEffect('volSlide', [-3], 'pulse1', w)).toBe('A03');
+  test('volSlide:-3 → "A02" (scaled)', () => {
+    expect(encodeEffect('volSlide', [-3], 'pulse1', w)).toBe('A02');
   });
 
-  test('vib:4,5 → "454"', () => {
-    // vib: params[0]=depth=4, params[1]=rate=5 → 4 + hex(rate=5) + hex(depth=4) → "454"
-    expect(encodeEffect('vib', [4, 5], 'pulse1', w)).toBe('454');
+  test('vib:4,5 → "432" (scaled)', () => {
+    expect(encodeEffect('vib', [4, 5], 'pulse1', w)).toBe('432');
   });
 
-  test('bend:+7 → "11C" (slide up)', () => {
-    const code = encodeEffect('bend', [7], 'pulse1', w);
-    expect(code).toMatch(/^1/);
+  test('bend:+7 → "107" (scaled)', () => {
+    expect(encodeEffect('bend', [7], 'pulse1', w)).toBe('107');
   });
 
-  test('bend:-5 → slide down code starting with "2"', () => {
-    const code = encodeEffect('bend', [-5], 'pulse1', w);
-    expect(code).toMatch(/^2/);
+  test('bend:-5 → "205" (scaled)', () => {
+    expect(encodeEffect('bend', [-5], 'pulse1', w)).toBe('205');
   });
 
-  test('port:16 → "310"', () => {
-    expect(encodeEffect('port', [16], 'pulse1', w)).toBe('310');
+  test('port:16 → "308" (scaled)', () => {
+    expect(encodeEffect('port', [16], 'pulse1', w)).toBe('308');
   });
 
-  test('sweep:4,down,7 → "H4F"', () => {
-    expect(encodeEffect('sweep', [4, 'down', 7], 'pulse1', w)).toBe('H4F');
+  test('sweep:4,down,7 → "I47"', () => {
+    expect(encodeEffect('sweep', [4, 'down', 7], 'pulse1', w)).toBe('I47');
   });
 
   test('sweep:3,up,2 → "H32"', () => {
@@ -261,7 +258,7 @@ describe('buildPatternRows', () => {
     const warnings: string[] = [];
     const rows = buildPatternRows(events, 1, instMap, 'pulse1', warnings);
     expect(rows).toHaveLength(1);
-    expect(rows[0].note).toBe('C-3');
+    expect(rows[0].note).toBe('C-5');
     expect(rows[0].instrument).toBe('00');
   });
 
@@ -304,7 +301,7 @@ describe('buildPatternRows', () => {
     expect(rows[0].effects[0]?.code).toBe('037');
   });
 
-  test('noise channel note uses noise period note', () => {
+  test('noise channel note uses FTM hex noise-period note', () => {
     const events: ChannelEventLike[] = [
       {
         type: 'note',
@@ -317,6 +314,62 @@ describe('buildPatternRows', () => {
     ];
     const instMap = new Map<string, number>([['snare', 3]]);
     const rows = buildPatternRows(events, 1, instMap, 'noise', []);
-    expect(rows[0].note).toBe('G-0');
+    expect(rows[0].note).toBe('7-#');
+  });
+
+  test('persistent effects are auto-cleared on next empty row', () => {
+    const events: ChannelEventLike[] = [
+      {
+        type: 'note',
+        token: 'C4',
+        instrument: 'lead',
+        effects: [{ type: 'bend', params: [7] }],
+        sourcePattern: 'a',
+      },
+      { type: 'rest', sourcePattern: 'a' },
+    ];
+    const rows = buildPatternRows(events, 2, new Map([['lead', 0]]), 'pulse1', []);
+    expect(rows[0].effects[0]?.code).toBe('107');
+    expect(rows[1].effects[0]?.code).toBe('100');
+  });
+
+  test('persistent effects stay active during sustain and clear after note end', () => {
+    const events: ChannelEventLike[] = [
+      {
+        type: 'note',
+        token: 'C4',
+        instrument: 'lead',
+        effects: [{ type: 'sweep', params: [4, 'up', 7] }],
+        sourcePattern: 'a',
+      },
+      { type: 'sustain', sourcePattern: 'a' },
+      { type: 'sustain', sourcePattern: 'a' },
+      { type: 'sustain', sourcePattern: 'a' },
+      { type: 'rest', sourcePattern: 'a' },
+    ];
+    const rows = buildPatternRows(events, 5, new Map([['lead', 0]]), 'pulse1', []);
+    expect(rows[0].effects[0]?.code).toBe('H47');
+    expect(rows[1].effects.length).toBe(0);
+    expect(rows[2].effects.length).toBe(0);
+    expect(rows[3].effects.length).toBe(0);
+    expect(rows[4].effects[0]?.code).toBe('H00');
+  });
+
+  test('persistent effects are cleared on final row to prevent loop bleed', () => {
+    const events: ChannelEventLike[] = [
+      {
+        type: 'note',
+        token: 'C4',
+        instrument: 'lead',
+        effects: [{ type: 'volSlide', params: [-4] }],
+        sourcePattern: 'a',
+      },
+      { type: 'sustain', sourcePattern: 'a' },
+      { type: 'sustain', sourcePattern: 'a' },
+      { type: 'sustain', sourcePattern: 'a' },
+    ];
+    const rows = buildPatternRows(events, 4, new Map([['lead', 0]]), 'pulse1', []);
+    expect(rows[0].effects[0]?.code).toBe('A02');
+    expect(rows[3].effects.some((e) => e.code === 'A00')).toBe(true);
   });
 });
