@@ -1,0 +1,16 @@
+# Small NES macro verification song: semitone pitch macro on pulse1.
+# Use to verify pitch_env -> MACRO PITCH (*16) export conversion.
+
+song name "FTM Macro - Pitch Env"
+chip nes
+bpm 108
+
+inst i_pitch_rip type=pulse1 duty=25 vol=10 pitch_env=[5,4,3,2,1,0,0,0]
+
+pat p_main = C4:8 . . D4:8 . .
+seq s_main = p_main p_main
+
+channel 1 => inst i_pitch_rip seq s_main
+
+play
+
