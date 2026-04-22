@@ -1,6 +1,6 @@
 ---
 title: "FamiTracker Text Export"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-04-19
 issue: "https://github.com/kadraman/beatbax/issues/94"

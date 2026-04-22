@@ -1,12 +1,13 @@
 # Sound Chip Roadmap for BeatBax
 
-This document lists candidate retro sound chips to implement in BeatBax, prioritized by impact and effort, with capability summaries and recommended export formats. For each chip the document notes whether exported formats can be used for homebrew game development (drivers, tracker formats, or register-stream formats).
+This document lists candidate "chiptunes" sound chips to implement in BeatBax, prioritized by impact and effort, with capability summaries and recommended export formats. For each chip the document notes whether exported formats can be used for homebrew game development (drivers, tracker formats, or register-stream formats).
 
 ## Principles
 
 - Prioritize chips with strong chiptune communities and existing tracker/export ecosystems.
 - Provide both human-editable tracker exports and machine-playable register/driver streams where possible.
 - Prefer common archival formats (VGM, NSF, SID, MOD, SPC) plus tracker-specific formats (hUGETracker, FamiTracker, GoatTracker, etc.)
+- Exclude purely sample‑based sampler/sound chips (SNES, Amiga etc/)
 
 ## Priority implementation order
 
@@ -15,19 +16,22 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 | Game Boy APU (DMG-01) | [x] | Low | Core already implemented in engine-core |
 | SN76489 (PSG — SMS / Game Gear) | [ ] | Low | Reuse PSG primitives; quick VGM/register export |
 | AY‑3‑8910 / YM2149 (PSG family) | [ ] | Low–Medium | Similar PSG semantics to SN76489; broad platform coverage (Atari ST, MSX) |
-| NES APU / RP2A03 | [ ] | Medium | DMC sample path and FamiTracker/NSF ecosystem integration |
+| NES APU / RP2A03 | [X] | Medium | DMC sample path and FamiTracker/NSF ecosystem integration |
 | YM2413 (OPLL) | [ ] | Medium | Preset-based 2‑op FM — easiest FM entry (MSX/PC‑88 coverage) |
 | OPL2 / YM3812 (AdLib / early FM) | [ ] | Medium | PC FM; requires operator/patch handling and OPL register export |
 | YM2612 (Genesis) [+ SN76489 PSG for Genesis where applicable] | [ ] | High | Complex FM operator mapping; high impact for Genesis scene |
-| Amiga / Paula (MOD/sample playback) | [ ] | Medium | Sample bank tooling and MOD export; strong tooling ecosystem |
-| SNES / SPC700 + DSP (BRR + DSP effects) | [ ] | High | BRR compression and DSP effects (echo, FIR) increase complexity |
 | C64 / SID (6581/8580) | [ ] | High | Emulating analog filters and chip quirks is QA-heavy |
 | Pokey | [ ] | Medium | Niche but distinctive sound; register-driven export useful for homebrew |
 | HuC6280 (PC‑Engine) | [ ] | Medium | PSG + waveform features; used in PC‑Engine/TG‑16 homebrew |
 | SAA1099 | [ ] | Medium | Niche stereo PSG; register dumps/VGM export path |
-| SCC / FDS wavetable (namco/fds) | [ ] | Medium | Wavetable chips — useful for unique timbres; moderate effort |
 
 ## Detailed chip summaries
+
+A solid way to define a “chiptune sound chip” is:
+
+> A hardware PSG (Programmable Sound Generator) or FM synth that generates sound in real time using simple waveforms, not samples.
+
+Using that definition, here’s a clean, authoritative list of the major chips that truly qualify as chiptune hardware:
 
 - **Game Boy (DMG‑01)**
   - Channels: 4 (Pulse1, Pulse2, Wave, Noise)
@@ -42,8 +46,8 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
   - Features: square duty, triangle for bass, noise, sample DMC (bit-crushed samples)
   - Difficulty: Medium
   - Suggested plugin name: `@beatbax/plugin-chip-nes`
-  - Export formats: FamiTracker `.ftm` (tracker), NSF (NES Sound Format), VGM (register stream), WAV/OGG (rendered), MIDI (approximate)
-  - Homebrew suitability: Yes — `NSF` and register-stream (`VGM`) or engine-ready pattern exports (for e.g., FamiTone/FamiTracker drivers) make direct inclusion in NES homebrew feasible.
+  - Export formats: FamiTracker `.ftm` (tracker), Famitracker Txt `.txt` (tracker) NSF (NES Sound Format), VGM (register stream), WAV/OGG (rendered), MIDI (approximate)
+  - Homebrew suitability: Yes — `NSF` and register-stream (`VGM`) or engine-ready pattern exports (for e.g., FamiTone/FamiTracker drivers) make direct inclusion in NES homebrew feasible. Famitracker Text is suitable for importing into NESMaker or via FamiTracker to FamiTone2
 
 - **C64 / SID (6581/8580)**
   - Channels: 3 (analog-like waveforms, ring modulation, filters on 8580)
@@ -76,22 +80,6 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
   - Suggested plugin name: `@beatbax/plugin-chip-sn76489`
   - Export formats: VGM, PSG tracker exports, WAV/OGG
   - Homebrew suitability: Yes — `VGM` or register-stream drivers are usable; simple to target directly in SMS/Game Gear homebrew.
-
-- **Amiga / Paula**
-  - Channels: 4 hardware sample channels (8-bit signed PCM) with period-based pitch
-  - Features: sample playback, simple mixing, per-channel volume
-  - Difficulty: Medium
-  - Suggested plugin name: `@beatbax/plugin-chip-paula`
-  - Export formats: MOD (4-channel tracker), WAV (rendered), noise/sample packs, AHX/ProTracker variants
-  - Homebrew suitability: Yes — `MOD` is the canonical format for Amiga music and is directly used in Amiga demos/homebrew; exporting module data or raw sample banks is appropriate.
-
-- **SNES / SPC700 + DSP**
-  - Channels: 8 sample channels with ADPCM/BRR samples, DSP effects (echo, FIR)
-  - Features: sample-based synthesis, on-chip DSP effects, BRR compression
-  - Difficulty: High
-  - Suggested plugin name: `@beatbax/plugin-chip-spc700`
-  - Export formats: SPC (SNES sound file), BRR sample banks, WAV/OGG, MIDI (approximate)
-  - Homebrew suitability: Partial — `SPC` is a playback format for emulators; for real SNES homebrew you need engine-driver-ready BRR sample banks and track data compatible with existing SPC drivers or custom engines.
 
 - **OPL2 / YM3812 (AdLib / early FM)**
   - Channels: 9 FM channels (2‑operator FM per channel; some chips allow channel stacking)
@@ -138,8 +126,6 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 - VGM (Video Game Music): captures register writes for many chips (YM*, SN76489, OPL2, etc.). Excellent for archival and playback in emulators; useful for homebrew when you can convert or replay register streams in the target engine.
 - NSF (NES Sound Format): NES-specific container for sound playback on emulators/hardware replay; good for NES homebrew if you can wrap/convert data to the target mapper/driver.
 - SID (PSID/RSID): C64 playback/archival formats — good for distribution; for native C64 engines, prefer tracker exports or register dumps.
-- MOD / ProTracker / GoatTracker: module/tracker formats used by Amiga and many ports — directly usable in many homebrew/demo contexts.
-- SPC: SNES-specific sound file; useful for emulated playback and reference; for SNES homebrew prefer BRR sample banks + player data.
 - Tracker native formats: hUGETracker (`.uge`) for Game Boy, FamiTracker (`.ftm`) for NES-style composition workflows, GoatTracker for SID/C64 — provide the smoothest path to homebrew integration.
 - WAV/OGG: rendered audio for previews and DAW workflows. Not directly playable on constrained hardware without conversion, but useful for testing and documentation.
 - MIDI: Good for DAW/choreography workflows but not a hardware-native format; requires conversion to engine-specific drivers for homebrew.
@@ -149,7 +135,6 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 - Provide two layers of exports for each chip where feasible:
   - Tracker-native / module exports (human-editable where available)
   - Driver/register-stream exports (VGM, NSF, SID, raw register dumps) for direct inclusion in homebrew engines
-- For sample-based chips (Amiga, SNES) support BRR/packed sample export and sample bank manifests.
 - Provide tooling/recipes in `docs/` showing how to convert BeatBax exports into target-specific driver data (e.g., BeatBax → hUGETracker/UGE → GB builder).
 
 ## Plugin naming convention examples
@@ -158,9 +143,3 @@ This document lists candidate retro sound chips to implement in BeatBax, priorit
 - `@beatbax/plugin-chip-nes`
 - `@beatbax/plugin-chip-sid`
 - `@beatbax/plugin-chip-ym2612`
-
-## Web UI status
-
-The browser-based IDE (`apps/web-ui`) reached full feature parity with the Phase 4 migration plan and is closed. Tracking document: `docs/features/web-ui-migration.md` (status: complete, 2026-03-09). The app is served from a single `index.html` entry point backed by `main.ts`. All legacy phase entry points have been removed. Future web UI work should be tracked in new feature documents under `docs/features/`.
-
-**CodeLens interactive preview** (2026-03-11, `editor/codelens-preview.ts`): Monaco CodeLens provider delivering `▶ Preview` and `↺ Loop` actions above every `pat` and `seq` definition, plus per-note audition buttons (`C3`–`C7`) above `inst` definitions. Loop mode live-re-parses the source on each iteration. Spec: `docs/features/editor-interactive-features.md`.
