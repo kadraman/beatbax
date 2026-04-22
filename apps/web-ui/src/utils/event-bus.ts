@@ -23,9 +23,9 @@ export interface BeatBaxEvents {
   'parse:error': { error: Error; message: string };
 
   // Playback events
-  'playback:started': void;
+  'playback:started': { volumePct?: number };
   'playback:stopped': void;
-  'playback:repeated': void;
+  'playback:repeated': { volumePct?: number };
   'playback:paused': void;
   'playback:resumed': void;
   'playback:error': { error: Error };

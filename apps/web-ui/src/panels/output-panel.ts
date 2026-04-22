@@ -163,11 +163,12 @@ export class OutputPanel {
       });
 
       // Playback status events
-      this.eventBus.on('playback:started', () => {
+      this.eventBus.on('playback:started', (data: any) => {
         this.activeTab = 'output';
+        const volMsg = data && typeof data.volumePct === 'number' ? ` at ${data.volumePct}% volume` : '';
         this.addMessage({
           type: 'info',
-          message: 'Playback started',
+          message: `Playback started${volMsg}`,
           source: 'playback',
           timestamp: new Date(),
         });
@@ -200,10 +201,11 @@ export class OutputPanel {
         });
       });
 
-      this.eventBus.on('playback:repeated', () => {
+      this.eventBus.on('playback:repeated', (data: any) => {
+        const volMsg = data && typeof data.volumePct === 'number' ? ` at ${data.volumePct}% volume` : '';
         this.addMessage({
           type: 'info',
-          message: 'Playback repeated',
+          message: `Playback repeated${volMsg}`,
           source: 'playback',
           timestamp: new Date(),
         });

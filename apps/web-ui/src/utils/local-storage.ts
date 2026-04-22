@@ -52,6 +52,8 @@ export const StorageKey = {
   AUDIO_BUFFER_FRAMES: 'audio.bufferFrames',
   /** Default loop playback (boolean). */
   PLAYBACK_LOOP: 'playback.loop',
+  /** Master output volume for the transport knob (0-100). */
+  MASTER_VOLUME: 'transport.masterVolume',
   /** Last export format used. */
   LAST_EXPORT_FORMAT: 'export.lastFormat',
   /** Logger level setting ('error' | 'warn' | 'info' | 'debug'). */
