@@ -99,6 +99,7 @@ export interface PlayOptions {
   browser?: boolean;
   backend?: 'auto' | 'node-webaudio' | 'browser';
   sampleRate?: number;
+  playGain?: number;
   duration?: number;
   channels?: number[]; // Which channels to render
   verbose?: boolean;
@@ -205,10 +206,18 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           // Play sequentially to avoid overlapping audio
           while (true) {
             // eslint-disable-next-line no-await-in-loop
-            await playAudioBuffer(samples, { channels: 2, sampleRate });
+            await playAudioBuffer(samples, {
+              channels: 2,
+              sampleRate,
+              gainScale: Number.isFinite(options.playGain) ? options.playGain : undefined,
+            });
           }
         } else {
-          await playAudioBuffer(samples, { channels: 2, sampleRate }); // Use stereo
+          await playAudioBuffer(samples, {
+            channels: 2,
+            sampleRate,
+            gainScale: Number.isFinite(options.playGain) ? options.playGain : undefined,
+          }); // Use stereo
           log.info('[OK] Playback complete');
         }
       } catch (err: any) {

@@ -1,0 +1,18 @@
+# Small NES DPCM verification song.
+# Use to test DPMC-channel export behavior in famitracker-text.
+
+song name "FTM DPCM Channel Test"
+chip nes
+bpm 120
+
+# Uses bundled NES sample aliases from the chip plugin.
+inst i_dmc_kick  type=dmc dmc_sample=@nes/kick  dmc_rate=15 dmc_loop=false
+inst i_dmc_snare type=dmc dmc_sample=@nes/snare dmc_rate=15 dmc_loop=false
+
+# Alternate kick and snare triggers on the DPMC channel.
+pat p_main = i_dmc_kick . . . i_dmc_snare . . . i_dmc_kick . . . i_dmc_snare . i_dmc_snare .
+seq s_main = p_main p_main
+
+channel 5 => inst i_dmc_kick seq s_main
+
+play

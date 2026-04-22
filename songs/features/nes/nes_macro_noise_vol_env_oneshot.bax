@@ -1,0 +1,15 @@
+# Small NES macro verification song: one-shot noise volume macro.
+# Use to verify no-loop MACRO VOLUME export on noise instruments.
+
+song name "FTM Macro - Noise One Shot"
+chip nes
+bpm 120
+
+inst i_kick type=noise noise_mode=normal noise_period=12 vol_env=[15,12,8,4,2,1]
+
+pat p_main = C4 . . . C4 . . . C4 . . . C4 . . .
+seq s_main = p_main p_main
+
+channel 4 => inst i_kick seq s_main
+
+play

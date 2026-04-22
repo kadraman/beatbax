@@ -1,0 +1,16 @@
+# Small NES macro verification song: arpeggio macro on triangle.
+# Use to verify triangle arp_env macro export with loop point.
+
+song name "FTM Macro - Triangle Arp"
+chip nes
+bpm 96
+
+inst i_tri_arp type=triangle arp_env=[0,4,7|0]
+
+pat p_main = C4:8 . . F4:8 . .
+seq s_main = p_main p_main
+
+channel 3 => inst i_tri_arp seq s_main
+
+play
+

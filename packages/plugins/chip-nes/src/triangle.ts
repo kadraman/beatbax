@@ -16,7 +16,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { NES_MIX_GAIN, NES_WEB_AUDIO_NORM } from './mixer.js';
+import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   schedulePitchEnvToFreq, scheduleArpEnvToFreq,
@@ -28,7 +28,9 @@ import {
  * Normalised so that maximum amplitude matches the Game Boy backends in the browser.
  * The PCM render path uses raw NES_MIX_GAIN and is unaffected.
  */
-const NES_TRIANGLE_WEB_GAIN = NES_MIX_GAIN.triangle * 15 * NES_WEB_AUDIO_NORM;
+function getNesTriangleWebGain(): number {
+  return NES_MIX_GAIN.triangle * 15 * getNesWebAudioNorm();
+}
 
 /** 32-step quantised triangle waveform (hardware NES values, 0–15 each step). */
 const TRIANGLE_WAVE_32: number[] = [
@@ -174,7 +176,7 @@ export class NESTriangleBackend implements ChipChannelBackend {
     }
 
     // Triangle has no envelope: constant gain unless vol=0 (software mute)
-    const vol = (inst.vol !== undefined && Number(inst.vol) === 0) ? 0 : NES_TRIANGLE_WEB_GAIN;
+    const vol = (inst.vol !== undefined && Number(inst.vol) === 0) ? 0 : getNesTriangleWebGain();
     try { gain.gain.setValueAtTime(vol, start); } catch (_) {}
     try {
       gain.gain.setValueAtTime(Math.max(0.0001, vol), start + dur);

@@ -171,6 +171,7 @@ program
   .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
+  .option('--play-gain <scale>', 'Output gain multiplier for headless CLI playback (default: 0.6)', '0.6')
   .option('--rate <index>', 'DMC rate table index 0-15 (only for .dmc files, default 15 = 33 kHz)', '15')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
@@ -198,6 +199,7 @@ program
       } else {
         console.log(`Playing ${file} (rate=${rateIdx}, ${durationSec.toFixed(2)}s)`);
       }
+      const playGain = Number.parseFloat(String(options.playGain ?? '0.6'));
       // Upsample from dmcHz to sampleRate
       const phaseInc = dmcHz / sampleRate;
       const outLen = Math.ceil(decoded.length / phaseInc);
@@ -210,7 +212,11 @@ program
         const steps = Math.floor(phase);
         if (steps > 0) { pos += steps; phase -= steps; }
       }
-      await playAudioBuffer(pcm, { channels: 1, sampleRate });
+      await playAudioBuffer(pcm, {
+        channels: 1,
+        sampleRate,
+        gainScale: Number.isFinite(playGain) ? playGain : 0.6,
+      });
       return;
     }
 
@@ -229,11 +235,15 @@ program
       console.log('');
     }
 
+    const parsedPlayGain = Number.parseFloat(String(options.playGain ?? '0.6'));
+    const playGain = Number.isFinite(parsedPlayGain) ? parsedPlayGain : 0.6;
+
     await playFile(file, {
       browser: options.browser === true,
       noBrowser: (options.browser !== true) || options.headless === true || options.backend === 'node-webaudio',
       backend: options.backend,
       sampleRate: parseInt(globalOpts.sampleRate, 10),
+      playGain,
       bufferFrames: options.bufferFrames ? parseInt(options.bufferFrames, 10) : undefined,
       verbose: verbose
     });
@@ -332,8 +342,8 @@ program
 program
   .command('export')
   .description('Export a song using a registered exporter plugin')
-  .addArgument(new Argument('<format>', 'Target format (run `list-exporters` to see available formats)'))
-  .argument('<file>', 'Path to the .bax song file')
+  .addArgument(new Argument('[format]', 'Target export format'))
+  .argument('[file]', 'Path to the .bax song file')
   .argument('[output]', 'Output file path (optional)')
   .option('-o, --out <path>', 'Output file path (overrides default)')
   .option('-d, --duration <seconds>', 'Duration for rendering in seconds (WAV and MIDI only)')
@@ -342,8 +352,27 @@ program
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .option('--strict-gb', 'Fail export when numeric pan values are present (strict Game Boy compatibility)', false)
   .action(async (format, file, output, options) => {
-    const requestedFormat = String(format).toLowerCase();
+    // No format given — list all available export formats and exit
+    if (!format) {
+      const all = listExporterIds();
+      console.log('Available export formats:');
+      for (const id of all) console.log(`  ${id}`);
+      console.log('\nUsage: beatbax export <format> <file> [output]');
+      console.log('       beatbax export <format> --help   (format-specific help)');
+      return;
+    }
+    // `file` is missing — user ran `beatbax export <format>` without a file,
+    // or provided only one positional arg that was consumed as `format`.
+    if (!file) {
+      console.error(`Error: 'format' and 'file' are both required.`);
+      const all = listExporterIds();
+      console.error(`Available export formats: ${all.join(', ')}`);
+      console.error(`Usage: beatbax export <format> <file> [output]`);
+      process.exitCode = 1;
+      return;
+    }
     ensureFileExists(file);
+    const requestedFormat = String(format).toLowerCase();
     const globalOpts = program.opts();
 
     // Configure logger based on CLI flags
@@ -400,6 +429,7 @@ program
     let outPath = output || options.out;
 
     const chipName = chipRegistry.resolve(String(ast.chip || 'gameboy').toLowerCase());
+    const chipPlugin = chipRegistry.get(chipName);
     const exporter = resolveExporterForChip(requestedFormat, chipName);
     if (!exporter) {
       const forChip = listExporterIds(chipName);
@@ -477,6 +507,8 @@ program
       process.exit(1);
     }
 
+    const exporterWarnings: string[] = [];
+
     const payload = await exporter.export(song, {
       outputPath: outPath,
       sourcePath: file,
@@ -488,9 +520,17 @@ program
       sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
       debug: globalOpts && globalOpts.debug === true,
       verbose: globalOpts && globalOpts.verbose === true,
+      resolveSampleAsset: typeof chipPlugin?.resolveSampleAsset === 'function'
+        ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
+        : undefined,
+      onWarn: (message: string) => {
+        if (typeof message === 'string' && message.trim().length > 0) {
+          exporterWarnings.push(message);
+        }
+      },
     });
 
-    if (!existsSync(outPath) && payload !== undefined) {
+    if (payload !== undefined) {
       if (typeof payload === 'string') {
         writeFileSync(outPath, payload, 'utf8');
       } else if (payload instanceof Uint8Array) {
@@ -508,6 +548,21 @@ program
       console.error(`Exporter '${requestedFormat}' completed but did not write an output file.`);
       process.exitCode = 2;
       return;
+    }
+
+    const uniqueExporterWarnings = [...new Set(exporterWarnings)];
+
+    if (uniqueExporterWarnings.length > 0) {
+      console.log(`\n⚠️  Export warnings`);
+      for (const message of uniqueExporterWarnings) {
+        console.log(`  [exporter] ${message}`);
+      }
+      console.log('');
+      if (globalOpts && globalOpts.strict) {
+        console.error('Strict mode enabled: failing due to warnings');
+        process.exitCode = 2;
+        return;
+      }
     }
 
     const stats = statSync(outPath);

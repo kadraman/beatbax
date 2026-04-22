@@ -1,0 +1,42 @@
+# NES/FamiTracker export effect coverage fixture.
+# Includes all BeatBax effects that currently export to FamiTracker text:
+# arp, cut, volSlide, vib, bend, port, sweep.
+
+song name "FTM NES Effects Demo"
+chip nes
+bpm 132
+
+inst i_p1    type=pulse1 duty=25 env=12,flat
+inst i_p2    type=pulse2 duty=50 env=10,flat
+inst i_tri   type=triangle linear=96
+inst i_noise type=noise noise_mode=normal noise_period=8 env=10,down env_period=1
+inst i_dmc   type=dmc dmc_sample=@nes/kick dmc_rate=15 dmc_loop=false
+
+# Pulse 1: sweep, vibrato, arpeggio, cut.
+pat p_fx_p1 = C4<sweep:4,up,7>:8 E4<vib:4,5,sine,0,1>:8 G4<arp:3,7>:8 C5<cut:3>:8
+
+# Pulse 2: portamento, bend, volume slide (+ and -), cut.
+pat p_fx_p2 = C3<port:12>:8 D3<bend:+7,exp,0,1>:8 E3<volSlide:-2,8>:8 G3<volSlide:+8>:8
+
+# Triangle: additional port + bend coverage on triangle path.
+pat p_fx_tri = C3<port:8>:8 E3<bend:-5,log,0,1>:8 G3<vib:3,4,sine,0,1>:8 C4<cut:4>:8
+
+# Noise: cut is exportable and useful for short percussive gates.
+pat p_fx_noise = C2<cut:1>:4 . . . . C2<cut:2>:4 . . . . C2<cut:3>:4 . . . . C2<cut:4>:4
+
+# DMC: only cut is exported on DMC; keep 32 rows to align with other channels.
+pat p_fx_dmc = i_dmc . . . i_dmc<cut:1> . . . i_dmc . . . i_dmc<cut:1> . . . i_dmc . . . i_dmc<cut:1> . . . i_dmc . . . i_dmc<cut:1> . . .
+
+seq s_p1 = p_fx_p1 p_fx_p1
+seq s_p2 = p_fx_p2 p_fx_p2
+seq s_tri = p_fx_tri p_fx_tri
+seq s_noise = p_fx_noise p_fx_noise
+seq s_dmc = p_fx_dmc p_fx_dmc
+
+channel 1 => inst i_p1 seq s_p1
+channel 2 => inst i_p2 seq s_p2
+channel 3 => inst i_tri seq s_tri
+channel 4 => inst i_noise seq s_noise
+channel 5 => inst i_dmc seq s_dmc
+
+play

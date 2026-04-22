@@ -1,0 +1,15 @@
+# Small NES macro verification song: looping volume macro on pulse1.
+# Use to verify MACRO VOLUME loop-point export behaviour.
+
+song name "FTM Macro - Volume Loop"
+chip nes
+bpm 120
+
+inst i_vol_loop type=pulse1 duty=50 vol_env=[1,3,5,7,9,11|2]
+
+pat p_main = C4:8 . . E4:8 . .
+seq s_main = p_main p_main
+
+channel 1 => inst i_vol_loop seq s_main
+
+play
