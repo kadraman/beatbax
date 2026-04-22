@@ -1,5 +1,20 @@
 # @beatbax/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 09be2ac: Add and polish FamiTracker export CLI flow with clearer export help and improved missing-file error messaging.
+
+### Patch Changes
+
+- Updated dependencies [09be2ac]
+- Updated dependencies [09be2ac]
+- Updated dependencies [09be2ac]
+  - @beatbax/plugin-exporter-famitracker@0.2.0
+  - @beatbax/plugin-chip-nes@0.4.0
+  - @beatbax/engine@0.11.1
+
 ## 0.3.4
 
 ### Patch Changes

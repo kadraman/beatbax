@@ -1,5 +1,16 @@
 # @beatbax/plugin-chip-nes
 
+## 0.4.0
+
+### Minor Changes
+
+- 09be2ac: Support optional FamiTracker exporter loading and improve NES mix/gain behavior for playback and export integration.
+
+### Patch Changes
+
+- Updated dependencies [09be2ac]
+  - @beatbax/engine@0.11.1
+
 ## 0.3.1
 
 ### Patch Changes
