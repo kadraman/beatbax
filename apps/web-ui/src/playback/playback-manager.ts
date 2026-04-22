@@ -73,6 +73,10 @@ export class PlaybackManager {
   };
 
   private player: Player | null = null;
+  // If user adjusts master volume before the Player instance is created,
+  // store the desired volume here (linear 0.0–1.0). Applied to the Player
+  // as soon as it is constructed so playback honors the transport control.
+  private _pendingMasterVolume: number | null = null;
   private _loop = false;
   private _bpmOverride: number | null = null;
   private _masterAnalyser: AnalyserNode | null = null;
@@ -324,9 +328,13 @@ export class PlaybackManager {
         if (!Ctor) throw new Error('No AudioContext constructor found.');
         const audioCtx = new Ctor({ sampleRate });
         this.player = new Player(audioCtx);
-        log.debug('Player instance created:', this.player);
-        log.debug('Player.playAST type:', typeof this.player.playAST);
-        log.debug('Player.playAST:', this.player.playAST);
+        // If the user adjusted master volume before playback started, apply it now
+        if (this._pendingMasterVolume !== null) {
+          try { this.player.setMasterVolume(this._pendingMasterVolume); } catch (e) { /* ignore */ }
+        }
+         log.debug('Player instance created:', this.player);
+         log.debug('Player.playAST type:', typeof this.player.playAST);
+         log.debug('Player.playAST:', this.player.playAST);
       }
 
       // Wire per-channel analyser when enabled
@@ -346,8 +354,18 @@ export class PlaybackManager {
       // so the same AST object is reused on every iteration.
       this.player.onComplete = () => {
         if (this._loop) {
-          this.eventBus.emit('playback:repeated', undefined);
-          this.player!.playAST(resolved as any).catch((err: unknown) => {
+          // Start the next iteration first so the Player can apply the effective
+          // master volume (user override or AST volume) before we emit the UI message.
+          this.player!.playAST(resolved as any).then(() => {
+            try {
+              const gain = this.player!.getMasterGain();
+              const resolvedVol = this._pendingMasterVolume !== null ? this._pendingMasterVolume : (gain ? (gain.gain.value ?? 1) : 1);
+              const pct = Math.round((resolvedVol ?? 1) * 100);
+              this.eventBus.emit('playback:repeated', pct !== 100 ? { volumePct: pct } : {});
+            } catch (e) {
+              this.eventBus.emit('playback:repeated', {} as any);
+            }
+          }).catch((err: unknown) => {
             log.error('Loop restart failed:', err);
             this.stop();
           });
@@ -358,7 +376,14 @@ export class PlaybackManager {
 
       // Set up repeat callback to notify UI when song loops
       this.player.onRepeat = () => {
-        this.eventBus.emit('playback:repeated', undefined);
+        try {
+          const gain = this.player!.getMasterGain();
+          const resolvedVol = this._pendingMasterVolume !== null ? this._pendingMasterVolume : (gain ? (gain.gain.value ?? 1) : 1);
+          const pct = Math.round((resolvedVol ?? 1) * 100);
+          this.eventBus.emit('playback:repeated', pct !== 100 ? { volumePct: pct } : {});
+        } catch (e) {
+          this.eventBus.emit('playback:repeated', {} as any);
+        }
       };
 
       // Set up position tracking
@@ -395,6 +420,24 @@ export class PlaybackManager {
 
       // Start playback (Player will handle AudioContext resume internally)
       log.debug('Calling player.playAST()...');
+      // Ensure any pending master volume (set via transport knob) is applied
+      // to the Player before starting so the first scheduled audio uses it.
+      if (this._pendingMasterVolume !== null && this.player) {
+        try {
+          this.player.setMasterVolume(this._pendingMasterVolume);
+          // If the Player already created the master GainNode, write the value
+          // directly to avoid a race where the first scheduled audio uses the
+          // AST volume before the override is applied. This is defensive —
+          // Player.setMasterVolume should handle it, but some engine versions
+          // may only store overrides and apply them later.
+          try {
+            const mg = this.player.getMasterGain();
+            if (mg && (mg as any).gain && typeof (mg as any).gain.value === 'number') {
+              (mg as any).gain.value = this._pendingMasterVolume;
+            }
+          } catch { /* ignore */ }
+        } catch (e) { /* ignore */ }
+      }
       await this.player.playAST(resolved as any);
       log.debug('player.playAST() completed');
 
@@ -404,7 +447,14 @@ export class PlaybackManager {
 
       // Emit playback started
       log.debug('Emitting playback:started');
-      this.eventBus.emit('playback:started', undefined);
+      try {
+        const gain = this.player.getMasterGain();
+        const resolvedVol = this._pendingMasterVolume !== null ? this._pendingMasterVolume : (gain ? (gain.gain.value ?? 1) : 1);
+        const pct = Math.round((resolvedVol ?? 1) * 100);
+        this.eventBus.emit('playback:started', pct !== 100 ? { volumePct: pct } : {});
+      } catch (e) {
+        this.eventBus.emit('playback:started', {} as any);
+      }
       playbackStatus.set('playing');
 
     } catch (error: any) {
@@ -510,8 +560,11 @@ export class PlaybackManager {
    * Takes effect immediately if a song is playing.
    */
   setMasterVolume(volume: number): void {
+    // Always remember the user's intent so the next play() will honor it.
+    this._pendingMasterVolume = Math.max(0, Math.min(1, volume));
+    try { storage.set(StorageKey.MASTER_VOLUME, String(Math.round(this._pendingMasterVolume * 100))); } catch { /* ignore */ }
     if (!this.player) return;
-    this.player.setMasterVolume(volume);
+    this.player.setMasterVolume(this._pendingMasterVolume);
   }
 
   /**

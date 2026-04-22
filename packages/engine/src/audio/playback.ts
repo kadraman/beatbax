@@ -181,6 +181,10 @@ export class Player {
   private _isPaused: boolean = false; // Whether playback is currently paused
   private _isPlaying: boolean = false; // True only after scheduler.start() and before stop()
   private _debugLog: boolean = false; // Whether to log playback events (controlled by localStorage)
+  // Track a user-applied master volume override (linear 0.0-1.0). When non-null,
+  // this value takes precedence over any `ast.volume` value so user adjustments
+  // persist across play() / loop restarts.
+  private _userMasterVolumeOverride: number | null = null;
   // ─── Plugin chip state ─────────────────────────────────────────────────────
   private _pluginBackends: any[] = [];
   private _pluginProcessor: any = null;
@@ -249,14 +253,20 @@ export class Player {
 
     log.debug('Player cleaned, starting setup...');
 
-    // Create or update master gain node
-    // Default to 1.0 (matches hUGETracker behavior - no attenuation)
-    const masterVolume = ast.volume !== undefined ? ast.volume : 1.0;
+    // Create or update master gain node.
+    // Default AST volume is 1.0 (matches hUGETracker behavior - no attenuation).
+    const astVolume = ast.volume !== undefined ? ast.volume : 1.0;
+    // If the user has explicitly adjusted master volume via setMasterVolume(), prefer
+    // that value so user settings persist across loop restarts. Otherwise use AST volume.
+    const effectiveMasterVolume = this._userMasterVolumeOverride !== null
+      ? this._userMasterVolumeOverride
+      : astVolume;
+
     if (!this.masterGain) {
       this.masterGain = this.ctx.createGain();
       this.masterGain.connect(this.ctx.destination);
     }
-    this.masterGain.gain.setValueAtTime(masterVolume, this.ctx.currentTime);
+    this.masterGain.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
 
     const chip = chipRegistry.resolve(ast.chip || 'gameboy');
     const isGameboy = chip === 'gameboy';
@@ -546,6 +556,17 @@ export class Player {
 
       // Notify UI that the song is wrapping around
       if (this.onRepeat) { try { this.onRepeat(); } catch (e) {} }
+
+      // Ensure masterGain uses the effective master volume (prefer user override)
+      try {
+        const astVolume = ast && ast.volume !== undefined ? ast.volume : 1.0;
+        const effectiveMasterVolume = this._userMasterVolumeOverride !== null ? this._userMasterVolumeOverride : astVolume;
+        if (this.masterGain) {
+          try { this.masterGain.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime); } catch (_) { this.masterGain.gain.value = effectiveMasterVolume; }
+        }
+      } catch (e) {
+        // Non-fatal: continue even if setting master gain fails
+      }
 
       // nextStart is the exact audio-clock time the next iteration begins.
       // Guard against clock drift: if we're already past loopEndTime, start 50ms from now.
@@ -1226,9 +1247,16 @@ export class Player {
    */
   public setMasterVolume(volume: number): void {
     const clamped = Math.max(0, Math.min(1, volume));
+    if (!this.masterGain) {
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.connect(this.ctx.destination);
+    }
     if (this.masterGain) {
       this.masterGain.gain.setValueAtTime(clamped, this.ctx.currentTime);
     }
+    // Remember that the user explicitly set the master volume so subsequent
+    // play/loop restarts do not overwrite their preference with ast.volume.
+    this._userMasterVolumeOverride = clamped;
   }
 
   /** Expose the AudioContext so UI consumers (e.g. oscilloscope) can create nodes. */
@@ -1392,7 +1420,7 @@ export class Player {
    * Has no effect when the channel bus does not yet exist (e.g. before playback starts).
    */
   setChannelVolume(channelId: number, volume: number): void {
-    const bus = this._channelBuses.get(channelId);
+       const bus = this._channelBuses.get(channelId);
     if (bus) {
       bus.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.ctx.currentTime);
     }
