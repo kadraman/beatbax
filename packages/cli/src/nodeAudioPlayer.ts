@@ -15,11 +15,9 @@ const log = createLogger('audio-player');
 // @ts-ignore - play-sound is an optional dependency without types
 declare module 'play-sound';
 
-function floatTo16BitPCM(float32Arr: Float32Array): Buffer {
+function floatTo16BitPCM(float32Arr: Float32Array, gainScale: number = 0.6): Buffer {
   const buf = Buffer.alloc(float32Arr.length * 2);
-  // Apply 0.6x volume scaling to match browser auto-gain behavior
-  // Browsers typically apply dynamic range compression/limiting which reduces perceived volume
-  const volumeScale = 0.6;
+  const volumeScale = Number.isFinite(gainScale) ? gainScale : 0.6;
   for (let i = 0; i < float32Arr.length; i++) {
     let s = Math.max(-1, Math.min(1, float32Arr[i] * volumeScale));
     s = s < 0 ? s * 0x8000 : s * 0x7FFF;
@@ -28,8 +26,8 @@ function floatTo16BitPCM(float32Arr: Float32Array): Buffer {
   return buf;
 }
 
-function createWAVBuffer(samples: Float32Array, sampleRate: number, channels: number): Buffer {
-  const pcmData = floatTo16BitPCM(samples);
+function createWAVBuffer(samples: Float32Array, sampleRate: number, channels: number, gainScale: number = 0.6): Buffer {
+  const pcmData = floatTo16BitPCM(samples, gainScale);
   const dataSize = pcmData.length;
   const headerSize = 44;
   const fileSize = headerSize + dataSize - 8;
@@ -69,7 +67,7 @@ function createWAVBuffer(samples: Float32Array, sampleRate: number, channels: nu
  */
 export async function playAudioBuffer(
   samples: Float32Array,
-  options: { channels: number; sampleRate: number } = { channels: 1, sampleRate: 44100 }
+  options: { channels: number; sampleRate: number; gainScale?: number } = { channels: 1, sampleRate: 44100 }
 ): Promise<void> {
   const platform = process.platform;
 
@@ -98,7 +96,7 @@ export async function playAudioBuffer(
         while (offset < samples.length) {
           const count = Math.min(blockSize, samples.length - offset);
           const chunk = samples.subarray(offset, offset + count);
-          const pcm = floatTo16BitPCM(chunk);
+          const pcm = floatTo16BitPCM(chunk, options.gainScale);
 
           if (!speaker.write(pcm)) {
             offset += count;
@@ -123,7 +121,7 @@ export async function playAudioBuffer(
     const playSound = (await import('play-sound')).default;
     const player = playSound({});
     const tempFile = join(tmpdir(), `beatbax-${Date.now()}.wav`);
-    const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels);
+    const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels, options.gainScale);
     writeFileSync(tempFile, wavBuffer);
 
     return new Promise((resolve, reject) => {
@@ -144,7 +142,7 @@ export async function playAudioBuffer(
   // Final fallback: direct system commands (most reliable on Windows)
   log.info('Using system audio player...');
   const tempFile = join(tmpdir(), `beatbax-${Date.now()}.wav`);
-  const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels);
+  const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels, options.gainScale);
   writeFileSync(tempFile, wavBuffer);
 
   return new Promise((resolve, reject) => {

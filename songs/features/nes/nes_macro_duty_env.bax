@@ -1,0 +1,16 @@
+# Small NES macro verification song: duty-cycle macro on pulse2.
+# Use to verify duty_env -> MACRO DUTY export with looping timbre cycle.
+
+song name "FTM Macro - Duty Env"
+chip nes
+bpm 112
+
+inst i_duty_wah type=pulse2 duty=50 vol=10 duty_env=[2,2,2,2,0,0,0,0|0]
+
+pat p_main = C4:8 . . G4:8 . .
+seq s_main = p_main p_main
+
+channel 2 => inst i_duty_wah seq s_main
+
+play
+

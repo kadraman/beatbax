@@ -13,7 +13,7 @@
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NOISE_PERIOD_TABLE, NES_CLOCK } from './periodTables.js';
-import { NES_MIX_GAIN, NES_WEB_AUDIO_NORM } from './mixer.js';
+import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve,
@@ -269,8 +269,9 @@ export class NESNoiseBackend implements ChipChannelBackend {
 
     const gainNode = (ctx as any).createGain();
     const volEnvM = parseMacro(inst.vol_env);
+    const webNorm = getNesWebAudioNorm();
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise * NES_WEB_AUDIO_NORM, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise * webNorm, dur);
       try {
         gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -306,10 +307,8 @@ function applyNESNoiseEnvelopeToGain(
   start: number,
   dur: number
 ): void {
-  // Apply NES_WEB_AUDIO_NORM so the noise channel sits at a comparable loudness to
-  // the Game Boy backends in the browser.  The PCM render() path uses raw NES_MIX_GAIN
-  // and is unaffected.
-  const mixGain = NES_MIX_GAIN.noise * NES_WEB_AUDIO_NORM;
+  // WebAudio loudness is runtime-configurable: normalized (default) or hardware-accurate.
+  const mixGain = NES_MIX_GAIN.noise * getNesWebAudioNorm();
   const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.

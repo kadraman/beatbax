@@ -1,5 +1,5 @@
 ---
-title: "FamiTracker Binary and Text Export"
+title: "FamiTracker Text Export"
 status: proposed
 authors: ["kadraman"]
 created: 2026-04-19
@@ -8,7 +8,9 @@ issue: "https://github.com/kadraman/beatbax/issues/94"
 
 ## Summary
 
-Implement real FamiTracker binary (`.ftm`) and text (`.txt`) export in `@beatbax/plugin-exporter-famitracker`. Both exporters currently output placeholder comment headers. This feature replaces those stubs with fully structured output that FamiTracker v0.4.6 / FamiStudio can load.
+Implement real FamiTracker text (`.txt`) export in `@beatbax/plugin-exporter-famitracker`.
+
+> Note (2026-04-21): Binary `.ftm` export has been removed from the product surface. The supported FamiTracker export path is `famitracker-text` only.
 
 ## Problem Statement
 
@@ -135,7 +137,7 @@ In binary format, each sample has a 2-byte length prefix followed by raw DMC byt
 
 ### Instrument-Level Macro Channel Compatibility
 
-The four instrument-level macro fields (`vol_env`, `arp_env`, `pitch_env`, `duty_env`) demonstrated in `songs/features/nes_software_macros_demo.bax` map to FamiTracker's five `MACRO` sequence types. Their behaviour differs per channel:
+The four instrument-level macro fields (`vol_env`, `arp_env`, `pitch_env`, `duty_env`) demonstrated in `songs/features/nes/nes_macro_*.bax` map to FamiTracker's five `MACRO` sequence types. Their behaviour differs per channel:
 
 | BeatBax field | FTM macro type (index) | Pulse 1 | Pulse 2 | Triangle | Noise | DMC |
 |---|---|---|---|---|---|---|
@@ -444,11 +446,17 @@ Types: `FtmMacro`, `FtmInstrument2A03`, `FtmInstrumentDPCM`, `FtmDpcmSample`, `F
 - Export `shadow_temple.bax` to text; verify `vol_env` loop points appear in MACRO VOLUME
 - Export `wily_fortress.bax` to text; verify `arp:3,7` → `037` in effect columns, `bend:7,exp,...` → `1xx`, `cut:3` → `S03`
 - Reference test: export `kingdom_hall.bax` to text and compare against a manually verified golden file
-- `nes_software_macros_demo.bax` (macro coverage test):
+- `nes_macro_*.bax` (macro coverage test):
   - Ch1 (`i_pitch`): MACRO PITCH present with values `[80,64,48,32,16,0,0,0]` (pitch_env × 16), no loop
   - Ch2 (`i_duty`): MACRO DUTY present with 16 values, loop=0 (cycling wah)
   - Ch3 (`i_arp`): MACRO ARPEGGIO present with `[0,4,7]`, loop=0 (continuous triad shimmer); written on triangle instrument
   - Ch4 (`i_kick`): MACRO VOLUME `[15,12,8,4,2,1]`, loop=-1 (one-shot decay); written on noise instrument
+- Small focused fixtures in `songs/features/famitracker/`:
+  - `nes_macro_vol_env_loop.bax` (looping `vol_env`)
+  - `nes_macro_pitch_env.bax` (`pitch_env` semitone-to-FTM conversion coverage)
+  - `nes_macro_arp_triangle.bax` (`arp_env` on triangle)
+  - `nes_macro_duty_env.bax` (`duty_env` loop behaviour)
+  - `nes_macro_noise_vol_env_oneshot.bax` (noise one-shot `vol_env` without loop)
 - Effects songs (from `songs/effects/`):
   - `arpeggio.bax` (chip gameboy, but run through NES chip for coverage): `arpMajor7` (3 offsets) → warning + truncated to `047`
   - `notecut.bax` → all `cut:N` tokens produce `Sxx` with correct values
@@ -480,7 +488,7 @@ The `export()` functions are internal to the plugin. The `ExporterPlugin` interf
 - [ ] Update `index.ts`: remove `placeholderHeader()`, wire real writers
 - [ ] Unit tests: macros (including pitch_env ×16, arp_env on triangle, vol_env no-loop)
 - [ ] Unit tests: patterns, note encoding, all supported effects + dropped effects with warning
-- [ ] Integration tests: all four NES example songs + nes_software_macros_demo.bax
+- [ ] Integration tests: all four NES example songs `songs/features/nes/*.bax`
 - [ ] Golden-file test for `kingdom_hall.bax`
 - [ ] Update `packages/plugins/export-famitracker/README.md`
 - [ ] Document known limitations in the README
@@ -514,7 +522,7 @@ The `export()` functions are internal to the plugin. The `ExporterPlugin` interf
 - `packages/plugins/chip-nes/README.md` — complete NES instrument field reference
 - `packages/plugins/chip-nes/src/` — NES channel backends
 - `songs/nes/` — four NES example songs covering all field combinations used in practice
-- `songs/features/nes_software_macros_demo.bax` — definitive source for instrument-level macro behaviour (`pitch_env`, `duty_env`, `arp_env` on triangle, `vol_env` on noise)
+- `songs/features/nes/*.bax` — definitive source for instrument-level macro behaviour (`pitch_env`, `duty_env`, `arp_env` on triangle, `vol_env` on noise)
 - `songs/effects/` — eleven effect demo songs covering all per-note effect types and their export constraints
 - `docs/features/exporter_plugin_system.md` — parent feature (complete)
 

@@ -735,7 +735,7 @@ inst swell  type=pulse1  duty=25  vol_env=[1,2,3,4,5,6,7,8,9,10|9]
 
 **Interaction with hardware envelope:** Software macros (e.g. `vol_env`) and hardware envelope (`env` + `env_period`) are mutually exclusive — if `vol_env` is present on an instrument, it overrides the `env` decay. Use `vol` (constant) or `vol_env` for macro-driven volumes; use `env` + `env_period` for hardware-mapped envelope when not using macros.
 
-**Demo song:** See `songs/features/nes_software_macros_demo.bax` for a complete four-channel demonstration, one macro type per channel.
+**Demo song:** See `songs/nes/*.bax` for a complete demonstration.
 
 ---
 

@@ -18,7 +18,7 @@
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi } from './periodTables.js';
-import { NES_MIX_GAIN, NES_WEB_AUDIO_NORM } from './mixer.js';
+import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
@@ -405,8 +405,9 @@ export class NESPulseBackend implements ChipChannelBackend {
 
     // ── Volume macro or hardware envelope ────────────────────────────────────
     const volEnvM = parseMacro(inst.vol_env);
+    const webNorm = getNesWebAudioNorm();
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.pulse * NES_WEB_AUDIO_NORM, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.pulse * webNorm, dur);
       try {
         gain.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -454,10 +455,8 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
  * Steps through volume levels at the NES hardware frame rate.
  */
 function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number, dur: number): void {
-  // Apply NES_WEB_AUDIO_NORM so a pulse channel at max volume (15) produces gain ≈ 1.0,
-  // matching the Game Boy backends.  The PCM render() path uses raw NES_MIX_GAIN and
-  // is unaffected.
-  const mixGain = NES_MIX_GAIN.pulse * NES_WEB_AUDIO_NORM;
+  // WebAudio loudness is runtime-configurable: normalized (default) or hardware-accurate.
+  const mixGain = NES_MIX_GAIN.pulse * getNesWebAudioNorm();
   const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.

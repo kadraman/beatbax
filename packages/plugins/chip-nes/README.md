@@ -174,7 +174,7 @@ play
 
 **Timing:** One macro frame = 1/60 s (~16.7 ms). Macros reset on every `noteOn` and are independent of `ticksPerStep` or BPM. Macros and hardware `env` are mutually exclusive per instrument: if `vol_env` is present, `env` decay is ignored for that instrument.
 
-See `songs/features/nes_software_macros_demo.bax` for a four-channel demonstration (one macro type per channel).
+See `songs/features/nes/*.bax` for demonstrations.
 
 ## Hardware Accuracy Notes
 - **Pulse channels:** Period register muting (period < 8) is enforced; hardware sweep with one's complement (Pulse 1) vs two's complement (Pulse 2) negate is modelled.

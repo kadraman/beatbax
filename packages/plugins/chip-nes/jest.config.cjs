@@ -9,5 +9,8 @@ module.exports = {
     // Redirect @beatbax/engine imports to the plugin API entry point (avoids import.meta in index.ts)
     '^@beatbax/engine$': '<rootDir>/../../engine/src/plugin-api.ts',
     '^@beatbax/engine/(.*)$': '<rootDir>/../../engine/src/$1',
+    // Redirect famitracker exporter to its source entry point
+    '^@beatbax/plugin-exporter-famitracker$': '<rootDir>/../export-famitracker/src/index.ts',
+    '^@beatbax/plugin-exporter-famitracker/(.*)$': '<rootDir>/../export-famitracker/src/$1',
   },
 };
