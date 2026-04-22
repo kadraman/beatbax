@@ -27,7 +27,6 @@
 import type { ChipPlugin, ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { version } from './version.js';
-import { famitrackerTextExporterPlugin } from '@beatbax/plugin-exporter-famitracker';
 import { createPulseChannel } from './pulse.js';
 import { createTriangleChannel } from './triangle.js';
 import { createNoiseChannel } from './noise.js';
@@ -86,7 +85,16 @@ const nesPlugin: ChipPlugin = {
   },
 
   uiContributions: nesUIContributions,
-  exporterPlugins: [famitrackerTextExporterPlugin],
+
+  async resolveExporterPlugins() {
+    try {
+      const mod = await import('@beatbax/plugin-exporter-famitracker');
+      return [mod.famitrackerTextExporterPlugin];
+    } catch {
+      // @beatbax/plugin-exporter-famitracker is an optional peer — not installed.
+      return [];
+    }
+  },
 };
 
 export default nesPlugin;

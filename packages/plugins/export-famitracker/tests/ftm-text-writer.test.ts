@@ -401,4 +401,53 @@ describe('writeFtmText DPCM mapping lines', () => {
     expect(text).toContain('ROW 00 : ... .. . ... : ... .. . ... : ... .. . ... : ... .. . ... : C-2 00 . ...');
     expect(text).toContain('ROW 04 : ... .. . ... : ... .. . ... : ... .. . ... : ... .. . ... : C#2 00 . ...');
   });
+
+  test('emits a warning and skips instruments beyond the 60-slot KEYDPCM note range', async () => {
+    // Build 61 DMC instruments (one more than the 36–95 range allows).
+    const insts: Record<string, any> = {};
+    for (let i = 0; i < 61; i++) {
+      insts[`dmc${i}`] = { type: 'dmc', dmc_rate: 15, dmc_loop: false };
+    }
+
+    const channels = [
+      {
+        id: 5,
+        defaultInstrument: 'dmc0',
+        events: Object.keys(insts).map((name) => ({
+          type: 'note' as const,
+          token: 'C4',
+          instrument: name,
+          instProps: insts[name],
+          effects: [],
+          sourcePattern: 'p',
+        })),
+      },
+    ];
+
+    const warnings: string[] = [];
+    const song: SongLike = {
+      chip: 'nes',
+      bpm: 120,
+      metadata: { name: 'dmc overflow test' },
+      pats: {},
+      insts,
+      seqs: {},
+      channels,
+    };
+
+    await writeFtmText(song, {
+      onWarn: (msg) => warnings.push(msg),
+    });
+
+    // Exactly 1 instrument (dmc60) should overflow.
+    const overflowWarnings = warnings.filter((w) => w.includes('note range') && w.includes('exhausted'));
+    expect(overflowWarnings).toHaveLength(1);
+    expect(overflowWarnings[0]).toContain('dmc60');
+
+    // The first 60 instruments must each have a unique KEYDPCM entry (notes 36–95).
+    // Rebuild with a text capture to verify the KEYDPCM count.
+    const text = await writeFtmText(song);
+    const keydpcmLines = text.split('\n').filter((l) => l.trimStart().startsWith('KEYDPCM'));
+    expect(keydpcmLines).toHaveLength(60);
+  });
 });

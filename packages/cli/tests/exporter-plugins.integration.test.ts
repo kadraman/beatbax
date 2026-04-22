@@ -14,7 +14,7 @@ const FAMITRACKER_SAMPLE_DIR = join(
   '..',
   'songs',
   'features',
-  'famitracker',
+  'nes',
 );
 const FAMITRACKER_SAMPLE_BAX_PATHS = [
   join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_vol_env_loop.bax'),
@@ -86,6 +86,7 @@ play
 
   it('exports famitracker-text for dedicated macro verification sample songs', () => {
     const existingFixtures = FAMITRACKER_SAMPLE_BAX_PATHS.filter((p) => existsSync(p));
+    expect(existingFixtures.length).toBeGreaterThan(0);
     for (const baxPath of existingFixtures) {
       const outPath = join(
         TEST_OUTPUT_DIR,

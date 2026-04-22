@@ -34,12 +34,30 @@ import {
 
 // ─── Channel-to-FTM index mapping ────────────────────────────────────────────
 
+/** NES 2A03 supports exactly 5 channels (pulse1, pulse2, triangle, noise, DMC). */
+const NES_CHANNEL_COUNT = 5;
+
 /**
  * Map a BeatBax channel ID (1-based) to a 0-based NES channel index.
- * Channel IDs beyond 5 are clamped.
+ * Returns -1 and emits a warning when the ID is outside the valid NES range (1–5).
+ * Clamping is intentionally avoided: silently merging out-of-range channels onto
+ * the wrong NES channel (e.g. 6 → DMC) produces incorrect output.
  */
-function channelIdToIndex(id: number): number {
-  return Math.max(0, Math.min(4, id - 1));
+function channelIdToIndex(
+  id: number,
+  onWarn?: (msg: string) => void,
+): number {
+  const idx = id - 1;
+  if (idx < 0 || idx >= NES_CHANNEL_COUNT) {
+    const msg =
+      `FamiTracker export: channel ${id} is outside the valid NES range (1–${NES_CHANNEL_COUNT}) ` +
+      `and will be skipped. NES 2A03 has exactly ${NES_CHANNEL_COUNT} channels ` +
+      `(pulse1, pulse2, triangle, noise, DMC). ` +
+      `Cartridge expansions (e.g. VRC6) are not supported by this exporter.`;
+    (onWarn ?? console.warn)(msg);
+    return -1;
+  }
+  return idx;
 }
 
 // ─── Instrument resolution ────────────────────────────────────────────────────
@@ -124,7 +142,8 @@ async function resolveInstruments(song: SongLike, options?: WriterOptions): Prom
   // Determine which channel each instrument belongs to by scanning channel events
   const instChannelType = new Map<string, NesChannelType>();
   for (const ch of song.channels) {
-    const chIdx = channelIdToIndex(ch.id);
+    const chIdx = channelIdToIndex(ch.id, options?.onWarn);
+    if (chIdx === -1) continue;
     const chType = nesChannelType(chIdx);
     for (const ev of ch.events) {
       if (ev.instrument) {
@@ -202,7 +221,23 @@ async function resolveInstruments(song: SongLike, options?: WriterOptions): Prom
         sampleIndex = ensureSilenceSample();
       }
 
-      const noteIndex = Math.max(0, Math.min(95, dmcNoteCursor));
+      const DMC_NOTE_MIN = 36;
+      const DMC_NOTE_MAX = 95;
+      const DMC_NOTE_RANGE = DMC_NOTE_MAX - DMC_NOTE_MIN + 1; // 60
+
+      if (dmcNoteCursor > DMC_NOTE_MAX) {
+        warnings.push(
+          `FamiTracker export: DMC instrument '${name}' cannot be assigned a unique trigger note — ` +
+          `the available KEYDPCM note range (${DMC_NOTE_MIN}–${DMC_NOTE_MAX}, ${DMC_NOTE_RANGE} slots) is exhausted. ` +
+          `This instrument will be skipped in the DPCM kit. Consider reducing the number of DMC instruments.`,
+        );
+        // Still register in instIndexByName so pattern rows don't crash, but
+        // do NOT add a KEYDPCM entry — the note will be left silent.
+        instIndexByName.set(name, sharedDmcInstIndex);
+        continue;
+      }
+
+      const noteIndex = dmcNoteCursor;
       dmcNoteCursor += 1;
 
       // Map each DMC source instrument to its own trigger note in the shared DPCM instrument.
@@ -278,14 +313,15 @@ function buildTrack(
   dmcTriggerNoteByInstrument: Map<string, number>,
   warnings: string[],
 ): FtmTrack {
-  const NES_CHANNEL_COUNT = 5;
   const bpm = Number(song.bpm ?? 120);
   const speed = 6;
   const tempo = Math.max(32, Math.min(255, Math.round(bpm)));
 
+  const trackWarn = (msg: string) => warnings.push(msg);
   const channelsByIndex = new Map<number, SongLike['channels'][number]>();
   for (const ch of song.channels ?? []) {
-    channelsByIndex.set(channelIdToIndex(ch.id), ch);
+    const chIdx = channelIdToIndex(ch.id, trackWarn);
+    if (chIdx !== -1) channelsByIndex.set(chIdx, ch);
   }
   const numChannels = NES_CHANNEL_COUNT;
 

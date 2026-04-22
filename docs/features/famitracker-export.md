@@ -137,7 +137,7 @@ In binary format, each sample has a 2-byte length prefix followed by raw DMC byt
 
 ### Instrument-Level Macro Channel Compatibility
 
-The four instrument-level macro fields (`vol_env`, `arp_env`, `pitch_env`, `duty_env`) demonstrated in `songs/features/ne/nes_macro_*.bax` map to FamiTracker's five `MACRO` sequence types. Their behaviour differs per channel:
+The four instrument-level macro fields (`vol_env`, `arp_env`, `pitch_env`, `duty_env`) demonstrated in `songs/features/nes/nes_macro_*.bax` map to FamiTracker's five `MACRO` sequence types. Their behaviour differs per channel:
 
 | BeatBax field | FTM macro type (index) | Pulse 1 | Pulse 2 | Triangle | Noise | DMC |
 |---|---|---|---|---|---|---|

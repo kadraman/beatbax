@@ -1,5 +1,5 @@
 import type { ExporterPlugin } from '@beatbax/engine';
-import { SongLike } from './ftm-types.js';
+import type { SongLike } from './ftm-types.js';
 import { version } from './version.js';
 import { writeFtmText } from './ftm-text-writer.js';
 
