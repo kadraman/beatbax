@@ -4,11 +4,12 @@
 
 # BeatBax
 
-**BeatBax** is a creative tool for making chiptune music in the style of classic game consoles. Instead of clicking through a tracker or a DAW, you write simple text scripts that describe your melodies, basslines, and beats — and BeatBax brings them to life with authentic retro sound. Whether you're a developer who loves the aesthetics of 8-bit audio or a musician who wants to explore the Game Boy sound chip, BeatBax gives you a fast, expressive way to compose, preview, and export your tracks. Not sure where to start? The built-in AI assistant can help you write and refine your songs just by describing what you want to hear.
+**BeatBax** is a creative tool for making chiptune music in the style of classic game consoles. Instead of clicking through a tracker or a DAW, you write simple text scripts that describe your melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sound. Whether you're a developer who loves the aesthetics of 8-bit audio or a musician who wants to explore the Game Boy sound chip, BeatBax gives you a fast, expressive way to compose, preview, and export your tracks. Not sure where to start? The built-in AI assistant can help you write and refine your songs just by describing what you want to hear.
 
-Initial target hardware is the Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU. The architecture is designed so additional chip backends (NES, SID, Genesis) can be added later (see [ROADMAP](ROADMAP.md) for further details). BeatBax songs can be exported into multiple
-formats (JSON, MIDI, WAV) as well as chipset specific formats like hUGETracker (UGE) format for the
-Nintendo Gameboy.
+Initial target hardware is the Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU. However, the architecture is designed so additional chip backends (PC-Engine, SID, Genesis) can be added later (see [ROADMAP](ROADMAP.md) for further details).
+
+BeatBax songs can be exported into multiple
+formats (JSON, MIDI, WAV) as well as chipset specific formats like hUGETracker (UGE) format for the Nintendo Gameboy.
 
 <p align="center">
   <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
@@ -20,9 +21,9 @@ Nintendo Gameboy.
 
 - **Simple text-based language** — write melodies, basslines, and beats in a readable `.bax` script; no GUI required
 - **11 built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
-- **Authentic retro sound** — 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
+- **Authentic retro sound** — Chip specific implementation, e.g.: 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
-- **4 export formats** — MIDI, WAV, ISM JSON, and hUGETracker v6 (`.uge`) for use in trackers
+- **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
 - **Web UI IDE** — live editor with syntax highlighting, real-time validation, channel mixer, and one-click playback
 - **BeatBax Copilot** — AI assistant that writes and edits songs from natural-language descriptions (bring your own API key)
 - **CLI tools** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
@@ -40,7 +41,7 @@ The quickest way to get started with BeatBax is to try out the Web UI which is a
 
 A `.bax` song defines instruments, effects, patterns, sequences, and a channel arrangement.
 
-```
+```bash
 song name "An example song"
 
 chip gameboy
@@ -100,19 +101,19 @@ Please see the [TUTORIAL](TUTORIAL.md) for more details on the BeatBax language 
 | Retrigger | `retrig:<rate>[,<vol>]` | Rhythmic note restart (WebAudio only) |
 | Echo | `echo:<delay>,<feedback>` | Feedback delay (WebAudio only) |
 
-Annotated examples for every effect are in [songs/effects/](songs/effects/).
+Annotated examples for seffect are in chip specific directories [songs/features/**](songs/features/).
+
 
 **Export compatibility:**
 
-| Effect | JSON | MIDI | UGE | WAV |
-|--------|------|------|-----|-----|
-| pan, vib, port, arp, volSlide, cut | ✓ | ✓ | ✓ | ✓ |
-| bend | ✓ | ✓ | Approx. (3xx portamento) | ✓ |
-| sweep | ✓ | ✓ | Instrument-level only | ✓ |
-| trem | ✓ | ✓ | Metadata only | ✓ |
-| retrig, echo | ✓ | ✓ | — | — |
+| Effect | JSON | MIDI | UGE | FamiTracker Text | WAV |
+|--------|------|------|-----|-------------------|-----|
+| pan, vib, port, arp, volSlide, cut | ✓ | ✓ | ✓ | ✓ | ✓ |
+| bend | ✓ | ✓ | Approx. (3xx portamento) | 3xx portamento | ✓ |
+| sweep | ✓ | ✓ | Instrument-level only | Instrument-level only | ✓ |
+| trem | ✓ | ✓ | Metadata only | Metadata only | ✓ |
+| retrig, echo | ✓ | ✓ | — | — | — |
 
-See [docs/exports/uge-export-guide.md](docs/exports/uge-export-guide.md) for per-effect UGE encoding details.
 
 ---
 
@@ -194,7 +195,6 @@ Features:
 - **BeatBax Copilot** — AI chat panel backed by any OpenAI-compatible endpoint (OpenAI, Groq, Ollama, LM Studio). Injects editor content and active diagnostics as context. **Edit mode** auto-applies generated code with up to 4 self-correction retries; **Ask mode** answers without touching the editor
 - **Settings panel** — unified modal (`Ctrl+,` or `View → Settings…`) with sections for General, Editor, Playback, Features, AI Copilot, and Advanced; most changes apply live without a page reload (exceptions: Auto-save and Audio backend / Sample rate take effect after reload)
 
-See [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) and [docs/ui/web-ui-syntax-highlighting.md](docs/ui/web-ui-syntax-highlighting.md) for details.
 
 ---
 
