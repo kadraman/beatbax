@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/cli",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Command-line interface for BeatBax chiptune live-coding language.",
   "private": false,
   "type": "module",
@@ -37,9 +37,9 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.11.0",
-    "@beatbax/plugin-exporter-famitracker": "^0.1.0",
-    "@beatbax/plugin-chip-nes": "^0.3.0",
+    "@beatbax/engine": "^0.11.1",
+    "@beatbax/plugin-exporter-famitracker": "^0.2.0",
+    "@beatbax/plugin-chip-nes": "^0.4.0",
     "commander": "^12.1.0",
     "play-sound": "^1.1.6",
     "standardized-audio-context": "^25.3.0"

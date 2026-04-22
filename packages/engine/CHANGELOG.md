@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.11.1
+
+### Patch Changes
+
+- 09be2ac: Add optional async chip exporter resolution so plugins can dynamically register optional exporter dependencies.
+
 ## 0.11.0
 
 ### Minor Changes

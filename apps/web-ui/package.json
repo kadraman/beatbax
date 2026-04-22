@@ -15,9 +15,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.11.0",
-    "@beatbax/plugin-chip-nes": "^0.3.1",
-    "@beatbax/plugin-exporter-famitracker": "^0.1.1",
+    "@beatbax/engine": "^0.11.1",
+    "@beatbax/plugin-chip-nes": "^0.4.0",
+    "@beatbax/plugin-exporter-famitracker": "^0.2.0",
     "@tailwindcss/vite": "^4.2.2",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
