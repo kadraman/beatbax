@@ -40,7 +40,7 @@ bpm 128
 #      `env={"level":12,"direction":"down","period":1,"format":"gb"}`
 #      Example: this sets initial volume=12 (0-15), direction `down`, period=1.
 #      For backwards compatibility the legacy CSV form `env=12,down,1` is still accepted and will be normalized by the parser.
-#  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
+#  - `wave`: an explicit 32-entry wavetable for `wave` type (4-bit values)
 #
 # The instruments below are chosen to show different channel roles.
 # You may optionally annotate instruments with a General MIDI program number
