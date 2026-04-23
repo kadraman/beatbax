@@ -47,14 +47,18 @@ export interface ToolbarOptions {
   onToggleTheme?: () => void;
   /** Toggle word-wrap. Receives the new enabled state. */
   onToggleWrap?: (enabled: boolean) => void;
+  /** Fold or unfold all comments. */
+  onToggleFoldComments?: () => void;
 }
 
 export class Toolbar {
   private el!: HTMLElement;
   private activeChip = 'gameboy';
   private _wrapEnabled = false;
+  private _foldCommentsEnabled = false;
   private _themeToggleBtn?: HTMLButtonElement;
   private _wrapToggleBtn?: HTMLButtonElement;
+  private _foldCommentsToggleBtn?: HTMLButtonElement;
   /** Pre-fetched example content keyed by path, populated when dropdown first opens. */
   private exampleCache = new Map<string, string>();
   /** AbortController whose signal is passed to every document-level listener so they
@@ -99,6 +103,9 @@ export class Toolbar {
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (Ctrl+Y)">
           ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Redo</span>
+        </button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-fold-comments" title="Fold/Unfold All Comments">
+          ${icon('hashtag', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Fold</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>
@@ -188,9 +195,9 @@ export class Toolbar {
   }
 
   private attachEvents(): void {
-    const { eventBus, onLoad, onExport, onVerify,
-            onNew, onSave, onUndo, onRedo, onFormat, onSelectAll,
-            onToggleTheme, onToggleWrap } = this.options;
+        const { eventBus, onLoad, onExport, onVerify,
+          onNew, onSave, onUndo, onRedo, onFormat, onSelectAll,
+          onToggleTheme, onToggleWrap, onToggleFoldComments } = this.options;
 
     // New file
     const newBtn = this.el.querySelector<HTMLButtonElement>('#tb-new');
@@ -372,6 +379,12 @@ export class Toolbar {
       this._themeToggleBtn.addEventListener('click', () => onToggleTheme?.());
     }
 
+    // Fold/Unfold comments
+    this._foldCommentsToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-fold-comments') ?? undefined;
+    if (this._foldCommentsToggleBtn) {
+      this._foldCommentsToggleBtn.addEventListener('click', () => onToggleFoldComments?.());
+    }
+
     // Wrap toggle
     this._wrapToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-wrap') ?? undefined;
     if (this._wrapToggleBtn) {
@@ -427,6 +440,12 @@ export class Toolbar {
   setWrapActive(wrap: boolean): void {
     this._wrapEnabled = wrap;
     this._wrapToggleBtn?.classList.toggle('bb-toolbar__btn--active', wrap);
+  }
+
+  /** Set the active state of the fold-comments toggle. */
+  setFoldCommentsActive(folded: boolean): void {
+    this._foldCommentsEnabled = folded;
+    this._foldCommentsToggleBtn?.classList.toggle('bb-toolbar__btn--active', folded);
   }
 
   /** Switch between icons+labels and icons-only display style. */

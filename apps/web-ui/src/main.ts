@@ -171,6 +171,9 @@ editor = createEditor({
   emitChangedEvents: true,
 });
 
+// Force Monaco to use custom folding provider for BeatBax
+editor.editor.updateOptions({ foldingStrategy: 'auto' });
+
 // Expose the editor wrapper immediately so Settings panel can live-apply options.
 (window as any).__beatbax_editor = editor;
 
@@ -1358,11 +1361,14 @@ if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
+let commentsFolded = false;
 toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
   onLoad: (filename, content) => {
     playbackManager.stop();
+    commentsFolded = false;
+    toolbar?.setFoldCommentsActive(false);
     loadedFilename = fileBaseStem(filename);
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
@@ -1384,12 +1390,25 @@ toolbar = new Toolbar({
     settingWordWrap.set(wrap);
     editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
   },
+  onToggleFoldComments: () => {
+    const monacoEditor = editor.editor;
+    if (!commentsFolded) {
+      // Monaco has a built-in command to fold all comment ranges at once.
+      monacoEditor.trigger('toolbar', 'editor.foldAllBlockComments', null);
+      commentsFolded = true;
+    } else {
+      monacoEditor.trigger('toolbar', 'editor.unfoldAll', null);
+      commentsFolded = false;
+    }
+    toolbar?.setFoldCommentsActive(commentsFolded);
+  },
 });
 
 // Restore toolbar visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 // Sync the Wrap button active state with the persisted word-wrap setting
 toolbar.setWrapActive(settingWordWrap.get());
+toolbar.setFoldCommentsActive(false);
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 toolbar.setChip(parsedChip.get());

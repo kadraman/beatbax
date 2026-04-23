@@ -278,6 +278,31 @@ export function registerBeatBaxLanguage(): void {
     },
   });
 
+  // Register folding for consecutive comment lines (lines starting with '#')
+  monaco.languages.registerFoldingRangeProvider('beatbax', {
+    provideFoldingRanges(model, context, token) {
+      const ranges = [];
+      const lines = model.getLineCount();
+      let start = null;
+      for (let i = 1; i <= lines; i++) {
+        const line = model.getLineContent(i);
+        if (/^\s*#/.test(line)) {
+          if (start === null) start = i;
+        } else {
+          if (start !== null && i - start > 1) {
+            ranges.push({ start, end: i - 1, kind: monaco.languages.FoldingRangeKind.Comment });
+          }
+          start = null;
+        }
+      }
+      // Handle file ending with a comment block
+      if (start !== null && lines - start + 1 > 1) {
+        ranges.push({ start, end: lines, kind: monaco.languages.FoldingRangeKind.Comment });
+      }
+      return ranges;
+    }
+  });
+
   // Register autocomplete provider
   monaco.languages.registerCompletionItemProvider('beatbax', {
     provideCompletionItems: (model, position) => {
