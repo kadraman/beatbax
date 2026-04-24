@@ -40,7 +40,7 @@ export interface ToolbarOptions {
   /** Redo the last undone edit. */
   onRedo?: () => void;
   /** Format / auto-indent the document. */
-  onFormat?: () => void;
+  //onFormat?: () => void;
   /** Select all text in the editor. */
   onSelectAll?: () => void;
   /** Toggle dark/light theme. */
@@ -107,7 +107,7 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-fold-comments" title="Fold/Unfold All Comments">
           ${icon('hashtag', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Fold</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button>
+        <!-- <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button> -->
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-selectall" title="Select All (Ctrl+A)">
           ${icon('bars-3', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Select All</span>
@@ -196,7 +196,7 @@ export class Toolbar {
 
   private attachEvents(): void {
         const { eventBus, onLoad, onExport, onVerify,
-          onNew, onSave, onUndo, onRedo, onFormat, onSelectAll,
+          onNew, onSave, onUndo, onRedo, /*onFormat,*/ onSelectAll,
           onToggleTheme, onToggleWrap, onToggleFoldComments } = this.options;
 
     // New file
@@ -368,8 +368,8 @@ export class Toolbar {
     if (undoBtn) undoBtn.addEventListener('click', () => onUndo?.());
     const redoBtn = this.el.querySelector<HTMLButtonElement>('#tb-redo');
     if (redoBtn) redoBtn.addEventListener('click', () => onRedo?.());
-    const formatBtn = this.el.querySelector<HTMLButtonElement>('#tb-format');
-    if (formatBtn) formatBtn.addEventListener('click', () => onFormat?.());
+    //const formatBtn = this.el.querySelector<HTMLButtonElement>('#tb-format');
+    //if (formatBtn) formatBtn.addEventListener('click', () => onFormat?.());
     const selectAllBtn = this.el.querySelector<HTMLButtonElement>('#tb-selectall');
     if (selectAllBtn) selectAllBtn.addEventListener('click', () => onSelectAll?.());
 

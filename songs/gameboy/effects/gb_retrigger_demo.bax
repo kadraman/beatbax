@@ -1,6 +1,6 @@
-## Demo: Retrigger (retrig) effect examples
+## Game Boy Retrigger (retrig) effect demo
 ## Rapidly re-triggers a note at a fixed interval — creates rhythmic stutter and glitch effects
-## Play: node bin/beatbax play songs/effects/retrigger.bax
+## Play: node bin/beatbax play songs/effects/gb_retrigger_demo.bax
 ##
 ## Syntax: retrig:<interval>[,<volumeDelta>]
 ##   - interval    : number of ticks between each re-trigger (required)

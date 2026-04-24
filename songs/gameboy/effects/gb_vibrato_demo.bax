@@ -1,4 +1,4 @@
-## Demo: Vibrato (vib) effect examples
+## Game Boy Vibrato (vib) effect demo
 ## Frequency modulation (pitch LFO) — periodically wobbles pitch for an expressive, wavering tone
 ## Play: node bin/beatbax play songs/effects/vibrato.bax
 ##

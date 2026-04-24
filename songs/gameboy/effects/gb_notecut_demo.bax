@@ -1,6 +1,6 @@
-## Demo: Note Cut (cut) effect examples
+## Game Boy Note Cut (cut) effect demo
 ## Gates (silences) a note after a set number of ticks — creates staccato and percussive articulation
-## Play: node bin/beatbax play songs/effects/notecut.bax
+## Play: node bin/beatbax play songs/effects/gameboy/gb_notecut_demo.bax
 ##
 ## Syntax: cut:<ticks>
 ##   - ticks : number of ticks after note-on before the note is cut (required)
