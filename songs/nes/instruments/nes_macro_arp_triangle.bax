@@ -5,6 +5,14 @@ song name "FTM Macro - Triangle Arp"
 chip nes
 bpm 96
 
+# Instrument parameters (triangle arpeggio macro test):
+# - type=triangle: routes to NES triangle channel (channel 3).
+# - arp_env=[0,4,7|0]: semitone-offset macro applied per frame.
+#   - Offsets are relative to the played note.
+#   - 0 = root, +4 = major third, +7 = perfect fifth.
+#   - This makes a held note cycle through a triad (root-third-fifth).
+#   - |0 loops from the first entry, so the arpeggio repeats continuously.
+#   - Triangle has fixed waveform/volume, so this file isolates arp_env behaviour.
 inst i_tri_arp type=triangle arp_env=[0,4,7|0]
 
 pat p_main = C4:8 . . F4:8 . .

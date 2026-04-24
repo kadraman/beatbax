@@ -553,13 +553,17 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  /* Bottom padding expands into the iOS home-indicator safe area so the bar
+     visually extends to the screen edge without content being obscured. */
   padding: 4px 12px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 4px));
   background: var(--status-bar-bg, var(--bb-accent-bg));
   color: var(--status-bar-text, #fff);
   font-size: 12px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   border-top: 1px solid var(--border-color, #444);
-  height: 24px;
+  /* Height grows to accommodate the safe-area inset on iPadOS / iPhone. */
+  height: calc(24px + max(0px, env(safe-area-inset-bottom, 0px) - 4px));
 }
 
 .status-section {
@@ -3714,7 +3718,6 @@
   max-width: 260px;
   pointer-events: none;
   user-select: none;
-  font-style: italic;
 }
 [data-theme="light"] .bb-menu-bar__song-name { color: #666; }
 .bb-menu { position: relative; display: flex; align-items: stretch; }

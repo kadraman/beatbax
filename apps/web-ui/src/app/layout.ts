@@ -45,8 +45,12 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
 
   // ─── Layout host (fills remaining height) ─────────────────────────────────
   const layoutHost = document.createElement('div');
+  // padding-bottom reserves space for the fixed status bar (24px baseline).
+  // On iPadOS/iOS Safari the status bar grows by env(safe-area-inset-bottom) to
+  // clear the home indicator, so we match that here so the channel mixer is
+  // never hidden behind the status bar.
   layoutHost.style.cssText =
-    'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px;';
+    'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: calc(24px + max(0px, env(safe-area-inset-bottom, 0px) - 4px));';
   appContainer.appendChild(layoutHost);
 
   // ─── Pattern grid host (between TransportBar and three-pane layout) ──────────────

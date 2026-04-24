@@ -5,6 +5,15 @@ song name "FTM Macro - Duty Env"
 chip nes
 bpm 112
 
+# Instrument parameters (pulse2 duty macro test):
+# - type=pulse2: routes to NES pulse channel 2.
+# - duty=50: base duty index before macro modulation (50% pulse width).
+# - vol=10: fixed starting loudness (0-15 NES scale).
+# - duty_env=[2,2,2,2,0,0,0,0|0]: per-frame duty macro.
+#   - Values are duty indices (0=12.5%, 1=25%, 2=50%, 3=75%).
+#   - Here it stays at index 2 for four frames, then index 0 for four frames,
+#     creating a repeating wide-to-thin timbre "wah" cycle.
+#   - |0 means loop from step 0 (entire macro repeats forever while note holds).
 inst i_duty_wah type=pulse2 duty=50 vol=10 duty_env=[2,2,2,2,0,0,0,0|0]
 
 pat p_main = C4:8 . . G4:8 . .

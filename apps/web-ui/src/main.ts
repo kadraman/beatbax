@@ -1347,6 +1347,12 @@ eventBus.on('parse:error', () => {
   toolbar?.setExportEnabled(false);
 });
 
+// Show CodeLens preview failures in the Output tab.
+eventBus.on('preview:error', ({ message }: { message: string }) => {
+  opLog(outputPanel, `Preview failed: ${message}`, 'preview');
+  bottomTabs.show('output');
+});
+
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
