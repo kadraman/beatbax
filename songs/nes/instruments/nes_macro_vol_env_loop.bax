@@ -5,6 +5,15 @@ song name "FTM Macro - Volume Loop"
 chip nes
 bpm 120
 
+# Instrument parameters (pulse1 looping volume macro):
+# - type=pulse1: routes to NES pulse channel 1.
+# - duty=50: balanced pulse width for a fuller fundamental.
+# - vol_env=[1,3,5,7,9,11|2]: per-frame volume macro with loop point.
+#   - Values are absolute volume levels (0-15), not deltas.
+#   - The opening ramp (1,3,5,7,9,11) creates a fade-in style swell.
+#   - |2 means loop restarts at index 2 (value 5), so after initial attack,
+#     the macro cycles the upper segment (5,7,9,11) repeatedly.
+#   - This produces a repeating pulse/swell texture on sustained notes.
 inst i_vol_loop type=pulse1 duty=50 vol_env=[1,3,5,7,9,11|2]
 
 pat p_main = C4:8 . . E4:8 . .

@@ -5,6 +5,15 @@ song name "FTM Macro - Noise One Shot"
 chip nes
 bpm 120
 
+# Instrument parameters (noise one-shot kick contour):
+# - type=noise: routes to NES noise channel (channel 4).
+# - noise_mode=normal: standard long LFSR noise (non-metallic mode).
+# - noise_period=12: low-ish noise clock index for thuddy percussion character.
+# - vol_env=[15,12,8,4,2,1]: per-frame volume macro.
+#   - Values are explicit volume levels (0-15) written over time.
+#   - This is a descending envelope that makes a fast attack + decay shape.
+#   - No |loop marker is present, so the macro runs once and then stops.
+#   - This is useful for drum hits where repeated sustain is unwanted.
 inst i_kick type=noise noise_mode=normal noise_period=12 vol_env=[15,12,8,4,2,1]
 
 pat p_main = C4 . . . C4 . . . C4 . . . C4 . . .

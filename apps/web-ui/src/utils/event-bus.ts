@@ -97,6 +97,9 @@ export interface BeatBaxEvents {
   'preview:chunkInfo': {
     chunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>>;
   };
+
+  /** Emitted when a CodeLens preview cannot start, with a human-readable reason. */
+  'preview:error': { message: string };
 }
 
 type EventCallback<T> = (data: T) => void;

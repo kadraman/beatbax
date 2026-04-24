@@ -503,6 +503,7 @@ export class ChannelMixer {
 
     // Volume readout — shows the instrument's native level (vol= / env= field)
     // in compact notation so the composer can cross-reference the fader.
+    /*
     const volReadout = document.createElement('div');
     volReadout.className = 'bb-channel-mixer__vol-readout';
     volReadout.id = `bb-channel-mixer-vol-${ch.id}`;
@@ -513,7 +514,7 @@ export class ChannelMixer {
     } else {
       volReadout.textContent = '';
     }
-    strip.appendChild(volReadout);
+    strip.appendChild(volReadout);*/
 
     // ── Mute / Solo buttons ───────────────────────────────────────────────────
     const btnRow = document.createElement('div');
@@ -814,6 +815,7 @@ export class ChannelMixer {
       const instDef = this.ast?.insts?.[position.currentInstrument] ?? null;
       const volRange = this.getInstrumentVolumeRange();
       const vol = this.extractInstrumentVolume(instDef, volRange);
+      /*
       const volReadout = document.getElementById(`bb-channel-mixer-vol-${channelId}`);
       if (volReadout) {
         if (vol !== null) {
@@ -828,6 +830,7 @@ export class ChannelMixer {
           volReadout.title = '';
         }
       }
+      */
       const refMark = document.getElementById(`bb-channel-mixer-ref-${channelId}`);
       if (refMark) {
         if (vol !== null) {
@@ -855,6 +858,7 @@ export class ChannelMixer {
         const instDef = this.ast?.insts?.[defaultInst] ?? null;
         const volRange = this.getInstrumentVolumeRange();
         const vol = this.extractInstrumentVolume(instDef, volRange);
+        /*
         const volReadout = document.getElementById(`bb-channel-mixer-vol-${ch.id}`);
         if (volReadout) {
           if (vol !== null) {
@@ -868,7 +872,7 @@ export class ChannelMixer {
             volReadout.textContent = '';
             volReadout.title = '';
           }
-        }
+        }*/
         const refMark = document.getElementById(`bb-channel-mixer-ref-${ch.id}`);
         if (refMark) {
           if (vol !== null) {
