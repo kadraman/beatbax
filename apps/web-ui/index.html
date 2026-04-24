@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <title>BeatBax</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -100,9 +100,14 @@
 
       #app {
         width: 100vw;
+        /* 100dvh correctly excludes the Safari address bar on iOS/iPadOS;
+           100vh fallback for browsers that don't support dynamic viewport units. */
         height: 100vh;
+        height: 100dvh;
         display: flex;
         flex-direction: column;
+        /* Prevent content from sliding under the home indicator / notch. */
+        padding-bottom: env(safe-area-inset-bottom, 0px);
       }
 
       /* ── Boot spinner (critical CSS — must load before JS) ── */

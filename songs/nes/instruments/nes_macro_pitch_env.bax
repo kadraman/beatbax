@@ -5,6 +5,15 @@ song name "FTM Macro - Pitch Env"
 chip nes
 bpm 108
 
+# Instrument parameters (pulse1 pitch-rip macro test):
+# - type=pulse1: routes to NES pulse channel 1.
+# - duty=25: sets a narrow pulse width (25%) for bright tone.
+# - vol=10: fixed note loudness (0-15 NES scale).
+# - pitch_env=[5,4,3,2,1,0,0,0]: per-frame pitch offset macro.
+#   - Values are semitone offsets from the triggered note pitch.
+#   - This starts +5 semitones above the target and steps down to 0,
+#     creating a short downward "rip" into stable pitch.
+#   - No loop marker is present, so this is one-shot contour behaviour.
 inst i_pitch_rip type=pulse1 duty=25 vol=10 pitch_env=[5,4,3,2,1,0,0,0]
 
 pat p_main = C4:8 . . D4:8 . .

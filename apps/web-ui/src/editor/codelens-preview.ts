@@ -679,6 +679,23 @@ export function setupCodeLensPreview(
     stopPreview(); // always stop current note and restart (allows re-clicking same note)
     let rawAst: any;
     try { rawAst = parse(getSource()); } catch { return; }
+
+    // Detect browser-incompatible local: DMC sample references before attempting
+    // playback — the DMC backend blocks local: in browser contexts for security,
+    // so the preview would start but be completely silent with no user feedback.
+    const instDef = rawAst.insts?.[instName];
+    if (
+      instDef?.type?.toLowerCase() === 'dmc' &&
+      typeof instDef.dmc_sample === 'string' &&
+      instDef.dmc_sample.startsWith('local:') &&
+      typeof window !== 'undefined'
+    ) {
+      eventBus.emit('preview:error', {
+        message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
+      });
+      return;
+    }
+
     const state = await startInstNotePreview(instName, note, rawAst, () => {
       previewState = null;
       notifyChange();
