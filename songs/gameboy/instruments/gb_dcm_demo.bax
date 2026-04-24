@@ -1,6 +1,5 @@
-## Demo: Duty-Cycle Modulation (DCM) examples
+## Game Boy Duty-Cycle Modulation (DCM) dmeo
 ## Timbre modulation — switching pulse-width during playback to animate tone colour
-## Play: node bin/beatbax play songs/effects/duty_cycle_modulation.bax
 ##
 ## Technique: define multiple inst with different duty values, then switch inline with
 ##            `inst <name>` inside a pat definition.  Pitch and volume stay the same —

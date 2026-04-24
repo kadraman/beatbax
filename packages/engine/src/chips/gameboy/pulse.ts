@@ -224,10 +224,11 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
         applyGainEnd();
       }
     } else {
-      g.setValueAtTime(0.0001, start);
-      g.exponentialRampToValueAtTime(env.attackLevel || 1.0, start + (env.attack || 0.001));
-      g.setTargetAtTime(env.sustainLevel ?? 0.5, start + (env.attack || 0.001), env.decay || 0.1);
-      g.setTargetAtTime(0.0001, start + dur - (env.release || 0.02), env.release || 0.02);
+      // GB envelope period 0 means constant volume at the initial level.
+      const hold = Math.max(0.0001, initialVol);
+      g.setValueAtTime(hold, start);
+      g.setValueAtTime(hold, start + dur);
+      g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
     }
   } else {
     g.setValueAtTime(0.0001, start);

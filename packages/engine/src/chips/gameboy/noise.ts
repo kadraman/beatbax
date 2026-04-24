@@ -103,12 +103,15 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
         }
       }
     } else {
-      g.gain.setValueAtTime(1.0, start);
-      g.gain.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
+      // GB envelope period 0 means constant volume at the initial level.
+      const hold = Math.max(0.0001, initialVol);
+      g.setValueAtTime(hold, start);
+      g.setValueAtTime(hold, start + dur);
+      g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
     }
   } else {
-    g.gain.setValueAtTime(1.0, start);
-    g.gain.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
+    g.setValueAtTime(1.0, start);
+    g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
   }
 
   try { src.start(start); } catch (e) { try { src.start(); } catch (_) {} }

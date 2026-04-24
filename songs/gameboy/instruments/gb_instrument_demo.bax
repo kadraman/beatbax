@@ -1,9 +1,9 @@
-## instrument_demo.bax
+## gb_instrument_demo.bax
 ## Comprehensive demonstration of Game Boy instrument types and parameters
 ## This file showcases all four channel types with various configurations
 ## to help users understand instrument design and UGE export mapping.
 
-song name "Instrument Demo"
+song name "Game Boy Instrument Demo"
 song artist "kadraman"
 song description """Comprehensive demonstration of Game Boy instrument types and parameters. Showcases pulse, wave and noise instruments and UGE mapping."""
 song tags "instruments,example,imported"

@@ -810,16 +810,14 @@ export class ChannelMixer {
     if (instEl && position.currentInstrument) {
       instEl.textContent = position.currentInstrument;
       instEl.title = `Instrument: ${position.currentInstrument}`;
-      // Update the vol readout and reference notch for the now-active instrument.
-      const instDef = this.ast?.insts?.[position.currentInstrument];
+      // Update static instrument-native volume reference for the active instrument.
+      const instDef = this.ast?.insts?.[position.currentInstrument] ?? null;
       const volRange = this.getInstrumentVolumeRange();
       const vol = this.extractInstrumentVolume(instDef, volRange);
       const volReadout = document.getElementById(`bb-channel-mixer-vol-${channelId}`);
       if (volReadout) {
         if (vol !== null) {
           const raw = Math.round(vol * (volRange.max - volRange.min) + volRange.min);
-          // For attenuation chips, "raw" is already normalized to loudest=low,
-          // so re-derive display value correctly:
           const displayRaw = volRange.isAttenuation
             ? Math.round((1 - vol) * (volRange.max - volRange.min) + volRange.min)
             : raw;
@@ -854,6 +852,36 @@ export class ChannelMixer {
         const defaultInst = instEl.dataset.defaultInst ?? `Ch${ch.id}`;
         instEl.textContent = defaultInst;
         instEl.title = `Instrument: ${defaultInst}`;
+        const instDef = this.ast?.insts?.[defaultInst] ?? null;
+        const volRange = this.getInstrumentVolumeRange();
+        const vol = this.extractInstrumentVolume(instDef, volRange);
+        const volReadout = document.getElementById(`bb-channel-mixer-vol-${ch.id}`);
+        if (volReadout) {
+          if (vol !== null) {
+            const raw = Math.round(vol * (volRange.max - volRange.min) + volRange.min);
+            const displayRaw = volRange.isAttenuation
+              ? Math.round((1 - vol) * (volRange.max - volRange.min) + volRange.min)
+              : raw;
+            volReadout.textContent = `vol ${displayRaw}/${volRange.max}`;
+            volReadout.title = `Instrument native volume: ${displayRaw}/${volRange.max} (${Math.round(vol * 100)}%)`;
+          } else {
+            volReadout.textContent = '';
+            volReadout.title = '';
+          }
+        }
+        const refMark = document.getElementById(`bb-channel-mixer-ref-${ch.id}`);
+        if (refMark) {
+          if (vol !== null) {
+            refMark.style.top = ((1 - vol) * 100) + '%';
+            refMark.style.display = '';
+            const displayRaw = volRange.isAttenuation
+              ? Math.round((1 - vol) * (volRange.max - volRange.min) + volRange.min)
+              : Math.round(vol * (volRange.max - volRange.min) + volRange.min);
+            refMark.title = `Instrument level: ${displayRaw}/${volRange.max} (${Math.round(vol * 100)}%)`;
+          } else {
+            refMark.style.display = 'none';
+          }
+        }
       }
       // Pattern / sequence readouts live in the Channel Visualizer panel — not reset here.
     }

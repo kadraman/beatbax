@@ -1,6 +1,6 @@
-## Demo: Volume Slide (volSlide) effect examples
+## Game Boy Volume Slide (volSlide) effect demo
 ## Smoothly fades volume up or down over a note — creates swells, fade-ins, and fade-outs
-## Play: node bin/beatbax play songs/effects/volume_slide.bax
+## Play: node bin/beatbax play songs/effects/gameboy/gb_volume_slide_demo.bax
 ##
 ## Syntax: volSlide:<delta>[,<steps>]
 ##   - delta : volume change per tick — positive (+) for fade-in, negative (-) for fade-out (required)
