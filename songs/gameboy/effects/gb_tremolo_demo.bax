@@ -1,6 +1,6 @@
-## Demo: Tremolo (trem) effect examples
+## Game Boy Tremolo (trem) effect demo
 ## Amplitude modulation (volume LFO) — rhythmically varies volume for a quivering shimmer effect
-## Play: node bin/beatbax play songs/effects/tremolo.bax
+## Play: node bin/beatbax play songs/effects/gameboy/gb_tremolo_demo.bax
 ##
 ## Syntax: trem:<depth>,<rate>[,<waveform>[,<duration>[,<delayRows>]]]
 ##   - depth     : modulation depth, 0–15 (higher = more pronounced volume variation)

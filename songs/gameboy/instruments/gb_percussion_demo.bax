@@ -1,4 +1,4 @@
-## percussion_demo.bax
+## gb_percussion_demo.bax
 ## Demonstration of Game Boy percussion using pulse channel for kicks and noise channel for snares, hi-hats, and toms.
 ##
 ## This file showcases proper percussion techniques following hUGETracker conventions:

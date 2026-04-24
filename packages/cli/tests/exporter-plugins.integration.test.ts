@@ -13,8 +13,8 @@ const FAMITRACKER_SAMPLE_DIR = join(
   '..',
   '..',
   'songs',
-  'features',
   'nes',
+  'instruments',
 );
 const FAMITRACKER_SAMPLE_BAX_PATHS = [
   join(FAMITRACKER_SAMPLE_DIR, 'nes_macro_vol_env_loop.bax'),

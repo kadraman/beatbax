@@ -1,7 +1,7 @@
 ## nes_dmc_demo.bax
-## NES APU full-kit demo — exercises all bundled DMC samples alongside the noise channel.
+## NES APU full-kit demo — exercises all bundled DPCM samples alongside the noise channel.
 ##
-## Purpose: verify and arrange every built-in @nes/ DMC sample in a musical context.
+## Purpose: verify and arrange every built-in @nes/ DPCM sample in a musical context.
 ## Channel 4 (noise) drives hi-hats and snare colour; channel 5 (DMC) drives all
 ## pitched/sampled percussion.  Each instrument is defined three times to demonstrate
 ## the three supported sample-source syntaxes (@nes/ bundled, local: file, github: shorthand).
@@ -41,8 +41,8 @@
 ##   Section B — snare + clap:     kick + snare_d + clap accents, open hat on beat 4
 ##   Section C — bongo groove:     bongo/muted_bongo call-and-response, rimshot off-beats
 ##   Section D — tom cascade:      high→middle→low descending fill, steady hat pulse
-##   Section E — bass pulse:       bass DMC on 1&3, bass_slow colour hit, open hat on 2&4
-##   Section F — full kit:         all DMC samples cycling, noise hat+snare underneath
+##   Section E — bass pulse:       bass DPCM sample on 1&3, bass_slow colour hit, open hat on 2&4
+##   Section F — full kit:         all DPCM samples cycling, noise hat+snare underneath
 ##   Bonus     — source showcase:  one bar each cycling @nes/, local:, github: variants
 
 chip nes

@@ -1,5 +1,59 @@
-import { parseEnvelope } from '../../src/chips/gameboy/pulse';
+import { parseEnvelope, playPulse } from '../../src/chips/gameboy/pulse';
+import { playNoise } from '../../src/chips/gameboy/noise';
 import { GB_CLOCK } from '../../src/chips/gameboy/periodTables';
+
+function makeAudioParam() {
+  return {
+    setValueAtTime: jest.fn(),
+    linearRampToValueAtTime: jest.fn(),
+    exponentialRampToValueAtTime: jest.fn(),
+    setTargetAtTime: jest.fn(),
+    cancelScheduledValues: jest.fn(),
+    value: 1,
+  };
+}
+
+function makePulseCtx() {
+  const gainParam = makeAudioParam();
+  const ctx: any = {
+    destination: {},
+    createPeriodicWave: jest.fn(() => ({})),
+    createOscillator: jest.fn(() => ({
+      setPeriodicWave: jest.fn(),
+      frequency: makeAudioParam(),
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+    createGain: jest.fn(() => ({
+      gain: gainParam,
+      connect: jest.fn(),
+    })),
+  };
+  return { ctx, gainParam };
+}
+
+function makeNoiseCtx() {
+  const gainParam = makeAudioParam();
+  const ctx: any = {
+    sampleRate: 44100,
+    destination: {},
+    createBuffer: jest.fn((_ch: number, len: number) => ({
+      getChannelData: jest.fn(() => new Float32Array(len)),
+    })),
+    createBufferSource: jest.fn(() => ({
+      buffer: null,
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+    createGain: jest.fn(() => ({
+      gain: gainParam,
+      connect: jest.fn(),
+    })),
+  };
+  return { ctx, gainParam };
+}
 
 describe('GB-style envelope parsing and scheduling', () => {
   test('parseEnvelope returns GB-mode fields for gb:12,down,2', () => {
@@ -58,5 +112,21 @@ describe('GB-style envelope parsing and scheduling', () => {
     expect(seq[0]).toBe(14);
     expect(seq[seq.length - 1]).toBe(15);
     expect(seq).toContain(15);
+  });
+
+  test('playPulse uses initial GB volume when period is 0 (flat)', () => {
+    const { ctx, gainParam } = makePulseCtx();
+    playPulse(ctx, 440, 0.5, 0, 0.25, { env: '8,flat' });
+
+    expect(gainParam.setValueAtTime).toHaveBeenCalledWith(8 / 15, 0);
+    expect(gainParam.exponentialRampToValueAtTime).not.toHaveBeenCalled();
+  });
+
+  test('playNoise uses initial GB volume when period is 0 (flat)', () => {
+    const { ctx, gainParam } = makeNoiseCtx();
+    playNoise(ctx, 0, 0.25, { env: '8,flat' });
+
+    expect(gainParam.setValueAtTime).toHaveBeenCalledWith(8 / 15, 0);
+    expect(gainParam.setTargetAtTime).not.toHaveBeenCalled();
   });
 });

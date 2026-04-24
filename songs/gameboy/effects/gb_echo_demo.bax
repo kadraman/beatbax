@@ -1,6 +1,6 @@
-## Demo: Echo/Delay (echo) effect examples
+## Game Boy Echo/Delay (echo) effect demo
 ## Time-delayed feedback repeats for ambient, slapback, and rhythmic texture
-## Play: node bin/beatbax play songs/effects/echo.bax
+## Play: node bin/beatbax play songs/effects/gameboy/gb_echo_demo.bax
 ##
 ## Syntax: echo:<delay>,<feedback>,<mix>
 ##   - delay    : delay duration in beats (e.g. 0.25 = quarter note at current BPM)

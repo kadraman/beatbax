@@ -6,7 +6,7 @@ import { exportJSON } from '../src/export/jsonExport';
 import exportUGE from '../src/export/ugeWriter';
 import { configureLogging } from '../src/util/logger';
 
-const SONG_PATH = path.resolve(__dirname, '../../../songs/demo/panning_demo.bax');
+const SONG_PATH = path.resolve(__dirname, '../../../songs/gameboy/effects/gb_panning_demo.bax');
 
 describe('UGE pan 8xx placement', () => {
   test('writes 8xx only on rows with note onsets (or initial row)', async () => {
