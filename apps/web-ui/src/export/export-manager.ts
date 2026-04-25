@@ -6,6 +6,7 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import { exporterRegistry } from '@beatbax/engine/export';
+import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 import type { EventBus } from '../utils/event-bus';
@@ -16,6 +17,7 @@ import {
   downloadText,
   downloadBinary,
   ensureExtension,
+  sanitizeFilename,
   MIME_TYPES,
   ExportHistory,
 } from './download-helper';
@@ -69,7 +71,7 @@ export class ExportManager {
   ): Promise<ExportResult> {
     const validate = options.validate !== false;
     const warnings: string[] = [];
-    const baseFilename = options.filename ?? 'song';
+    let baseFilename = options.filename ?? 'song';
 
     log.debug(`Export started: format=${format}`);
     this.eventBus.emit('export:started', { format });
@@ -79,6 +81,10 @@ export class ExportManager {
     try {
       // Parse source
       const ast = parse(source);
+      const metadataName = String((ast as any)?.metadata?.name ?? '').trim();
+      if (metadataName) {
+        baseFilename = sanitizeFilename(metadataName.toLowerCase());
+      }
 
       // Validate if requested
       if (validate) {
@@ -119,10 +125,10 @@ export class ExportManager {
           result = await this.exportWAV(source, resolved, baseFilename);
           break;
         case 'famitracker':
-          result = await this.exportViaPlugin(resolved, baseFilename, format);
+          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
           break;
         default:
-          result = await this.exportViaPlugin(resolved, baseFilename, format);
+          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
           break;
       }
 
@@ -332,6 +338,7 @@ export class ExportManager {
     resolved: any,
     baseFilename: string,
     format: string,
+    onWarn?: (msg: string) => void,
   ): Promise<ExportResult> {
     const plugin = exporterRegistry.get(format);
     if (!plugin) throw new Error(`Unknown export format: ${format}`);
@@ -344,9 +351,19 @@ export class ExportManager {
       }
     }
 
-    const ext = plugin.extension.replace(/^./, '') || this.extensionForFormat(format);
+    // Resolve the chip plugin so sample assets can be loaded (e.g. NES DMC samples)
+    const chipId = String(resolved?.chip ?? '').toLowerCase();
+    const chipPlugin = chipId ? chipRegistry.get(chipId) : undefined;
+
+    const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
     const filename = ensureExtension(baseFilename, ext);
-    const data = await plugin.export(resolved, { outputPath: filename });
+    const data = await plugin.export(resolved, {
+      outputPath: filename,
+      resolveSampleAsset: typeof chipPlugin?.resolveSampleAsset === 'function'
+        ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
+        : undefined,
+      onWarn,
+    });
 
     if (typeof data === 'string') {
       downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');

@@ -51,15 +51,14 @@ function writeGlobalMixMode(mode: NesWebAudioMixMode): void {
  * NES songs sound ~9× quieter and the VU meter segments barely light.
  *
  * This factor (≈ 8.865) is applied in `createPlaybackNodes()` for pulse,
- * triangle and noise so that a single tone channel at maximum volume produces
+ * triangle, noise, and DMC so that a single channel at maximum volume produces
  * approximately the same loudness as a Game Boy channel at maximum volume.
  *
  * The PCM render path (`render()`) intentionally uses the raw NES_MIX_GAIN
  * values and is unaffected, preserving hardware-accurate CLI output.
  *
- * DMC is excluded: its gain is baked into the AudioBuffer during decoding, and
- * its percussion nature (short transients, 7-bit DPCM) already sits at a
- * reasonable level relative to the normalised tone channels.
+ * DMC applies the same normalization in its WebAudio path; its PCM render path
+ * remains hardware-scaled, preserving hardware-accurate CLI output.
  */
 export const NES_WEB_AUDIO_NORM = 1.0 / (NES_MIX_GAIN.pulse * 15);
 
