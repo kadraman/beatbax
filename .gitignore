@@ -170,3 +170,4 @@ songs/**/*.txt
 .github/ISSUES
 t.cmd
 README.bax
+songs/**/*.json

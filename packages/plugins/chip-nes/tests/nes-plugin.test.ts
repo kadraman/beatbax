@@ -8,6 +8,7 @@ import { NESPulseBackend } from '../src/pulse.js';
 import { NESTriangleBackend } from '../src/triangle.js';
 import { NESNoiseBackend } from '../src/noise.js';
 import { NESDMCBackend, decodeDMC } from '../src/dmc.js';
+import { getNesWebAudioNorm } from '../src/mixer.js';
 import { ChipRegistry } from '@beatbax/engine';
 import { noteNameToMidi, pulsePeriodToFreq, trianglePeriodToFreq } from '../src/periodTables.js';
 
@@ -420,6 +421,44 @@ describe('NES DMC channel', () => {
     const buf = new Float32Array(256);
     backend.render(buf, 44100);
     expect(buf.every(s => s === 0)).toBe(true);
+  });
+
+  test('web audio path applies DMC normalization factor', () => {
+    const backend = new NESDMCBackend();
+    backend.loadSampleForTest(new Float32Array([1]));
+
+    const rendered = new Float32Array(1);
+    const sourceNode = {
+      buffer: null as any,
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    };
+    const gainNode = {
+      gain: { value: 0 },
+      connect: jest.fn(),
+    };
+    const ctx: any = {
+      sampleRate: 44100,
+      destination: {},
+      createBuffer: jest.fn(() => ({ getChannelData: () => rendered })),
+      createBufferSource: jest.fn(() => sourceNode),
+      createGain: jest.fn(() => gainNode),
+    };
+
+    const nodes = backend.createPlaybackNodes(
+      ctx,
+      0,
+      0,
+      0.01,
+      { type: 'dmc', dmc_rate: 15 },
+      null,
+      ctx.destination
+    );
+
+    expect(nodes).not.toBeNull();
+    const expected = NES_MIX_GAIN.dmc * 127 * getNesWebAudioNorm();
+    expect(rendered[0]).toBeCloseTo(expected, 6);
   });
 });
 
