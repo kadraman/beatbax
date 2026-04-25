@@ -1,0 +1,818 @@
+## battle_fanfare.bax
+##
+## Original NES battle chiptune in the spirit of the Final Fantasy NES battle themes
+## (Square, 1987). This is an ENTIRELY ORIGINAL composition — no copyrighted melody,
+## arrangement, or copyrighted material reproduced in any form. The piece captures
+## the energy, harmonic language, and 5-channel texture of late-1980s NES RPG battle
+## music without reproducing any specific melody.
+##
+## Musical inspiration: the NES RPG battle aesthetic uses A minor, a driving repeated
+## bass ostinato, martial snare rhythm, a heroic fanfare opening, 25% duty lead with
+## staccato phrasing, sustained 50% duty harmony in parallel fourths and thirds, and
+## very characteristic "punchy" vol_env instrument macros.
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Details
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Key        : A minor  (A  B  C  D  E  F  G — natural minor; raised E=leading tone in cadences)
+##   Tempo      : 155 BPM
+##   ticksPerStep: 16       (one step = one 8th note at 310 BPM ≡ one 16th note at 155 BPM)
+##   Chip       : NES (Ricoh 2A03 — all 5 channels)
+##   Style      : Heroic march; tense, urgent, RPG battle
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Timing Reference  (155 BPM, ticksPerStep=16, 1 step = 1/16 note)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   1  step  = 1/16 note  ≈  96.8 ms
+##   2  steps = 1/8  note  ≈ 193.5 ms
+##   4  steps = 1/4  note  ≈ 387 ms  (one beat)
+##   8  steps = 1/2  note  ≈ 774 ms
+##  16  steps = 1 whole bar ≈ 1548 ms
+##
+## All main loop patterns = exactly 16 steps.
+## Intro patterns = 8 steps each (half-bar fanfare punches).
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Structure
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Slots  0– 3 : FANFARE      — 4 × 8-step patterns; punchy brass-stab opening.
+##                                Pulse 1 plays the fanfare motif; Pulse 2 supplies
+##                                a held power chord on each stab; Triangle + Noise
+##                                play a sparse "introduction kick" figure; DMC
+##                                reinforces each hit.
+##
+##   Slots  4– 7 : THEME A      — 4 × 16-step patterns; primary battle motif.
+##                                Phrase A1 (slots 4–5): urgent 16th-note drive in Am
+##                                Phrase A2 (slots 6–7): ascending sequence + Em cadence
+##
+##   Slots  8–11 : THEME B      — 4 × 16-step patterns; contrast section in C major / Em.
+##                                Phrase B1 (slots 8– 9): broader, bolder quarter-note hits
+##                                Phrase B2 (slots 10–11): answer phrase, falling back to Am
+##
+##   Slots 12–15 : TRANSITION + — 4 × 16-step patterns.
+##                 REPRISE        Slot 12: transition bar — ascending chromatic tension run
+##                                Slot 13: silence + single-hit reset (structural breath)
+##                                Slots 14–15: Theme A Phrase A1 reprise (→ loop back)
+##
+## Total: 4 × 8-step + 12 × 16-step = 32 + 192 = 224 steps per channel.
+## (Each sequence must have the same total tick count for all 5 channels.)
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Channel Roles
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Ch1 (Pulse 1) : Lead melody
+##                   25% duty — nasal, cutting; characteristic NES RPG battle lead.
+##                   vol_env macro for punchy staccato attack (fanfare stabs).
+##                   Flat vol=10 for the rapid 16th-note melodic runs in Theme A/B.
+##                   duty_env oscillates 25%→50% on sustained fanfare notes (timbral shimmer).
+##
+##   Ch2 (Pulse 2) : Harmony / Counter-melody
+##                   50% duty — warm, full; provides sustained chord intervals.
+##                   Parallel fourths and minor thirds below Pulse 1 in Theme A.
+##                   arp_env cycling Dm triad in Theme B bars 8–9 (one-channel implied chord).
+##                   Held power-chord stabs (E2 fifths) during the fanfare.
+##
+##   Ch3 (Triangle): Ostinato bass
+##                   Driving repeated 8th-note bass figure: A2–A2–E3–A2–G2–F2–E2–A2.
+##                   This repeating 8-note ostinato is the defining rhythmic/harmonic
+##                   element — the "engine" under everything, evoking the relentless drive
+##                   of NES RPG battle music.
+##                   Bridge variant: follows chord roots C3→G2→E3→A2 for Theme B.
+##
+##   Ch4 (Noise)   : Percussion
+##                   Fanfare: single kick hits on each stab accent.
+##                   Battle: driving 16th-note alternation kick–snare–kick–snare with
+##                   hi-hat on every step (vol_env macro instruments for precise shaping).
+##                   Martial snare on beats 2 & 4 with extra ghost hits for urgency.
+##
+##   Ch5 (DMC)     : Kick sample reinforcement
+##                   Bundled @nes/kick for punch on beats 1 & 3.
+##                   Bundled @nes/snare for the backbeat on beats 2 & 4.
+##                   Sparse in the fanfare; full density in Theme A/B; bridge half-density.
+##
+## Play: node bin/beatbax play songs/nes/battle_fanfare.bax
+
+song name "Battle Fanfare"
+song artist "The BeatBax Team"
+song description """Original NES-style RPG battle chiptune at 155 BPM in A minor, inspired by the heroic, urgent battle music aesthetic of late-1980s NES RPGs (Final Fantasy era). Entirely original composition; no copyrighted material reproduced. Full 5-channel 2A03 arrangement: fanfare opening with duty_env shimmer on Pulse 1 stabs; 25% duty staccato Pulse 1 lead with driving 16th-note battle theme; 50% duty Pulse 2 parallel-fourth harmony with arp_env chord cycling in the bridge; repeating Am ostinato on Triangle; martial vol_env noise percussion with ghost hits; bundled @nes/ DMC kick/snare reinforcement."""
+song tags "nes,rpg,battle,action,minor,urgent,fanfare,example,demo"
+
+chip nes
+bpm 155
+
+# =============================================================================
+# INSTRUMENTS
+# =============================================================================
+#
+# Software macro notes:
+#   vol_env=[…]  overrides hardware env; one frame ≈ 16.7 ms (NTSC 60 Hz)
+#   duty_env=[…] cycles duty index: 0=12.5%, 1=25%, 2=50%, 3=75%
+#   arp_env=[…]  semitone offset per frame from the triggered pitch
+#   pitch_env=[…] absolute pitch offset in semitones; resets on each noteOn
+#   All macros reset on every new noteOn.
+
+# ── Pulse 1 — Lead ──────────────────────────────────────────────────────────
+
+# lead_stab — Fanfare stab instrument.
+#   duty=25 baseline (nasal NES punch); overridden per-frame by duty_env.
+#   duty_env=[1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2|1]:
+#     Frames 0–7:  index 1 = 25% (attack; tight, nasal "brass stab" onset)
+#     Frames 8–15: index 2 = 50% (sustain; warmer square tone, timbral bloom)
+#     Loop from frame 1: holds at 25% after the initial cycle — simulates a brass
+#     instrument's "blow" character (bright attack, rounder sustain, back to nasal).
+#   vol_env=[15,15,14,12,10,8,7,6,6,5,5,4,4,3,3,2]:
+#     Sharp transient at 15/15 for 2 frames then smooth decay over 14 frames.
+#     At 60 Hz this is a ≈ 267 ms decay — punchy but with perceptible sustain
+#     on the fanfare stab notes (each stab lasts 4–7 steps × 96.8 ms ≈ 390–677 ms).
+inst lead_stab  type=pulse1  duty=25  vol_env=[15,15,14,12,10,8,7,6,6,5,5,4,4,3,3,2]  duty_env=[1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2|1]
+
+# lead — Main battle theme lead; constant vol, no macro decay.
+#   duty=25: same nasal timbre as lead_stab for tonal continuity.
+#   vol=10 / env flat: constant 10/15 so every 16th note in the rapid melodic
+#   runs has equal perceived volume. At 155 BPM a 16th note ≈ 97 ms — too fast
+#   for a decaying envelope to sound consistent; flat is correct here.
+#   pitch_env=[2,1,0,0,0,0,0,0]:
+#     On noteOn: pitch starts 2 semitones above target, falls to 1 above on frame 2,
+#     then lands on the correct pitch from frame 3 onward. This is the "pitch rip"
+#     or "attack bend" technique — a characteristic NES melodic expressiveness trick.
+#     At 60 Hz, the slide takes ≈ 33 ms, which is audible but subtle at this BPM.
+#     Gives the 16th-note runs a slightly slurred, guitar-like articulation.
+inst lead       type=pulse1  duty=25  vol=10  pitch_env=[2,1,0,0,0,0,0,0]
+
+# lead_long — Sustained notes in the bridge and resolution phrases.
+#   duty=25; vol_env with a gentle attack swell then plateau:
+#   vol_env=[6,8,10,11,12,12,12,12,12,12,12,10,9,8,7,6|12]:
+#     Frames 0–2: ramp up 6→12 (≈50 ms swell — natural breath/bow attack).
+#     Frames 3–11: hold at 12 (plateau sustain — clean, stable long notes).
+#     Frames 12–15: small tail 10→6 (imperceptible on held notes; provides
+#       clean hand-off when the note changes without a jarring volume drop).
+#     Loop from frame 12: sustains the tail until note ends.
+#   No pitch_env: long sustained notes should not wobble on attack.
+inst lead_long  type=pulse1  duty=25  vol_env=[6,8,10,11,12,12,12,12,12,12,12,10,9,8,7,6|12]
+
+# ── Pulse 2 — Harmony ───────────────────────────────────────────────────────
+
+# harm — Main harmony voice; warm 50% duty for sustained chord intervals.
+#   vol=9 flat: 3 points below lead_long's plateau (12), keeping harmony clearly
+#   behind the lead. Flat sustain is essential for the half-note and quarter-note
+#   chord tones that fill bars in Theme A and Theme B.
+inst harm       type=pulse2  duty=12  vol=9
+
+# harm_arp — Bridge arpeggio voice; cycling Am/Dm triad via arp_env macro.
+#   arp_env=[0,3,7|0]:
+#     Frame 0: root (0 st offset)
+#     Frame 1: minor 3rd (+3 st)
+#     Frame 2: perfect 5th (+7 st)
+#     Loop from frame 0: cycles root→m3→P5 indefinitely.
+#   At 60 Hz this creates a 20 Hz arpeggio cycle — faster than the BPM-driven
+#   arp: effect (which cycles per scheduler tick), giving a more "hardware shimmer"
+#   quality characteristic of NES arp macros in FamiStudio-era compositions.
+#   vol=9 flat for even cycling tone; duty=50 for warmth under the lead.
+inst harm_arp   type=pulse2  duty=50  vol=9  #arp_env=[0,3,7|0]
+
+# harm_stab — Fanfare power-chord stab on Pulse 2.
+#   duty=50: warmer than Pulse 1's 25% — the two channels together sound like
+#   a "thick" fanfare brass section (thin nasal + warm square = wide spectrum).
+#   vol_env mirrors lead_stab (identical shape) so both channels decay together
+#   on each stab note, creating a unified "brass hit" percept.
+inst harm_stab  type=pulse2  duty=50  vol_env=[15,15,14,12,10,8,7,6,6,5,5,4,4,3,3,2]
+
+# ── Triangle — Ostinato Bass ─────────────────────────────────────────────────
+
+# tri — NES triangle channel; no hardware volume, no software vol_env.
+#   The triangle's fixed-amplitude output is gated by the linear counter on each
+#   note trigger. For the driving 8th-note ostinato, each note fires a fresh linear
+#   counter load, giving the bass its characteristic staccato "pluck" articulation.
+#   pitch_env=[1,0,0,0,0,0,0,0]:
+#     1-semitone pitch drop on frame 2: very subtle "fall-off" on bass notes.
+#     At 60 Hz this is ≈ 16 ms — barely perceptible, but adds a slightly organic
+#     quality to the ostinato that straight repeat-triggers lack.
+inst tri        type=triangle  pitch_env=[1,0,0,0,0,0,0,0]
+
+# ── Noise — Percussion ───────────────────────────────────────────────────────
+
+# kick — Deep bass drum.
+#   noise_period=12 → LFSR clock ≈ 590 Hz = low, thuddy burst.
+#   vol_env=[15,14,12,9,6,4,2,1]:
+#     8-frame sharp decay; full punch at onset, falls to near-silence in ≈ 133 ms.
+#     Short enough to keep the 16th-note groove crisp at 155 BPM without blur.
+inst kick       type=noise  noise_mode=normal  noise_period=12  vol_env=[15,14,12,9,6,4,2,1]  note=C5
+
+# snare — Martial mid-frequency crack.
+#   noise_period=7 → LFSR clock ≈ 2.8 kHz = papery snare snap.
+#   vol_env=[14,13,11,9,7,5,3,2,1]:
+#     Slightly softer than kick (14 vs 15 peak) and 9-frame decay (≈ 150 ms).
+#     The extra frame of tail gives snare more "body" than the kick — a realistic
+#     drum balance (snare sustains longer than a kick thud).
+inst snare      type=noise  noise_mode=normal  noise_period=7   vol_env=[14,13,11,9,7,5,3,2,1]  note=C5
+
+# hihat — Crisp closed hi-hat shimmer.
+#   noise_period=2 → LFSR clock ≈ 28 kHz = metallic sizzle.
+#   vol_env=[7,4,2,1]:
+#     4-frame ultra-fast decay (≈ 67 ms); very low volume cap (7/15) so the
+#     hi-hat adds rhythmic texture without overwhelming the melody. Sitting at
+#     28 kHz it is spectrally far from all melodic content.
+inst hihat      type=noise  noise_mode=normal  noise_period=2   vol_env=[7,4,2,1]  note=C5
+
+# ghost — Ghost snare (light mid-frequency tick for off-beat urgency).
+#   Same period as snare (7 → 2.8 kHz) but much quieter: vol_env=[5,4,3,2,1].
+#   Provides a "ghost hit" between the main snare accents, creating the urgent,
+#   "double-time feel" characteristic of NES RPG battle percussion.
+#   (Compare: Final Fantasy NES battle themes use a constant 16th-note noise
+#   pattern with alternating loud/soft hits for the martial drive.)
+inst ghost      type=noise  noise_mode=normal  noise_period=7   vol_env=[5,4,3,2,1]  note=C5
+
+# crash — Single cymbal crash for fanfare accents.
+#   noise_period=3 → LFSR clock ≈ 14 kHz = washy, cymbal-like.
+#   vol_env=[12,11,10,9,8,7,6,5,4,3,2,1]:
+#     12-frame slow decay (≈ 200 ms) — long enough to ring out over the fanfare
+#     stab, giving each punch a bright metallic "crash" quality.
+inst crash      type=noise  noise_mode=normal  noise_period=3   vol_env=[12,11,10,9,8,7,6,5,4,3,2,1]  note=C5
+
+# ── DMC ─────────────────────────────────────────────────────────────────────
+
+# kick_dmc  — Bundled @nes/kick; adds punchy sample transient to noise kick.
+#   Together: noise_period=12 for sustained thud + DMC for sharp click transient
+#   = the classic NES "compound kick drum" technique of the late NES era.
+inst kick_dmc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+
+# snare_dmc — Bundled @nes/snare; adds sample crack to noise snare.
+#   dmc_rate=15 (33.1 kHz, highest quality) ensures the sample transient is
+#   temporally sharp — important at 155 BPM where a blurry attack would
+#   perceptibly drag relative to the tight noise snare.
+inst snare_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+
+# =============================================================================
+# EFFECT PRESETS
+# =============================================================================
+
+# vib_battle — Fast, tight vibrato for sustained melody notes in Theme B.
+#   depth=3 : ±3 period units — slightly deeper than typical RPG vibrato (±2)
+#             to convey urgency and intensity. At A5 period ≈ 212, ±3 ≈ ±7 cents.
+#   rate=6  : 6 Hz — faster than a lyrical vibrato (4 Hz); sounds more tense/urgent.
+#   sine    : smooth modulation (no hard steps); more natural and musical.
+#   delay=3 : vibrato onset after 3 steps (≈ 290 ms) — the note establishes pitch
+#             cleanly first, then the shimmer develops. This onset delay is shorter
+#             than RPG title-screen vibrato (4–5 steps) to match the battle energy.
+effect vib_battle = vib:3,6,sine,3
+
+# vib_resolve — Gentle shimmer for the cadential resolution notes.
+#   depth=2, rate=4, onset=4 — softer/slower than vib_battle, signalling
+#   harmonic arrival (tension released). Used on the Em cadence in Theme A Phrase A2
+#   and the final held note of the transition.
+effect vib_resolve = vib:2,4,sine,4
+
+# =============================================================================
+# SILENCE FILLER
+# =============================================================================
+
+# 8-step silence — used in fanfare slots for channels that rest (triangle/DMC).
+pat silence8  = . . . . . . . .                  # 8 × 1 step = 8 ✓
+
+# 16-step silence — used for channel slots with no activity.
+pat silence16 = . . . . . . . . . . . . . . . .  # 16 × 1 step = 16 ✓
+
+# =============================================================================
+# PATTERNS — FANFARE (8 steps each)
+# =============================================================================
+#
+# The fanfare section (slots 0–3) consists of four 8-step patterns (half-bar each).
+# Each pattern represents one "brass stab" in the heroic opening figure.
+# The structure is:  STAB — rest — STAB–STAB — STAB–STAB–STAB — rising arpeggio
+#
+# Pulse 1 plays the stab pitches; Pulse 2 provides the power-fifth interval below;
+# Noise plays crash on stab beats; DMC kick reinforces each stab.
+#
+# Fanfare melodic outline (stab pitches on Pulse 1):
+#   Stab 1: A5:4 (quarter note — firm opening tonic assertion)
+#   Stab 2: E5:2 C5:2 (two eighth notes — upward third, answer back to 5th)
+#   Stab 3: A5:2 G5:2 (two eighths — peak note then step down; tension mounts)
+#   Stab 4: rising A4→C5→E5→A5 (triadic arpeggio — the classic NES fanfare resolve)
+#
+# The fanfare is intentionally not repeating in the main loop — it plays once
+# then the loop returns to Theme A. This matches the structural role of fanfare
+# "sting" passages in NES RPG battle music.
+
+# ── Fanfare Pulse 1 ─────────────────────────────────────────────────────────
+
+# fan_p1_1 — First stab: A5 held for a quarter note (4 steps) + rest (4 steps).
+#   The 4-step rest after the stab provides a brief gap before the next hit,
+#   matching the martial "call-and-response" shape of NES RPG fanfares.
+#   A5 is the octave tonic — starting high establishes the heroic register.
+#   step:  0  1  2  3  4  5  6  7
+#   note: [   A5 (4 steps)   ] [  rest  ]
+pat fan_p1_1 = A5:4 . . . .  # 4+4(rest) = 8 ✓
+
+# fan_p1_2 — Two eighth-note stabs: E5 and C5 (both 2 steps each) + rest (4 steps).
+#   E5 (perfect 5th) → C5 (minor 3rd) outlines the Am chord downward.
+#   Together with stab 1 (A5), these three pitches outline A minor (A–E–C = root, 5th, m3).
+#   step:  0  1  2  3  4  5  6  7
+#   note: [E5:2] [C5:2] [  rest  ]
+pat fan_p1_2 = E5:2 C5:2 . . . .  # 2+2+4(rest) = 8 ✓
+
+# fan_p1_3 — Two eighth-note stabs building tension: A5 and G5 (both 2 steps) + rest (4 steps).
+#   A5 re-states the tonic peak; G5 (minor 7th) introduces harmonic ambiguity —
+#   the b7 gives an Am7-like colour that is idiomatic to NES RPG battle stabs.
+#   step:  0  1  2  3  4  5  6  7
+#   note: [A5:2] [G5:2] [  rest  ]
+pat fan_p1_3 = A5:2 G5:2 . . . .  # 2+2+4(rest) = 8 ✓
+
+# fan_p1_4 — Rising Am arpeggio resolve: A4 → C5 → E5 → A5 (each 2 steps).
+#   This four-note ascending arpeggio is the canonical NES fanfare close — it
+#   "sweeps" up the minor triad from the octave below back to the tonic peak,
+#   providing both a sense of resolution and rising energy before the battle theme.
+#   step:  0  1  2  3  4  5  6  7
+#   note: [A4:2] [C5:2] [E5:2] [A5:2]
+pat fan_p1_4 = A4:2 C5:2 E5:2 A5:2  # 2+2+2+2 = 8 ✓
+
+# ── Fanfare Pulse 2 ─────────────────────────────────────────────────────────
+
+# fan_p2_1 — Power fifth below the first stab: E4 held 4 steps + rest.
+#   E4 is a perfect fifth below A4 (down an octave from A5 lead), creating a
+#   wide two-octave voicing: E4 (Pulse 2) + A5 (Pulse 1). This open spacing
+#   gives the stab a "brass choir" quality consistent with the NES RPG aesthetic.
+pat fan_p2_1 = E4:4 . . . .  # 4+4(rest) = 8 ✓
+
+# fan_p2_2 — Power fifths below the two eighth-note stabs: B3 + G3.
+#   B3 is a perfect fifth below E4/E5 area (diatonic fifth in Am: E's fifth = B).
+#   G3 is a perfect fifth below C4 (G+C = open fifth in C major area).
+#   Together the intervals (E5–B3, C5–G3) imply Em and C major power chords
+#   under the lead stabs — authentic to NES RPG two-channel harmony.
+pat fan_p2_2 = B3:2 G3:2 . . . .  # 2+2+4(rest) = 8 ✓
+
+# fan_p2_3 — Power fifths below stab 3: E4 and D4.
+#   E4 below A5 (again), D4 below G5's implied D major area.
+#   The D4 under G5 implies a G major chord, maintaining the harmonic mobility
+#   of the stab sequence (Am → Em → Am–G → Am arpeggio).
+pat fan_p2_3 = E4:2 D4:2 . . . .  # 2+2+4(rest) = 8 ✓
+
+# fan_p2_4 — Parallel fifths under the rising arpeggio: E3 → G3 → B3 → E4.
+#   Each pitch is a perfect fifth below the corresponding Pulse 1 arpeggio note
+#   (A4–E3, C5–G3, E5–B3, A5–E4), maintaining the "power fifth" voicing
+#   all the way through the resolve. The ascending parallel motion in both
+#   channels creates maximum sweep energy for the fanfare climax.
+pat fan_p2_4 = E3:2 G3:2 B3:2 E4:2  # 2+2+2+2 = 8 ✓
+
+# ── Fanfare Percussion ───────────────────────────────────────────────────────
+
+# fan_drum_1 — Crash on the downbeat, rest for remainder.
+#   The crash sustains via vol_env for ≈ 200 ms, ringing through the rest.
+#   Note: the `crash` instrument uses note=C5, so just writing `crash` fires it.
+pat fan_drum_1 = crash . . . . . . .  # 1+7(rest) = 8 ✓
+
+# fan_drum_2/3/4 — Crash on each stab downbeat, rest after.
+#   Stabs 2, 3, and 4 each open with a crash hit, matching the accented pulse
+#   on Pulse 1/2, then the rest lets the crash decay naturally.
+pat fan_drum_2 = crash . . . . . . .  # 1+7(rest) = 8 ✓
+pat fan_drum_3 = crash . . . . . . .  # 1+7(rest) = 8 ✓
+pat fan_drum_4 = crash . . . . . . .  # 1+7(rest) = 8 ✓
+
+# ── Fanfare Triangle ─────────────────────────────────────────────────────────
+
+# fan_tri_1 — Tonic bass anchor: A2 (tonic) on downbeat, rest for remainder.
+#   The triangle fires once per fanfare pattern to anchor the harmonic root.
+#   Only the downbeat of stabs 1 and 4 uses the triangle — stabs 2/3 use silence
+#   to give the fanfare a floating, less earth-bound quality in those moments.
+pat fan_tri_1 = A2 . . . . . . .  # 1+7(rest) = 8 ✓
+
+# fan_tri_4 — Rising bass arpeggio under the resolve: A2–C3–E3–A3.
+#   Mirrors Pulse 1's ascending Am arpeggio (A4–C5–E5–A5) two octaves lower.
+#   The bass rising in tandem with the lead creates maximum "lift" energy.
+#   Each bass note = 2 steps to match the Pulse 1/2 durations in fan_p1_4.
+pat fan_tri_4 = A2:2 C3:2 E3:2 A3:2  # 2+2+2+2 = 8 ✓
+
+# ── Fanfare DMC ─────────────────────────────────────────────────────────────
+
+# fan_dmc_1 — DMC kick on stab downbeat + rest.
+pat fan_dmc_1 = kick_dmc . . . . . . .  # 1+7(rest) = 8 ✓
+
+# fan_dmc_4 — Kick on all four arpeggio notes of the rising resolve.
+#   The four rapid kick triggers underline each arpeggio step — a "machine gun"
+#   DMC pattern used in late NES games for dramatic accent moments.
+pat fan_dmc_4 = kick_dmc . kick_dmc . kick_dmc . kick_dmc .  # 4×(1+1rest) = 8 ✓
+
+# =============================================================================
+# PATTERNS — THEME A (16 steps each, slots 4–7)
+# =============================================================================
+#
+# Theme A is the primary battle riff. It is built on the Am pentatonic (A–C–D–E–G)
+# with chromatic passing notes and uses driving 16th-note motion.
+#
+# Underlying chord progression for Theme A (2-bar phrases):
+#   Bars 1–2 (slots 4–5): Am  — Dm  — Am  — Em  (i–iv–i–v in A minor)
+#   Bars 3–4 (slots 6–7): F   — C   — G   — E   (bVI–bIII–bVII–V  = the "classic NES RPG" progression)
+#
+# Melodic language:
+#   — Staccato single-step notes alternate with brief 2–4-step held notes
+#   — Chromatic upper-neighbour approach notes (e.g. Bb→A, F#→G) for urgency
+#   — The pitch_env=[2,1,0…] on `lead` means every note begins 2 semitones high
+#     and slides down → 16th-note runs have a rushing, urgent character
+#
+# Pulse 2 in Theme A plays parallel fourths or minor thirds below Pulse 1.
+# Parallel fourths (5 semitones below) are the defining interval of NES RPG
+# harmony — they create a hollow, tense quality unlike the bright thirds of
+# platformer music (see composition guide §1.11).
+
+# ── Theme A Phrase A1 (slots 4–5) ────────────────────────────────────────────
+
+# mel_a1 — Bar 1 of Phrase A1; Am region; fast 16th-note run.
+#   The opening motif: upward leap to E5, cascade to A4, then upward again.
+#   Bb4 is a chromatic passing note (b2 of Am) — a characteristic "battle sting"
+#   that appears frequently in NES RPG minor-key action themes.
+#
+#   step: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: A5 G5 E5 C5 A4 E5 G5 A5 G5 E5 D5 C5 A4 Bb4 A4 E5
+pat mel_a1 = A5 G5 E5 C5 A4 E5 G5 A5 G5 E5 D5 C5 A4 Bb4 A4 E5  # 16×1 = 16 ✓
+
+# mel_a2 — Bar 2 of Phrase A1; Dm → Am → Em regions.
+#   D5 opens on Dm (iv); moves to A4 (back to tonic); then chromatic F#4→G4
+#   approach (F# as leading tone to G, implying Em area); resolves E5.
+#   The quarter-note landing on E5:4 (steps 12–15) provides the "breath" at
+#   the phrase half-cadence (Em = the dominant in A minor).
+#
+#   step:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: D5 F5 A5 D5 C5 A4 G4 A4 G4 F4 E4 F#4 [  E5:4   ]
+pat mel_a2 = D5 F5 A5 D5 C5 A4 G4 A4 G4 F4 E4 F#4 E5:4  # 12×1+4 = 16 ✓
+
+# ── Theme A Phrase A2 (slots 6–7) ────────────────────────────────────────────
+
+# mel_a3 — Bar 3 of Theme A; F major → C major sequence.
+#   Starts on F5 (bVI; the flat-sixth degree of A minor — immediately brightening
+#   the colour after two bars of pure minor). Stepwise descent through the C major
+#   scale (C5→B4→A4→G4) lands on a half-bar C major assertion.
+#   This bVI–bIII sequence is one of the most iconic harmonic moves in NES RPG battle music.
+#
+#   step:  0  1  2  3  4  5  6  7   8  9 10 11  12 13 14 15
+#   note: [F5:2] [E5:2] C5 D5 E5 F5 [  C5:4  ] G4 A4 C5 E5
+pat mel_a3 = F5:2 E5:2 C5 D5 E5 F5 C5:4 G4 A4 C5 E5  # 2+2+4×1+4+3×1+1 = 16 ✓
+
+# mel_a4 — Bar 4 of Theme A; G major (bVII) → E major (V) cadence.
+#   G5 (bVII) is reached then the line falls: G5→F5→E5→D5→C5 stepwise descent.
+#   E5<vib_resolve>:6 is the climactic cadential note — E major is the harmonic
+#   minor "V" (raised 3rd = G#, implied by context). The vib_resolve effect gives
+#   this note the expressive shimmer of an important cadential arrival.
+#   The phrase closes with two quick A4–G4 staccato notes (Am tonic coloring)
+#   ready to loop back to mel_a1.
+#
+#   step:  0  1  2  3  4  5  6  7  8  9  [10–15: E5 vib_resolve held 6 steps]
+#   note: G5 F5 E5 D5 C5 B4 . . . . [E5<vib_resolve>:6]
+pat mel_a4 = G5 F5 E5 D5 C5 B4 . . . . E5<vib_resolve>:6  # 6×1+4(rest)+6 = 16 ✓
+
+# ── Theme A Pulse 2 (Parallel Fourths) ──────────────────────────────────────
+
+# chd_a1 — Parallel fourths below mel_a1 (5 semitones below each Pulse 1 note).
+#   A5→E5 (P4 below = E5→B4, but we voice a 4th below: A5→E5 means Pulse2 = E5→B4).
+#   Here we use the diatonic fourth below each melody note in A minor:
+#   A5→E5, G5→D5, E5→B4, C5→G4, A4→E4, …
+#   (Perfect fourths downward stay diatonic in A natural minor throughout this phrase.)
+#
+#   step: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: E5 D5 B4 G4 E4 B4 D5 E5 D5 B4 A4 G4 E4 F4 E4 B4
+pat chd_a1 = E5 D5 B4 G4 E4 B4 D5 E5 D5 B4 A4 G4 E4 F4 E4 B4  # 16×1 = 16 ✓
+
+# chd_a2 — Parallel fourths below mel_a2.
+#   Dm region: A4 is P4 below D5; F5→C5, A5→E5, D5→A4, etc.
+#   E5:4 in mel_a2 step 12–15 → B4:4 a fourth below.
+pat chd_a2 = A4 C5 E5 A4 G4 E4 D4 E4 D4 C4 B3 C#4 B3:4  # 12×1+4 = 16 ✓
+
+# chd_a3 — Parallel fourths below mel_a3.
+#   F5→C5, E5→B4, C5→G4, D5→A4, E5→B4, F5→C5, C5:4→G4:4, G4→D4, A4→E4, C5→G4, E5→B4.
+pat chd_a3 = C5:2 B4:2 G4 A4 B4 C5 G4:4 D4 E4 G4 B4  # 2+2+4×1+4+3×1+1 = 16 ✓
+
+# chd_a4 — Parallel fourths below mel_a4 (G5→D5, F5→C5, …).
+#   E5 cadence → B4 a fourth below. The held B4<vib_resolve>:6 mirrors Pulse 1's
+#   cadential shimmer — both channels vibrating together at the Em cadence point
+#   makes the arrival feel significantly more expressive.
+pat chd_a4 = D5 C5 B4 A4 G4 F#4 . . . . B4<vib_resolve>:6  # 6×1+4(rest)+6 = 16 ✓
+
+# =============================================================================
+# PATTERNS — THEME B (16 steps each, slots 8–11)
+# =============================================================================
+#
+# Theme B provides contrast: broader quarter-note melodic shapes, wider interval
+# leaps, and the arp_env cycling chord technique on Pulse 2. The harmonic language
+# moves to C major → F major → G major → Em before returning to Am.
+#
+# The Pulse 2 arp_env cycling (harm_arp instrument) creates an implied three-note
+# chord from a single channel — at 60 Hz, the arp cycles fast enough that the
+# ear perceives it as a simultaneous chord rather than individual notes.
+#
+# Pulse 1 in Theme B uses lead_long for the broader, more lyrical phrases and
+# lead for the active 16th-note transition passages.
+
+# ── Theme B Phrase B1 (slots 8–9) ────────────────────────────────────────────
+
+# mel_b1 — Bar 1 of Phrase B1; C major region with wide quarter-note leaps.
+#   C5 (tonic of C major) opens with a long held note (4 steps), then E5→G5
+#   outline the C major triad. The phrase descends G5→E5→C5→E5 for a "rocking"
+#   arch shape. Quarter-note rhythm contrasts sharply with Theme A's 16th-note drive.
+#
+#   step:  0– 3    4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [ C5:4 ] [E5:2] [G5:2] [G5:2] [E5:2] [C5:2] [E5:2]
+pat mel_b1 = C5:4 E5:2 G5:2 G5:2 E5:2 C5:2 E5:2  # 4+6×2 = 16 ✓
+
+# mel_b2 — Bar 2 of Phrase B1; F major → G major; climax on A5.
+#   F5:4 asserts the F major (bVI of Am) — same bright-colour move as mel_a3.
+#   A5:2 G5:2 rise above the F5 base then fall back; the phrase lands on
+#   G5:4 (bVII of Am) — another characteristic NES RPG "unresolved hang" before
+#   the phrase answer starts in the next bar.
+#
+#   step:  0– 3    4– 5   6– 7   8– 9   10–11  12–15
+#   note: [ F5:4 ] [A5:2] [G5:2] [A5:2] [G5:2] [ G5:4 ]
+pat mel_b2 = F5:4 A5:2 G5:2 A5:2 G5:2 G5:4  # 4+4×2+4 = 16 ✓
+
+# ── Theme B Phrase B2 (slots 10–11) ──────────────────────────────────────────
+
+# mel_b3 — Bar 3 of Phrase B2; Em area; long descending line.
+#   E5 (major dominant) held for a quarter note — emphasising the Em (harmonic V)
+#   feel. Then a stepwise descent: D5–C5–B4–A4 (4 eighth notes) fills the next 8
+#   steps with a smooth falling line. G4:4 (the 7th) closes the bar — unresolved,
+#   pulling toward the tonic Am on the final bar.
+#
+#   step:  0– 3    4– 5   6– 7   8– 9  10–11  12–15
+#   note: [E5:4 ] [D5:2] [C5:2] [B4:2] [A4:2] [G4:4]
+pat mel_b3 = E5:4 D5:2 C5:2 B4:2 A4:2 G4:4  # 4+4×2+4 = 16 ✓
+
+# mel_b4 — Bar 4 of Phrase B2; return to Am; fast 16th-note drive leading into loop.
+#   This bar switches back to the `lead` instrument (pitch_env rip) for urgency.
+#   Am run: A4→C5→E5→A5, then a descending passage A5–G5–E5–C5–A4–G4–E4–A4
+#   that ends exactly where mel_a1 begins — creating a seamless loop from
+#   Theme B back into Theme A.
+#
+#   step: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: A4 C5 E5 A5 G5 E5 C5 A4 G4 A4 C5 E5 A5 G5 E5 C5
+pat mel_b4 = A4 C5 E5 A5 G5 E5 C5 A4 G4 A4 C5 E5 A5 G5 E5 C5  # 16×1 = 16 ✓
+
+# ── Theme B Pulse 2 (arp_env cycling chords) ────────────────────────────────
+
+# chd_b1 — Am arp_env cycling under mel_b1 C-major region.
+#   The harm_arp instrument triggers on A3 — the arp_env=[0,3,7|0] then cycles:
+#   A3 (root) → C4 (m3) → E4 (P5) → A3 → … at 60 Hz.
+#   Since Pulse 1 plays C5 and E5 (C major), the Am arp below (A3–C4–E4) creates
+#   an Am7/C (Am first inversion with 7th) — a rich, ambiguous chord that works
+#   equally over both Am and C major contexts. BPM = 155, one step ≈ 97 ms; over
+#   a 4-step C5:4 note, the 60 Hz arp completes ≈ 23 cycles — a dense shimmer.
+#   NOTE: The harm_arp instrument carries the arp_env macro, so any pitch here
+#   becomes the root from which +3/+7 offsets are applied.
+pat chd_b1 = A3:4 C4:4 E4:4 C4:4  # quarter notes; arp_env cycling on each  = 16 ✓
+
+# chd_b2 — F major and G major arp roots under mel_b2.
+#   F3:8 (Pulse 2 cycles F3→A3→C4 = F major arpeggio for 8 steps)
+#   G3:8 (Pulse 2 cycles G3→B3→D4 = G major arpeggio for 8 steps)
+#   Together with mel_b2's F5→A5→G5, the two channels outline F major and
+#   G major with full triad depth from a single Pulse 2 trigger.
+pat chd_b2 = F3:8 G3:8  # 8+8 = 16 ✓; arp_env cycles on each half
+
+# chd_b3 — Em arpeggio under mel_b3 (Em = E–G–B, using minArp from arp_env).
+#   But here harm_arp uses arp_env=[0,3,7|0] which is a minor triad.
+#   E3 root → E3+3=G3 → E3+7=B3 = E minor triad cycling. Perfect for the Em area.
+#   Half-bar on E3, then half-bar on D3 (cycling D3→F3→A3 = Dm triad for colour).
+pat chd_b3 = E3:8 D3:8  # 8+8 = 16 ✓
+
+# chd_b4 — Am cycling under the fast 16th-note return in mel_b4.
+#   A3:16 — one long trigger of the arp_env cycling Am triad for the full bar.
+#   The rapid pitch_env rip on the lead (16th notes) contrasts with the smooth
+#   60 Hz arp shimmer below — textural tension between "urgent" and "harmonic".
+pat chd_b4 = A3:16  # full bar Am arp cycling = 16 ✓
+
+# =============================================================================
+# PATTERNS — TRANSITION + REPRISE (16 steps each, slots 12–15)
+# =============================================================================
+#
+# Slot 12: Ascending chromatic tension run — a 16-step chromatic ascent from E4
+#          to E5 on Pulse 1 (12 chromatic steps + 4-step E5 landing).
+#          This is the "ratcheting tension" device common in NES RPG battle music:
+#          a chromatic run upward that signals the loop back to the main theme.
+#          Pulse 2 holds a sustained Am chord (A3:16 arp cycling) throughout.
+#
+# Slot 13: Structural silence + single reset hit — Pulse 1/2/Triangle rest for
+#          14 steps; a single kick+snare drum hit lands on step 14 followed by
+#          one rest step. This is the "dramatic pause" before the theme returns.
+#          The 2-step silence (steps 14–15 = kick on 14, rest on 15) is shorter
+#          than a full bar so the re-entry of the main theme on slot 14 feels
+#          energetic and urgent rather than plodding.
+#
+# Slots 14–15: Theme A Phrase A1 reprise (reuse mel_a1/mel_a2 patterns).
+#              The sequences list mel_a1 and mel_a2 again for the reprise slots
+#              so the loop can restart cleanly.
+
+# mel_trans — Ascending chromatic run E4 → E5 (12 semitones in 12 steps + hold).
+#   E4 E#4(=F4) F#4 G4 G#4 A4 A#4(=Bb4) B4 C5 C#5 D5 D#5(=Eb5) [E5:4]
+#   The chromatic passing notes (sharps) create maximum harmonic tension —
+#   each step departs further from the key, building anticipation for the
+#   return to Am when the loop restarts.
+#   (Enharmonic spellings used for clarity: E#=F, A#=Bb, D#=Eb in context.)
+pat mel_trans = E4 F4 F#4 G4 G#4 A4 Bb4 B4 C5 C#5 D5 Eb5 E5:4  # 12×1+4 = 16 ✓
+
+# mel_pause — 14 rests + one lead note (A5) + one rest.
+#   The single A5 on step 14 is the "reset pitch" — the tonic appears briefly
+#   in the silence, giving the ear something to lock onto before the full theme
+#   re-enters. The pattern ends with one rest so the first note of the reprise
+#   (mel_a1 step 0 = A5) re-articulates cleanly rather than being a tied note.
+pat mel_pause = . . . . . . . . . . . . . . A5 .  # 14 rests + note + rest = 16 ✓
+
+# chd_trans — Sustained Am arp cycling for the full transition bar.
+#   A3:16 on harm_arp: the arp_env shimmer continues under the chromatic Pulse 1 run.
+#   The contrast between chromatic melody and stable Am arp creates dissonance
+#   that resolves when the melody finally lands on E5 at the end of mel_trans.
+pat chd_trans = A3:16  # full bar Am arp cycling = 16 ✓
+
+# chd_pause — Silence: Pulse 2 rests during the dramatic pause bar.
+# (Reuse silence16 for this slot.)
+
+# =============================================================================
+# PATTERNS — TRIANGLE OSTINATO (16 steps each)
+# =============================================================================
+#
+# The triangle ostinato is the rhythmic and harmonic "engine" of the battle theme.
+# It is an 8-note cell that repeats twice per bar (8 steps × 2 = 16 steps per pattern).
+#
+# Am ostinato cell: A2  A2  E3  A2  G2  F2  E2  A2
+#   — The double-strike A2–A2 (steps 0–1) creates urgency via re-articulation.
+#   — E3 (P5 of Am) is the goal of the first half; G2 and F2 (b7 and b6) are
+#     chromatic passing tones that emphasise the minor quality.
+#   — E2 (low 5th = A minor's dominant root, one octave below E3) provides
+#     deep bass grounding before returning to A2 at the top of the next cell.
+#   — The entire 8-note figure implies Am7 (A–C–E–G) with chromatic colour:
+#     A2 (root) → E3 (P5) → G2 (m7) → F2 (m6) → E2 (P5 low) → A2 (octave root).
+#
+# This is the most characteristic element of the arrangement — the repeating
+# bass figure functions exactly like the tumbao in salsa or the ostinato in
+# Baroque chaconne, providing both harmonic identity and rhythmic drive.
+
+# tri_am — Am ostinato (main battle theme, slots 4–7 and reprise 14–15).
+#   The 8-note cell is written inline for both repetitions (no sub-pattern shorthand):
+#   A2 A2 E3 A2 G2 F2 E2 A2  (first half) repeated = 16 steps.
+pat tri_am = A2 A2 E3 A2 G2 F2 E2 A2 A2 A2 E3 A2 G2 F2 E2 A2  # 16×1 = 16 ✓
+
+# tri_cm — C major ostinato cell for Theme B bars 1–2 (slots 8–9).
+#   C3 C3 G3 C3 Bb2 A2 G2 C3  (C3 root, G3 fifth, Bb2 b7, A2 chromatic, G2 root down)
+#   Creates the same propulsive ostinato feel but centred on C major / Am relative.
+pat tri_cm = C3 C3 G3 C3 Bb2 A2 G2 C3 C3 C3 G3 C3 Bb2 A2 G2 C3  # 16×1 = 16 ✓
+
+# tri_em — Em / G major ostinato cell for Theme B bars 3–4 (slots 10–11).
+#   E3 E3 B3 E3 D3 C3 B2 E3  (E3 root, B3 fifth, D3 m7, C3 b6, B2 low 5th)
+#   Follows the Em → Am return arc of Phrase B2.
+pat tri_em = E3 E3 B3 E3 D3 C3 B2 E3 E3 E3 B3 E3 D3 C3 B2 E3  # 16×1 = 16 ✓
+
+# tri_trans — Triangle holds the Am low root during the transition (slot 12).
+#   Single A2 on the downbeat (2 steps), then rests — gives weight to the start
+#   of the tension run without competing with the chromatic Pulse 1 line.
+pat tri_trans = A2:2 . . . . . . . . . . . . . .  # 2+14(rest) = 16 ✓
+
+# tri_pause — Single A2 stab on step 14 (matching mel_pause's single A5 note).
+#   Bass and lead sound together on the "reset pitch" for maximum impact.
+pat tri_pause = . . . . . . . . . . . . . . A2 .  # 14 rests + note + rest = 16 ✓
+
+# =============================================================================
+# PATTERNS — PERCUSSION (all patterns 8 or 16 steps)
+# =============================================================================
+#
+# Drum kit layout:
+#   kick  : beats 1 & 3 (steps 0 and 8 in 16-step bar)
+#   snare : beats 2 & 4 (steps 4 and 12)
+#   hihat : 8th-note offbeats (steps 2, 6, 10, 14)
+#   ghost : 16th-note weak positions (steps 1, 3, 5, 7, 9, 11, 13, 15) — light
+#   crash : fanfare stab accents only
+#
+# Martial battle groove distinguishing features vs. standard platformer groove:
+#   1. Ghost hits on every 16th-note position (ghost instrument, vol_env=[5,4,3,2,1])
+#      create the "constant 16th-note noise texture" of NES RPG battle percussion.
+#   2. The kick vol_env is sharper (8-frame) than a platformer kick, giving more
+#      staccato "machine gun" feel appropriate for battle urgency.
+#   3. Snare on beats 2 & 4 is unchanged (universal backbeat), but the ghost hits
+#      between snares prevent the groove from ever feeling empty.
+
+# drum_battle — Full 16-step martial battle groove.
+#
+# Step layout:
+#   step: 0    1      2     3      4    5      6     7     8    9     10    11    12   13    14    15
+#   hit: KCK  ghost  HHT  ghost  SNR  ghost  HHT  ghost  KCK ghost  HHT  ghost  SNR ghost  HHT  ghost
+#
+# kick on 0 & 8; snare on 4 & 12; hihat on 2,6,10,14; ghost on all odd steps and non-hit even steps.
+# The constant ghost hits create the "perpetual noise" texture characteristic of the
+# NES RPG battle aesthetic — the channel is never truly silent between main hits.
+pat drum_battle = kick ghost hihat ghost snare ghost hihat ghost kick ghost hihat ghost snare ghost hihat ghost  # 16 ✓
+
+# drum_trans — Transition bar percussion: kick only on step 0, all ghost hits for tension.
+#   The sparse kick + constant ghost hits create an unsettled, building-tension feel
+#   as the chromatic Pulse 1 run climbs upward.
+pat drum_trans = kick ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost ghost  # 16 ✓
+
+# drum_pause — 14 rests + kick+snare double-hit + rest (the dramatic reset).
+#   Steps 0–13: silence — maximum dramatic tension.
+#   Step 14: kick and snare fire simultaneously (both instruments in the same step;
+#   they are separate noise instruments so they sound independently — the combined
+#   vol_env burst creates a "smash" hit that signals the return of the theme).
+#   Step 15: one rest before the theme re-enters.
+pat drum_pause = . . . . . . . . . . . . . . kick .  # 14 rests + kick + rest = 16 ✓
+
+# =============================================================================
+# PATTERNS — DMC (8 and 16 steps)
+# =============================================================================
+#
+# DMC density:
+#   Fanfare: kick on each stab downbeat (handled by fan_dmc_1/fan_dmc_4)
+#   Battle:  kick on beats 1&3, snare on beats 2&4 (full density)
+#   Trans:   kick beat 1 only (sparse; matches drum_trans)
+#   Pause:   single smash hit on step 14
+
+# dmc_battle — Full kick+snare pattern aligned with drum_battle.
+#   kick_dmc on steps 0 & 8; snare_dmc on steps 4 & 12.
+pat dmc_battle  = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .  # 16 ✓
+
+# dmc_trans — Kick only on beat 1 of the transition bar.
+pat dmc_trans   = kick_dmc . . . . . . . . . . . . . . .  # 1+15(rest) = 16 ✓
+
+# dmc_pause — Single DMC kick smash on step 14 (mirrors drum_pause).
+pat dmc_pause   = . . . . . . . . . . . . . . kick_dmc .  # 14+1+1 = 16 ✓
+
+# =============================================================================
+# SEQUENCES — total 224 steps per channel
+# =============================================================================
+#
+# Sequence composition:
+#   Slots  0– 3: Fanfare     (4 × 8-step patterns = 32 steps)
+#   Slots  4– 7: Theme A     (4 × 16-step patterns = 64 steps)
+#   Slots  8–11: Theme B     (4 × 16-step patterns = 64 steps)
+#   Slots 12–15: Trans+Rep   (4 × 16-step patterns = 64 steps)
+#   Total: 32 + 64 + 64 + 64 = 224 steps ✓ (all 5 sequences must match)
+#
+# Reprise (slots 14–15) reuses Theme A patterns mel_a1 and mel_a2 directly —
+# BeatBax pattern reuse is both space-efficient and ensures rhythmic consistency.
+#
+# The repeat directive loops the entire 224-step song back to slot 0 (fanfare),
+# producing the characteristic NES RPG battle loop: fanfare → battle → fanfare → …
+
+# ── Pulse 1 sequence ────────────────────────────────────────────────────────
+#   Fanfare:    lead_stab instrument on all four fanfare patterns.
+#   Theme A:    default `lead` (pitch_env rip) for rapid 16th-note runs.
+#   Theme B1-3: lead_long for the broader, lyrical phrases (quarter-note shapes).
+#   Theme B4:   lead (pitch_env rip) for the urgent Am return run.
+#   Transition: lead (rip) on the chromatic run; lead on the pause single note.
+#   Reprise:    lead (same as Theme A) for consistency into the loop.
+#
+seq pulse1_main = fan_p1_1:inst(lead_stab) fan_p1_2:inst(lead_stab) fan_p1_3:inst(lead_stab) fan_p1_4:inst(lead_stab) mel_a1 mel_a2 mel_a3 mel_a4 mel_b1:inst(lead_long) mel_b2:inst(lead_long) mel_b3:inst(lead_long) mel_b4 mel_trans mel_pause mel_a1 mel_a2
+
+# ── Pulse 2 sequence ────────────────────────────────────────────────────────
+#   Fanfare:    harm_stab (matching vol_env decay) for the power-fifth stabs.
+#   Theme A:    harm (flat vol, parallel fourths) for chord support.
+#   Theme B:    harm_arp (arp_env cycling chords) for the bridge texture.
+#   Transition: harm_arp (Am shimmer) under chromatic tension run.
+#   Pause:      silence16 (Pulse 2 rests during the dramatic pause).
+#   Reprise:    harm (parallel fourths, matching Theme A).
+#
+seq pulse2_main = fan_p2_1:inst(harm_stab) fan_p2_2:inst(harm_stab) fan_p2_3:inst(harm_stab) fan_p2_4:inst(harm_stab) chd_a1 chd_a2 chd_a3 chd_a4 chd_b1:inst(harm_arp) chd_b2:inst(harm_arp) chd_b3:inst(harm_arp) chd_b4:inst(harm_arp) chd_trans:inst(harm_arp) silence16 chd_a1 chd_a2
+
+# ── Triangle sequence ────────────────────────────────────────────────────────
+#   Fanfare 1:   fan_tri_1 (single A2 stab).
+#   Fanfare 2–3: silence8 (floating, earth-free quality in the middle stabs).
+#   Fanfare 4:   fan_tri_4 (rising arpeggio bass mirrors Pulse 1/2 ascent).
+#   Theme A:     tri_am (Am ostinato, four repetitions).
+#   Theme B 1–2: tri_cm (C major ostinato for the C/F area of B1–B2).
+#   Theme B 3–4: tri_em (Em ostinato for the Em/Am return in B3–B4).
+#   Transition:  tri_trans (single A2 downbeat anchor).
+#   Pause:       tri_pause (matching A2 stab on step 14 with mel_pause).
+#   Reprise:     tri_am (Am ostinato, two bars back into the loop).
+#
+seq tri_main = fan_tri_1 silence8 silence8 fan_tri_4 tri_am tri_am tri_am tri_am tri_cm tri_cm tri_em tri_em tri_trans tri_pause tri_am tri_am
+
+# ── Noise sequence ───────────────────────────────────────────────────────────
+#   Fanfare:    fan_drum_1–4 (single crash on each stab downbeat).
+#   Theme A:    drum_battle × 4 bars.
+#   Theme B:    drum_battle × 4 bars (same groove; texture comes from Pulse 2 arp change).
+#   Transition: drum_trans (kick + constant ghost hits, sparse).
+#   Pause:      drum_pause (dramatic silence then smash hit).
+#   Reprise:    drum_battle × 2 bars.
+#
+seq noise_main = fan_drum_1 fan_drum_2 fan_drum_3 fan_drum_4 drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_trans drum_pause drum_battle drum_battle
+
+# ── DMC sequence ─────────────────────────────────────────────────────────────
+#   Fanfare:    fan_dmc_1 on stabs 1/2/3 (kick only); fan_dmc_4 on stab 4 (rapid kicks).
+#   Theme A:    dmc_battle × 4 bars.
+#   Theme B:    dmc_battle × 4 bars.
+#   Transition: dmc_trans (kick on beat 1 only).
+#   Pause:      dmc_pause (smash kick on step 14).
+#   Reprise:    dmc_battle × 2 bars.
+#
+seq dmc_main = fan_dmc_1 fan_dmc_1 fan_dmc_1 fan_dmc_4 dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_trans dmc_pause dmc_battle dmc_battle
+
+# =============================================================================
+# CHANNELS
+# =============================================================================
+
+channel 1 => inst lead       seq pulse1_main   # Pulse 1  — lead melody
+channel 2 => inst harm       seq pulse2_main   # Pulse 2  — harmony / arp
+channel 3 => inst tri        seq tri_main      # Triangle — ostinato bass
+channel 4 => inst kick       seq noise_main    # Noise    — martial percussion
+channel 5 => inst kick_dmc   seq dmc_main      # DMC      — kick/snare reinforcement
+
+# =============================================================================
+# PLAYBACK
+# =============================================================================
+
+play auto repeat

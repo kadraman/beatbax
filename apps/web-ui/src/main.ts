@@ -94,7 +94,7 @@ import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
-import { downloadText } from './export/download-helper';
+import { downloadText, sanitizeFilename } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
 import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
 import {
@@ -1117,7 +1117,27 @@ eventBus.on('export:success', () => spinner.hide());
 eventBus.on('export:error', () => spinner.hide());
 
 // Tracks the stem of the last loaded .bax filename (e.g. 'sample_song' from 'sample_song.bax').
-let loadedFilename = 'song';
+// Persisted to localStorage so it survives page reloads.
+let loadedFilename = storage.get(StorageKey.LOADED_FILENAME) ?? 'song';
+function setLoadedFilename(name: string): void {
+  loadedFilename = name;
+  storage.set(StorageKey.LOADED_FILENAME, name);
+}
+
+/**
+ * Prefer metadata.name for file naming when present, normalized as lowercase
+ * snake_case, with the loaded filename as fallback.
+ */
+function preferredSongFilenameStem(source: string): string {
+  try {
+    const ast = parse(source) as any;
+    const metadataName = String(ast?.metadata?.name ?? '').trim();
+    if (metadataName) return sanitizeFilename(metadataName.toLowerCase());
+  } catch {
+    // Keep save/export filename fallback behavior even when source has parse errors.
+  }
+  return loadedFilename;
+}
 
 /** Strip directory, extension and return the bare stem of a filename path. */
 function fileBaseStem(path: string): string {
@@ -1262,7 +1282,7 @@ const menuBar = new MenuBar({
       const newSong = getStarterSong(settingDefaultBpm.get());
       editor.setValue?.(newSong);
       storage.set(StorageKey.EDITOR_CONTENT, newSong);
-      loadedFilename = 'song';
+      setLoadedFilename('song');
       menuBar.setSongName('untitled');
       opLog(outputPanel, '📄 New song');
       emitParse(newSong);
@@ -1273,7 +1293,7 @@ const menuBar = new MenuBar({
       accept: '.bax',
       onLoad: (result) => {
         playbackManager.stop();
-        loadedFilename = fileBaseStem(result.filename);
+        setLoadedFilename(fileBaseStem(result.filename));
         menuBar.setSongName(loadedFilename);
         editor.setValue?.(result.content);
         storage.set(StorageKey.EDITOR_CONTENT, result.content);
@@ -1287,21 +1307,23 @@ const menuBar = new MenuBar({
   onSave: () => {
     const content = getSource();
     if (!content.trim()) { opWarn(problemsPanel, 'Nothing to save — the editor is empty.'); return; }
-    downloadText(content, `${loadedFilename}.bax`, 'text/plain');
-    opLog(outputPanel, `💾 Saved ${loadedFilename}.bax`);
+    const stem = preferredSongFilenameStem(content);
+    downloadText(content, `${stem}.bax`, 'text/plain');
+    opLog(outputPanel, `💾 Saved ${stem}.bax`);
   },
   onSaveAs: () => {
-    const raw = prompt('Save as:', `${loadedFilename}.bax`);
+    const suggestedStem = preferredSongFilenameStem(getSource());
+    const raw = prompt('Save as:', `${suggestedStem}.bax`);
     if (!raw) return;
     const filename = raw.endsWith('.bax') ? raw : `${raw}.bax`;
     downloadText(getSource(), filename, 'text/plain');
-    loadedFilename = fileBaseStem(filename);
+    setLoadedFilename(fileBaseStem(filename));
     menuBar.setSongName(loadedFilename);
     opLog(outputPanel, `💾 Saved ${filename}`);
   },
   onLoadFile: (filename, content) => {
     playbackManager.stop();
-    loadedFilename = fileBaseStem(filename);
+    setLoadedFilename(fileBaseStem(filename));
     menuBar.setSongName(loadedFilename);
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
@@ -1375,7 +1397,7 @@ toolbar = new Toolbar({
     playbackManager.stop();
     commentsFolded = false;
     toolbar?.setFoldCommentsActive(false);
-    loadedFilename = fileBaseStem(filename);
+    setLoadedFilename(fileBaseStem(filename));
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `📂 Opened ${filename}`);
@@ -1462,7 +1484,7 @@ function doVerify(): void {
 const dragDrop = new DragDropHandler(document.body, {
   onDrop: (filename, content) => {
     playbackManager.stop();
-    loadedFilename = fileBaseStem(filename);
+    setLoadedFilename(fileBaseStem(filename));
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🗂 Dropped ${filename}`);
@@ -1485,7 +1507,7 @@ const dragDrop = new DragDropHandler(document.body, {
     if (result) {
       const songParam = params.get('song') ?? 'song.bax';
       const filename = songParam.split('/').pop() || 'song.bax';
-      loadedFilename = fileBaseStem(filename);
+      setLoadedFilename(fileBaseStem(filename));
       editor.setValue?.(result.content);
       storage.set(StorageKey.EDITOR_CONTENT, result.content);
       opLog(outputPanel, `🌐 Loaded from URL: ${filename}`);

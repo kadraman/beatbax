@@ -59,15 +59,15 @@ inst melody   type=pulse1  duty=25  env=12,flat
 #   env=11,flat  : slightly softer than melody so the counter-melody on Pulse 2
 #                  reads clearly above the pedal.
 #   Applied via seq transform: pedal_c:inst(melody50) in pulse1_main.
-inst melody50 type=pulse1  duty=50  env=11,flat
+inst melody50 type=pulse1  duty=50  env=10,flat
 
 # ── Pulse 2 (type=pulse2) ─────────────────────────────────────────────────────
 #
-# chord — harmony voice; 50% duty for a warm, full tone that complements melody.
+# chord — harmony voice; 12% duty for a warm, full tone that complements melody.
 #   env=9,flat   : constant volume at 9/15, keeping the harmony clearly below the
 #                  melody in the mix. Flat envelope ensures long notes (8 ticks ≈ 1.1 s)
 #                  sustain at a steady level through the full bar alongside the melody.
-inst chord    type=pulse2  duty=50  env=9,flat
+inst chord    type=pulse2  duty=12  env=9,flat
 
 # ── Triangle (type=triangle) ──────────────────────────────────────────────────
 #

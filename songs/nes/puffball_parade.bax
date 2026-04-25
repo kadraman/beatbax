@@ -1,0 +1,754 @@
+## puffball_parade.bax
+##
+## Original NES chiptune in the spirit of Kirby's Adventure (NES, HAL Laboratory, 1993).
+## This is an ENTIRELY ORIGINAL composition — no copyrighted melody or material reproduced.
+##
+## The arrangement aims to capture the bright, major-key warmth, bouncy eighth-note drive,
+## major-triad arpeggio sparkle, and gentle percussion that define the Kirby NES aesthetic:
+##
+##   • Nasal 25% duty Pulse 1 lead with F-major arpeggio "flicks" on downbeats
+##   • Warm 50% duty Pulse 1 in the bridge — the classic NES texture-change trick
+##   • Pulse 2 in parallel thirds under the melody (Theme A), stepping to arpeggiated
+##     Dm/Bb chord tones then settled sustains (Bridge) — three-mode harmonic arc
+##   • Triangle walking bass: quarter-note root/arpeggio-tone patterns, chord-following
+##   • Light 8th-note hi-hat groove with a sparser bridge variant (open and airy)
+##   • Bundled @nes/kick + @nes/snare DMC reinforcement, with sparse intro/bridge density
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Details
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Key        : F major  (F  G  A  Bb C  D  E  F)  — one flat (Bb)
+##   Tempo      : 132 BPM
+##   Chip       : NES  (Ricoh 2A03 — all 5 channels)
+##   Style      : Bright platformer fanfare; cheerful and upbeat
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Structure  (16 bars = 256 scheduler ticks)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Bars  1– 2 : INTRO       — Solo Pulse 1 fanfare: ascending F-major scale run
+##                              followed by a "cascade" descent. No harmony or drums yet.
+##
+##   Bars  3– 6 : THEME A ×1  — Full 5-channel main theme, 4 bars in F major.
+##                              Two 2-bar phrases:
+##                                Phrase A1 (bars 3–4): Leap up to C6, descend stepwise
+##                                Phrase A2 (bars 5–6): Rising C→C6 run, cadential landing
+##
+##   Bars  7– 8 : THEME A ×2  — Abbreviated 2-bar reprise of Phrase A1. Creates the
+##                              familiar AABA-like arch before entering the bridge.
+##
+##   Bars  9–12 : THEME B     — Lyrical bridge. Dm→Bb→C→F chord progression.
+##                              Pulse 1 switches to warmer 50% duty (via :inst transform).
+##                              Pulse 2 arpeggios Dm and Bb then settles to C and F sustains.
+##                              Lighter percussion — no steady hi-hat, less DMC density.
+##
+##   Bars 13–16 : REPRISE     — Return to Theme A material. Bars 13–14 restate Phrase A1,
+##                              bar 15 reprises the rising run, bar 16 is the finale:
+##                              F5 with F-major arpeggio cycling across a half note (implied
+##                              chord on one channel), then a brief C5–F5 cadence.
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Channel Roles
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Ch1 (Pulse 1) : Lead melody
+##                   25% duty (nasal, cutting) in Theme A and Reprise
+##                   50% duty (warm, organ-like) in Theme B bridge — instrument
+##                   switched per-pattern-slot via :inst(lead_warm) seq transform
+##
+##   Ch2 (Pulse 2) : Harmony
+##                   Silent in bars 1–2 (intro breathes as a solo)
+##                   Parallel thirds below melody in Theme A — tracks every note
+##                   Arpeggiated Dm (minArp) and Bb (majArp) in bridge bars 9–10
+##                   Sustained root+fifth sustains in bridge bars 11–12 (contrast)
+##                   Parallel thirds + broad F voicing in Reprise
+##
+##   Ch3 (Triangle): Walking bass
+##                   Quarter-note patterns following chord roots and arpeggio tones
+##                   F major: root → M3 → P5 → M3 (bars 3–4, more "playful" bass)
+##                   Bridge: strict root–fifth alternation (Dm, Bb, C, F)
+##                   Finale: ascending F-major arpeggio (F2–A2–C3–F3)
+##
+##   Ch4 (Noise)   : Light percussion
+##                   Intro: kick on beats 1 & 3 only (sparse)
+##                   Main:  kick 1&3, snare 2&4, hi-hat on offbeat 8ths
+##                   Bridge: kick + snare (lighter, hi-hat omitted on 2 of 4 beats)
+##
+##   Ch5 (DMC)     : Kick/snare sample reinforcement
+##                   Intro: kick_dmc on beats 1 & 3 only
+##                   Main:  kick_dmc 1&3, snare_dmc 2&4
+##                   Bridge: kick_dmc beat 1, snare_dmc beat 3 (half density)
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Timing Reference  (132 BPM, 4 ticks per beat, 16 ticks per bar)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   1 tick  = 1/16 note  ≈ 113.6 ms
+##   2 ticks = 1/8  note (eighth)    ≈ 227 ms
+##   4 ticks = 1/4  note (quarter)   ≈ 455 ms
+##   8 ticks = 1/2  note (half)      ≈ 909 ms
+##  16 ticks = 1 whole bar           ≈ 1818 ms
+##
+## All patterns = exactly 16 ticks.  All sequences = exactly 256 ticks (16 × 16).
+##
+## Play: node bin/beatbax play songs/nes/puffball_parade.bax
+
+song name "Puffball Parade"
+song artist "The BeatBax Team"
+song description """Original NES-style platformer fanfare at 132 BPM in F major, inspired by the bright and upbeat aesthetic of Kirby-era NES soundtracks (c.1993). Entirely original composition; no copyrighted material reproduced. Full 5-channel 2A03 arrangement: nasal 25% Pulse 1 lead with F-major arpeggio sparkle on downbeats (switching to warm 50% duty in the bridge), Pulse 2 parallel-thirds harmony with arpeggiated Dm/Bb bridge chords, quarter-note triangle walking bass through F→Bb→C→Dm changes, light 8th-note noise groove with sparse bridge variant, and bundled @nes/ DMC kick/snare reinforcement."""
+song tags "nes,platformer,major,bright,upbeat,fanfare,kirby-style,example,demo"
+
+chip nes
+bpm 132
+
+# =============================================================================
+# INSTRUMENTS
+# =============================================================================
+#
+# Design rationale overview:
+#   — Pulse 1 carries the lead with maximum brightness (25% duty, flat envelope).
+#     A second Pulse 1 variant (50% duty) is activated in the bridge via :inst() transform.
+#   — Pulse 2 uses 50% duty throughout; the parallel thirds below the melody fill
+#     the harmonic spectrum without competing with the brighter lead.
+#   — Triangle has no envelope; it anchors the low end with a characteristic
+#     NES "staircase" bass tone.
+#   — Noise instruments use three spectral zones: deep thud (kick), papery crack
+#     (snare), and crisp sizzle (hi-hat).
+#   — DMC uses the bundled @nes/ sample library; no external files required.
+
+# ── Pulse 1 ─────────────────────────────────────────────────────────────────
+
+# lead — 25% duty; the hollow, slightly nasal NES "candy lead" timbre.
+#   duty=25 : cuts above the warm 50% harmony without harshness; the 25% duty
+#             contains strong odd harmonics (3rd, 5th, 7th…) that give it an
+#             almost synth-horn quality — ideal for bright platformer melodies.
+#   env=12,flat : constant volume at 12/15 throughout the note. At 132 BPM,
+#                 eighth notes last only ≈ 227 ms; flat envelope guarantees every
+#                 fast-moving note in the theme fires at full perceived volume.
+#                 Articulation comes naturally from the note boundary (new noteOn
+#                 at each scheduler tick boundary).
+inst lead      type=pulse1  duty=25  env=12,flat
+
+# lead_warm — 50% duty (true square wave) for the bridge section.
+#   50% duty has a mellower, organ-like warmth: its harmonic series contains only
+#   odd harmonics but with even-weighted amplitudes, making it rounder and less
+#   nasal than 25%. NES composers commonly switched duty on a "structural cue"
+#   (bridge, climax, or outro) so listeners perceived a timbral colour change even
+#   though the pitches and rhythms remained similar.
+#   env=11,flat : 1 point softer than lead (11/15) so when Pulse 1 carries the
+#                 lyrical bridge melody, Pulse 2's sustained chord tones remain
+#                 clearly audible below it.
+#   Applied via :inst(lead_warm) per-slot transform in the pulse1_main sequence.
+inst lead_warm type=pulse1  duty=50  env=11,flat
+
+# ── Pulse 2 ─────────────────────────────────────────────────────────────────
+
+# harm — 50% duty; full, warm harmonic support.
+#   env=9,flat : constant at 9/15 — three points below lead, ensuring a clear
+#                foreground/background mix hierarchy. Flat sustain is essential
+#                for the arpeggiated bridge chords (D4<minArp>:8 = 8 ticks of
+#                cycling chord tones that must all sound at equal volume) and
+#                for the sustained half-note intervals (C4:8 at ≈ 909 ms).
+inst harm      type=pulse2  duty=50  env=9,flat
+
+# ── Triangle ────────────────────────────────────────────────────────────────
+
+# tri — NES triangle: fixed 32-step quantised triangle waveform, no volume control.
+#   The channel is either on (full amplitude) or off; all note length is managed
+#   by the length counter (hardware). Quarter-note bass lines (4 ticks) give the
+#   bass its characteristic "plucked" articulation on the NES — the channel decays
+#   naturally due to the length counter rather than a software envelope.
+#   Effective melodic range: C2 to C5. Below C2 the period register approaches
+#   the hardware maximum; above C5 the 4-bit quantisation becomes audible as
+#   a buzzy artefact. Bass parts here stay in the C2–F3 zone.
+inst tri       type=triangle
+
+# ── Noise ────────────────────────────────────────────────────────────────────
+
+# kick — low-frequency LFSR noise burst (period=12 → ≈ 590 Hz — a deep, thuddy sound).
+#   env=15,down  : starts at maximum volume (15/15) for a punchy transient.
+#   env_period=2 : decays one step every 3 NES frames → full decay ≈ 500 ms.
+#                  Long enough to feel solid; short enough not to blur into the snare.
+#   Anchors beats 1 and 3 throughout the song.
+inst kick      type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=2
+
+# snare — mid-frequency crack (period=7 → ≈ 2.8 kHz — papery, snappy sound).
+#   env=14,down  : slightly softer than kick (one step below max) for a realistic
+#                  drum balance — the snare should punch without eclipsing the kick.
+#   env_period=2 : same tight decay as kick for spectral clarity.
+#   Hits beats 2 and 4 for the classic 4/4 backbeat.
+inst snare     type=noise  noise_mode=normal  noise_period=7   env=14,down  env_period=2
+
+# hihat — high-frequency metallic sizzle (period=2 → ≈ 28 kHz — crisp, cymbal-like).
+#   env=6,down    : low amplitude (6/15) to keep hi-hat subtle beneath the melody.
+#   env_period=0  : near-instantaneous decay (one step per NES frame ≈ 16 ms) —
+#                   very short "tick" that adds rhythmic texture without sustaining.
+#   Sounds on the "and" of each beat (8th-note offbeat positions, ticks 2/6/10/14).
+inst hihat     type=noise  noise_mode=normal  noise_period=2   env=6,down   env_period=0
+
+# ── DMC ──────────────────────────────────────────────────────────────────────
+
+# kick_dmc  — bundled @nes/kick sample; adds punchy transient weight to kick hits.
+#   The noise kick (period=12) provides the sustained "thud"; the DMC kick adds
+#   a sharp click transient — together they produce the characteristic NES kick
+#   drum of the mid-to-late NES era (e.g., Contra, Mega Man 3, Kirby's Adventure).
+inst kick_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+
+# snare_dmc — bundled @nes/snare sample; adds crack definition to snare hits.
+#   dmc_rate=15 (NTSC index 15 → 33.1 kHz) is the highest quality rate available;
+#   essential for percussion where temporal accuracy matters.
+#   dmc_loop=false : one-shot playback — the sample fires once per trigger.
+inst snare_dmc type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+
+# =============================================================================
+# EFFECT PRESETS
+# =============================================================================
+
+# majArp — F-major triad arpeggio: root → +4 st (M3) → +7 st (P5) → cycle.
+#
+#   This is the defining sonic technique of Kirby-style NES platformer leads.
+#   On a 2-tick note, the arpeggio fires for 2 ticks: tick 0 = root, tick 1 = M3.
+#   The result is a quick "flick" upward that implies the chord without actually
+#   playing it — the ear fills in the harmony. On an 8-tick note (half note),
+#   the cycle repeats: root→M3→P5→root→M3→P5→root→M3 across all 8 ticks,
+#   creating a fully implied major chord from a single pulse channel.
+#
+#   Examples of majArp usage in this song:
+#     F5<majArp>:2  → ticks: F5, A5  (quick flick on downbeats in Theme A/Reprise)
+#     F5<majArp>:8  → ticks: F5, A5, C6, F5, A5, C6, F5, A5  (finale implied chord)
+#     Bb4<majArp>:8 → ticks: Bb4, D5, F5, ...  (Bb chord in bridge Pulse 2)
+effect majArp = arp:4,7
+
+# minArp — Dm minor triad arpeggio: root → +3 st (m3) → +7 st (P5) → cycle.
+#
+#   Applied to Pulse 2 in bridge bar 9 on D4<minArp>:8 to arpeggiate the D-minor
+#   chord (D–F–A) beneath the lyrical Dm melody. Creates harmonic motion on Pulse 2
+#   while Pulse 1 holds longer quarter-note melody tones above it.
+#
+#   D4<minArp>:8 → ticks: D4, F4, A4, D4, F4, A4, D4, F4  (full Dm cycle)
+effect minArp = arp:3,7
+
+# vib_gen — gentle delayed vibrato for long sustained notes.
+#
+#   Parameters:
+#     depth=2   : ±2 period-register units of pitch modulation — subtle and vocal.
+#                 At NES pitches around F5 (period ≈ 424), ±2 units ≈ ±3–4 cents;
+#                 this is a barely-perceptible shimmer that sounds natural.
+#     rate=4    : 4 Hz LFO → one vibrato cycle per 250 ms — a natural "breath" rate.
+#     sine      : smooth sine wave LFO for warmth (no hard steps or buzzy quality).
+#     delay=2   : vibrato onset after 2 ticks (≈ 227 ms at 132 BPM) — the note
+#                 establishes pitch cleanly before the shimmer begins. This two-stage
+#                 phrasing (plain then shimmer) is the defining expressive technique
+#                 of NES RPG and platformer ballad sections.
+#
+#   Applied to mel_b4: F5<vib_gen>:8 — the "resolution shimmer" at the end of the
+#   bridge. The held note breathes gently before the reprise kicks in.
+effect vib_gen = vib:2,4,sine,2
+
+# =============================================================================
+# PATTERNS — all exactly 16 ticks (one bar at 132 BPM)
+# =============================================================================
+#
+# Notation guide:
+#   N4<eff>:M   = note N in octave 4, with effect <eff>, lasting M ticks
+#   .           = 1-tick rest
+#   . . .       = 3-tick rest (use with 1-tick notes to fill a quarter-note slot)
+#   inst X      = immediate instrument switch in the pattern (costs 0 ticks)
+#   All tick durations in every pattern must sum to exactly 16.
+
+## ─────────────────────────────────────────────────────────────────────────────
+## INTRO (bars 1–2): Solo Pulse 1 Fanfare
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## These two bars establish the key centre (F major) and the upbeat character
+## before the full ensemble enters at bar 3. The technique — solo melody preceding
+## the full arrangement — is a classic NES "title screen" structural device.
+##
+## Bar 1 is a rising F-major scale run: F5→G5→A5→Bb5→C6→D6→E6→F6 in eighth notes.
+## Bar 2 resolves: a cascade from F6 down through D6→Bb5→G5→F5→C5 then landing
+## back on F5 — a "fanfare resolve" shape common in NES title cues.
+
+# Bar 1 — Ascending F-major scale in eighth notes.
+#   F5<majArp>:2 fires the arp for 2 ticks (F5 then A5), giving a "sparkle flick"
+#   on the downbeat before stepping up through the scale. The arp only fires on
+#   F5 — all subsequent notes play clean to keep the scale shape clear.
+#
+#   tick:  0– 1   2– 3   4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [F5* ]  [G5 ]  [A5 ]  [Bb5]  [C6 ]  [D6 ]  [E6 ]  [F6 ]
+#   (* = majArp arp cycling: tick 0=F5, tick 1=A5)
+pat mel_intro1 = F5<majArp>:2 G5:2 A5:2 Bb5:2 C6:2 D6:2 E6:2 F6:2  # 8×2 = 16 ✓
+
+# Bar 2 — Descending cascade + fanfare landing.
+#   F6:4 (quarter note) sounds the high tonic with emphasis, then the line falls
+#   through D6–Bb5–G5–F5 stepwise before stepping down via C5 back to F5.
+#   The mixed durations (quarter at start, then eighths throughout) contrast with
+#   bar 1's steady eighths — giving the intro a sense of rhythmic breathing.
+#
+#   tick:  0– 3    4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [ F6  ]  [D6 ]  [Bb5]  [G5 ]  [F5 ]  [C5 ]  [F5 ]
+pat mel_intro2 = F6:4 D6:2 Bb5:2 G5:2 F5:2 C5:2 F5:2  # 4+2+2+2+2+2+2 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## THEME A (bars 3–8): Main Theme in F Major
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## Theme A has two distinct 2-bar phrases:
+##   Phrase A1 (bars 3–4): Opening leap to C6 + descending eighth-note answer
+##   Phrase A2 (bars 5–6): Rising run from C5 to C6 + cadential half-note landing
+##
+## Both phrases begin with a <majArp> flick on the first note to immediately
+## establish the chord (a signature Kirby-era NES technique). The melodies
+## alternate between busy eighth-note movement and occasional quarter-note "sighs".
+##
+## Underlying chords for Theme A:
+##   Bars 3–4 : F major  (F–A–C)
+##   Bars 5–6 : C major (bar 5 opening) → Bb major → F major cadence (bar 6)
+##   Bars 7–8 : F major  (abbreviated repeat of Phrase A1)
+
+# ── Phrase A1 ─────────────────────────────────────────────────────────────
+
+# Bar 3 — Opening leap with descending answer.
+#   F5<majArp>:2 on the downbeat: F→A sparkle establishes the F major chord.
+#   Then C6 is reached via A5 — a rising leap of a minor 7th from F5 to F6—,
+#   then the line descends stepwise: Bb5→A5→G5→F5→E5.
+#   The Bb5 is the characteristic flat 7th that gives this phrase its "Kirby sparkle"
+#   — implying Bb major colour within the F major key.
+#
+#   tick:  0– 1   2– 3   4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [F5* ]  [A5 ]  [C6 ]  [Bb5]  [A5 ]  [G5 ]  [F5 ]  [E5 ]
+pat mel_a1 = F5<majArp>:2 A5:2 C6:2 Bb5:2 A5:2 G5:2 F5:2 E5:2  # 8×2 = 16 ✓
+
+# Bar 4 — Answer phrase returning to the tonic.
+#   F5:4 (one full quarter-note beat) provides a rhythmic "breath" after the
+#   busy bar 3. Then G5:2 A5:2 creates a brief upward step before descending:
+#   G5→F5→E5→D5 traces the lower portion of the F-major scale, landing on D5
+#   (the 6th degree) — a gentle, unresolved ending that invites the next phrase.
+#
+#   tick:  0– 3    4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [ F5  ]  [G5 ]  [A5 ]  [G5 ]  [F5 ]  [E5 ]  [D5 ]
+pat mel_a2 = F5:4 G5:2 A5:2 G5:2 F5:2 E5:2 D5:2  # 4+2+2+2+2+2+2 = 16 ✓
+
+# ── Phrase A2 ─────────────────────────────────────────────────────────────
+
+# Bar 5 — Rising C-major arpeggio leap + step descent from C6.
+#   C5<majArp>:2 on the downbeat: C→E sparkle establishes the C major chord
+#   before the line leaps up through G5 to C6 (a C major arpeggio in 6 ticks).
+#   Then it descends: Bb5→A5→G5→F5 — stepping back through the key to resolve.
+#   The C-to-F motion (V→I) is the defining cadential move in this key.
+#
+#   tick:  0– 1   2– 3   4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [C5* ]  [E5 ]  [G5 ]  [C6 ]  [Bb5]  [A5 ]  [G5 ]  [F5 ]
+pat mel_a3 = C5<majArp>:2 E5:2 G5:2 C6:2 Bb5:2 A5:2 G5:2 F5:2  # 8×2 = 16 ✓
+
+# Bar 6 — Cadential landing: the "sigh" before the bridge.
+#   G5:4 (quarter note, the dominant 2nd) provides mild harmonic tension.
+#   F5:2 E5:2 step down leads to F5:8 (half note = 8 ticks ≈ 909 ms) —
+#   the melody rests on the tonic for almost a full beat and a half.
+#   This long held note creates contrast before the abbreviated A1 repeat (bars 7–8)
+#   and signals that a structural event is approaching.
+#
+#   tick:  0– 3    4– 5   6– 7   8–15
+#   note: [ G5  ]  [F5 ]  [E5 ]  [  F5 (held)  ]
+pat mel_a4 = G5:4 F5:2 E5:2 F5:8  # 4+2+2+8 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## THEME B / BRIDGE (bars 9–12): Dm → Bb → C → F
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## The bridge creates harmonic contrast by shifting to the relative minor (Dm)
+## and moving through a Dm→Bb→C→F progression — a bVI→bVII→I pattern that is
+## ubiquitous in video-game music of the late NES era. It adds emotional depth
+## before the reprise.
+##
+## Pulse 1 switches to the warmer lead_warm (50% duty) for all four bridge bars.
+## This is applied via :inst(lead_warm) on each bridge pattern in the sequence.
+## The melody here is more lyrical — quarter notes and a long held note —
+## in contrast to the eighth-note bustle of Theme A.
+##
+## Bridge chord progression:
+##   Bar  9 : Dm  (D–F–A)     — minor colour, slightly questioning
+##   Bar 10 : Bb major (Bb–D–F) — the "lifted" bVI, warm and bright
+##   Bar 11 : C major (C–E–G)  — rising approach, building tension
+##   Bar 12 : F major (F–A–C)  — tonic resolution + shimmer
+
+# Bar 9 — Dm area: quarter-note melody D5→F5→A5→G5.
+#   This outlines a Dm7 (D–F–A–C) without the 7th — the G5 acts as a passing
+#   tone. Quarter notes create the lyrical "slower" feel characteristic of the
+#   Kirby NES bridge sections (compared to the busy eighth-note Theme A).
+#
+#   tick:  0– 3    4– 7    8–11   12–15
+#   note: [ D5  ]  [ F5 ]  [ A5 ]  [ G5 ]
+pat mel_b1 = D5:4 F5:4 A5:4 G5:4  # 4+4+4+4 = 16 ✓
+
+# Bar 10 — Bb major: Bb5 asserted, then descending line.
+#   Bb5:4 (quarter) firmly establishes the Bb major chord root at a high register
+#   — a bright "lift" after the slightly dark Dm. A5:2 G5:2 descend stepwise,
+#   F5:4 D5:4 step back down; the overall shape is a falling arch over the bar.
+#
+#   tick:  0– 3    4– 5   6– 7   8–11   12–15
+#   note: [ Bb5 ]  [A5 ]  [G5 ]  [ F5 ]  [ D5 ]
+pat mel_b2 = Bb5:4 A5:2 G5:2 F5:4 D5:4  # 4+2+2+4+4 = 16 ✓
+
+# Bar 11 — C major area: rising scale C5 → C6 in eighth notes.
+#   A stepwise eighth-note ascent from C5 to C6 builds tension and excitement
+#   as the harmony approaches the tonic resolution. This "staircase" gesture is
+#   especially characteristic of the Kirby NES style: smooth scale runs
+#   connecting chord regions with a burst of energy. The Bb5 between A5 and C6
+#   is diatonic to F major (not Bb major) — it adds a momentary flat-7th colour
+#   that softens the approach to C6 before resolving on the next bar.
+#
+#   tick:  0– 1   2– 3   4– 5   6– 7   8– 9  10–11  12–13  14–15
+#   note: [C5  ]  [D5 ]  [E5 ]  [F5 ]  [G5 ]  [A5 ]  [Bb5]  [C6 ]
+pat mel_b3 = C5:2 D5:2 E5:2 F5:2 G5:2 A5:2 Bb5:2 C6:2  # 8×2 = 16 ✓
+
+# Bar 12 — F major resolution: sustained F5 with vibrato + brief cadential motion.
+#   F5<vib_gen>:8 holds the tonic for a half note (≈ 909 ms). The vib_gen effect
+#   has a 2-tick onset delay, so the note establishes its pitch cleanly before
+#   the shimmer begins — the "choir breath" technique described in the NES
+#   composition guide. E5:4 is a brief leading-tone step (the 7th of F major),
+#   then F5:4 repeats the tonic for a clean quarter-note landing.
+#   This bar acts as a "soft reset" before the full-ensemble reprise.
+#
+#   tick:  0– 7                   8–11    12–15
+#   note: [F5 (vib delay=2) held]  [ E5 ]  [ F5 ]
+pat mel_b4 = F5<vib_gen>:8 E5:4 F5:4  # 8+4+4 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## REPRISE (bar 16 finale only — bars 13–15 reuse Theme A patterns)
+## ─────────────────────────────────────────────────────────────────────────────
+
+# Bar 16 — Finale: F-major arpeggio landing + cadential close.
+#   F5<majArp>:8 is the centrepiece: the majArp effect cycles the F-major triad
+#   (F–A–C) across all 8 ticks → F5, A5, C6, F5, A5, C6, F5, A5.
+#   This creates a single-channel "implied strum" — one of the most satisfying
+#   closing gestures in NES chiptune composition, familiar from countless Kirby
+#   and Mario-era endings.
+#   C5:4 briefly lands on the 5th (a moment of incompleteness), then F5:4
+#   provides the definitive tonic quarter-note close.
+#
+#   tick:  0– 7                 8–11    12–15
+#   note: [F5 arpegg. F-A-C ]  [ C5 ]  [ F5 ]
+pat mel_fin = F5<majArp>:8 C5:4 F5:4  # 8+4+4 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## HARMONY: Pulse 2 Patterns
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## Pulse 2 operates in three distinct harmonic modes across the song:
+##
+##   Mode 1 — Parallel thirds (Theme A + Reprise):
+##     Every melody note is mirrored by a diatonic third below on Pulse 2.
+##     This "parallel thirds" technique — identical to the parallel sixths/thirds
+##     doubling used in Kirby's Adventure Pulse 2 tracks — creates a rich,
+##     choir-like sound from just two channels.
+##
+##   Mode 2 — Arpeggiated chord tones (Bridge bars 9–10):
+##     Pulse 2 arpeggios the Dm chord (minArp) and Bb chord (majArp) beneath the
+##     lyrical quarter-note melody. The moving arpeggio adds harmonic rhythm while
+##     the melody has longer, more sustained notes — a classic NES counterpoint.
+##
+##   Mode 3 — Sustained root+fifth (Bridge bars 11–12):
+##     Transitioning from the active arpeggios to quiet sustains (C and F) provides
+##     contrast and creates a sense of "settling" before the reprise. The half-note
+##     intervals (C4:8 G4:8 and F4:8 C5:8) act as pedal drones supporting the
+##     rising scale and shimmer notes on Pulse 1.
+##
+## Pulse 2 is silent in bars 1–2 (intro): the solo fanfare breathes alone.
+
+# Silence — 16 one-tick rests; Pulse 2 stays off during the solo Pulse 1 fanfare.
+pat harm_silence = . . . . . . . . . . . . . . . .  # 16 × 1 tick = 16 ✓
+
+# ── Parallel Thirds — Theme A ─────────────────────────────────────────────
+
+# Theme A bar 1 (Pulse 2) — diatonic thirds below mel_a1:
+#   mel_a1: F5  A5  C6  Bb5  A5  G5  F5  E5  (all 8th notes)
+#   thirds: D5  F5  A5   G5  F5  E5  D5  C5  (diatonic thirds below in F major)
+#
+#   The parallel motion creates a consistent interval of a third throughout,
+#   making the two channels sound like a single blended instrument.
+pat chd_a1 = D5:2 F5:2 A5:2 G5:2 F5:2 E5:2 D5:2 C5:2  # 8×2 = 16 ✓
+
+# Theme A bar 2 (Pulse 2) — diatonic thirds below mel_a2:
+#   mel_a2: F5:4  G5:2  A5:2  G5:2  F5:2  E5:2  D5:2
+#   thirds: D5:4  E5:2  F5:2  E5:2  D5:2  C5:2  B4:2
+#
+#   Note: B4 is the diatonic third below D5 in F major (B natural = M3 below D5 in
+#   the key's context, functioning as the 4th scale degree of F major reaching down).
+#   Durations perfectly mirror mel_a2 for tight rhythmic alignment.
+pat chd_a2 = D5:4 E5:2 F5:2 E5:2 D5:2 C5:2 B4:2  # 4+2+2+2+2+2+2 = 16 ✓
+
+# Theme A bar 3 (Pulse 2) — diatonic thirds below mel_a3:
+#   mel_a3: C5   E5   G5   C6   Bb5  A5   G5   F5   (all 8th notes)
+#   thirds: A4   C5   E5   A5   G5   F5   E5   D5
+pat chd_a3 = A4:2 C5:2 E5:2 A5:2 G5:2 F5:2 E5:2 D5:2  # 8×2 = 16 ✓
+
+# Theme A bar 4 (Pulse 2) — parallel motion below mel_a4 (G5:4 F5:2 E5:2 F5:8):
+#   G5→E5 (third below), F5→D5, E5→C5, F5→D5 (held).
+#   D5:8 sustains for the full half note, matching the melody's long F5:8.
+#   The D5 under F5 implies a Dm7 (D–F–A) colour — a gentle harmonic shadow.
+pat chd_a4 = E5:4 D5:2 C5:2 D5:8  # 4+2+2+8 = 16 ✓
+
+# ── Arpeggiated Chords — Bridge bars 9–10 ────────────────────────────────
+
+# Bridge bar 1 (Pulse 2) — Dm arpeggio under the D5-F5-A5-G5 melody.
+#   D4<minArp>:8 : the minor-triad arpeggio cycles D4→F4→A4→D4→F4→A4→D4→F4
+#                  across 8 ticks — a complete Dm triad implied on one channel.
+#                  Below the quarter-note melody (D5–F5–A5–G5), this creates
+#                  a rich Dm7 texture without needing a third chord instrument.
+#   A4:8         : follows as the fifth of Dm, sustained for the second half —
+#                  contrasts the active arpeggio with a calm pedal tone.
+pat chd_b1 = D4<minArp>:8 A4:8  # 8+8 = 16 ✓
+
+# Bridge bar 2 (Pulse 2) — Bb major arpeggio under the descending Bb5 melody.
+#   Bb4<majArp>:8 : cycles Bb4→D5→F5→Bb4→D5→F5→Bb4→D5 — the Bb major triad.
+#                   Combined with mel_b2's Bb5 descent, this creates a full
+#                   Bb major chord spread across both Pulse channels.
+#   F4:8          : the root of Bb major's fifth — a stable anchor for the second half.
+pat chd_b2 = Bb4<majArp>:8 F4:8  # 8+8 = 16 ✓
+
+# ── Sustained Root+Fifth — Bridge bars 11–12 ─────────────────────────────
+
+# Bridge bar 3 (Pulse 2) — C major sustained root+fifth below the rising scale.
+#   C4:8 G4:8 = C and G (root + perfect fifth of C major).
+#   As the Pulse 1 melody runs stepwise C5→D5→E5→F5→G5→A5→Bb5→C6 above,
+#   this calm sustained fifth provides a grounding pedal tone — the contrast
+#   between moving melody and static harmony creates tension that prepares
+#   the final F major resolution.
+pat chd_b3 = C4:8 G4:8  # 8+8 = 16 ✓
+
+# Bridge bar 4 (Pulse 2) — F major sustained resolution below the shimmer.
+#   F4:8 C5:8 = F and C (root + perfect fifth of F major).
+#   As Pulse 1 holds F5<vib_gen>:8 above, this wide-spaced F-C interval completes
+#   the F major chord (F4–C5–F5 voiced across two octaves between both channels).
+pat chd_b4 = F4:8 C5:8  # 8+8 = 16 ✓
+
+# Finale bar (Pulse 2) — broad F major voicing for the reprise landing.
+#   F4:8 (half note root) then C5:4 (fifth above) then F5:4 (octave high).
+#   Together with Pulse 1's F5<majArp>:8 cycling F5→A5→C6, the two channels
+#   produce a wide-spaced F major chord spanning three octaves: F4–C5–F5/A5/C6.
+#   This is the richest, fullest harmonic moment in the song.
+pat chd_fin = F4:8 C5:4 F5:4  # 8+4+4 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## BASS: Triangle Patterns
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## The triangle provides the harmonic foundation through quarter-note patterns.
+## Each note occupies 1 tick; three rests (. . .) pad to a full 4-tick quarter note.
+## Format: (note + . . .) × 4 = (1+3) × 4 = 16 ticks per bar.
+##
+## The bass is present from bar 1 (even during the solo intro fanfare) because
+## establishing the key centre immediately reduces listener ambiguity about the
+## tonal centre — a common NES compositional practice.
+##
+## NES triangle pitch range used here: F2 (low) to F3 (high).
+## These lie comfortably within the sweet spot of the triangle channel
+## (C2–C5), below the register where quantisation noise becomes objectionable.
+
+# ── Intro bass (bars 1–2) ────────────────────────────────────────────────
+
+# Root and fifth of F major alternating — F2 (root) and C3 (perfect fifth).
+# Establishes the tonic immediately and provides rhythmic grounding for the
+# solo Pulse 1 fanfare above it.
+pat bass_intro = F2 . . . C3 . . . F2 . . . C3 . . .  # (1+3)×4 = 16 ✓
+
+# ── Theme A bass (bars 3–6, 7–8 abbreviated repeat) ─────────────────────
+
+# Bar 3 — F major arpeggio tones in the bass: root → M3 → P5 → M3.
+#   F2–A2–C3–A2 is a more "playful" bass pattern than a plain root–fifth:
+#   it traces the lower half of the F major triad and adds a characteristic
+#   brightness to the bass line. This pattern is reminiscent of the active
+#   bass lines found under Kirby NES main themes.
+pat bass_a1 = F2 . . . A2 . . . C3 . . . A2 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 4 — Bb → F → G → C motion; follows the implied ii–V of the melody's descent.
+#   Bb2 : briefly touches the Bb chord region (implied from mel_a1's Bb5 note).
+#   F2  : returns to F (root), grounding the bass.
+#   G2  : steps up to G (acting as V of C — a secondary dominant bass movement).
+#   C3  : lands on C (the cadential root) in preparation for Phrase A2.
+pat bass_a2 = Bb2 . . . F2 . . . G2 . . . C3 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 5 — C → G → A → Bb ascending; follows the C-major rising-run in mel_a3.
+#   C3  : roots the C major chord as mel_a3 begins its upward run.
+#   G2  : C major's fifth (below C3, stepping down then back up — bass contrary motion).
+#   A2  : the 6th degree of F major, bridging toward the Bb flavour of Bb5 in mel_a3.
+#   Bb2 : arrives at Bb, completing the Bb-modal colour hinted in the melody.
+pat bass_a3 = C3 . . . G2 . . . A2 . . . Bb2 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 6 — Cadential V→I motion in the bass: C → G → F → C.
+#   C3 / G2 : dominant-chord bass (C major = V of F; G2 is its 5th).
+#   F2  : tonic root — the bass "resolves" before the melody's F5:8 landing.
+#   C3  : returns to the fifth, leaving the bar open for Phrase A1 repeat (bars 7–8).
+pat bass_a4 = C3 . . . G2 . . . F2 . . . C3 . . .  # (1+3)×4 = 16 ✓
+
+# ── Bridge bass (bars 9–12) ──────────────────────────────────────────────
+
+# Bar 9 — Dm: root and fifth (D3 and A2 alternating).
+#   D3 is the root of Dm; A2 is its perfect fifth. Simple root–fifth pattern
+#   gives the Dm chord stability without over-complicating the bass line
+#   under the lyrical quarter-note Pulse 1 melody.
+pat bass_b1 = D3 . . . A2 . . . D3 . . . A2 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 10 — Bb major: root and fifth (Bb2 and F2 alternating).
+#   Bb2 is below F2 in pitch — the bass moves down a 4th from the Dm bass (D3→Bb2),
+#   a characteristic "drop" movement that emphasises the bVI chord change.
+pat bass_b2 = Bb2 . . . F2 . . . Bb2 . . . F2 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 11 — C major: root and fifth (C3 and G2 alternating).
+#   C3 rises a step from Bb2, reinforcing the harmonic "push" of the C chord.
+#   G2 is C's fifth below — same interval polarity as the Dm and Bb patterns.
+pat bass_b3 = C3 . . . G2 . . . C3 . . . G2 . . .  # (1+3)×4 = 16 ✓
+
+# Bar 12 — F major resolution: ascending arpeggio F2→C3→A2→F2.
+#   Rather than a plain root–fifth, this bar traces a partial F major arpeggio
+#   (F2–C3–A2–F2) for a more celebratory closing feel to the bridge.
+pat bass_b4 = F2 . . . C3 . . . A2 . . . F2 . . .  # (1+3)×4 = 16 ✓
+
+# ── Finale bass (bar 16) ─────────────────────────────────────────────────
+
+# Final bar — ascending F major arpeggio: F2 → A2 → C3 → F3.
+#   Ascending rather than alternating — the bass climbs through the full F major
+#   triad and arrives on F3 (one octave above F2) for a bright, definitive close.
+#   Combined with Pulse 1's F5<majArp>:8 and Pulse 2's chd_fin voicing,
+#   the three channels together outline F2–F3–A5–C6: a four-octave F major chord.
+pat bass_fin = F2 . . . A2 . . . C3 . . . F3 . . .  # (1+3)×4 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## DRUMS: Noise Channel Patterns
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## The Kirby NES style favours a light, slightly "poppy" groove — not the heavy
+## metal drive of action games, but still propulsive and rhythmically clear.
+## The 8th-note hi-hat on the offbeats (the "and" of each beat) gives the
+## characteristic bouncy feel.
+##
+## Beat layout diagram (beats vs ticks per bar at 132 BPM):
+##
+##   Beat:   1           2           3           4
+##   Tick:   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+##   Cmn:   KCK .  HHT .  SNR .  HHT .  KCK .  HHT .  SNR .  HHT .
+##   Brg:   KCK .  .   .  SNR .  HHT .  KCK .  .   .  SNR .  .   .
+##   Intro: KCK .  .   .  .   .  .   .  KCK .  .   .  .   .  .   .
+##
+##   KCK = kick (beat 1 & 3),  SNR = snare (beat 2 & 4),  HHT = hi-hat (offbeats)
+
+# Sparse intro — kick on beats 1 and 3 only.
+#   Minimal percussion lets the solo Pulse 1 fanfare breathe without distraction.
+#   The kick on beat 1 and beat 3 still establishes the 4/4 meter.
+pat beat_intro  = kick . . . . . . . kick . . . . . . .  # 1+7+1+7 = 16 ✓
+
+# Full main groove — kick + snare + 8th-note hi-hat throughout.
+#   This is the canonical "NES platformer light groove" used in bright, bouncy tracks.
+#   Hi-hat on ticks 2, 6, 10, 14 (the "and" positions) creates the characteristic
+#   light, bouncy feel without sounding like a rock drum kit.
+pat beat_main   = kick . hihat . snare . hihat . kick . hihat . snare . hihat .  # 16 ✓
+
+# Bridge groove — kick + snare only; hi-hat on beat 2 only (lighter texture).
+#   Removing most of the hi-hat makes the bridge feel more open and airy,
+#   letting the vib_gen shimmer on Pulse 1 (mel_b4) and the Dm/Bb arpeggios
+#   on Pulse 2 be heard clearly without rhythmic clutter.
+#
+#   tick:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   hit:  KCK .  .  .  SNR .  HHT .  KCK .  .  .  SNR .  .  .
+pat beat_bridge = kick . . . snare . hihat . kick . . . snare . . .  # 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## DMC: Bundled Kick/Snare Sample Patterns
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## The DMC channel reinforces the noise drum hits with sampled transients.
+## Note names in DMC patterns are instrument triggers only — DMC does not pitch
+## the sample. The instrument name in a DMC pattern slot triggers the corresponding
+## sample to play once.
+##
+## DMC density arc:
+##   Bars 1–2  : Sparse  (kick only on beats 1 & 3)
+##   Bars 3–8  : Full    (kick 1&3 + snare 2&4)
+##   Bars 9–12 : Bridge  (kick beat 1 + snare beat 3 — half density)
+##   Bars 13–16: Full    (kick 1&3 + snare 2&4 — returns with reprise)
+
+# Sparse DMC — kick on beats 1 and 3 only (mirrors beat_intro noise pattern).
+pat dmc_sparse  = kick_dmc . . . . . . . kick_dmc . . . . . . .  # 1+7+1+7 = 16 ✓
+
+# Full DMC — kick on beats 1 & 3, snare on beats 2 & 4 (mirrors beat_main positions).
+pat dmc_full    = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .  # 16 ✓
+
+# Bridge DMC — kick on beat 1 only, snare on beat 3 (half the density of dmc_full).
+#   Complements the lighter beat_bridge groove. The single kick and snare hit
+#   still mark the strong beats without overwhelming the lyrical bridge texture.
+pat dmc_bridge  = kick_dmc . . . . . . . snare_dmc . . . . . . .  # 1+7+1+7 = 16 ✓
+
+# =============================================================================
+# SEQUENCES — 16 patterns × 16 ticks = 256 ticks (16 bars total)
+# =============================================================================
+#
+# Each sequence lists exactly 16 pattern names. Patterns are reused across sections
+# to maintain structural coherence (e.g., mel_a1 appears in bars 3, 7, and 13).
+#
+# Structural map across all sequences:
+#   Patterns 1–2   : Intro    (bars 1–2)
+#   Patterns 3–6   : Theme A first time (bars 3–6)
+#   Patterns 7–8   : Theme A abbreviated repeat (bars 7–8)
+#   Patterns 9–12  : Theme B bridge (bars 9–12)
+#   Patterns 13–16 : Reprise (bars 13–16)
+
+## Pulse 1 sequence — lead melody through all 16 bars.
+#   Bridge slots (9–12) apply :inst(lead_warm) to switch to 50% duty without
+#   defining separate patterns — the four Bridge patterns (mel_b1 through mel_b4)
+#   are played with the warmer instrument via the transform.
+seq pulse1_main = mel_intro1 mel_intro2 mel_a1 mel_a2 mel_a3 mel_a4 mel_a1 mel_a2 mel_b1:inst(lead_warm) mel_b2:inst(lead_warm) mel_b3:inst(lead_warm) mel_b4:inst(lead_warm) mel_a1 mel_a2 mel_a3 mel_fin
+
+## Pulse 2 sequence — harmony through all 16 bars.
+#   Bars 1–2  : harm_silence (solo intro; Pulse 2 off)
+#   Bars 3–6  : chd_a1–chd_a4 (parallel thirds, Theme A first time)
+#   Bars 7–8  : chd_a1–chd_a2 (abbreviated repeat of Phrase A1 harmony)
+#   Bars 9–12 : chd_b1–chd_b4 (arpeggios → sustains, bridge progression)
+#   Bars 13–16: chd_a1–chd_a3 + chd_fin (reprise thirds + broad final voicing)
+seq pulse2_main = harm_silence harm_silence chd_a1 chd_a2 chd_a3 chd_a4 chd_a1 chd_a2 chd_b1 chd_b2 chd_b3 chd_b4 chd_a1 chd_a2 chd_a3 chd_fin
+
+## Triangle sequence — walking bass through all 16 bars.
+#   Bass is present from bar 1 onward (establishes key even during solo intro).
+#   Bars 1–2  : bass_intro (F2–C3 tonic root+fifth)
+#   Bars 3–6  : bass_a1–bass_a4 (F arpeggio → Bb/C → rising → cadence)
+#   Bars 7–8  : bass_a1–bass_a2 (abbreviated Theme A bass repeat)
+#   Bars 9–12 : bass_b1–bass_b4 (Dm → Bb → C → F, mirrors chord progression)
+#   Bars 13–16: bass_a1–bass_a3 + bass_fin (reprise bass + ascending finale)
+seq tri_main = bass_intro bass_intro bass_a1 bass_a2 bass_a3 bass_a4 bass_a1 bass_a2 bass_b1 bass_b2 bass_b3 bass_b4 bass_a1 bass_a2 bass_a3 bass_fin
+
+## Noise sequence — percussion through all 16 bars.
+#   Bars 1–2  : beat_intro (sparse kick only)
+#   Bars 3–8  : beat_main × 6 (full groove; Theme A both times)
+#   Bars 9–12 : beat_bridge × 4 (lighter groove; no continuous hi-hat)
+#   Bars 13–16: beat_main × 4 (full groove returns with reprise)
+seq noise_main = beat_intro beat_intro beat_main beat_main beat_main beat_main beat_main beat_main beat_bridge beat_bridge beat_bridge beat_bridge beat_main beat_main beat_main beat_main
+
+## DMC sequence — kick/snare sample reinforcement through all 16 bars.
+#   Bars 1–2  : dmc_sparse × 2 (kick on 1&3 only; mirrors noise sparse intro)
+#   Bars 3–8  : dmc_full × 6 (full kick+snare reinforcement; Theme A)
+#   Bars 9–12 : dmc_bridge × 4 (half-density; kick 1 + snare 3 only)
+#   Bars 13–16: dmc_full × 4 (full reinforcement returns with reprise)
+seq dmc_seq = dmc_sparse dmc_sparse dmc_full dmc_full dmc_full dmc_full dmc_full dmc_full dmc_bridge dmc_bridge dmc_bridge dmc_bridge dmc_full dmc_full dmc_full dmc_full
+
+# =============================================================================
+# CHANNELS
+# =============================================================================
+#
+# Each channel maps a default instrument and a sequence. The default instrument
+# is used for all patterns in the sequence unless overridden by an :inst() transform.
+#
+# Channel 1 default = lead (25% duty); overridden to lead_warm in bridge slots.
+# Channel 5's default inst (kick_dmc) is the first DMC trigger in every pattern;
+# snare_dmc is triggered by pattern-level inst references within dmc_full etc.
+
+channel 1 => inst lead      seq pulse1_main   # Pulse 1  — lead melody (25% duty; 50% in bridge)
+channel 2 => inst harm      seq pulse2_main   # Pulse 2  — parallel thirds + bridge arpeggios
+channel 3 => inst tri       seq tri_main      # Triangle — quarter-note walking bass
+channel 4 => inst kick      seq noise_main    # Noise    — light platform groove
+channel 5 => inst kick_dmc  seq dmc_seq       # DMC      — bundled kick/snare reinforcement
+
+# =============================================================================
+# PLAYBACK
+# =============================================================================
+
+play auto repeat

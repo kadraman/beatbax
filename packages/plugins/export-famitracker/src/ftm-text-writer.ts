@@ -348,6 +348,26 @@ function buildTrack(
   }
   rowsPerPattern = Math.min(256, rowsPerPattern);
 
+  // Warn once per unique pattern name when frame length is not a power of 2
+  // (e.g. 17 rows causes a silent empty row at every pattern boundary in FamiTracker)
+  const warnedPatterns = new Set<string>();
+  for (const cf of channelFrames) {
+    for (const frame of cf) {
+      const len = frame.length;
+      if (len > 0 && (len & (len - 1)) !== 0) {
+        const patName = (frame[0] as ChannelEventLike).sourcePattern ?? '(unknown)';
+        if (!warnedPatterns.has(patName)) {
+          warnedPatterns.add(patName);
+          warnings.push(
+            `Pattern "${patName}" has ${len} rows (not a power of 2). ` +
+            `FamiTracker works best with patterns of 8, 16, 32, or 64 rows; ` +
+            `this causes a silent empty row at every pattern boundary.`,
+          );
+        }
+      }
+    }
+  }
+
   // Ensure all channel frame lists are padded to numFrames
   for (const cf of channelFrames) {
     while (cf.length < numFrames) cf.push([]);

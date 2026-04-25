@@ -56,6 +56,8 @@ export const StorageKey = {
   MASTER_VOLUME: 'transport.masterVolume',
   /** Last export format used. */
   LAST_EXPORT_FORMAT: 'export.lastFormat',
+  /** Stem of the last loaded .bax filename (persisted across reloads). */
+  LOADED_FILENAME: 'editor.loadedFilename',
   /** Logger level setting ('error' | 'warn' | 'info' | 'debug'). */
   LOG_LEVEL: 'debug.logLevel',
   /** Show debug overlay (boolean). */
