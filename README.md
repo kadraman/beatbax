@@ -53,7 +53,7 @@ import "github:beatbax/instruments-gb/main/melodic.ins"
 # Instruments
 inst lead  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"}
 inst bass  type=pulse2 duty=25  env={"level":10,"direction":"down","period":1,"format":"gb"}
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}
 
 # Named effect presets

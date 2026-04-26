@@ -17,13 +17,13 @@ describe('Nested Import Resolution', () => {
     //     sounds/
     //       drums.ins -> imports "local:base.ins" (sibling file)
     //       base.ins
-    
+
     const mockFileSystem = {
       '/project/main.bax': 'import "local:lib/sounds/drums.ins"',
       '/project/lib/sounds/drums.ins': 'import "local:base.ins"\ninst kick type=noise env=12,down',
       '/project/lib/sounds/base.ins': 'inst snare type=noise env=8,down',
     };
-    
+
     const ast: AST = {
       imports: [{ source: 'local:lib/sounds/drums.ins' }],
       insts: {},
@@ -55,14 +55,14 @@ describe('Nested Import Resolution', () => {
     //       sub.ins
     //     effects/
     //       reverb.ins
-    
+
     const mockFileSystem = {
       '/project/main.bax': 'import "local:lib/presets.ins"',
       '/project/lib/presets.ins': 'import "local:bass/sub.ins"\nimport "local:effects/reverb.ins"\ninst lead type=pulse1 duty=50',
       '/project/lib/bass/sub.ins': 'inst bass type=pulse2 duty=25',
-      '/project/lib/effects/reverb.ins': 'inst pad type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]',
+      '/project/lib/effects/reverb.ins': 'inst pad type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]',
     };
-    
+
     const ast: AST = {
       imports: [{ source: 'local:lib/presets.ins' }],
       insts: {},
@@ -86,13 +86,13 @@ describe('Nested Import Resolution', () => {
   test('throws error when nested import uses wrong relative path', async () => {
     // This test demonstrates that imports resolve relative to the importing file,
     // not the original song file
-    
+
     const mockFileSystem = {
       '/project/main.bax': 'import "local:lib/child.ins"',
       '/project/lib/child.ins': 'import "local:lib/parent.ins"', // Wrong! Should be "local:parent.ins"
       '/project/lib/parent.ins': 'inst base type=pulse1',
     };
-    
+
     const ast: AST = {
       imports: [{ source: 'local:lib/child.ins' }],
       insts: {},

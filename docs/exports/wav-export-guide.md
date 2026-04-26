@@ -15,7 +15,7 @@ bpm 128
 
 inst lead type=pulse1 duty=50 env=gb:12,down,1
 inst bass type=pulse2 duty=25 env=gb:10,down,1
-inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst snare type=noise env=gb:12,down,1
 
 pat melody = C5 E5 G5 C6

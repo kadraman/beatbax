@@ -34,10 +34,14 @@ export const languages = {
   registerCompletionItemProvider: jest.fn(),
   registerHoverProvider: jest.fn(),
   registerCodeLensProvider: jest.fn(),
+  registerFoldingRangeProvider: jest.fn(),
   registerDocumentHighlightProvider: jest.fn(),
   registerDocumentSemanticTokensProvider: jest.fn(),
   registerDocumentFormattingEditProvider: jest.fn(),
   registerSignatureHelpProvider: jest.fn(),
+  FoldingRangeKind: {
+    Comment: 1,
+  },
   typescript: {
     javascriptDefaults: {
       setDiagnosticsOptions: jest.fn(),
@@ -60,6 +64,11 @@ export const MarkerSeverity = {
   Info: 2,
 };
 
+export const GlyphMarginLane = {
+  Left: 1,
+  Right: 2,
+};
+
 export class Range {
   constructor(public startLineNumber: number, public startColumn: number, public endLineNumber: number, public endColumn: number) {}
 }
@@ -68,6 +77,7 @@ export default {
   editor,
   languages,
   MarkerSeverity,
+  GlyphMarginLane,
   KeyMod,
   KeyCode,
 };

@@ -101,4 +101,26 @@ describe('SongVisualizer', () => {
     const shownCanvas = document.getElementById('bb-viz-bg');
     expect(shownCanvas?.classList.contains('bb-viz__bg-hidden')).toBe(false);
   });
+
+  it('solo button auto-unmutes a muted channel', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
+    channelStore.setChannelMuted(1, true);
+
+    const soloBtn = document.getElementById('bb-viz-solo-1') as HTMLButtonElement | null;
+    soloBtn?.click();
+
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
+  });
+
+  it('mute button auto-unsolos a soloed channel', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
+    channelStore.toggleChannelSoloed(1);
+
+    const muteBtn = document.getElementById('bb-viz-mute-1') as HTMLButtonElement | null;
+    muteBtn?.click();
+
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
+  });
 });

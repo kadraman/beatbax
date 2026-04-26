@@ -788,7 +788,7 @@ eventBus.on('parse:success', ({ ast, song }: any) => {
     if (ast?.channels?.length) {
       ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
     }
-    if (song) patternGrid.setSong(song);
+    if (song) patternGrid.setSong(song, ast);
   } catch (_e) {}
 });
 
@@ -826,6 +826,10 @@ eventBus.on('playback:position', ({ current, total }) => {
         transportBar.flashBeatLed();
       }
     }
+
+    // Global Pattern Grid playhead follows elapsed wall-clock time.
+    const playheadProgress = total > 0 ? (current / total) : 0;
+    patternGrid.setGlobalProgress(playheadProgress);
   } catch (_e) {}
 });
 

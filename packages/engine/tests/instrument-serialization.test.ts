@@ -33,7 +33,7 @@ channel 1 => inst lead seq main
   test('parses instruments with array values', () => {
     const src = `
 chip gameboy
-inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 pat a = C5
 channel 3 => inst wave1 seq main
     `;

@@ -309,6 +309,28 @@ describe('ChannelMixer', () => {
     expect(strip2?.classList.contains('bb-channel-mixer__strip--silent')).toBe(true);
   });
 
+  it('solo button auto-unmutes a muted channel', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
+    channelStore.setChannelMuted(1, true);
+
+    const soloBtn = document.getElementById('bb-channel-mixer-solo-1') as HTMLButtonElement | null;
+    soloBtn?.click();
+
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
+  });
+
+  it('mute button auto-unsolos a soloed channel', () => {
+    eventBus.emit('parse:success', { ast: makeAst([1, 2]) });
+    channelStore.toggleChannelSoloed(1);
+
+    const muteBtn = document.getElementById('bb-channel-mixer-mute-1') as HTMLButtonElement | null;
+    muteBtn?.click();
+
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
+  });
+
   // ── Unmute All / Clear Solo toolbar buttons ────────────────────────────────
 
   it('unmute-all button is disabled when no channels are muted', () => {

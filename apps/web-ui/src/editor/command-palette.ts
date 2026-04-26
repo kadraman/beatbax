@@ -66,7 +66,7 @@ export interface CommandPaletteOptions {
 
 const SAMPLE_INST_SNIPPET = `inst lead  type=pulse1 duty=50 env=12,down
 inst bass  type=pulse2 duty=25 env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst sn    type=noise  env=12,down
 `;
 
@@ -286,6 +286,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── BeatBax: Edit — play selection ────────────────────────────────────────
 
+  /*
   reg({
     id: 'beatbax.playSelection',
     label: 'BeatBax: Play Selected Sequence / Pattern',
@@ -344,7 +345,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       ].join('\n');
       onPlayRaw?.(syntheticSource);
     },
-  });
+  });*/
 
   // ── BeatBax: Edit — format document ──────────────────────────────────────
 
