@@ -1,5 +1,14 @@
 # @beatbax/plugin-chip-nes
 
+## 0.4.1
+
+### Patch Changes
+
+- 33fa3d7: - Normalize NES DMC WebAudio loudness to match normalized channel playback without affecting hardware-scaled PCM rendering.
+- Updated dependencies [e1dd039]
+- Updated dependencies [b5dcde4]
+  - @beatbax/engine@0.11.2
+
 ## 0.4.0
 
 ### Minor Changes

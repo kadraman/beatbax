@@ -204,9 +204,10 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
   {
     group: 'NES',
     songs: [
+      { label: 'battle_fanfare.bax',         path: '/songs/nes/battle_fanfare.bax' },
       { label: 'iron_keep.bax',              path: '/songs/nes/iron_keep.bax' },
       { label: 'kingdom_hall.bax',           path: '/songs/nes/kingdom_hall.bax' },
-      { label: 'pink_star_fanfare.bax',      path: '/songs/nes/pink_star_fanfare.bax' },
+      { label: 'puffball_parade.bax',        path: '/songs/nes/puffball_parade.bax' },
       { label: 'shadow_temple.bax',          path: '/songs/nes/shadow_temple.bax' },
       { label: 'wily_fortress.bax',          path: '/songs/nes/wily_fortress.bax' },
     ],
