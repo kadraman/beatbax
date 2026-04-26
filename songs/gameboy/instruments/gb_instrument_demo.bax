@@ -58,15 +58,15 @@ inst wave_quiet type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6
 inst wave_mute  type=wave wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=0  gm=82
 
 # Harmonic-rich waveforms
-inst wave_triangle type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1] gm=82
+inst wave_triangle type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] gm=82
 inst wave_pulse25  type=wave wave=[15,15,15,15,15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=81
 inst wave_pulse12  type=wave wave=[15,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] gm=80
 
 # Complex/musical waveforms
-inst wave_organ type=wave wave=[8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5,8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5] gm=16
-inst wave_strings type=wave wave=[0,2,4,6,8,10,11,12,13,14,14,14,13,12,11,10,8,6,4,2,0,2,4,6,8,10,11,12,13,14,14,14] gm=49
-inst wave_brass type=wave wave=[8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5,8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5] gm=57
-inst wave_bell type=wave wave=[15,15,14,13,12,11,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6,8,9,11,12,13,14,15,15,15] gm=14
+inst wave_organ type=wave wave=[8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5,8,10,12,14,15,14,13,11,8,6,3,2,0,1,2,5] gm=16  # NOTE: contains 2 cycles per buffer (16-sample repeat) — pitch sounds one octave higher than a 32-sample single-cycle waveform; intentional for organ harmonic richness
+inst wave_strings type=wave wave=[0,2,4,6,8,10,11,12,13,14,14,14,13,12,11,10,8,6,4,2,0,2,4,6,8,10,11,12,11,9,6,2] gm=49
+inst wave_brass type=wave wave=[8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5,8,11,13,14,15,15,14,12,10,8,5,4,2,2,1,5] gm=57  # NOTE: contains 2 cycles per buffer (16-sample repeat) — pitch sounds one octave higher than a 32-sample single-cycle waveform; intentional for brass harmonic richness
+inst wave_bell type=wave wave=[15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6,8,9,10,12,13,14,14,15] gm=14
 
 # Experimental/effect waveforms
 inst wave_metallic type=wave wave=[15,8,0,6,12,8,3,6,9,8,6,6,6,8,9,6,3,8,12,6,0,8,15,8,0,6,12,8,3,6,9,12] gm=122

@@ -74,7 +74,7 @@ volume 80
 
 ```beatbax
 inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81
-inst wave1 type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3] gm=82
+inst wave1 type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2] gm=82
 inst snare type=noise gb:width=7 env={"level":12,"direction":"down"} note=C5
 ```
 

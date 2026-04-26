@@ -882,13 +882,6 @@ The transport bar's `«` and `»` buttons step the playback tempo down or up by 
 - Instrument resolution is automatic: the preview borrows the instrument already associated with the pattern or sequence in a channel declaration; otherwise the first declared instrument is used.
 - Only one preview plays at a time. Starting a new preview stops the previous one.
 
-**Play selected sequence / pattern** — quickly audition any subset of your song without editing the channel layout:
-1. Select one or more `pat` or `seq` definition lines in the editor (click-drag, or hold `Shift` and click).
-2. Press `Ctrl+Shift+Space`, or right-click and choose **▶ Play Selected Sequence / Pattern**.
-3. Each selected item plays on its own channel simultaneously. If you select more sequences than the chip has channels (4 for Game Boy), the extras are distributed round-robin — the first seq on each channel plays first, then the overflow seqs chain on automatically.
-4. The glyph-margin play indicators light up on the original `seq` lines as each one becomes active, tracking through merged channels accurately.
-5. Press `Escape` to stop playback at any time.
-
 **BeatBax command palette** — press `F1` (or `Ctrl+Alt+P`) inside the editor and type `BeatBax` to see all available commands:
 
 | Command | Description |

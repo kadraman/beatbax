@@ -107,7 +107,7 @@ const hoverDocs: Record<string, string> = {
   wave: [
     '**Wave channel** — Game Boy wavetable synthesizer (NR30–NR34 + Wave RAM).',
     'The `wave=` parameter accepts three formats:',
-    '```\n# 16-entry array (0–15 per sample; duplicated to fill 32-nibble Wave RAM on export)\nwave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]\n\n# 32-entry array (full Wave RAM — each value 0–15)\nwave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]\n\n# 32-nibble hex string (hUGETracker format — one hex digit per nibble)\nwave="0478ABBB986202467776420146777631"\n```',
+    '```\n# 16-entry array (0–15 per sample; duplicated to fill 32-nibble Wave RAM on export)\nwave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]\n\n# 32-entry array (full Wave RAM — each value 0–15)\nwave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]\n\n# 32-nibble hex string (hUGETracker format — one hex digit per nibble)\nwave="0478ABBB986202467776420146777631"\n```',
     '- Values are **4-bit** (0–15). Values outside this range are clamped on export.',
     '- Maximise peak (near 15) for good perceived loudness; avoid strong DC offset.',
     '- Use `volume=` (`0` · `25` · `50` · `100`) to set the hardware output-level selector.',
@@ -182,7 +182,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
         kind: 'snippet',
         label: 'Wave channel (type=wave)',
         code:
-`inst wv type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+`inst wv type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 # wave: 16 nibble values (0-15) defining the 4-bit wavetable`,
       },
       {
@@ -256,7 +256,7 @@ time 4
 
 inst lead  type=pulse1 duty=50  env=12,down
 inst bass  type=pulse2 duty=25  env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst kick  type=noise  env=12,down
 
 pat melody  = C5 E5 G5 C6
