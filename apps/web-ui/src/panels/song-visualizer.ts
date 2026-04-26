@@ -68,8 +68,9 @@ const BG_EFFECTS: BgEffect[] = [
       (canvas as any).__bbScanState = { beamY: 0 };
     },
     draw(canvas, rmsValues) {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      const maybeCtx = canvas.getContext('2d');
+      if (!maybeCtx) return;
+      const ctx: CanvasRenderingContext2D = maybeCtx;
 
       const W = canvas.width;
       const H = canvas.height;
@@ -364,6 +365,9 @@ export class SongVisualizer {
     const titleBlock = document.createElement('div');
     titleBlock.className = 'bb-viz__title-block';
 
+    const leftCol = document.createElement('div');
+    leftCol.className = 'bb-viz__left-col';
+
     const channelTitle = document.createElement('span');
     channelTitle.className = 'bb-viz__channel-title';
     channelTitle.textContent = `Channel ${ch.id}`;
@@ -399,11 +403,6 @@ export class SongVisualizer {
     right.appendChild(patternEl);
     right.appendChild(waveCanvas);
 
-    header.appendChild(levelBar);
-    header.appendChild(titleBlock);
-    header.appendChild(right);
-    card.appendChild(header);
-
     const progressWrap = document.createElement('div');
     progressWrap.className = 'bb-viz__progress-wrap';
     const progressFill = document.createElement('div');
@@ -426,21 +425,28 @@ export class SongVisualizer {
 
     const muteBtn = document.createElement('button');
     muteBtn.type = 'button';
-    muteBtn.className = 'bb-viz__btn bb-viz__btn--mute';
+    muteBtn.className = 'bb-cp__btn bb-cp__btn--mute';
     muteBtn.id = `bb-viz-mute-${ch.id}`;
     this.applyMuteStyle(muteBtn, isMuted);
     muteBtn.addEventListener('click', () => toggleChannelMuted(ch.id));
 
     const soloBtn = document.createElement('button');
     soloBtn.type = 'button';
-    soloBtn.className = 'bb-viz__btn bb-viz__btn--solo';
+    soloBtn.className = 'bb-cp__btn bb-cp__btn--solo';
     soloBtn.id = `bb-viz-solo-${ch.id}`;
     this.applySoloStyle(soloBtn, isSoloed);
     soloBtn.addEventListener('click', () => toggleChannelSoloed(ch.id));
 
     ctrlRow.appendChild(muteBtn);
     ctrlRow.appendChild(soloBtn);
-    card.appendChild(ctrlRow);
+
+    leftCol.appendChild(titleBlock);
+    leftCol.appendChild(ctrlRow);
+
+    header.appendChild(levelBar);
+    header.appendChild(leftCol);
+    header.appendChild(right);
+    card.appendChild(header);
 
     return card;
   }
@@ -685,19 +691,17 @@ export class SongVisualizer {
   }
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
-    btn.innerHTML = muted
-      ? icon('speaker-x-mark', 'w-3.5 h-3.5')
-      : icon('speaker-wave', 'w-3.5 h-3.5');
+    btn.textContent = 'M';
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
     btn.setAttribute('aria-pressed', String(muted));
-    btn.classList.toggle('bb-viz__btn--active', muted);
+    btn.classList.toggle('bb-cp__btn--active', muted);
   }
 
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
-    btn.innerHTML = icon('eye', 'w-3.5 h-3.5');
+    btn.textContent = 'S';
     btn.title = soloed ? 'Remove solo' : 'Solo this channel';
     btn.setAttribute('aria-pressed', String(soloed));
-    btn.classList.toggle('bb-viz__btn--active', soloed);
+    btn.classList.toggle('bb-cp__btn--active', soloed);
   }
 
   private getInstrumentName(ch: any): string {

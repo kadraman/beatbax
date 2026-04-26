@@ -74,12 +74,24 @@ channelStates.subscribe((states) => {
 
 export function setChannelMuted(id: number, muted: boolean): void {
   const current = channelStates.get();
-  channelStates.setKey(id, { ...current[id], muted });
+  const base = current[id] ?? makeDefaultChannel(id);
+  channelStates.setKey(id, {
+    ...base,
+    muted,
+    // A muted channel cannot stay soloed.
+    soloed: muted ? false : base.soloed,
+  });
 }
 
 export function setChannelSoloed(id: number, soloed: boolean): void {
   const current = channelStates.get();
-  channelStates.setKey(id, { ...current[id], soloed });
+  const base = current[id] ?? makeDefaultChannel(id);
+  channelStates.setKey(id, {
+    ...base,
+    soloed,
+    // A soloed channel must be audible.
+    muted: soloed ? false : base.muted,
+  });
 }
 
 export function setChannelVolume(id: number, volume: number): void {
@@ -111,9 +123,16 @@ export function toggleChannelSoloed(id: number): void {
   if (wasSoloed) {
     setChannelSoloed(id, false);
   } else {
-    // Solo this channel, unsolo all others
-    for (const chId of Object.keys(current).map(Number)) {
-      setChannelSoloed(chId, chId === id);
+    // Solo this channel, unsolo all others.
+    // Soloing implies audibility, so the selected channel is auto-unmuted.
+    const latest = channelStates.get();
+    for (const chId of Object.keys(latest).map(Number)) {
+      const info = latest[chId];
+      channelStates.setKey(chId, {
+        ...info,
+        soloed: chId === id,
+        muted: chId === id ? false : info.muted,
+      });
     }
   }
 }
