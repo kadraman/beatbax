@@ -31,7 +31,7 @@ volume 0.5  # Reduce to 50% to prevent clipping in dense mixes
 
 inst lead  type=pulse1 duty=75 env=15,up
 inst bass  type=pulse2 duty=25 env=12,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst drums type=noise  env=10,down
 
 pat melody = C5:4 E5:4 G5:4 C6:4

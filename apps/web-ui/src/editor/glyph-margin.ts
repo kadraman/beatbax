@@ -11,7 +11,8 @@
  *    `playback:position-changed` event and clear on `playback:stopped`.
  *
  * 2. Channel mute / solo indicator
- *    A ♩ (live), ⊘ (muted), or ★ (soloed) glyph on every `channel N =>`
+ *    Two boxed state badges on every `channel N =>` line:
+ *    left lane = Mute (M), right lane = Solo (S).
  *    line reflects current mute/solo state.  Clicking the glyph toggles
  *    mute for that channel, providing a quick in-editor shortcut without
  *    needing to reach for the Channel Mixer.  Glyphs rebuild on
@@ -43,9 +44,10 @@ function injectGlyphStyles(): void {
     /* Centre the ::before badge inside Monaco's glyph container */
     .bb-glyph--playing,
     .bb-glyph--seq-playing,
-    .bb-glyph--ch-live,
-    .bb-glyph--ch-muted,
-    .bb-glyph--ch-soloed {
+    .bb-glyph--ch-mute-off,
+    .bb-glyph--ch-mute-on,
+    .bb-glyph--ch-solo-off,
+    .bb-glyph--ch-solo-on {
       display: flex !important;
       align-items: center;
       justify-content: center;
@@ -54,9 +56,10 @@ function injectGlyphStyles(): void {
     /* ── Shared badge base ─────────────────────────────────────── */
     .bb-glyph--playing::before,
     .bb-glyph--seq-playing::before,
-    .bb-glyph--ch-live::before,
-    .bb-glyph--ch-muted::before,
-    .bb-glyph--ch-soloed::before {
+    .bb-glyph--ch-mute-off::before,
+    .bb-glyph--ch-mute-on::before,
+    .bb-glyph--ch-solo-off::before,
+    .bb-glyph--ch-solo-on::before {
       display: block;
       width: 16px;
       height: 15px;
@@ -95,42 +98,44 @@ function injectGlyphStyles(): void {
       animation-delay: 0.45s;
     }
 
-    /* ── Channel live (normal) ─────────────────────────────────── */
-    .bb-glyph--ch-live::before {
-      content: '';
-      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTEwLjUgM0w1IDYuNXY1LjVDNSAxMy42IDQuNiAxNCAzLjUgMTRTMiAxMy42IDIgMTIuNXMxLS0xLjUgMi4xLTEuNWMuNyAwIDEuMy4yIDEuOC42VjcuMWw0LjUtMi45djVjMCAxIC0uOSA0LjUtMiA0LjVTMTAuNSAxMy42IDEwLjUgMTIuNXMxLS0xLjUgMi4xLS0xLjVjLjcgMCAxLjMuMiAxLjguNlYzWiIgZmlsbD0iIzRjYWY1MCIvPjwvc3ZnPg==');
-      background-repeat: no-repeat;
-      background-position: center;
-      border: 1px solid #555;
-      background-color: #3a3a3a;
+    /* ── Channel mute button (left lane) ───────────────────────── */
+    .bb-glyph--ch-mute-off::before {
+      content: 'M';
+      color: #9a9a9a;
+      border: 1px solid #6b6b6b;
+      background-color: #2f2f2f;
       border-radius: 3px;
     }
 
-    /* ── Channel muted ─────────────────────────────────────────── */
-    .bb-glyph--ch-muted::before {
-      content: '';
-      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTUgNCBMNyA4IEw1IDEyIEw3IDEzIEw5IDkuNSBMMTEgMTMgTDEzIDEyIEwxMSA4IEwxMyA0IEwxMSA0IEw5LjUgNiBMNyAzIFoiIGZpbGw9IiNmZmFhYWEiLz48L3N2Zz4=');
-      background-repeat: no-repeat;
-      background-position: center;
+    .bb-glyph--ch-mute-on::before {
+      content: 'M';
+      color: #ffd2d2;
       border: 1px solid #c94e4e;
       background-color: #7a2f2f;
       border-radius: 3px;
     }
 
-    /* ── Channel soloed ────────────────────────────────────────── */
-    .bb-glyph--ch-soloed::before {
-      content: '';
-      background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTggMSBMMTAgNiBMMTUgNiBMMTEgOSBMMTIgMTQgTDggMTEgTDQgMTQgTDUgOSBMMSA2IEw2IDYgWiIgZmlsbD0iIzljZGNmZSIvPjwvc3ZnPg==');
-      background-repeat: no-repeat;
-      background-position: center;
+    /* ── Channel solo button (right lane) ──────────────────────── */
+    .bb-glyph--ch-solo-off::before {
+      content: 'S';
+      color: #9a9a9a;
+      border: 1px solid #6b6b6b;
+      background-color: #2f2f2f;
+      border-radius: 3px;
+    }
+
+    .bb-glyph--ch-solo-on::before {
+      content: 'S';
+      color: #d6ecff;
       border: 1px solid #4a9eff;
       background-color: #2a4a7a;
       border-radius: 3px;
     }
 
-    .bb-glyph--ch-live,
-    .bb-glyph--ch-muted,
-    .bb-glyph--ch-soloed {
+    .bb-glyph--ch-mute-off,
+    .bb-glyph--ch-mute-on,
+    .bb-glyph--ch-solo-off,
+    .bb-glyph--ch-solo-on {
       cursor: pointer;
     }
   `;
@@ -177,6 +182,8 @@ export function setupGlyphMargin(
   // current position event), then falls back to a noteCount boundary walk when no
   // pattern-name match is found.
   let previewChunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>> = {};
+
+  const glyphMarginLane = (monaco as any).GlyphMarginLane ?? { Left: 1, Right: 2 };
 
   // Decoration-ID bookkeeping so Monaco can diff on the next update
   let positionIds: string[] = [];
@@ -293,24 +300,32 @@ export function setupGlyphMargin(
       const info = states[chId];
       if (!info) continue;
 
-      let cls: string;
-      let hint: string;
-      if (info.soloed) {
-        cls  = 'bb-glyph--ch-soloed';
-        hint = `Channel ${chId} soloed — click to unsolo`;
-      } else if (info.muted) {
-        cls  = 'bb-glyph--ch-muted';
-        hint = `Channel ${chId} muted — click to unmute`;
-      } else {
-        cls  = 'bb-glyph--ch-live';
-        hint = `Channel ${chId} live — click to mute`;
-      }
+      const muteClass = info.muted ? 'bb-glyph--ch-mute-on' : 'bb-glyph--ch-mute-off';
+      const soloClass = info.soloed ? 'bb-glyph--ch-solo-on' : 'bb-glyph--ch-solo-off';
 
       decors.push({
         range: new monaco.Range(ln, 1, ln, 1),
         options: {
-          glyphMarginClassName: cls,
-          glyphMarginHoverMessage: { value: hint },
+          glyphMarginClassName: muteClass,
+          glyphMargin: { position: glyphMarginLane.Left },
+          glyphMarginHoverMessage: {
+            value: info.muted
+              ? `Channel ${chId} muted — click to unmute`
+              : `Channel ${chId} live — click to mute`,
+          },
+        },
+      });
+
+      decors.push({
+        range: new monaco.Range(ln, 1, ln, 1),
+        options: {
+          glyphMarginClassName: soloClass,
+          glyphMargin: { position: glyphMarginLane.Right },
+          glyphMarginHoverMessage: {
+            value: info.soloed
+              ? `Channel ${chId} soloed — click to unsolo`
+              : `Channel ${chId} not soloed — click to solo`,
+          },
         },
       });
     }
@@ -401,19 +416,30 @@ export function setupGlyphMargin(
     previewChunkInfo = chunkInfo;
   });
 
-  // ── Glyph-margin click → toggle mute or solo ─────────────────────────────
-  // Clicking the S (soloed) badge un-solos the channel.
-  // Clicking the M (muted) or ♪ (live) badge toggles mute.
+  // ── Glyph-margin click → lane-based mute/solo toggle ─────────────────────
+  // Left lane toggles Mute, right lane toggles Solo.
+
+  function getLaneFromMarginClick(target: any): 'left' | 'right' {
+    const detail = target?.detail;
+    if (!detail) return 'left';
+    const glyphMarginWidth = Number(detail.glyphMarginWidth ?? 0);
+    const glyphMarginLeft = Number(detail.glyphMarginLeft ?? 0);
+    const offsetX = Number(detail.offsetX ?? 0);
+    if (glyphMarginWidth <= 0) return 'left';
+
+    const localX = offsetX - glyphMarginLeft;
+    return localX >= glyphMarginWidth / 2 ? 'right' : 'left';
+  }
 
   const mouseDisposable = monacoEditor.onMouseDown((e: any) => {
     if (e.target.type !== (monaco.editor as any).MouseTargetType.GUTTER_GLYPH_MARGIN) return;
     const lineNumber: number | undefined = e.target.position?.lineNumber;
     if (lineNumber === undefined) return;
+    const lane = getLaneFromMarginClick(e.target);
 
     for (const [chId, ln] of channelLineMap.entries()) {
       if (ln === lineNumber) {
-        const info = channelStates.get()[chId];
-        if (info?.soloed) {
+        if (lane === 'right') {
           toggleChannelSoloed(chId);
         } else {
           toggleChannelMuted(chId);

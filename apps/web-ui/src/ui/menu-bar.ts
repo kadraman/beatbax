@@ -247,7 +247,7 @@ export class MenuBar {
     this.el.appendChild(this.buildMenu('view', 'View', this.viewItems()));
     this.el.appendChild(this.buildMenu('help', 'Help', this.helpItems()));
 
-    // ── Song name — right-aligned in the remaining menu bar space ──────────
+    // ── Song name — centered in the menu bar ───────────────────────────────
     this.songNameEl = document.createElement('span');
     this.songNameEl.className = 'bb-menu-bar__song-name';
     this.songNameEl.textContent = 'untitled';

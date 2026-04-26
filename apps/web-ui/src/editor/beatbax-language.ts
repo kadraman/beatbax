@@ -20,6 +20,519 @@ eventBus.on('parse:success', ({ ast }) => {
 /** Cached semantic-token result. Invalidated whenever the model version changes. */
 let tokenCache: { versionId: number; data: Uint32Array } | null = null;
 
+interface WaveHoverParseResult {
+  values: number[];
+  range: monaco.IRange;
+  hoveredIndex: number | null;
+}
+
+interface QuoteScanState {
+  inDouble: boolean;
+  inTriple: boolean;
+}
+
+function scanQuoteState(text: string, initial: QuoteScanState): QuoteScanState {
+  let i = 0;
+  let inDouble = initial.inDouble;
+  let inTriple = initial.inTriple;
+
+  while (i < text.length) {
+    // Triple-quote delimiter toggles multiline-string mode.
+    if (!inDouble && text.substring(i, i + 3) === '"""') {
+      inTriple = !inTriple;
+      i += 3;
+      continue;
+    }
+
+    // Normal double-quoted strings are tracked only outside triple-quote mode.
+    if (!inTriple && text[i] === '"' && (i === 0 || text[i - 1] !== '\\')) {
+      inDouble = !inDouble;
+    }
+
+    i += 1;
+  }
+
+  return { inDouble, inTriple };
+}
+
+/**
+ * Check if a position is inside a quoted string (double or triple-quoted).
+ * Can work with either a line string directly or via Monaco model + position.
+ */
+function isPositionInString(
+  modelOrLine: monaco.editor.ITextModel | string,
+  positionOrColumn?: monaco.IPosition | number,
+): boolean {
+  // Overload: (string, number)
+  if (typeof modelOrLine === 'string') {
+    const line = modelOrLine;
+    const column = (positionOrColumn as number) || 0;
+    const upToCursor = line.substring(0, Math.max(0, column - 1));
+    const state = scanQuoteState(upToCursor, { inDouble: false, inTriple: false });
+    return state.inDouble || state.inTriple;
+  }
+
+  // Overload: (ITextModel, IPosition)
+  const model = modelOrLine as monaco.editor.ITextModel;
+  const position = positionOrColumn as monaco.IPosition;
+
+  // If a lightweight mock omits getLineCount, gracefully fall back to line-local scan.
+  if (typeof model.getLineCount !== 'function') {
+    const line = model.getLineContent(position.lineNumber);
+    const upToCursor = line.substring(0, Math.max(0, position.column - 1));
+    const state = scanQuoteState(upToCursor, { inDouble: false, inTriple: false });
+    return state.inDouble || state.inTriple;
+  }
+
+  let state: QuoteScanState = { inDouble: false, inTriple: false };
+
+  for (let lineNo = 1; lineNo <= model.getLineCount(); lineNo++) {
+    const line = model.getLineContent(lineNo);
+    if (lineNo < position.lineNumber) {
+      state = scanQuoteState(line, state);
+      continue;
+    }
+
+    const upToCursor = line.substring(0, Math.max(0, position.column - 1));
+    const cursorState = scanQuoteState(upToCursor, state);
+    return cursorState.inDouble || cursorState.inTriple;
+  }
+
+  return false;
+}
+
+function parseWaveLiteralAtPosition(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): WaveHoverParseResult | null {
+  const line = model.getLineContent(position.lineNumber);
+  const waveRegex = /\bwave\s*=\s*\[([^\]]*)\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = waveRegex.exec(line)) !== null) {
+    const matchText = match[0];
+    const openBracketRel = matchText.indexOf('[');
+    if (openBracketRel < 0) continue;
+
+    const openBracketIdx = match.index + openBracketRel;
+    const closeBracketIdx = line.indexOf(']', openBracketIdx);
+    if (closeBracketIdx < 0) continue;
+
+    const column0 = position.column - 1;
+    if (column0 < openBracketIdx || column0 > closeBracketIdx + 1) continue;
+
+    const inner = line.slice(openBracketIdx + 1, closeBracketIdx);
+    const numberRegex = /-?\d+(?:\.\d+)?/g;
+    const values: number[] = [];
+    let hoveredIndex: number | null = null;
+    let n: RegExpExecArray | null;
+
+    while ((n = numberRegex.exec(inner)) !== null) {
+      const parsed = Number(n[0]);
+      if (!Number.isFinite(parsed)) continue;
+
+      const idx = values.length;
+      values.push(parsed);
+
+      const tokenStartIdx = openBracketIdx + 1 + n.index;
+      const tokenStartCol = tokenStartIdx + 1;
+      const tokenEndCol = tokenStartCol + n[0].length;
+      if (position.column >= tokenStartCol && position.column <= tokenEndCol) {
+        hoveredIndex = idx;
+      }
+    }
+
+    if (values.length === 0) return null;
+
+    return {
+      values,
+      hoveredIndex,
+      range: {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: openBracketIdx + 1,
+        endColumn: closeBracketIdx + 2,
+      },
+    };
+  }
+
+  return null;
+}
+
+function renderWaveSparkline(values: number[], hoveredIndex: number | null): string {
+  const levels = ' ▁▂▃▄▅▆▇█';
+  const clamped = values.map((v) => Math.max(0, Math.min(15, Math.round(v))));
+  const line = clamped
+    .map((v) => {
+      const level = Math.round((v / 15) * 8);
+      return levels[level] ?? levels[0];
+    })
+    .join('');
+
+  if (hoveredIndex === null || hoveredIndex < 0 || hoveredIndex >= clamped.length) {
+    return line;
+  }
+
+  const marker = `${' '.repeat(hoveredIndex)}^`;
+  return `${line}\n${marker}`;
+}
+
+function buildWaveHover(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): monaco.languages.Hover | null {
+  const parsed = parseWaveLiteralAtPosition(model, position);
+  if (!parsed) return null;
+
+  const clamped = parsed.values.map((v) => Math.max(0, Math.min(15, Math.round(v))));
+  const min = Math.min(...clamped);
+  const max = Math.max(...clamped);
+
+  let meta = `Samples: ${parsed.values.length}  Clamped range: ${min}..${max}`;
+  if (parsed.hoveredIndex !== null) {
+    const raw = parsed.values[parsed.hoveredIndex];
+    const clampedValue = clamped[parsed.hoveredIndex];
+    meta += `\nIndex ${parsed.hoveredIndex}: raw=${raw} clamped=${clampedValue}`;
+  }
+
+  return {
+    range: parsed.range,
+    contents: [
+      { value: '**Waveform preview**' },
+      { value: `\`\`\`text\n${renderWaveSparkline(parsed.values, parsed.hoveredIndex)}\n\`\`\`` },
+      { value: meta },
+    ],
+  };
+}
+
+// ── Envelope hover ───────────────────────────────────────────────────────────
+
+interface ParsedEnvelope {
+  /** Initial volume level 0–15. */
+  level: number;
+  /** 'up' | 'down' | 'flat'. */
+  direction: 'up' | 'down' | 'flat';
+  /** Envelope period 0–7. 0 = constant (no sweep). */
+  period: number;
+  /** Source string, used for display. */
+  raw: string;
+  /** Monaco range covering the full env=... value token. */
+  range: monaco.IRange;
+}
+
+/**
+ * Detect and parse the `env=` value when the cursor sits anywhere inside it.
+ * Handles three formats:
+ *   - JSON object:  env={"level":12,"direction":"down","period":1}
+ *   - gb-prefixed:  env=gb:12,down,1
+ *   - short form:   env=12,down,1   or  env=12,down
+ */
+export function parseEnvelopeAtPosition(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): ParsedEnvelope | null {
+  const line = model.getLineContent(position.lineNumber);
+  const col0 = position.column - 1; // 0-based
+
+  // ── JSON form: env={...} ─────────────────────────────────────────────────
+  const jsonEnvRe = /\benv\s*=\s*(\{[^}]*\})/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = jsonEnvRe.exec(line)) !== null) {
+    const tokenStart = m.index;
+    const tokenEnd = m.index + m[0].length - 1;
+    if (col0 < tokenStart || col0 > tokenEnd) continue;
+
+    try {
+      const obj = JSON.parse(m[1]);
+      const level = Number(obj.level ?? obj.initial ?? 15);
+      const rawDir: string = String(obj.direction ?? 'down').toLowerCase();
+      const direction = rawDir === 'up' ? 'up' : rawDir === 'flat' ? 'flat' : 'down';
+      const period = Number(obj.period ?? obj.step ?? 0);
+      return {
+        level: Math.max(0, Math.min(15, level)),
+        direction,
+        period: Math.max(0, Math.min(7, period)),
+        raw: m[1],
+        range: {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: tokenStart + 1,
+          endColumn: tokenEnd + 2,
+        },
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  // ── gb-prefixed or short form: env=gb:L,dir,period or env=L,dir[,period] ─
+  // Match everything after `env=` up to next whitespace or end-of-line
+  const shortEnvRe = /\benv\s*=\s*((?:gb:)?\S+)/g;
+  while ((m = shortEnvRe.exec(line)) !== null) {
+    const tokenStart = m.index;
+    const tokenEnd = m.index + m[0].length - 1;
+    if (col0 < tokenStart || col0 > tokenEnd) continue;
+
+    let raw = m[1];
+    if (raw.startsWith('gb:')) raw = raw.slice(3);
+    if (raw.startsWith('"') || raw.startsWith('{')) continue; // already handled above
+
+    const parts = raw.split(',');
+    const level = Math.max(0, Math.min(15, parseInt(parts[0] ?? '15', 10)));
+    const rawDir = (parts[1] ?? 'down').toLowerCase();
+    const direction: 'up' | 'down' | 'flat' =
+      rawDir === 'up' ? 'up' : rawDir === 'flat' ? 'flat' : 'down';
+    const period = Math.max(0, Math.min(7, parseInt(parts[2] ?? '0', 10)));
+
+    if (Number.isNaN(level)) continue;
+
+    return {
+      level,
+      direction,
+      period,
+      raw: m[1],
+      range: {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: tokenStart + 1,
+        endColumn: tokenEnd + 2,
+      },
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Simulate a Game Boy NR5x hardware envelope and return the volume level
+ * at each tick step (one step = one NR52 envelope tick, ~1/64 s).
+ * Returns 20 steps, which is enough to show the full decay/attack.
+ */
+export function simulateGBEnvelope(env: ParsedEnvelope, steps = 20): number[] {
+  const result: number[] = [];
+  let vol = env.level;
+
+  for (let t = 0; t < steps; t++) {
+    result.push(vol);
+
+    if (env.period === 0 || env.direction === 'flat') continue;
+
+    // GB envelope: volume changes every `period` steps
+    if ((t + 1) % env.period === 0) {
+      if (env.direction === 'up') {
+        vol = Math.min(15, vol + 1);
+      } else {
+        vol = Math.max(0, vol - 1);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Render a horizontal level sparkline for an envelope volume curve.
+ * Each character represents one step; height encodes level 0–15.
+ */
+export function renderEnvelopeSparkline(levels: number[]): string {
+  const chars = ' ▁▂▃▄▅▆▇█';
+  return levels
+    .map((v) => {
+      const idx = Math.round(Math.max(0, Math.min(15, v)) / 15 * 8);
+      return chars[idx] ?? chars[0];
+    })
+    .join('');
+}
+
+function buildEnvelopeHover(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): monaco.languages.Hover | null {
+  const env = parseEnvelopeAtPosition(model, position);
+  if (!env) return null;
+
+  const steps = simulateGBEnvelope(env, 32);
+  const sparkline = renderEnvelopeSparkline(steps);
+
+  const dirLabel = env.direction === 'flat' ? 'flat (constant)' : env.direction;
+  const periodLabel =
+    env.period === 0
+      ? '0 (constant — no sweep)'
+      : `${env.period} (changes every ${env.period} step${env.period > 1 ? 's' : ''})`;
+
+  const meta = [
+    `Initial level: **${env.level}** / 15`,
+    `Direction: **${dirLabel}**`,
+    `Period: **${periodLabel}**`,
+  ].join('  \n');
+
+  return {
+    range: env.range,
+    contents: [
+      { value: '**Envelope preview** (GB hardware simulation, 32 steps)' },
+      { value: `\`\`\`text\n${sparkline}\n\`\`\`` },
+      { value: meta },
+    ],
+  };
+}
+
+// ── NES macro envelope hover ──────────────────────────────────────────────────
+
+const NES_MACRO_TYPES = ['vol_env', 'arp_env', 'pitch_env', 'duty_env'] as const;
+type NesMacroType = (typeof NES_MACRO_TYPES)[number];
+
+export interface ParsedNesMacro {
+  /** Which macro field was matched. */
+  macroType: NesMacroType;
+  /** Parsed numeric values. */
+  values: number[];
+  /** Index to loop back to at end of sequence; -1 = one-shot. */
+  loopPoint: number;
+  /** Monaco range covering the entire `field=[...]` token. */
+  range: monaco.IRange;
+}
+
+/**
+ * Detect and parse a NES software-macro field when the cursor sits anywhere inside
+ * `vol_env=[...]`, `arp_env=[...]`, `pitch_env=[...]`, or `duty_env=[...]`.
+ * Supports the optional loop-point suffix: `[v0,v1,...|loopIndex]`.
+ */
+export function parseNesMacroAtPosition(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): ParsedNesMacro | null {
+  const line = model.getLineContent(position.lineNumber);
+  const col0 = position.column - 1; // 0-based
+
+  for (const macroType of NES_MACRO_TYPES) {
+    const re = new RegExp(`\\b${macroType}\\s*=\\s*(\\[[^\\]]*\\])`, 'g');
+    let m: RegExpExecArray | null;
+
+    while ((m = re.exec(line)) !== null) {
+      const tokenStart = m.index;
+      const tokenEnd = m.index + m[0].length - 1;
+      if (col0 < tokenStart || col0 > tokenEnd) continue;
+
+      const inner = m[1].slice(1, -1); // strip [ and ]
+
+      // Split at optional loop-point separator `|N`
+      let loopPoint = -1;
+      let contentStr = inner;
+      const pipeIdx = inner.lastIndexOf('|');
+      if (pipeIdx >= 0) {
+        const lpNum = parseInt(inner.slice(pipeIdx + 1).trim(), 10);
+        if (!isNaN(lpNum) && lpNum >= 0) loopPoint = lpNum;
+        contentStr = inner.slice(0, pipeIdx);
+      }
+
+      const values = contentStr
+        .split(',')
+        .map((s) => parseFloat(s.trim()))
+        .filter(Number.isFinite);
+
+      if (values.length === 0) continue;
+      if (loopPoint >= values.length) loopPoint = values.length - 1;
+
+      return {
+        macroType,
+        values,
+        loopPoint,
+        range: {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: tokenStart + 1,
+          endColumn: tokenEnd + 2,
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+/** Render a sparkline for an arbitrary array of values, normalizing to [min, max]. */
+export function renderNesMacroSparkline(values: number[], min: number, max: number): string {
+  const chars = ' ▁▂▃▄▅▆▇█';
+  const range = max - min || 1;
+  return values
+    .map((v) => {
+      const normalized = (Math.max(min, Math.min(max, v)) - min) / range;
+      const idx = Math.round(normalized * 8);
+      return chars[idx] ?? chars[0];
+    })
+    .join('');
+}
+
+const DUTY_INDEX_LABELS = ['12.5%', '25%', '50%', '75%'];
+
+function buildNesMacroHover(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): monaco.languages.Hover | null {
+  const macro = parseNesMacroAtPosition(model, position);
+  if (!macro) return null;
+
+  let title: string;
+  let sparkline: string;
+  let meta: string;
+
+  const loopStr =
+    macro.loopPoint >= 0
+      ? `Loops from index **${macro.loopPoint}**`
+      : 'One-shot (no loop — holds last value)';
+
+  switch (macro.macroType) {
+    case 'vol_env': {
+      const clamped = macro.values.map((v) => Math.max(0, Math.min(15, Math.round(v))));
+      title = '**Volume envelope** (NES macro, per-frame, 0–15)';
+      sparkline = renderNesMacroSparkline(clamped, 0, 15);
+      const lo = Math.min(...clamped), hi = Math.max(...clamped);
+      meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
+      break;
+    }
+    case 'arp_env': {
+      title = '**Arpeggio envelope** (NES macro, semitone offsets from root)';
+      const lo = Math.min(...macro.values, 0);
+      const hi = Math.max(...macro.values, 0);
+      sparkline = renderNesMacroSparkline(macro.values, lo, hi);
+      const valStr = macro.values.map((v) => (v >= 0 ? `+${v}` : `${v}`)).join(', ');
+      meta = `Frames: **${macro.values.length}**  Offsets (semitones): ${valStr}  \n${loopStr}`;
+      break;
+    }
+    case 'pitch_env': {
+      title = '**Pitch envelope** (NES macro, semitone offsets from root)';
+      const lo = Math.min(...macro.values, 0);
+      const hi = Math.max(...macro.values, 0);
+      sparkline = renderNesMacroSparkline(macro.values, lo, hi);
+      const valStr = macro.values.map((v) => (v >= 0 ? `+${v}` : `${v}`)).join(', ');
+      meta = [
+        `Frames: **${macro.values.length}**  Offsets (semitones): ${valStr}`,
+        loopStr,
+        '_Note: FamiTracker PITCH macro uses 1/16-semitone units — each value is multiplied by 16 on export._',
+      ].join('  \n');
+      break;
+    }
+    case 'duty_env': {
+      const clamped = macro.values.map((v) => Math.max(0, Math.min(3, Math.round(v))));
+      title = '**Duty envelope** (NES macro, duty indices 0–3)';
+      sparkline = renderNesMacroSparkline(clamped, 0, 3);
+      const dutyStr = clamped.map((v) => DUTY_INDEX_LABELS[v] ?? String(v)).join(', ');
+      meta = `Frames: **${clamped.length}**  Duty cycle sequence: ${dutyStr}  \n${loopStr}`;
+      break;
+    }
+  }
+
+  return {
+    range: macro.range,
+    contents: [
+      { value: title },
+      { value: `\`\`\`text\n${sparkline}\n\`\`\`` },
+      { value: meta },
+    ],
+  };
+}
+
 /**
  * Register BeatBax language with Monaco
  */
@@ -355,7 +868,7 @@ export function registerBeatBaxLanguage(): void {
         {
           label: 'inst (wave)',
           detail: 'Define wave instrument',
-          insertText: 'inst ${1:name} type=wave wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]',
+          insertText: 'inst ${1:name} type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]',
           insertTextRules:
             monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
         },
@@ -472,6 +985,15 @@ export function registerBeatBaxLanguage(): void {
   // Register hover provider
   monaco.languages.registerHoverProvider('beatbax', {
     provideHover: (model, position) => {
+      const waveHover = buildWaveHover(model, position);
+      if (waveHover) return waveHover;
+
+      const envelopeHover = buildEnvelopeHover(model, position);
+      if (envelopeHover) return envelopeHover;
+
+      const nesMacroHover = buildNesMacroHover(model, position);
+      if (nesMacroHover) return nesMacroHover;
+
       const word = model.getWordAtPosition(position);
       if (!word) return null;
 
@@ -630,6 +1152,11 @@ export function registerBeatBaxLanguage(): void {
         };
       }
 
+      // Skip instrument/effect hovers if cursor is inside a quoted string (e.g., metadata)
+      if (isPositionInString(model, position)) {
+        return null;
+      }
+
       if (latestAST?.insts && latestAST.insts[word.word]) {
         const inst = latestAST.insts[word.word];
         const props: string[] = [];
@@ -749,9 +1276,11 @@ export function registerBeatBaxLanguage(): void {
       const tokens: number[] = [];
       let prevLine = 0;
       let prevChar = 0;
+      let quoteState: QuoteScanState = { inDouble: false, inTriple: false };
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const lineStartState = quoteState;
 
         // Skip comments early
         const commentIdx = line.indexOf('#');
@@ -768,6 +1297,14 @@ export function registerBeatBaxLanguage(): void {
           else if (sequences.has(word)) typeIdx = 2;
 
           if (typeIdx !== -1) {
+            // Skip semantic coloring if this identifier is inside a quoted string (metadata)
+            const matchColumn = match.index + 1; // Monaco columns are 1-indexed
+            const preToken = line.substring(0, Math.max(0, matchColumn - 1));
+            const tokenState = scanQuoteState(preToken, lineStartState);
+            if (tokenState.inDouble || tokenState.inTriple) {
+              continue;
+            }
+
             const startChar = match.index;
             const length = word.length;
 
@@ -780,6 +1317,8 @@ export function registerBeatBaxLanguage(): void {
             prevChar = startChar;
           }
         }
+
+        quoteState = scanQuoteState(line, lineStartState);
       }
 
       const result = new Uint32Array(tokens);

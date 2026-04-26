@@ -80,6 +80,8 @@ export class PlaybackManager {
   private _loop = false;
   private _bpmOverride: number | null = null;
   private _masterAnalyser: AnalyserNode | null = null;
+  /** Periodic timer for elapsed-time playback:position updates. */
+  private _positionTimer: ReturnType<typeof setInterval> | null = null;
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
@@ -357,6 +359,8 @@ export class PlaybackManager {
           // Start the next iteration first so the Player can apply the effective
           // master volume (user override or AST volume) before we emit the UI message.
           this.player!.playAST(resolved as any).then(() => {
+            this._startPositionTimer(this.player!);
+            this._emitElapsedPosition(this.player!);
             try {
               const gain = this.player!.getMasterGain();
               const resolvedVol = this._pendingMasterVolume !== null ? this._pendingMasterVolume : (gain ? (gain.gain.value ?? 1) : 1);
@@ -440,6 +444,8 @@ export class PlaybackManager {
       }
       await this.player.playAST(resolved as any);
       log.debug('player.playAST() completed');
+      this._startPositionTimer(this.player);
+      this._emitElapsedPosition(this.player);
 
       // Update state
       this.state.isPlaying = true;
@@ -475,6 +481,7 @@ export class PlaybackManager {
     if (!this.player) return;
 
     try {
+      this._stopPositionTimer();
       if (typeof this.player.stop === 'function') {
         this.player.stop();
       }
@@ -735,35 +742,58 @@ export class PlaybackManager {
       log.debug(`Emitting playback:position-changed for channel ${channelId}`, position);
       this.eventBus.emit('playback:position-changed', { channelId, position });
 
-      // Also emit a legacy-style time position event (seconds) so UI
-      // components that expect `playback:position` (e.g. StatusBar,
-      // TransportBar) continue to receive elapsed time updates.
-      try {
-        const playerAny: any = player as any;
-        const startTs = playerAny._playbackStartTimestamp || 0;
-        const pauseTs = playerAny._pauseTimestamp || 0;
-        const completionMs = playerAny._completionTimeoutMs || 0;
-        let currentSec = 0;
-        let totalSec = 0;
-
-        if (startTs) {
-          // If paused, _pauseTimestamp contains the timestamp when paused;
-          // subtract pause time if present. Keep a simple approximation.
-          const now = Date.now();
-          const pausedOffset = pauseTs && pauseTs > startTs ? (now - pauseTs) : 0;
-          currentSec = Math.max(0, (now - startTs - pausedOffset) / 1000);
-        }
-
-        if (completionMs) totalSec = completionMs / 1000;
-
-        this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
-        playbackPositionAtom.set(currentSec);
-        playbackDuration.set(totalSec);
-        playbackTimeLabel.set(formatPlaybackTime(currentSec));
-      } catch (e) {
-        // Non-fatal - don't break playback if timing inference fails
-      }
+      // Elapsed-time updates are emitted by the periodic position timer.
     };
+  }
+
+  private _startPositionTimer(player: Player): void {
+    this._stopPositionTimer();
+    this._positionTimer = setInterval(() => this._emitElapsedPosition(player), 33);
+  }
+
+  private _stopPositionTimer(): void {
+    if (!this._positionTimer) return;
+    clearInterval(this._positionTimer);
+    this._positionTimer = null;
+  }
+
+  private _emitElapsedPosition(player: Player): void {
+    try {
+      const playerAny: any = player as any;
+      const startTs = playerAny._playbackStartTimestamp || 0;
+      const pauseTs = playerAny._pauseTimestamp || 0;
+      const completionMs = playerAny._completionTimeoutMs || 0;
+      const isRepeatMode = !!playerAny._isRepeatMode;
+      let currentSec = 0;
+      let totalSec = 0;
+
+      if (startTs) {
+        // If paused, keep elapsed time frozen at pause point.
+        const now = Date.now();
+        const pausedOffset = pauseTs && pauseTs > startTs ? (now - pauseTs) : 0;
+        currentSec = Math.max(0, (now - startTs - pausedOffset) / 1000);
+      }
+
+      if (completionMs) totalSec = completionMs / 1000;
+
+      // Engine repeat mode keeps a stable start timestamp across iterations.
+      // Wrap elapsed time by loop duration so UI progress returns to 0 exactly
+      // at each real loop boundary (not at pre-schedule callback time).
+      if (totalSec > 0) {
+        if (isRepeatMode) {
+          currentSec = ((currentSec % totalSec) + totalSec) % totalSec;
+        } else {
+          currentSec = Math.min(currentSec, totalSec);
+        }
+      }
+
+      this.eventBus.emit('playback:position', { current: currentSec, total: totalSec });
+      playbackPositionAtom.set(currentSec);
+      playbackDuration.set(totalSec);
+      playbackTimeLabel.set(formatPlaybackTime(currentSec));
+    } catch {
+      // Non-fatal: elapsed-time display should never break playback.
+    }
   }
 
   /**

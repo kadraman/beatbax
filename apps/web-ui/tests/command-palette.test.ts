@@ -19,7 +19,7 @@ bpm 120
 time 4
 inst lead  type=pulse1 duty=50 env=12,down
 inst bass  type=pulse2 duty=25 env=10,down
-inst wave1 type=wave   wave=[0,3,6,9,12,9,6,3,0,3,6,9,12,9,6,3]
+inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst sn    type=noise  env=12,down
 pat melody   = C4 E4 G4 C5
 pat bass_pat = C3 . G2 .

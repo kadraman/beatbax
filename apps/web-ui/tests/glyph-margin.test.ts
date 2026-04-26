@@ -3,8 +3,8 @@
  *
  * Verifies both glyph-margin features:
  *  1. Playback position cursor  — ▶ glyph on the currently-playing `pat` line
- *  2. Channel mute/solo glyphs — speaker glyph on `channel N =>` lines,
- *                                clickable to toggle mute
+ *  2. Channel mute/solo glyphs — M (left lane) and S (right lane) badges on
+ *                                `channel N =>` lines, clickable per lane
  */
 
 import { EventBus } from '../src/utils/event-bus';
@@ -62,7 +62,7 @@ describe('GlyphMargin', () => {
 
   // ── parse:success ──────────────────────────────────────────────────────────
 
-  it('adds live-channel glyphs on both channel lines after parse:success', () => {
+  it('adds mute/solo lane glyphs on both channel lines after parse:success', () => {
     setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
@@ -70,14 +70,22 @@ describe('GlyphMargin', () => {
     const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
     const decors: any[] = lastCall[1];
 
-    // channel 1 => is line 6, channel 2 => is line 7
-    const ch1 = decors.find((d) => d.range.startLineNumber === 6);
-    const ch2 = decors.find((d) => d.range.startLineNumber === 7);
+    // channel 1 => line 6, channel 2 => line 7; each line gets mute + solo lane glyphs
+    const line6 = decors.filter((d) => d.range.startLineNumber === 6);
+    const line7 = decors.filter((d) => d.range.startLineNumber === 7);
 
-    expect(ch1).toBeDefined();
-    expect(ch1.options.glyphMarginClassName).toBe('bb-glyph--ch-live');
-    expect(ch2).toBeDefined();
-    expect(ch2.options.glyphMarginClassName).toBe('bb-glyph--ch-live');
+    expect(line6).toHaveLength(2);
+    expect(line7).toHaveLength(2);
+
+    const ch1Mute = line6.find((d) => d.options.glyphMarginClassName === 'bb-glyph--ch-mute-off');
+    const ch1Solo = line6.find((d) => d.options.glyphMarginClassName === 'bb-glyph--ch-solo-off');
+    const ch2Mute = line7.find((d) => d.options.glyphMarginClassName === 'bb-glyph--ch-mute-off');
+    const ch2Solo = line7.find((d) => d.options.glyphMarginClassName === 'bb-glyph--ch-solo-off');
+
+    expect(ch1Mute?.options.glyphMargin?.position).toBe((monaco as any).GlyphMarginLane.Left);
+    expect(ch1Solo?.options.glyphMargin?.position).toBe((monaco as any).GlyphMarginLane.Right);
+    expect(ch2Mute?.options.glyphMargin?.position).toBe((monaco as any).GlyphMarginLane.Left);
+    expect(ch2Solo?.options.glyphMargin?.position).toBe((monaco as any).GlyphMarginLane.Right);
   });
 
   it('clears stale position glyphs on parse:success', () => {
@@ -369,8 +377,9 @@ describe('GlyphMargin', () => {
     eventBus.emit('channel:muted', { channel: 1 });
 
     const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
-    const ch1Decor = lastCall[1].find((d: any) => d.range.startLineNumber === 6);
-    expect(ch1Decor?.options.glyphMarginClassName).toBe('bb-glyph--ch-muted');
+    const line6 = lastCall[1].filter((d: any) => d.range.startLineNumber === 6);
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-mute-on')).toBeDefined();
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-solo-off')).toBeDefined();
   });
 
   it('restores live glyph on channel line after channel:unmuted', () => {
@@ -381,8 +390,8 @@ describe('GlyphMargin', () => {
     eventBus.emit('channel:unmuted', { channel: 1 });
 
     const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
-    const ch1Decor = lastCall[1].find((d: any) => d.range.startLineNumber === 6);
-    expect(ch1Decor?.options.glyphMarginClassName).toBe('bb-glyph--ch-live');
+    const line6 = lastCall[1].filter((d: any) => d.range.startLineNumber === 6);
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-mute-off')).toBeDefined();
   });
 
   it('shows soloed glyph on channel line after channel:soloed', () => {
@@ -395,8 +404,9 @@ describe('GlyphMargin', () => {
     eventBus.emit('channel:soloed', { channel: 1 });
 
     const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
-    const ch1Decor = lastCall[1].find((d: any) => d.range.startLineNumber === 6);
-    expect(ch1Decor?.options.glyphMarginClassName).toBe('bb-glyph--ch-soloed');
+    const line6 = lastCall[1].filter((d: any) => d.range.startLineNumber === 6);
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-solo-on')).toBeDefined();
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-mute-off')).toBeDefined();
   });
 
   it('restores live glyph on channel line after channel:unsoloed', () => {
@@ -407,37 +417,78 @@ describe('GlyphMargin', () => {
     eventBus.emit('channel:unsoloed', { channel: 1 });
 
     const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
-    const ch1Decor = lastCall[1].find((d: any) => d.range.startLineNumber === 6);
-    expect(ch1Decor?.options.glyphMarginClassName).toBe('bb-glyph--ch-live');
+    const line6 = lastCall[1].filter((d: any) => d.range.startLineNumber === 6);
+    expect(line6.find((d: any) => d.options.glyphMarginClassName === 'bb-glyph--ch-solo-off')).toBeDefined();
   });
 
-  // ── Glyph-margin click → toggle mute ─────────────────────────────────────
+  // ── Glyph-margin click → lane-based toggle ───────────────────────────────
 
-  it('toggles mute when clicking on a channel glyph', () => {
-    setupGlyphMargin(mockEditor, eventBus as any);
-    eventBus.emit('parse:success', { ast: {} });
-
-    // Simulate clicking the glyph on channel 1's line (line 6)
+  function marginClick(lineNumber: number, lane: 'left' | 'right') {
+    const width = 20;
+    const left = 100;
+    const offsetX = lane === 'left' ? left + 4 : left + width - 4;
     mouseDownHandler!({
       target: {
         type: (monaco.editor as any).MouseTargetType.GUTTER_GLYPH_MARGIN,
-        position: { lineNumber: 6 },
+        position: { lineNumber },
+        detail: {
+          glyphMarginLeft: left,
+          glyphMarginWidth: width,
+          offsetX,
+          isAfterLines: false,
+          lineNumbersWidth: 0,
+        },
       },
     });
+  }
+
+  it('toggles mute when clicking left lane on a channel line', () => {
+    setupGlyphMargin(mockEditor, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+
+    marginClick(6, 'left');
 
     expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
   });
 
-  it('toggles mute on the correct channel when clicking channel 2', () => {
+  it('toggles solo when clicking right lane on a channel line', () => {
     setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });
 
-    mouseDownHandler!({
-      target: {
-        type: (monaco.editor as any).MouseTargetType.GUTTER_GLYPH_MARGIN,
-        position: { lineNumber: 7 },
-      },
-    });
+    marginClick(6, 'right');
+
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
+  });
+
+  it('right-lane solo click auto-unmutes a muted channel', () => {
+    setupGlyphMargin(mockEditor, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+    channelStore.setChannelMuted(1, true);
+
+    marginClick(6, 'right');
+
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
+  });
+
+  it('left-lane mute click auto-unsolos a soloed channel', () => {
+    setupGlyphMargin(mockEditor, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+    channelStore.toggleChannelSoloed(1);
+
+    marginClick(6, 'left');
+
+    expect(channelStore.channelStates.get()[1]?.muted).toBe(true);
+    expect(channelStore.channelStates.get()[1]?.soloed).toBe(false);
+  });
+
+  it('toggles mute on the correct channel when clicking channel 2 left lane', () => {
+    setupGlyphMargin(mockEditor, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+
+    marginClick(7, 'left');
 
     expect(channelStore.channelStates.get()[2]?.muted).toBe(true);
   });
@@ -450,6 +501,13 @@ describe('GlyphMargin', () => {
       target: {
         type: 4, // not GUTTER_GLYPH_MARGIN
         position: { lineNumber: 6 },
+        detail: {
+          glyphMarginLeft: 100,
+          glyphMarginWidth: 20,
+          offsetX: 104,
+          isAfterLines: false,
+          lineNumbersWidth: 0,
+        },
       },
     });
 
@@ -461,12 +519,7 @@ describe('GlyphMargin', () => {
     eventBus.emit('parse:success', { ast: {} });
 
     // Line 2 is a pat line, not a channel line
-    mouseDownHandler!({
-      target: {
-        type: (monaco.editor as any).MouseTargetType.GUTTER_GLYPH_MARGIN,
-        position: { lineNumber: 2 },
-      },
-    });
+    marginClick(2, 'left');
 
     expect(channelStore.channelStates.get()[1]?.muted).toBe(false);
   });
