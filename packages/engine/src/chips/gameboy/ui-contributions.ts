@@ -16,15 +16,15 @@ Exactly 4 channels. Each channel number (1–4) must appear AT MOST ONCE per son
 Channel-to-type mapping is FIXED — you cannot swap these:
   channel 1 → type=pulse1   (melodic) — typically: lead melody
   channel 2 → type=pulse2   (melodic) — typically: harmony, counter-melody, or bass
-  channel 3 → type=wave     (wavetable, no envelope volume) — typically: bass or accompaniment
-  channel 4 → type=noise    (drums/percussion) — typically: kick, snare, hi-hat
+  channel 3 → type=wave     (wavetable, no envelope volume) — typically: bass, kick drum or accompaniment
+  channel 4 → type=noise    (drums/percussion) — typically: snare, hi-hat
 NEVER write two "channel <number> =>" lines. NEVER define instruments inside pat bodies.
 
 INSTRUMENTS  (inst <name> <fields>)
   type=pulse1|pulse2    duty=<12|25|50|75>   env=<0-15>,<up|down|flat>
-  type=wave             wave=[<16 values 0-15>]  (no env)
+  type=wave             wave=[<32 values 0-15>]   volume=<0|25|50|100>
   type=noise            env=<0-15>,<up|down|flat>
-  Extended GB envelope: env=gb:<vol>,<dir>,<period>  e.g. env=gb:12,down,1
+  Extended GB envelope: env=gb:<vol>,<dir>,<period> (pulse/noise only; not wave)
   sweep effect is only valid on channel 1 (pulse1).
   For percussion, define NAMED noise instruments (e.g. kick, snare, hihat) with
   different envelopes to distinguish timbres. You can have multiple noise instruments.`.trim();
@@ -45,42 +45,44 @@ GAME BOY CHIPTUNE STYLE GUIDE (recommendations, not rules)
        effect dom7Arp  = arp:4,7,10    # dominant 7th
      Apply on held notes:  F3<majorArp>:8  G3<minorArp>:8
 
-  2. VIBRATO on sustained melody notes — adds expressiveness to peaks and long holds.
-     Vary depth/speed to differentiate song sections:
+    2. VIBRATO + SHORT ENVELOPES — use vibrato on sustained notes and short punchy
+      envelopes for attack; this combination works very well for expressive leads.
+      Vary depth/speed by section:
        effect wobble  = vib:3,5,sine,3  # gentle wobble on melody peaks
-       effect deepVib = vib:5,2,sine,6  # slow atmospheric vibrato for bridges
-       effect fastVib = vib:2,8,sine,2  # rapid shimmer on climax notes
+       effect deepVib = vib:5,2,sine,6  # slower vibrato for bridges
+       effect fastVib = vib:2,8,sine,2  # shimmer on climactic notes
 
-  3. TREMOLO for shimmer/sparkle effects on climactic notes:
-       effect shimmer = trem:5,8,sine   # fast amplitude flicker — triumphant peaks
-       effect horror  = trem:3,8,square # choppy square-wave tremolo — tense sections
-
-  4. PORTAMENTO / slides for melodic runs and legato bass lines:
+    3. PORTAMENTO / slides for melodic runs and legato bass lines:
        effect slide     = port:10  # snappy slide — ascending scalar runs
        effect slowSlide = port:4   # smooth legato — walking bass lines
      Use on ascending runs:  C4:2 E4<slide>:2 G4<slide>:2 C5<slide>:2
 
-  5. DUTY-CYCLE MODULATION (DCM) — define multiple pulse instruments with different
-     duty values and switch between them inline within a pattern for timbral variety:
-       inst lead_thin  type=pulse1 duty=12 env=gb:13,down,2  # hollow, nasal
-       inst lead_bright type=pulse1 duty=50 env=gb:12,down,3  # balanced, bold
-       inst lead_warm  type=pulse1 duty=75 env=gb:11,down,4  # warm, full
-       pat riff = inst lead_thin C5:2 E5:2 inst lead_bright G5:4 inst lead_warm C6:4
+    4. USE HUGETRACKER-EXPORTABLE FX HEAVILY — prefer panning and volume slide for
+      motion/space that survives UGE export:
+       effect leftPan  = pan:L
+       effect rightPan = pan:R
+       effect swell    = volSlide:+8,4
+       effect fade     = volSlide:-3
 
-  6. FAST 16th-NOTE MELODIES — GB music is characterised by energetic, rapid note
-     sequences. Use short durations (:2 to :4) for melodic runs and fills.
-     Avoid overly long notes unless intentionally atmospheric.
+    5. PULSE-PAIR HARMONY (CH1 + CH2) — let Pulse 1 carry melody and Pulse 2 play
+      harmonizing intervals (3rds, 5ths, 6ths) with contrasting duty cycles.
+      Example timbral split: pulse1 duty=12 (lead), pulse2 duty=75 (harmony).
 
-  7. SHORT, PUNCHY ENVELOPES — fast-decay envelopes give the characteristic bright
-     GB attack. Prefer env=gb:<vol>,down,1 or env=gb:<vol>,down,2 for lead/bass.
-     Slower periods (3–6) for pads and atmospheric sustained notes.
+    6. OCTAVE DOUBLING + CALL/RESPONSE — alternate short phrase answers between ch1/ch2,
+      and use octave doubling in hooks/choruses to widen the line without extra chords.
 
-  8. NAMED PRESETS for all recurring effects — define effect presets at the top of
+    7. WAVE CHANNEL ROLE-SWITCHING — use different wave instruments on channel 3 for
+      different roles (e.g., kick-like wave hit vs bass waveform), switching by section.
+      Layer these with pulse harmony/arpeggios for thicker arrangements.
+
+    8. NAMED PRESETS for all recurring effects — define effect presets at the top of
      the song, before any patterns, and reference them by name throughout.
      This is idiomatic BeatBax style:
        effect wobble   = vib:3,5,sine,3
        effect majorArp = arp:4,7
-       effect slide    = port:10`.trim();
+       effect slide    = port:10
+       effect fade     = volSlide:-3
+       effect leftPan  = pan:L`.trim();
 
 // ─── Hover docs ───────────────────────────────────────────────────────────────
 
@@ -95,7 +97,7 @@ const hoverDocs: Record<string, string> = {
     '**Game Boy instrument types:**',
     '- `type=pulse1` — `duty` (`12`·`25`·`50`·`75`), `env`, `sweep` (pulse1 only); see `env` and `sweep` hovers',
     '- `type=pulse2` — `duty`, `env`; no hardware sweep',
-    '- `type=wave` — `wave` (16 × 0–15 array or 32-nibble hex string), `volume` (`0`·`25`·`50`·`100`); no envelope',
+    '- `type=wave` — `wave` (32 × 0–15 array, 16 × 0–15 array, or 32-nibble hex string), `volume` (`0`·`25`·`50`·`100`); no envelope',
     '- `type=noise` — `env`, `width` (`7` = metallic/tonal · `15` = full/broad)',
     '',
     'Example: `inst lead type=pulse1 duty=50 env=gb:12,down,1`',
@@ -107,7 +109,7 @@ const hoverDocs: Record<string, string> = {
   wave: [
     '**Wave channel** — Game Boy wavetable synthesizer (NR30–NR34 + Wave RAM).',
     'The `wave=` parameter accepts three formats:',
-    '```\n# 16-entry array (0–15 per sample; duplicated to fill 32-nibble Wave RAM on export)\nwave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]\n\n# 32-entry array (full Wave RAM — each value 0–15)\nwave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]\n\n# 32-nibble hex string (hUGETracker format — one hex digit per nibble)\nwave="0478ABBB986202467776420146777631"\n```',
+    '```\n# 32-entry array (full Wave RAM — each value 0–15)\nwave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]\n\n# 16-entry array (0–15 per sample; duplicated to fill 32-nibble Wave RAM on export)\nwave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]\n\n# 32-nibble hex string (hUGETracker format — one hex digit per nibble)\nwave="0478ABBB986202467776420146777631"\n```',
     '- Values are **4-bit** (0–15). Values outside this range are clamped on export.',
     '- Maximise peak (near 15) for good perceived loudness; avoid strong DC offset.',
     '- Use `volume=` (`0` · `25` · `50` · `100`) to set the hardware output-level selector.',
@@ -182,8 +184,8 @@ const helpSections: ChipUIContributions['helpSections'] = [
         kind: 'snippet',
         label: 'Wave channel (type=wave)',
         code:
-`inst wv type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
-# wave: 16 nibble values (0-15) defining the 4-bit wavetable`,
+      `inst wv type=wave wave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]
+    # wave: 32 nibble values (0-15) defining full Wave RAM`,
       },
       {
         kind: 'snippet',

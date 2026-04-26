@@ -74,21 +74,23 @@ channelStates.subscribe((states) => {
 
 export function setChannelMuted(id: number, muted: boolean): void {
   const current = channelStates.get();
+  const base = current[id] ?? makeDefaultChannel(id);
   channelStates.setKey(id, {
-    ...current[id],
+    ...base,
     muted,
     // A muted channel cannot stay soloed.
-    soloed: muted ? false : current[id].soloed,
+    soloed: muted ? false : base.soloed,
   });
 }
 
 export function setChannelSoloed(id: number, soloed: boolean): void {
   const current = channelStates.get();
+  const base = current[id] ?? makeDefaultChannel(id);
   channelStates.setKey(id, {
-    ...current[id],
+    ...base,
     soloed,
     // A soloed channel must be audible.
-    muted: soloed ? false : current[id].muted,
+    muted: soloed ? false : base.muted,
   });
 }
 

@@ -213,6 +213,13 @@ export class PatternGrid {
   private _rowsWrap: HTMLElement | null = null;
   /** Last global cursor percentage. */
   private _globalPct = 0;
+  /** Cached geometry for placing the global playhead without per-tick reflow reads. */
+  private _globalCursorXOffset = 0;
+  private _globalCursorTrackWidth = 0;
+  private _globalCursorLayoutValid = false;
+  /** Layout observers/listeners used to invalidate cached cursor geometry. */
+  private _layoutObserver: ResizeObserver | null = null;
+  private _onWindowResize = () => this._invalidateGlobalCursorLayout();
   /** Unsubscribe from channelStates store. */
   private _unsubStore: (() => void) | null = null;
 
@@ -226,15 +233,20 @@ export class PatternGrid {
 
     // Reactively update M/S button states when channel store changes
     this._unsubStore = channelStates.subscribe(() => this._syncMuteSolo());
+
+    // Recompute global cursor anchoring only when layout may have changed.
+    window.addEventListener('resize', this._onWindowResize);
   }
 
   /** Rebuild the grid from a resolved SongModel (treated as `any` to avoid import deps). */
   setSong(song: any, ast?: any): void {
+    this._teardownLayoutObserver();
     this.el.innerHTML = '';
     this._rows.clear();
     this._globalCursor = null;
     this._rowsWrap = null;
     this._globalPct = 0;
+    this._invalidateGlobalCursorLayout();
 
     const channels: any[] = song?.channels ?? [];
     if (channels.length === 0) {
@@ -395,6 +407,7 @@ export class PatternGrid {
     }
 
     this.el.appendChild(rowsWrap);
+    this._setupLayoutObserver();
 
     // Apply current mute/solo state to the freshly built buttons
     this._syncMuteSolo();
@@ -464,25 +477,60 @@ export class PatternGrid {
 
   private _setGlobalCursorPosition(pct: number): void {
     const global = this._globalCursor;
-    const rowsWrap = this._rowsWrap;
-    const firstRow = this._rows.values().next().value as RowMeta | undefined;
-    if (!global || !rowsWrap || !firstRow) return;
+    if (!global) return;
 
     global.style.display = 'block';
     global.classList.remove('bb-pgrid__cursor--paused');
     this._globalPct = pct;
 
-    // Anchor to the track start (not full row start) so x=0 aligns to the
-    // first pattern block instead of the M/S controls.
-    const wrapRect = rowsWrap.getBoundingClientRect();
-    const trackRect = firstRow.track.getBoundingClientRect();
-    if (wrapRect.width <= 0 || trackRect.width <= 0) {
+    if (!this._ensureGlobalCursorLayout()) {
       global.style.left = `${pct}%`;
       return;
     }
 
-    const x = (trackRect.left - wrapRect.left) + trackRect.width * (pct / 100);
+    const x = this._globalCursorXOffset + this._globalCursorTrackWidth * (pct / 100);
     global.style.left = `${x}px`;
+  }
+
+  private _invalidateGlobalCursorLayout(): void {
+    this._globalCursorLayoutValid = false;
+  }
+
+  private _ensureGlobalCursorLayout(): boolean {
+    if (this._globalCursorLayoutValid) return true;
+
+    const rowsWrap = this._rowsWrap;
+    const firstRow = this._rows.values().next().value as RowMeta | undefined;
+    if (!rowsWrap || !firstRow) return false;
+
+    // Anchor to the track start (not full row start) so x=0 aligns to the
+    // first pattern block instead of the M/S controls.
+    const wrapRect = rowsWrap.getBoundingClientRect();
+    const trackRect = firstRow.track.getBoundingClientRect();
+    if (wrapRect.width <= 0 || trackRect.width <= 0) return false;
+
+    this._globalCursorXOffset = trackRect.left - wrapRect.left;
+    this._globalCursorTrackWidth = trackRect.width;
+    this._globalCursorLayoutValid = true;
+    return true;
+  }
+
+  private _setupLayoutObserver(): void {
+    this._teardownLayoutObserver();
+    const rowsWrap = this._rowsWrap;
+    const firstRow = this._rows.values().next().value as RowMeta | undefined;
+    if (!rowsWrap || !firstRow || typeof ResizeObserver === 'undefined') return;
+
+    this._layoutObserver = new ResizeObserver(() => {
+      this._invalidateGlobalCursorLayout();
+    });
+    this._layoutObserver.observe(rowsWrap);
+    this._layoutObserver.observe(firstRow.track);
+  }
+
+  private _teardownLayoutObserver(): void {
+    this._layoutObserver?.disconnect();
+    this._layoutObserver = null;
   }
 
   private _syncMuteSolo(): void {

@@ -32,7 +32,7 @@ describe('Metadata hover context detection', () => {
     return inQuote;
   }
 
-  it('detects text inside single-quoted strings', () => {
+  it('detects text inside double-quoted strings', () => {
     const line = 'song description "text with lead here"';
     // Position 27 is at 'l' in 'lead'
     expect(isPositionInString(line, 27)).toBe(true);

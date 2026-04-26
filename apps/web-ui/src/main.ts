@@ -859,7 +859,6 @@ eventBus.on('playback:paused', () => {
 
 eventBus.on('playback:started',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
 eventBus.on('playback:resumed',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
-eventBus.on('playback:started',  () => { try { patternGrid.resetGlobalCursor(); } catch (_e) {} });
 
 // When a new file is loaded, clear the manual loop override so the next
 // parse:success can re-sync the loop button from the incoming song's play directive.

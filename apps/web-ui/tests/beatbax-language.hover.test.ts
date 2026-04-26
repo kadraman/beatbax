@@ -6,6 +6,26 @@ describe('BeatBax Monaco hover provider', () => {
     jest.clearAllMocks();
   });
 
+  function makeMultilineModel(lines: string[]) {
+    return {
+      getLineCount: jest.fn(() => lines.length),
+      getLineContent: jest.fn((lineNumber: number) => lines[lineNumber - 1] ?? ''),
+      getWordAtPosition: jest.fn((position: monaco.IPosition) => {
+        const line = lines[position.lineNumber - 1] ?? '';
+        const idx = Math.max(0, position.column - 1);
+        const left = line.slice(0, idx).match(/[a-zA-Z_]\w*$/)?.[0] ?? '';
+        const right = line.slice(idx).match(/^\w*/)?.[0] ?? '';
+        const word = left + right;
+        if (!word) return null;
+        return {
+          word,
+          startColumn: idx - left.length + 1,
+          endColumn: idx + right.length + 1,
+        };
+      }),
+    } as any;
+  }
+
   function getHoverProvider() {
     registerBeatBaxLanguage();
     const call = (monaco.languages.registerHoverProvider as jest.Mock).mock.calls.find(
@@ -49,5 +69,20 @@ describe('BeatBax Monaco hover provider', () => {
 
     expect(hover).toBeTruthy();
     expect(hover.contents[0].value).toContain('target audio chip');
+  });
+
+  test('suppresses hovers on continuation lines inside triple-quoted metadata', () => {
+    const hoverProvider = getHoverProvider();
+    const lines = [
+      'song description """Opening line with lead mention',
+      'middle line with lead and ghost names',
+      'closing line"""',
+    ];
+    const model = makeMultilineModel(lines);
+    const column = lines[1].indexOf('lead') + 2;
+
+    const hover = hoverProvider.provideHover(model, { lineNumber: 2, column });
+
+    expect(hover).toBeNull();
   });
 });

@@ -26,52 +26,79 @@ interface WaveHoverParseResult {
   hoveredIndex: number | null;
 }
 
+interface QuoteScanState {
+  inDouble: boolean;
+  inTriple: boolean;
+}
+
+function scanQuoteState(text: string, initial: QuoteScanState): QuoteScanState {
+  let i = 0;
+  let inDouble = initial.inDouble;
+  let inTriple = initial.inTriple;
+
+  while (i < text.length) {
+    // Triple-quote delimiter toggles multiline-string mode.
+    if (!inDouble && text.substring(i, i + 3) === '"""') {
+      inTriple = !inTriple;
+      i += 3;
+      continue;
+    }
+
+    // Normal double-quoted strings are tracked only outside triple-quote mode.
+    if (!inTriple && text[i] === '"' && (i === 0 || text[i - 1] !== '\\')) {
+      inDouble = !inDouble;
+    }
+
+    i += 1;
+  }
+
+  return { inDouble, inTriple };
+}
+
 /**
- * Check if a position is inside a quoted string (single or triple-quoted).
+ * Check if a position is inside a quoted string (double or triple-quoted).
  * Can work with either a line string directly or via Monaco model + position.
  */
 function isPositionInString(
   modelOrLine: monaco.editor.ITextModel | string,
   positionOrColumn?: monaco.IPosition | number,
 ): boolean {
-  let line: string;
-  let column: number;
-
-  // Overload: (ITextModel, IPosition) or (string, number)
+  // Overload: (string, number)
   if (typeof modelOrLine === 'string') {
-    line = modelOrLine;
-    column = (positionOrColumn as number) || 0;
-  } else {
-    // It's an ITextModel
-    const model = modelOrLine as monaco.editor.ITextModel;
-    const position = positionOrColumn as monaco.IPosition;
-    line = model.getLineContent(position.lineNumber);
-    column = position.column;
+    const line = modelOrLine;
+    const column = (positionOrColumn as number) || 0;
+    const upToCursor = line.substring(0, Math.max(0, column - 1));
+    const state = scanQuoteState(upToCursor, { inDouble: false, inTriple: false });
+    return state.inDouble || state.inTriple;
   }
 
-  // Scan from line start to cursor position to count quote pairs
-  const upToCursor = line.substring(0, column - 1);
+  // Overload: (ITextModel, IPosition)
+  const model = modelOrLine as monaco.editor.ITextModel;
+  const position = positionOrColumn as monaco.IPosition;
 
-  let i = 0;
-  let inSingleQuote = false;
+  // If a lightweight mock omits getLineCount, gracefully fall back to line-local scan.
+  if (typeof model.getLineCount !== 'function') {
+    const line = model.getLineContent(position.lineNumber);
+    const upToCursor = line.substring(0, Math.max(0, position.column - 1));
+    const state = scanQuoteState(upToCursor, { inDouble: false, inTriple: false });
+    return state.inDouble || state.inTriple;
+  }
 
-  while (i < upToCursor.length) {
-    // Check for triple quotes first
-    if (upToCursor.substring(i, i + 3) === '"""') {
-      inSingleQuote = !inSingleQuote;
-      i += 3;
-    } else if (upToCursor[i] === '"') {
-      // Only toggle single quotes if NOT in triple-quote mode
-      if (!inSingleQuote || upToCursor.substring(i - 2, i) !== '""') {
-        inSingleQuote = !inSingleQuote;
-      }
-      i += 1;
-    } else {
-      i += 1;
+  let state: QuoteScanState = { inDouble: false, inTriple: false };
+
+  for (let lineNo = 1; lineNo <= model.getLineCount(); lineNo++) {
+    const line = model.getLineContent(lineNo);
+    if (lineNo < position.lineNumber) {
+      state = scanQuoteState(line, state);
+      continue;
     }
+
+    const upToCursor = line.substring(0, Math.max(0, position.column - 1));
+    const cursorState = scanQuoteState(upToCursor, state);
+    return cursorState.inDouble || cursorState.inTriple;
   }
 
-  return inSingleQuote;
+  return false;
 }
 
 function parseWaveLiteralAtPosition(
@@ -1249,9 +1276,11 @@ export function registerBeatBaxLanguage(): void {
       const tokens: number[] = [];
       let prevLine = 0;
       let prevChar = 0;
+      let quoteState: QuoteScanState = { inDouble: false, inTriple: false };
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const lineStartState = quoteState;
 
         // Skip comments early
         const commentIdx = line.indexOf('#');
@@ -1270,7 +1299,9 @@ export function registerBeatBaxLanguage(): void {
           if (typeIdx !== -1) {
             // Skip semantic coloring if this identifier is inside a quoted string (metadata)
             const matchColumn = match.index + 1; // Monaco columns are 1-indexed
-            if (isPositionInString(line, matchColumn)) {
+            const preToken = line.substring(0, Math.max(0, matchColumn - 1));
+            const tokenState = scanQuoteState(preToken, lineStartState);
+            if (tokenState.inDouble || tokenState.inTriple) {
               continue;
             }
 
@@ -1286,6 +1317,8 @@ export function registerBeatBaxLanguage(): void {
             prevChar = startChar;
           }
         }
+
+        quoteState = scanQuoteState(line, lineStartState);
       }
 
       const result = new Uint32Array(tokens);
