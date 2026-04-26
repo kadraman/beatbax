@@ -1,5 +1,15 @@
 # @beatbax/plugin-exporter-famitracker
 
+## 0.2.1
+
+### Patch Changes
+
+- 33fa3d7: - Normalize NES DMC WebAudio loudness to match normalized channel playback without affecting hardware-scaled PCM rendering.
+  - Warn when FamiTracker export patterns use non-power-of-2 row counts to avoid silent boundary rows and improve export diagnostics.
+- Updated dependencies [e1dd039]
+- Updated dependencies [b5dcde4]
+  - @beatbax/engine@0.11.2
+
 ## 0.2.0
 
 ### Minor Changes

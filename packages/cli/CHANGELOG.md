@@ -1,5 +1,19 @@
 # @beatbax/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- b5dcde4: engine: fixed Gameboy instrument volume implementation (always starting at max)
+  cli: added additional tests
+  ===
+- Updated dependencies [33fa3d7]
+- Updated dependencies [e1dd039]
+- Updated dependencies [b5dcde4]
+  - @beatbax/plugin-chip-nes@0.4.1
+  - @beatbax/plugin-exporter-famitracker@0.2.1
+  - @beatbax/engine@0.11.2
+
 ## 0.4.0
 
 ### Minor Changes

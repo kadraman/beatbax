@@ -1,5 +1,14 @@
 # @beatbax/engine
 
+## 0.11.2
+
+### Patch Changes
+
+- e1dd039: support for master volume override
+- b5dcde4: engine: fixed Gameboy instrument volume implementation (always starting at max)
+  cli: added additional tests
+  ===
+
 ## 0.11.1
 
 ### Patch Changes
