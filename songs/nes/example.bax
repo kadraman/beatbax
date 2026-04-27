@@ -1,0 +1,449 @@
+## example-1.bax
+##
+## NES BeatBax arrangement transcribed and adapted from songs/nes/example-1.mid.
+## Original MIDI: 5 tracks (meta, Square 1, Square 2, Triangle, Noise ch10).
+## Key: Bb minor  (Bb C Db Eb F Gb Ab)
+## Tempo: 120 BPM, 4/4 time
+## PPQ: 240 (1 BeatBax tick = 1/16 note = 1 MIDI quarter = 240 ticks)
+##
+## Channel assignment:
+##   Ch1 (Pulse 1)  : Lead melody — 25% duty, nasal and cutting
+##   Ch2 (Pulse 2)  : Harmony / counter-melody — 50% duty, warm
+##   Ch3 (Triangle) : Walking bass — active 16th-note patterns
+##   Ch4 (Noise)    : Drums — kick (period 12) + snare (period 7)
+##   Ch5 (DMC)      : Sample reinforcement — @nes/kick + @nes/snare
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Details
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Key        : Bb minor  (Bb C Db Eb F Gb Ab)  — 5 flats
+##   Tempo      : 120 BPM
+##   Chip       : NES  (Ricoh 2A03 — all 5 channels)
+##   Style      : Dramatic minor-key adventure theme; brooding, driving
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Song Structure  (16 bars = 256 scheduler ticks)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Bars  1– 4 : INTRO     — Percussion groove only; melody/harmony enter bar 5
+##   Bars  5– 8 : THEME A   — Lead melody enters with driving 16th-note runs
+##                            (Bb minor; Pulse 1 melody, Pulse 2 long tones)
+##   Bars  9–12 : THEME B   — Darker variation; melody steps down, bass intensifies
+##   Bars 13–16 : REPRISE   — Return of Theme A material with fuller arrangement
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Channel Roles
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   Ch1 (Pulse 1) : Lead melody
+##                   25% duty throughout — cutting minor-key lead
+##                   Busy 16th-note runs in bars 5-8, 9 and 13-16
+##                   Quarter/half note passages in bars 10-12 for contrast
+##
+##   Ch2 (Pulse 2) : Harmony
+##                   Silent in bars 1-4 (drums-only intro)
+##                   Sustained long tones (Eb5, Ab4, F4) in bars 5-12
+##                   Active descending 16th runs in bars 13-16 climax
+##
+##   Ch3 (Triangle): Walking bass
+##                   Active 16th-note chromatic ornaments; root-fifth motion
+##                   Bb minor: Bb2/F2/Eb3 foundation through all bars
+##                   Ascending chromatic gliss figures at phrase ends
+##
+##   Ch4 (Noise)   : Drums
+##                   Intro: C2=kick / D2=snare syncopated groove (bars 1-10)
+##                   Varied groove with D3/C3/B2/A2 descending fill breaks
+##
+##   Ch5 (DMC)     : Kick/snare sample reinforcement
+##                   kick_dmc on strong beats, snare_dmc on beats 2 & 4
+##
+## ─────────────────────────────────────────────────────────────────────────────
+## Timing Reference  (120 BPM, 4 ticks per beat, 16 ticks per bar)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+##   1 tick  = 1/16 note  = 125 ms
+##   2 ticks = 1/8  note  = 250 ms
+##   4 ticks = 1/4  note  = 500 ms
+##   8 ticks = 1/2  note  = 1000 ms
+##  16 ticks = 1 bar      = 2000 ms
+##
+## All patterns = exactly 16 ticks.  All sequences = exactly 256 ticks (16 × 16).
+##
+## Play: node bin/beatbax play songs/nes/example-1.bax
+
+song name "Example 1"
+song artist "BeatBax"
+song description """NES chiptune arrangement in Bb minor at 120 BPM transcribed from example-1.mid. Brooding minor-key adventure theme with driving 16th-note lead runs on Pulse 1, long sustained harmony tones on Pulse 2, active chromatic walking bass on Triangle, syncopated drum groove on Noise, and bundled DMC kick/snare reinforcement on Channel 5. Full 5-channel 2A03 arrangement."""
+song tags "nes,minor,dramatic,adventure,brooding,example"
+
+chip nes
+bpm 120
+
+# =============================================================================
+# INSTRUMENTS
+# =============================================================================
+
+# ── Pulse 1 — Lead ───────────────────────────────────────────────────────────
+# 25% duty: nasal, cutting minor-key lead. Flat envelope for fast 16th runs.
+inst lead       type=pulse1  duty=25  env=12,flat
+
+# ── Pulse 2 — Harmony ────────────────────────────────────────────────────────
+# 50% duty: warm, organ-like. Slightly softer than lead.
+# Long sustained tones sit beneath the active melody.
+inst harm       type=pulse2  duty=50  env=9,flat
+
+# ── Triangle — Bass ──────────────────────────────────────────────────────────
+# NES triangle. Quarter-note and 16th-note bass lines in Bb2–Eb3 range.
+inst tri        type=triangle
+
+# ── Noise — Drums ────────────────────────────────────────────────────────────
+# kick: low-frequency thud (period=12). Deep, punchy.
+inst kick       type=noise  noise_mode=normal  noise_period=12  env=15,down  env_period=2
+
+# snare: mid-frequency crack (period=7). Papery, snappy.
+inst snare      type=noise  noise_mode=normal  noise_period=7   env=14,down  env_period=2
+
+# hihat: high-frequency sizzle (period=2). Subtle, crisp tick.
+inst hihat      type=noise  noise_mode=normal  noise_period=2   env=6,down   env_period=0
+
+# ── DMC — Sample Reinforcement ───────────────────────────────────────────────
+# Bundled @nes samples add transient punch to the noise drums.
+inst kick_dmc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
+inst snare_dmc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
+
+# =============================================================================
+# EFFECT PRESETS
+# =============================================================================
+
+# minArp — Bb minor triad arpeggio: root → +3 st (m3) → +7 st (P5) → cycle.
+# Applied to long held notes to imply Bb minor chord from a single channel.
+effect minArp = arp:3,7
+
+# fifthArp — power chord (root → P5) cycling arpeggio.
+# Used on Pulse 2 harmony long tones for an open, driving sound.
+effect fifthArp = arp:7,12
+
+# vib_lead — subtle vibrato for sustained lead notes.
+# depth=2, rate=4 Hz, sine wave, 2-tick onset delay.
+effect vib_lead = vib:2,4,sine,2
+
+# =============================================================================
+# PATTERNS — all exactly 16 ticks (one bar at 120 BPM)
+# =============================================================================
+##
+## Notation:
+##   N4:M        = note N octave 4, lasting M ticks
+##   .           = 1-tick rest
+##   N4<eff>:M   = note with effect
+##   (1+3) = one 16th note + 3 rests = 1 quarter note slot
+
+## ─────────────────────────────────────────────────────────────────────────────
+## PULSE 1 — LEAD MELODY
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## Bars 1–4: Silence — let drums establish the groove.
+pat lead_silence = . . . . . . . . . . . . . . . .  # 16 rests = 16 ✓
+
+## Bar 5 — Lead enters: A4 quarter → Bb4 pickup → Bb4 dotted eighth → C5 sixteenth.
+##   Translated from MIDI bars 5-6 (Square 1 ch1) first 4 beats.
+##   MIDI: b3+1 A4:2bx, b4 Bb4:1bx, b4+2 Bb4:2bx — entering mid-bar.
+##   We start at tick 0 of this BeatBax bar.
+##
+##   tick: 0–7 (rest, leading silence) then A4:2 Bb4:1 . Bb4:2 . . .
+##   Adjusted: full bar with rest into pickup feel:
+##   . . . . . . . . A4:2 Bb4:1 . Bb4:2 . . .  = 8+2+1+1+2+2 = 16 ✓
+pat lead_a1 = . . . . . . . A4:2 Bb4:1 . Bb4:2 . . .  # 7+2+1+1+2+3 = 16 ✓
+
+## Bar 6 — Answering phrase: A4 → A4 → Bb4 → C5 → C5 → Bb4 → C5 eighth motifs.
+##   From MIDI bars 6-7 Square 1: A4 at b2, A4 b2+2, Bb4 b3+1, C5 b4, C5 b4+2
+##   Mapped to 16 ticks as 16th and 8th notes:
+##   . . . . A4:1 . A4:2 Bb4:2 C5:1 . C5:2 Bb4:1 . C5:2
+##   = 4+1+1+2+2+1+1+2+1+1+2 = nope, recalc:
+##   . . . . A4:1 . A4:2 Bb4:2 C5:1 . C5:2 Bb4:2 C5:1  = 4+1+1+2+2+1+1+2+2 = 16 ✓
+pat lead_a2 = . . . . A4:1 . A4:2 Bb4:2 C5:1 . C5:2 Bb4:1 C5:1  # 4+1+1+2+2+1+1+2+1+1 = 16 ✓
+
+## Bar 7 — G4 area motif with Bb4 ornaments mirroring bars 7-8 of MIDI:
+##   G4 b2, G4 b2+2, A4 b3+1, Bb4 b4, Bb4 b4+2 (MIDI bars 7-8 Square 1)
+##   . . . . G4:1 . G4:2 A4:2 Bb4:1 . Bb4:2 . . . = 4+1+1+2+2+1+1+2+2 = 16 ✓
+pat lead_a3 = . . . . G4:1 . G4:2 A4:2 Bb4:1 . Bb4:2 . .  # 4+1+1+2+2+1+1+2+2 = 16 ✓
+
+## Bar 8 — Climactic rise to C5: A4 → A4 → Bb4 → C5 held half-bar.
+##   MIDI bar 8 Square 1: A4 b2, A4 b2+2, Bb4 b3+1, C5 b4:3bx
+##   . . . . A4:1 . A4:2 Bb4:2 C5:4 . . .  = 4+1+1+2+2+4+2 = 16 ✓
+pat lead_a4 = . . . . A4:1 . A4:2 Bb4:2 C5:4 . .  # 4+1+1+2+2+4+2 = 16 ✓
+
+## Bar 9 — Big fanfare: F5 held 3 ticks, then descending 16th run G5-F5-G5-F5
+##   then D6-C6-Bb5-A5-G5-F5-G5-F5 cascade down.
+##   MIDI bar 9: F5:3bx b1, G5 G5 G5 G5 (b2 sixteenths), D6 C6 Bb5 A5 (b3), G5 F5 G5 F5 (b4)
+##   F5:3 G5:1 F5:1 G5:1 F5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 = 3+10×1+? = 13, need 16
+##   F5:3 . G5:1 F5:1 G5:1 F5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 = 3+1+12 = 16 ✓
+pat lead_b1 = F5:3 . G5:1 F5:1 G5:1 F5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1  # 16 ✓
+
+## Bar 10 — Descent continues then steps to low register:
+##   MIDI bar 10: D5 C5 D5 C5 (b1 sixteenths), G3 held 3bx (b2), G3 D4 Eb4 (b3), G4 F4 (b4)
+##   D5:1 C5:1 D5:1 C5:1 G3:3 . D4:1 Eb4:1 . G4:2 F4:2 = 1+1+1+1+3+1+1+1+1+2+2 = 15 — add one rest
+##   D5:1 C5:1 D5:1 C5:1 G3:3 . D4:1 Eb4:1 . G4:2 F4:2 . = 16 ✓
+pat lead_b2 = D5:1 C5:1 D5:1 C5:1 G3:3 . D4:1 Eb4:1 . G4:2 F4:2 .  # 16 ✓
+
+## Bar 11 — Low chromatic ascent: Eb4 D4 Bb3, then C3 triplets, then D3 Eb3.
+##   MIDI bar 11: Eb4:1 D4:2 Bb3:1, C3 C3 C3 C3 (8ths), D3:2 Eb3:2
+##   Eb4:1 D4:2 Bb3:1 C3:1 C3:1 C3:1 C3:1 D3:2 Eb3:2 . . . = 1+2+1+1+1+1+1+2+2+3 = 15+1 = 16 ✓
+pat lead_b3 = Eb4:1 D4:2 Bb3:1 C3:1 C3:1 C3:1 C3:1 D3:2 Eb3:2 . . . .  # 1+2+1+4+2+2+4 = 16 ✓
+
+## Bar 12 — Stepwise ascent: F3-G3 → F3 long → G3-A3 → Bb3 long.
+##   MIDI bar 12: F3:1 G3:2 (b1), F3:3 (b2), G3:1 A3:2 (b3), Bb3:3 (b4)
+##   F3:1 G3:2 F3:3 G3:1 A3:2 Bb3:3 . . . . = 1+2+3+1+2+3+4 = 16 ✓
+pat lead_b4 = F3:1 G3:2 F3:3 G3:1 A3:2 Bb3:3 . . . .  # 16 ✓
+
+## Bar 13 — Ascending chromatic climb and Bb4 accent: C4 D4 → Eb4 long → Eb4 F4 G4 Bb4 long.
+##   MIDI bar 13: C4:1 D4:2 Eb4:3, Eb4 F4 G4 (triplet feel) Bb4:3
+##   C4:1 D4:2 Eb4:3 Eb4:1 F4:1 G4:1 Bb4:4 . . . = 1+2+3+1+1+1+4+3 = 16 ✓
+pat lead_c1 = C4:1 D4:2 Eb4:3 Eb4:1 F4:1 G4:1 Bb4:4 . . .  # 16 ✓
+
+## Bar 14 — Fast descending run: A4 C4 Eb4 F4 G4 F4 G4 C4 then C4 Eb4 F4 G4...
+##   MIDI bar 14: A4:1 C4:1 Eb4:1 F4:1 G4:1 F4:1 G4:2 C4:1, C4:1 Eb4:1 F4:2 Bb4:1 A4:1
+##   = 1+1+1+1+1+1+2+1+1+1+2+1+1 = 15 + 1 rest = 16 ✓
+pat lead_c2 = A4:1 C4:1 Eb4:1 F4:1 G4:1 F4:1 G4:2 C4:1 Eb4:1 F4:2 Bb4:1 A4:1 . .  # 1×8+2+1+2+1+1+2 = 16 ✓
+
+## Bar 15 — Ascending chromatic line to C5/D5:
+##   MIDI bar 15 (close to bar 14 restatement):
+##   Bb4:1 A4:2 F4:1 G4:1 F4:1 G4:2 C4:1 C4:1 Eb4:1 F4:2 Bb4:1 A4:1 .
+##   = 1+2+1+1+1+2+1+1+1+2+1+1+1 = 16 ✓
+pat lead_c3 = Bb4:1 A4:2 F4:1 G4:1 F4:1 G4:2 C4:1 Eb4:1 F4:2 Bb4:1 A4:1 . .  # 1+2+1+1+1+2+1+1+2+1+1+2 = 16 ✓
+
+## Bar 16 — Final bar ascending then descend to F3/Bb3 pedal:
+##   MIDI bar 16: Bb4:1 C5:2 D5:1 F3:3 G3:1 A3:2 Bb3:3 . . .
+##   = 1+2+1+3+1+2+3+3 = 16 ✓
+pat lead_fin = Bb4:1 C5:2 D5:1 F3:3 G3:1 A3:2 Bb3:3 . . .  # 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## PULSE 2 — HARMONY
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## Bars 1–4: Silent (intro).
+## Bars 5–8: Long sustained tones from MIDI T2 (Square 2, ch2).
+##   Key observations: Ab4 held for 18bx (≈ half of a 16-bar span), F4:6bx, Eb5 long,
+##   with Bb4/C5 pickup ornaments at phrase ends.
+## Bars 9–12: Bb5/C5 area — builds with rising 16th runs.
+## Bars 13–16: Descending counter-run matching the climax.
+
+pat harm_silence = . . . . . . . . . . . . . . . .  # 16 rests = 16 ✓
+
+## Bar 5 pickup — Pulse 2 enters with C5 Bb4 C5 D5 then settles on Ab4 long.
+##   From MIDI T2 bar 3-4 pickup: C5:1 Bb4:1 C5:2 D5:1 then Ab4:6bx (held across bars)
+##   C5:1 Bb4:1 . C5:2 D5:1 Ab4:8 . . . = 1+1+1+2+1+8+2 = 16 ✓
+pat harm_a1 = C5:1 Bb4:1 . C5:2 D5:1 Ab4:8 . .  # 1+1+1+2+1+8+2 = 16 ✓
+
+## Bar 6 — Ab4 continues (from the long held note), then re-assert with F4 entry.
+##   The Ab4 held note from MIDI lasts ~18 BeatBax ticks — spans bars 5 & 6.
+##   Second half of bar switches to F4:6bx start.
+##   Ab4:8 F4:8 = 16 ✓
+pat harm_a2 = Ab4:8 F4:8  # 16 ✓
+
+## Bar 7 — F4 continues, then Bb4 C5 pickup ornament at bar end.
+##   F4:6bx from MIDI, then C5 Bb4 C5 D5 pickup into Eb5.
+##   F4:8 C5:1 Bb4:1 . C5:2 D5:1 . . = 8+1+1+1+2+1+2 = 16 ✓
+pat harm_a3 = F4:8 C5:1 Bb4:1 . C5:2 D5:1 . .  # 16 ✓
+
+## Bar 8 — Eb5 long tone (18bx MIDI) starts: first 8 ticks here.
+##   Ab4 pickup resolves to Eb5 sustained.
+##   Ab4:4 Eb5:8 . . . . = 4+8+4 = 16 ✓
+pat harm_a4 = Ab4:4 Eb5:8 . . . .  # 16 ✓
+
+## Bars 9–12 — Harmony builds with the melody.
+##   Bar 9: Eb5 continues from the long held tone, then rises C5 → D5 → Eb5.
+##   C5:1 . C5:2 D5:2 Eb5:2 . F5:2 Eb5:4 = 1+1+2+2+2+1+2+4 = 15 — adjust
+##   C5:2 C5:2 D5:2 Eb5:1 . F5:2 Eb5:4 . . = 2+2+2+1+1+2+4+2 = 16 ✓
+pat harm_b1 = C5:2 C5:2 D5:2 Eb5:1 . F5:2 Eb5:4 . .  # 16 ✓
+
+## Bar 10 — D5 → Eb5 → F5 rising motion.
+##   D5:2 D5:2 Eb5:2 F5:1 . F5:2 Eb5:4 . . = 2+2+2+1+1+2+4+2 = 16 ✓
+pat harm_b2 = D5:2 D5:2 Eb5:2 F5:1 . F5:2 Eb5:4 . .  # 16 ✓
+
+## Bar 11 — Eb5 area with F5 peak.
+##   Eb5:1 . F5:2 C5:2 C5:2 D5:2 Eb5:1 . Eb5:2 . . = 1+1+2+2+2+2+1+1+2+2 = 16 ✓
+pat harm_b3 = Eb5:1 . F5:2 C5:2 C5:2 D5:2 Eb5:1 . Eb5:2 . .  # 16 ✓
+
+## Bar 12 — Rising to F5, then half-rest for arrival.
+##   D5:2 D5:2 Eb5:2 F5:4 . . . . . = 2+2+2+4+6 = 16 ✓
+pat harm_b4 = D5:2 D5:2 Eb5:2 F5:4 . . . . . .  # 16 ✓
+
+## Bar 13 — Climax top: Bb5 long, then descending 16th run.
+##   Bb5:3 Bb5:1 A5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 D5:1 C5:1
+##   = 3+11×1 = 14 — needs 2 more = Bb5:3 . Bb5:1 A5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 D5:1 C5:1 = 3+1+11 = 15... add 1 rest
+##   Bb5:3 . Bb5:1 A5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 D5:1 = 3+1+11 = 15 + C5:1 = 16 ✓
+pat harm_c1 = Bb5:3 . Bb5:1 A5:1 D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 G5:1 F5:1 D5:1 C5:1  # 16 ✓
+
+## Bar 14 — Lower 16th cascade continuing descent.
+##   D5 C5 Bb4 A4 (from MIDI T2 bar 14 b1 descent): then C4 long, D4 Eb4 G4 F4
+##   D5:1 C5:1 Bb4:1 A4:1 C4:3 . D4:1 Eb4:1 . G4:2 F4:2 . . = 1+1+1+1+3+1+1+1+1+2+2+1 = 16 ✓
+pat harm_c2 = D5:1 C5:1 Bb4:1 A4:1 C4:3 . D4:1 Eb4:1 . G4:2 F4:2 .  # 1+1+1+1+3+1+1+1+1+2+2+1 = 16 ✓
+
+## Bar 15 — Eb4 D4 Bb3 descent, then C4 long pedal.
+##   Eb4:1 D4:2 Bb3:1 C4:8 . . . . = 1+2+1+8+4 = 16 ✓
+pat harm_c3 = Eb4:1 D4:2 Bb3:1 C4:8 . . . .  # 16 ✓
+
+## Bar 16 — Final descent to D4 with A3 Bb3 C4 approach.
+##   C4:3 A3:3 Bb3:1 . C4:2 D4:4 . . . = 3+3+1+1+2+4+2 = 16 ✓
+pat harm_fin = C4:3 A3:3 Bb3:1 . C4:2 D4:4 . .  # 3+3+1+1+2+4+2 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## TRIANGLE — WALKING BASS
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## The triangle channel mirrors the MIDI T3 (Triangle, ch3) bass lines.
+## This track is the most chromatic and ornamental in the MIDI — very active
+## 16th-note motion with chromatic approach tones.
+## Key bass: Bb2, F2, Eb3, C3, D3, Ab2.
+
+## Bars 1–4: Bass groove on Bb2/F2, establishing the tonic.
+pat bass_intro1 = Bb2 . . . F2 . . . Bb2 . . . F2 . . .  # (1+3)×4 = 16 ✓
+pat bass_intro2 = Bb2 . . . Eb3 . . . Bb2 . . . F2 . . .  # (1+3)×4 = 16 ✓
+
+## Bar 5 — MIDI T3 bar 3-5 chromatic bass figure:
+##   Eb3 C3 Bb2 C3 F2 : Ab2 Bb2 C3 : Eb3 D3 Eb3 D3 : Bb2 C3 Bb2 C3 F2
+##   Adapting to 16 ticks 16th-note pattern:
+##   Eb3:1 C3:1 Bb2:1 C3:1 F2:2 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 D3:1 Bb2:1 C3:1 F2:2
+##   = 1+1+1+1+2+1+1+1+1+1+1+1+1+1+2 = 17 — adjust: remove one C3
+##   Eb3:1 C3:1 Bb2:1 C3:1 F2:2 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 Bb2:1 C3:1 F2:2
+##   = 1+1+1+1+2+1+1+1+1+1+1+1+1+2 = 17 — try:
+##   Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 D3:1 Bb2:1 C3:1 F2:1 .
+##   = 15×1 + 1 = 16 ✓
+pat bass_a1 = Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 D3:1 Bb2:1 C3:1 F2:1 .  # 16 ✓
+
+## Bar 6 — Same chromatic figure repeats (MIDI bars 5-6 triangle loops this motif).
+pat bass_a2 = Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 D3:1 Bb2:1 C3:1 F2:1 .  # 16 ✓
+
+## Bar 7 — Variation: starts F2, rises Ab2 Bb2 C3, then Eb3 D3 motif.
+##   F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 F2:2
+##   = 14×1 + 2 = 16 ✓
+pat bass_a3 = F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 F2:2  # 16 ✓
+
+## Bar 8 — Same chromatic groove.
+pat bass_a4 = F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 F2:2  # 16 ✓
+
+## Bars 9–10 — Continues same motif (MIDI T3 loops through bars 7-10).
+pat bass_b1 = Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 D3:1 Bb2:1 C3:1 F2:1 .  # 16 ✓
+pat bass_b2 = F2:1 Ab2:1 Bb2:1 C3:1 Eb3:1 D3:1 Eb3:1 C3:1 Bb2:1 C3:1 F2:1 Ab2:1 Bb2:1 C3:1 F2:2  # 16 ✓
+
+## Bar 11 — Higher motion: D3 → Eb3 → C3 G3 → Bb3 B3 C4 → D3 pedal.
+##   From MIDI T3 bar 11: D3:3 Eb3:2 C3:1 G3:2 Bb3:1 B3:1 C4:1 D3:4
+##   D3:3 Eb3:2 C3:1 G3:2 Bb3:1 B3:1 C4:1 D3:4 . = 3+2+1+2+1+1+1+4+1 = 16 ✓
+pat bass_b3 = D3:3 Eb3:2 C3:1 G3:2 Bb3:1 B3:1 C4:1 D3:4 .  # 16 ✓
+
+## Bar 12 — Eb3 → F3 → Eb3 → F3 → C3 descending resolution.
+##   From MIDI T3 bar 12: Eb3:3 F3:4 Eb3:1 F3:4 C3:4
+##   = 3+4+1+4+4 = 16 ✓
+pat bass_b4 = Eb3:3 F3:4 Eb3:1 F3:4 C3:4  # 16 ✓
+
+## Bar 13 — Same as bar 11 (MIDI T3 repeats this motif in bars 11 & 13).
+pat bass_c1 = D3:3 Eb3:2 C3:1 G3:2 Bb3:1 B3:1 C4:1 D3:4 .  # 16 ✓
+
+## Bar 14 — Eb3 → F3 long → Bb3 → ascending gliss G4 F4 D5 C5.
+##   From MIDI T3 bar 14: Eb3:3 F3:5 Bb3:4 G4:1 F4:1 D5:1 C5:1
+##   = 3+5+4+1+1+1+1 = 16 ✓
+pat bass_c2 = Eb3:3 F3:5 Bb3:4 G4:1 F4:1 D5:1 C5:1  # 16 ✓
+
+## Bar 15 — Descending run then C3 pedal.
+##   From MIDI T3 bar 15: Bb4 A4 G4 F4 G4 F4 D4 C4 D4 C4 Bb3 A3 C3:4
+##   Bb4:1 A4:1 G4:1 F4:1 G4:1 F4:1 D4:1 C4:1 D4:1 C4:1 Bb3:1 A3:1 C3:4
+##   = 12×1 + 4 = 16 ✓
+pat bass_c3 = Bb4:1 A4:1 G4:1 F4:1 G4:1 F4:1 D4:1 C4:1 D4:1 C4:1 Bb3:1 A3:1 C3:4  # 16 ✓
+
+## Bar 16 — Chromatic ascent figure and resolve.
+##   From MIDI T3 bar 16: D3:3 Eb3:1 C3:1 D3:1 Eb3:1 G2:1 Bb2:1 B2:1 C3:2 C3:2
+##   = 3+1+1+1+1+1+1+1+2+2 = 14 + extra Eb3:2 = actually:
+##   D3:3 Eb3:1 C3:1 D3:1 Eb3:1 G2:1 Bb2:1 B2:1 C3:2 C3:2 = 3+7+2+2 = 14 — need 2 more
+##   D3:3 Eb3:2 C3:1 D3:1 Eb3:1 G2:1 Bb2:1 B2:1 C3:2 C3:2 = 3+1+2+1+1+1+1+1+2+2 = 15 + 1 rest
+##   D3:3 Eb3:2 C3:1 D3:1 Eb3:1 G2:1 Bb2:1 B2:1 C3:2 C3:1 . = 3+2+1+1+1+1+1+1+2+1+1 = 15+1 = 16 ✓
+pat bass_fin = D3:3 Eb3:2 C3:1 D3:1 Eb3:1 G2:1 Bb2:1 B2:1 C3:2 C3:1 . .  # 3+2+1+1+1+1+1+1+2+1+2 = 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## DRUMS — NOISE CHANNEL (ch4)
+## ─────────────────────────────────────────────────────────────────────────────
+##
+## MIDI ch10 drum pattern (C2=kick, D2=snare, D3-C3-B2-A2=fill).
+##
+## The drum groove from the MIDI is syncopated — kick and snare hit
+## off the main beats. Key recurring pattern from MIDI bars 1-4:
+##   On 16th-note grid (b1=0, b2=4, b3=8, b4=12):
+##   t3=kick, t7=snare, t9=kick, t11=kick, t15=snare
+##   (the +3 offset = 4th 16th of each beat in MIDI terms)
+##
+## Simplified to a driving groove:
+##   kick on ticks 0,4,8  snare on ticks 2,6,10,14  hihat on offbeats
+
+## Intro groove (bars 1-4) — driving syncopated pattern.
+##   kick . . snare . kick . snare . kick . snare . . . snare = 16 ✓
+pat beat_intro = kick . . snare . kick . snare . kick . snare . . . snare  # 16 ✓
+
+## Main groove (bars 5+) — full groove with hi-hat adds energy.
+##   kick . hihat snare . kick hihat snare . kick hihat snare . . hihat snare
+##   = 16 ✓
+pat beat_main = kick . hihat snare . kick hihat snare . kick hihat snare . . hihat snare  # 16 ✓
+
+## Break fill — from MIDI bars 7-8 which have D3/C3/B2/A2 descending fills.
+##   Use the fill pattern on beat 4 to add a distinctive break:
+##   kick . hihat snare . kick hihat snare . kick . snare kick . . snare
+##   = 16 ✓
+pat beat_fill = kick . hihat snare . kick hihat snare . kick . snare kick . . snare  # 16 ✓
+
+## Quiet groove for bars 11-12 (when melody drops to low register).
+##   kick . . snare . . kick snare . . kick . snare . . .
+##   = 16 ✓
+pat beat_quiet = kick . . snare . . kick snare . . kick . snare . . .  # 16 ✓
+
+## ─────────────────────────────────────────────────────────────────────────────
+## DMC — SAMPLE REINFORCEMENT (ch5)
+## ─────────────────────────────────────────────────────────────────────────────
+
+## Intro sparse — kick reinforcement on main beats.
+pat dmc_intro = kick_dmc . . . . . . . kick_dmc . . . . . . .  # 16 ✓
+
+## Full DMC — kick + snare mirrors main groove.
+pat dmc_full = kick_dmc . . snare_dmc . kick_dmc . snare_dmc . kick_dmc . snare_dmc . . . snare_dmc  # 16 ✓
+
+## Quiet DMC — half density for the quieter section.
+pat dmc_quiet = kick_dmc . . . . . . . snare_dmc . . . . . . .  # 16 ✓
+
+# =============================================================================
+# SEQUENCES — 16 patterns × 16 ticks = 256 ticks (16 bars total)
+# =============================================================================
+##
+## Structure:
+##   Bars 1–4   : Intro (drums only, bass establishes key)
+##   Bars 5–8   : Theme A (full 5-channel entry)
+##   Bars 9–12  : Theme B (darker variation, lower register)
+##   Bars 13–16 : Reprise/climax
+
+## Pulse 1 (Lead melody)
+seq pulse1_main = lead_silence lead_silence lead_silence lead_silence lead_a1 lead_a2 lead_a3 lead_a4 lead_b1 lead_b2 lead_b3 lead_b4 lead_c1 lead_c2 lead_c3 lead_fin
+
+## Pulse 2 (Harmony)
+seq pulse2_main = harm_silence harm_silence harm_silence harm_silence harm_a1 harm_a2 harm_a3 harm_a4 harm_b1 harm_b2 harm_b3 harm_b4 harm_c1 harm_c2 harm_c3 harm_fin
+
+## Triangle (Bass)
+seq tri_main = bass_intro1 bass_intro2 bass_intro1 bass_intro2 bass_a1 bass_a2 bass_a3 bass_a4 bass_b1 bass_b2 bass_b3 bass_b4 bass_c1 bass_c2 bass_c3 bass_fin
+
+## Noise (Drums)
+seq noise_main = beat_intro beat_intro beat_fill beat_fill beat_main beat_main beat_fill beat_fill beat_main beat_main beat_quiet beat_quiet beat_main beat_fill beat_main beat_fill
+
+## DMC (Sample reinforcement)
+seq dmc_seq = dmc_intro dmc_intro dmc_intro dmc_intro dmc_full dmc_full dmc_full dmc_full dmc_full dmc_full dmc_quiet dmc_quiet dmc_full dmc_full dmc_full dmc_full
+
+# =============================================================================
+# CHANNELS
+# =============================================================================
+
+channel 1 => inst lead      seq pulse1_main   # Pulse 1  — lead melody (25% duty)
+channel 2 => inst harm      seq pulse2_main   # Pulse 2  — harmony (50% duty)
+channel 3 => inst tri       seq tri_main      # Triangle — walking bass
+channel 4 => inst kick      seq noise_main    # Noise    — syncopated drum groove
+channel 5 => inst kick_dmc  seq dmc_seq       # DMC      — bundled kick/snare samples
+
+# =============================================================================
+# PLAYBACK
+# =============================================================================
+
+play auto repeat
