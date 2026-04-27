@@ -56,14 +56,17 @@ chip sms
 bpm 154
 
 ; Tone channels
-inst lead   type=tone1  vol=2  vib=2,6
+inst lead   type=tone1  vol=2  vib=2,6  pitch_env=[-1,0,1,0|-1]   ; vibrato via pitch macro
 inst harm   type=tone2  vol=5
 inst bass   type=tone3  vol=4  arp_env=[0,12|0]
+inst stab   type=tone1  vol_env=[15,12,9,6,3,0]  pitch_env=[4,2,0]       ; attack stab with pitch fall
 
 ; Noise channel
-inst kick   type=noise  noise_mode=white     noise_rate=2   vol_env=[2,4,7,10,13,15]
-inst hat    type=noise  noise_mode=white     noise_rate=0   vol_env=[5,9,13,15]
+inst kick   type=noise  noise_mode=white     noise_rate=2   vol_env=[15,12,9,6,3,0]
+inst hat    type=noise  noise_mode=white     noise_rate=0   vol_env=[8,5,3,0]
+inst snare  type=noise  noise_mode=white     noise_rate=1   vol_env=[15,10,5,0]  noise_rate_env=[1,2|1]
 inst metal  type=noise  noise_mode=periodic  noise_rate=tone3  vol=8
+inst sweep  type=noise  noise_mode=white     noise_rate=3   noise_rate_env=[0,1,2,3]  vol_env=[12,10,8,5,3,0]
 
 ; Optional Game Gear terminal-style panning/routing
 inst lead_gg type=tone1 vol=2 gg:pan=R
@@ -85,21 +88,63 @@ play
 - `type=tone1|tone2|tone3|noise` maps directly to hardware voices.
 - `gg:pan=L|C|R` is interpreted as Game Gear routing intent and degrades deterministically to mono on SMS output targets.
 
+### Effects Support
+
+The SN76489 has **no hardware LFO, no hardware envelopes, and no hardware sweep unit**. All effects are implemented in software by writing registers at sub-frame resolution (per-tick period/volume writes). This means effects are generally achievable but with coarser fidelity than chips with dedicated hardware support.
+
+Because VGM is a register-stream format, any effect that resolves to per-tick register writes exports transparently to VGM — there is no secondary mapping step required. The VGM exporter consumes the expanded ISM event stream directly.
+
+| Effect | SMS Support | Mechanism | VGM Export | Notes |
+|--------|-------------|-----------|------------|-------|
+| `pan` / `gg:pan` | ✅ Supported (`gg:pan` only) | Game Gear stereo register (discrete L/C/R per channel) | ✅ `0x4F` stereo command (VGM ≥ 1.61) | SMS (mono) target ignores routing intent deterministically. Generic `pan` numeric values are snapped to `L`/`C`/`R`. |
+| `vib` | ⚠️ Approximate | Per-tick period register writes simulating a pitch LFO | ✅ Bakes into `0x50` PSG write stream | Frequency resolution is coarse at high pitches (large period = fine steps; small period = coarse steps). Fine vibrato depth may be unachievable at some pitches. Can also be expressed via looping `pitch_env` macro. |
+| `port` | ⚠️ Approximate | Stepped period writes per tick toward target pitch | ✅ Bakes into `0x50` PSG write stream | Step size is non-uniform across the frequency range; slides are perceptibly coarser at lower pitches. Non-linear curves (exp, log) are quantised to period steps. |
+| `arp` | ⚠️ Approximate | Rapid per-tick period writes cycling through offsets | ✅ Bakes into `0x50` PSG write stream | Classic SMS technique. Can also be expressed via looping `arp_env` macro. Fidelity is good given the chip's square-wave character. |
+| `volSlide` | ⚠️ Approximate | Per-tick volume attenuation register writes | ✅ Bakes into volume `0x50` write stream | 4-bit attenuation (16 steps, 0 = loudest, 15 = mute) means slides are quantised. Smooth fade curves will step visibly. Can also be expressed via `vol_env` macro. |
+| `trem` | ⚠️ Approximate | Periodic per-tick volume writes simulating amplitude LFO | ✅ Bakes into volume `0x50` write stream | Same 4-bit quantisation as `volSlide`. Tremolo depth is limited to ≤16 distinct levels. Fast rate combined with coarse resolution can produce audible stairstepping. |
+| `cut` | ✅ Supported | Set volume attenuation to `15` (mute) after N ticks | ✅ Emits a single volume `0x50` write at tick N | Exact and reliable. No waveform restart side-effect. |
+| `retrig` | ⚠️ Approximate | Re-write period register to force waveform restart | ⚠️ Register writes emitted; phase-reset fidelity depends on VGM player SN76489 implementation | The SN76489 does not have an explicit key-on trigger. Phase reset on period rewrite is implementation-defined. Results may differ between emulators and real hardware. Use with caution. |
+| `bend` | ⚠️ Approximate | Stepped period writes toward target pitch with optional curve | ✅ Bakes into `0x50` PSG write stream | Non-linear curves (exp, log, sine) are quantised to the 10-bit period register. Fidelity is similar to `port`. |
+| `sweep` | ❌ Not supported | N/A — Game Boy NR10 hardware only | ❌ | The SN76489 has no hardware sweep unit. Using `sweep` under `chip sms` is a validation error. Use `pitch_env` or `bend` instead for equivalent pitch-ramp effects. |
+| `echo` | ❌ Not supported | N/A — no delay buffer; insufficient spare channels | ❌ | The SN76489 has 4 channels total. No spare voices exist to dedicate to echo repeats. Using `echo` under `chip sms` is a validation error with a diagnostic. |
+
+**Effect export summary for VGM:**
+- ✅ 9 of 11 effects export correctly to VGM via the register write stream.
+- ⚠️ `retrig` exports register writes but phase-reset is player-dependent.
+- ❌ `sweep` and `echo` are rejected at validation time and never reach the export stage.
+
 ---
 
 ## Implementation Plan
 
 ### AST Changes
 
-Prefer additive, optional fields on existing instrument/effect nodes (no structural AST redesign):
+Prefer additive, optional fields on existing instrument/effect nodes (no structural AST redesign).
 
-- `noise_mode`: `"white" | "periodic"`
-- `noise_rate`: `0 | 1 | 2 | "tone3"`
-- `gg:pan`: `"L" | "C" | "R"` (discrete Game Gear routing)
+#### SMS-specific hardware fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `noise_mode` | `"white" \| "periodic"` | LFSR feedback mode |
+| `noise_rate` | `0 \| 1 \| 2 \| "tone3"` | Noise clock source (0–2 = fixed dividers, `"tone3"` = derived from Tone 3 period) |
+| `gg:pan` | `"L" \| "C" \| "R"` | Discrete Game Gear stereo routing; collapses deterministically to mono on SMS targets |
+
+#### Software macro fields (new for SMS — no hardware envelope support)
+
+The SN76489 has no hardware envelope or LFO units. All articulation is software-driven via per-tick register writes. The following macro fields are required to achieve any meaningful instrument expressiveness on this chip:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `vol_env` | `[v0,v1,…\|N]` | Software volume macro: per-tick attenuation levels 0–15; optional `\|N` loop point. `0` = loudest, `15` = mute (hardware attenuation convention). |
+| `arp_env` | `[0,s1,s2,…\|N]` | Software arpeggio macro: per-tick semitone offsets from root note, looping for continuous chord shimmer. |
+| `pitch_env` | `[s0,s1,…\|N]` | Software pitch macro: per-tick semitone offset from root note. Use for pitch slides, vibrato emulation, fall-off, and bend-in effects. |
+| `noise_rate_env` | `[r0,r1,…\|N]` | **SMS-specific.** Per-tick noise rate index sequence (0–2 or `3` for tone3-derived). Enables animated percussion timbres and tuned-noise sweep effects. Overrides `noise_rate` when present. |
+
+> `duty_env` does not apply to SMS tone channels — the SN76489 outputs a fixed 50% duty square wave with no hardware duty modulation.
 
 Leverage existing generic fields where possible:
 
-- `vol`, `vol_env`, `arp_env`, `pitch_env`, `pan`
+- `vol`, `pan`
 
 ### Parser Changes
 
@@ -107,7 +152,11 @@ Leverage existing generic fields where possible:
 - Validate exactly 4 channels for SMS songs.
 - Allow SMS instrument types: `tone1`, `tone2`, `tone3`, `noise`.
 - Parse `noise_mode`, `noise_rate`, and `gg:pan`.
+- Parse SMS software macro fields (`vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`).
 - Reject NES/GB-only fields when `chip sms` is active (clear diagnostics).
+- Reject `sweep` effect under `chip sms` with a clear error: "hardware pitch sweep is a Game Boy NR10 feature; use `pitch_env` or `bend` instead".
+- Reject `echo` effect under `chip sms` with a clear error: "echo/delay requires spare channels; the SN76489 has no delay buffer and no spare voices".
+- Emit a diagnostic warning for `retrig` under `chip sms`: "note retriggering on SN76489 is emulation-dependent; phase-reset behaviour may differ between targets".
 
 ### CLI Changes
 
@@ -131,7 +180,7 @@ v1 export behavior:
 
 Post-v1 native export candidates:
 
-- VGM writer path for PSG register stream export.
+- **VGM export:** A dedicated `@beatbax/plugin-exporter-vgm` exporter plugin is specified separately in `docs/features/vgm-exporter-plugin.md`. Because VGM is a register-stream format, instrument macros (`vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`) expand transparently into the SN76489 register write sequence — no special macro-to-VGM mapping is needed beyond tick-level state tracking. The SMS chip plugin will declare the VGM exporter in its `exporterPlugins` field once available. Game Gear stereo routing (`gg:pan`) maps to VGM `0x4F` stereo commands (requires VGM version ≥ 1.61).
 - Optional chip-specific text export for debugging register writes.
 
 ### Documentation Updates
@@ -190,7 +239,13 @@ Adoption path:
 - [ ] Implement tone backend (shared logic for tone1-3)
 - [ ] Implement noise backend (white/periodic + rate modes)
 - [ ] Add SMS instrument validator
-- [ ] Add parser support for SMS-specific fields
+- [ ] Add parser support for SMS-specific hardware fields (`noise_mode`, `noise_rate`, `gg:pan`)
+- [ ] Add parser support for SMS software macro fields (`vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`)
+- [ ] Validate `noise_rate_env` values are in range 0–3 (reject out-of-range values with clear diagnostics)
+- [ ] Reject `duty_env` under `chip sms` (clear error: fixed 50% duty, no hardware duty modulation)
+- [ ] Reject `sweep` effect under `chip sms` (clear error with `pitch_env`/`bend` alternative suggestion)
+- [ ] Reject `echo` effect under `chip sms` (clear error: no delay buffer, no spare channels)
+- [ ] Emit diagnostic warning for `retrig` under `chip sms` (phase-reset is emulation-dependent)
 - [ ] Add scheduler/channel-count validation for SMS
 - [ ] Register plugin in engine/CLI loading path
 - [ ] Add web UI language tokens and chip metadata
@@ -203,7 +258,7 @@ Adoption path:
 ## Future Enhancements
 
 - YM2413 FM extension plugin (`chip sms_fm` or `chip sega_fm`) as separate backend.
-- Native VGM export with accurate register event timing.
+- Native VGM export with accurate register event timing — see `docs/features/vgm-exporter-plugin.md` for the full specification.
 - Optional per-target strictness modes:
   - strict SMS mono mode (reject stereo-only directives)
   - strict Game Gear routing mode (require discrete `gg:pan` values)
@@ -223,6 +278,8 @@ Adoption path:
 
 - `docs/features/plugin-system.md`
 - `docs/features/complete/nes-apu-chip-plugin.md`
+- `docs/features/complete/effects-system.md`
+- `docs/features/vgm-exporter-plugin.md`
 - `docs/chips/sms/hardware_guide.md`
 - `docs/chips/sms/composition_guide.md`
 - `docs/chips/sms/interesting_facts.md`
