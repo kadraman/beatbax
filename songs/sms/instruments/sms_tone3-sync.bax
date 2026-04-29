@@ -1,0 +1,37 @@
+chip sms
+bpm 120
+time 4
+
+# ===== INSTRUMENTS =====
+
+# Bass on Tone3
+inst bass type=tone3 vol=12 vol_env=[15,12,9,6,3,0]
+
+# Kick that follows bass pitch via noise_rate=tone3 sync
+inst kick type=noise noise_mode=white noise_rate=tone3 vol_env=[15,10,5,0]
+
+# ===== PATTERNS =====
+
+# Bass line with pitch changes
+pat bass_pat = C3:8 G2:8 A2:8 F2:8 C3:8 G2:8 A2:8 F2:8
+
+# Kick drums that will sync to bass pitch
+pat kick_pat = kick . kick . kick . kick . kick . kick .
+
+# ===== SEQUENCES =====
+
+seq bass = bass_pat
+seq drums = kick_pat
+
+# ===== CHANNELS =====
+
+channel 3 => inst bass seq bass
+channel 4 => inst kick seq drums
+
+# ===== PLAY =====
+
+# Note: This creates a "talking bass" effect where the kick drum pitch
+# follows the bass note pitch due to noise_rate=tone3 synchronization.
+# On real SMS hardware and accurate emulators, the noise will change
+# pitch to match Tone3's period.
+play

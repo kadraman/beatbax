@@ -1,0 +1,42 @@
+chip sms
+bpm 140
+time 4
+
+# ===== INSTRUMENTS WITH GAME GEAR STEREO PANNING =====
+
+# Lead melody on right channel
+inst lead  type=tone1   vol=10 vol_env=[15,12,10,8|7] gg:pan=R
+
+# Harmony on left channel
+inst harm   type=tone2   vol=8  vol_env=[12,10,8,6|6] gg:pan=L
+
+# Bass centered
+inst bass   type=tone3   vol=12 vol_env=[15,14,12,10|8] gg:pan=C
+
+# Drums centered
+inst kick   type=noise   noise_mode=white noise_rate=2 vol_env=[15,12,8,4,0] gg:pan=C
+inst snare  type=noise   noise_mode=white noise_rate=1 vol_env=[14,10,6,0] gg:pan=C
+
+# ===== PATTERNS =====
+
+pat melody   = E5:2 G5:2 A5:2 B5:2 C6:2 A5:2 G5:2 E5:2
+pat harmony  = C4 . E4 . G4 . A4 . B4 . A4 . G4 .
+pat bassline = E2:4 C2:4 A2:4 B2:4
+pat drums    = kick . snare . kick kick snare . .
+
+# ===== SEQUENCES =====
+
+seq melody   = melody melody melody melody
+seq harm_seq = harmony harmony harmony harmony
+seq bass_seq = bassline bassline
+seq drum_seq = drums drums drums drums
+
+# ===== CHANNELS =====
+
+channel 1 => inst lead  seq melody
+channel 2 => inst harm  seq harm_seq
+channel 3 => inst bass  seq bass_seq
+channel 4 => inst kick  seq drum_seq
+
+# ===== PLAY =====
+play
