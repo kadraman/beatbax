@@ -28,8 +28,8 @@ pat drums    = kick . snare . kick kick snare . .
 
 seq melody   = melody melody melody melody
 seq harm_seq = harmony harmony harmony harmony
-seq bass_seq = bassline bassline
-seq drum_seq = drums drums drums drums
+seq bass_seq = bassline bassline bassline
+seq drum_seq = drums drums drums drums drums drums
 
 # ===== CHANNELS =====
 

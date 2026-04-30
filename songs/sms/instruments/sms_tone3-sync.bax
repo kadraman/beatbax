@@ -5,23 +5,28 @@ time 4
 # ===== INSTRUMENTS =====
 
 # Bass on Tone3
-inst bass type=tone3 vol=12 vol_env=[15,12,9,6,3,0]
+inst bass type=tone3 vol=0 # vol=15 vol_env=[15,12,9,6,3,0]
 
 # Kick that follows bass pitch via noise_rate=tone3 sync
-inst kick type=noise noise_mode=white noise_rate=tone3 vol_env=[15,10,5,0]
+inst kick type=noise noise_mode=periodic noise_rate=tone3 vol=15 vol_env=[15,10,5,0]
 
 # ===== PATTERNS =====
 
 # Bass line with pitch changes
-pat bass_pat = C3:8 G2:8 A2:8 F2:8 C3:8 G2:8 A2:8 F2:8
+pat bass_pat1 = (C3 G2 A2 F2 C6 G5 A5 F5)*4
 
 # Kick drums that will sync to bass pitch
-pat kick_pat = kick . kick . kick . kick . kick . kick .
+pat kick_pat1 = (kick kick kick kick kick kick kick kick)*4
+
+# Extreme example - octave jumps
+pat bass_pat2 = (C2 C3 C6 C7)*4  # From very low to very high
+pat kick_pat2 = (kick kick kick kick)*4
+
 
 # ===== SEQUENCES =====
 
-seq bass = bass_pat
-seq drums = kick_pat
+seq bass = bass_pat1 bass_pat2
+seq drums = kick_pat1 kick_pat2
 
 # ===== CHANNELS =====
 

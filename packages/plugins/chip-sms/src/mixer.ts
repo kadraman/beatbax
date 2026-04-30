@@ -84,3 +84,66 @@ export function smsMix(toneGain: number, noiseGain: number, attenuation: number)
   const volScale = 1.0 - (attenuation / 15);
   return gain * volScale;
 }
+
+// ─── Stereo Routing ─────────────────────────────────────────────────────────
+
+/**
+ * Game Gear stereo pan values.
+ * Each channel can be routed to Left, Center (both), or Right.
+ */
+export type GGPan = 'L' | 'C' | 'R';
+
+/**
+ * Convert gg:pan string to stereo routing multiplier.
+ * Returns [leftGain, rightGain] where each is 0.0 or 1.0
+ */
+export function ggPanToGains(pan: string | undefined): [number, number] {
+  if (!pan) return [1.0, 1.0]; // Default to center if not specified
+  
+  const normalized = pan.toString().toLowerCase();
+  switch (normalized) {
+    case 'l':
+    case 'left':
+      return [1.0, 0.0]; // Left only
+    case 'r':
+    case 'right':
+      return [0.0, 1.0]; // Right only
+    case 'c':
+    case 'center':
+    default:
+      return [1.0, 1.0]; // Both channels (center)
+  }
+}
+
+/**
+ * Apply stereo routing to a sample buffer.
+ * For mono output, this just copies the mixed signal to both channels.
+ * For stereo output with Game Gear routing, applies the pan gains.
+ */
+export function applyStereoRouting(
+  input: Float32Array, // Mono mixed buffer
+  output: Float32Array, // Stereo output buffer (2x size of input)
+  channelPans: (GGPan | undefined)[]
+): void {
+  const inputLength = input.length;
+  const outputLength = output.length;
+  
+  // If output is same size as input, treat as mono
+  if (outputLength === inputLength) {
+    output.set(input);
+    return;
+  }
+  
+  // Stereo output: interleave left/right samples
+  for (let i = 0; i < inputLength; i++) {
+    const sample = input[i];
+    const outputIndex = i * 2;
+    
+    // For v1, we'll use a simple approach: apply average pan to all channels
+    // In a more sophisticated implementation, we'd track per-channel pan
+    const [leftGain, rightGain] = ggPanToGains(channelPans[0]); // Use first channel's pan for now
+    
+    output[outputIndex] = sample * leftGain;
+    output[outputIndex + 1] = sample * rightGain;
+  }
+}

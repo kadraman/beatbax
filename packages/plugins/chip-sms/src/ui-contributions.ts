@@ -125,7 +125,7 @@ const hoverDocs: Record<string, string> = {
     '- `vol_env` — volume envelope macro: `[level1,level2,...|loop]`',
     '- `arp_env` — arpeggio macro: semitone offsets per frame',
     '- `pitch_env` — pitch bend macro: semitone offsets per frame',
-    '- `gg:pan` — Game Gear stereo: L / C / R',
+    '- `gg:pan` — Game Gear stereo: L / C / R (or `gg_pan` without colon)',
     '',
     '_Tip: arp_env is essential for chord simulation on SMS._',
   ].join('\n\n'),
@@ -159,20 +159,21 @@ const hoverDocs: Record<string, string> = {
     '- `noise_rate_env` — animate noise_rate per frame for sweep effects',
     '- `vol` — constant volume 0-15',
     '- `vol_env` — volume envelope macro',
-    '- `gg:pan` — Game Gear stereo routing',
+    '- `gg:pan` — Game Gear stereo routing (or `gg_pan` without colon)',
     '',
     '_Tip: Use noise_rate=2 for kicks, noise_rate=1 for snares, noise_rate=0 for hi-hats._',
   ].join('\n\n'),
 
   'gg:pan': [
     '**Game Gear stereo routing** — discrete L/C/R panning per channel.',
-    '```\ninst lead type=tone1 vol=10 gg:pan=R\ninst bass type=tone3 vol=12 gg:pan=C\n```',
+    '```\ninst lead type=tone1 vol=10 gg:pan=R  ; or gg_pan=R\ninst bass type=tone3 vol=12 gg:pan=C  ; or gg_pan=C\n```',
     'Values:',
     '- `L` or `left` — Left channel only',
     '- `C` or `center` — Both channels (mono on SMS)',
     '- `R` or `right` — Right channel only',
     '',
     '_On SMS (mono hardware), pan settings are ignored. On Game Gear, they route to the appropriate output._',
+    '_Note: Both `gg:pan` (with colon) and `gg_pan` (without colon) formats are supported._',
   ].join('\n\n'),
 
   vol_env: [

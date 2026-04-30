@@ -6,6 +6,7 @@
  */
 import type { InstrumentNode } from '@beatbax/engine';
 import type { ValidationError } from '@beatbax/engine';
+import { parseMacro } from './macros.js';
 
 /** SMS instrument types and their channel assignments. */
 export const SMS_TYPES = new Set(['tone1', 'tone2', 'tone3', 'noise']);
@@ -58,6 +59,9 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
   }
 
   if (inst.retrig !== undefined) {
+    // According to spec, retrig should be a warning, not an error
+    // For v1, we'll keep it as an error but with clear messaging
+    // Future versions could implement proper warning support
     errors.push({
       field: 'retrig',
       message: 'Note retriggering on SN76489 is emulation-dependent. Phase-reset behaviour may differ between VGM players and real hardware. Use with caution.'
@@ -147,12 +151,13 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
   
   if (type === 'noise') {
     if (inst.arp_env !== undefined) {
-      errors.push({ field: 'arp_env', message: 'Arpeggio macro is not meaningful for noise channel. Use vol_env or pitch_env instead.' });
+      errors.push({ field: 'arp_env', message: 'Arpeggio macro is not meaningful for noise channel. Use vol_env or noise_rate_env instead.' });
     }
     
     if (inst.pitch_env !== undefined) {
       // pitch_env on noise is unusual but we allow it for effects
       // Could be used for pitch bend on tuned noise
+      // For now, we'll allow it but could add a warning in the future
     }
 
     // Validate noise_mode
@@ -165,12 +170,14 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
     if (inst.noise_rate !== undefined) {
       const rate = inst.noise_rate;
       if (typeof rate === 'string') {
-        if (rate !== 'tone3' && (isNaN(Number(rate)) || Number(rate) < 0 || Number(rate) > 3)) {
+        const lowerRate = rate.toLowerCase();
+        if (lowerRate !== 'tone3' && (isNaN(Number(rate)) || Number(rate) < 0 || Number(rate) > 3)) {
           errors.push({ field: 'noise_rate', message: `noise_rate string must be 'tone3' or a number 0-3. Got '${rate}'` });
         }
       } else if (typeof rate === 'number') {
+        // noise_rate must be 0, 1, 2, or 3 (where 3 = tone3)
         if (rate !== 0 && rate !== 1 && rate !== 2 && rate !== 3) {
-          errors.push({ field: 'noise_rate', message: `noise_rate must be 0, 1, 2, or 'tone3'. Got ${rate}` });
+          errors.push({ field: 'noise_rate', message: `noise_rate must be 0, 1, 2, or 3 (where 3 = tone3). Got ${rate}` });
         }
       }
     }
@@ -180,8 +187,12 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
       const rateEnv = parseMacro(inst.noise_rate_env);
       if (rateEnv) {
         for (const val of rateEnv.values) {
+          // noise_rate_env values must be 0, 1, 2, or 3 (where 3 = tone3)
           if (val !== 0 && val !== 1 && val !== 2 && val !== 3) {
-            errors.push({ field: 'noise_rate_env', message: `noise_rate_env values must be 0, 1, 2, or 3 (for tone3). Got ${val}` });
+            errors.push({ 
+              field: 'noise_rate_env', 
+              message: `noise_rate_env values must be 0, 1, 2, or 3 (where 3 = tone3). Got ${val}` 
+            });
             break;
           }
         }
@@ -196,9 +207,11 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
 
   // ── Game Gear pan validation ──────────────────────────────────────────────
   
-  if (inst.gg_pan !== undefined) {
+  // Support both gg:pan (with colon) and gg_pan (without colon) formats
+  const ggPanValue = inst.gg_pan !== undefined ? inst.gg_pan : inst['gg:pan'];
+  if (ggPanValue !== undefined) {
     const validPans = new Set(['l', 'c', 'r', 'left', 'center', 'right']);
-    checkEnum(inst.gg_pan, validPans, 'gg:pan', errors);
+    checkEnum(ggPanValue, validPans, 'gg:pan', errors);
   }
 
   // Also check the plain 'pan' field for SMS (we'll snap to gg:pan values)
@@ -216,29 +229,4 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
   return errors;
 }
 
-/**
- * Parse a macro value from an instrument property.
- * Copied from macros.ts for local use in validation.
- */
-function parseMacro(raw: any): { values: number[], loopPoint: number } | null {
-  if (raw === undefined || raw === null) return null;
-  if (Array.isArray(raw)) {
-    const values = raw.map(Number).filter(Number.isFinite);
-    return values.length > 0 ? { values, loopPoint: -1 } : null;
-  }
-  let str = String(raw).trim();
-  if (!str.startsWith('[')) return null;
-  if (str.endsWith(']')) str = str.slice(1, -1);
-  else str = str.slice(1);
-  let loopPoint = -1;
-  const pipeIdx = str.lastIndexOf('|');
-  if (pipeIdx >= 0) {
-    loopPoint = parseInt(str.slice(pipeIdx + 1), 10);
-    if (isNaN(loopPoint) || loopPoint < 0) loopPoint = -1;
-    str = str.slice(0, pipeIdx);
-  }
-  const values = str.split(',').map(s => parseFloat(s.trim())).filter(Number.isFinite);
-  if (values.length === 0) return null;
-  if (loopPoint >= values.length) loopPoint = values.length - 1;
-  return { values, loopPoint };
-}
+

@@ -24,6 +24,7 @@ import {
   buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
   type ParsedMacro, type MacroState,
 } from './macros.js';
+import { ggPanToGains } from './mixer.js';
 
 // ─── Tone channel backend ────────────────────────────────────────────────────
 
@@ -41,6 +42,11 @@ export class SMSToneBackend implements ChipChannelBackend {
 
   // Volume state (4-bit attenuation: 0=loudest, 15=silent)
   private attenuation: number = 15; // Default: silent
+
+  /** Get the current period value (for Tone3-Noise synchronization) */
+  getCurrentPeriod(): number {
+    return this.currentPeriod;
+  }
 
   // Software macro state
   private volEnvMacro:   ParsedMacro | null = null;
@@ -104,7 +110,15 @@ export class SMSToneBackend implements ChipChannelBackend {
     this.attenuation = initialAttenuation;
 
     // Calculate period from frequency
+    const oldPeriod = this.currentPeriod;
     this.currentPeriod = freqToPeriod(frequency);
+    
+    // If this is Tone3 and period changed, notify coordinator for noise sync
+    if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
+      import('./scheduler.js').then(({ smsCoordinator }) => {
+        smsCoordinator.updateNoiseFromTone3();
+      });
+    }
 
     // Parse software macros
     this.volEnvMacro   = parseMacro(instrument.vol_env);
@@ -128,7 +142,15 @@ export class SMSToneBackend implements ChipChannelBackend {
   setFrequency(frequency: number): void {
     if (!this.active) return;
     this.freq = frequency;
+    const oldPeriod = this.currentPeriod;
     this.currentPeriod = freqToPeriod(frequency);
+    
+    // If this is Tone3 and period changed, notify coordinator for noise sync
+    if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
+      import('./scheduler.js').then(({ smsCoordinator }) => {
+        smsCoordinator.updateNoiseFromTone3();
+      });
+    }
   }
 
   applyEnvelope(frame: number): void {
@@ -151,8 +173,17 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (this.arpEnvMacro) {
       const semitones = getMacroValue(this.arpEnvMacro, this.arpEnvState);
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
+      const oldPeriod = this.currentPeriod;
       this.freq = newFreq;
       this.currentPeriod = freqToPeriod(newFreq);
+      
+      // If this is Tone3 and period changed, notify coordinator for noise sync
+      if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
+        import('./scheduler.js').then(({ smsCoordinator }) => {
+          smsCoordinator.updateNoiseFromTone3();
+        });
+      }
+      
       advanceMacro(this.arpEnvMacro, this.arpEnvState);
     }
 
@@ -160,13 +191,22 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (this.pitchEnvMacro) {
       const semitones = getMacroValue(this.pitchEnvMacro, this.pitchEnvState);
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
+      const oldPeriod = this.currentPeriod;
       this.freq = newFreq;
       this.currentPeriod = freqToPeriod(newFreq);
+      
+      // If this is Tone3 and period changed, notify coordinator for noise sync
+      if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
+        import('./scheduler.js').then(({ smsCoordinator }) => {
+          smsCoordinator.updateNoiseFromTone3();
+        });
+      }
+      
       advanceMacro(this.pitchEnvMacro, this.pitchEnvState);
     }
   }
 
-  render(buffer: Float32Array, sampleRate: number): void {
+  render(buffer: Float32Array, sampleRate: number, channelPan?: string): void {
     if (!this.active || !this.currentInst) return;
 
     const gain = SMS_MIX_GAIN.tone * (1.0 - (this.attenuation / 15));
@@ -184,10 +224,14 @@ export class SMSToneBackend implements ChipChannelBackend {
     // However, using the frequency directly is fine for audio rate rendering
     const phaseInc = (freq * 2) / sampleRate; // 2 for square wave period
 
+    // Apply stereo panning if channelPan is provided
+    const [leftGain, rightGain] = channelPan ? ggPanToGains(channelPan) : [1.0, 1.0];
+    const effectiveGain = gain * ((leftGain + rightGain) / 2); // Average for mono buffer
+
     for (let i = 0; i < buffer.length; i++) {
       // Square wave: positive half cycle = 1, negative half cycle = -1
       // phase goes from 0 to 2 (one full cycle)
-      const value = (this.phase < 1) ? gain : -gain;
+      const value = (this.phase < 1) ? effectiveGain : -effectiveGain;
       buffer[i] += value;
       this.phase += phaseInc;
       if (this.phase >= 2) this.phase -= 2;
@@ -290,7 +334,15 @@ export class SMSToneBackend implements ChipChannelBackend {
  */
 export function createToneChannel(
   _audioContext: BaseAudioContext,
-  channelType: 'tone1' | 'tone2' | 'tone3'
+  channelType: 'tone1' | 'tone2' | 'tone3',
+  channelIndex?: number
 ): ChipChannelBackend {
-  return new SMSToneBackend(channelType);
+  const backend = new SMSToneBackend(channelType);
+  // Register with coordinator if it's Tone3
+  if (channelType === 'tone3' && typeof channelIndex === 'number') {
+    import('./scheduler.js').then(({ smsCoordinator }) => {
+      smsCoordinator.registerToneChannel(channelIndex, backend);
+    });
+  }
+  return backend;
 }

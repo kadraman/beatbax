@@ -50,9 +50,9 @@ const smsPlugin: ChipPlugin = {
 
   createChannel(channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {
     switch (channelIndex) {
-      case 0: return createToneChannel(audioContext, 'tone1');
-      case 1: return createToneChannel(audioContext, 'tone2');
-      case 2: return createToneChannel(audioContext, 'tone3');
+      case 0: return createToneChannel(audioContext, 'tone1', 0);
+      case 1: return createToneChannel(audioContext, 'tone2', 1);
+      case 2: return createToneChannel(audioContext, 'tone3', 2);
       case 3: return createNoiseChannel(audioContext);
       default: throw new Error(`SMS plugin: invalid channel index ${channelIndex} (valid: 0–3)`);
     }
@@ -73,4 +73,17 @@ export {
   getSmsWebAudioNorm,
   SMS_MIX_GAIN,
   type SmsWebAudioMixMode,
+  ggPanToGains,
+  applyStereoRouting,
+  type GGPan,
 } from './mixer.js';
+export { SMSChannelCoordinator, smsCoordinator } from './scheduler.js';
+export {
+  VibratoEffect,
+  PortamentoEffect,
+  TremoloEffect,
+  applyVibrato,
+  applyPortamento,
+  applyTremolo,
+  applyNoiseVibrato,
+} from './effects.js';

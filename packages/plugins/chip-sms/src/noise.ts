@@ -19,7 +19,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
+import { SMS_MIX_GAIN, getSmsWebAudioNorm, ggPanToGains } from './mixer.js';
 import { SMS_CLOCK, freqToPeriod, NOISE_RATE_DIVIDERS, resolveNoiseRateDivisor } from './periodTables.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
@@ -187,6 +187,15 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     }
   }
 
+  /**
+   * Set the noise rate directly (for effects).
+   * @param rate - Noise rate (0, 1, 2, or 3 for tone3)
+   */
+  setNoiseRate(rate: number | 'tone3'): void {
+    this.noiseRate = rate;
+    this.updateLFSRRate();
+  }
+
   private updateLFSRRate(): void {
     if (!this.currentInst) return;
 
@@ -228,7 +237,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     }
   }
 
-  render(buffer: Float32Array, sampleRate: number): void {
+  render(buffer: Float32Array, sampleRate: number, channelPan?: string): void {
     if (!this.active || !this.currentInst) return;
 
     const gain = SMS_MIX_GAIN.noise * (1.0 - (this.attenuation / 15));
@@ -237,8 +246,12 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     const lfsrLen = this.lfsrBuf.length;
     const phaseInc = this.lfsrHz / sampleRate;
 
+    // Apply stereo panning if channelPan is provided
+    const [leftGain, rightGain] = channelPan ? ggPanToGains(channelPan) : [1.0, 1.0];
+    const effectiveGain = gain * ((leftGain + rightGain) / 2); // Average for mono buffer
+
     for (let i = 0; i < buffer.length; i++) {
-      buffer[i] += this.lfsrBuf[this.lfsrIndex] * gain;
+      buffer[i] += this.lfsrBuf[this.lfsrIndex] * effectiveGain;
       this.phase += phaseInc;
       const steps = Math.floor(this.phase);
       if (steps > 0) {
@@ -271,11 +284,15 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     
     // Calculate noise rate
     let rate = inst.noise_rate !== undefined ? inst.noise_rate : 2;
+    
+    // For tone3 sync, we need to handle this specially
     if (typeof rate === 'string' && rate === 'tone3') {
-      rate = this.tone3Period; // Use current tone3 period
+      // Use the current tone3 period
+      rate = this.tone3Period;
     } else {
       rate = Number(rate) ?? 2;
     }
+    
     const divisor = resolveNoiseRateDivisor(rate, this.tone3Period);
     const actualDivisor = typeof rate === 'number' && (rate === 0 || rate === 1 || rate === 2)
       ? NOISE_RATE_DIVIDERS[rate]
@@ -284,7 +301,12 @@ export class SMSNoiseBackend implements ChipChannelBackend {
 
     // Build upsampled LFSR buffer for the note duration
     const sampleRate = ctx.sampleRate;
-    const totalSamples = Math.ceil((dur + 0.05) * sampleRate);
+    
+    // For tone3 sync, use a shorter buffer to be more responsive to changes
+    const isTone3Sync = inst.noise_rate === 'tone3' || inst.noise_rate === 3;
+    const bufferDuration = isTone3Sync ? Math.min(dur, 0.1) : dur + 0.05; // Max 100ms for tone3 sync
+    const totalSamples = Math.ceil(bufferDuration * sampleRate);
+    
     const abuf = (ctx as any).createBuffer(1, totalSamples, sampleRate);
     const data = abuf.getChannelData(0);
     const phaseInc = lfsrHz / sampleRate;
@@ -304,6 +326,13 @@ export class SMSNoiseBackend implements ChipChannelBackend {
 
     const source = (ctx as any).createBufferSource();
     source.buffer = abuf;
+    
+    // Enable looping for tone3 sync to make it more responsive
+    if (isTone3Sync) {
+      source.loop = true;
+      source.loopStart = 0;
+      source.loopEnd = totalSamples / sampleRate; // Loop duration in seconds
+    }
 
     const gainNode = (ctx as any).createGain();
     const webNorm = getSmsWebAudioNorm();
@@ -349,5 +378,10 @@ export class SMSNoiseBackend implements ChipChannelBackend {
  * Create the noise channel backend.
  */
 export function createNoiseChannel(_audioContext: BaseAudioContext): ChipChannelBackend {
-  return new SMSNoiseBackend();
+  const backend = new SMSNoiseBackend();
+  // Register with coordinator
+  import('./scheduler.js').then(({ smsCoordinator }) => {
+    smsCoordinator.registerNoiseChannel(backend);
+  });
+  return backend;
 }

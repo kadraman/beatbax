@@ -1,25 +1,16 @@
 # Small SMS macro verification song: arpeggio macro on tone1.
-# Use to verify tone1 arp_env macro export with loop point.
+# Use to verify tone1 arp_env macro with or without loop point.
 
 song name "SMS Macro - Tone1 Arp"
 chip sms
 bpm 96
 
-# Instrument parameters (tone1 arpeggio macro test):
-# - type=tone1: routes to SMS tone1 channel (channel 1).
-# - arp_env=[0,4,7|0]: semitone-offset macro applied per frame.
-#   - Offsets are relative to the played note.
-#   - 0 = root, +4 = major third, +7 = perfect fifth.
-#   - This makes a held note cycle through a triad (root-third-fifth).
-#   - |0 loops from the first entry, so the arpeggio repeats continuously.
-#   - Tone3 has fixed waveform/volume, so this file isolates arp_env behaviour.
-#inst i_tone1_arp type=tone1 vol=13 arp_env=[-12, 0, 12|0] #vol_env=[13,12,11,10,9,8,7,6,5,4,3,2,1,0]
-#inst lead  type=tone1   vol=10 vol_env=[15,12,10,8|7]
-inst i_tone1_arp type=tone1 vol=13 arp_env=[-12,0,12|0]
+inst i_tone1_arp1 type=tone1 vol=13 arp_env=[-12,-12,0,0,12,12] vol_env=[13,12,11,10,9,8,7,6,5,4,3,2,1,0]
+inst i_tone1_arp2 type=tone1 vol=13 arp_env=[-12,0,12|0] vol_env=[13,12,11,10,9,8,7,6,5,4,3,2,1,0]
 
-pat p_main = C4:4 D4:4 E4:4 F4:4
-seq s_main = p_main p_main
+pat p_main = C4:2 D4 E4 . . F4 . .
+seq s_main = p_main p_main:rev p_main:inst(i_tone1_arp2):oct(-1) p_main:inst(i_tone1_arp2):rev:oct(-1)
 
-channel 1 => inst i_tone1_arp seq s_main
+channel 1 => inst i_tone1_arp1 seq s_main
 
 play
