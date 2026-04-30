@@ -58,10 +58,9 @@ export function validateSmsInstrument(inst: InstrumentNode): ValidationError[] {
     });
   }
 
+  // Emit warning for retrig (spec: phase-reset is emulation-dependent)
+  // Note: Parser converts non-'type' ValidationErrors to warnings, so this appears as a warning
   if (inst.retrig !== undefined) {
-    // According to spec, retrig should be a warning, not an error
-    // For v1, we'll keep it as an error but with clear messaging
-    // Future versions could implement proper warning support
     errors.push({
       field: 'retrig',
       message: 'Note retriggering on SN76489 is emulation-dependent. Phase-reset behaviour may differ between VGM players and real hardware. Use with caution.'

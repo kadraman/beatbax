@@ -8,6 +8,7 @@
 import { ChipPlugin } from './types.js';
 import { gameboyPlugin } from './gameboy/plugin.js';
 import { exporterRegistry } from '../export/registry.js';
+import { register as registerEffect } from '../effects/index.js';
 
 export class ChipRegistry {
   private plugins = new Map<string, ChipPlugin>();
@@ -32,6 +33,10 @@ export class ChipRegistry {
       throw new Error(`Chip plugin '${plugin.name}' is already registered`);
     }
     this.plugins.set(plugin.name, plugin);
+    // Register chip-specific effect handlers (overrides generic implementations)
+    for (const [effectName, handler] of Object.entries(plugin.effects ?? {})) {
+      registerEffect(effectName, handler);
+    }
     for (const exporterPlugin of plugin.exporterPlugins ?? []) {
       if (!exporterRegistry.has(exporterPlugin.id)) {
         exporterRegistry.register(exporterPlugin);

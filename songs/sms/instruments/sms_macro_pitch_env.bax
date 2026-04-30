@@ -1,0 +1,15 @@
+# Small SMS macro verification song: song: semitone pitch macro on tone1.
+# Use to verify tone1 pitch_env macro.
+
+song name "SMS Macro - Pitch Env"
+chip sms
+bpm 96
+
+inst i_tone1_pitch type=tone1 vol=13 vol=10 pitch_env=[5,4,3,2,1,0,0,0]
+
+pat p_main = C4:8 . . D4:8 . .
+seq s_main = p_main p_main
+
+channel 1 => inst i_tone1_pitch seq s_main
+
+play

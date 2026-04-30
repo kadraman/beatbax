@@ -8,6 +8,7 @@
 import { InstrumentNode } from '../parser/ast.js';
 import { SongModel } from '../song/songModel.js';
 import type { ExporterPlugin } from '../export/types.js';
+import type { EffectHandler } from '../effects/types.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -165,6 +166,25 @@ export interface ChipPlugin {
    * plugin is registered.
    */
   exporterPlugins?: ExporterPlugin[];
+
+  /**
+   * Optional effect handlers provided by this chip plugin.
+   * These are auto-registered into the global effects registry when the chip
+   * plugin is registered, allowing chips to override or extend the default
+   * effect implementations with chip-specific behavior.
+   *
+   * Keys are effect names (e.g. 'volSlide', 'vib'), values are effect handlers.
+   *
+   * @example
+   * ```typescript
+   * effects: {
+   *   volSlide: (ctx, nodes, params, start, dur, chId, tickSeconds, inst) => {
+   *     // Chip-specific volSlide implementation
+   *   }
+   * }
+   * ```
+   */
+  effects?: Record<string, EffectHandler>;
 
   /**
    * Optional async alternative to `exporterPlugins` for exporter plugins that

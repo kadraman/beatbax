@@ -12,6 +12,8 @@
 
 import type { SMSToneBackend } from './tone.js';
 import type { SMSNoiseBackend } from './noise.js';
+import { SMS_MIX_GAIN } from './mixer.js';
+import { getSmsWebAudioNorm } from './mixer.js';
 
 /**
  * Vibrato effect parameters
@@ -150,4 +152,4 @@ export function applyNoiseVibrato(
   
   // Update noise rate
   channel.setNoiseRate(modulatedRate);
-}
+} 

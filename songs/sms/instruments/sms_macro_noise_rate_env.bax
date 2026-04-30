@@ -1,0 +1,26 @@
+# SMS macro verification song: noise_rate_env macro on noise channel.
+# Demonstrates sweeping noise rate (0-3) per frame.
+# Rate 0 = fastest noise (div/128), Rate 1 = medium (div/256), Rate 2 = slowest (div/512), Rate 3 = Tone3 period.
+
+song name "SMS Macro - Noise Rate Env"
+chip sms
+bpm 96
+
+# Sweep noise rate from 0 (fast) to 2 (slow) over 13 frames
+inst i_noise_sweep type=noise vol=12 vol_env=[12,11,10,9,8,7,6,5,4,3,2,1,0] noise_rate_env=[0,0,0,0,1,1,1,1,2,2,2,2,2]
+
+# Looping noise rate oscillation between fast and slow
+inst i_noise_wobble type=noise vol=11 vol_env=[11,10,9,8,7,6,5,4] noise_rate_env=[0,1,2,1|0]
+
+# Fast noise rate change with tone3 sync effect
+inst i_noise_tone3sync type=noise vol=10 vol_env=[10,9,8,7,6,5,4,3,2,1] noise_rate_env=[0,3,0,3,0,3|0]
+
+pat p_sweep = C4:4 . . . C4:4 . . . C4:4 . .
+pat p_wobble = C4:4 . . C4:4 . . . . C4:4 . .
+pat p_tone3 = C4:4 . . . . C4:4 . . . . C4:4 .
+
+seq s_main = p_sweep p_wobble:inst(i_noise_wobble) p_tone3:inst(i_noise_tone3sync) p_sweep:oct(1)
+
+channel 4 => inst i_noise_sweep seq s_main
+
+play

@@ -36,6 +36,7 @@ import { createToneChannel } from './tone.js';
 import { createNoiseChannel } from './noise.js';
 import { validateSmsInstrument, SMS_TYPES } from './validate.js';
 import { smsUIContributions } from './ui-contributions.js';
+import { smsVolSlideEffect } from './volSlide.js';
 
 const smsPlugin: ChipPlugin = {
   name: 'sms',
@@ -46,6 +47,10 @@ const smsPlugin: ChipPlugin = {
 
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
+  },
+
+  effects: {
+    volSlide: smsVolSlideEffect,
   },
 
   createChannel(channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {

@@ -1,0 +1,35 @@
+# SMS PSG unsupported-effect coverage fixture.
+# Intentionally includes effects that are unsupported or invalid on SMS/PSG.
+
+song name "SMS Unsupported Effects Demo"
+chip sms
+bpm 128
+
+inst i_t1    type=tone1 vol=12 vol_env=[12,10,8,6,4,2,0]
+inst i_t2    type=tone2 vol=10 vol_env=[10,8,6,4,2,0]
+inst i_t3    type=tone3 vol=12 vol_env=[15,flat]
+inst i_noise type=noise noise_mode=white noise_rate=2 vol_env=[15,10,5,0]
+
+# Globally unsupported on SMS: sweep, echo, retrig
+pat p_unsupported_global = C4<sweep:4,up,7>:8 E4<echo:0.25,40,25>:8 G4<retrig:2,-3>:8 C5<trem:8,5,square,0,1>:8
+
+# Channel-invalid for tone2: noise_mode, noise_rate (noise-only fields)
+pat p_invalid_t2 = C3<noise_mode:periodic> C3<noise_rate:1> C3<noise_rate_env:[0,1,2|0]> . . . .
+
+# Channel-invalid for tone3: noise-specific fields
+pat p_invalid_t3 = C3<noise_mode:white> C3<noise_rate:0> C3 . . . .
+
+# Channel-invalid for noise: arp_env (not meaningful for noise)
+pat p_invalid_noise = C2<arp_env:[0,4,7|0]> C2<pitch_env:[0,1,0,-1]> . . . .
+
+seq s_t1 = p_unsupported_global p_unsupported_global
+seq s_t2 = p_invalid_t2 p_invalid_t2
+seq s_t3 = p_invalid_t3 p_invalid_t3
+seq s_noise = p_invalid_noise p_invalid_noise
+
+channel 1 => inst i_t1 seq s_t1
+channel 2 => inst i_t2 seq s_t2
+channel 3 => inst i_t3 seq s_t3
+channel 4 => inst i_noise seq s_noise
+
+play
