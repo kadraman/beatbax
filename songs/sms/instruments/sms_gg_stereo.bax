@@ -1,0 +1,55 @@
+# SMS/Game Gear stereo routing verification song.
+# Demonstrates gg:pan with one part per PSG voice.
+
+chip sms
+bpm 140
+time 4
+
+# =============================================================================
+# Instruments (with Game Gear pan)
+# =============================================================================
+
+# SMS attenuation reminder:
+#   0 = loudest, 15 = mute
+
+# Lead melody on right
+inst lead  type=tone1 vol=8  vol_env=[8,9,10,11|11] gg:pan=R
+
+# Harmony on left
+inst harm  type=tone2 vol=9  vol_env=[9,10,11,12|12] gg:pan=L
+
+# Bass centered (both sides)
+inst bass  type=tone3 vol=10 vol_env=[10,11,12,13|13] gg:pan=C
+
+# Drums centered
+inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15] gg:pan=C
+inst snare type=noise noise_mode=white noise_rate=1 vol_env=[1,5,9,13,15] gg:pan=C
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+pat melody   = E5:2 G5:2 A5:2 B5:2 C6:2 A5:2 G5:2 E5:2
+pat harmony  = C4 . E4 . G4 . A4 . B4 . A4 . G4 .
+pat bassline = E2:4 C2:4 A2:4 B2:4
+pat drums    = kick . snare . kick kick snare . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq melody   = melody melody melody melody
+seq harm_seq = harmony harmony harmony harmony
+seq bass_seq = bassline bassline bassline
+seq drum_seq = drums drums drums drums drums drums
+
+# =============================================================================
+# Channels
+# =============================================================================
+
+channel 1 => inst lead seq melody
+channel 2 => inst harm seq harm_seq
+channel 3 => inst bass seq bass_seq
+channel 4 => inst kick seq drum_seq
+
+play

@@ -1,0 +1,279 @@
+## battle_field.bax
+## Original SMS chiptune — inspired by the spirit of "Battle Field" (Space Harrier,
+## Mark III / SMS, 1987, Sega AM2 / Hiroshi Kawaguchi).
+##
+## This is an entirely original composition — it does not reproduce any copyrighted
+## material. It captures the energetic, fast-paced, major-key feel of classic late-1980s
+## Sega PSG action soundtracks: driving bass, punchy arpeggiated lead, staccato harmony
+## stabs, and a tight noise drum groove.
+##
+## Key: D major | Tempo: 172 BPM | Style: Driving arcade action / space shooter
+##
+## SMS attenuation reminder throughout this file:
+##   0 = loudest, 15 = mute
+## All vol_env arrays count UP toward 15 to express decay / fade-out.
+##
+## Structure (20 bars, each bar = 16 scheduler ticks at 172 BPM):
+##   Bars  1– 4 : Section A  — Main theme, D major arpeggiated lead (Tone1),
+##                             perfect-5th chord stabs (Tone2), driving bass (Tone3)
+##   Bars  5– 8 : Section B  — Bridge / modulation, Bm / G material; lead rises,
+##                             harmony stabs up an octave, bass walks Bm / G / A
+##   Bars  9–12 : Break      — Tone1 sustain with vibrato pedal + pitch_env rise,
+##                             Tone2 counter-melody, bass holds tonic pedal
+##   Bars 13–16 : Reprise A  — Full return to D major main theme, full ensemble drive
+##   Bars 17–20 : Ending     — B-section variation + final D-major cadence tag
+##
+## Channels:
+##   Ch1 (Tone1) : Lead melody — arpeggiated major triads, fast 16th runs; vibrato
+##                 pedal in the break using the lead_vib instrument variant.
+##   Ch2 (Tone2) : Harmony — staccato 5th stabs (cut:2); break counter-melody (Tone2).
+##   Ch3 (Tone3) : Bass — quarter-note root/5th driving bass line; D / Bm / G / A roots.
+##   Ch4 (Noise) : Drums — kick on beats 1 & 3, snare on beats 2 & 4, 8th-note hi-hat
+##                 groove; white noise for snare/hat, periodic for kick thud.
+##
+## Timing reference (172 BPM, 4 ticks per beat):
+##   1 tick  = 1/16 note  ≈  87 ms
+##   4 ticks = 1 quarter note  (one beat)
+##   8 ticks = 1 half note     (two beats)
+##  16 ticks = 1 whole bar     (four beats)
+##
+## All patterns are exactly 16 ticks.  All sequences are exactly 320 ticks (20 × 16).
+##
+## Play: node bin/beatbax play songs/sms/battle_field.bax
+
+song name "Battle Field"
+song artist "The BeatBax Team"
+song description """Original SMS PSG chiptune at 172 BPM in D major, inspired by the energetic feel of classic late-1980s Sega Mark III arcade action soundtracks. Demonstrates all 4 SMS channels: bright Tone1 lead with a vibrato break pedal, Tone2 staccato 5th stabs switching to counter-melody, Tone3 driving quarter-note bass, and a full noise drum kit (kick/snare/hi-hat) with clearly separated timbres. Uses cut:2 stabs, inline vibrato pedal shaping, pitch_env rise, and attenuation-accurate SMS envelopes."""
+song tags "sms,action,arcade,space,shooter,example,demo"
+
+chip sms ntsc
+bpm 172
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# ── Tone1 (type=tone1) ────────────────────────────────────────────────────────
+#
+# lead — bright melodic lead voice with short decay for crisp 16th-note runs.
+#   vol_env=[0,3,6,9,12,15] : punchy attack (attenuation=0 → loudest) decaying to mute
+#   over 6 frames. Short enough for crisp 16th-note runs but with enough body to punch.
+#   No arp_env on this lead: avoids octave overshoot/dissonance on already-high notes.
+inst lead     type=tone1  vol=0  vol_env=[0,3,6,9,12,15]
+
+# lead_vib — break-section pedal variant. Warmer, sustaining attenuation level;
+#   vibrato applied per-note in the sequence for the tonic pedal bars.
+#   vol=4 : steady sustained level (light attenuation = warm, not too loud).
+#   No vol_env so the pedal holds constant through the whole note duration.
+inst lead_vib type=tone1  vol=4
+
+# ── Tone2 (type=tone2) ────────────────────────────────────────────────────────
+#
+# stab — staccato perfect-5th harmony punches. Used in sections A, B and reprise.
+#   vol_env=[0,2,4,6,8,10,12,14,15] : brighter attack plus longer body than before.
+#   Combined with cut:3 per-note in patterns for clear presence in the full mix.
+#   Sits below lead in register (one octave down) to keep space in the mix.
+inst stab     type=tone2  vol=0  vol_env=[0,2,4,6,8,10,12,14,15]
+
+# stab_hi — section B upper-register variant of the stab voice.
+#   Slightly less attenuation and longer tail so ending variation reads clearly.
+inst stab_hi  type=tone2  vol=1  vol_env=[0,2,4,6,8,10,12,14,15]
+
+# ctr — break-section counter-melody (smooth, no arp; contrasts the break pedal).
+#   vol_env=[2,5,8,11|11] : soft attack, gentle sustain plateau at attenuation 11.
+#   The held sustain level keeps each step of the counter-melody audible.
+inst ctr      type=tone2  vol=2  vol_env=[2,5,8,11|11]
+
+# ── Tone3 (type=tone3) ────────────────────────────────────────────────────────
+#
+# bass — relentless quarter-note driving bass. Sega PSG action tracks use Tone3 as
+#   a pure bass voice: constant loud level, minimal decay, short staccato envelope.
+#   vol=0 : maximum loudness (attenuation=0) — bass must anchor the mix.
+#   vol_env=[0,6,10,14,15] : brief decay so fast repeated quarter notes stay distinct
+#   rather than blurring into a continuous tone.
+inst bass     type=tone3  vol=0  vol_env=[0,6,10,14,15]
+
+# ── Noise (type=noise) ────────────────────────────────────────────────────────
+#
+# kick — low thud using white noise at the slowest rate with a short transient.
+#   Using white+rate=2 avoids metallic ringing common with periodic kick settings.
+#   vol_env=[0,3,8,13,15] : very fast transient with a tiny tail for body.
+inst kick     type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,8,13,15]
+
+# snare — brighter crack at rate=1 with a longer body than hat.
+#   vol_env=[1,5,9,12,14,15] gives an audible snare tail distinct from both kick and hat.
+inst snare    type=noise  noise_mode=white     noise_rate=1  vol_env=[1,5,9,12,14,15]
+
+# hihat — high-frequency short tick at rate=0, much shorter and softer than snare.
+#   vol_env=[7,13,15] keeps hi-hat crisp and clearly separate from snare body.
+inst hihat    type=noise  noise_mode=white     noise_rate=0  vol_env=[7,13,15]
+
+# =============================================================================
+# Patterns — every pattern is exactly 16 ticks (one bar at 172 BPM)
+# =============================================================================
+
+# ── Section A: Main theme (D major) ───────────────────────────────────────────
+#
+# mel_a1 — 16th-note lead run ascending through D major.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: D5  F#5  A5  D6  A5  F#5 D5  A4  F#5 A5  D6  A5  F#5 E5  D5  C#5
+pat mel_a1 = D5 F#5 A5 D6 A5 F#5 D5 A4 F#5 A5 D6 A5 F#5 E5 D5 C#5  # 16×1 = 16
+
+# mel_a2 — quarter-note statement then a 16th-note downward run, landing on D.
+#   D6:4 A5:2 F#5:2 E5:2 D5:2 C#5:2 D5:2   → 4+2+2+2+2+2+2 = 16
+pat mel_a2 = D6:4 A5:2 F#5:2 E5:2 D5:2 C#5:2 D5:2  # 16 ✓
+
+# harm_a1 — Tone2 staccato stabs: A4 (perfect 5th over D) then D4 (root).
+#   cut:3 keeps punchy articulation but improves audibility versus cut:2.
+#   8+8 = 16; each half-note slot has the stab fire then rest.
+pat harm_a1 = A4<cut:3>:8 D4<cut:3>:8  # 16 ✓
+
+# harm_a2 — Tone2 stab answer: F#4 (major 3rd) then A4 (perfect 5th).
+pat harm_a2 = F#4<cut:3>:8 A4<cut:3>:8  # 16 ✓
+
+# bass_a1 — Tone3 driving bass: D2 root quarter notes alternating with A2 (5th).
+#   Classic Sega action bass: relentless even quarter-note pulse on root and fifth.
+#   (1 tick note + 3 rests) × 4 = 16
+pat bass_a1 = D2 . . . A2 . . . D2 . . . A2 . . .  # 16 ✓
+
+# bass_a2 — Tone3 bass variant: D2 root repeated with a brief descent to C#2.
+#   Adds a minor leading-tone flavor that propels into section repeat.
+pat bass_a2 = D2 . . . A2 . . . D2 . . . C#2 . . .  # 16 ✓
+
+# ── Section B: Bridge — Bm / G / A material ──────────────────────────────────
+#
+# mel_b1 — Lead rises to Bm territory.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: B5  D6  F#6 B6  F#6 D6  B5  F#5 D6  F#6 B6  F#6 D6  B5  A5  G5
+pat mel_b1 = B5 D6 F#6 B6 F#6 D6 B5 F#5 D6 F#6 B6 F#6 D6 B5 A5 G5  # 16×1 = 16
+
+# mel_b2 — Step back to G major area; gradual descent building tension for break.
+#   G6:4 D6:2 B5:2 A5:2 G5:2 F#5:2 E5:2   → 4+2+2+2+2+2+2 = 16
+pat mel_b2 = G6:4 D6:2 B5:2 A5:2 G5:2 F#5:2 E5:2  # 16 ✓
+
+# harm_b1 — Section B stab (stab_hi): F#5 (Bm 5th), B4 (Bm root) up an octave.
+pat harm_b1 = F#5<cut:3>:8 B4<cut:3>:8  # 16 ✓
+
+# harm_b2 — Section B stab: D5 (G major root oct up), G4 (G major root).
+pat harm_b2 = D5<cut:3>:8 G4<cut:3>:8  # 16 ✓
+
+# ── Ending tag (bars 17–20) ──────────────────────────────────────────────────
+#
+# mel_b1_var / mel_b2_var — variation on the section B hook with stronger descent.
+pat mel_b1_var = B5 D6 F#6 B6 A6 F#6 D6 B5 D6 F#6 A6 F#6 E6 D6 C#6 B5  # 16×1 = 16
+pat mel_b2_var = G6:4 D6:2 B5:2 A5:2 G5:2 F#5:2 E5:1 D5:1 E5:1 F#5:1  # 16 ✓
+
+# mel_end — final bar cadence: D-major arpeggio and tonic hold.
+pat mel_end = D6:2 A5:2 F#5:2 D5:2 A5:2 F#5:2 E5:2 D5:2  # 16 ✓
+
+# Harmonic support for ending variation and cadence.
+pat harm_b1_var = F#5<cut:3>:8 D5<cut:3>:8  # 16 ✓
+pat harm_b2_var = E5<cut:3>:8 A4<cut:3>:8   # 16 ✓
+pat harm_end = A4<cut:3>:8 D4:8             # 16 ✓
+
+# Bass support for ending variation and final cadence.
+pat bass_b3 = B1 . . . A1 . . . G2 . . . A2 . . .  # 16 ✓
+pat bass_end = D2 . . . A2 . . . D2 . . . D2 . . . # 16 ✓
+
+# Drum support for ending variation and final cadence.
+pat beat_fill = kick . hihat kick snare . hihat . kick . hihat snare kick . hihat .  # 16 ✓
+pat beat_end = kick . hihat . snare . hihat . kick . . . snare . . .                  # 16 ✓
+
+# bass_b1 — Bm bass: root B1 alternating with perfect 5th F#2.
+pat bass_b1 = B1 . . . F#2 . . . B1 . . . F#2 . . .  # 16 ✓
+
+# bass_b2 — G / A bass: G2 root then A2 root (strong approach back to D).
+pat bass_b2 = G2 . . . G2 . . . A2 . . . A2 . . .  # 16 ✓
+
+# ── Break / Bridge: Tonic pedal + counter-melody (bars 9–12) ─────────────────
+#
+# pedal_d — Tone1 whole-bar D5 tonic pedal with delayed vibrato.
+#   Vibrato is written inline (not preset) so preview uses the exact note effect:
+#   vib:4,5,sine,0,4 = onset at tick 4 after a stable attack.
+pat pedal_d = D5<vib:4,5,sine,0,4>:16  # 16 ✓
+
+# pedal_rise — pitch_env ascent during bars 11–12 to build tension into reprise.
+#   D5 sustained; pitch_env=[0,1,2,3,4,5,7] bends up a perfect 5th over 7 frames.
+#   Creates classic "tension rise" effect before the reprise crash.
+pat pedal_rise = D5<vib:4,5,sine,0,4><pitch_env:[0,1,2,3,4,5,7]>:16  # 16 ✓
+
+# ctr_b1 — Tone2 break counter-melody: step-wise descent through D major.
+#   A5:4 G5:4 F#5:4 E5:4   → 4+4+4+4 = 16
+pat ctr_b1 = A5:4 G5:4 F#5:4 E5:4  # 16 ✓
+
+# ctr_b2 — Tone2 counter answer: land on D5, stepwise motion to A4.
+#   D5:4 C#5:4 B4:4 A4:4   → 4+4+4+4 = 16
+pat ctr_b2 = D5:4 C#5:4 B4:4 A4:4  # 16 ✓
+
+# bass_break — Tone3 tonic pedal: D2 whole bar (held quarter notes).
+pat bass_break = D2 . . . D2 . . . D2 . . . D2 . . .  # 16 ✓
+
+# bass_rise — Bass rise before reprise: D2 → E2 → F#2 → A2 ascending walk.
+pat bass_rise  = D2 . . . E2 . . . F#2 . . . A2 . . .  # 16 ✓
+
+# ── Drums: 8th-note hi-hat groove ─────────────────────────────────────────────
+#
+# Layout per bar (each column = 1 tick):
+#   tick:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#   hit:  KCK   .   HHT   .  SNR   .   HHT   .  KCK   .   HHT   .  SNR   .   HHT   .
+# Kick beats 1 & 3 (ticks 0, 8); snare beats 2 & 4 (ticks 4, 12);
+# hi-hat "and" of each beat (ticks 2, 6, 10, 14).
+pat beat = kick . hihat . snare . hihat . kick . hihat . snare . hihat .  # 16 ✓
+
+# beat_b — section B variant: double kick on beat 1 for extra drive.
+#   tick: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   hit: KCK KCK HHT . SNR . HHT . KCK . HHT . SNR . HHT .
+pat beat_b = kick . hihat kick snare . hihat . kick . hihat . snare . hihat .  # 16 ✓
+
+# beat_break — break-section stripped drum: kick only on beats 1 & 3.
+#   Sparse pattern gives the break an open, breath-before-storm feeling.
+pat beat_break = kick . . . . . . . kick . . . . . . .  # 16 ✓
+
+# =============================================================================
+# Sequences — 20 patterns × 16 ticks = 320 ticks per channel
+# =============================================================================
+
+# Tone1 lead:
+#   Bars  1– 4 : Section A main arpeggiated theme (mel_a1 / mel_a2 alternating)
+#   Bars  5– 8 : Section B Bm / G material (mel_b1 / mel_b2)
+#   Bars  9–10 : Break — warm tonic pedal with delayed inline vibrato
+#   Bars 11–12 : Break — tension rise pedal (pitch_env bending up a 5th)
+#   Bars 13–16 : Reprise A — full return to main D major theme
+#   Bars 17–20 : Ending variation (B-motif variation) + cadence tag
+seq lead_main = mel_a1 mel_a2 mel_a1 mel_a2 mel_b1 mel_b2 mel_b1 mel_b2 pedal_d:inst(lead_vib) pedal_d:inst(lead_vib) pedal_rise:inst(lead_vib) pedal_rise:inst(lead_vib) mel_a1 mel_a2 mel_a1 mel_a2 mel_b1_var mel_b2_var mel_b1 mel_end
+
+# Tone2 harmony:
+#   Bars  1– 4 : Section A staccato 5th stabs (stab inst)
+#   Bars  5– 8 : Section B upper-register stabs (stab_hi inst via transform)
+#   Bars  9–12 : Break counter-melody (ctr inst via transform)
+#   Bars 13–16 : Reprise A — return to staccato stab (stab inst)
+#   Bars 17–20 : Ending variation support + final held cadence
+seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2 harm_b1:inst(stab_hi) harm_b2:inst(stab_hi) harm_b1:inst(stab_hi) harm_b2:inst(stab_hi) ctr_b1:inst(ctr) ctr_b2:inst(ctr) ctr_b1:inst(ctr) ctr_b2:inst(ctr) harm_a1 harm_a2 harm_a1 harm_a2 harm_b1_var:inst(stab_hi) harm_b2_var:inst(stab_hi) harm_b1:inst(stab_hi) harm_end
+
+# Tone3 bass:
+#   Bars  1– 4 : Section A driving D / A alternation
+#   Bars  5– 6 : Section B Bm root / 5th
+#   Bars  7– 8 : Section B G / A bass approach back to D
+#   Bars  9–11 : Break — tonic D pedal
+#   Bar  12    : Ascending walk D→A for tension into reprise
+#   Bars 13–16 : Reprise A — back to driving D / A alternation
+#   Bars 17–20 : Ending variation walk + final D cadence
+seq bass_main = bass_a1 bass_a2 bass_a1 bass_a2 bass_b1 bass_b2 bass_b1 bass_b2 bass_break bass_break bass_break bass_rise bass_a1 bass_a2 bass_a1 bass_a2 bass_b3 bass_b2 bass_b1 bass_end
+
+# Noise drums:
+#   Bars  1– 4 : Section A full groove
+#   Bars  5– 8 : Section B double-kick variant (extra drive)
+#   Bars  9–12 : Break — sparse kick-only (breath before the reprise)
+#   Bars 13–16 : Reprise A — full groove returns
+#   Bars 17–20 : Ending variation groove + restrained final bar
+seq drum_main = beat beat beat beat beat_b beat_b beat_b beat_b beat_break beat_break beat_break beat_break beat beat beat beat beat_b beat_fill beat_b beat_end
+
+# =============================================================================
+# Channels
+# =============================================================================
+channel 1 => inst lead     seq lead_main   # Tone1 — arpeggiated lead melody
+channel 2 => inst stab     seq harm_main   # Tone2 — staccato stabs / counter-melody
+channel 3 => inst bass     seq bass_main   # Tone3 — driving quarter-note bass
+channel 4 => inst kick     seq drum_main   # Noise — kick / snare / hi-hat groove
+
+play

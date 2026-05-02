@@ -274,6 +274,10 @@ export class Player {
     if (!isGameboy && !activePlugin) {
       throw new Error(`Unsupported chip: ${ast.chip ?? chip}. No plugin registered for this chip.`);
     }
+    const configureForSong = (activePlugin as any)?.configureForSong;
+    if (typeof configureForSong === 'function') {
+      configureForSong({ chip: ast.chip, chipRegion: (ast as any).chipRegion });
+    }
 
     // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
     (this.ctx as any)._chipType = chip;
@@ -872,7 +876,26 @@ export class Player {
 
   // Apply registered effects for a scheduled note. `effectsArr` may be an array of
   // objects { type, params } produced by the parser (or legacy arrays). This will
-  // look up handlers in the effects registry and invoke them.
+  // resolve handlers from the active chip plugin first, then fallback to the
+  // global effects registry.
+  private resolveEffectHandler(ctx: any, effectName: string): any {
+    const normalizedName = String(effectName || '').toLowerCase();
+    if (!normalizedName) return undefined;
+
+    const chipType = (ctx as any)?._chipType;
+    if (chipType && chipType !== 'gameboy') {
+      const plugin = chipRegistry.get(String(chipType));
+      const pluginEffects = plugin?.effects;
+      if (pluginEffects) {
+        for (const [name, handler] of Object.entries(pluginEffects)) {
+          if (name.toLowerCase() === normalizedName) return handler;
+        }
+      }
+    }
+
+    return getEffect(normalizedName);
+  }
+
   private tryApplyEffects(ctx: any, nodes: any[], effectsArr: any[], start: number, dur: number, chId?: number, tickSeconds?: number, inst?: any) {
     if (!Array.isArray(effectsArr) || effectsArr.length === 0) return;
     for (const fx of effectsArr) {
@@ -897,7 +920,7 @@ export class Player {
           pcopy[4] = params[4] * tickSeconds;
           params = pcopy;
         }
-        const handler = getEffect(name);
+        const handler = this.resolveEffectHandler(ctx, name);
         if (handler) {
           try { handler(ctx, nodes, params, start, dur, chId, tickSeconds, inst); } catch (e) {}
         }

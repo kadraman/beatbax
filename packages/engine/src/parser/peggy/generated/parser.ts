@@ -292,8 +292,13 @@ function peg$parse(input, options) {
   var peg$f3 = function(raw) {
       return { nodeType: "ErrorStmt", raw: raw.trim(), loc: loc(location()) };
     };
-  var peg$f4 = function(s, name) {
-      return { nodeType: "ChipStmt", chip: name, loc: loc(location()) };
+  var peg$f4 = function(s, name, region) {
+      return {
+        nodeType: "ChipStmt",
+        chip: name,
+        region: region ? region[1] : undefined,
+        loc: loc(location())
+      };
     };
   var peg$f5 = function(value) {
       return { nodeType: "BpmStmt", bpm: value, loc: loc(location()) };
@@ -888,7 +893,7 @@ function peg$parse(input, options) {
   }
 
   function peg$parseChipStmt() {
-    var s0, s1, s2, s3, s4, s5;
+    var s0, s1, s2, s3, s4, s5, s6;
 
     var key = peg$currPos * 75 + 5;
     var cached = peg$resultsCache[key];
@@ -941,8 +946,26 @@ function peg$parse(input, options) {
       if (s2 !== peg$FAILED) {
         s3 = peg$parseIdentifier();
         if (s3 !== peg$FAILED) {
+          s4 = peg$currPos;
+          s5 = peg$parse__();
+          if (s5 !== peg$FAILED) {
+            s6 = peg$parseIdentifier();
+            if (s6 !== peg$FAILED) {
+              s5 = [s5, s6];
+              s4 = s5;
+            } else {
+              peg$currPos = s4;
+              s4 = peg$FAILED;
+            }
+          } else {
+            peg$currPos = s4;
+            s4 = peg$FAILED;
+          }
+          if (s4 === peg$FAILED) {
+            s4 = null;
+          }
           peg$savedPos = s0;
-          s0 = peg$f4(s1, s3);
+          s0 = peg$f4(s1, s3, s4);
         } else {
           peg$currPos = s0;
           s0 = peg$FAILED;

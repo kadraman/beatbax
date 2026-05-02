@@ -167,6 +167,7 @@ export interface AST {
   time?: number;
   stepsPerBar?: number;
   chip?: string;
+  chipRegion?: string;
   volume?: number;
   play?: PlayNode;
   metadata?: SongMetadata;

@@ -416,15 +416,22 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
 
   if (delta === 0) return; // No volume change
 
-  // Extract instrument envelope initial volume (0-15 on Game Boy, normalized to 0-1)
-  // If no instrument or envelope data available, fall back to 1.0 (full volume)
+  // Extract instrument envelope initial volume.
+  // Most chips use 0-15 volume where 0=silent, 15=loudest (normalized to [0, 1]).
+  // Chip-specific plugins (e.g. SMS) can override this effect for their volume conventions.
+  // If no instrument or envelope data available, fall back to 1.0 (full volume).
   let baselineGain = 1.0;
+
   if (inst && inst.env) {
     try {
       // Parse envelope to get initial volume (handles both string and object formats)
+      // Default: env.initial is 0-15 where 15=loudest, so normalize by /15
       const env = parseEnvelope(inst.env);
       if (env && env.mode === 'gb' && typeof env.initial === 'number') {
-        baselineGain = Math.max(0, Math.min(1, env.initial / 15)); // Normalize to [0, 1]
+        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
+      } else if (env && typeof env.initial === 'number') {
+        // Generic fallback: assume 0-15 volume range, 15=loudest
+        baselineGain = Math.max(0, Math.min(1, env.initial / 15));
       }
     } catch (e) {
       // Fall back to 1.0 if parsing fails
@@ -449,7 +456,7 @@ register('volSlide', (ctx: any, nodes: any[], params: any[], start: number, dur:
       // NOTE: Use larger scaling factor (÷3 instead of ÷5) for stepped slides to make
       // steps more audible in WebAudio which has inherent smoothing
       const stepDuration = dur / steps;
-      const scaleFactor = 3; // More aggressive scaling for stepped slides
+      const scaleFactor = 15;  // 4-bit volume units (0-15) // More aggressive scaling for stepped slides
 
       // Set initial value and hold it until first step
       gainParam.setValueAtTime(baselineGain, start);

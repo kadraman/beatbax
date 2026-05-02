@@ -10,6 +10,8 @@
 - **Dual rendering:** Melodic channels should implement both `render()` (PCM, for CLI/headless) and `createPlaybackNodes()` (Web Audio, for browser/Electron) for full compatibility and effects support.
 - For sample-based plugins, implement `resolveSampleAsset()` and follow the import security model for asset resolution.
 - See the NES plugin for a canonical example of dual-path rendering and UI contributions.
+- **Effect dispatch changed (2026-05):** Plugin `effects` are **no longer auto-registered into the global effect registry** when the plugin is registered. Instead, they are resolved at playback/PCM-render time for the active chip only — preventing one chip's effect handlers from silently overriding another chip's behavior. If you previously relied on global override behavior, move your logic into the per-chip resolution path (handled automatically by the engine when your plugin declares `effects`).
+- **`configureForSong()` hook (2026-05):** Plugins may declare an optional `configureForSong(song: { chip?: string; chipRegion?: string }): void` method. The engine calls this before playback and PCM render, passing the resolved song-level chip and region fields. Use it to apply song-level hardware configuration (for example, selecting NTSC vs PAL clock rate). See the SMS plugin (`packages/plugins/chip-sms/src/index.ts`) for a reference implementation.
 
 # Creating BeatBax Chip Plugins
 

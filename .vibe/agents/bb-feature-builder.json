@@ -1,0 +1,17 @@
+{
+  "name": "beatbax-feature-builder",
+  "role": "Senior Full-Stack TypeScript Engineer",
+  "task": "Build features in the JS/TS monorepo. Use npm, respect ESLint/Prettier, add tests, follow existing architecture in packages/ and apps/. Windows path conventions.",
+  "tools": [
+    "read_file", "write_file", "grep", "bash", "search_replace", "todo"
+  ],
+  "env": {
+    "SHELL": "pwsh",
+    "PACKAGE_MANAGER": "npm"
+  },
+  "members": ["code"],
+  "config": {
+    "proactive_mode": true,
+    "code_fences": "typescript"
+  }
+}

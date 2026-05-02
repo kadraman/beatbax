@@ -17,6 +17,7 @@
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
+import { NES_CLOCK } from './periodTables.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   schedulePitchEnvToFreq, scheduleArpEnvToFreq,
@@ -155,8 +156,8 @@ export class NESTriangleBackend implements ChipChannelBackend {
     // Align frequency to NES triangle period table: f = 1,789,773 / (32 × (period + 1))
     let alignedFreq = freq;
     if (freq > 0) {
-      const period = Math.round(1789773 / (32 * freq) - 1);
-      if (period >= 2 && period <= 2047) alignedFreq = 1789773 / (32 * (period + 1));
+      const period = Math.round(NES_CLOCK / (32 * freq) - 1);
+      if (period >= 2 && period <= 2047) alignedFreq = NES_CLOCK / (32 * (period + 1));
     }
     const safeFreq = Math.max(1, alignedFreq);
     try { osc.frequency.setValueAtTime(safeFreq, start); } catch (_) {}

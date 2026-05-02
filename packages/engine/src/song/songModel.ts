@@ -68,6 +68,7 @@ export interface SongModel {
   channels: ChannelModel[];
   bpm?: number;
   chip?: string;
+  chipRegion?: string;
   volume?: number;
   metadata?: SongMetadata;
   play?: any;

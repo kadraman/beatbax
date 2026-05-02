@@ -12,7 +12,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { DMC_RATE_TABLE, NES_CLOCK } from './periodTables.js';
+import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
@@ -194,7 +194,7 @@ export class NESDMCBackend implements ChipChannelBackend {
   private currentInst: InstrumentNode | null = null;
   private sampleData: Float32Array | null = null;
   private samplePos: number = 0;
-  private rateHz: number = DMC_RATE_TABLE[7]; // default ~525 Hz
+  private rateHz: number = getDmcRateTable()[7]; // default ~8363 Hz
   private loop: boolean = false;
   private phase: number = 0;
 
@@ -227,7 +227,7 @@ export class NESDMCBackend implements ChipChannelBackend {
 
     // Playback rate
     const rateIdx = Math.max(0, Math.min(15, Number(instrument.dmc_rate ?? 7)));
-    this.rateHz = DMC_RATE_TABLE[rateIdx];
+    this.rateHz = getDmcRateTable()[rateIdx];
 
     // Loop flag
     this.loop = instrument.dmc_loop === true || instrument.dmc_loop === 'true';
@@ -298,7 +298,7 @@ export class NESDMCBackend implements ChipChannelBackend {
     if (typeof (ctx as any).createBuffer !== 'function') return null;
 
     const rateIdx = Math.max(0, Math.min(15, Number(inst.dmc_rate ?? 7)));
-    const dmcHz = DMC_RATE_TABLE[rateIdx];
+    const dmcHz = getDmcRateTable()[rateIdx];
     const loopSample = inst.dmc_loop === true || inst.dmc_loop === 'true';
 
     // Get sample data synchronously: check cache first, then decode bundled sample

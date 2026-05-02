@@ -212,6 +212,12 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
       { label: 'wily_fortress.bax',          path: '/songs/nes/wily_fortress.bax' },
     ],
   },
+  {
+    group: 'SMS',
+    songs: [
+      { label: 'battle_field.bax',          path: '/songs/sms/battle_field.bax' },
+    ],
+  },
 ];
 
 /**

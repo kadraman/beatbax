@@ -52,21 +52,24 @@ Create a standalone chip plugin package that:
 ### Example Syntax
 
 ```bax
-chip sms
+# SMS attenuation semantics: vol / vol_env values are SN76489 attenuation levels.
+# 0 = loudest, 15 = mute. A decay envelope counts UP toward 15.
+
+chip sms ntsc        ; optional region qualifier: ntsc (default) or pal
 bpm 154
 
 ; Tone channels
 inst lead   type=tone1  vol=2  vib=2,6  pitch_env=[-1,0,1,0|-1]   ; vibrato via pitch macro
 inst harm   type=tone2  vol=5
 inst bass   type=tone3  vol=4  arp_env=[0,12|0]
-inst stab   type=tone1  vol_env=[15,12,9,6,3,0]  pitch_env=[4,2,0]       ; attack stab with pitch fall
+inst stab   type=tone1  vol_env=[0,3,6,9,12,15]  pitch_env=[4,2,0]   ; punchy decay with pitch fall
 
 ; Noise channel
-inst kick   type=noise  noise_mode=white     noise_rate=2   vol_env=[15,12,9,6,3,0]
-inst hat    type=noise  noise_mode=white     noise_rate=0   vol_env=[8,5,3,0]
-inst snare  type=noise  noise_mode=white     noise_rate=1   vol_env=[15,10,5,0]  noise_rate_env=[1,2|1]
+inst kick   type=noise  noise_mode=white     noise_rate=2   vol_env=[0,4,8,12,15]
+inst hat    type=noise  noise_mode=white     noise_rate=0   vol_env=[3,9,15]
+inst snare  type=noise  noise_mode=white     noise_rate=1   vol_env=[0,5,10,15]  noise_rate_env=[1,2|1]
 inst metal  type=noise  noise_mode=periodic  noise_rate=tone3  vol=8
-inst sweep  type=noise  noise_mode=white     noise_rate=3   noise_rate_env=[0,1,2,3]  vol_env=[12,10,8,5,3,0]
+inst sweep  type=noise  noise_mode=white     noise_rate=3   noise_rate_env=[0,1,2,3]  vol_env=[3,6,9,12,15]
 
 ; Optional Game Gear terminal-style panning/routing
 inst lead_gg type=tone1 vol=2 gg:pan=R
@@ -84,9 +87,12 @@ play
 ### Example Usage
 
 - `chip sms` selects the SMS/Game Gear PSG backend.
+- `chip sms ntsc` / `chip sms pal` — optional region qualifier. Selects the SN76489 clock rate used for tone period and frequency calculations. `ntsc` (3,579,545 Hz) matches North American and Japanese hardware; `pal` (3,546,895 Hz) matches European hardware. Defaults to `ntsc` when omitted. The qualifier is only valid for `chip sms`; using it with any other chip name is a parser error.
 - Channel count is fixed at 4.
 - `type=tone1|tone2|tone3|noise` maps directly to hardware voices.
 - `gg:pan=L|C|R` is interpreted as Game Gear routing intent and degrades deterministically to mono on SMS output targets.
+- **`vol` / `vol_env` attenuation semantics:** Values are raw SN76489 attenuation levels. `0` = loudest; `15` = mute. A decay envelope counts **upward** toward `15` (for example `vol_env=[0,4,8,12,15]`). This matches the hardware register convention and differs from chips where `vol=0` means silent.
+- **`volSlide` direction:** positive `delta` = louder (attenuation decreases); negative `delta` = quieter (attenuation increases). This is consistent with BeatBax's cross-chip convention where `volSlide:+N` always means "get louder".
 
 ### Effects Support
 
@@ -148,7 +154,7 @@ Leverage existing generic fields where possible:
 
 ### Parser Changes
 
-- Accept `chip sms` directive.
+- Accept `chip sms` directive (with optional `ntsc` / `pal` region qualifier).
 - Validate exactly 4 channels for SMS songs.
 - Allow SMS instrument types: `tone1`, `tone2`, `tone3`, `noise`.
 - Parse `noise_mode`, `noise_rate`, and `gg:pan`.
