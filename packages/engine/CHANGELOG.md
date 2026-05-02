@@ -1,5 +1,21 @@
 # @beatbax/engine
 
+## 0.12.0
+
+### Minor Changes
+
+- b25cd91: Added chip region qualifier and per-chip effect dispatch to the core engine.
+- b25cd91: Parser: `chip <name> ntsc|pal` region token is now parsed and validated; accepted for `chip sms` and `chip nes`; invalid regions and unsupported chips produce descriptive diagnostics with typo hints
+- b25cd91: AST: new optional `chipRegion` field on the root AST node and in the JSON Schema
+- b25cd91: SongModel / resolvers: `chipRegion` propagated through resolver.ts and resolver.browser.ts into SongModel
+- b25cd91: ChipPlugin interface: new optional `effects` field (Record<string, EffectHandler>) for chip-specific effect overrides
+- b25cd91: Effect dispatch: playback.ts and pcmRenderer.ts resolve effect handlers from the active chip plugin first, then fall back to the global registry — prevents SMS/NES plugin effects from overriding Game Boy behavior globally
+- b25cd91: configureForSong() hook: called by playback.ts and pcmRenderer.ts before play/render, passing { chip, chipRegion } to the active plugin
+
+### Patch Changes
+
+- 962e1a2: updates to gameboy ui contributons and copilot
+
 ## 0.11.2
 
 ### Patch Changes
