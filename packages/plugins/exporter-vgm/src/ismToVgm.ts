@@ -92,8 +92,8 @@ function freqToPeriod(freq: number, clock: number): number {
   return Math.max(0, Math.min(1023, Math.round(clock / (32 * freq))));
 }
 
-/** Note name → SN76489 period (0 if unparseable). */
-function noteToPeriod(note: string, clock: number): number {
+/** Note name → SN76489 period (0 if unparseable). Used by SMF-level utilities. */
+export function noteToPeriod(note: string, clock: number): number {
   const midi = noteToMidi(note);
   if (midi === null) return 0;
   return freqToPeriod(midiToFreq(midi), clock);
@@ -418,7 +418,7 @@ function parseEffectsOnNoteOn(
   state: ChannelSimState,
   noteName: string,
   _clock: number,
-  tickSeconds: number,
+  _tickSeconds: number,
 ): void {
   for (const eff of effects) {
     const t = eff.type.toLowerCase();
@@ -489,7 +489,7 @@ function parseEffectsOnNoteOn(
       }
     }
     // pan / gg:pan handled separately before this call
-    void t; void noteName; void tickSeconds;
+    void t; void noteName;
   }
 }
 
@@ -502,7 +502,6 @@ function parseEffectsOnNoteOn(
 function advanceFrames(
   state: ChannelSimState,
   frames: number,
-  clock: number,
 ): { periodChanged: boolean; volumeChanged: boolean; noiseRateChanged: boolean } {
   if (!state.active || frames <= 0) {
     return { periodChanged: false, volumeChanged: false, noiseRateChanged: false };
@@ -592,13 +591,10 @@ function advanceFrames(
       }
     }
 
-    void clock;
   }
 
   return { periodChanged, volumeChanged, noiseRateChanged };
 }
-
-// ─── Main translation loop ────────────────────────────────────────────────────
 
 export interface IsmToVgmResult {
   /** Raw VGM data bytes (commands, not including the header or GD3 block). */
@@ -625,8 +621,6 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
   // Determine clock from chipRegion
   const region = String(song.chipRegion ?? '').toLowerCase();
   const clock = region === 'pal' ? SN76489_CLOCK_PAL : SN76489_CLOCK_NTSC;
-  const rate = region === 'pal' ? 50 : 60;
-  void rate;
 
   const insts = (song.insts ?? {}) as Record<string, InstrumentNode>;
   const channels = song.channels;
@@ -731,9 +725,7 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
       const wholeFr = Math.floor(state.frameAccum);
       if (wholeFr > 0) {
         state.frameAccum -= wholeFr;
-        const psgCh = channelIdToPsg(channels[ci].id);
-        advanceFrames(state, wholeFr, clock);
-        void psgCh;
+        advanceFrames(state, wholeFr);
       }
     }
 

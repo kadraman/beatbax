@@ -24,13 +24,6 @@ import { version } from './version.js';
 import { ismToVgm, type SongLike } from './ismToVgm.js';
 import { buildGd3, type Gd3Fields } from './gd3.js';
 import { assembleVgm, type VgmHeaderParams } from './vgmWriter.js';
-import {
-  SN76489_CLOCK_NTSC,
-  SN76489_CLOCK_PAL,
-} from './constants.js';
-
-void SN76489_CLOCK_NTSC;
-void SN76489_CLOCK_PAL;
 
 // ─── Chip support ─────────────────────────────────────────────────────────────
 
