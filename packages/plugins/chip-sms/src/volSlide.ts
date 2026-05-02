@@ -11,8 +11,8 @@
  */
 
 // EffectHandler imported from engine via ChipPlugin interface
-import { SMS_MIX_GAIN } from './mixer.js';
-import { getSmsWebAudioNorm } from './mixer.js';
+import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
+import { parseMacro } from './macros.js';
 
 export const smsVolSlideEffect = (
   ctx: any,
@@ -62,17 +62,9 @@ export const smsVolSlideEffect = (
       if (inst.vol !== undefined) {
         baselineAttenuation = clampAttenuation(Number(inst.vol));
       } else if (inst.vol_env) {
-        let volEnv = inst.vol_env;
-        if (typeof volEnv === 'string') {
-          const m = volEnv.match(/^\[(\d+,*)+\]/);
-          if (m) {
-            const values = m[1].split(',').map(Number).filter(Number.isFinite);
-            if (values.length > 0) {
-              baselineAttenuation = clampAttenuation(values[0]);
-            }
-          }
-        } else if (Array.isArray(volEnv) && volEnv.length > 0) {
-          baselineAttenuation = clampAttenuation(Number(volEnv[0]));
+        const volEnvMacro = parseMacro(inst.vol_env);
+        if (volEnvMacro && volEnvMacro.values.length > 0) {
+          baselineAttenuation = clampAttenuation(volEnvMacro.values[0]);
         }
       }
     } catch (e) {
