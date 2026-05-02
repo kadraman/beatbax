@@ -82,8 +82,13 @@ ErrorStmt
 // -----------------------------
 
 ChipStmt
-  = s:$("chip" !IdentChar) __ name:Identifier {
-      return { nodeType: "ChipStmt", chip: name, loc: loc(location()) };
+  = s:$("chip" !IdentChar) __ name:Identifier region:(__ Identifier)? {
+      return {
+        nodeType: "ChipStmt",
+        chip: name,
+        region: region ? region[1] : undefined,
+        loc: loc(location())
+      };
     }
 
 BpmStmt

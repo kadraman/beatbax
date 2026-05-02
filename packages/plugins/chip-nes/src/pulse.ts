@@ -17,7 +17,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi } from './periodTables.js';
+import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
@@ -192,7 +192,7 @@ export class NESPulseBackend implements ChipChannelBackend {
 
     // Compute period from frequency
     if (frequency > 0) {
-      this.currentPeriod = Math.round(1789773 / (16 * frequency) - 1);
+      this.currentPeriod = Math.round(NES_CLOCK / (16 * frequency) - 1);
     } else {
       this.muted = true;
     }
@@ -212,7 +212,7 @@ export class NESPulseBackend implements ChipChannelBackend {
     if (!this.active) return;
     this.freq = frequency;
     if (frequency > 0) {
-      this.currentPeriod = Math.round(1789773 / (16 * frequency) - 1);
+      this.currentPeriod = Math.round(NES_CLOCK / (16 * frequency) - 1);
       this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
     } else {
       this.muted = true;
@@ -259,7 +259,7 @@ export class NESPulseBackend implements ChipChannelBackend {
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
       this.freq = newFreq;
       if (newFreq > 0) {
-        this.currentPeriod = Math.round(1789773 / (16 * newFreq) - 1);
+        this.currentPeriod = Math.round(NES_CLOCK / (16 * newFreq) - 1);
         this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
       }
     }
@@ -271,7 +271,7 @@ export class NESPulseBackend implements ChipChannelBackend {
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
       this.freq = newFreq;
       if (newFreq > 0) {
-        this.currentPeriod = Math.round(1789773 / (16 * newFreq) - 1);
+        this.currentPeriod = Math.round(NES_CLOCK / (16 * newFreq) - 1);
         this.muted = this.currentPeriod < 8 || this.currentPeriod > 2047;
       }
     }
@@ -296,7 +296,7 @@ export class NESPulseBackend implements ChipChannelBackend {
             this.muted = true;
           } else {
             this.currentPeriod = newPeriod;
-            this.freq = 1789773 / (16 * (newPeriod + 1));
+            this.freq = NES_CLOCK / (16 * (newPeriod + 1));
           }
         }
       }
@@ -376,8 +376,8 @@ export class NESPulseBackend implements ChipChannelBackend {
     // Align frequency to NES period table: f = 1,789,773 / (16 × (period + 1))
     let alignedFreq = freq;
     if (freq > 0) {
-      const period = Math.round(1789773 / (16 * freq) - 1);
-      if (period >= 8 && period <= 2047) alignedFreq = 1789773 / (16 * (period + 1));
+      const period = Math.round(NES_CLOCK / (16 * freq) - 1);
+      if (period >= 8 && period <= 2047) alignedFreq = NES_CLOCK / (16 * (period + 1));
     }
     const safeFreq = Math.max(1, alignedFreq);
     try { osc.frequency.setValueAtTime(safeFreq, start); } catch (_) {}
@@ -398,7 +398,7 @@ export class NESPulseBackend implements ChipChannelBackend {
       // Hardware sweep (only when no pitch macros)
       const sweep = parseNESSweep(inst);
       if (sweep.enabled && sweep.shift > 0 && freq > 0) {
-        const initialPeriod = Math.round(1789773 / (16 * freq) - 1);
+        const initialPeriod = Math.round(NES_CLOCK / (16 * freq) - 1);
         applyNESSweepToFreq(osc.frequency, initialPeriod, start, dur, sweep);
       }
     }
@@ -520,7 +520,7 @@ function applyNESSweepToFreq(freqParam: any, initialPeriod: number, start: numbe
       break;
     }
     currentPeriod = newPeriod;
-    try { freqParam.setValueAtTime(1789773 / (16 * (currentPeriod + 1)), t); } catch (_) {}
+    try { freqParam.setValueAtTime(NES_CLOCK / (16 * (currentPeriod + 1)), t); } catch (_) {}
   }
 }
 

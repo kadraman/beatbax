@@ -10,7 +10,12 @@ import { NESNoiseBackend } from '../src/noise.js';
 import { NESDMCBackend, decodeDMC } from '../src/dmc.js';
 import { getNesWebAudioNorm } from '../src/mixer.js';
 import { ChipRegistry } from '@beatbax/engine';
-import { noteNameToMidi, pulsePeriodToFreq, trianglePeriodToFreq } from '../src/periodTables.js';
+import {
+  noteNameToMidi, pulsePeriodToFreq, trianglePeriodToFreq,
+  NES_CLOCK_NTSC, NES_CLOCK_PAL, setNesClockRegion, getNesClockRegion, NES_CLOCK,
+  getNoisePeriodTable, getDmcRateTable, NOISE_PERIOD_TABLE_NTSC, NOISE_PERIOD_TABLE_PAL,
+  DMC_RATE_TABLE_NTSC, DMC_RATE_TABLE_PAL,
+} from '../src/periodTables.js';
 
 const MOCK_AUDIO_CONTEXT = {} as BaseAudioContext;
 
@@ -596,6 +601,89 @@ describe('NES instrument validation', () => {
     const errors = validateNesInstrument({ type: 'pulse1', sweep_en: true, sweep_dir: 'sideways' });
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].field).toBe('sweep_dir');
+  });
+});
+
+// ─── Clock region (NTSC/PAL) ─────────────────────────────────────────────────
+
+describe('NES clock region', () => {
+  afterEach(() => {
+    // Always reset to NTSC after each test to avoid state bleed
+    setNesClockRegion('ntsc');
+  });
+
+  test('default region is ntsc', () => {
+    expect(getNesClockRegion()).toBe('ntsc');
+  });
+
+  test('setNesClockRegion("pal") switches to PAL clock', () => {
+    setNesClockRegion('pal');
+    expect(getNesClockRegion()).toBe('pal');
+    expect(NES_CLOCK).toBe(NES_CLOCK_PAL);
+  });
+
+  test('setNesClockRegion("ntsc") switches to NTSC clock', () => {
+    setNesClockRegion('pal');
+    setNesClockRegion('ntsc');
+    expect(getNesClockRegion()).toBe('ntsc');
+    expect(NES_CLOCK).toBe(NES_CLOCK_NTSC);
+  });
+
+  test('setNesClockRegion(undefined) defaults to ntsc', () => {
+    setNesClockRegion('pal');
+    setNesClockRegion(undefined);
+    expect(getNesClockRegion()).toBe('ntsc');
+  });
+
+  test('NES_CLOCK_NTSC is 1789773', () => {
+    expect(NES_CLOCK_NTSC).toBe(1789773);
+  });
+
+  test('NES_CLOCK_PAL is 1662607', () => {
+    expect(NES_CLOCK_PAL).toBe(1662607);
+  });
+
+  test('PAL clock is approximately 7.1% lower than NTSC', () => {
+    const diff = (NES_CLOCK_NTSC - NES_CLOCK_PAL) / NES_CLOCK_NTSC;
+    expect(diff).toBeGreaterThan(0.065);
+    expect(diff).toBeLessThan(0.08);
+  });
+
+  test('getNoisePeriodTable() returns NTSC table by default', () => {
+    expect(getNoisePeriodTable()).toBe(NOISE_PERIOD_TABLE_NTSC);
+  });
+
+  test('getNoisePeriodTable() returns PAL table after setNesClockRegion("pal")', () => {
+    setNesClockRegion('pal');
+    expect(getNoisePeriodTable()).toBe(NOISE_PERIOD_TABLE_PAL);
+  });
+
+  test('getDmcRateTable() returns NTSC table by default', () => {
+    expect(getDmcRateTable()).toBe(DMC_RATE_TABLE_NTSC);
+  });
+
+  test('getDmcRateTable() returns PAL table after setNesClockRegion("pal")', () => {
+    setNesClockRegion('pal');
+    expect(getDmcRateTable()).toBe(DMC_RATE_TABLE_PAL);
+  });
+
+  test('PAL noise period table has 16 entries', () => {
+    expect(NOISE_PERIOD_TABLE_PAL.length).toBe(16);
+  });
+
+  test('PAL DMC rate table has 16 entries', () => {
+    expect(DMC_RATE_TABLE_PAL.length).toBe(16);
+  });
+
+  test('nesPlugin.configureForSong switches to PAL', () => {
+    nesPlugin.configureForSong!({ chip: 'nes', chipRegion: 'pal' });
+    expect(getNesClockRegion()).toBe('pal');
+  });
+
+  test('nesPlugin.configureForSong with no region defaults to ntsc', () => {
+    setNesClockRegion('pal');
+    nesPlugin.configureForSong!({ chip: 'nes' });
+    expect(getNesClockRegion()).toBe('ntsc');
   });
 });
 

@@ -125,7 +125,7 @@ function parseNoiseValue(v: any, vendorParam?: string): any | null {
 }
 
 interface BaseStmt { nodeType: string; loc?: SourceLocation }
-interface ChipStmt extends BaseStmt { nodeType: 'ChipStmt'; chip: string }
+interface ChipStmt extends BaseStmt { nodeType: 'ChipStmt'; chip: string; region?: string }
 interface BpmStmt extends BaseStmt { nodeType: 'BpmStmt'; bpm: number }
 interface VolumeStmt extends BaseStmt { nodeType: 'VolumeStmt'; volume: number }
 interface TimeStmt extends BaseStmt { nodeType: 'TimeStmt'; time: number }
@@ -606,6 +606,7 @@ export function parseWithPeggy(source: string): ParseResult {
   let topTime: number | undefined = undefined;
   let topStepsPerBar: number | undefined = undefined;
   let chipName: string | undefined = undefined;
+  let chipRegion: string | undefined = undefined;
   let chipLoc: SourceLocation | undefined = undefined;
   let topVolume: number | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
@@ -647,6 +648,7 @@ export function parseWithPeggy(source: string): ParseResult {
       }
       case 'ChipStmt': {
         chipName = stmt.chip;
+        chipRegion = stmt.region ? String(stmt.region).toLowerCase() : undefined;
         chipLoc = stmt.loc;
         break;
       }
@@ -743,6 +745,16 @@ export function parseWithPeggy(source: string): ParseResult {
   const registeredChips = chipRegistry.list();
   if (chipName && !registeredChips.includes(String(chipName).toLowerCase())) {
     diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${registeredChips.join(', ')}.`, chipLoc);
+  }
+  if (chipRegion) {
+    const normalizedChip = String(chipName || '').toLowerCase();
+    const regionSupportedChips = ['sms', 'nes'];
+    if (!regionSupportedChips.includes(normalizedChip)) {
+      diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms' and 'chip nes'.`, chipLoc);
+    } else if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
+      const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
+      diag('error', 'parser', `Invalid ${normalizedChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
+    }
   }
 
   // Play flag validation
@@ -875,7 +887,7 @@ export function parseWithPeggy(source: string): ParseResult {
 
   const includeStructured = true;
 
-  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, volume: topVolume, play: playNode, metadata,
+  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, chipRegion, volume: topVolume, play: playNode, metadata,
     time: topTime, stepsPerBar: topStepsPerBar };
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;

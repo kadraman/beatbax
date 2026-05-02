@@ -12,7 +12,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { NOISE_PERIOD_TABLE, NES_CLOCK } from './periodTables.js';
+import { NOISE_PERIOD_TABLE, getNoisePeriodTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
@@ -156,8 +156,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
 
     // Resolve period index from instrument definition; note pitch is ignored.
     this.periodIdx = resolveNoisePeriodIdx(instrument);
-    const timerPeriod = NOISE_PERIOD_TABLE[this.periodIdx];
-    // NTSC CPU clock / (timer period * 2) = LFSR step rate
+    const timerPeriod = getNoisePeriodTable()[this.periodIdx];
+    // CPU clock / (timer period * 2) = LFSR step rate
     this.lfsrHz = NES_CLOCK / (timerPeriod * 2);
   }
 
@@ -239,7 +239,7 @@ export class NESNoiseBackend implements ChipChannelBackend {
 
     // Resolve period index from the instrument definition; note pitch is ignored.
     const periodIdx = resolveNoisePeriodIdx(inst);
-    const timerPeriod = NOISE_PERIOD_TABLE[periodIdx];
+    const timerPeriod = getNoisePeriodTable()[periodIdx];
     const lfsrHz = NES_CLOCK / (timerPeriod * 2);
 
     const mode = (inst.noise_mode || 'normal').toString().toLowerCase();

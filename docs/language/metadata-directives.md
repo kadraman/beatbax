@@ -6,7 +6,10 @@ BeatBax supports top-level directives inside `.bax` files to:
 
 ## Global Playback Directives
 
-- **`chip <name>`** — Selects the audio backend (currently only `gameboy` is supported)
+- **`chip <name>`** — Selects the audio backend. Supported chips: `gameboy`, `nes`, `sms`.
+  - **`chip sms ntsc`** / **`chip sms pal`** — optional region qualifier for the SMS backend. Selects the hardware clock frequency used for tone period calculations. `ntsc` (3,579,545 Hz, default) matches North American and Japanese hardware; `pal` (3,546,895 Hz) matches European hardware. Omitting the qualifier defaults to `ntsc`.
+  - **`chip nes ntsc`** / **`chip nes pal`** — optional region qualifier for the NES backend. Selects the CPU clock frequency used for period and DMC rate calculations. `ntsc` (1,789,773 Hz, default) matches North American and Japanese hardware; `pal` (1,662,607 Hz, ~7.1% lower) matches European hardware. Omitting the qualifier defaults to `ntsc`.
+  - The region qualifier is only valid for `chip sms` and `chip nes`; using it with any other chip is a parser error.
 - **`bpm <number>`** — Sets the tempo in beats per minute (default: `120`)
 - **`volume <float>`** — Sets master output volume, range `0.0` to `1.0` (default: `1.0`)
   - See [volume-directive.md](volume-directive.md) for details

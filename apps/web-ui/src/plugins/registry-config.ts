@@ -14,6 +14,7 @@
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
 import nesPlugin from '@beatbax/plugin-chip-nes';
+import smsPlugin from '@beatbax/plugin-chip-sms';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
@@ -37,6 +38,15 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
     badge: 'Beta',
     plugin: nesPlugin,
   },
+  {
+    id: 'sms',
+    label: 'SMS (SN76489)',
+    description:
+      'Sega Master System / Game Gear PSG - 3 tone channels + 1 noise channel. ' +
+      'Enables `chip sms` in .bax scripts.',
+    badge: 'Beta',
+    plugin: smsPlugin,
+  },
   // Future plugins — add entries here as packages are published:
   // {
   //   id: 'sid',
@@ -49,7 +59,7 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
-const DEFAULT_ENABLED = ['nes'];
+const DEFAULT_ENABLED = ['nes', 'sms'];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

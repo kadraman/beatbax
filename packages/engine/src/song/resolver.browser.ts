@@ -743,6 +743,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     channels: channelsOut,
     bpm,
     chip: ast.chip,
+    chipRegion: ast.chipRegion,
     volume: ast.volume,
     play: ast.play,
     metadata: ast.metadata
