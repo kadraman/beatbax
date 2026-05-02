@@ -2,7 +2,7 @@
 # More information under https://docs.ionos.space/docs/github-actions-customization/
 # version: 2022-07-21
 
-name: "Deploy Now: Deploy to IONOS"
+name: "Web UI: Deploy to IONOS"
 
 on:
   workflow_dispatch:

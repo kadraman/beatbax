@@ -3,8 +3,8 @@
 # More information under https://docs.ionos.space/docs/github-actions-customization/
 # version: 2022-07-21
 
-name: "Deploy Now: Orchestration"
-run-name: "Deploy Now: Build beatbax · ${{ github.event.head_commit.message || format('Triggered by {0}', github.triggering_actor) }}"
+name: "Web UI: Orchestration"
+run-name: "Web UI: Orchestration · ${{ github.event.head_commit.message || format('Triggered by {0}', github.triggering_actor) }}"
 
 on:
   - push
