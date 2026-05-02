@@ -1,7 +1,7 @@
 {
-  "name": "@beatbax/plugin-chip-sms",
-  "version": "0.2.0",
-  "description": "Sega Master System / Game Gear SN76489 PSG chip plugin for BeatBax.",
+  "name": "@beatbax/plugin-exporter-vgm",
+  "version": "0.1.0",
+  "description": "VGM (Video Game Music) exporter plugin for BeatBax — SN76489 PSG (SMS/Game Gear).",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -19,17 +19,17 @@
   "keywords": [
     "beatbax",
     "plugin",
-    "chiptune",
+    "exporter",
+    "vgm",
     "sms",
-    "game-gear",
-    "segamaster",
     "sn76489",
-    "psg"
+    "psg",
+    "chiptune"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/kadraman/beatbax.git",
-    "directory": "packages/plugins/chip-sms"
+    "directory": "packages/plugins/exporter-vgm"
   },
   "license": "MIT",
   "author": "BeatBax Contributors",
@@ -41,9 +41,6 @@
   },
   "peerDependencies": {
     "@beatbax/engine": ">=0.11.2"
-  },
-  "optionalDependencies": {
-    "@beatbax/plugin-exporter-vgm": ">=0.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
