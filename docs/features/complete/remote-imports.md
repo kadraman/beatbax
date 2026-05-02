@@ -68,8 +68,8 @@ chip gameboy
 bpm 140
 
 # Community-maintained instrument library
-import "github:beatbax/instruments-gb/main/melodic.ins"
-import "github:beatbax/instruments-gb/main/percussion.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/percussion.ins"
 
 # Local overrides still work
 inst gb_lead type=pulse1 duty=75 env=15,down
@@ -117,7 +117,7 @@ const source = `
 chip gameboy
 bpm 140
 
-import "github:beatbax/instruments-gb/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
 
 pat melody = C5 E5 G5 C6
 channel 1 => seq melody inst gb_lead
@@ -310,7 +310,7 @@ import "lib/common.ins"
 import "local:lib/common.ins"
 
 # Or use remote import
-import "github:beatbax/instruments-gb/main/common.ins"
+import "github:kadraman/beatbax-instruments/main/common.ins"
 ```
 
 **Browser Security**: Files using local imports with the `local:` prefix will have those imports ignored in browser playback with a warning. Only `https://` and `github:` imports are processed in browser environments.

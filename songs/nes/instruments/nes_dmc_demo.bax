@@ -26,8 +26,8 @@
 ##
 ## External sample file syntax examples:
 ##   local:  inst ext type=dmc dmc_rate=15 dmc_sample="local:samples/dmc/kick.dmc"
-##   github: inst ext type=dmc dmc_rate=15 dmc_sample="github:beatbax/samples/dmc/kick.dmc"
-##   https:  inst ext type=dmc dmc_rate=15 dmc_sample="https://github.com/beatbax/samples/blob/main/dmc/kick.dmc"
+##   github: inst ext type=dmc dmc_rate=15 dmc_sample="github:kadraman/beatbax-samples/dmc/kick.dmc"
+##   https:  inst ext type=dmc dmc_rate=15 dmc_sample="https://github.com/kadraman/beatbax-samples/blob/main/dmc/kick.dmc"
 ##
 ## DMC rate index reference (NTSC):
 ##   Index  0 =  4182 Hz (slowest clock — longest/deepest playback)
@@ -77,36 +77,36 @@ inst rim         type=noise  noise_mode=normal  noise_period=12  env=11,down  en
 # ── DMC kick (ch5) ────────────────────────────────────────────────────────────
 inst kick        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/kick"
 inst kick_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/kick.dmc"
-inst kick_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/kick.dmc"
+inst kick_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/kick.dmc"
 
 # ── DMC snare (ch5) ──────────────────────────────────────────────────────────
 inst snare_d     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/snare"
 inst snare_loc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/snare.dmc"
-inst snare_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/snare.dmc"
+inst snare_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/snare.dmc"
 
 # ── DMC clap (ch5) ───────────────────────────────────────────────────────────
 inst clap        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/clap"
 inst clap_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/clap.dmc"
-inst clap_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/clap.dmc"
+inst clap_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/clap.dmc"
 
 # ── DMC bongos (ch5) ─────────────────────────────────────────────────────────
 inst bongo       type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/bongo"
 inst bongo_loc   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/bongo.dmc"
-inst bongo_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/bongo.dmc"
+inst bongo_gh    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/bongo.dmc"
 inst mbongo      type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/muted_bongo"
 inst mbongo_loc  type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/muted_bongo.dmc"
-inst mbongo_gh   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/muted_bongo.dmc"
+inst mbongo_gh   type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/muted_bongo.dmc"
 
 # ── DMC toms (ch5) ───────────────────────────────────────────────────────────
 inst htom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/high_tom"
 inst htom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/high_tom.dmc"
-inst htom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/high_tom.dmc"
+inst htom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/high_tom.dmc"
 inst mtom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/middle_tom"
 inst mtom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/middle_tom.dmc"
-inst mtom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/middle_tom.dmc"
+inst mtom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/middle_tom.dmc"
 inst ltom        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/low_tom"
 inst ltom_loc    type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="local:samples/dmc/low_tom.dmc"
-inst ltom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:beatbax/samples/dmc/low_tom.dmc"
+inst ltom_gh     type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="github:kadraman/beatbax-samples/dmc/low_tom.dmc"
 
 # ── DMC bass (ch5) ────────────────────────────────────────────────────────────
 inst bass        type=dmc  dmc_rate=15  dmc_loop=false  dmc_sample="@nes/bass"
