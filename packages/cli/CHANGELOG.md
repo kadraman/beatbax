@@ -1,5 +1,17 @@
 # @beatbax/cli
 
+## 0.4.2
+
+### Patch Changes
+
+- b25cd91: Updated CLI package dependency on engine to pick up chipRegion support and chip-specific effect dispatch.
+
+- Updated dependencies [962e1a2]
+- Updated dependencies [b25cd91]
+  - @beatbax/engine@0.12.0
+  - @beatbax/plugin-chip-nes@0.5.0
+  - @beatbax/plugin-chip-sms@0.2.0
+
 ## 0.4.1
 
 ### Patch Changes

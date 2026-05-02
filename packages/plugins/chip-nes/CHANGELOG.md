@@ -1,5 +1,16 @@
 # @beatbax/plugin-chip-nes
 
+## 0.5.0
+
+### Minor Changes
+
+- b25cd91: Added NTSC/PAL clock region support for the NES Ricoh 2A03 APU.
+- b25cd91: `chip nes ntsc` / `chip nes pal` selects the CPU clock (1,789,773 Hz vs 1,662,607 Hz)
+- b25cd91: All five channel backends (pulse1, pulse2, triangle, noise, DMC) now use the live NES_CLOCK binding — no hardcoded 1789773 literals remain in pulse.ts or triangle.ts
+- b25cd91: Added PAL noise period table and PAL DMC rate table; getNoisePeriodTable() and getDmcRateTable() return the correct table for the active region
+- b25cd91: configureForSong() hook calls setNesClockRegion() before each playback or PCM render
+- b25cd91: Exports setNesClockRegion, getNesClockRegion, NES_CLOCK_NTSC, NES_CLOCK_PAL, and the PAL tables
+
 ## 0.4.1
 
 ### Patch Changes
