@@ -1,6 +1,6 @@
 ---
 title: "Sega Master System / Game Gear PSG Chip Plugin"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-26
 issue: "https://github.com/kadraman/beatbax/issues/98"
