@@ -45,6 +45,10 @@ Create `packages/plugins/exporter-vgm/` as a standalone npm package (`@beatbax/p
 
 The SMS chip plugin (`@beatbax/plugin-chip-sms`) will declare this exporter in its `exporterPlugins` array so that installing the SMS plugin is sufficient to make `beatbax export vgm` available without a separate install.
 
+**IMPORTANT**: there are some sample vgms that have already been create for the Sega Master System in songs\vgm\sms
+
+**IMPORTANT**: there is some sample source code for creating vgms in the directory: examples\vgm. Although this is written in C++ it can be used for reference (the SMS is noted by DIV_SYSTEM_SMS constant).
+
 ### VGM Format Overview (SN76489)
 
 VGM is a binary format. The relevant structure for SN76489 export is:
@@ -230,11 +234,11 @@ const vgmExporterPlugin: ExporterPlugin = {
   mimeType: 'audio/x-vgm',
   supportedChips: ['sms'],
 
-  validate(ism) {
-    if (ism.chip !== 'sms') {
-      return { valid: false, errors: [`VGM exporter (SN76489): unsupported chip '${ism.chip}'`] };
+  validate(song) {
+    if (song.chip !== 'sms') {
+      return [`VGM exporter (SN76489): unsupported chip '${song.chip}'`];
     }
-    return { valid: true };
+    return [];
   },
 
   export(ism, _options) {
