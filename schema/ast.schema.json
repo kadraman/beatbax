@@ -62,6 +62,10 @@
       "type": "string",
       "description": "Target chip backend name, e.g. 'gameboy'."
     },
+    "chipRegion": {
+      "type": "string",
+      "description": "Optional chip timing region qualifier (currently used by SMS: 'ntsc' or 'pal')."
+    },
     "volume": {
       "type": "number",
       "description": "Master output volume: 0.0â€“1.0.",

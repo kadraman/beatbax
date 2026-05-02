@@ -22,13 +22,13 @@ export const SMS_TONE_GAIN = 0.35;
 
 /**
  * Base gain for noise channel.
- *Noise is typically mixed slightly lower than tones for balanced output.
+ * Noise is typically mixed slightly lower than tones for balanced output.
  */
 export const SMS_NOISE_GAIN = 0.30;
 
 /**
  * Master gain multiplier for overall SMS output.
- * nodThis scales all channels equally to match the typical volume
+ * This scales all channels equally to match the typical volume
  * level of SMS music relative to other chips (GB, NES).
  */
 export const SMS_MASTER_GAIN = 1.1;
@@ -99,7 +99,7 @@ export type GGPan = 'L' | 'C' | 'R';
  */
 export function ggPanToGains(pan: string | undefined): [number, number] {
   if (!pan) return [1.0, 1.0]; // Default to center if not specified
-  
+
   const normalized = pan.toString().toLowerCase();
   switch (normalized) {
     case 'l':
@@ -117,32 +117,30 @@ export function ggPanToGains(pan: string | undefined): [number, number] {
 
 /**
  * Apply stereo routing to a sample buffer.
- * For mono output, this just copies the mixed signal to both channels.
- * For stereo output with Game Gear routing, applies the pan gains.
+ * This is a post-mix helper, so it can only apply a single pan value to the
+ * already mixed mono buffer. Per-channel GG routing must be applied during
+ * channel mixing before channels are summed.
  */
 export function applyStereoRouting(
   input: Float32Array, // Mono mixed buffer
   output: Float32Array, // Stereo output buffer (2x size of input)
-  channelPans: (GGPan | undefined)[]
+  pan?: GGPan
 ): void {
   const inputLength = input.length;
   const outputLength = output.length;
-  
+
   // If output is same size as input, treat as mono
   if (outputLength === inputLength) {
     output.set(input);
     return;
   }
-  
+
   // Stereo output: interleave left/right samples
   for (let i = 0; i < inputLength; i++) {
     const sample = input[i];
     const outputIndex = i * 2;
-    
-    // For v1, we'll use a simple approach: apply average pan to all channels
-    // In a more sophisticated implementation, we'd track per-channel pan
-    const [leftGain, rightGain] = ggPanToGains(channelPans[0]); // Use first channel's pan for now
-    
+    const [leftGain, rightGain] = ggPanToGains(pan);
+
     output[outputIndex] = sample * leftGain;
     output[outputIndex + 1] = sample * rightGain;
   }

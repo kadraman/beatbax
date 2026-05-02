@@ -44,26 +44,23 @@ export const smsVolSlideEffect = (
 
   if (delta === 0) return; // No volume change
 
-  // Extract baseline from SMS instrument
-  // SMS: vol=0 is loudest, vol=15 is silent (inverted from typical attenuation)
-  // In inst, vol field is 0-15 where 0=loudest, 15=silent
-  // So baselineGain = (15 - vol) / 15 * mixGain * webNorm
-  let baselineGain = 1.0;
+  const clampAttenuation = (att: number): number => Math.max(0, Math.min(15, att));
+  const clampGain = (g: number): number => Math.max(0, Math.min(1.5, g));
+
+  // Extract baseline attenuation from SMS instrument.
+  // SMS attenuation semantics: 0=loudest, 15=silent.
+  let baselineAttenuation = 0;
+  let mixGain = SMS_MIX_GAIN.tone;
+  const webNorm = getSmsWebAudioNorm();
 
   if (inst) {
     try {
-      // Get instrument type to determine mix gain
       const instType = inst.type ? String(inst.type).toLowerCase() : '';
       const isNoise = instType.includes('noise');
-      const mixGain = isNoise ? SMS_MIX_GAIN.noise : SMS_MIX_GAIN.tone;
-      const webNorm = getSmsWebAudioNorm();
+      mixGain = isNoise ? SMS_MIX_GAIN.noise : SMS_MIX_GAIN.tone;
 
       if (inst.vol !== undefined) {
-        // vol is 0-15 where 0=loudest, 15=silent (SMS convention)
-        const vol = Math.max(0, Math.min(15, Number(inst.vol)));
-        // Convert to gain: (15 - vol) / 15 = normalized gain
-        // Then scale by mix gain and web normalization
-        baselineGain = ((15 - vol) / 15) * mixGain * webNorm;
+        baselineAttenuation = clampAttenuation(Number(inst.vol));
       } else if (inst.vol_env) {
         let volEnv = inst.vol_env;
         if (typeof volEnv === 'string') {
@@ -71,20 +68,25 @@ export const smsVolSlideEffect = (
           if (m) {
             const values = m[1].split(',').map(Number).filter(Number.isFinite);
             if (values.length > 0) {
-              const firstVol = Math.max(0, Math.min(15, values[0]));
-              baselineGain = ((15 - firstVol) / 15) * mixGain * webNorm;
+              baselineAttenuation = clampAttenuation(values[0]);
             }
           }
         } else if (Array.isArray(volEnv) && volEnv.length > 0) {
-          const firstVol = Math.max(0, Math.min(15, Number(volEnv[0])));
-          baselineGain = ((15 - firstVol) / 15) * mixGain * webNorm;
+          baselineAttenuation = clampAttenuation(Number(volEnv[0]));
         }
       }
     } catch (e) {
       console.warn(`[chip-sms] Volume slide: SMS volume extraction failed for channel ${chId || '?'}, using default baseline`);
-      baselineGain = 1.0;
+      baselineAttenuation = 0;
     }
   }
+
+  const gainFromAttenuation = (att: number): number => {
+    const clampedAtt = clampAttenuation(att);
+    return clampGain((1 - (clampedAtt / 15)) * mixGain * webNorm);
+  };
+
+  const baselineGain = gainFromAttenuation(baselineAttenuation);
 
   try {
     // Cancel any existing automation on this gain node
@@ -93,14 +95,8 @@ export const smsVolSlideEffect = (
     }
     gainParam.setValueAtTime(baselineGain, start);
 
-    // SMS PSG: volume changes are in vol units (0-15, 0=loudest)
-    // For volSlide, delta represents change in vol level
-    // Since SMS vol=0 is loudest and vol=15 is silent:
-    //   gain = (15 - vol) / 15
-    //   new_vol = old_vol + delta
-    //   new_gain = (15 - new_vol) / 15 = (15 - old_vol - delta) / 15
-    //   delta_gain = new_gain - old_gain = -delta / 15
-    // So we negate delta and divide by 15
+    // BeatBax volSlide semantics: positive delta = fade-in / louder.
+    // On SMS this means attenuation decreases as delta increases.
 
     if (steps !== undefined && tickSeconds !== undefined) {
       // Stepped volume slide
@@ -110,22 +106,22 @@ export const smsVolSlideEffect = (
 
       for (let i = 1; i <= steps; i++) {
         const stepTime = start + (i * stepDuration);
-        // Calculate gain for this step: delta is in vol units (0-15, 0=loudest)
-        // Change in gain = -delta * i / steps / 15
-        const stepGain = Math.max(0.001, Math.min(1.5, baselineGain - (delta * i / steps / 15)));
+        const stepAtt = baselineAttenuation - (delta * i / steps);
+        const stepGain = gainFromAttenuation(stepAtt);
         // Hold previous value right up to step boundary
-        const prevGain = i === 1 ? baselineGain : Math.max(0.001, Math.min(1.5, baselineGain - (delta * (i - 1) / steps / 15)));
+        const prevGain = i === 1
+          ? baselineGain
+          : gainFromAttenuation(baselineAttenuation - (delta * (i - 1) / steps));
         gainParam.setValueAtTime(prevGain, stepTime - 0.00001);
         // Jump to new value at step boundary
         gainParam.setValueAtTime(stepGain, stepTime);
       }
       // Hold final value until note end
-      const finalGain = Math.max(0.001, Math.min(1.5, baselineGain - (delta / 15)));
+      const finalGain = gainFromAttenuation(baselineAttenuation - delta);
       gainParam.setValueAtTime(finalGain, start + dur);
     } else {
       // Smooth volume slide: linear ramp over note duration
-      // delta is in vol units (0-15, 0=loudest), so negate and divide by 15
-      const targetGain = Math.max(0, Math.min(1.5, baselineGain - (delta / 15)));
+      const targetGain = gainFromAttenuation(baselineAttenuation - delta);
       gainParam.linearRampToValueAtTime(targetGain, start + dur);
     }
   } catch (e) {

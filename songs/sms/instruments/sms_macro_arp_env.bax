@@ -1,12 +1,16 @@
 # Small SMS macro verification song: arpeggio macro on tone1.
-# Use to verify tone1 arp_env macro with or without loop point.
+# Verifies arp_env with and without loop point.
 
 song name "SMS Macro - Tone1 Arp"
 chip sms
 bpm 96
 
-inst i_tone1_arp1 type=tone1 vol=13 arp_env=[-12,-12,0,0,12,12] vol_env=[13,12,11,10,9,8,7,6,5,4,3,2,1,0]
-inst i_tone1_arp2 type=tone1 vol=13 arp_env=[-12,0,12|0] vol_env=[13,12,11,10,9,8,7,6,5,4,3,2,1,0]
+# Attenuation reminder: 0 = loudest, 15 = mute.
+# i_tone1_arp1: one-shot arp contour.
+inst i_tone1_arp1 type=tone1 vol=6 arp_env=[-12,-12,0,0,12,12] vol_env=[6,7,8,9,10,11,12,13,14,15]
+
+# i_tone1_arp2: looping triad-style arp contour.
+inst i_tone1_arp2 type=tone1 vol=6 arp_env=[-12,0,12|0] vol_env=[6,7,8,9,10,11,12,13,14,15]
 
 pat p_main = C4:2 D4 E4 . . F4 . .
 seq s_main = p_main p_main:rev p_main:inst(i_tone1_arp2):oct(-1) p_main:inst(i_tone1_arp2):rev:oct(-1)

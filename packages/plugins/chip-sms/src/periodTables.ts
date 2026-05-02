@@ -62,8 +62,22 @@ export const SMS_CLOCK_NTSC = 3579545;
 export const SMS_CLOCK_PAL = 3546895;
 export const GG_CLOCK = 3579545; // Game Gear uses same clock as NTSC SMS
 
-// Use NTSC clock as default for v1
-export const SMS_CLOCK = SMS_CLOCK_NTSC;
+export type SmsClockRegion = 'ntsc' | 'pal';
+
+let _smsClockRegion: SmsClockRegion = 'ntsc';
+// Mutable live binding used by tone/noise backends.
+export let SMS_CLOCK = SMS_CLOCK_NTSC;
+
+export function setSmsClockRegion(region?: string | null): SmsClockRegion {
+  const nextRegion: SmsClockRegion = String(region || '').toLowerCase() === 'pal' ? 'pal' : 'ntsc';
+  _smsClockRegion = nextRegion;
+  SMS_CLOCK = nextRegion === 'pal' ? SMS_CLOCK_PAL : SMS_CLOCK_NTSC;
+  return _smsClockRegion;
+}
+
+export function getSmsClockRegion(): SmsClockRegion {
+  return _smsClockRegion;
+}
 
 // --- Tone period calculation -----------------------------------------------------
 

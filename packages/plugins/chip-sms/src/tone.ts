@@ -19,6 +19,7 @@ import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
 import { freqToPeriod, periodToFreq, SMS_CLOCK } from './periodTables.js';
+import { smsCoordinator } from './scheduler.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
@@ -46,6 +47,33 @@ export class SMSToneBackend implements ChipChannelBackend {
   /** Get the current period value (for Tone3-Noise synchronization) */
   getCurrentPeriod(): number {
     return this.currentPeriod;
+  }
+
+  /** Get the current playback frequency in Hz. */
+  getFrequency(): number {
+    return this.freq;
+  }
+
+  /** Get the current attenuation value (0=loudest, 15=silent). */
+  getAttenuation(): number {
+    return this.attenuation;
+  }
+
+  /** Set attenuation directly (0=loudest, 15=silent). */
+  setAttenuation(attenuation: number): void {
+    this.attenuation = Math.max(0, Math.min(15, Number(attenuation)));
+  }
+
+  /**
+   * Update the backend period from a frequency and propagate Tone3 sync.
+   * WebAudio playback can bypass noteOn, so this keeps coordinator state valid.
+   */
+  private updatePeriodFromFrequency(frequency: number): void {
+    this.currentPeriod = freqToPeriod(frequency);
+
+    if (this.channelType === 'tone3') {
+      smsCoordinator.updateNoiseFromTone3();
+    }
   }
 
   // Software macro state
@@ -97,28 +125,20 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (instrument.vol !== undefined) {
       // Constant volume mode
       const vol = Math.max(0, Math.min(15, Number(instrument.vol)));
-      // vol in inst is 0-15 where 0=loudest (opposite to attenuation)
-      initialAttenuation = 15 - vol;
+      // SMS uses attenuation semantics directly: 0=loudest, 15=silent
+      initialAttenuation = vol;
     } else if (instrument.vol_env) {
       // Volume envelope - get first value
       const volEnv = parseMacro(instrument.vol_env);
       if (volEnv && volEnv.values.length > 0) {
         const firstVol = Math.max(0, Math.min(15, volEnv.values[0]));
-        initialAttenuation = 15 - firstVol;
+        initialAttenuation = firstVol;
       }
     }
     this.attenuation = initialAttenuation;
 
-    // Calculate period from frequency
-    const oldPeriod = this.currentPeriod;
-    this.currentPeriod = freqToPeriod(frequency);
-    
-    // If this is Tone3 and period changed, notify coordinator for noise sync
-    if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
-      import('./scheduler.js').then(({ smsCoordinator }) => {
-        smsCoordinator.updateNoiseFromTone3();
-      });
-    }
+    // Calculate period from frequency and propagate Tone3 sync.
+    this.updatePeriodFromFrequency(frequency);
 
     // Parse software macros
     this.volEnvMacro   = parseMacro(instrument.vol_env);
@@ -142,15 +162,7 @@ export class SMSToneBackend implements ChipChannelBackend {
   setFrequency(frequency: number): void {
     if (!this.active) return;
     this.freq = frequency;
-    const oldPeriod = this.currentPeriod;
-    this.currentPeriod = freqToPeriod(frequency);
-    
-    // If this is Tone3 and period changed, notify coordinator for noise sync
-    if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
-      import('./scheduler.js').then(({ smsCoordinator }) => {
-        smsCoordinator.updateNoiseFromTone3();
-      });
-    }
+    this.updatePeriodFromFrequency(frequency);
   }
 
   applyEnvelope(frame: number): void {
@@ -165,7 +177,7 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (this.volEnvMacro) {
       const vol = getMacroValue(this.volEnvMacro, this.volEnvState);
       // vol_env values are 0-15 where 0=loudest
-      this.attenuation = Math.max(0, Math.min(15, Math.round(15 - vol)));
+      this.attenuation = Math.max(0, Math.min(15, Math.round(vol)));
       advanceMacro(this.volEnvMacro, this.volEnvState);
     }
 
@@ -173,16 +185,8 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (this.arpEnvMacro) {
       const semitones = getMacroValue(this.arpEnvMacro, this.arpEnvState);
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
-      const oldPeriod = this.currentPeriod;
       this.freq = newFreq;
-      this.currentPeriod = freqToPeriod(newFreq);
-      
-      // If this is Tone3 and period changed, notify coordinator for noise sync
-      if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
-        import('./scheduler.js').then(({ smsCoordinator }) => {
-          smsCoordinator.updateNoiseFromTone3();
-        });
-      }
+      this.updatePeriodFromFrequency(newFreq);
       
       advanceMacro(this.arpEnvMacro, this.arpEnvState);
     }
@@ -191,16 +195,8 @@ export class SMSToneBackend implements ChipChannelBackend {
     if (this.pitchEnvMacro) {
       const semitones = getMacroValue(this.pitchEnvMacro, this.pitchEnvState);
       const newFreq = this.baseFreq * Math.pow(2, semitones / 12);
-      const oldPeriod = this.currentPeriod;
       this.freq = newFreq;
-      this.currentPeriod = freqToPeriod(newFreq);
-      
-      // If this is Tone3 and period changed, notify coordinator for noise sync
-      if (this.channelType === 'tone3' && oldPeriod !== this.currentPeriod) {
-        import('./scheduler.js').then(({ smsCoordinator }) => {
-          smsCoordinator.updateNoiseFromTone3();
-        });
-      }
+      this.updatePeriodFromFrequency(newFreq);
       
       advanceMacro(this.pitchEnvMacro, this.pitchEnvState);
     }
@@ -275,6 +271,10 @@ export class SMSToneBackend implements ChipChannelBackend {
     }
     const safeFreq = Math.max(1, alignedFreq);
     try { osc.frequency.setValueAtTime(safeFreq, start); } catch (_) {}
+
+    // WebAudio path may create nodes without calling noteOn; keep Tone3 sync state updated.
+    this.updatePeriodFromFrequency(safeFreq);
+
     // Store base frequency for arp effect
     (osc as any)._baseFreq = safeFreq;
 
@@ -307,7 +307,7 @@ export class SMSToneBackend implements ChipChannelBackend {
     } else if (inst.vol !== undefined) {
       // Constant volume
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
-      const att = 15 - vol; // Convert to attenuation
+      const att = vol;
       const gainVal = SMS_MIX_GAIN.tone * (1.0 - (att / 15)) * webNorm;
       try { gain.gain.setValueAtTime(gainVal, start); } catch (_) {}
     } else {
@@ -340,9 +340,7 @@ export function createToneChannel(
   const backend = new SMSToneBackend(channelType);
   // Register with coordinator if it's Tone3
   if (channelType === 'tone3' && typeof channelIndex === 'number') {
-    import('./scheduler.js').then(({ smsCoordinator }) => {
-      smsCoordinator.registerToneChannel(channelIndex, backend);
-    });
+    smsCoordinator.registerToneChannel(channelIndex, backend);
   }
   return backend;
 }

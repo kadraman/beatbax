@@ -34,8 +34,9 @@ import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
+import { setNesClockRegion } from './periodTables.js';
 
-const nesPlugin: ChipPlugin = {
+const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
   version,
   channels: 5,
@@ -86,6 +87,10 @@ const nesPlugin: ChipPlugin = {
 
   uiContributions: nesUIContributions,
 
+  configureForSong(song: { chip?: string; chipRegion?: string }) {
+    setNesClockRegion(song?.chipRegion);
+  },
+
   async resolveExporterPlugins() {
     try {
       const mod = await import('@beatbax/plugin-exporter-famitracker');
@@ -101,7 +106,7 @@ export default nesPlugin;
 export { nesPlugin };
 
 // Re-export useful utilities
-export { PULSE_PERIOD, TRIANGLE_PERIOD, NOISE_PERIOD_TABLE, DMC_RATE_TABLE } from './periodTables.js';
+export { PULSE_PERIOD, TRIANGLE_PERIOD, NOISE_PERIOD_TABLE, NOISE_PERIOD_TABLE_NTSC, NOISE_PERIOD_TABLE_PAL, DMC_RATE_TABLE, DMC_RATE_TABLE_NTSC, DMC_RATE_TABLE_PAL, NES_CLOCK_NTSC, NES_CLOCK_PAL, setNesClockRegion, getNesClockRegion } from './periodTables.js';
 export {
   nesMix,
   getNesGainWeights,

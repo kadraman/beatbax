@@ -1,42 +1,48 @@
+# SMS tone3/noise sync verification song.
+# Demonstrates noise_rate=tone3 so noise pitch tracks Tone3 period changes.
+
 chip sms
 bpm 120
 time 4
 
-# ===== INSTRUMENTS =====
+# =============================================================================
+# Instruments
+# =============================================================================
 
-# Bass on Tone3
-inst bass type=tone3 vol=0 # vol=15 vol_env=[15,12,9,6,3,0]
+# Bass source on Tone3 (steady attenuation level).
+inst bass type=tone3 vol=6
 
-# Kick that follows bass pitch via noise_rate=tone3 sync
-inst kick type=noise noise_mode=periodic noise_rate=tone3 vol=15 vol_env=[15,10,5,0]
+# Kick/noise voice synced to Tone3 period.
+# Attenuation reminder: 0 = loudest, 15 = mute.
+inst kick type=noise noise_mode=periodic noise_rate=tone3 vol=0 vol_env=[0,5,10,15]
 
-# ===== PATTERNS =====
+# =============================================================================
+# Patterns
+# =============================================================================
 
-# Bass line with pitch changes
+# Bass line with broad pitch movement.
 pat bass_pat1 = (C3 G2 A2 F2 C6 G5 A5 F5)*4
 
-# Kick drums that will sync to bass pitch
+# Noise hits that inherit Tone3-derived timing/pitch behavior.
 pat kick_pat1 = (kick kick kick kick kick kick kick kick)*4
 
-# Extreme example - octave jumps
-pat bass_pat2 = (C2 C3 C6 C7)*4  # From very low to very high
+# Extreme octave-jump pass to stress sync behavior.
+pat bass_pat2 = (C2 C3 C6 C7)*4
 pat kick_pat2 = (kick kick kick kick)*4
 
-
-# ===== SEQUENCES =====
+# =============================================================================
+# Sequences
+# =============================================================================
 
 seq bass = bass_pat1 bass_pat2
 seq drums = kick_pat1 kick_pat2
 
-# ===== CHANNELS =====
+# =============================================================================
+# Channels
+# =============================================================================
 
 channel 3 => inst bass seq bass
 channel 4 => inst kick seq drums
 
-# ===== PLAY =====
-
-# Note: This creates a "talking bass" effect where the kick drum pitch
-# follows the bass note pitch due to noise_rate=tone3 synchronization.
-# On real SMS hardware and accurate emulators, the noise will change
-# pitch to match Tone3's period.
+# "Talking bass" effect: noise color follows Tone3 movement through tone3 sync.
 play

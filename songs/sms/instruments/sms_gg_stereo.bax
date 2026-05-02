@@ -1,42 +1,55 @@
+# SMS/Game Gear stereo routing verification song.
+# Demonstrates gg:pan with one part per PSG voice.
+
 chip sms
 bpm 140
 time 4
 
-# ===== INSTRUMENTS WITH GAME GEAR STEREO PANNING =====
+# =============================================================================
+# Instruments (with Game Gear pan)
+# =============================================================================
 
-# Lead melody on right channel
-inst lead  type=tone1   vol=10 vol_env=[15,12,10,8|7] gg:pan=R
+# SMS attenuation reminder:
+#   0 = loudest, 15 = mute
 
-# Harmony on left channel
-inst harm   type=tone2   vol=8  vol_env=[12,10,8,6|6] gg:pan=L
+# Lead melody on right
+inst lead  type=tone1 vol=8  vol_env=[8,9,10,11|11] gg:pan=R
 
-# Bass centered
-inst bass   type=tone3   vol=12 vol_env=[15,14,12,10|8] gg:pan=C
+# Harmony on left
+inst harm  type=tone2 vol=9  vol_env=[9,10,11,12|12] gg:pan=L
+
+# Bass centered (both sides)
+inst bass  type=tone3 vol=10 vol_env=[10,11,12,13|13] gg:pan=C
 
 # Drums centered
-inst kick   type=noise   noise_mode=white noise_rate=2 vol_env=[15,12,8,4,0] gg:pan=C
-inst snare  type=noise   noise_mode=white noise_rate=1 vol_env=[14,10,6,0] gg:pan=C
+inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15] gg:pan=C
+inst snare type=noise noise_mode=white noise_rate=1 vol_env=[1,5,9,13,15] gg:pan=C
 
-# ===== PATTERNS =====
+# =============================================================================
+# Patterns
+# =============================================================================
 
 pat melody   = E5:2 G5:2 A5:2 B5:2 C6:2 A5:2 G5:2 E5:2
 pat harmony  = C4 . E4 . G4 . A4 . B4 . A4 . G4 .
 pat bassline = E2:4 C2:4 A2:4 B2:4
 pat drums    = kick . snare . kick kick snare . .
 
-# ===== SEQUENCES =====
+# =============================================================================
+# Sequences
+# =============================================================================
 
 seq melody   = melody melody melody melody
 seq harm_seq = harmony harmony harmony harmony
 seq bass_seq = bassline bassline bassline
 seq drum_seq = drums drums drums drums drums drums
 
-# ===== CHANNELS =====
+# =============================================================================
+# Channels
+# =============================================================================
 
-channel 1 => inst lead  seq melody
-channel 2 => inst harm  seq harm_seq
-channel 3 => inst bass  seq bass_seq
-channel 4 => inst kick  seq drum_seq
+channel 1 => inst lead seq melody
+channel 2 => inst harm seq harm_seq
+channel 3 => inst bass seq bass_seq
+channel 4 => inst kick seq drum_seq
 
-# ===== PLAY =====
 play

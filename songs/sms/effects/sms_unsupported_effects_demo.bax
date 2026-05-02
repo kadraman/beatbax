@@ -1,31 +1,53 @@
-# SMS PSG unsupported-effect coverage fixture.
-# Intentionally includes effects that are unsupported or invalid on SMS/PSG.
+# SMS PSG unsupported/invalid-effect coverage fixture.
+#
+# This file intentionally mixes:
+#   1) globally unsupported effects for SMS (hard invalid)
+#   2) channel-invalid effects/fields
+#   3) retrig, which is allowed but implementation-dependent (warning-level)
 
 song name "SMS Unsupported Effects Demo"
 chip sms
 bpm 128
 
-inst i_t1    type=tone1 vol=12 vol_env=[12,10,8,6,4,2,0]
-inst i_t2    type=tone2 vol=10 vol_env=[10,8,6,4,2,0]
-inst i_t3    type=tone3 vol=12 vol_env=[15,flat]
-inst i_noise type=noise noise_mode=white noise_rate=2 vol_env=[15,10,5,0]
+# =============================================================================
+# Instruments
+# =============================================================================
 
-# Globally unsupported on SMS: sweep, echo, retrig
+# Attenuation reminder: 0 = loudest, 15 = mute.
+inst i_t1    type=tone1 vol=10 vol_env=[10,11,12,13,14,15]
+inst i_t2    type=tone2 vol=9  vol_env=[9,10,11,12,13,14]
+inst i_t3    type=tone3 vol=11 vol_env=[11,12,13,14,15]
+inst i_noise type=noise noise_mode=white noise_rate=2 vol_env=[0,5,10,15]
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+# Hard-unsupported on SMS: sweep, echo.
+# retrig is not hard-rejected; it is warning-level and implementation-dependent.
 pat p_unsupported_global = C4<sweep:4,up,7>:8 E4<echo:0.25,40,25>:8 G4<retrig:2,-3>:8 C5<trem:8,5,square,0,1>:8
 
-# Channel-invalid for tone2: noise_mode, noise_rate (noise-only fields)
+# Channel-invalid for tone2: noise_* fields are noise-channel only.
 pat p_invalid_t2 = C3<noise_mode:periodic> C3<noise_rate:1> C3<noise_rate_env:[0,1,2|0]> . . . .
 
-# Channel-invalid for tone3: noise-specific fields
+# Channel-invalid for tone3: noise_* fields are noise-channel only.
 pat p_invalid_t3 = C3<noise_mode:white> C3<noise_rate:0> C3 . . . .
 
-# Channel-invalid for noise: arp_env (not meaningful for noise)
+# Channel-invalid for noise: tonal macros are not meaningful for noise voices.
 pat p_invalid_noise = C2<arp_env:[0,4,7|0]> C2<pitch_env:[0,1,0,-1]> . . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
 
 seq s_t1 = p_unsupported_global p_unsupported_global
 seq s_t2 = p_invalid_t2 p_invalid_t2
 seq s_t3 = p_invalid_t3 p_invalid_t3
 seq s_noise = p_invalid_noise p_invalid_noise
+
+# =============================================================================
+# Channels
+# =============================================================================
 
 channel 1 => inst i_t1 seq s_t1
 channel 2 => inst i_t2 seq s_t2

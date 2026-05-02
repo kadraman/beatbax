@@ -12,8 +12,6 @@
 
 import type { SMSToneBackend } from './tone.js';
 import type { SMSNoiseBackend } from './noise.js';
-import { SMS_MIX_GAIN } from './mixer.js';
-import { getSmsWebAudioNorm } from './mixer.js';
 
 /**
  * Vibrato effect parameters
@@ -58,7 +56,7 @@ export function applyVibrato(
   const modulation = Math.sin(2 * Math.PI * effect.phase) * effect.depth;
   
   // Get current frequency and apply vibrato
-  const currentFreq = channel['freq'] || 440; // Access private field
+  const currentFreq = channel.getFrequency() || 440;
   const modulatedFreq = currentFreq * Math.pow(2, modulation / 12);
   
   // Update channel frequency
@@ -117,11 +115,11 @@ export function applyTremolo(
   const modulation = Math.sin(2 * Math.PI * effect.phase) * effect.depth;
   
   // Get current attenuation and apply tremolo
-  const currentAttenuation = channel['attenuation'] || 15; // Access private field
+  const currentAttenuation = channel.getAttenuation();
   const modulatedAttenuation = Math.max(0, Math.min(15, currentAttenuation + modulation));
   
   // Update channel attenuation
-  channel['attenuation'] = modulatedAttenuation;
+  channel.setAttenuation(modulatedAttenuation);
 }
 
 /**
@@ -140,7 +138,7 @@ export function applyNoiseVibrato(
   const modulation = Math.sin(2 * Math.PI * effect.phase) * (effect.depth / 12); // Scale down
   
   // Get current noise rate
-  const currentRate = channel['noiseRate'] || 2;
+  const currentRate = channel.getNoiseRate();
   let modulatedRate;
   
   if (typeof currentRate === 'number') {

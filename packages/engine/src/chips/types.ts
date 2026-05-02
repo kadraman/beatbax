@@ -169,9 +169,9 @@ export interface ChipPlugin {
 
   /**
    * Optional effect handlers provided by this chip plugin.
-   * These are auto-registered into the global effects registry when the chip
-   * plugin is registered, allowing chips to override or extend the default
-   * effect implementations with chip-specific behavior.
+    * These are resolved at playback/render time for the active chip only,
+    * allowing chips to override or extend default effect implementations
+    * without mutating global effect behavior for other chips.
    *
    * Keys are effect names (e.g. 'volSlide', 'vib'), values are effect handlers.
    *

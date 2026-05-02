@@ -37,13 +37,14 @@ import { createNoiseChannel } from './noise.js';
 import { validateSmsInstrument, SMS_TYPES } from './validate.js';
 import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
+import { setSmsClockRegion } from './periodTables.js';
 
-const smsPlugin: ChipPlugin = {
+const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'sms',
   version,
   channels: 4,
   supportsPerChannelVolume: true,
-  instrumentVolumeRange: { min: 0, max: 15, isAttenuation: false }, // 0=loudest, 15=silent
+  instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
 
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
@@ -51,6 +52,10 @@ const smsPlugin: ChipPlugin = {
 
   effects: {
     volSlide: smsVolSlideEffect,
+  },
+
+  configureForSong(song: { chip?: string; chipRegion?: string }) {
+    setSmsClockRegion(song?.chipRegion);
   },
 
   createChannel(channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {
@@ -71,7 +76,14 @@ export { smsPlugin };
 
 // Re-export useful utilities
 export { SMS_TYPES } from './validate.js';
-export { SMS_CLOCK, SMS_CLOCK_NTSC, SMS_CLOCK_PAL } from './periodTables.js';
+export {
+  SMS_CLOCK,
+  SMS_CLOCK_NTSC,
+  SMS_CLOCK_PAL,
+  setSmsClockRegion,
+  getSmsClockRegion,
+  type SmsClockRegion,
+} from './periodTables.js';
 export {
   setSmsWebAudioMixMode,
   getSmsWebAudioMixMode,

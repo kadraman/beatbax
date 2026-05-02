@@ -4,6 +4,8 @@
 import { ChipRegistry, chipRegistry, gameboyPlugin } from '../src/chips/index.js';
 import type { ChipPlugin, ChipChannelBackend, ValidationError } from '../src/chips/types.js';
 import { BeatBaxEngine } from '../src/engine.js';
+import { get as getEffect } from '../src/effects/index.js';
+import { Player } from '../src/audio/playback.js';
 
 // ─── Minimal mock plugin for testing ─────────────────────────────────────────
 
@@ -77,6 +79,17 @@ describe('ChipRegistry', () => {
     expect(names).toContain('nes');
     expect(names).toContain('sid');
   });
+
+  test('register() does not override global effect handlers', () => {
+    const baselineVolSlide = getEffect('volSlide');
+    const pluginVolSlide = jest.fn();
+    const mock = makeMockPlugin('sms-effect-test');
+    mock.effects = { volSlide: pluginVolSlide } as any;
+
+    reg.register(mock);
+
+    expect(getEffect('volSlide')).toBe(baselineVolSlide);
+  });
 });
 
 // ─── Global chipRegistry singleton ───────────────────────────────────────────
@@ -88,6 +101,26 @@ describe('chipRegistry singleton', () => {
 
   test('returns gameboyPlugin from get()', () => {
     expect(chipRegistry.get('gameboy')).toBe(gameboyPlugin);
+  });
+
+  test('playback resolves effect handler from active chip plugin', () => {
+    const pluginName = 'effect-dispatch-test-chip';
+    const pluginVolSlide = jest.fn();
+
+    if (!chipRegistry.has(pluginName)) {
+      chipRegistry.register({
+        name: pluginName,
+        version: '1.0.0',
+        channels: 1,
+        validateInstrument: () => [],
+        createChannel: () => mockBackend,
+        effects: { volSlide: pluginVolSlide },
+      });
+    }
+
+    const resolver = (Player.prototype as any).resolveEffectHandler;
+    const resolved = resolver.call({}, { _chipType: pluginName }, 'volSlide');
+    expect(resolved).toBe(pluginVolSlide);
   });
 });
 

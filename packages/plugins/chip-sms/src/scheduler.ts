@@ -54,6 +54,15 @@ export class SMSChannelCoordinator {
   }
 
   /**
+   * Get the currently registered Tone3 period.
+   * Returns 0 when Tone3 is unavailable or has no valid period yet.
+   */
+  getTone3Period(): number {
+    if (!this.tone3Channel) return 0;
+    return this.tone3Channel.getCurrentPeriod();
+  }
+
+  /**
    * Advance all channels' envelopes by one frame.
    */
   advanceFrame(frame: number): void {

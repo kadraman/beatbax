@@ -27,9 +27,9 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
   type=tone1 | type=tone2 | type=tone3  (channels 1, 2, 3)
     Fixed 50% duty square wave — NO hardware duty control.
     Supports: vol, vol_env, arp_env, pitch_env
-    Price vol: 0-15 (0 = loudest/m sum, 15 = silent)
+    vol / vol_env use ATTENUATION semantics: 0 = loudest, 15 = silent
     ALL effects are implemented in software via per-tick register writes.
-    Example: inst lead type=tone1 vol=10 vol_env=[15,12,9,6,3,0] pitch_env=[0,-1,-2]
+    Example: inst lead type=tone1 vol=10 vol_env=[0,3,6,9,12,15] pitch_env=[0,-1,-2]
 
   type=noise  (channel 4)
     LFSR noise generator with two modes:
@@ -41,9 +41,9 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
       2 = lowest frequency (divide by 512)
       tone3 = use Tone 3's period value (syncs noise pitch to Tone 3)
     noise_rate_env=[0,1,2|0] — animate noise rate for sweep effects
-    vol / vol_env — volume as for tone channels
-    Example: inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[15,12,9,6,3,0]
-             inst hat   type=noise noise_mode=white noise_rate=0 vol_env=[8,5,3,0]
+    vol / vol_env — same attenuation semantics as tone channels (0 loudest, 15 silent)
+    Example: inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15]
+             inst hat   type=noise noise_mode=white noise_rate=0 vol_env=[2,8,12,15]
              inst snare type=noise noise_mode=periodic noise_rate=1 vol=10
 
   Game Gear Stereo Routing (Optional):
@@ -59,9 +59,10 @@ SMS CHIPS PECULIARITIES
   2. NO hardware sweep — use pitch_env or bend for pitch sweep effects.
   3. NO duty control — 50% square wave only.
   4. NO echo/delay — only 4 channels, no room for effects.
-  5. 4-bit attenuation volume — 16 discrete levels (0-15).
+  5. 4-bit attenuation volume — 16 discrete levels (0-15), where 0=loudest and 15=silent.
   6. Noise and Tone 3 can be synced: noise_rate=tone3 makes noise follow Tone 3's pitch.
   7. On Game Gear: add gg:pan=L/C/R for stereo instrument placement.
+  8. For volSlide, positive delta means louder (fade-in), negative means quieter (fade-out).
 
 SMS CHIPTUNE STYLE GUIDE
   1. Use Tone channels for melody, harmony, and bass.
@@ -73,9 +74,9 @@ SMS CHIPTUNE STYLE GUIDE
      noise_rate=0 ≈ hi-hat / very high
      noise_rate=1 ≈ snare range
      Use white noise_mode for drums, periodic for special FX.
-  4. Use vol_env for all dynamics — it's the only way to shape volume on SMS.
-     vol_env=[15,12,9,6,3,0] = fast decay
-     vol_env=[15,15,15,15|0] = sustain with loop
+    4. Use vol_env for all dynamics — it's the only way to shape volume on SMS.
+      vol_env=[0,3,6,9,12,15] = fast decay
+      vol_env=[6,6,6,6|0] = sustain with loop
   5. pitch_env and arp_env are your friends for expressiveness.
      The SN76489 has no hardware LFO — everything is software-driven.
   6. Game Gear stereo: pan your instruments left/right for a wider soundstage.
@@ -94,10 +95,10 @@ const hoverDocs: Record<string, string> = {
     '- `gm` — General MIDI program number for MIDI export (0-127)',
     '',
     '**SMS instrument types:**',
-    '- `type=tone1` / `type=tone2` / `type=tone3` — square wave channels (0-15 volume, vol_env macro, arp_env, pitch_env)',
+    '- `type=tone1` / `type=tone2` / `type=tone3` — square wave channels (0-15 attenuation, vol_env macro, arp_env, pitch_env)',
     '- `type=noise` — LFSR noise generator (noise_mode, noise_rate, noise_rate_env, vol, vol_env)',
     '',
-    'Example: `inst lead type=tone1 vol=10 vol_env=[15,12,9,6,3,0]`',
+    'Example: `inst lead type=tone1 vol=10 vol_env=[0,3,6,9,12,15]`',
   ].join('\n\n'),
 
   sms: [
@@ -119,7 +120,7 @@ const hoverDocs: Record<string, string> = {
   tone1: [
     '**Tone 1** — SMS SN76489 square-wave oscillator (channel 1).',
     'Fixed 50% duty square wave. All articulation is software-driven.',
-    '```\ninst lead type=tone1 vol=10 vol_env=[15,12,9,6,3,0] pitch_env=[0,-1,-2,0]\n```',
+    '```\ninst lead type=tone1 vol=10 vol_env=[0,3,6,9,12,15] pitch_env=[0,-1,-2,0]\n```',
     'Supported fields:',
     '- `vol` — constant volume 0-15 (0 = loudest)',
     '- `vol_env` — volume envelope macro: `[level1,level2,...|loop]`',
@@ -148,7 +149,7 @@ const hoverDocs: Record<string, string> = {
 
   noise: [
     '**Noise** — SMS SN76489 LFSR noise generator (channel 4).',
-    '```\ninst kick  type=noise noise_mode=white noise_rate=2 vol_env=[15,8,3,0]\ninst snare type=noise noise_mode=white noise_rate=1 vol=10 noise_rate_env=[0,1,2|0]\n```',
+    '```\ninst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,6,11,15]\ninst snare type=noise noise_mode=white noise_rate=1 vol=10 noise_rate_env=[0,1,2|0]\n```',
     'Fields:',
     '- `noise_mode` — `white` (full noise) \u00b7 `periodic` (metallic/tonal)',
     '- `noise_rate` — 0-2 or `tone3`',
@@ -178,7 +179,7 @@ const hoverDocs: Record<string, string> = {
 
   vol_env: [
     '**Volume envelope macro** — per-frame volume automation.',
-    '```\nvol_env=[15,12,9,6,3,0]        # decay, no loop\nvol_env=[15,14,13,12|12]     # sustain with loop from index 12\nvol_env=[8,12,15|0]         # attack (loop from start)\n```',
+    '```\nvol_env=[0,3,6,9,12,15]      # decay, no loop\nvol_env=[5,5,5,5|0]         # sustain with loop from index 0\nvol_env=[15,10,6,3,0]       # attack (quieter to louder)\n```',
     'Values are volume levels 0-15 where **0 = loudest** and **15 = silent** (SMS uses attenuation: 0=full, 15=mute).',
     '',
     'Loop syntax: add `|N` after the last value to loop from index N.',
@@ -253,12 +254,12 @@ const helpSections: ChipUIContributions['helpSections'] = [
       {
         kind: 'snippet',
         label: 'Tone channels (type=tone1 / tone2 / tone3)',
-        code: `inst lead  type=tone1 vol=10 vol_env=[15,12,9,6,3,0]\ninst harm  type=tone2 vol=8 vol_env=[12,10,8,6|7]\n# All tone channels are functionally identical: square wave, 10-bit period`,
+        code: `inst lead  type=tone1 vol=10 vol_env=[0,3,6,9,12,15]\ninst harm  type=tone2 vol=8 vol_env=[4,6,8,10|0]\n# All tone channels are functionally identical: square wave, 10-bit period`,
       },
       {
         kind: 'snippet',
         label: 'Noise channel (type=noise)',
-        code: `inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[15,12,9,6,3,0]\ninst snare type=noise noise_mode=white noise_rate=1 vol=10\ninst hihat type=noise noise_mode=white noise_rate=0 vol=8\n# noise_rate: 0=high/hihat, 1=mid/snare, 2=low/kick`,
+        code: `inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15]\ninst snare type=noise noise_mode=white noise_rate=1 vol=10\ninst hihat type=noise noise_mode=white noise_rate=0 vol=8\n# noise_rate: 0=high/hihat, 1=mid/snare, 2=low/kick`,
       },
       {
         kind: 'snippet',
@@ -277,7 +278,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
         code: `chip sms\n\n` +
           `bpm 150\n` +
           `time 4\n\n` +
-          `inst lead type=tone1 vol=12 vol_env=[15,12,9,6,3,0]\n\n` +
+          `inst lead type=tone1 vol=12 vol_env=[0,3,6,9,12,15]\n\n` +
           `pat melody = C5 E5 G5 C6\n\n` +
           `seq main = melody melody melody melody\n\n` +
           `channel 1 => inst lead seq main\n\n` +
@@ -289,10 +290,10 @@ const helpSections: ChipUIContributions['helpSections'] = [
         code: `chip sms\n\n` +
           `bpm 154\n` +
           `time 4\n\n` +
-          `inst lead  type=tone1   vol=8  vol_env=[15,12,10,8|7]\n` +
-          `inst harm  type=tone2   vol=6  vol_env=[12,10,8,6|6]\n` +
-          `inst bass  type=tone3   vol=10 vol_env=[15,13,11,9|8]\n` +
-          `inst kick  type=noise   noise_mode=white noise_rate=2 vol_env=[15,12,8,4,0]\n` +
+          `inst lead  type=tone1   vol=8  vol_env=[3,5,7,9|0]\n` +
+          `inst harm  type=tone2   vol=6  vol_env=[4,6,8,10|0]\n` +
+          `inst bass  type=tone3   vol=10 vol_env=[2,4,6,8|0]\n` +
+          `inst kick  type=noise   noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15]\n` +
           `inst hat   type=noise   noise_mode=white noise_rate=0 vol=6\n\n` +
           `pat melody  = C5:2 E5:2 G5:2 C6:2 C5:2 E5:2 G5:2 A5:2\n` +
           `pat counter  = C4 . G4 . A4 . F4 .\n` +
@@ -313,8 +314,8 @@ const helpSections: ChipUIContributions['helpSections'] = [
         label: 'SMS arpeggio chords',
         code: `chip sms\n\n` +
           `bpm 180\n\n` +
-          `inst lead type=tone1 vol=10 vol_env=[15,flat]\n` +
-          `inst harm type=tone2 vol=8 vol_env=[12,flat]\n\n` +
+          `inst lead type=tone1 vol=10 vol_env=[4,4,4,4|0]\n` +
+          `inst harm type=tone2 vol=8 vol_env=[6,6,6,6|0]\n\n` +
           `pat arps = C5<arp:4,7>:4 F5<arp:4,7>:4 G5<arp:4,7>:4 A5<arp:3,7>:4\n\n` +
           `seq run = arps arps\n\n` +
           `channel 1 => inst lead seq run\n` +
@@ -326,8 +327,8 @@ const helpSections: ChipUIContributions['helpSections'] = [
         label: 'Synced Tone3 + Noise (kick that follows bass)',
         code: `chip sms\n\n` +
           `bpm 120\n\n` +
-          `inst bass type=tone3 vol=12 vol_env=[15,12,9,6,3,0]\n` +
-          `inst kick type=noise noise_mode=white noise_rate=tone3 vol_env=[15,10,5,0]\n\n` +
+          `inst bass type=tone3 vol=12 vol_env=[2,5,8,11,15]\n` +
+          `inst kick type=noise noise_mode=white noise_rate=tone3 vol_env=[0,6,10,15]\n\n` +
           `pat bass_pat = C3:8 G2:8 A2:8 F2:8\n` +
           `pat kick_pat = kick . kick . kick . kick .\n\n` +
           `seq bass = bass_pat\n` +

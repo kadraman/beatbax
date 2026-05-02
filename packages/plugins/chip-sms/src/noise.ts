@@ -21,6 +21,7 @@ import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { SMS_MIX_GAIN, getSmsWebAudioNorm, ggPanToGains } from './mixer.js';
 import { SMS_CLOCK, freqToPeriod, NOISE_RATE_DIVIDERS, resolveNoiseRateDivisor } from './periodTables.js';
+import { smsCoordinator } from './scheduler.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve,
@@ -75,6 +76,7 @@ function generatePeriodicNoiseLFSR(): Int8Array {
 // Pre-generated at module load time
 const WHITE_NOISE_LFSR_BUF = generateWhiteNoiseLFSR();
 const PERIODIC_NOISE_LFSR_BUF = generatePeriodicNoiseLFSR();
+const SAFE_NOISE_DIVISOR_FALLBACK = NOISE_RATE_DIVIDERS[2];
 
 // ─── Noise channel backend ────────────────────────────────────────────────────
 
@@ -94,7 +96,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
   
   // Noise mode and rate
   private noiseMode: 'white' | 'periodic' = 'white';
-  private noiseRate: number | string = 2; // Default rate
+  private noiseRate: number | 'tone3' = 2; // Default rate
   private tone3Period: number = 0; // For when noise_rate = tone3
 
   // Software macro state
@@ -134,12 +136,13 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     let initialAttenuation = 15;
     if (instrument.vol !== undefined) {
       const vol = Math.max(0, Math.min(15, Number(instrument.vol)));
-      initialAttenuation = 15 - vol; // Convert to attenuation
+      // SMS uses attenuation semantics directly: 0=loudest, 15=silent
+      initialAttenuation = vol;
     } else if (instrument.vol_env) {
       const volEnv = parseMacro(instrument.vol_env);
       if (volEnv && volEnv.values.length > 0) {
         const firstVol = Math.max(0, Math.min(15, volEnv.values[0]));
-        initialAttenuation = 15 - firstVol;
+        initialAttenuation = firstVol;
       }
     }
     this.attenuation = initialAttenuation;
@@ -149,8 +152,10 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     this.noiseMode = (mode === 'periodic' || mode === 'white') ? mode as 'white' | 'periodic' : 'white';
     this.lfsrBuf = this.noiseMode === 'periodic' ? PERIODIC_NOISE_LFSR_BUF : WHITE_NOISE_LFSR_BUF;
 
-    // Parse noise rate
-    this.noiseRate = instrument.noise_rate !== undefined ? instrument.noise_rate : 2;
+    // Parse noise rate into canonical backend representation
+    this.noiseRate = this.normalizeNoiseRate(
+      instrument.noise_rate !== undefined ? instrument.noise_rate : 2
+    );
     
     // Parse software macros
     this.volEnvMacro = parseMacro(instrument.vol_env);
@@ -192,25 +197,78 @@ export class SMSNoiseBackend implements ChipChannelBackend {
    * @param rate - Noise rate (0, 1, 2, or 3 for tone3)
    */
   setNoiseRate(rate: number | 'tone3'): void {
-    this.noiseRate = rate;
+    this.noiseRate = this.normalizeNoiseRate(rate);
     this.updateLFSRRate();
+  }
+
+  /** Get the current normalized noise rate state. */
+  getNoiseRate(): number | 'tone3' {
+    return this.noiseRate;
+  }
+
+  /**
+   * Normalize noise_rate inputs so backend state is always number or 'tone3'.
+   */
+  private normalizeNoiseRate(rawRate: unknown): number | 'tone3' {
+    if (typeof rawRate === 'string') {
+      if (rawRate.toLowerCase() === 'tone3') return 'tone3';
+      const parsed = Number(rawRate);
+      if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.min(3, Math.round(parsed)));
+      }
+      return 2;
+    }
+
+    if (typeof rawRate === 'number' && Number.isFinite(rawRate)) {
+      return Math.max(0, Math.min(3, Math.round(rawRate)));
+    }
+
+    return 2;
+  }
+
+  /**
+   * Resolve Tone3 period for noise sync, preferring locally pushed updates and
+   * falling back to the coordinator's current Tone3 period when available.
+   */
+  private resolveTone3Period(): number {
+    if (this.tone3Period > 0) return this.tone3Period;
+
+    const coordinatorPeriod = smsCoordinator.getTone3Period();
+    if (coordinatorPeriod > 0) {
+      this.tone3Period = coordinatorPeriod;
+      return coordinatorPeriod;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Clamp divisor to a safe positive finite value before division.
+   */
+  private ensureSafeDivisor(divisor: number): number {
+    return Number.isFinite(divisor) && divisor > 0
+      ? divisor
+      : SAFE_NOISE_DIVISOR_FALLBACK;
   }
 
   private updateLFSRRate(): void {
     if (!this.currentInst) return;
 
+    const tone3Period = this.resolveTone3Period();
+
     const resolvedRate = typeof this.noiseRate === 'number' 
       ? this.noiseRate 
-      : (this.noiseRate === 'tone3' ? this.tone3Period : 2);
+      : (this.noiseRate === 'tone3' ? tone3Period : 2);
     
-    const divisor = resolveNoiseRateDivisor(resolvedRate, this.tone3Period);
+    const divisor = resolveNoiseRateDivisor(resolvedRate, tone3Period);
+    const safeTone3Divisor = this.ensureSafeDivisor(divisor);
     
     // LFSR clock = chip clock / divisor
     // For rate 0-2: divisor is already the actual divisor value
     // For rate 3 (tone3): divisor is the period value itself
     const actualDivisor = typeof resolvedRate === 'number' && (resolvedRate === 0 || resolvedRate === 1 || resolvedRate === 2)
       ? NOISE_RATE_DIVIDERS[resolvedRate]
-      : divisor;
+      : safeTone3Divisor;
     
     this.lfsrHz = SMS_CLOCK / actualDivisor;
   }
@@ -223,7 +281,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     // ── Software vol_env macro ────────────────────────────────────────────────
     if (this.volEnvMacro) {
       const vol = getMacroValue(this.volEnvMacro, this.volEnvState);
-      this.attenuation = Math.max(0, Math.min(15, Math.round(15 - vol)));
+      this.attenuation = Math.max(0, Math.min(15, Math.round(vol)));
       advanceMacro(this.volEnvMacro, this.volEnvState);
     }
 
@@ -278,6 +336,8 @@ export class SMSNoiseBackend implements ChipChannelBackend {
   ): AudioNode[] | null {
     if (typeof (ctx as any).createBuffer !== 'function') return null;
 
+    const tone3Period = this.resolveTone3Period();
+
     // Resolve noise parameters from instrument
     const mode = (inst.noise_mode as string | undefined)?.toLowerCase() || 'white';
     const srcBuf = mode === 'periodic' ? PERIODIC_NOISE_LFSR_BUF : WHITE_NOISE_LFSR_BUF;
@@ -287,16 +347,17 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     
     // For tone3 sync, we need to handle this specially
     if (typeof rate === 'string' && rate === 'tone3') {
-      // Use the current tone3 period
-      rate = this.tone3Period;
+      // Use the current Tone3 period if available; otherwise fall back safely.
+      rate = tone3Period;
     } else {
       rate = Number(rate) ?? 2;
     }
     
-    const divisor = resolveNoiseRateDivisor(rate, this.tone3Period);
+    const divisor = resolveNoiseRateDivisor(rate, tone3Period);
+    const safeTone3Divisor = this.ensureSafeDivisor(divisor);
     const actualDivisor = typeof rate === 'number' && (rate === 0 || rate === 1 || rate === 2)
       ? NOISE_RATE_DIVIDERS[rate]
-      : divisor;
+      : safeTone3Divisor;
     const lfsrHz = SMS_CLOCK / actualDivisor;
 
     // Build upsampled LFSR buffer for the note duration
@@ -350,7 +411,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
       }
     } else if (inst.vol !== undefined) {
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
-      const att = 15 - vol;
+      const att = vol;
       const gainVal = SMS_MIX_GAIN.noise * (1.0 - (att / 15)) * webNorm;
       try { gainNode.gain.setValueAtTime(gainVal, start); } catch (_) {}
     } else {
