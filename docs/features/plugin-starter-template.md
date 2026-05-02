@@ -8,7 +8,7 @@ issue: "https://github.com/kadraman/beatbax/issues/86"
 
 ## Summary
 
-Create a public GitHub template repository at **https://github.com/beatbax/plugin-chip-template** that gives third-party developers a complete, ready-to-clone starting point for building BeatBax chip plugins.
+Create a public GitHub template repository at **https://github.com/kadraman/beatbax-plugin-chip-template** that gives third-party developers a complete, ready-to-clone starting point for building BeatBax chip plugins.
 
 ## Background
 
@@ -21,7 +21,7 @@ The existing guide at `docs/creating-plugins.md` explains the concepts, but deve
 
 ## Acceptance Criteria
 
-- [ ] Repository created at `https://github.com/beatbax/plugin-chip-template`
+- [ ] Repository created at `https://github.com/kadraman/beatbax-plugin-chip-template`
 - [ ] Marked as a **GitHub Template Repository** (Settings → check "Template repository")
 - [ ] Repository is public and listed under the `beatbax` GitHub organisation
 - [ ] Contains a working, buildable, testable skeleton that passes `npm test` out of the box
