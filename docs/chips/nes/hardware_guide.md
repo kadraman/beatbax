@@ -386,6 +386,17 @@ The NES was released in both NTSC (60 Hz vblank) and PAL (50 Hz vblank) versions
 
 NES music drivers typically based their tempo on the vblank interrupt (PPU NMI). On NTSC, a 120 BPM song at 1/16-note resolution uses 2 vblank frames per tick. On PAL, the same code runs ~17% slower, causing music to play flat and at reduced tempo — the infamous "PAL slowdown" that affected nearly every imported NES title.
 
+#### BeatBax region support
+
+BeatBax supports both clock regions via the `chip` directive region qualifier:
+
+```bax
+chip nes ntsc   ; North American / Japanese hardware (default)
+chip nes pal    ; European hardware
+```
+
+When `chip nes pal` is set, BeatBax uses the PAL CPU clock (1,662,607 Hz) for all period and DMC rate calculations — pulse, triangle, noise, and DMC channels are all adjusted. The BPM and tick engine are not affected; BeatBax maintains deterministic timing regardless of region. Omitting the qualifier defaults to `ntsc`.
+
 ### 8.3 Sequencer Timing and BPM
 
 Like the Game Boy, the NES has no hardware tempo unit. BPM is entirely managed by the game's music driver, which counts vblank intervals or frame counter IRQ firings to advance the pattern sequencer. Common NES BPM ranges:

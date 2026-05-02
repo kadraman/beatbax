@@ -162,32 +162,32 @@ export class RemoteInstrumentCache {
     // Remote .ins files should only contain instrument definitions
     // Check for disallowed nodes
     const disallowed: string[] = [];
-    
+
     // Import directives are explicitly forbidden in remote .ins files
     if (ast.imports && ast.imports.length > 0) {
       disallowed.push('imports (nested imports are not allowed in remote .ins files)');
     }
-    
+
     // Playback/structure directives
     if (Object.keys(ast.pats || {}).length > 0) disallowed.push('patterns');
     if (Object.keys(ast.seqs || {}).length > 0) disallowed.push('sequences');
     if ((ast.channels || []).length > 0) disallowed.push('channels');
     if (ast.arranges && Object.keys(ast.arranges).length > 0) disallowed.push('arranges');
     if (ast.play !== undefined) disallowed.push('play');
-    
+
     // Top-level scalar directives (should not be in .ins files)
     if (ast.chip !== undefined) disallowed.push('chip');
     if (ast.bpm !== undefined) disallowed.push('bpm');
     if (ast.volume !== undefined) disallowed.push('volume');
-    
+
     // Metadata
     if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
       disallowed.push('metadata');
     }
-    
+
     // Effect definitions
     if (ast.effects && Object.keys(ast.effects).length > 0) disallowed.push('effects');
-    
+
     // Pattern events and structured patterns
     if (ast.patternEvents && Object.keys(ast.patternEvents).length > 0) {
       disallowed.push('patternEvents');
@@ -195,13 +195,13 @@ export class RemoteInstrumentCache {
     if (ast.sequenceItems && Object.keys(ast.sequenceItems).length > 0) {
       disallowed.push('sequenceItems');
     }
-    
+
     // Check for any other non-standard properties that might be added
     const allowedKeys = new Set([
       'insts', 'imports', 'pats', 'seqs', 'channels', 'arranges', 'play',
-      'chip', 'bpm', 'time', 'stepsPerBar', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
+      'chip', 'chipRegion', 'bpm', 'time', 'stepsPerBar', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
     ]);
-    
+
     for (const key of Object.keys(ast)) {
       if (!allowedKeys.has(key) && key !== 'insts') {
         disallowed.push(`unknown property '${key}'`);

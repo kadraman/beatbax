@@ -1,5 +1,5 @@
 /**
- * NTSC NES APU period tables for pulse and triangle channels.
+ * NES APU period tables for pulse and triangle channels.
  *
  * Pulse formula:   f = CPU_CLOCK / (16 × (period + 1))
  * Triangle formula: f = CPU_CLOCK / (32 × (period + 1))
@@ -11,8 +11,27 @@
  * Reference: NES APU hardware documentation, NESDev wiki
  */
 
-/** NTSC CPU clock frequency in Hz. */
-export const NES_CLOCK = 1789773;
+/** NTSC CPU clock frequency in Hz (1,789,773 Hz). */
+export const NES_CLOCK_NTSC = 1789773;
+/** PAL CPU clock frequency in Hz (1,662,607 Hz). */
+export const NES_CLOCK_PAL  = 1662607;
+
+export type NesClockRegion = 'ntsc' | 'pal';
+
+let _nesClockRegion: NesClockRegion = 'ntsc';
+/** Mutable live binding used by channel backends — updated by setNesClockRegion(). */
+export let NES_CLOCK = NES_CLOCK_NTSC;
+
+export function setNesClockRegion(region?: string | null): NesClockRegion {
+  const next: NesClockRegion = String(region || '').toLowerCase() === 'pal' ? 'pal' : 'ntsc';
+  _nesClockRegion = next;
+  NES_CLOCK = next === 'pal' ? NES_CLOCK_PAL : NES_CLOCK_NTSC;
+  return _nesClockRegion;
+}
+
+export function getNesClockRegion(): NesClockRegion {
+  return _nesClockRegion;
+}
 
 /**
  * Convert a period register value to frequency using the pulse formula.
@@ -87,9 +106,25 @@ export const TRIANGLE_PERIOD: Record<number, number> = (function () {
  * Index 0 (fastest) through 15 (slowest); maps to LFSR clock rates.
  * Values sourced from the NES hardware specification.
  */
-export const NOISE_PERIOD_TABLE: number[] = [
+export const NOISE_PERIOD_TABLE_NTSC: number[] = [
   4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068
 ];
+
+/**
+ * PAL noise period timer values.
+ * Source: NESDev wiki — APU Noise.
+ */
+export const NOISE_PERIOD_TABLE_PAL: number[] = [
+  4, 8, 14, 30, 60, 88, 118, 148, 188, 236, 354, 472, 708, 944, 1890, 3778
+];
+
+/** @deprecated Use getNoisePeriodTable() for region-aware access. */
+export const NOISE_PERIOD_TABLE: number[] = NOISE_PERIOD_TABLE_NTSC;
+
+/** Return the noise period table for the currently configured region. */
+export function getNoisePeriodTable(): number[] {
+  return _nesClockRegion === 'pal' ? NOISE_PERIOD_TABLE_PAL : NOISE_PERIOD_TABLE_NTSC;
+}
 
 /**
  * NTSC DMC rate table.
@@ -101,10 +136,29 @@ export const NOISE_PERIOD_TABLE: number[] = [
  * Index 0  = 4181.71 Hz  (slowest / lowest pitch)
  * Index 15 = 33143.94 Hz (fastest — "33 kHz" in FamiTracker)
  */
-export const DMC_RATE_TABLE: number[] = [
+export const DMC_RATE_TABLE_NTSC: number[] = [
   4181.71, 4709.93, 5264.04, 5593.04, 6257.95, 7046.35, 7918.51, 8363.42,
   9419.86, 11186.08, 12604.03, 13981.28, 16884.65, 21306.82, 24857.95, 33143.94
 ];
+
+/**
+ * PAL DMC rate table.
+ * Derived from the PAL CPU clock (1,662,607 Hz) divided by hardware cycle
+ * counts (398, 354, 316, 298, 276, 236, 210, 198, 176, 148, 132, 118, 98,
+ * 78, 66, 50). Source: NESDev wiki — APU DMC.
+ */
+export const DMC_RATE_TABLE_PAL: number[] = [
+  4177.40, 4696.63, 5261.41, 5579.22, 6023.21, 7044.94, 7917.18, 8397.00,
+  9447.77, 11232.48, 12595.51, 14089.89, 16975.58, 21315.47, 25191.51, 33252.14
+];
+
+/** @deprecated Use getDmcRateTable() for region-aware access. */
+export const DMC_RATE_TABLE: number[] = DMC_RATE_TABLE_NTSC;
+
+/** Return the DMC rate table for the currently configured region. */
+export function getDmcRateTable(): number[] {
+  return _nesClockRegion === 'pal' ? DMC_RATE_TABLE_PAL : DMC_RATE_TABLE_NTSC;
+}
 
 /**
  * Convert a MIDI note number to pulse channel frequency (Hz).

@@ -60,14 +60,21 @@ The problem: no hardware ADSR.
 
 The technique: write volume changes per row/tick to create envelope shapes.
 
+Important BeatBax SMS convention:
+
+- `vol` and `vol_env` are SN76489 attenuation values.
+- `0` is loudest.
+- `15` is mute.
+- A "fade out" usually moves upward (for example `2 -> 6 -> 10 -> 15`).
+
 Useful envelope patterns:
 
 | Shape | Write pattern | Sound |
 |------|---------------|-------|
-| Pluck | 2-4 fast downward steps | Punchy and short |
-| Sustain-ish | Hold then small step-down | Stable lead |
-| Swell | Start quiet then step up | Soft attack pad-like behavior |
-| Gate | Alternate high/mute quickly | Chopped rhythmic pulse |
+| Pluck | 2-4 fast upward attenuation steps (for example `0,4,8,12,15`) | Punchy and short |
+| Sustain-ish | Hold low attenuation, then slight upward drift (for example `6,6,7,8`) | Stable lead |
+| Swell | Start with high attenuation then step downward (for example `14,12,10,8`) | Soft attack pad-like behavior |
+| Gate | Alternate low attenuation and mute (`x,15,x,15`) | Chopped rhythmic pulse |
 
 On this chip, instrument design is mostly a data-sequencing problem, not oscillator configuration.
 
