@@ -440,9 +440,6 @@ export class SMSNoiseBackend implements ChipChannelBackend {
  */
 export function createNoiseChannel(_audioContext: BaseAudioContext): ChipChannelBackend {
   const backend = new SMSNoiseBackend();
-  // Register with coordinator
-  import('./scheduler.js').then(({ smsCoordinator }) => {
-    smsCoordinator.registerNoiseChannel(backend);
-  });
+  smsCoordinator.registerNoiseChannel(backend);
   return backend;
 }
