@@ -2,24 +2,24 @@ chip gameboy
 bpm 140
 
 # Remote import from GitHub (using shorthand)
-import "github:beatbax/instruments-gb/main/melodic.ins"
-import "github:beatbax/instruments-gb/main/percussion.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/percussion.ins"
 
 # Remote import from HTTPS URL examples
 # Main branch (default)
-#import "github:beatbax/instruments-gb/main/melodic.ins"
+#import "github:kadraman/beatbax-instruments/main/melodic.ins"
 #
 # Development branch
-#import "github:beatbax/instruments-gb/develop/melodic.ins"
+#import "github:kadraman/beatbax-instruments/develop/melodic.ins"
 #
 # Feature branch
-#import "github:beatbax/instruments-gb/feature/sid-chip/melodic.ins"
+#import "github:kadraman/beatbax-instruments/feature/sid-chip/melodic.ins"
 #
 # Git tag/release
-#import "github:beatbax/instruments-gb/v1.2.3/melodic.ins"
+#import "github:kadraman/beatbax-instruments/v1.2.3/melodic.ins"
 #
 # Branch with subdirectories
-#import "github:beatbax/instruments-gb/main/chips/gameboy/melodic.ins"
+#import "github:kadraman/beatbax-instruments/main/chips/gameboy/melodic.ins"
 #
 # Local imports still work as before
 #import "local:lib/gameboy-common.ins"

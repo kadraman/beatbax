@@ -156,7 +156,7 @@ channel 2 => inst leadB seq bass_seq:oct(-1)
 
 ```beatbax
 import "local:lib/gameboy-common.ins"
-import "github:beatbax/instruments-gb/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
 import "https://example.com/instruments.ins"
 ```
 

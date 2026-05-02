@@ -50,7 +50,7 @@ import "local:lib/common.ins"
 
 // In browser - ALLOWED
 import "https://example.com/instruments/drums.ins"
-import "github:beatbax/instruments-gb/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
 ```
 
 **Browser Detection:**
@@ -306,7 +306,7 @@ import "local:lib/common.ins"
 import "local:instruments/drums.ins"
 
 # Or use remote imports for browser compatibility
-import "github:beatbax/instruments-gb/main/common.ins"
+import "github:kadraman/beatbax-instruments/main/common.ins"
 ```
 
 **Automatic Migration:**

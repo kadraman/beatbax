@@ -58,7 +58,7 @@ chip gameboy
 bpm 128
 
 # Import a shared instrument library (local or remote)
-import "github:beatbax/instruments-gb/main/melodic.ins"
+import "github:kadraman/beatbax-instruments/main/melodic.ins"
 
 # Instruments
 inst lead  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"}
