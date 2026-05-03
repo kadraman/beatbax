@@ -24,7 +24,8 @@
   "references": [
     { "path": "./packages/engine" },
     { "path": "./packages/cli" },
-    { "path": "./apps/web-ui" }
+    { "path": "./apps/web-ui" },
+    { "path": "./packages/plugins/export-vgm" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist"]

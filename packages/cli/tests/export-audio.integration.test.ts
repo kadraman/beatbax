@@ -36,7 +36,7 @@ describe('CLI Audio Export Integration', () => {
     );
 
     // Check output message
-    expect(output).toContain('Exported WAV file');
+    expect(output).toContain('[OK] Exported WAV Audio file');
 
     // Check file exists
     expect(existsSync(TEST_WAV_PATH)).toBe(true);
@@ -51,10 +51,10 @@ describe('CLI Audio Export Integration', () => {
 
     // Check bit depth (default 16)
     expect(buffer.readUInt16LE(34)).toBe(16);
-    
+
     // Check data chunk
     expect(buffer.toString('ascii', 36, 40)).toBe('data');
-    
+
     // Data size should be > 0
     const dataSize = buffer.readUInt32LE(40);
     expect(dataSize).toBeGreaterThan(0);

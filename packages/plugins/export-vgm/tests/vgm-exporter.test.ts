@@ -217,4 +217,37 @@ describe('vgmExporterPlugin.export', () => {
     };
     expect(() => vgmExporterPlugin.export(song as any)).not.toThrow();
   });
+
+  // ─── Loudness & Attenuation Tests ───────────────────────────────────────────
+
+  it('uses instrument volume directly without post-export boost (vol 5 → attenuation ~5)', () => {
+    // Volume 5 should map to attenuation 5 (no volumeBoost applied)
+    const song = makeSong();
+    song.insts!.lead.vol = 5;
+    const result = vgmExporterPlugin.export(song as any) as Uint8Array;
+    
+    // Extract volume latch bytes (format: 1 CH CH 1 V3 V2 V1 V0)
+    // Channel 0 tone: latch bits would be 1 00 1 = 0x9X for volume
+    const volLatches: number[] = [];
+    for (let i = VGM_HEADER_SIZE; i < result.length - 1; i++) {
+      if (result[i] === CMD_PSG_WRITE) {
+        const byte = result[i + 1];
+        // Volume latch: bit 7=1, bits 5-4=0, bit 4=1 (volume cmd)
+        if ((byte & 0x80) && (byte & 0x10)) {
+          volLatches.push(byte & 0x0F); // Extract V3-V0
+        }
+      }
+    }
+    // Should have volume writes; at least one should match attenuation 5 (no boost)
+    expect(volLatches.length).toBeGreaterThan(0);
+    expect(volLatches).toContain(5);
+  });
+
+  it('deterministic export: same song produces identical bytes', () => {
+    const song = makeSong();
+    const result1 = vgmExporterPlugin.export(song as any) as Uint8Array;
+    const result2 = vgmExporterPlugin.export(song as any) as Uint8Array;
+    
+    expect(result1).toEqual(result2);
+  });
 });

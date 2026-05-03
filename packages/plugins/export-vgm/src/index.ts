@@ -70,7 +70,7 @@ function buildGd3Fields(song: SongLike, hasRetrig: boolean, isGG: boolean): Gd3F
   const artist = meta.artist ?? '';
   const noteParts: string[] = [];
   if (meta.description) noteParts.push(meta.description);
-  if (hasRetrig) noteParts.push('Contains retrig effect (may not loop cleanly).');
+  if (hasRetrig) noteParts.push('[BeatBax] retrig effect used: SN76489 phase reset on period rewrite is emulation-dependent. Behaviour may differ between VGM players and real hardware.');
 
   const systemName = isGG ? 'Sega Game Gear' : 'Sega Master System';
 
@@ -114,7 +114,20 @@ function exportVgm(song: SongLike, options?: ExportOptions): Uint8Array {
     rate,
   };
 
-  const vgmFile = assembleVgm(headerParams, dataBytes, gd3Block, totalSamples);
+  let vgmFile = assembleVgm(headerParams, dataBytes, gd3Block, totalSamples);
+
+  // Add VGM magic number header if missing (required by VGM players)
+  if (vgmFile.length < 4 ||
+      vgmFile[0] !== 0x56 ||
+      vgmFile[1] !== 0x67 ||
+      vgmFile[2] !== 0x6d ||
+      vgmFile[3] !== 0x20) {
+    const header = new Uint8Array([0x56, 0x67, 0x6d, 0x20]);
+    const newFile = new Uint8Array(vgmFile.length + header.length);
+    newFile.set(header);
+    newFile.set(vgmFile, header.length);
+    vgmFile = newFile;
+  }
 
   if (hasRetrig) {
     warn('Song uses the retrig effect. VGM export does not fully replicate retrig timing; exported file may sound slightly different from playback.');

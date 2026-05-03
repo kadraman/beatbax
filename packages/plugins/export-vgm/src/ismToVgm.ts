@@ -57,6 +57,7 @@ import {
   SN76489_CLOCK_NTSC,
   SN76489_CLOCK_PAL,
   noiseControlByte,
+  SAMPLES_PER_60HZ,
 } from './constants.js';
 
 // ─── Pitch utilities ──────────────────────────────────────────────────────────
@@ -345,13 +346,18 @@ function noteOn(
   state.freq = freq;
   state.baseFreq = freq;
 
-  // Volume / attenuation
+  // Volume / attenuation - use true SMS attenuation semantics (0=loudest, 15=mute)
   if (inst) {
+    // Default to medium volume if no volume specified
+    const defaultVolume = 8;
+    let baseVolume;
     if (inst.vol !== undefined) {
-      state.attenuation = Math.max(0, Math.min(15, Number(inst.vol)));
+      baseVolume = Number(inst.vol);
     } else {
-      state.attenuation = ATTENUATION_MUTE;
+      baseVolume = defaultVolume;
     }
+    // Use instrument volume directly (no post-export gain boost)
+    state.attenuation = Math.max(0, Math.min(15, baseVolume));
 
     // Noise settings (channel 3 only)
     if (isNoiseChannel(psgCh) && inst) {
@@ -365,12 +371,13 @@ function noteOn(
       }
     }
 
-    // Macros
+    // Process vol_env macros for all channels
     const volEnvM = parseMacro(inst.vol_env);
     state.volEnvMacro = volEnvM;
     state.volEnvState = makeMacroState();
     if (volEnvM && volEnvM.values.length > 0) {
-      state.attenuation = Math.max(0, Math.min(15, volEnvM.values[0]));
+      const vol = Math.max(0, Math.min(15, volEnvM.values[0]));
+      state.attenuation = vol;
     }
 
     if (!isNoiseChannel(psgCh)) {
@@ -596,6 +603,79 @@ function advanceFrames(
   return { periodChanged, volumeChanged, noiseRateChanged };
 }
 
+/**
+ * Calculate the effective attenuation for a channel, considering:
+ * 1. Base instrument volume
+ * 2. vol_env macro (absolute values)
+ * 3. Tremolo/trem (additive to base)
+ * 4. Cut effect (mute)
+ * 5. Rest/inactive (mute)
+ *
+ * Precedence: inactive → cut → (vol_env OR base vol) + trem
+ */
+function calcEffectiveAttenuation(state: ChannelSimState, isActive: boolean): number {
+  if (!isActive) return ATTENUATION_MUTE;
+  if (state.cutDone) return ATTENUATION_MUTE;
+
+  // vol_env takes precedence; otherwise use base attenuation
+  let att = state.attenuation;
+
+  // Tremolo is additive but clamped
+  if (state.tremoloDepth > 0 && state.tremoloRate > 0) {
+    const phase = state.tremoloPhase;
+    const mod = Math.sin(2 * Math.PI * phase) * state.tremoloDepth;
+    att = Math.max(0, Math.min(15, Math.round(att + mod)));
+  }
+
+  return att;
+}
+
+/**
+ * Emit PSG register writes for a given channel at per-tick final stage.
+ * Consolidates noise control, period, and volume writes into one place.
+ */
+function emitChannelTickFinalWrites(
+  ci: number,
+  channels: ChannelModelLike[],
+  simStates: ChannelSimState[],
+  psg: SN76489State,
+  clock: number,
+  dataBytes: number[],
+): void {
+  const state = simStates[ci];
+  const psgCh = channelIdToPsg(channels[ci].id);
+  const isActive = state.active;
+
+  if (isNoiseChannel(psgCh)) {
+    // Noise: emit noise control, then volume
+    if (isActive) {
+      const noiseBytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
+      for (const b of noiseBytes) {
+        dataBytes.push(CMD_PSG_WRITE, b);
+      }
+    }
+    const effAtt = calcEffectiveAttenuation(state, isActive);
+    const volBytes = psg.applyVolume(psgCh, effAtt);
+    for (const b of volBytes) {
+      dataBytes.push(CMD_PSG_WRITE, b);
+    }
+  } else {
+    // Tone: emit period, then volume
+    if (isActive && state.freq > 0) {
+      const period = freqToPeriod(state.freq, clock);
+      const periodBytes = psg.applyTonePeriod(psgCh, period);
+      for (const b of periodBytes) {
+        dataBytes.push(CMD_PSG_WRITE, b);
+      }
+    }
+    const effAtt = calcEffectiveAttenuation(state, isActive);
+    const volBytes = psg.applyVolume(psgCh, effAtt);
+    for (const b of volBytes) {
+      dataBytes.push(CMD_PSG_WRITE, b);
+    }
+  }
+}
+
 export interface IsmToVgmResult {
   /** Raw VGM data bytes (commands, not including the header or GD3 block). */
   dataBytes: number[];
@@ -715,17 +795,91 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
       // 'sustain' — continue current note; no state change needed
     }
 
-    // 2. Advance macros/effects for framesPerTick frames
-    //    (fractional frames accumulated)
+    // 2. Advance macros/effects per frame and emit intermediate writes
+    const framesThisTick = Math.floor(framesPerTick);
+    for (let f = 0; f < framesThisTick; f++) {
+      let frameHasChanges = false;
+
+      // Advance all channels by one frame
+      for (let ci = 0; ci < numChannels; ci++) {
+        const state = simStates[ci];
+        if (!state.active) continue;
+
+        const changes = advanceFrames(state, 1);
+        const psgCh = channelIdToPsg(channels[ci].id);
+
+        // Emit volume changes immediately
+        if (changes.volumeChanged) {
+          const bytes = psg.applyVolume(psgCh, state.attenuation);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+          frameHasChanges = true;
+        }
+
+        // Emit noise rate changes immediately
+        if (isNoiseChannel(psgCh) && changes.noiseRateChanged) {
+          const bytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+          frameHasChanges = true;
+        }
+
+        // Emit period changes immediately
+        if (!isNoiseChannel(psgCh) && changes.periodChanged && state.freq > 0) {
+          const period = freqToPeriod(state.freq, clock);
+          const bytes = psg.applyTonePeriod(psgCh, period);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+          frameHasChanges = true;
+        }
+      }
+
+      // Emit wait for this frame (735 samples at 44100 Hz)
+      appendWait(dataBytes, SAMPLES_PER_60HZ);
+      totalSamples += SAMPLES_PER_60HZ;
+    }
+
+    // Handle fractional frame accumulation and apply any accumulated full frames
     for (let ci = 0; ci < numChannels; ci++) {
       const state = simStates[ci];
-      if (!state.active) continue;
+      state.frameAccum += framesPerTick - framesThisTick;
+      
+      // If accumulated fractional frames exceed 1.0, process the extra frame(s)
+      while (state.frameAccum >= 1.0 && state.active) {
+        const changes = advanceFrames(state, 1);
+        const psgCh = channelIdToPsg(channels[ci].id);
 
-      state.frameAccum += framesPerTick;
-      const wholeFr = Math.floor(state.frameAccum);
-      if (wholeFr > 0) {
-        state.frameAccum -= wholeFr;
-        advanceFrames(state, wholeFr);
+        // Emit accumulated frame changes
+        if (changes.volumeChanged) {
+          const bytes = psg.applyVolume(psgCh, state.attenuation);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+        }
+
+        if (isNoiseChannel(psgCh) && changes.noiseRateChanged) {
+          const bytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+        }
+
+        if (!isNoiseChannel(psgCh) && changes.periodChanged && state.freq > 0) {
+          const period = freqToPeriod(state.freq, clock);
+          const bytes = psg.applyTonePeriod(psgCh, period);
+          for (const b of bytes) {
+            dataBytes.push(CMD_PSG_WRITE, b);
+          }
+        }
+
+        // Emit wait for the fractional frame
+        appendWait(dataBytes, SAMPLES_PER_60HZ);
+        totalSamples += SAMPLES_PER_60HZ;
+
+        state.frameAccum -= 1.0;
       }
     }
 
@@ -773,41 +927,8 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
     }
 
     for (let ci = 0; ci < numChannels; ci++) {
-      const state = simStates[ci];
-      const psgCh = channelIdToPsg(channels[ci].id);
-
-      if (isNoiseChannel(psgCh)) {
-        // Noise channel (ch3)
-        if (state.active) {
-          const noiseBytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
-          for (const b of noiseBytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-        }
-        const volBytes = psg.applyVolume(psgCh, state.active ? state.attenuation : ATTENUATION_MUTE);
-        for (const b of volBytes) {
-          dataBytes.push(CMD_PSG_WRITE, b);
-        }
-      } else {
-        // Tone channels (ch 0-2)
-        if (state.active && state.freq > 0) {
-          const period = freqToPeriod(state.freq, clock);
-          const periodBytes = psg.applyTonePeriod(psgCh, period);
-          for (const b of periodBytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-        }
-        const volBytes = psg.applyVolume(psgCh, state.active ? state.attenuation : ATTENUATION_MUTE);
-        for (const b of volBytes) {
-          dataBytes.push(CMD_PSG_WRITE, b);
-        }
-      }
+      emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
     }
-
-    // 5. Emit wait for this tick's samples
-    const tickSamples = Math.round(samplesPerTick);
-    appendWait(dataBytes, tickSamples);
-    totalSamples += tickSamples;
   }
 
   // Final mute all channels
