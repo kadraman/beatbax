@@ -10,8 +10,20 @@
 /** VGM file magic bytes: "Vgm " (0x56 0x67 0x6D 0x20) */
 export const VGM_MAGIC = 0x206d6756; // little-endian uint32
 
-/** VGM format version 1.61 (required for Game Gear 0x4F stereo command) */
-export const VGM_VERSION = 0x00000161;
+/**
+ * VGM format version 1.50.
+ *
+ * Reasons:
+ *  - v1.50 defines SN76489 feedback (0x28) and shift-register width (0x2A),
+ *    which ensures correct noise-channel LFSR behaviour in VGMPlay.
+ *  - For versions < 1.51 the data always starts at 0x40 — there are no
+ *    extended chip-clock fields beyond 0x40 that would overlap with our
+ *    command stream.
+ *  - Using v1.61 caused VGMPlay to read PSG command bytes at offset 0x80+
+ *    as GB/NES chip clocks, making the file fail to open.
+ *  - The Game Gear 0x4F stereo command is valid in all VGM versions.
+ */
+export const VGM_VERSION = 0x00000150;
 
 // ─── Header field offsets ────────────────────────────────────────────────────
 
@@ -31,7 +43,13 @@ export const HDR_DATA_OFFSET   = 0x34; // relative to 0x34; points to VGM data s
 
 /** Size of the VGM header (data starts at 0x40, so data offset relative value = 0x0C) */
 export const VGM_HEADER_SIZE       = 0x40;
-export const VGM_DATA_OFFSET_VALUE = 0x0C; // 0x34 + 0x0C = 0x40
+/**
+ * Relative data offset stored at 0x34.
+ * For VGM ≥ 1.51 this is 0x0C (0x34 + 0x0C = 0x40).
+ * For VGM 1.50 the field does not exist — write 0 so that players that
+ * read it anyway treat 0 as "use the default 0x40".
+ */
+export const VGM_DATA_OFFSET_VALUE = 0x00;
 
 // ─── Clock rates ─────────────────────────────────────────────────────────────
 

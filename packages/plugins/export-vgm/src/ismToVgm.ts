@@ -53,7 +53,6 @@ import { appendWait } from './vgmWriter.js';
 import {
   CMD_PSG_WRITE,
   CMD_GG_STEREO,
-  VGM_SAMPLE_RATE,
   SN76489_CLOCK_NTSC,
   SN76489_CLOCK_PAL,
   noiseControlByte,
@@ -223,9 +222,6 @@ interface ChannelSimState {
   pitchEnvState:     MacroState;
   noiseRateEnvState: MacroState;
 
-  // Fractional 60 Hz frame accumulator
-  frameAccum: number;
-
   // Active effects
   vibPhase:     number;  // 0..1 LFO phase
   vibDepth:     number;  // semitones
@@ -269,7 +265,6 @@ function makeChannelState(): ChannelSimState {
     arpEnvState: makeMacroState(),
     pitchEnvState: makeMacroState(),
     noiseRateEnvState: makeMacroState(),
-    frameAccum: 0,
     vibPhase: 0, vibDepth: 0, vibRate: 0, vibDelay: 0, vibFrame: 0,
     portTarget: 0, portRate: 0, portActive: false,
     tremoloPhase: 0, tremoloDepth: 0, tremoloRate: 0,
@@ -278,8 +273,6 @@ function makeChannelState(): ChannelSimState {
     bendTarget: 0, bendRate: 0, bendActive: false,
   };
 }
-
-/** Map channel ID (1-based from ISM) to PSG channel index (0-based). */
 function channelIdToPsg(channelId: number): number {
   return channelId - 1; // channel 1 → PSG 0, channel 4 → PSG 3
 }
@@ -410,7 +403,6 @@ function noteOn(
   state.cutTick = -1;
   state.retrigInterval = 0;
   state.bendActive = false;
-  state.frameAccum = 0;
 }
 
 // ─── Effect parsing ───────────────────────────────────────────────────────────
@@ -695,7 +687,11 @@ export interface IsmToVgmResult {
 export function ismToVgm(song: SongLike): IsmToVgmResult {
   const bpm = song.bpm ?? 120;
   const tickSeconds = (60 / bpm) / 4;
-  const samplesPerTick = VGM_SAMPLE_RATE * tickSeconds;
+  // Timing model: macros advance at 60 Hz (one step per video frame).
+  // Total sample count per tick = VGM_SAMPLE_RATE * tickSeconds, but we
+  // account for this by emitting one 735-sample wait per 60 Hz frame rather
+  // than a single per-tick wait, keeping macro pacing aligned with the audio
+  // engine (pcmRenderer drives applyEnvelope() at ~60 Hz).
   const framesPerTick = 60 * tickSeconds; // 60 Hz macro frames per tick
 
   // Determine clock from chipRegion
@@ -710,7 +706,6 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
   const simStates: ChannelSimState[] = channels.map(() => makeChannelState());
   const channelDefaults: (string | undefined)[] = channels.map(ch => ch.defaultInstrument);
 
-  // Track active note index per channel (which event index in the events array we're at)
   // We step through all channels in tick-parallel order.
   const maxTicks = Math.max(...channels.map(ch => ch.events.length), 0);
 
@@ -729,16 +724,36 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
   let hasRetrig = false;
 
   // ── Initial flush ────────────────────────────────────────────────────────────
+  // Establish known PSG state at song start (all channels muted, periods = 0,
+  // noise = periodic rate-1). VGMPlay starts from an undefined register state.
   const { psgBytes: initBytes, ggStereo: initStereo } = psg.flush();
 
-  // Write initial GG stereo
+  // Write initial GG stereo (0xFF = all channels on both sides)
   dataBytes.push(CMD_GG_STEREO, initStereo);
   // Write initial PSG register state
   for (const b of initBytes) {
     dataBytes.push(CMD_PSG_WRITE, b);
   }
 
-  // ── Tick loop ────────────────────────────────────────────────────────────────
+  // ── Tick loop ─────────────────────────────────────────────────────────────────
+  //
+  // Correct ordering within each tick:
+  //   1. Process events (note-on, rest) — updates channel sim state.
+  //   2. Per-tick effects (cut, retrig).
+  //   3. For each 60 Hz frame in this tick:
+  //        a. Advance macros / LFOs by one frame → updates state.attenuation, state.freq.
+  //        b. Emit GG stereo if changed.
+  //        c. Emit PSG register writes for all channels (BEFORE the wait).
+  //        d. Wait 735 samples.
+  //
+  // The critical fix vs. the previous implementation: PSG writes are emitted
+  // BEFORE the wait, not after.  This ensures note-on events produce sound at
+  // the tick boundary rather than after a full tick of silence.
+  //
+  // A global frame accumulator handles fractional framesPerTick so that the
+  // total sample count stays accurate across the whole song.
+  let globalFrameAccum = 0;
+
   for (let tick = 0; tick < maxTicks; tick++) {
     // 1. Process events for each channel at this tick
     for (let ci = 0; ci < numChannels; ci++) {
@@ -795,121 +810,30 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
       // 'sustain' — continue current note; no state change needed
     }
 
-    // 2. Advance macros/effects per frame and emit intermediate writes
-    const framesThisTick = Math.floor(framesPerTick);
-    for (let f = 0; f < framesThisTick; f++) {
-      let frameHasChanges = false;
-
-      // Advance all channels by one frame
-      for (let ci = 0; ci < numChannels; ci++) {
-        const state = simStates[ci];
-        if (!state.active) continue;
-
-        const changes = advanceFrames(state, 1);
-        const psgCh = channelIdToPsg(channels[ci].id);
-
-        // Emit volume changes immediately
-        if (changes.volumeChanged) {
-          const bytes = psg.applyVolume(psgCh, state.attenuation);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-          frameHasChanges = true;
-        }
-
-        // Emit noise rate changes immediately
-        if (isNoiseChannel(psgCh) && changes.noiseRateChanged) {
-          const bytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-          frameHasChanges = true;
-        }
-
-        // Emit period changes immediately
-        if (!isNoiseChannel(psgCh) && changes.periodChanged && state.freq > 0) {
-          const period = freqToPeriod(state.freq, clock);
-          const bytes = psg.applyTonePeriod(psgCh, period);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-          frameHasChanges = true;
-        }
-      }
-
-      // Emit wait for this frame (735 samples at 44100 Hz)
-      appendWait(dataBytes, SAMPLES_PER_60HZ);
-      totalSamples += SAMPLES_PER_60HZ;
-    }
-
-    // Handle fractional frame accumulation and apply any accumulated full frames
-    for (let ci = 0; ci < numChannels; ci++) {
-      const state = simStates[ci];
-      state.frameAccum += framesPerTick - framesThisTick;
-      
-      // If accumulated fractional frames exceed 1.0, process the extra frame(s)
-      while (state.frameAccum >= 1.0 && state.active) {
-        const changes = advanceFrames(state, 1);
-        const psgCh = channelIdToPsg(channels[ci].id);
-
-        // Emit accumulated frame changes
-        if (changes.volumeChanged) {
-          const bytes = psg.applyVolume(psgCh, state.attenuation);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-        }
-
-        if (isNoiseChannel(psgCh) && changes.noiseRateChanged) {
-          const bytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-        }
-
-        if (!isNoiseChannel(psgCh) && changes.periodChanged && state.freq > 0) {
-          const period = freqToPeriod(state.freq, clock);
-          const bytes = psg.applyTonePeriod(psgCh, period);
-          for (const b of bytes) {
-            dataBytes.push(CMD_PSG_WRITE, b);
-          }
-        }
-
-        // Emit wait for the fractional frame
-        appendWait(dataBytes, SAMPLES_PER_60HZ);
-        totalSamples += SAMPLES_PER_60HZ;
-
-        state.frameAccum -= 1.0;
-      }
-    }
-
-    // 3. Per-tick effect checks (cut, retrig, volSlide)
+    // 2. Per-tick effects (cut, retrig) — evaluated at the tick boundary,
+    //    before any frames are emitted for this tick.
     for (let ci = 0; ci < numChannels; ci++) {
       const state = simStates[ci];
       if (!state.active) continue;
       const psgCh = channelIdToPsg(channels[ci].id);
 
-      // cut effect — mute at specific tick
+      // cut effect — mute at specific tick within the note
       if (state.cutTick >= 0 && !state.cutDone) {
-        // cutTick counts ticks within the current note (0-indexed)
-        // We increment retrigTick below; if the event is a note-on, retrigTick was reset to 0
         if (state.retrigTick >= state.cutTick) {
           state.attenuation = ATTENUATION_MUTE;
           state.cutDone = true;
         }
       }
 
-      // retrig effect — retrigger the note every N ticks
+      // retrig effect — re-trigger every N ticks
       if (state.retrigInterval > 0) {
         if (state.retrigTick > 0 && state.retrigTick % state.retrigInterval === 0) {
-          // Re-trigger by resetting macros and volume state
           const noteEvent = currentNoteEvents[ci];
           if (noteEvent) {
             const savedInterval = state.retrigInterval;
             const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
             const noteName = currentNoteNames[ci];
             noteOn(state, noteName, inst, psgCh, clock);
-            // Restore retrig interval (noteOn clears all effects)
             state.retrigInterval = savedInterval;
           }
         }
@@ -918,16 +842,38 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
       state.retrigTick++;
     }
 
-    // 4. Collect PSG state changes and emit writes
-    //    Track current GG stereo register value
-    const newGgStereo = buildGgStereoByte(ggPanBits);
-    const ggDirty = psg.applyGgStereo(newGgStereo);
-    if (ggDirty >= 0) {
-      dataBytes.push(CMD_GG_STEREO, ggDirty);
-    }
+    // 3. Per-frame loop — advance macros, then emit, then wait.
+    //
+    // The frame accumulator converts the floating-point framesPerTick into
+    // an integer frame count per tick so that the sample total stays accurate.
+    globalFrameAccum += framesPerTick;
+    const framesThisTick = Math.floor(globalFrameAccum);
+    globalFrameAccum -= framesThisTick;
 
-    for (let ci = 0; ci < numChannels; ci++) {
-      emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
+    for (let f = 0; f < framesThisTick; f++) {
+      // 3a. Advance macros / LFOs by one 60 Hz frame.
+      //     This updates state.attenuation and state.freq before the emit.
+      for (let ci = 0; ci < numChannels; ci++) {
+        const state = simStates[ci];
+        if (!state.active) continue;
+        advanceFrames(state, 1);
+      }
+
+      // 3b. Emit GG stereo if the register changed.
+      const newGgStereo = buildGgStereoByte(ggPanBits);
+      const ggDirty = psg.applyGgStereo(newGgStereo);
+      if (ggDirty >= 0) {
+        dataBytes.push(CMD_GG_STEREO, ggDirty);
+      }
+
+      // 3c. Emit PSG register writes for all channels (BEFORE the wait).
+      for (let ci = 0; ci < numChannels; ci++) {
+        emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
+      }
+
+      // 3d. Wait one 60 Hz frame (735 samples at 44100 Hz).
+      appendWait(dataBytes, SAMPLES_PER_60HZ);
+      totalSamples += SAMPLES_PER_60HZ;
     }
   }
 
