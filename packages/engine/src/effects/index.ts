@@ -210,7 +210,10 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     let targetFreq = (osc as any)._baseFreq || osc.frequency.value;
     if (!Number.isFinite(targetFreq) || targetFreq <= 0) targetFreq = 440;
 
-    const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
+    const seededPrevFreq = Number((osc as any)._prevFreq);
+    const lastFreq = portamentoLastFreq.get(channelKey)
+      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
+      || targetFreq;
 
     try {
       osc.frequency.cancelScheduledValues(start);
@@ -257,7 +260,10 @@ register('port', (ctx: any, nodes: any[], params: any[], start: number, dur: num
     const targetFreq: number = (osc as any).__freq || 440;
     const targetRate: number = (osc as any).__basePlaybackRate || osc.playbackRate.value;
 
-    const lastFreq = portamentoLastFreq.get(channelKey) || targetFreq;
+    const seededPrevFreq = Number((osc as any)._prevFreq);
+    const lastFreq = portamentoLastFreq.get(channelKey)
+      || (Number.isFinite(seededPrevFreq) && seededPrevFreq > 0 ? seededPrevFreq : 0)
+      || targetFreq;
 
     if (Math.abs(targetFreq - lastFreq) > 1) {
       // Scale playbackRate proportionally: rate(f) = (f / targetFreq) * targetRate

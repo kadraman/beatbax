@@ -44,6 +44,34 @@ function makeSong(overrides: Partial<SongLike> = {}): SongLike {
   };
 }
 
+function extractPsgDataBytes(vgm: Uint8Array): number[] {
+  const out: number[] = [];
+  for (let i = VGM_HEADER_SIZE; i < vgm.length - 1; i++) {
+    if (vgm[i] === CMD_PSG_WRITE) out.push(vgm[i + 1]);
+  }
+  return out;
+}
+
+function isToneLatchForChannel(byte: number, channel: number): boolean {
+  if ((byte & 0x80) === 0) return false;
+  const ch = (byte >> 5) & 0x03;
+  const isVolume = (byte & 0x10) !== 0;
+  return ch === channel && !isVolume;
+}
+
+function isVolumeLatchForChannel(byte: number, channel: number): boolean {
+  if ((byte & 0x80) === 0) return false;
+  const ch = (byte >> 5) & 0x03;
+  const isVolume = (byte & 0x10) !== 0;
+  return ch === channel && isVolume;
+}
+
+function extractChannelVolumeValues(psgBytes: number[], channel: number): number[] {
+  return psgBytes
+    .filter(b => isVolumeLatchForChannel(b, channel))
+    .map(b => b & 0x0f);
+}
+
 // ─── Plugin metadata ─────────────────────────────────────────────────────────
 
 describe('vgmExporterPlugin metadata', () => {
@@ -225,7 +253,7 @@ describe('vgmExporterPlugin.export', () => {
     const song = makeSong();
     song.insts!.lead.vol = 5;
     const result = vgmExporterPlugin.export(song as any) as Uint8Array;
-    
+
     // Extract volume latch bytes (format: 1 CH CH 1 V3 V2 V1 V0)
     // Channel 0 tone: latch bits would be 1 00 1 = 0x9X for volume
     const volLatches: number[] = [];
@@ -247,7 +275,153 @@ describe('vgmExporterPlugin.export', () => {
     const song = makeSong();
     const result1 = vgmExporterPlugin.export(song as any) as Uint8Array;
     const result2 = vgmExporterPlugin.export(song as any) as Uint8Array;
-    
+
     expect(result1).toEqual(result2);
+  });
+
+  it('exports port:speed as stepped tone-period glide writes', () => {
+    const base = makeSong({
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: [
+            { type: 'note', token: 'C3', instrument: 'lead' },
+            { type: 'rest' },
+            { type: 'note', token: 'D3', instrument: 'lead' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+          ],
+        },
+      ],
+    });
+
+    const withPort = JSON.parse(JSON.stringify(base)) as SongLike;
+    (withPort.channels[0].events[2] as any).effects = [{ type: 'port', params: [12] }];
+
+    const baseBytes = extractPsgDataBytes(vgmExporterPlugin.export(base as any) as Uint8Array);
+    const portBytes = extractPsgDataBytes(vgmExporterPlugin.export(withPort as any) as Uint8Array);
+
+    const baseToneLatches = baseBytes.filter(b => isToneLatchForChannel(b, 0)).length;
+    const portToneLatches = portBytes.filter(b => isToneLatchForChannel(b, 0)).length;
+    expect(portToneLatches).toBeGreaterThan(baseToneLatches);
+  });
+
+  it('exports bend:+semitones as stepped tone-period writes', () => {
+    const base = makeSong({
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: [
+            { type: 'note', token: 'D3', instrument: 'lead' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+          ],
+        },
+      ],
+    });
+
+    const withBend = JSON.parse(JSON.stringify(base)) as SongLike;
+    (withBend.channels[0].events[0] as any).effects = [{ type: 'bend', params: [7, 'linear', 0, 0.5] }];
+
+    const baseBytes = extractPsgDataBytes(vgmExporterPlugin.export(base as any) as Uint8Array);
+    const bendBytes = extractPsgDataBytes(vgmExporterPlugin.export(withBend as any) as Uint8Array);
+
+    const baseToneLatches = baseBytes.filter(b => isToneLatchForChannel(b, 0)).length;
+    const bendToneLatches = bendBytes.filter(b => isToneLatchForChannel(b, 0)).length;
+    expect(bendToneLatches).toBeGreaterThan(baseToneLatches);
+  });
+
+  it('exports volSlide as additional channel volume writes', () => {
+    const base = makeSong({
+      insts: {
+        lead: {
+          name: 'lead',
+          type: 'tone1',
+          vol: 8,
+        } as any,
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: [
+            { type: 'note', token: 'E3', instrument: 'lead' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+          ],
+        },
+      ],
+    });
+
+    const withSlide = JSON.parse(JSON.stringify(base)) as SongLike;
+    (withSlide.channels[0].events[0] as any).effects = [{ type: 'volSlide', params: [-4, 8] }];
+
+    const baseBytes = extractPsgDataBytes(vgmExporterPlugin.export(base as any) as Uint8Array);
+    const slideBytes = extractPsgDataBytes(vgmExporterPlugin.export(withSlide as any) as Uint8Array);
+
+    const baseVolLatches = baseBytes.filter(b => isVolumeLatchForChannel(b, 0)).length;
+    const slideVolLatches = slideBytes.filter(b => isVolumeLatchForChannel(b, 0)).length;
+    expect(slideVolLatches).toBeGreaterThan(baseVolLatches);
+  });
+
+  it('keeps tremolo depth in a WebAudio-like attenuation range', () => {
+    const song = makeSong({
+      insts: {
+        lead: {
+          name: 'lead',
+          type: 'tone1',
+          vol: 9,
+        } as any,
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: [
+            { type: 'note', token: 'C3', instrument: 'lead', effects: [{ type: 'trem', params: [6, 4, 'sine', 0, 1] }] },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'sustain' },
+          ],
+        },
+      ],
+    });
+
+    const psgBytes = extractPsgDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
+    const vols = extractChannelVolumeValues(psgBytes, 0);
+    expect(vols.length).toBeGreaterThan(0);
+
+    // Ignore setup/rest mute writes and inspect active tremolo depth only.
+    const activeVols = vols.filter(v => v < 15);
+    expect(activeVols.length).toBeGreaterThan(0);
+
+    const minVol = Math.min(...activeVols);
+    const maxVol = Math.max(...activeVols);
+
+    // Tremolo should move volume, but not with the overly harsh swings caused by
+    // additive attenuation modulation.
+    expect(maxVol - minVol).toBeGreaterThan(0);
+    expect(maxVol - minVol).toBeLessThanOrEqual(6);
   });
 });

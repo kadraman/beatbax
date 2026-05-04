@@ -205,6 +205,8 @@ interface ChannelSimState {
   baseFreq: number;
   /** Current PSG channel attenuation (0=loudest, 15=mute). */
   attenuation: number;
+  /** Last note base frequency (for portamento start on the next note). */
+  lastNoteFreq: number;
   /** Current noise mode: true=white, false=periodic. */
   noiseIsWhite: boolean;
   /** Current noise rate 0-3. */
@@ -230,12 +232,17 @@ interface ChannelSimState {
   vibFrame:     number;  // frames elapsed since note-on
 
   portTarget:   number;  // target frequency
-  portRate:     number;  // semitones per tick
+  portStart:    number;  // start frequency at note-on
+  portFrame:    number;  // elapsed frames inside portamento
+  portDuration: number;  // total portamento frames
   portActive:   boolean;
 
   tremoloPhase: number;
   tremoloDepth: number;
   tremoloRate:  number;
+  tremoloDelay: number;   // frames before tremolo starts
+  tremoloDuration: number; // frames tremolo stays active; -1 = full note
+  tremoloFrame: number;   // elapsed frames since note-on
 
   cutTick:      number;  // tick within note at which to cut; -1 = no cut
   cutDone:      boolean;
@@ -243,9 +250,19 @@ interface ChannelSimState {
   retrigInterval: number; // ticks between retriggers; 0 = disabled
   retrigTick:     number; // tick counter within note
 
-  bendTarget:   number;  // target freq for bend
-  bendRate:     number;  // semitones per tick
+  bendStart:    number;  // starting frequency at bend start
+  bendSemitones:number;  // total semitone offset
+  bendCurve:    string;  // linear|exp|log|sine
+  bendDelay:    number;  // delay before bend starts (frames)
+  bendFrame:    number;  // elapsed bend frames (including delay)
+  bendDuration: number;  // bend duration in frames
   bendActive:   boolean;
+
+  volSlideDelta: number; // signed slide amount
+  volSlideSteps: number; // optional stepped mode count (0 = smooth)
+
+  noteFrames:    number; // planned note duration in 60Hz frames
+  noteFrame:     number; // elapsed 60Hz frames since note-on
 }
 
 function makeChannelState(): ChannelSimState {
@@ -254,6 +271,7 @@ function makeChannelState(): ChannelSimState {
     freq: 0,
     baseFreq: 0,
     attenuation: ATTENUATION_MUTE,
+    lastNoteFreq: 0,
     noiseIsWhite: true,
     noiseRate: 2,
     ggPanBits: 0b11, // C (both sides)
@@ -266,11 +284,13 @@ function makeChannelState(): ChannelSimState {
     pitchEnvState: makeMacroState(),
     noiseRateEnvState: makeMacroState(),
     vibPhase: 0, vibDepth: 0, vibRate: 0, vibDelay: 0, vibFrame: 0,
-    portTarget: 0, portRate: 0, portActive: false,
-    tremoloPhase: 0, tremoloDepth: 0, tremoloRate: 0,
+    portTarget: 0, portStart: 0, portFrame: 0, portDuration: 0, portActive: false,
+    tremoloPhase: 0, tremoloDepth: 0, tremoloRate: 0, tremoloDelay: 0, tremoloDuration: -1, tremoloFrame: 0,
     cutTick: -1, cutDone: false,
     retrigInterval: 0, retrigTick: 0,
-    bendTarget: 0, bendRate: 0, bendActive: false,
+    bendStart: 0, bendSemitones: 0, bendCurve: 'linear', bendDelay: 0, bendFrame: 0, bendDuration: 0, bendActive: false,
+    volSlideDelta: 0, volSlideSteps: 0,
+    noteFrames: 1, noteFrame: 0,
   };
 }
 function channelIdToPsg(channelId: number): number {
@@ -328,11 +348,17 @@ function noteOn(
   inst: InstrumentNode | null,
   psgCh: number,
   clock: number,
+  noteFrames: number,
 ): void {
+  if (state.baseFreq > 0) {
+    state.lastNoteFreq = state.baseFreq;
+  }
   state.active = true;
   state.cutDone = false;
   state.vibFrame = 0;
   state.retrigTick = 0;
+  state.noteFrames = Math.max(1, noteFrames);
+  state.noteFrame = 0;
 
   // Frequency and period
   const freq = midiToFreqForNote(noteName);
@@ -396,12 +422,27 @@ function noteOn(
   state.vibDepth = 0;
   state.vibRate = 0;
   state.vibDelay = 0;
+  state.portTarget = 0;
+  state.portStart = 0;
+  state.portFrame = 0;
+  state.portDuration = 0;
   state.portActive = false;
   state.tremoloPhase = 0;
   state.tremoloDepth = 0;
   state.tremoloRate = 0;
+  state.tremoloDelay = 0;
+  state.tremoloDuration = -1;
+  state.tremoloFrame = 0;
   state.cutTick = -1;
   state.retrigInterval = 0;
+  state.volSlideDelta = 0;
+  state.volSlideSteps = 0;
+  state.bendStart = state.baseFreq;
+  state.bendSemitones = 0;
+  state.bendCurve = 'linear';
+  state.bendDelay = 0;
+  state.bendFrame = 0;
+  state.bendDuration = 0;
   state.bendActive = false;
 }
 
@@ -417,7 +458,8 @@ function parseEffectsOnNoteOn(
   state: ChannelSimState,
   noteName: string,
   _clock: number,
-  _tickSeconds: number,
+  tickSeconds: number,
+  framesPerTick: number,
 ): void {
   for (const eff of effects) {
     const t = eff.type.toLowerCase();
@@ -438,16 +480,44 @@ function parseEffectsOnNoteOn(
         state.vibDelay = Math.round(delaySec * 60);
       } else {
         const rawDelayRows = p[4] !== undefined ? Number(p[4]) : 0;
-        state.vibDelay = isNaN(rawDelayRows) ? 0 : Math.round(rawDelayRows * 60 * _tickSeconds);
+        state.vibDelay = isNaN(rawDelayRows) ? 0 : Math.round(rawDelayRows * 60 * tickSeconds);
       }
     } else if (t === 'port' || t === 'portamento') {
-      // port:target[,rate]
-      const targetNote = typeof p[0] === 'string' ? p[0] : String(p[0]);
-      const midi = noteToMidi(targetNote);
-      state.portTarget = midi !== null ? midiToFreq(midi) : 0;
-      state.portRate   = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1] ?? '2'));
-      if (isNaN(state.portRate)) state.portRate = 2;
-      state.portActive = state.portTarget > 0;
+      // Current syntax: port:speed[,durationRows]
+      // Legacy compatibility: port:targetNote[,speed]
+      let speed = 16;
+      let targetFreq = state.baseFreq;
+      if (typeof p[0] === 'number' || (typeof p[0] === 'string' && Number.isFinite(Number(p[0])))) {
+        speed = Number(p[0]);
+        targetFreq = state.baseFreq;
+      } else {
+        const targetNote = typeof p[0] === 'string' ? p[0] : String(p[0]);
+        const midi = noteToMidi(targetNote);
+        targetFreq = midi !== null ? midiToFreq(midi) : state.baseFreq;
+        speed = Number(p[1] ?? 16);
+      }
+
+      if (!Number.isFinite(speed)) speed = 16;
+      speed = Math.max(1, Math.min(255, speed));
+
+      const startFreq = state.lastNoteFreq > 0 ? state.lastNoteFreq : state.baseFreq;
+      let portFrames = Math.max(1, Math.round(((256 - speed) / 256) * state.noteFrames * 0.6));
+      const durationRows = Number(p[1]);
+      if (Number.isFinite(durationRows) && durationRows > 0) {
+        portFrames = Math.max(1, Math.round(durationRows * framesPerTick));
+      }
+      if ((eff as any).durationSec && Number.isFinite((eff as any).durationSec)) {
+        portFrames = Math.max(1, Math.round(Number((eff as any).durationSec) * 60));
+      }
+
+      state.portStart = startFreq;
+      state.portTarget = targetFreq;
+      state.portFrame = 0;
+      state.portDuration = portFrames;
+      state.portActive = state.portTarget > 0 && Math.abs(state.portTarget - state.portStart) > 0.5;
+      if (state.portActive) {
+        state.freq = state.portStart;
+      }
     } else if (t === 'arp') {
       // arp:semitone1,semitone2[,...] - treat as arp_env looping macro
       if (p.length > 0) {
@@ -458,17 +528,47 @@ function parseEffectsOnNoteOn(
         }
       }
     } else if (t === 'volslide') {
-      // volSlide:rate — positive = fade out (attenuation increases), negative = fade in
-      // rate is change per 60Hz frame; we'll apply per-frame
-      // Store in tremoloDepth (reuse field), tremoloRate for rate direction
-      // Actually handle in per-tick effect application
+      // volSlide:delta[,steps]
+      const delta = Number(p[0]);
+      if (Number.isFinite(delta) && delta !== 0) {
+        state.volSlideDelta = delta;
+      }
+      const steps = Number(p[1]);
+      if (Number.isFinite(steps) && steps > 0) {
+        state.volSlideSteps = Math.max(1, Math.round(steps));
+      }
     } else if (t === 'trem' || t === 'tremolo') {
-      // trem:depth,rate
+      // trem:depth,rate[,waveform,durationRows,delayRows]
       state.tremoloDepth = typeof p[0] === 'number' ? p[0] : parseFloat(String(p[0]));
       state.tremoloRate  = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1] ?? '5'));
       if (isNaN(state.tremoloDepth)) state.tremoloDepth = 2;
       if (isNaN(state.tremoloRate))  state.tremoloRate  = 5;
       state.tremoloPhase = 0;
+      state.tremoloFrame = 0;
+
+      // Duration: params[3] rows, or resolver-provided durationSec.
+      let tremDurationFrames = -1;
+      if (typeof (eff as any).durationSec === 'number' && Number((eff as any).durationSec) > 0) {
+        tremDurationFrames = Math.max(1, Math.round(Number((eff as any).durationSec) * 60));
+      } else {
+        const durationRows = p[3] !== undefined ? Number(p[3]) : 0;
+        if (Number.isFinite(durationRows) && durationRows > 0) {
+          tremDurationFrames = Math.max(1, Math.round(durationRows * framesPerTick));
+        }
+      }
+      state.tremoloDuration = tremDurationFrames;
+
+      // Delay: params[4] rows, or resolver-provided delaySec.
+      let tremDelayFrames = 0;
+      if (typeof (eff as any).delaySec === 'number' && Number((eff as any).delaySec) > 0) {
+        tremDelayFrames = Math.max(0, Math.round(Number((eff as any).delaySec) * 60));
+      } else {
+        const delayRows = p[4] !== undefined ? Number(p[4]) : 0;
+        if (Number.isFinite(delayRows) && delayRows > 0) {
+          tremDelayFrames = Math.max(0, Math.round(delayRows * framesPerTick));
+        }
+      }
+      state.tremoloDelay = tremDelayFrames;
     } else if (t === 'cut') {
       // cut:N — mute at tick N within the note
       const tick = typeof p[0] === 'number' ? p[0] : parseInt(String(p[0]), 10);
@@ -478,13 +578,39 @@ function parseEffectsOnNoteOn(
       const interval = typeof p[0] === 'number' ? p[0] : parseInt(String(p[0]), 10);
       state.retrigInterval = isNaN(interval) ? 0 : Math.max(1, interval);
     } else if (t === 'bend') {
-      // bend:target[,speed,curve]
-      const targetNote = typeof p[0] === 'string' ? p[0] : String(p[0]);
-      const midi = noteToMidi(targetNote);
-      state.bendTarget = midi !== null ? midiToFreq(midi) : 0;
-      state.bendRate   = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1] ?? '2'));
-      if (isNaN(state.bendRate)) state.bendRate = 2;
-      state.bendActive = state.bendTarget > 0;
+      // bend:semitones[,curve,delaySec,bendTimeSec]
+      // Legacy compatibility: bend:targetNote[,speed]
+      let semitones = Number.NaN;
+      if (typeof p[0] === 'number' || (typeof p[0] === 'string' && Number.isFinite(Number(p[0])))) {
+        semitones = Number(p[0]);
+      } else {
+        const targetNote = typeof p[0] === 'string' ? p[0] : String(p[0]);
+        const midi = noteToMidi(targetNote);
+        if (midi !== null && state.baseFreq > 0) {
+          const targetFreq = midiToFreq(midi);
+          semitones = 12 * Math.log2(targetFreq / state.baseFreq);
+        }
+      }
+
+      if (Number.isFinite(semitones) && semitones !== 0) {
+        state.bendStart = state.freq > 0 ? state.freq : state.baseFreq;
+        state.bendSemitones = semitones;
+        state.bendCurve = typeof p[1] !== 'undefined' ? String(p[1]).toLowerCase() : 'linear';
+
+        const noteSec = Math.max(0.001, state.noteFrames / 60);
+        let delaySec = typeof p[2] !== 'undefined' ? Number(p[2]) : (noteSec * 0.5);
+        if (!Number.isFinite(delaySec) || delaySec < 0) delaySec = noteSec * 0.5;
+        delaySec = Math.min(delaySec, noteSec);
+
+        let bendSec = typeof p[3] !== 'undefined' ? Number(p[3]) : (noteSec - delaySec);
+        if (!Number.isFinite(bendSec) || bendSec <= 0) bendSec = noteSec - delaySec;
+        bendSec = Math.max(0.001, Math.min(bendSec, Math.max(0.001, noteSec - delaySec)));
+
+        state.bendDelay = Math.max(0, Math.round(delaySec * 60));
+        state.bendDuration = Math.max(1, Math.round(bendSec * 60));
+        state.bendFrame = 0;
+        state.bendActive = true;
+      }
     } else if (t === 'pitch_env') {
       // pitch_env:[values] inline — parse as pitchEnvMacro override
       if (p.length > 0) {
@@ -558,45 +684,80 @@ function advanceFrames(
       if (Math.abs(newFreq - state.freq) > 0.5) { state.freq = newFreq; periodChanged = true; }
     }
 
-    // ── tremolo LFO ───────────────────────────────────────────────────────────
+    // ── tremolo LFO phase advance ────────────────────────────────────────────
     if (state.tremoloDepth > 0 && state.tremoloRate > 0) {
-      state.tremoloPhase += state.tremoloRate / 60;
-      if (state.tremoloPhase > 1) state.tremoloPhase -= Math.floor(state.tremoloPhase);
-      const mod = Math.sin(2 * Math.PI * state.tremoloPhase) * state.tremoloDepth;
-      const baseAtt = state.volEnvMacro
-        ? macroValue(state.volEnvMacro, { ...state.volEnvState })
-        : (state.attenuation);
-      const newAtt = Math.max(0, Math.min(15, Math.round(baseAtt + mod)));
-      if (newAtt !== state.attenuation) { state.attenuation = newAtt; volumeChanged = true; }
+      const activeStart = state.tremoloDelay;
+      const activeEnd = state.tremoloDuration >= 0
+        ? (state.tremoloDelay + state.tremoloDuration)
+        : Number.POSITIVE_INFINITY;
+      const tremActiveNow = state.tremoloFrame >= activeStart && state.tremoloFrame < activeEnd;
+      if (tremActiveNow) {
+        state.tremoloPhase += state.tremoloRate / 60;
+        if (state.tremoloPhase > 1) state.tremoloPhase -= Math.floor(state.tremoloPhase);
+        volumeChanged = true;
+      }
+      state.tremoloFrame++;
+    }
+
+    // ── volume slide ─────────────────────────────────────────────────────────
+    if (state.volSlideDelta !== 0) {
+      const currentGain = Math.max(0, Math.min(1, 1 - (state.attenuation / 15)));
+      const progress = state.noteFrames > 0 ? Math.min(1, state.noteFrame / state.noteFrames) : 1;
+      const stepProgress = state.volSlideSteps > 0
+        ? Math.min(1, Math.floor(progress * state.volSlideSteps) / state.volSlideSteps)
+        : progress;
+      const gainDelta = (state.volSlideDelta * stepProgress) / 5;
+      const slidGain = Math.max(0, Math.min(1.5, currentGain + gainDelta));
+      const att = Math.max(0, Math.min(15, Math.round((1 - Math.min(1, slidGain)) * 15)));
+      if (att !== state.attenuation) {
+        state.attenuation = att;
+        volumeChanged = true;
+      }
     }
 
     // ── portamento ────────────────────────────────────────────────────────────
     if (state.portActive && state.portTarget > 0) {
-      const diff = 12 * Math.log2(state.portTarget / Math.max(1, state.freq));
-      if (Math.abs(diff) < 0.1) {
+      const progress = Math.min(1, state.portFrame / Math.max(1, state.portDuration));
+      const eased = progress * progress * (3 - 2 * progress);
+      const newFreq = state.portStart + (state.portTarget - state.portStart) * eased;
+      if (Math.abs(newFreq - state.freq) > 0.5) {
+        state.freq = newFreq;
+        periodChanged = true;
+      }
+      state.portFrame++;
+      if (progress >= 1) {
         state.freq = state.portTarget;
         state.portActive = false;
-        periodChanged = true;
-      } else {
-        const step = Math.sign(diff) * Math.min(Math.abs(diff), state.portRate / 60);
-        state.freq = state.freq * Math.pow(2, step / 12);
-        periodChanged = true;
       }
     }
 
     // ── bend ──────────────────────────────────────────────────────────────────
-    if (state.bendActive && state.bendTarget > 0) {
-      const diff = 12 * Math.log2(state.bendTarget / Math.max(1, state.freq));
-      if (Math.abs(diff) < 0.1) {
-        state.freq = state.bendTarget;
-        state.bendActive = false;
-        periodChanged = true;
-      } else {
-        const step = Math.sign(diff) * Math.min(Math.abs(diff), state.bendRate / 60);
-        state.freq = state.freq * Math.pow(2, step / 12);
-        periodChanged = true;
+    if (state.bendActive && state.bendDuration > 0) {
+      const bf = state.bendFrame;
+      if (bf >= state.bendDelay) {
+        const raw = (bf - state.bendDelay) / Math.max(1, state.bendDuration);
+        const p = Math.max(0, Math.min(1, raw));
+        let shaped = p;
+        if (state.bendCurve === 'exp' || state.bendCurve === 'exponential') {
+          shaped = p * p;
+        } else if (state.bendCurve === 'log' || state.bendCurve === 'logarithmic') {
+          shaped = 1 - Math.pow(1 - p, 2);
+        } else if (state.bendCurve === 'sine' || state.bendCurve === 'sin') {
+          shaped = (1 - Math.cos(Math.PI * p)) / 2;
+        }
+        const newFreq = state.bendStart * Math.pow(2, (state.bendSemitones * shaped) / 12);
+        if (Math.abs(newFreq - state.freq) > 0.5) {
+          state.freq = newFreq;
+          periodChanged = true;
+        }
+        if (p >= 1) {
+          state.bendActive = false;
+        }
       }
+      state.bendFrame++;
     }
+
+    state.noteFrame++;
 
   }
 
@@ -607,24 +768,36 @@ function advanceFrames(
  * Calculate the effective attenuation for a channel, considering:
  * 1. Base instrument volume
  * 2. vol_env macro (absolute values)
- * 3. Tremolo/trem (additive to base)
+ * 3. Tremolo/trem (gain-domain modulation mapped back to attenuation)
  * 4. Cut effect (mute)
  * 5. Rest/inactive (mute)
  *
- * Precedence: inactive → cut → (vol_env OR base vol) + trem
+ * Precedence: inactive → cut → (vol_env OR base vol) then trem gain modulation
  */
 function calcEffectiveAttenuation(state: ChannelSimState, isActive: boolean): number {
   if (!isActive) return ATTENUATION_MUTE;
   if (state.cutDone) return ATTENUATION_MUTE;
 
-  // vol_env takes precedence; otherwise use base attenuation
+  // Baseline attenuation (after vol_env / volSlide).
   let att = state.attenuation;
 
-  // Tremolo is additive but clamped
+  // Match WebAudio tremolo mapping: depth(0..15) -> modulation depth (0..0.5),
+  // then modulate gain around baseline and map back to 4-bit attenuation.
   if (state.tremoloDepth > 0 && state.tremoloRate > 0) {
-    const phase = state.tremoloPhase;
-    const mod = Math.sin(2 * Math.PI * phase) * state.tremoloDepth;
-    att = Math.max(0, Math.min(15, Math.round(att + mod)));
+    const activeStart = state.tremoloDelay;
+    const activeEnd = state.tremoloDuration >= 0
+      ? (state.tremoloDelay + state.tremoloDuration)
+      : Number.POSITIVE_INFINITY;
+    const tremActiveNow = state.tremoloFrame >= activeStart && state.tremoloFrame < activeEnd;
+
+    if (tremActiveNow) {
+      const baselineGain = Math.max(0, Math.min(1, 1 - (att / 15)));
+      const modulationDepth = (Math.max(0, Math.min(15, state.tremoloDepth)) / 15) * 0.5;
+      const lfo = Math.sin(2 * Math.PI * state.tremoloPhase);
+      const tremGain = 1.0 + (lfo * modulationDepth);
+      const effectiveGain = Math.max(0, Math.min(1, baselineGain * tremGain));
+      att = Math.max(0, Math.min(15, Math.round((1 - effectiveGain) * 15)));
+    }
   }
 
   return att;
@@ -785,7 +958,13 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
         currentNoteNames[ci]  = noteName;
 
         // Note-on
-        noteOn(state, noteName, inst, psgCh, clock);
+        let sustainCount = 0;
+        for (let sj = tick + 1; sj < ch.events.length; sj++) {
+          if (ch.events[sj].type === 'sustain') sustainCount++;
+          else break;
+        }
+        const noteFrames = Math.max(1, Math.round((1 + sustainCount) * framesPerTick));
+        noteOn(state, noteName, inst, psgCh, clock, noteFrames);
 
         // GG stereo: read from instrument (or event pan)
         const panBits = readGenericPan(inst, noteEvent.pan ?? null);
@@ -803,6 +982,7 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
             noteName,
             clock,
             tickSeconds,
+            framesPerTick,
           );
           // Check for retrig
           if (noteEvent.effects.some((e: { type: string }) => e.type.toLowerCase() === 'retrig')) {
@@ -841,7 +1021,8 @@ export function ismToVgm(song: SongLike): IsmToVgmResult {
             const savedInterval = state.retrigInterval;
             const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
             const noteName = currentNoteNames[ci];
-            noteOn(state, noteName, inst, psgCh, clock);
+            const savedNoteFrames = state.noteFrames;
+            noteOn(state, noteName, inst, psgCh, clock, savedNoteFrames);
             state.retrigInterval = savedInterval;
           }
         }
