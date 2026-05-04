@@ -36,8 +36,8 @@ export const HDR_TOTAL_SAMPLES = 0x18;
 export const HDR_LOOP_OFFSET   = 0x1C; // relative to 0x1C; 0 if no loop
 export const HDR_LOOP_SAMPLES  = 0x20; // 0 if no loop
 export const HDR_RATE          = 0x24; // frame rate hint (60 NTSC / 50 PAL)
-export const HDR_SN_FEEDBACK   = 0x28; // uint16: 0x0009 standard SMS LFSR feedback
-export const HDR_SN_SHIFT_REG  = 0x2A; // uint8: 16 (shift register width)
+export const HDR_SN_FEEDBACK   = 0x28; // uint16: LFSR feedback taps bit0^bit1 (BeatBax SMS parity)
+export const HDR_SN_SHIFT_REG  = 0x2A; // uint8: 15-bit LFSR width (BeatBax SMS parity)
 export const HDR_SN_FLAGS      = 0x2B; // uint8: 0 (standard)
 export const HDR_DATA_OFFSET   = 0x34; // relative to 0x34; points to VGM data start
 
@@ -109,11 +109,11 @@ export function noiseControlByte(isWhite: boolean, rate: number): number {
 
 // ─── SN76489 hardware parameters ─────────────────────────────────────────────
 
-/** Standard SMS LFSR feedback bit pattern */
-export const SN76489_FEEDBACK          = 0x0009;
-/** SN76489 shift register width */
-export const SN76489_SHIFT_REG_WIDTH   = 16;
-/** SN76489 flags (standard) */
+/** Feedback taps for bit0^bit1 white-noise parity with BeatBax SMS backend. */
+export const SN76489_FEEDBACK          = 0x0003;
+/** SN76489 noise LFSR width used by BeatBax SMS backend. */
+export const SN76489_SHIFT_REG_WIDTH   = 15;
+/** SN76489 flags (standard). */
 export const SN76489_FLAGS             = 0x00;
 
 // ─── VGM command bytes ────────────────────────────────────────────────────────

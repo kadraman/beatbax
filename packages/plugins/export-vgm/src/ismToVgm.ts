@@ -423,15 +423,23 @@ function parseEffectsOnNoteOn(
     const t = eff.type.toLowerCase();
     const p = eff.params;
     if (t === 'vib') {
-      // vib:depth,rate[,wave,delay,speed]
+      // vib:depth,rate[,waveform,durationRows,delayRows]
+      // p[0]=depth  p[1]=rate  p[2]=waveform  p[3]=durationRows  p[4]=delayRows
       state.vibDepth = typeof p[0] === 'number' ? p[0] : parseFloat(String(p[0]));
       state.vibRate  = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1]));
       if (isNaN(state.vibDepth)) state.vibDepth = 1;
       if (isNaN(state.vibRate))  state.vibRate  = 5;
       state.vibPhase = 0;
-      // delay is param[3] in ticks (0-indexed)
-      const rawDelay = p[3] !== undefined ? Number(p[3]) : 0;
-      state.vibDelay = isNaN(rawDelay) ? 0 : Math.round(rawDelay);
+      // Delay: resolver attaches delaySec (seconds) directly on the effect object.
+      // Prefer that over raw p[4] rows so the conversion is always accurate.
+      // framesPerTick = 60 * _tickSeconds, and 1 delayRow ≈ 1 tick at default resolution.
+      const delaySec = typeof (eff as any).delaySec === 'number' ? (eff as any).delaySec : null;
+      if (delaySec !== null && delaySec > 0) {
+        state.vibDelay = Math.round(delaySec * 60);
+      } else {
+        const rawDelayRows = p[4] !== undefined ? Number(p[4]) : 0;
+        state.vibDelay = isNaN(rawDelayRows) ? 0 : Math.round(rawDelayRows * 60 * _tickSeconds);
+      }
     } else if (t === 'port' || t === 'portamento') {
       // port:target[,rate]
       const targetNote = typeof p[0] === 'string' ? p[0] : String(p[0]);

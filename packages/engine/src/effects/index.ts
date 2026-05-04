@@ -378,6 +378,115 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
   }
 });
 
+interface InlineMacroSpec {
+  values: number[];
+  loopPoint: number;
+}
+
+function parseInlineMacroSpec(params: any[]): InlineMacroSpec | null {
+  if (!Array.isArray(params) || params.length === 0) return null;
+
+  // Preferred form: first param is a bracketed macro string, e.g. "[0,2,0,-2,0]" or "[0,1,2|0]"
+  const first = params[0];
+  if (typeof first === 'string') {
+    const raw = first.trim();
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      let body = raw.slice(1, -1);
+      let loopPoint = -1;
+      const pipeIdx = body.lastIndexOf('|');
+      if (pipeIdx >= 0) {
+        const parsedLoop = Number(body.slice(pipeIdx + 1).trim());
+        if (Number.isFinite(parsedLoop) && parsedLoop >= 0) loopPoint = Math.floor(parsedLoop);
+        body = body.slice(0, pipeIdx);
+      }
+      const values = body
+        .split(',')
+        .map(s => Number(s.trim()))
+        .filter(Number.isFinite);
+      if (values.length > 0) {
+        if (loopPoint >= values.length) loopPoint = values.length - 1;
+        return { values, loopPoint };
+      }
+    }
+  }
+
+  // Fallback: legacy tokenization where array entries were split into multiple params.
+  const values = params.map(p => Number(p)).filter(Number.isFinite);
+  return values.length > 0 ? { values, loopPoint: -1 } : null;
+}
+
+function macroValueAt(spec: InlineMacroSpec, index: number): number {
+  if (index < spec.values.length) return spec.values[index];
+  if (spec.loopPoint >= 0 && spec.loopPoint < spec.values.length) {
+    const loopLen = spec.values.length - spec.loopPoint;
+    if (loopLen > 0) {
+      const loopOffset = (index - spec.loopPoint) % loopLen;
+      return spec.values[spec.loopPoint + loopOffset];
+    }
+  }
+  return spec.values[spec.values.length - 1];
+}
+
+// Pitch macro effect: applies semitone offsets per chip frame (typically 60 Hz).
+// Parameters:
+//  - params[0]: macro payload, usually "[0,2,0,-2,0]" (optionally with loop: "[0,1,2|0]")
+//  - fallback form: split numeric params (legacy tokenization)
+register('pitch_env', (ctx: any, nodes: any[], params: any[], start: number, dur: number) => {
+  if (!nodes || nodes.length === 0) return;
+
+  const osc = nodes[0];
+  if (!osc) return;
+
+  const hasFrequency = osc.frequency && typeof osc.frequency.setValueAtTime === 'function';
+  const hasPlaybackRate = !hasFrequency && osc.playbackRate && typeof osc.playbackRate.setValueAtTime === 'function';
+  if (!hasFrequency && !hasPlaybackRate) return;
+
+  const spec = parseInlineMacroSpec(params);
+  if (!spec || spec.values.length === 0) return;
+
+  const chipType = String((ctx as any)?._chipType || '').toLowerCase();
+  const frameRate = chipType === 'c64' ? 50 : 60;
+  const stepDuration = 1 / frameRate;
+  const endTime = start + dur;
+
+  try {
+    if (hasFrequency) {
+      let baseFreq = (osc as any)._baseFreq || osc.frequency.value;
+      try {
+        if (typeof osc.frequency.getValueAtTime === 'function') {
+          baseFreq = osc.frequency.getValueAtTime(start);
+        }
+      } catch (e) {}
+      if (!Number.isFinite(baseFreq) || baseFreq <= 0) baseFreq = 440;
+
+      osc.frequency.cancelScheduledValues(start);
+      let t = start;
+      let i = 0;
+      while (t < endTime) {
+        const semitones = macroValueAt(spec, i++);
+        const nextFreq = baseFreq * Math.pow(2, semitones / 12);
+        osc.frequency.setValueAtTime(Math.max(20, Math.min(20000, nextFreq)), t);
+        t += stepDuration;
+      }
+    } else {
+      const baseRate = (osc as any).__basePlaybackRate || osc.playbackRate.value;
+      if (!Number.isFinite(baseRate) || baseRate <= 0) return;
+
+      osc.playbackRate.cancelScheduledValues(start);
+      let t = start;
+      let i = 0;
+      while (t < endTime) {
+        const semitones = macroValueAt(spec, i++);
+        const nextRate = baseRate * Math.pow(2, semitones / 12);
+        osc.playbackRate.setValueAtTime(nextRate, t);
+        t += stepDuration;
+      }
+    }
+  } catch (e) {
+    // Best effort: if automation fails on the platform, leave note unchanged.
+  }
+});
+
 // Volume Slide effect: smoothly increase or decrease volume over time.
 // Parameters:
 //  - params[0]: delta per tick or step (+N = fade in, -N = fade out)
@@ -623,17 +732,36 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
           currentGain = node.gain.value || 1.0;
         }
 
-        // Cancel any scheduled values after cut time and ramp to zero
-        node.gain.cancelScheduledValues(cutTime);
+        // Prefer cancelAndHoldAtTime when available so we can safely cut notes
+        // that already use setValueCurveAtTime automation (common with vol_env).
+        if (typeof node.gain.cancelAndHoldAtTime === 'function') {
+          try { node.gain.cancelAndHoldAtTime(cutTime); } catch (_) { node.gain.cancelScheduledValues(cutTime); }
+        } else {
+          node.gain.cancelScheduledValues(cutTime);
+        }
+
         node.gain.setValueAtTime(currentGain, cutTime);
         node.gain.exponentialRampToValueAtTime(0.0001, cutTime + 0.005);
       } catch (e) {
-        // Fallback: try linear ramp
+        // Fallback: for stricter AudioParam implementations, try a simple hard gate.
         try {
+          if (typeof node.gain.cancelScheduledValues === 'function') {
+            node.gain.cancelScheduledValues(cutTime);
+          }
+          node.gain.setValueAtTime(0.0001, cutTime);
           node.gain.linearRampToValueAtTime(0, cutTime + 0.005);
         } catch (e2) {}
       }
     }
+  }
+
+  // Deterministic fallback: ask source nodes to stop at cut time.
+  // AudioScheduledSourceNode.stop() can be called multiple times before end;
+  // the latest valid stop time wins in modern WebAudio implementations.
+  const stopAt = cutTime + 0.006;
+  for (const node of nodes) {
+    if (!node || typeof node.stop !== 'function') continue;
+    try { node.stop(stopAt); } catch (_) {}
   }
 });
 // Retrigger effect: retriggering/restarting a note at regular tick intervals

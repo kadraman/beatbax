@@ -46,9 +46,27 @@ export function isPanEmpty(pan: any): boolean {
 
 export function parseEffectParams(paramsStr: string | undefined): Array<string | number> {
   if (!paramsStr || !paramsStr.length) return [];
-  return paramsStr
-    .split(',')
-    .map(s => s.trim())
+  // Split on top-level commas only, preserving bracketed payloads such as
+  // pitch_env:[0,2,0,-2,0] as a single parameter token.
+  const parts: string[] = [];
+  let current = '';
+  let bracketDepth = 0;
+
+  for (let i = 0; i < paramsStr.length; i++) {
+    const ch = paramsStr[i];
+    if (ch === '[') bracketDepth++;
+    if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+
+    if (ch === ',' && bracketDepth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current.trim());
+
+  return parts
     .filter(s => s !== '')
     .map(s => (isNaN(Number(s)) ? s : Number(s)));
 }

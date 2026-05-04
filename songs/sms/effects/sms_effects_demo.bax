@@ -20,15 +20,16 @@ inst i_t1    type=tone1 vol=8  vol_env=[8,9,10,11|11]
 inst i_t2    type=tone2 vol=9  vol_env=[9,10,11,12|12]
 inst i_t3    type=tone3 vol=10 vol_env=[10,11,12,13|13]
 
-# Noise voice uses a classic fast decay (loud -> mute in attenuation space).
-inst i_noise type=noise noise_mode=white noise_rate=2 vol_env=[0,5,10,15]
+# Noise voice: rate=2 (~1,748 Hz, deepest white noise). Fast decay + rate_env sweep for demo.
+# vol_env=[0,4,8,12,15]: 5-step even attenuation ramp (0=loud, 15=mute).
+inst i_noise type=noise noise_mode=white noise_rate=2 vol_env=[0,4,8,12,15]
 
 # =============================================================================
 # Patterns
 # =============================================================================
 
 # Tone1: vibrato, arpeggio, pitch_env, cut.
-pat p_fx_t1 = C4<vib:4,5,sine,0,1>:8 E4<arp:3,7>:8 G4<pitch_env:[0,2,0,-2,0]> C5<cut:3>:8
+pat p_fx_t1 = C4<vib:4,5,sine,0,4>:8 E4<arp:3,7>:8 G4<pitch_env:[0,2,0,-2,0]>:8 C5<cut:1>:8
 
 # Tone2: portamento, bend, attenuation slide (both directions), cut.
 pat p_fx_t2 = C3<port:12>:8 D3<bend:+7,exp,0,1>:8 E3<volSlide:-4,8>:8 G3<volSlide:+4,8>:8
@@ -52,9 +53,9 @@ seq s_noise = p_fx_noise p_fx_noise
 # Channels
 # =============================================================================
 
-channel 1 => inst i_t1 seq s_t1
+#channel 1 => inst i_t1 seq s_t1
 channel 2 => inst i_t2 seq s_t2
-channel 3 => inst i_t3 seq s_t3
-channel 4 => inst i_noise seq s_noise
+#channel 3 => inst i_t3 seq s_t3
+#channel 4 => inst i_noise seq s_noise
 
 play

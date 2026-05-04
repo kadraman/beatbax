@@ -14,6 +14,10 @@ import {
   SAMPLES_PER_60HZ,
   SAMPLES_PER_50HZ,
   SN76489_CLOCK_NTSC,
+  SN76489_FEEDBACK,
+  SN76489_SHIFT_REG_WIDTH,
+  HDR_SN_FEEDBACK,
+  HDR_SN_SHIFT_REG,
 } from '../src/constants.js';
 
 describe('VgmBuffer', () => {
@@ -71,6 +75,14 @@ describe('buildVgmHeader', () => {
     const arr = header.toUint8Array();
     const view = new DataView(arr.buffer);
     expect(view.getUint32(0x0C, true)).toBe(SN76489_CLOCK_NTSC);
+  });
+
+  it('encodes SN76489 feedback and shift width for SMS noise parity', () => {
+    const header = buildVgmHeader({ sn76489Clock: SN76489_CLOCK_NTSC, rate: 60 });
+    const arr = header.toUint8Array();
+    const view = new DataView(arr.buffer);
+    expect(view.getUint16(HDR_SN_FEEDBACK, true)).toBe(SN76489_FEEDBACK);
+    expect(arr[HDR_SN_SHIFT_REG]).toBe(SN76489_SHIFT_REG_WIDTH);
   });
 });
 
