@@ -1,5 +1,11 @@
 # @beatbax/cli
 
+## 0.4.3
+
+### Patch Changes
+
+- dc5c6ab: Fixed CLI export path for VGM exporter integration tests and updated integration tests to cover the new `@beatbax/plugin-exporter-vgm` plugin.
+
 ## 0.4.2
 
 ### Patch Changes

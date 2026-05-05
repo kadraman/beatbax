@@ -15,9 +15,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.12.0",
+    "@beatbax/engine": "^0.13.0",
     "@beatbax/plugin-chip-nes": "^0.5.0",
-    "@beatbax/plugin-chip-sms": "^0.2.0",
+    "@beatbax/plugin-chip-sms": "^0.2.1",
     "@beatbax/plugin-exporter-famitracker": "^0.2.1",
     "@beatbax/plugin-exporter-vgm": "^0.1.0",
     "buffer": "^6.0.3",
