@@ -1,8 +1,9 @@
 ---
 title: "VGM Exporter Plugin"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-27
+completed: 2026-05-05
 issue: "https://github.com/kadraman/beatbax/issues/99"
 ---
 
@@ -265,20 +266,22 @@ export default vgmExporterPlugin;
 
 ### SMS Chip Plugin Declaration
 
-Once the VGM exporter is available, the SMS chip plugin declares it:
+The SMS chip plugin declares the VGM exporter via a dynamic import in `resolveExporterPlugins()`, so it is optional and tree-shakeable:
 
 ```typescript
 // packages/plugins/chip-sms/src/index.ts
-import vgmExporterPlugin from '@beatbax/plugin-exporter-vgm';
-
-const smsPlugin: ChipPlugin = {
-  name: 'sms',
-  exporterPlugins: [vgmExporterPlugin],
-  // ...
-};
+async resolveExporterPlugins() {
+  try {
+    const mod = await import('@beatbax/plugin-exporter-vgm');
+    const plugin = mod.default ?? mod;
+    return [plugin];
+  } catch {
+    return []; // exporter not installed — degrade gracefully
+  }
+}
 ```
 
-Installing `@beatbax/plugin-chip-sms` then automatically makes `beatbax export vgm` available with no separate install.
+Installing `@beatbax/plugin-chip-sms` then automatically makes `beatbax export vgm` available with no separate install. If `@beatbax/plugin-exporter-vgm` is not installed, the SMS plugin degrades gracefully with no exporter registered.
 
 ### CLI Usage
 
@@ -373,22 +376,23 @@ No migration required. VGM is a new export target; existing songs and export com
 
 ## Implementation Checklist
 
-- [ ] Create `packages/plugins/export-vgm/` package scaffold
-- [ ] Implement `constants.ts` (command bytes, header offsets, clock values)
-- [ ] Implement `vgmWriter.ts` (header builder, command appender, wait encoder)
-- [ ] Implement `psgState.ts` (shadow register state tracker)
-- [ ] Implement `ismToVgm.ts` (ISM event → PSG register write loop)
-- [ ] Implement `gd3.ts` (UTF-16LE GD3 tag encoder)
-- [ ] Implement `index.ts` (ExporterPlugin entry point)
-- [ ] Add unit tests (all files)
-- [ ] Add integration tests (parse → ISM → VGM round-trip)
-- [ ] Add `@beatbax/plugin-exporter-vgm` as peer dependency in SMS chip plugin
-- [ ] Declare `vgmExporterPlugin` in SMS chip plugin `exporterPlugins` array
-- [ ] Verify CLI `beatbax export vgm` works end-to-end
-- [ ] Add example VGM output to `songs/features/sms/`
-- [ ] Document Game Gear stereo behaviour in VGM output (0x4F command, version 1.61)
-- [ ] Verify `retrig` emits GD3 note warning (not a hard error)
-- [ ] Verify `sweep` and `echo` are rejected before export stage (SMS chip validator, not VGM exporter)
+- [x] Create `packages/plugins/export-vgm/` package scaffold
+- [x] Implement `constants.ts` (command bytes, header offsets, clock values)
+- [x] Implement `vgmWriter.ts` (header builder, command appender, wait encoder)
+- [x] Implement `psgState.ts` (shadow register state tracker)
+- [x] Implement `ismToVgm.ts` (ISM event → PSG register write loop)
+- [x] Implement `gd3.ts` (UTF-16LE GD3 tag encoder)
+- [x] Implement `index.ts` (ExporterPlugin entry point)
+- [x] Add unit tests (`vgmWriter.test.ts`, `psgState.test.ts`, `gd3.test.ts`)
+- [x] Add integration tests (`vgm-exporter.test.ts` — parse → ISM → VGM round-trip)
+- [x] Add `@beatbax/plugin-exporter-vgm` as dependency in SMS chip plugin
+- [x] Declare `vgmExporterPlugin` in SMS chip plugin via `resolveExporterPlugins()` (dynamic import)
+- [x] Verify CLI `beatbax export vgm` works end-to-end
+- [x] Document Game Gear stereo behaviour in VGM output (0x4F command, version 1.61)
+- [x] Verify `retrig` emits GD3 note warning (not a hard error)
+- [x] Verify `sweep` and `echo` are rejected before export stage (SMS chip validator, not VGM exporter)
+- [ ] Add example VGM output to `songs/features/sms/` _(deferred)_
+- [ ] `ismToVgm.test.ts` unit test file _(ISM-level scenarios covered by `vgm-exporter.test.ts`; dedicated file deferred)_
 
 ---
 
@@ -402,12 +406,12 @@ No migration required. VGM is a new export target; existing songs and export com
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-1. Should the exporter use NTSC clock (`3579545 Hz`) by default and allow `--pal` flag for PAL clock (`3546895 Hz`), or should the clock be derived from an ISM metadata field?
-2. Should loop detection be in-scope for v1 or deferred to a future enhancement?
-3. Should the package name be `@beatbax/plugin-exporter-vgm` (standalone) or `@beatbax/plugin-chip-sms-vgm` (chip-coupled)? Standalone is preferred given VGM's multi-chip nature.
-4. Is it acceptable to require VGM version 1.61 unconditionally (for Game Gear stereo readiness), or should the exporter conditionally write 1.10 when no `gg:pan` fields are present?
+1. **Clock selection:** NTSC clock (`3579545 Hz`) is the default. Both `SN76489_CLOCK_NTSC` and `SN76489_CLOCK_PAL` constants are defined in `constants.ts`; a `--pal` CLI flag is deferred to a future enhancement.
+2. **Loop detection:** Deferred to a future enhancement. VGM loop header fields are present and set to `0` (no loop) in v1.
+3. **Package name:** `@beatbax/plugin-exporter-vgm` (standalone). Confirmed correct given VGM's multi-chip nature.
+4. **VGM version:** 1.61 is written unconditionally for all SMS and Game Gear exports, ensuring Game Gear stereo readiness without conditional logic.
 
 ---
 
