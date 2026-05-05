@@ -138,12 +138,13 @@ export function noteNameToPeriod(noteName: string): number {
  * Values 0-2 map to fixed dividers; value 3 means "use Tone 3's period".
  *
  * The actual divider values (from SN76489 documentation):
- * - rate 0: divide by 128  (noise clock = chip clock / 256)
- * - rate 1: divide by 256  (noise clock = chip clock / 512)
- * - rate 2: divide by 512  (noise clock = chip clock / 1024)
+ * Correct SN76489 hardware values (per datasheet and hardware_guide.md):
+ * - rate 0: PSG clock / 512  (~6,991 Hz at NTSC 3.579545 MHz)
+ * - rate 1: PSG clock / 1024 (~3,496 Hz at NTSC 3.579545 MHz)
+ * - rate 2: PSG clock / 2048 (~1,748 Hz at NTSC 3.579545 MHz)
  * - rate 3: use Tone 3's period value
  */
-export const NOISE_RATE_DIVIDERS = [128, 256, 512] as const;
+export const NOISE_RATE_DIVIDERS = [512, 1024, 2048] as const;
 
 /**
  * Noise rate index type.

@@ -33,7 +33,7 @@ describe('CLI Other Export Integration', () => {
       { encoding: 'utf-8' },
     );
 
-    expect(output).toContain('[OK] Exported JSON file');
+    expect(output).toContain('[OK] Exported JSON (ISM) file');
     expect(output).toContain(TEST_JSON_PATH);
     expect(existsSync(TEST_JSON_PATH)).toBe(true);
   });
@@ -44,7 +44,7 @@ describe('CLI Other Export Integration', () => {
       { encoding: 'utf-8' },
     );
 
-    expect(output).toContain('[OK] Exported MIDI file');
+    expect(output).toContain('[OK] Exported MIDI (SMF) file');
     expect(output).toContain(TEST_MIDI_PATH);
     expect(existsSync(TEST_MIDI_PATH)).toBe(true);
   });

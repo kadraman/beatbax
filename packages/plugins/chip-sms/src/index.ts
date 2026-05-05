@@ -68,6 +68,16 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     }
   },
 
+  async resolveExporterPlugins() {
+    try {
+      const mod = await import('@beatbax/plugin-exporter-vgm');
+      const plugin = mod.default ?? mod;
+      return [plugin];
+    } catch {
+      return [];
+    }
+  },
+
   uiContributions: smsUIContributions,
 };
 

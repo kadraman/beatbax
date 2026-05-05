@@ -579,7 +579,8 @@ program
         debugInfo = ` [DEBUG: v1]`;
       }
     }
-    console.log(`[OK] Exported ${requestedFormat.toUpperCase()} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
+    console.log(`[OK] Exported ${exporter.label} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
+    console.log(`Note: The file extension is ${exporter.extension}`);
   });
 
 program

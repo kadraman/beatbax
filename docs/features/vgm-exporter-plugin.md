@@ -35,7 +35,7 @@ Without VGM export, SMS compositions authored in BeatBax cannot leave the BeatBa
 
 ### Summary
 
-Create `packages/plugins/exporter-vgm/` as a standalone npm package (`@beatbax/plugin-exporter-vgm`) that:
+Create `packages/plugins/export-vgm/` as a standalone npm package (`@beatbax/plugin-exporter-vgm`) that:
 
 - Implements the `ExporterPlugin` interface from `packages/engine/src/export/types.ts`
 - Consumes a validated ISM produced by the SMS chip plugin
@@ -183,6 +183,20 @@ Behaviour may differ between VGM players and real hardware.
 
 This warning does not block export — the VGM file is still written.
 
+### Loudness & Attenuation Policy
+
+BeatBax VGM export strictly adheres to SMS hardware attenuation semantics:
+
+- **No post-export gain adjustments**: Instrument volumes are used directly without hidden exporter modifications.
+- **Attenuation range**: 0 (loudest) to 15 (mute), matching SN76489 hardware specification (~2 dB per step).
+- **Precedence** (in order):
+  1. If channel is inactive/muted: attenuation = 15 (mute).
+  2. If `cut` effect is active: attenuation = 15 (mute).
+  3. Otherwise: base instrument volume ± tremolo effect (clamped to 0–15).
+  4. Volume envelope macros override base volume when active.
+
+**Why no boost?** Post-export loudness adjustments violate hardware semantics and create confusion when comparing against real SMS hardware or other reference implementations. Perceived loudness must be controlled at composition time (instrument volume, macro design) not during export.
+
 ### PSG State Tracking
 
 The exporter maintains a shadow register map to avoid redundant writes:
@@ -201,7 +215,7 @@ A register write is emitted only when the new value differs from the shadow stat
 ### Package Structure
 
 ```
-packages/plugins/exporter-vgm/
+packages/plugins/export-vgm/
 ├── package.json             # @beatbax/plugin-exporter-vgm, peerDep: @beatbax/engine ^1.0.0
 ├── tsconfig.json
 ├── src/
@@ -222,7 +236,7 @@ packages/plugins/exporter-vgm/
 ### Example Plugin Entry Point
 
 ```typescript
-// packages/plugins/exporter-vgm/src/index.ts
+// packages/plugins/export-vgm/src/index.ts
 import type { ExporterPlugin } from '@beatbax/engine';
 import { buildVgm } from './vgmWriter.js';
 
@@ -359,7 +373,7 @@ No migration required. VGM is a new export target; existing songs and export com
 
 ## Implementation Checklist
 
-- [ ] Create `packages/plugins/exporter-vgm/` package scaffold
+- [ ] Create `packages/plugins/export-vgm/` package scaffold
 - [ ] Implement `constants.ts` (command bytes, header offsets, clock values)
 - [ ] Implement `vgmWriter.ts` (header builder, command appender, wait encoder)
 - [ ] Implement `psgState.ts` (shadow register state tracker)

@@ -16,6 +16,7 @@ const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
   midi: 'musical-note',
   wav:  'speaker-wave',
   uge:  'cpu-chip',
+  vgm:  'cpu-chip',
 };
 
 const log = createLogger('ui:toolbar');
