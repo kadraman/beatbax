@@ -34,6 +34,8 @@ export const HDR_SN_SHIFT_REG  = 0x2A; // uint8: 15-bit LFSR width (BeatBax SMS 
 export const HDR_SN_FLAGS      = 0x2B; // uint8: 0 (standard)
 export const HDR_DATA_OFFSET   = 0x34; // relative to 0x34; points to VGM data start
 
+
+
 /** Size of the VGM header (data starts at 0x40, so data offset relative value = 0x0C) */
 export const VGM_HEADER_SIZE       = 0x40;
 /**
