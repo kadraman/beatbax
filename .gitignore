@@ -162,12 +162,14 @@ tools
 *.uge
 *.wav
 *.mid
+*.vgm
 output.*
 test.ps1
 songs/**/*.txt
+songs/**/*.vgm
+songs/**/*.json
 
 # generate GitHub Issues
 .github/ISSUES
 t.cmd
 README.bax
-songs/**/*.json

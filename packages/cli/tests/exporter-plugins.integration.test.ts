@@ -78,7 +78,7 @@ play
       { encoding: 'utf-8' },
     );
 
-    expect(output).toContain('[OK] Exported FAMITRACKER-TEXT file');
+    expect(output).toContain('[OK] Exported FamiTracker Text file');
     expect(existsSync(TEST_FTXT_PATH)).toBe(true);
     const body = readFileSync(TEST_FTXT_PATH, 'utf8');
     expect(body).toContain('FamiTracker text export');
@@ -97,7 +97,7 @@ play
           `node "${CLI_PATH}" export famitracker-text "${baxPath}" "${outPath}"`,
           { encoding: 'utf-8' },
         );
-        expect(output).toContain('[OK] Exported FAMITRACKER-TEXT file');
+        expect(output).toContain('[OK] Exported FamiTracker Text file');
         expect(existsSync(outPath)).toBe(true);
         const body = readFileSync(outPath, 'utf8');
         expect(body).toContain('FamiTracker text export');

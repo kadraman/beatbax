@@ -37,19 +37,19 @@ import {
 function generateWhiteNoiseLFSR(): Int8Array {
   const buf = new Int8Array(32767);
   let lfsr = 1; // Start with non-zero value
-  
+
   for (let i = 0; i < buf.length; i++) {
     // Output bit 0: 1 = positive, 0 = negative
     buf[i] = (lfsr & 1) ? 1 : -1;
-    
+
     // Feedback: XOR of bits 0 and 1 (white noise mode)
     // SN76489 uses: feedback = (lfsr & 1) ^ ((lfsr >> 1) & 1)
     const feedback = ((lfsr >> 0) ^ (lfsr >> 1)) & 1;
-    
+
     // Shift right and insert feedback at bit 14 (15-bit LFSR)
     lfsr = ((lfsr >> 1) | (feedback << 14)) & 0x7FFF;
   }
-  
+
   return buf;
 }
 
@@ -60,16 +60,16 @@ function generateWhiteNoiseLFSR(): Int8Array {
 function generatePeriodicNoiseLFSR(): Int8Array {
   const buf = new Int8Array(93);
   let lfsr = 1;
-  
+
   for (let i = 0; i < buf.length; i++) {
     buf[i] = (lfsr & 1) ? 1 : -1;
-    
+
     // Feedback: XOR of bits 0 and 6 (periodic mode)
     const feedback = ((lfsr >> 0) ^ (lfsr >> 6)) & 1;
-    
+
     lfsr = ((lfsr >> 1) | (feedback << 14)) & 0x7FFF;
   }
-  
+
   return buf;
 }
 
@@ -93,7 +93,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
   private lfsrHz: number = 0; // LFSR clock rate in Hz
   private phase: number = 0;
   private lfsrIndex: number = 0;
-  
+
   // Noise mode and rate
   private noiseMode: 'white' | 'periodic' = 'white';
   private noiseRate: number | 'tone3' = 2; // Default rate
@@ -156,7 +156,7 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     this.noiseRate = this.normalizeNoiseRate(
       instrument.noise_rate !== undefined ? instrument.noise_rate : 2
     );
-    
+
     // Parse software macros
     this.volEnvMacro = parseMacro(instrument.vol_env);
     this.volEnvState = makeMacroState();
@@ -256,26 +256,26 @@ export class SMSNoiseBackend implements ChipChannelBackend {
 
     const tone3Period = this.resolveTone3Period();
 
-    const resolvedRate = typeof this.noiseRate === 'number' 
-      ? this.noiseRate 
+    const resolvedRate = typeof this.noiseRate === 'number'
+      ? this.noiseRate
       : (this.noiseRate === 'tone3' ? tone3Period : 2);
-    
+
     const divisor = resolveNoiseRateDivisor(resolvedRate, tone3Period);
     const safeTone3Divisor = this.ensureSafeDivisor(divisor);
-    
+
     // LFSR clock = chip clock / divisor
     // For rate 0-2: divisor is already the actual divisor value
     // For rate 3 (tone3): divisor is the period value itself
     const actualDivisor = typeof resolvedRate === 'number' && (resolvedRate === 0 || resolvedRate === 1 || resolvedRate === 2)
       ? NOISE_RATE_DIVIDERS[resolvedRate]
       : safeTone3Divisor;
-    
+
     this.lfsrHz = SMS_CLOCK / actualDivisor;
   }
 
   applyEnvelope(_frame: number): void {
     if (!this.active || !this.currentInst) return;
-    
+
     this.frameCounter++;
 
     // ── Software vol_env macro ────────────────────────────────────────────────
@@ -341,39 +341,50 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     // Resolve noise parameters from instrument
     const mode = (inst.noise_mode as string | undefined)?.toLowerCase() || 'white';
     const srcBuf = mode === 'periodic' ? PERIODIC_NOISE_LFSR_BUF : WHITE_NOISE_LFSR_BUF;
-    
-    // Calculate noise rate
-    let rate = inst.noise_rate !== undefined ? inst.noise_rate : 2;
-    
-    // For tone3 sync, we need to handle this specially
-    if (typeof rate === 'string' && rate === 'tone3') {
-      // Use the current Tone3 period if available; otherwise fall back safely.
-      rate = tone3Period;
-    } else {
-      rate = Number(rate) ?? 2;
+
+    // Calculate initial noise rate and optional per-frame noise_rate_env timeline.
+    const baseRate = this.normalizeNoiseRate(
+      inst.noise_rate !== undefined ? inst.noise_rate : 2
+    );
+    const noiseRateEnvM = parseMacro(inst.noise_rate_env);
+    const noiseRateEnvState = makeMacroState();
+
+    const resolveLfsrHz = (rateValue: number | 'tone3'): number => {
+      const resolvedRate = rateValue === 'tone3' ? 3 : rateValue;
+      const divisor = resolveNoiseRateDivisor(resolvedRate, tone3Period);
+      const safeTone3Divisor = this.ensureSafeDivisor(divisor);
+      const actualDivisor = (resolvedRate === 0 || resolvedRate === 1 || resolvedRate === 2)
+        ? NOISE_RATE_DIVIDERS[resolvedRate]
+        : safeTone3Divisor;
+      return SMS_CLOCK / actualDivisor;
+    };
+
+    let currentRate: number | 'tone3' = baseRate;
+    if (noiseRateEnvM && noiseRateEnvM.values.length > 0) {
+      const envRate = Math.max(0, Math.min(3, Math.round(getMacroValue(noiseRateEnvM, noiseRateEnvState))));
+      currentRate = envRate;
     }
-    
-    const divisor = resolveNoiseRateDivisor(rate, tone3Period);
-    const safeTone3Divisor = this.ensureSafeDivisor(divisor);
-    const actualDivisor = typeof rate === 'number' && (rate === 0 || rate === 1 || rate === 2)
-      ? NOISE_RATE_DIVIDERS[rate]
-      : safeTone3Divisor;
-    const lfsrHz = SMS_CLOCK / actualDivisor;
 
     // Build upsampled LFSR buffer for the note duration
     const sampleRate = ctx.sampleRate;
-    
-    // For tone3 sync, use a shorter buffer to be more responsive to changes
-    const isTone3Sync = inst.noise_rate === 'tone3' || inst.noise_rate === 3;
+
+    // For tone3 sync, use a shorter buffer to be more responsive to changes.
+    // Also shorten when noise_rate_env can switch into rate 3.
+    const envUsesTone3 = !!(noiseRateEnvM && noiseRateEnvM.values.some(v => Math.round(v) === 3));
+    const isTone3Sync = baseRate === 'tone3' || baseRate === 3 || envUsesTone3;
     const bufferDuration = isTone3Sync ? Math.min(dur, 0.1) : dur + 0.05; // Max 100ms for tone3 sync
     const totalSamples = Math.ceil(bufferDuration * sampleRate);
-    
+
     const abuf = (ctx as any).createBuffer(1, totalSamples, sampleRate);
     const data = abuf.getChannelData(0);
-    const phaseInc = lfsrHz / sampleRate;
+    let phaseInc = resolveLfsrHz(currentRate) / sampleRate;
     let phase = 0;
     let lfsrIdx = 0;
     const lfsrLen = srcBuf.length;
+
+    // Advance noise_rate_env at 60 Hz to match software macro behavior.
+    const frameSamples = Math.max(1, Math.round(sampleRate / 60));
+    let samplesUntilNextFrame = frameSamples;
 
     for (let i = 0; i < totalSamples; i++) {
       data[i] = srcBuf[lfsrIdx];
@@ -383,11 +394,22 @@ export class SMSNoiseBackend implements ChipChannelBackend {
         lfsrIdx = (lfsrIdx + steps) % lfsrLen;
         phase -= steps;
       }
+
+      if (noiseRateEnvM) {
+        samplesUntilNextFrame--;
+        if (samplesUntilNextFrame <= 0) {
+          advanceMacro(noiseRateEnvM, noiseRateEnvState);
+          const nextRate = Math.max(0, Math.min(3, Math.round(getMacroValue(noiseRateEnvM, noiseRateEnvState))));
+          currentRate = nextRate;
+          phaseInc = resolveLfsrHz(currentRate) / sampleRate;
+          samplesUntilNextFrame = frameSamples;
+        }
+      }
     }
 
     const source = (ctx as any).createBufferSource();
     source.buffer = abuf;
-    
+
     // Enable looping for tone3 sync to make it more responsive
     if (isTone3Sync) {
       source.loop = true;

@@ -22,6 +22,7 @@ const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
   midi: 'musical-note',
   wav:  'speaker-wave',
   uge:  'cpu-chip',
+  vgm:  'cpu-chip',
 };
 
 const log = createLogger('ui:menu-bar');
@@ -684,13 +685,10 @@ export class MenuBar {
     });
 
     const universal: MenuItemDef[] = [];
+    const chipSpecific: MenuItemDef[] = [];
 
     for (const plugin of plugins) {
-      // Menu bar intentionally shows only chip-agnostic exporters.
-      // Chip-specific exporters are available from the toolbar (chip-aware).
       const isUniversal = plugin.supportedChips.includes('*');
-      if (!isUniversal) continue;
-
       const iconName = plugin.uiContributions?.toolbarIcon
         ?? EXPORTER_DEFAULT_ICONS[plugin.id]
         ?? 'document-arrow-down';
@@ -702,14 +700,27 @@ export class MenuBar {
         action: () => this.opts.onExport?.(plugin.id),
       };
 
-      universal.push(item);
+      if (isUniversal) {
+        universal.push(item);
+      } else if (plugin.supportedChips.some((c) => c === this.activeChip)) {
+        chipSpecific.push(item);
+      }
     }
 
-    if (universal.length === 0) {
+    const items: MenuItemDef[] = [...universal];
+
+    if (chipSpecific.length > 0) {
+      if (items.length > 0) {
+        items.push({ type: 'separator' });
+      }
+      items.push(...chipSpecific);
+    }
+
+    if (items.length === 0) {
       return [{ type: 'item', label: '(no exporters available)', disabled: true, action: () => {} }];
     }
 
-    return universal;
+    return items;
   }
 
   private recentFileItems(): MenuItemDef[] {

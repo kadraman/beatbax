@@ -95,18 +95,19 @@ inst bass     type=tone3  vol=0  vol_env=[0,6,10,14,15]
 
 # ── Noise (type=noise) ────────────────────────────────────────────────────────
 #
-# kick — low thud using white noise at the slowest rate with a short transient.
-#   Using white+rate=2 avoids metallic ringing common with periodic kick settings.
-#   vol_env=[0,3,8,13,15] : very fast transient with a tiny tail for body.
-inst kick     type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,8,13,15]
+# kick — rate=2 (slowest/deepest clock, ~1,748 Hz at NTSC). Short transient.
+#   vol_env=[0,3,7,12,15]: fast attack spike, quick body tail, mute by frame 5.
+#   No vol= when vol_env present — vol_env owns the full amplitude shape.
+inst kick     type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,7,12,15]
 
-# snare — brighter crack at rate=1 with a longer body than hat.
-#   vol_env=[1,5,9,12,14,15] gives an audible snare tail distinct from both kick and hat.
-inst snare    type=noise  noise_mode=white     noise_rate=1  vol_env=[1,5,9,12,14,15]
+# snare — rate=1 (mid clock, ~3,496 Hz). noise_rate_env gives crack-then-body:
+#   starts at rate=0 (brightest transient click) then settles back through 1→2.
+#   vol_env=[1,4,7,10,12,14,15]: audible snare tail distinct from both kick and hat.
+inst snare    type=noise  noise_mode=white     noise_rate=1  vol_env=[1,4,7,10,12,14,15]  noise_rate_env=[0,0,1,1,2]
 
-# hihat — high-frequency short tick at rate=0, much shorter and softer than snare.
-#   vol_env=[7,13,15] keeps hi-hat crisp and clearly separate from snare body.
-inst hihat    type=noise  noise_mode=white     noise_rate=0  vol_env=[7,13,15]
+# hihat — rate=0 (fastest/brightest clock, ~6,991 Hz). Very short tick.
+#   vol_env=[6,11,14,15]: crisp, clearly separate from snare body.
+inst hihat    type=noise  noise_mode=white     noise_rate=0  vol_env=[6,11,14,15]
 
 # =============================================================================
 # Patterns — every pattern is exactly 16 ticks (one bar at 172 BPM)

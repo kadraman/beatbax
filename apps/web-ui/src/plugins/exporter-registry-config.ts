@@ -1,6 +1,7 @@
 import { exporterRegistry } from '@beatbax/engine/export';
 import type { ExporterPlugin } from '@beatbax/engine/export';
 import famitrackerExporterPlugins from '@beatbax/plugin-exporter-famitracker';
+import vgmExporterPlugin from '@beatbax/plugin-exporter-vgm';
 import { storage, StorageKey } from '../utils/local-storage.js';
 import { getEnabledPluginIds } from './registry-config.js';
 
@@ -17,17 +18,27 @@ const optionalFamitrackerPlugins = Array.isArray(famitrackerExporterPlugins)
   ? famitrackerExporterPlugins
   : [famitrackerExporterPlugins];
 
-export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = optionalFamitrackerPlugins.map((plugin) => ({
-  id: plugin.id,
-  label: plugin.label,
-  description:
-    plugin.id === 'famitracker-text'
-      ? 'FamiTracker text export placeholder (.txt) for NES songs.'
-      : 'FamiTracker binary export placeholder (.ftm) for NES songs.',
-  badge: 'Experimental',
-  plugin,
-  dependsOnChipPlugins: ['nes'],
-}));
+export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
+  ...optionalFamitrackerPlugins.map((plugin) => ({
+    id: plugin.id,
+    label: plugin.label,
+    description:
+      plugin.id === 'famitracker-text'
+        ? 'FamiTracker text export placeholder (.txt) for NES songs.'
+        : 'FamiTracker binary export placeholder (.ftm) for NES songs.',
+    badge: 'Experimental' as const,
+    plugin,
+    dependsOnChipPlugins: ['nes'],
+  })),
+  {
+    id: vgmExporterPlugin.id,
+    label: vgmExporterPlugin.label,
+    description: 'VGM (Video Game Music) register-stream export (.vgm) for SMS/Game Gear songs.',
+    badge: 'Experimental' as const,
+    plugin: vgmExporterPlugin,
+    dependsOnChipPlugins: ['sms'],
+  },
+];
 
 export const BUILTIN_EXPORTER_IDS = ['json', 'midi', 'uge', 'wav'];
 

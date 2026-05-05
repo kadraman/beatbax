@@ -1,0 +1,94 @@
+# SMS layered percussion template — slow groove variant (90 BPM).
+#
+# At lower BPM notes last longer, so envelopes decay more slowly and
+# tone-body layers have time to bloom before the noise transient fades.
+#
+# Channel plan (SN76489):
+#   CH1 (tone1): kick body — short pitched thud (low register)
+#   CH2 (tone2): snare body — mid-register thump with crack
+#   CH3 (tone3): bass line — short walking bass; mutes during kick overlap
+#   CH4 (noise): kick/snare transients + closed/open hats
+
+song name "SMS Layered Percussion (Slow Groove)"
+chip sms
+bpm 90
+time 4
+
+# SMS attenuation: 0 = loudest, 15 = mute
+
+# -----------------------------------------------------------------------------
+# Instruments
+# -----------------------------------------------------------------------------
+
+# Kick body: low C, fast attack, downward pitch slide for "boom" feel.
+# Longer vol_env at 90 BPM gives audible sustain between hits.
+inst kbody  type=tone1 vol_env=[0,2,4,7,10,13,15] pitch_env=[0,-2,-4,-6,-8,-10]
+
+# Snare body: D note, brief pitch snap then hold.
+inst sbody  type=tone2 vol_env=[2,5,8,11,13,15] pitch_env=[3,1,0,0,-1]
+
+# Bass: short staccato so it doesn't clash with kick body on beat 1.
+# Loops at attenuation 8 to give a sustained but controlled low end.
+inst bass   type=tone3 vol_env=[1,3,5,7,9,11,13|12]
+
+# Kick noise transient: rate=2 (lowest noise), very fast spike.
+inst knoise type=noise noise_mode=white noise_rate=2 vol_env=[0,3,7,12,15]
+
+# Snare noise: rate=1 (mid), with a noise_rate_env snap from fast→mid→slow.
+# Gives snare a "crack-then-body" character at 90 BPM.
+inst snoise type=noise noise_mode=white noise_rate=1 vol_env=[1,3,6,9,12,14,15] noise_rate_env=[0,0,1,1,2,2]
+
+# Closed hi-hat: rate=0 (fastest/brightest), very short.
+inst hatc   type=noise noise_mode=white noise_rate=0 vol_env=[5,10,14,15]
+
+# Open hi-hat: same rate but longer decay — trails longer between hits.
+inst hato   type=noise noise_mode=white noise_rate=0 vol_env=[5,7,9,11,13,15]
+
+# Rimshot accent: periodic noise for a distinctly different timbre.
+inst rim    type=noise noise_mode=periodic noise_rate=1 vol_env=[4,8,12,15]
+
+# -----------------------------------------------------------------------------
+# Patterns (8-step quarter feel at 90 BPM, 4 ticks per beat)
+# -----------------------------------------------------------------------------
+
+# Kick body on beat 1 and 3 (ticks 0, 8).
+pat p_kbody  = C2 . . . . . . . C2 . . . . . . .
+
+# Snare body on beat 2 and 4 (ticks 4, 12).
+pat p_sbody  = . . . . D3 . . . . . . . D3 . . .
+
+# Bass: root quarter notes with rests to breathe around kick.
+pat p_bass_a = E2:2 . . E2:2 . . . . A2:2 . . A2:2 . . . .
+pat p_bass_b = D2:2 . . D2:2 . . . . G2:2 . . A2:2 . . . .
+
+# Standard groove: kick/hat/snare/hat pattern.
+pat p_noise_a = knoise hatc snoise hatc knoise hatc snoise hato knoise hatc snoise hatc knoise hatc snoise hato
+
+# Heavy variant: double kick on beat 1, rimshot on the "and" of 3.
+pat p_noise_b = knoise knoise snoise hatc knoise hatc snoise hato knoise rim snoise hatc knoise hatc snoise hato
+
+# Fill: fast closing hats with snare drops for the 4th bar.
+pat p_fill   = knoise hatc hatc snoise hatc hatc knoise hatc hatc snoise hatc hatc snoise snoise hatc hato
+
+# Break: sparse — just kick and open hat for air.
+pat p_break  = knoise . hato . . . hato . knoise . hato . . . hato .
+
+# -----------------------------------------------------------------------------
+# Sequences (4 bars × 4 patterns = 16 bars total)
+# -----------------------------------------------------------------------------
+
+seq s_kbody  = p_kbody  p_kbody  p_kbody  p_kbody  p_kbody  p_kbody  p_kbody  p_kbody
+seq s_sbody  = p_sbody  p_sbody  p_sbody  p_sbody  p_sbody  p_sbody  p_sbody  p_sbody
+seq s_bass   = p_bass_a p_bass_a p_bass_b p_bass_a p_bass_a p_bass_b p_bass_b p_bass_a
+seq s_noise  = p_noise_a p_noise_a p_noise_b p_fill p_noise_a p_noise_a p_noise_b p_break
+
+# -----------------------------------------------------------------------------
+# Channels
+# -----------------------------------------------------------------------------
+
+channel 1 => inst kbody  seq s_kbody
+channel 2 => inst sbody  seq s_sbody
+channel 3 => inst bass   seq s_bass
+channel 4 => inst knoise seq s_noise
+
+play

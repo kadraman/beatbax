@@ -1,0 +1,62 @@
+# SMS layered percussion template.
+# Goal: make kick/snare/hat read clearly by combining tone body + noise transient.
+#
+# Channel plan (SN76489):
+#   CH1 (tone): kick body
+#   CH2 (tone): snare body
+#   CH3 (tone): free for bass/lead
+#   CH4 (noise): kick/snare transients + hats
+
+song name "SMS Layered Percussion Template"
+chip sms
+bpm 132
+time 4
+
+# SMS attenuation reminder:
+#   0 = loudest, 15 = mute
+
+# -----------------------------------------------------------------------------
+# Instruments
+# -----------------------------------------------------------------------------
+
+# Tone bodies (short, downward pitch motion helps percussive identity).
+inst kbody type=tone1 vol_env=[1,3,6,9,12,15] pitch_env=[0,-2,-4,-6,-8]
+inst sbody type=tone2 vol_env=[3,6,9,12,15] pitch_env=[4,1,0,-1,-2]
+
+# Noise transients and hats.
+inst knoise type=noise noise_mode=white noise_rate=2 vol_env=[1,4,8,12,15]
+inst snoise type=noise noise_mode=white noise_rate=1 vol_env=[1,4,7,10,13,15] noise_rate_env=[0,1,1,2]
+inst hatc   type=noise noise_mode=white noise_rate=0 vol_env=[4,9,13,15]
+inst hato   type=noise noise_mode=white noise_rate=0 vol_env=[4,7,10,12,14,15]
+
+# -----------------------------------------------------------------------------
+# Patterns (16-step grid feel)
+# -----------------------------------------------------------------------------
+
+pat p_kbody_a = C2 . . . C2 . . . C2 . . . C2 . . .
+pat p_kbody_b = C2 . . C2 . . . . C2 . . . C2 . C2 .
+
+pat p_sbody_a = . . . . D3 . . . . . . . D3 . . .
+pat p_sbody_b = . . . . D3 . . . . . C3 . D3 . . .
+
+# Noise lane uses instrument tokens directly (knoise/snoise/hatc/hato).
+pat p_noise_a = knoise hatc snoise hatc knoise hatc snoise hato knoise hatc snoise hatc knoise hatc snoise hato
+pat p_noise_b = knoise hatc snoise hatc knoise hatc snoise hatc knoise hatc snoise hatc knoise hato snoise hato
+
+# -----------------------------------------------------------------------------
+# Sequences
+# -----------------------------------------------------------------------------
+
+seq s_kbody = p_kbody_a p_kbody_a p_kbody_b p_kbody_a
+seq s_sbody = p_sbody_a p_sbody_b p_sbody_a p_sbody_a
+seq s_noise = p_noise_a p_noise_b p_noise_a p_noise_b
+
+# -----------------------------------------------------------------------------
+# Channels
+# -----------------------------------------------------------------------------
+
+channel 1 => inst kbody seq s_kbody
+channel 2 => inst sbody seq s_sbody
+channel 4 => inst knoise seq s_noise
+
+play

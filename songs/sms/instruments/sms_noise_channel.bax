@@ -1,0 +1,38 @@
+# SMS noise channel verification song.
+
+chip sms
+bpm 150
+time 4
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# SMS attenuation reminder:
+#   0 = loudest, 15 = mute
+# vol= is omitted when vol_env is present — vol_env drives the full amplitude shape.
+# Noise rates: 0 = fastest/brightest (hat), 1 = mid (snare), 2 = slowest/deepest (kick).
+
+inst kick   type=noise noise_mode=white noise_rate=2 vol_env=[0,3,7,11,15]
+inst snare  type=noise noise_mode=white noise_rate=1 vol_env=[1,4,7,10,12,14,15] noise_rate_env=[0,1,1,2]
+inst hihat  type=noise noise_mode=white noise_rate=0 vol_env=[4,9,13,15]
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+pat drums    = kick . snare . kick kick snare hihat
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq drum_seq = drums drums drums drums
+
+# =============================================================================
+# Channels
+# =============================================================================
+
+channel 4 => inst kick seq drum_seq
+
+play

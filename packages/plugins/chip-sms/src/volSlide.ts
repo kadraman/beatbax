@@ -12,7 +12,7 @@
 
 // EffectHandler imported from engine via ChipPlugin interface
 import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
-import { parseMacro } from './macros.js';
+import { parseMacro, makeMacroState, getMacroValue, advanceMacro } from './macros.js';
 
 export const smsVolSlideEffect = (
   ctx: any,
@@ -85,30 +85,66 @@ export const smsVolSlideEffect = (
     if (typeof gainParam.cancelScheduledValues === 'function') {
       gainParam.cancelScheduledValues(start);
     }
+
+    // ── vol_env compound path ─────────────────────────────────────────────────
+    // When the instrument has a vol_env, compound the volSlide ON TOP of it
+    // rather than replacing it.  We rebuild a per-frame gain curve that adds
+    // the slide delta to each vol_env attenuation value so the instrument's
+    // natural shape is preserved while the volSlide modifies the trajectory.
+    if (inst && inst.vol_env) {
+      const volEnvMacro = parseMacro(inst.vol_env);
+      if (volEnvMacro && volEnvMacro.values.length > 0) {
+        const frameRate = 60;
+        const totalFrames = Math.max(2, Math.ceil(dur * frameRate));
+        const envState = makeMacroState();
+        const combinedVals: number[] = [];
+
+        for (let f = 0; f < totalFrames; f++) {
+          const progress = totalFrames > 1 ? f / (totalFrames - 1) : 1;
+          const envAtt = Math.max(0, Math.min(15, getMacroValue(volEnvMacro, envState)));
+          // Negative delta = fade out → attenuation increases with progress.
+          const slideAtt = -delta * (steps !== undefined
+            ? Math.min(1, Math.ceil(progress * steps) / steps)
+            : progress);
+          const combinedAtt = Math.max(0, Math.min(15, envAtt + slideAtt));
+          combinedVals.push((1 - combinedAtt / 15) * mixGain * webNorm);
+          advanceMacro(volEnvMacro, envState);
+        }
+
+        const combinedCurve = new Float32Array(combinedVals);
+        try {
+          gainParam.setValueCurveAtTime(combinedCurve, start, Math.max(0.001, dur));
+        } catch (_) {
+          if (combinedVals.length > 0) {
+            gainParam.setValueAtTime(combinedVals[0], start);
+          }
+        }
+        gainParam.setValueAtTime(0.0001, start + dur);
+        gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+        return;
+      }
+    }
+
+    // ── standalone vol slide (no vol_env) ────────────────────────────────────
     gainParam.setValueAtTime(baselineGain, start);
 
     // BeatBax volSlide semantics: positive delta = fade-in / louder.
     // On SMS this means attenuation decreases as delta increases.
-
     if (steps !== undefined && tickSeconds !== undefined) {
       // Stepped volume slide
       const stepDuration = dur / steps;
-      // Set initial value
       gainParam.setValueAtTime(baselineGain, start);
 
       for (let i = 1; i <= steps; i++) {
         const stepTime = start + (i * stepDuration);
         const stepAtt = baselineAttenuation - (delta * i / steps);
         const stepGain = gainFromAttenuation(stepAtt);
-        // Hold previous value right up to step boundary
         const prevGain = i === 1
           ? baselineGain
           : gainFromAttenuation(baselineAttenuation - (delta * (i - 1) / steps));
         gainParam.setValueAtTime(prevGain, stepTime - 0.00001);
-        // Jump to new value at step boundary
         gainParam.setValueAtTime(stepGain, stepTime);
       }
-      // Hold final value until note end
       const finalGain = gainFromAttenuation(baselineAttenuation - delta);
       gainParam.setValueAtTime(finalGain, start + dur);
     } else {
@@ -116,6 +152,8 @@ export const smsVolSlideEffect = (
       const targetGain = gainFromAttenuation(baselineAttenuation - delta);
       gainParam.linearRampToValueAtTime(targetGain, start + dur);
     }
+    gainParam.setValueAtTime(0.0001, start + dur);
+    gainParam.linearRampToValueAtTime(0.0001, start + dur + 0.005);
   } catch (e) {
     console.warn(`[chip-sms] Volume slide failed for channel ${chId || '?'}: ${e}`);
   }
