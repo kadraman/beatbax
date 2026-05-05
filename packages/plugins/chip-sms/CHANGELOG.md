@@ -1,5 +1,14 @@
 # @beatbax/plugin-chip-sms
 
+## 0.2.1
+
+### Patch Changes
+
+- dc5c6ab: Fixed noise channel frequency calculation and volume slide behaviour to correctly match SN76489 hardware semantics.
+  - Corrected noise channel period/rate mapping in `noise.ts` and `periodTables.ts`
+  - Fixed `volSlide.ts` to apply attenuation correctly during playback
+  - Updated `index.ts` to expose `noise_rate_env` and `vol_env` effect support so they are forwarded from the playback engine
+
 ## 0.2.0
 
 ### Minor Changes
