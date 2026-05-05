@@ -167,4 +167,70 @@ describe('Note Cut Effect', () => {
     expect(cancelCalls.length).toBe(1);
     expect(cancelCalls[0].time).toBeCloseTo(1.125, 3);
   });
+
+  it('should prefer cancelAndHoldAtTime when available', () => {
+    const handler = get('cut');
+    if (!handler) throw new Error('cut handler not found');
+
+    const gainCalls: Array<{ method: string; time: number; value?: number }> = [];
+    const mockGainNode = {
+      gain: {
+        value: 1.0,
+        getValueAtTime: (_time: number) => 0.6,
+        setValueAtTime: (value: number, time: number) => {
+          gainCalls.push({ method: 'setValueAtTime', time, value });
+        },
+        cancelAndHoldAtTime: (time: number) => {
+          gainCalls.push({ method: 'cancelAndHoldAtTime', time });
+        },
+        cancelScheduledValues: (time: number) => {
+          gainCalls.push({ method: 'cancelScheduledValues', time });
+        },
+        exponentialRampToValueAtTime: (value: number, time: number) => {
+          gainCalls.push({ method: 'exponentialRampToValueAtTime', time, value });
+        },
+      },
+    };
+
+    handler({}, [mockGainNode], [1], 2.0, 1.0, 1, 0.03125);
+
+    const expectedCutTime = 2.03125;
+    const holdCalls = gainCalls.filter(c => c.method === 'cancelAndHoldAtTime');
+    expect(holdCalls.length).toBe(1);
+    expect(holdCalls[0].time).toBeCloseTo(expectedCutTime, 5);
+
+    const cancelCalls = gainCalls.filter(c => c.method === 'cancelScheduledValues');
+    expect(cancelCalls.length).toBe(0);
+
+    const rampCalls = gainCalls.filter(c => c.method === 'exponentialRampToValueAtTime');
+    expect(rampCalls.length).toBe(1);
+    expect(rampCalls[0].time).toBeCloseTo(expectedCutTime + 0.005, 5);
+  });
+
+  it('should stop source node at cut time as fallback', () => {
+    const handler = get('cut');
+    if (!handler) throw new Error('cut handler not found');
+
+    const stopCalls: number[] = [];
+    const mockSourceNode = {
+      stop: (time: number) => {
+        stopCalls.push(time);
+      },
+    };
+
+    const mockGainNode = {
+      gain: {
+        value: 1.0,
+        setValueAtTime: (_value: number, _time: number) => {},
+        cancelScheduledValues: (_time: number) => {},
+        exponentialRampToValueAtTime: (_value: number, _time: number) => {},
+      },
+    };
+
+    handler({}, [mockSourceNode, mockGainNode], [2], 1.0, 1.0, 1, 0.1);
+
+    // cutTime = 1.0 + (2 * 0.1) = 1.2; stopAt = cutTime + 0.006
+    expect(stopCalls.length).toBe(1);
+    expect(stopCalls[0]).toBeCloseTo(1.206, 6);
+  });
 });

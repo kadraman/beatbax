@@ -188,6 +188,9 @@ export class Player {
   // ─── Plugin chip state ─────────────────────────────────────────────────────
   private _pluginBackends: any[] = [];
   private _pluginProcessor: any = null;
+  // Per-channel last note frequency used to seed portamento on notes that use
+  // port without the previous note also using port.
+  private _lastNoteFreqByChannel: Map<number, number> = new Map();
 
   /** Check localStorage for debug flag (browser only) */
   private static isDebugEnabled(): boolean {
@@ -714,9 +717,31 @@ export class Player {
               }
               if (this.solo !== null && this.solo !== capturedChId) return;
               if (this.muted.has(capturedChId)) return;
-              const nodes = backend.createPlaybackNodes(this.ctx, capturedFreq, time, capturedDur, capturedInst, this.scheduler, this._getChannelDest(capturedChId));
+              // Merge any inline "instrument-property" effects into the instrument before rendering.
+              // Effects like noise_rate_env carry their payload as params and must reach createPlaybackNodes.
+              let effectiveInst = capturedInst;
+              if (capturedToken?.effects && Array.isArray(capturedToken.effects) && capturedToken.effects.length > 0) {
+                const instOverrides: Record<string, any> = {};
+                for (const fx of capturedToken.effects) {
+                  const fxType = fx && fx.type ? String(fx.type).toLowerCase() : '';
+                  if (fxType === 'noise_rate_env' && fx.params && fx.params.length > 0) {
+                    instOverrides['noise_rate_env'] = fx.params[0];
+                  } else if (fxType === 'vol_env' && fx.params && fx.params.length > 0) {
+                    instOverrides['vol_env'] = fx.params[0];
+                  }
+                }
+                if (Object.keys(instOverrides).length > 0) {
+                  effectiveInst = { ...capturedInst, ...instOverrides };
+                }
+              }
+              const nodes = backend.createPlaybackNodes(this.ctx, capturedFreq, time, capturedDur, effectiveInst, this.scheduler, this._getChannelDest(capturedChId));
               if (nodes && nodes.length > 0) {
+                const prevFreq = this._lastNoteFreqByChannel.get(capturedChId);
+                if (nodes[0] && Number.isFinite(prevFreq) && (prevFreq as number) > 0) {
+                  (nodes[0] as any)._prevFreq = prevFreq;
+                }
                 this.tryApplyEffects(this.ctx, nodes, capturedToken && capturedToken.effects ? capturedToken.effects : [], time, capturedDur, capturedChId, capturedTickSec, capturedInst);
+                this._lastNoteFreqByChannel.set(capturedChId, capturedFreq);
                 this.tryApplyPan(this.ctx, nodes, capturedPanVal, this._getChannelDest(capturedChId));
                 this.tryScheduleEcho(nodes);
                 this.tryScheduleRetriggers(nodes, capturedFreq, capturedInst, capturedChId, capturedToken, capturedTickSec, capturedPanVal);
@@ -768,8 +793,13 @@ export class Player {
             }
             if (this._debugLog) log.debug(`Playing ch${chId} pulse at ${time.toFixed(2)}s`);
             const nodes = playPulse(this.ctx, freq, duty, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId));
+            const prevFreq = this._lastNoteFreqByChannel.get(chId);
+            if (nodes[0] && Number.isFinite(prevFreq) && (prevFreq as number) > 0) {
+              (nodes[0] as any)._prevFreq = prevFreq;
+            }
             // apply inline token.effects first (e.g. C4<pan:-1>) then fallback to inline pan/inst pan
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this._lastNoteFreqByChannel.set(chId, freq);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
             this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
@@ -806,7 +836,12 @@ export class Player {
             }
             if (this._debugLog) log.debug(`Playing ch${chId} wave at ${time.toFixed(2)}s`);
             const nodes = playWavetable(this.ctx, freq, wav, time, dur, capturedInst, this.scheduler, this._getChannelDest(chId));
+            const prevFreq = this._lastNoteFreqByChannel.get(chId);
+            if (nodes[0] && Number.isFinite(prevFreq) && (prevFreq as number) > 0) {
+              (nodes[0] as any)._prevFreq = prevFreq;
+            }
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds, capturedInst);
+            this._lastNoteFreqByChannel.set(chId, freq);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
             this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
             this.tryScheduleEcho(nodes);
@@ -1555,6 +1590,7 @@ export class Player {
 
     // Clear effect state (e.g., portamento frequency tracking)
     clearEffectState();
+    this._lastNoteFreqByChannel.clear();
 
     // Tear down per-channel analysers and buses
     this._teardownAnalysers();
