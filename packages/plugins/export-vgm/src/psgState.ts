@@ -122,9 +122,12 @@ export class SN76489State {
    */
   flush(): { psgBytes: number[]; ggStereo: number } {
     // Establish defaults for any uninitialized registers
-    if (this.noiseCtrl === UNINIT_NOISE) {
-      this.noiseCtrl = noiseControlByte(false, 1); // periodic, rate 1 (common default)
-    }
+    // NOTE: noiseCtrl is intentionally NOT pre-initialized. The first note-on will
+    // establish the correct noise control settings. Pre-initializing to a "default"
+    // (e.g., periodic mode) can cause the first note to sound with the wrong noise
+    // characteristics (e.g., a kick at rate=2 white would play as rate=1 periodic
+    // for a brief moment). By leaving it uninitialized (-1), the first note-on's
+    // noiseRate/noiseIsWhite settings will definitely trigger a write.
     for (let ch = 0; ch < PSG_CHANNELS; ch++) {
       if (this.volume[ch] === UNINIT_VOLUME) {
         this.volume[ch] = ATTENUATION_MUTE;
@@ -141,8 +144,11 @@ export class SN76489State {
 
     const psgBytes: number[] = [];
 
-    // Emit noise control for ch3
-    psgBytes.push(this.noiseCtrl);
+    // Emit noise control for ch3 ONLY if it has been initialized
+    // (Don't emit a default value that might contradict the first note-on)
+    if (this.noiseCtrl !== UNINIT_NOISE) {
+      psgBytes.push(this.noiseCtrl);
+    }
 
     // Emit volume for all 4 channels
     for (let ch = 0; ch < PSG_CHANNELS; ch++) {

@@ -230,7 +230,7 @@ interface ChannelSimState {
 
   // Active effects
   vibPhase:     number;  // 0..1 LFO phase
-  vibDepth:     number;  // semitones
+  vibDepth:     number;  // 0–15 intensity; amplitudeHz = depth * f² / 131072 (matches WebAudio engine)
   vibRate:      number;  // Hz
   vibDelay:     number;  // frames before vibrato starts
   vibFrame:     number;  // frames elapsed since note-on
@@ -694,8 +694,12 @@ function advanceFrames(
     state.vibFrame++;
     if (state.vibDepth > 0 && state.vibRate > 0 && state.vibFrame > state.vibDelay) {
       const phase = (state.vibFrame - state.vibDelay) * state.vibRate / 60;
-      const mod = Math.sin(2 * Math.PI * phase) * state.vibDepth;
-      const newFreq = state.baseFreq * Math.pow(2, mod / 12);
+      const sinVal = Math.sin(2 * Math.PI * phase);
+      // Use tracker-style depth: amplitudeHz = depth * f² / 131072
+      // Matches the WebAudio engine (engine/src/effects/index.ts) vibrato formula so
+      // depth is a 0–15 nibble, not semitones. depth=4 at D5 (587 Hz) ≈ ±10.5 Hz.
+      const amplitudeHz = state.vibDepth * state.baseFreq * state.baseFreq / 131072;
+      const newFreq = state.baseFreq + sinVal * amplitudeHz;
       if (Math.abs(newFreq - state.freq) > 0.5) { state.freq = newFreq; periodChanged = true; }
     }
 

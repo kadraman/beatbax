@@ -124,18 +124,21 @@ describe('SN76489State — flush', () => {
     const { psgBytes, ggStereo } = psg.flush();
     expect(ggStereo).toBe(GG_STEREO_DEFAULT);
     // psgBytes: 1 noise + 4 volumes + 3×2 periods = 1 + 4 + 6 = 11
-    expect(psgBytes.length).toBe(11);
+     // psgBytes: 4 volumes + 3×2 periods = 4 + 6 = 10
+     // (noise control is NOT written in flush to avoid pre-initializing with a wrong default;
+     //  the first note-on will establish the correct noise control)
+     expect(psgBytes.length).toBe(10);
   });
 
   it('all channels start muted (attenuation 15)', () => {
     const psg = new SN76489State();
     const { psgBytes } = psg.flush();
-    // Volume bytes are at indices 1-4 in psgBytes
+     // Volume bytes are at indices 0-3 in psgBytes (no noise control byte before them)
     // vol ch0 = 0x9F (90 | 0F), ch1 = 0xBF, ch2 = 0xDF, ch3 = 0xFF
-    expect(psgBytes[1]).toBe(0x9F); // ch0 muted
-    expect(psgBytes[2]).toBe(0xBF); // ch1 muted
-    expect(psgBytes[3]).toBe(0xDF); // ch2 muted
-    expect(psgBytes[4]).toBe(0xFF); // ch3 muted
+     expect(psgBytes[0]).toBe(0x9F); // ch0 muted
+     expect(psgBytes[1]).toBe(0xBF); // ch1 muted
+     expect(psgBytes[2]).toBe(0xDF); // ch2 muted
+     expect(psgBytes[3]).toBe(0xFF); // ch3 muted
   });
 
   it('subsequent applyVolume returns empty (state set by flush)', () => {

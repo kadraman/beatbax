@@ -312,10 +312,11 @@ describe('vgmExporterPlugin.export', () => {
     const psgBytes = extractPsgDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
     const noiseWrites = extractNoiseControlValues(psgBytes);
 
-    // The first noise write is from initial flush (periodic, rate 1). The second write
-    // is the first active note-on noise control write and should honor inline env step 0.
-    expect(noiseWrites.length).toBeGreaterThanOrEqual(2);
-    expect(noiseWrites[1]).toBe(noiseControlByte(true, 0));
+     // The first noise write is the first active note-on noise control write.
+     // It should honor inline env step 0 (noise_rate_env[0]=0).
+     // (flush() no longer pre-initializes noise control to avoid conflicting with note-on settings)
+     expect(noiseWrites.length).toBeGreaterThanOrEqual(1);
+     expect(noiseWrites[0]).toBe(noiseControlByte(true, 0));
   });
 
   // ─── Loudness & Attenuation Tests ───────────────────────────────────────────

@@ -13,20 +13,28 @@ time 4
 #   0 = loudest, 15 = mute
 
 # Lead melody on right
-inst lead  type=tone1 vol=8  vol_env=[8,9,10,11|11] gg:pan=R
+# Balanced for hardware export: min attenuation 4 matches reference SMS VGMs
+inst lead  type=tone1 vol=4  vol_env=[4,5,6,7|7] gg:pan=R
 
 # Harmony on left
-inst harm  type=tone2 vol=9  vol_env=[9,10,11,12|12] gg:pan=L
+# Balanced for hardware export: min attenuation 5 matches reference SMS VGMs
+inst harm  type=tone2 vol=5  vol_env=[5,6,7,8|8] gg:pan=L
 
 # Bass centered (both sides)
-inst bass  type=tone3 vol=10 vol_env=[10,11,12,13|13] gg:pan=C
+# Balanced for hardware export: min attenuation 4 matches reference SMS VGMs
+inst bass  type=tone3 vol=4  vol_env=[4,5,6,7|7] gg:pan=C
 
-# Drums centered — vol= removed, vol_env drives amplitude.
-inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[0,2,5,9,13,15] gg:pan=C
-inst snare type=noise noise_mode=white noise_rate=1 vol_env=[0,2,5,8,11,14,15] noise_rate_env=[0,0,1,1,2] gg:pan=C
-inst hihat type=noise noise_mode=white noise_rate=0 vol_env=[4,9,13,15] gg:pan=C
-inst ohat  type=noise noise_mode=white noise_rate=0 vol_env=[4,7,10,12,14,15] gg:pan=C
-inst rim   type=noise noise_mode=periodic noise_rate=1 vol_env=[4,8,12,15] gg:pan=C
+# Drums centered — vol_env drives amplitude, now balanced with tone channels
+# Kick: min attenuation 3 to punch through mix (balanced with tones at 4-5)
+inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[3,5,7,10,13,15] gg:pan=C
+# Snare: min attenuation 4 (similar to tones for balanced mix)
+inst snare type=noise noise_mode=white noise_rate=1 vol_env=[4,6,8,10,12,14,15] noise_rate_env=[0,0,1,1,2] gg:pan=C
+# Hi-hat: min attenuation 5 (sit in background)
+inst hihat type=noise noise_mode=white noise_rate=0 vol_env=[5,10,13,15] gg:pan=C
+# Open hat: min attenuation 6 (slightly quieter)
+inst ohat  type=noise noise_mode=white noise_rate=0 vol_env=[6,8,11,13,14,15] gg:pan=C
+# Rim: min attenuation 5 (balanced with snare)
+inst rim   type=noise noise_mode=periodic noise_rate=1 vol_env=[5,8,11,14] gg:pan=C
 
 # =============================================================================
 # Patterns
