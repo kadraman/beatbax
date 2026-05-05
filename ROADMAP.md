@@ -13,10 +13,10 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 
 | Chip | Implemented | Estimated effort | Notes |
 |---|:---:|---|---|
-| Game Boy APU (DMG-01) | [x] | Low | Core already implemented in engine-core |
-| SN76489 (PSG — SMS / Game Gear) | [ ] | Low | Reuse PSG primitives; quick VGM/register export |
+| Game Boy APU (DMG-01) | [x] | Low | `@beatbax/plugin-chip-gameboy` — exports: UGE (hUGETracker), JSON ISM, WAV, MIDI |
+| SN76489 (PSG — SMS / Game Gear) | [x] | Low | `@beatbax/plugin-chip-sms` — exports: VGM (`@beatbax/plugin-exporter-vgm`), WAV |
+| NES APU / RP2A03 | [x] | Medium | `@beatbax/plugin-chip-nes` — exports: FamiTracker `.ftm`/`.txt` (`@beatbax/plugin-export-famitracker`), WAV, MIDI |
 | AY‑3‑8910 / YM2149 (PSG family) | [ ] | Low–Medium | Similar PSG semantics to SN76489; broad platform coverage (Atari ST, MSX) |
-| NES APU / RP2A03 | [X] | Medium | DMC sample path and FamiTracker/NSF ecosystem integration |
 | YM2413 (OPLL) | [ ] | Medium | Preset-based 2‑op FM — easiest FM entry (MSX/PC‑88 coverage) |
 | OPL2 / YM3812 (AdLib / early FM) | [ ] | Medium | PC FM; requires operator/patch handling and OPL register export |
 | YM2612 (Genesis) [+ SN76489 PSG for Genesis where applicable] | [ ] | High | Complex FM operator mapping; high impact for Genesis scene |
@@ -33,21 +33,22 @@ A solid way to define a “chiptune sound chip” is:
 
 Using that definition, here’s a clean, authoritative list of the major chips that truly qualify as chiptune hardware:
 
-- **Game Boy (DMG‑01)**
+- **Game Boy (DMG‑01)** ✅ _Implemented_
+  - Plugin: `@beatbax/plugin-chip-gameboy`
   - Channels: 4 (Pulse1, Pulse2, Wave, Noise)
   - Features: duty control, envelopes, 16×4-bit wave RAM, LFSR noise
-  - Difficulty: Low (already implemented in BeatBax core)
-  - Suggested plugin name: `@beatbax/plugin-chip-gameboy`
+  - Difficulty: Low
   - Export formats: hUGETracker `.uge` (v6), JSON ISM, WAV/OGG (rendered audio), MIDI (approximate)
   - Homebrew suitability: Yes — `hUGETracker`/`.uge` is the canonical tracker format used for Game Boy homebrew and toolchains; register/driver exports and binary pattern data can be consumed by GB homebrew projects.
 
-- **NES / RP2A03**
+- **NES / RP2A03** ✅ _Implemented_
+  - Plugin: `@beatbax/plugin-chip-nes`
+  - Exporter plugin: `@beatbax/plugin-export-famitracker`
   - Channels: 5 logical (2 pulse, triangle, noise, DMC sample channel)
   - Features: square duty, triangle for bass, noise, sample DMC (bit-crushed samples)
   - Difficulty: Medium
-  - Suggested plugin name: `@beatbax/plugin-chip-nes`
-  - Export formats: FamiTracker `.ftm` (tracker), Famitracker Txt `.txt` (tracker) NSF (NES Sound Format), VGM (register stream), WAV/OGG (rendered), MIDI (approximate)
-  - Homebrew suitability: Yes — `NSF` and register-stream (`VGM`) or engine-ready pattern exports (for e.g., FamiTone/FamiTracker drivers) make direct inclusion in NES homebrew feasible. Famitracker Text is suitable for importing into NESMaker or via FamiTracker to FamiTone2
+  - Export formats: FamiTracker `.ftm` (tracker), FamiTracker Txt `.txt` (tracker), WAV/OGG (rendered), MIDI (approximate)
+  - Homebrew suitability: Yes — FamiTracker `.ftm`/`.txt` exports are directly usable in NESMaker and FamiTone2 pipelines.
 
 - **C64 / SID (6581/8580)**
   - Channels: 3 (analog-like waveforms, ring modulation, filters on 8580)
@@ -73,13 +74,14 @@ Using that definition, here’s a clean, authoritative list of the major chips t
   - Export formats: VGM, AY/AYM tracker formats, MOD conversions, WAV/OGG
   - Homebrew suitability: Yes — AY/PSG register streams or tracker exports are usable in homebrew targets (e.g., for YM2149-driven systems).
 
-- **SN76489 (Sega Master System / Game Gear / SMS)**
-  - Channels: 3 square + noise
-  - Features: simple PSG, tone/noise control
+- **SN76489 (Sega Master System / Game Gear)** ✅ _Implemented_
+  - Plugin: `@beatbax/plugin-chip-sms`
+  - Exporter plugin: `@beatbax/plugin-exporter-vgm`
+  - Channels: 3 square tone channels + noise channel
+  - Features: tone/noise control, Game Gear stereo panning (`gg:pan` via `0x4F` VGM command), volume/pitch macros, noise rate envelope
   - Difficulty: Low
-  - Suggested plugin name: `@beatbax/plugin-chip-sn76489`
-  - Export formats: VGM, PSG tracker exports, WAV/OGG
-  - Homebrew suitability: Yes — `VGM` or register-stream drivers are usable; simple to target directly in SMS/Game Gear homebrew.
+  - Export formats: VGM v1.61 (register stream, via `@beatbax/plugin-exporter-vgm`), WAV/OGG (rendered)
+  - Homebrew suitability: Yes — VGM output is directly playable on real SMS/Game Gear hardware via flash cartridges and dedicated VGM players; compatible with VGMPlay, Mesen, OpenMSX, and RetroArch.
 
 - **OPL2 / YM3812 (AdLib / early FM)**
   - Channels: 9 FM channels (2‑operator FM per channel; some chips allow channel stacking)
