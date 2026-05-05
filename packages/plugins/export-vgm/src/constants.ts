@@ -11,19 +11,12 @@
 export const VGM_MAGIC = 0x206d6756; // little-endian uint32
 
 /**
- * VGM format version 1.50.
+ * VGM format version 1.61.
  *
- * Reasons:
- *  - v1.50 defines SN76489 feedback (0x28) and shift-register width (0x2A),
- *    which ensures correct noise-channel LFSR behaviour in VGMPlay.
- *  - For versions < 1.51 the data always starts at 0x40 — there are no
- *    extended chip-clock fields beyond 0x40 that would overlap with our
- *    command stream.
- *  - Using v1.61 caused VGMPlay to read PSG command bytes at offset 0x80+
- *    as GB/NES chip clocks, making the file fail to open.
- *  - The Game Gear 0x4F stereo command is valid in all VGM versions.
+ * Required by the BeatBax VGM exporter spec when emitting Game Gear stereo
+ * writes (0x4F), and used consistently for all SMS exports.
  */
-export const VGM_VERSION = 0x00000150;
+export const VGM_VERSION = 0x00000161;
 
 // ─── Header field offsets ────────────────────────────────────────────────────
 
@@ -45,11 +38,9 @@ export const HDR_DATA_OFFSET   = 0x34; // relative to 0x34; points to VGM data s
 export const VGM_HEADER_SIZE       = 0x40;
 /**
  * Relative data offset stored at 0x34.
- * For VGM ≥ 1.51 this is 0x0C (0x34 + 0x0C = 0x40).
- * For VGM 1.50 the field does not exist — write 0 so that players that
- * read it anyway treat 0 as "use the default 0x40".
+ * For VGM ≥ 1.51 this is 0x0C (0x34 + 0x0C = 0x40), matching our 0x40 header.
  */
-export const VGM_DATA_OFFSET_VALUE = 0x00;
+export const VGM_DATA_OFFSET_VALUE = 0x0C;
 
 // ─── Clock rates ─────────────────────────────────────────────────────────────
 
@@ -109,10 +100,10 @@ export function noiseControlByte(isWhite: boolean, rate: number): number {
 
 // ─── SN76489 hardware parameters ─────────────────────────────────────────────
 
-/** Feedback taps for bit0^bit1 white-noise parity with BeatBax SMS backend. */
-export const SN76489_FEEDBACK          = 0x0003;
-/** SN76489 noise LFSR width used by BeatBax SMS backend. */
-export const SN76489_SHIFT_REG_WIDTH   = 15;
+/** Standard SMS/Game Gear SN76489 feedback taps per exporter spec. */
+export const SN76489_FEEDBACK          = 0x0009;
+/** Standard SN76489 shift register width per exporter spec. */
+export const SN76489_SHIFT_REG_WIDTH   = 16;
 /** SN76489 flags (standard). */
 export const SN76489_FLAGS             = 0x00;
 

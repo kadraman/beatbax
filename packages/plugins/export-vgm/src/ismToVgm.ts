@@ -125,14 +125,18 @@ function numericPanToBits(value: number): number {
 /**
  * Build the 8-bit GG stereo register from per-channel pan settings.
  * Channels are indexed 0-3 (Tone1, Tone2, Tone3, Noise).
- * Bits: [N7 N6 | T5 T4 | T3 T2 | T1 T0]
- *        ch3   |  ch2  |  ch1  |  ch0
- * Each pair: bit0=left, bit1=right
+ * VGM 0x4F layout:
+ *   bits 0-3: right enable for channels 0-3
+ *   bits 4-7: left enable for channels 0-3
  */
 function buildGgStereoByte(pans: number[]): number {
   let byte = 0;
   for (let ch = 0; ch < 4 && ch < pans.length; ch++) {
-    byte |= (pans[ch] & 0b11) << (ch * 2);
+    const panBits = pans[ch] & 0b11;
+    const leftEnabled = (panBits & 0b01) !== 0;
+    const rightEnabled = (panBits & 0b10) !== 0;
+    if (rightEnabled) byte |= (1 << ch);
+    if (leftEnabled) byte |= (1 << (ch + 4));
   }
   return byte;
 }
@@ -618,6 +622,17 @@ function parseEffectsOnNoteOn(
         if (macro) {
           state.pitchEnvMacro = macro;
           state.pitchEnvState = makeMacroState();
+        }
+      }
+    } else if (t === 'noise_rate_env') {
+      // noise_rate_env:[values] inline — parse as noiseRateEnvMacro override
+      if (p.length > 0) {
+        const macro = parseMacro(p[0]);
+        if (macro) {
+          state.noiseRateEnvMacro = macro;
+          state.noiseRateEnvState = makeMacroState();
+          // Apply step 0 immediately so first note-on write matches the override.
+          state.noiseRate = Math.max(0, Math.min(3, Math.round(macro.values[0])));
         }
       }
     }

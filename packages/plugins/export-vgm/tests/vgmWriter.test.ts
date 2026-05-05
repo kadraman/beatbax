@@ -7,6 +7,7 @@ import {
   VGM_MAGIC,
   VGM_VERSION,
   VGM_HEADER_SIZE,
+  VGM_DATA_OFFSET_VALUE,
   CMD_WAIT_735,
   CMD_WAIT_882,
   CMD_WAIT_N,
@@ -18,6 +19,7 @@ import {
   SN76489_SHIFT_REG_WIDTH,
   HDR_SN_FEEDBACK,
   HDR_SN_SHIFT_REG,
+  HDR_DATA_OFFSET,
 } from '../src/constants.js';
 
 describe('VgmBuffer', () => {
@@ -81,8 +83,17 @@ describe('buildVgmHeader', () => {
     const header = buildVgmHeader({ sn76489Clock: SN76489_CLOCK_NTSC, rate: 60 });
     const arr = header.toUint8Array();
     const view = new DataView(arr.buffer);
+    expect(SN76489_FEEDBACK).toBe(0x0009);
+    expect(SN76489_SHIFT_REG_WIDTH).toBe(16);
     expect(view.getUint16(HDR_SN_FEEDBACK, true)).toBe(SN76489_FEEDBACK);
     expect(arr[HDR_SN_SHIFT_REG]).toBe(SN76489_SHIFT_REG_WIDTH);
+  });
+
+  it('encodes VGM data offset field for v1.61 header layout', () => {
+    const header = buildVgmHeader({ sn76489Clock: SN76489_CLOCK_NTSC, rate: 60 });
+    const arr = header.toUint8Array();
+    const view = new DataView(arr.buffer);
+    expect(view.getUint32(HDR_DATA_OFFSET, true)).toBe(VGM_DATA_OFFSET_VALUE);
   });
 });
 

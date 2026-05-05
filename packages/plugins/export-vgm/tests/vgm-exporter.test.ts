@@ -11,6 +11,7 @@ import {
   CMD_PSG_WRITE,
   CMD_GG_STEREO,
   SN76489_CLOCK_NTSC,
+  noiseControlByte,
 } from '../src/constants.js';
 
 // Helper: build a minimal SongLike with one channel and one note
@@ -70,6 +71,18 @@ function extractChannelVolumeValues(psgBytes: number[], channel: number): number
   return psgBytes
     .filter(b => isVolumeLatchForChannel(b, channel))
     .map(b => b & 0x0f);
+}
+
+function extractNoiseControlValues(psgBytes: number[]): number[] {
+  return psgBytes.filter(b => (b & 0xF8) === 0xE0);
+}
+
+function extractGgStereoDataBytes(vgm: Uint8Array): number[] {
+  const out: number[] = [];
+  for (let i = VGM_HEADER_SIZE; i < vgm.length - 1; i++) {
+    if (vgm[i] === CMD_GG_STEREO) out.push(vgm[i + 1]);
+  }
+  return out;
 }
 
 // ─── Plugin metadata ─────────────────────────────────────────────────────────
@@ -232,6 +245,32 @@ describe('vgmExporterPlugin.export', () => {
     expect(found).toBe(true);
   });
 
+  it('GG stereo packs right bits in low nibble for channel 1', () => {
+    const song = makeSong({
+      insts: {
+        lead: { name: 'lead', type: 'tone1', vol: 5, 'gg:pan': 'R' } as any,
+      },
+    });
+
+    const stereoBytes = extractGgStereoDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
+    // First write is initial flush (0xFF). A follow-up write should route channel 1
+    // to right-only while the other three channels remain centered.
+    expect(stereoBytes.length).toBeGreaterThanOrEqual(2);
+    expect(stereoBytes).toContain(0xEF);
+  });
+
+  it('GG stereo packs left bits in high nibble for channel 1', () => {
+    const song = makeSong({
+      insts: {
+        lead: { name: 'lead', type: 'tone1', vol: 5, 'gg:pan': 'L' } as any,
+      },
+    });
+
+    const stereoBytes = extractGgStereoDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
+    expect(stereoBytes.length).toBeGreaterThanOrEqual(2);
+    expect(stereoBytes).toContain(0xFE);
+  });
+
   it('noise instrument maps to channel 4 (PSG ch3)', () => {
     const song: SongLike = {
       pats: {}, seqs: {},
@@ -244,6 +283,39 @@ describe('vgmExporterPlugin.export', () => {
       bpm: 120, chip: 'sms',
     };
     expect(() => vgmExporterPlugin.export(song as any)).not.toThrow();
+  });
+
+  it('inline noise_rate_env override applies to the first note-on noise control write', () => {
+    const song = makeSong({
+      insts: {
+        kick: { name: 'kick', type: 'noise', noise_mode: 'white', noise_rate: 2, vol: 0 } as any,
+      },
+      channels: [
+        {
+          id: 4,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'note',
+              token: 'C2',
+              instrument: 'kick',
+              effects: [{ type: 'noise_rate_env', params: ['[0,1,2,1|0]'] }],
+            },
+            { type: 'sustain' },
+            { type: 'sustain' },
+            { type: 'rest' },
+          ],
+        },
+      ],
+    });
+
+    const psgBytes = extractPsgDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
+    const noiseWrites = extractNoiseControlValues(psgBytes);
+
+    // The first noise write is from initial flush (periodic, rate 1). The second write
+    // is the first active note-on noise control write and should honor inline env step 0.
+    expect(noiseWrites.length).toBeGreaterThanOrEqual(2);
+    expect(noiseWrites[1]).toBe(noiseControlByte(true, 0));
   });
 
   // ─── Loudness & Attenuation Tests ───────────────────────────────────────────
