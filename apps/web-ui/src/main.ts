@@ -344,22 +344,36 @@ const settingsModal = buildSettingsModal();
 // Shortcuts are registered after all components are instantiated (see bottom).
 const ks = new KeyboardShortcuts();
 
-const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
-  container: helpContainer,
-  eventBus,
-  embedded: true,
-  defaultVisible: true,
-  getShortcuts: () => ks.list(),
-  onInsertSnippet: (snippet) => {
-    const monacoEditor = editor?.editor;
-    if (!monacoEditor) return;
-    const selection = monacoEditor.getSelection();
-    const id = { major: 1, minor: 1 };
-    const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
-    monacoEditor.executeEdits('help-panel', [op]);
-    monacoEditor.focus();
-  },
-}), appContainer);
+    const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
+      container: helpContainer,
+      eventBus,
+      embedded: true,
+      defaultVisible: true,
+      getShortcuts: () => ks.list(),
+      onInsertSnippet: (snippet) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor) return;
+        const selection = monacoEditor.getSelection();
+        const id = { major: 1, minor: 1 };
+        const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
+        monacoEditor.executeEdits('help-panel', [op]);
+        monacoEditor.focus();
+      },
+      onReplaceEditor: (text) => {
+        const monacoEditor = editor?.editor;
+        if (!monacoEditor) return;
+        const model = monacoEditor.getModel();
+        if (!model) return;
+        const fullRange = model.getFullModelRange();
+        monacoEditor.executeEdits('help-panel', [{
+          identifier: { major: 1, minor: 1 },
+          range: fullRange,
+          text,
+          forceMoveMarkers: true,
+        }]);
+        monacoEditor.focus();
+      },
+    }), appContainer);
 
 // ─── ChatPanel — AI Copilot tab ─────────────────────────────────────────────
 // The AI tab container is always present in the DOM; the ChatPanel itself is
@@ -1415,7 +1429,6 @@ toolbar = new Toolbar({
   onSave:      () => menuBar.triggerSave(),
   onUndo:      () => editor.editor?.trigger('toolbar', 'undo', null),
   onRedo:      () => editor.editor?.trigger('toolbar', 'redo', null),
-  onFormat:    () => editor.editor?.getAction('editor.action.formatDocument')?.run(),
   onSelectAll: () => editor.editor?.trigger('toolbar', 'editor.action.selectAll', null),
   onToggleTheme: () => themeManager.toggle(),
   onToggleWrap:  (wrap: boolean) => {
