@@ -162,11 +162,11 @@ export interface NewSongWizardMetadata {
 
 export interface NewSongWizardTemplates {
   instruments: NewSongWizardTemplateOption[];
-  namedEffects: NewSongWizardTemplateOption[];
+  effects: NewSongWizardTemplateOption[];
   structure: NewSongWizardTemplateOption[];
   defaults?: {
     instruments?: string;
-    namedEffects?: string;
+    effects?: string;
     structure?: string;
   };
 }

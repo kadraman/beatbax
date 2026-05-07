@@ -20,7 +20,6 @@ interface NewSongWizardOptions {
   getDefaultBpm: () => number;
   getDefaultArtist: () => string;
   onCreate: (payload: NewSongWizardCreatePayload) => void;
-  onOpenExisting: () => void;
 }
 
 export function claimNewSongWizardOnboarding(
@@ -45,6 +44,21 @@ const DEFAULT_FALLBACK_IMAGE =
     '</svg>',
   );
 
+function normalizeImageSource(raw?: string): string {
+  const value = (raw || '').trim();
+  if (!value) return DEFAULT_FALLBACK_IMAGE;
+  if (value.startsWith('data:')) return value;
+
+  // Support plugin-provided raw base64 image strings.
+  const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
+  if (base64Pattern.test(value)) {
+    const compact = value.replace(/\s+/g, '');
+    return `data:image/png;base61,${compact}`;
+  }
+
+  return value;
+}
+
 function quoteMetadataValue(value: string): string {
   return JSON.stringify(value);
 }
@@ -64,17 +78,21 @@ function validateChipWizardContract(chip: NewSongWizardChipOption): string | nul
   if (!meta.chipDisplayName || !meta.platform || !meta.year || !meta.channelSummary) {
     return `Chip "${chip.id}" has incomplete New Song Wizard metadata.`;
   }
-  if (!templates.instruments?.length || !templates.namedEffects?.length || !templates.structure?.length) {
+  if (!templates.instruments?.length || !templates.effects?.length || !templates.structure?.length) {
     return `Chip "${chip.id}" has incomplete New Song Wizard templates.`;
   }
   return null;
 }
 
-function pickTemplateById(
+function pickDefaultTemplate(
   templates: NewSongWizardTemplateOption[],
-  id: string,
+  preferredId?: string,
 ): NewSongWizardTemplateOption | null {
-  return templates.find((t) => t.id === id) ?? null;
+  if (preferredId) {
+    const preferred = templates.find((t) => t.id === preferredId);
+    if (preferred) return preferred;
+  }
+  return templates[0] ?? null;
 }
 
 function buildSongSource(params: {
@@ -84,9 +102,9 @@ function buildSongSource(params: {
   artist: string;
   description: string;
   tags: string;
-  instrumentsTemplate: NewSongWizardTemplateOption | null;
-  namedEffectsTemplate: NewSongWizardTemplateOption | null;
-  structureTemplate: NewSongWizardTemplateOption | null;
+  instrumentsContent: string;
+  effectsContent: string;
+  structureContent: string;
 }): string {
   const sections: string[] = [];
 
@@ -101,16 +119,14 @@ function buildSongSource(params: {
   if (normalizedTags) metadataLines.push(`song tags ${quoteMetadataValue(normalizedTags)}`);
   if (metadataLines.length) sections.push(metadataLines.join('\n'));
 
-  if (params.instrumentsTemplate?.content.trim()) {
-    sections.push(`# Instruments template: ${params.instrumentsTemplate.label}\n${params.instrumentsTemplate.content.trim()}`);
+  if (params.instrumentsContent.trim()) {
+    sections.push(`# Example instruments\n${params.instrumentsContent.trim()}`);
   }
-  if (params.namedEffectsTemplate?.content.trim()) {
-    sections.push(`# Named effects template: ${params.namedEffectsTemplate.label}\n${params.namedEffectsTemplate.content.trim()}`);
+  if (params.effectsContent.trim()) {
+    sections.push(`# Example named effects\n${params.effectsContent.trim()}`);
   }
-  if (params.structureTemplate?.content.trim()) {
-    sections.push(`# Structure template: ${params.structureTemplate.label}\n${params.structureTemplate.content.trim()}`);
-  } else {
-    sections.push(['pat melody = C5 E5 G5 C6', 'seq main = melody', 'channel 1 => seq main', 'play'].join('\n'));
+  if (params.structureContent.trim()) {
+    sections.push(`# Example structure\n${params.structureContent.trim()}`);
   }
 
   return `${sections.join('\n\n')}\n`;
@@ -122,16 +138,22 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   backdrop.setAttribute('role', 'dialog');
   backdrop.setAttribute('aria-modal', 'true');
   backdrop.setAttribute('aria-label', 'New Song Wizard');
+  // Apply style for backdrop overflow
+  backdrop.style.overflow = 'hidden';
 
   const modalEl = document.createElement('div');
   modalEl.className = 'bb-new-song-wizard';
+  // Apply styles for modal height and flex layout
+  modalEl.style.maxHeight = '90vh';
+  modalEl.style.display = 'flex';
+  modalEl.style.flexDirection = 'column';
   backdrop.appendChild(modalEl);
 
   const header = document.createElement('div');
   header.className = 'bb-new-song-wizard__header';
   const title = document.createElement('span');
   title.className = 'bb-new-song-wizard__title';
-  title.textContent = '🎼  New Song Wizard';
+  title.textContent = 'New Song Wizard';
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'bb-new-song-wizard__close';
@@ -141,11 +163,14 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
   const body = document.createElement('div');
   body.className = 'bb-new-song-wizard__body';
+  // Apply style for body overflow and max-height
+  body.style.overflow = 'visible'; // Reverted to visible, letting inner content handle scroll
 
   const formCol = document.createElement('div');
   formCol.className = 'bb-new-song-wizard__form';
-  const sideCol = document.createElement('div');
-  sideCol.className = 'bb-new-song-wizard__side';
+  // Apply styles for form column to make it scrollable and take available space
+  formCol.style.overflow = 'auto';
+  formCol.style.flexGrow = '1';
 
   const errorBanner = document.createElement('div');
   errorBanner.className = 'bb-new-song-wizard__error';
@@ -156,9 +181,35 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   const chipLabel = document.createElement('span');
   chipLabel.className = 'bb-new-song-wizard__label';
   chipLabel.textContent = 'Sound chip';
-  const chipList = document.createElement('div');
-  chipList.className = 'bb-new-song-wizard__chip-list';
-  chipField.append(chipLabel, chipList);
+  const chipCarousel = document.createElement('div');
+  chipCarousel.className = 'bb-new-song-wizard__chip-carousel';
+  const chipPrevBtn = document.createElement('button');
+  chipPrevBtn.type = 'button';
+  chipPrevBtn.className = 'bb-new-song-wizard__chip-nav bb-new-song-wizard__chip-nav--prev';
+  chipPrevBtn.setAttribute('aria-label', 'Previous sound chip');
+  chipPrevBtn.textContent = '◀';
+  const chipCard = document.createElement('div');
+  chipCard.className = 'bb-new-song-wizard__chip-card';
+  const summaryImage = document.createElement('img');
+  summaryImage.className = 'bb-new-song-wizard__chip-image';
+  summaryImage.alt = 'Selected chip platform';
+  const chipName = document.createElement('div');
+  chipName.className = 'bb-new-song-wizard__chip-name';
+  const summaryMeta = document.createElement('div');
+  summaryMeta.className = 'bb-new-song-wizard__chip-meta';
+  const chipStatus = document.createElement('div');
+  chipStatus.className = 'bb-new-song-wizard__chip-status';
+  chipStatus.hidden = true;
+  chipCard.append(summaryImage, chipName, summaryMeta, chipStatus);
+  const chipNextBtn = document.createElement('button');
+  chipNextBtn.type = 'button';
+  chipNextBtn.className = 'bb-new-song-wizard__chip-nav bb-new-song-wizard__chip-nav--next';
+  chipNextBtn.setAttribute('aria-label', 'Next sound chip');
+  chipNextBtn.textContent = '▶';
+  chipCarousel.append(chipPrevBtn, chipCard, chipNextBtn);
+  const chipPagination = document.createElement('div');
+  chipPagination.className = 'bb-new-song-wizard__chip-pagination';
+  chipField.append(chipLabel, chipCarousel, chipPagination);
 
   const nameField = document.createElement('label');
   nameField.className = 'bb-new-song-wizard__field';
@@ -204,91 +255,96 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   tagsInput.placeholder = 'demo, upbeat';
   tagsField.appendChild(tagsInput);
 
-  const instrumentsField = document.createElement('label');
-  instrumentsField.className = 'bb-new-song-wizard__field';
-  instrumentsField.innerHTML = '<span class="bb-new-song-wizard__label">Create instruments</span>';
-  const instrumentsSelect = document.createElement('select');
-  instrumentsSelect.className = 'bb-new-song-wizard__select';
-  instrumentsField.appendChild(instrumentsSelect);
+  const rowNameArtist = document.createElement('div');
+  rowNameArtist.className = 'bb-new-song-wizard__field-grid';
+  rowNameArtist.append(nameField, artistField);
 
-  const effectsField = document.createElement('label');
-  effectsField.className = 'bb-new-song-wizard__field';
-  effectsField.innerHTML = '<span class="bb-new-song-wizard__label">Create named effects</span>';
-  const effectsSelect = document.createElement('select');
-  effectsSelect.className = 'bb-new-song-wizard__select';
-  effectsField.appendChild(effectsSelect);
+  const exampleOptionsField = document.createElement('div');
+  exampleOptionsField.className = 'bb-new-song-wizard__field bb-new-song-wizard__toggle-group';
 
-  const structureField = document.createElement('label');
-  structureField.className = 'bb-new-song-wizard__field';
-  structureField.innerHTML = '<span class="bb-new-song-wizard__label">Create structure</span>';
-  const structureSelect = document.createElement('select');
-  structureSelect.className = 'bb-new-song-wizard__select';
-  structureField.appendChild(structureSelect);
+  function createExampleToggle(label: string, ariaLabel: string): { row: HTMLLabelElement; input: HTMLInputElement } {
+    const row = document.createElement('label');
+    row.className = 'bb-settings-row bb-settings-toggle-row bb-new-song-wizard__toggle';
+    const text = document.createElement('span');
+    text.className = 'bb-settings-label';
+    text.textContent = label;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'bb-settings-toggle';
+    input.setAttribute('aria-label', ariaLabel);
+    row.append(text, input);
+    return { row, input };
+  }
+
+  const instrumentsToggle = createExampleToggle('Create example instruments', 'Create example instruments');
+  const effectsToggle = createExampleToggle('Create named effects', 'Create named effects');
+  const structureToggle = createExampleToggle('Create example structure', 'Create example structure');
+  exampleOptionsField.append(instrumentsToggle.row, effectsToggle.row, structureToggle.row);
+
+  // Create a container for the BPM field to align it in the first column
+  const bpmRow = document.createElement('div');
+  bpmRow.className = 'bb-new-song-wizard__field-grid'; // Assuming this class supports two-column layout
+  bpmRow.appendChild(bpmField);
+
+  // Create a container for the example toggles to align them in the second column
+  const exampleTogglesRow = document.createElement('div');
+  exampleTogglesRow.className = 'bb-new-song-wizard__field-grid'; // Assuming this class supports two-column layout
+  exampleTogglesRow.append(
+    instrumentsToggle.row,
+    effectsToggle.row,
+    structureToggle.row
+  );
 
   formCol.append(
     errorBanner,
     chipField,
-    nameField,
-    artistField,
-    bpmField,
+    rowNameArtist,
     descField,
     tagsField,
-    instrumentsField,
-    effectsField,
-    structureField,
+    bpmRow, // Append the BPM container
+    exampleTogglesRow, // Append the toggles container
   );
 
-  const summaryTitle = document.createElement('h3');
-  summaryTitle.className = 'bb-new-song-wizard__summary-title';
-  summaryTitle.textContent = 'Chip summary';
-  const summaryImage = document.createElement('img');
-  summaryImage.className = 'bb-new-song-wizard__summary-image';
-  summaryImage.alt = 'Selected chip platform';
-  const summaryMeta = document.createElement('div');
-  summaryMeta.className = 'bb-new-song-wizard__summary-meta';
-  sideCol.append(summaryTitle, summaryImage, summaryMeta);
-
-  body.append(formCol, sideCol);
+  body.append(formCol);
 
   const footer = document.createElement('div');
   footer.className = 'bb-new-song-wizard__footer';
-  const openExistingBtn = document.createElement('button');
-  openExistingBtn.type = 'button';
-  openExistingBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--secondary';
-  openExistingBtn.textContent = 'Open Existing Song';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--secondary';
+  cancelBtn.textContent = 'Cancel';
   const createBtn = document.createElement('button');
   createBtn.type = 'button';
   createBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--primary';
-  createBtn.textContent = 'Create New Song';
-  footer.append(openExistingBtn, createBtn);
+  createBtn.textContent = 'Create Song';
+  footer.append(cancelBtn, createBtn);
 
   modalEl.append(header, body, footer);
   document.body.appendChild(backdrop);
 
   let chips: NewSongWizardChipOption[] = [];
   let selectedChipId = '';
+  const selectedExamples: Record<'instruments' | 'effects' | 'structure', NewSongWizardTemplateOption | null> = {
+    instruments: null,
+    effects: null,
+    structure: null,
+  };
 
   function currentChip(): NewSongWizardChipOption | undefined {
     return chips.find((chip) => chip.id === selectedChipId);
   }
 
-  function populateSelect(
-    select: HTMLSelectElement,
-    optionsList: NewSongWizardTemplateOption[],
-    selected: string | undefined,
-  ): void {
-    select.innerHTML = '';
-    const none = document.createElement('option');
-    none.value = '__none__';
-    none.textContent = 'None';
-    select.appendChild(none);
-    for (const opt of optionsList) {
-      const el = document.createElement('option');
-      el.value = opt.id;
-      el.textContent = opt.label;
-      select.appendChild(el);
+  function selectedChipIndex(): number {
+    return chips.findIndex((chip) => chip.id === selectedChipId);
+  }
+
+  function selectChipAt(index: number): void {
+    if (!chips.length) {
+      selectedChipId = '';
+      return;
     }
-    select.value = selected && optionsList.some((o) => o.id === selected) ? selected : none.value;
+    const wrapped = (index + chips.length) % chips.length;
+    selectedChipId = chips[wrapped].id;
   }
 
   function renderSelectedChip(): void {
@@ -296,59 +352,62 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     const issue = selected ? validateChipWizardContract(selected) : 'No enabled chip plugins found.';
     if (!selected || issue) {
       summaryImage.src = DEFAULT_FALLBACK_IMAGE;
+      chipName.textContent = selected?.id ?? 'No chip selected';
       summaryMeta.textContent = issue ?? 'No chip selected.';
+      chipStatus.hidden = !issue;
+      chipStatus.textContent = issue ?? '';
       errorBanner.hidden = false;
       errorBanner.textContent = issue ?? '';
       createBtn.disabled = true;
-      populateSelect(instrumentsSelect, [], undefined);
-      populateSelect(effectsSelect, [], undefined);
-      populateSelect(structureSelect, [], undefined);
+      selectedExamples.instruments = null;
+      selectedExamples.effects = null;
+      selectedExamples.structure = null;
+      instrumentsToggle.input.checked = false;
+      effectsToggle.input.checked = false;
+      structureToggle.input.checked = false;
+      instrumentsToggle.input.disabled = true;
+      effectsToggle.input.disabled = true;
+      structureToggle.input.disabled = true;
       return;
     }
 
     errorBanner.hidden = true;
     createBtn.disabled = false;
+    chipStatus.hidden = true;
+    chipStatus.textContent = '';
     const wizard = selected.plugin.newSongWizard!;
-    summaryImage.src = wizard.metadata.image || DEFAULT_FALLBACK_IMAGE;
+    summaryImage.src = normalizeImageSource(wizard.metadata.image);
+    chipName.textContent = wizard.metadata.chipDisplayName;
     summaryMeta.innerHTML = [
-      `<div><strong>${wizard.metadata.chipDisplayName}</strong></div>`,
       `<div>${wizard.metadata.platform}</div>`,
       `<div>Year: ${wizard.metadata.year}</div>`,
       `<div>Channels: ${wizard.metadata.channelSummary}</div>`,
     ].join('');
 
-    populateSelect(instrumentsSelect, wizard.templates.instruments, wizard.templates.defaults?.instruments);
-    populateSelect(effectsSelect, wizard.templates.namedEffects, wizard.templates.defaults?.namedEffects);
-    populateSelect(structureSelect, wizard.templates.structure, wizard.templates.defaults?.structure);
+    selectedExamples.instruments = pickDefaultTemplate(wizard.templates.instruments, wizard.templates.defaults?.instruments);
+    selectedExamples.effects = pickDefaultTemplate(wizard.templates.effects, wizard.templates.defaults?.effects);
+    selectedExamples.structure = pickDefaultTemplate(wizard.templates.structure, wizard.templates.defaults?.structure);
+
+    instrumentsToggle.input.disabled = !selectedExamples.instruments;
+    effectsToggle.input.disabled = !selectedExamples.effects;
+    structureToggle.input.disabled = !selectedExamples.structure;
+
+    instrumentsToggle.input.checked = !!selectedExamples.instruments;
+    effectsToggle.input.checked = !!selectedExamples.effects;
+    structureToggle.input.checked = !!selectedExamples.structure;
   }
 
   function renderChipNavigator(): void {
-    chipList.innerHTML = '';
-    for (const chip of chips) {
-      const issue = validateChipWizardContract(chip);
-      const chipName = chip.plugin.newSongWizard?.metadata.chipDisplayName ?? chip.id;
-      const row = document.createElement('label');
-      row.className = 'bb-new-song-wizard__chip-row';
-      const input = document.createElement('input');
-      input.type = 'radio';
-      input.name = 'bb-new-song-chip';
-      input.value = chip.id;
-      input.checked = chip.id === selectedChipId;
-      input.addEventListener('change', () => {
-        selectedChipId = chip.id;
-        renderSelectedChip();
-      });
-      const text = document.createElement('span');
-      text.textContent = chipName;
-      row.append(input, text);
-      if (issue) {
-        const warn = document.createElement('span');
-        warn.className = 'bb-new-song-wizard__chip-warning';
-        warn.textContent = 'missing metadata';
-        row.appendChild(warn);
-      }
-      chipList.appendChild(row);
+    if (chips.length > 0 && !currentChip()) {
+      selectedChipId = chips[0].id;
     }
+    const index = selectedChipIndex();
+    chipPagination.textContent = chips.length > 0
+      ? `${Math.max(index, 0) + 1} / ${chips.length}`
+      : '0 / 0';
+    const navDisabled = chips.length <= 1;
+    chipPrevBtn.disabled = navDisabled;
+    chipNextBtn.disabled = navDisabled;
   }
 
   function refreshOpenDefaults(): void {
@@ -366,6 +425,11 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   function open(): void {
     refreshOpenDefaults();
     backdrop.classList.add('bb-new-song-wizard-backdrop--open');
+    // Attempt to fix scrollbar issue by setting max-height to none
+    const modalBody = document.querySelector('.bb-new-song-wizard__body');
+    if (modalBody) {
+      (modalBody as HTMLElement).style.maxHeight = 'none';
+    }
     (songNameInput as HTMLElement).focus();
   }
 
@@ -376,41 +440,38 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   createBtn.addEventListener('click', () => {
     const selected = currentChip();
     if (!selected || validateChipWizardContract(selected)) return;
-    const wizard = selected.plugin.newSongWizard!;
     const bpmRaw = Number(bpmInput.value);
     const bpm = Number.isFinite(bpmRaw) ? Math.min(300, Math.max(60, bpmRaw)) : 128;
-    const instrumentsTemplate = instrumentsSelect.value === '__none__'
-      ? null
-      : pickTemplateById(wizard.templates.instruments, instrumentsSelect.value);
-    const namedEffectsTemplate = effectsSelect.value === '__none__'
-      ? null
-      : pickTemplateById(wizard.templates.namedEffects, effectsSelect.value);
-    const structureTemplate = structureSelect.value === '__none__'
-      ? null
-      : pickTemplateById(wizard.templates.structure, structureSelect.value);
     const songName = songNameInput.value.trim();
     const source = buildSongSource({
       chipName: selected.plugin.name,
       bpm,
-      songName,
+      songName: songName || 'Untitled song',
       artist: artistInput.value.trim(),
       description: descriptionInput.value.trim(),
       tags: tagsInput.value.trim(),
-      instrumentsTemplate,
-      namedEffectsTemplate,
-      structureTemplate,
+      instrumentsContent: instrumentsToggle.input.checked ? (selectedExamples.instruments?.content ?? '') : '',
+      effectsContent: effectsToggle.input.checked ? (selectedExamples.effects?.content ?? '') : '',
+      structureContent: structureToggle.input.checked ? (selectedExamples.structure?.content ?? '') : '',
     });
     close();
-    options.onCreate({ source, songName });
+    options.onCreate({ source, songName: songName || 'Untitled song' });
   });
 
-  openExistingBtn.addEventListener('click', () => {
-    close();
-    options.onOpenExisting();
-  });
+  cancelBtn.addEventListener('click', close);
   closeBtn.addEventListener('click', close);
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close();
+  });
+  chipPrevBtn.addEventListener('click', () => {
+    selectChipAt(selectedChipIndex() - 1);
+    renderChipNavigator();
+    renderSelectedChip();
+  });
+  chipNextBtn.addEventListener('click', () => {
+    selectChipAt(selectedChipIndex() + 1);
+    renderChipNavigator();
+    renderSelectedChip();
   });
   backdrop.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -418,10 +479,36 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
       close();
       return;
     }
+
+    const keyTarget = e.target as HTMLElement | null;
+    const isTextEntryTarget = !!keyTarget && (
+      keyTarget.tagName === 'INPUT' ||
+      keyTarget.tagName === 'TEXTAREA' ||
+      keyTarget.tagName === 'SELECT' ||
+      keyTarget.isContentEditable
+    );
+
+    if (!isTextEntryTarget && !chipPrevBtn.disabled && !chipNextBtn.disabled) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        selectChipAt(selectedChipIndex() - 1);
+        renderChipNavigator();
+        renderSelectedChip();
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        selectChipAt(selectedChipIndex() + 1);
+        renderChipNavigator();
+        renderSelectedChip();
+        return;
+      }
+    }
+
     if (e.key !== 'Tab') return;
     const focusable = Array.from(
       modalEl.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled])',
       ),
     );
     if (!focusable.length) return;

@@ -33,21 +33,8 @@ import { createNoiseChannel } from './noise.js';
 import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
-import { nesUIContributions } from './ui-contributions.js';
+import { nesUIContributions, CHIP_IMAGE_BASE64 } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
-
-const NES_IMAGE =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96">' +
-    '<rect width="160" height="96" fill="#2b2b2b"/>' +
-    '<rect x="8" y="12" width="144" height="72" rx="8" fill="#b0b0b0"/>' +
-    '<rect x="16" y="20" width="56" height="24" rx="4" fill="#222"/>' +
-    '<circle cx="122" cy="34" r="8" fill="#d34f4f"/>' +
-    '<circle cx="122" cy="58" r="8" fill="#555"/>' +
-    '<rect x="16" y="54" width="56" height="10" rx="2" fill="#666"/>' +
-    '</svg>',
-  );
 
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
@@ -105,7 +92,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       platform: 'Nintendo Entertainment System',
       year: '1983',
       channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
-      image: NES_IMAGE,
+      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
     },
     templates: {
       instruments: [
@@ -124,7 +111,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
           content: 'inst lead type=pulse1 duty=50 env=12,down',
         },
       ],
-      namedEffects: [
+      effects: [
         {
           id: 'nes-common-fx',
           label: 'Vibrato + arpeggio',
@@ -169,7 +156,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       ],
       defaults: {
         instruments: 'nes-basic',
-        namedEffects: 'nes-common-fx',
+        effects: 'nes-common-fx',
         structure: 'nes-band-3ch',
       },
     },

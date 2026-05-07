@@ -35,22 +35,9 @@ import { version } from './version.js';
 import { createToneChannel } from './tone.js';
 import { createNoiseChannel } from './noise.js';
 import { validateSmsInstrument, SMS_TYPES } from './validate.js';
-import { smsUIContributions } from './ui-contributions.js';
+import { smsUIContributions, CHIP_IMAGE_BASE64 } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
-
-const SMS_IMAGE =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96">' +
-    '<rect width="160" height="96" fill="#1a1a1a"/>' +
-    '<rect x="12" y="16" width="136" height="64" rx="8" fill="#202020" stroke="#444"/>' +
-    '<circle cx="42" cy="48" r="14" fill="#3a3a3a"/>' +
-    '<rect x="72" y="32" width="58" height="8" rx="3" fill="#4a4a4a"/>' +
-    '<rect x="72" y="46" width="58" height="8" rx="3" fill="#4a4a4a"/>' +
-    '<rect x="72" y="60" width="30" height="8" rx="3" fill="#4a4a4a"/>' +
-    '</svg>',
-  );
 
 const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'sms',
@@ -98,7 +85,7 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       platform: 'Sega Master System / Game Gear',
       year: '1985',
       channelSummary: '3 tone, 1 noise',
-      image: SMS_IMAGE,
+      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
     },
     templates: {
       instruments: [
@@ -117,7 +104,7 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
           content: 'inst lead type=tone1 vol=9',
         },
       ],
-      namedEffects: [
+      effects: [
         {
           id: 'sms-common-fx',
           label: 'Vibrato + volSlide',
@@ -162,7 +149,7 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       ],
       defaults: {
         instruments: 'sms-basic',
-        namedEffects: 'sms-common-fx',
+        effects: 'sms-common-fx',
         structure: 'sms-band-3ch',
       },
     },

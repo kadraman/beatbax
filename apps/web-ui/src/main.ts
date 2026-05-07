@@ -11,10 +11,12 @@ import { Buffer } from 'buffer';
 import './styles.css';
 
 // ─── Chip plugin registration ─────────────────────────────────────────────────
-// Register all plugins that are enabled in localStorage (defaults: nes).
+// Register optional plugins enabled in localStorage.
+// (Game Boy is built-in and already present in chipRegistry.)
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
-import { loadPluginsFromStorage, AVAILABLE_PLUGINS, getEnabledPluginIds } from './plugins/registry-config';
+import { loadPluginsFromStorage } from './plugins/registry-config';
+import { chipRegistry } from '@beatbax/engine/chips';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
 import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
 import { storage, StorageKey } from './utils/local-storage';
@@ -1376,15 +1378,14 @@ const menuBar = new MenuBar({
 
 newSongWizard = buildNewSongWizard({
   getEnabledChips: () => {
-    const enabled = new Set(getEnabledPluginIds());
-    return AVAILABLE_PLUGINS
-      .filter((entry) => enabled.has(entry.id))
-      .map((entry) => ({ id: entry.id, plugin: entry.plugin }));
+    return chipRegistry.listCanonical().flatMap((id) => {
+      const plugin = chipRegistry.get(id);
+      return plugin ? [{ id, plugin }] : [];
+    });
   },
   getDefaultBpm: () => settingDefaultBpm.get(),
   getDefaultArtist: () => settingSongArtist.get(),
   onCreate: ({ source, songName }) => createSongFromWizard(source, songName),
-  onOpenExisting: () => openSongFromDisk(),
 });
 
 if (claimNewSongWizardOnboarding(
