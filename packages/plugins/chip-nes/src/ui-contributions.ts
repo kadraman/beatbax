@@ -239,14 +239,14 @@ inst sfx      type=dmc dmc_rate=10 dmc_loop=false dmc_sample="@nes/crash"
     title: 'Examples — Click to Insert (NES)',
     content: [
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Minimal NES song',
         code:
 `chip nes
 bpm 150
 time 4
 
-inst lead type=pulse1 duty=25 env=13,down env_period=2
+inst lead type=pulse1 duty=50 env=13,down env_period=2
 
 pat a = C5 E5 G5 C6
 
@@ -257,14 +257,14 @@ channel 1 => inst lead seq main
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: '5-channel NES chiptune',
         code:
 `chip nes
 bpm 150
 time 4
 
-inst lead  type=pulse1   duty=25   env=13,down  env_period=2
+inst lead  type=pulse1   duty=50   env=13,down  env_period=2
 inst harm  type=pulse2   duty=50   env=10,down  env_period=4
 inst bass  type=triangle
 inst kick  type=noise    noise_mode=normal noise_period=12 env=15,down env_period=3
@@ -293,7 +293,7 @@ channel 5 => inst samp  seq hits
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'NES arpeggio chords',
         code:
 `chip nes
@@ -315,7 +315,7 @@ channel 2 => inst harm seq run:oct(-1)
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'NES hardware sweep effect',
         code:
 `chip nes

@@ -273,7 +273,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
     title: 'Examples — Click to Insert (SMS)',
     content: [
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Minimal SMS song',
         code: `chip sms\n\n` +
           `bpm 150\n` +
@@ -285,7 +285,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
           `play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: '4-channel SMS chiptune',
         code: `chip sms\n\n` +
           `bpm 154\n` +
@@ -310,7 +310,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
           `play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'SMS arpeggio chords',
         code: `chip sms\n\n` +
           `bpm 180\n\n` +
@@ -323,7 +323,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
           `play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Synced Tone3 + Noise (kick that follows bass)',
         code: `chip sms\n\n` +
           `bpm 120\n\n` +
@@ -338,7 +338,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
           `play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Game Gear stereo panning',
         code: `chip sms\n\n` +
           `bpm 140\n\n` +
