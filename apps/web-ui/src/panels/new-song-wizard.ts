@@ -32,30 +32,11 @@ export function claimNewSongWizardOnboarding(
   return true;
 }
 
-const DEFAULT_FALLBACK_IMAGE =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96">' +
-    '<rect width="160" height="96" fill="#2b2b2b"/>' +
-    '<rect x="12" y="12" width="136" height="72" rx="8" fill="#1f1f1f" stroke="#555"/>' +
-    '<rect x="26" y="28" width="108" height="8" rx="3" fill="#666"/>' +
-    '<rect x="26" y="44" width="84" height="8" rx="3" fill="#555"/>' +
-    '<rect x="26" y="60" width="64" height="8" rx="3" fill="#4c4c4c"/>' +
-    '</svg>',
-  );
+const DEFAULT_FALLBACK_IMAGE = '/chip-image.png';
 
 function normalizeImageSource(raw?: string): string {
   const value = (raw || '').trim();
   if (!value) return DEFAULT_FALLBACK_IMAGE;
-  if (value.startsWith('data:')) return value;
-
-  // Support plugin-provided raw base64 image strings.
-  const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
-  if (base64Pattern.test(value)) {
-    const compact = value.replace(/\s+/g, '');
-    return `data:image/png;base61,${compact}`;
-  }
-
   return value;
 }
 
@@ -138,15 +119,9 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   backdrop.setAttribute('role', 'dialog');
   backdrop.setAttribute('aria-modal', 'true');
   backdrop.setAttribute('aria-label', 'New Song Wizard');
-  // Apply style for backdrop overflow
-  backdrop.style.overflow = 'hidden';
 
   const modalEl = document.createElement('div');
   modalEl.className = 'bb-new-song-wizard';
-  // Apply styles for modal height and flex layout
-  modalEl.style.maxHeight = '90vh';
-  modalEl.style.display = 'flex';
-  modalEl.style.flexDirection = 'column';
   backdrop.appendChild(modalEl);
 
   const header = document.createElement('div');
@@ -163,14 +138,9 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
   const body = document.createElement('div');
   body.className = 'bb-new-song-wizard__body';
-  // Apply style for body overflow and max-height
-  body.style.overflow = 'visible'; // Reverted to visible, letting inner content handle scroll
 
   const formCol = document.createElement('div');
   formCol.className = 'bb-new-song-wizard__form';
-  // Apply styles for form column to make it scrollable and take available space
-  formCol.style.overflow = 'auto';
-  formCol.style.flexGrow = '1';
 
   const errorBanner = document.createElement('div');
   errorBanner.className = 'bb-new-song-wizard__error';
@@ -324,6 +294,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
   let chips: NewSongWizardChipOption[] = [];
   let selectedChipId = '';
+  let bodyOverflowBeforeOpen = '';
   const selectedExamples: Record<'instruments' | 'effects' | 'structure', NewSongWizardTemplateOption | null> = {
     instruments: null,
     effects: null,
@@ -424,17 +395,15 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
   function open(): void {
     refreshOpenDefaults();
+    bodyOverflowBeforeOpen = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     backdrop.classList.add('bb-new-song-wizard-backdrop--open');
-    // Attempt to fix scrollbar issue by setting max-height to none
-    const modalBody = document.querySelector('.bb-new-song-wizard__body');
-    if (modalBody) {
-      (modalBody as HTMLElement).style.maxHeight = 'none';
-    }
     (songNameInput as HTMLElement).focus();
   }
 
   function close(): void {
     backdrop.classList.remove('bb-new-song-wizard-backdrop--open');
+    document.body.style.overflow = bodyOverflowBeforeOpen;
   }
 
   createBtn.addEventListener('click', () => {

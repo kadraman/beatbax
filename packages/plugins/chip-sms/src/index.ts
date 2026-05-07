@@ -35,7 +35,7 @@ import { version } from './version.js';
 import { createToneChannel } from './tone.js';
 import { createNoiseChannel } from './noise.js';
 import { validateSmsInstrument, SMS_TYPES } from './validate.js';
-import { smsUIContributions, CHIP_IMAGE_BASE64 } from './ui-contributions.js';
+import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
 
@@ -85,7 +85,7 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       platform: 'Sega Master System / Game Gear',
       year: '1985',
       channelSummary: '3 tone, 1 noise',
-      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
+      image: '/chips/sms/chip-image.png',
     },
     templates: {
       instruments: [
