@@ -32,6 +32,7 @@ export function claimNewSongWizardOnboarding(
   return true;
 }
 
+// Default fallback image is served from apps/web-ui/public/chip-image.png.
 const DEFAULT_FALLBACK_IMAGE = '/chip-image.png';
 
 function normalizeImageSource(raw?: string): string {
