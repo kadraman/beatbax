@@ -145,6 +145,37 @@ export interface ChipUIContributions {
   helpSections: ChipHelpSection[];
 }
 
+export interface NewSongWizardTemplateOption {
+  id: string;
+  label: string;
+  content: string;
+  description?: string;
+}
+
+export interface NewSongWizardMetadata {
+  chipDisplayName: string;
+  platform: string;
+  year: string;
+  channelSummary: string;
+  image?: string;
+}
+
+export interface NewSongWizardTemplates {
+  instruments: NewSongWizardTemplateOption[];
+  namedEffects: NewSongWizardTemplateOption[];
+  structure: NewSongWizardTemplateOption[];
+  defaults?: {
+    instruments?: string;
+    namedEffects?: string;
+    structure?: string;
+  };
+}
+
+export interface ChipNewSongWizard {
+  metadata: NewSongWizardMetadata;
+  templates: NewSongWizardTemplates;
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 /**
@@ -309,4 +340,11 @@ export interface ChipPlugin {
    * CoPilot system prompt, hover docs, and Help panel.
    */
   uiContributions?: ChipUIContributions;
+
+  /**
+   * Optional New Song Wizard contributions used by the web UI.
+   * When provided, the wizard uses this plugin metadata and starter templates
+   * instead of hard-coded chip-specific defaults.
+   */
+  newSongWizard?: ChipNewSongWizard;
 }

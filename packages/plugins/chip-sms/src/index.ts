@@ -39,6 +39,19 @@ import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
 
+const SMS_IMAGE =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96">' +
+    '<rect width="160" height="96" fill="#1a1a1a"/>' +
+    '<rect x="12" y="16" width="136" height="64" rx="8" fill="#202020" stroke="#444"/>' +
+    '<circle cx="42" cy="48" r="14" fill="#3a3a3a"/>' +
+    '<rect x="72" y="32" width="58" height="8" rx="3" fill="#4a4a4a"/>' +
+    '<rect x="72" y="46" width="58" height="8" rx="3" fill="#4a4a4a"/>' +
+    '<rect x="72" y="60" width="30" height="8" rx="3" fill="#4a4a4a"/>' +
+    '</svg>',
+  );
+
 const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'sms',
   version,
@@ -79,6 +92,81 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   },
 
   uiContributions: smsUIContributions,
+  newSongWizard: {
+    metadata: {
+      chipDisplayName: 'SMS (SN76489)',
+      platform: 'Sega Master System / Game Gear',
+      year: '1985',
+      channelSummary: '3 tone, 1 noise',
+      image: SMS_IMAGE,
+    },
+    templates: {
+      instruments: [
+        {
+          id: 'sms-basic',
+          label: 'Lead + bass + noise',
+          content: [
+            'inst lead type=tone1 vol=8',
+            'inst bass type=tone2 vol=10',
+            'inst drum type=noise noise_mode=white noise_rate=2 vol=6',
+          ].join('\n'),
+        },
+        {
+          id: 'sms-minimal',
+          label: 'Minimal lead',
+          content: 'inst lead type=tone1 vol=9',
+        },
+      ],
+      namedEffects: [
+        {
+          id: 'sms-common-fx',
+          label: 'Vibrato + volSlide',
+          content: [
+            'effect vibLead = vib:2,3,sine,2',
+            'effect fadeOut = volSlide:-5',
+          ].join('\n'),
+        },
+        {
+          id: 'sms-empty-fx',
+          label: 'Empty',
+          content: '',
+        },
+      ],
+      structure: [
+        {
+          id: 'sms-simple-1ch',
+          label: 'Single channel melody',
+          content: [
+            'pat melody = C5 E5 G5 C6',
+            'seq main = melody melody:oct(-1)',
+            'channel 1 => inst lead seq main',
+            'play',
+          ].join('\n'),
+        },
+        {
+          id: 'sms-band-3ch',
+          label: 'Three channel starter',
+          content: [
+            'pat leadA = C5 E5 G5 C6',
+            'pat bassA = C3 . G2 .',
+            'pat drumA = C2 . C2 .',
+            'seq leadSeq = leadA leadA:oct(-1)',
+            'seq bassSeq = bassA bassA',
+            'seq drumSeq = drumA drumA',
+            'channel 1 => inst lead seq leadSeq',
+            'channel 2 => inst bass seq bassSeq',
+            'channel 4 => inst drum seq drumSeq',
+            'play',
+          ].join('\n'),
+        },
+      ],
+      defaults: {
+        instruments: 'sms-basic',
+        namedEffects: 'sms-common-fx',
+        structure: 'sms-band-3ch',
+      },
+    },
+  },
 };
 
 export default smsPlugin;

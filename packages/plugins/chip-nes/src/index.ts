@@ -36,6 +36,19 @@ import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
 
+const NES_IMAGE =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96">' +
+    '<rect width="160" height="96" fill="#2b2b2b"/>' +
+    '<rect x="8" y="12" width="144" height="72" rx="8" fill="#b0b0b0"/>' +
+    '<rect x="16" y="20" width="56" height="24" rx="4" fill="#222"/>' +
+    '<circle cx="122" cy="34" r="8" fill="#d34f4f"/>' +
+    '<circle cx="122" cy="58" r="8" fill="#555"/>' +
+    '<rect x="16" y="54" width="56" height="10" rx="2" fill="#666"/>' +
+    '</svg>',
+  );
+
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
   version,
@@ -86,6 +99,81 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   },
 
   uiContributions: nesUIContributions,
+  newSongWizard: {
+    metadata: {
+      chipDisplayName: 'NES (Ricoh 2A03)',
+      platform: 'Nintendo Entertainment System',
+      year: '1983',
+      channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
+      image: NES_IMAGE,
+    },
+    templates: {
+      instruments: [
+        {
+          id: 'nes-basic',
+          label: 'Basic lead + bass + drums',
+          content: [
+            'inst lead  type=pulse1 duty=25 env=12,down',
+            'inst bass  type=pulse2 duty=50 env=10,down',
+            'inst kick  type=noise env=14,down',
+          ].join('\n'),
+        },
+        {
+          id: 'nes-lead-only',
+          label: 'Lead only',
+          content: 'inst lead type=pulse1 duty=50 env=12,down',
+        },
+      ],
+      namedEffects: [
+        {
+          id: 'nes-common-fx',
+          label: 'Vibrato + arpeggio',
+          content: [
+            'effect vibLead = vib:2,4,sine,2',
+            'effect majArp = arp:4,7',
+          ].join('\n'),
+        },
+        {
+          id: 'nes-empty-fx',
+          label: 'Empty',
+          content: '',
+        },
+      ],
+      structure: [
+        {
+          id: 'nes-simple-1ch',
+          label: 'Single channel melody',
+          content: [
+            'pat melody = C5 E5 G5 C6',
+            'seq main = melody melody:oct(-1)',
+            'channel 1 => inst lead seq main',
+            'play',
+          ].join('\n'),
+        },
+        {
+          id: 'nes-band-3ch',
+          label: 'Three channel starter',
+          content: [
+            'pat leadA = C5 E5 G5 C6',
+            'pat bassA = C3 . G2 .',
+            'pat drumA = C2 . C2 .',
+            'seq leadSeq = leadA leadA:oct(-1)',
+            'seq bassSeq = bassA bassA',
+            'seq drumSeq = drumA drumA',
+            'channel 1 => inst lead seq leadSeq',
+            'channel 2 => inst bass seq bassSeq',
+            'channel 4 => inst kick seq drumSeq',
+            'play',
+          ].join('\n'),
+        },
+      ],
+      defaults: {
+        instruments: 'nes-basic',
+        namedEffects: 'nes-common-fx',
+        structure: 'nes-band-3ch',
+      },
+    },
+  },
 
   configureForSong(song: { chip?: string; chipRegion?: string }) {
     setNesClockRegion(song?.chipRegion);

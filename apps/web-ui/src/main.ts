@@ -14,7 +14,7 @@ import './styles.css';
 // Register all plugins that are enabled in localStorage (defaults: nes).
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
-import { loadPluginsFromStorage } from './plugins/registry-config';
+import { loadPluginsFromStorage, AVAILABLE_PLUGINS, getEnabledPluginIds } from './plugins/registry-config';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
 import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
 import { storage, StorageKey } from './utils/local-storage';
@@ -48,11 +48,12 @@ import {
 import { setupCodeLensPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
-import { getInitialContent, getStarterSong } from './app/bootstrap';
+import { getInitialContent } from './app/bootstrap';
 import { buildAppLayout } from './app/layout';
 import { buildBottomTabs, buildRightTabs } from './app/tabs';
 import { buildShortcutsModal } from './app/modals';
 import { buildSettingsModal } from './panels/settings-panel';
+import { buildNewSongWizard, claimNewSongWizardOnboarding } from './panels/new-song-wizard';
 
 // Playback imports
 import { PlaybackManager } from './playback/playback-manager';
@@ -69,7 +70,7 @@ import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
   settingShowSongVisualizer,
-  settingWordWrap, settingDefaultBpm,
+  settingWordWrap, settingDefaultBpm, settingSongArtist,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
 } from './stores/settings.store';
@@ -1286,6 +1287,35 @@ themeManager.init();
 // The `toolbar` variable is referenced inside MenuBar callbacks via the closure
 // formed after Toolbar is instantiated below.
 let toolbar: Toolbar; // forward declaration — assigned after Toolbar construction
+let newSongWizard: ReturnType<typeof buildNewSongWizard> | null = null;
+
+function createSongFromWizard(source: string, songName: string): void {
+  playbackManager.stop();
+  const stem = sanitizeFilename(songName.toLowerCase()) || 'song';
+  setLoadedFilename(stem);
+  menuBar.setSongName(songName || 'untitled');
+  editor.setValue?.(source);
+  storage.set(StorageKey.EDITOR_CONTENT, source);
+  opLog(outputPanel, '📄 New song');
+  emitParse(source);
+}
+
+function openSongFromDisk(): void {
+  openFilePicker({
+    accept: '.bax',
+    onLoad: (result) => {
+      playbackManager.stop();
+      setLoadedFilename(fileBaseStem(result.filename));
+      menuBar.setSongName(loadedFilename);
+      editor.setValue?.(result.content);
+      storage.set(StorageKey.EDITOR_CONTENT, result.content);
+      opLog(outputPanel, `📂 Opened ${result.filename}`);
+      eventBus.emit('song:loaded', { filename: result.filename });
+      menuBar.recordRecent(result.filename);
+      emitParse(result.content);
+    },
+  });
+}
 
 const menuBar = new MenuBar({
   container: menuBarContainer,
@@ -1294,34 +1324,8 @@ const menuBar = new MenuBar({
   onShowShortcuts: () => shortcutsModal.open(),
   onShowSettings: () => settingsModal.open(),
   onExport: (format) => handleExport(format),
-  onNew: () => {
-    if (confirm('Clear the editor and start a new song?')) {
-      playbackManager.stop();
-      const newSong = getStarterSong(settingDefaultBpm.get());
-      editor.setValue?.(newSong);
-      storage.set(StorageKey.EDITOR_CONTENT, newSong);
-      setLoadedFilename('song');
-      menuBar.setSongName('untitled');
-      opLog(outputPanel, '📄 New song');
-      emitParse(newSong);
-    }
-  },
-  onOpen: () => {
-    openFilePicker({
-      accept: '.bax',
-      onLoad: (result) => {
-        playbackManager.stop();
-        setLoadedFilename(fileBaseStem(result.filename));
-        menuBar.setSongName(loadedFilename);
-        editor.setValue?.(result.content);
-        storage.set(StorageKey.EDITOR_CONTENT, result.content);
-        opLog(outputPanel, `📂 Opened ${result.filename}`);
-        eventBus.emit('song:loaded', { filename: result.filename });
-        menuBar.recordRecent(result.filename);
-        emitParse(result.content);
-      },
-    });
-  },
+  onNew: () => newSongWizard?.open(),
+  onOpen: () => openSongFromDisk(),
   onSave: () => {
     const content = getSource();
     if (!content.trim()) { opWarn(problemsPanel, 'Nothing to save — the editor is empty.'); return; }
@@ -1369,6 +1373,27 @@ const menuBar = new MenuBar({
   onToggleTheme: () => themeManager.toggle(),
   onToggleAI: () => toggleAIAssistant(),
 });
+
+newSongWizard = buildNewSongWizard({
+  getEnabledChips: () => {
+    const enabled = new Set(getEnabledPluginIds());
+    return AVAILABLE_PLUGINS
+      .filter((entry) => enabled.has(entry.id))
+      .map((entry) => ({ id: entry.id, plugin: entry.plugin }));
+  },
+  getDefaultBpm: () => settingDefaultBpm.get(),
+  getDefaultArtist: () => settingSongArtist.get(),
+  onCreate: ({ source, songName }) => createSongFromWizard(source, songName),
+  onOpenExisting: () => openSongFromDisk(),
+});
+
+if (claimNewSongWizardOnboarding(
+  (key) => storage.get(key),
+  (key, value) => storage.set(key, value),
+  StorageKey.NEW_SONG_WIZARD_ONBOARDED,
+)) {
+  newSongWizard.open();
+}
 
 (window as any).__beatbax_menuBar = menuBar;
 
