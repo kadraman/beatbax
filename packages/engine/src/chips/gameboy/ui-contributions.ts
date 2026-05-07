@@ -231,7 +231,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
     title: 'Examples — Click to Insert (Game Boy)',
     content: [
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Minimal song',
         code:
 `chip gameboy
@@ -249,7 +249,7 @@ channel 1 => inst lead seq main
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: '4-channel chiptune',
         code:
 `chip gameboy
@@ -277,7 +277,7 @@ channel 4 => inst kick  seq perc
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Arpeggio pattern',
         code:
 `chip gameboy
@@ -294,7 +294,7 @@ channel 1 => inst arp seq run
 play`,
       },
       {
-        kind: 'snippet',
+        kind: 'song',
         label: 'Wave + noise percussion',
         code:
 `chip gameboy

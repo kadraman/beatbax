@@ -113,6 +113,7 @@ export interface ChipHelpSection {
   content: Array<
     | { kind: 'text'; text: string }
     | { kind: 'snippet'; label: string; code: string }
+    | { kind: 'song'; label: string; code: string }
   >;
 }
 

@@ -20,6 +20,8 @@ export interface HelpPanelOptions {
   eventBus: EventBus;
   /** Called with the snippet text when the user clicks "Insert" on an example */
   onInsertSnippet?: (snippet: string) => void;
+  /** Called with the full song text when the user clicks "Replace" on a song example */
+  onReplaceEditor?: (text: string) => void;
   /** Whether the panel starts visible (default: false) */
   defaultVisible?: boolean;
   /**
@@ -47,7 +49,8 @@ interface Section {
 type SectionItem =
   | { kind: 'text'; text: string }
   | { kind: 'shortcut'; keys: string[]; desc: string }
-  | { kind: 'snippet'; label: string; code: string };
+  | { kind: 'snippet'; label: string; code: string }
+  | { kind: 'song'; label: string; code: string };
 
 // ─── Reference content ────────────────────────────────────────────────────────
 
@@ -204,6 +207,7 @@ export class HelpPanel {
   private container: HTMLElement;
   private eventBus: EventBus;
   private onInsertSnippet?: (snippet: string) => void;
+  private onReplaceEditor?: (text: string) => void;
   private getShortcuts?: () => ReadonlyArray<ShortcutDescriptor>;
   private visible: boolean;
   private embedded: boolean;
@@ -221,6 +225,7 @@ export class HelpPanel {
     this.container = options.container;
     this.eventBus = options.eventBus;
     this.onInsertSnippet = options.onInsertSnippet;
+    this.onReplaceEditor = options.onReplaceEditor;
     this.getShortcuts = options.getShortcuts;
     this.visible = options.defaultVisible ?? false;
     this.embedded = options.embedded ?? false;
@@ -472,7 +477,8 @@ export class HelpPanel {
       switch (item.kind) {
         case 'text':     return item.text.toLowerCase().includes(q);
         case 'shortcut': return item.desc.toLowerCase().includes(q) || item.keys.join('+').toLowerCase().includes(q);
-        case 'snippet':  return item.label.toLowerCase().includes(q) || item.code.toLowerCase().includes(q);
+      case 'snippet':
+      case 'song':  return item.label.toLowerCase().includes(q) || item.code.toLowerCase().includes(q);
         default:         return false;
       }
     });
@@ -590,6 +596,46 @@ export class HelpPanel {
         });
 
         snippetHeader.append(labelEl, insertBtn);
+
+        const pre = document.createElement('pre');
+        pre.className = 'bb-help__snippet-pre';
+        const code = document.createElement('code');
+        code.textContent = item.code;
+        pre.appendChild(code);
+
+        el.append(snippetHeader, pre);
+        break;
+      }
+
+      case 'song': {
+        el.className = 'bb-help__snippet';  // reuse the same style
+
+        const snippetHeader = document.createElement('div');
+        snippetHeader.className = 'bb-help__snippet-header';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'bb-help__snippet-label';
+        labelEl.textContent = item.label;
+
+        const replaceBtn = document.createElement('button');
+        replaceBtn.className = 'bb-help__insert-btn';
+        replaceBtn.textContent = 'Replace';
+        replaceBtn.title = 'Replace entire editor with this song';
+        replaceBtn.addEventListener('click', (e: MouseEvent) => {
+          e.stopPropagation();
+          if (window.confirm('Replace the current song? This cannot be undone.')) {
+            this.onReplaceEditor?.(item.code);
+            // Brief visual feedback
+            replaceBtn.innerHTML = `${icon('check-circle', 'w-3.5 h-3.5 inline-block align-middle mr-0.5')} Replaced`;
+            replaceBtn.disabled = true;
+            setTimeout(() => {
+              replaceBtn.textContent = 'Replace';
+              replaceBtn.disabled = false;
+            }, 1200);
+          }
+        });
+
+        snippetHeader.append(labelEl, replaceBtn);
 
         const pre = document.createElement('pre');
         pre.className = 'bb-help__snippet-pre';
