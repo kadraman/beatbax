@@ -33,7 +33,7 @@ import { createNoiseChannel } from './noise.js';
 import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
-import { nesUIContributions } from './ui-contributions.js';
+import { CHIP_IMAGE_BASE64, nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
 
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
@@ -92,7 +92,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       platform: 'Nintendo Entertainment System',
       year: '1983',
       channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
-      image: '/chips/nes/chip-image.png',
+      image: CHIP_IMAGE_BASE64,
     },
     templates: {
       instruments: [
