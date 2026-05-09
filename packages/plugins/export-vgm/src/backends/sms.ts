@@ -1,55 +1,18 @@
 /**
- * ISM → VGM translation for the SN76489 PSG (Sega Master System / Game Gear).
+ * VGM backend for the Sega Master System / Game Gear SN76489 PSG.
  *
- * Walks the ISM event stream tick-by-tick, simulates the SMS chip behaviour
- * (macros, effects) per-tick, and emits the corresponding PSG register writes
- * and wait commands into a VGM data buffer.
+ * Implements the VgmBackend interface. All SMS-specific translation logic
+ * (formerly in ismToVgm.ts and index.ts) lives here.
  *
- * Timing model (matches pcmRenderer.ts):
- *   tickSeconds = (60 / bpm) / 4
- *   samplesPerTick = 44100 * tickSeconds
- *   framesPerTick  = 60 * tickSeconds   (60 Hz macro advance rate)
+ * Output is byte-for-byte identical to the previous monolithic exporter.
  */
 
 import type { InstrumentNode } from '@beatbax/engine';
-
-// ─── Local song model types (SongModel is not re-exported by the engine's plugin API) ──
-
-export interface ChannelEventLike {
-  type: string;
-  token?: string;
-  instrument?: string;
-  instProps?: Record<string, any>;
-  effects?: Array<{ type: string; params: Array<string | number> }>;
-  defaultNote?: string;
-  pan?: { enum?: string; value?: number; sourceNamespace?: string } | null;
-}
-
-export interface ChannelModelLike {
-  id: number;
-  events: ChannelEventLike[];
-  defaultInstrument?: string;
-  speed?: number;
-}
-
-export interface SongLike {
-  pats: Record<string, string[]>;
-  insts: Record<string, InstrumentNode>;
-  seqs: Record<string, string[]>;
-  channels: ChannelModelLike[];
-  bpm?: number;
-  chip?: string;
-  chipRegion?: string;
-  volume?: number;
-  metadata?: {
-    name?: string;
-    artist?: string;
-    description?: string;
-    tags?: string[];
-  };
-}
+import type { VgmBackend, SongLike, VgmTranslateResult } from './types.js';
+import type { Gd3Fields } from '../gd3.js';
+import type { VgmHeaderParams } from '../vgmWriter.js';
 import { SN76489State, GG_STEREO_DEFAULT, ATTENUATION_MUTE } from './psgState.js';
-import { appendWait } from './vgmWriter.js';
+import { appendWait } from '../vgmWriter.js';
 import {
   CMD_PSG_WRITE,
   CMD_GG_STEREO,
@@ -57,7 +20,8 @@ import {
   SN76489_CLOCK_PAL,
   noiseControlByte,
   SAMPLES_PER_60HZ,
-} from './constants.js';
+} from '../constants.js';
+import { version } from '../version.js';
 
 // ─── Pitch utilities ──────────────────────────────────────────────────────────
 
@@ -92,7 +56,7 @@ function freqToPeriod(freq: number, clock: number): number {
   return Math.max(0, Math.min(1023, Math.round(clock / (32 * freq))));
 }
 
-/** Note name → SN76489 period (0 if unparseable). Used by SMF-level utilities. */
+/** Note name → SN76489 period (0 if unparseable). */
 export function noteToPeriod(note: string, clock: number): number {
   const midi = noteToMidi(note);
   if (midi === null) return 0;
@@ -230,7 +194,7 @@ interface ChannelSimState {
 
   // Active effects
   vibPhase:     number;  // 0..1 LFO phase
-  vibDepth:     number;  // 0–15 intensity; amplitudeHz = depth * f² / 131072 (matches WebAudio engine)
+  vibDepth:     number;  // 0–15 intensity
   vibRate:      number;  // Hz
   vibDelay:     number;  // frames before vibrato starts
   vibFrame:     number;  // frames elapsed since note-on
@@ -297,6 +261,7 @@ function makeChannelState(): ChannelSimState {
     noteFrames: 1, noteFrame: 0,
   };
 }
+
 function channelIdToPsg(channelId: number): number {
   return channelId - 1; // channel 1 → PSG 0, channel 4 → PSG 3
 }
@@ -309,7 +274,7 @@ function isNoiseChannel(psgCh: number): boolean {
 // ─── Instrument extraction ────────────────────────────────────────────────────
 
 function resolveInstrument(
-  event: ChannelEventLike,
+  event: { instrument?: string; instProps?: Record<string, any> },
   insts: Record<string, InstrumentNode>,
   channelDefault: string | undefined,
 ): InstrumentNode | null {
@@ -369,9 +334,8 @@ function noteOn(
   state.freq = freq;
   state.baseFreq = freq;
 
-  // Volume / attenuation - use true SMS attenuation semantics (0=loudest, 15=mute)
+  // Volume / attenuation
   if (inst) {
-    // Default to medium volume if no volume specified
     const defaultVolume = 8;
     let baseVolume;
     if (inst.vol !== undefined) {
@@ -379,7 +343,6 @@ function noteOn(
     } else {
       baseVolume = defaultVolume;
     }
-    // Use instrument volume directly (no post-export gain boost)
     state.attenuation = Math.max(0, Math.min(15, baseVolume));
 
     // Noise settings (channel 3 only)
@@ -469,16 +432,11 @@ function parseEffectsOnNoteOn(
     const t = eff.type.toLowerCase();
     const p = eff.params;
     if (t === 'vib') {
-      // vib:depth,rate[,waveform,durationRows,delayRows]
-      // p[0]=depth  p[1]=rate  p[2]=waveform  p[3]=durationRows  p[4]=delayRows
       state.vibDepth = typeof p[0] === 'number' ? p[0] : parseFloat(String(p[0]));
       state.vibRate  = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1]));
       if (isNaN(state.vibDepth)) state.vibDepth = 1;
       if (isNaN(state.vibRate))  state.vibRate  = 5;
       state.vibPhase = 0;
-      // Delay: resolver attaches delaySec (seconds) directly on the effect object.
-      // Prefer that over raw p[4] rows so the conversion is always accurate.
-      // framesPerTick = 60 * _tickSeconds, and 1 delayRow ≈ 1 tick at default resolution.
       const delaySec = typeof (eff as any).delaySec === 'number' ? (eff as any).delaySec : null;
       if (delaySec !== null && delaySec > 0) {
         state.vibDelay = Math.round(delaySec * 60);
@@ -487,8 +445,6 @@ function parseEffectsOnNoteOn(
         state.vibDelay = isNaN(rawDelayRows) ? 0 : Math.round(rawDelayRows * 60 * tickSeconds);
       }
     } else if (t === 'port' || t === 'portamento') {
-      // Current syntax: port:speed[,durationRows]
-      // Legacy compatibility: port:targetNote[,speed]
       let speed = 16;
       let targetFreq = state.baseFreq;
       if (typeof p[0] === 'number' || (typeof p[0] === 'string' && Number.isFinite(Number(p[0])))) {
@@ -523,7 +479,6 @@ function parseEffectsOnNoteOn(
         state.freq = state.portStart;
       }
     } else if (t === 'arp') {
-      // arp:semitone1,semitone2[,...] - treat as arp_env looping macro
       if (p.length > 0) {
         const values = p.map(v => Number(v)).filter(Number.isFinite);
         if (values.length > 0) {
@@ -532,7 +487,6 @@ function parseEffectsOnNoteOn(
         }
       }
     } else if (t === 'volslide') {
-      // volSlide:delta[,steps]
       const delta = Number(p[0]);
       if (Number.isFinite(delta) && delta !== 0) {
         state.volSlideDelta = delta;
@@ -542,7 +496,6 @@ function parseEffectsOnNoteOn(
         state.volSlideSteps = Math.max(1, Math.round(steps));
       }
     } else if (t === 'trem' || t === 'tremolo') {
-      // trem:depth,rate[,waveform,durationRows,delayRows]
       state.tremoloDepth = typeof p[0] === 'number' ? p[0] : parseFloat(String(p[0]));
       state.tremoloRate  = typeof p[1] === 'number' ? p[1] : parseFloat(String(p[1] ?? '5'));
       if (isNaN(state.tremoloDepth)) state.tremoloDepth = 2;
@@ -550,7 +503,6 @@ function parseEffectsOnNoteOn(
       state.tremoloPhase = 0;
       state.tremoloFrame = 0;
 
-      // Duration: params[3] rows, or resolver-provided durationSec.
       let tremDurationFrames = -1;
       if (typeof (eff as any).durationSec === 'number' && Number((eff as any).durationSec) > 0) {
         tremDurationFrames = Math.max(1, Math.round(Number((eff as any).durationSec) * 60));
@@ -562,7 +514,6 @@ function parseEffectsOnNoteOn(
       }
       state.tremoloDuration = tremDurationFrames;
 
-      // Delay: params[4] rows, or resolver-provided delaySec.
       let tremDelayFrames = 0;
       if (typeof (eff as any).delaySec === 'number' && Number((eff as any).delaySec) > 0) {
         tremDelayFrames = Math.max(0, Math.round(Number((eff as any).delaySec) * 60));
@@ -574,16 +525,12 @@ function parseEffectsOnNoteOn(
       }
       state.tremoloDelay = tremDelayFrames;
     } else if (t === 'cut') {
-      // cut:N — mute at tick N within the note
       const tick = typeof p[0] === 'number' ? p[0] : parseInt(String(p[0]), 10);
       state.cutTick = isNaN(tick) ? -1 : tick;
     } else if (t === 'retrig') {
-      // retrig:interval — re-trigger every N ticks
       const interval = typeof p[0] === 'number' ? p[0] : parseInt(String(p[0]), 10);
       state.retrigInterval = isNaN(interval) ? 0 : Math.max(1, interval);
     } else if (t === 'bend') {
-      // bend:semitones[,curve,delaySec,bendTimeSec]
-      // Legacy compatibility: bend:targetNote[,speed]
       let semitones = Number.NaN;
       if (typeof p[0] === 'number' || (typeof p[0] === 'string' && Number.isFinite(Number(p[0])))) {
         semitones = Number(p[0]);
@@ -616,7 +563,6 @@ function parseEffectsOnNoteOn(
         state.bendActive = true;
       }
     } else if (t === 'pitch_env') {
-      // pitch_env:[values] inline — parse as pitchEnvMacro override
       if (p.length > 0) {
         const macro = parseMacro(p[0]);
         if (macro) {
@@ -625,28 +571,21 @@ function parseEffectsOnNoteOn(
         }
       }
     } else if (t === 'noise_rate_env') {
-      // noise_rate_env:[values] inline — parse as noiseRateEnvMacro override
       if (p.length > 0) {
         const macro = parseMacro(p[0]);
         if (macro) {
           state.noiseRateEnvMacro = macro;
           state.noiseRateEnvState = makeMacroState();
-          // Apply step 0 immediately so first note-on write matches the override.
           state.noiseRate = Math.max(0, Math.min(3, Math.round(macro.values[0])));
         }
       }
     }
-    // pan / gg:pan handled separately before this call
     void t; void noteName;
   }
 }
 
 // ─── Per-frame advancement (60 Hz) ───────────────────────────────────────────
 
-/**
- * Advance macros and vibrato/tremolo LFOs by `frames` 60 Hz frames.
- * Returns { periodChanged, volumeChanged } to signal PSG register updates.
- */
 function advanceFrames(
   state: ChannelSimState,
   frames: number,
@@ -695,9 +634,6 @@ function advanceFrames(
     if (state.vibDepth > 0 && state.vibRate > 0 && state.vibFrame > state.vibDelay) {
       const phase = (state.vibFrame - state.vibDelay) * state.vibRate / 60;
       const sinVal = Math.sin(2 * Math.PI * phase);
-      // Use tracker-style depth: amplitudeHz = depth * f² / 131072
-      // Matches the WebAudio engine (engine/src/effects/index.ts) vibrato formula so
-      // depth is a 0–15 nibble, not semitones. depth=4 at D5 (587 Hz) ≈ ±10.5 Hz.
       const amplitudeHz = state.vibDepth * state.baseFreq * state.baseFreq / 131072;
       const newFreq = state.baseFreq + sinVal * amplitudeHz;
       if (Math.abs(newFreq - state.freq) > 0.5) { state.freq = newFreq; periodChanged = true; }
@@ -755,21 +691,21 @@ function advanceFrames(
       const bf = state.bendFrame;
       if (bf >= state.bendDelay) {
         const raw = (bf - state.bendDelay) / Math.max(1, state.bendDuration);
-        const p = Math.max(0, Math.min(1, raw));
-        let shaped = p;
+        const bp = Math.max(0, Math.min(1, raw));
+        let shaped = bp;
         if (state.bendCurve === 'exp' || state.bendCurve === 'exponential') {
-          shaped = p * p;
+          shaped = bp * bp;
         } else if (state.bendCurve === 'log' || state.bendCurve === 'logarithmic') {
-          shaped = 1 - Math.pow(1 - p, 2);
+          shaped = 1 - Math.pow(1 - bp, 2);
         } else if (state.bendCurve === 'sine' || state.bendCurve === 'sin') {
-          shaped = (1 - Math.cos(Math.PI * p)) / 2;
+          shaped = (1 - Math.cos(Math.PI * bp)) / 2;
         }
         const newFreq = state.bendStart * Math.pow(2, (state.bendSemitones * shaped) / 12);
         if (Math.abs(newFreq - state.freq) > 0.5) {
           state.freq = newFreq;
           periodChanged = true;
         }
-        if (p >= 1) {
+        if (bp >= 1) {
           state.bendActive = false;
         }
       }
@@ -777,31 +713,17 @@ function advanceFrames(
     }
 
     state.noteFrame++;
-
   }
 
   return { periodChanged, volumeChanged, noiseRateChanged };
 }
 
-/**
- * Calculate the effective attenuation for a channel, considering:
- * 1. Base instrument volume
- * 2. vol_env macro (absolute values)
- * 3. Tremolo/trem (gain-domain modulation mapped back to attenuation)
- * 4. Cut effect (mute)
- * 5. Rest/inactive (mute)
- *
- * Precedence: inactive → cut → (vol_env OR base vol) then trem gain modulation
- */
 function calcEffectiveAttenuation(state: ChannelSimState, isActive: boolean): number {
   if (!isActive) return ATTENUATION_MUTE;
   if (state.cutDone) return ATTENUATION_MUTE;
 
-  // Baseline attenuation (after vol_env / volSlide).
   let att = state.attenuation;
 
-  // Match WebAudio tremolo mapping: depth(0..15) -> modulation depth (0..0.5),
-  // then modulate gain around baseline and map back to 4-bit attenuation.
   if (state.tremoloDepth > 0 && state.tremoloRate > 0) {
     const activeStart = state.tremoloDelay;
     const activeEnd = state.tremoloDuration >= 0
@@ -822,13 +744,9 @@ function calcEffectiveAttenuation(state: ChannelSimState, isActive: boolean): nu
   return att;
 }
 
-/**
- * Emit PSG register writes for a given channel at per-tick final stage.
- * Consolidates noise control, period, and volume writes into one place.
- */
 function emitChannelTickFinalWrites(
   ci: number,
-  channels: ChannelModelLike[],
+  channels: SongLike['channels'],
   simStates: ChannelSimState[],
   psg: SN76489State,
   clock: number,
@@ -839,7 +757,6 @@ function emitChannelTickFinalWrites(
   const isActive = state.active;
 
   if (isNoiseChannel(psgCh)) {
-    // Noise: emit noise control, then volume
     if (isActive) {
       const noiseBytes = psg.applyNoiseControl(state.noiseIsWhite, state.noiseRate);
       for (const b of noiseBytes) {
@@ -852,7 +769,6 @@ function emitChannelTickFinalWrites(
       dataBytes.push(CMD_PSG_WRITE, b);
     }
   } else {
-    // Tone: emit period, then volume
     if (isActive && state.freq > 0) {
       const period = freqToPeriod(state.freq, clock);
       const periodBytes = psg.applyTonePeriod(psgCh, period);
@@ -868,233 +784,247 @@ function emitChannelTickFinalWrites(
   }
 }
 
-export interface IsmToVgmResult {
-  /** Raw VGM data bytes (commands, not including the header or GD3 block). */
-  dataBytes: number[];
-  /** Total 44100 Hz sample count (sum of all wait commands). */
-  totalSamples: number;
-  /** True when any channel used the retrig effect (triggers GD3 warning). */
-  hasRetrig: boolean;
-  /** Clock frequency used (NTSC or PAL). */
-  clock: number;
-  /** Whether any gg:pan writes were found (indicates Game Gear target). */
-  isGameGear: boolean;
+// ─── Chip alias normalisation helpers ────────────────────────────────────────
+
+const SMS_ALIASES: readonly string[] = ['sms', 'gamegear', 'gg'];
+
+function normAlias(chip: string): string {
+  return chip.toLowerCase().replace(/[\s_-]/g, '');
 }
 
-/**
- * Translate a validated ISM (SongModel for chip=sms) into raw VGM data bytes.
- */
-export function ismToVgm(song: SongLike): IsmToVgmResult {
-  const bpm = song.bpm ?? 120;
-  const tickSeconds = (60 / bpm) / 4;
-  // Timing model: macros advance at 60 Hz (one step per video frame).
-  // Total sample count per tick = VGM_SAMPLE_RATE * tickSeconds, but we
-  // account for this by emitting one 735-sample wait per 60 Hz frame rather
-  // than a single per-tick wait, keeping macro pacing aligned with the audio
-  // engine (pcmRenderer drives applyEnvelope() at ~60 Hz).
-  const framesPerTick = 60 * tickSeconds; // 60 Hz macro frames per tick
+function isSmsChip(chip: string): boolean {
+  const n = normAlias(chip);
+  return SMS_ALIASES.includes(n) || n.includes('sms') || n.includes('gamegear');
+}
 
-  // Determine clock from chipRegion
-  const region = String(song.chipRegion ?? '').toLowerCase();
-  const clock = region === 'pal' ? SN76489_CLOCK_PAL : SN76489_CLOCK_NTSC;
+// ─── SMS VGM Backend ──────────────────────────────────────────────────────────
 
-  const insts = (song.insts ?? {}) as Record<string, InstrumentNode>;
-  const channels = song.channels;
+export const smsVgmBackend: VgmBackend = {
+  chipAliases: SMS_ALIASES,
 
-  // Per-channel simulation state
-  const numChannels = channels.length;
-  const simStates: ChannelSimState[] = channels.map(() => makeChannelState());
-  const channelDefaults: (string | undefined)[] = channels.map(ch => ch.defaultInstrument);
+  validate(song: SongLike): string[] {
+    const errors: string[] = [];
 
-  // We step through all channels in tick-parallel order.
-  const maxTicks = Math.max(...channels.map(ch => ch.events.length), 0);
-
-  // Per-channel current note-on event reference (for retrig restart)
-  const currentNoteEvents: (ChannelEventLike | null)[] = channels.map(() => null);
-  const currentNoteNames: string[] = channels.map(() => '');
-
-  // PSG shadow state
-  const psg = new SN76489State();
-  // GG stereo defaults: all channels C (both sides) = bits 11 per channel
-  const ggPanBits: number[] = [0b11, 0b11, 0b11, 0b11];
-  let isGameGear = false;
-
-  const dataBytes: number[] = [];
-  let totalSamples = 0;
-  let hasRetrig = false;
-
-  // ── Initial flush ────────────────────────────────────────────────────────────
-  // Establish known PSG state at song start (all channels muted, periods = 0,
-  // noise = periodic rate-1). VGMPlay starts from an undefined register state.
-  const { psgBytes: initBytes, ggStereo: initStereo } = psg.flush();
-
-  // Write initial GG stereo (0xFF = all channels on both sides)
-  dataBytes.push(CMD_GG_STEREO, initStereo);
-  // Write initial PSG register state
-  for (const b of initBytes) {
-    dataBytes.push(CMD_PSG_WRITE, b);
-  }
-
-  // ── Tick loop ─────────────────────────────────────────────────────────────────
-  //
-  // Correct ordering within each tick:
-  //   1. Process events (note-on, rest) — updates channel sim state.
-  //   2. Per-tick effects (cut, retrig).
-  //   3. For each 60 Hz frame in this tick:
-  //        a. Advance macros / LFOs by one frame → updates state.attenuation, state.freq.
-  //        b. Emit GG stereo if changed.
-  //        c. Emit PSG register writes for all channels (BEFORE the wait).
-  //        d. Wait 735 samples.
-  //
-  // The critical fix vs. the previous implementation: PSG writes are emitted
-  // BEFORE the wait, not after.  This ensures note-on events produce sound at
-  // the tick boundary rather than after a full tick of silence.
-  //
-  // A global frame accumulator handles fractional framesPerTick so that the
-  // total sample count stays accurate across the whole song.
-  let globalFrameAccum = 0;
-
-  for (let tick = 0; tick < maxTicks; tick++) {
-    // 1. Process events for each channel at this tick
-    for (let ci = 0; ci < numChannels; ci++) {
-      const ch = channels[ci];
-      if (tick >= ch.events.length) continue;
-
-      const event: ChannelEventLike = ch.events[tick];
-      const psgCh = channelIdToPsg(ch.id);
-      const state = simStates[ci];
-
-      if (event.type === 'note' || event.type === 'named') {
-        const noteEvent = event;
-        const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
-        const noteName: string =
-          event.type === 'note'
-            ? (noteEvent.token ?? 'C4')
-            : (noteEvent.defaultNote ?? 'C4');
-
-        // Store for retrig
-        currentNoteEvents[ci] = noteEvent;
-        currentNoteNames[ci]  = noteName;
-
-        // Note-on
-        let sustainCount = 0;
-        for (let sj = tick + 1; sj < ch.events.length; sj++) {
-          if (ch.events[sj].type === 'sustain') sustainCount++;
-          else break;
-        }
-        const noteFrames = Math.max(1, Math.round((1 + sustainCount) * framesPerTick));
-        noteOn(state, noteName, inst, psgCh, clock, noteFrames);
-
-        // GG stereo: read from instrument (or event pan)
-        const panBits = readGenericPan(inst, noteEvent.pan ?? null);
-        if (panBits !== null) {
-          if (panBits !== ggPanBits[psgCh]) isGameGear = true;
-          ggPanBits[psgCh] = panBits;
-        }
-        state.ggPanBits = ggPanBits[psgCh];
-
-        // Parse inline effects
-        if (noteEvent.effects && noteEvent.effects.length > 0) {
-          parseEffectsOnNoteOn(
-            noteEvent.effects as Effect[],
-            state,
-            noteName,
-            clock,
-            tickSeconds,
-            framesPerTick,
-          );
-          // Check for retrig
-          if (noteEvent.effects.some((e: { type: string }) => e.type.toLowerCase() === 'retrig')) {
-            hasRetrig = true;
-          }
-        }
-      } else if (event.type === 'rest') {
-        state.active = false;
-        state.freq = 0;
-        currentNoteEvents[ci] = null;
-        currentNoteNames[ci]  = '';
-      }
-      // 'sustain' — continue current note; no state change needed
+    if (!song.chip || !isSmsChip(song.chip)) {
+      errors.push(
+        `VGM exporter only supports chip=sms (SN76489 PSG). Found chip=${JSON.stringify(song.chip)}.`
+      );
     }
 
-    // 2. Per-tick effects (cut, retrig) — evaluated at the tick boundary,
-    //    before any frames are emitted for this tick.
-    for (let ci = 0; ci < numChannels; ci++) {
-      const state = simStates[ci];
-      if (!state.active) continue;
-      const psgCh = channelIdToPsg(channels[ci].id);
-
-      // cut effect — mute at specific tick within the note
-      if (state.cutTick >= 0 && !state.cutDone) {
-        if (state.retrigTick >= state.cutTick) {
-          state.attenuation = ATTENUATION_MUTE;
-          state.cutDone = true;
-        }
-      }
-
-      // retrig effect — re-trigger every N ticks
-      if (state.retrigInterval > 0) {
-        if (state.retrigTick > 0 && state.retrigTick % state.retrigInterval === 0) {
-          const noteEvent = currentNoteEvents[ci];
-          if (noteEvent) {
-            const savedInterval = state.retrigInterval;
-            const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
-            const noteName = currentNoteNames[ci];
-            const savedNoteFrames = state.noteFrames;
-            noteOn(state, noteName, inst, psgCh, clock, savedNoteFrames);
-            state.retrigInterval = savedInterval;
-          }
-        }
-      }
-
-      state.retrigTick++;
+    if (song.channels.length === 0) {
+      errors.push('Song has no channels.');
     }
 
-    // 3. Per-frame loop — advance macros, then emit, then wait.
-    //
-    // The frame accumulator converts the floating-point framesPerTick into
-    // an integer frame count per tick so that the sample total stays accurate.
-    globalFrameAccum += framesPerTick;
-    const framesThisTick = Math.floor(globalFrameAccum);
-    globalFrameAccum -= framesThisTick;
+    if (song.channels.length > 4) {
+      errors.push(
+        `SMS has 4 PSG channels but ${song.channels.length} channels are defined.`
+      );
+    }
 
-    for (let f = 0; f < framesThisTick; f++) {
-      // 3a. Advance macros / LFOs by one 60 Hz frame.
-      //     This updates state.attenuation and state.freq before the emit.
+    return errors;
+  },
+
+  translate(song: SongLike): VgmTranslateResult {
+    const bpm = song.bpm ?? 120;
+    const tickSeconds = (60 / bpm) / 4;
+    const framesPerTick = 60 * tickSeconds;
+
+    const region = String(song.chipRegion ?? '').toLowerCase();
+    const clock = region === 'pal' ? SN76489_CLOCK_PAL : SN76489_CLOCK_NTSC;
+
+    const insts = (song.insts ?? {}) as Record<string, InstrumentNode>;
+    const channels = song.channels;
+
+    const numChannels = channels.length;
+    const simStates: ChannelSimState[] = channels.map(() => makeChannelState());
+    const channelDefaults: (string | undefined)[] = channels.map(ch => ch.defaultInstrument);
+
+    const maxTicks = Math.max(...channels.map(ch => ch.events.length), 0);
+
+    const currentNoteEvents: ({ instrument?: string; instProps?: Record<string, any>; effects?: any[]; pan?: any } | null)[] = channels.map(() => null);
+    const currentNoteNames: string[] = channels.map(() => '');
+
+    const psg = new SN76489State();
+    const ggPanBits: number[] = [0b11, 0b11, 0b11, 0b11];
+    let isGameGear = false;
+
+    const dataBytes: number[] = [];
+    let totalSamples = 0;
+    let hasRetrig = false;
+
+    // Initial flush
+    const { psgBytes: initBytes, ggStereo: initStereo } = psg.flush();
+    dataBytes.push(CMD_GG_STEREO, initStereo);
+    for (const b of initBytes) {
+      dataBytes.push(CMD_PSG_WRITE, b);
+    }
+
+    let globalFrameAccum = 0;
+
+    for (let tick = 0; tick < maxTicks; tick++) {
+      // 1. Process events for each channel
+      for (let ci = 0; ci < numChannels; ci++) {
+        const ch = channels[ci];
+        if (tick >= ch.events.length) continue;
+
+        const event = ch.events[tick];
+        const psgCh = channelIdToPsg(ch.id);
+        const state = simStates[ci];
+
+        if (event.type === 'note' || event.type === 'named') {
+          const noteEvent = event;
+          const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
+          const noteName: string =
+            event.type === 'note'
+              ? (noteEvent.token ?? 'C4')
+              : (noteEvent.defaultNote ?? 'C4');
+
+          currentNoteEvents[ci] = noteEvent;
+          currentNoteNames[ci]  = noteName;
+
+          let sustainCount = 0;
+          for (let sj = tick + 1; sj < ch.events.length; sj++) {
+            if (ch.events[sj].type === 'sustain') sustainCount++;
+            else break;
+          }
+          const noteFrames = Math.max(1, Math.round((1 + sustainCount) * framesPerTick));
+          noteOn(state, noteName, inst, psgCh, clock, noteFrames);
+
+          const panBits = readGenericPan(inst, noteEvent.pan ?? null);
+          if (panBits !== null) {
+            if (panBits !== ggPanBits[psgCh]) isGameGear = true;
+            ggPanBits[psgCh] = panBits;
+          }
+          state.ggPanBits = ggPanBits[psgCh];
+
+          if (noteEvent.effects && noteEvent.effects.length > 0) {
+            parseEffectsOnNoteOn(
+              noteEvent.effects as Effect[],
+              state,
+              noteName,
+              clock,
+              tickSeconds,
+              framesPerTick,
+            );
+            if (noteEvent.effects.some((e: { type: string }) => e.type.toLowerCase() === 'retrig')) {
+              hasRetrig = true;
+            }
+          }
+        } else if (event.type === 'rest') {
+          state.active = false;
+          state.freq = 0;
+          currentNoteEvents[ci] = null;
+          currentNoteNames[ci]  = '';
+        }
+        // 'sustain' — continue current note
+      }
+
+      // 2. Per-tick effects (cut, retrig)
       for (let ci = 0; ci < numChannels; ci++) {
         const state = simStates[ci];
         if (!state.active) continue;
-        advanceFrames(state, 1);
+
+        if (state.cutTick >= 0 && !state.cutDone) {
+          if (state.retrigTick >= state.cutTick) {
+            state.attenuation = ATTENUATION_MUTE;
+            state.cutDone = true;
+          }
+        }
+
+        if (state.retrigInterval > 0) {
+          if (state.retrigTick > 0 && state.retrigTick % state.retrigInterval === 0) {
+            const noteEvent = currentNoteEvents[ci];
+            if (noteEvent) {
+              const savedInterval = state.retrigInterval;
+              const psgCh = channelIdToPsg(channels[ci].id);
+              const inst = resolveInstrument(noteEvent, insts, channelDefaults[ci]);
+              const noteName = currentNoteNames[ci];
+              const savedNoteFrames = state.noteFrames;
+              noteOn(state, noteName, inst, psgCh, clock, savedNoteFrames);
+              state.retrigInterval = savedInterval;
+            }
+          }
+        }
+
+        state.retrigTick++;
       }
 
-      // 3b. Emit GG stereo if the register changed.
-      const newGgStereo = buildGgStereoByte(ggPanBits);
-      const ggDirty = psg.applyGgStereo(newGgStereo);
-      if (ggDirty >= 0) {
-        dataBytes.push(CMD_GG_STEREO, ggDirty);
-      }
+      // 3. Per-frame loop
+      globalFrameAccum += framesPerTick;
+      const framesThisTick = Math.floor(globalFrameAccum);
+      globalFrameAccum -= framesThisTick;
 
-      // 3c. Emit PSG register writes for all channels (BEFORE the wait).
-      for (let ci = 0; ci < numChannels; ci++) {
-        emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
-      }
+      for (let f = 0; f < framesThisTick; f++) {
+        for (let ci = 0; ci < numChannels; ci++) {
+          const state = simStates[ci];
+          if (!state.active) continue;
+          advanceFrames(state, 1);
+        }
 
-      // 3d. Wait one 60 Hz frame (735 samples at 44100 Hz).
-      appendWait(dataBytes, SAMPLES_PER_60HZ);
-      totalSamples += SAMPLES_PER_60HZ;
+        const newGgStereo = buildGgStereoByte(ggPanBits);
+        const ggDirty = psg.applyGgStereo(newGgStereo);
+        if (ggDirty >= 0) {
+          dataBytes.push(CMD_GG_STEREO, ggDirty);
+        }
+
+        for (let ci = 0; ci < numChannels; ci++) {
+          emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
+        }
+
+        appendWait(dataBytes, SAMPLES_PER_60HZ);
+        totalSamples += SAMPLES_PER_60HZ;
+      }
     }
-  }
 
-  // Final mute all channels
-  for (let psgCh = 0; psgCh < 4; psgCh++) {
-    const muteBytes = psg.applyVolume(psgCh, ATTENUATION_MUTE);
-    for (const b of muteBytes) {
-      dataBytes.push(CMD_PSG_WRITE, b);
+    // Final mute all channels
+    for (let psgCh = 0; psgCh < 4; psgCh++) {
+      const muteBytes = psg.applyVolume(psgCh, ATTENUATION_MUTE);
+      for (const b of muteBytes) {
+        dataBytes.push(CMD_PSG_WRITE, b);
+      }
     }
-  }
 
-  // End of data marker
-  dataBytes.push(0x66);
+    // End of data marker
+    dataBytes.push(0x66);
 
-  return { dataBytes, totalSamples, hasRetrig, clock, isGameGear };
-}
+    return {
+      dataBytes: new Uint8Array(dataBytes),
+      totalSamples,
+      hasRetrig,
+      clock,
+      isGameGear,
+    };
+  },
+
+  buildGd3Fields(song: SongLike, result: VgmTranslateResult): Gd3Fields {
+    const meta = song.metadata ?? {};
+    const name   = meta.name   ?? '';
+    const artist = meta.artist ?? '';
+    const noteParts: string[] = [];
+    if (meta.description) noteParts.push(meta.description);
+    if (result.hasRetrig) {
+      noteParts.push('[BeatBax] retrig effect used: SN76489 phase reset on period rewrite is emulation-dependent. Behaviour may differ between VGM players and real hardware.');
+    }
+
+    const systemName = result.isGameGear ? 'Sega Game Gear' : 'Sega Master System';
+
+    return {
+      trackTitleEn: String(name),
+      gameNameEn:   String(name),
+      systemNameEn: systemName,
+      authorEn:     String(artist),
+      date:         '',
+      creator:      `BeatBax VGM Exporter v${version}`,
+      notes:        noteParts.join(' '),
+    };
+  },
+
+  headerParams(song: SongLike, result: VgmTranslateResult): VgmHeaderParams {
+    const region = String(song.chipRegion ?? '').toLowerCase();
+    const rate = region === 'pal' ? 50 : 60;
+    return {
+      sn76489Clock: result.clock,
+      rate,
+    };
+  },
+};

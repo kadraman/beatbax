@@ -88,8 +88,12 @@ export class VgmBuffer {
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 export interface VgmHeaderParams {
-  /** SN76489 clock in Hz */
-  sn76489Clock: number;
+  /** SN76489 clock in Hz (offset 0x0C) */
+  sn76489Clock?: number;
+  /** YM2413 (OPLL) clock in Hz (offset 0x10); 0 when unused */
+  ym2413Clock?: number;
+  /** AY-3-8910 / YM2149 clock in Hz (offset 0xA0); 0 when unused */
+  ay8910Clock?: number;
   /** Frame rate hint (60 = NTSC, 50 = PAL) */
   rate: number;
   /** Relative loop offset (0 = no loop) */
@@ -114,8 +118,8 @@ export function buildVgmHeader(params: VgmHeaderParams): VgmBuffer {
   header.setUint32LE(0x00, VGM_MAGIC);
   // 0x04 = EOF offset — patched later
   header.setUint32LE(HDR_VERSION, VGM_VERSION);
-  header.setUint32LE(HDR_SN76489_CLOCK, params.sn76489Clock);
-  header.setUint32LE(HDR_YM2413_CLOCK, 0);
+  header.setUint32LE(HDR_SN76489_CLOCK, params.sn76489Clock ?? 0);
+  header.setUint32LE(HDR_YM2413_CLOCK, params.ym2413Clock ?? 0);
   // 0x14 = GD3 offset — patched later
   // 0x18 = total samples — patched later
   header.setUint32LE(HDR_LOOP_OFFSET, params.loopOffset ?? 0);
@@ -201,27 +205,32 @@ export function appendWait(data: number[], samples: number): void {
  */
 export function assembleVgm(
   headerParams: VgmHeaderParams,
-  dataBytes: number[],
+  dataBytes: number[] | Uint8Array,
   gd3Block: Uint8Array,
   totalSamples: number,
 ): Uint8Array {
+  // Normalise to a mutable number array so we can push CMD_END if needed
+  const data: number[] = dataBytes instanceof Uint8Array
+    ? Array.from(dataBytes)
+    : [...dataBytes];
+
   // Ensure the data section ends with 0x66
-  if (dataBytes.length === 0 || dataBytes[dataBytes.length - 1] !== CMD_END) {
-    dataBytes.push(CMD_END);
+  if (data.length === 0 || data[data.length - 1] !== CMD_END) {
+    data.push(CMD_END);
   }
 
   const header = buildVgmHeader(headerParams);
 
   const dataStart  = VGM_HEADER_SIZE;
-  const gd3Start   = dataStart + dataBytes.length;
+  const gd3Start   = dataStart + data.length;
   const totalSize  = gd3Start + gd3Block.length;
 
   finaliseHeader(header, totalSamples, gd3Block.length > 0 ? gd3Start : 0, totalSize);
 
   const out = new Uint8Array(totalSize);
   out.set(header.toUint8Array(), 0);
-  for (let i = 0; i < dataBytes.length; i++) {
-    out[dataStart + i] = dataBytes[i];
+  for (let i = 0; i < data.length; i++) {
+    out[dataStart + i] = data[i];
   }
   out.set(gd3Block, gd3Start);
 
