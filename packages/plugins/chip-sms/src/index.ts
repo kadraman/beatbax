@@ -35,9 +35,10 @@ import { version } from './version.js';
 import { createToneChannel } from './tone.js';
 import { createNoiseChannel } from './noise.js';
 import { validateSmsInstrument, SMS_TYPES } from './validate.js';
-import { CHIP_IMAGE_BASE64, smsUIContributions } from './ui-contributions.js';
+import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
+import { smsSongWizard } from './songWizard.js';
 
 const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'sms',
@@ -45,7 +46,9 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   channels: 4,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
-
+  uiContributions: smsUIContributions,
+  newSongWizard: smsSongWizard,
+  
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
   },
@@ -76,83 +79,6 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     } catch {
       return [];
     }
-  },
-
-  uiContributions: smsUIContributions,
-  newSongWizard: {
-    metadata: {
-      chipDisplayName: 'SMS (SN76489)',
-      platform: 'Sega Master System / Game Gear',
-      year: '1985',
-      channelSummary: '3 tone, 1 noise',
-      image: CHIP_IMAGE_BASE64,
-    },
-    templates: {
-      instruments: [
-        {
-          id: 'sms-basic',
-          label: 'Lead + bass + noise',
-          content: [
-            'inst lead type=tone1 vol=8',
-            'inst bass type=tone2 vol=10',
-            'inst drum type=noise noise_mode=white noise_rate=2 vol=6',
-          ].join('\n'),
-        },
-        {
-          id: 'sms-minimal',
-          label: 'Minimal lead',
-          content: 'inst lead type=tone1 vol=9',
-        },
-      ],
-      effects: [
-        {
-          id: 'sms-common-fx',
-          label: 'Vibrato + volSlide',
-          content: [
-            'effect vibLead = vib:2,3,sine,2',
-            'effect fadeOut = volSlide:-5',
-          ].join('\n'),
-        },
-        {
-          id: 'sms-empty-fx',
-          label: 'Empty',
-          content: '',
-        },
-      ],
-      structure: [
-        {
-          id: 'sms-simple-1ch',
-          label: 'Single channel melody',
-          content: [
-            'pat melody = C5 E5 G5 C6',
-            'seq main = melody melody:oct(-1)',
-            'channel 1 => inst lead seq main',
-            'play',
-          ].join('\n'),
-        },
-        {
-          id: 'sms-band-3ch',
-          label: 'Three channel starter',
-          content: [
-            'pat leadA = C5 E5 G5 C6',
-            'pat bassA = C3 . G2 .',
-            'pat drumA = C2 . C2 .',
-            'seq leadSeq = leadA leadA:oct(-1)',
-            'seq bassSeq = bassA bassA',
-            'seq drumSeq = drumA drumA',
-            'channel 1 => inst lead seq leadSeq',
-            'channel 2 => inst bass seq bassSeq',
-            'channel 4 => inst drum seq drumSeq',
-            'play',
-          ].join('\n'),
-        },
-      ],
-      defaults: {
-        instruments: 'sms-basic',
-        effects: 'sms-common-fx',
-        structure: 'sms-band-3ch',
-      },
-    },
   },
 };
 

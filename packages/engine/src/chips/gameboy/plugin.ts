@@ -8,8 +8,9 @@
  */
 import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
-import { gameboyUIContributions, CHIP_IMAGE_BASE64 } from './ui-contributions.js';
+import { gameboyUIContributions } from './ui-contributions.js';
 import { version } from '../../version.js';
+import { gbSongWizard } from './songWizard.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -184,6 +185,8 @@ export const gameboyPlugin: ChipPlugin = {
   channels: 4,
   supportsPerChannelVolume: false,
   instrumentVolumeRange: { min: 0, max: 15 },
+  uiContributions: gameboyUIContributions,
+  newSongWizard: gbSongWizard,
 
   validateInstrument(inst: InstrumentNode): ValidationError[] {
     return validateGBInstrument(inst);
@@ -193,84 +196,6 @@ export const gameboyPlugin: ChipPlugin = {
     return new GBChannelBackend(channelIndex);
   },
 
-  uiContributions: gameboyUIContributions,
-  newSongWizard: {
-    metadata: {
-      chipDisplayName: 'Game Boy (DMG-01)',
-      platform: 'Nintendo Game Boy',
-      year: '1989',
-      channelSummary: '2 pulse, 1 wave, 1 noise',
-      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
-    },
-    templates: {
-      instruments: [
-        {
-          id: 'gb-basic-band',
-          label: 'Lead + bass + drums',
-          content: [
-            'inst lead type=pulse1 duty=50 env=12,down',
-            'inst bass type=pulse2 duty=25 env=10,down',
-            'inst kick type=noise env=12,down',
-          ].join('\n'),
-        },
-        {
-          id: 'gb-lead-only',
-          label: 'Lead only',
-          content: 'inst lead type=pulse1 duty=50 env=12,down',
-        },
-      ],
-      effects: [
-        {
-          id: 'gb-common-fx',
-          label: 'Vibrato + arpeggio',
-          content: [
-            'effect vibLead = vib:2,4,sine,2',
-            'effect majArp = arp:4,7',
-          ].join('\n'),
-        },
-        {
-          id: 'gb-empty-fx',
-          label: 'Empty',
-          content: '',
-        },
-      ],
-      structure: [
-        {
-          id: 'gb-simple-1ch',
-          label: 'Single channel melody',
-          content: [
-            'pat melody = C5 E5 G5 C6',
-            'seq main = melody melody:oct(-1)',
-            'channel 1 => inst lead seq main',
-            'play',
-          ].join('\n'),
-        },
-        {
-          id: 'gb-band-4ch',
-          label: 'Four channel starter',
-          content: [
-            'pat leadA = C5 E5 G5 C6',
-            'pat bassA = C3 . G2 .',
-            'pat waveA = C4 . E4 .',
-            'pat drumA = C6 . C6 .',
-            'seq leadSeq = leadA leadA:oct(-1)',
-            'seq bassSeq = bassA bassA',
-            'seq waveSeq = waveA waveA',
-            'seq drumSeq = drumA drumA',
-            'channel 1 => inst lead seq leadSeq',
-            'channel 2 => inst bass seq bassSeq',
-            'channel 4 => inst kick seq drumSeq',
-            'play',
-          ].join('\n'),
-        },
-      ],
-      defaults: {
-        instruments: 'gb-basic-band',
-        effects: 'gb-common-fx',
-        structure: 'gb-band-4ch',
-      },
-    },
-  },
 };
 
 export default gameboyPlugin;

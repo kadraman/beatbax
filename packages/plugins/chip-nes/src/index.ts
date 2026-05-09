@@ -33,8 +33,9 @@ import { createNoiseChannel } from './noise.js';
 import { createDmcChannel, resolveRawDMCSample, preloadDMCSamples } from './dmc.js';
 import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
-import { CHIP_IMAGE_BASE64, nesUIContributions } from './ui-contributions.js';
+import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
+import { nesSongWizard } from './songWizard.js';
 
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
@@ -42,7 +43,10 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   channels: 5,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },
-
+  bundledSamples: BUNDLED_SAMPLES,
+  uiContributions: nesUIContributions,
+  newSongWizard: nesSongWizard,
+  
   supportsVolumeForChannel(channelIndex: number): boolean {
     // Pulse1 (0) and Pulse2 (1) have a hardware volume envelope register.
     // Noise (3) also has a volume envelope register.
@@ -50,8 +54,6 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     // DMC (4) volume is baked into the sample data; not adjustable at runtime.
     return channelIndex === 0 || channelIndex === 1 || channelIndex === 3;
   },
-
-  bundledSamples: BUNDLED_SAMPLES,
 
   validateInstrument(inst: InstrumentNode) {
     return validateNesInstrument(inst);
@@ -83,83 +85,6 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     if (refs.size > 0) {
       await preloadDMCSamples(refs);
     }
-  },
-
-  uiContributions: nesUIContributions,
-  newSongWizard: {
-    metadata: {
-      chipDisplayName: 'NES (Ricoh 2A03)',
-      platform: 'Nintendo Entertainment System',
-      year: '1983',
-      channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
-      image: CHIP_IMAGE_BASE64,
-    },
-    templates: {
-      instruments: [
-        {
-          id: 'nes-basic',
-          label: 'Basic lead + bass + drums',
-          content: [
-            'inst lead  type=pulse1 duty=25 env=12,down',
-            'inst bass  type=pulse2 duty=50 env=10,down',
-            'inst kick  type=noise env=14,down',
-          ].join('\n'),
-        },
-        {
-          id: 'nes-lead-only',
-          label: 'Lead only',
-          content: 'inst lead type=pulse1 duty=50 env=12,down',
-        },
-      ],
-      effects: [
-        {
-          id: 'nes-common-fx',
-          label: 'Vibrato + arpeggio',
-          content: [
-            'effect vibLead = vib:2,4,sine,2',
-            'effect majArp = arp:4,7',
-          ].join('\n'),
-        },
-        {
-          id: 'nes-empty-fx',
-          label: 'Empty',
-          content: '',
-        },
-      ],
-      structure: [
-        {
-          id: 'nes-simple-1ch',
-          label: 'Single channel melody',
-          content: [
-            'pat melody = C5 E5 G5 C6',
-            'seq main = melody melody:oct(-1)',
-            'channel 1 => inst lead seq main',
-            'play',
-          ].join('\n'),
-        },
-        {
-          id: 'nes-band-3ch',
-          label: 'Three channel starter',
-          content: [
-            'pat leadA = C5 E5 G5 C6',
-            'pat bassA = C3 . G2 .',
-            'pat drumA = C2 . C2 .',
-            'seq leadSeq = leadA leadA:oct(-1)',
-            'seq bassSeq = bassA bassA',
-            'seq drumSeq = drumA drumA',
-            'channel 1 => inst lead seq leadSeq',
-            'channel 2 => inst bass seq bassSeq',
-            'channel 4 => inst kick seq drumSeq',
-            'play',
-          ].join('\n'),
-        },
-      ],
-      defaults: {
-        instruments: 'nes-basic',
-        effects: 'nes-common-fx',
-        structure: 'nes-band-3ch',
-      },
-    },
   },
 
   configureForSong(song: { chip?: string; chipRegion?: string }) {
