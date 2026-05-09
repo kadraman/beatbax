@@ -1,7 +1,7 @@
 ---
 title: "AY-3-8910 / YM2149 Chip Plugin"
 status: proposed
-authors: [""kadraman","GitHub Copilot"]
+authors: ["kadraman","GitHub Copilot"]
 created: 2026-05-09
 issue: "https://github.com/kadraman/beatbax/issues/108"
 ---
