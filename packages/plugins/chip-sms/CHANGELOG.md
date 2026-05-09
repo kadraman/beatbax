@@ -1,5 +1,13 @@
 # @beatbax/plugin-chip-sms
 
+## 0.2.2
+
+### Patch Changes
+
+- 38fe1e5: Move SMS New Song wizard metadata/templates into a dedicated `songWizard` module and wire it through the plugin `newSongWizard` field.
+
+  Keep SMS `ui-contributions` focused on Copilot prompt, hover docs, and Help panel content to improve maintainability.
+
 ## 0.2.1
 
 ### Patch Changes
@@ -16,6 +24,7 @@
 - b25cd91: New SMS PSG chip plugin for the Sega Master System / Game Gear SN76489 APU.
 
 Provides four channels: three tone generators and one noise channel. Supports:
+
 - Accurate NTSC/PAL clock region selection via `chip sms ntsc` / `chip sms pal`
 - Correct attenuation-based volume semantics (0 = loudest, 15 = silent) throughout, including vol_env macros, volSlide effect, and buildVolEnvGainCurve
 - Software macros: vol_env, noise_rate_env, arp_env, pitch_env
