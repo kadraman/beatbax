@@ -90,6 +90,7 @@ import { DragDropHandler } from './import/drag-drop-handler';
 import { KeyCode, KeyMod } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
+import { LoadingOverlay } from './ui/loading-overlay';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
 import { PatternGrid } from './ui/pattern-grid';
@@ -1303,8 +1304,10 @@ function createSongFromWizard(source: string, songName: string): void {
 }
 
 function openSongFromDisk(): void {
+  playbackManager.stop();
   openFilePicker({
     accept: '.bax',
+    onBeforeRead: () => loadingOverlay.show(),
     onLoad: (result) => {
       playbackManager.stop();
       setLoadedFilename(fileBaseStem(result.filename));
@@ -1315,19 +1318,28 @@ function openSongFromDisk(): void {
       eventBus.emit('song:loaded', { filename: result.filename });
       menuBar.recordRecent(result.filename);
       emitParse(result.content);
+      loadingOverlay.hide();
     },
+    onError: () => loadingOverlay.hide(),
+    onCancel: () => loadingOverlay.hide(),
   });
 }
+
+// ─── LoadingOverlay ──────────────────────────────────────────────────────────
+// Used to block user interaction during async file loading operations.
+const loadingOverlay = new LoadingOverlay();
 
 const menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
+  loadingOverlay,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
   onShowShortcuts: () => shortcutsModal.open(),
   onShowSettings: () => settingsModal.open(),
   onExport: (format) => handleExport(format),
   onNew: () => newSongWizard?.open(),
   onOpen: () => openSongFromDisk(),
+  onBeforeExampleLoad: () => playbackManager.stop(),
   onSave: () => {
     const content = getSource();
     if (!content.trim()) { opWarn(problemsPanel, 'Nothing to save — the editor is empty.'); return; }
@@ -1355,6 +1367,7 @@ const menuBar = new MenuBar({
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
+    loadingOverlay.hide();
   },
   onUndo: () => editor.editor?.trigger('menu', 'undo', null),
   onRedo: () => editor.editor?.trigger('menu', 'redo', null),
@@ -1437,6 +1450,10 @@ let commentsFolded = false;
 toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
+  onBeforeOpenFile: () => playbackManager.stop(),
+  onOpenFileReadStart: () => loadingOverlay.show(),
+  onOpenFileReadEnd: () => loadingOverlay.hide(),
+  onBeforeExampleLoad: () => playbackManager.stop(),
   onLoad: (filename, content) => {
     playbackManager.stop();
     commentsFolded = false;

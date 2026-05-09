@@ -22,10 +22,14 @@ export interface FileLoadResult {
 export interface FileLoaderOptions {
   /** Accepted file types (e.g., '.bax,.uge') */
   accept?: string;
+  /** Called right before reading file contents from disk. */
+  onBeforeRead?: () => void;
   /** Callback when a file is loaded */
   onLoad?: (result: FileLoadResult) => void;
   /** Callback on error */
   onError?: (error: Error) => void;
+  /** Callback when the picker is dismissed without selecting a file. */
+  onCancel?: () => void;
 }
 
 /**
@@ -82,6 +86,7 @@ export function openFilePicker(options: FileLoaderOptions = {}): void {
   // Track whether the change handler already cleaned up so the cancel path
   // does not attempt a second removeChild.
   let settled = false;
+  let pickerResolved = false;
 
   function cleanup() {
     if (settled) return;
@@ -92,13 +97,16 @@ export function openFilePicker(options: FileLoaderOptions = {}): void {
   }
 
   input.addEventListener('change', async () => {
+    pickerResolved = true;
     const file = input.files?.[0];
     if (!file) {
+      options.onCancel?.();
       cleanup();
       return;
     }
 
     try {
+      options.onBeforeRead?.();
       const content = await readFileAsText(file);
       log.debug(`Loaded file: ${file.name} (${file.size} bytes)`);
 
@@ -121,7 +129,12 @@ export function openFilePicker(options: FileLoaderOptions = {}): void {
   // A short setTimeout is needed because some browsers fire focus before the
   // input's change event on successful selection; the delay lets change win.
   const onWindowFocus = () => {
-    setTimeout(() => cleanup(), 300);
+    setTimeout(() => {
+      if (!pickerResolved) {
+        options.onCancel?.();
+        cleanup();
+      }
+    }, 300);
   };
   window.addEventListener('focus', onWindowFocus, { once: true });
 

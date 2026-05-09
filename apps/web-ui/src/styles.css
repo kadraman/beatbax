@@ -4938,3 +4938,30 @@
 [data-theme=light] .bb-chat-code-block { background: #f6f8fa; }
 [data-theme=light] .bb-chat-code { color: #24292e; }
 [data-theme=light] .bb-chat-code-actions { background: #eaeef2; border-top-color: #d0d7de; }
+
+/* ─── Loading Overlay ───────────────────────────────────────────────────── */
+.bb-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  color: #aaa;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.8125rem;
+  letter-spacing: 0.03em;
+}
+
+.bb-loading-overlay .bb-spinner-ring {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 4px solid rgba(255 255 255 / 12%);
+  border-top-color: #4ec9b0;
+  border-radius: 9999px;
+  animation: bb-spin 0.7s linear infinite;
+}
