@@ -28,6 +28,14 @@ export interface ToolbarOptions {
   eventBus: EventBus;
   /** Called when a file should be loaded (filename, content) */
   onLoad: (filename: string, content: string) => void;
+  /** Called when toolbar Open is initiated (before picker opens). */
+  onBeforeOpenFile?: () => void;
+  /** Called when toolbar File Open starts reading selected file content. */
+  onOpenFileReadStart?: () => void;
+  /** Called when toolbar File Open read flow completes (load/error/cancel). */
+  onOpenFileReadEnd?: () => void;
+  /** Called immediately when loading an example from toolbar is initiated. */
+  onBeforeExampleLoad?: () => void;
   /** Called when an export is requested */
   onExport: (format: ExportFormat) => void;
   /** Called when the editor should be focused on its content */
@@ -198,7 +206,9 @@ export class Toolbar {
   private attachEvents(): void {
         const { eventBus, onLoad, onExport, onVerify,
           onNew, onSave, onUndo, onRedo, /*onFormat,*/ onSelectAll,
-          onToggleTheme, onToggleWrap, onToggleFoldComments } = this.options;
+          onToggleTheme, onToggleWrap, onToggleFoldComments,
+          onOpenFileReadStart, onOpenFileReadEnd,
+          onBeforeOpenFile, onBeforeExampleLoad } = this.options;
 
     // New file
     const newBtn = this.el.querySelector<HTMLButtonElement>('#tb-new');
@@ -211,18 +221,23 @@ export class Toolbar {
     // Open file
     const openBtn = this.el.querySelector<HTMLButtonElement>('#tb-open')!;
     openBtn.addEventListener('click', () => {
+      onBeforeOpenFile?.();
       import('../import/file-loader').then(({ openFilePicker }) => {
         openFilePicker({
           accept: '.bax',
+          onBeforeRead: () => onOpenFileReadStart?.(),
           onLoad: (result) => {
             log.debug(`Opened file: ${result.filename}`);
             onLoad(result.filename, result.content);
+            onOpenFileReadEnd?.();
             this.setStatus(`Opened ${result.filename}`, 'success');
           },
           onError: (err) => {
             log.error('Open file error:', err);
+            onOpenFileReadEnd?.();
             this.setStatus('Failed to open file', 'error');
           },
+          onCancel: () => onOpenFileReadEnd?.(),
         });
       }).catch((err) => {
         log.error('Failed to load file-loader module:', err);
@@ -295,6 +310,7 @@ export class Toolbar {
         const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-example]');
         if (!btn) return;
         const path = btn.dataset.example!;
+        onBeforeExampleLoad?.();
         examplesPanel.hidden = true;
         examplesBtn.setAttribute('aria-expanded', 'false');
 

@@ -15,6 +15,7 @@ import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
 import { exporterRegistry } from '@beatbax/engine/export';
+import type { LoadingOverlay } from './loading-overlay';
 
 /** Fallback icon per built-in exporter id (matches toolbar defaults). */
 const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
@@ -42,11 +43,17 @@ export interface MenuBarOptions {
   /** Shared EventBus. */
   eventBus: EventBus;
 
+  // ── Loading state ───────────────────────────────────────────────────────────
+  /** Optional loading overlay shown during async file operations. */
+  loadingOverlay?: LoadingOverlay;
+
   // ── File callbacks ──────────────────────────────────────────────────────────
   /** Create a new empty document (Ctrl+N). */
   onNew?: () => void;
   /** Open a .bax file from disk (Ctrl+O). */
   onOpen?: () => void;
+  /** Called immediately when an example load is initiated. */
+  onBeforeExampleLoad?: () => void;
   /** Save the current document (Ctrl+S). */
   onSave?: () => void;
   /** Download the current document with a user-chosen name (Ctrl+Shift+S). */
@@ -753,6 +760,8 @@ export class MenuBar {
   }
 
   private async loadExample(path: string, label: string): Promise<void> {
+    this.opts.onBeforeExampleLoad?.();
+
     const cached = this.exampleCache.get(path);
     if (cached !== undefined) {
       const filename = label || path.split('/').pop() || 'example.bax';
@@ -760,6 +769,7 @@ export class MenuBar {
       return;
     }
 
+    this.opts.loadingOverlay?.show();
     try {
       const result = await loadRemote(path);
       const filename = label || result.filename;
@@ -768,6 +778,7 @@ export class MenuBar {
       log.debug(`Loaded example: ${path}`);
     } catch (err: any) {
       log.error('Failed to load example:', err);
+      this.opts.loadingOverlay?.hide();
     }
   }
 
