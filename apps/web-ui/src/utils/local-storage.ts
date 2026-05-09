@@ -34,6 +34,8 @@ export const StorageKey = {
   TOOLBAR_STYLE: 'ui.toolbarStyle',
   /** BPM preference (number encoded as string). */
   BPM: 'editor.bpm',
+  /** Default song artist used by New Song Wizard. */
+  SONG_ARTIST: 'editor.songArtist',
   /** Auto-save enabled flag (boolean). */
   AUTO_SAVE: 'editor.autoSave',
   /** Word wrap enabled flag (boolean). */
@@ -118,6 +120,8 @@ export const StorageKey = {
   ENABLED_EXPORTER_PLUGINS: 'plugins.exporters.enabled',
   /** NES plugin WebAudio mix mode ('normalized' | 'hardware'). */
   NES_WEB_AUDIO_MIX_MODE: 'plugins.nes.webAudioMixMode',
+  /** New Song Wizard auto-open onboarding state. */
+  NEW_SONG_WIZARD_ONBOARDED: 'ui.newSongWizard.onboarded',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

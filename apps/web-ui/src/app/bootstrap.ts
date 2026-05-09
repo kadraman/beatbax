@@ -9,7 +9,7 @@ const DEFAULT_STARTER_BPM = 128;
 
 /**
  * Build the starter song template with the given BPM.
- * Used both for the initial bootstrap and when the user creates a new song.
+ * Used for initial bootstrap fallback content.
  */
 export function getStarterSong(bpm: number = DEFAULT_STARTER_BPM): string {
   return `# Use the menu bar or toolbar to load an existing .bax file, or drag-and-drop a .bax file here to load it.

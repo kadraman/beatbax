@@ -133,6 +133,17 @@ describe('gameboyPlugin', () => {
     expect(gameboyPlugin.channels).toBe(4);
   });
 
+  test('has New Song Wizard metadata and templates', () => {
+    expect(gameboyPlugin.newSongWizard).toBeDefined();
+    expect(gameboyPlugin.newSongWizard?.metadata.chipDisplayName).toBeTruthy();
+    expect(gameboyPlugin.newSongWizard?.metadata.platform).toBeTruthy();
+    expect(gameboyPlugin.newSongWizard?.metadata.year).toBeTruthy();
+    expect(gameboyPlugin.newSongWizard?.metadata.channelSummary).toBeTruthy();
+    expect(gameboyPlugin.newSongWizard?.templates.instruments.length).toBeGreaterThan(0);
+    expect(gameboyPlugin.newSongWizard?.templates.effects.length).toBeGreaterThan(0);
+    expect(gameboyPlugin.newSongWizard?.templates.structure.length).toBeGreaterThan(0);
+  });
+
   test('createChannel returns a ChipChannelBackend', () => {
     const ctx = {} as BaseAudioContext;
     const backend = gameboyPlugin.createChannel(0, ctx);

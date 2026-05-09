@@ -198,6 +198,7 @@ Features:
 - Resizable split-pane layout (state persisted to `localStorage`)
 - Transport bar: Play, Pause, Stop, and ⚡ **Live mode** (800 ms debounce, auto-replays on edit)
 - Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
+- **New Song Wizard** — File → New and toolbar New open a guided modal that uses enabled chip plugins for metadata/templates, and auto-opens once on first run
 - Unified channel mixer with per-channel mute, solo, and volume controls
 - **CodeLens inline actions** — `▶ Preview` and `↺ Loop` above every `pat`, `seq`, and `effect`; five note buttons (`C3`–`C7`) above every `inst` for instant timbre checks
 - **Play selected** (`Ctrl+Shift+Space`) — play one or more selected `pat`/`seq` lines simultaneously, each on its own channel

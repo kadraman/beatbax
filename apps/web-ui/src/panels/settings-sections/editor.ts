@@ -5,9 +5,9 @@
 import { storage, StorageKey } from '../../utils/local-storage';
 import {
   settingAutoSave, settingWordWrap, settingCodeLens,
-  settingBeatDecorations, settingDefaultBpm, settingFontSize,
+  settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
 } from '../../stores/settings.store';
-import { sectionHeading, toggle, numberField, noteText } from './general';
+import { sectionHeading, toggle, numberField, textField, noteText } from './general';
 
 export function buildEditorSection(): HTMLElement {
   const el = document.createElement('div');
@@ -39,6 +39,7 @@ export function buildEditorSection(): HTMLElement {
   el.appendChild(noteText('Beat decorations tint note tokens inside pat blocks: downbeats are highlighted more strongly, upbeats more subtly, making the rhythmic structure visible while editing.'));
 
   el.appendChild(numberField('Default BPM', 60, 300, settingDefaultBpm.get(), (v) => settingDefaultBpm.set(v)));
+  el.appendChild(textField('Default song artist', settingSongArtist.get(), (v) => settingSongArtist.set(v)));
 
   el.appendChild(numberField('Font size', 10, 24, settingFontSize.get(), (v) => {
     settingFontSize.set(v);
@@ -54,5 +55,6 @@ export function resetEditorDefaults(): void {
   settingCodeLens.set(true);
   settingBeatDecorations.set(true);
   settingDefaultBpm.set(128);
+  settingSongArtist.set('');
   settingFontSize.set(14);
 }

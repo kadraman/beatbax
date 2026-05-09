@@ -74,6 +74,21 @@ const myPlugin: ChipPlugin = {
     hoverDocs: { inst: '...', pulse1: '...' },
     helpSections: [{ id: 'instruments', title: 'Instruments (My Chip)', content: [] }],
   },
+
+  // Optional: New Song modal metadata/templates for this chip
+  newSongWizard: {
+    metadata: {
+      chipDisplayName: 'My Chip',
+      platform: 'My Platform',
+      year: '1989',
+      channelSummary: '2 pulse, 1 noise',
+    },
+    templates: {
+      instruments: [{ id: 'my-inst', label: 'Sample instruments', content: 'inst lead type=pulse1 vol=10' }],
+      effects: [{ id: 'my-fx', label: 'Sample effects', content: 'effect exprVib = vib:3,5,sine,4' }],
+      structure: [{ id: 'my-structure', label: 'Sample structure', content: 'pat a = C4 E4 G4\nseq main = a a\nplay' }],
+    },
+  },
 };
 ```
 
@@ -273,7 +288,7 @@ export const myChipUIContributions: ChipUIContributions = {
       title: 'Examples — Click to Insert (My Chip)',
       content: [
         {
-          kind: 'snippet',
+          kind: 'song',
           label: 'Minimal song',
           code: `chip my-chip\nbpm 120\n\ninst lead type=pulse1 duty=50\n\npat a = C4 E4 G4\nseq main = a a\n\nchannel 1 => inst lead seq main\n\nplay`,
         },
@@ -292,6 +307,66 @@ import { myChipUIContributions } from './ui-contributions.js';
 const myPlugin: ChipPlugin = {
   // ... audio fields ...
   uiContributions: myChipUIContributions,
+};
+```
+
+### Step 3c: Add New Song wizard templates (optional)
+
+If your plugin will be used in the web editor, add `newSongWizard` so the New Song modal can pre-fill chip-specific starter content (instruments, effects, structure) and chip metadata.
+
+```typescript
+// src/songWizard.ts
+import type { ChipNewSongWizard } from '@beatbax/engine';
+
+export const myChipSongWizard: ChipNewSongWizard = {
+  metadata: {
+    chipDisplayName: 'My Chip',
+    platform: 'My Console',
+    year: '1989',
+    channelSummary: '2 pulse, 1 noise',
+    // Optional: Base64 data URI payload for New Song chip card image
+    // image: CHIP_IMAGE_BASE64,
+  },
+  templates: {
+    instruments: [
+      {
+        id: 'mychip-sample-instruments',
+        label: 'Sample instruments',
+        content: `inst lead type=pulse1 vol=10\ninst bass type=pulse2 vol=12`,
+      },
+    ],
+    effects: [
+      {
+        id: 'mychip-sample-effects',
+        label: 'Sample effects',
+        content: `effect leadVib = vib:3,5,sine,4`,
+      },
+    ],
+    structure: [
+      {
+        id: 'mychip-sample-structure',
+        label: 'Sample structure',
+        content: `pat a = C4 E4 G4\nseq main = a a\nchannel 1 => inst lead seq main\nplay`,
+      },
+    ],
+    defaults: {
+      instruments: 'mychip-sample-instruments',
+      effects: 'mychip-sample-effects',
+      structure: 'mychip-sample-structure',
+    },
+  },
+};
+```
+
+Then wire it into your plugin:
+
+```typescript
+// src/index.ts (updated)
+import { myChipSongWizard } from './songWizard.js';
+
+const myPlugin: ChipPlugin = {
+  // ... audio fields ...
+  newSongWizard: myChipSongWizard,
 };
 ```
 
@@ -417,6 +492,7 @@ interface ChipHelpSection {
   content: Array<
     | { kind: 'text';    text: string }
     | { kind: 'snippet'; label: string; code: string }
+    | { kind: 'song'; label: string; code: string }
   >;
 }
 
@@ -478,6 +554,31 @@ Any `id` that does not match an existing built-in section is **appended** at the
 - Keep it concise — the prompt is injected verbatim and counts against the AI context window.
 
 See `packages/engine/src/chips/gameboy/ui-contributions.ts` and `packages/plugins/chip-nes/src/ui-contributions.ts` for complete reference implementations.
+
+## New Song Wizard Contributions
+
+Plugins can provide an optional `newSongWizard` object on `ChipPlugin` to customize the New Song modal in the web editor.
+
+| Field | Purpose |
+|-------|---------|
+| `metadata.chipDisplayName` | Human-readable chip label shown in the modal |
+| `metadata.platform` | Platform subtitle (e.g. console name) |
+| `metadata.year` | Historical year badge |
+| `metadata.channelSummary` | Short channel layout summary |
+| `metadata.image` | Optional Base64 image for chip card artwork |
+| `templates.instruments` | Dropdown options for starter instrument blocks |
+| `templates.effects` | Dropdown options for starter effect blocks |
+| `templates.structure` | Dropdown options for starter pattern/seq/channel blocks |
+| `templates.defaults` | Optional default option ids selected on modal open |
+
+Implementation guidance:
+
+- Keep each template self-contained and directly insertable into a `.bax` buffer.
+- Use stable ids (`<chip>-sample-instruments`) so defaults remain valid during refactors.
+- Keep comments educational and chip-specific; avoid generic placeholders once published.
+- Keep template snippets deterministic and parser-valid.
+
+See `packages/engine/src/chips/gameboy/songWizard.ts`, `packages/plugins/chip-nes/src/songWizard.ts`, and `packages/plugins/chip-sms/src/songWizard.ts` for reference implementations.
 
 ---
 

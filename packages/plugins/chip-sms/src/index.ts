@@ -38,6 +38,7 @@ import { validateSmsInstrument, SMS_TYPES } from './validate.js';
 import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
+import { smsSongWizard } from './songWizard.js';
 
 const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'sms',
@@ -45,7 +46,9 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   channels: 4,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
-
+  uiContributions: smsUIContributions,
+  newSongWizard: smsSongWizard,
+  
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
   },
@@ -77,8 +80,6 @@ const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       return [];
     }
   },
-
-  uiContributions: smsUIContributions,
 };
 
 export default smsPlugin;

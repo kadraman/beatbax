@@ -17,7 +17,7 @@ The plugin system (`docs/features/plugin-system.md`) is now fully implemented. `
 > - [ ] Add TypeScript template for new plugins
 > - [ ] Create example plugin repository as a starter
 
-The existing guide at `docs/creating-plugins.md` explains the concepts, but developers still need to manually scaffold the package structure, configure TypeScript, set up Jest, and wire up the `ChipPlugin` interface. A template repository eliminates that friction.
+The existing guide at `docs/contributing/creating-plugins.md` explains the concepts, but developers still need to manually scaffold the package structure, configure TypeScript, set up Jest, and wire up the `ChipPlugin` interface. A template repository eliminates that friction.
 
 ## Acceptance Criteria
 
@@ -27,7 +27,7 @@ The existing guide at `docs/creating-plugins.md` explains the concepts, but deve
 - [ ] Contains a working, buildable, testable skeleton that passes `npm test` out of the box
 - [ ] `README.md` includes a "Use this template" button link and step-by-step quickstart
 - [ ] All placeholder values (`{{CHIP_NAME}}`, `{{DESCRIPTION}}`, etc.) are clearly marked for replacement
-- [ ] References `docs/creating-plugins.md` in the BeatBax main repo for full documentation
+- [ ] References `docs/contributing/creating-plugins.md` in the BeatBax main repo for full documentation
 
 ## Repository Structure
 
@@ -40,7 +40,9 @@ plugin-chip-template/
 │   ├── index.ts                # ChipPlugin entry point (exports default plugin object)
 │   ├── channel.ts              # Skeleton ChipChannelBackend implementation
 │   ├── periodTables.ts         # Optional: frequency/period lookup table scaffold
-│   └── validate.ts             # Optional: instrument validation helper scaffold
+│   ├── validate.ts             # Optional: instrument validation helper scaffold
+│   ├── ui-contributions.ts     # Optional: web-UI docs/help/Copilot prompt
+│   └── songWizard.ts           # Optional: New Song wizard metadata + templates
 ├── tests/
 │   └── plugin.test.ts          # Skeleton unit tests (registration, channel creation, render)
 ├── package.json                # @your-scope/plugin-chip-{{name}}, peerDep: @beatbax/engine
@@ -59,6 +61,8 @@ plugin-chip-template/
 import type { ChipPlugin } from '@beatbax/engine';
 import { createChannel } from './channel.js';
 import { validateInstrument } from './validate.js';
+import { chipUIContributions } from './ui-contributions.js';
+import { chipSongWizard } from './songWizard.js';
 
 /**
  * Replace CHIP_NAME with your chip's identifier (e.g. 'sid', 'genesis').
@@ -68,6 +72,8 @@ const plugin: ChipPlugin = {
   name: 'CHIP_NAME',
   version: '0.1.0',
   channels: 1, // Set to the number of hardware voices your chip provides
+  uiContributions: chipUIContributions, // Optional (web editor)
+  newSongWizard: chipSongWizard, // Optional (New Song modal)
 
   validateInstrument(inst) {
     return validateInstrument(inst);
@@ -161,6 +167,99 @@ export function validateInstrument(inst: InstrumentNode): ValidationError[] {
 
   return errors;
 }
+```
+
+### `src/ui-contributions.ts`
+
+```typescript
+import type { ChipUIContributions } from '@beatbax/engine';
+
+export const chipUIContributions: ChipUIContributions = {
+  copilotSystemPrompt: `
+══ CHIP_NAME HARDWARE — READ FIRST ══
+Document channel count, fixed channel mapping, and hard hardware constraints.
+`.trim(),
+
+  hoverDocs: {
+    inst: [
+      '**Instrument definition** — declares a named instrument with channel type and parameters.',
+      '```\ninst <name> type=<type> [field=value ...]\n```',
+      '**Common fields (all chips):**',
+      '- `note` — default note when instrument name is used as a hit token',
+      '- `gm` — General MIDI program number for MIDI export (0-127)',
+      '',
+      '**CHIP_NAME instrument types:**',
+      '- `type=voice1` — ...',
+      '',
+      'Example: `inst lead type=voice1`',
+    ].join('\n\n'),
+  },
+
+  helpSections: [
+    {
+      id: 'instruments',
+      title: 'Instruments (CHIP_NAME)',
+      content: [
+        { kind: 'text', text: 'Describe your chip-specific instrument fields and limits.' },
+        { kind: 'snippet', label: 'Lead instrument', code: 'inst lead type=voice1 vol=10' },
+      ],
+    },
+    {
+      id: 'examples',
+      title: 'Examples — Click to Insert (CHIP_NAME)',
+      content: [
+        {
+          kind: 'song',
+          label: 'Minimal CHIP_NAME song',
+          code: 'chip CHIP_NAME\\n\\nbpm 120\\n\\ninst lead type=voice1\\n\\npat p = C4 E4 G4\\nseq s = p p\\n\\nchannel 1 => inst lead seq s\\n\\nplay',
+        },
+      ],
+    },
+  ],
+};
+```
+
+### `src/songWizard.ts`
+
+```typescript
+export const chipSongWizard = {
+  metadata: {
+    chipDisplayName: 'CHIP_NAME',
+    platform: 'TARGET_PLATFORM',
+    year: 'YEAR',
+    channelSummary: 'VOICE_LAYOUT',
+    // Optional base64 image used by the New Song modal
+    // image: CHIP_IMAGE_BASE64,
+  },
+  templates: {
+    instruments: [
+      {
+        id: 'chip-sample-instruments',
+        label: 'Sample instruments',
+        content: 'inst lead type=voice1 vol=10',
+      },
+    ],
+    effects: [
+      {
+        id: 'chip-sample-effects',
+        label: 'Sample effects',
+        content: 'effect leadVib = vib:3,5,sine,4',
+      },
+    ],
+    structure: [
+      {
+        id: 'chip-sample-structure',
+        label: 'Sample structure',
+        content: 'pat lead = C4 E4 G4\\nseq main = lead lead\\nchannel 1 => inst lead seq main\\nplay',
+      },
+    ],
+    defaults: {
+      instruments: 'chip-sample-instruments',
+      effects: 'chip-sample-effects',
+      structure: 'chip-sample-structure',
+    },
+  },
+};
 ```
 
 ### `tests/plugin.test.ts`
@@ -282,20 +381,21 @@ The `README.md` should include:
 
 1. **"Use this template"** button (GitHub renders this automatically for template repos)
 2. **Quickstart** — clone, rename placeholders, implement, test, publish
-3. **Checklist** — what to replace (`CHIP_NAME`, channel count, waveform logic, period tables if needed)
+3. **Checklist** — what to replace (`CHIP_NAME`, channel count, waveform logic, period tables if needed, `ui-contributions.ts`, `songWizard.ts` template text)
 4. **Publishing** — `npm publish --access public` with the `@beatbax/plugin-chip-*` or `beatbax-plugin-chip-*` naming convention for CLI auto-discovery
-5. **Link** to `https://github.com/beatbax/beatbax` main repo and `docs/creating-plugins.md`
+5. **Link** to `https://github.com/beatbax/beatbax` main repo and `docs/contributing/creating-plugins.md`
 
 ## Implementation Notes
 
 - The `@beatbax/engine` peerDependency should be pinned to the current stable range at time of template creation
 - The Jest config should match the pattern used in `packages/plugins/chip-nes/jest.config.cjs` (ts-jest, ESM transform, `testEnvironment: node`)
 - The CI workflow should mirror the NES plugin's CI setup
+- The `ui-contributions.ts` and `songWizard.ts` examples should mirror structure used in the SMS plugin (`packages/plugins/chip-sms/src/ui-contributions.ts`, `packages/plugins/chip-sms/src/songWizard.ts`)
 - Consider adding a `CONTRIBUTING.md` that links back to the main BeatBax contributing guide
 
 ## Related
 
 - Feature spec: `docs/features/plugin-system.md` — Phase 5
-- Full plugin guide: `docs/creating-plugins.md`
+- Full plugin guide: `docs/contributing/creating-plugins.md`
 - Reference implementation: `packages/plugins/chip-nes/` in the main repo
 - npm naming convention: `@beatbax/plugin-chip-<name>` (official) or `beatbax-plugin-chip-<name>` (community)
