@@ -691,21 +691,21 @@ function advanceFrames(
       const bf = state.bendFrame;
       if (bf >= state.bendDelay) {
         const raw = (bf - state.bendDelay) / Math.max(1, state.bendDuration);
-        const bp = Math.max(0, Math.min(1, raw));
-        let shaped = bp;
+        const bendProgress = Math.max(0, Math.min(1, raw));
+        let shapedProgress = bendProgress;
         if (state.bendCurve === 'exp' || state.bendCurve === 'exponential') {
-          shaped = bp * bp;
+          shapedProgress = bendProgress * bendProgress;
         } else if (state.bendCurve === 'log' || state.bendCurve === 'logarithmic') {
-          shaped = 1 - Math.pow(1 - bp, 2);
+          shapedProgress = 1 - Math.pow(1 - bendProgress, 2);
         } else if (state.bendCurve === 'sine' || state.bendCurve === 'sin') {
-          shaped = (1 - Math.cos(Math.PI * bp)) / 2;
+          shapedProgress = (1 - Math.cos(Math.PI * bendProgress)) / 2;
         }
-        const newFreq = state.bendStart * Math.pow(2, (state.bendSemitones * shaped) / 12);
+        const newFreq = state.bendStart * Math.pow(2, (state.bendSemitones * shapedProgress) / 12);
         if (Math.abs(newFreq - state.freq) > 0.5) {
           state.freq = newFreq;
           periodChanged = true;
         }
-        if (bp >= 1) {
+        if (bendProgress >= 1) {
           state.bendActive = false;
         }
       }
