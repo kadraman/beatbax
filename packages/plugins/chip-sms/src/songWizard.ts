@@ -29,7 +29,7 @@ inst bass type=tone3 vol=0 vol_env=[0,6,10,14,15] gm=39
 
 inst snare  type=noise noise_mode=white noise_rate=1 vol_env=[1,4,7,10,12,14,15] noise_rate_env=[0,0,1,1,2]
 inst hihat  type=noise noise_mode=white noise_rate=0 vol_env=[6,11,14,15]
-inst shaker type=noise type=noise noise_mode=periodic noise_rate=1 vol_env=[4,8,12,15]
+inst shaker type=noise noise_mode=periodic noise_rate=1 vol_env=[4,8,12,15]
 `,
         },
       ],

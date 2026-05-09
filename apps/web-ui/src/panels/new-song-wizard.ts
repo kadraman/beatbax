@@ -360,11 +360,16 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     const wizard = selected.plugin.newSongWizard!;
     summaryImage.src = normalizeImageSource(wizard.metadata.image);
     chipName.textContent = wizard.metadata.chipDisplayName;
-    summaryMeta.innerHTML = [
-      `<div>${wizard.metadata.platform}</div>`,
-      `<div>Year: ${wizard.metadata.year}</div>`,
-      `<div>Channels: ${wizard.metadata.channelSummary}</div>`,
-    ].join('');
+    
+    // Build summaryMeta using DOM nodes to prevent XSS from untrusted plugin metadata
+    summaryMeta.textContent = '';
+    const platformDiv = document.createElement('div');
+    platformDiv.textContent = wizard.metadata.platform;
+    const yearDiv = document.createElement('div');
+    yearDiv.textContent = `Year: ${wizard.metadata.year}`;
+    const channelsDiv = document.createElement('div');
+    channelsDiv.textContent = `Channels: ${wizard.metadata.channelSummary}`;
+    summaryMeta.append(platformDiv, yearDiv, channelsDiv);
 
     selectedExamples.instruments = pickDefaultTemplate(wizard.templates.instruments, wizard.templates.defaults?.instruments);
     selectedExamples.effects = pickDefaultTemplate(wizard.templates.effects, wizard.templates.defaults?.effects);

@@ -1,5 +1,5 @@
 /**
- * BeatBax metadata and example song templates for the NES (Ricoh 2A03) chip plugin.
+ * BeatBax metadata and example song templates for the Game Boy (DMG-01) chip plugin.
  *
  * These are intended as starting points for users to build their own songs, and
  * are not meant to be comprehensive demonstrations of the plugin's capabilities.
