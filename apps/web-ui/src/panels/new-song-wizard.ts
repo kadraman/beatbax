@@ -48,7 +48,13 @@ function normalizeImageSource(raw?: string): string {
     return `data:image/png;base64,${compact}`;
   }
 
-  return value;
+  // Allow same-origin relative paths only (blocks remote URLs and dangerous schemes).
+  if (value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) {
+    return value;
+  }
+
+  // Block all other cases: remote URLs, javascript:, vbscript:, and any other suspicious schemes.
+  return DEFAULT_FALLBACK_IMAGE;
 }
 
 function quoteMetadataValue(value: string): string {
@@ -360,7 +366,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     const wizard = selected.plugin.newSongWizard!;
     summaryImage.src = normalizeImageSource(wizard.metadata.image);
     chipName.textContent = wizard.metadata.chipDisplayName;
-    
+
     // Build summaryMeta using DOM nodes to prevent XSS from untrusted plugin metadata
     summaryMeta.textContent = '';
     const platformDiv = document.createElement('div');
