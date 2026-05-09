@@ -468,6 +468,29 @@ export function numberField(
   return row;
 }
 
+export function textField(
+  label: string,
+  initial: string,
+  onChange: (v: string) => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'bb-settings-row';
+
+  const lbl = document.createElement('label');
+  lbl.className = 'bb-settings-label';
+  lbl.textContent = label;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'bb-settings-text';
+  input.value = initial;
+  lbl.setAttribute('for', input.id = `bb-text-${label.replace(/\s+/g, '-').toLowerCase()}`);
+  input.addEventListener('change', () => onChange(input.value.trim()));
+
+  row.append(lbl, input);
+  return row;
+}
+
 export function noteText(text: string): HTMLElement {
   const p = document.createElement('p');
   p.className = 'bb-settings-note';

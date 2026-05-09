@@ -35,6 +35,7 @@ import { validateNesInstrument } from './validate.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
+import { nesSongWizard } from './songWizard.js';
 
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
@@ -42,7 +43,10 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   channels: 5,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },
-
+  bundledSamples: BUNDLED_SAMPLES,
+  uiContributions: nesUIContributions,
+  newSongWizard: nesSongWizard,
+  
   supportsVolumeForChannel(channelIndex: number): boolean {
     // Pulse1 (0) and Pulse2 (1) have a hardware volume envelope register.
     // Noise (3) also has a volume envelope register.
@@ -50,8 +54,6 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     // DMC (4) volume is baked into the sample data; not adjustable at runtime.
     return channelIndex === 0 || channelIndex === 1 || channelIndex === 3;
   },
-
-  bundledSamples: BUNDLED_SAMPLES,
 
   validateInstrument(inst: InstrumentNode) {
     return validateNesInstrument(inst);
@@ -84,8 +86,6 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
       await preloadDMCSamples(refs);
     }
   },
-
-  uiContributions: nesUIContributions,
 
   configureForSong(song: { chip?: string; chipRegion?: string }) {
     setNesClockRegion(song?.chipRegion);

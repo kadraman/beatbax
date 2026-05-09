@@ -75,6 +75,7 @@ export const settingWordWrap        = boolAtom(StorageKey.WORD_WRAP,         fal
 export const settingCodeLens        = boolAtom(StorageKey.CODELENS,          true);
 export const settingBeatDecorations = boolAtom(StorageKey.BEAT_DECORATIONS,  true);
 export const settingDefaultBpm      = numberAtom(StorageKey.BPM,              128);
+export const settingSongArtist      = stringAtom<string>(StorageKey.SONG_ARTIST, '');
 export const settingFontSize        = numberAtom(StorageKey.FONT_SIZE,         14);
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
@@ -137,6 +138,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.CODELENS,
     StorageKey.BEAT_DECORATIONS,
     StorageKey.BPM,
+    StorageKey.SONG_ARTIST,
     StorageKey.FONT_SIZE,
   ],
   playback: [
