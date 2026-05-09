@@ -10,6 +10,7 @@ import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
 import { gameboyUIContributions } from './ui-contributions.js';
 import { version } from '../../version.js';
+import { gbSongWizard } from './songWizard.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -184,6 +185,8 @@ export const gameboyPlugin: ChipPlugin = {
   channels: 4,
   supportsPerChannelVolume: false,
   instrumentVolumeRange: { min: 0, max: 15 },
+  uiContributions: gameboyUIContributions,
+  newSongWizard: gbSongWizard,
 
   validateInstrument(inst: InstrumentNode): ValidationError[] {
     return validateGBInstrument(inst);
@@ -193,7 +196,6 @@ export const gameboyPlugin: ChipPlugin = {
     return new GBChannelBackend(channelIndex);
   },
 
-  uiContributions: gameboyUIContributions,
 };
 
 export default gameboyPlugin;

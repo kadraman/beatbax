@@ -83,7 +83,7 @@ export function buildSettingsModal(): SettingsModalController {
 
   const title = document.createElement('span');
   title.className = 'bb-settings-modal-title';
-  title.textContent = '⚙  Settings';
+  title.textContent = 'Settings';
 
   const hintSpan = document.createElement('span');
   hintSpan.className = 'bb-settings-modal-hint';

@@ -1,6 +1,6 @@
 ---
 title: "Web UI New Song Wizard"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-05-07
 issue: "https://github.com/kadraman/beatbax/issues/106"
@@ -214,18 +214,18 @@ This is an additive UX and onboarding feature for Web UI song creation.
 
 ## Implementation Checklist
 
-- [ ] Define/confirm plugin metadata contract for wizard chip summary
-- [ ] Define/confirm plugin template contract for instruments/effects/structure selectors
-- [ ] Implement wizard modal shell and launch wiring
-- [ ] Implement chip navigator driven by enabled chips
-- [ ] Implement summary panel driven by selected plugin metadata
-- [ ] Implement song fields with settings-derived defaults
-- [ ] Implement selector controls for instruments/effects/structure
-- [ ] Implement `Open Existing Song` alternate flow
-- [ ] Implement first-run detection and auto-launch behavior
-- [ ] Align final visual design with existing modal style constraints
-- [ ] Add unit and integration tests
-- [ ] Update UI documentation/help text
+- [x] Define/confirm plugin metadata contract for wizard chip summary
+- [x] Define/confirm plugin template contract for instruments/effects/structure selectors
+- [x] Implement wizard modal shell and launch wiring
+- [x] Implement chip navigator driven by enabled chips
+- [x] Implement summary panel driven by selected plugin metadata
+- [x] Implement song fields with settings-derived defaults
+- [x] Implement selector controls for instruments/effects/structure
+- [x] Implement `Open Existing Song` alternate flow
+- [x] Implement first-run detection and auto-launch behavior
+- [x] Align final visual design with existing modal style constraints
+- [x] Add unit and integration tests
+- [x] Update UI documentation/help text
 
 ---
 
