@@ -44,7 +44,7 @@ Implement a complete AY-3-8910 plugin by:
 3. **Add parser / language support** — instrument directives for envelope shape and noise behavior
 4. **Implement dual rendering** — PCM render (CLI) + Web Audio playback (browser/Electron)
 5. **Export support** — VGM v1.61 register stream via the multi-chip VGM exporter plugin
-6. **New Song Wizard templates** — sample instruments, effects, and structure for quick Atari ST / MSX onboarding
+6. **New Song Wizard templates** — sample instruments, effects, and structure for quick Atari ST / MSX etc onboarding
 
 ---
 
@@ -119,7 +119,7 @@ New BeatBax instrument fields for AY-3-8910 channels:
 
 #### No New Top-Level Directives
 
-The AY-3-8910 does not require song-level extensions (like `scale`, `chip region`, etc.); it is configured via the `chip ay3-8910` or `chip ym2149` directive and channel-level instrument choices.
+The AY-3-8910 does not require song-level extensions (like `chip region`, etc.); it is configured via the `chip atari-st` or `chip msx` directive and channel-level instrument choices.
 
 ---
 
@@ -162,7 +162,7 @@ The existing `InstrumentNode` in the BeatBax AST will be extended to support opt
 
 interface InstrumentNode {
   id: string;
-  chipId: 'gameboy' | 'nes' | 'sms' | 'ay3-8910' | 'ym2149' | ...;
+  chipId: 'gameboy' | 'nes' | 'sms' | 'atari-st' | 'msx-1' | ...;
 
   // Existing fields
   type?: 'tone' | 'noise' | 'mixed';
@@ -233,7 +233,6 @@ The parser will:
 #### Phase 6: Documentation & Release (week 5)
 
 - Add plugin to `docs/contributing/creating-plugins.md`
-- Create tutorial: "Composing for Atari ST with BeatBax"
 - Publish to npm as `@beatbax/plugin-chip-ay3-8910`
 - Update ROADMAP
 - **Test:** Full integration test; end-to-end composition + export workflow
@@ -242,17 +241,25 @@ The parser will:
 
 ### New Song Wizard Templates
 
-The `newSongWizard` field will provide quick-start templates for Atari ST and MSX contexts:
+The `newSongWizard` field will provide quick-start templates for multiple computers, consoles even
+though they are implementing the same sound chip, e.g. Atari ST and MSX contexts:
 
 #### Metadata
+
+Example for Atari ST:
 
 ```typescript
 metadata: {
   chipDisplayName: 'AY-3-8910 (Atari ST)',
-  platform: 'Atari ST / MSX / Amstrad CPC',
+  platform: 'Atari ST',
   year: '1980s',
   channelSummary: '3 PSG channels with envelope',
 }
+```
+#### Song Header
+
+```bax
+chip atari-st
 ```
 
 #### Sample Instruments Template
