@@ -13,3 +13,5 @@ export type { Theme, ThemeManagerOptions } from './theme-manager';
 
 export { MenuBar } from './menu-bar';
 export type { MenuBarOptions } from './menu-bar';
+
+export { LoadingOverlay } from './loading-overlay';
