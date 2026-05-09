@@ -1,5 +1,13 @@
 # @beatbax/plugin-chip-nes
 
+## 0.5.1
+
+### Patch Changes
+
+- 38fe1e5: Move NES New Song wizard metadata/templates into a dedicated `songWizard` module and wire it through the plugin `newSongWizard` field.
+
+  Keep NES `ui-contributions` focused on Copilot prompt, hover docs, and Help panel content to improve maintainability.
+
 ## 0.5.0
 
 ### Minor Changes
