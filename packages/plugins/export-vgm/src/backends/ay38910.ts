@@ -107,7 +107,7 @@ function ayRegionClock(song: SongLike): { clock: number; rate: number; systemNam
 }
 
 function freqToPeriod(freq: number, clock: number): number {
-  if (freq <= 0) return 0;
+  if (freq <= 0) return 1;
   return Math.max(1, Math.min(0x0fff, Math.round(clock / (16 * freq))));
 }
 
@@ -137,7 +137,7 @@ function applyInstrumentDefaults(state: AyChannelState, inst: InstrumentNode | n
     ? inst.use_envelope
     : String(inst?.use_envelope ?? 'false').toLowerCase() === 'true';
   state.useEnvelope =
-    (typeof inst?.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope') ||
+    (typeof inst?.vol === 'string' && inst.vol.toLowerCase() === 'use_envelope') ||
     useEnvField ||
     (inst?.vol === undefined && envName !== 'none');
   state.envShape = mapEnvShape(envName);
@@ -198,6 +198,7 @@ function updateRegisters(
   writeAyReg(AY_REGS.mixer, mixer & 0x3f, shadow, out);
 
   if (anyEnvelope) {
+    // Fixed starter envelope period (0x0030) used for deterministic AY shape playback in v1.
     writeAyReg(AY_REGS.envPeriodLo, 0x30, shadow, out);
     writeAyReg(AY_REGS.envPeriodHi, 0x00, shadow, out);
     writeAyReg(AY_REGS.envShape, envShape & 0x0f, shadow, out);

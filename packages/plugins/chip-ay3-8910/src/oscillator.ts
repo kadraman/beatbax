@@ -39,6 +39,8 @@ export class AyNoiseOscillator {
   next(sampleRate: number): number {
     if (sampleRate <= 0) return 0;
 
+    // Approximate AY noise register mapping (0..31) to an audible noise-clock range.
+    // Lower register values yield brighter/noisier output.
     const hz = 60 + (31 - this.rate) * 45;
     this.phase += hz / sampleRate;
 

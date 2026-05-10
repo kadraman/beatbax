@@ -1,8 +1,5 @@
 {
   "extends": "../../../tsconfig.json",
-  "references": [
-    { "path": "../export-vgm" }
-  ],
   "compilerOptions": {
     "composite": true,
     "rootDir": "src",

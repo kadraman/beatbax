@@ -1,5 +1,6 @@
 import type { InstrumentNode, ValidationError } from '@beatbax/engine';
 import type { AyEnvelopeShape } from './envelope.js';
+import { shouldUseEnvelope } from './instrument.js';
 
 const AY_TYPES = new Set(['tone', 'noise']);
 const AY_NOISE = new Set(['on', 'off']);
@@ -37,16 +38,6 @@ function pushError(errors: ValidationError[], field: string, message: string): v
   errors.push({ field, message });
 }
 
-function parseBool(v: unknown): boolean | null {
-  if (typeof v === 'boolean') return v;
-  if (typeof v === 'string') {
-    const normalized = v.trim().toLowerCase();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-  }
-  return null;
-}
-
 export function validateAyInstrument(inst: InstrumentNode): ValidationError[] {
   const errors: ValidationError[] = [];
   const type = String(inst.type ?? 'tone').toLowerCase();
@@ -79,12 +70,9 @@ export function validateAyInstrument(inst: InstrumentNode): ValidationError[] {
     }
   }
 
-  const useEnvelope = (
-    parseBool(inst.use_envelope) ??
-    (typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope')
-  ) || (inst.vol === undefined && env !== 'none');
+  const useEnvelope = shouldUseEnvelope(inst);
 
-  if (inst.vol !== undefined && !(typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope')) {
+  if (inst.vol !== undefined && !(typeof inst.vol === 'string' && inst.vol.toLowerCase() === 'use_envelope')) {
     const vol = Number(inst.vol);
     if (!Number.isFinite(vol) || vol < 0 || vol > 15) {
       pushError(errors, 'vol', `vol must be between 0 and 15 or 'use_envelope'. Got '${inst.vol}'.`);

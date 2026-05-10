@@ -1,6 +1,7 @@
 import type { ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
 import { AyEnvelopeGenerator, type AyEnvelopeShape } from './envelope.js';
 import { AyToneOscillator, AyNoiseOscillator } from './oscillator.js';
+import { shouldUseEnvelope } from './instrument.js';
 
 interface AyChannelState {
   active: boolean;
@@ -11,16 +12,6 @@ interface AyChannelState {
   useEnvelope: boolean;
   volume: number;
   envShape: AyEnvelopeShape;
-}
-
-function parseBool(v: unknown, fallback = false): boolean {
-  if (typeof v === 'boolean') return v;
-  if (typeof v === 'string') {
-    const normalized = v.trim().toLowerCase();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-  }
-  return fallback;
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -76,11 +67,7 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       state.noiseRate = clamp(Number(instrument.noise_rate ?? 0), 0, 31);
       state.envShape = env;
 
-      const requestedEnvelope =
-        (typeof instrument.vol === 'string' && String(instrument.vol).toLowerCase() === 'use_envelope') ||
-        parseBool(instrument.use_envelope) ||
-        (instrument.vol === undefined && env !== 'none');
-      state.useEnvelope = requestedEnvelope;
+      state.useEnvelope = shouldUseEnvelope(instrument);
 
       const parsedVol = Number(instrument.vol ?? 15);
       state.volume = clamp(Number.isFinite(parsedVol) ? parsedVol : 15, 0, 15);
@@ -130,6 +117,7 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
           ? envelope.level() / 15
           : state.volume / 15;
 
+        // Keep AY PCM path below full-scale to preserve headroom during channel summing.
         buffer[i] += (sample / parts) * level * 0.22;
       }
     },
@@ -157,12 +145,9 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0, start);
 
-      const env = String(inst.env ?? 'none').toLowerCase();
-      const useEnvelope =
-        (typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope') ||
-        parseBool(inst.use_envelope) ||
-        (inst.vol === undefined && env !== 'none');
+      const useEnvelope = shouldUseEnvelope(inst);
 
+      // Match PCM headroom in the Web Audio path to avoid clipping with layered channels.
       const targetGain = useEnvelope ? 0.18 : clamp(Number(inst.vol ?? 15), 0, 15) / 15 * 0.18;
       gain.gain.linearRampToValueAtTime(targetGain, start + 0.008);
       gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
