@@ -7,8 +7,11 @@ name: "Web UI: Orchestration"
 run-name: "Web UI: Orchestration · ${{ github.event.head_commit.message || format('Triggered by {0}', github.triggering_actor) }}"
 
 on:
-  - push
-  - workflow_dispatch
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
 
 jobs:
   retrieve-project:
