@@ -25,3 +25,17 @@ export {
   type DiagLevel,
   type DiagMeta,
 } from './diag.js';
+
+// Music helpers - shared pitch and macro utilities
+export {
+  NOTE_SEMITONES,
+  noteToMidi,
+  midiToNote,
+  midiToFreq,
+  type ParsedMacro,
+  type MacroState,
+  parseMacro,
+  macroValue,
+  advanceMacro,
+  makeMacroState,
+} from './music.js';

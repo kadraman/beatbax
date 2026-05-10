@@ -691,6 +691,12 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           const parsed = parseEffectsInline(inner);
           parsedPan = parsed.pan;
           parsedEffects = expandInlinePresets(parsed.effects || []);
+          if (parsedPan && String(ast.chip || '').toLowerCase() === 'sms') {
+            emitResolverWarn(
+              `Inline pan on 'chip sms' uses Game Gear stereo routing semantics. Prefer 'chip gg' or 'chip gamegear' for stereo-authored note pan.`,
+              undefined,
+            );
+          }
         }
 
         const useInst = tempInstName || currentInstName;

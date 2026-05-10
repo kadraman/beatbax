@@ -40,8 +40,14 @@ import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
 import { smsSongWizard } from './songWizard.js';
 
-const smsPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
+type SmsChipPlugin = ChipPlugin & {
+  aliases?: readonly string[];
+  configureForSong(song: { chip?: string; chipRegion?: string }): void;
+};
+
+const smsPlugin: SmsChipPlugin = {
   name: 'sms',
+  aliases: ['gg', 'gamegear'],
   version,
   channels: 4,
   supportsPerChannelVolume: true,

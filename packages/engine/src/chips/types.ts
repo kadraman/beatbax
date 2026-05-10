@@ -230,6 +230,9 @@ export interface ChipPlugin {
   /** Chip identifier used in the `chip` directive (e.g. `'gameboy'`, `'nes'`). */
   name: string;
 
+  /** Optional aliases accepted anywhere a chip name is resolved (e.g. `gb`, `gg`). */
+  aliases?: readonly string[];
+
   /** Semver version string (e.g. `'1.0.0'`). */
   version: string;
 

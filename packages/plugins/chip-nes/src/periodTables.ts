@@ -1,3 +1,5 @@
+import { noteToMidi, midiToFreq } from '@beatbax/engine';
+
 /**
  * NES APU period tables for pulse and triangle channels.
  *
@@ -77,7 +79,7 @@ export function freqToTrianglePeriod(freq: number): number {
 export const PULSE_PERIOD: Record<number, number> = (function () {
   const table: Record<number, number> = {};
   for (let midi = 36; midi <= 96; midi++) {
-    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const freq = midiToFreq(midi);
     table[midi] = Math.max(0, Math.min(2047, Math.round(NES_CLOCK / (16 * freq) - 1)));
   }
   return table;
@@ -95,7 +97,7 @@ export const PULSE_PERIOD: Record<number, number> = (function () {
 export const TRIANGLE_PERIOD: Record<number, number> = (function () {
   const table: Record<number, number> = {};
   for (let midi = 36; midi <= 96; midi++) {
-    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const freq = midiToFreq(midi);
     table[midi] = Math.max(0, Math.min(2047, Math.round(NES_CLOCK / (32 * freq) - 1)));
   }
   return table;
@@ -188,17 +190,14 @@ export function midiToTriangleFreq(midi: number): number {
  * Returns null if the note name is not recognised.
  */
 export function noteNameToMidi(name: string, octave: number): number | null {
-  // Normalise: upper-case the note letter, keep accidental case-sensitive
+  const primary = noteToMidi(`${name}${octave}`);
+  if (primary !== null) return primary;
+
   const upper = name.toUpperCase();
-  const noteMap: Record<string, number> = {
-    C: 0, 'C#': 1, DB: 1, D: 2, 'D#': 3, EB: 3,
-    E: 4, FB: 4, 'E#': 5, F: 5, 'F#': 6, GB: 6,
-    G: 7, 'G#': 8, AB: 8, A: 9, 'A#': 10, BB: 10,
-    B: 11, 'B#': 12, CB: 11,
-  };
-  const semi = noteMap[upper];
-  if (semi === undefined) return null;
-  // 'B#' is enharmonic to C of the next octave (MIDI +1)
-  if (upper === 'B#') return (octave + 2) * 12 + 0;
-  return (octave + 1) * 12 + semi;
+  if (upper === 'B#') return noteToMidi(`C${octave + 1}`);
+  if (upper === 'CB') return noteToMidi(`B${octave}`);
+  if (upper === 'E#') return noteToMidi(`F${octave}`);
+  if (upper === 'FB') return noteToMidi(`E${octave}`);
+
+  return null;
 }

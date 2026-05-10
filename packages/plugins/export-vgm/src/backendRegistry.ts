@@ -11,8 +11,8 @@
  */
 
 import type { VgmBackend } from './backends/types.js';
-import { smsVgmBackend } from './backends/sms.js';
-import { ayVgmBackend } from './backends/ay.js';
+import { sn76489VgmBackend } from './backends/sn76489.js';
+import { ay38910VgmBackend } from './backends/ay38910.js';
 
 // ─── Alias normalisation ──────────────────────────────────────────────────────
 
@@ -96,5 +96,5 @@ export function missingBackendError(chip: string): string {
 
 // ─── Default backend registration ─────────────────────────────────────────────
 
-registerBackend(smsVgmBackend);
-registerBackend(ayVgmBackend);
+registerBackend(sn76489VgmBackend);
+registerBackend(ay38910VgmBackend);

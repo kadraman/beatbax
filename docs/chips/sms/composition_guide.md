@@ -250,6 +250,7 @@ Reference songs:
 | `songs/sms/instruments/sms_percussion_layered_template.bax` | Layered tone+noise percussion |
 | `songs/sms/instruments/sms_percussion_layered_slow.bax` | Layered percussion at slower tempos |
 | `songs/sms/instruments/sms_gg_stereo.bax` | Game Gear stereo routing and mix balance |
+| `songs/sms/instruments/gamegear_inline_pan.bax` | Explicit `chip gamegear` usage with instrument and inline pan |
 | `songs/sms/instruments/sms_noise_channel.bax` | Noise drum design with `noise_rate_env` |
 | `songs/sms/instruments/sms_macro_arp_env.bax` | `arp_env` macro — one-shot and looping |
 | `songs/sms/instruments/sms_macro_pitch_env.bax` | `pitch_env` macro — glide into note |
@@ -481,11 +482,24 @@ This is the primary tool for building arrangement variation from a small pattern
 
 The `gg:pan` instrument property assigns a channel to L, R, or C (both). This is per-instrument, not per-note.
 
+For stereo-authored songs, prefer `chip gg` or `chip gamegear`. On explicit `chip sms` songs, plain `pan` and inline note pan are treated as Game Gear-style stereo intent and now emit warnings so mono-targeted SMS arrangements stay explicit.
+
 ```bax
+chip gamegear
+
 inst lead  type=tone1 vol=4 vol_env=[4,5,6,7|7] gg:pan=R
 inst harm  type=tone2 vol=5 vol_env=[5,6,7,8|8] gg:pan=L
 inst bass  type=tone3 vol=4 vol_env=[4,5,6,7|7] gg:pan=C
 inst kick  type=noise noise_mode=white noise_rate=2 vol_env=[3,5,7,10,13,15] gg:pan=C
+```
+
+Equivalent plain `pan` authoring is also supported for Game Gear-targeted songs:
+
+```bax
+chip gamegear
+
+inst lead type=tone1 vol=4 pan=R
+pat melody = E5<pan:R>:2 G5<pan:C>:2 B5<pan:L>:2
 ```
 
 Practical rules that emerged from `sms_gg_stereo.bax`:

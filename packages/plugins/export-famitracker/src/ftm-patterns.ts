@@ -3,30 +3,9 @@
  */
 
 import { FtmEffect, FtmRow, NesChannelType, ChannelEventLike } from './ftm-types.js';
+import { NOTE_SEMITONES } from '@beatbax/engine';
 
 // ─── Note encoding ────────────────────────────────────────────────────────────
-
-/** Semitone offset for each note name (A=9, B=11, C=0, ...). */
-const NOTE_SEMITONES: Record<string, number> = {
-  C: 0,
-  'C#': 1,
-  DB: 1,
-  D: 2,
-  'D#': 3,
-  EB: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  GB: 6,
-  G: 7,
-  'G#': 8,
-  AB: 8,
-  A: 9,
-  'A#': 10,
-  BB: 10,
-  B: 11,
-  // CB is handled specially in noteToFtm (Cb = B of the previous octave)
-};
 
 /**
  * FTM note names in order of semitone (0=C … 11=B).

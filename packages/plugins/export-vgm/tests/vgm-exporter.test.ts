@@ -5,6 +5,7 @@
 
 import vgmExporterPlugin from '../src/index.js';
 import type { SongLike } from '../src/backends/types.js';
+import { resolveBackend } from '../src/backendRegistry.js';
 import {
   VGM_MAGIC,
   VGM_HEADER_SIZE,
@@ -111,6 +112,11 @@ describe('vgmExporterPlugin metadata', () => {
 describe('vgmExporterPlugin.validate', () => {
   it('returns empty array for valid SMS song', () => {
     const errors = vgmExporterPlugin.validate!(makeSong() as any);
+    expect(errors).toEqual([]);
+  });
+
+  it('returns empty array for valid Game Gear alias song', () => {
+    const errors = vgmExporterPlugin.validate!(makeSong({ chip: 'gg' }) as any);
     expect(errors).toEqual([]);
   });
 
@@ -269,6 +275,27 @@ describe('vgmExporterPlugin.export', () => {
     const stereoBytes = extractGgStereoDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
     expect(stereoBytes.length).toBeGreaterThanOrEqual(2);
     expect(stereoBytes).toContain(0xFE);
+  });
+
+  it('plain instrument pan maps to GG stereo when targeting chip gg', () => {
+    const song = makeSong({
+      chip: 'gg',
+      insts: {
+        lead: { name: 'lead', type: 'tone1', vol: 5, pan: 'R' } as any,
+      },
+    });
+
+    const stereoBytes = extractGgStereoDataBytes(vgmExporterPlugin.export(song as any) as Uint8Array);
+    expect(stereoBytes.length).toBeGreaterThanOrEqual(2);
+    expect(stereoBytes).toContain(0xEF);
+  });
+
+  it('chip gg builds Game Gear GD3 metadata even with centered pan', () => {
+    const song = makeSong({ chip: 'gg' });
+    const backend = resolveBackend('gg')!;
+    const result = backend.translate(song as any);
+    const gd3 = backend.buildGd3Fields(song as any, result);
+    expect(gd3.systemNameEn).toBe('Sega Game Gear');
   });
 
   it('noise instrument maps to channel 4 (PSG ch3)', () => {

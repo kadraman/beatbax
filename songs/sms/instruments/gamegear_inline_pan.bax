@@ -1,0 +1,27 @@
+# Game Gear stereo routing example using explicit chip alias.
+# Demonstrates plain pan=L/R/C on instruments and inline note pan.
+
+chip gamegear
+bpm 132
+
+inst lead type=tone1 vol=4 vol_env=[4,5,6,7|7] pan=R
+inst harm type=tone2 vol=5 vol_env=[5,6,7,8|8] pan=L
+inst bass type=tone3 vol=4 vol_env=[4,5,6,7|7] pan=C
+inst hihat type=noise noise_mode=white noise_rate=0 vol_env=[5,10,13,15] gg:pan=C
+
+pat melody = E5<pan:R>:2 G5<pan:L>:2 A5<pan:R>:2 B5<pan:L>:2
+pat harmony = C4<pan:L> . E4<pan:L> . G4<pan:R> . A4<pan:R> .
+pat bassline = E2<pan:L>:4 C2<pan:C>:4 A2<pan:C>:4 B2<pan:R>:4
+pat drums = hihat . . . hihat . hihat .
+
+seq melody_seq = melody melody
+seq harm_seq = harmony harmony
+seq bass_seq = bassline bassline
+seq drum_seq = drums drums
+
+channel 1 => inst lead seq melody_seq
+channel 2 => inst harm seq harm_seq
+channel 3 => inst bass seq bass_seq
+channel 4 => inst hihat seq drum_seq
+
+play

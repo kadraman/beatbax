@@ -24,3 +24,17 @@ export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
 export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
 export { ExporterRegistry, exporterRegistry } from './export/registry.js';
 export { BeatBaxEngine } from './engine.js';
+
+// ─── Shared music utilities ────────────────────────────────────────────────────
+export {
+  NOTE_SEMITONES,
+  noteToMidi,
+  midiToNote,
+  midiToFreq,
+  type ParsedMacro,
+  type MacroState,
+  parseMacro,
+  macroValue,
+  advanceMacro,
+  makeMacroState,
+} from './util/music.js';

@@ -32,6 +32,9 @@ export class ChipRegistry {
       throw new Error(`Chip plugin '${plugin.name}' is already registered`);
     }
     this.plugins.set(plugin.name, plugin);
+    for (const alias of plugin.aliases ?? []) {
+      this.registerAlias(alias, plugin.name);
+    }
     for (const exporterPlugin of plugin.exporterPlugins ?? []) {
       if (!exporterRegistry.has(exporterPlugin.id)) {
         exporterRegistry.register(exporterPlugin);
