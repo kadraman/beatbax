@@ -13,7 +13,7 @@ import type { Gd3Fields } from '../gd3.js';
 import type { VgmHeaderParams } from '../vgmWriter.js';
 
 export const ayVgmBackend: VgmBackend = {
-  chipAliases: ['ay', 'ym2149', 'ay38910'],
+  chipAliases: ['ay', 'ym2149', 'ay38910', 'amstrad-cpc', 'atari-st', 'msx', 'zx-spectrum-128', 'oric-1', 'colour-genie', 'apple-ii-mockingboard', 'intellivision', 'vectrex'],
 
   validate(_song: SongLike): string[] {
     return ['AY-3-8910 VGM backend is not yet implemented.'];
