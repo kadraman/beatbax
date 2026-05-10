@@ -1,0 +1,269 @@
+## battle_field_remix.bax
+## Original Game Gear chiptune.
+##
+## This is an entirely original composition — it does not reproduce any copyrighted
+## material. It captures the upbeat, bright, speedy feel of classic Game Gear
+## Sonic-era zone music: fast melodic runs in E major, bright arpeggiated leads,
+## staccato harmony punches, a bouncy bass groove, and a light percussion pattern.
+## Game Gear stereo panning brings the lead right, harmony left, and bass centered.
+##
+## Key: E major | Tempo: 168 BPM | Style: Bright, energetic platformer / zone music
+##
+## SMS attenuation reminder throughout this file:
+##   0 = loudest, 15 = mute
+## All vol_env arrays count UP toward 15 to express decay / fade-out.
+##
+## Structure (20 bars, each bar = 16 scheduler ticks at 168 BPM):
+##   Bars  1– 4 : Section A — Main hook, E major arpeggiated lead (Tone1),
+##                            3rd/5th stab punches (Tone2), root/5th bass (Tone3)
+##   Bars  5– 8 : Section B — Counter-melody phrase; A major / C#m area; lead rises,
+##                            harmony stabs shift, bass walks A / C#m / B
+##   Bars  9–12 : Break     — Tone1 tonic pedal with vibrato; Tone2 counter-descent;
+##                            Tone3 E pedal; sparse drum groove
+##   Bars 13–16 : Reprise A — Full return to E major main hook, full drive
+##   Bars 17–20 : Ending    — B-section tag variation + E major cadence
+##
+## Channels:
+##   Ch1 (Tone1) : Lead melody — fast 16th-note arpeggiated runs; vibrato in break.
+##                 gg:pan=R  (right channel) for bright spatial separation.
+##   Ch2 (Tone2) : Harmony — staccato 3rd / 5th stabs; break counter-melody.
+##                 gg:pan=L  (left channel) for antiphonal feel.
+##   Ch3 (Tone3) : Bass — quarter-note root/5th bounce; solid low-end anchor.
+##                 gg:pan=C  (center, both sides).
+##   Ch4 (Noise) : Drums — kick, snare, hi-hat groove.
+##                 gg:pan=C  (center).
+##
+## Timing reference (168 BPM, 4 ticks per beat):
+##   1 tick  = 1/16 note  ≈  89 ms
+##   4 ticks = 1 quarter note
+##  16 ticks = 1 whole bar
+##
+## Play: node bin/beatbax play songs/sms/battle_field_remix.bax
+
+song name "Battle Field Remix"
+song artist "The BeatBax Team"
+song description """Original Game Gear PSG chiptune at 168 BPM in E major. Demonstrates all 4 SMS/GG channels with stereo routing: arpeggiated lead with vibrato break and pitch_env rise (Tone1, right), staccato 3rd/5th stabs switching to smooth counter-melody (Tone2, left), bouncy root/5th bass with ascending fill (Tone3, center), and a full noise drum kit with kick/snare/hi-hat groove (center). Uses gg:pan stereo routing, vol_env attenuation envelopes, arp_env triad shimmer, inline vibrato, pitch_env tension rise, cut articulation, and a noise_rate_env snare sweep."""
+song tags "gg,gamegear,action,arcade,shooter,example,demo"
+
+chip gg
+bpm 168
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# ── Tone1 (type=tone1) — Lead, panned RIGHT ───────────────────────────────────
+#
+# lead — bright 16th-note melodic lead with a fast punchy decay.
+#   vol_env=[0,3,6,9,12,15] : crisp attack, decays to mute over 6 frames.
+#   arp_env=[-12,0,12|0] : looping octave-root-octave shimmer under sustained notes.
+#   gg:pan=R  — melody sits on the right for a classic Game Gear stereo image.
+inst lead     type=tone1  vol=0  vol_env=[0,3,6,9,12,15]  arp_env=[-12,0,12|0]  gg:pan=R
+
+# lead_vib — break-section sustain variant with warm steady level and no arp.
+#   No vol_env so the held pedal note sustains fully.
+#   vol=4 : light attenuation — warm and present but not harsh.
+inst lead_vib type=tone1  vol=4  gg:pan=R
+
+# ── Tone2 (type=tone2) — Harmony, panned LEFT ─────────────────────────────────
+#
+# stab — staccato harmony punches (3rd / 5th stabs in E major).
+#   vol_env=[0,2,5,8,11,14,15] : bright punchy attack with a clear mid-body tail.
+#   cut:3 per-note keeps articulation crisp.
+#   gg:pan=L  — harmony stabs on the left create antiphonal stereo width.
+inst stab     type=tone2  vol=0  vol_env=[0,0,0,0,0,0,2,5,8,11,14,15]  gg:pan=L
+
+# stab_hi — section B upper-register harmony variant.
+#   vol=1 : very slightly louder for the higher register.
+inst stab_hi  type=tone2  vol=1  vol_env=[0,0,0,0,0,0,2,5,8,11,14,15]  gg:pan=L
+
+# ctr — break counter-melody (smooth step-wise descent, no arp).
+#   vol_env=[2,5,8,11|11] : soft attack, sustained plateau; reads clearly over sparse drum.
+inst ctr      type=tone2  vol=2  vol_env=[2,5,8,11|11]  gg:pan=L
+
+# ── Tone3 (type=tone3) — Bass, centered ───────────────────────────────────────
+#
+# bass — quarter-note bouncy bass voice, maximum loudness to anchor the mix.
+#   vol=0 : loudest attenuation setting.
+#   vol_env=[0,5,10,14,15] : short staccato decay keeps repeated notes distinct.
+#   gg:pan=C  — bass centered for maximum body on both speakers.
+inst bass     type=tone3  vol=0  vol_env=[0,5,10,14,15]  gg:pan=C
+
+# ── Noise (type=noise) — Drums, centered ──────────────────────────────────────
+#
+# kick — rate=2 (deepest clock). Fast transient thump.
+#   vol_env=[0,3,7,12,15] : sharp spike then fast tail, muted by frame 5.
+inst kick     type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,7,12,15]  gg:pan=C
+
+# snare — rate=1 (mid clock). Crack + body.
+#   noise_rate_env=[0,0,1,1,2] : bright click transient then settles to body.
+#   vol_env=[1,4,7,10,12,14,15] : distinct snare tail, clearly separated from kick.
+inst snare    type=noise  noise_mode=white     noise_rate=1  vol_env=[1,4,7,10,12,14,15]  noise_rate_env=[0,0,1,1,2]  gg:pan=C
+
+# hihat — rate=0 (fastest/brightest). Crisp tick.
+#   vol_env=[6,11,14,15] : very short, sits in background without cluttering.
+inst hihat    type=noise  noise_mode=white     noise_rate=0  vol_env=[6,11,14,15]  gg:pan=C
+
+# =============================================================================
+# Patterns — every pattern is exactly 16 ticks (one bar at 168 BPM)
+# =============================================================================
+
+# ── Section A: Main hook (E major) ───────────────────────────────────────────
+#
+# mel_a1 — Bright 16th-note ascending/descending E major run.
+#   Captures the breezy speed feel of a Green Hill style lead.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: E5  G#5 B5  E6  B5  G#5 E5  B4 G#5  B5  E6  B5  G#5 F#5 E5 D#5
+pat mel_a1 = E5 G#5 B5 E6 B5 G#5 E5 B4 G#5 B5 E6 B5 G#5 F#5 E5 D#5   # 16×1 = 16
+
+# mel_a2 — Quarter-note anchor phrase then a descending 16th run, landing on E.
+#   E6:4 B5:2 G#5:2 F#5:2 E5:2 D#5:2 E5:2   → 4+2+2+2+2+2+2 = 16
+pat mel_a2 = E6:4 B5:2 G#5:2 F#5:2 E5:2 D#5:2 E5:2  # 16 ✓
+
+# harm_a1 — Tone2 staccato stabs: B4 (5th of E) and E4 (root), staccato.
+pat harm_a1 = B4<cut:3>:8 E4<cut:3>:8  # 16 ✓
+
+# harm_a2 — Tone2 stab answer: G#4 (major 3rd) and B4 (5th).
+pat harm_a2 = G#4<cut:3>:8 B4<cut:3>:8  # 16 ✓
+
+# bass_a1 — Tone3 bouncy bass: E2 root with A2 (4th) approach.
+#   Quarter-note pulse: E2 . . . B2 . . . E2 . . . B2 . . .
+pat bass_a1 = E2 . . . B2 . . . E2 . . . B2 . . .  # 16 ✓
+
+# bass_a2 — Tone3 bass variant: E2 root with descending D#2 leading tone.
+pat bass_a2 = E2 . . . B2 . . . E2 . . . D#2 . . .  # 16 ✓
+
+# ── Section B: Counter-melody — A major / C#m area ───────────────────────────
+#
+# mel_b1 — Lead rises into A / C#m territory.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: C#6 E6  A6  C#7 A6  E6  C#6 A5  E6  A6  C#7 A6  E6  C#6 B5  A5
+pat mel_b1 = C#6 E6 A6 C#7 A6 E6 C#6 A5 E6 A6 C#7 A6 E6 C#6 B5 A5   # 16×1 = 16
+
+# mel_b2 — Stepping back into B major area to set up return to E.
+#   B6:4 F#6:2 D#6:2 C#6:2 B5:2 A#5:2 B5:2   → 4+2+2+2+2+2+2 = 16
+pat mel_b2 = B6:4 F#6:2 D#6:2 C#6:2 B5:2 A#5:2 B5:2  # 16 ✓
+
+# harm_b1 — Section B stab (stab_hi): E5 (root of A), A4 (root) — up a register.
+pat harm_b1 = E5<cut:3>:8 A4<cut:3>:8  # 16 ✓
+
+# harm_b2 — Section B stab: F#5 (C#m 4th), B4 (dominant B root).
+pat harm_b2 = F#5<cut:3>:8 B4<cut:3>:8  # 16 ✓
+
+# bass_b1 — C#m bass: root C#2 alternating with 5th G#2.
+pat bass_b1 = C#2 . . . G#2 . . . C#2 . . . G#2 . . .  # 16 ✓
+
+# bass_b2 — A / B bass: A2 root then B2 dominant approach.
+pat bass_b2 = A2 . . . A2 . . . B2 . . . B2 . . .  # 16 ✓
+
+# ── Break / Bridge: Tonic pedal + counter-melody (bars 9–12) ─────────────────
+#
+# pedal_e — Tone1 whole-bar E5 tonic pedal with delayed vibrato.
+#   vib:4,5,sine,0,4 = vibrato onset at tick 4 after stable attack.
+#   Inline vibrato on the sustained note for classic Sonic-era break texture.
+pat pedal_e = E5<vib:4,5,sine,0,4>:16  # 16 ✓
+
+# pedal_rise — pitch_env ascent during bars 11–12 to build tension into reprise.
+#   E5 sustained; pitch_env=[0,1,2,3,5,7,9] bends up toward a 9th over 7 frames.
+pat pedal_rise = E5<vib:4,5,sine,0,4><pitch_env:[0,1,2,3,5,7,9]>:16  # 16 ✓
+
+# ctr_b1 — Tone2 break counter-melody: descending stepwise from B5.
+#   B5:4 A5:4 G#5:4 F#5:4   → 4+4+4+4 = 16
+pat ctr_b1 = B5:4 A5:4 G#5:4 F#5:4  # 16 ✓
+
+# ctr_b2 — Tone2 counter answer: lands on E5, gentle step down to B4.
+#   E5:4 D#5:4 C#5:4 B4:4   → 4+4+4+4 = 16
+pat ctr_b2 = E5:4 D#5:4 C#5:4 B4:4  # 16 ✓
+
+# bass_break — Tone3 tonic E pedal over the break.
+pat bass_break = E2 . . . E2 . . . E2 . . . E2 . . .  # 16 ✓
+
+# bass_rise — Ascending walk E2→F#2→G#2→B2 for tension into reprise.
+pat bass_rise  = E2 . . . F#2 . . . G#2 . . . B2 . . .  # 16 ✓
+
+# ── Ending tag (bars 17–20) ──────────────────────────────────────────────────
+#
+# mel_b1_var / mel_b2_var — variation on the section B hook with stronger descent.
+pat mel_b1_var = C#6 E6 A6 C#7 B6 A6 E6 C#6 E6 A6 B6 A6 G#6 F#6 E6 D#6  # 16×1 = 16
+pat mel_b2_var = B6:4 F#6:2 D#6:2 C#6:2 B5:2 A5:2 G#5:1 F#5:1 G#5:1 A5:1  # 16 ✓
+
+# mel_end — Final E-major cadence arpeggio and tonic hold.
+pat mel_end = E6:2 B5:2 G#5:2 E5:2 B5:2 G#5:2 F#5:2 E5:2  # 16 ✓
+
+# Harmonic support for ending variation and cadence.
+pat harm_b1_var = A5<cut:3>:8 E5<cut:3>:8   # 16 ✓
+pat harm_b2_var = F#5<cut:3>:8 B4<cut:3>:8  # 16 ✓
+pat harm_end    = B4<cut:3>:8 E4:8           # 16 ✓
+
+# Bass support for ending variation and final cadence.
+pat bass_b3  = C#2 . . . B2 . . . A2 . . . B2 . . .  # 16 ✓
+pat bass_end = E2  . . . B2 . . . E2 . . . E2 . . .  # 16 ✓
+
+# ── Drums ─────────────────────────────────────────────────────────────────────
+#
+# beat — standard groove: kick on beats 1 & 3, snare on 2 & 4, hi-hat on "and"s.
+#   tick:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#   hit:  KCK   .   HHT   .  SNR   .   HHT   .  KCK   .   HHT   .  SNR   .   HHT   .
+pat beat = kick . hihat . snare . hihat . kick . hihat . snare . hihat .  # 16 ✓
+
+# beat_b — section B variant: double kick on beat 1 for extra push.
+pat beat_b = kick kick hihat . snare . hihat . kick . hihat . snare . hihat .  # 16 ✓
+
+# beat_break — sparse break groove: kick only on beats 1 & 3.
+pat beat_break = kick . . . . . . . kick . . . . . . .  # 16 ✓
+
+# beat_fill — fill bar for ending variation.
+pat beat_fill = kick . hihat kick snare . hihat . kick . hihat snare kick . hihat .  # 16 ✓
+
+# beat_end — sparse final bar.
+pat beat_end = kick . hihat . snare . hihat . kick . . . snare . . .  # 16 ✓
+
+# =============================================================================
+# Sequences — 20 patterns × 16 ticks = 320 ticks per channel
+# =============================================================================
+
+# Tone1 lead (right channel):
+#   Bars  1– 4 : Section A fast arpeggiated E major lead
+#   Bars  5– 8 : Section B rising A / C#m / B lead phrases
+#   Bars  9–10 : Break — warm tonic pedal with delayed inline vibrato
+#   Bars 11–12 : Break — tension pedal with pitch_env rise
+#   Bars 13–16 : Reprise A — full return to E major main hook
+#   Bars 17–20 : Ending variation + final cadence
+seq lead_main = mel_a1 mel_a2 mel_a1 mel_a2 mel_b1 mel_b2 mel_b1 mel_b2 pedal_e:inst(lead_vib) pedal_e:inst(lead_vib) pedal_rise:inst(lead_vib) pedal_rise:inst(lead_vib) mel_a1 mel_a2 mel_a1 mel_a2 mel_b1_var mel_b2_var mel_b1 mel_end
+
+# Tone2 harmony (left channel):
+#   Bars  1– 4 : Section A staccato 5th stabs
+#   Bars  5– 8 : Section B upper-register stabs (stab_hi via transform)
+#   Bars  9–12 : Break counter-melody (ctr inst via transform)
+#   Bars 13–16 : Reprise A staccato stabs
+#   Bars 17–20 : Ending variation + final cadence stab
+seq harm_main = harm_a1 harm_a2 harm_a1 harm_a2 harm_b1:inst(stab_hi) harm_b2:inst(stab_hi) harm_b1:inst(stab_hi) harm_b2:inst(stab_hi) ctr_b1:inst(ctr) ctr_b2:inst(ctr) ctr_b1:inst(ctr) ctr_b2:inst(ctr) harm_a1 harm_a2 harm_a1 harm_a2 harm_b1_var:inst(stab_hi) harm_b2_var:inst(stab_hi) harm_b1:inst(stab_hi) harm_end
+
+# Tone3 bass (center):
+#   Bars  1– 4 : Section A E / B quarter-note bounce
+#   Bars  5– 6 : Section B C#m bass
+#   Bars  7– 8 : Section B A / B approach
+#   Bars  9–11 : Break — E tonic pedal
+#   Bar  12    : Ascending walk E→F#→G#→B into reprise
+#   Bars 13–16 : Reprise A E / B bounce
+#   Bars 17–20 : Ending variation + final E cadence
+seq bass_main = bass_a1 bass_a2 bass_a1 bass_a2 bass_b1 bass_b2 bass_b1 bass_b2 bass_break bass_break bass_break bass_rise bass_a1 bass_a2 bass_a1 bass_a2 bass_b3 bass_b2 bass_b1 bass_end
+
+# Noise drums (center):
+#   Bars  1– 4 : Section A full groove
+#   Bars  5– 8 : Section B double-kick variant
+#   Bars  9–12 : Break — sparse kick-only
+#   Bars 13–16 : Reprise A full groove
+#   Bars 17–20 : Ending variation fill + quiet final bar
+seq drum_main = beat beat beat beat beat_b beat_b beat_b beat_b beat_break beat_break beat_break beat_break beat beat beat beat beat_b beat_fill beat_b beat_end
+
+# =============================================================================
+# Channels
+# =============================================================================
+
+channel 1 => inst lead     seq lead_main   # Tone1 — arpeggiated lead melody (R)
+channel 2 => inst stab     seq harm_main   # Tone2 — staccato stabs / counter-melody (L)
+channel 3 => inst bass     seq bass_main   # Tone3 — bouncy quarter-note bass (C)
+channel 4 => inst kick     seq drum_main   # Noise — kick / snare / hi-hat groove (C)
+
+play

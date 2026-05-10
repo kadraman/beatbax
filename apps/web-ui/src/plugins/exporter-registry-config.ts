@@ -24,8 +24,8 @@ export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
     label: plugin.label,
     description:
       plugin.id === 'famitracker-text'
-        ? 'FamiTracker text export placeholder (.txt) for NES songs.'
-        : 'FamiTracker binary export placeholder (.ftm) for NES songs.',
+        ? 'FamiTracker text export placeholder (.txt) - chips: nes.'
+        : 'FamiTracker binary export placeholder (.ftm) - chips: nes.',
     badge: 'Experimental' as const,
     plugin,
     dependsOnChipPlugins: ['nes'],
@@ -33,7 +33,7 @@ export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
   {
     id: vgmExporterPlugin.id,
     label: vgmExporterPlugin.label,
-    description: 'VGM (Video Game Music) register-stream export (.vgm) for SMS/Game Gear songs.',
+    description: 'VGM (Video Game Music) register-stream export (.vgm) - chips: sms, gamegear and others.',
     badge: 'Experimental' as const,
     plugin: vgmExporterPlugin,
     dependsOnChipPlugins: ['sms'],
