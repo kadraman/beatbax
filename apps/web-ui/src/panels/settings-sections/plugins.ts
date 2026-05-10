@@ -182,7 +182,7 @@ export function buildPluginsSection(): HTMLElement {
     const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
     const desc = document.createElement('span');
     desc.className = 'bb-settings-feature-desc';
-    desc.textContent = `${plugin.id} (${ext}) — chips: ${plugin.supportedChips.join(', ')}`;
+    desc.textContent = `${plugin.id} (${ext}) - chips: ${plugin.supportedChips.join(', ')}`;
 
     left.append(titleLine, desc);
 

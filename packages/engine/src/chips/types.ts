@@ -171,9 +171,41 @@ export interface NewSongWizardTemplates {
   };
 }
 
+/**
+ * A named console/platform variant for a chip plugin's New Song Wizard.
+ *
+ * When a single plugin targets multiple consoles that share the same underlying
+ * hardware (e.g. Sega Master System and Game Gear both use the SN76489), each
+ * variant can appear as a separate entry in the wizard chip navigator with its
+ * own display metadata, chip directive, and starter templates.
+ */
+export interface ChipConsoleVariant {
+  /**
+   * The chip directive name to emit in the generated `.bax` header.
+   * Must be the plugin's canonical name or a registered alias
+   * (e.g. `'sms'` or `'gg'`).
+   */
+  chipId: string;
+  /** Display metadata shown in the wizard chip summary card for this variant. */
+  metadata: NewSongWizardMetadata;
+  /** Starter template options for this variant. */
+  templates: NewSongWizardTemplates;
+}
+
 export interface ChipNewSongWizard {
   metadata: NewSongWizardMetadata;
   templates: NewSongWizardTemplates;
+  /**
+   * Optional list of named console/platform variants.
+   *
+   * When present, each variant is expanded into a separate entry in the New
+   * Song Wizard chip navigator, allowing a single plugin to offer distinct
+   * wizard experiences per target console (e.g. SMS vs Game Gear).
+   *
+   * When `consoleVariants` is provided, the top-level `metadata` and
+   * `templates` fields are superseded — each variant must declare its own.
+   */
+  consoleVariants?: ChipConsoleVariant[];
 }
 
 // ─── Plugin ───────────────────────────────────────────────────────────────────

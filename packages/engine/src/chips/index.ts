@@ -16,6 +16,7 @@ export type {
   ChipUIContributions,
   ChipHelpSection,
   ChipNewSongWizard,
+  ChipConsoleVariant,
   NewSongWizardMetadata,
   NewSongWizardTemplates,
   NewSongWizardTemplateOption,

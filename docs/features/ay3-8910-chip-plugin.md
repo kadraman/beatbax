@@ -226,7 +226,7 @@ The parser will:
 #### Phase 5: UI & New Song Wizard (week 4)
 
 - Add UI contributions (`uiContributions`) with Atari ST / MSX help docs
-- Implement `newSongWizard` templates for quick onboarding
+- Implement `newSongWizard` templates for quick onboarding - separate `consoleVariants` should be implemented for each supported console that uses the chip, e.g. "atari-st", "msx" and so on.
 - Create documentation and examples
 - **Test:** Web UI rendering; template correctness
 

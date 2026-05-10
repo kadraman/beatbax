@@ -1,13 +1,12 @@
 ## battle_field.bax
-## Original SMS chiptune — inspired by the spirit of "Battle Field" (Space Harrier,
-## Mark III / SMS, 1987, Sega AM2 / Hiroshi Kawaguchi).
+## Original SMS chiptune.
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted
 ## material. It captures the energetic, fast-paced, major-key feel of classic late-1980s
 ## Sega PSG action soundtracks: driving bass, punchy arpeggiated lead, staccato harmony
 ## stabs, and a tight noise drum groove.
 ##
-## Key: D major | Tempo: 172 BPM | Style: Driving arcade action / space shooter
+## Key: D major | Tempo: 172 BPM | Style: Driving arcade action / shooter
 ##
 ## SMS attenuation reminder throughout this file:
 ##   0 = loudest, 15 = mute
@@ -43,8 +42,8 @@
 
 song name "Battle Field"
 song artist "The BeatBax Team"
-song description """Original SMS PSG chiptune at 172 BPM in D major, inspired by the energetic feel of classic late-1980s Sega Mark III arcade action soundtracks. Demonstrates all 4 SMS channels: bright Tone1 lead with a vibrato break pedal, Tone2 staccato 5th stabs switching to counter-melody, Tone3 driving quarter-note bass, and a full noise drum kit (kick/snare/hi-hat) with clearly separated timbres. Uses cut:2 stabs, inline vibrato pedal shaping, pitch_env rise, and attenuation-accurate SMS envelopes."""
-song tags "sms,action,arcade,space,shooter,example,demo"
+song description """Original SMS PSG chiptune at 172 BPM in D major. Demonstrates all 4 SMS channels: bright Tone1 lead with a vibrato break pedal, Tone2 staccato 5th stabs switching to counter-melody, Tone3 driving quarter-note bass, and a full noise drum kit (kick/snare/hi-hat) with clearly separated timbres. Uses cut:2 stabs, inline vibrato pedal shaping, pitch_env rise, and attenuation-accurate SMS envelopes."""
+song tags "sms,action,arcade,shooter,example,demo"
 
 chip sms ntsc
 bpm 172

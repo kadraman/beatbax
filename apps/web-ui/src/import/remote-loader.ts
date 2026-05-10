@@ -218,6 +218,12 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
       { label: 'battle_field.bax',          path: '/songs/sms/battle_field.bax' },
     ],
   },
+  {
+    group: 'Game Gear',
+    songs: [
+      { label: 'battle_field.bax',          path: '/songs/sms/battle_field.bax' },
+    ],
+  },
 ];
 
 /**

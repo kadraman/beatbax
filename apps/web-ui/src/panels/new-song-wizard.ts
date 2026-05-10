@@ -1,4 +1,4 @@
-import type { ChipPlugin, NewSongWizardTemplateOption } from '@beatbax/engine/chips';
+import type { ChipPlugin, ChipNewSongWizard, NewSongWizardTemplateOption } from '@beatbax/engine/chips';
 
 export interface NewSongWizardChipOption {
   id: string;
@@ -69,9 +69,67 @@ function normalizeTags(raw: string): string {
     .join(', ');
 }
 
-function validateChipWizardContract(chip: NewSongWizardChipOption): string | null {
-  const meta = chip.plugin.newSongWizard?.metadata;
-  const templates = chip.plugin.newSongWizard?.templates;
+/**
+ * Internal representation of a single entry in the wizard chip navigator.
+ * A plugin with `consoleVariants` expands into multiple entries, each with its
+ * own chip directive, display metadata, and starter templates.
+ */
+interface ResolvedWizardEntry {
+  /** Navigation id — unique within the wizard's chip list. */
+  id: string;
+  /** The underlying chip plugin (same object for all variants of one plugin). */
+  plugin: ChipPlugin;
+  /** The chip directive name to emit in the generated .bax file (e.g. 'sms', 'gg'). */
+  chipDirective: string;
+  /** The wizard metadata and templates to use for this entry. */
+  wizard: ChipNewSongWizard;
+}
+
+/**
+ * Expand a flat list of chip options into wizard navigation entries.
+ * Plugins that declare `consoleVariants` produce one entry per variant;
+ * all others produce a single entry backed by their top-level wizard data.
+ */
+function expandChipVariants(raw: NewSongWizardChipOption[]): ResolvedWizardEntry[] {
+  const entries: ResolvedWizardEntry[] = [];
+  for (const chip of raw) {
+    const wizardDef = chip.plugin.newSongWizard;
+    if (!wizardDef) continue;
+    if (wizardDef.consoleVariants && wizardDef.consoleVariants.length > 0) {
+      for (const variant of wizardDef.consoleVariants) {
+        entries.push({
+          id: variant.chipId,
+          plugin: chip.plugin,
+          chipDirective: variant.chipId,
+          wizard: { metadata: variant.metadata, templates: variant.templates },
+        });
+      }
+    } else {
+      entries.push({
+        id: chip.id,
+        plugin: chip.plugin,
+        chipDirective: chip.plugin.name,
+        wizard: wizardDef,
+      });
+    }
+  }
+  // Also include chips without a newSongWizard so they appear (with a validation error)
+  for (const chip of raw) {
+    if (!chip.plugin.newSongWizard) {
+      entries.push({
+        id: chip.id,
+        plugin: chip.plugin,
+        chipDirective: chip.plugin.name,
+        wizard: chip.plugin.newSongWizard as unknown as ChipNewSongWizard,
+      });
+    }
+  }
+  return entries;
+}
+
+function validateChipWizardContract(chip: ResolvedWizardEntry): string | null {
+  const meta = chip.wizard?.metadata;
+  const templates = chip.wizard?.templates;
   if (!meta || !templates) return `Chip "${chip.id}" is missing New Song Wizard metadata/templates.`;
   if (!meta.chipDisplayName || !meta.platform || !meta.year || !meta.channelSummary) {
     return `Chip "${chip.id}" has incomplete New Song Wizard metadata.`;
@@ -309,7 +367,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   modalEl.append(header, body, footer);
   document.body.appendChild(backdrop);
 
-  let chips: NewSongWizardChipOption[] = [];
+  let chips: ResolvedWizardEntry[] = [];
   let selectedChipId = '';
   let bodyOverflowBeforeOpen = '';
   const selectedExamples: Record<'instruments' | 'effects' | 'structure', NewSongWizardTemplateOption | null> = {
@@ -318,7 +376,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     structure: null,
   };
 
-  function currentChip(): NewSongWizardChipOption | undefined {
+  function currentChip(): ResolvedWizardEntry | undefined {
     return chips.find((chip) => chip.id === selectedChipId);
   }
 
@@ -363,7 +421,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     createBtn.disabled = false;
     chipStatus.hidden = true;
     chipStatus.textContent = '';
-    const wizard = selected.plugin.newSongWizard!;
+    const wizard = selected.wizard;
     summaryImage.src = normalizeImageSource(wizard.metadata.image);
     chipName.textContent = wizard.metadata.chipDisplayName;
 
@@ -404,7 +462,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   }
 
   function refreshOpenDefaults(): void {
-    chips = options.getEnabledChips();
+    chips = expandChipVariants(options.getEnabledChips());
     selectedChipId = chips[0]?.id ?? '';
     artistInput.value = options.getDefaultArtist();
     bpmInput.value = String(options.getDefaultBpm());
@@ -435,7 +493,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     const bpm = Number.isFinite(bpmRaw) ? Math.min(300, Math.max(60, bpmRaw)) : 128;
     const songName = songNameInput.value.trim();
     const source = buildSongSource({
-      chipName: selected.plugin.name,
+      chipName: selected.chipDirective,
       bpm,
       songName: songName || 'Untitled song',
       artist: artistInput.value.trim(),
