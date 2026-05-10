@@ -19,7 +19,7 @@
     "@beatbax/plugin-chip-nes": "^0.5.1",
     "@beatbax/plugin-chip-sms": "^0.2.2",
     "@beatbax/plugin-exporter-famitracker": "^0.2.1",
-    "@beatbax/plugin-exporter-vgm": "^0.1.0",
+    "@beatbax/plugin-exporter-vgm": "^0.1.1",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
     "marked": "^5.1.2",
