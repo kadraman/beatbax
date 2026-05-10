@@ -6,7 +6,7 @@ import {
   SN76489State,
   GG_STEREO_DEFAULT,
   ATTENUATION_MUTE,
-} from '../src/psgState.js';
+} from '../src/backends/psgState.js';
 import { toneLatchByte, toneDataByte, volumeLatchByte, noiseControlByte } from '../src/constants.js';
 
 describe('SN76489State — tone period', () => {

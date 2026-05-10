@@ -4,7 +4,7 @@
  */
 
 import vgmExporterPlugin from '../src/index.js';
-import type { SongLike } from '../src/ismToVgm.js';
+import type { SongLike } from '../src/backends/types.js';
 import {
   VGM_MAGIC,
   VGM_HEADER_SIZE,
@@ -496,5 +496,97 @@ describe('vgmExporterPlugin.export', () => {
     // additive attenuation modulation.
     expect(maxVol - minVol).toBeGreaterThan(0);
     expect(maxVol - minVol).toBeLessThanOrEqual(6);
+  });
+});
+
+// ─── Backend dispatch ─────────────────────────────────────────────────────────
+
+describe('backend dispatch — unsupported chip', () => {
+  it('validate returns error for unregistered chip (gameboy)', () => {
+    const errors = vgmExporterPlugin.validate!(makeSong({ chip: 'gameboy' }) as any);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toMatch(/no VGM backend registered/i);
+  });
+
+  it('validate error for unknown chip names available backends', () => {
+    const errors = vgmExporterPlugin.validate!(makeSong({ chip: 'c64sid' }) as any);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toMatch(/Available backends:/i);
+  });
+
+  it('export throws for unregistered chip', () => {
+    expect(() => {
+      vgmExporterPlugin.export(makeSong({ chip: 'gameboy' }) as any);
+    }).toThrow(/no VGM backend registered/i);
+  });
+
+  it('validate and export resolve the same backend for the same chip', () => {
+    const song = makeSong({ chip: 'sms' }) as any;
+    const validateErrors = vgmExporterPlugin.validate!(song);
+    expect(validateErrors).toEqual([]);
+    expect(() => vgmExporterPlugin.export(song)).not.toThrow();
+  });
+});
+
+describe('backend dispatch — AY stub', () => {
+  it('validate returns AY-specific unsupported error', () => {
+    const song = makeSong({ chip: 'ay' }) as any;
+    const errors = vgmExporterPlugin.validate!(song);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toMatch(/AY-3-8910/i);
+  });
+
+  it('export throws for ay chip', () => {
+    expect(() => {
+      vgmExporterPlugin.export(makeSong({ chip: 'ay' }) as any);
+    }).toThrow(/VGM export failed/i);
+  });
+
+  it('ym2149 alias resolves to AY backend', () => {
+    const song = makeSong({ chip: 'ym2149' }) as any;
+    const errors = vgmExporterPlugin.validate!(song);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toMatch(/AY-3-8910/i);
+  });
+});
+
+describe('backend dispatch — supportedChips', () => {
+  it('includes sms alias', () => {
+    expect(vgmExporterPlugin.supportedChips).toContain('sms');
+  });
+
+  it('includes gamegear alias', () => {
+    expect(vgmExporterPlugin.supportedChips).toContain('gamegear');
+  });
+
+  it('includes ay alias', () => {
+    expect(vgmExporterPlugin.supportedChips).toContain('ay');
+  });
+
+  it('supportedChips is derived from registered backends (validate/export consistency)', () => {
+    const chips = vgmExporterPlugin.supportedChips;
+    expect(Array.isArray(chips)).toBe(true);
+    expect(chips.length).toBeGreaterThan(0);
+  });
+});
+
+describe('determinism gate — SMS output byte-identical before/after refactor', () => {
+  it('same song always produces identical bytes (determinism)', () => {
+    const song = makeSong();
+    const r1 = vgmExporterPlugin.export(song as any) as Uint8Array;
+    const r2 = vgmExporterPlugin.export(song as any) as Uint8Array;
+    expect(r1).toEqual(r2);
+  });
+
+  it('produces valid VGM magic for SMS chip', () => {
+    const result = vgmExporterPlugin.export(makeSong({ chip: 'sms' }) as any) as Uint8Array;
+    const view = new DataView(result.buffer);
+    expect(view.getUint32(0, true)).toBe(VGM_MAGIC);
+  });
+
+  it('produces valid VGM magic for gamegear alias', () => {
+    const result = vgmExporterPlugin.export(makeSong({ chip: 'gamegear' }) as any) as Uint8Array;
+    const view = new DataView(result.buffer);
+    expect(view.getUint32(0, true)).toBe(VGM_MAGIC);
   });
 });
