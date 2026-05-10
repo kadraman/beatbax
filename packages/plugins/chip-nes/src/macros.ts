@@ -1,3 +1,12 @@
+import {
+  parseMacro,
+  macroValue,
+  advanceMacro,
+  makeMacroState,
+  type ParsedMacro,
+  type MacroState,
+} from '@beatbax/engine';
+
 /**
  * Software macro engine for the NES plugin.
  *
@@ -17,91 +26,9 @@
  * Macros advance once per NES frame (~60 Hz), matching FamiStudio default behaviour.
  */
 
-export interface ParsedMacro {
-  /** The macro values. */
-  values: number[];
-  /**
-   * Index to loop back to when the end is reached.
-   * -1 = no loop (hold the last value after the end).
-   */
-  loopPoint: number;
-}
-
-/** Parse a macro value from an instrument property.
- *
- * Accepts:
- *  - `"[1,2,3|2]"` — string with optional loop-point separator `|N`
- *  - `[1,2,3]`     — a plain number array (no loop point)
- *  - `null/undefined` — returns null
- */
-export function parseMacro(raw: any): ParsedMacro | null {
-  if (raw === undefined || raw === null) return null;
-
-  if (Array.isArray(raw)) {
-    const values = raw.map(Number).filter(Number.isFinite);
-    return values.length > 0 ? { values, loopPoint: -1 } : null;
-  }
-
-  let str = String(raw).trim();
-  if (!str.startsWith('[')) return null;
-
-  // Strip brackets
-  if (str.endsWith(']')) str = str.slice(1, -1);
-  else str = str.slice(1);
-
-  // Find loop point
-  let loopPoint = -1;
-  const pipeIdx = str.lastIndexOf('|');
-  if (pipeIdx >= 0) {
-    loopPoint = parseInt(str.slice(pipeIdx + 1), 10);
-    if (isNaN(loopPoint) || loopPoint < 0) loopPoint = -1;
-    str = str.slice(0, pipeIdx);
-  }
-
-  const values = str
-    .split(',')
-    .map(s => parseFloat(s.trim()))
-    .filter(Number.isFinite);
-
-  if (values.length === 0) return null;
-
-  // Clamp loop point to valid range
-  if (loopPoint >= values.length) loopPoint = values.length - 1;
-
-  return { values, loopPoint };
-}
-
-/** Mutable cursor into a ParsedMacro. Create one per note-on. */
-export interface MacroState {
-  index: number;
-  /** True when past the end with no loop — current value is held at last entry. */
-  done: boolean;
-}
-
-export function makeMacroState(): MacroState {
-  return { index: 0, done: false };
-}
-
-/** Return the current macro value without advancing. */
-export function getMacroValue(macro: ParsedMacro, state: MacroState): number {
-  if (state.done) return macro.values[macro.values.length - 1];
-  const idx = Math.min(state.index, macro.values.length - 1);
-  return macro.values[idx];
-}
-
-/** Advance the macro cursor by one frame. */
-export function advanceMacro(macro: ParsedMacro, state: MacroState): void {
-  if (state.done) return;
-  state.index++;
-  if (state.index >= macro.values.length) {
-    if (macro.loopPoint >= 0) {
-      state.index = macro.loopPoint;
-    } else {
-      state.index = macro.values.length - 1;
-      state.done = true;
-    }
-  }
-}
+export { parseMacro, advanceMacro, makeMacroState };
+export type { ParsedMacro, MacroState };
+export const getMacroValue = macroValue;
 
 /**
  * Build a Float32Array gain curve for a vol_env macro, for use with

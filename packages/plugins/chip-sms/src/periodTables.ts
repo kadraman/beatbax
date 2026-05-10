@@ -1,3 +1,5 @@
+import { noteToMidi, midiToFreq as midiToFreqEqualTemperament } from '@beatbax/engine';
+
 /**
  * SN76489 PSG period tables for Sega Master System / Game Gear.
  *
@@ -13,48 +15,6 @@
  * - SMS (PAL):  3,546,895 Hz
  * - Game Gear:  3,579,545 Hz (same as NTSC SMS, but with stereo)
  */
-
-// --- Note to MIDI conversion ----------------------------------------------------
-
-const NOTE_BASE: Record<string, number> = {
-  C: 0,
-  'C#': 1,
-  DB: 1,
-  D: 2,
-  'D#': 3,
-  EB: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  GB: 6,
-  G: 7,
-  'G#': 8,
-  AB: 8,
-  A: 9,
-  'A#': 10,
-  BB: 10,
-  B: 11,
-};
-
-function normalizeNoteName(name: string): { letter: string; accidental: string | null; octave: number } | null {
-  const m = name.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
-  if (!m) return null;
-  const letter = m[1].toUpperCase();
-  const accidental = m[2] || null;
-  const octave = parseInt(m[3], 10);
-  return { letter, accidental, octave };
-}
-
-function noteToMidi(note: string): number | null {
-  const p = normalizeNoteName(note);
-  if (!p) return null;
-  const key = p.letter + (p.accidental ? (p.accidental === 'b' ? 'B' : '#') : '');
-  const semitone = NOTE_BASE[key as keyof typeof NOTE_BASE];
-  if (semitone === undefined) return null;
-  // MIDI: C4 = 60. So calculate from octave.
-  // octave numbers follow scientific pitch: C4=60
-  return (p.octave + 1) * 12 + semitone; // because octave -1 would be MIDI starting at C-1 = 0
-}
 
 // --- Clock constants ------------------------------------------------------------
 
@@ -111,7 +71,7 @@ export function periodToFreq(period: number): number {
  * Uses equal temperament: f = 440 * 2^((n-69)/12)
  */
 export function midiToFreq(midiNote: number): number {
-  return 440 * Math.pow(2, (midiNote - 69) / 12);
+  return midiToFreqEqualTemperament(midiNote);
 }
 
 /**

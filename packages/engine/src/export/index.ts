@@ -5,6 +5,18 @@ export { exportWAV, writeWAV, exportWAVFromSong } from './wavWriter.js';
 export type { ExportOptions, ExporterPlugin, ExporterUIContribution } from './types.js';
 export { ExporterRegistry, exporterRegistry } from './registry.js';
 export {
+  NOTE_SEMITONES,
+  noteToMidi,
+  midiToNote,
+  midiToFreq,
+  type ParsedMacro,
+  type MacroState,
+  parseMacro,
+  macroValue,
+  advanceMacro,
+  makeMacroState,
+} from '../util/music.js';
+export {
   BUILTIN_EXPORTER_PLUGINS,
   jsonExporterPlugin,
   midiExporterPlugin,

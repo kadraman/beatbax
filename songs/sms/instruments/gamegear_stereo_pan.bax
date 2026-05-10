@@ -1,9 +1,8 @@
 # SMS/Game Gear stereo routing verification song.
 # Demonstrates gg:pan with one part per PSG voice.
 
-chip sms
+chip gg
 bpm 140
-time 4
 
 # =============================================================================
 # Instruments (with Game Gear pan)

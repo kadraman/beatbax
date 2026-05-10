@@ -742,18 +742,19 @@ export function parseWithPeggy(source: string): ParseResult {
     diagnostics.push({ level, component, message, loc });
 
   // Chip name validation — consult the live registry so plugin-registered chips are accepted
+  const requestedChip = String(chipName || '').toLowerCase();
+  const canonicalChip = requestedChip ? chipRegistry.resolve(requestedChip) : '';
   const registeredChips = chipRegistry.list();
-  if (chipName && !registeredChips.includes(String(chipName).toLowerCase())) {
+  if (chipName && !registeredChips.includes(requestedChip)) {
     diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${registeredChips.join(', ')}.`, chipLoc);
   }
   if (chipRegion) {
-    const normalizedChip = String(chipName || '').toLowerCase();
     const regionSupportedChips = ['sms', 'nes'];
-    if (!regionSupportedChips.includes(normalizedChip)) {
+    if (!regionSupportedChips.includes(canonicalChip)) {
       diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms' and 'chip nes'.`, chipLoc);
     } else if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
       const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
-      diag('error', 'parser', `Invalid ${normalizedChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
+      diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
     }
   }
 
@@ -791,6 +792,14 @@ export function parseWithPeggy(source: string): ParseResult {
         // Type errors are hard errors; property errors are warnings (keep parity with GB behaviour)
         const level = e.field === 'type' ? 'error' : 'warning';
         diag(level, 'parser', `Instrument '${instName}': ${e.message}`, instLoc);
+      }
+      if (requestedChip === 'sms' && p.pan !== undefined) {
+        diag(
+          'warning',
+          'parser',
+          `Instrument '${instName}': plain 'pan' on 'chip sms' targets Game Gear stereo routing semantics. Prefer 'chip gg' or 'chip gamegear' for stereo-authored songs.`,
+          instLoc,
+        );
       }
     } else {
       // Fallback: built-in Game Boy validation
