@@ -57,8 +57,8 @@ export function midiToFreqForNote(noteName: string): number {
  * All chip-agnostic per-channel simulation fields.
  *
  * Chip backends extend this with their own hardware-specific fields.
- * For example, `sms.ts` adds `noiseIsWhite`, `noiseRate`, `ggPanBits`, and
- * `noiseRateEnvMacro`; a future `ay.ts` adds `envelopeShape`, `useEnvelope`, etc.
+ * For example, `sn76489.ts` adds `noiseIsWhite`, `noiseRate`, `ggPanBits`, and
+ * `noiseRateEnvMacro`; `ay38910.ts` can add `envelopeShape`, `useEnvelope`, etc.
  */
 export interface BaseChannelSimState {
   // ── Lifecycle ──────────────────────────────────────────────────────────────

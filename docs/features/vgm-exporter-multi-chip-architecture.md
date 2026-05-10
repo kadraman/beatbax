@@ -71,7 +71,7 @@ export interface VgmTranslateResult {
 ```
 exportVgm(song):
   chip = normalise(song.chip)
-  backend = backendRegistry.get(chip)       // → SmsVgmBackend | AyVgmBackend | ...
+  backend = backendRegistry.get(chip)       // → Sn76489VgmBackend | Ay38910VgmBackend | ...
   if !backend → throw "No VGM backend for chip=X. Available: [sms, ...]"
 
   errors = backend.validate(song)
@@ -95,7 +95,7 @@ The `validate()` method on the `ExporterPlugin` object uses the same backend res
 | YM2413 (OPLL) | 🔲 Planned | `YM2413_CLOCK` at `0x10` |
 | YM2612 (Genesis) | 🔲 Future | `YM2612_CLOCK` at `0x2C` |
 
-**Scope for this feature:** implement the backend dispatch architecture and extract the SMS backend. AY scaffold can be included as a disabled/unsupported stub or deferred to a follow-up PR.
+**Scope for this feature:** implement the backend dispatch architecture and extract the SN76489 backend. AY scaffold can be included as a disabled/unsupported stub or deferred to a follow-up PR.
 
 ### Package Structure After Refactor
 
@@ -109,12 +109,15 @@ packages/plugins/export-vgm/src/
 ├── version.ts                # Package version string
 └── backends/
     ├── types.ts              # VgmBackend interface + VgmTranslateResult type
-    ├── sms.ts                # SMS/Game Gear SN76489 backend (extracted from ismToVgm.ts)
-    ├── psgState.ts           # SN76489 shadow state tracker (unchanged)
-    └── ay.ts                 # AY-3-8910 / YM2149 backend stub (unsupported, returns error)
+  ├── sn76489.ts            # Canonical SN76489 backend (SMS/Game Gear aliases)
+  ├── sn76489State.ts       # Canonical SN76489 shadow state tracker
+  ├── ay38910.ts            # Canonical AY-3-8910 / YM2149 backend module
+  ├── sms.ts                # Compatibility shim re-exporting from sn76489.ts
+  ├── psgState.ts           # Compatibility shim re-exporting from sn76489State.ts
+  └── ay.ts                 # Compatibility shim re-exporting from ay38910.ts
 ```
 
-The `ismToVgm.ts` file is retired; its logic lives in `backends/sms.ts`.
+The `ismToVgm.ts` file is retired; its logic now lives in `backends/sn76489.ts`.
 
 ### VGM Header Generalisation
 
@@ -157,12 +160,12 @@ This satisfies the spec requirement of failing loudly on unsupported chips.
 - Create `packages/plugins/export-vgm/src/backends/types.ts` with the `VgmBackend` interface and `VgmTranslateResult` type.
 - Create `packages/plugins/export-vgm/src/backendRegistry.ts` with chip alias normalisation and backend lookup.
 
-### Phase 2 — Extract SMS backend
+### Phase 2 — Extract SN76489 backend
 
-- Create `packages/plugins/export-vgm/src/backends/sms.ts` implementing `VgmBackend`.
-- Move all SMS-specific logic from `index.ts` and `ismToVgm.ts` into `sms.ts`.
+- Create `packages/plugins/export-vgm/src/backends/sn76489.ts` implementing `VgmBackend`.
+- Move all SN76489-specific logic from `index.ts` and `ismToVgm.ts` into `sn76489.ts`.
 - Delete or archive `ismToVgm.ts`.
-- Add `backends/psgState.ts` (move from `psgState.ts` or keep at root — TBD based on test imports).
+- Add `backends/sn76489State.ts` (with compatibility re-export in `backends/psgState.ts` where needed).
 
 ### Phase 3 — Generalise VGM header params
 

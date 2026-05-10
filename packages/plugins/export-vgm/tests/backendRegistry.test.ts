@@ -69,6 +69,24 @@ describe('resolveBackend — SMS aliases', () => {
     const gg = resolveBackend('gamegear');
     expect(sms).toBe(gg);
   });
+
+  it('resolves "bbc_micro"', () => {
+    const backend = resolveBackend('bbc_micro');
+    expect(backend).toBeDefined();
+    expect(backend!.chipAliases).toContain('bbc_micro');
+  });
+
+  it('resolves "colecovision"', () => {
+    const backend = resolveBackend('colecovision');
+    expect(backend).toBeDefined();
+    expect(backend!.chipAliases).toContain('colecovision');
+  });
+
+  it('resolves "tandy_1000"', () => {
+    const backend = resolveBackend('tandy_1000');
+    expect(backend).toBeDefined();
+    expect(backend!.chipAliases).toContain('tandy_1000');
+  });
 });
 
 describe('resolveBackend — AY aliases', () => {
@@ -109,11 +127,14 @@ describe('resolveBackend — unknown chip', () => {
 });
 
 describe('listRegisteredAliases', () => {
-  it('includes sms, gg, gamegear', () => {
+  it('includes SN76489 platform aliases', () => {
     const aliases = listRegisteredAliases();
     expect(aliases).toContain('sms');
     expect(aliases).toContain('gg');
     expect(aliases).toContain('gamegear');
+    expect(aliases).toContain('bbcmicro');
+    expect(aliases).toContain('colecovision');
+    expect(aliases).toContain('tandy1000');
   });
 
   it('includes ay aliases', () => {

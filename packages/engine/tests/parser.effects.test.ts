@@ -33,4 +33,22 @@ describe('effects parsing & inline pan', () => {
     expect(ev2.pan.enum).toBe('R');
     expect(ev2.pan.sourceNamespace).toBe('gb');
   });
+
+  test('inline pan on chip sms emits a resolver warning', () => {
+    const src = `
+      chip sms
+      inst lead type=tone1
+      pat p = C4<pan:R>
+      channel 1 => inst lead pat p
+    `;
+
+    const ast = parse(src as any);
+    const warnings: string[] = [];
+    resolveSong(ast, {
+      onWarn: (d) => warnings.push(d.message),
+    });
+
+    expect(warnings.some((w) => w.includes("Inline pan on 'chip sms'"))).toBe(true);
+    expect(warnings.some((w) => w.includes("chip gamegear"))).toBe(true);
+  });
 });
