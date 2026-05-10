@@ -270,11 +270,14 @@ export interface Effect {
  * Does **not** handle chip-specific effects such as `noise_rate_env` (SMS) or
  * AY envelope effects. Each backend calls this first and then processes its own
  * chip-specific effects in a second pass.
+ *
+ * @param _noteName - The triggering note name, reserved for future chip-specific
+ *                    override hooks (e.g. AY sample triggers keyed to note name).
  */
 export function parseGenericEffectsOnNoteOn(
   effects: Effect[],
   state: BaseChannelSimState,
-  noteName: string,
+  _noteName: string,
   tickSeconds: number,
   framesPerTick: number,
 ): void {
@@ -430,7 +433,6 @@ export function parseGenericEffectsOnNoteOn(
         }
       }
     }
-    void noteName; // satisfies no-unused-vars; noteName available for future chip overrides
   }
 }
 

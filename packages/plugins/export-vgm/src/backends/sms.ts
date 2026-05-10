@@ -564,7 +564,6 @@ export const smsVgmBackend: VgmBackend = {
           emitChannelTickFinalWrites(ci, channels, simStates, psg, clock, dataBytes);
         }
 
-        dataBytes.push(...[]);
         appendWait(dataBytes, SAMPLES_PER_60HZ);
         totalSamples += SAMPLES_PER_60HZ;
       }
