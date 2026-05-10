@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
+import { noteToMidi } from '@beatbax/engine';
 
 const log = createLogger('ui:midi-builder');
 
@@ -66,16 +67,8 @@ function writeASCII(arr: number[], str: string): void {
  * Convert a note name (e.g., "C5", "G#4") to a MIDI note number
  */
 function noteNameToMidi(noteName: string): number {
-  const match = noteName.match(/^([A-G]#?)(-?\d+)$/i);
-  if (!match) return -1;
-
-  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const [, pitch, octaveStr] = match;
-  const octave = parseInt(octaveStr, 10);
-  const noteIndex = noteNames.indexOf(pitch.toUpperCase());
-  if (noteIndex === -1) return -1;
-
-  return (octave + 1) * 12 + noteIndex;
+  const midi = noteToMidi(noteName);
+  return midi === null ? -1 : midi;
 }
 
 /**
