@@ -57,6 +57,14 @@ describe('ChipRegistry', () => {
     expect(reg.get('nes')).toBe(mock);
   });
 
+  test('register() auto-registers plugin aliases', () => {
+    const mock = { ...makeMockPlugin('sms'), aliases: ['gg', 'gamegear'] };
+    reg.register(mock);
+    expect(reg.has('gg')).toBe(true);
+    expect(reg.resolve('gg')).toBe('sms');
+    expect(reg.get('gamegear')).toBe(mock);
+  });
+
   test('register() throws on duplicate name', () => {
     const mock = makeMockPlugin('nes');
     reg.register(mock);
