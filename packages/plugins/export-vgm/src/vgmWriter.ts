@@ -12,7 +12,6 @@ import {
   VGM_MAGIC,
   VGM_VERSION,
   VGM_HEADER_SIZE,
-  VGM_DATA_OFFSET_VALUE,
   HDR_EOF_OFFSET,
   HDR_VERSION,
   HDR_SN76489_CLOCK,
@@ -26,6 +25,7 @@ import {
   HDR_SN_SHIFT_REG,
   HDR_SN_FLAGS,
   HDR_DATA_OFFSET,
+  HDR_AY8910_CLOCK,
   SN76489_FEEDBACK,
   SN76489_SHIFT_REG_WIDTH,
   SN76489_FLAGS,
@@ -102,16 +102,30 @@ export interface VgmHeaderParams {
   loopSamples?: number;
 }
 
+function computeHeaderSize(params: VgmHeaderParams): number {
+  // AY clock lives at 0xA0..0xA3, so we need at least 0xA4 bytes when used.
+  if (params.ay8910Clock !== undefined) {
+    return HDR_AY8910_CLOCK + 4;
+  }
+  return VGM_HEADER_SIZE;
+}
+
+function computeDataOffsetValue(headerSize: number): number {
+  // Field at 0x34 is a relative pointer from 0x34 to the first data byte.
+  return headerSize - HDR_DATA_OFFSET;
+}
+
 /**
- * Build a zeroed VGM header buffer (VGM_HEADER_SIZE bytes) with the static
- * fields pre-filled. Dynamic fields (EOF offset, total samples, GD3 offset)
- * are patched later by finaliseHeader().
+ * Build a zeroed VGM header buffer with the static fields pre-filled.
+ * Dynamic fields (EOF offset, total samples, GD3 offset) are patched later
+ * by finaliseHeader().
  */
 export function buildVgmHeader(params: VgmHeaderParams): VgmBuffer {
   const header = new VgmBuffer();
+  const headerSize = computeHeaderSize(params);
 
-  // Pad to VGM_HEADER_SIZE with zeros
-  for (let i = 0; i < VGM_HEADER_SIZE; i++) {
+  // Pad to target header size with zeros.
+  for (let i = 0; i < headerSize; i++) {
     header.appendByte(0);
   }
 
@@ -128,15 +142,31 @@ export function buildVgmHeader(params: VgmHeaderParams): VgmBuffer {
   header.setUint16LE(HDR_SN_FEEDBACK, SN76489_FEEDBACK);
   header.setByteAt(HDR_SN_SHIFT_REG, SN76489_SHIFT_REG_WIDTH);
   header.setByteAt(HDR_SN_FLAGS, SN76489_FLAGS);
-  header.setUint32LE(HDR_DATA_OFFSET, VGM_DATA_OFFSET_VALUE);
+  header.setUint32LE(HDR_DATA_OFFSET, computeDataOffsetValue(headerSize));
+  if (params.ay8910Clock !== undefined) {
+    header.setUint32LE(HDR_AY8910_CLOCK, params.ay8910Clock);
+  }
 
   return header;
+}
+
+function computeDataStartFromHeader(header: VgmBuffer): number {
+  const headerBytes = header.toUint8Array();
+  const view = new DataView(
+    headerBytes.buffer,
+    headerBytes.byteOffset,
+    headerBytes.byteLength,
+  );
+  const relDataOffset = view.getUint32(HDR_DATA_OFFSET, true);
+  const dataStartFromField = HDR_DATA_OFFSET + relDataOffset;
+  // Never allow data to overlap header bytes even if the field is malformed.
+  return Math.max(header.length, dataStartFromField);
 }
 
 /**
  * Patch the dynamic header fields after the data section has been fully built.
  *
- * @param header        Header VgmBuffer (VGM_HEADER_SIZE bytes)
+ * @param header        Header VgmBuffer (size may exceed VGM_HEADER_SIZE when extended fields are present)
  * @param totalSamples  Total 44100 Hz sample count for the full song
  * @param gd3Offset     Absolute byte offset of the GD3 tag in the final file
  * @param totalFileSize Total size of the assembled VGM file in bytes
@@ -220,8 +250,7 @@ export function assembleVgm(
   }
 
   const header = buildVgmHeader(headerParams);
-
-  const dataStart  = VGM_HEADER_SIZE;
+  const dataStart  = computeDataStartFromHeader(header);
   const gd3Start   = dataStart + data.length;
   const totalSize  = gd3Start + gd3Block.length;
 
