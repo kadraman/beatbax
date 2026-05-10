@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.json",
+  "references": [
+    { "path": "../export-vgm" }
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
