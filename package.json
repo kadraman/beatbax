@@ -10,8 +10,8 @@
     "apps/*"
   ],
   "scripts": {
-    "clean-all": "npm -w @beatbax/engine run clean && npm -w @beatbax/plugin-chip-nes run clean && npm -w @beatbax/plugin-chip-sms run clean && npm -w @beatbax/plugin-exporter-famitracker run clean && npm -w @beatbax/plugin-exporter-vgm run clean && npm -w @beatbax/cli run clean && npm -w @beatbax/web-ui run clean",
-    "build-all": "npm run clean-all && npm run engine:build && node scripts/link-local-engine.cjs && npm run famitracker-exporter:build && npm run vgm-exporter:build && npm run nes:build && npm run chip-sms:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-plugins.cjs",
+    "clean-all": "npm -w @beatbax/engine run clean && npm -w @beatbax/plugin-chip-nes run clean && npm -w @beatbax/plugin-chip-sms run clean && npm -w @beatbax/plugin-chip-ay3-8910 run clean && npm -w @beatbax/plugin-exporter-famitracker run clean && npm -w @beatbax/plugin-exporter-vgm run clean && npm -w @beatbax/cli run clean && npm -w @beatbax/web-ui run clean",
+    "build-all": "npm run clean-all && npm run engine:build && node scripts/link-local-engine.cjs && npm run famitracker-exporter:build && npm run vgm-exporter:build && npm run nes:build && npm run chip-sms:build && npm run chip-ay3-8910:build && npm run cli:build && node scripts/add-js-extensions.cjs && node scripts/check-dist.cjs && node scripts/link-local-plugins.cjs",
     "engine:build": "npm -w @beatbax/engine run build",
     "engine:test": "npm -w @beatbax/engine test",
     "engine:dev": "npm -w @beatbax/engine run dev",
@@ -25,6 +25,8 @@
     "nes:test": "npm -w @beatbax/plugin-chip-nes test",
     "chip-sms:build": "npm -w @beatbax/plugin-chip-sms run build",
     "chip-sms:test": "npm -w @beatbax/plugin-chip-sms test",
+    "chip-ay3-8910:build": "npm -w @beatbax/plugin-chip-ay3-8910 run build",
+    "chip-ay3-8910:test": "npm -w @beatbax/plugin-chip-ay3-8910 test",
     "famitracker-exporter:build": "npm -w @beatbax/plugin-exporter-famitracker run build",
     "famitracker-exporter:test": "npm -w @beatbax/plugin-exporter-famitracker test",
     "vgm-exporter:build": "npm -w @beatbax/plugin-exporter-vgm run build",
@@ -38,7 +40,7 @@
     "dev": "npm run engine:build && npm -w @beatbax/engine run dev",
     "cli": "node scripts/cli-wrapper.js",
     "cli:ensure": "npm run cli:build --if-present",
-    "test": "npm run engine:test && npm run nes:test && npm run chip-sms:test && npm run famitracker-exporter:test && npm run vgm-exporter:test && npm run cli:test",
+    "test": "npm run engine:test && npm run nes:test && npm run chip-sms:test && npm run chip-ay3-8910:test && npm run famitracker-exporter:test && npm run vgm-exporter:test && npm run cli:test",
     "bin": "node bin/beatbax",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",

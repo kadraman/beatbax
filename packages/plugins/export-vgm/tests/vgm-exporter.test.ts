@@ -10,8 +10,10 @@ import {
   VGM_MAGIC,
   VGM_HEADER_SIZE,
   CMD_PSG_WRITE,
+  CMD_AY8910_WRITE,
   CMD_GG_STEREO,
   SN76489_CLOCK_NTSC,
+  HDR_AY8910_CLOCK,
   noiseControlByte,
 } from '../src/constants.js';
 
@@ -82,6 +84,16 @@ function extractGgStereoDataBytes(vgm: Uint8Array): number[] {
   const out: number[] = [];
   for (let i = VGM_HEADER_SIZE; i < vgm.length - 1; i++) {
     if (vgm[i] === CMD_GG_STEREO) out.push(vgm[i + 1]);
+  }
+  return out;
+}
+
+function extractAyRegWrites(vgm: Uint8Array): Array<{ reg: number; value: number }> {
+  const out: Array<{ reg: number; value: number }> = [];
+  for (let i = VGM_HEADER_SIZE; i < vgm.length - 2; i++) {
+    if (vgm[i] === CMD_AY8910_WRITE) {
+      out.push({ reg: vgm[i + 1], value: vgm[i + 2] });
+    }
   }
   return out;
 }
@@ -555,25 +567,36 @@ describe('backend dispatch — unsupported chip', () => {
   });
 });
 
-describe('backend dispatch — AY stub', () => {
-  it('validate returns AY-specific unsupported error', () => {
+describe('backend dispatch — AY support', () => {
+  it('validate accepts ay chip', () => {
     const song = makeSong({ chip: 'ay' }) as any;
+    song.insts.lead = { name: 'lead', type: 'tone', vol: 12 } as any;
+    song.channels[0].id = 1;
     const errors = vgmExporterPlugin.validate!(song);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toMatch(/AY-3-8910/i);
+    expect(errors).toEqual([]);
   });
 
-  it('export throws for ay chip', () => {
-    expect(() => {
-      vgmExporterPlugin.export(makeSong({ chip: 'ay' }) as any);
-    }).toThrow(/VGM export failed/i);
+  it('export emits AY register writes for ay chip', () => {
+    const song = makeSong({ chip: 'ay' }) as any;
+    song.insts.lead = { name: 'lead', type: 'tone', vol: 12, env: 'attack_decay' } as any;
+    const result = vgmExporterPlugin.export(song) as Uint8Array;
+    const writes = extractAyRegWrites(result);
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.some((w) => w.reg === 8 || w.reg === 9 || w.reg === 10)).toBe(true);
   });
 
-  it('ym2149 alias resolves to AY backend', () => {
+  it('ym2149 alias exports via AY backend', () => {
     const song = makeSong({ chip: 'ym2149' }) as any;
-    const errors = vgmExporterPlugin.validate!(song);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toMatch(/AY-3-8910/i);
+    song.insts.lead = { name: 'lead', type: 'tone', vol: 10 } as any;
+    expect(() => vgmExporterPlugin.export(song)).not.toThrow();
+  });
+
+  it('sets AY clock in VGM header', () => {
+    const song = makeSong({ chip: 'ay', chipRegion: 'msx' }) as any;
+    song.insts.lead = { name: 'lead', type: 'tone', vol: 10 } as any;
+    const result = vgmExporterPlugin.export(song) as Uint8Array;
+    const view = new DataView(result.buffer);
+    expect(view.getUint32(HDR_AY8910_CLOCK, true)).toBeGreaterThan(0);
   });
 });
 

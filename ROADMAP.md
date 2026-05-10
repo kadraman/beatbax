@@ -16,7 +16,7 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 | Game Boy APU (DMG-01) | [x] | Low | `@beatbax/plugin-chip-gameboy` — exports: UGE (hUGETracker), JSON ISM, WAV, MIDI |
 | SN76489 (PSG — SMS / Game Gear) | [x] | Low | `@beatbax/plugin-chip-sms` — exports: VGM (`@beatbax/plugin-exporter-vgm`), WAV |
 | NES APU / RP2A03 | [x] | Medium | `@beatbax/plugin-chip-nes` — exports: FamiTracker `.ftm`/`.txt` (`@beatbax/plugin-export-famitracker`), WAV, MIDI |
-| AY‑3‑8910 / YM2149 (PSG family) | [ ] | Low–Medium | Similar PSG semantics to SN76489; broad platform coverage (Atari ST, MSX) |
+| AY‑3‑8910 / YM2149 (PSG family) | [ ] | Low–Medium | **In progress** — initial `@beatbax/plugin-chip-ay3-8910` scaffold and AY VGM backend landed; follow-up phases pending |
 | YM2413 (OPLL) | [ ] | Medium | Preset-based 2‑op FM — easiest FM entry (MSX/PC‑88 coverage) |
 | OPL2 / YM3812 (AdLib / early FM) | [ ] | Medium | PC FM; requires operator/patch handling and OPL register export |
 | YM2612 (Genesis) [+ SN76489 PSG for Genesis where applicable] | [ ] | High | Complex FM operator mapping; high impact for Genesis scene |

@@ -747,6 +747,7 @@ module.exports = {
 |--------|---------|----------|--------|
 | Game Boy DMG-01 APU | built-in | 4 | ✅ Complete |
 | NES Ricoh 2A03 APU | `@beatbax/plugin-chip-nes` | 5 | ✅ Complete |
+| AY-3-8910 / YM2149 PSG | `@beatbax/plugin-chip-ay3-8910` | 3 | 🚧 In progress |
 | C64 SID | `@beatbax/plugin-chip-sid` | 3 | 📋 Planned |
 | Sega Genesis YM2612 + PSG | `@beatbax/plugin-chip-genesis` | 10 | 📋 Planned |
 

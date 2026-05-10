@@ -749,12 +749,30 @@ export function parseWithPeggy(source: string): ParseResult {
     diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${registeredChips.join(', ')}.`, chipLoc);
   }
   if (chipRegion) {
-    const regionSupportedChips = ['sms', 'nes'];
-    if (!regionSupportedChips.includes(canonicalChip)) {
-      diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms' and 'chip nes'.`, chipLoc);
-    } else if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
-      const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
-      diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
+    const ntscPalRegionChips = new Set(['sms', 'nes']);
+    const ayRegionChips = new Set([
+      'ay3-8910',
+      'ay',
+      'ym2149',
+      'atari-st',
+      'msx',
+      'amstrad-cpc',
+      'vectrex',
+      'zx-spectrum-128',
+    ]);
+
+    if (ntscPalRegionChips.has(canonicalChip)) {
+      if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
+        const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
+        diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
+      }
+    } else if (ayRegionChips.has(canonicalChip)) {
+      const validAyRegions = ['atari-st', 'msx', 'amstrad-cpc', 'vectrex', 'zx-spectrum-128'];
+      if (!validAyRegions.includes(chipRegion)) {
+        diag('error', 'parser', `Invalid AY region '${chipRegion}'. Valid values: ${validAyRegions.join(', ')}.`, chipLoc);
+      }
+    } else {
+      diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms', 'chip nes', and AY-family chips.`, chipLoc);
     }
   }
 

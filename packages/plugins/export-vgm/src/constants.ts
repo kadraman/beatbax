@@ -125,6 +125,8 @@ export const SN76489_FLAGS             = 0x00;
 export const CMD_GG_STEREO = 0x4F;
 /** SN76489 PSG write (followed by 1 data byte) */
 export const CMD_PSG_WRITE = 0x50;
+/** AY-3-8910 register write (followed by register + data bytes) */
+export const CMD_AY8910_WRITE = 0xA0;
 /** Wait N samples (followed by 2-byte little-endian sample count) */
 export const CMD_WAIT_N    = 0x61;
 /** Wait 735 samples (1/60 s at 44100 Hz) */

@@ -15,6 +15,7 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
 import nesPlugin from '@beatbax/plugin-chip-nes';
 import smsPlugin from '@beatbax/plugin-chip-sms';
+import ayPlugin from '@beatbax/plugin-chip-ay3-8910';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
@@ -47,6 +48,15 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
     badge: 'Beta',
     plugin: smsPlugin,
   },
+  {
+    id: 'ay3-8910',
+    label: 'AY-3-8910 / YM2149',
+    description:
+      'AY-family PSG used by Atari ST, MSX, and Amstrad CPC - 3 channels with tone/noise mixer and envelope shapes. ' +
+      'Enables `chip ay`, `chip atari-st`, and `chip msx` in .bax scripts.',
+    badge: 'Beta',
+    plugin: ayPlugin,
+  },
   // Future plugins — add entries here as packages are published:
   // {
   //   id: 'sid',
@@ -59,7 +69,7 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
-const DEFAULT_ENABLED = ['nes', 'sms'];
+const DEFAULT_ENABLED = ['nes', 'sms', 'ay3-8910'];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

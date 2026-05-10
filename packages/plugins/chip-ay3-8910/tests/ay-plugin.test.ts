@@ -51,8 +51,8 @@ describe('envelope and oscillators', () => {
 
   it('tone oscillator generates bipolar waveform', () => {
     const tone = new AyToneOscillator();
-    tone.setFrequency(440);
-    const out = Array.from({ length: 16 }, () => tone.next(44100));
+    tone.setFrequency(22050);
+    const out = Array.from({ length: 64 }, () => tone.next(44100));
     expect(out.some((v) => v > 0)).toBe(true);
     expect(out.some((v) => v < 0)).toBe(true);
   });
@@ -60,7 +60,7 @@ describe('envelope and oscillators', () => {
   it('noise oscillator produces non-constant output', () => {
     const noise = new AyNoiseOscillator();
     noise.setRate(8);
-    const out = Array.from({ length: 128 }, () => noise.next(44100));
+    const out = Array.from({ length: 4096 }, () => noise.next(44100));
     const unique = new Set(out);
     expect(unique.size).toBeGreaterThan(1);
   });

@@ -122,15 +122,14 @@ describe('resolveBackend — AY aliases', () => {
     expect(backend).toBeDefined();
   });
 
-  it('AY backend validate returns unsupported error', () => {
+  it('AY backend validate accepts minimal AY song', () => {
     const backend = resolveBackend('ay');
     const errors = backend!.validate({
       pats: {}, insts: {}, seqs: {},
       channels: [{ id: 1, events: [] }],
       chip: 'ay',
     });
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toMatch(/AY-3-8910/i);
+    expect(errors).toEqual([]);
   });
 });
 

@@ -64,7 +64,7 @@
     },
     "chipRegion": {
       "type": "string",
-      "description": "Optional chip timing region qualifier (currently used by SMS: 'ntsc' or 'pal')."
+      "description": "Optional chip timing/target region qualifier. For SMS/NES: 'ntsc' or 'pal'. For AY-family chips: 'atari-st', 'msx', 'amstrad-cpc', 'vectrex', or 'zx-spectrum-128'."
     },
     "volume": {
       "type": "number",
@@ -158,8 +158,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Channel type: pulse1, pulse2, wave, noise.",
-          "enum": ["pulse1", "pulse2", "wave", "noise"]
+          "description": "Channel type (chip-specific). Common values include pulse1, pulse2, wave, noise, tone, triangle, dmc, and AY/SMS variants.",
+          "enum": ["pulse1", "pulse2", "wave", "noise", "tone", "triangle", "dmc", "tone1", "tone2", "tone3"]
         },
         "duty": {
           "type": "string",

@@ -1,5 +1,3 @@
-import type { ChipNewSongWizard } from '@beatbax/engine';
-
 const image = '/chips/ay3-8910/chip-image.png';
 
 const commonTemplates = {
@@ -54,7 +52,7 @@ play
   },
 };
 
-export const aySongWizard: ChipNewSongWizard = {
+export const aySongWizard = {
   metadata: {
     chipDisplayName: 'AY-3-8910 / YM2149',
     platform: 'Atari ST / MSX',

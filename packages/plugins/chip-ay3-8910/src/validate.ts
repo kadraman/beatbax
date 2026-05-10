@@ -79,10 +79,10 @@ export function validateAyInstrument(inst: InstrumentNode): ValidationError[] {
     }
   }
 
-  const useEnvelope =
+  const useEnvelope = (
     parseBool(inst.use_envelope) ??
-    (typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope') ||
-    (inst.vol === undefined && env !== 'none');
+    (typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope')
+  ) || (inst.vol === undefined && env !== 'none');
 
   if (inst.vol !== undefined && !(typeof inst.vol === 'string' && String(inst.vol).toLowerCase() === 'use_envelope')) {
     const vol = Number(inst.vol);
