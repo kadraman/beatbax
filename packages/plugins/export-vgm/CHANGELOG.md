@@ -1,5 +1,11 @@
 # @beatbax/plugin-exporter-vgm
 
+## 0.1.1
+
+### Patch Changes
+
+- aaa1c8f: Refactor the VGM exporter into a multi-chip backend architecture, extract shared channel simulation logic, add AY backend scaffolding and registry/tests, and include header/offset fixes plus implementation docs.
+
 ## 0.1.0
 
 ### Minor Changes
