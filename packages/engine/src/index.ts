@@ -7,6 +7,12 @@ import { chipRegistry } from './chips/index.js';
 
 const log = createLogger('engine-play');
 
+// Avoid bundlers statically resolving Node built-ins from this mixed
+// Node/browser entrypoint. The call sites are guarded by runtime context.
+const dynamicNodeImport = async <T = any>(specifier: string): Promise<T> => {
+  return (new Function('s', 'return import(s)') as (s: string) => Promise<T>)(specifier);
+};
+
 /**
  * Wait for a directory to be ready (exists and is accessible).
  * Uses polling with exponential backoff up to a maximum timeout.
@@ -28,7 +34,7 @@ async function waitForDirectory(
       // Check if directory exists and is accessible
       if (existsSync(dirPath)) {
         // Additional check: ensure we can list the directory
-        const fs = await import('fs/promises');
+        const fs = await dynamicNodeImport<any>('fs/promises');
         await fs.readdir(dirPath);
         return; // Directory is ready
       }
@@ -60,9 +66,9 @@ async function waitForViteServer(
   while (Date.now() - startTime < maxWaitMs) {
     try {
       // Try to fetch from the server
-      const http = await import('http');
+      const http = await dynamicNodeImport<any>('http');
       await new Promise<void>((resolve, reject) => {
-        const req = http.get(url, (res) => {
+        const req = http.get(url, (res: any) => {
           // Any response means server is running
           // Drain the response body to prevent memory leaks
           res.resume();
@@ -182,8 +188,8 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       // Real-time playback via speaker
       try {
         // Resolve absolute path to cli module
-        const path = await import('path');
-        const url = await import('url');
+        const path = await dynamicNodeImport<any>('path');
+        const url = await dynamicNodeImport<any>('url');
         const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
         let cliPath = path.resolve(__dirname, '../../cli/dist/nodeAudioPlayer.js');
@@ -252,7 +258,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
       log.info('Launching browser-based playback with Vite dev server...');
       try {
         // Resolve imports before copying to browser (imports won't work in browser context)
-        const pathModule = await import('path');
+        const pathModule = await dynamicNodeImport<any>('path');
         let resolvedSrc = src;
 
         if (ast.imports && ast.imports.length > 0) {

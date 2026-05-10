@@ -87,6 +87,22 @@ describe('resolveBackend — SMS aliases', () => {
     expect(backend).toBeDefined();
     expect(backend!.chipAliases).toContain('tandy_1000');
   });
+
+  it('validate accepts normalized underscore aliases', () => {
+    const bbc = resolveBackend('bbc_micro');
+    const tandy = resolveBackend('tandy_1000');
+
+    const baseSong = {
+      pats: {}, insts: {}, seqs: {},
+      channels: [{ id: 1, events: [] }],
+    };
+
+    const bbcErrors = bbc!.validate({ ...baseSong, chip: 'bbc_micro' });
+    const tandyErrors = tandy!.validate({ ...baseSong, chip: 'tandy_1000' });
+
+    expect(bbcErrors).toEqual([]);
+    expect(tandyErrors).toEqual([]);
+  });
 });
 
 describe('resolveBackend — AY aliases', () => {

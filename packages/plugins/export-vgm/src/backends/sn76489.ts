@@ -383,9 +383,11 @@ function normAlias(chip: string): string {
   return chip.toLowerCase().replace(/[\s_-]/g, '');
 }
 
+const SN76489_ALIASES_NORMALISED = new Set(SN76489_ALIASES.map(normAlias));
+
 function isSn76489Chip(chip: string): boolean {
   const n = normAlias(chip);
-  return SN76489_ALIASES.includes(n) || n.includes('sms') || n.includes('gamegear');
+  return SN76489_ALIASES_NORMALISED.has(n) || n.includes('sms') || n.includes('gamegear');
 }
 
 function isGameGearChip(chip: string | undefined): boolean {

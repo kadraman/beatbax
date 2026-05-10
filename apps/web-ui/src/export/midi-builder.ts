@@ -5,7 +5,7 @@
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
-import { noteToMidi } from '@beatbax/engine';
+import { noteToMidi } from '@beatbax/engine/util/music';
 
 const log = createLogger('ui:midi-builder');
 

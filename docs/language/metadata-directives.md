@@ -6,10 +6,8 @@ BeatBax supports top-level directives inside `.bax` files to:
 
 ## Global Playback Directives
 
-- **`chip <name>`** — Selects the audio backend. Supported chips: `gameboy`, `nes`, `sms`, `gg`.
+- **`chip <name>`** — Selects the audio backend. Supported chips: `gameboy` or `gb`, `nes`, `sms`, `gg` or `gamegear`.
   - **`chip sms ntsc`** / **`chip sms pal`** — optional region qualifier for the SN76489 SMS backend. Selects the hardware clock frequency used for tone period calculations. `ntsc` (3,579,545 Hz, default) matches North American and Japanese hardware; `pal` (3,546,895 Hz) matches European hardware. Omitting the qualifier defaults to `ntsc`.
-  - **`chip gg ntsc`** / **`chip gg pal`** — short Game Gear alias for the same SN76489 backend. Use this when stereo-authored `pan` / `gg:pan` intent should target Game Gear semantics directly.
-  - **`chip gamegear ntsc`** / **`chip gamegear pal`** — full Game Gear alias for the same SN76489 backend.
   - **`chip nes ntsc`** / **`chip nes pal`** — optional region qualifier for the NES backend. Selects the CPU clock frequency used for period and DMC rate calculations. `ntsc` (1,789,773 Hz, default) matches North American and Japanese hardware; `pal` (1,662,607 Hz, ~7.1% lower) matches European hardware. Omitting the qualifier defaults to `ntsc`.
   - The region qualifier is only valid for `chip sms` and `chip nes`; using it with any other chip is a parser error.
 - **`bpm <number>`** — Sets the tempo in beats per minute (default: `120`)

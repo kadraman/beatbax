@@ -4,9 +4,10 @@
  * Maintains a mirror of the current PSG register values to avoid redundant
  * writes. A write is only emitted when the new value differs from the shadow.
  *
- * On song start all registers are unconditionally emitted (via flush()) to
- * establish a known hardware state, since some VGM players start from an
- * undefined register state.
+ * On song start flush() emits a deterministic baseline state for volumes,
+ * tone periods, and GG stereo. Noise control is emitted only after it has
+ * been initialized by note content, to avoid forcing an incorrect startup
+ * noise mode/rate.
  */
 
 import {
@@ -114,8 +115,9 @@ export class SN76489State {
   // ── Initialisation flush ─────────────────────────────────────────────────────
 
   /**
-   * Return all current register bytes unconditionally (for song-start flush).
-   * Emits: noise control, then volume for all channels, then tone periods for channels 0-2.
+   * Return register bytes for song-start flush.
+   * Emits: noise control (if initialized), then volume for all channels,
+   * then tone periods for channels 0-2.
    * GG stereo is handled separately (via applyGgStereo).
    *
    * After calling this, the shadow state matches what was written.
