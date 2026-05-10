@@ -33,6 +33,8 @@ export const HDR_SN_FEEDBACK   = 0x28; // uint16: LFSR feedback taps bit0^bit1 (
 export const HDR_SN_SHIFT_REG  = 0x2A; // uint8: 15-bit LFSR width (BeatBax SMS parity)
 export const HDR_SN_FLAGS      = 0x2B; // uint8: 0 (standard)
 export const HDR_DATA_OFFSET   = 0x34; // relative to 0x34; points to VGM data start
+/** AY-3-8910 / YM2149 clock field offset (VGM 1.61+) */
+export const HDR_AY8910_CLOCK  = 0xA0;
 
 
 
@@ -48,6 +50,14 @@ export const VGM_DATA_OFFSET_VALUE = 0x0C;
 
 export const SN76489_CLOCK_NTSC = 3579545; // Hz (SMS NTSC / Game Gear)
 export const SN76489_CLOCK_PAL  = 3546895; // Hz (SMS PAL)
+
+/** AY-3-8910 / YM2149 clock — 1.7897725 MHz NTSC (common ZX Spectrum / MSX rate) */
+export const AY8910_CLOCK_NTSC  = 1789772; // Hz (NTSC)
+/** AY-3-8910 / YM2149 clock — 1.7734475 MHz PAL */
+export const AY8910_CLOCK_PAL   = 1773447; // Hz (PAL)
+
+/** YM2413 (OPLL) clock — 3.579545 MHz (MSX-Music / PC-88) */
+export const YM2413_CLOCK       = 3579545; // Hz
 
 // ─── SN76489 PSG register encoding ───────────────────────────────────────────
 
