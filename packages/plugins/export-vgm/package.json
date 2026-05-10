@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-exporter-vgm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "VGM (Video Game Music) exporter plugin for BeatBax — SN76489 PSG (SMS/Game Gear).",
   "private": false,
   "type": "module",
