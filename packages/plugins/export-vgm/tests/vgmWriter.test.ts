@@ -20,6 +20,7 @@ import {
   HDR_SN_FEEDBACK,
   HDR_SN_SHIFT_REG,
   HDR_DATA_OFFSET,
+  HDR_AY8910_CLOCK,
 } from '../src/constants.js';
 
 describe('VgmBuffer', () => {
@@ -95,6 +96,17 @@ describe('buildVgmHeader', () => {
     const view = new DataView(arr.buffer);
     expect(view.getUint32(HDR_DATA_OFFSET, true)).toBe(VGM_DATA_OFFSET_VALUE);
   });
+
+  it('expands header and writes AY clock at 0xA0 when ay8910Clock is provided', () => {
+    const ayClock = 1_789_772;
+    const header = buildVgmHeader({ ay8910Clock: ayClock, rate: 60 });
+    const arr = header.toUint8Array();
+    const view = new DataView(arr.buffer);
+
+    expect(header.length).toBe(HDR_AY8910_CLOCK + 4);
+    expect(view.getUint32(HDR_AY8910_CLOCK, true)).toBe(ayClock);
+    expect(view.getUint32(HDR_DATA_OFFSET, true)).toBe((HDR_AY8910_CLOCK + 4) - HDR_DATA_OFFSET);
+  });
 });
 
 describe('appendWait', () => {
@@ -166,8 +178,11 @@ describe('assembleVgm', () => {
     expect(view.getUint32(0x08, true)).toBe(VGM_VERSION);
     // EOF offset should be totalSize - 4
     expect(view.getUint32(0x04, true)).toBe(result.length - 4);
+    const dataStart = HDR_DATA_OFFSET + view.getUint32(HDR_DATA_OFFSET, true);
+    expect(dataStart).toBe(VGM_HEADER_SIZE);
     // Data at offset 0x40 should be 0x66 (end marker)
     expect(result[VGM_HEADER_SIZE]).toBe(CMD_END);
+    expect(result[dataStart]).toBe(CMD_END);
   });
 
   it('appends 0x66 automatically if missing from dataBytes', () => {
@@ -179,6 +194,28 @@ describe('assembleVgm', () => {
       gd3Block,
       0,
     );
-    expect(result[VGM_HEADER_SIZE]).toBe(CMD_END);
+    const view = new DataView(result.buffer);
+    const dataStart = HDR_DATA_OFFSET + view.getUint32(HDR_DATA_OFFSET, true);
+    expect(dataStart).toBe(VGM_HEADER_SIZE);
+    expect(result[dataStart]).toBe(CMD_END);
+  });
+
+  it('starts data immediately after extended header when ay8910Clock is provided', () => {
+    const ayClock = 1_789_772;
+    const dataBytes = [0x50, 0x9F, 0x66];
+    const gd3Block = new Uint8Array(0);
+    const result = assembleVgm(
+      { ay8910Clock: ayClock, rate: 60 },
+      dataBytes,
+      gd3Block,
+      0,
+    );
+
+    const expectedDataStart = HDR_AY8910_CLOCK + 4;
+    const view = new DataView(result.buffer);
+    expect(view.getUint32(HDR_DATA_OFFSET, true)).toBe(expectedDataStart - HDR_DATA_OFFSET);
+    expect(result[expectedDataStart]).toBe(0x50);
+    expect(result[expectedDataStart + 1]).toBe(0x9F);
+    expect(result[expectedDataStart + 2]).toBe(CMD_END);
   });
 });

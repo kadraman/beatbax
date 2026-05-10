@@ -15,7 +15,7 @@ import {
   toneDataByte,
   volumeLatchByte,
   noiseControlByte,
-} from './constants.js';
+} from '../constants.js';
 
 /** Sentinel: uninitialized period (forces write on first use) */
 const UNINIT_PERIOD = -1;

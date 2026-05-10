@@ -179,7 +179,7 @@ This satisfies the spec requirement of failing loudly on unsupported chips.
 
 ### Phase 5 — AY backend stub (optional in this PR)
 
-- Create `packages/plugins/export-vgm/src/backends/ay.ts` that registers `['ay', 'ym2149', 'ay38910']` aliases and returns a `validate()` error of `"AY-3-8910 VGM backend is not yet implemented"`.
+- Create `packages/plugins/export-vgm/src/backends/ay.ts` that registers `['ay', 'ym2149', 'ay38910', 'amstrad-cpc', 'atari-st', 'msx', 'zx-spectrum-128', 'oric-1', 'colour-genie', 'apple-ii-mockingboard', 'intellivision', 'vectrex']` aliases and returns a `validate()` error of `"AY-3-8910 VGM backend is not yet implemented"`.
 - This ensures the dispatcher produces a meaningful error (not "no backend registered") when a user tries `beatbax export vgm` on an AY song prematurely.
 
 ### Phase 6 — Plugin wiring compatibility check

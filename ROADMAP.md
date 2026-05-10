@@ -66,11 +66,11 @@ Using that definition, here’s a clean, authoritative list of the major chips t
   - Export formats: VGM (captures YM2612 & PSG register writes), GYM (Genesis music format), WAV/OGG, tracker exports (e.g., Deflemask-compatible data)
   - Homebrew suitability: Yes — `VGM`/`GYM` or driver-ready register dumps are commonly used for Genesis homebrew; compilation into engine-friendly data structures is required.
 
-- **Atari ST / YM2149 (AY‑3‑8910 family)**
+- **AY-3-8910 / YM2149 (Atari ST, MSX, Amstrad CPC and others)**
   - Channels: 3 PSG channels, envelope generator on-chip
   - Features: PSG envelopes, easy square/noise synthesis
   - Difficulty: Low–Medium
-  - Suggested plugin name: `@beatbax/plugin-chip-ym2149`
+  - Suggested plugin name: `@beatbax/plugin-chip-ay3-8910`
   - Export formats: VGM, AY/AYM tracker formats, MOD conversions, WAV/OGG
   - Homebrew suitability: Yes — AY/PSG register streams or tracker exports are usable in homebrew targets (e.g., for YM2149-driven systems).
 
