@@ -17,6 +17,23 @@ describe('ExporterRegistry', () => {
     expect(gb).toContain('uge');
     expect(nes).not.toContain('uge');
   });
+
+  test('list(chipName) matches normalized chip aliases', () => {
+    const reg = new ExporterRegistry();
+    const exporter: ExporterPlugin = {
+      id: `test-vgm-${Date.now()}`,
+      label: 'Test VGM',
+      version: '1.0.0',
+      extension: 'vgm',
+      mimeType: 'audio/x-vgm',
+      supportedChips: ['ay38910'],
+      export: () => new Uint8Array([0x56, 0x67, 0x6d, 0x20]),
+    };
+    reg.register(exporter);
+
+    const ids = reg.list('ay3-8910').map((p) => p.id);
+    expect(ids).toContain(exporter.id);
+  });
 });
 
 describe('ChipRegistry exporter forwarding', () => {

@@ -52,8 +52,8 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
     id: 'ay3-8910',
     label: 'AY-3-8910 / YM2149',
     description:
-      'AY-family PSG used by Atari ST, MSX, and Amstrad CPC - 3 channels with tone/noise mixer and envelope shapes. ' +
-      'Enables `chip ay`, `chip atari-st`, and `chip msx` in .bax scripts.',
+      'AY-family PSG used by Atari ST, MSX/MSX2, Amstrad CPC, Vectrex, and ZX Spectrum 128 - 3 channels with tone/noise mixer and envelope shapes. ' +
+      'Enables `chip ay`, `chip ay3-8910`, `chip ym2149`, `chip atari-st`, `chip msx`, `chip amstrad-cpc`, `chip vectrex`, and `chip zx-spectrum-128` in .bax scripts.',
     badge: 'Beta',
     plugin: ayPlugin,
   },

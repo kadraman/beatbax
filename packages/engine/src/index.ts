@@ -204,7 +204,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
         const cliUrl = url.pathToFileURL(cliPath).href;
 
-        const { playAudioBuffer } = await import(cliUrl);
+        const { playAudioBuffer } = await import(/* @vite-ignore */ cliUrl);
         log.info('Playing audio via system speakers...');
         if (ast.play?.repeat) {
           log.info('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');

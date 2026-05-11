@@ -1,0 +1,29 @@
+chip vectrex
+bpm 156
+
+# Mine Storm inspired Vectrex arcade loop (original arrangement)
+
+effect fastvib = vib:1,7,sine,1
+
+a = C5<fastvib>:2 E5 G5 A5 G5 E5 C5 D5
+b = E5<fastvib>:2 G5 B5 C6 B5 G5 E5 D5
+
+inst lead type=tone env=attack_decay vol=use_envelope
+inst support type=tone env=decay_repeat vol=use_envelope vol_env=[10,11,10,9|0]
+inst bass type=tone env=decay_only vol=11 pitch_env=[0,-12]
+inst kick type=noise noise=on noise_rate=9 env=decay_quick vol=14 note=C2
+inst hat  type=noise noise=on noise_rate=1 vol_env=[7,5,3,1,0] note=C5
+
+pat p1 = a
+pat p2 = b
+pat combo = C3 kick G2 hat A2 kick F2 hat
+
+seq lead_seq = p1 p1 p2 p1
+seq sup_seq  = p1:oct(-1) p1:oct(-1) p2:oct(-1) p1:oct(-1)
+seq ch3_seq  = combo combo combo combo
+
+channel 1 => inst lead seq lead_seq
+channel 2 => inst support seq sup_seq
+channel 3 => inst bass seq ch3_seq
+
+play

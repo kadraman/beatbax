@@ -1,4 +1,5 @@
 import type { InstrumentNode, ValidationError } from '@beatbax/engine';
+import { parseMacro } from '@beatbax/engine';
 import type { AyEnvelopeShape } from './envelope.js';
 import { shouldUseEnvelope } from './instrument.js';
 
@@ -27,7 +28,6 @@ const FORBIDDEN_FIELDS = [
   'linear',
   'noise_mode',
   'noise_period',
-  'noise_rate_env',
   'dmc_rate',
   'dmc_loop',
   'dmc_sample',
@@ -67,6 +67,38 @@ export function validateAyInstrument(inst: InstrumentNode): ValidationError[] {
     const rate = Number(inst.noise_rate);
     if (!Number.isFinite(rate) || rate < 0 || rate > 31) {
       pushError(errors, 'noise_rate', `noise_rate must be between 0 and 31. Got '${inst.noise_rate}'.`);
+    }
+  }
+
+  const volEnv = parseMacro((inst as any).vol_env);
+  if (volEnv) {
+    const invalid = volEnv.values.find((v) => v < 0 || v > 15);
+    if (invalid !== undefined) {
+      pushError(errors, 'vol_env', `vol_env values must be between 0 and 15. Got '${invalid}'.`);
+    }
+  }
+
+  const pitchEnv = parseMacro((inst as any).pitch_env);
+  if (pitchEnv) {
+    const invalid = pitchEnv.values.find((v) => !Number.isFinite(v) || v < -96 || v > 96);
+    if (invalid !== undefined) {
+      pushError(errors, 'pitch_env', `pitch_env values must be finite semitone offsets. Got '${invalid}'.`);
+    }
+  }
+
+  const arpEnv = parseMacro((inst as any).arp_env);
+  if (arpEnv) {
+    const invalid = arpEnv.values.find((v) => !Number.isFinite(v) || v < -96 || v > 96);
+    if (invalid !== undefined) {
+      pushError(errors, 'arp_env', `arp_env values must be finite semitone offsets. Got '${invalid}'.`);
+    }
+  }
+
+  const noiseRateEnv = parseMacro((inst as any).noise_rate_env);
+  if (noiseRateEnv) {
+    const invalid = noiseRateEnv.values.find((v) => v < 0 || v > 31);
+    if (invalid !== undefined) {
+      pushError(errors, 'noise_rate_env', `noise_rate_env values must be between 0 and 31. Got '${invalid}'.`);
     }
   }
 

@@ -64,7 +64,7 @@
     },
     "chipRegion": {
       "type": "string",
-      "description": "Optional chip timing/target region qualifier. For SMS/NES: 'ntsc' or 'pal'. For AY-family chips: 'atari-st', 'msx', 'amstrad-cpc', 'vectrex', or 'zx-spectrum-128'."
+      "description": "Optional chip timing region qualifier (currently used by SMS/NES: 'ntsc' or 'pal')."
     },
     "volume": {
       "type": "number",

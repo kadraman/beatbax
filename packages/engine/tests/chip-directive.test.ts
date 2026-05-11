@@ -49,20 +49,6 @@ describe('chip directive', () => {
     const src = `chip gameboy pal`;
     const result = parseWithPeggy(src);
     const messages = (result.ast.diagnostics || []).map(d => d.message);
-    expect(messages.some(m => m.includes("only supported for 'chip sms', 'chip nes', and AY-family chips"))).toBe(true);
-  });
-
-  test('ay chip region qualifier is parsed', () => {
-    const src = `chip ay msx`;
-    const result = parseWithPeggy(src);
-    expect(result.ast.chip).toBe('ay');
-    expect((result.ast as any).chipRegion).toBe('msx');
-  });
-
-  test('invalid ay region emits parser diagnostic', () => {
-    const src = `chip ay ntsc`;
-    const result = parseWithPeggy(src);
-    const messages = (result.ast.diagnostics || []).map(d => d.message);
-    expect(messages.some(m => m.includes("Invalid AY region 'ntsc'"))).toBe(true);
+    expect(messages.some(m => m.includes("only supported for 'chip sms' and 'chip nes'"))).toBe(true);
   });
 });

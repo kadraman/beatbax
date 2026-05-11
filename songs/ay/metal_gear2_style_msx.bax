@@ -1,0 +1,30 @@
+chip msx
+bpm 124
+
+# Metal Gear 2 inspired MSX stealth motif (original arrangement)
+
+effect tensevib = vib:1,4,sine,2
+effect minarp   = arp:3,7
+
+a = E4<tensevib>:4 . G4<minarp>:4 . A4<tensevib>:4 . B4<minarp>:4 .
+b = C5<tensevib>:4 . B4<minarp>:4 . A4<tensevib>:4 . G4<minarp>:4 .
+
+inst lead type=tone env=attack_decay vol=use_envelope vol_env=[14,13,12,11,10,9]
+inst counter type=tone env=decay_repeat vol=use_envelope arp_env=[0,3,7|0]
+inst bass type=tone env=decay_only vol=11
+inst snare type=noise noise=on noise_rate=8 noise_rate_env=[8,6,4,3] vol_env=[12,9,6,3,0] note=D3
+inst hat   type=noise noise=on noise_rate=2 vol_env=[7,5,3,1,0] note=C5
+
+pat lead_pat = a b
+pat ctr_pat  = E3 . G3 . A3 . B3 .
+pat ch3_pat  = E2 snare E2 hat C2 snare B1 hat
+
+seq lead_seq = lead_pat lead_pat
+seq ctr_seq  = ctr_pat ctr_pat ctr_pat ctr_pat
+seq ch3_seq  = ch3_pat ch3_pat ch3_pat ch3_pat
+
+channel 1 => inst lead seq lead_seq
+channel 2 => inst counter seq ctr_seq
+channel 3 => inst bass seq ch3_seq
+
+play

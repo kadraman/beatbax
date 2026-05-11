@@ -1,0 +1,30 @@
+chip atari-st
+bpm 138
+
+# Xenon-2-inspired Atari ST style groove (original arrangement)
+
+effect leadvib = vib:2,5,sine,2
+effect leadarp = arp:4,7
+
+a = C5<leadvib>:2 E5<leadarp>:2 G5<leadvib>:2 A5<leadarp>:2 G5 E5 D5 C5
+b = E5<leadvib>:2 G5<leadarp>:2 B5<leadvib>:2 A5<leadarp>:2 G5 E5 D5 C5
+
+inst lead type=tone env=attack_decay vol=use_envelope vol_env=[15,14,13,12,11,10,9]
+inst pad  type=tone env=attack_decay_repeat vol=use_envelope vol_env=[10,11,12,11|0]
+inst bass type=tone env=decay_only vol=12 pitch_env=[0,-12]
+inst kick type=noise noise=on noise_rate=11 env=decay_quick vol=14 note=C2
+inst hat  type=noise noise=on noise_rate=2 vol_env=[8,5,3,1,0] note=C5
+
+pat lead_a = a
+pat lead_b = b
+pat combo  = C3 kick C3 hat G2 kick A2 hat
+
+seq lead_seq = lead_a lead_a lead_b lead_a
+seq pad_seq  = lead_a:oct(-1) lead_a:oct(-1) lead_b:oct(-1) lead_a:oct(-1)
+seq ch3_seq  = combo combo combo combo
+
+channel 1 => inst lead seq lead_seq
+channel 2 => inst pad  seq pad_seq
+channel 3 => inst bass seq ch3_seq
+
+play

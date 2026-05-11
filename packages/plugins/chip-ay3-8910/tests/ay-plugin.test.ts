@@ -30,6 +30,17 @@ describe('ay instrument validation', () => {
     expect(errors).toEqual([]);
   });
 
+  it('accepts macro fields', () => {
+    const errors = ayPlugin.validateInstrument({
+      type: 'tone',
+      vol_env: [15, 12, 8, 4, 0],
+      arp_env: [0, 4, 7],
+      pitch_env: [0, -1, -2],
+      noise_rate_env: [0, 8, 16, 24],
+    } as any);
+    expect(errors).toEqual([]);
+  });
+
   it('rejects unsupported type', () => {
     const errors = ayPlugin.validateInstrument({ type: 'pulse1' } as any);
     expect(errors.some((e) => e.field === 'type')).toBe(true);
@@ -81,9 +92,9 @@ describe('channel backend', () => {
     }
   });
 
-  it('falls back to PCM for noise Web Audio notes', () => {
+  it('creates Web Audio nodes for noise notes', () => {
     const ch = ayPlugin.createChannel(0, ctx as any);
     const nodes = ch.createPlaybackNodes?.(ctx as any, 220, 0, 0.1, { type: 'noise', noise: 'on' } as any, {}, ctx.destination);
-    expect(nodes).toBeNull();
+    expect(nodes && nodes.length).toBeGreaterThan(0);
   });
 });

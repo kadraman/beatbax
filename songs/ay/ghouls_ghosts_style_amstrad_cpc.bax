@@ -1,0 +1,26 @@
+chip amstrad-cpc
+bpm 118
+
+# Ghouls 'n Ghosts title-inspired CPC style (original arrangement)
+
+effect gothic = vib:2,4,sine,3
+
+inst lead type=tone env=attack_decay vol=use_envelope
+inst choir type=tone env=attack_decay_repeat vol=use_envelope arp_env=[0,3,7|0]
+inst bass type=tone env=decay_only vol=12
+inst kick type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
+inst tom  type=noise noise=on noise_rate=14 vol_env=[10,8,6,4,2,0] note=G2
+
+pat intro = C5<gothic>:4 D5 E5 G5 A5 G5 E5 D5
+pat rise  = F5<gothic>:4 G5 A5 C6 D6 C6 A5 G5
+pat low   = C3 kick G2 tom A2 kick F2 tom
+
+seq top = intro intro rise intro
+seq mid = intro:oct(-1) intro:oct(-1) rise:oct(-1) intro:oct(-1)
+seq lowseq = low low low low
+
+channel 1 => inst lead seq top
+channel 2 => inst choir seq mid
+channel 3 => inst bass seq lowseq
+
+play

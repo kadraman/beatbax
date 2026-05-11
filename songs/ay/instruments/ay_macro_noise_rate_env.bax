@@ -1,0 +1,18 @@
+chip amstrad-cpc
+bpm 140
+
+inst lead  type=tone env=attack_decay vol=use_envelope
+inst snare type=noise noise=on noise_rate=12 noise_rate_env=[12,8,4,2] vol_env=[12,9,6,3,0] note=D3
+inst hat   type=noise noise=on noise_rate=3 noise_rate_env=[3,2,1,0] vol_env=[8,5,3,1,0] note=C5
+
+pat melody = C5 E5 G5 A5 G5 E5 C5 D5
+pat drums  = snare . hat . snare hat . hat
+
+seq m = melody melody
+seq d = drums drums drums drums
+
+channel 1 => inst lead seq m
+channel 2 => inst lead seq m:oct(-1)
+channel 3 => inst snare seq d
+
+play

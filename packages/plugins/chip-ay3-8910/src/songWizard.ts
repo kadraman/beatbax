@@ -30,16 +30,14 @@ effect punch   = bend:-3,0.08,exp
       label: 'AY starter structure',
       content: `
 pat lead_pat = C5<exprVib>:4 E5 G5 A5 G5 E5 C5 D5
-pat bass_pat = C3 . G2 . A2 . F2 .
-pat drum_pat = kick . hat . kick kick hat .
+pat ch3_combo = C3 kick G2 hat A2 kick F2 hat
 
 seq lead_seq = lead_pat lead_pat
-seq bass_seq = bass_pat bass_pat
-seq drum_seq = drum_pat drum_pat drum_pat drum_pat
+seq ch3_seq = ch3_combo ch3_combo
 
 channel 1 => inst lead seq lead_seq
 channel 2 => inst pad  seq lead_seq:oct(-1)
-channel 3 => inst bass seq bass_seq
+channel 3 => inst bass seq ch3_seq
 
 play
 `,
@@ -65,7 +63,7 @@ export const aySongWizard = {
     {
       chipId: 'atari-st',
       metadata: {
-        chipDisplayName: 'AY-3-8910 (Atari ST)',
+        chipDisplayName: 'Atari-ST (AY-3-8910)',
         platform: 'Atari ST',
         year: '1985',
         channelSummary: '3 PSG channels, YM2149 envelope + shared noise',
@@ -76,10 +74,43 @@ export const aySongWizard = {
     {
       chipId: 'msx',
       metadata: {
-        chipDisplayName: 'AY-3-8910 (MSX)',
+        chipDisplayName: 'MSX / MSX 2 (AY-3-8910)',
         platform: 'MSX / MSX2',
         year: '1983',
         channelSummary: '3 PSG channels, AY/YM envelope + shared noise',
+        image,
+      },
+      templates: commonTemplates,
+    },
+    {
+      chipId: 'amstrad-cpc',
+      metadata: {
+        chipDisplayName: 'Amstrad CPC (AY-3-8910)',
+        platform: 'Amstrad CPC',
+        year: '1984',
+        channelSummary: '3 PSG channels (AY), shared noise + hardware envelope',
+        image,
+      },
+      templates: commonTemplates,
+    },
+    {
+      chipId: 'vectrex',
+      metadata: {
+        chipDisplayName: 'Vectrex (AY-3-8910)',
+        platform: 'Vectrex',
+        year: '1982',
+        channelSummary: '3 PSG channels (AY) for arcade-style leads and percussion',
+        image,
+      },
+      templates: commonTemplates,
+    },
+    {
+      chipId: 'zx-spectrum-128',
+      metadata: {
+        chipDisplayName: 'ZX Spectrum 128 (AY-3-8910)',
+        platform: 'ZX Spectrum 128',
+        year: '1986',
+        channelSummary: '3 PSG channels (AY-3-8912 compatible)',
         image,
       },
       templates: commonTemplates,

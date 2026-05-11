@@ -1,0 +1,26 @@
+chip ay
+bpm 128
+
+effect vibsoft = vib:1,4,sine,1
+effect vibdeep = vib:3,5,sine,2
+effect glide   = port:6
+effect bendup  = bend:5,0.12,exp
+
+a = C5<vibsoft>:2 D5<vibsoft>:2 E5<vibdeep>:2 G5<glide>:2
+b = A4<bendup>:4 G4 F4 E4
+
+inst lead type=tone env=attack_decay vol=use_envelope
+inst bass type=tone env=decay_only vol=11
+inst kick type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
+
+pat p1 = a b
+pat p2 = C3 kick G2 kick A2 kick F2 kick
+
+seq s1 = p1 p1
+seq s2 = p2 p2
+
+channel 1 => inst lead seq s1
+channel 2 => inst lead seq s1:oct(-1)
+channel 3 => inst bass seq s2
+
+play
