@@ -5,6 +5,10 @@ import { BUILTIN_EXPORTER_PLUGINS } from './plugins/index.js';
  * Normalize chip names for exporter compatibility matching.
  * Lowercases and strips spaces, underscores, and hyphens.
  * Example: "ay3-8910" -> "ay38910", "zx_spectrum-128" -> "zxspectrum128".
+ *
+ * @example
+ * normalizeChipName('ay3-8910') // => 'ay38910'
+ * normalizeChipName('zx_spectrum-128') // => 'zxspectrum128'
  */
 function normalizeChipName(chip: string): string {
   return chip.toLowerCase().replace(/[\s_-]/g, '');

@@ -39,7 +39,7 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function macroToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
+function volEnvToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
   const volEnv = parseMacro((inst as any).vol_env);
   if (!volEnv || volEnv.values.length === 0) return null;
   if (dur <= 0) return null;
@@ -251,7 +251,7 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       const type = String(inst.type ?? 'tone').toLowerCase();
       const mixNoise = String(inst.noise ?? 'off').toLowerCase() === 'on';
       const useEnvelope = shouldUseEnvelope(inst);
-      const curve = macroToCurve(inst, dur);
+      const curve = volEnvToCurve(inst, dur);
 
       if (type === 'noise' || mixNoise) {
         const src = ctx.createBufferSource();
