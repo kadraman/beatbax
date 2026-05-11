@@ -30,10 +30,10 @@ effect punch   = bend:-3,0.08,exp
       label: 'AY starter structure',
       content: `
 pat lead_pat = C5<exprVib>:4 E5 G5 A5 G5 E5 C5 D5
-pat ch3_combo = C3 kick G2 hat A2 kick F2 hat
+pat bass_drums = C3 kick G2 hat A2 kick F2 hat
 
 seq lead_seq = lead_pat lead_pat
-seq ch3_seq = ch3_combo ch3_combo
+seq ch3_seq = bass_drums bass_drums
 
 channel 1 => inst lead seq lead_seq
 channel 2 => inst pad  seq lead_seq:oct(-1)

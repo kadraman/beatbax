@@ -32,7 +32,8 @@ interface AyChannelState {
 }
 
 const NOISE_BUFFER_SECONDS = 1;
-const noiseBufferCache = new WeakMap<BaseAudioContext, AudioBuffer>();
+const NOISE_AMPLITUDE = 0.6;
+const NOISE_BUFFER_CACHE = new WeakMap<BaseAudioContext, AudioBuffer>();
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -50,17 +51,17 @@ function macroToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
 }
 
 function getNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
-  const cached = noiseBufferCache.get(ctx);
+  const cached = NOISE_BUFFER_CACHE.get(ctx);
   if (cached) return cached;
 
   const length = Math.max(1, Math.floor(ctx.sampleRate * NOISE_BUFFER_SECONDS));
   const buf = ctx.createBuffer(1, length, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i += 1) {
-    data[i] = (Math.random() * 2 - 1) * 0.6;
+    data[i] = (Math.random() * 2 - 1) * NOISE_AMPLITUDE;
   }
 
-  noiseBufferCache.set(ctx, buf);
+  NOISE_BUFFER_CACHE.set(ctx, buf);
   return buf;
 }
 
