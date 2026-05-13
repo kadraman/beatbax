@@ -248,9 +248,9 @@ Current command palette coverage is limited to exports, basic generation, transf
 - **ID**: `beatbax.exportToClipboard`
 - **Label**: `BeatBax: Export to Clipboard…`
 - **Trigger**: Command palette
-- **Behavior**: Quick-pick format (JSON/MIDI/UGE/WAV) and copy result to clipboard
+- **Behavior**: Quick-pick text-based export format (JSON/MIDI/FamiTracker Text) and copy result to clipboard
 - **Implementation**:
-  - Show quick-pick: `['JSON', 'MIDI', 'UGE', 'WAV', 'FamiTracker']`
+  - Show quick-pick: `['JSON', 'MIDI', 'FamiTracker Text']`
   - On selection, export using existing `onExport()` callback
   - Intercept the export result and copy to clipboard
   - Show toast: "Exported JSON (1200 bytes) — copied to clipboard"
