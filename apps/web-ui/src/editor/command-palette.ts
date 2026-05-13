@@ -58,6 +58,13 @@ export interface CommandPaletteOptions {
     source: string,
     chunkInfo?: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>>,
   ) => void;
+
+  /**
+   * Optional: return export data as a plain string for clipboard operations.
+   * Called by beatbax.exportToClipboard for text-based formats (e.g. JSON).
+   * If not provided or returns null, exportToClipboard falls back to onExport.
+   */
+  onExportData?: (format: ExportFormat) => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +189,173 @@ function insertAtCursor(
 }
 
 // ---------------------------------------------------------------------------
+// Module-level: last export format used (for Quick Export command)
+// ---------------------------------------------------------------------------
+
+let lastExportFormat: ExportFormat = 'json';
+
+// ---------------------------------------------------------------------------
+// Helper: toast notification
+// ---------------------------------------------------------------------------
+
+/**
+ * Shows a brief non-blocking toast message anchored to the bottom-centre of
+ * the viewport. Auto-dismisses after `duration` ms.
+ */
+function showToast(message: string, duration = 3000): void {
+  const toast = document.createElement('div');
+  toast.style.cssText = [
+    'position:fixed', 'bottom:52px', 'left:50%', 'transform:translateX(-50%)',
+    'z-index:10000', 'background:var(--editor-bg,#252526)',
+    'border:1px solid var(--border-color,#454545)', 'border-radius:4px',
+    'padding:7px 14px', 'font-family:var(--editor-font,monospace)', 'font-size:13px',
+    'color:var(--text-color,#d4d4d4)', 'box-shadow:0 2px 8px rgba(0,0,0,.5)',
+    'max-width:480px', 'white-space:nowrap', 'overflow:hidden', 'text-overflow:ellipsis',
+    'pointer-events:none',
+  ].join(';');
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), duration);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: input box (lightweight DOM prompt)
+// ---------------------------------------------------------------------------
+
+/**
+ * Shows a minimal floating input box anchored near the editor.
+ * Resolves with the entered string, or `null` if dismissed / Escape pressed.
+ */
+function showInputBox(
+  anchorElement: HTMLElement,
+  placeholder: string,
+  initialValue = '',
+): Promise<string | null> {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;';
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'position:fixed', 'z-index:9999',
+      'background:var(--editor-bg,#1e1e1e)',
+      'border:1px solid var(--border-color,#454545)',
+      'border-radius:4px', 'box-shadow:0 4px 20px rgba(0,0,0,.5)',
+      'min-width:280px', 'max-width:380px', 'overflow:hidden',
+      'font-family:var(--editor-font,monospace)', 'font-size:13px',
+      'color:var(--text-color,#d4d4d4)',
+    ].join(';');
+
+    const rect = anchorElement.getBoundingClientRect();
+    box.style.top = `${rect.top + 48}px`;
+    box.style.left = `${rect.left + Math.floor(rect.width / 2) - 190}px`;
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:6px 10px;font-size:11px;color:var(--text-muted,#888);border-bottom:1px solid var(--border-color,#454545);';
+    header.textContent = placeholder;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = initialValue;
+    input.style.cssText = [
+      'display:block', 'width:100%', 'box-sizing:border-box',
+      'padding:7px 10px', 'background:transparent', 'border:none', 'outline:none',
+      'font-family:inherit', 'font-size:13px', 'color:var(--text-color,#d4d4d4)',
+    ].join(';');
+
+    function dismiss(value: string | null) {
+      document.removeEventListener('keydown', onDocKey);
+      overlay.remove();
+      box.remove();
+      resolve(value);
+    }
+
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { dismiss(input.value.trim() || null); }
+      else if (e.key === 'Escape') { dismiss(null); }
+    });
+
+    const onDocKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(null); };
+
+    overlay.addEventListener('click', () => dismiss(null));
+    box.appendChild(header);
+    box.appendChild(input);
+    document.body.appendChild(overlay);
+    document.body.appendChild(box);
+    document.addEventListener('keydown', onDocKey);
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Helper: source analysis utilities
+// ---------------------------------------------------------------------------
+
+/** Return the word at the current cursor position, or null. */
+function getWordUnderCursor(
+  editor: monaco.editor.IStandaloneCodeEditor,
+): string | null {
+  const pos = editor.getPosition();
+  if (!pos) return null;
+  const model = editor.getModel();
+  if (!model) return null;
+  return model.getWordAtPosition(pos)?.word ?? null;
+}
+
+/** Return the 1-based line number of the first line matching `pattern`, or -1. */
+function findLineNumber(source: string, pattern: RegExp): number {
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) return i + 1;
+  }
+  return -1;
+}
+
+/** Reveal and focus a specific 1-based line number in the editor. */
+function gotoLine(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  lineNumber: number,
+): void {
+  editor.revealLineInCenter(lineNumber);
+  editor.setPosition({ lineNumber, column: 1 });
+  editor.focus();
+}
+
+interface DefinitionItem {
+  kind: 'pat' | 'seq' | 'inst';
+  name: string;
+  lineNumber: number;
+}
+
+/** Parse all pat/seq/inst definitions from source text, in order. */
+function parseAllDefinitions(source: string): DefinitionItem[] {
+  const items: DefinitionItem[] = [];
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*(pat|seq|inst)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[=\s]/);
+    if (m) items.push({ kind: m[1] as 'pat' | 'seq' | 'inst', name: m[2], lineNumber: i + 1 });
+  }
+  return items;
+}
+
+/** Count note tokens (e.g. C4, C#4) in a string, excluding rests. */
+function countNoteTokens(text: string): number {
+  return (text.match(/\b[A-Ga-g][#b]?\d\b/g) ?? []).length;
+}
+
+/** Extract the BPM from a `bpm N` directive in the source; default 120. */
+function extractBpm(source: string): number {
+  const m = source.match(/^\s*bpm\s+(\d+)/im);
+  return m ? Math.max(1, parseInt(m[1], 10)) : 120;
+}
+
+/** Validate that a string is a legal BeatBax identifier. */
+function isValidIdentifier(name: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
+}
+
+// ---------------------------------------------------------------------------
 // Public registration function
 // ---------------------------------------------------------------------------
 
@@ -190,7 +364,7 @@ function insertAtCursor(
  * Returns a disposable that removes all registered actions.
  */
 export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDisposable {
-  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw } = opts;
+  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw, onExportData } = opts;
 
   const disposables: monaco.IDisposable[] = [];
 
@@ -286,7 +460,6 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   // ── BeatBax: Edit — play selection ────────────────────────────────────────
 
-  /*
   reg({
     id: 'beatbax.playSelection',
     label: 'BeatBax: Play Selected Sequence / Pattern',
@@ -345,7 +518,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       ].join('\n');
       onPlayRaw?.(syntheticSource);
     },
-  });*/
+  });
 
   // ── BeatBax: Edit — format document ──────────────────────────────────────
 
@@ -417,6 +590,815 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         'Select channel to solo',
       );
       if (chosen) onToggleSolo(Number(chosen));
+    },
+  });
+
+  // ── Phase 1: Navigation commands ─────────────────────────────────────────
+
+  reg({
+    id: 'beatbax.gotoPatternDef',
+    label: 'BeatBax: Go to Pattern Definition',
+    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 10,
+    run: () => {
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No identifier under cursor'); return; }
+      const source = getSource();
+      const line = findLineNumber(source, new RegExp(`^\\s*pat\\s+${word}\\s*=`));
+      if (line < 0) { showToast(`Pattern '${word}' not found`); return; }
+      gotoLine(editor, line);
+    },
+  });
+
+  reg({
+    id: 'beatbax.gotoSeqDef',
+    label: 'BeatBax: Go to Sequence Definition',
+    keybindings: [],
+    run: () => {
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No identifier under cursor'); return; }
+      const source = getSource();
+      const line = findLineNumber(source, new RegExp(`^\\s*seq\\s+${word}\\s*=`));
+      if (line < 0) { showToast(`Sequence '${word}' not found`); return; }
+      gotoLine(editor, line);
+    },
+  });
+
+  reg({
+    id: 'beatbax.gotoInstDef',
+    label: 'BeatBax: Go to Instrument Definition',
+    keybindings: [],
+    run: () => {
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No identifier under cursor'); return; }
+      const source = getSource();
+      const line = findLineNumber(source, new RegExp(`^\\s*inst\\s+${word}\\s`));
+      if (line < 0) { showToast(`Instrument '${word}' not found`); return; }
+      gotoLine(editor, line);
+    },
+  });
+
+  reg({
+    id: 'beatbax.findReferences',
+    label: 'BeatBax: Find All References',
+    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF],
+    run: () => {
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No identifier under cursor'); return; }
+      editor.trigger('beatbax.findReferences', 'actions.find', null);
+      // Populate the search widget after it opens
+      setTimeout(() => {
+        editor.trigger('beatbax.findReferences', 'editor.action.changeAll', { searchString: word });
+        editor.getAction('actions.find')?.run();
+      }, 50);
+    },
+  });
+
+  reg({
+    id: 'beatbax.listDefinitions',
+    label: 'BeatBax: List All Definitions…',
+    keybindings: [],
+    run: async () => {
+      const source = getSource();
+      const defs = parseAllDefinitions(source);
+      if (defs.length === 0) { showToast('No definitions found in source'); return; }
+      const anchor = editorDom ?? document.body;
+      const items = defs.map(d => ({
+        label: `${d.kind} ${d.name}  (line ${d.lineNumber})`,
+        value: String(d.lineNumber),
+      }));
+      const chosen = await showQuickPick(anchor, items, 'Jump to definition');
+      if (chosen) gotoLine(editor, parseInt(chosen, 10));
+    },
+  });
+
+  // ── Phase 2: Audition & Playback commands ─────────────────────────────────
+
+  reg({
+    id: 'beatbax.previewPattern',
+    label: 'BeatBax: Preview Pattern Under Cursor',
+    keybindings: [KeyMod.Alt | KeyCode.KeyP],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 3,
+    run: (_, patternName?: string) => {
+      const source = getSource();
+      const name = typeof patternName === 'string' && patternName.trim()
+        ? patternName.trim()
+        : getWordUnderCursor(editor) ?? '';
+      if (!name) { showToast('No pattern name under cursor'); return; }
+
+      // Find pattern body in source
+      const lines = source.split('\n');
+      let body = '';
+      for (const line of lines) {
+        const m = line.match(new RegExp(`^\\s*pat\\s+${name}\\s*=\\s*(.*)`));
+        if (m) { body = m[1].trim(); break; }
+      }
+      if (!body) { showToast(`Pattern '${name}' not found`); return; }
+
+      // Find first declared instrument for preview
+      let inst = 'pulse1';
+      for (const line of lines) {
+        const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
+        if (m) { inst = m[1]; break; }
+      }
+
+      const bpm = extractBpm(source);
+      // Detect chip from source (default to gameboy)
+      const chipMatch = source.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
+      const chip = chipMatch ? chipMatch[1] : 'gameboy';
+
+      const synthetic = [
+        `chip ${chip}`,
+        `bpm ${bpm}`,
+        'time 4',
+        `inst _tmp type=pulse1 duty=50 env=12,down`,
+        `pat __preview__ = ${body}`,
+        `channel 1 => inst ${inst} seq __preview__`,
+        'play',
+      ].join('\n');
+      onPlayRaw?.(synthetic);
+    },
+  });
+
+  reg({
+    id: 'beatbax.previewSeq',
+    label: 'BeatBax: Preview Sequence Under Cursor',
+    keybindings: [],
+    run: (_, seqName?: string) => {
+      const source = getSource();
+      const name = typeof seqName === 'string' && seqName.trim()
+        ? seqName.trim()
+        : getWordUnderCursor(editor) ?? '';
+      if (!name) { showToast('No sequence name under cursor'); return; }
+
+      const lines = source.split('\n');
+
+      // Find the sequence body
+      let seqBody = '';
+      for (const line of lines) {
+        const m = line.match(new RegExp(`^\\s*seq\\s+${name}\\s*=\\s*(.*)`));
+        if (m) { seqBody = m[1].trim(); break; }
+      }
+      if (!seqBody) { showToast(`Sequence '${name}' not found`); return; }
+
+      // Find instrument from existing channel assignment or first declared inst
+      let instName: string | null = null;
+      for (const line of lines) {
+        const m = line.match(new RegExp(`^\\s*channel\\s+\\d+\\s*=>\\s*inst\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+seq\\s+${name}`));
+        if (m) { instName = m[1]; break; }
+      }
+      if (!instName) {
+        for (const line of lines) {
+          const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
+          if (m) { instName = m[1]; break; }
+        }
+      }
+      const inst = instName ?? '_tmp';
+
+      const bpm = extractBpm(source);
+      const chipMatch = source.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
+      const chip = chipMatch ? chipMatch[1] : 'gameboy';
+
+      // Preserve all inst/pat definitions so the seq body can reference them
+      const KEEP_RE = /^\s*(?:(inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
+      const baseLines = source.split('\n').filter(l => KEEP_RE.test(l));
+      const newLines = [...baseLines];
+      newLines.push(`channel 1 => inst ${inst} seq ${name}`);
+      newLines.push('play');
+      onPlayRaw?.(newLines.join('\n'));
+    },
+  });
+
+  reg({
+    id: 'beatbax.playFromCursor',
+    label: 'BeatBax: Play from Cursor Position',
+    keybindings: [KeyMod.Alt | KeyMod.Shift | KeyCode.KeyP],
+    run: () => {
+      const source = getSource();
+      const pos = editor.getPosition();
+      if (!pos) { showToast('No cursor position'); return; }
+
+      const lines = source.split('\n');
+      const cursorLine = lines[pos.lineNumber - 1] ?? '';
+
+      // Detect if cursor is on a channel line
+      const chanMatch = cursorLine.match(/^\s*channel\s+(\d+)\s*=>\s*inst\s+(\S+)\s+seq\s+([A-Za-z_][A-Za-z0-9_]*)/);
+      if (chanMatch) {
+        const seqName = chanMatch[3];
+        editor.trigger('', 'beatbax.previewSeq', seqName);
+        return;
+      }
+
+      // Try to detect seq name on cursor line
+      const seqMatch = cursorLine.match(/^\s*seq\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+      if (seqMatch) {
+        editor.trigger('', 'beatbax.previewSeq', seqMatch[1]);
+        return;
+      }
+
+      // Try to detect pat name on cursor line
+      const patMatch = cursorLine.match(/^\s*pat\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+      if (patMatch) {
+        editor.trigger('', 'beatbax.previewPattern', patMatch[1]);
+        return;
+      }
+
+      // Fall back to playing the full song from the start
+      showToast('Playing from beginning — cursor not on a playable line');
+      onPlayRaw?.(source);
+    },
+  });
+
+  // ── Phase 3: Editing & Organization commands ──────────────────────────────
+
+  reg({
+    id: 'beatbax.duplicatePattern',
+    label: 'BeatBax: Duplicate Pattern',
+    keybindings: [],
+    run: () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const pos = editor.getPosition();
+      if (!pos) return;
+      const line = model.getLineContent(pos.lineNumber);
+      const m = line.match(/^(\s*pat\s+)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*.*)/);
+      if (!m) { showToast('Cursor must be on a `pat NAME = ...` line'); return; }
+
+      const source = getSource();
+      const origName = m[2];
+
+      // Generate unique name
+      let n = 2;
+      while (new RegExp(`^\\s*pat\\s+${origName}_${n}\\s*=`, 'm').test(source)) n++;
+      const newName = `${origName}_${n}`;
+
+      const newLine = `${m[1]}${newName}${m[3]}`;
+      const lineCount = model.getLineCount();
+      // Insert after current line
+      const insertLineNumber = pos.lineNumber;
+      editor.executeEdits('beatbax.duplicatePattern', [{
+        range: {
+          startLineNumber: insertLineNumber,
+          startColumn: model.getLineMaxColumn(insertLineNumber),
+          endLineNumber: insertLineNumber,
+          endColumn: model.getLineMaxColumn(insertLineNumber),
+        },
+        text: `\n${newLine}`,
+        forceMoveMarkers: false,
+      }]);
+      showToast(`Duplicated as '${newName}'`);
+      editor.focus();
+    },
+  });
+
+  reg({
+    id: 'beatbax.duplicateSeq',
+    label: 'BeatBax: Duplicate Sequence',
+    keybindings: [],
+    run: () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const pos = editor.getPosition();
+      if (!pos) return;
+      const line = model.getLineContent(pos.lineNumber);
+      const m = line.match(/^(\s*seq\s+)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*.*)/);
+      if (!m) { showToast('Cursor must be on a `seq NAME = ...` line'); return; }
+
+      const source = getSource();
+      const origName = m[2];
+
+      let n = 2;
+      while (new RegExp(`^\\s*seq\\s+${origName}_${n}\\s*=`, 'm').test(source)) n++;
+      const newName = `${origName}_${n}`;
+
+      const newLine = `${m[1]}${newName}${m[3]}`;
+      const insertLineNumber = pos.lineNumber;
+      editor.executeEdits('beatbax.duplicateSeq', [{
+        range: {
+          startLineNumber: insertLineNumber,
+          startColumn: model.getLineMaxColumn(insertLineNumber),
+          endLineNumber: insertLineNumber,
+          endColumn: model.getLineMaxColumn(insertLineNumber),
+        },
+        text: `\n${newLine}`,
+        forceMoveMarkers: false,
+      }]);
+      showToast(`Duplicated as '${newName}'`);
+      editor.focus();
+    },
+  });
+
+  reg({
+    id: 'beatbax.renameDefinition',
+    label: 'BeatBax: Rename Definition…',
+    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR],
+    run: async () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const anchor = editorDom ?? document.body;
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No identifier under cursor'); return; }
+
+      const newName = await showInputBox(anchor, `Rename '${word}' to:`, word);
+      if (!newName || newName === word) return;
+      if (!isValidIdentifier(newName)) {
+        showToast(`'${newName}' is not a valid identifier`);
+        return;
+      }
+
+      const source = model.getValue();
+      if (new RegExp(`^\\s*(?:pat|seq|inst)\\s+${newName}\\s*=`, 'm').test(source)) {
+        showToast(`'${newName}' already exists`);
+        return;
+      }
+
+      // Replace all standalone identifier references using word boundaries.
+      // Word boundaries (\b) are reliable for identifiers since BeatBax names
+      // only contain [A-Za-z0-9_] characters.
+      const updated = source.replace(
+        new RegExp(`\\b${word}\\b`, 'g'),
+        newName,
+      );
+
+      const fullRange = model.getFullModelRange();
+      editor.executeEdits('beatbax.renameDefinition', [{
+        range: fullRange,
+        text: updated,
+        forceMoveMarkers: false,
+      }]);
+      showToast(`Renamed '${word}' → '${newName}'`);
+      editor.focus();
+    },
+  });
+
+  reg({
+    id: 'beatbax.extractToPattern',
+    label: 'BeatBax: Extract Selection to Pattern',
+    keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE],
+    run: () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const selection = editor.getSelection();
+      if (!selection) return;
+      const selectedText = model.getValueInRange(selection).trim();
+      if (!selectedText) { showToast('Select note tokens to extract'); return; }
+
+      const source = model.getValue();
+
+      // Generate unique name
+      let n = 1;
+      while (new RegExp(`^\\s*pat\\s+extracted_${n}\\s*=`, 'm').test(source)) n++;
+      const newName = `extracted_${n}`;
+
+      // Find the current block end to insert after
+      const cursorLine = selection.endLineNumber;
+      const newPatLine = `pat ${newName} = ${selectedText}`;
+
+      editor.executeEdits('beatbax.extractToPattern', [
+        // Replace selection with new pattern name
+        { range: selection, text: newName, forceMoveMarkers: true },
+        // Insert new pattern definition after cursor line
+        {
+          range: {
+            startLineNumber: cursorLine,
+            startColumn: model.getLineMaxColumn(cursorLine),
+            endLineNumber: cursorLine,
+            endColumn: model.getLineMaxColumn(cursorLine),
+          },
+          text: `\n${newPatLine}`,
+          forceMoveMarkers: false,
+        },
+      ]);
+      showToast(`Extracted to pattern '${newName}'`);
+      editor.focus();
+    },
+  });
+
+  reg({
+    id: 'beatbax.sortDefinitions',
+    label: 'BeatBax: Sort Definitions…',
+    keybindings: [],
+    run: () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const pos = editor.getPosition();
+      if (!pos) return;
+
+      const lineContent = model.getLineContent(pos.lineNumber);
+      const kwMatch = lineContent.match(/^\s*(pat|seq|inst)\s+/);
+      if (!kwMatch) { showToast('Cursor must be on a pat/seq/inst definition line'); return; }
+      const keyword = kwMatch[1];
+      const kwRe = new RegExp(`^\\s*${keyword}\\s+`);
+
+      // Find the contiguous block of lines with the same keyword
+      const totalLines = model.getLineCount();
+      let blockStart = pos.lineNumber;
+      while (blockStart > 1 && kwRe.test(model.getLineContent(blockStart - 1))) blockStart--;
+      let blockEnd = pos.lineNumber;
+      while (blockEnd < totalLines && kwRe.test(model.getLineContent(blockEnd + 1))) blockEnd++;
+
+      if (blockStart === blockEnd) { showToast('Only one definition in block — nothing to sort'); return; }
+
+      // Extract and sort the block lines by definition name
+      const blockLines: string[] = [];
+      for (let i = blockStart; i <= blockEnd; i++) blockLines.push(model.getLineContent(i));
+
+      const sorted = [...blockLines].sort((a, b) => {
+        const ma = a.match(/^\s*(?:pat|seq|inst)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+        const mb = b.match(/^\s*(?:pat|seq|inst)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+        const na = ma?.[1] ?? '';
+        const nb = mb?.[1] ?? '';
+        return na.localeCompare(nb);
+      });
+
+      editor.executeEdits('beatbax.sortDefinitions', [{
+        range: {
+          startLineNumber: blockStart,
+          startColumn: 1,
+          endLineNumber: blockEnd,
+          endColumn: model.getLineMaxColumn(blockEnd),
+        },
+        text: sorted.join('\n'),
+        forceMoveMarkers: false,
+      }]);
+      showToast(`Sorted ${blockLines.length} ${keyword} definitions`);
+      editor.focus();
+    },
+  });
+
+  // ── Phase 4: Analysis & Diagnostics commands ──────────────────────────────
+
+  reg({
+    id: 'beatbax.showUnused',
+    label: 'BeatBax: Show Unused Definitions',
+    keybindings: [],
+    run: async () => {
+      const source = getSource();
+      if (!source.trim()) { showToast('No source to analyse'); return; }
+
+      const defs = parseAllDefinitions(source);
+      const unused: DefinitionItem[] = [];
+
+      for (const def of defs) {
+        // A definition is referenced if its name appears somewhere other than
+        // its own definition line.
+        const lines = source.split('\n');
+        const nameRe = new RegExp(`\\b${def.name}\\b`);
+        let refCount = 0;
+        for (let i = 0; i < lines.length; i++) {
+          if (i + 1 === def.lineNumber) continue; // skip definition line itself
+          if (nameRe.test(lines[i])) refCount++;
+        }
+        if (refCount === 0) unused.push(def);
+      }
+
+      if (unused.length === 0) {
+        showToast('✓ No unused definitions found');
+        return;
+      }
+
+      const pats  = unused.filter(d => d.kind === 'pat').length;
+      const seqs  = unused.filter(d => d.kind === 'seq').length;
+      const insts = unused.filter(d => d.kind === 'inst').length;
+      const summary = [pats && `${pats} unused pat`, seqs && `${seqs} unused seq`, insts && `${insts} unused inst`]
+        .filter(Boolean).join(', ');
+
+      const anchor = editorDom ?? document.body;
+      const items = unused.map(d => ({
+        label: `${d.kind} ${d.name}  (line ${d.lineNumber})`,
+        value: String(d.lineNumber),
+      }));
+      const chosen = await showQuickPick(anchor, items, `Unused definitions — ${summary}`);
+      if (chosen) gotoLine(editor, parseInt(chosen, 10));
+    },
+  });
+
+  reg({
+    id: 'beatbax.showPatternInfo',
+    label: 'BeatBax: Show Pattern Duration',
+    keybindings: [],
+    run: async () => {
+      const source = getSource();
+      const word = getWordUnderCursor(editor);
+      if (!word) { showToast('No pattern name under cursor'); return; }
+
+      const lines = source.split('\n');
+      let body = '';
+      for (const line of lines) {
+        const m = line.match(new RegExp(`^\\s*pat\\s+${word}\\s*=\\s*(.*)`));
+        if (m) { body = m[1]; break; }
+      }
+      if (!body) { showToast(`Pattern '${word}' not found`); return; }
+
+      const bpm = extractBpm(source);
+      const noteCount = countNoteTokens(body);
+      const durationMs = Math.round((noteCount / bpm) * 60_000);
+      const durationS  = (durationMs / 1000).toFixed(2);
+      // Approximate tick count (assuming 4 ticks per step, 4 steps per beat)
+      const tickCount  = noteCount * 4;
+
+      const info = `Pattern '${word}': ${noteCount} notes | ≈${durationS}s @ ${bpm}BPM | ${tickCount} ticks`;
+      const anchor = editorDom ?? document.body;
+      await showQuickPick(anchor, [{ label: info, value: '' }], 'Pattern info');
+    },
+  });
+
+  reg({
+    id: 'beatbax.auditSong',
+    label: 'BeatBax: Audit Song for Issues',
+    keybindings: [],
+    run: async () => {
+      const source = getSource();
+      if (!source.trim()) { showToast('No source to audit'); return; }
+
+      const lines = source.split('\n');
+      const issues: Array<{ msg: string; lineNumber: number }> = [];
+
+      // Build definition sets
+      const patDefs  = new Set<string>();
+      const seqDefs  = new Set<string>();
+      const instDefs = new Set<string>();
+      for (const line of lines) {
+        const pm = line.match(/^\s*pat\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/);  if (pm) patDefs.add(pm[1]);
+        const sm = line.match(/^\s*seq\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/);  if (sm) seqDefs.add(sm[1]);
+        const im = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s/);   if (im) instDefs.add(im[1]);
+      }
+
+      // Check channel assignments
+      for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\s+seq\s+([A-Za-z_][A-Za-z0-9_]*)/);
+        if (!m) continue;
+        const [, instName, seqName] = m;
+        if (!instDefs.has(instName)) issues.push({ msg: `✗ Unmatched instrument: '${instName}'`, lineNumber: i + 1 });
+        if (!seqDefs.has(seqName))   issues.push({ msg: `✗ Unmatched sequence: '${seqName}'`,    lineNumber: i + 1 });
+      }
+
+      // Check sequence bodies for unmatched pattern references
+      const seqBodies = new Map<string, string>();
+      for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(/^\s*seq\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)/);
+        if (m) seqBodies.set(m[1], m[2]);
+      }
+      for (const [seqName, body] of seqBodies) {
+        const tokens = body.split(/\s+/).filter(Boolean).map(t => t.split(':')[0]);
+        for (const tok of tokens) {
+          if (!patDefs.has(tok) && !seqDefs.has(tok)) {
+            const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
+            issues.push({ msg: `✗ In seq '${seqName}': unknown reference '${tok}'`, lineNumber: lineNo });
+          }
+        }
+      }
+
+      // Check for circular sequence references (simple DFS)
+      const visited = new Set<string>();
+      const recStack = new Set<string>();
+      function hasCycle(name: string): boolean {
+        if (recStack.has(name)) return true;
+        if (visited.has(name)) return false;
+        visited.add(name); recStack.add(name);
+        const body = seqBodies.get(name) ?? '';
+        for (const tok of body.split(/\s+/).filter(Boolean).map(t => t.split(':')[0])) {
+          if (seqDefs.has(tok) && hasCycle(tok)) return true;
+        }
+        recStack.delete(name);
+        return false;
+      }
+      for (const seqName of seqDefs) {
+        visited.clear(); recStack.clear();
+        if (hasCycle(seqName)) {
+          const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
+          issues.push({ msg: `✗ Circular sequence reference involving '${seqName}'`, lineNumber: lineNo });
+        }
+      }
+
+      if (issues.length === 0) {
+        showToast('✓ No issues found');
+        return;
+      }
+
+      const anchor = editorDom ?? document.body;
+      const items = issues.map(iss => ({
+        label: `${iss.msg}  (line ${iss.lineNumber})`,
+        value: String(iss.lineNumber),
+      }));
+      const chosen = await showQuickPick(anchor, items, `${issues.length} issue(s) found — click to jump`);
+      if (chosen) gotoLine(editor, parseInt(chosen, 10));
+    },
+  });
+
+  // ── Phase 5: Channel operations ───────────────────────────────────────────
+
+  reg({
+    id: 'beatbax.copyChannelConfig',
+    label: 'BeatBax: Copy Channel Configuration',
+    keybindings: [],
+    run: () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const pos = editor.getPosition();
+      if (!pos) return;
+      const line = model.getLineContent(pos.lineNumber);
+      const m = line.match(/^\s*channel\s+\d+\s*=>\s*(.*)/);
+      if (!m) { showToast('Cursor must be on a `channel N =>` line'); return; }
+      const config = m[1].trim();
+      navigator.clipboard?.writeText(config).then(
+        () => showToast(`Copied: ${config}`),
+        () => showToast(`Copied (clipboard unavailable): ${config}`),
+      );
+    },
+  });
+
+  reg({
+    id: 'beatbax.swapChannels',
+    label: 'BeatBax: Swap Channel Assignments…',
+    keybindings: [],
+    run: async () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const source = model.getValue();
+      const lines = source.split('\n');
+
+      // Collect all channel lines
+      const chanLines: Array<{ lineNumber: number; n: number; config: string }> = [];
+      for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(/^\s*channel\s+(\d+)\s*=>\s*(.*)/);
+        if (m) chanLines.push({ lineNumber: i + 1, n: parseInt(m[1], 10), config: m[2].trim() });
+      }
+
+      if (chanLines.length < 2) { showToast('Need at least 2 channels to swap'); return; }
+
+      const anchor = editorDom ?? document.body;
+      const pickItems = chanLines.map(c => ({
+        label: `Channel ${c.n}: ${c.config}`,
+        value: String(c.lineNumber),
+      }));
+
+      const first = await showQuickPick(anchor, pickItems, 'Select first channel to swap');
+      if (!first) return;
+      const second = await showQuickPick(
+        anchor,
+        pickItems.filter(i => i.value !== first),
+        'Select second channel to swap',
+      );
+      if (!second) return;
+
+      const ch1 = chanLines.find(c => c.lineNumber === parseInt(first, 10))!;
+      const ch2 = chanLines.find(c => c.lineNumber === parseInt(second, 10))!;
+
+      // Swap: preserve the `channel N =>` prefix, swap the config part
+      const newLine1 = `channel ${ch1.n} => ${ch2.config}`;
+      const newLine2 = `channel ${ch2.n} => ${ch1.config}`;
+
+      editor.executeEdits('beatbax.swapChannels', [
+        {
+          range: { startLineNumber: ch1.lineNumber, startColumn: 1, endLineNumber: ch1.lineNumber, endColumn: model.getLineMaxColumn(ch1.lineNumber) },
+          text: newLine1,
+          forceMoveMarkers: false,
+        },
+        {
+          range: { startLineNumber: ch2.lineNumber, startColumn: 1, endLineNumber: ch2.lineNumber, endColumn: model.getLineMaxColumn(ch2.lineNumber) },
+          text: newLine2,
+          forceMoveMarkers: false,
+        },
+      ]);
+      showToast(`Swapped Channel ${ch1.n} ↔ Channel ${ch2.n}`);
+      editor.focus();
+    },
+  });
+
+  // ── Phase 5: Export convenience commands ─────────────────────────────────
+
+  reg({
+    id: 'beatbax.exportToClipboard',
+    label: 'BeatBax: Export to Clipboard…',
+    keybindings: [],
+    run: async () => {
+      const anchor = editorDom ?? document.body;
+      const formats: Array<{ label: string; value: ExportFormat }> = [
+        { label: 'JSON (ISM format)',       value: 'json' },
+        { label: 'MIDI (Standard MIDI)',    value: 'midi' },
+        { label: 'FamiTracker Text (.ftm)', value: 'famitracker' },
+      ];
+      const chosen = await showQuickPick(
+        anchor,
+        formats.map(f => ({ label: f.label, value: f.value })),
+        'Export to clipboard — pick format',
+      );
+      if (!chosen) return;
+
+      const format = chosen as ExportFormat;
+      lastExportFormat = format;
+
+      if (onExportData) {
+        const data = await onExportData(format);
+        if (data !== null) {
+          try {
+            await navigator.clipboard.writeText(data);
+            showToast(`Exported ${format.toUpperCase()} (${data.length} chars) — copied to clipboard`);
+          } catch {
+            showToast(`Export ready but clipboard write failed — try a different browser`);
+          }
+          return;
+        }
+      }
+
+      // Fallback: trigger regular export (file download)
+      onExport(format);
+      showToast(`Exporting ${format.toUpperCase()} — check your downloads`);
+    },
+  });
+
+  reg({
+    id: 'beatbax.quickExport',
+    label: 'BeatBax: Quick Export (Last Format)',
+    keybindings: [KeyMod.CtrlCmd | KeyCode.KeyE],
+    run: () => {
+      onExport(lastExportFormat);
+      showToast(`Exporting ${lastExportFormat.toUpperCase()}…`);
+    },
+  });
+
+  // ── Phase 5: Reference & Help commands ───────────────────────────────────
+
+  reg({
+    id: 'beatbax.showEffectPresets',
+    label: 'BeatBax: Show Effect Presets',
+    keybindings: [],
+    run: async () => {
+      const anchor = editorDom ?? document.body;
+      const presets: Array<{ label: string; value: string }> = [
+        { label: 'pan(left)          — hard pan left',                  value: 'pan(left)' },
+        { label: 'pan(right)         — hard pan right',                 value: 'pan(right)' },
+        { label: 'pan(center)        — center pan',                     value: 'pan(center)' },
+        { label: 'vib(12,4)          — vibrato depth 12, rate 4',       value: 'vib(12,4)' },
+        { label: 'vib(6,2,sine)      — subtle sine vibrato',            value: 'vib(6,2,sine)' },
+        { label: 'port(12)           — portamento 12 ticks',            value: 'port(12)' },
+        { label: 'arp(0,3,7)         — major arpeggio',                 value: 'arp(0,3,7)' },
+        { label: 'arp(0,3,6)         — minor arpeggio',                 value: 'arp(0,3,6)' },
+        { label: 'arp(0,4,7)         — major 7th arpeggio',             value: 'arp(0,4,7)' },
+        { label: 'volSlide(12,down)  — volume decrease over 12 ticks',  value: 'volSlide(12,down)' },
+        { label: 'volSlide(8,up)     — volume increase over 8 ticks',   value: 'volSlide(8,up)' },
+        { label: 'trem(12,4)         — tremolo depth 12, rate 4',       value: 'trem(12,4)' },
+        { label: 'cut(4)             — cut note after 4 ticks',         value: 'cut(4)' },
+        { label: 'retrig(4)          — retrigger every 4 ticks',        value: 'retrig(4)' },
+        { label: 'bend(+12,16,linear) — pitch bend +1 octave linear',   value: 'bend(+12,16,linear)' },
+        { label: 'bend(-12,16,exp)   — pitch bend -1 octave exp curve', value: 'bend(-12,16,exp)' },
+        { label: 'sweep(+1,4,8)      — GB NR10 sweep up (shift 1, pace 4, len 8)', value: 'sweep(+1,4,8)' },
+        { label: 'echo(8,0.5)        — echo 8 ticks delay, 50% feedback', value: 'echo(8,0.5)' },
+      ];
+      const chosen = await showQuickPick(anchor, presets, 'Insert effect preset');
+      if (chosen) insertAtCursor(editor, chosen, 'beatbax.showEffectPresets');
+    },
+  });
+
+  reg({
+    id: 'beatbax.showSyntaxHelp',
+    label: 'BeatBax: Show Syntax Help…',
+    keybindings: [KeyMod.CtrlCmd | KeyCode.KeyH],
+    run: async () => {
+      const anchor = editorDom ?? document.body;
+      const topics: Array<{ label: string; value: string }> = [
+        { label: 'pat — Pattern definition',         value: 'pat' },
+        { label: 'seq — Sequence definition',        value: 'seq' },
+        { label: 'inst — Instrument definition',     value: 'inst' },
+        { label: 'channel — Channel assignment',     value: 'channel' },
+        { label: 'bpm — Tempo directive',            value: 'bpm' },
+        { label: 'time — Time signature',            value: 'time' },
+        { label: 'chip — Sound chip selection',     value: 'chip' },
+        { label: 'effect — Named effect preset',    value: 'effect' },
+        { label: 'play — Start playback',            value: 'play' },
+        { label: 'Notes — Note syntax (C4, C#4…)',   value: 'notes' },
+        { label: 'Transforms — oct, rev, slow, fast…', value: 'transforms' },
+        { label: 'Effects — pan, vib, port, arp…',  value: 'effects' },
+      ];
+
+      const HELP_TEXT: Record<string, string> = {
+        pat: 'pat NAME = NOTE...\n  Define a pattern of note events.\n  Example: pat melody = C4 E4 G4 C5',
+        seq: 'seq NAME = PATNAME[:TRANSFORM]...\n  Define a sequence of pattern references with optional transforms.\n  Example: seq main = melody:oct(+1) bass_pat',
+        inst: 'inst NAME type=TYPE [param=value...]\n  Define an instrument.\n  Types: pulse1 | pulse2 | wave | noise | dpcm | triangle | sawtooth | pcm\n  Example: inst lead type=pulse1 duty=50 env=12,down',
+        channel: 'channel N => inst INSTNAME seq SEQNAME\n  Assign instrument and sequence to a channel (1-based).\n  Example: channel 1 => inst lead seq main',
+        bpm: 'bpm N\n  Set beats per minute (1–999).\n  Example: bpm 120',
+        time: 'time N\n  Set steps per bar (e.g. 4 for 4/4).\n  Example: time 4',
+        chip: 'chip NAME\n  Select sound chip backend.\n  Options: gameboy | nes | sms | ...\n  Example: chip gameboy',
+        effect: 'effect NAME TYPE(params)\n  Define a named effect preset for reuse.\n  Example: effect myVib vib(12,4)',
+        play: 'play\n  Start song playback.',
+        notes: 'Notes: C4 D4 E4 F4 G4 A4 B4\n  Sharp: C#4  Flat: Cb4\n  Rest: . (dot)\n  Octaves 1–8',
+        transforms: 'Transforms applied in seq body:\n  oct(+N/-N) — shift octave\n  rev — reverse pattern\n  slow — halve speed\n  fast — double speed\n  transpose(+N/-N) — semitone shift\n  arp(a,b,c) — arpeggio offsets\n  inst(NAME) — override instrument',
+        effects: 'Effects applied per-note with | separator:\n  C4|pan(left)  D4|vib(12,4)  E4|cut(4)\n  Full list: pan, vib, port, arp, volSlide, trem, cut, retrig, bend, sweep, echo',
+      };
+
+      const chosen = await showQuickPick(anchor, topics, 'BeatBax Syntax Help');
+      if (!chosen) return;
+
+      const helpText = HELP_TEXT[chosen] ?? `No help available for '${chosen}'`;
+      // Show help in a second quick-pick (read-only display)
+      await showQuickPick(
+        anchor,
+        helpText.split('\n').map(line => ({ label: line || ' ', value: '' })),
+        `Help: ${chosen}`,
+      );
     },
   });
 
