@@ -355,6 +355,11 @@ function isValidIdentifier(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
+/** Escape special regex metacharacters in a literal string. */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // ---------------------------------------------------------------------------
 // Public registration function
 // ---------------------------------------------------------------------------
@@ -603,9 +608,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     contextMenuOrder: 10,
     run: () => {
       const word = getWordUnderCursor(editor);
-      if (!word) { showToast('No identifier under cursor'); return; }
+      if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
       const source = getSource();
-      const line = findLineNumber(source, new RegExp(`^\\s*pat\\s+${word}\\s*=`));
+      const line = findLineNumber(source, new RegExp(`^\\s*pat\\s+${escapeRegex(word)}\\s*=`));
       if (line < 0) { showToast(`Pattern '${word}' not found`); return; }
       gotoLine(editor, line);
     },
@@ -617,9 +622,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     keybindings: [],
     run: () => {
       const word = getWordUnderCursor(editor);
-      if (!word) { showToast('No identifier under cursor'); return; }
+      if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
       const source = getSource();
-      const line = findLineNumber(source, new RegExp(`^\\s*seq\\s+${word}\\s*=`));
+      const line = findLineNumber(source, new RegExp(`^\\s*seq\\s+${escapeRegex(word)}\\s*=`));
       if (line < 0) { showToast(`Sequence '${word}' not found`); return; }
       gotoLine(editor, line);
     },
@@ -631,9 +636,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     keybindings: [],
     run: () => {
       const word = getWordUnderCursor(editor);
-      if (!word) { showToast('No identifier under cursor'); return; }
+      if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
       const source = getSource();
-      const line = findLineNumber(source, new RegExp(`^\\s*inst\\s+${word}\\s`));
+      const line = findLineNumber(source, new RegExp(`^\\s*inst\\s+${escapeRegex(word)}\\s`));
       if (line < 0) { showToast(`Instrument '${word}' not found`); return; }
       gotoLine(editor, line);
     },
@@ -1158,8 +1163,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // Seq bodies contain pattern/seq references with optional transforms
       // separated by `:` (e.g. `melody:oct(+1)`).  Split on `:` to extract
       // the bare name before any transform; this is safe because `:` does not
-      // appear in BeatBax identifiers.
-      const tokens = body.split(/\s+/).filter(Boolean).map(t => t.split(':')[0]);
+      // appear in BeatBax identifiers.  Filter to well-formed identifiers to
+      // avoid false positives from malformed or partial lines.
+      const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+      const tokens = body.split(/\s+/).filter(Boolean)
+        .map(t => t.split(':')[0])
+        .filter(t => ID_RE.test(t));
         for (const tok of tokens) {
           if (!patDefs.has(tok) && !seqDefs.has(tok)) {
             const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
