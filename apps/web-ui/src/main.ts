@@ -1279,6 +1279,24 @@ async function handleExport(format: ExportFormat) {
   }
 }
 
+/**
+ * Return export data as a plain string for clipboard operations.
+ * Only JSON is supported as a text format; all other formats return null
+ * (falling back to the regular file-download export path).
+ */
+async function handleExportData(format: ExportFormat): Promise<string | null> {
+  const source = getSource();
+  if (!source.trim()) return null;
+  if (format !== 'json') return null;
+  try {
+    const ast = parse(source);
+    const resolved = resolveSong(ast as any, {});
+    return JSON.stringify(resolved, null, 2);
+  } catch {
+    return null;
+  }
+}
+
 // ─── ThemeManager ────────────────────────────────────────────────────────────
 const themeManager = new ThemeManager({ eventBus });
 themeManager.init();
@@ -1785,6 +1803,7 @@ setupCommandPalette({
     bottomTabs.show('output');
     playbackManager.play(src);
   },
+  onExportData: handleExportData,
 });
 
 // ─── Shortcuts panel — instantiated after ks.mount() so the full registered ─

@@ -489,3 +489,250 @@ describe('setupCommandPalette — playSelection dispatch', () => {
     expect(triggerCalls).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 3. New enhanced commands — registration & basic behaviour
+// ---------------------------------------------------------------------------
+
+describe('setupCommandPalette — enhanced commands', () => {
+  let mockEditor: any;
+  let registeredActions: Map<string, (...args: any[]) => void>;
+  let playRawCalls: Array<[string, any]>;
+  let editsApplied: any[];
+  let currentSource: string;
+  let currentWord: string | null;
+  let currentLine: number;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    playRawCalls = [];
+    editsApplied = [];
+    registeredActions = new Map();
+    currentSource = BASE_SOURCE;
+    currentWord = null;
+    currentLine = 1;
+
+    mockEditor = {
+      addAction: jest.fn((descriptor: any) => {
+        registeredActions.set(descriptor.id, descriptor.run);
+        return { dispose: jest.fn() };
+      }),
+      getDomNode: jest.fn(() => document.createElement('div')),
+      getSelection: jest.fn(() => null),
+      getPosition: jest.fn(() => ({ lineNumber: currentLine, column: 1 })),
+      getModel: jest.fn(() => ({
+        getValueInRange: jest.fn(() => ''),
+        getFullModelRange: jest.fn(() => ({ startLineNumber: 1, startColumn: 1, endLineNumber: 999, endColumn: 1 })),
+        getLineCount: jest.fn(() => currentSource.split('\n').length),
+        getLineContent: jest.fn((n: number) => currentSource.split('\n')[n - 1] ?? ''),
+        getLineMaxColumn: jest.fn(() => 100),
+        getWordAtPosition: jest.fn(() =>
+          currentWord ? { word: currentWord, startColumn: 1, endColumn: currentWord.length + 1 } : null
+        ),
+        getValue: jest.fn(() => currentSource),
+      })),
+      revealLineInCenter: jest.fn(),
+      setPosition: jest.fn(),
+      focus: jest.fn(),
+      trigger: jest.fn(),
+      executeEdits: jest.fn((_source: string, edits: any[]) => { editsApplied.push({ source: _source, edits }); }),
+    };
+
+    setupCommandPalette({
+      editor: mockEditor,
+      getSource: () => currentSource,
+      onExport: jest.fn(),
+      onVerify: jest.fn(),
+      onToggleMute: jest.fn(),
+      onToggleSolo: jest.fn(),
+      onPlayRaw: jest.fn((src: string, info?: any) => { playRawCalls.push([src, info]); }),
+    });
+  });
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+
+  it('gotoPatternDef: registered and finds pat on named line', () => {
+    currentWord = 'melody';
+    const run = registeredActions.get('beatbax.gotoPatternDef');
+    expect(run).toBeDefined();
+    run!();
+    expect(mockEditor.revealLineInCenter).toHaveBeenCalled();
+    expect(mockEditor.setPosition).toHaveBeenCalled();
+  });
+
+  it('gotoSeqDef: registered and finds seq on named line', () => {
+    currentWord = 'main';
+    const run = registeredActions.get('beatbax.gotoSeqDef');
+    expect(run).toBeDefined();
+    run!();
+    expect(mockEditor.revealLineInCenter).toHaveBeenCalled();
+  });
+
+  it('gotoInstDef: registered and finds inst on named line', () => {
+    currentWord = 'lead';
+    const run = registeredActions.get('beatbax.gotoInstDef');
+    expect(run).toBeDefined();
+    run!();
+    expect(mockEditor.revealLineInCenter).toHaveBeenCalled();
+  });
+
+  it('listDefinitions: registered', () => {
+    expect(registeredActions.has('beatbax.listDefinitions')).toBe(true);
+  });
+
+  it('findReferences: registered', () => {
+    expect(registeredActions.has('beatbax.findReferences')).toBe(true);
+  });
+
+  // ── Audition ───────────────────────────────────────────────────────────────
+
+  it('previewPattern: registered', () => {
+    expect(registeredActions.has('beatbax.previewPattern')).toBe(true);
+  });
+
+  it('previewPattern: builds synthetic source and calls onPlayRaw', () => {
+    currentWord = 'melody';
+    const run = registeredActions.get('beatbax.previewPattern');
+    run!();
+    expect(playRawCalls).toHaveLength(1);
+    const src = playRawCalls[0][0];
+    expect(src).toMatch(/pat __preview__ = C4 E4 G4 C5/);
+    expect(src).toMatch(/channel 1 =>/);
+    expect(src).toMatch(/play/);
+  });
+
+  it('previewSeq: registered', () => {
+    expect(registeredActions.has('beatbax.previewSeq')).toBe(true);
+  });
+
+  it('previewSeq: builds source with preserved definitions and calls onPlayRaw', () => {
+    currentWord = 'main';
+    const run = registeredActions.get('beatbax.previewSeq');
+    run!();
+    expect(playRawCalls).toHaveLength(1);
+    const src = playRawCalls[0][0];
+    expect(src).toMatch(/channel 1 => inst lead seq main/);
+    expect(src).toMatch(/play/);
+  });
+
+  it('playFromCursor: registered', () => {
+    expect(registeredActions.has('beatbax.playFromCursor')).toBe(true);
+  });
+
+  it('playFromCursor: on a channel line, triggers previewSeq', () => {
+    // Find the channel 1 line number in BASE_SOURCE
+    const lines = BASE_SOURCE.split('\n');
+    const chanLine = lines.findIndex(l => /^channel 1/.test(l)) + 1;
+    currentLine = chanLine;
+    const run = registeredActions.get('beatbax.playFromCursor');
+    run!();
+    const triggerCall = (mockEditor.trigger as jest.Mock).mock.calls.find(
+      (c: any[]) => c[1] === 'beatbax.previewSeq',
+    );
+    expect(triggerCall).toBeDefined();
+  });
+
+  // ── Editing ────────────────────────────────────────────────────────────────
+
+  it('duplicatePattern: registered', () => {
+    expect(registeredActions.has('beatbax.duplicatePattern')).toBe(true);
+  });
+
+  it('duplicatePattern: inserts a duplicated pat line', () => {
+    currentSource = BASE_SOURCE;
+    // Find the melody pat line
+    const lines = BASE_SOURCE.split('\n');
+    currentLine = lines.findIndex(l => /^pat melody/.test(l)) + 1;
+    const run = registeredActions.get('beatbax.duplicatePattern');
+    run!();
+    expect(editsApplied).toHaveLength(1);
+    expect(editsApplied[0].edits[0].text).toMatch(/pat melody_2/);
+  });
+
+  it('duplicateSeq: registered', () => {
+    expect(registeredActions.has('beatbax.duplicateSeq')).toBe(true);
+  });
+
+  it('renameDefinition: registered', () => {
+    expect(registeredActions.has('beatbax.renameDefinition')).toBe(true);
+  });
+
+  it('extractToPattern: registered', () => {
+    expect(registeredActions.has('beatbax.extractToPattern')).toBe(true);
+  });
+
+  it('sortDefinitions: registered', () => {
+    expect(registeredActions.has('beatbax.sortDefinitions')).toBe(true);
+  });
+
+  // ── Analysis ───────────────────────────────────────────────────────────────
+
+  it('showUnused: registered', () => {
+    expect(registeredActions.has('beatbax.showUnused')).toBe(true);
+  });
+
+  it('showPatternInfo: registered', () => {
+    expect(registeredActions.has('beatbax.showPatternInfo')).toBe(true);
+  });
+
+  it('auditSong: registered', () => {
+    expect(registeredActions.has('beatbax.auditSong')).toBe(true);
+  });
+
+  it('auditSong: does not throw on valid source', async () => {
+    currentSource = BASE_SOURCE;
+    const run = registeredActions.get('beatbax.auditSong');
+    await expect(run!()).resolves.not.toThrow();
+  });
+
+  // ── Channel ops ────────────────────────────────────────────────────────────
+
+  it('copyChannelConfig: registered', () => {
+    expect(registeredActions.has('beatbax.copyChannelConfig')).toBe(true);
+  });
+
+  it('swapChannels: registered', () => {
+    expect(registeredActions.has('beatbax.swapChannels')).toBe(true);
+  });
+
+  // ── Export ─────────────────────────────────────────────────────────────────
+
+  it('exportToClipboard: registered', () => {
+    expect(registeredActions.has('beatbax.exportToClipboard')).toBe(true);
+  });
+
+  it('quickExport: registered', () => {
+    expect(registeredActions.has('beatbax.quickExport')).toBe(true);
+  });
+
+  it('quickExport: calls onExport with last format on run', () => {
+    const onExportMock = jest.fn();
+    const localRegistered: Map<string, (...args: any[]) => void> = new Map();
+    const localEditor = {
+      ...mockEditor,
+      addAction: jest.fn((d: any) => { localRegistered.set(d.id, d.run); return { dispose: jest.fn() }; }),
+    };
+    setupCommandPalette({
+      editor: localEditor,
+      getSource: () => '',
+      onExport: onExportMock,
+      onVerify: jest.fn(),
+      onToggleMute: jest.fn(),
+      onToggleSolo: jest.fn(),
+    });
+    const run = localRegistered.get('beatbax.quickExport');
+    expect(run).toBeDefined();
+    run!();
+    expect(onExportMock).toHaveBeenCalledWith('json'); // default last format
+  });
+
+  // ── Help ───────────────────────────────────────────────────────────────────
+
+  it('showEffectPresets: registered', () => {
+    expect(registeredActions.has('beatbax.showEffectPresets')).toBe(true);
+  });
+
+  it('showSyntaxHelp: registered', () => {
+    expect(registeredActions.has('beatbax.showSyntaxHelp')).toBe(true);
+  });
+});
