@@ -339,9 +339,9 @@ function parseAllDefinitions(source: string): DefinitionItem[] {
   return items;
 }
 
-/** Count note tokens (e.g. C4, C#4) in a string, excluding rests. */
+/** Count note tokens (e.g. C4, C#4) in a string, excluding rests. Valid octaves are 1–8. */
 function countNoteTokens(text: string): number {
-  return (text.match(/\b[A-Ga-g][#b]?\d\b/g) ?? []).length;
+  return (text.match(/\b[A-Ga-g][#b]?[1-8]\b/g) ?? []).length;
 }
 
 /** Extract the BPM from a `bpm N` directive in the source; default 120. */
@@ -697,25 +697,35 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       }
       if (!body) { showToast(`Pattern '${name}' not found`); return; }
 
-      // Find first declared instrument for preview
-      let inst = 'pulse1';
+      // Find first declared instrument for preview.  When no instrument is
+      // declared in the source, synthesise a minimal fallback using the first
+      // channel-agnostic type (pulse1); the fallback name '_tmp' avoids
+      // clashing with any user-defined instruments.
+      let inst: string | null = null;
       for (const line of lines) {
         const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (m) { inst = m[1]; break; }
       }
+      const useFallbackInst = inst === null;
+      const instName = inst ?? '_tmp';
 
       const bpm = extractBpm(source);
-      // Detect chip from source (default to gameboy)
+      // Use the chip from source to keep the synthetic preview compatible.
+      // Fall back to 'gameboy' only when no chip directive is present — this
+      // preview path is a best-effort audition, not a production export.
       const chipMatch = source.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
       const chip = chipMatch ? chipMatch[1] : 'gameboy';
 
+      // Build a minimal working preview source.  Preserve all inst/pat/seq
+      // definitions from the original source so the pattern can reference them.
+      // Only emit a synthetic fallback instrument when none is declared.
+      const KEEP_RE_PAT = /^\s*(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b/;
+      const baseLines = source.split('\n').filter(l => KEEP_RE_PAT.test(l));
       const synthetic = [
-        `chip ${chip}`,
-        `bpm ${bpm}`,
-        'time 4',
-        `inst _tmp type=pulse1 duty=50 env=12,down`,
+        ...baseLines,
+        ...(useFallbackInst ? [`inst _tmp type=pulse1 duty=50 env=12,down`] : []),
         `pat __preview__ = ${body}`,
-        `channel 1 => inst ${inst} seq __preview__`,
+        `channel 1 => inst ${instName} seq __preview__`,
         'play',
       ].join('\n');
       onPlayRaw?.(synthetic);
@@ -1093,10 +1103,13 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       if (!body) { showToast(`Pattern '${word}' not found`); return; }
 
       const bpm = extractBpm(source);
+      // Approximate duration: treats each note token as one quarter note.
+      // Real durations depend on time signature and per-note lengths; this is
+      // intentionally a quick estimate for display purposes only.
       const noteCount = countNoteTokens(body);
       const durationMs = Math.round((noteCount / bpm) * 60_000);
       const durationS  = (durationMs / 1000).toFixed(2);
-      // Approximate tick count (assuming 4 ticks per step, 4 steps per beat)
+      // Approximate tick count (4 ticks per note at default resolution)
       const tickCount  = noteCount * 4;
 
       const info = `Pattern '${word}': ${noteCount} notes | ≈${durationS}s @ ${bpm}BPM | ${tickCount} ticks`;
@@ -1142,7 +1155,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         if (m) seqBodies.set(m[1], m[2]);
       }
       for (const [seqName, body] of seqBodies) {
-        const tokens = body.split(/\s+/).filter(Boolean).map(t => t.split(':')[0]);
+      // Seq bodies contain pattern/seq references with optional transforms
+      // separated by `:` (e.g. `melody:oct(+1)`).  Split on `:` to extract
+      // the bare name before any transform; this is safe because `:` does not
+      // appear in BeatBax identifiers.
+      const tokens = body.split(/\s+/).filter(Boolean).map(t => t.split(':')[0]);
         for (const tok of tokens) {
           if (!patDefs.has(tok) && !seqDefs.has(tok)) {
             const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
