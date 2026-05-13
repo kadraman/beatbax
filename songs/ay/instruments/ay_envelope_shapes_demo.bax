@@ -1,0 +1,87 @@
+chip atari-st
+bpm 120
+
+# AY envelope-shape audition song.
+# Each pattern uses one envelope shape so you can compare behavior directly.
+#
+# === ENVELOPE SHAPES ===
+#
+
+# none: Constant volume, no envelope applied
+#        vol
+#        15 |███████████████
+#         0 |
+inst lead_none               type=tone vol=12
+
+# attack_decay: Attack from silence to max, then decay back to silence (one cycle)
+#        vol
+#        15 |      ███
+#        10 |    ██   ██
+#         5 |   █       █
+#         0 |_█_________█_
+inst lead_attack_decay       type=tone env=attack_decay        vol=use_envelope
+
+# attack_decay_repeat: Attack-decay cycle repeats continuously (buzzy effect)
+#        vol
+#        15 |      ███      ███
+#        10 |    ██   ██  ██   ██
+#         5 |   █       ██       █
+#         0 |_█_________█________█_
+inst lead_attack_decay_rep   type=tone env=attack_decay_repeat vol=use_envelope
+
+# decay_only: Immediate decay from max to silence (one cycle)
+#        vol
+#        15 |█
+#        10 | █
+#         5 |  █
+#         0 |_____█____
+inst lead_decay_only         type=tone env=decay_only          vol=use_envelope
+
+# decay_repeat: Decay repeats, creating sawtooth oscillation
+#        vol
+#        15 |█        █        █
+#        10 | █      █ █      █
+#         5 |  █    █   █    █
+#         0 |___█__█_____█__█____
+inst lead_decay_repeat       type=tone env=decay_repeat        vol=use_envelope
+
+# attack_only: Attack from silence to max and stays at max
+#        vol
+#        15 |        ███████████
+#        10 |     ███
+#         5 |   ██
+#         0 |_██______________
+inst lead_attack_only        type=tone env=attack_only         vol=use_envelope
+
+# hold: Constant max volume (like 'none' but envelope-driven)
+#        vol
+#        15 |███████████████
+#         0 |
+inst lead_hold               type=tone env=hold                vol=use_envelope
+
+# attack_hold: Attack from silence to max and stays
+#        vol
+#        15 |       ███████████
+#        10 |    ███
+#         5 |  ██
+#         0 |██_________________
+inst lead_attack_hold        type=tone env=attack_hold         vol=use_envelope
+
+# decay_quick: Fast 6-level decay (punch then decay)
+#        vol
+#        15 |█
+#        12 | █
+#         9 |  █
+#         6 |   █
+#         3 |    █
+#         0 |_____█_
+inst lead_decay_quick        type=tone env=decay_quick         vol=use_envelope
+
+inst bass type=tone env=decay_only vol=11
+
+# Two-bar sustained notes per shape to hear repeating envelope behavior.
+pat simple_pat = C5:8 C5:8
+
+channel 1 => inst lead_none  pat simple_pat simple_pat:inst(lead_attack_decay) simple_pat:inst(lead_attack_decay_rep) simple_pat:(lead_decay_only) simple_pat:inst(lead_decay_repeat) simple_pat:inst(lead_attack_only) simple_pat:inst(lead_hold) simple_pat:inst(lead_attack_hold) simple_pat:inst(lead_decay_quick)
+
+play

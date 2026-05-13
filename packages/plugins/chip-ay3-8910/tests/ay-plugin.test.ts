@@ -75,6 +75,26 @@ describe('envelope and oscillators', () => {
     const unique = new Set(out);
     expect(unique.size).toBeGreaterThan(1);
   });
+
+  it('lower noise_rate yields brighter/faster noise than higher noise_rate', () => {
+    const bright = new AyNoiseOscillator();
+    bright.setRate(2);
+    const dark = new AyNoiseOscillator();
+    dark.setRate(7);
+
+    const countTransitions = (values: number[]): number => {
+      let transitions = 0;
+      for (let i = 1; i < values.length; i += 1) {
+        if (values[i] !== values[i - 1]) transitions += 1;
+      }
+      return transitions;
+    };
+
+    const brightOut = Array.from({ length: 8192 }, () => bright.next(44100));
+    const darkOut = Array.from({ length: 8192 }, () => dark.next(44100));
+
+    expect(countTransitions(brightOut)).toBeGreaterThan(countTransitions(darkOut));
+  });
 });
 
 describe('channel backend', () => {
@@ -96,5 +116,156 @@ describe('channel backend', () => {
     const ch = ayPlugin.createChannel(0, ctx as any);
     const nodes = ch.createPlaybackNodes?.(ctx as any, 220, 0, 0.1, { type: 'noise', noise: 'on' } as any, {}, ctx.destination);
     expect(nodes && nodes.length).toBeGreaterThan(0);
+  });
+
+  it('renders noise_rate_env into one-shot LFSR noise buffer for Web Audio', () => {
+    const createdBufferLengths: number[] = [];
+    let playbackRateWrites = 0;
+    const fakeCtx = {
+      destination: {},
+      createBufferSource() {
+        return {
+          buffer: null,
+          loop: false,
+          playbackRate: {
+            setValueAtTime() {
+              playbackRateWrites += 1;
+            },
+          },
+          connect() { return this; },
+          start() {},
+          stop() {},
+        };
+      },
+      createBuffer(_channels: number, length: number, _sampleRate: number) {
+        createdBufferLengths.push(length);
+        return {
+          getChannelData() {
+            return new Float32Array(length);
+          },
+        };
+      },
+      createGain() {
+        return {
+          gain: {
+            setValueAtTime() {},
+            linearRampToValueAtTime() {},
+            setValueCurveAtTime() {},
+          },
+          connect() { return this; },
+        };
+      },
+      sampleRate: 44100,
+    } as any;
+
+    const ch = ayPlugin.createChannel(0, fakeCtx as any);
+    const nodes = ch.createPlaybackNodes?.(
+      fakeCtx as any,
+      220,
+      0,
+      0.1,
+      { type: 'noise', noise: 'on', noise_rate: 12, noise_rate_env: '[12,8,4,2]' } as any,
+      {},
+      fakeCtx.destination,
+    );
+
+    // Should return nodes (Web Audio path), not null.
+    expect(nodes && nodes.length).toBeGreaterThan(0);
+    // Noise is rendered into a one-shot note buffer (no playbackRate automation).
+    expect(createdBufferLengths.length).toBeGreaterThan(0);
+    expect(createdBufferLengths[0]).toBeGreaterThan(4000);
+    expect(playbackRateWrites).toBe(0);
+  });
+
+  it('schedules arp_env frequency automation for tone notes', () => {
+    const scheduled: Array<{ value: number; time: number }> = [];
+    const fakeCtx = {
+      destination: {},
+      createOscillator() {
+        return {
+          type: '',
+          frequency: {
+            setValueAtTime(value: number, time: number) {
+              scheduled.push({ value, time });
+            },
+          },
+          setPeriodicWave() {},
+          connect() {},
+          start() {},
+          stop() {},
+        };
+      },
+      createGain() {
+        return {
+          gain: {
+            setValueAtTime() {},
+            linearRampToValueAtTime() {},
+            setValueCurveAtTime() {},
+          },
+          connect() {},
+        };
+      },
+    } as any;
+
+    const ch = ayPlugin.createChannel(0, fakeCtx as any);
+    ch.createPlaybackNodes?.(
+      fakeCtx as any,
+      220,
+      0,
+      0.05,
+      { type: 'tone', vol: 15, arp_env: '[0,4,7|0]' } as any,
+      {},
+      fakeCtx.destination,
+    );
+
+    const freqValues = scheduled.map(entry => entry.value);
+    expect(freqValues[0]).toBe(220);
+    expect(freqValues).toContainEqual(expect.closeTo(220 * Math.pow(2, 4 / 12), 6));
+    expect(freqValues).toContainEqual(expect.closeTo(220 * Math.pow(2, 7 / 12), 6));
+  });
+
+  it('uses AY envelope-shape gain curve in Web Audio path', () => {
+    const setCurve = jest.fn();
+    const fakeCtx = {
+      destination: {},
+      createOscillator() {
+        return {
+          type: '',
+          frequency: {
+            setValueAtTime() {},
+          },
+          setPeriodicWave() {},
+          connect() {},
+          start() {},
+          stop() {},
+        };
+      },
+      createGain() {
+        return {
+          gain: {
+            setValueAtTime() {},
+            linearRampToValueAtTime() {},
+            setValueCurveAtTime: setCurve,
+          },
+          connect() {},
+        };
+      },
+    } as any;
+
+    const ch = ayPlugin.createChannel(0, fakeCtx as any);
+    ch.createPlaybackNodes?.(
+      fakeCtx as any,
+      220,
+      0,
+      0.3,
+      { type: 'tone', env: 'attack_decay', vol: 'use_envelope' } as any,
+      {},
+      fakeCtx.destination,
+    );
+
+    expect(setCurve).toHaveBeenCalled();
+    const [curve] = setCurve.mock.calls[0];
+    expect(curve[0]).toBeCloseTo(0, 4);
+    expect(curve.some((v: number) => v > 0.9)).toBe(true);
   });
 });

@@ -34,8 +34,7 @@ const ayPlugin: AyChipPlugin = {
 
   async resolveExporterPlugins() {
     try {
-      const exporterModuleId = '@beatbax/plugin-exporter-vgm';
-      const mod = await import(exporterModuleId);
+      const mod = await import('@beatbax/plugin-exporter-vgm');
       const plugin = mod.default ?? mod;
       return [plugin];
     } catch {

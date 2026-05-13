@@ -4,14 +4,13 @@ bpm 132
 inst lead type=tone env=attack_decay vol=use_envelope arp_env=[0,4,7|0]
 inst bass type=tone env=decay_only vol=12
 
-pat a = C5:4 F5:4 G5:4 A5:4
-pat b = C3 . G2 . A2 . F2 .
+pat lead_pat = C5:4 F5:4 G5:4 A5:4
+pat bass_pat = C3 . G2 . A2 . F2 .
 
-seq lead_seq = a a
-seq bass_seq = b b
+seq lead_seq = lead_pat * 2
+seq bass_seq = bass_pat * 4
 
 channel 1 => inst lead seq lead_seq
-channel 2 => inst lead seq lead_seq:oct(-1)
 channel 3 => inst bass seq bass_seq
 
 play

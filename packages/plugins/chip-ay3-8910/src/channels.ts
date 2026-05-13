@@ -7,7 +7,11 @@ import {
   type ParsedMacro,
   type MacroState,
 } from '@beatbax/engine';
-import { AyEnvelopeGenerator, type AyEnvelopeShape } from './envelope.js';
+import {
+  AyEnvelopeGenerator,
+  buildAyEnvelopeLevelCurve,
+  type AyEnvelopeShape,
+} from './envelope.js';
 import { AyToneOscillator, AyNoiseOscillator } from './oscillator.js';
 import { shouldUseEnvelope } from './instrument.js';
 
@@ -31,9 +35,7 @@ interface AyChannelState {
   noiseRateEnvState: MacroState;
 }
 
-const NOISE_BUFFER_SECONDS = 1;
-const NOISE_AMPLITUDE = 0.6;
-const NOISE_BUFFER_CACHE = new WeakMap<BaseAudioContext, AudioBuffer>();
+const AY_LFSR_SEED = 0x1ffff;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -50,18 +52,96 @@ function volEnvToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
   return curve;
 }
 
-function getNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
-  const cached = NOISE_BUFFER_CACHE.get(ctx);
-  if (cached) return cached;
+function ayShapeToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
+  const env = String(inst.env ?? 'none').toLowerCase() as AyEnvelopeShape;
+  if (env === 'none') return null;
+  if (dur <= 0) return null;
+  return buildAyEnvelopeLevelCurve(env, dur);
+}
 
-  const length = Math.max(1, Math.floor(ctx.sampleRate * NOISE_BUFFER_SECONDS));
-  const buf = ctx.createBuffer(1, length, ctx.sampleRate);
+function scheduleFrequencyMacros(
+  freqParam: AudioParam,
+  baseFreq: number,
+  arpEnv: ParsedMacro | null,
+  pitchEnv: ParsedMacro | null,
+  start: number,
+  dur: number,
+  frameRate = 60,
+): void {
+  const totalFrames = Math.max(1, Math.ceil(dur * frameRate));
+  const frameDur = 1 / frameRate;
+  const arpState = makeMacroState();
+  const pitchState = makeMacroState();
+
+  for (let frame = 0; frame < totalFrames; frame += 1) {
+    let semitoneOffset = 0;
+
+    if (arpEnv) {
+      semitoneOffset += macroValue(arpEnv, arpState);
+      advanceMacro(arpEnv, arpState);
+    }
+
+    if (pitchEnv) {
+      semitoneOffset += macroValue(pitchEnv, pitchState);
+      advanceMacro(pitchEnv, pitchState);
+    }
+
+    const freq = baseFreq * Math.pow(2, semitoneOffset / 12);
+    try {
+      freqParam.setValueAtTime(Math.max(1, freq), start + (frame * frameDur));
+    } catch (_) {}
+  }
+}
+
+function noiseRateToHz(rate: number): number {
+  // Must mirror AyNoiseOscillator.next() so CLI PCM and Web Audio match.
+  const clamped = clamp(rate, 0, 31);
+  const periodReg = Math.max(1, clamped);
+  return 120 + (3400 / periodReg);
+}
+
+function buildAyNoiseBuffer(
+  ctx: BaseAudioContext,
+  dur: number,
+  baseRate: number,
+  noiseRateEnv: ParsedMacro | null,
+  frameRate = 60,
+): AudioBuffer {
+  const sampleRate = Math.max(1, ctx.sampleRate || 44100);
+  const totalSamples = Math.max(1, Math.ceil((dur + 0.03) * sampleRate));
+  const buf = ctx.createBuffer(1, totalSamples, sampleRate);
   const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i += 1) {
-    data[i] = (Math.random() * 2 - 1) * NOISE_AMPLITUDE;
+
+  let lfsr = AY_LFSR_SEED;
+  let phase = 0;
+  let currentRate = clamp(baseRate, 0, 31);
+  const noiseRateState = makeMacroState();
+  const samplesPerFrame = Math.max(1, Math.floor(sampleRate / frameRate));
+  let nextFrameSample = 0;
+
+  for (let i = 0; i < totalSamples; i += 1) {
+    if (i >= nextFrameSample) {
+      currentRate = noiseRateEnv
+        ? clamp(macroValue(noiseRateEnv, noiseRateState), 0, 31)
+        : clamp(baseRate, 0, 31);
+      if (noiseRateEnv) {
+        advanceMacro(noiseRateEnv, noiseRateState);
+      }
+      nextFrameSample += samplesPerFrame;
+    }
+
+    phase += noiseRateToHz(currentRate) / sampleRate;
+    while (phase >= 1) {
+      const bit0 = lfsr & 1;
+      const bit3 = (lfsr >> 3) & 1;
+      const feedback = bit0 ^ bit3;
+      lfsr = (lfsr >> 1) | (feedback << 16);
+      phase -= 1;
+    }
+
+    data[i] = (lfsr & 1) === 0 ? 1 : -1;
   }
 
-  NOISE_BUFFER_CACHE.set(ctx, buf);
   return buf;
 }
 
@@ -251,23 +331,50 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       const type = String(inst.type ?? 'tone').toLowerCase();
       const mixNoise = String(inst.noise ?? 'off').toLowerCase() === 'on';
       const useEnvelope = shouldUseEnvelope(inst);
-      const curve = volEnvToCurve(inst, dur);
+      const volCurve = volEnvToCurve(inst, dur);
+      const shapeCurve = !volCurve && useEnvelope ? ayShapeToCurve(inst, dur) : null;
+      const curve = volCurve ?? shapeCurve;
+      const noiseRateEnv = parseMacro((inst as any).noise_rate_env);
 
       if (type === 'noise' || mixNoise) {
         const src = ctx.createBufferSource();
-        src.buffer = getNoiseBuffer(ctx);
-        src.loop = true;
+        const baseNoiseRate = clamp(Number((inst as any).noise_rate ?? 0), 0, 31);
+        src.buffer = buildAyNoiseBuffer(ctx, dur, baseNoiseRate, noiseRateEnv);
+        src.loop = false;
+
+        // Noise-rate macro is rendered directly into the one-shot LFSR buffer.
 
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0, start);
 
         const baseLevel = clamp(Number(inst.vol ?? 15), 0, 15) / 15;
         const targetGain = useEnvelope ? 0.2 : baseLevel * 0.2;
-        gain.gain.linearRampToValueAtTime(targetGain, start + 0.004);
-        if (curve) {
-          gain.gain.setValueCurveAtTime(curve, start, Math.max(0.01, dur));
+
+        if (curve && curve.length >= 2) {
+          // When using envelope curve, apply it directly
+          // Set initial value to curve's first value to avoid discontinuity
+          const scaledCurve = new Float32Array(curve.length);
+          for (let i = 0; i < curve.length; i += 1) {
+            scaledCurve[i] = curve[i] * targetGain;
+          }
+          gain.gain.setValueAtTime(scaledCurve[0], start);
+          try {
+            gain.gain.setValueCurveAtTime(scaledCurve, start, Math.max(0.01, dur));
+          } catch {
+            // Fallback: just hold at first value
+            gain.gain.setValueAtTime(scaledCurve[0], start);
+          }
+          // Release ramp happens after curve completes
+          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.01, dur) + 0.01);
+        } else if (curve) {
+          // Curve is too short, just use first value
+          gain.gain.setValueAtTime(curve[0] * targetGain, start);
+          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
+        } else {
+          // Without curve: manual attack and release
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(targetGain, start + 0.004);
+          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
         }
-        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
 
         src.connect(gain);
         gain.connect(destination);
@@ -283,17 +390,41 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       (osc as any)._baseFreq = Math.max(1, freq);
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0, start);
 
       const targetGain = useEnvelope ? 0.18 : clamp(Number(inst.vol ?? 15), 0, 15) / 15 * 0.18;
-      gain.gain.linearRampToValueAtTime(targetGain, start + 0.008);
-      if (curve) {
-        gain.gain.setValueCurveAtTime(curve, start, Math.max(0.01, dur));
+
+      if (curve && curve.length >= 2) {
+        // When using envelope curve, apply it directly
+        // Set initial value to curve's first value to avoid discontinuity
+        gain.gain.setValueAtTime(curve[0], start);
+        try {
+          gain.gain.setValueCurveAtTime(curve, start, Math.max(0.01, dur));
+        } catch {
+          // Fallback: just hold at first value
+          gain.gain.setValueAtTime(curve[0], start);
+        }
+        // Release ramp happens after curve completes
+        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.01, dur) + 0.01);
+      } else if (curve) {
+        // Curve is too short, just use first value
+        gain.gain.setValueAtTime(curve[0] * targetGain, start);
+        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
+      } else {
+        // Without curve: manual attack and release
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(targetGain, start + 0.008);
+        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
       }
-      gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
 
       osc.connect(gain);
       gain.connect(destination);
+
+      const arpEnv = parseMacro((inst as any).arp_env);
+      const pitchEnv = parseMacro((inst as any).pitch_env);
+      if (arpEnv || pitchEnv) {
+        scheduleFrequencyMacros(osc.frequency, Math.max(1, freq), arpEnv, pitchEnv, start, dur);
+      }
+
       osc.start(start);
       osc.stop(start + dur + 0.02);
 

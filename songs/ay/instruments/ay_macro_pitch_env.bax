@@ -12,7 +12,6 @@ seq top_seq = top top
 seq low_seq = low low
 
 channel 1 => inst lead seq top_seq
-channel 2 => inst lead seq top_seq:oct(-1)
 channel 3 => inst bass seq low_seq
 
 play

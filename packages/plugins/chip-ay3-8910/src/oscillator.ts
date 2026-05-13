@@ -39,9 +39,10 @@ export class AyNoiseOscillator {
   next(sampleRate: number): number {
     if (sampleRate <= 0) return 0;
 
-    // Approximate AY noise register mapping (0..31) to an audible noise-clock range.
-    // Lower register values yield brighter/noisier output.
-    const hz = 60 + (31 - this.rate) * 45;
+    // AY-like inverse period mapping: lower register values clock the LFSR faster.
+    // Treat 0 as 1 for period purposes, mirroring common AY behavior.
+    const periodReg = Math.max(1, this.rate);
+    const hz = 120 + (3400 / periodReg);
     this.phase += hz / sampleRate;
 
     while (this.phase >= 1) {

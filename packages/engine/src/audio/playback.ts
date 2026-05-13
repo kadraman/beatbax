@@ -629,6 +629,10 @@ export class Player {
               if (nodes && nodes.length > 0) {
                 const endTime = time + capturedDur + 0.1;
                 for (const n of nodes) this.activeNodes.push({ node: n, chId: capturedChId, endTime });
+              } else {
+                // Backend declined Web Audio for this note — fall back to PCM path.
+                backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
+                this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
               }
             });
           } else {
@@ -747,6 +751,11 @@ export class Player {
                 this.tryScheduleRetriggers(nodes, capturedFreq, capturedInst, capturedChId, capturedToken, capturedTickSec, capturedPanVal);
                 const endTime = time + capturedDur + 0.1;
                 for (const n of nodes) this.activeNodes.push({ node: n, chId: capturedChId, endTime });
+              } else {
+                // Backend declined Web Audio for this note — fall back to PCM path.
+                // Pass effectiveInst (with merged inline effects) not capturedInst.
+                backend.noteOn(capturedFreq, effectiveInst);
+                this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
               }
             });
           } else {

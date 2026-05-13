@@ -152,8 +152,9 @@ tests/*.js
 /packages/engine/tmp/
 
 # sample source code
-lib
+lib/uge
 !songs/lib
+!lib/aym-js/**/*
 
 # generate tools
 tools

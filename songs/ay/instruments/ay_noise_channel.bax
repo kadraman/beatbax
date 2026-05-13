@@ -3,16 +3,15 @@ bpm 150
 
 effect punch = bend:-3,0.08,exp
 
-inst kick  type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
+#inst kick  type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
 inst snare type=noise noise=on noise_rate=7 vol_env=[13,10,8,6,4,2,0] note=D3
 inst hat   type=noise noise=on noise_rate=2 vol_env=[8,5,3,1,0] note=C5
 inst bass  type=tone env=decay_only vol=12 note=C3
 
-pat groove = C3 kick D3 hat C3 snare G2 hat
+pat groove = kick . hat . snare . hat .
 seq main = groove groove groove groove
 
 channel 1 => inst bass seq main
-channel 2 => inst bass seq main:oct(+1)
 channel 3 => inst bass seq main
 
 play

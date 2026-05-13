@@ -23,6 +23,31 @@ const SHAPE_SEQUENCE: Record<AyEnvelopeShape, number[]> = {
 
 const REPEATING = new Set<AyEnvelopeShape>(['attack_decay_repeat', 'decay_repeat']);
 
+export function buildAyEnvelopeLevelCurve(
+  shape: AyEnvelopeShape,
+  dur: number,
+  frameRate = 60,
+): Float32Array {
+  const totalFrames = Math.max(2, Math.ceil(Math.max(0.001, dur) * frameRate));
+  const seq = SHAPE_SEQUENCE[shape] ?? SHAPE_SEQUENCE.none;
+  const out = new Float32Array(totalFrames);
+  let idx = 0;
+
+  for (let frame = 0; frame < totalFrames; frame += 1) {
+    out[frame] = (seq[Math.min(idx, seq.length - 1)] ?? 15) / 15;
+
+    if (seq.length <= 1) continue;
+
+    if (idx < seq.length - 1) {
+      idx += 1;
+    } else if (REPEATING.has(shape)) {
+      idx = 0;
+    }
+  }
+
+  return out;
+}
+
 export class AyEnvelopeGenerator {
   private shape: AyEnvelopeShape = 'none';
   private index = 0;
