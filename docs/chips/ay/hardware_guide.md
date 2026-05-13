@@ -38,8 +38,8 @@ Global characteristics:
 |-----------|-------|
 | Tone channels | 3 (A, B, C) — 12-bit period dividers |
 | Noise channel | 1 shared LFSR (5-bit period divider) |
-| Envelope generator | 1 shared (16-bit period, 8 shape patterns) |
-| Volume per channel | 4-bit (0–15 fixed) or envelope-driven |
+| Envelope generator | 1 shared (16-bit period, 16 shape values 0–15) |
+| Volume per channel | 4-bit fixed (0–15) or shared 5-bit envelope-driven level (0–31) |
 | Mixer control | Per-channel tone enable + noise enable (independent) |
 | I/O ports | 2 (IOA, IOB — general purpose, platform-specific use) |
 | Stereo | Not native; platform-specific via output routing (ABC, ACB, mono) |
@@ -133,20 +133,26 @@ The hardware envelope generator is one of the AY's most distinctive features and
 
 ### 4.2 Envelope Shapes
 
-R13 selects from 8 distinct hardware envelope shapes (the lower 4 patterns alias to the first four):
+R13 selects one of 16 hardware shapes (`0..15`). Some are aliases, but software should treat all 16 values as valid:
 
 | Shape value | Pattern | Description |
 |-------------|---------|-------------|
-| 0–3 | `\___` | Single downward ramp then silence |
-| 4–7 | `/___` | Wait, then single upward ramp, then silence |
-| 8 | `\\\\` | Continuously repeating downward sawtooth |
+| 0 | `\___` | Decay then hold low |
+| 1 | `\___` | Alias of 0 |
+| 2 | `\___` | Alias of 0 |
+| 3 | `\___` | Alias of 0 |
+| 4 | `/___` | Attack then hold low |
+| 5 | `/___` | Alias of 4 |
+| 6 | `/___` | Alias of 4 |
+| 7 | `/___` | Alias of 4 |
+| 8 | `\\\\` | Repeating decay saw |
 | 9 | `\___` | Single decay |
-| 10 | `\/\/` | Triangle wave (down-up-down-up…) |
-| 11 | `\‾‾‾` | Decay to floor, then hold at max |
-| 12 | `////` | Continuously repeating upward sawtooth |
-| 13 | `/‾‾‾` | Single ramp up, hold at max |
-| 14 | `/\/\` | Triangle wave (up-down-up-down…) |
-| 15 | `/___` | Single ramp up then silence |
+| 10 | `\/\/` | Repeating triangle (down-up) |
+| 11 | `\‾‾‾` | Decay then hold high |
+| 12 | `////` | Repeating attack saw |
+| 13 | `/‾‾‾` | Attack then hold high |
+| 14 | `/\/\` | Repeating triangle (up-down) |
+| 15 | `/___` | Single attack |
 
 ### 4.3 Using the Envelope
 
@@ -162,6 +168,16 @@ Only **one** envelope generator exists. If multiple channels use envelope mode, 
 ### 4.4 Envelope Period and Pitch Relationship
 
 The envelope period is on the same clock as the tone dividers. This means fast envelopes (short periods) can create timbres resembling FM-like buzzing. At very short periods the envelope frequency can enter audible range, creating the distinctive "buzzy" AY bass sound beloved in ZX Spectrum and Atari ST music.
+
+For envelope-as-oscillator tuning:
+
+$$
+N_{env} = \left\lfloor \frac{f_{clock}}{256 \times f_{note}} \right\rfloor
+$$
+
+`N_env` is written to `R11` + `R12`.
+
+Because envelope period/shape are chip-global resources, the last channel to write `R11..R13` wins.
 
 ---
 

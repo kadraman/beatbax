@@ -4,16 +4,40 @@ import {
   makeMacroState,
   macroValue,
   advanceMacro,
+  noteToMidi,
+  midiToFreq,
   type ParsedMacro,
   type MacroState,
 } from '@beatbax/engine';
-import {
-  AyEnvelopeGenerator,
-  buildAyEnvelopeLevelCurve,
-  type AyEnvelopeShape,
-} from './envelope.js';
-import { AyToneOscillator, AyNoiseOscillator } from './oscillator.js';
+import { AyChipEmulator } from './emulator.js';
+import type { AyDacMode } from './dac.js';
+import type { AyEnvelopeShape } from './envelope.js';
 import { shouldUseEnvelope } from './instrument.js';
+
+export type RegisterPatch = { r: number; v: number };
+
+type AyChannelIndex = 0 | 1 | 2;
+
+interface AyRuntimeConfig {
+  chipClock: number;
+  dacMode: AyDacMode;
+}
+
+interface AySharedContext {
+  emulator: AyChipEmulator;
+  config: AyRuntimeConfig;
+  sampleCache: [Float32Array, Float32Array, Float32Array];
+  emulatorCursor: number;
+  renderCursor: [number, number, number];
+  cacheChunk: number;
+  clockAccumulator: number;
+  sampleRate: number;
+  mixerReg: number;
+  startedPCM: boolean;
+  workletNode: AudioWorkletNode | null;
+  workletReady: Promise<AudioWorkletNode | null> | null;
+  workletConnected: boolean;
+}
 
 interface AyChannelState {
   active: boolean;
@@ -25,6 +49,7 @@ interface AyChannelState {
   useEnvelope: boolean;
   volume: number;
   envShape: AyEnvelopeShape;
+  envPeriodOverride?: number;
   volEnvMacro: ParsedMacro | null;
   volEnvState: MacroState;
   pitchEnvMacro: ParsedMacro | null;
@@ -35,131 +60,221 @@ interface AyChannelState {
   noiseRateEnvState: MacroState;
 }
 
-const AY_LFSR_SEED = 0x1ffff;
+const PCM_PLUGIN_CHUNK = 512;
+
+const ENV_SHAPE_TO_R13: Record<AyEnvelopeShape, number> = {
+  none: 0,
+  attack_decay: 14,
+  attack_decay_repeat: 14,
+  decay_only: 9,
+  decay_repeat: 8,
+  attack_only: 13,
+  hold: 11,
+  attack_hold: 13,
+  decay_quick: 9,
+  decay_hold_max: 11,
+  attack_hold_max: 13,
+  triangle_down_up: 10,
+  triangle_up_down: 14,
+};
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function volEnvToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
-  const volEnv = parseMacro((inst as any).vol_env);
-  if (!volEnv || volEnv.values.length === 0) return null;
-  if (dur <= 0) return null;
-  const curve = new Float32Array(Math.max(2, volEnv.values.length));
-  for (let i = 0; i < curve.length; i += 1) {
-    curve[i] = clamp(volEnv.values[Math.min(i, volEnv.values.length - 1)], 0, 15) / 15;
-  }
-  return curve;
+function toTonePeriod(freq: number, chipClock: number): number {
+  if (!Number.isFinite(freq) || freq <= 0) return 1;
+  const period = Math.floor(chipClock / (16 * freq));
+  return clamp(period, 1, 0x0fff);
 }
 
-function ayShapeToCurve(inst: InstrumentNode, dur: number): Float32Array | null {
-  const env = String(inst.env ?? 'none').toLowerCase() as AyEnvelopeShape;
-  if (env === 'none') return null;
-  if (dur <= 0) return null;
-  return buildAyEnvelopeLevelCurve(env, dur);
+function noteToEnvPeriod(noteName: string, chipClock: number): number | null {
+  const midi = noteToMidi(noteName);
+  if (midi == null) return null;
+  const freq = midiToFreq(midi);
+  if (!Number.isFinite(freq) || freq <= 0) return null;
+  return clamp(Math.floor(chipClock / (256 * freq)), 0, 0xffff);
 }
 
-function scheduleFrequencyMacros(
-  freqParam: AudioParam,
-  baseFreq: number,
-  arpEnv: ParsedMacro | null,
-  pitchEnv: ParsedMacro | null,
-  start: number,
-  dur: number,
-  frameRate = 60,
-): void {
-  const totalFrames = Math.max(1, Math.ceil(dur * frameRate));
-  const frameDur = 1 / frameRate;
-  const arpState = makeMacroState();
-  const pitchState = makeMacroState();
+function buildRegisterPatches(channelIndex: AyChannelIndex, state: AyChannelState, chipClock: number): RegisterPatch[] {
+  const toneFineReg = channelIndex * 2;
+  const toneCoarseReg = toneFineReg + 1;
+  const ampReg = 8 + channelIndex;
 
-  for (let frame = 0; frame < totalFrames; frame += 1) {
-    let semitoneOffset = 0;
+  const patches: RegisterPatch[] = [];
+  const tonePeriod = toTonePeriod(state.frequency, chipClock);
+  patches.push({ r: toneFineReg, v: tonePeriod & 0xff });
+  patches.push({ r: toneCoarseReg, v: (tonePeriod >> 8) & 0x0f });
 
-    if (arpEnv) {
-      semitoneOffset += macroValue(arpEnv, arpState);
-      advanceMacro(arpEnv, arpState);
+  patches.push({ r: 6, v: clamp(state.noiseRate, 0, 31) });
+
+  const useEnvelope = state.useEnvelope;
+  const fixedLevel = clamp(Math.round(state.volume), 0, 15);
+  const ampRegValue = useEnvelope ? 0x10 : fixedLevel;
+  patches.push({ r: ampReg, v: ampRegValue });
+
+  if (useEnvelope) {
+    patches.push({ r: 13, v: ENV_SHAPE_TO_R13[state.envShape] ?? 0 });
+    if (state.envPeriodOverride !== undefined) {
+      patches.push({ r: 11, v: state.envPeriodOverride & 0xff });
+      patches.push({ r: 12, v: (state.envPeriodOverride >> 8) & 0xff });
     }
-
-    if (pitchEnv) {
-      semitoneOffset += macroValue(pitchEnv, pitchState);
-      advanceMacro(pitchEnv, pitchState);
-    }
-
-    const freq = baseFreq * Math.pow(2, semitoneOffset / 12);
-    try {
-      freqParam.setValueAtTime(Math.max(1, freq), start + (frame * frameDur));
-    } catch (_) {}
-  }
-}
-
-function noiseRateToHz(rate: number): number {
-  // Must mirror AyNoiseOscillator.next() so CLI PCM and Web Audio match.
-  const clamped = clamp(rate, 0, 31);
-  const periodReg = Math.max(1, clamped);
-  return 120 + (3400 / periodReg);
-}
-
-function buildAyNoiseBuffer(
-  ctx: BaseAudioContext,
-  dur: number,
-  baseRate: number,
-  noiseRateEnv: ParsedMacro | null,
-  frameRate = 60,
-): AudioBuffer {
-  const sampleRate = Math.max(1, ctx.sampleRate || 44100);
-  const totalSamples = Math.max(1, Math.ceil((dur + 0.03) * sampleRate));
-  const buf = ctx.createBuffer(1, totalSamples, sampleRate);
-  const data = buf.getChannelData(0);
-
-  let lfsr = AY_LFSR_SEED;
-  let phase = 0;
-  let currentRate = clamp(baseRate, 0, 31);
-  const noiseRateState = makeMacroState();
-  const samplesPerFrame = Math.max(1, Math.floor(sampleRate / frameRate));
-  let nextFrameSample = 0;
-
-  for (let i = 0; i < totalSamples; i += 1) {
-    if (i >= nextFrameSample) {
-      currentRate = noiseRateEnv
-        ? clamp(macroValue(noiseRateEnv, noiseRateState), 0, 31)
-        : clamp(baseRate, 0, 31);
-      if (noiseRateEnv) {
-        advanceMacro(noiseRateEnv, noiseRateState);
-      }
-      nextFrameSample += samplesPerFrame;
-    }
-
-    phase += noiseRateToHz(currentRate) / sampleRate;
-    while (phase >= 1) {
-      const bit0 = lfsr & 1;
-      const bit3 = (lfsr >> 3) & 1;
-      const feedback = bit0 ^ bit3;
-      lfsr = (lfsr >> 1) | (feedback << 16);
-      phase -= 1;
-    }
-
-    data[i] = (lfsr & 1) === 0 ? 1 : -1;
   }
 
-  return buf;
+  return patches;
 }
 
-function computeEffectiveLevel(state: AyChannelState, envelope: AyEnvelopeGenerator): number {
-  if (!state.active) return 0;
+function resetSharedPCM(shared: AySharedContext): void {
+  shared.emulator.reset();
+  shared.emulator.setDacMode(shared.config.dacMode);
+  shared.emulatorCursor = 0;
+  shared.renderCursor = [0, 0, 0];
+  shared.clockAccumulator = 0;
+  shared.sampleRate = 0;
+  shared.sampleCache[0].fill(0);
+  shared.sampleCache[1].fill(0);
+  shared.sampleCache[2].fill(0);
+  shared.mixerReg = 0;
+}
 
-  if (state.volEnvMacro) {
-    return clamp(macroValue(state.volEnvMacro, state.volEnvState), 0, 15) / 15;
-  }
+function updateMixerBits(shared: AySharedContext, channelIndex: AyChannelIndex, toneOn: boolean, noiseOn: boolean): void {
+  const toneBit = channelIndex;
+  const noiseBit = channelIndex + 3;
+
+  if (toneOn) shared.mixerReg &= ~(1 << toneBit);
+  else shared.mixerReg |= (1 << toneBit);
+
+  if (noiseOn) shared.mixerReg &= ~(1 << noiseBit);
+  else shared.mixerReg |= (1 << noiseBit);
+
+  shared.emulator.writeRegister(7, shared.mixerReg & 0x3f);
+}
+
+function writeChannelRegisters(shared: AySharedContext, channelIndex: AyChannelIndex, state: AyChannelState): void {
+  const toneFineReg = channelIndex * 2;
+  const toneCoarseReg = toneFineReg + 1;
+  const ampReg = 8 + channelIndex;
+
+  const tonePeriod = toTonePeriod(state.frequency, shared.config.chipClock);
+  shared.emulator.writeRegister(toneFineReg, tonePeriod & 0xff);
+  shared.emulator.writeRegister(toneCoarseReg, (tonePeriod >> 8) & 0x0f);
+
+  shared.emulator.writeRegister(6, clamp(state.noiseRate, 0, 31));
+  updateMixerBits(shared, channelIndex, state.toneEnabled, state.noiseEnabled);
 
   if (state.useEnvelope) {
-    return envelope.level() / 15;
+    shared.emulator.writeRegister(ampReg, 0x10);
+    shared.emulator.writeRegister(13, ENV_SHAPE_TO_R13[state.envShape] ?? 0);
+    if (state.envPeriodOverride !== undefined) {
+      shared.emulator.writeRegister(11, state.envPeriodOverride & 0xff);
+      shared.emulator.writeRegister(12, (state.envPeriodOverride >> 8) & 0xff);
+    }
+  } else {
+    shared.emulator.writeRegister(ampReg, clamp(Math.round(state.volume), 0, 15));
   }
-
-  return clamp(state.volume, 0, 15) / 15;
 }
 
-export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBackend {
+function ensureRendered(shared: AySharedContext, endExclusive: number, sampleRate: number): void {
+  if (endExclusive <= shared.emulatorCursor) return;
+
+  const rate = Math.max(1, sampleRate);
+  if (shared.sampleRate !== rate) {
+    shared.sampleRate = rate;
+  }
+
+  const ratio = shared.config.chipClock / (8 * rate);
+  for (let sampleIdx = shared.emulatorCursor; sampleIdx < endExclusive; sampleIdx += 1) {
+    shared.clockAccumulator += ratio;
+    while (shared.clockAccumulator >= 1) {
+      shared.emulator.clock();
+      shared.clockAccumulator -= 1;
+    }
+
+    const slot = sampleIdx % shared.cacheChunk;
+    shared.sampleCache[0][slot] = shared.emulator.getChannelSample(0);
+    shared.sampleCache[1][slot] = shared.emulator.getChannelSample(1);
+    shared.sampleCache[2][slot] = shared.emulator.getChannelSample(2);
+  }
+
+  shared.emulatorCursor = endExclusive;
+}
+
+async function ensureWorkletNode(
+  shared: AySharedContext,
+  ctx: BaseAudioContext,
+  destination: AudioNode,
+): Promise<AudioWorkletNode | null> {
+  if (shared.workletNode) {
+    if (!shared.workletConnected) {
+      shared.workletNode.connect(destination);
+      shared.workletConnected = true;
+    }
+    return shared.workletNode;
+  }
+
+  if (!('audioWorklet' in ctx) || !(ctx as AudioContext).audioWorklet) {
+    return null;
+  }
+
+  if (!shared.workletReady) {
+    shared.workletReady = (async () => {
+      // Use indirect eval so TS/Jest CJS transforms do not parse `import.meta` syntax.
+      const metaUrl = (0, eval)('import.meta.url') as string;
+      const moduleUrl = new URL('./ay3-worklet-processor.js', metaUrl).toString();
+      await (ctx as AudioContext).audioWorklet.addModule(moduleUrl);
+      const node = new AudioWorkletNode(ctx as AudioContext, 'beatbax-ay3-worklet', {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      shared.workletNode = node;
+      return node;
+    })().catch(() => null);
+  }
+
+  const node = await shared.workletReady;
+  if (!node) return null;
+
+  if (!shared.workletConnected) {
+    node.connect(destination);
+    shared.workletConnected = true;
+  }
+
+  return node;
+}
+
+export function createAySharedContext(config: AyRuntimeConfig): AySharedContext {
+  const emulator = new AyChipEmulator(config.dacMode);
+  return {
+    emulator,
+    config,
+    sampleCache: [
+      new Float32Array(PCM_PLUGIN_CHUNK),
+      new Float32Array(PCM_PLUGIN_CHUNK),
+      new Float32Array(PCM_PLUGIN_CHUNK),
+    ],
+    emulatorCursor: 0,
+    renderCursor: [0, 0, 0],
+    cacheChunk: PCM_PLUGIN_CHUNK,
+    clockAccumulator: 0,
+    sampleRate: 0,
+    mixerReg: 0,
+    startedPCM: false,
+    workletNode: null,
+    workletReady: null,
+    workletConnected: false,
+  };
+}
+
+export function applyAyConfig(shared: AySharedContext, config: AyRuntimeConfig): void {
+  shared.config = { ...config };
+  shared.emulator.setDacMode(config.dacMode);
+}
+
+export function createAyChannel(
+  channelIndex: AyChannelIndex,
+  shared: AySharedContext,
+): ChipChannelBackend {
   const state: AyChannelState = {
     active: false,
     frequency: 0,
@@ -170,6 +285,7 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
     useEnvelope: false,
     volume: 15,
     envShape: 'none',
+    envPeriodOverride: undefined,
     volEnvMacro: null,
     volEnvState: makeMacroState(),
     pitchEnvMacro: null,
@@ -180,11 +296,11 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
     noiseRateEnvState: makeMacroState(),
   };
 
-  const tone = new AyToneOscillator();
-  const noise = new AyNoiseOscillator();
-  const envelope = new AyEnvelopeGenerator();
+  function applyStateToRegisters(): void {
+    writeChannelRegisters(shared, channelIndex, state);
+  }
 
-  function resetAll(): void {
+  function resetState(): void {
     state.active = false;
     state.frequency = 0;
     state.baseFrequency = 0;
@@ -194,6 +310,7 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
     state.useEnvelope = false;
     state.volume = 15;
     state.envShape = 'none';
+    state.envPeriodOverride = undefined;
     state.volEnvMacro = null;
     state.volEnvState = makeMacroState();
     state.pitchEnvMacro = null;
@@ -202,31 +319,35 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
     state.arpEnvState = makeMacroState();
     state.noiseRateEnvMacro = null;
     state.noiseRateEnvState = makeMacroState();
-    tone.reset();
-    noise.reset();
-    envelope.reset('none');
+    updateMixerBits(shared, channelIndex, false, false);
+    shared.emulator.writeRegister(8 + channelIndex, 0);
   }
-
-  resetAll();
 
   return {
     reset(): void {
-      resetAll();
+      resetState();
+      if (channelIndex === 0) {
+        shared.startedPCM = false;
+        resetSharedPCM(shared);
+      }
+      if (shared.workletNode) {
+        shared.workletNode.port.postMessage({ type: 'reset' });
+      }
     },
 
     noteOn(frequency: number, instrument: InstrumentNode): void {
       const type = String(instrument.type ?? 'tone').toLowerCase();
-      const env = String(instrument.env ?? 'none').toLowerCase() as AyEnvelopeShape;
-      const requestedNoise = String(instrument.noise ?? (type === 'noise' ? 'on' : 'off')).toLowerCase() === 'on';
+      const requestedNoise = String(instrument.noise ?? 'off').toLowerCase() === 'on';
+      const envShape = String(instrument.env ?? 'none').toLowerCase() as AyEnvelopeShape;
 
       state.active = true;
       state.frequency = Math.max(0, frequency);
       state.baseFrequency = state.frequency;
       state.toneEnabled = type !== 'noise';
-      state.noiseEnabled = type === 'noise' || requestedNoise;
+      state.noiseEnabled = type === 'noise' || type === 'tone_noise' || requestedNoise;
       state.noiseRate = clamp(Number(instrument.noise_rate ?? 0), 0, 31);
-      state.envShape = env;
       state.useEnvelope = shouldUseEnvelope(instrument);
+      state.envShape = envShape;
 
       const parsedVol = Number(instrument.vol ?? 15);
       state.volume = clamp(Number.isFinite(parsedVol) ? parsedVol : 15, 0, 15);
@@ -240,32 +361,43 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
       state.noiseRateEnvMacro = parseMacro((instrument as any).noise_rate_env);
       state.noiseRateEnvState = makeMacroState();
 
-      if (state.volEnvMacro && state.volEnvMacro.values.length > 0) {
-        state.volume = clamp(state.volEnvMacro.values[0], 0, 15);
+      state.envPeriodOverride = undefined;
+      if ((instrument as any).env_period !== undefined) {
+        state.envPeriodOverride = clamp(Number((instrument as any).env_period), 0, 0xffff);
+      } else if ((instrument as any).env_pitch !== undefined) {
+        const period = noteToEnvPeriod(String((instrument as any).env_pitch), shared.config.chipClock);
+        if (period !== null) state.envPeriodOverride = period;
       }
 
-      tone.setFrequency(state.frequency);
-      noise.setRate(state.noiseRate);
-      envelope.reset(state.envShape);
+      if (channelIndex === 0 && !shared.startedPCM) {
+        resetSharedPCM(shared);
+        shared.startedPCM = true;
+      }
+
+      applyStateToRegisters();
     },
 
     noteOff(): void {
       state.active = false;
-      state.frequency = 0;
+      shared.emulator.writeRegister(8 + channelIndex, 0);
+      updateMixerBits(shared, channelIndex, false, false);
+      if (shared.workletNode) {
+        shared.workletNode.port.postMessage({
+          type: 'noteOff',
+          channel: channelIndex,
+          scheduledTime: 0,
+        });
+      }
     },
 
     setFrequency(frequency: number): void {
       state.frequency = Math.max(0, frequency);
       state.baseFrequency = state.frequency;
-      tone.setFrequency(state.frequency);
+      applyStateToRegisters();
     },
 
-    applyEnvelope(_frame: number): void {
+    applyEnvelope(): void {
       if (!state.active) return;
-
-      if (state.useEnvelope && state.envShape !== 'none') {
-        envelope.tick();
-      }
 
       if (state.volEnvMacro) {
         state.volume = clamp(macroValue(state.volEnvMacro, state.volEnvState), 0, 15);
@@ -281,154 +413,92 @@ export function createAyChannel(_audioContext: BaseAudioContext): ChipChannelBac
         semitoneOffset += macroValue(state.pitchEnvMacro, state.pitchEnvState);
         advanceMacro(state.pitchEnvMacro, state.pitchEnvState);
       }
+
       if (semitoneOffset !== 0) {
         const tuned = state.baseFrequency * Math.pow(2, semitoneOffset / 12);
         state.frequency = Math.max(0, tuned);
-        tone.setFrequency(state.frequency);
       }
 
       if (state.noiseRateEnvMacro) {
         state.noiseRate = clamp(macroValue(state.noiseRateEnvMacro, state.noiseRateEnvState), 0, 31);
-        noise.setRate(state.noiseRate);
         advanceMacro(state.noiseRateEnvMacro, state.noiseRateEnvState);
       }
+
+      applyStateToRegisters();
     },
 
     render(buffer: Float32Array, sampleRate: number): void {
       if (!state.active) return;
 
+      const start = shared.renderCursor[channelIndex];
+      const endExclusive = start + buffer.length;
+      ensureRendered(shared, endExclusive, sampleRate);
+
+      const minAvailable = Math.max(0, shared.emulatorCursor - shared.cacheChunk);
       for (let i = 0; i < buffer.length; i += 1) {
-        let sample = 0;
-        let parts = 0;
-
-        if (state.toneEnabled) {
-          sample += tone.next(sampleRate);
-          parts += 1;
-        }
-
-        if (state.noiseEnabled) {
-          sample += noise.next(sampleRate);
-          parts += 1;
-        }
-
-        if (parts === 0) continue;
-
-        const level = computeEffectiveLevel(state, envelope);
-        // Keep AY PCM path below full-scale to preserve headroom during channel summing.
-        buffer[i] += (sample / parts) * level * 0.22;
+        const abs = start + i;
+        if (abs < minAvailable) continue;
+        const slot = abs % shared.cacheChunk;
+        buffer[i] += shared.sampleCache[channelIndex][slot] ?? 0;
       }
+
+      shared.renderCursor[channelIndex] = endExclusive;
     },
 
     createPlaybackNodes(
       ctx: BaseAudioContext,
-      freq: number,
+      _freq: number,
       start: number,
       dur: number,
-      inst: InstrumentNode,
+      instrument: InstrumentNode,
       _scheduler: any,
       destination: AudioNode,
     ): AudioNode[] | null {
-      const type = String(inst.type ?? 'tone').toLowerCase();
-      const mixNoise = String(inst.noise ?? 'off').toLowerCase() === 'on';
-      const useEnvelope = shouldUseEnvelope(inst);
-      const volCurve = volEnvToCurve(inst, dur);
-      const shapeCurve = !volCurve && useEnvelope ? ayShapeToCurve(inst, dur) : null;
-      const curve = volCurve ?? shapeCurve;
-      const noiseRateEnv = parseMacro((inst as any).noise_rate_env);
+      const type = String(instrument.type ?? 'tone').toLowerCase();
+      const requestedNoise = String(instrument.noise ?? 'off').toLowerCase() === 'on';
 
-      if (type === 'noise' || mixNoise) {
-        const src = ctx.createBufferSource();
-        const baseNoiseRate = clamp(Number((inst as any).noise_rate ?? 0), 0, 31);
-        src.buffer = buildAyNoiseBuffer(ctx, dur, baseNoiseRate, noiseRateEnv);
-        src.loop = false;
+      state.active = true;
+      state.toneEnabled = type !== 'noise';
+      state.noiseEnabled = type === 'noise' || type === 'tone_noise' || requestedNoise;
+      state.noiseRate = clamp(Number(instrument.noise_rate ?? 0), 0, 31);
+      state.useEnvelope = shouldUseEnvelope(instrument);
+      state.envShape = String(instrument.env ?? 'none').toLowerCase() as AyEnvelopeShape;
 
-        // Noise-rate macro is rendered directly into the one-shot LFSR buffer.
+      const parsedVol = Number(instrument.vol ?? 15);
+      state.volume = clamp(Number.isFinite(parsedVol) ? parsedVol : 15, 0, 15);
 
-        const gain = ctx.createGain();
-
-        const baseLevel = clamp(Number(inst.vol ?? 15), 0, 15) / 15;
-        const targetGain = useEnvelope ? 0.2 : baseLevel * 0.2;
-
-        if (curve && curve.length >= 2) {
-          // When using envelope curve, apply it directly
-          // Set initial value to curve's first value to avoid discontinuity
-          const scaledCurve = new Float32Array(curve.length);
-          for (let i = 0; i < curve.length; i += 1) {
-            scaledCurve[i] = curve[i] * targetGain;
-          }
-          gain.gain.setValueAtTime(scaledCurve[0], start);
-          try {
-            gain.gain.setValueCurveAtTime(scaledCurve, start, Math.max(0.01, dur));
-          } catch {
-            // Fallback: just hold at first value
-            gain.gain.setValueAtTime(scaledCurve[0], start);
-          }
-          // Release ramp happens after curve completes
-          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.01, dur) + 0.01);
-        } else if (curve) {
-          // Curve is too short, just use first value
-          gain.gain.setValueAtTime(curve[0] * targetGain, start);
-          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
-        } else {
-          // Without curve: manual attack and release
-          gain.gain.setValueAtTime(0, start);
-          gain.gain.linearRampToValueAtTime(targetGain, start + 0.004);
-          gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
-        }
-
-        src.connect(gain);
-        gain.connect(destination);
-        src.start(start);
-        src.stop(start + dur + 0.03);
-
-        return [src, gain];
+      state.envPeriodOverride = undefined;
+      if ((instrument as any).env_period !== undefined) {
+        state.envPeriodOverride = clamp(Number((instrument as any).env_period), 0, 0xffff);
+      } else if ((instrument as any).env_pitch !== undefined) {
+        const period = noteToEnvPeriod(String((instrument as any).env_pitch), shared.config.chipClock);
+        if (period !== null) state.envPeriodOverride = period;
       }
 
-      const osc = ctx.createOscillator();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(Math.max(1, freq), start);
-      (osc as any)._baseFreq = Math.max(1, freq);
+      const patches = buildRegisterPatches(channelIndex, state, shared.config.chipClock);
 
-      const gain = ctx.createGain();
+      void ensureWorkletNode(shared, ctx, destination).then((node) => {
+        if (!node) return;
+        node.port.postMessage({
+          type: 'noteOn',
+          channel: channelIndex,
+          registers: patches,
+          scheduledTime: start,
+        });
+        node.port.postMessage({
+          type: 'noteOff',
+          channel: channelIndex,
+          scheduledTime: start + dur,
+        });
+      });
 
-      const targetGain = useEnvelope ? 0.18 : clamp(Number(inst.vol ?? 15), 0, 15) / 15 * 0.18;
-
-      if (curve && curve.length >= 2) {
-        // When using envelope curve, apply it directly
-        // Set initial value to curve's first value to avoid discontinuity
-        gain.gain.setValueAtTime(curve[0], start);
-        try {
-          gain.gain.setValueCurveAtTime(curve, start, Math.max(0.01, dur));
-        } catch {
-          // Fallback: just hold at first value
-          gain.gain.setValueAtTime(curve[0], start);
-        }
-        // Release ramp happens after curve completes
-        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.01, dur) + 0.01);
-      } else if (curve) {
-        // Curve is too short, just use first value
-        gain.gain.setValueAtTime(curve[0] * targetGain, start);
-        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
-      } else {
-        // Without curve: manual attack and release
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(targetGain, start + 0.008);
-        gain.gain.linearRampToValueAtTime(0, start + Math.max(0.012, dur));
+      if (shared.workletNode) {
+        (shared.workletNode as any)._baseFreq = Math.max(1, state.baseFrequency || 440);
+        return [shared.workletNode];
       }
 
-      osc.connect(gain);
-      gain.connect(destination);
-
-      const arpEnv = parseMacro((inst as any).arp_env);
-      const pitchEnv = parseMacro((inst as any).pitch_env);
-      if (arpEnv || pitchEnv) {
-        scheduleFrequencyMacros(osc.frequency, Math.max(1, freq), arpEnv, pitchEnv, start, dur);
-      }
-
-      osc.start(start);
-      osc.stop(start + dur + 0.02);
-
-      return [osc, gain];
+      // No worklet support in this context; let engine fall back to PCM.
+      return null;
     },
   };
 }

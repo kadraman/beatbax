@@ -1,13 +1,45 @@
 import type { ChipPlugin, ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
 import { version } from './version.js';
-import { createAyChannel } from './channels.js';
+import { applyAyConfig, createAyChannel, createAySharedContext } from './channels.js';
 import { validateAyInstrument } from './validate.js';
 import { ayUIContributions } from './ui-contributions.js';
 import { aySongWizard } from './songWizard.js';
+import type { AyDacMode } from './dac.js';
 
 type AyChipPlugin = ChipPlugin & {
   aliases?: readonly string[];
   configureForSong(song: { chip?: string; chipRegion?: string }): void;
+};
+
+function resolveAyClock(alias?: string): number {
+  const key = String(alias ?? '').toLowerCase();
+  switch (key) {
+    case 'zx-spectrum-128':
+      return 1773400;
+    case 'msx':
+    case 'msx2':
+      return 1789772;
+    case 'atari-st':
+    case 'ym2149':
+      return 2000000;
+    case 'amstrad-cpc':
+      return 1000000;
+    case 'vectrex':
+      return 1500000;
+    default:
+      return 1773400;
+  }
+}
+
+function resolveDacMode(alias?: string): AyDacMode {
+  const key = String(alias ?? '').toLowerCase();
+  return key === 'ym2149' || key === 'atari-st' ? 'ym' : 'ay';
+}
+
+const sharedContexts = new Map<BaseAudioContext, ReturnType<typeof createAySharedContext>>();
+let runtimeConfig = {
+  chipClock: 1773400,
+  dacMode: 'ay' as AyDacMode,
 };
 
 const ayPlugin: AyChipPlugin = {
@@ -24,12 +56,25 @@ const ayPlugin: AyChipPlugin = {
     return validateAyInstrument(inst);
   },
 
-  configureForSong(_song: { chip?: string; chipRegion?: string }) {
-    // Reserved for future region-specific clocking in live playback.
+  configureForSong(song: { chip?: string; chipRegion?: string }) {
+    runtimeConfig = {
+      chipClock: resolveAyClock(song.chip),
+      dacMode: resolveDacMode(song.chip),
+    };
+
+    for (const shared of sharedContexts.values()) {
+      applyAyConfig(shared, runtimeConfig);
+    }
   },
 
-  createChannel(_channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {
-    return createAyChannel(audioContext);
+  createChannel(channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {
+    let shared = sharedContexts.get(audioContext);
+    if (!shared) {
+      shared = createAySharedContext(runtimeConfig);
+      sharedContexts.set(audioContext, shared);
+    }
+    const ch = Math.max(0, Math.min(2, channelIndex)) as 0 | 1 | 2;
+    return createAyChannel(ch, shared);
   },
 
   async resolveExporterPlugins() {

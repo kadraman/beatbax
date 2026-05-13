@@ -26,8 +26,12 @@ const commonTemplates = {
 inst lead type=tone env=attack_decay vol=use_envelope gm=81
 inst bass type=tone env=decay_only vol=12 gm=39
 inst pad  type=tone env=attack_decay_repeat vol=use_envelope gm=89
-inst kick type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
-inst hat  type=noise noise=on noise_rate=2 vol=10 note=C5
+    inst pluck type=tone_noise noise_rate=4 env=decay_only vol=12 gm=80
+    inst kick type=tone_noise noise_rate=28 env=decay_only vol=14 note=C2
+    inst snare type=tone_noise noise_rate=12 env=decay_quick vol=12 note=D2
+    inst hat_closed type=noise noise=on noise_rate=4 env=decay_quick vol=9 note=F#5
+    inst hat_open type=noise noise=on noise_rate=3 env=decay_repeat vol=8 note=A5
+    inst crash type=noise noise=on noise_rate=2 env=triangle_up_down vol=8 note=C6
 `,
     },
   ],
@@ -47,10 +51,11 @@ effect punch   = bend:-3,0.08,exp
       label: 'AY starter structure',
       content: `
 pat lead_pat = C5<exprVib>:4 E5 G5 A5 G5 E5 C5 D5
-pat bass_and_drums = C3 kick G2 hat A2 kick F2 hat
+    pat bass_and_drums = C3 kick G2 hat_closed A2 snare F2 hat_open
+    pat fills = crash pluck kick hat_closed
 
 seq lead_seq = lead_pat lead_pat
-seq ch3_seq = bass_and_drums bass_and_drums
+    seq ch3_seq = bass_and_drums fills
 
 channel 1 => inst lead seq lead_seq
 channel 2 => inst pad  seq lead_seq:oct(-1)

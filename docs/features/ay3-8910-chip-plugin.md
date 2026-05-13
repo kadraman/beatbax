@@ -10,6 +10,60 @@ issue: "https://github.com/kadraman/beatbax/issues/108"
 
 Implement `@beatbax/plugin-chip-ay3-8910` — a BeatBax chip plugin for the General Instrument AY-3-8910 PSG (Programmable Sound Generator) and its Yamaha clone variant YM2149. The plugin will support the three-channel PSG architecture, on-chip envelope generator, and noise subsystem used across Atari ST, MSX, Amstrad CPC, and other 1980s platforms. Export formats will include VGM register streams, WAV/OGG rendered audio, and MIDI for preview/DAW integration.
 
+## Implementation Update (2026-05-13)
+
+This document started as a proposal. The AY plugin is now implemented in this branch and has been upgraded with the improved noise/percussion model from docs/features/ay3-8910-improved-noise-percussion.md.
+
+### Implemented
+
+- Shared register-level emulator added in packages/plugins/chip-ay3-8910/src/emulator.ts with:
+  - 3 tone generators, 1 shared noise generator, 1 shared envelope generator, mixer, DAC lookup
+  - clock division behavior aligned to hardware model used by the reference emulator
+  - per-channel output derived from tone/noise boolean mix and DAC level lookup
+- Non-linear DAC tables added in packages/plugins/chip-ay3-8910/src/dac.ts:
+  - AY_DAC and YM_DAC (32 entries, normalized, sourced from lib/aym-js/js/aym-emulator.js)
+- AudioWorklet processor added in packages/plugins/chip-ay3-8910/src/ay3-worklet-processor.ts:
+  - persistent worklet-owned emulator
+  - message protocol: noteOn, noteOff, reset
+  - scheduled event queue and fractional clock accumulator
+  - stereo ABC panning in the worklet output path
+- Channel backend rewritten in packages/plugins/chip-ay3-8910/src/channels.ts:
+  - shared chip context per AudioContext
+  - PCM coordination via emulatorCursor + rolling sampleCache (first caller drives emulator)
+  - noteOn register patch generation and worklet posting for WebAudio playback
+  - envelope bass period support from env_pitch and env_period
+- Plugin song configuration wiring added in packages/plugins/chip-ay3-8910/src/index.ts:
+  - chip alias -> clock mapping (atari-st, msx/msx2, amstrad-cpc, vectrex, zx-spectrum-128)
+  - chip alias -> DAC mode mapping (ym vs ay)
+- Validation and language support updated in packages/plugins/chip-ay3-8910/src/validate.ts:
+  - type=tone_noise accepted
+  - env_pitch/env_period validation rules implemented
+  - mutual exclusion and repeating-envelope requirements enforced
+- Envelope and UI updates shipped:
+  - additional AY shape names are supported and documented
+  - hover docs include tone_noise, env_pitch, env_period, and shared-resource warning
+- Song wizard templates updated with improved percussion and tone_noise examples.
+
+### Key Decisions Made
+
+- Shared hardware resources are modeled as shared resources in runtime state:
+  - one global noise generator
+  - one global envelope generator
+  - R6 and R11-R13 are effectively last-writer-wins during overlapping notes
+- PCM and WebAudio paths intentionally differ in ownership:
+  - PCM: channels coordinate access to one shared emulator instance
+  - WebAudio: worklet exclusively owns emulator state after module init
+- No core AST or parser grammar changes were made for AY additions:
+  - env_pitch, env_period, and tone_noise are handled as plugin-scoped instrument field validation
+- Worklet integration returns backend-managed playback nodes and falls back safely when worklet APIs are unavailable (test or non-worklet contexts).
+- DAC values were taken verbatim from the in-repo AY reference emulator to avoid drift.
+
+### Scope Decisions and Deviations
+
+- The original proposal referenced deeper parser/schema changes; these were not required for the delivered AY behavior.
+- Improved noise/percussion work superseded the original per-channel oscillator plan and removed packages/plugins/chip-ay3-8910/src/oscillator.ts.
+- Documentation in docs/chips/ay/hardware_guide.md was updated to reflect shared-resource behavior and envelope-period pitch formula used by the implementation.
+
 ---
 
 ## Problem Statement

@@ -19,5 +19,10 @@ export function shouldUseEnvelope(inst: InstrumentNode): boolean {
     return true;
   }
 
+  // If env_period or env_pitch is set, envelope is used
+  if (inst.env_period !== undefined || inst.env_pitch !== undefined) {
+    return true;
+  }
+
   return inst.vol === undefined && env !== 'none';
 }
