@@ -278,5 +278,5 @@ No user-facing changes. The exporter `id` (`"vgm"`), CLI usage, and Web UI menu 
 - Exporter registry: `packages/engine/src/export/registry.ts`
 - Web UI exporter config: `apps/web-ui/src/plugins/exporter-registry-config.ts`
 - VGM specification: https://vgmrips.net/wiki/VGM_Specification
-- AY-3-8910 hardware guide: `docs/chips/ay/hardware_guide.md`
+- ZX Spectrum 128 hardware guide: `docs/chips/zx-spectrum-128/hardware_guide.md`
 - Existing VGM exporter feature doc: `docs/features/vgm-exporter-plugin.md`

@@ -280,7 +280,7 @@ describe('macro state', () => {
 
 ```typescript
 // Music utilities for exporters and plugins
-export { 
+export {
   NOTE_SEMITONES,
   noteToMidi,
   midiToNote,
@@ -297,7 +297,7 @@ export {
 **`packages/engine/src/index.ts`** — also re-export for public API:
 
 ```typescript
-export { 
+export {
   NOTE_SEMITONES,
   noteToMidi,
   midiToNote,
@@ -601,13 +601,13 @@ packages/
 
 ## Benefits
 
-✓ **Single Source of Truth** — One definition of `noteToMidi`, `parseMacro`, etc.  
-✓ **Reduced Duplication** — Eliminates 20+ copies across codebase  
-✓ **Easier Maintenance** — Bug fixes and features require one change  
-✓ **Consistent Behavior** — All plugins use identical utilities  
-✓ **Scalable Architecture** — Future chip backends (AY, YM2413) reuse existing code  
-✓ **Better Testing** — Centralized utilities have centralized tests  
-✓ **Smaller Bundle** — No code duplication  
+✓ **Single Source of Truth** — One definition of `noteToMidi`, `parseMacro`, etc.
+✓ **Reduced Duplication** — Eliminates 20+ copies across codebase
+✓ **Easier Maintenance** — Bug fixes and features require one change
+✓ **Consistent Behavior** — All plugins use identical utilities
+✓ **Scalable Architecture** — Future chip backends (AY, YM2413) reuse existing code
+✓ **Better Testing** — Centralized utilities have centralized tests
+✓ **Smaller Bundle** — No code duplication
 
 ---
 
@@ -628,4 +628,4 @@ packages/
 - SMS period tables: [packages/plugins/chip-sms/src/periodTables.ts](packages/plugins/chip-sms/src/periodTables.ts)
 - VGM exporter SMS backend: [packages/plugins/export-vgm/src/backends/sms.ts](packages/plugins/export-vgm/src/backends/sms.ts)
 - Multi-chip architecture: [docs/features/vgm-exporter-multi-chip-architecture.md](docs/features/vgm-exporter-multi-chip-architecture.md)
-- AY-3-8910 chip plugin spec: [docs/features/ay3-8910-chip-plugin.md](docs/features/ay3-8910-chip-plugin.md)
+- ZX Spectrum 128 chip plugin spec: [docs/features/zx-spectrum-128-chip-plugin.md](docs/features/zx-spectrum-128-chip-plugin.md)
