@@ -6,6 +6,8 @@ created: 2026-05-10
 issue: "https://github.com/kadraman/beatbax/issues/105"
 ---
 
+This is an old document, please see engine-entrypoint-runtime-split.md for master document.
+
 ## Summary
 
 Consolidate scattered pitch and macro utilities across the codebase into a single authoritative location in the BeatBax engine, then extract the chip-agnostic effects simulation engine from the VGM exporter's SMS backend into a reusable module. This eliminates 20+ duplicate function definitions, reduces maintenance burden, and sets up clean architecture for adding new chip backends (AY-3-8910, YM2413, etc.).
