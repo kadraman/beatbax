@@ -7,9 +7,14 @@ export const KeyMod = {
 };
 
 export const KeyCode = {
+  KeyD: 24,
+  KeyE: 25,
+  KeyF: 27,
+  KeyH: 35,
   KeyJ: 36,
   KeyM: 43,
   KeyP: 52,
+  KeyR: 53,
   KeyV: 60,
   Space: 10,
   Escape: 9,
