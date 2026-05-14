@@ -506,7 +506,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const isIdentifier = /^[A-Za-z_][A-Za-z0-9_]*$/.test(selectedText);
       if (isIdentifier) {
         const source = getSource();
-        const isSeq = new RegExp(`^\\s*seq\\s+${selectedText}\\s*=`, 'm').test(source);
+        const isSeq = new RegExp(`^\\s*seq\\s+${escapeRegex(selectedText)}\\s*=`, 'm').test(source);
         editor.trigger('', isSeq ? 'beatbax.previewSeq' : 'beatbax.previewPattern', selectedText);
         return;
       }
@@ -691,13 +691,13 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const name = typeof patternName === 'string' && patternName.trim()
         ? patternName.trim()
         : getWordUnderCursor(editor) ?? '';
-      if (!name) { showToast('No pattern name under cursor'); return; }
+      if (!name || !isValidIdentifier(name)) { showToast('No pattern name under cursor'); return; }
 
       // Find pattern body in source
       const lines = source.split('\n');
       let body = '';
       for (const line of lines) {
-        const m = line.match(new RegExp(`^\\s*pat\\s+${name}\\s*=\\s*(.*)`));
+        const m = line.match(new RegExp(`^\\s*pat\\s+${escapeRegex(name)}\\s*=\\s*(.*)`));
         if (m) { body = m[1].trim(); break; }
       }
       if (!body) { showToast(`Pattern '${name}' not found`); return; }
@@ -746,14 +746,14 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const name = typeof seqName === 'string' && seqName.trim()
         ? seqName.trim()
         : getWordUnderCursor(editor) ?? '';
-      if (!name) { showToast('No sequence name under cursor'); return; }
+      if (!name || !isValidIdentifier(name)) { showToast('No sequence name under cursor'); return; }
 
       const lines = source.split('\n');
 
       // Find the sequence body
       let seqBody = '';
       for (const line of lines) {
-        const m = line.match(new RegExp(`^\\s*seq\\s+${name}\\s*=\\s*(.*)`));
+        const m = line.match(new RegExp(`^\\s*seq\\s+${escapeRegex(name)}\\s*=\\s*(.*)`));
         if (m) { seqBody = m[1].trim(); break; }
       }
       if (!seqBody) { showToast(`Sequence '${name}' not found`); return; }
@@ -761,7 +761,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // Find instrument from existing channel assignment or first declared inst
       let instName: string | null = null;
       for (const line of lines) {
-        const m = line.match(new RegExp(`^\\s*channel\\s+\\d+\\s*=>\\s*inst\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+seq\\s+${name}`));
+        const m = line.match(new RegExp(`^\\s*channel\\s+\\d+\\s*=>\\s*inst\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+seq\\s+${escapeRegex(name)}`));
         if (m) { instName = m[1]; break; }
       }
       if (!instName) {
@@ -846,7 +846,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
       // Generate unique name
       let n = 2;
-      while (new RegExp(`^\\s*pat\\s+${origName}_${n}\\s*=`, 'm').test(source)) n++;
+      while (new RegExp(`^\\s*pat\\s+${escapeRegex(origName)}_${n}\\s*=`, 'm').test(source)) n++;
       const newName = `${origName}_${n}`;
 
       const newLine = `${m[1]}${newName}${m[3]}`;
@@ -885,7 +885,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const origName = m[2];
 
       let n = 2;
-      while (new RegExp(`^\\s*seq\\s+${origName}_${n}\\s*=`, 'm').test(source)) n++;
+      while (new RegExp(`^\\s*seq\\s+${escapeRegex(origName)}_${n}\\s*=`, 'm').test(source)) n++;
       const newName = `${origName}_${n}`;
 
       const newLine = `${m[1]}${newName}${m[3]}`;
@@ -924,7 +924,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       }
 
       const source = model.getValue();
-      if (new RegExp(`^\\s*(?:pat|seq|inst)\\s+${newName}\\s*=`, 'm').test(source)) {
+      if (new RegExp(`^\\s*(?:pat|seq|inst)\\s+${escapeRegex(newName)}\\s*=`, 'm').test(source)) {
         showToast(`'${newName}' already exists`);
         return;
       }
@@ -933,7 +933,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // Word boundaries (\b) are reliable for identifiers since BeatBax names
       // only contain [A-Za-z0-9_] characters.
       const updated = source.replace(
-        new RegExp(`\\b${word}\\b`, 'g'),
+        new RegExp(`\\b${escapeRegex(word)}\\b`, 'g'),
         newName,
       );
 
@@ -1060,7 +1060,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         // A definition is referenced if its name appears somewhere other than
         // its own definition line.
         const lines = source.split('\n');
-        const nameRe = new RegExp(`\\b${def.name}\\b`);
+        const nameRe = new RegExp(`\\b${escapeRegex(def.name)}\\b`);
         let refCount = 0;
         for (let i = 0; i < lines.length; i++) {
           if (i + 1 === def.lineNumber) continue; // skip definition line itself
@@ -1097,12 +1097,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     run: async () => {
       const source = getSource();
       const word = getWordUnderCursor(editor);
-      if (!word) { showToast('No pattern name under cursor'); return; }
+      if (!word || !isValidIdentifier(word)) { showToast('No pattern name under cursor'); return; }
 
       const lines = source.split('\n');
       let body = '';
       for (const line of lines) {
-        const m = line.match(new RegExp(`^\\s*pat\\s+${word}\\s*=\\s*(.*)`));
+        const m = line.match(new RegExp(`^\\s*pat\\s+${escapeRegex(word)}\\s*=\\s*(.*)`));
         if (m) { body = m[1]; break; }
       }
       if (!body) { showToast(`Pattern '${word}' not found`); return; }
@@ -1171,7 +1171,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         .filter(t => ID_RE.test(t));
         for (const tok of tokens) {
           if (!patDefs.has(tok) && !seqDefs.has(tok)) {
-            const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
+            const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${escapeRegex(seqName)}\\s*=`));
             issues.push({ msg: `✗ In seq '${seqName}': unknown reference '${tok}'`, lineNumber: lineNo });
           }
         }
@@ -1194,7 +1194,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       for (const seqName of seqDefs) {
         visited.clear(); recStack.clear();
         if (hasCycle(seqName)) {
-          const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${seqName}\\s*=`));
+          const lineNo = findLineNumber(source, new RegExp(`^\\s*seq\\s+${escapeRegex(seqName)}\\s*=`));
           issues.push({ msg: `✗ Circular sequence reference involving '${seqName}'`, lineNumber: lineNo });
         }
       }
