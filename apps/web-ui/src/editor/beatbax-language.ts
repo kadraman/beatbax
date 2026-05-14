@@ -632,7 +632,7 @@ export function registerBeatBaxLanguage(): void {
         [/\b(defaults)\b(?=\s*\()/, 'attribute'],
 
         // Instrument/Effect property names (MUST come before keywords since 'volume' and 'wave' conflict)
-        [/\b(type|duty|env|wave|sweep|volume|gm|length|lfsr|speed|depth|mode|delay|feedback|mix|interval|volumeDelta|waveform|note|width|inst)\b(?=\s*=)/, 'attribute'],
+        [/\b(type|duty|env|wave|sweep|volume|gm|length|lfsr|speed|depth|mode|delay|feedback|mix|interval|volumeDelta|waveform|note|width|inst|vol|noise|noise_rate|use_envelope|vol_env|arp_env|pitch_env|noise_rate_env)\b(?=\s*=)/, 'attribute'],
 
         // Song metadata properties (appear after 'song' directive)
         [/\b(name|artist|author|description|tags)\b(?=\s+")/, 'attribute'],
@@ -1002,8 +1002,76 @@ export function registerBeatBaxLanguage(): void {
       const word = model.getWordAtPosition(position);
       if (!word) return null;
 
+      // Special-case chip directive values so hovering `atari-st` (etc.)
+      // returns meaningful chip metadata instead of requiring hover on `chip`.
+      const lineText = model.getLineContent(position.lineNumber);
+      const chipValueMatch = /^\s*chip\s+([a-zA-Z][\w-]*)/.exec(lineText);
+      if (chipValueMatch) {
+        const rawChip = chipValueMatch[1];
+        const valueStart = lineText.indexOf(rawChip) + 1;
+        const valueEnd = valueStart + rawChip.length;
+        if (position.column >= valueStart && position.column <= valueEnd) {
+          const canonicalChip = chipRegistry.resolve(rawChip.toLowerCase());
+          const plugin = chipRegistry.get(canonicalChip);
+          const aliases = chipRegistry.aliasesFor(canonicalChip);
+          const metadata = plugin?.newSongWizard?.metadata;
+
+          const lines: string[] = [];
+          lines.push(`**Chip target**: \`${rawChip}\``);
+          lines.push(
+            rawChip.toLowerCase() === canonicalChip
+              ? `Canonical id: \`${canonicalChip}\``
+              : `Resolves to canonical id: \`${canonicalChip}\``,
+          );
+
+          if (plugin) {
+            lines.push(`Channels: **${plugin.channels}**`);
+            if (aliases.length > 0) {
+              lines.push(`Aliases: ${aliases.map((a) => `\`${a}\``).join(', ')}`);
+            }
+            if (metadata?.chipDisplayName) {
+              lines.push(`Display: **${metadata.chipDisplayName}**`);
+            }
+            if (metadata?.platform) {
+              lines.push(`Platform: **${metadata.platform}**`);
+            }
+            if (metadata?.channelSummary) {
+              lines.push(metadata.channelSummary);
+            }
+          }
+
+          lines.push('Example: `chip gameboy`, `chip atari-st`, `chip nes`');
+
+          return {
+            range: new monaco.Range(position.lineNumber, valueStart, position.lineNumber, valueEnd),
+            contents: [{ value: lines.join('  \n') }],
+          };
+        }
+      }
+
+      // Build the chip hover doc dynamically so it always reflects installed plugins.
+      const installedChips = (() => {
+        const canonical = chipRegistry.listCanonical();
+        return canonical.map((name) => {
+          const plugin = chipRegistry.get(name);
+          const aliases = chipRegistry.aliasesFor(name);
+          const allNames = [name, ...aliases].map((n) => `\`${n}\``).join(', ');
+          const meta = plugin?.newSongWizard?.metadata;
+          const summary = meta?.chipDisplayName
+            ? `${meta.chipDisplayName}${meta.platform ? ` (${meta.platform})` : ''}`
+            : `${plugin?.channels ?? '?'} ch`;
+          return `- ${allNames} — ${summary}`;
+        }).join('\n');
+      })();
+
       const hoverDocs: Record<string, string> = {
-        chip: 'Sets the target audio chip. Example: `chip gameboy`',
+        chip: [
+          '**chip** — sets the target audio chip for this song.',
+          '```\nchip <chipId>\n```',
+          '**Installed chips:**',
+          installedChips,
+          'Example: `chip gameboy`, `chip atari-st`, `chip nes`',
+        ].join('\n\n'),
         bpm: 'Sets the tempo in beats per minute. Example: `bpm 120`',
         time: 'Sets beats per bar (time signature numerator). Example: `time 4`',
         stepsPerBar: 'Alternative to `time`. Sets steps per bar.',
@@ -1183,6 +1251,28 @@ export function registerBeatBaxLanguage(): void {
         if (inst.noise !== undefined) {
           const noiseStr = typeof inst.noise === 'string' ? inst.noise : JSON.stringify(inst.noise);
           props.push(`noise=${noiseStr}`);
+        }
+        if (inst.noise_rate !== undefined) props.push(`noise_rate=${inst.noise_rate}`);
+        if (inst.vol !== undefined) {
+          const volStr = typeof inst.vol === 'string' ? inst.vol : inst.vol;
+          props.push(`vol=${volStr}`);
+        }
+        if (inst.use_envelope !== undefined) props.push(`use_envelope=${inst.use_envelope}`);
+        if ((inst as any).vol_env !== undefined) {
+          const volEnvStr = Array.isArray((inst as any).vol_env) ? `[${(inst as any).vol_env.join(',')}]` : (inst as any).vol_env;
+          props.push(`vol_env=${volEnvStr}`);
+        }
+        if ((inst as any).arp_env !== undefined) {
+          const arpEnvStr = Array.isArray((inst as any).arp_env) ? `[${(inst as any).arp_env.join(',')}]` : (inst as any).arp_env;
+          props.push(`arp_env=${arpEnvStr}`);
+        }
+        if ((inst as any).pitch_env !== undefined) {
+          const pitchEnvStr = Array.isArray((inst as any).pitch_env) ? `[${(inst as any).pitch_env.join(',')}]` : (inst as any).pitch_env;
+          props.push(`pitch_env=${pitchEnvStr}`);
+        }
+        if ((inst as any).noise_rate_env !== undefined) {
+          const nrEnvStr = Array.isArray((inst as any).noise_rate_env) ? `[${(inst as any).noise_rate_env.join(',')}]` : (inst as any).noise_rate_env;
+          props.push(`noise_rate_env=${nrEnvStr}`);
         }
 
         return {

@@ -68,7 +68,42 @@ describe('BeatBax Monaco hover provider', () => {
     const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 2 });
 
     expect(hover).toBeTruthy();
+    // Chip keyword hover should now list installed chips
     expect(hover.contents[0].value).toContain('target audio chip');
+    expect(hover.contents[0].value).toContain('gameboy');
+  });
+
+  test('chip keyword hover lists all installed chips', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'chip gameboy';
+
+    const model = {
+      getLineContent: jest.fn(() => line),
+      getWordAtPosition: jest.fn(() => ({ word: 'chip', startColumn: 1, endColumn: 5 })),
+    } as any;
+
+    // Hover on the 'chip' keyword token itself (column 2 is inside 'chip')
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 2 });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('Installed chips');
+    expect(hover.contents[0].value).toContain('`gameboy`');
+  });
+
+  test('shows hover docs when hovering chip directive value', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'chip atari-st';
+
+    const model = {
+      getLineContent: jest.fn(() => line),
+      getWordAtPosition: jest.fn(() => ({ word: 'atari', startColumn: 6, endColumn: 11 })),
+    } as any;
+
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 8 });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('Chip target');
+    expect(hover.contents[0].value).toContain('atari-st');
   });
 
   test('suppresses hovers on continuation lines inside triple-quoted metadata', () => {
