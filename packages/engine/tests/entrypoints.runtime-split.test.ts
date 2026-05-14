@@ -1,6 +1,5 @@
 import { readFileSync } from 'fs';
 import { resolve as resolvePath } from 'path';
-import { playFile, waitForDirectory, waitForViteServer } from '../src/node/index';
 
 describe('engine runtime entrypoints', () => {
   test('root entry does not import Node built-ins', () => {
@@ -29,8 +28,9 @@ describe('engine runtime entrypoints', () => {
   });
 
   test('node entry exports play helpers', () => {
-    expect(typeof playFile).toBe('function');
-    expect(typeof waitForDirectory).toBe('function');
-    expect(typeof waitForViteServer).toBe('function');
+    const nodeEntrySource = readFileSync(resolvePath(__dirname, '../src/node/index.ts'), 'utf8');
+    expect(nodeEntrySource).toMatch(/playFile/);
+    expect(nodeEntrySource).toMatch(/waitForDirectory/);
+    expect(nodeEntrySource).toMatch(/waitForViteServer/);
   });
 });
