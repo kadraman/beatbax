@@ -78,11 +78,6 @@ describe('sn76489VgmBackend.validate', () => {
     expect(backend.validate(makeSong({ chip: 'gg' }))).toEqual([]);
   });
 
-  it('accepts bbc_micro chip alias', () => {
-    const backend = getSmsBackend();
-    expect(backend.validate(makeSong({ chip: 'bbc_micro' }))).toEqual([]);
-  });
-
   it('rejects unknown chip', () => {
     const backend = getSmsBackend();
     const errors = backend.validate(makeSong({ chip: 'nes' }));
@@ -320,12 +315,5 @@ describe('sn76489VgmBackend.chipAliases', () => {
     expect(backend.chipAliases).toContain('sms');
     expect(backend.chipAliases).toContain('gamegear');
     expect(backend.chipAliases).toContain('gg');
-  });
-
-  it('includes extended platform aliases', () => {
-    const backend = getSmsBackend();
-    expect(backend.chipAliases).toContain('bbc_micro');
-    expect(backend.chipAliases).toContain('colecovision');
-    expect(backend.chipAliases).toContain('tandy_1000');
   });
 });

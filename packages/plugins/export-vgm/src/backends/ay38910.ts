@@ -1,9 +1,9 @@
 /**
- * AY-3-8910 / YM2149 VGM backend stub.
+ * AY-3-8910 VGM backend stub.
  *
- * Returns a validation error when export is attempted on an AY song,
+ * Returns a validation error when export is attempted on an AY-3-8910 song,
  * so the dispatcher produces a clear diagnostic instead of
- * "no backend registered for chip=ay".
+ * "no backend registered for chip=zx-spectrum-128".
  *
  * Full AY-3-8910 VGM translation will be implemented in a follow-up PR.
  */
@@ -13,7 +13,7 @@ import type { Gd3Fields } from '../gd3.js';
 import type { VgmHeaderParams } from '../vgmWriter.js';
 
 export const ay38910VgmBackend: VgmBackend = {
-  chipAliases: ['ay', 'ym2149', 'ay38910', 'amstrad-cpc', 'atari-st', 'msx', 'zx-spectrum-128', 'oric-1', 'colour-genie', 'apple-ii-mockingboard', 'intellivision', 'vectrex'],
+  chipAliases: ['ay', 'ay38910','zx-spectrum-128', 'amstrad-cpc'],
 
   validate(_song: SongLike): string[] {
     return ['AY-3-8910 VGM backend is not yet implemented.'];
@@ -32,5 +32,3 @@ export const ay38910VgmBackend: VgmBackend = {
   },
 };
 
-// Backward-compatible alias for older imports.
-export const ayVgmBackend = ay38910VgmBackend;
