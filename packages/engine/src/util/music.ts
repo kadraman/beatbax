@@ -39,9 +39,25 @@ export function midiToNote(n: number): string {
 
 /**
  * Convert MIDI note number to frequency (Hz) using equal temperament.
+ * A4 (MIDI 69) = 440 Hz
+ * f = 440 * 2^((n - 69) / 12)
+ *
+ * Used by all exporters. Chip plugins may override with hardware-accurate versions.
  */
 export function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+/**
+ * Convert a note name to frequency in Hz using equal temperament (A4 = 440 Hz).
+ * Returns null if the note name cannot be parsed.
+ *
+ * Convenience wrapper combining noteToMidi() and midiToFreq().
+ */
+export function midiToFreqForNote(noteName: string): number | null {
+  const midi = noteToMidi(noteName);
+  if (midi === null) return null;
+  return midiToFreq(midi);
 }
 
 export interface ParsedMacro {

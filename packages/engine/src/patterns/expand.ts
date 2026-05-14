@@ -9,65 +9,9 @@
  * - Transpose by semitones or octaves via helper functions
  */
 
-const NOTE_BASE: Record<string, number> = {
-  C: 0,
-  'C#': 1,
-  DB: 1,
-  D: 2,
-  'D#': 3,
-  EB: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  GB: 6,
-  G: 7,
-  'G#': 8,
-  AB: 8,
-  A: 9,
-  'A#': 10,
-  BB: 10,
-  B: 11,
-};
+import { noteToMidi, midiToNote } from '../util/music.js';
 
-function normalizeNoteName(name: string): { letter: string; accidental: string | null; octave: number } | null {
-  const m = name.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
-  if (!m) return null;
-  const letter = m[1].toUpperCase();
-  const accidental = m[2] || null;
-  const octave = parseInt(m[3], 10);
-  return { letter, accidental, octave };
-}
-
-export function noteToMidi(note: string): number | null {
-  const p = normalizeNoteName(note);
-  if (!p) return null;
-  const key = p.letter + (p.accidental ? (p.accidental === 'b' ? 'B' : '#') : '');
-  const semitone = NOTE_BASE[key as keyof typeof NOTE_BASE];
-  if (semitone === undefined) return null;
-  // MIDI: C4 = 60. So calculate from octave.
-  // octave numbers follow scientific pitch: C4=60
-  return (p.octave + 1) * 12 + semitone; // because octave -1 would be MIDI starting at C-1 = 0
-}
-
-export function midiToNote(n: number): string {
-  const octave = Math.floor(n / 12) - 1;
-  const pitch = n % 12;
-  const names: Record<number, string> = {
-    0: 'C',
-    1: 'C#',
-    2: 'D',
-    3: 'D#',
-    4: 'E',
-    5: 'F',
-    6: 'F#',
-    7: 'G',
-    8: 'G#',
-    9: 'A',
-    10: 'A#',
-    11: 'B',
-  };
-  return `${names[pitch]}${octave}`;
-}
+export { noteToMidi, midiToNote };
 
 /** Expand a pattern string into an array of tokens.
  * Grammar (informal):
