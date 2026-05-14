@@ -1,8 +1,9 @@
 ---
 title: "Engine Entrypoint Runtime Split (Node vs Browser)"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-05-10
+updated: 2026-05-14
 issue: "TBD"
 ---
 
@@ -11,6 +12,27 @@ issue: "TBD"
 Split `@beatbax/engine` root exports into runtime-specific entrypoints so browser builds never parse Node-only modules. This removes the need for `dynamicNodeImport` indirection and fixes Vite/Web bundler failures caused by Node built-ins (`fs`, `http`, `path`, `url`, `child_process`) leaking into browser dependency graphs.
 
 The public package remains `@beatbax/engine`, but package `exports` become explicit about browser vs node entry selection. Runtime-specific code is moved out of the mixed root entry.
+
+## Implementation Status (2026-05-14)
+
+Implemented in this branch:
+
+- Added `@beatbax/engine/node` subpath exports and Node entry surface.
+- Moved Node operational helpers (`playFile`, `waitForDirectory`, `waitForViteServer`) into `packages/engine/src/node/play.ts`.
+- Removed Node operational helpers from `packages/engine/src/index.ts` (root entry now runtime-safe exports only).
+- Migrated CLI usage to `@beatbax/engine/node` imports.
+- Added runtime split contract tests in `packages/engine/tests/entrypoints.runtime-split.test.ts`.
+
+Verification performed:
+
+- `npm -w packages/engine test -- entrypoints.runtime-split.test.ts --runInBand` passed.
+- `npm -w packages/engine test -- nodeAudioPlayer.warn.test.ts --runInBand` passed.
+- `npm -w apps/web-ui run build` completed successfully.
+- `npm -w apps/web-ui run dev:clean` reached Vite ready without the previous `fs/promises` import-analysis failure.
+
+Known follow-up:
+
+- Web UI build still reports separate non-blocking warnings (including `path` externalization through `dist/song/importResolver.js`), which should be tracked independently from this entrypoint split.
 
 ## Problem Statement
 
@@ -116,28 +138,24 @@ No ISM/export semantic changes.
 - `packages/cli`: play command continues to function in Node.
 - Existing engine/plugin tests remain green (no functional regressions).
 
-## Migration Path
+## Migration Outcome
 
-1. Add `@beatbax/engine/node` entry without removing existing root exports immediately.
-2. Migrate internal consumers (CLI, scripts) first.
-3. Migrate plugin/web-ui imports as needed.
-4. Deprecate Node operational exports from root entry.
-5. Remove deprecated root Node exports in next planned breaking window (or keep compatibility shim if desired).
-
-Backward compatibility recommendation:
-- Keep root re-export of `playFile` temporarily with deprecation warning in docs only.
+1. Added `@beatbax/engine/node` entrypoint.
+2. Migrated internal consumers (CLI) to the Node subpath.
+3. Removed Node operational helpers from root exports.
+4. Added tests to prevent regressions in runtime boundaries.
 
 ## Implementation Checklist
 
-- [ ] Create `packages/engine/src/node/play.ts` (move Node-only play/launch helpers).
-- [ ] Reduce `packages/engine/src/index.ts` to browser-safe/core exports only.
-- [ ] Add `packages/engine/src/node/index.ts` re-export surface.
-- [ ] Update `packages/engine/package.json` `exports` with `./node` subpath.
-- [ ] Update CLI imports to `@beatbax/engine/node`.
-- [ ] Remove `dynamicNodeImport` from root entry after split.
-- [ ] Add test/guard to prevent Node built-ins in browser-safe entry files.
-- [ ] Verify web-ui `dev:clean` and build workflows.
-- [ ] Update docs (API + plugin authoring runtime-boundary guidance).
+- [x] Create `packages/engine/src/node/play.ts` (move Node-only play/launch helpers).
+- [x] Reduce `packages/engine/src/index.ts` to browser-safe/core exports only.
+- [x] Add `packages/engine/src/node/index.ts` re-export surface.
+- [x] Update `packages/engine/package.json` `exports` with `./node` subpath.
+- [x] Update CLI imports to `@beatbax/engine/node`.
+- [x] Remove `dynamicNodeImport` from root entry after split.
+- [x] Add test/guard to prevent Node built-ins in browser-safe entry files.
+- [x] Verify web-ui `dev:clean` and build workflows.
+- [x] Update docs (API + plugin authoring runtime-boundary guidance).
 
 ## Future Enhancements
 
