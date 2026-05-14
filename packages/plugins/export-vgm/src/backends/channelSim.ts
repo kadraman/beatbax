@@ -46,7 +46,7 @@ export type { ParsedMacro, MacroState };
 
 /**
  * Note name → frequency in Hz.
- * Returns 0 if the note name is unparseable (matches legacy behaviour for backends).
+ * Returns 0 if the note name is unparseable (matches legacy behavior for backends).
  * Delegates to the centralized engine utility.
  */
 export function midiToFreqForNote(noteName: string): number {

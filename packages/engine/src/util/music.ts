@@ -49,7 +49,7 @@ export function midiToFreq(midi: number): number {
 }
 
 /**
- * Convert a note name to frequency in Hz using equal temperament.
+ * Convert a note name to frequency in Hz using equal temperament (A4 = 440 Hz).
  * Returns null if the note name cannot be parsed.
  *
  * Convenience wrapper combining noteToMidi() and midiToFreq().
