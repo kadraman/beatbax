@@ -299,13 +299,15 @@ export class Player {
         activePlugin.createChannel(i, this.ctx)
       );
       if (typeof (this.ctx as any).createScriptProcessor === 'function') {
-        const plugBufSize = 4096;
+        // Smaller callback blocks reduce note timing quantization in PCM fallback.
+        const plugBufSize = 512;
         const proc = (this.ctx as any).createScriptProcessor(plugBufSize, 0, 1);
         const backends = this._pluginBackends;
         const plugTempBuf = new Float32Array(plugBufSize);
         // Envelope/macro timing must be driven at the chip frame rate (~60 Hz for NES/GB),
-        // NOT once per ScriptProcessorNode callback.  A 4096-sample buffer at 44100 Hz
-        // fires every ~93 ms — far too slow for envelope steps that are supposed to tick
+        // NOT once per ScriptProcessorNode callback. Even with smaller buffers,
+        // keep accumulator-based frame stepping so envelopes stay deterministic.
+        // A 4096-sample buffer at 44100 Hz fires every ~93 ms — far too slow for envelope steps that are supposed to tick
         // every ~16.7 ms.  Mirror the accumulator approach used in pcmRenderer.ts:
         // count rendered samples and call applyEnvelope() once per samplesPerFrame samples.
         let plugFrameCounter = 0;       // counts completed 60 Hz frames (passed to applyEnvelope)
@@ -592,6 +594,23 @@ export class Player {
     }
   }
 
+  /**
+   * For PCM plugin paths, scheduler lookahead can execute callbacks early.
+   * Align noteOn/noteOff to the target audio time to avoid occasional
+   * double-attack artifacts on sustained notes.
+   */
+  private runPluginPcmAtTime(targetTime: number, fn: () => void) {
+    const now = this.ctx && typeof this.ctx.currentTime === 'number'
+      ? this.ctx.currentTime
+      : Date.now() / 1000;
+    const deltaMs = Math.max(0, Math.round((targetTime - now) * 1000));
+    if (deltaMs <= 1) {
+      fn();
+      return;
+    }
+    setTimeout(fn, deltaMs);
+  }
+
   private scheduleToken(chId: number, inst: any, instsMap: Record<string, any>, token: any, time: number, dur: number, tickSeconds?: number) {
     if (token === '.') return;
 
@@ -631,8 +650,14 @@ export class Player {
                 for (const n of nodes) this.activeNodes.push({ node: n, chId: capturedChId, endTime });
               } else {
                 // Backend declined Web Audio for this note — fall back to PCM path.
-                backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
-                this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+                this.runPluginPcmAtTime(time, () => {
+                  if (this.solo !== null && this.solo !== capturedChId) return;
+                  if (this.muted.has(capturedChId)) return;
+                  backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
+                });
+                this.scheduler.schedule(time + capturedDur, () => {
+                  this.runPluginPcmAtTime(time + capturedDur, () => { backend.noteOff(); });
+                });
               }
             });
           } else {
@@ -645,9 +670,15 @@ export class Player {
               if (this.muted.has(capturedChId)) return;
               // Use the instrument's note= frequency; fall back to A4 (440 Hz) only when
               // no note field is defined and the instrument is not noise/DMC.
-              backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
+              this.runPluginPcmAtTime(time, () => {
+                if (this.solo !== null && this.solo !== capturedChId) return;
+                if (this.muted.has(capturedChId)) return;
+                backend.noteOn(capturedFreqFromInst || 440, capturedAlt);
+              });
             });
-            this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+            this.scheduler.schedule(time + capturedDur, () => {
+              this.runPluginPcmAtTime(time + capturedDur, () => { backend.noteOff(); });
+            });
           }
         }
         return;
@@ -754,8 +785,14 @@ export class Player {
               } else {
                 // Backend declined Web Audio for this note — fall back to PCM path.
                 // Pass effectiveInst (with merged inline effects) not capturedInst.
-                backend.noteOn(capturedFreq, effectiveInst);
-                this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+                this.runPluginPcmAtTime(time, () => {
+                  if (this.solo !== null && this.solo !== capturedChId) return;
+                  if (this.muted.has(capturedChId)) return;
+                  backend.noteOn(capturedFreq, effectiveInst);
+                });
+                this.scheduler.schedule(time + capturedDur, () => {
+                  this.runPluginPcmAtTime(time + capturedDur, () => { backend.noteOff(); });
+                });
               }
             });
           } else {
@@ -766,9 +803,15 @@ export class Player {
               }
               if (this.solo !== null && this.solo !== capturedChId) return;
               if (this.muted.has(capturedChId)) return;
-              backend.noteOn(capturedFreq, capturedInst);
+              this.runPluginPcmAtTime(time, () => {
+                if (this.solo !== null && this.solo !== capturedChId) return;
+                if (this.muted.has(capturedChId)) return;
+                backend.noteOn(capturedFreq, capturedInst);
+              });
             });
-            this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
+            this.scheduler.schedule(time + capturedDur, () => {
+              this.runPluginPcmAtTime(time + capturedDur, () => { backend.noteOff(); });
+            });
           }
         }
         return;

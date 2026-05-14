@@ -279,7 +279,7 @@ class Ay3WorkletProcessor extends AudioWorkletProcessor {
 
     const left = out[0];
     const right = out[1];
-    const ratio = this.chipClock / (8 * sampleRate);
+    const ratio = this.chipClock / sampleRate;
     const baseTime = currentTime;
 
     for (let i = 0; i < left.length; i += 1) {
@@ -298,8 +298,10 @@ class Ay3WorkletProcessor extends AudioWorkletProcessor {
       const b = this.emulator.channel(1);
       const c = this.emulator.channel(2);
 
-      left[i] = (a * 0.75) + (b * 0.5) + (c * 0.25);
-      right[i] = (a * 0.25) + (b * 0.5) + (c * 0.75);
+      // Stereo pan mixing: scale coefficients to avoid clipping (they sum to 1.5).
+      // Divide by 1.5 (equivalent to multiplying by 2/3) to keep output in [-1, 1].
+      left[i] = ((a * 0.75) + (b * 0.5) + (c * 0.25)) * (2/3);
+      right[i] = ((a * 0.25) + (b * 0.5) + (c * 0.75)) * (2/3);
     }
 
     return true;

@@ -60,7 +60,9 @@ interface AyChannelState {
   noiseRateEnvState: MacroState;
 }
 
-const PCM_PLUGIN_CHUNK = 512;
+// Must be >= real-time callback block size (ScriptProcessor uses 4096 in engine)
+// so render() can read the full [start, end) window from the circular cache.
+const PCM_PLUGIN_CHUNK = 8192;
 
 const ENV_SHAPE_TO_R13: Record<AyEnvelopeShape, number> = {
   none: 0,
@@ -96,7 +98,12 @@ function noteToEnvPeriod(noteName: string, chipClock: number): number | null {
   return clamp(Math.floor(chipClock / (256 * freq)), 0, 0xffff);
 }
 
-function buildRegisterPatches(channelIndex: AyChannelIndex, state: AyChannelState, chipClock: number): RegisterPatch[] {
+function buildRegisterPatches(
+  channelIndex: AyChannelIndex,
+  state: AyChannelState,
+  chipClock: number,
+  mixerReg?: number,
+): RegisterPatch[] {
   const toneFineReg = channelIndex * 2;
   const toneCoarseReg = toneFineReg + 1;
   const ampReg = 8 + channelIndex;
@@ -105,6 +112,10 @@ function buildRegisterPatches(channelIndex: AyChannelIndex, state: AyChannelStat
   const tonePeriod = toTonePeriod(state.frequency, chipClock);
   patches.push({ r: toneFineReg, v: tonePeriod & 0xff });
   patches.push({ r: toneCoarseReg, v: (tonePeriod >> 8) & 0x0f });
+
+  if (typeof mixerReg === 'number') {
+    patches.push({ r: 7, v: mixerReg & 0x3f });
+  }
 
   patches.push({ r: 6, v: clamp(state.noiseRate, 0, 31) });
 
@@ -182,7 +193,7 @@ function ensureRendered(shared: AySharedContext, endExclusive: number, sampleRat
     shared.sampleRate = rate;
   }
 
-  const ratio = shared.config.chipClock / (8 * rate);
+  const ratio = shared.config.chipClock / rate;
   for (let sampleIdx = shared.emulatorCursor; sampleIdx < endExclusive; sampleIdx += 1) {
     shared.clockAccumulator += ratio;
     while (shared.clockAccumulator >= 1) {
@@ -369,7 +380,9 @@ export function createAyChannel(
         if (period !== null) state.envPeriodOverride = period;
       }
 
-      if (channelIndex === 0 && !shared.startedPCM) {
+      // Initialize shared emulator once on the first PCM note, regardless of
+      // which AY channel triggers first.
+      if (!shared.startedPCM) {
         resetSharedPCM(shared);
         shared.startedPCM = true;
       }
@@ -381,13 +394,10 @@ export function createAyChannel(
       state.active = false;
       shared.emulator.writeRegister(8 + channelIndex, 0);
       updateMixerBits(shared, channelIndex, false, false);
-      if (shared.workletNode) {
-        shared.workletNode.port.postMessage({
-          type: 'noteOff',
-          channel: channelIndex,
-          scheduledTime: 0,
-        });
-      }
+      // Do NOT send noteOff to the worklet here. The worklet's noteOff is already
+      // scheduled with the correct `scheduledTime` via `createPlaybackNodes`.
+      // Sending scheduledTime:0 from the PCM path would fire immediately in the
+      // next audio buffer and silence the channel mid-note for all subsequent notes.
     },
 
     setFrequency(frequency: number): void {
@@ -430,6 +440,12 @@ export function createAyChannel(
     render(buffer: Float32Array, sampleRate: number): void {
       if (!state.active) return;
 
+      // In browser playback, once the worklet path is connected, avoid rendering
+      // the same note stream again through the ScriptProcessor fallback.
+      if (typeof window !== 'undefined' && shared.workletConnected && shared.workletNode) {
+        return;
+      }
+
       const start = shared.renderCursor[channelIndex];
       const endExclusive = start + buffer.length;
       ensureRendered(shared, endExclusive, sampleRate);
@@ -447,7 +463,7 @@ export function createAyChannel(
 
     createPlaybackNodes(
       ctx: BaseAudioContext,
-      _freq: number,
+      freq: number,
       start: number,
       dur: number,
       instrument: InstrumentNode,
@@ -458,6 +474,8 @@ export function createAyChannel(
       const requestedNoise = String(instrument.noise ?? 'off').toLowerCase() === 'on';
 
       state.active = true;
+      state.frequency = Math.max(0, freq);
+      state.baseFrequency = state.frequency;
       state.toneEnabled = type !== 'noise';
       state.noiseEnabled = type === 'noise' || type === 'tone_noise' || requestedNoise;
       state.noiseRate = clamp(Number(instrument.noise_rate ?? 0), 0, 31);
@@ -475,7 +493,9 @@ export function createAyChannel(
         if (period !== null) state.envPeriodOverride = period;
       }
 
-      const patches = buildRegisterPatches(channelIndex, state, shared.config.chipClock);
+      // Keep mixer routing in sync with note type (tone/noise/tone_noise) for worklet path.
+      updateMixerBits(shared, channelIndex, state.toneEnabled, state.noiseEnabled);
+      const patches = buildRegisterPatches(channelIndex, state, shared.config.chipClock, shared.mixerReg);
 
       void ensureWorkletNode(shared, ctx, destination).then((node) => {
         if (!node) return;
@@ -497,7 +517,17 @@ export function createAyChannel(
         return [shared.workletNode];
       }
 
-      // No worklet support in this context; let engine fall back to PCM.
+      // Worklet is loading — return a silent placeholder so the engine does NOT fall
+      // back to PCM for this note. The note has already been queued in the worklet's
+      // pending list via the .then() above and will play sample-accurately when the
+      // worklet resolves. Mixing PCM and worklet output causes double-play stutter.
+      if (shared.workletReady) {
+        const dummy = (ctx as AudioContext).createGain();
+        dummy.gain.value = 0;
+        return [dummy];
+      }
+
+      // audioWorklet not supported — let caller use PCM fallback.
       return null;
     },
   };

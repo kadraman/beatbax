@@ -1,0 +1,67 @@
+# This is an example configuration file
+# To learn more, see the full config.yaml reference: https://docs.continue.dev/reference
+
+# Define which models can be used
+# https://docs.continue.dev/customization/models
+# Continue.dev configuration (YAML version)
+
+models:
+  - title: Claude 3.7 Sonnet
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet
+    apiKey: ${env:OPENROUTER_API_KEY}
+    apiBase: https://openrouter.ai/api/v1
+    contextLength: 200000
+    completionOptions:
+      temperature: 0.1
+      maxTokens: 4096
+
+  - title: Qwen 2.5 Coder 32B
+    provider: openrouter
+    model: qwen/qwen2.5-coder-32b
+    apiKey: ${env:OPENROUTER_API_KEY}
+    apiBase: https://openrouter.ai/api/v1
+    contextLength: 128000
+    completionOptions:
+      temperature: 0.2
+      maxTokens: 4096
+
+  - title: Llama 3.1 405B
+    provider: openrouter
+    model: meta-llama/llama-3.1-405b
+    apiKey: ${env:OPENROUTER_API_KEY}
+    apiBase: https://openrouter.ai/api/v1
+    contextLength: 128000
+    completionOptions:
+      temperature: 0.15
+      maxTokens: 4096
+
+defaultModel: Claude 3.7 Sonnet
+
+allowFileEdits: true
+
+experimental:
+  autofix: true
+
+tasks:
+  enabled: true
+
+tabAutocompleteModel: Qwen 2.5 Coder 32B
+
+embeddings:
+  provider: openrouter
+  model: nomic-embed-text
+  apiKey: ${env:OPENROUTER_API_KEY}
+  apiBase: https://openrouter.ai/api/v1
+
+contextProviders:
+  - diff
+  - terminal
+  - repo
+  - file
+  - openTabs
+
+# MCP Servers that Continue can access
+# https://docs.continue.dev/customization/mcp-tools
+mcpServers:
+  - uses: anthropic/memory-mcp

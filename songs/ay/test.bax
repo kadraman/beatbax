@@ -1,23 +1,34 @@
-chip ay3-8910
+chip zx-spectrum-128
+bpm 128
 
-inst lead type=tone env=attack_decay vol=use_envelope gm=81
-inst bass type=tone env=decay_only vol=12 gm=39
-inst pad  type=tone env=attack_decay_repeat vol=use_envelope gm=89
-inst kick type=noise noise=on noise_rate=10 env=decay_quick vol=14 note=C2
-inst hat  type=noise noise=on noise_rate=2 vol=10 note=C5
+# Multi-channel AY-3-8910 stability test for web-ui playback
 
-effect exprVib = vib:2,5,sine,2
-effect punch   = bend:-3,0.08,exp
+# Channel 1: sustained melodic tone
+inst lead  type=tone       vol=13
 
-pat lead_pat = C5<exprVib>:4 E5 G5 A5 G5 E5 C5 D5
-pat bass_pat = C3 . G2 . A2 . F2 .
-pat drum_pat = kick . hat . kick kick hat .
+# Channel 2: bass body + occasional tone/noise attack
+inst bass  type=tone       vol=11
+inst pluck type=tone_noise vol=10 noise_rate=4
 
-seq lead_seq = lead_pat lead_pat
-seq bass_seq = bass_pat bass_pat
-seq drum_seq = drum_pat drum_pat drum_pat drum_pat
+# Channel 3: noise percussion
+inst kick  type=noise noise=on noise_rate=24 vol=14 note=C2
+inst hat   type=noise noise=on noise_rate=2  vol=8  note=C5
+
+pat lead_a = A4:8 . C5:8 . E5:8 . D5:8 .
+pat lead_b = E5:8 . D5:8 . C5:8 . B4:8 .
+
+pat bass_a = A2:16 . E2:16 .
+pat bass_b = F2:16 . G2:16 .
+
+pat drum_a = kick . hat . kick . hat .
+pat drum_b = kick . hat . pluck . hat .
+
+seq lead_seq = lead_a lead_b
+seq bass_seq = bass_a bass_b
+seq drum_seq = drum_a drum_b
 
 channel 1 => inst lead seq lead_seq
-channel 2 => inst pad  seq lead_seq:oct(-1)
-#channel 3 => inst kick seq drum_seq
-channel 3 => inst bass seq bass_seq
+channel 2 => inst bass seq bass_seq
+channel 3 => inst kick seq drum_seq
+
+play
