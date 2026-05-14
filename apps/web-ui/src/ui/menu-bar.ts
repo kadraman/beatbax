@@ -94,6 +94,8 @@ export interface MenuBarOptions {
   onToggleAI?: () => void;
   /** Open the Settings panel (Ctrl+,). */
   onShowSettings?: () => void;
+  /** Open Monaco Command Palette (F1 / Ctrl+Alt+P). */
+  onOpenCommandPalette?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
   /**
@@ -521,6 +523,14 @@ export class MenuBar {
 
   private viewItems(): MenuItemDef[] {
     return [
+      {
+        type: 'item',
+        label: 'Command Palette…',
+        icon: 'command-line',
+        shortcut: 'Ctrl+Alt+P',
+        action: () => this.opts.onOpenCommandPalette?.(),
+      },
+      { type: 'separator' },
       {
         type: 'item',
         label: 'Output',
