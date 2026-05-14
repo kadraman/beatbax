@@ -1,4 +1,4 @@
-/**
+/*
  * Node.js audio playback - hybrid approach using WAV + system player.
  * Works on Windows/Mac/Linux without requiring native compilation.
  */
@@ -7,7 +7,7 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { spawn } from 'child_process';
-import { createLogger } from '@beatbax/engine/util/logger';
+import { createLogger } from '../util/logger.js';
 
 const log = createLogger('audio-player');
 
@@ -152,7 +152,7 @@ export async function playAudioBuffer(
       // Warn users: PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.
       // Prefer installing the `speaker` module or using `ffplay`/`afplay` for accurate stereo.
       log.warn('Using PowerShell Media.SoundPlayer may downmix stereo to mono on some systems.');
-      log.warn('For accurate stereo playback, install the `speaker` module (npm install --workspace=packages/cli speaker) or ensure `ffplay`/`afplay` is available, or export a WAV and play in a DAW.');
+      log.warn('For accurate stereo playback, install the `speaker` module (npm install speaker) or ensure `ffplay`/`afplay` is available, or export a WAV and play in a DAW.');
       // Windows: Use PowerShell with Media.SoundPlayer for synchronous playback
       cmd = 'powershell';
       args = [

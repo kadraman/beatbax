@@ -28,6 +28,8 @@
   "homepage": "https://github.com/kadraman/beatbax#readme",
   "exports": {
     ".": "./dist/index.js",
+    "./node": "./dist/node/index.js",
+    "./node/*": "./dist/node/*.js",
     "./*": "./dist/*.js",
     "./parser": "./dist/parser/index.js",
     "./parser/*": "./dist/parser/*.js",
@@ -80,6 +82,7 @@
     "standardized-audio-context": "^25.3.0"
   },
   "devDependencies": {
+    "@types/node": "^22.19.19",
     "peggy": "^4.2.0"
   }
 }

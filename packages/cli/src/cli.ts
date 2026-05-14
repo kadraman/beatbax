@@ -1,5 +1,6 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import { playFile } from '@beatbax/engine/node';
 import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { configureLogging } from '@beatbax/engine/util/logger';
@@ -182,7 +183,7 @@ program
 
     // ── .dmc sample playback ──────────────────────────────────────────────
     if (file.toLowerCase().endsWith('.dmc')) {
-      const { playAudioBuffer } = await import('./nodeAudioPlayer.js');
+      const { playAudioBuffer } = await import('@beatbax/engine/node');
       const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
       const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
       const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));

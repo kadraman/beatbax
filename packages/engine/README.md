@@ -85,6 +85,31 @@ player.stop();
 
 ## API Documentation
 
+### Runtime Entry Points
+
+- **`@beatbax/engine`** — core API surface.
+- **`@beatbax/engine/node`** — Node-only operational helpers and playback plumbing (for example `playFile`).
+
+Runtime boundary note:
+
+- The root entrypoint currently re-exports some APIs that directly depend on Node `fs`.
+- Use `@beatbax/engine/node` for operational Node helpers.
+- In browser-targeted code, avoid root file APIs unless your toolchain intentionally provides an `fs` shim.
+
+Node-dependent root API (current behavior):
+
+- `readUGEFile`
+
+Browser-friendly alternatives:
+
+- Use `parseUGE(buffer)` instead of `readUGEFile(path)`.
+- Keep browser code on parser/song/audio/chips/scheduler modules and runtime-safe utility exports.
+
+```typescript
+import { noteToMidi } from '@beatbax/engine';
+import { playFile } from '@beatbax/engine/node';
+```
+
 ### Core Modules
 
 - **`@beatbax/engine/parser`** - Parse BeatBax source code
@@ -97,7 +122,7 @@ player.stop();
 
 ### Browser Support
 
-The engine supports both Node.js and browser environments with conditional exports:
+The engine supports both Node.js and browser environments. Conditional browser mapping is provided for selected subpaths (for example song resolver modules), while runtime boundaries for root file APIs are documented above:
 
 ```typescript
 // Automatic browser-safe imports
