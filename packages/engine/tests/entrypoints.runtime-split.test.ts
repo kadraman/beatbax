@@ -17,6 +17,7 @@ const forbiddenSpecifiers = [
 ];
 
 const EXPORT_FROM_PATTERN = /export\s+(?:\*|\{[\s\S]*?\})\s+from\s+['\"]([^'\"]+)['\"]/g;
+const IMPORT_FROM_PATTERN = /import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['\"]([^'\"]+)['\"]/g;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -40,11 +41,11 @@ function getForbiddenSpecifiers(source: string): string[] {
   });
 }
 
-function resolveReExportTarget(filePath: string, specifier: string): string {
+function resolveDependencyTarget(filePath: string, specifier: string): string {
   return resolvePath(filePath, '..', specifier.replace(/\.js$/u, '.ts'));
 }
 
-function collectReExportGraph(entryFilePath: string): Set<string> {
+function collectRootDependencyGraph(entryFilePath: string): Set<string> {
   const visited = new Set<string>();
   const queue = [entryFilePath];
 
@@ -55,12 +56,25 @@ function collectReExportGraph(entryFilePath: string): Set<string> {
     visited.add(current);
     const source = readFileSync(current, 'utf8');
 
+    const dependencySpecifiers: string[] = [];
+
     for (const match of source.matchAll(EXPORT_FROM_PATTERN)) {
-      const specifier = match[1];
+      dependencySpecifiers.push(match[1]);
+    }
+
+    if (current === entryFilePath) {
+      for (const match of source.matchAll(IMPORT_FROM_PATTERN)) {
+        dependencySpecifiers.push(match[1]);
+      }
+    }
+
+    for (const specifier of dependencySpecifiers) {
       if (!specifier.startsWith('.')) continue;
 
-      const nextFile = resolveReExportTarget(current, specifier);
-      if (!visited.has(nextFile)) queue.push(nextFile);
+      const nextFile = resolveDependencyTarget(current, specifier);
+      if (!visited.has(nextFile)) {
+        queue.push(nextFile);
+      }
     }
   }
 
@@ -78,9 +92,9 @@ describe('engine runtime entrypoints', () => {
     expect(hasForbiddenSpecifier(rootEntrySource)).toBe(false);
   });
 
-  test('root re-export graph has no unexpected Node built-ins', () => {
+  test('root dependency graph has no unexpected Node built-ins', () => {
     const rootEntryPath = resolvePath(__dirname, '../src/index.ts');
-    const reExportGraph = collectReExportGraph(rootEntryPath);
+    const reExportGraph = collectRootDependencyGraph(rootEntryPath);
     const offenders: string[] = [];
 
     for (const filePath of reExportGraph) {
