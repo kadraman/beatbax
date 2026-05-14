@@ -87,7 +87,7 @@ player.stop();
 
 ### Runtime Entry Points
 
-- **`@beatbax/engine`** — core API surface plus legacy file I/O exports.
+- **`@beatbax/engine`** — core API surface.
 - **`@beatbax/engine/node`** — Node-only operational helpers and playback plumbing (for example `playFile`).
 
 Runtime boundary note:
@@ -96,13 +96,8 @@ Runtime boundary note:
 - Use `@beatbax/engine/node` for operational Node helpers.
 - In browser-targeted code, avoid root file APIs unless your toolchain intentionally provides an `fs` shim.
 
-Node-dependent root APIs (current behavior):
+Node-dependent root API (current behavior):
 
-- `exportJSON`
-- `exportMIDI`
-- `exportUGE`
-- `exportWAV`
-- `exportWAVFromSong`
 - `readUGEFile`
 
 Browser-friendly alternatives:
