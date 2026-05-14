@@ -24,6 +24,7 @@ import {
   NOTE_SEMITONES,
   noteToMidi,
   midiToFreq,
+  midiToFreqForNote as engineMidiToFreqForNote,
   parseMacro,
   macroValue,
   advanceMacro,
@@ -43,10 +44,13 @@ export {
 };
 export type { ParsedMacro, MacroState };
 
-/** Note name → frequency in Hz (0 if unparseable). */
+/**
+ * Note name → frequency in Hz.
+ * Returns 0 if the note name is unparseable (matches legacy behaviour for backends).
+ * Delegates to the centralized engine utility.
+ */
 export function midiToFreqForNote(noteName: string): number {
-  const midi = noteToMidi(noteName);
-  return midi !== null ? midiToFreq(midi) : 0;
+  return engineMidiToFreqForNote(noteName) ?? 0;
 }
 
 // ─── Macro system ─────────────────────────────────────────────────────────────
