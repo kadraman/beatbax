@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { playFile } from '@beatbax/engine';
+import { playFile } from '@beatbax/engine/node';
 
 const program = new Command();
 
