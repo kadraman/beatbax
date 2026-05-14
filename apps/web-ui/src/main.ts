@@ -30,6 +30,7 @@ loadExporterPluginsFromStorage();
 
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
+import { exporterRegistry } from '@beatbax/engine/export';
 import {
   createLogger,
   loadLoggingFromStorage,
@@ -1280,18 +1281,56 @@ async function handleExport(format: ExportFormat) {
 }
 
 /**
- * Return export data as a plain string for clipboard operations.
- * Only JSON is supported as a text format; all other formats return null
- * (falling back to the regular file-download export path).
+ * Return export data as plain text for clipboard operations.
+ * Supported clipboard formats are text-only (e.g. .bax, JSON, FamiTracker text).
  */
 async function handleExportData(format: ExportFormat): Promise<string | null> {
   const source = getSource();
   if (!source.trim()) return null;
-  if (format !== 'json') return null;
   try {
+    if (format === 'bax') {
+      return source;
+    }
+
     const ast = parse(source);
     const resolved = resolveSong(ast as any, {});
-    return JSON.stringify(resolved, null, 2);
+
+    if (format === 'json') {
+      return JSON.stringify(resolved, null, 2);
+    }
+
+    if (format === 'famitracker-text' || format === 'famitracker') {
+      const plugin = exporterRegistry.get('famitracker-text');
+      if (!plugin) return null;
+
+      if (typeof plugin.validate === 'function') {
+        const errors = plugin.validate(resolved as any);
+        if (Array.isArray(errors) && errors.length > 0) {
+          return null;
+        }
+      }
+
+      const chipId = String((resolved as any)?.chip ?? '').toLowerCase();
+      const chipPlugin = chipId ? chipRegistry.get(chipId) : undefined;
+      const data = await plugin.export(resolved as any, {
+        resolveSampleAsset: typeof chipPlugin?.resolveSampleAsset === 'function'
+          ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
+          : undefined,
+      });
+
+      if (typeof data === 'string') return data;
+      if (data instanceof Uint8Array) {
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(data);
+      }
+      if (data instanceof ArrayBuffer) {
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(new Uint8Array(data));
+      }
+      return null;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -1352,6 +1391,10 @@ const menuBar = new MenuBar({
   eventBus,
   loadingOverlay,
   enableGlobalShortcuts: false, // central ks registry owns all menu shortcuts
+  onOpenCommandPalette: () => {
+    editor.editor.focus();
+    editor.editor.trigger('', 'editor.action.quickCommand', null);
+  },
   onShowShortcuts: () => shortcutsModal.open(),
   onShowSettings: () => settingsModal.open(),
   onExport: (format) => handleExport(format),

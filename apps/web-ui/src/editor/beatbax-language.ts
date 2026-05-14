@@ -9,16 +9,21 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import { eventBus } from '../utils/event-bus';
 
 let latestAST: any = null;
+/** Cached semantic-token result. Invalidated whenever the model version changes. */
+let tokenCache: { versionId: number; data: Uint32Array } | null = null;
+/** Emitter used to notify Monaco that semantic tokens should be recomputed. */
+const semanticTokensChangedEmitter = new monaco.Emitter<void>();
 /** Chip name resolved from the latest successfully-parsed AST. */
 let latestChip: string = 'gameboy';
 eventBus.on('parse:success', ({ ast }) => {
   latestAST = ast;
   const raw: string = (ast?.chip ?? 'gameboy').toLowerCase();
   latestChip = chipRegistry.resolve(raw);
+  // Parse results changed independently of model version (debounced parse);
+  // force semantic token refresh so colors update after command-driven edits.
+  tokenCache = null;
+  semanticTokensChangedEmitter.fire();
 });
-
-/** Cached semantic-token result. Invalidated whenever the model version changes. */
-let tokenCache: { versionId: number; data: Uint32Array } | null = null;
 
 interface WaveHoverParseResult {
   values: number[];
@@ -1240,6 +1245,7 @@ export function registerBeatBaxLanguage(): void {
   // Register document semantic tokens provider for colorizing parsed entities
   const semanticTokenTypes = ['instrument', 'pattern', 'sequence'];
   monaco.languages.registerDocumentSemanticTokensProvider('beatbax', {
+    onDidChange: semanticTokensChangedEmitter.event,
     getLegend: function () {
       return {
         tokenTypes: semanticTokenTypes,
