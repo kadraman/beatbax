@@ -28,6 +28,8 @@
   "homepage": "https://github.com/kadraman/beatbax#readme",
   "exports": {
     ".": "./dist/index.js",
+    "./node": "./dist/node/index.js",
+    "./node/*": "./dist/node/*.js",
     "./*": "./dist/*.js",
     "./parser": "./dist/parser/index.js",
     "./parser/*": "./dist/parser/*.js",
