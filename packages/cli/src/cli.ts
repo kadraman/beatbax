@@ -1,5 +1,6 @@
 import { Command, Argument } from 'commander';
-import { playFile, readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import { playFile } from '@beatbax/engine/node';
 import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { configureLogging } from '@beatbax/engine/util/logger';

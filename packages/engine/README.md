@@ -85,6 +85,16 @@ player.stop();
 
 ## API Documentation
 
+### Runtime Entry Points
+
+- **`@beatbax/engine`** — browser-safe/core API surface.
+- **`@beatbax/engine/node`** — Node-only operational helpers (for example `playFile`).
+
+```typescript
+import { noteToMidi } from '@beatbax/engine';
+import { playFile } from '@beatbax/engine/node';
+```
+
 ### Core Modules
 
 - **`@beatbax/engine/parser`** - Parse BeatBax source code
