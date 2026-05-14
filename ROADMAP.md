@@ -16,7 +16,8 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 | Game Boy APU (DMG-01) | [x] | Low | `@beatbax/plugin-chip-gameboy` — exports: UGE (hUGETracker), JSON ISM, WAV, MIDI |
 | SN76489 (PSG — SMS / Game Gear) | [x] | Low | `@beatbax/plugin-chip-sms` — exports: VGM (`@beatbax/plugin-exporter-vgm`), WAV |
 | NES APU / RP2A03 | [x] | Medium | `@beatbax/plugin-chip-nes` — exports: FamiTracker `.ftm`/`.txt` (`@beatbax/plugin-export-famitracker`), WAV, MIDI |
-| AY‑3‑8910 / YM2149 (PSG family) | [ ] | Low–Medium | Similar PSG semantics to SN76489; broad platform coverage (Atari ST, MSX) |
+| ZX Spectrum 128 / Amstrad CPC (AY-compatible PSG) | [ ] | Low–Medium | `@beatbax/plugin-chip-spectrum-128` — target formats: PT3 (ProTracker), Arkos Tracker, VGM, register dumps; Amstrad CPC included because of hardware similarity |
+| Atari ST (YM2149 PSG) | [ ] | Low–Medium | `@beatbax/plugin-chip-atari-st` — target formats: YM, SND, VGM, register dumps |
 | YM2413 (OPLL) | [ ] | Medium | Preset-based 2‑op FM — easiest FM entry (MSX/PC‑88 coverage) |
 | OPL2 / YM3812 (AdLib / early FM) | [ ] | Medium | PC FM; requires operator/patch handling and OPL register export |
 | YM2612 (Genesis) [+ SN76489 PSG for Genesis where applicable] | [ ] | High | Complex FM operator mapping; high impact for Genesis scene |
@@ -66,13 +67,21 @@ Using that definition, here’s a clean, authoritative list of the major chips t
   - Export formats: VGM (captures YM2612 & PSG register writes), GYM (Genesis music format), WAV/OGG, tracker exports (e.g., Deflemask-compatible data)
   - Homebrew suitability: Yes — `VGM`/`GYM` or driver-ready register dumps are commonly used for Genesis homebrew; compilation into engine-friendly data structures is required.
 
-- **AY-3-8910 / YM2149 (Atari ST, MSX, Amstrad CPC and others)**
+- **ZX Spectrum 128 / Amstrad CPC (AY-compatible PSG)**
   - Channels: 3 PSG channels, envelope generator on-chip
-  - Features: PSG envelopes, easy square/noise synthesis
+  - Features: PSG envelopes, easy square/noise synthesis, Spectrum 128 and Amstrad CPC timing/compatibility differences
   - Difficulty: Low–Medium
-  - Suggested plugin name: `@beatbax/plugin-chip-ay3-8910`
-  - Export formats: VGM, AY/AYM tracker formats, MOD conversions, WAV/OGG
-  - Homebrew suitability: Yes — AY/PSG register streams or tracker exports are usable in homebrew targets (e.g., for YM2149-driven systems).
+  - Suggested plugin name: `@beatbax/plugin-chip-spectrum-128`
+  - Export formats: PT3 (ProTracker), Arkos Tracker, VGM, register dumps
+  - Homebrew suitability: Yes — PT3 is a common composition/export path for Spectrum homebrew, and the plugin will also cover Amstrad CPC because of the shared AY-compatible hardware.
+
+- **Atari ST (YM2149 PSG)**
+  - Channels: 3 PSG channels, envelope generator on-chip
+  - Features: PSG envelopes, simple square/noise synthesis, Atari ST timing and register conventions
+  - Difficulty: Low–Medium
+  - Suggested plugin name: `@beatbax/plugin-chip-atari-st`
+  - Export formats: YM, SND, VGM, register dumps
+  - Homebrew suitability: Yes — YM and SND are the most useful platform-specific formats for Atari ST homebrew and music players.
 
 - **SN76489 (Sega Master System / Game Gear)** ✅ _Implemented_
   - Plugin: `@beatbax/plugin-chip-sms`
@@ -128,7 +137,8 @@ Using that definition, here’s a clean, authoritative list of the major chips t
 - VGM (Video Game Music): captures register writes for many chips (YM*, SN76489, OPL2, etc.). Excellent for archival and playback in emulators; useful for homebrew when you can convert or replay register streams in the target engine.
 - NSF (NES Sound Format): NES-specific container for sound playback on emulators/hardware replay; good for NES homebrew if you can wrap/convert data to the target mapper/driver.
 - SID (PSID/RSID): C64 playback/archival formats — good for distribution; for native C64 engines, prefer tracker exports or register dumps.
-- Tracker native formats: hUGETracker (`.uge`) for Game Boy, FamiTracker (`.ftm`) for NES-style composition workflows, GoatTracker for SID/C64 — provide the smoothest path to homebrew integration.
+- Tracker native formats: hUGETracker (`.uge`) for Game Boy, FamiTracker (`.ftm`) for NES-style composition workflows, ProTracker PT3 and Arkos Tracker for Spectrum-class workflows, GoatTracker for SID/C64 — provide the smoothest path to homebrew integration.
+- Platform-specific register-stream formats: VGM, YM, SND, and raw register dumps are the best fit when the target homebrew engine replays hardware writes directly.
 - WAV/OGG: rendered audio for previews and DAW workflows. Not directly playable on constrained hardware without conversion, but useful for testing and documentation.
 - MIDI: Good for DAW/choreography workflows but not a hardware-native format; requires conversion to engine-specific drivers for homebrew.
 
@@ -137,11 +147,14 @@ Using that definition, here’s a clean, authoritative list of the major chips t
 - Provide two layers of exports for each chip where feasible:
   - Tracker-native / module exports (human-editable where available)
   - Driver/register-stream exports (VGM, NSF, SID, raw register dumps) for direct inclusion in homebrew engines
+- For AY-compatible platforms, prefer the platform's dominant homebrew workflow: PT3 / tracker exports for Spectrum 128 and register-stream or YM/SND style exports for Atari ST.
 - Provide tooling/recipes in `docs/` showing how to convert BeatBax exports into target-specific driver data (e.g., BeatBax → hUGETracker/UGE → GB builder).
 
 ## Plugin naming convention examples
 
 - `@beatbax/plugin-chip-gameboy`
 - `@beatbax/plugin-chip-nes`
+- `@beatbax/plugin-chip-spectrum-128`
+- `@beatbax/plugin-chip-atari-st`
 - `@beatbax/plugin-chip-sid`
 - `@beatbax/plugin-chip-ym2612`

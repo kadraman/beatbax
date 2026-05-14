@@ -15,11 +15,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@beatbax/engine": "^0.13.1",
-    "@beatbax/plugin-chip-nes": "^0.5.1",
-    "@beatbax/plugin-chip-sms": "^0.2.2",
-    "@beatbax/plugin-exporter-famitracker": "^0.2.1",
-    "@beatbax/plugin-exporter-vgm": "^0.1.1",
+    "@beatbax/engine": "^0.13.2",
+    "@beatbax/plugin-chip-nes": "^0.5.2",
+    "@beatbax/plugin-chip-sms": "^0.2.3",
+    "@beatbax/plugin-exporter-famitracker": "^0.2.2",
+    "@beatbax/plugin-exporter-vgm": "^0.1.2",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.3",
     "marked": "^5.1.2",
