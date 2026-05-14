@@ -195,6 +195,18 @@ function insertAtCursor(
 let lastExportFormat: ExportFormat = 'json';
 
 // ---------------------------------------------------------------------------
+// Shared regex for filtering source lines to preserve for synthetic playback
+// ---------------------------------------------------------------------------
+
+/**
+ * Matches lines that should be retained when building a synthetic preview
+ * source: directives, definitions, comments, and blank lines.
+ * Includes `#` and `//` comment prefixes and blank lines so the generated
+ * source is well-formed and human-readable when inspected.
+ */
+const KEEP_LINES_RE = /^\s*(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b/;
+
+// ---------------------------------------------------------------------------
 // Helper: toast notification
 // ---------------------------------------------------------------------------
 
@@ -724,8 +736,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // Build a minimal working preview source.  Preserve all inst/pat/seq
       // definitions from the original source so the pattern can reference them.
       // Only emit a synthetic fallback instrument when none is declared.
-      const KEEP_RE_PAT = /^\s*(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b/;
-      const baseLines = source.split('\n').filter(l => KEEP_RE_PAT.test(l));
+      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
       const synthetic = [
         ...baseLines,
         ...(useFallbackInst ? [`inst _tmp type=pulse1 duty=50 env=12,down`] : []),
@@ -777,8 +788,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const chip = chipMatch ? chipMatch[1] : 'gameboy';
 
       // Preserve all inst/pat definitions so the seq body can reference them
-      const KEEP_RE = /^\s*(?:(inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
-      const baseLines = source.split('\n').filter(l => KEEP_RE.test(l));
+      const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
       const newLines = [...baseLines];
       newLines.push(`channel 1 => inst ${inst} seq ${name}`);
       newLines.push('play');
