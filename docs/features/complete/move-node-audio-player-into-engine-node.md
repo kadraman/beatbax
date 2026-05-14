@@ -1,14 +1,31 @@
 ---
 title: "Move Node Audio Player Into Engine Node Entrypoint"
-status: proposed
+status: complete
 authors: ["GitHub Copilot"]
 created: 2026-05-14
+updated: 2026-05-14
 issue: "TBD"
 ---
 
 ## Summary
 
 Move the Node audio playback implementation (`nodeAudioPlayer`) from `@beatbax/cli` into `@beatbax/engine` under the Node-only entrypoint so `playFile` no longer depends on CLI package internals.
+
+## Implementation Status (2026-05-14)
+
+Implemented in this branch:
+
+- Added `packages/engine/src/node/nodeAudioPlayer.ts` and wired it through `@beatbax/engine/node` exports.
+- Updated `packages/engine/src/node/play.ts` to use engine-local `playAudioBuffer`.
+- Updated CLI command flow to import playback helpers from `@beatbax/engine/node`.
+- Added/migrated warning-behavior tests into the engine package.
+
+Verification performed:
+
+- `npm -w packages/engine test -- nodeAudioPlayer.warn.test.ts --runInBand` passed.
+- `npm -w packages/engine test -- entrypoints.runtime-split.test.ts --runInBand` passed.
+- `npm -w apps/web-ui run build` completed successfully.
+- `npm -w apps/web-ui run dev:clean` reached Vite ready.
 
 ## Problem Statement
 
@@ -89,11 +106,11 @@ None.
 - Verify CLI `play --headless` continues to work in Node.
 - Verify error messaging remains actionable when optional playback backends are missing.
 
-## Migration Path
+## Migration Outcome
 
-1. Add engine-local node audio player module and wire `playFile` to it.
-2. Migrate tests from CLI package to engine package.
-3. Remove CLI shim and import playback from `@beatbax/engine/node` directly.
+1. Added engine-local node audio player module and wired `playFile` to it.
+2. Migrated tests from CLI package to engine package.
+3. Removed CLI-local playback usage and imported playback from `@beatbax/engine/node` directly.
 
 ## Implementation Checklist
 
@@ -120,6 +137,7 @@ None.
 - `packages/engine/src/node/play.ts`
 - `packages/engine/src/node/nodeAudioPlayer.ts`
 - `packages/cli/src/cli.ts`
+- `packages/engine/tests/nodeAudioPlayer.warn.test.ts`
 - `docs/features/engine-entrypoint-runtime-split.md`
 
 ## Additional Notes
