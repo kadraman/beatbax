@@ -24,6 +24,7 @@ import * as monaco from 'monaco-editor';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
+import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus';
 
 // ---------------------------------------------------------------------------
@@ -93,16 +94,29 @@ interface PreviewState {
   cancelLoop?: () => void;
 }
 
-/** Map instrument type → channel id (1-5). Channel 5 is the NES DMC channel. */
+/** Map instrument type → channel id (1-5). Channel 5 is the NES DMC channel.
+ * The result is clamped to the active chip's channel count so that chips with
+ * fewer than 4 channels (e.g. AY-3-8910 has 3) still receive a valid id.
+ */
 function instChannelId(instName: string, ast: any): number {
+  let channelId: number;
   switch ((ast.insts?.[instName]?.type ?? '').toLowerCase()) {
-    case 'pulse2':   return 2;
-    case 'wave':     return 3;   // Game Boy wave channel
-    case 'triangle': return 3;   // NES triangle channel
-    case 'noise':    return 4;
-    case 'dmc':      return 5;
-    default:         return 1;
+    case 'pulse2':   channelId = 2; break;
+    case 'wave':     channelId = 3;   // Game Boy wave channel
+                     break;
+    case 'triangle': channelId = 3;   // NES triangle channel
+                     break;
+    case 'noise':    channelId = 4; break;
+    case 'dmc':      channelId = 5; break;
+    default:         channelId = 1; break;
   }
+
+  // Clamp to the chip's actual channel count so out-of-range ids are never
+  // passed to the player (e.g. AY has 3 channels, SMS has 4).
+  const rawChip = (ast.chip ?? 'gameboy').toLowerCase();
+  const plugin = chipRegistry.get(chipRegistry.resolve(rawChip));
+  const maxChannel = plugin?.channels ?? channelId;
+  return Math.min(channelId, maxChannel);
 }
 
 async function startPatternPreview(
