@@ -892,6 +892,7 @@ The transport bar's `«` and `»` buttons step the playback tempo down or up by 
 | BeatBax: Generate Sample Instruments | Insert a starter `inst` block for all four Game Boy channel types |
 | BeatBax: Generate Sample Pattern | Insert a placeholder `pat` with 4/4 notes |
 | BeatBax: Insert Transform… | Quick-pick a transform (`oct`, `rev`, `slow`, `fast`, `arp`, …) and insert at cursor |
+| BeatBax: Instrument Override… | Context-aware override: channel `inst`, sequence item `:inst(name)`, or pattern inline/default `inst(...)` |
 | BeatBax: Format BeatBax Document | Normalise whitespace and align `=` signs in `pat`/`seq` blocks |
 | BeatBax: Toggle Mute Channel… | Quick-pick a channel to toggle mute |
 | BeatBax: Solo Channel… | Quick-pick a channel to solo |

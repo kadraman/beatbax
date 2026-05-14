@@ -21,7 +21,7 @@ import { KeyCode, KeyMod } from 'monaco-editor';
 // Types
 // ---------------------------------------------------------------------------
 
-export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav' | 'famitracker';
+export type ExportFormat = 'json' | 'midi' | 'uge' | 'wav' | 'famitracker-text' | 'famitracker' | 'bax';
 
 export interface CommandPaletteOptions {
   /** The Monaco editor instance. */
@@ -188,6 +188,87 @@ function insertAtCursor(
   editor.focus();
 }
 
+/** Return inline-effect bounds (<...>) containing/adjacent to the cursor index. */
+function findInlineEffectBounds(line: string, cursorIndex: number): { open: number; close: number } | null {
+  const open = line.lastIndexOf('<', cursorIndex);
+  if (open < 0) return null;
+  const close = line.indexOf('>', open + 1);
+  if (close < 0) return null;
+  if (cursorIndex >= open && cursorIndex <= close + 1) return { open, close };
+  return null;
+}
+
+/** Find a note token that the cursor is on or immediately adjacent to. */
+function findAdjacentNoteToken(line: string, cursorIndex: number): { start: number; end: number } | null {
+  const noteRe = /\b[A-Ga-g][#b]?[1-8]\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = noteRe.exec(line)) !== null) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (cursorIndex >= start && cursorIndex <= end) return { start, end };
+    if (Math.abs(cursorIndex - start) <= 1 || Math.abs(cursorIndex - end) <= 1) return { start, end };
+  }
+  return null;
+}
+
+/** Build insert text for adding an effect token into an existing <...> list. */
+function asInlineEffectAppend(existingRaw: string, token: string): string {
+  const trimmedEnd = existingRaw.replace(/\s+$/g, '');
+  if (trimmedEnd.length === 0) return token;
+  return trimmedEnd.endsWith(',') ? token : `,${token}`;
+}
+
+/** Split a transform chain by top-level ':' while ignoring nested parentheses. */
+function splitTopLevelColon(input: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let paren = 0;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '(') { paren++; cur += ch; continue; }
+    if (ch === ')') { if (paren > 0) paren--; cur += ch; continue; }
+    if (ch === ':' && paren === 0) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(s => s.trim()).filter(Boolean);
+}
+
+/** Replace one non-whitespace token span in a string. */
+function replaceSpan(text: string, start: number, end: number, replacement: string): string {
+  return `${text.slice(0, start)}${replacement}${text.slice(end)}`;
+}
+
+/** Find the non-whitespace token span at/nearest to a relative cursor index. */
+function findNonWhitespaceSpanAt(text: string, relIndex: number): { start: number; end: number; value: string } | null {
+  const spans: Array<{ start: number; end: number; value: string }> = [];
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    spans.push({ start: m.index, end: m.index + m[0].length, value: m[0] });
+  }
+  if (spans.length === 0) return null;
+
+  for (const s of spans) {
+    if (relIndex >= s.start && relIndex <= s.end) return s;
+  }
+
+  let nearest = spans[0];
+  let bestDist = Math.min(Math.abs(relIndex - nearest.start), Math.abs(relIndex - nearest.end));
+  for (const s of spans.slice(1)) {
+    const d = Math.min(Math.abs(relIndex - s.start), Math.abs(relIndex - s.end));
+    if (d < bestDist) {
+      bestDist = d;
+      nearest = s;
+    }
+  }
+  return nearest;
+}
+
 // ---------------------------------------------------------------------------
 // Module-level: last export format used (for Quick Export command)
 // ---------------------------------------------------------------------------
@@ -228,6 +309,38 @@ function showToast(message: string, duration = 3000): void {
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), duration);
+}
+
+/**
+ * Best-effort clipboard copy with fallback for browsers where
+ * navigator.clipboard is unavailable or blocked.
+ */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to legacy copy path.
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -283,9 +396,18 @@ function showInputBox(
     }
 
     input.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') { dismiss(input.value.trim() || null); }
-      else if (e.key === 'Escape') { dismiss(null); }
+      if (e.key === 'Enter') {
+        // Fully consume Enter so it does not leak to Monaco and insert a newline.
+        e.preventDefault();
+        e.stopPropagation();
+        dismiss(input.value.trim() || null);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        dismiss(null);
+      }
     });
 
     const onDocKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(null); };
@@ -425,9 +547,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
 
   reg({
     id: 'beatbax.exportFamitracker',
-    label: 'BeatBax: Export → FamiTracker (.ftm)',
+    label: 'BeatBax: Export → FamiTracker Text (.txt)',
     keybindings: [],
-    run: () => onExport('famitracker'),
+    run: () => onExport('famitracker-text'),
   });
 
   // ── BeatBax: Validate ─────────────────────────────────────────────────────
@@ -438,7 +560,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV],
     // Keep in context menu: one slim validate entry is genuinely useful on right-click
     contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 2,
+    contextMenuOrder: 5,
     run: () => onVerify(),
   });
 
@@ -616,8 +738,6 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     id: 'beatbax.gotoPatternDef',
     label: 'BeatBax: Go to Pattern Definition',
     keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD],
-    contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 10,
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word || !isValidIdentifier(word)) { showToast('No identifier under cursor'); return; }
@@ -697,7 +817,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     label: 'BeatBax: Preview Pattern Under Cursor',
     keybindings: [KeyMod.Alt | KeyCode.KeyP],
     contextMenuGroupId: '9_beatbax',
-    contextMenuOrder: 3,
+    contextMenuOrder: 2,
     run: (_, patternName?: string) => {
       const source = getSource();
       const name = typeof patternName === 'string' && patternName.trim()
@@ -879,6 +999,183 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
   });
 
   reg({
+    id: 'beatbax.instrumentOverride',
+    label: 'BeatBax: Instrument Override…',
+    keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 3,
+    run: async () => {
+      const model = editor.getModel();
+      if (!model) return;
+      const pos = editor.getPosition();
+      if (!pos) return;
+
+      const anchor = editorDom ?? document.body;
+      const scope = await showQuickPick(
+        anchor,
+        [
+          { label: 'Auto (infer from cursor context)', value: 'auto' },
+          { label: 'Channel default (channel N => inst ...)', value: 'channel' },
+          { label: 'Sequence item transform (:inst(name))', value: 'seq-item' },
+          { label: 'Pattern default (leading inst(name))', value: 'pat-default' },
+          { label: 'Pattern note-level (insert inst(name,1))', value: 'pat-note' },
+          { label: 'Pattern inline token (edit inst(name[,N]))', value: 'pat-inline' },
+        ],
+        'Select instrument override scope',
+      );
+      if (!scope) return;
+
+      const source = getSource();
+      const instNames = parseAllDefinitions(source)
+        .filter(d => d.kind === 'inst')
+        .map(d => d.name)
+        .sort((a, b) => a.localeCompare(b));
+
+      if (instNames.length === 0) {
+        showToast('No instruments found. Define at least one `inst NAME ...` first');
+        return;
+      }
+
+      const chosen = await showQuickPick(
+        anchor,
+        instNames.map((name) => ({ label: name, value: name })),
+        'Select instrument',
+      );
+      if (!chosen) return;
+
+      const line = model.getLineContent(pos.lineNumber);
+
+      const replaceCurrentLine = (text: string) => {
+        editor.executeEdits('beatbax.instrumentOverride', [{
+          range: {
+            startLineNumber: pos.lineNumber,
+            startColumn: 1,
+            endLineNumber: pos.lineNumber,
+            endColumn: model.getLineMaxColumn(pos.lineNumber),
+          },
+          text,
+          forceMoveMarkers: false,
+        }]);
+      };
+
+      const forced = scope !== 'auto' ? scope : null;
+
+      // Context 1: channel line -> replace `inst NAME` directly.
+      const channelMatch = line.match(/^(\s*channel\s+\d+\s*=>\s*inst\s+)([A-Za-z_][A-Za-z0-9_]*)(\b.*)$/);
+      if (channelMatch && (!forced || forced === 'channel')) {
+        const newLine = `${channelMatch[1]}${chosen}${channelMatch[3]}`;
+        replaceCurrentLine(newLine);
+        showToast(`Channel instrument set to '${chosen}'`);
+        editor.focus();
+        return;
+      }
+
+      // Context 2: sequence line -> apply/replace :inst(name) on item under cursor.
+      const seqMatch = line.match(/^(\s*seq\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*)(.*)$/);
+      if (seqMatch && (!forced || forced === 'seq-item')) {
+        const prefix = seqMatch[1];
+        const rhs = seqMatch[2] ?? '';
+        const rel = Math.max(0, pos.column - 1 - prefix.length);
+        const span = findNonWhitespaceSpanAt(rhs, rel);
+        if (!span) {
+          showToast('No sequence item found under cursor');
+          return;
+        }
+
+        const parts = splitTopLevelColon(span.value);
+        const base = parts[0] ?? span.value;
+        const mods = parts.slice(1).filter(m => !/^inst\([^)]*\)$/i.test(m));
+        const replacement = [base, ...mods, `inst(${chosen})`].join(':');
+        const newRhs = replaceSpan(rhs, span.start, span.end, replacement);
+        const newLine = `${prefix}${newRhs}`;
+
+        replaceCurrentLine(newLine);
+        showToast(`Sequence item override set to ':inst(${chosen})'`);
+        editor.focus();
+        return;
+      }
+
+      // Context 3: pattern line -> inline token under cursor, note-level, or pattern-level default.
+      const patMatch = line.match(/^(\s*pat\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*)(.*)$/);
+      if (patMatch && (!forced || forced.startsWith('pat-'))) {
+        const prefix = patMatch[1];
+        const rhs = patMatch[2] ?? '';
+        const rel = Math.max(0, pos.column - 1 - prefix.length);
+
+        // 3a: update inline inst(name) / inst(name,N) token under cursor if present.
+        if (!forced || forced === 'pat-inline') {
+          const instRe = /inst\(\s*([A-Za-z_][A-Za-z0-9_]*)(\s*,\s*\d+\s*)?\)/g;
+          let im: RegExpExecArray | null;
+          while ((im = instRe.exec(rhs)) !== null) {
+            const start = im.index;
+            const end = start + im[0].length;
+            if (rel >= start && rel <= end) {
+              const countPart = im[2] ?? '';
+              const replacement = `inst(${chosen}${countPart})`;
+              const newRhs = replaceSpan(rhs, start, end, replacement);
+              const newLine = `${prefix}${newRhs}`;
+              replaceCurrentLine(newLine);
+              showToast(`Inline instrument token updated to '${chosen}'`);
+              editor.focus();
+              return;
+            }
+          }
+          if (forced === 'pat-inline') {
+            showToast('No inline inst(name) token under cursor on this pattern line');
+            return;
+          }
+        }
+
+        // 3b: if cursor is on/near a note, apply one-note temporary override.
+        if (!forced || forced === 'pat-note') {
+          const note = findAdjacentNoteToken(rhs, rel);
+          if (note) {
+            const newRhs = `${rhs.slice(0, note.start)}inst(${chosen},1) ${rhs.slice(note.start)}`;
+            const newLine = `${prefix}${newRhs}`;
+            replaceCurrentLine(newLine);
+            showToast(`Inserted note-level override 'inst(${chosen},1)'`);
+            editor.focus();
+            return;
+          }
+          if (forced === 'pat-note') {
+            showToast('No note token under/near cursor on this pattern line');
+            return;
+          }
+        }
+
+        // 3c: otherwise set/replace pattern-level default via leading inst(name).
+        if (!forced || forced === 'pat-default') {
+          const leadingPerm = rhs.match(/^\s*inst\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/);
+          let newRhs = rhs;
+          if (leadingPerm) {
+            newRhs = rhs.replace(/^\s*inst\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)/, `inst(${chosen})`);
+          } else {
+            newRhs = rhs.trim().length > 0 ? `inst(${chosen}) ${rhs.trimStart()}` : `inst(${chosen})`;
+          }
+          const newLine = `${prefix}${newRhs}`;
+          replaceCurrentLine(newLine);
+          showToast(`Pattern instrument default set to '${chosen}'`);
+          editor.focus();
+          return;
+        }
+      }
+
+      if (forced) {
+        const scopeLabel =
+          forced === 'channel' ? 'channel line' :
+          forced === 'seq-item' ? 'sequence item' :
+          forced === 'pat-default' ? 'pattern line' :
+          forced === 'pat-note' ? 'pattern note' :
+          'pattern inline inst token';
+        showToast(`Selected scope requires a matching ${scopeLabel} at cursor`);
+        return;
+      }
+
+      showToast('Place cursor on a channel, seq, or pat line to apply an instrument override');
+    },
+  });
+
+  reg({
     id: 'beatbax.duplicateSeq',
     label: 'BeatBax: Duplicate Sequence',
     keybindings: [],
@@ -954,7 +1251,8 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         forceMoveMarkers: false,
       }]);
       showToast(`Renamed '${word}' → '${newName}'`);
-      editor.focus();
+      // Defer focus to the next task so the submit Enter key cannot leak into the editor.
+      setTimeout(() => editor.focus(), 0);
     },
   });
 
@@ -1230,7 +1528,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     id: 'beatbax.copyChannelConfig',
     label: 'BeatBax: Copy Channel Configuration',
     keybindings: [],
-    run: () => {
+    run: async () => {
       const model = editor.getModel();
       if (!model) return;
       const pos = editor.getPosition();
@@ -1239,10 +1537,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const m = line.match(/^\s*channel\s+\d+\s*=>\s*(.*)/);
       if (!m) { showToast('Cursor must be on a `channel N =>` line'); return; }
       const config = m[1].trim();
-      navigator.clipboard?.writeText(config).then(
-        () => showToast(`Copied: ${config}`),
-        () => showToast(`Copied (clipboard unavailable): ${config}`),
-      );
+      const copied = await copyTextToClipboard(config);
+      if (copied) {
+        showToast(`Copied: ${config}`);
+      } else {
+        showToast(`Clipboard blocked. Copy manually: ${config}`);
+      }
     },
   });
 
@@ -1313,9 +1613,9 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     run: async () => {
       const anchor = editorDom ?? document.body;
       const formats: Array<{ label: string; value: ExportFormat }> = [
+        { label: 'BeatBax Source (.bax)', value: 'bax' },
         { label: 'JSON (ISM format)',       value: 'json' },
-        { label: 'MIDI (Standard MIDI)',    value: 'midi' },
-        { label: 'FamiTracker Text (.ftm)', value: 'famitracker' },
+        { label: 'FamiTracker Text (.txt)', value: 'famitracker-text' },
       ];
       const chosen = await showQuickPick(
         anchor,
@@ -1330,19 +1630,16 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       if (onExportData) {
         const data = await onExportData(format);
         if (data !== null) {
-          try {
-            await navigator.clipboard.writeText(data);
+          const copied = await copyTextToClipboard(data);
+          if (copied) {
             showToast(`Exported ${format.toUpperCase()} (${data.length} chars) — copied to clipboard`);
-          } catch {
+          } else {
             showToast(`Export ready but clipboard write failed — try a different browser`);
           }
           return;
         }
       }
-
-      // Fallback: trigger regular export (file download)
-      onExport(format);
-      showToast(`Exporting ${format.toUpperCase()} — check your downloads`);
+      showToast(`Clipboard export is unavailable for ${format.toUpperCase()} in the current song/context`);
     },
   });
 
@@ -1362,7 +1659,13 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     id: 'beatbax.showEffectPresets',
     label: 'BeatBax: Show Effect Presets',
     keybindings: [],
+    contextMenuGroupId: '9_beatbax',
+    contextMenuOrder: 4,
     run: async () => {
+      const model = editor.getModel();
+      const pos = editor.getPosition();
+      if (!model || !pos) return;
+
       const anchor = editorDom ?? document.body;
       const presets: Array<{ label: string; value: string }> = [
         { label: 'pan(left)          — hard pan left',                  value: 'pan(left)' },
@@ -1385,7 +1688,74 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         { label: 'echo(8,0.5)        — echo 8 ticks delay, 50% feedback', value: 'echo(8,0.5)' },
       ];
       const chosen = await showQuickPick(anchor, presets, 'Insert effect preset');
-      if (chosen) insertAtCursor(editor, chosen, 'beatbax.showEffectPresets');
+      if (!chosen) return;
+
+      const line = model.getLineContent(pos.lineNumber);
+      const cursorIndex = pos.column - 1;
+
+      // Case 1: cursor is in/adjacent to an inline effect block: C4<...>
+      const inline = findInlineEffectBounds(line, cursorIndex);
+      if (inline) {
+        const existingRaw = line.slice(inline.open + 1, inline.close);
+        const text = asInlineEffectAppend(existingRaw, chosen);
+        editor.executeEdits('beatbax.showEffectPresets', [{
+          range: {
+            startLineNumber: pos.lineNumber,
+            startColumn: inline.close + 1,
+            endLineNumber: pos.lineNumber,
+            endColumn: inline.close + 1,
+          },
+          text,
+          forceMoveMarkers: true,
+        }]);
+        editor.focus();
+        return;
+      }
+
+      // Case 2: cursor is on/near a note token: wrap as note<effect>
+      const note = findAdjacentNoteToken(line, cursorIndex);
+      if (note) {
+        const afterNote = line.slice(note.end);
+        const immediate = afterNote.match(/^\s*/)?.[0] ?? '';
+        const nextIdx = note.end + immediate.length;
+
+        // Note already has an inline effect block -> append into it.
+        if (line[nextIdx] === '<') {
+          const close = line.indexOf('>', nextIdx + 1);
+          if (close > -1) {
+            const existingRaw = line.slice(nextIdx + 1, close);
+            const text = asInlineEffectAppend(existingRaw, chosen);
+            editor.executeEdits('beatbax.showEffectPresets', [{
+              range: {
+                startLineNumber: pos.lineNumber,
+                startColumn: close + 1,
+                endLineNumber: pos.lineNumber,
+                endColumn: close + 1,
+              },
+              text,
+              forceMoveMarkers: true,
+            }]);
+            editor.focus();
+            return;
+          }
+        }
+
+        // No existing inline effects on this note -> add <preset> after the note.
+        editor.executeEdits('beatbax.showEffectPresets', [{
+          range: {
+            startLineNumber: pos.lineNumber,
+            startColumn: note.end + 1,
+            endLineNumber: pos.lineNumber,
+            endColumn: note.end + 1,
+          },
+          text: `<${chosen}>`,
+          forceMoveMarkers: true,
+        }]);
+        editor.focus();
+        return;
+      }
+
+      showToast('Place cursor on a note token or inside C4<...> to insert an effect preset');
     },
   });
 
