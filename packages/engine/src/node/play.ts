@@ -3,6 +3,7 @@ import { parse } from '../parser/index.js';
 import { warn, error } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
 import { chipRegistry } from '../chips/index.js';
+import { playAudioBuffer } from './nodeAudioPlayer.js';
 
 const log = createLogger('engine-play');
 
@@ -180,24 +181,7 @@ export async function playFile(path: string, options: PlayOptions = {}) {
 
       // Real-time playback via speaker
       try {
-        // Resolve absolute path to cli module
-        const pathModule = await import('path');
-        const urlModule = await import('url');
-        const __dirname = pathModule.dirname(urlModule.fileURLToPath(import.meta.url));
-
-        let cliPath = pathModule.resolve(__dirname, '../../../cli/dist/nodeAudioPlayer.js');
-
-        // Fallback for monorepo development where engine might be in node_modules but cli isn't linked
-        if (!existsSync(cliPath)) {
-          const monorepoPath = pathModule.resolve(__dirname, '../../../../../packages/cli/dist/nodeAudioPlayer.js');
-          if (existsSync(monorepoPath)) {
-            cliPath = monorepoPath;
-          }
-        }
-
-        const cliUrl = urlModule.pathToFileURL(cliPath).href;
-
-        const { playAudioBuffer } = await import(cliUrl);
+        // Use engine-local node audio player
         log.info('Playing audio via system speakers...');
         if (ast.play?.repeat) {
           log.info('Repeat requested by play directive — looping until process exit (Ctrl-C to stop)');
@@ -220,8 +204,9 @@ export async function playFile(path: string, options: PlayOptions = {}) {
           log.info('[OK] Playback complete');
         }
       } catch (err: any) {
-        error('engine', 'Failed to play audio: ' + (err && err.message ? err.message : String(err)));
-        log.info('\nTip: Install speaker module: npm install --workspace=packages/cli speaker');
+        const errMsg = err && err.message ? err.message : String(err);
+        error('engine', 'Failed to play audio: ' + errMsg);
+        log.info('\nTip: Install speaker module: npm install speaker');
         log.info('Or use "export wav" to export to WAV file instead.');
         process.exitCode = 1;
       }

@@ -183,7 +183,7 @@ program
 
     // ── .dmc sample playback ──────────────────────────────────────────────
     if (file.toLowerCase().endsWith('.dmc')) {
-      const { playAudioBuffer } = await import('./nodeAudioPlayer.js');
+      const { playAudioBuffer } = await import('@beatbax/engine/node');
       const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
       const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
       const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));
