@@ -14,6 +14,8 @@ BeatBax CLI provides command-line tools for working with BeatBax chiptune files:
 - Export to JSON, MIDI, and UGE (hUGETracker) formats
 - Inspect UGE files
 
+Runtime note: Node playback internals are provided by `@beatbax/engine/node`, and the CLI consumes that API.
+
 ## Installation
 
 ```bash
