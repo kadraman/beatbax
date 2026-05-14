@@ -1,6 +1,6 @@
 ---
 title: Enhanced Command Palette Commands
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-26
 issue: "https://github.com/kadraman/beatbax/issues/96"
