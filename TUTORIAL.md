@@ -32,6 +32,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
     - Note: Pitch `up` increases the frequency register, while `down` decreases it, following Game Boy hardware behavior.
   - `gm` (optional): General MIDI program number (0-127). When present the MIDI
     exporter emits a Program Change for the corresponding track using this value.
+  - Game Boy scope note: instrument macro fields such as `arp_env`, `vol_env`, `pitch_env`, and `duty_env` are intentionally unsupported. Use pattern/inline effects instead. See `docs/features/complete/gameboy-instrument-macros-policy.md`.
 
 - effect presets: define reusable named effect RHS strings that can be applied
   inline or as a sequence/pattern modifier. Syntax: `effect name = vib:4,8,sine,4` or `effect arpMinor = arp:3,7`.

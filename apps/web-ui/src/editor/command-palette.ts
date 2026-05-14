@@ -62,7 +62,8 @@ export interface CommandPaletteOptions {
   /**
    * Optional: return export data as a plain string for clipboard operations.
    * Called by beatbax.exportToClipboard for text-based formats (e.g. JSON).
-   * If not provided or returns null, exportToClipboard falls back to onExport.
+   * If not provided or returns null, beatbax.exportToClipboard reports that
+   * clipboard export is unavailable for the chosen format/context.
    */
   onExportData?: (format: ExportFormat) => Promise<string | null>;
 }
@@ -285,7 +286,7 @@ let lastExportFormat: ExportFormat = 'json';
  * Includes `#` and `//` comment prefixes and blank lines so the generated
  * source is well-formed and human-readable when inspected.
  */
-const KEEP_LINES_RE = /^\s*(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b/;
+const KEEP_LINES_RE = /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
 
 // ---------------------------------------------------------------------------
 // Helper: toast notification
@@ -513,6 +514,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     disposables.push(editor.addAction(descriptor));
   }
 
+  function runExport(format: ExportFormat): void {
+    onExport(format);
+    // Quick Export should track actual file-export commands only.
+    if (format !== 'bax') lastExportFormat = format;
+  }
+
   const editorDom = editor.getDomNode();
 
   // ── BeatBax: Export ───────────────────────────────────────────────────────
@@ -521,35 +528,35 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     id: 'beatbax.exportJson',
     label: 'BeatBax: Export → JSON',
     keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyJ],
-    run: () => onExport('json'),
+    run: () => runExport('json'),
   });
 
   reg({
     id: 'beatbax.exportMidi',
     label: 'BeatBax: Export → MIDI',
     keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM],
-    run: () => onExport('midi'),
+    run: () => runExport('midi'),
   });
 
   reg({
     id: 'beatbax.exportUge',
     label: 'BeatBax: Export → UGE (hUGETracker)',
     keybindings: [],
-    run: () => onExport('uge'),
+    run: () => runExport('uge'),
   });
 
   reg({
     id: 'beatbax.exportWav',
     label: 'BeatBax: Export → WAV',
     keybindings: [],
-    run: () => onExport('wav'),
+    run: () => runExport('wav'),
   });
 
   reg({
     id: 'beatbax.exportFamitracker',
     label: 'BeatBax: Export → FamiTracker Text (.txt)',
     keybindings: [],
-    run: () => onExport('famitracker-text'),
+    run: () => runExport('famitracker-text'),
   });
 
   // ── BeatBax: Validate ─────────────────────────────────────────────────────
@@ -783,12 +790,23 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     run: () => {
       const word = getWordUnderCursor(editor);
       if (!word) { showToast('No identifier under cursor'); return; }
+      const args = {
+        searchString: word,
+        isRegex: false,
+        matchWholeWord: true,
+        preserveCase: false,
+        findInSelection: false,
+      };
+
+      // Preferred Monaco path: open Find widget and pre-populate search string.
+      const findWithArgs = editor.getAction('editor.actions.findWithArgs');
+      if (findWithArgs) {
+        void findWithArgs.run(args);
+        return;
+      }
+
+      // Fallback for environments where findWithArgs is unavailable.
       editor.trigger('beatbax.findReferences', 'actions.find', null);
-      // Populate the search widget after it opens
-      setTimeout(() => {
-        editor.trigger('beatbax.findReferences', 'editor.action.changeAll', { searchString: word });
-        editor.getAction('actions.find')?.run();
-      }, 50);
     },
   });
 
@@ -846,18 +864,21 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const useFallbackInst = inst === null;
       const instName = inst ?? '_tmp';
 
-      const bpm = extractBpm(source);
-      // Use the chip from source to keep the synthetic preview compatible.
-      // Fall back to 'gameboy' only when no chip directive is present — this
-      // preview path is a best-effort audition, not a production export.
-      const chipMatch = source.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
-      const chip = chipMatch ? chipMatch[1] : 'gameboy';
-
       // Build a minimal working preview source.  Preserve all inst/pat/seq
       // definitions from the original source so the pattern can reference them.
+      // Ensure explicit default directives when missing for deterministic preview.
       // Only emit a synthetic fallback instrument when none is declared.
       const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
+      const hasChip = /^\s*chip\s+/im.test(source);
+      const hasBpm = /^\s*bpm\s+/im.test(source);
+      const hasTime = /^\s*time\s+/im.test(source);
+      const defaultDirectives = [
+        ...(hasChip ? [] : ['chip gameboy']),
+        ...(hasBpm ? [] : ['bpm 120']),
+        ...(hasTime ? [] : ['time 4']),
+      ];
       const synthetic = [
+        ...defaultDirectives,
         ...baseLines,
         ...(useFallbackInst ? [`inst _tmp type=pulse1 duty=50 env=12,down`] : []),
         `pat __preview__ = ${body}`,
@@ -1625,7 +1646,6 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       if (!chosen) return;
 
       const format = chosen as ExportFormat;
-      lastExportFormat = format;
 
       if (onExportData) {
         const data = await onExportData(format);
@@ -1634,12 +1654,12 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
           if (copied) {
             showToast(`Exported ${format.toUpperCase()} (${data.length} chars) — copied to clipboard`);
           } else {
-            showToast(`Export ready but clipboard write failed — try a different browser`);
+            showToast(`Export ready, but clipboard write failed (no file export fallback in this command)`);
           }
           return;
         }
       }
-      showToast(`Clipboard export is unavailable for ${format.toUpperCase()} in the current song/context`);
+      showToast(`Clipboard export unavailable for ${format.toUpperCase()} in this song/context (this command does not run file export)`);
     },
   });
 
@@ -1648,7 +1668,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     label: 'BeatBax: Quick Export (Last Format)',
     keybindings: [KeyMod.CtrlCmd | KeyCode.KeyE],
     run: () => {
-      onExport(lastExportFormat);
+      runExport(lastExportFormat);
       showToast(`Exporting ${lastExportFormat.toUpperCase()}…`);
     },
   });
