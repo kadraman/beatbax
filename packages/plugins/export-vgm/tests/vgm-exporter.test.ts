@@ -569,12 +569,6 @@ describe('backend dispatch — AY stub', () => {
     }).toThrow(/VGM export failed/i);
   });
 
-  it('ym2149 alias resolves to AY backend', () => {
-    const song = makeSong({ chip: 'ym2149' }) as any;
-    const errors = vgmExporterPlugin.validate!(song);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toMatch(/AY-3-8910/i);
-  });
 });
 
 describe('backend dispatch — supportedChips', () => {

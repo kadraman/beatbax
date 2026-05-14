@@ -2,6 +2,7 @@ import {
   noteToMidi,
   midiToNote,
   midiToFreq,
+  midiToFreqForNote,
   parseMacro,
   macroValue,
   advanceMacro,
@@ -28,6 +29,11 @@ describe('midiToFreq', () => {
   it('A4 (69) = 440 Hz', () => expect(midiToFreq(69)).toBeCloseTo(440, 2));
   it('A3 (57) = 220 Hz', () => expect(midiToFreq(57)).toBeCloseTo(220, 2));
   it('C4 (60) ≈ 261.63 Hz', () => expect(midiToFreq(60)).toBeCloseTo(261.63, 1));
+});
+
+describe('midiToFreqForNote', () => {
+  it('A4 = 440 Hz', () => expect(midiToFreqForNote('A4')).toBeCloseTo(440, 2));
+  it('invalid returns null', () => expect(midiToFreqForNote('invalid')).toBeNull());
 });
 
 describe('parseMacro', () => {

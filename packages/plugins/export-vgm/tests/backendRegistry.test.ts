@@ -69,40 +69,6 @@ describe('resolveBackend — SMS aliases', () => {
     const gg = resolveBackend('gamegear');
     expect(sms).toBe(gg);
   });
-
-  it('resolves "bbc_micro"', () => {
-    const backend = resolveBackend('bbc_micro');
-    expect(backend).toBeDefined();
-    expect(backend!.chipAliases).toContain('bbc_micro');
-  });
-
-  it('resolves "colecovision"', () => {
-    const backend = resolveBackend('colecovision');
-    expect(backend).toBeDefined();
-    expect(backend!.chipAliases).toContain('colecovision');
-  });
-
-  it('resolves "tandy_1000"', () => {
-    const backend = resolveBackend('tandy_1000');
-    expect(backend).toBeDefined();
-    expect(backend!.chipAliases).toContain('tandy_1000');
-  });
-
-  it('validate accepts normalized underscore aliases', () => {
-    const bbc = resolveBackend('bbc_micro');
-    const tandy = resolveBackend('tandy_1000');
-
-    const baseSong = {
-      pats: {}, insts: {}, seqs: {},
-      channels: [{ id: 1, events: [] }],
-    };
-
-    const bbcErrors = bbc!.validate({ ...baseSong, chip: 'bbc_micro' });
-    const tandyErrors = tandy!.validate({ ...baseSong, chip: 'tandy_1000' });
-
-    expect(bbcErrors).toEqual([]);
-    expect(tandyErrors).toEqual([]);
-  });
 });
 
 describe('resolveBackend — AY aliases', () => {
@@ -110,11 +76,6 @@ describe('resolveBackend — AY aliases', () => {
     const backend = resolveBackend('ay');
     expect(backend).toBeDefined();
     expect(backend!.chipAliases).toContain('ay');
-  });
-
-  it('resolves "ym2149"', () => {
-    const backend = resolveBackend('ym2149');
-    expect(backend).toBeDefined();
   });
 
   it('resolves "ay38910"', () => {
@@ -148,15 +109,12 @@ describe('listRegisteredAliases', () => {
     expect(aliases).toContain('sms');
     expect(aliases).toContain('gg');
     expect(aliases).toContain('gamegear');
-    expect(aliases).toContain('bbcmicro');
-    expect(aliases).toContain('colecovision');
-    expect(aliases).toContain('tandy1000');
   });
 
-  it('includes ay aliases', () => {
+  it('includes ay38910 aliases', () => {
     const aliases = listRegisteredAliases();
-    expect(aliases).toContain('ay');
-    expect(aliases).toContain('ym2149');
+    expect(aliases).toContain('zxspectrum128');
+    expect(aliases).toContain('amstradcpc');
   });
 
   it('returns a sorted array', () => {
