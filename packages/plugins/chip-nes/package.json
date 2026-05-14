@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-chip-nes",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "NES Ricoh 2A03 APU chip plugin for BeatBax.",
   "private": false,
   "type": "module",

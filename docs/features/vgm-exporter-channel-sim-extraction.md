@@ -392,5 +392,5 @@ This is an internal refactor with no user-facing changes. No BeatBax language sy
 - AY backend stub: `packages/plugins/export-vgm/src/backends/ay.ts`
 - VGM backend interface: `packages/plugins/export-vgm/src/backends/types.ts`
 - Multi-chip architecture spec: `docs/features/vgm-exporter-multi-chip-architecture.md`
-- AY-3-8910 chip plugin spec: `docs/features/ay3-8910-chip-plugin.md`
-- AY-3-8910 hardware guide: `docs/chips/ay/hardware_guide.md`
+- ZX Spectrum 128 chip plugin spec: `docs/features/zx-spectrum-128-chip-plugin.md`
+- ZX Spectrum 128 hardware guide: `docs/chips/zx-spectrum-128/hardware_guide.md`

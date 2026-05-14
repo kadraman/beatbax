@@ -1,5 +1,12 @@
 # @beatbax/engine
 
+## 0.13.2
+
+### Patch Changes
+
+- b6ce433: Refactor shared music utilities into the engine and expose them through the plugin API, then migrate chip/exporter packages to consume the centralized utilities. Improve VGM exporter backend behavior and alias handling, including normalized SN76489-family chip alias validation consistency (for example underscore/hyphen variants), plus regression coverage and SN76489 flush behavior documentation clarification.
+- 72bbd57: added chip name normalization and proper region checking in parser
+
 ## 0.13.1
 
 ### Patch Changes
