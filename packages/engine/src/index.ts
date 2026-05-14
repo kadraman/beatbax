@@ -5,6 +5,7 @@ export {
   noteToMidi,
   midiToNote,
   midiToFreq,
+  midiToFreqForNote,
   type ParsedMacro,
   type MacroState,
   parseMacro,

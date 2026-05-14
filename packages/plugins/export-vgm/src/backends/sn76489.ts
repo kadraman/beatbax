@@ -374,9 +374,6 @@ const SN76489_ALIASES: readonly string[] = [
   'sms',
   'gamegear',
   'gg',
-  'bbc_micro',
-  'colecovision',
-  'tandy_1000',
 ];
 
 function normAlias(chip: string): string {
