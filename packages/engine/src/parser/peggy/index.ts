@@ -750,11 +750,13 @@ export function parseWithPeggy(source: string): ParseResult {
   }
   if (chipRegion) {
     const regionSupportedChips = ['sms', 'nes'];
-    if (!regionSupportedChips.includes(canonicalChip)) {
+    if (regionSupportedChips.includes(canonicalChip)) {
+      if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
+        const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
+        diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
+      }
+    } else {
       diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms' and 'chip nes'.`, chipLoc);
-    } else if (chipRegion !== 'ntsc' && chipRegion !== 'pal') {
-      const hint = chipRegion === 'ntcs' ? ` Did you mean 'ntsc'?` : '';
-      diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
     }
   }
 
