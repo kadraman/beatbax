@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.15.0
+
+### Minor Changes
+
+- 7bbd4a7: Expose `midiToFreqForNote` through the engine public API and update the VGM exporter to use the consolidated engine utilities. Tighten the exporter’s engine peer range accordingly and add regression coverage for the shared music utility contract and VGM backend behavior.
+
 ## 0.14.0
 
 ### Minor Changes

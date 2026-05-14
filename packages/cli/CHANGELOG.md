@@ -1,5 +1,13 @@
 # @beatbax/cli
 
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [7bbd4a7]
+  - @beatbax/engine@0.15.0
+  - @beatbax/plugin-exporter-vgm@0.1.3
+
 ## 0.4.4
 
 ### Patch Changes
