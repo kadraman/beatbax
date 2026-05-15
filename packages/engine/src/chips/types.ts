@@ -250,15 +250,6 @@ export interface ChipPlugin {
    */
   effects?: Record<string, EffectHandler>;
 
-  /**
-   * Optional async alternative to `exporterPlugins` for exporter plugins that
-   * are optional peer dependencies (i.e. may not be installed). Called once
-   * after `register()` completes; plugins returned are registered when the
-   * promise resolves. Errors are silently ignored so missing peers never crash
-   * the registry.
-   */
-  resolveExporterPlugins?(): Promise<ExporterPlugin[]>;
-
   /** Chip identifier used in the `chip` directive (e.g. `'gameboy'`, `'nes'`). */
   name: string;
 

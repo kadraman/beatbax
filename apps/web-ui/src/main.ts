@@ -101,6 +101,7 @@ import { ChannelMixer } from './panels/channel-mixer';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText, sanitizeFilename } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
+import { loadFromQueryParams } from './import/remote-loader';
 import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
 import {
   withErrorBoundary,
@@ -1623,7 +1624,6 @@ const dragDrop = new DragDropHandler(document.body, {
   const hasSongParam = params.has('song');
   if (hasSongParam) spinner.show('Loading song…');
   try {
-    const { loadFromQueryParams } = await import('./import/remote-loader');
     const result = await loadFromQueryParams(params);
     if (result) {
       const songParam = params.get('song') ?? 'song.bax';

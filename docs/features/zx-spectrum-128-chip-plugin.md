@@ -920,7 +920,7 @@ channel 3 => inst kick seq drumline`,
 ### Phase 6: Export Integration (Future)
 
 When VGM exporter is ready:
-1. Implement `resolveExporterPlugins()` in plugin
+1. Register the exporter via explicit plugin/host registration (`exporterPlugins` or host discovery)
 2. Wire VGM backend for AY-3-8910 (per VGM exporter feature doc)
 3. Add snapshot tests for VGM export determinism
 
@@ -1070,7 +1070,7 @@ chip spectrum-128
 bpm 140
 
 ; Lead with all three macros
-inst complex type=tone1 vol=13 
+inst complex type=tone1 vol=13
   arp_env=[0,2,4,5]     ; Arpeggio pattern
   pitch_env=[0,1,0,-1]  ; Subtle vibrato-like pitch bend
   vol_env=[15,12,9,6]   ; Fade out over 4 steps
