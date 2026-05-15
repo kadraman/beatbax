@@ -1,5 +1,5 @@
 ---
-title: "Web MIDI Step Entry in Monaco Editor"
+title: "Web MIDI Step Entry and Instrument Preview in Monaco Editor"
 status: proposed
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-27
@@ -9,8 +9,9 @@ issue: "https://github.com/kadraman/beatbax/issues/100"
 ## Summary
 
 Add browser-based MIDI **step entry** to the BeatBax web UI so users can enter notes into the Monaco editor from a connected MIDI keyboard.
+If the editor is positioned on an instrument, then also allow MIDI keyboard to "audition" the instrument with different notes
 
-The feature is explicitly scoped to **language-oriented note entry**, not DAW-style real-time recording. Users arm MIDI step entry, press notes on a MIDI keyboard, and BeatBax inserts or replaces note tokens in the editor according to the current cursor position, selection, and step-entry mode.
+The feature is explicitly scoped to **language-oriented note entry**, not DAW-style real-time recording. Users press the Record button on the transport bat, press notes on a MIDI keyboard, and BeatBax inserts or replaces note tokens in the editor according to the current cursor position, selection, and step-entry mode.
 
 Initial scope:
 
@@ -19,6 +20,7 @@ Initial scope:
 - Insert-at-cursor and replace-selection workflows
 - Quantized note token generation for BeatBax patterns
 - A compact MIDI subsection inside existing Editor settings
+- Instrument preview
 
 Out of scope for v1:
 
@@ -43,6 +45,8 @@ A browser-side MIDI step-entry workflow would improve composition speed without 
 
 Real-time recording is a poor fit for BeatBax's current editing model because BeatBax is authored as text patterns and transforms, not as a piano-roll or clip timeline. Step entry fits the architecture and user workflow much better.
 
+Similarly when editing instruments, it is inconvenient to press the preview notes and would be better if we could use the MIDI keyboard to preview the instrument.
+
 ---
 
 ## Proposed Solution
@@ -51,7 +55,7 @@ Real-time recording is a poor fit for BeatBax's current editing model because Be
 
 Create a web-ui MIDI input subsystem that uses the browser Web MIDI API to translate MIDI note input into BeatBax note tokens inserted directly into the Monaco editor.
 
-The feature is activated from the editor UI via a **Record Step Input** toggle/button. While armed:
+The feature is activated from the transport bar via a **Record** toggle/button. While armed:
 
 - MIDI note-on events are converted to BeatBax note names
 - The editor inserts the note token at the current cursor/selection
@@ -94,17 +98,18 @@ pat melody = C4 G4 A4 F4
 
 1. Open the web UI editor.
 2. Place the cursor inside a `pat` definition.
-3. Click `Record Step Input` in the toolbar.
+3. Click `Record` in the transport bar (the button is now active, like to Loop button)
 4. Press notes on a connected MIDI keyboard.
 5. BeatBax inserts note tokens at the cursor and advances after each inserted note.
-6. Click `Stop Step Input` to exit the mode.
+6. Click `Record` in the transport bar again to stop.
 
 #### Replace selected notes
 
 1. Select one or more existing note tokens inside a pattern.
-2. Arm MIDI step entry.
+2. Press Record.
 3. Press one or more MIDI notes.
 4. BeatBax replaces the selected token span with the newly entered notes.
+5. Press Record again to stop.
 
 #### Duration selection
 
@@ -120,6 +125,7 @@ The settings UI includes a compact MIDI subsection inside the existing Editor se
 - Cursor auto-advance behavior
 - Whether durations are emitted explicitly
 - Whether note preview/audition is enabled during entry
+- Whether the MIDI keyboard can also be used for instrument preview
 
 ---
 
@@ -174,6 +180,7 @@ Needed editor capabilities:
 - Replace selected note tokens with incoming MIDI-entered notes
 - Advance cursor to the next insertion point after each successful step-entry event
 - Optionally preserve surrounding spacing/alignment inside pattern lines
+- Also allow instrument definitions to be previewed
 
 The existing Monaco wrapper already supports selection replacement; v1 should build on that abstraction rather than introducing editor-specific direct mutations throughout the codebase.
 
@@ -191,12 +198,12 @@ Rules for v1:
 
 #### 4. Toolbar / command surface
 
-Add a toolbar control for step entry:
+Enable transport control for step entry:
 
-- `Record Step Input` when idle
-- `Stop Step Input` when armed
+- `Record` starts when idle
+- `Record` stops when armed
 
-Optional command-palette commands:
+Add command-palette commands:
 
 - `BeatBax: Start MIDI Step Entry`
 - `BeatBax: Stop MIDI Step Entry`
@@ -219,6 +226,8 @@ Suggested fields:
 | Entry Mode | enum | `"insert"` | `insert` or `overwrite-selection` |
 | Auto Advance | boolean | `true` | Advance cursor after each step-entered note |
 | Audition Input Notes | boolean | `true` | Preview entered notes locally in web playback engine when feasible |
+| Audition Insruments | boolean | `true` | Preview instrument definitions via the MIDI keyboard when feasible |
+
 
 Optional only if still needed after implementation review:
 
@@ -280,7 +289,7 @@ Add and maintain:
 
 - Monaco editor + MIDI step-entry controller inserts notes at cursor inside a `pat` definition
 - Selection replacement replaces note tokens but not surrounding declarations
-- Toolbar arm/disarm state stays in sync with MIDI input lifecycle
+- Transport bar record/stop state stays in sync with MIDI input lifecycle
 - Settings changes propagate live to the MIDI controller
 - Unsupported browser / denied-permission states surface non-fatal warnings
 
@@ -307,7 +316,8 @@ This is an additive web-ui authoring feature. Existing songs, editor workflows, 
 - [ ] Add Monaco integration for insert-at-cursor note entry
 - [ ] Add syntax-aware replace-selection logic for pattern note tokens
 - [ ] Reject MIDI insertion outside `pat` bodies with a clear warning
-- [ ] Add toolbar button(s) for start/stop step entry
+- [ ] Enable transport button(s) for start/stop step entry
+- [ ] Enable instrument preview with MIDI keyboard
 - [ ] Add command-palette actions for step entry lifecycle
 - [ ] Add compact MIDI subsection to the Editor settings panel
 - [ ] Persist MIDI device and behavior settings via local storage / settings store
