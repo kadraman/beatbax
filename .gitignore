@@ -147,6 +147,7 @@ tests/*.js
 # web-ui generated / build artifacts
 /apps/web-ui/dist/
 /apps/web-ui/public/engine/
+!/apps/web-ui/public/engine/browser-fs.js
 /apps/web-ui/public/songs/
 
 /packages/engine/tmp/
