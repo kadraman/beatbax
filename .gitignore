@@ -148,6 +148,7 @@ tests/*.js
 /apps/web-ui/dist/
 /apps/web-ui/public/engine/
 !/apps/web-ui/public/engine/browser-fs.js
+!/apps/web-ui/public/engine/browser-path.js
 /apps/web-ui/public/songs/
 
 /packages/engine/tmp/
