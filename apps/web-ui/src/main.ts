@@ -1499,11 +1499,11 @@ menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
   'channel-mixer':     readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
-  'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID),
+  'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
   'song-visualizer':   readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
 });
 // Apply initial pattern-grid visibility
-if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID)) {
+if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
   patternGridContainer.style.display = 'none';
 }
 
