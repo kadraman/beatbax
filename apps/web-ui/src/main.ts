@@ -30,7 +30,7 @@ loadExporterPluginsFromStorage();
 
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
-import { exporterRegistry } from '@beatbax/engine/export';
+import { exporterRegistry } from './plugins/browser-exporter-registry';
 import {
   createLogger,
   loadLoggingFromStorage,

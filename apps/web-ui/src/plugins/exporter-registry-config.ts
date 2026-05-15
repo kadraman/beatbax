@@ -1,9 +1,9 @@
-import { exporterRegistry } from '@beatbax/engine/export';
 import type { ExporterPlugin } from '@beatbax/engine/export';
 import famitrackerExporterPlugins from '@beatbax/plugin-exporter-famitracker';
 import vgmExporterPlugin from '@beatbax/plugin-exporter-vgm';
 import { storage, StorageKey } from '../utils/local-storage.js';
 import { getEnabledPluginIds } from './registry-config.js';
+import { exporterRegistry } from './browser-exporter-registry';
 
 export interface ExporterPluginEntry {
   id: string;

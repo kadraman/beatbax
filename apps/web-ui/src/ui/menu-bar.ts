@@ -14,7 +14,7 @@ import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
-import { exporterRegistry } from '@beatbax/engine/export';
+import { exporterRegistry } from '../plugins/browser-exporter-registry';
 import type { LoadingOverlay } from './loading-overlay';
 
 /** Fallback icon per built-in exporter id (matches toolbar defaults). */
