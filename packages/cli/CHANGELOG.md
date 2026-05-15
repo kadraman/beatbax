@@ -1,5 +1,15 @@
 # @beatbax/cli
 
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [accf3b7]
+  - @beatbax/engine@0.16.0
+  - @beatbax/plugin-chip-nes@0.6.0
+  - @beatbax/plugin-chip-sms@0.3.0
+  - @beatbax/plugin-exporter-vgm@0.1.4
+
 ## 0.4.5
 
 ### Patch Changes
