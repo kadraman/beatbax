@@ -9,7 +9,7 @@ import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote
 import { openFilePicker } from '../import/file-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
-import { exporterRegistry } from '@beatbax/engine/export';
+import { exporterRegistry } from '../plugins/browser-exporter-registry';
 
 /** Fallback toolbar icon per built-in exporter id. */
 const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
