@@ -999,18 +999,19 @@ const midiController = new MidiStepEntryController({
     try {
       const src = getSource();
       const chipMatch = src.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
-      const chip = chipMatch ? chipMatch[1] : 'gameboy';
+      const chip = chipMatch ? chipMatch[1].toLowerCase() : 'gameboy';
       // Collect inst definitions from source
       const instLines = src.split('\n').filter(l => /^\s*inst\s+/.test(l));
       const firstInst = src.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/m)?.[1];
-      const instDef = firstInst
-        ? instLines.join('\n')
-        : 'inst _midi_tmp type=pulse1 duty=50 env=12,down';
+      // Choose a chip-appropriate fallback instrument type when none is declared
+      const fallbackType = chip === 'nes' ? 'pulse1' : chip === 'sms' ? 'sawtooth' : 'pulse1';
+      const fallbackInstDef = `inst _midi_tmp type=${fallbackType} duty=50 env=12,down`;
+      const instDef = instLines.length > 0 ? instLines.join('\n') : fallbackInstDef;
       const instName = firstInst ?? '_midi_tmp';
       const auditionSrc = [
         `chip ${chip}`,
         'bpm 120',
-        instDef || `inst ${instName} type=pulse1 duty=50 env=12,down`,
+        instDef,
         `pat __midi_audition__ = ${noteName}`,
         `channel 1 => inst ${instName} seq __midi_audition__`,
         'play',

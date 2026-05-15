@@ -159,8 +159,9 @@ export interface TokenSpan {
 
 export function extractNoteTokenSpans(text: string): TokenSpan[] {
   const spans: TokenSpan[] = [];
-  // Note token with optional duration suffix: C4, C#4, F#5:8
-  const re = /\b([A-Ga-g][#b]?[1-8](?::\d+)?)\b|\./g;
+  // Note token: letter A-G (any case), optional # or b, optional -, digit 0-9,
+  // optional duration suffix ":N". Handles C-1 (MIDI octave -1) through G9.
+  const re = /\b([A-Ga-g][#b]?-?[0-9](?::\d+)?)\b|\./g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     spans.push({ start: m.index, end: m.index + m[0].length, value: m[0] });

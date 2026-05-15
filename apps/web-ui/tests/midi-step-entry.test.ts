@@ -175,6 +175,17 @@ describe('extractNoteTokenSpans', () => {
     expect(spans[0].value).toBe('C#4');
     expect(spans[1].value).toBe('F#5');
   });
+
+  it('handles negative octave notes (C-1, MIDI note 0)', () => {
+    const spans = extractNoteTokenSpans('C-1 D0');
+    expect(spans.some(s => s.value === 'C-1')).toBe(true);
+  });
+
+  it('handles octave 9 notes (G9, MIDI note 127)', () => {
+    const spans = extractNoteTokenSpans('G9');
+    expect(spans).toHaveLength(1);
+    expect(spans[0].value).toBe('G9');
+  });
 });
 
 // ─── MidiStepEntryService ─────────────────────────────────────────────────────
