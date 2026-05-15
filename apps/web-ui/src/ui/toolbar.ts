@@ -6,6 +6,7 @@
 import type { EventBus } from '../utils/event-bus';
 import type { ExportFormat } from '../export/export-manager';
 import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
+import { openFilePicker } from '../import/file-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { exporterRegistry } from '@beatbax/engine/export';
@@ -222,7 +223,7 @@ export class Toolbar {
     const openBtn = this.el.querySelector<HTMLButtonElement>('#tb-open')!;
     openBtn.addEventListener('click', () => {
       onBeforeOpenFile?.();
-      import('../import/file-loader').then(({ openFilePicker }) => {
+      try {
         openFilePicker({
           accept: '.bax',
           onBeforeRead: () => onOpenFileReadStart?.(),
@@ -239,9 +240,9 @@ export class Toolbar {
           },
           onCancel: () => onOpenFileReadEnd?.(),
         });
-      }).catch((err) => {
-        log.error('Failed to load file-loader module:', err);
-      });
+      } catch (err) {
+        log.error('Failed to open file picker:', err);
+      }
     });
 
     // Examples two-column panel

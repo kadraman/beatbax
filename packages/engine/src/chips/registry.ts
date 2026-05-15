@@ -40,17 +40,6 @@ export class ChipRegistry {
         exporterRegistry.register(exporterPlugin);
       }
     }
-    if (typeof plugin.resolveExporterPlugins === 'function') {
-      plugin.resolveExporterPlugins().then((plugins) => {
-        for (const exporterPlugin of plugins) {
-          if (!exporterRegistry.has(exporterPlugin.id)) {
-            exporterRegistry.register(exporterPlugin);
-          }
-        }
-      }).catch(() => {
-        // Optional peer not available — silently skip.
-      });
-    }
   }
 
   /**

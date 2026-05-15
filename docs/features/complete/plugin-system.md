@@ -142,6 +142,10 @@ export interface ChipPlugin {
   // content for the Copilot system prompt, hover documentation, and Help panel.
   // See docs/creating-plugins.md § "Web UI Contributions" for the full interface.
   uiContributions?: ChipUIContributions;
+
+  // Optional: statically declared exporter plugins forwarded by ChipRegistry
+  // during registration.
+  exporterPlugins?: ExporterPlugin[];
 }
 
 // Provided by each chip plugin to tailor the web editor experience.
@@ -160,6 +164,15 @@ export interface ChipHelpSection {
   >;
 }
 ```
+
+### Exporter Registration Contract (2026-05)
+
+- `ChipPlugin.resolveExporterPlugins()` is not part of the supported plugin API.
+- Chip plugins must not dynamically import exporter plugins at runtime.
+- Exporters are registered via either:
+  - `exporterPlugins` on the chip plugin (static), or
+  - host-driven registration/discovery (CLI, web UI, custom host).
+- This keeps plugin loading deterministic across Node.js and browser bundles.
 
 ### Plugin Registry
 

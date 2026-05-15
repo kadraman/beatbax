@@ -183,7 +183,9 @@ export function setupGlyphMargin(
   // pattern-name match is found.
   let previewChunkInfo: Record<number, Array<{ seqName: string; noteCount: number; patNames: string[] }>> = {};
 
-  const glyphMarginLane = (monaco as any).GlyphMarginLane ?? { Left: 1, Right: 2 };
+  // Monaco lane constants are stable numeric values (1=Left, 2=Right).
+  // Using literals avoids relying on a non-exported runtime enum in some builds.
+  const glyphMarginLane = { Left: 1, Right: 2 } as const;
 
   // Decoration-ID bookkeeping so Monaco can diff on the next update
   let positionIds: string[] = [];

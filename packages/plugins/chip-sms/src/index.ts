@@ -54,7 +54,7 @@ const smsPlugin: SmsChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
   uiContributions: smsUIContributions,
   newSongWizard: smsSongWizard,
-  
+
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
   },
@@ -74,16 +74,6 @@ const smsPlugin: SmsChipPlugin = {
       case 2: return createToneChannel(audioContext, 'tone3', 2);
       case 3: return createNoiseChannel(audioContext);
       default: throw new Error(`SMS plugin: invalid channel index ${channelIndex} (valid: 0–3)`);
-    }
-  },
-
-  async resolveExporterPlugins() {
-    try {
-      const mod = await import('@beatbax/plugin-exporter-vgm');
-      const plugin = mod.default ?? mod;
-      return [plugin];
-    } catch {
-      return [];
     }
   },
 };

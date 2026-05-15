@@ -30,6 +30,15 @@ Introduce a first-class **exporter plugin system** parallel to the existing chip
 - `ChipPlugin` gains an optional `exporterPlugins?: ExporterPlugin[]` field. When a chip plugin is registered with `ChipRegistry`, any declared exporter plugins are automatically forwarded to `exporterRegistry`.
 - `ExporterPlugin`, `ExportOptions`, `ExporterRegistry`, and `exporterRegistry` are added to `plugin-api.ts` so third-party authors import everything from `@beatbax/engine`.
 
+### Registration Boundary Update (2026-05)
+
+To keep runtime registration deterministic and avoid duplicate loading paths, exporter registration follows two explicit mechanisms only:
+
+1. `ChipPlugin.exporterPlugins` (static, synchronous forwarding at chip registration time)
+2. Host-driven registration/discovery (for example CLI plugin discovery and web-ui explicit registration)
+
+The previous async `resolveExporterPlugins()` hook was removed from `ChipPlugin`. Chip plugins should no longer dynamically import exporter packages at runtime.
+
 **CLI changes (`packages/cli`):**
 
 - The `export` command's hard-coded `choices([...])` is replaced with a dynamic lookup against `exporterRegistry`. Unknown formats produce a helpful error listing all registered formats.
@@ -89,4 +98,13 @@ All spec items are implemented. 9 of 10 items are fully complete; item 9 is stru
 | 8 | CLI auto-discovery for `@beatbax/plugin-exporter-*` | ✅ Complete |
 | 9 | `@beatbax/plugin-exporter-famitracker` real `.txt` output (`famitracker-text`) | ✅ Complete |
 | 10 | `@beatbax/plugin-chip-nes` declares `exporterPlugins` | ✅ Complete |
+
+## Post-Implementation Change Log
+
+### 2026-05-15 — Async exporter hook removed
+
+- Removed `ChipPlugin.resolveExporterPlugins()` from the engine chip plugin contract.
+- Removed `ChipRegistry` runtime invocation path for async exporter resolution.
+- Rationale: avoid mixed static/dynamic exporter loading paths that caused bundler ambiguity and non-deterministic registration order in browser bundles.
+- Migration: use `exporterPlugins` or explicit host registration/discovery.
 
