@@ -823,6 +823,41 @@ export function parseWithPeggy(source: string): ParseResult {
     }
   }
 
+  // Channel validation: detect and report duplicate channel IDs, then deduplicate
+  {
+    const channelIdsSeen = new Set<number>();
+    const duplicateChannelIds = new Set<number>();
+    for (const ch of channels) {
+      if (channelIdsSeen.has(ch.id)) {
+        duplicateChannelIds.add(ch.id);
+      } else {
+        channelIdsSeen.add(ch.id);
+      }
+    }
+    if (duplicateChannelIds.size > 0) {
+      // Emit an error for each duplicate occurrence (all after the first)
+      const seenForError = new Set<number>();
+      for (const ch of channels) {
+        if (duplicateChannelIds.has(ch.id)) {
+          if (seenForError.has(ch.id)) {
+            diag('error', 'parser', `Duplicate channel ${ch.id}: each channel ID may only be declared once. Remove the extra declaration.`, ch.loc);
+          } else {
+            seenForError.add(ch.id);
+          }
+        }
+      }
+      // Keep only the first occurrence of each channel ID so downstream panels
+      // don't render multiple controls for the same channel
+      const seen = new Set<number>();
+      const deduped = channels.filter(ch => {
+        if (seen.has(ch.id)) return false;
+        seen.add(ch.id);
+        return true;
+      });
+      channels.splice(0, channels.length, ...deduped);
+    }
+  }
+
   // Channel validation: missing inst, unknown inst reference, missing seq/pat, unknown seq/pat reference
   for (const ch of channels) {
     const chLoc = ch.loc;
