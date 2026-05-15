@@ -5,7 +5,6 @@ import tailwindcss from '@tailwindcss/vite';
 const ENGINE_EXTERNAL_IMPORTS = [
   '@beatbax/engine',
   '@beatbax/engine/chips',
-  '@beatbax/engine/export',
   '@beatbax/engine/parser',
   '@beatbax/engine/song',
   '@beatbax/engine/audio/playback',

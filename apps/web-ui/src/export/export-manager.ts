@@ -5,9 +5,9 @@
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
-import { exporterRegistry } from '@beatbax/engine/export';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { exporterRegistry } from '../plugins/browser-exporter-registry';
 
 import type { EventBus } from '../utils/event-bus';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';
@@ -216,8 +216,10 @@ export class ExportManager {
     try {
       clearCapturedWrite();
 
-      // Dynamic import to allow graceful fallback if unavailable
-      const { exportUGE } = await import('@beatbax/engine/export');
+      // Load UGE writer directly from the static engine artifact to avoid
+      // loading the Node-oriented export barrel module.
+      const ugeWriterModulePath = '/engine/export/ugeWriter.js';
+      const { exportUGE } = await import(/* @vite-ignore */ ugeWriterModulePath);
       await exportUGE(resolved as any, filename, { onWarn });
 
       // Retrieve captured data

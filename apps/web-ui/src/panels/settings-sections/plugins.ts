@@ -8,7 +8,7 @@
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
 import { sectionHeading, noteText, selectField } from './general';
 import { gameboyPlugin } from '@beatbax/engine/chips';
-import { exporterRegistry } from '@beatbax/engine/export';
+import { exporterRegistry } from '../../plugins/browser-exporter-registry';
 import {
   BUILTIN_EXPORTER_IDS,
   OPTIONAL_EXPORTER_PLUGINS,
