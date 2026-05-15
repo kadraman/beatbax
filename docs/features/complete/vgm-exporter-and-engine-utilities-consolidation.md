@@ -1,6 +1,6 @@
 ---
 title: "VGM Exporter Refactoring & Engine Utilities Consolidation"
-status: proposed
+status: closed
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-05-10
 issue: "https://github.com/kadraman/beatbax/issues/105"
@@ -376,7 +376,7 @@ describe('macro state', () => {
 
 ```typescript
 // Music utilities for exporters and plugins
-export { 
+export {
   NOTE_SEMITONES,
   noteToMidi,
   midiToNote,
