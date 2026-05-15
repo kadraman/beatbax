@@ -98,6 +98,7 @@ import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
+import { MidiStepEntryController } from './input/midi-step-entry-controller';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText, sanitizeFilename } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
@@ -987,6 +988,59 @@ if (_loopMode) _applyLoopMode(true);
 
 // Apply stored live mode on startup
 if (liveMode) _applyLiveMode(true);
+
+// ─── MIDI Step Entry ──────────────────────────────────────────────────────────
+
+const midiController = new MidiStepEntryController({
+  getEditor: () => editor?.editor ?? null,
+  onAuditionNote: (noteName) => {
+    // Build a brief synthetic source to audition the note via the playback engine.
+    // We use the current editor source to resolve the correct chip and instruments.
+    try {
+      const src = getSource();
+      const chipMatch = src.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
+      const chip = chipMatch ? chipMatch[1] : 'gameboy';
+      // Collect inst definitions from source
+      const instLines = src.split('\n').filter(l => /^\s*inst\s+/.test(l));
+      const firstInst = src.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/m)?.[1];
+      const instDef = firstInst
+        ? instLines.join('\n')
+        : 'inst _midi_tmp type=pulse1 duty=50 env=12,down';
+      const instName = firstInst ?? '_midi_tmp';
+      const auditionSrc = [
+        `chip ${chip}`,
+        'bpm 120',
+        instDef || `inst ${instName} type=pulse1 duty=50 env=12,down`,
+        `pat __midi_audition__ = ${noteName}`,
+        `channel 1 => inst ${instName} seq __midi_audition__`,
+        'play',
+      ].join('\n');
+      playbackManager.play(auditionSrc);
+    } catch (_e) { /* audition failures are non-fatal */ }
+  },
+  onWarning: (message) => {
+    opWarn(outputPanel, message, 'midi');
+  },
+  onArmedChanged: (armed) => {
+    transportBar.recordButton.classList.toggle('bb-record-btn--active', armed);
+    transportBar.recordButton.title = armed
+      ? 'MIDI Step Entry ON — click to stop'
+      : 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
+  },
+});
+
+// Enable the record button and wire it up
+transportBar.recordButton.disabled = false;
+transportBar.recordButton.title = 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
+transportBar.recordButton.addEventListener('click', () => {
+  void midiController.toggleStepEntry();
+});
+
+// Request MIDI access on startup if MIDI is enabled in settings
+void midiController.requestMidiAccess();
+
+// Expose MIDI controller globally for settings panel and command palette
+(window as any).__beatbax_midiStepEntry = midiController;
 
 // ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
 function _attachHoldRepeat(
