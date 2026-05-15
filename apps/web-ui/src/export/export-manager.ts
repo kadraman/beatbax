@@ -21,7 +21,6 @@ import {
   MIME_TYPES,
   ExportHistory,
 } from './download-helper';
-import { getCapturedWrite, clearCapturedWrite } from '../utils/browser-fs';
 import { settingAudioSampleRate, settingAudioBufferFrames } from '../stores/settings.store';
 
 const log = createLogger('ui:export-manager');
@@ -210,6 +209,7 @@ export class ExportManager {
    */
   private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
     const filename = ensureExtension(baseFilename, 'uge');
+    const { getCapturedWrite, clearCapturedWrite } = await import('../utils/browser-fs');
 
     // Attempt to dynamically import the engine's UGE exporter
     // The 'fs' module is aliased to our browser-fs.ts mock via Vite config
