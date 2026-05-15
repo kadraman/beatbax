@@ -1,5 +1,13 @@
 # @beatbax/engine
 
+## 0.16.0
+
+### Minor Changes
+
+- accf3b7: Removed async chip-exporter auto-resolution and standardized explicit exporter registration.
+  Chip plugins should register exporters via exporterPlugins (or host/CLI registration), not runtime resolve hooks.
+  Also includes web-ui build warning cleanup and feature/spec documentation alignment.
+
 ## 0.15.0
 
 ### Minor Changes
