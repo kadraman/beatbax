@@ -1070,7 +1070,7 @@ chip spectrum-128
 bpm 140
 
 ; Lead with all three macros
-inst complex type=tone1 vol=13 
+inst complex type=tone1 vol=13
   arp_env=[0,2,4,5]     ; Arpeggio pattern
   pitch_env=[0,1,0,-1]  ; Subtle vibrato-like pitch bend
   vol_env=[15,12,9,6]   ; Fade out over 4 steps

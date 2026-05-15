@@ -44,7 +44,7 @@ Create `packages/plugins/export-vgm/` as a standalone npm package (`@beatbax/plu
 - Supports GD3 tag metadata (title, system, composer, date, notes) sourced from ISM metadata fields
 - Declares `supportedChips: ['sms']` in v1; other chips can be added in later versions
 
-The SMS chip plugin (`@beatbax/plugin-chip-sms`) will declare this exporter in its `exporterPlugins` array so that installing the SMS plugin is sufficient to make `beatbax export vgm` available without a separate install.
+Registration is explicit. A host can expose the exporter either by statically forwarding it from a chip plugin via `exporterPlugins`, or by importing/registering `@beatbax/plugin-exporter-vgm` directly during host startup/discovery. The current SMS package should not be described as auto-enabling VGM export unless it actually declares the exporter on the chip plugin object.
 
 **IMPORTANT**: there are some sample vgms that have already been create for the Sega Master System in songs\vgm\sms
 
@@ -275,7 +275,12 @@ Supported integration paths:
 
 `ChipPlugin.resolveExporterPlugins()` is not supported.
 
-Installing `@beatbax/plugin-chip-sms` then automatically makes `beatbax export vgm` available with no separate install. If `@beatbax/plugin-exporter-vgm` is not installed, the SMS plugin degrades gracefully with no exporter registered.
+Responsibility depends on which integration path is used:
+
+- If a chip plugin statically declares `exporterPlugins`, the chip package is responsible for importing the exporter package and forwarding it during chip registration.
+- If the host uses exporter discovery or explicit startup registration, the host is responsible for importing `@beatbax/plugin-exporter-vgm` and registering it.
+
+Current SMS implementation note: [`@beatbax/plugin-chip-sms`](/workspaces/beatbax/packages/plugins/chip-sms/src/index.ts) does not currently declare an `exporterPlugins` array, so this spec should not claim that installing the SMS chip package alone automatically makes `beatbax export vgm` available. VGM export is only available in hosts that explicitly register or discover `@beatbax/plugin-exporter-vgm`.
 
 ### CLI Usage
 

@@ -2,6 +2,17 @@ import { defineConfig } from 'vite';
 import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 
+const ENGINE_EXTERNAL_IMPORTS = [
+  '@beatbax/engine',
+  '@beatbax/engine/chips',
+  '@beatbax/engine/export',
+  '@beatbax/engine/parser',
+  '@beatbax/engine/song',
+  '@beatbax/engine/audio/playback',
+  '@beatbax/engine/util/logger',
+  '@beatbax/engine/util/music',
+];
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -34,9 +45,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Keep engine imports external so production uses /engine/* assets copied
-      // by prepare-engine and resolved via import map in index.html.
-      external: [/^@beatbax\/engine(?:\/.*)?$/],
+      // Externalize only the engine entrypoints that index.html maps to real
+      // browser URLs. Avoid a broad /^@beatbax\/engine(?:\/.*)?$/ rule because
+      // browser import maps do not emulate Node package export resolution.
+      external: ENGINE_EXTERNAL_IMPORTS,
       input: {
         main: path.resolve(__dirname, 'index.html'),
       }

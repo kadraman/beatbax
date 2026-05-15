@@ -54,7 +54,7 @@ const smsPlugin: SmsChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
   uiContributions: smsUIContributions,
   newSongWizard: smsSongWizard,
-  
+
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
   },

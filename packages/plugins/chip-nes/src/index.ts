@@ -46,7 +46,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   bundledSamples: BUNDLED_SAMPLES,
   uiContributions: nesUIContributions,
   newSongWizard: nesSongWizard,
-  
+
   supportsVolumeForChannel(channelIndex: number): boolean {
     // Pulse1 (0) and Pulse2 (1) have a hardware volume envelope register.
     // Noise (3) also has a volume envelope register.

@@ -24,6 +24,7 @@ import {
   NOTE_SEMITONES,
   noteToMidi,
   midiToFreq,
+  midiToFreqForNote as engineMidiToFreqForNote,
   parseMacro,
   macroValue,
   advanceMacro,
@@ -49,8 +50,7 @@ export type { ParsedMacro, MacroState };
  * Delegates to the centralized engine utility.
  */
 export function midiToFreqForNote(noteName: string): number {
-  const midi = noteToMidi(noteName);
-  return midi === null ? 0 : midiToFreq(midi);
+  return engineMidiToFreqForNote(noteName) ?? 0;
 }
 
 // ─── Macro system ─────────────────────────────────────────────────────────────
