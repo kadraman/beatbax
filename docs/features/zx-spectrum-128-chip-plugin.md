@@ -920,7 +920,7 @@ channel 3 => inst kick seq drumline`,
 ### Phase 6: Export Integration (Future)
 
 When VGM exporter is ready:
-1. Implement `resolveExporterPlugins()` in plugin
+1. Register the exporter via explicit plugin/host registration (`exporterPlugins` or host discovery)
 2. Wire VGM backend for AY-3-8910 (per VGM exporter feature doc)
 3. Add snapshot tests for VGM export determinism
 

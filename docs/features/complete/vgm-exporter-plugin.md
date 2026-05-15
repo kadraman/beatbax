@@ -264,22 +264,16 @@ const vgmExporterPlugin: ExporterPlugin = {
 export default vgmExporterPlugin;
 ```
 
-### SMS Chip Plugin Declaration
+### SMS Integration and Registration
 
-The SMS chip plugin declares the VGM exporter via a dynamic import in `resolveExporterPlugins()`, so it is optional and tree-shakeable:
+`@beatbax/plugin-exporter-vgm` is integrated through explicit exporter registration rather than chip-runtime dynamic loading.
 
-```typescript
-// packages/plugins/chip-sms/src/index.ts
-async resolveExporterPlugins() {
-  try {
-    const mod = await import('@beatbax/plugin-exporter-vgm');
-    const plugin = mod.default ?? mod;
-    return [plugin];
-  } catch {
-    return []; // exporter not installed — degrade gracefully
-  }
-}
-```
+Supported integration paths:
+
+1. Static chip declaration via `exporterPlugins` on the chip plugin object.
+2. Host-driven registration/discovery (for example CLI exporter discovery and web-ui explicit exporter registration).
+
+`ChipPlugin.resolveExporterPlugins()` is not supported.
 
 Installing `@beatbax/plugin-chip-sms` then automatically makes `beatbax export vgm` available with no separate install. If `@beatbax/plugin-exporter-vgm` is not installed, the SMS plugin degrades gracefully with no exporter registered.
 
@@ -386,7 +380,7 @@ No migration required. VGM is a new export target; existing songs and export com
 - [x] Add unit tests (`vgmWriter.test.ts`, `psgState.test.ts`, `gd3.test.ts`)
 - [x] Add integration tests (`vgm-exporter.test.ts` — parse → ISM → VGM round-trip)
 - [x] Add `@beatbax/plugin-exporter-vgm` as dependency in SMS chip plugin
-- [x] Declare `vgmExporterPlugin` in SMS chip plugin via `resolveExporterPlugins()` (dynamic import)
+- [x] Register `vgmExporterPlugin` through explicit exporter registration (chip `exporterPlugins` and/or host-driven registration)
 - [x] Verify CLI `beatbax export vgm` works end-to-end
 - [x] Document Game Gear stereo behaviour in VGM output (0x4F command, version 1.61)
 - [x] Verify `retrig` emits GD3 note warning (not a hard error)

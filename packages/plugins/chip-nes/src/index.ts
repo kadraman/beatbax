@@ -90,16 +90,6 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
   configureForSong(song: { chip?: string; chipRegion?: string }) {
     setNesClockRegion(song?.chipRegion);
   },
-
-  async resolveExporterPlugins() {
-    try {
-      const mod = await import('@beatbax/plugin-exporter-famitracker');
-      return [mod.famitrackerTextExporterPlugin];
-    } catch {
-      // @beatbax/plugin-exporter-famitracker is an optional peer — not installed.
-      return [];
-    }
-  },
 };
 
 export default nesPlugin;

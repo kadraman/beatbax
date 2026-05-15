@@ -8,18 +8,13 @@ export default defineConfig({
   ],
   root: '.',
   resolve: {
-    alias: {
+    alias: [
       // allow imports like '@/...' if desired
-      '@': path.resolve(__dirname, 'src'),
-      // Force browser-safe import resolver in browser builds (exact match only)
-      '@beatbax/engine/song$': path.resolve(
-        __dirname,
-        '../../packages/engine/dist/song/index.browser.js'
-      ),
+      { find: '@', replacement: path.resolve(__dirname, 'src') },
       // Redirect Node.js 'fs' to a browser-safe mock so the engine's
       // UGE/MIDI exporters can run in the browser via writeFileSync capture.
-      'fs': path.resolve(__dirname, 'src/utils/browser-fs.ts'),
-    },
+      { find: 'fs', replacement: path.resolve(__dirname, 'src/utils/browser-fs.ts') },
+    ],
     // Ensure Node.js built-ins are not polyfilled (we don't need them in browser)
     conditions: ['browser', 'module', 'import', 'default']
   },
@@ -39,20 +34,19 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Keep @beatbax/engine external so we can ship it as a separate
-      // ESM artifact (copied into public/engine) and avoid inlining it
-      // into the demo bundle for production.
-      external: ['@beatbax/engine'],
+      // Keep engine imports external so production uses /engine/* assets copied
+      // by prepare-engine and resolved via import map in index.html.
+      external: [/^@beatbax\/engine(?:\/.*)?$/],
       input: {
         main: path.resolve(__dirname, 'index.html'),
       }
     },
     // Increase chunk size warning limit for Monaco Editor
-    chunkSizeWarningLimit: 2000
+    chunkSizeWarningLimit: 5000
   },
   // Worker configuration for Monaco Editor
   worker: {
     format: 'es',
-    plugins: []
+    plugins: () => []
   }
 });

@@ -76,16 +76,6 @@ const smsPlugin: SmsChipPlugin = {
       default: throw new Error(`SMS plugin: invalid channel index ${channelIndex} (valid: 0–3)`);
     }
   },
-
-  async resolveExporterPlugins() {
-    try {
-      const mod = await import('@beatbax/plugin-exporter-vgm');
-      const plugin = mod.default ?? mod;
-      return [plugin];
-    } catch {
-      return [];
-    }
-  },
 };
 
 export default smsPlugin;
