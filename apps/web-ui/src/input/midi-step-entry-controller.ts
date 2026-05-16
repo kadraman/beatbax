@@ -89,10 +89,11 @@ export class MidiStepEntryController {
   /** Request MIDI access (once). Call early during app startup. */
   async requestMidiAccess(): Promise<void> {
     if (this._accessRequested) return;
-    this._accessRequested = true;
 
     if (!settingMidiInputEnabled.get()) return;
     if (!MidiStepEntryService.isSupported()) return;
+
+    this._accessRequested = true;
 
     const err = await this.service.requestAccess();
     if (err) {
