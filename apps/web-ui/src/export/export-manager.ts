@@ -7,7 +7,9 @@ import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { exportUGE } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry';
+import { getCapturedWrite, clearCapturedWrite } from '../utils/browser-fs';
 
 import type { EventBus } from '../utils/event-bus';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';
@@ -209,17 +211,10 @@ export class ExportManager {
    */
   private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
     const filename = ensureExtension(baseFilename, 'uge');
-    const { getCapturedWrite, clearCapturedWrite } = await import('../utils/browser-fs');
 
-    // Attempt to dynamically import the engine's UGE exporter
-    // The 'fs' module is aliased to our browser-fs.ts mock via Vite config
+    // exportUGE uses writeFileSync; Vite aliases fs to browser-fs at build time.
     try {
       clearCapturedWrite();
-
-      // Load UGE writer directly from the static engine artifact to avoid
-      // loading the Node-oriented export barrel module.
-      const ugeWriterModulePath = '/engine/export/ugeWriter.js';
-      const { exportUGE } = await import(/* @vite-ignore */ ugeWriterModulePath);
       await exportUGE(resolved as any, filename, { onWarn });
 
       // Retrieve captured data
