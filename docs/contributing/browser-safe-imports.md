@@ -79,17 +79,21 @@ const resolvedAST = await resolveImports(ast, {
 
 ### Bundler Configuration
 
-**Vite** (apps/web-ui/vite.config.ts):
+**Vite** (apps/web-ui) bundles `@beatbax/engine` into the production `dist/` assets (no import map, no copied `/public/engine` tree). Resolution uses package `exports` with the `browser` condition:
+
 ```typescript
 export default defineConfig({
   resolve: {
-    conditions: ['browser', 'module', 'import', 'default']
+    conditions: ['browser', 'module', 'import', 'default'],
+    alias: [
+      { find: 'fs', replacement: 'src/utils/browser-fs.ts' },
+      { find: 'path', replacement: 'src/utils/browser-path.ts' },
+    ],
   },
-  optimizeDeps: {
-    exclude: ['fs', 'path']  // Don't try to bundle Node built-ins
-  }
 });
 ```
+
+Engine exporters that call `writeFileSync` are wired to the `browser-fs` capture shim at build time only; the browser bundle does not load Node built-ins.
 
 **Webpack**: Automatically respects the `browser` condition in exports.
 
@@ -137,27 +141,13 @@ Potential enhancements:
 
 - Browser-safe import resolver (`importResolver.browser.ts`)
 - Conditional exports in `package.json`
-- Vite configuration for browser builds
-- Web UI updated to use browser-safe imports
+- Vite bundles engine + web UI into `apps/web-ui/dist/` (`npm run build` runs `scripts/verify-bundle.js` to guard against import maps and bare `fs`/`path` in output)
+- Web UI uses `@beatbax/engine` via npm workspaces (`"*"`) and `link-local-engine.cjs` for monorepo dev
 
-### ⚠️ Known Limitations
+### Deprecated
 
-**Build Warnings**: The web UI build currently shows Vite warnings about Node.js modules (`fs`, `path`) being externalized. This is cosmetic and does not affect functionality:
-
-```
-[plugin:vite:resolve] Module "path" has been externalized for browser compatibility
-[plugin:vite:resolve] Module "fs" has been externalized for browser compatibility
-```
-
-**Root Cause**: The `resolver.js` module internally imports from `importResolver.js` (Node version) for its `resolveSong*` functions. Even though the web UI:
-1. Uses the browser-safe `resolveImports` from `importResolver.browser.js`
-2. Calls `resolveImports` before calling `resolveSong` (so imports are already resolved)
-
-The `resolver.js` module still has the import statement at the module level, causing Vite to pull in the Node.js dependencies (which it then stubs out).
-
-**Impact**: The Node.js code paths are never executed at runtime since imports are resolved before calling `resolveSong`. The build succeeds and the application works correctly.
-
-**Future Fix**: Refactor `resolver.ts` to use dynamic imports or move import resolution logic entirely out of the resolver module.
+- Manual `<script type="importmap">` entries in `index.html`
+- Copying `packages/engine/dist` to `apps/web-ui/public/engine` (removed; use Vite bundling instead)
 
 ## Song Resolver — Browser-Safe Extension
 

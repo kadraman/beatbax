@@ -630,8 +630,8 @@ node bin/beatbax play songs/sample.bax --headless
 - Simulates `npm install` for local development
 - Only needed for CLI usage, not web UI
 
-**`apps/web-ui/scripts/prepare-engine.js`**
-- Copies `packages/engine/dist` → `apps/web-ui/public/engine`
+**`apps/web-ui/scripts/prepare-public-assets.js`**
+- Copies `songs/` → `apps/web-ui/public/songs` for dev server examples
 - Also copies `/songs` → `/public/songs`
 - Used for production builds (serves static ESM from `/engine/`)
 - In dev mode, Vite imports from workspace `node_modules` instead
