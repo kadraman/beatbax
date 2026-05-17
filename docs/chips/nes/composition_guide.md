@@ -222,6 +222,22 @@ This was a standard technique in late-era NES game soundtracks (1991–1994) whe
 
 **ROM cost:** A 32-byte DMC sample at rate index 7 (8363 Hz) lasts approximately 3.8 ms — barely perceptible as a transient. At rate index 0 (4182 Hz), 64 bytes produces about 12 ms of bass hit — more useful but still very short.
 
+**Preparing samples in BeatBax:** DMC samples are raw 1-bit delta streams. Convert short WAV hits with the CLI, then use the emitted instrument line in your song:
+
+```bash
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
+```
+
+```bax
+inst low_kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:samples/wav/low_kick.dmc"
+```
+
+The `dmc_rate` value is not stored in the `.dmc` file; it must match the rate used during conversion. Rate `15` gives the best high-frequency detail and is the default for short hits, while lower values sound darker and more degraded. Quiet WAV tails often become DMC hiss, so use `--trim-silence`, `--tail-ms`, `--fade-out-ms`, or `--max-duration-ms` to keep samples short and controlled:
+
+```bash
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --trim-silence -45 --tail-ms 8 --fade-out-ms 4 --max-duration-ms 120 --play
+```
+
 **Famous examples:**
 - *Battletoads* — Stage themes: DMC bass samples reinforce triangle bass for a much more powerful low end than early-era NES titles
 - *Ninja Gaiden III* — DMC kicks and bass hits give the soundtrack a weight not found in Ninja Gaiden I/II
