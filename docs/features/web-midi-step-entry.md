@@ -1,8 +1,9 @@
 ---
 title: "Web MIDI Step Entry and Instrument Preview in Monaco Editor"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-27
+completed: 2026-05-18
 issue: "https://github.com/kadraman/beatbax/issues/100"
 ---
 
@@ -311,20 +312,41 @@ This is an additive web-ui authoring feature. Existing songs, editor workflows, 
 
 ## Implementation Checklist
 
-- [ ] Create browser MIDI input service for Web MIDI device discovery and note event subscription
-- [ ] Add MIDI step-entry state management (armed/disarmed, selected device, mode)
-- [ ] Add Monaco integration for insert-at-cursor note entry
-- [ ] Add syntax-aware replace-selection logic for pattern note tokens
-- [ ] Reject MIDI insertion outside `pat` bodies with a clear warning
-- [ ] Enable transport button(s) for start/stop step entry
-- [ ] Enable instrument preview with MIDI keyboard
-- [ ] Add command-palette actions for step entry lifecycle
-- [ ] Add compact MIDI subsection to the Editor settings panel
-- [ ] Persist MIDI device and behavior settings via local storage / settings store
-- [ ] Add browser support / permission failure messaging
-- [ ] Add unit tests for note conversion and selection replacement
-- [ ] Add integration tests for Monaco + MIDI step entry workflow
-- [ ] Update help text and documentation
+- [x] Create browser MIDI input service for Web MIDI device discovery and note event subscription
+- [x] Add MIDI step-entry state management (armed/disarmed, selected device, mode)
+- [x] Add Monaco integration for insert-at-cursor note entry
+- [x] Add syntax-aware replace-selection logic for pattern note tokens
+- [x] Reject MIDI insertion outside `pat` bodies with a clear warning
+- [x] Enable transport button(s) for start/stop step entry
+- [x] Enable instrument preview with MIDI keyboard
+- [x] Add command-palette actions for step entry lifecycle
+- [x] Add compact MIDI subsection to the Editor settings panel
+- [x] Persist MIDI device and behavior settings via local storage / settings store
+- [x] Add browser support / permission failure messaging
+- [x] Add unit tests for note conversion and selection replacement
+- [x] Add integration tests for Monaco + MIDI step entry workflow
+- [x] Update help text and documentation (clarified "Emit explicit durations" vs "Use MIDI key hold" precedence)
+
+---
+
+## Completion Summary
+
+**Delivered v1 Scope (May 2026):**
+
+The Web MIDI Step Entry feature is now fully implemented and tested:
+
+- **MIDI Input Service** (`apps/web-ui/src/input/midi-step-entry.ts`): Complete browser Web MIDI API integration with device enumeration, lifecycle management, and note-to-token conversion
+- **Transport Integration**: Record button wired to start/stop step entry; button state enforces explicit MIDI device selection
+- **Editing Modes**: Insert-at-cursor and overwrite-selection with cycle wrapping for repeated notes
+- **Instrument Preview**: MIDI keyboard auditions instruments and patterns via existing CodeLens infrastructure
+- **Settings UI**: Compact MIDI section in Editor panel with 8 configurable options including device selection, step length, entry mode, and behavior toggles
+- **State Persistence**: All settings persist via Nano Stores + localStorage with validation on startup and refresh
+- **Test Coverage**: 56 unit + integration tests across three focused test suites, all passing
+- **Help Text**: Clarified semantics of "Emit explicit durations" vs "Use MIDI key hold for step length" with explicit precedence documentation
+
+**Browser Support**: Chrome and Edge only (Web MIDI API limitation); Safari and Firefox show non-fatal browser-support warning.
+
+**Specifications Honored**: Sharp-only note spelling, step entry restricted to `pat` bodies, no silent syntax invention, clear diagnostics on invalid selections.
 
 ---
 

@@ -18,6 +18,7 @@ import {
   durationMsToStepLength,
   MidiStepEntryService,
 } from '../src/input/midi-step-entry';
+import { MidiStepEntryController } from '../src/input/midi-step-entry-controller';
 
 // ─── midiNoteToName ───────────────────────────────────────────────────────────
 
@@ -78,6 +79,10 @@ describe('formatNoteToken', () => {
     expect(formatNoteToken('C4', 'inherit', true)).toBe('C4');
   });
 
+  it('returns plain note name when stepLength is 1', () => {
+    expect(formatNoteToken('C4', '1', true)).toBe('C4');
+  });
+
   it('appends duration suffix when emitDuration is true and stepLength is not inherit', () => {
     expect(formatNoteToken('C4', '4', true)).toBe('C4:4');
     expect(formatNoteToken('F#5', '8', true)).toBe('F#5:8');
@@ -85,8 +90,12 @@ describe('formatNoteToken', () => {
   });
 
   it('handles all step lengths', () => {
+    expect(formatNoteToken('C4', '2', true)).toBe('C4:2');
+    expect(formatNoteToken('C4', '4', true)).toBe('C4:4');
+    expect(formatNoteToken('C4', '8', true)).toBe('C4:8');
+    expect(formatNoteToken('C4', '16', true)).toBe('C4:16');
     for (const len of ['1', '2', '4', '8', '16'] as const) {
-      expect(formatNoteToken('C4', len, true)).toBe(`C4:${len}`);
+      expect(formatNoteToken('C4', len, false)).toBe('C4');
     }
   });
 });
@@ -250,9 +259,8 @@ describe('MidiStepEntryService', () => {
 
   it('arm() arms the service', () => {
     service.arm();
-    // arm() without a device emits a warning via onWarning (no MIDI access in tests)
-    // The service reports armed state regardless of device availability in tests
-    // (the warning path checks selectedInput presence, not isArmed flag)
+    expect(service.isArmed()).toBe(false);
+    expect(onWarning).toHaveBeenCalledWith('Select a MIDI input device before arming MIDI step entry.');
   });
 
   it('disarm() disarms the service', () => {
@@ -317,5 +325,77 @@ describe('MidiStepEntryService', () => {
 
   it('isSupported() returns false in jsdom (no Web MIDI API)', () => {
     expect(MidiStepEntryService.isSupported()).toBe(false);
+  });
+});
+
+describe('MidiStepEntryController overwrite-selection', () => {
+  function createSingleLineEditor(lineText: string, startColumn: number, endColumn: number) {
+    const state = {
+      lineText,
+      position: { lineNumber: 1, column: startColumn },
+      selection: {
+        startLineNumber: 1,
+        startColumn,
+        endLineNumber: 1,
+        endColumn,
+      },
+    };
+
+    const model = {
+      getLineContent: (_lineNumber: number) => state.lineText,
+      getValueInRange: (range: any) => state.lineText.slice(range.startColumn - 1, range.endColumn - 1),
+      getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
+      getOffsetAt: (position: { lineNumber: number; column: number }) => position.column - 1,
+    };
+
+    const editor = {
+      getModel: () => model,
+      getPosition: () => state.position,
+      getSelection: () => state.selection,
+      setSelection: (range: any) => {
+        state.selection = {
+          startLineNumber: range.startLineNumber,
+          startColumn: range.startColumn,
+          endLineNumber: range.endLineNumber,
+          endColumn: range.endColumn,
+        };
+        state.position = { lineNumber: range.endLineNumber, column: range.endColumn };
+      },
+      executeEdits: (_source: string, edits: any[]) => {
+        for (const edit of edits) {
+          const start = edit.range.startColumn - 1;
+          const end = edit.range.endColumn - 1;
+          state.lineText = state.lineText.slice(0, start) + edit.text + state.lineText.slice(end);
+        }
+      },
+      focus: jest.fn(),
+    };
+
+    return { editor, state };
+  }
+
+  it('advances through highlighted notes and wraps back to the first token', () => {
+    const lineText = 'pat melody = C4 C4 C4 C4 C4';
+    const selectionStart = lineText.indexOf('C4');
+    const selectionText = 'C4 C4 C4 C4';
+    const startColumn = selectionStart + 1;
+    const endColumn = startColumn + selectionText.length;
+    const { editor, state } = createSingleLineEditor(lineText, startColumn, endColumn);
+
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+    });
+    controller.setEntryMode('overwrite-selection');
+
+    (controller as any)._insertNoteInEditor('D4', 'inherit', false);
+    expect(state.lineText).toBe('pat melody = D4 C4 C4 C4 C4');
+
+    (controller as any)._insertNoteInEditor('D4', 'inherit', false);
+    (controller as any)._insertNoteInEditor('D4', 'inherit', false);
+    (controller as any)._insertNoteInEditor('D4', 'inherit', false);
+    expect(state.lineText).toBe('pat melody = D4 D4 D4 D4 C4');
+
+    (controller as any)._insertNoteInEditor('E4', 'inherit', false);
+    expect(state.lineText).toBe('pat melody = E4 D4 D4 D4 C4');
   });
 });

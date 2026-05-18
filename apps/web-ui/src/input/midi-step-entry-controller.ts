@@ -59,6 +59,14 @@ export class MidiStepEntryController {
   private _accessRequested = false;
   /** Tracks the start position of the last no-advance insertion for replace-in-place. */
   private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
+  /** Tracks overwrite-selection cycling so repeated notes advance and wrap. */
+  private _overwriteCycle: {
+    blockStartOffset: number;
+    blockEndOffset: number;
+    activeStartOffset: number;
+    activeEndOffset: number;
+    nextSpanIndex: number;
+  } | null = null;
 
   constructor(private opts: MidiStepEntryControllerOptions) {
     this.service = new MidiStepEntryService({
@@ -109,6 +117,10 @@ export class MidiStepEntryController {
       const deviceErr = this.service.setDevice(savedDevice);
       if (deviceErr) {
         log.warn('Saved MIDI device not found:', deviceErr);
+        // Saved device became unavailable (e.g. unplugged between sessions).
+        // Clear persisted selection so UI and Record button state stay accurate.
+        settingMidiInputDevice.set('');
+        this.service.setDevice('');
       }
     }
   }
@@ -133,6 +145,8 @@ export class MidiStepEntryController {
     }
     const err = this.service.setDevice(deviceId);
     if (err) {
+      settingMidiInputDevice.set('');
+      this.service.setDevice('');
       this.opts.onWarning?.(err);
     }
   }
@@ -150,18 +164,28 @@ export class MidiStepEntryController {
       this.opts.onWarning?.('Enable MIDI input in Settings → Editor → MIDI Step Entry first.');
       return;
     }
+    if (!settingMidiInputDevice.get()) {
+      this.opts.onWarning?.('Select a MIDI input device in Settings → Editor → MIDI Step Entry before arming.');
+      this.service.disarm();
+      this.opts.onArmedChanged?.(false);
+      return;
+    }
     if (!this._accessRequested) {
       await this.requestMidiAccess();
     }
     this.service.arm();
-    this.opts.onArmedChanged?.(true);
-    log.info('MIDI step entry armed');
+    const armed = this.service.isArmed();
+    this.opts.onArmedChanged?.(armed);
+    if (armed) {
+      log.info('MIDI step entry armed');
+    }
   }
 
   /** Disarm step entry. */
   disarmStepEntry(): void {
     this.service.disarm();
     this._noAdvanceStart = null;
+    this._overwriteCycle = null;
     this.opts.onArmedChanged?.(false);
     log.info('MIDI step entry disarmed');
   }
@@ -196,6 +220,7 @@ export class MidiStepEntryController {
   setEntryMode(v: EntryMode): void {
     settingMidiEntryMode.set(v);
     this.service.setEntryMode(v);
+    this._overwriteCycle = null;
   }
 
   setAutoAdvance(v: boolean): void {
@@ -261,6 +286,8 @@ export class MidiStepEntryController {
     token: string,
     autoAdvance: boolean,
   ): void {
+    this._overwriteCycle = null;
+
     // Always insert at the cursor position — never replace any existing selection.
     // Using a collapsed range ensures Monaco's selection does not get overwritten.
     const insertRange = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
@@ -309,34 +336,101 @@ export class MidiStepEntryController {
   ): void {
     const sel = editor.getSelection();
     if (!sel || (sel.startLineNumber === sel.endLineNumber && sel.startColumn === sel.endColumn)) {
+      this._overwriteCycle = null;
       // No selection — fall back to insert at cursor
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
       return;
     }
 
-    const selectedText = model.getValueInRange(sel);
+    const continuingCycle = this._resolveOverwriteCycleSelection(editor, model, sel);
+    const blockRange = continuingCycle
+      ? this._rangeFromOffsets(model, continuingCycle.blockStartOffset, continuingCycle.blockEndOffset)
+      : new monaco.Range(sel.startLineNumber, sel.startColumn, sel.endLineNumber, sel.endColumn);
+    const selectedText = model.getValueInRange(blockRange);
     const spans = extractNoteTokenSpans(selectedText);
 
     if (spans.length === 0) {
+      this._overwriteCycle = null;
       // Selection contains no note/rest tokens — warn and abort
       this.opts.onWarning?.('MIDI step entry: selection contains no note or rest tokens to replace.');
       return;
     }
 
-    // Replace the first token span in the selection with the new token.
-    // After the replacement, remove the consumed span and leave the rest selected.
-    const first = spans[0];
-    const before = selectedText.slice(0, first.start);
-    const after = selectedText.slice(first.end);
+    const targetIndex = continuingCycle ? (continuingCycle.nextSpanIndex % spans.length) : 0;
+    const targetSpan = spans[targetIndex];
+    const before = selectedText.slice(0, targetSpan.start);
+    const after = selectedText.slice(targetSpan.end);
     const newSelectedText = before + token + after;
 
     editor.executeEdits('midi-step-entry', [{
-      range: sel,
+      range: blockRange,
       text: newSelectedText,
       forceMoveMarkers: false,
     }]);
 
+    const nextSpans = extractNoteTokenSpans(newSelectedText);
+    if (nextSpans.length > 0) {
+      const blockStartOffset = model.getOffsetAt({
+        lineNumber: blockRange.startLineNumber,
+        column: blockRange.startColumn,
+      });
+      const nextSpanIndex = (targetIndex + 1) % nextSpans.length;
+      const nextSpan = nextSpans[nextSpanIndex];
+      const nextRange = this._rangeFromOffsets(
+        model,
+        blockStartOffset + nextSpan.start,
+        blockStartOffset + nextSpan.end,
+      );
+      this._overwriteCycle = {
+        blockStartOffset,
+        blockEndOffset: blockStartOffset + newSelectedText.length,
+        activeStartOffset: blockStartOffset + nextSpan.start,
+        activeEndOffset: blockStartOffset + nextSpan.end,
+        nextSpanIndex,
+      };
+      editor.setSelection(nextRange);
+    } else {
+      this._overwriteCycle = null;
+    }
+
     this._noAdvanceStart = null;
     editor.focus();
+  }
+
+  private _resolveOverwriteCycleSelection(
+    editor: monaco.editor.IStandaloneCodeEditor,
+    model: monaco.editor.ITextModel,
+    selection: monaco.Selection,
+  ) {
+    if (!this._overwriteCycle) return null;
+
+    const activeRange = this._rangeFromOffsets(
+      model,
+      this._overwriteCycle.activeStartOffset,
+      this._overwriteCycle.activeEndOffset,
+    );
+
+    const sameSelection =
+      selection.startLineNumber === activeRange.startLineNumber &&
+      selection.startColumn === activeRange.startColumn &&
+      selection.endLineNumber === activeRange.endLineNumber &&
+      selection.endColumn === activeRange.endColumn;
+
+    if (!sameSelection) {
+      this._overwriteCycle = null;
+      return null;
+    }
+
+    return this._overwriteCycle;
+  }
+
+  private _rangeFromOffsets(
+    model: monaco.editor.ITextModel,
+    startOffset: number,
+    endOffset: number,
+  ): monaco.Range {
+    const start = model.getPositionAt(startOffset);
+    const end = model.getPositionAt(endOffset);
+    return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
   }
 }

@@ -48,7 +48,7 @@ import {
   warningsToDiagnostics,
   type Diagnostic,
 } from './editor/diagnostics';
-import { setupCodeLensPreview } from './editor/codelens-preview';
+import { setupCodeLensPreview, triggerStepEntryAudition } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
 import { getInitialContent } from './app/bootstrap';
@@ -77,6 +77,7 @@ import {
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
   settingMidiInputEnabled,
+  settingMidiInputDevice,
 } from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
@@ -345,7 +346,15 @@ rightTabs.tabContents['help']!.appendChild(helpContainer);
 const shortcutsModal = buildShortcutsModal();
 
 // ─── Settings modal ─────────────────────────────────────────────────────────
-const settingsModal = buildSettingsModal();
+const settingsModal = buildSettingsModal({
+  onClose: () => {
+    // Refocus the editor and trigger layout to ensure cursor is visible when returning from settings
+    if (editor?.editor) {
+      editor.editor.focus();
+      editor.editor.layout();
+    }
+  },
+});
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -994,10 +1003,14 @@ if (liveMode) _applyLiveMode(true);
 
 const midiController = new MidiStepEntryController({
   getEditor: () => editor?.editor ?? null,
-  onAuditionNote: (_noteName) => {
-    // Note preview via the full playback engine causes rapid Play/Stop toggling
-    // and floods the output panel. A dedicated single-note preview API is needed
-    // for a proper implementation. For now this callback is intentionally a no-op.
+  onAuditionNote: (noteName) => {
+    const monacoEditor = editor?.editor;
+    const model = monacoEditor?.getModel();
+    const pos = monacoEditor?.getPosition();
+    if (!model || !pos) return;
+
+    const lineText = model.getLineContent(pos.lineNumber);
+    triggerStepEntryAudition(lineText, noteName);
   },
   onWarning: (message) => {
     opWarn(outputPanel, message, 'midi');
@@ -1011,11 +1024,13 @@ const midiController = new MidiStepEntryController({
 });
 
 // Helper to sync the Record button's enabled/disabled state.
-// The button is only enabled when: MIDI input is on AND playback is not running.
+// The button is only enabled when: MIDI input is on, a MIDI device is selected,
+// and playback is not running.
 function _updateRecordButtonEnabled(): void {
   const midiOn = settingMidiInputEnabled.get();
+  const midiDeviceSelected = !!settingMidiInputDevice.get();
   const playing = playbackManager.isPlaying();
-  transportBar.recordButton.disabled = !midiOn || playing;
+  transportBar.recordButton.disabled = !midiOn || !midiDeviceSelected || playing;
 }
 
 // Set initial state (transport-bar starts with record button disabled)
@@ -1030,6 +1045,10 @@ eventBus.on('playback:started', () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:stopped', () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:paused',  () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:resumed', () => { _updateRecordButtonEnabled(); });
+
+// Re-evaluate Record button state whenever MIDI settings change.
+settingMidiInputEnabled.subscribe(() => { _updateRecordButtonEnabled(); });
+settingMidiInputDevice.subscribe(() => { _updateRecordButtonEnabled(); });
 
 // Request MIDI access on startup if MIDI is enabled in settings
 void midiController.requestMidiAccess();

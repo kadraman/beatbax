@@ -134,7 +134,7 @@ export function formatNoteToken(
   stepLength: StepLength,
   emitDuration: boolean,
 ): string {
-  if (!emitDuration || stepLength === 'inherit') return noteName;
+  if (!emitDuration || stepLength === 'inherit' || stepLength === '1') return noteName;
   return `${noteName}:${stepLength}`;
 }
 
@@ -306,30 +306,14 @@ export class MidiStepEntryService {
     return null;
   }
 
-  /**
-   * Select the first available MIDI input device automatically.
-   * Useful as a convenience action for single-device setups.
-   * Returns a diagnostic string when no devices are available.
-   */
-  selectFirstDevice(): string | null {
-    const devices = this.listDevices();
-    if (devices.length === 0) {
-      return 'No MIDI input devices are connected.';
-    }
-    return this.setDevice(devices[0].id);
-  }
-
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Arm step entry — incoming note-on events will call onNoteEntered. */
   arm(): void {
-    if (!this.selectedInput && this._deviceId === '') {
-      // Auto-select first device if none is chosen yet
-      const err = this.selectFirstDevice();
-      if (err) {
-        this.callbacks.onWarning?.(err);
-        return;
-      }
+    if (!this.selectedInput) {
+      this.callbacks.onWarning?.('Select a MIDI input device before arming MIDI step entry.');
+      this.armed = false;
+      return;
     }
     this.armed = true;
     log.info('MIDI step entry armed');

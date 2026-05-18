@@ -57,15 +57,14 @@ export function buildEditorSection(): HTMLElement {
   // Container that shows/hides all MIDI sub-settings based on the enable toggle
   const midiSettingsContainer = document.createElement('div');
   midiSettingsContainer.id = 'bb-midi-settings-container';
-  midiSettingsContainer.style.display = midiEnabledInitial ? '' : 'none';
+  midiSettingsContainer.style.display = midiEnabledInitial ? 'flex' : 'none';
+  midiSettingsContainer.style.flexDirection = 'column';
+  midiSettingsContainer.style.gap = '12px';
 
   el.appendChild(toggle('Enable MIDI input', midiEnabledInitial, (v) => {
     settingMidiInputEnabled.set(v);
     (window as any).__beatbax_midiStepEntry?.setEnabled(v);
-    midiSettingsContainer.style.display = v ? '' : 'none';
-    // Update Record button state in the transport bar
-    const rb = (document.querySelector('.bb-transport__btn--record') as HTMLButtonElement | null);
-    if (rb) rb.disabled = !v;
+    midiSettingsContainer.style.display = v ? 'flex' : 'none';
   }));
   el.appendChild(noteText('Allows a connected MIDI keyboard to enter notes directly into the editor when the Record button is active. Requires browser MIDI support (Chrome / Edge).'));
 
@@ -81,24 +80,37 @@ export function buildEditorSection(): HTMLElement {
   deviceSelect.className = 'bb-settings-select';
   deviceLabel.setAttribute('for', deviceSelect.id = 'bb-midi-device-select');
 
-  const refreshDevices = (): void => {
+  const refreshDevices = async (): Promise<void> => {
     const controller: any = (window as any).__beatbax_midiStepEntry;
+    await controller?.requestMidiAccess?.();
     const devices: Array<{ id: string; name: string }> = controller?.listDevices?.() ?? [];
+    let selectedId = settingMidiInputDevice.get();
+
+    if (selectedId && !devices.some((d) => d.id === selectedId)) {
+      // Persisted selection is no longer available; clear stale value.
+      selectedId = '';
+      settingMidiInputDevice.set('');
+      controller?.setDeviceById?.('');
+    }
+
     deviceSelect.innerHTML = '';
     const noneOpt = document.createElement('option');
     noneOpt.value = '';
     noneOpt.textContent = devices.length > 0 ? '— Select a device —' : '(No MIDI devices found)';
+    noneOpt.selected = selectedId === '';
     deviceSelect.appendChild(noneOpt);
     for (const d of devices) {
       const opt = document.createElement('option');
       opt.value = d.id;
       opt.textContent = d.name;
-      opt.selected = d.id === settingMidiInputDevice.get();
+      opt.selected = d.id === selectedId;
       deviceSelect.appendChild(opt);
     }
   };
 
-  deviceSelect.addEventListener('focus', refreshDevices);
+  deviceSelect.addEventListener('focus', () => {
+    void refreshDevices();
+  });
   deviceSelect.addEventListener('change', () => {
     const id = deviceSelect.value;
     settingMidiInputDevice.set(id);
@@ -111,10 +123,10 @@ export function buildEditorSection(): HTMLElement {
   refreshBtn.textContent = '↺ Refresh';
   refreshBtn.title = 'Re-scan for MIDI devices';
   refreshBtn.addEventListener('click', () => {
-    refreshDevices();
+    void refreshDevices();
   });
 
-  refreshDevices();
+  void refreshDevices();
   deviceRow.append(deviceLabel, deviceSelect, refreshBtn);
   midiSettingsContainer.appendChild(deviceRow);
 
@@ -122,7 +134,6 @@ export function buildEditorSection(): HTMLElement {
     'Step length',
     [
       { value: 'inherit', label: 'Inherit (no suffix)' },
-      { value: '1',  label: '1 (e.g. A3:1)' },
       { value: '2',  label: '2 (e.g. A3:2)' },
       { value: '4',  label: '4 (e.g. A3:4)' },
       { value: '8',  label: '8 (e.g. A3:8)' },
@@ -139,13 +150,13 @@ export function buildEditorSection(): HTMLElement {
     settingMidiEmitDurations.set(v);
     (window as any).__beatbax_midiStepEntry?.setEmitDuration?.(v);
   }));
-  midiSettingsContainer.appendChild(noteText('When enabled, inserted notes include a duration suffix (e.g. A3:4). Requires Step Length to be set to a value other than Inherit, or "Use MIDI key hold for step length" to be enabled.'));
+  midiSettingsContainer.appendChild(noteText('When enabled and "Use MIDI key hold" is disabled, inserted notes include a duration suffix (e.g. A3:4). Step Length 1 and Inherit never emit a suffix. If "Use MIDI key hold" is enabled, duration is always emitted regardless of this setting.'));
 
   midiSettingsContainer.appendChild(toggle('Use MIDI key hold for step length', settingMidiUseNoteDuration.get(), (v) => {
     settingMidiUseNoteDuration.set(v);
     (window as any).__beatbax_midiStepEntry?.setUseNoteDuration?.(v);
   }));
-  midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key (up to :16). The note is entered on key release. Overrides the Step Length setting.'));
+  midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key (up to :16). The note is entered on key release. This always emits a duration suffix and overrides both the "Step Length" setting and the "Emit explicit durations" setting.'));
 
   midiSettingsContainer.appendChild(selectField(
     'Entry mode',

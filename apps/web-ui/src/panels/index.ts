@@ -12,4 +12,4 @@ export { ChannelMixer } from './channel-mixer';
 export type { ChannelMixerOptions } from './channel-mixer';
 
 export { buildSettingsModal } from './settings-panel';
-export type { SettingsModalController } from './settings-panel';
+export type { SettingsModalController, SettingsModalOptions } from './settings-panel';

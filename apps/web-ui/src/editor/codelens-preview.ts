@@ -81,6 +81,16 @@ function resolvePreviewInstrument(patternName: string, ast: any): string | null 
   return first ?? null;
 }
 
+export function resolveAuditionInstrumentForLine(lineText: string, ast: any): string | null {
+  const instMatch = lineText.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)\b/);
+  if (instMatch) return instMatch[1];
+
+  const patMatch = lineText.match(/^\s*pat\s+([A-Za-z0-9_-]+)\s*=/);
+  if (!patMatch) return null;
+
+  return resolvePreviewInstrument(patMatch[1], ast);
+}
+
 // ---------------------------------------------------------------------------
 // Preview playback
 // ---------------------------------------------------------------------------
@@ -575,6 +585,7 @@ let _loopTrigger: ((patternName: string) => void) | null = null;
 let _seqPreviewTrigger: ((seqName: string) => void) | null = null;
 let _seqLoopTrigger: ((seqName: string) => void) | null = null;
 let _instNotePreviewTrigger: ((instName: string, note: string) => void) | null = null;
+let _stepEntryAuditionTrigger: ((lineText: string, note: string) => void) | null = null;
 let _effectPreviewTrigger: ((effectName: string) => void) | null = null;
 let _effectSlowPreviewTrigger: ((effectName: string) => void) | null = null;
 let _effectLoopTrigger: ((effectName: string) => void) | null = null;
@@ -697,6 +708,37 @@ export function setupCodeLensPreview(
     // Detect browser-incompatible local: DMC sample references before attempting
     // playback — the DMC backend blocks local: in browser contexts for security,
     // so the preview would start but be completely silent with no user feedback.
+    const instDef = rawAst.insts?.[instName];
+    if (
+      instDef?.type?.toLowerCase() === 'dmc' &&
+      typeof instDef.dmc_sample === 'string' &&
+      instDef.dmc_sample.startsWith('local:') &&
+      typeof window !== 'undefined'
+    ) {
+      eventBus.emit('preview:error', {
+        message: `Preview unavailable: 'local:' DMC samples cannot be accessed in the browser. Use @nes/<name> or https:// instead.`,
+      });
+      return;
+    }
+
+    const state = await startInstNotePreview(instName, note, rawAst, () => {
+      previewState = null;
+      notifyChange();
+    });
+    previewState = state;
+    notifyChange();
+  };
+
+  _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
+    let rawAst: any;
+    try { rawAst = parse(getSource()); } catch { return; }
+
+    const instName = resolveAuditionInstrumentForLine(lineText, rawAst);
+    if (!instName) return;
+
+    ensureAudioCtxReady(); // synchronous — must stay before any await
+    stopPreview();
+
     const instDef = rawAst.insts?.[instName];
     if (
       instDef?.type?.toLowerCase() === 'dmc' &&
@@ -1008,4 +1050,8 @@ export function setupCodeLensPreview(
     },
   };
   monaco.languages.registerCodeLensProvider('beatbax', providerInstance);
+}
+
+export function triggerStepEntryAudition(lineText: string, note: string): void {
+  _stepEntryAuditionTrigger?.(lineText, note);
 }
