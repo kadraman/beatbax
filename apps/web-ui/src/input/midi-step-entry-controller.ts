@@ -274,6 +274,9 @@ export class MidiStepEntryController {
       const { lineNumber: savedLine, startColumn } = this._noAdvanceStart;
       if (savedLine === pos.lineNumber) {
         editRange = new monaco.Range(savedLine, startColumn, pos.lineNumber, pos.column);
+      } else {
+        // Cursor moved to a different line — discard saved position and start fresh.
+        this._noAdvanceStart = null;
       }
     }
 

@@ -139,7 +139,7 @@ export function buildEditorSection(): HTMLElement {
     settingMidiEmitDurations.set(v);
     (window as any).__beatbax_midiStepEntry?.setEmitDuration?.(v);
   }));
-  midiSettingsContainer.appendChild(noteText('When enabled, inserted notes include a duration suffix (e.g. A3:4). Requires Step Length to be set to a value other than Inherit.'));
+  midiSettingsContainer.appendChild(noteText('When enabled, inserted notes include a duration suffix (e.g. A3:4). Requires Step Length to be set to a value other than Inherit, or "Use MIDI key hold for step length" to be enabled.'));
 
   midiSettingsContainer.appendChild(toggle('Use MIDI key hold for step length', settingMidiUseNoteDuration.get(), (v) => {
     settingMidiUseNoteDuration.set(v);
