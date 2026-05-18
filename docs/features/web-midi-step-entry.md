@@ -1,8 +1,9 @@
 ---
 title: "Web MIDI Step Entry and Instrument Preview in Monaco Editor"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-04-27
+completed: 2026-05-18
 issue: "https://github.com/kadraman/beatbax/issues/100"
 ---
 
@@ -220,14 +221,15 @@ Suggested fields:
 | Setting | Type | Default | Description |
 |--------|------|---------|-------------|
 | MIDI Input Enabled | boolean | `false` | Master feature toggle |
-| MIDI Input Device | string | `"system-default"` | Selected MIDI input device id/name |
-| Step Length | enum | `"inherit"` | Inserted duration: `inherit`, `1`, `2`, `4`, `8`, `16` |
-| Emit Explicit Durations | boolean | `false` | Whether inserted notes should include `:N` duration suffix |
-| Entry Mode | enum | `"insert"` | `insert` or `overwrite-selection` |
+| MIDI Input Device | string | `""` (none) | Selected MIDI input device id; empty = no device selected; Record button is disabled until a device is chosen |
+| Step Length | enum | `"inherit"` | Inserted duration: `inherit`, `2`, `4`, `8`, `16` (`:1` omitted — bare note already covers that) |
+| Emit Explicit Durations | boolean | `false` | Whether inserted notes include a `:N` duration suffix. Ignored when "Use MIDI key hold" is enabled |
+| Use MIDI key hold for step length | boolean | `false` | Derive step length from key hold time (`:2`–`:16`); always emits duration; overrides Step Length and Emit Explicit Durations |
+| Entry Mode | enum | `"insert"` | `insert` (at cursor) or `overwrite-selection` (replace selected tokens with cycle wrapping) |
 | Auto Advance | boolean | `true` | Advance cursor after each step-entered note |
-| Audition Input Notes | boolean | `true` | Preview entered notes locally in web playback engine when feasible |
-| Audition Insruments | boolean | `true` | Preview instrument definitions via the MIDI keyboard when feasible |
+| Play entered notes | boolean | `false` | Briefly audition each entered note through the BeatBax audio engine while in Record mode |
 
+Instrument audition via MIDI keyboard is handled by the CodeLens preview infrastructure, not a separate settings toggle.
 
 Optional only if still needed after implementation review:
 
@@ -311,20 +313,41 @@ This is an additive web-ui authoring feature. Existing songs, editor workflows, 
 
 ## Implementation Checklist
 
-- [ ] Create browser MIDI input service for Web MIDI device discovery and note event subscription
-- [ ] Add MIDI step-entry state management (armed/disarmed, selected device, mode)
-- [ ] Add Monaco integration for insert-at-cursor note entry
-- [ ] Add syntax-aware replace-selection logic for pattern note tokens
-- [ ] Reject MIDI insertion outside `pat` bodies with a clear warning
-- [ ] Enable transport button(s) for start/stop step entry
-- [ ] Enable instrument preview with MIDI keyboard
-- [ ] Add command-palette actions for step entry lifecycle
-- [ ] Add compact MIDI subsection to the Editor settings panel
-- [ ] Persist MIDI device and behavior settings via local storage / settings store
-- [ ] Add browser support / permission failure messaging
-- [ ] Add unit tests for note conversion and selection replacement
-- [ ] Add integration tests for Monaco + MIDI step entry workflow
-- [ ] Update help text and documentation
+- [x] Create browser MIDI input service for Web MIDI device discovery and note event subscription
+- [x] Add MIDI step-entry state management (armed/disarmed, selected device, mode)
+- [x] Add Monaco integration for insert-at-cursor note entry
+- [x] Add syntax-aware replace-selection logic for pattern note tokens
+- [x] Reject MIDI insertion outside `pat` bodies with a clear warning
+- [x] Enable transport button(s) for start/stop step entry
+- [x] Enable instrument preview with MIDI keyboard
+- [x] Add command-palette actions for step entry lifecycle
+- [x] Add compact MIDI subsection to the Editor settings panel
+- [x] Persist MIDI device and behavior settings via local storage / settings store
+- [x] Add browser support / permission failure messaging
+- [x] Add unit tests for note conversion and selection replacement
+- [x] Add integration tests for Monaco + MIDI step entry workflow
+- [x] Update help text and documentation (clarified "Emit explicit durations" vs "Use MIDI key hold" precedence)
+
+---
+
+## Completion Summary
+
+**Delivered v1 Scope (May 2026):**
+
+The Web MIDI Step Entry feature is now fully implemented and tested:
+
+- **MIDI Input Service** (`apps/web-ui/src/input/midi-step-entry.ts`): Complete browser Web MIDI API integration with device enumeration, lifecycle management, and note-to-token conversion
+- **Transport Integration**: Record button wired to start/stop step entry; button state enforces explicit MIDI device selection (disabled when no device is selected)
+- **Editing Modes**: Insert-at-cursor and overwrite-selection with cycle wrapping for repeated notes
+- **Instrument Preview**: MIDI keyboard auditions instruments and patterns via existing CodeLens infrastructure (not a separate settings toggle)
+- **Settings UI**: Compact MIDI section in Editor panel with 7 configurable options — MIDI device, Step Length, Emit Explicit Durations, Use MIDI key hold, Entry Mode, Auto-advance, Play entered notes
+- **State Persistence**: All settings persist via Nano Stores + localStorage with stale-device validation on startup and refresh
+- **Test Coverage**: 55 tests across three focused test suites (47 in midi-step-entry.test.ts, 5 in editor-midi-settings.test.ts, 3 in codelens-preview.test.ts), all passing
+- **Help Text**: Clarified semantics of "Emit explicit durations" vs "Use MIDI key hold for step length" with explicit precedence documentation; clarified that hold-duration minimum is `:2` (never `:1`)
+
+**Browser Support**: Chrome and Edge only (Web MIDI API limitation); Safari and Firefox show non-fatal browser-support warning.
+
+**Specifications Honored**: Sharp-only note spelling, step entry restricted to `pat` bodies, no silent syntax invention, clear diagnostics on invalid selections.
 
 ---
 
@@ -341,11 +364,13 @@ This is an additive web-ui authoring feature. Existing songs, editor workflows, 
 
 ## Open Questions
 
-1. Should `Step Length = inherit` reuse the nearest surrounding pattern duration convention, or simply emit bare note tokens with no explicit duration suffix?
-2. Should overwrite mode consume one selected token per incoming MIDI note, or replace the whole selection immediately with the first note and then continue inserting?
-3. Should note audition be mandatory when a note is entered, or optional because some users may want silent text-only entry?
-4. Should MIDI step entry be limited to one note at a time in v1, or should simultaneous note-on events be accepted and serialized left-to-right by pitch?
-5. Is the optional `Channel Filter` setting necessary for v1, or should MIDI input simply accept all channels to keep the Editor settings compact?
+All open questions from the proposal have been resolved in the v1 implementation:
+
+1. **`Step Length = inherit`** — emits bare note tokens with no duration suffix. Does not attempt to infer surrounding convention.
+2. **Overwrite mode** — consumes one selected token per incoming MIDI note, cycling back to the first token once all selected tokens are replaced.
+3. **Note audition** — optional ("Play entered notes" setting, default `false`). Silent entry is the default.
+4. **Simultaneous note-on events** — not supported in v1; only the most recent note-on/off pair is processed.
+5. **Channel Filter** — not implemented in v1; all MIDI channels are accepted to keep the settings surface compact.
 
 ---
 

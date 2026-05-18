@@ -1458,7 +1458,9 @@ export function registerBeatBaxLanguage(): void {
       { token: 'keyword.control', foreground: 'C586C0' }, // Purple - play, export
       { token: 'comment', foreground: '6A9955' }, // Typical green - comments
     ],
-    colors: {},
+    colors: {
+      'editorCursor.foreground': 'AEAFAD', // Explicit cursor color for dark mode (light gray)
+    },
   });
 
   // Define light theme
@@ -1492,7 +1494,9 @@ export function registerBeatBaxLanguage(): void {
       { token: 'keyword.control', foreground: 'AF00DB' }, // Purple - keywords
       { token: 'comment', foreground: '008000' }, // Green - comments
     ],
-    colors: {},
+    colors: {
+      'editorCursor.foreground': '000000', // Explicit cursor color for light mode (black)
+    },
   });
 
   // ── Document formatter ────────────────────────────────────────────────────

@@ -122,6 +122,23 @@ export const StorageKey = {
   NES_WEB_AUDIO_MIX_MODE: 'plugins.nes.webAudioMixMode',
   /** New Song Wizard auto-open onboarding state. */
   NEW_SONG_WIZARD_ONBOARDED: 'ui.newSongWizard.onboarded',
+  // ─── MIDI step entry ──────────────────────────────────────────────────────
+  /** MIDI input master enable flag (boolean). */
+  MIDI_INPUT_ENABLED: 'midi.inputEnabled',
+  /** Selected MIDI input device id (string). */
+  MIDI_INPUT_DEVICE: 'midi.inputDevice',
+  /** MIDI step-entry step length ('inherit' | '1' | '2' | '4' | '8' | '16'). */
+  MIDI_STEP_LENGTH: 'midi.stepLength',
+  /** Emit explicit duration suffix on inserted notes (boolean). */
+  MIDI_EMIT_DURATIONS: 'midi.emitDurations',
+  /** Step entry mode ('insert' | 'overwrite-selection'). */
+  MIDI_ENTRY_MODE: 'midi.entryMode',
+  /** Auto-advance cursor after each step-entered note (boolean). */
+  MIDI_AUTO_ADVANCE: 'midi.autoAdvance',
+  /** Play back entered notes during step entry record mode (boolean). */
+  MIDI_AUDITION_NOTES: 'midi.auditionNotes',
+  /** Determine step length from how long the MIDI key is held (boolean). */
+  MIDI_USE_NOTE_DURATION: 'midi.useNoteDuration',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

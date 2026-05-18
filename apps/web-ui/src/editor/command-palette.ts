@@ -1828,6 +1828,41 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
     },
   });
 
+  // ── BeatBax: MIDI Step Entry ──────────────────────────────────────────────
+
+  reg({
+    id: 'beatbax.midiStepEntry.arm',
+    label: 'BeatBax: Start MIDI Step Entry',
+    keybindings: [],
+    run: () => {
+      const controller: any = (window as any).__beatbax_midiStepEntry;
+      if (!controller) { showToast('MIDI Step Entry not available'); return; }
+      controller.armStepEntry?.();
+    },
+  });
+
+  reg({
+    id: 'beatbax.midiStepEntry.disarm',
+    label: 'BeatBax: Stop MIDI Step Entry',
+    keybindings: [],
+    run: () => {
+      const controller: any = (window as any).__beatbax_midiStepEntry;
+      if (!controller) { showToast('MIDI Step Entry not available'); return; }
+      controller.disarmStepEntry?.();
+    },
+  });
+
+  reg({
+    id: 'beatbax.midiStepEntry.toggle',
+    label: 'BeatBax: Toggle MIDI Step Entry',
+    keybindings: [],
+    run: () => {
+      const controller: any = (window as any).__beatbax_midiStepEntry;
+      if (!controller) { showToast('MIDI Step Entry not available'); return; }
+      controller.toggleStepEntry?.();
+    },
+  });
+
   // ── Cleanup ───────────────────────────────────────────────────────────────
 
   return {
