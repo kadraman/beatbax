@@ -101,6 +101,23 @@ export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
 export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
 
+// ─── MIDI step entry ──────────────────────────────────────────────────────────
+
+export const settingMidiInputEnabled       = boolAtom(StorageKey.MIDI_INPUT_ENABLED,       false);
+export const settingMidiInputDevice        = stringAtom<string>(StorageKey.MIDI_INPUT_DEVICE, '');
+export const settingMidiStepLength         = stringAtom<'inherit' | '1' | '2' | '4' | '8' | '16'>(
+  StorageKey.MIDI_STEP_LENGTH,
+  'inherit',
+);
+export const settingMidiEmitDurations      = boolAtom(StorageKey.MIDI_EMIT_DURATIONS,      false);
+export const settingMidiEntryMode          = stringAtom<'insert' | 'overwrite-selection'>(
+  StorageKey.MIDI_ENTRY_MODE,
+  'insert',
+);
+export const settingMidiAutoAdvance        = boolAtom(StorageKey.MIDI_AUTO_ADVANCE,        true);
+export const settingMidiAuditionNotes      = boolAtom(StorageKey.MIDI_AUDITION_NOTES,      false);
+export const settingMidiUseNoteDuration    = boolAtom(StorageKey.MIDI_USE_NOTE_DURATION,    false);
+
 // ─── Advanced ─────────────────────────────────────────────────────────────────
 
 export const settingLogLevel = stringAtom<'error' | 'warn' | 'info' | 'debug'>(
@@ -140,6 +157,14 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.BPM,
     StorageKey.SONG_ARTIST,
     StorageKey.FONT_SIZE,
+    StorageKey.MIDI_INPUT_ENABLED,
+    StorageKey.MIDI_INPUT_DEVICE,
+    StorageKey.MIDI_STEP_LENGTH,
+    StorageKey.MIDI_EMIT_DURATIONS,
+    StorageKey.MIDI_ENTRY_MODE,
+    StorageKey.MIDI_AUTO_ADVANCE,
+    StorageKey.MIDI_AUDITION_NOTES,
+    StorageKey.MIDI_USE_NOTE_DURATION,
   ],
   playback: [
     StorageKey.AUDIO_SAMPLE_RATE,

@@ -1,5 +1,5 @@
 import { EventBus } from '../src/utils/event-bus';
-import { setupCodeLensPreview } from '../src/editor/codelens-preview';
+import { resolveAuditionInstrumentForLine, setupCodeLensPreview } from '../src/editor/codelens-preview';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -65,5 +65,32 @@ describe('CodeLens Preview provider', () => {
 
     // Expect inst preview notes for 'lead' (at least one note button)
     expect(ids.some((id: string) => id.startsWith('bb-inst-lead-'))).toBe(true);
+  });
+
+  it('resolves step-entry audition instrument from a pat line via channel usage', () => {
+    const ast = {
+      insts: {
+        bass: { type: 'pulse1' },
+        lead: { type: 'pulse2' },
+      },
+      seqs: {
+        main: ['melody'],
+      },
+      channels: [
+        { id: 1, inst: 'lead', seqSpecTokens: ['main'] },
+      ],
+    };
+
+    expect(resolveAuditionInstrumentForLine('pat melody = C4 D4', ast)).toBe('lead');
+  });
+
+  it('resolves step-entry audition instrument directly from an inst line', () => {
+    const ast = {
+      insts: {
+        arpLead: { type: 'pulse1' },
+      },
+    };
+
+    expect(resolveAuditionInstrumentForLine('inst arpLead type=pulse1 duty=50', ast)).toBe('arpLead');
   });
 });
