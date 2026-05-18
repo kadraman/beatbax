@@ -94,10 +94,13 @@ export interface MidiStepEntryCallbacks {
 /**
  * Map a held-duration in milliseconds to the nearest BeatBax step length.
  * Used when useNoteDuration is enabled: the time the key is held determines
- * the step value that is emitted (max 16 steps).
+ * the step value that is emitted (max :16, minimum :2).
+ *
+ * Note: '1' is never returned because formatNoteToken suppresses the duration
+ * suffix when stepLength is '1', which would break the hold-duration "always
+ * emits" contract. Very short taps (< 200 ms) round up to '2'.
  */
 export function durationMsToStepLength(durationMs: number): StepLength {
-  if (durationMs < 200)  return '1';
   if (durationMs < 400)  return '2';
   if (durationMs < 800)  return '4';
   if (durationMs < 1600) return '8';
@@ -282,11 +285,10 @@ export class MidiStepEntryService {
    * Returns a diagnostic string if the device is not found, or null on success.
    */
   setDevice(deviceId: string): string | null {
-    // Detach from the previous input
+    // Detach from the previous input (clears _deviceId and _noteOnTimes)
     this._detachInput();
 
     if (!deviceId) {
-      this._deviceId = '';
       return null;
     }
 
@@ -357,6 +359,8 @@ export class MidiStepEntryService {
       this._msgHandler = null;
     }
     this.selectedInput = null;
+    this._deviceId = '';
+    this._noteOnTimes.clear();
   }
 
   private _onMessage(e: MidiMessageEvent): void {
@@ -416,7 +420,15 @@ export class MidiStepEntryService {
     const startTime = this._noteOnTimes.get(midiNote);
     this._noteOnTimes.delete(midiNote);
 
-    const durationMs = startTime !== undefined ? Date.now() - startTime : 0;
+    if (startTime === undefined) {
+      // No recorded note-on timestamp — the key was held before hold-duration mode
+      // was enabled, or the note-on event was missed. Bail out to avoid a spurious
+      // insertion with a nonsensical duration.
+      log.debug('Step entry (hold-duration): skipping note-off with no matching note-on:', noteName);
+      return;
+    }
+
+    const durationMs = Date.now() - startTime;
     const computedStep = durationMsToStepLength(durationMs);
     // Always emit the duration when derived from key hold time
     this.callbacks.onNoteEntered(noteName, computedStep, true);

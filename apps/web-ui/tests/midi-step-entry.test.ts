@@ -103,13 +103,10 @@ describe('formatNoteToken', () => {
 // ─── durationMsToStepLength ───────────────────────────────────────────────────
 
 describe('durationMsToStepLength', () => {
-  it('maps very short hold to step 1', () => {
-    expect(durationMsToStepLength(50)).toBe('1');
-    expect(durationMsToStepLength(199)).toBe('1');
-  });
-
-  it('maps 200-399 ms to step 2', () => {
-    expect(durationMsToStepLength(200)).toBe('2');
+  it('maps very short hold (< 400 ms) to step 2 (minimum — never returns 1)', () => {
+    expect(durationMsToStepLength(0)).toBe('2');
+    expect(durationMsToStepLength(50)).toBe('2');
+    expect(durationMsToStepLength(199)).toBe('2');
     expect(durationMsToStepLength(399)).toBe('2');
   });
 

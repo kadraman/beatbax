@@ -156,7 +156,7 @@ export function buildEditorSection(): HTMLElement {
     settingMidiUseNoteDuration.set(v);
     (window as any).__beatbax_midiStepEntry?.setUseNoteDuration?.(v);
   }));
-  midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key (up to :16). The note is entered on key release. This always emits a duration suffix and overrides both the "Step Length" setting and the "Emit explicit durations" setting.'));
+  midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key. Short taps emit note only; longer holds progress through :2, :4, :8, and :16. The note is entered on key release and always includes a duration suffix, overriding both the "Step Length" setting and the "Emit explicit durations" setting.'));
 
   midiSettingsContainer.appendChild(selectField(
     'Entry mode',
