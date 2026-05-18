@@ -63,9 +63,14 @@ export interface SettingsModalController {
   refresh(): void;
 }
 
+export interface SettingsModalOptions {
+  /** Optional callback fired when the modal is closed (e.g. to refocus the editor) */
+  onClose?: () => void;
+}
+
 // ─── Build ────────────────────────────────────────────────────────────────────
 
-export function buildSettingsModal(): SettingsModalController {
+export function buildSettingsModal(options?: SettingsModalOptions): SettingsModalController {
   // ── Backdrop ──────────────────────────────────────────────────────────────
   const backdrop = document.createElement('div');
   backdrop.className = 'bb-settings-backdrop';
@@ -260,6 +265,7 @@ export function buildSettingsModal(): SettingsModalController {
 
   const close = (): void => {
     backdrop.classList.remove('bb-settings-backdrop--open');
+    options?.onClose?.();
   };
 
   const refresh = (): void => refreshSidebar();

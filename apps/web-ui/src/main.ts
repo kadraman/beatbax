@@ -48,7 +48,7 @@ import {
   warningsToDiagnostics,
   type Diagnostic,
 } from './editor/diagnostics';
-import { setupCodeLensPreview } from './editor/codelens-preview';
+import { setupCodeLensPreview, triggerStepEntryAudition } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
 import { getInitialContent } from './app/bootstrap';
@@ -76,6 +76,8 @@ import {
   settingWordWrap, settingDefaultBpm, settingSongArtist,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
+  settingMidiInputEnabled,
+  settingMidiInputDevice,
 } from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
@@ -98,6 +100,7 @@ import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
+import { MidiStepEntryController } from './input/midi-step-entry-controller';
 import { ChatPanel } from './panels/chat-panel';
 import { downloadText, sanitizeFilename } from './export/download-helper';
 import { openFilePicker } from './import/file-loader';
@@ -343,7 +346,15 @@ rightTabs.tabContents['help']!.appendChild(helpContainer);
 const shortcutsModal = buildShortcutsModal();
 
 // ─── Settings modal ─────────────────────────────────────────────────────────
-const settingsModal = buildSettingsModal();
+const settingsModal = buildSettingsModal({
+  onClose: () => {
+    // Refocus the editor and trigger layout to ensure cursor is visible when returning from settings
+    if (editor?.editor) {
+      editor.editor.focus();
+      editor.editor.layout();
+    }
+  },
+});
 
 // ─── Central keyboard shortcuts registry ────────────────────────────────────
 // Created before HelpPanel so we can pass getShortcuts: () => ks.list().
@@ -987,6 +998,63 @@ if (_loopMode) _applyLoopMode(true);
 
 // Apply stored live mode on startup
 if (liveMode) _applyLiveMode(true);
+
+// ─── MIDI Step Entry ──────────────────────────────────────────────────────────
+
+const midiController = new MidiStepEntryController({
+  getEditor: () => editor?.editor ?? null,
+  onAuditionNote: (noteName) => {
+    const monacoEditor = editor?.editor;
+    const model = monacoEditor?.getModel();
+    const pos = monacoEditor?.getPosition();
+    if (!model || !pos) return;
+
+    const lineText = model.getLineContent(pos.lineNumber);
+    triggerStepEntryAudition(lineText, noteName);
+  },
+  onWarning: (message) => {
+    opWarn(outputPanel, message, 'midi');
+  },
+  onArmedChanged: (armed) => {
+    transportBar.recordButton.classList.toggle('bb-record-btn--active', armed);
+    transportBar.recordButton.title = armed
+      ? 'MIDI Step Entry ON — click to stop'
+      : 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
+  },
+});
+
+// Helper to sync the Record button's enabled/disabled state.
+// The button is only enabled when: MIDI input is on, a MIDI device is selected,
+// and playback is not running.
+function _updateRecordButtonEnabled(): void {
+  const midiOn = settingMidiInputEnabled.get();
+  const midiDeviceSelected = !!settingMidiInputDevice.get();
+  const playing = playbackManager.isPlaying();
+  transportBar.recordButton.disabled = !midiOn || !midiDeviceSelected || playing;
+}
+
+// Set initial state (transport-bar starts with record button disabled)
+_updateRecordButtonEnabled();
+transportBar.recordButton.title = 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
+transportBar.recordButton.addEventListener('click', () => {
+  void midiController.toggleStepEntry();
+});
+
+// Disable Record button while song is playing; re-enable when stopped/paused
+eventBus.on('playback:started', () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:stopped', () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:paused',  () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:resumed', () => { _updateRecordButtonEnabled(); });
+
+// Re-evaluate Record button state whenever MIDI settings change.
+settingMidiInputEnabled.subscribe(() => { _updateRecordButtonEnabled(); });
+settingMidiInputDevice.subscribe(() => { _updateRecordButtonEnabled(); });
+
+// Request MIDI access on startup if MIDI is enabled in settings
+void midiController.requestMidiAccess();
+
+// Expose MIDI controller globally for settings panel and command palette
+(window as any).__beatbax_midiStepEntry = midiController;
 
 // ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
 function _attachHoldRepeat(
