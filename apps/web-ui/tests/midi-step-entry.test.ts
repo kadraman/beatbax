@@ -15,6 +15,7 @@ import {
   formatNoteToken,
   isCursorInsidePatBody,
   extractNoteTokenSpans,
+  durationMsToStepLength,
   MidiStepEntryService,
 } from '../src/input/midi-step-entry';
 
@@ -87,6 +88,35 @@ describe('formatNoteToken', () => {
     for (const len of ['1', '2', '4', '8', '16'] as const) {
       expect(formatNoteToken('C4', len, true)).toBe(`C4:${len}`);
     }
+  });
+});
+
+// ─── durationMsToStepLength ───────────────────────────────────────────────────
+
+describe('durationMsToStepLength', () => {
+  it('maps very short hold to step 1', () => {
+    expect(durationMsToStepLength(50)).toBe('1');
+    expect(durationMsToStepLength(199)).toBe('1');
+  });
+
+  it('maps 200-399 ms to step 2', () => {
+    expect(durationMsToStepLength(200)).toBe('2');
+    expect(durationMsToStepLength(399)).toBe('2');
+  });
+
+  it('maps 400-799 ms to step 4', () => {
+    expect(durationMsToStepLength(400)).toBe('4');
+    expect(durationMsToStepLength(799)).toBe('4');
+  });
+
+  it('maps 800-1599 ms to step 8', () => {
+    expect(durationMsToStepLength(800)).toBe('8');
+    expect(durationMsToStepLength(1599)).toBe('8');
+  });
+
+  it('maps 1600+ ms to step 16 (maximum)', () => {
+    expect(durationMsToStepLength(1600)).toBe('16');
+    expect(durationMsToStepLength(5000)).toBe('16');
   });
 });
 
@@ -268,11 +298,11 @@ describe('MidiStepEntryService', () => {
     expect(service.isAuditionNotes()).toBe(true);
   });
 
-  it('setAuditionInstruments / isAuditionInstruments round-trips', () => {
-    service.setAuditionInstruments(false);
-    expect(service.isAuditionInstruments()).toBe(false);
-    service.setAuditionInstruments(true);
-    expect(service.isAuditionInstruments()).toBe(true);
+  it('setUseNoteDuration / isUseNoteDuration round-trips', () => {
+    service.setUseNoteDuration(true);
+    expect(service.isUseNoteDuration()).toBe(true);
+    service.setUseNoteDuration(false);
+    expect(service.isUseNoteDuration()).toBe(false);
   });
 
   it('listDevices returns empty array without MIDI access', () => {

@@ -115,8 +115,8 @@ export const settingMidiEntryMode          = stringAtom<'insert' | 'overwrite-se
   'insert',
 );
 export const settingMidiAutoAdvance        = boolAtom(StorageKey.MIDI_AUTO_ADVANCE,        true);
-export const settingMidiAuditionNotes      = boolAtom(StorageKey.MIDI_AUDITION_NOTES,      true);
-export const settingMidiAuditionInstruments = boolAtom(StorageKey.MIDI_AUDITION_INSTRUMENTS, true);
+export const settingMidiAuditionNotes      = boolAtom(StorageKey.MIDI_AUDITION_NOTES,      false);
+export const settingMidiUseNoteDuration    = boolAtom(StorageKey.MIDI_USE_NOTE_DURATION,    false);
 
 // ─── Advanced ─────────────────────────────────────────────────────────────────
 
@@ -164,7 +164,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.MIDI_ENTRY_MODE,
     StorageKey.MIDI_AUTO_ADVANCE,
     StorageKey.MIDI_AUDITION_NOTES,
-    StorageKey.MIDI_AUDITION_INSTRUMENTS,
+    StorageKey.MIDI_USE_NOTE_DURATION,
   ],
   playback: [
     StorageKey.AUDIO_SAMPLE_RATE,

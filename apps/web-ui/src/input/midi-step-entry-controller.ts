@@ -31,7 +31,7 @@ import {
   settingMidiEntryMode,
   settingMidiAutoAdvance,
   settingMidiAuditionNotes,
-  settingMidiAuditionInstruments,
+  settingMidiUseNoteDuration,
 } from '../stores/settings.store';
 
 const log = createLogger('ui:midi-controller');
@@ -57,6 +57,8 @@ export interface MidiStepEntryControllerOptions {
 export class MidiStepEntryController {
   private service: MidiStepEntryService;
   private _accessRequested = false;
+  /** Tracks the start position of the last no-advance insertion for replace-in-place. */
+  private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
 
   constructor(private opts: MidiStepEntryControllerOptions) {
     this.service = new MidiStepEntryService({
@@ -81,7 +83,7 @@ export class MidiStepEntryController {
     this.service.setEntryMode(settingMidiEntryMode.get() as EntryMode);
     this.service.setAutoAdvance(settingMidiAutoAdvance.get());
     this.service.setAuditionNotes(settingMidiAuditionNotes.get());
-    this.service.setAuditionInstruments(settingMidiAuditionInstruments.get());
+    this.service.setUseNoteDuration(settingMidiUseNoteDuration.get());
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -159,6 +161,7 @@ export class MidiStepEntryController {
   /** Disarm step entry. */
   disarmStepEntry(): void {
     this.service.disarm();
+    this._noAdvanceStart = null;
     this.opts.onArmedChanged?.(false);
     log.info('MIDI step entry disarmed');
   }
@@ -198,6 +201,7 @@ export class MidiStepEntryController {
   setAutoAdvance(v: boolean): void {
     settingMidiAutoAdvance.set(v);
     this.service.setAutoAdvance(v);
+    if (v) this._noAdvanceStart = null; // clear replace-in-place tracking when re-enabling advance
   }
 
   setAuditionNotes(v: boolean): void {
@@ -205,9 +209,9 @@ export class MidiStepEntryController {
     this.service.setAuditionNotes(v);
   }
 
-  setAuditionInstruments(v: boolean): void {
-    settingMidiAuditionInstruments.set(v);
-    this.service.setAuditionInstruments(v);
+  setUseNoteDuration(v: boolean): void {
+    settingMidiUseNoteDuration.set(v);
+    this.service.setUseNoteDuration(v);
   }
 
   /** Clean up MIDI connection. */
@@ -233,6 +237,7 @@ export class MidiStepEntryController {
 
     const lineText = model.getLineContent(pos.lineNumber);
     const entryMode = this.service.getEntryMode();
+    const autoAdvance = this.service.isAutoAdvance();
 
     // Gate: only allow entry inside a pat body
     if (!isCursorInsidePatBody(lineText, pos.column)) {
@@ -243,9 +248,9 @@ export class MidiStepEntryController {
     const token = formatNoteToken(noteName, stepLength, emitDuration);
 
     if (entryMode === 'overwrite-selection') {
-      this._replaceSelectionOrInsert(editor, model, pos, token);
+      this._replaceSelectionOrInsert(editor, model, pos, token, autoAdvance);
     } else {
-      this._insertAtCursor(editor, model, pos, token);
+      this._insertAtCursor(editor, model, pos, token, autoAdvance);
     }
   }
 
@@ -254,17 +259,37 @@ export class MidiStepEntryController {
     _model: monaco.editor.ITextModel,
     pos: monaco.IPosition,
     token: string,
+    autoAdvance: boolean,
   ): void {
-    const insertText = `${token} `;
-    const selection = editor.getSelection() ?? {
-      startLineNumber: pos.lineNumber,
-      startColumn: pos.column,
-      endLineNumber: pos.lineNumber,
-      endColumn: pos.column,
-    };
+    // Always insert at the cursor position — never replace any existing selection.
+    // Using a collapsed range ensures Monaco's selection does not get overwritten.
+    const insertRange = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+    let editRange: monaco.IRange = insertRange;
+    let insertText: string;
+
+    if (!autoAdvance && this._noAdvanceStart) {
+      // Replace-in-place: overwrite the token inserted by the previous note press.
+      // The cursor sits at the end of that token, so the range is from the saved
+      // start column to the current cursor column.
+      const { lineNumber: savedLine, startColumn } = this._noAdvanceStart;
+      if (savedLine === pos.lineNumber) {
+        editRange = new monaco.Range(savedLine, startColumn, pos.lineNumber, pos.column);
+      }
+    }
+
+    if (autoAdvance) {
+      // Append a space so the cursor lands after the token (ready for the next note).
+      insertText = `${token} `;
+      this._noAdvanceStart = null;
+    } else {
+      // No trailing space — record where the token starts so a follow-up press
+      // can replace it in-place.
+      insertText = token;
+      this._noAdvanceStart = { lineNumber: pos.lineNumber, startColumn: editRange.startColumn };
+    }
 
     editor.executeEdits('midi-step-entry', [{
-      range: selection,
+      range: editRange,
       text: insertText,
       forceMoveMarkers: true,
     }]);
@@ -277,11 +302,12 @@ export class MidiStepEntryController {
     model: monaco.editor.ITextModel,
     pos: monaco.IPosition,
     token: string,
+    autoAdvance: boolean,
   ): void {
     const sel = editor.getSelection();
     if (!sel || (sel.startLineNumber === sel.endLineNumber && sel.startColumn === sel.endColumn)) {
-      // No selection — fall back to insert
-      this._insertAtCursor(editor, model, pos, token);
+      // No selection — fall back to insert at cursor
+      this._insertAtCursor(editor, model, pos, token, autoAdvance);
       return;
     }
 
@@ -307,6 +333,7 @@ export class MidiStepEntryController {
       forceMoveMarkers: false,
     }]);
 
+    this._noAdvanceStart = null;
     editor.focus();
   }
 }

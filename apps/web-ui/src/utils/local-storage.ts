@@ -135,10 +135,10 @@ export const StorageKey = {
   MIDI_ENTRY_MODE: 'midi.entryMode',
   /** Auto-advance cursor after each step-entered note (boolean). */
   MIDI_AUTO_ADVANCE: 'midi.autoAdvance',
-  /** Audition (preview) entered notes via the playback engine (boolean). */
+  /** Play back entered notes during step entry record mode (boolean). */
   MIDI_AUDITION_NOTES: 'midi.auditionNotes',
-  /** Allow MIDI keyboard to preview instrument definitions (boolean). */
-  MIDI_AUDITION_INSTRUMENTS: 'midi.auditionInstruments',
+  /** Determine step length from how long the MIDI key is held (boolean). */
+  MIDI_USE_NOTE_DURATION: 'midi.useNoteDuration',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

@@ -76,6 +76,7 @@ import {
   settingWordWrap, settingDefaultBpm, settingSongArtist,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
+  settingMidiInputEnabled,
 } from './stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
@@ -993,31 +994,10 @@ if (liveMode) _applyLiveMode(true);
 
 const midiController = new MidiStepEntryController({
   getEditor: () => editor?.editor ?? null,
-  onAuditionNote: (noteName) => {
-    // Build a brief synthetic source to audition the note via the playback engine.
-    // We use the current editor source to resolve the correct chip and instruments.
-    try {
-      const src = getSource();
-      const chipMatch = src.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
-      const chip = chipMatch ? chipMatch[1].toLowerCase() : 'gameboy';
-      // Collect inst definitions from source
-      const instLines = src.split('\n').filter(l => /^\s*inst\s+/.test(l));
-      const firstInst = src.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/m)?.[1];
-      // Choose a chip-appropriate fallback instrument type when none is declared
-      const fallbackType = chip === 'nes' ? 'pulse1' : chip === 'sms' ? 'sawtooth' : 'pulse1';
-      const fallbackInstDef = `inst _midi_tmp type=${fallbackType} duty=50 env=12,down`;
-      const instDef = instLines.length > 0 ? instLines.join('\n') : fallbackInstDef;
-      const instName = firstInst ?? '_midi_tmp';
-      const auditionSrc = [
-        `chip ${chip}`,
-        'bpm 120',
-        instDef,
-        `pat __midi_audition__ = ${noteName}`,
-        `channel 1 => inst ${instName} seq __midi_audition__`,
-        'play',
-      ].join('\n');
-      playbackManager.play(auditionSrc);
-    } catch (_e) { /* audition failures are non-fatal */ }
+  onAuditionNote: (_noteName) => {
+    // Note preview via the full playback engine causes rapid Play/Stop toggling
+    // and floods the output panel. A dedicated single-note preview API is needed
+    // for a proper implementation. For now this callback is intentionally a no-op.
   },
   onWarning: (message) => {
     opWarn(outputPanel, message, 'midi');
@@ -1030,12 +1010,26 @@ const midiController = new MidiStepEntryController({
   },
 });
 
-// Enable the record button and wire it up
-transportBar.recordButton.disabled = false;
+// Helper to sync the Record button's enabled/disabled state.
+// The button is only enabled when: MIDI input is on AND playback is not running.
+function _updateRecordButtonEnabled(): void {
+  const midiOn = settingMidiInputEnabled.get();
+  const playing = playbackManager.isPlaying();
+  transportBar.recordButton.disabled = !midiOn || playing;
+}
+
+// Set initial state (transport-bar starts with record button disabled)
+_updateRecordButtonEnabled();
 transportBar.recordButton.title = 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
 transportBar.recordButton.addEventListener('click', () => {
   void midiController.toggleStepEntry();
 });
+
+// Disable Record button while song is playing; re-enable when stopped/paused
+eventBus.on('playback:started', () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:stopped', () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:paused',  () => { _updateRecordButtonEnabled(); });
+eventBus.on('playback:resumed', () => { _updateRecordButtonEnabled(); });
 
 // Request MIDI access on startup if MIDI is enabled in settings
 void midiController.requestMidiAccess();

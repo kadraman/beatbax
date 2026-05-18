@@ -7,7 +7,7 @@ import {
   settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
-  settingMidiAuditionNotes, settingMidiAuditionInstruments,
+  settingMidiAuditionNotes, settingMidiUseNoteDuration,
 } from '../../stores/settings.store';
 import { sectionHeading, toggle, numberField, textField, noteText, selectField } from './general';
 import { MidiStepEntryService } from '../../input/midi-step-entry';
@@ -52,11 +52,24 @@ export function buildEditorSection(): HTMLElement {
   // ── MIDI Step Entry ─────────────────────────────────────────────────────────
   el.appendChild(sectionHeading('MIDI Step Entry'));
 
-  el.appendChild(toggle('Enable MIDI input', settingMidiInputEnabled.get(), (v) => {
+  const midiEnabledInitial = settingMidiInputEnabled.get();
+
+  // Container that shows/hides all MIDI sub-settings based on the enable toggle
+  const midiSettingsContainer = document.createElement('div');
+  midiSettingsContainer.id = 'bb-midi-settings-container';
+  midiSettingsContainer.style.display = midiEnabledInitial ? '' : 'none';
+
+  el.appendChild(toggle('Enable MIDI input', midiEnabledInitial, (v) => {
     settingMidiInputEnabled.set(v);
     (window as any).__beatbax_midiStepEntry?.setEnabled(v);
+    midiSettingsContainer.style.display = v ? '' : 'none';
+    // Update Record button state in the transport bar
+    const rb = (document.querySelector('.bb-transport__btn--record') as HTMLButtonElement | null);
+    if (rb) rb.disabled = !v;
   }));
   el.appendChild(noteText('Allows a connected MIDI keyboard to enter notes directly into the editor when the Record button is active. Requires browser MIDI support (Chrome / Edge).'));
+
+  // ── All remaining MIDI settings live inside midiSettingsContainer ──────────
 
   // MIDI device selector: populated dynamically when MIDI is available
   const deviceRow = document.createElement('div');
@@ -103,17 +116,17 @@ export function buildEditorSection(): HTMLElement {
 
   refreshDevices();
   deviceRow.append(deviceLabel, deviceSelect, refreshBtn);
-  el.appendChild(deviceRow);
+  midiSettingsContainer.appendChild(deviceRow);
 
-  el.appendChild(selectField(
+  midiSettingsContainer.appendChild(selectField(
     'Step length',
     [
       { value: 'inherit', label: 'Inherit (no suffix)' },
-      { value: '1',  label: '1 (whole note)' },
-      { value: '2',  label: '2 (half note)' },
-      { value: '4',  label: '4 (quarter note)' },
-      { value: '8',  label: '8 (eighth note)' },
-      { value: '16', label: '16 (sixteenth note)' },
+      { value: '1',  label: '1 (e.g. A3:1)' },
+      { value: '2',  label: '2 (e.g. A3:2)' },
+      { value: '4',  label: '4 (e.g. A3:4)' },
+      { value: '8',  label: '8 (e.g. A3:8)' },
+      { value: '16', label: '16 (e.g. A3:16)' },
     ],
     settingMidiStepLength.get(),
     (v) => {
@@ -122,13 +135,19 @@ export function buildEditorSection(): HTMLElement {
     },
   ));
 
-  el.appendChild(toggle('Emit explicit durations', settingMidiEmitDurations.get(), (v) => {
+  midiSettingsContainer.appendChild(toggle('Emit explicit durations', settingMidiEmitDurations.get(), (v) => {
     settingMidiEmitDurations.set(v);
     (window as any).__beatbax_midiStepEntry?.setEmitDuration?.(v);
   }));
-  el.appendChild(noteText('When enabled, inserted notes include a duration suffix (e.g. C4:4). Requires Step Length to be set to a value other than Inherit.'));
+  midiSettingsContainer.appendChild(noteText('When enabled, inserted notes include a duration suffix (e.g. A3:4). Requires Step Length to be set to a value other than Inherit.'));
 
-  el.appendChild(selectField(
+  midiSettingsContainer.appendChild(toggle('Use MIDI key hold for step length', settingMidiUseNoteDuration.get(), (v) => {
+    settingMidiUseNoteDuration.set(v);
+    (window as any).__beatbax_midiStepEntry?.setUseNoteDuration?.(v);
+  }));
+  midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key (up to :16). The note is entered on key release. Overrides the Step Length setting.'));
+
+  midiSettingsContainer.appendChild(selectField(
     'Entry mode',
     [
       { value: 'insert',               label: 'Insert at cursor' },
@@ -141,27 +160,23 @@ export function buildEditorSection(): HTMLElement {
     },
   ));
 
-  el.appendChild(toggle('Auto-advance cursor', settingMidiAutoAdvance.get(), (v) => {
+  midiSettingsContainer.appendChild(toggle('Auto-advance cursor', settingMidiAutoAdvance.get(), (v) => {
     settingMidiAutoAdvance.set(v);
     (window as any).__beatbax_midiStepEntry?.setAutoAdvance?.(v);
   }));
-  el.appendChild(noteText('When enabled, the cursor moves to the next insertion point after each note is entered.'));
+  midiSettingsContainer.appendChild(noteText('When enabled, the cursor moves to the next insertion point after each note is entered. When disabled, pressing a new note replaces the previously entered note in place.'));
 
-  el.appendChild(toggle('Audition entered notes', settingMidiAuditionNotes.get(), (v) => {
+  midiSettingsContainer.appendChild(toggle('Play entered notes', settingMidiAuditionNotes.get(), (v) => {
     settingMidiAuditionNotes.set(v);
     (window as any).__beatbax_midiStepEntry?.setAuditionNotes?.(v);
   }));
-  el.appendChild(noteText('When enabled, each pressed note is briefly played back through the BeatBax audio engine so you can hear the pitch before it is entered.'));
-
-  el.appendChild(toggle('Audition instruments via MIDI', settingMidiAuditionInstruments.get(), (v) => {
-    settingMidiAuditionInstruments.set(v);
-    (window as any).__beatbax_midiStepEntry?.setAuditionInstruments?.(v);
-  }));
-  el.appendChild(noteText('When enabled and the cursor is on an inst definition, the MIDI keyboard plays notes through that instrument so you can preview it live.'));
+  midiSettingsContainer.appendChild(noteText('When enabled and in Record mode, each entered note is briefly played back through the BeatBax audio engine so you can hear it as you record.'));
 
   if (!MidiStepEntryService.isSupported()) {
-    el.appendChild(noteText('⚠ Your browser does not support the Web MIDI API. MIDI step entry requires Chrome or Edge.'));
+    midiSettingsContainer.appendChild(noteText('⚠ Your browser does not support the Web MIDI API. MIDI step entry requires Chrome or Edge.'));
   }
+
+  el.appendChild(midiSettingsContainer);
 
   return el;
 }
@@ -180,6 +195,6 @@ export function resetEditorDefaults(): void {
   settingMidiEmitDurations.set(false);
   settingMidiEntryMode.set('insert');
   settingMidiAutoAdvance.set(true);
-  settingMidiAuditionNotes.set(true);
-  settingMidiAuditionInstruments.set(true);
+  settingMidiAuditionNotes.set(false);
+  settingMidiUseNoteDuration.set(false);
 }

@@ -89,6 +89,21 @@ export interface MidiStepEntryCallbacks {
   onWarning?: (message: string) => void;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Map a held-duration in milliseconds to the nearest BeatBax step length.
+ * Used when useNoteDuration is enabled: the time the key is held determines
+ * the step value that is emitted (max 16 steps).
+ */
+export function durationMsToStepLength(durationMs: number): StepLength {
+  if (durationMs < 200)  return '1';
+  if (durationMs < 400)  return '2';
+  if (durationMs < 800)  return '4';
+  if (durationMs < 1600) return '8';
+  return '16';
+}
+
 // ─── Pure helpers (exported for unit tests) ──────────────────────────────────
 
 /**
@@ -193,8 +208,11 @@ export class MidiStepEntryService {
   private emitDuration = false;
   private entryMode: EntryMode = 'insert';
   private autoAdvance = true;
-  private auditionNotes = true;
-  private auditionInstruments = true;
+  private auditionNotes = false;
+  private useNoteDuration = false;
+
+  // Note-on timestamps for hold-duration mode (midiNote → timestamp ms)
+  private _noteOnTimes: Map<number, number> = new Map();
 
   // Stored message handler so we can remove it cleanly
   private _msgHandler: ((e: MidiMessageEvent) => void) | null = null;
@@ -208,13 +226,13 @@ export class MidiStepEntryService {
   setEntryMode(v: EntryMode): void { this.entryMode = v; }
   setAutoAdvance(v: boolean): void { this.autoAdvance = v; }
   setAuditionNotes(v: boolean): void { this.auditionNotes = v; }
-  setAuditionInstruments(v: boolean): void { this.auditionInstruments = v; }
+  setUseNoteDuration(v: boolean): void { this.useNoteDuration = v; }
 
   getStepLength(): StepLength { return this.stepLength; }
   getEntryMode(): EntryMode { return this.entryMode; }
   isAutoAdvance(): boolean { return this.autoAdvance; }
   isAuditionNotes(): boolean { return this.auditionNotes; }
-  isAuditionInstruments(): boolean { return this.auditionInstruments; }
+  isUseNoteDuration(): boolean { return this.useNoteDuration; }
   isArmed(): boolean { return this.armed; }
   getDeviceId(): string { return this._deviceId; }
 
@@ -377,13 +395,21 @@ export class MidiStepEntryService {
   private _handleNoteOn(midiNote: number, _velocity: number): void {
     const noteName = midiNoteToName(midiNote);
 
-    // Audition (preview) regardless of armed state when audition is enabled
+    // Record note-on timestamp when using hold-duration for step length
+    if (this.useNoteDuration) {
+      this._noteOnTimes.set(midiNote, Date.now());
+    }
+
+    // Step entry only when armed
+    if (!this.armed) return;
+
+    // Audition (play entered notes) only when armed
     if (this.auditionNotes) {
       this.callbacks.onAuditionStart?.(noteName);
     }
 
-    // Step entry only happens when armed
-    if (!this.armed) return;
+    // When useNoteDuration is enabled, defer entry until the key is released
+    if (this.useNoteDuration) return;
 
     const token = formatNoteToken(noteName, this.stepLength, this.emitDuration);
     this.callbacks.onNoteEntered(noteName, this.stepLength, this.emitDuration);
@@ -391,8 +417,25 @@ export class MidiStepEntryService {
   }
 
   private _handleNoteOff(midiNote: number): void {
-    if (!this.auditionNotes) return;
     const noteName = midiNoteToName(midiNote);
-    this.callbacks.onAuditionStop?.(noteName);
+
+    if (this.armed && this.auditionNotes) {
+      this.callbacks.onAuditionStop?.(noteName);
+    }
+
+    // When useNoteDuration is enabled, entry happens on note-off using the held duration
+    if (!this.armed || !this.useNoteDuration) {
+      this._noteOnTimes.delete(midiNote);
+      return;
+    }
+
+    const startTime = this._noteOnTimes.get(midiNote);
+    this._noteOnTimes.delete(midiNote);
+
+    const durationMs = startTime !== undefined ? Date.now() - startTime : 0;
+    const computedStep = durationMsToStepLength(durationMs);
+    // Always emit the duration when derived from key hold time
+    this.callbacks.onNoteEntered(noteName, computedStep, true);
+    log.debug('Step entry note (hold-duration):', noteName, computedStep);
   }
 }
