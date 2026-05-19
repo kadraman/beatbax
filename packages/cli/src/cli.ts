@@ -837,6 +837,11 @@ function failCommand(message: string): never {
   throw new Error(message);
 }
 
+function isMissingAudioPlayerError(err: unknown): boolean {
+  const message = (err as any)?.message ?? String(err ?? '');
+  return String(message).includes("Couldn't find a suitable audio player");
+}
+
 function sanitizeInstName(name: string): string {
   const base = basename(name, extname(name));
   const safe = base.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]+/, '');
@@ -1035,11 +1040,19 @@ convertCmd
         if (verbose) {
           console.log(`  Playing preview (${dmcLoop ? 'looped' : 'one-shot'})...`);
         }
-        await playAudioBuffer(pcm, {
-          channels: 1,
-          sampleRate: hostSampleRate,
-          gainScale: 0.6,
-        });
+        try {
+          await playAudioBuffer(pcm, {
+            channels: 1,
+            sampleRate: hostSampleRate,
+            gainScale: 0.6,
+          });
+        } catch (err: any) {
+          if (isMissingAudioPlayerError(err)) {
+            console.warn(`[WARN] ${inputPath}: preview skipped (no suitable system audio player found)`);
+          } else {
+            throw err;
+          }
+        }
       }
     }
   });
