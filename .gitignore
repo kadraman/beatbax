@@ -172,3 +172,4 @@ songs/**/*.json
 .github/ISSUES
 t.cmd
 README.bax
+media/drawings/prompt.txt
