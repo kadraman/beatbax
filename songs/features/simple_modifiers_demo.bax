@@ -1,0 +1,73 @@
+## simple_modifiers_demo.bax
+## Demonstrates every currently implemented BeatBax sequence modifier.
+
+song name "Game Boy Modifiers Demo"
+song artist "BeatBax"
+song description "Simple Game Boy song that exercises simple sequence modifiers, with comments."
+song tags "features,gameboy,modifiers"
+
+chip gameboy
+bpm 120
+
+# Basic Game Boy instruments (pulse1, pulse2, wave, noise)
+inst lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
+inst lead_alt type=pulse1 duty=12.5 env={"level":10,"direction":"down","period":1,"format":"gb"}
+inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":1,"format":"gb"}
+inst wave1 type=wave wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,8,7,6,5,4,3,2,1,1,2,3,4,5,6,7,8]
+inst kit type=noise gb:width=7 env={"level":10,"direction":"down","period":1,"format":"gb"}
+
+# Named effect preset. Using :wobble in a sequence applies this to every note token.
+effect wobble = vib:3,6
+
+# Core source pattern used by all modifier demos.
+pat riff = C4 D4 E4 G4
+
+# Backing patterns so all 4 Game Boy channels are active.
+pat bassline = C2 . G2 .
+pat harmony = C5 E5 G5 E5
+pat drums = C6 . C6 .
+
+# oct(N): transpose the pattern up/down by octaves.
+seq demo_oct = riff:oct(+1)
+
+# st(N): semitone transpose alias.
+seq demo_plus = riff:st(2)
+
+# trans(-N): transpose down by N semitones.
+seq demo_minus = riff:trans(-2)
+
+# semitone(N): explicit semitone transpose form.
+seq demo_semitone = riff:semitone(1)
+
+# rev: reverse token order.
+seq demo_rev = riff:rev
+
+# slow(N): repeat each token N times (lengthens the phrase).
+seq demo_slow = riff:slow(2)
+
+# fast(N): keep every Nth token (shortens/sparsifies the phrase).
+seq demo_fast = riff:fast(2)
+
+# inst(name): override instrument for this sequence slot.
+seq demo_inst = riff:inst(lead_alt)
+
+# pan(value): wraps this slot with pan tokens.
+seq demo_pan = riff:pan(L)
+
+# presetName: applies named effect preset to every note.
+seq demo_preset = riff:wobble
+
+# Simple backing loops for channels 2-4.
+seq bass_seq = bassline bassline bassline bassline
+seq wave_seq = harmony harmony harmony harmony
+seq drum_seq = drums drums drums drums
+
+# Channel 1 plays each modifier demo in order.
+channel 1 => inst lead seq demo_oct demo_plus demo_minus demo_semitone demo_rev demo_slow demo_fast demo_inst demo_pan demo_preset
+
+# Remaining channels provide a minimal backing groove.
+channel 2 => inst bass seq bass_seq bass_seq bass_seq
+channel 3 => inst wave1 seq wave_seq wave_seq wave_seq
+channel 4 => inst kit seq drum_seq drum_seq drum_seq
+
+play auto repeat
