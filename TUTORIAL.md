@@ -134,6 +134,27 @@ inst shifted_kick type=noise env=gb:12,down,1 uge_transpose=12
 
 See `songs/demo/percussion_demo.bax` for a complete working example demonstrating the `note=` parameter.
 
+### NES DMC samples
+
+NES songs can use the fifth channel for DMC sample playback. DMC files are not WAV or PCM; they are raw 1-bit delta-encoded byte streams. BeatBax can convert short WAV hits into `.dmc` files from the CLI:
+
+```bash
+node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
+```
+
+This writes `samples/wav/low_kick.dmc` and, with `--emit-inst`, prints a matching instrument declaration:
+
+```bax
+chip nes
+
+inst low_kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:samples/wav/low_kick.dmc"
+
+pat drums = low_kick . low_kick .
+channel 5 => inst low_kick pat drums
+```
+
+`dmc_rate` is a playback setting, not metadata in the `.dmc` file. Use the same value in the instrument that you used with `--dmc-rate`; changing it later changes the pitch and duration. Use `--dmc-loop` for looping samples, and use `--trim-silence`, `--tail-ms`, `--fade-out-ms`, and `--max-duration-ms` to keep quiet WAV tails from turning into DMC hiss.
+
 ### Panning (stereo)
 Panning controls stereo position and can be specified in multiple forms:
 - `gb:pan=<L|R|C>` — Game Boy NR51 terminal mapping (exact hardware L/R/C flags)

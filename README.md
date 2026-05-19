@@ -147,6 +147,9 @@ node bin/beatbax export midi songs/sample.bax output.mid
 node bin/beatbax export uge  songs/sample.bax output.uge
 node bin/beatbax export wav  songs/sample.bax output.wav
 
+# Convert a WAV into a raw NES DMC sample
+node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
+
 # Inspect a .bax or .uge file
 node bin/beatbax inspect songs/sample.bax
 node bin/beatbax inspect output.uge --json
@@ -169,6 +172,32 @@ node bin/beatbax inspect output.uge --json
 | `--out <path>` | all | Output file path |
 | `--duration <seconds>` | midi, wav | Override auto-calculated duration |
 | `--channels <list>` | midi, wav | Export only listed channels (e.g. `1,3`) |
+
+### NES DMC sample conversion
+
+`convert wav2dmc` turns a 16-bit mono/stereo PCM WAV into a raw NES `.dmc` sample for `type=dmc` instruments:
+
+```powershell
+node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
+```
+
+The output is a headerless DMC byte stream. Playback settings live on the BeatBax instrument, so the converter prints the matching line when you pass `--emit-inst`:
+
+```bax
+inst kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:samples/wav/kick.dmc"
+```
+
+Useful controls:
+
+| Flag | Description |
+|------|-------------|
+| `--dmc-rate <0-15>` / `-q` | DMC rate used for encoding and playback preview. `15` is fastest/highest quality; lower values are darker and shorter-bandwidth. |
+| `--dmc-loop` | Use `dmc_loop=true` in emitted snippets and loop the preview. |
+| `--trim-silence <db>` / `--no-trim-silence` | Trim quiet WAV tails before encoding; this is often the most useful control for reducing DMC hiss. |
+| `--tail-ms <ms>` | Keep a small amount of audio after the last above-threshold sample. |
+| `--fade-out-ms <ms>` | Fade the end before encoding to avoid noisy/clicky tails. |
+| `--max-duration-ms <ms>` | Hard cap the source duration before encoding. |
+| `--ntsc` / `--pal` | Select the DMC hardware rate table (`--ntsc` is default). |
 
 ### Headless audio fallback chain
 

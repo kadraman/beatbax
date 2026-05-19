@@ -5,7 +5,8 @@ import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { configureLogging } from '@beatbax/engine/util/logger';
 import { readFileSync, statSync, existsSync, writeFileSync } from 'fs';
-import { resolve as resolvePath } from 'path';
+import { resolve as resolvePath, basename, dirname, relative, extname } from 'path';
+import { mkdirSync } from 'fs';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
 
@@ -816,6 +817,245 @@ async function discoverExporterPlugins(options: { verbose?: boolean } = {}): Pro
 
   return discovered;
 }
+
+function parseDmcRateOption(options: { dmcRate?: string; rate?: string; q?: string }): number {
+  const raw = options.rate ?? options.q ?? options.dmcRate ?? '15';
+  const text = String(raw).trim();
+  if (!/^(0|[1-9]\d*)$/.test(text)) {
+    throw new Error(`invalid --dmc-rate value '${raw}'; expected an integer from 0 to 15`);
+  }
+  const n = Number(text);
+  if (n < 0 || n > 15) {
+    throw new Error(`invalid --dmc-rate value '${raw}'; expected an integer from 0 to 15`);
+  }
+  return n;
+}
+
+function failCommand(message: string): never {
+  console.error(message);
+  process.exit(1);
+  throw new Error(message);
+}
+
+function isMissingAudioPlayerError(err: unknown): boolean {
+  const message = (err as any)?.message ?? String(err ?? '');
+  return String(message).includes("Couldn't find a suitable audio player");
+}
+
+function sanitizeInstName(name: string): string {
+  const base = basename(name, extname(name));
+  const safe = base.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]+/, '');
+  return safe || 'sample';
+}
+
+function toLocalSampleRef(filePath: string): string {
+  try {
+    const rel = relative(process.cwd(), resolvePath(filePath)).replace(/\\/g, '/');
+    if (rel && !rel.startsWith('..')) return `local:${rel}`;
+  } catch (_) { /* fall through */ }
+  return `local:${filePath.replace(/\\/g, '/')}`;
+}
+
+function upsampleDmcForPlayback(
+  decoded: Float32Array,
+  dmcHz: number,
+  sampleRate: number,
+  loop: boolean,
+  durationSec: number
+): Float32Array {
+  const phaseInc = dmcHz / sampleRate;
+  const naturalLen = Math.ceil(decoded.length / phaseInc);
+  const playSec = loop ? Math.max(durationSec * 2, Math.min(3, durationSec + 0.25)) : durationSec;
+  const outLen = loop ? Math.ceil(playSec * sampleRate) : naturalLen;
+  const pcm = new Float32Array(outLen);
+  let pos = 0;
+  let phase = 0;
+  for (let i = 0; i < outLen; i++) {
+    const idx = Math.floor(pos);
+    if (idx >= decoded.length) {
+      if (loop) {
+        pos = 0;
+        phase = 0;
+        pcm[i] = decoded[0] ?? 0;
+      } else {
+        break;
+      }
+    } else {
+      pcm[i] = decoded[idx];
+    }
+    phase += phaseInc;
+    const steps = Math.floor(phase);
+    if (steps > 0) {
+      pos += steps;
+      phase -= steps;
+    }
+  }
+  return pcm;
+}
+
+const convertCmd = program
+  .command('convert')
+  .description('Convert between audio and chip sample formats');
+
+convertCmd
+  .command('wav2dmc')
+  .description('Convert WAV files to NES DMC (.dmc) delta-encoded samples')
+  .argument('<inputs...>', 'Input WAV file(s)')
+  .option('-o, --output <paths...>', 'Output .dmc path(s); default: same basename as each input')
+  .option('--dmc-rate <index>', 'dmc_rate for encode and playback (0=slowest, 15=fastest)', '15')
+  .option('-q, --rate <index>', 'Alias for --dmc-rate')
+  .option('--dmc-loop', 'Set dmc_loop=true (continuous loop); default false (one-shot)')
+  .option('--inst-name <name>', 'Instrument id for --emit-inst (default: input basename)')
+  .option('--emit-inst', 'Print ready-to-paste inst line with dmc_rate, dmc_loop, local: sample ref')
+  .option('--play', 'Preview output using --dmc-rate and --dmc-loop')
+  .option('--ntsc', 'Use NTSC DMC rate table (default)')
+  .option('-p, --pal', 'Use PAL DMC rate table')
+  .option('--max-bytes <n>', 'Maximum output size in bytes', '4096')
+  .option('--normalize', 'Peak-normalize input before encoding')
+  .option('--gain <factor>', 'Linear gain before encoding', '1')
+  .option('--no-filter', 'Disable low-pass before resampling')
+  .option('--trim-silence <db>', 'Trim quiet leading/trailing audio below this dBFS threshold', '-45')
+  .option('--no-trim-silence', 'Disable audio silence trimming')
+  .option('--tail-ms <ms>', 'Keep this much audio after the last above-threshold sample', '8')
+  .option('--fade-out-ms <ms>', 'Fade the end before encoding to reduce noisy tails/clicks', '4')
+  .option('--max-duration-ms <ms>', 'Hard cap source audio length before encoding')
+  .action(async (inputs: string[], options) => {
+    const globalOpts = program.opts();
+    configureLoggerFromCLI(options, globalOpts);
+    const verbose = options.verbose === true || globalOpts?.verbose === true;
+
+    if (!inputs || inputs.length === 0) {
+      console.error('Error: at least one input WAV file is required');
+      process.exit(1);
+    }
+
+    const outputs: string[] = options.output ?? [];
+    if (outputs.length > 0 && outputs.length !== inputs.length) {
+      console.error(`Error: ${inputs.length} input(s) but ${outputs.length} output path(s); counts must match`);
+      process.exit(1);
+    }
+
+    let rateIndex: number;
+    try {
+      rateIndex = parseDmcRateOption(options);
+    } catch (err: any) {
+      failCommand(`Error: ${err.message ?? err}`);
+    }
+    if (options.ntsc === true && options.pal === true) {
+      console.error('Error: choose only one DMC clock region (--ntsc or --pal)');
+      process.exit(1);
+    }
+    const region = options.pal ? 'pal' : 'ntsc';
+    const dmcLoop = options.dmcLoop === true;
+    const maxBytes = Math.max(1, parseInt(String(options.maxBytes ?? '4096'), 10) || 4096);
+    const gain = parseFloat(String(options.gain ?? '1')) || 1;
+    const trimSilenceDb = parseFloat(String(options.trimSilence ?? '-45'));
+    const tailMs = Math.max(0, parseFloat(String(options.tailMs ?? '8')) || 0);
+    const fadeOutMs = Math.max(0, parseFloat(String(options.fadeOutMs ?? '4')) || 0);
+    const maxDurationMs = options.maxDurationMs === undefined
+      ? undefined
+      : Math.max(1, parseFloat(String(options.maxDurationMs)) || 1);
+    const hostSampleRate = parseInt(globalOpts.sampleRate, 10) || 44100;
+
+    const { readWAV } = await import('@beatbax/engine/export');
+    const {
+      encodeDMCFromPCM,
+      formatDmcInstrumentLine,
+      decodeDMC,
+      getDmcRateHz,
+    } = await import('@beatbax/plugin-chip-nes');
+
+    const rateHz = getDmcRateHz(rateIndex, region);
+
+    for (let i = 0; i < inputs.length; i++) {
+      const inputPath = inputs[i];
+      ensureFileExists(inputPath);
+
+      let outPath = outputs[i];
+      if (!outPath) {
+        const dir = dirname(resolvePath(inputPath));
+        const base = basename(inputPath, extname(inputPath));
+        outPath = resolvePath(dir, `${base}.dmc`);
+      } else {
+        outPath = resolvePath(outPath);
+      }
+
+      const outDir = dirname(outPath);
+      if (!existsSync(outDir)) {
+        mkdirSync(outDir, { recursive: true });
+      }
+
+      let wavData;
+      try {
+        const buf = readFileSync(inputPath);
+        wavData = readWAV(buf);
+      } catch (err: any) {
+        console.error(`Error reading WAV ${inputPath}: ${err.message ?? err}`);
+        process.exit(1);
+      }
+
+      const result = encodeDMCFromPCM(wavData.samples, wavData.sampleRate, {
+        rateIndex,
+        region,
+        maxBytes,
+        trim: true,
+        normalize: options.normalize === true,
+        gain,
+        lowPass: options.noFilter !== true,
+        trimSilence: options.trimSilence !== false,
+        trimSilenceDb: Number.isFinite(trimSilenceDb) ? trimSilenceDb : -45,
+        tailMs,
+        fadeOutMs,
+        maxDurationMs,
+      });
+
+      if (result.byteLength > maxBytes) {
+        console.warn(`[WARN] ${inputPath}: encoded ${result.byteLength} bytes exceeds --max-bytes ${maxBytes}`);
+      }
+
+      writeFileSync(outPath, Buffer.from(result.bytes));
+
+      const regionLabel = region.toUpperCase();
+      console.log(`[OK] ${inputPath} → ${outPath}`);
+      console.log(`  ${result.byteLength} bytes, dmc_rate=${rateIndex} (${rateHz.toFixed(2)} Hz ${regionLabel}), ${result.durationSec.toFixed(4)}s`);
+
+      const instName = options.instName
+        ? sanitizeInstName(options.instName)
+        : sanitizeInstName(inputPath);
+      const sampleRef = toLocalSampleRef(outPath);
+
+      if (options.emitInst) {
+        console.log(formatDmcInstrumentLine({
+          instName,
+          sampleRef,
+          dmcRate: rateIndex,
+          dmcLoop,
+        }));
+      }
+
+      if (options.play) {
+        const { playAudioBuffer } = await import('@beatbax/engine/node');
+        const decoded = decodeDMC(result.bytes);
+        const pcm = upsampleDmcForPlayback(decoded, rateHz, hostSampleRate, dmcLoop, result.durationSec);
+        if (verbose) {
+          console.log(`  Playing preview (${dmcLoop ? 'looped' : 'one-shot'})...`);
+        }
+        try {
+          await playAudioBuffer(pcm, {
+            channels: 1,
+            sampleRate: hostSampleRate,
+            gainScale: 0.6,
+          });
+        } catch (err: any) {
+          if (isMissingAudioPlayerError(err)) {
+            console.warn(`[WARN] ${inputPath}: preview skipped (no suitable system audio player found)`);
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+  });
 
 program
   .command('list-chips')

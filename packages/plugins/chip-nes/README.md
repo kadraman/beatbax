@@ -114,9 +114,31 @@ play
 | Field | Values | Description |
 |-------|--------|-------------|
 | `dmc_sample` | `@nes/<name>`, `https://...`, `local:<path>` | Sample reference |
-| `dmc_rate` | `0`–`15` | Playback rate index (0 = fastest ~4182 Hz; 15 = slowest ~70 Hz) |
+| `dmc_rate` | `0`–`15` | Playback rate index (0 = slowest ~4182 Hz; 15 = fastest ~33144 Hz) |
 | `dmc_loop` | `true`/`false` | Loop sample |
 | `dmc_level` | `0`–`127` | Initial DAC level |
+
+#### Converting WAV files to DMC
+
+The DMC channel plays raw 1-bit delta-encoded `.dmc` data, not PCM, WAV, or MOD samples. Use the CLI converter to bake a WAV into the NES format:
+
+```bash
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
+```
+
+The converter writes a headerless `.dmc` file and can print a matching BeatBax instrument line:
+
+```bax
+inst kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:samples/wav/kick.dmc"
+```
+
+Important details:
+
+- `dmc_rate` is not stored in the file. Use the same value in the instrument that you used with `--dmc-rate`; otherwise pitch and duration will change.
+- `dmc_loop` is also an instrument setting. Pass `--dmc-loop` when you want `--emit-inst` and `--play` to treat the sample as looping.
+- `--trim-silence`, `--tail-ms`, `--fade-out-ms`, and `--max-duration-ms` help remove quiet WAV tails that become DMC hiss.
+- `--ntsc` is the default rate table; use `--pal` for PAL-targeted songs.
+- Short, bright samples usually convert best. Long low-level decays tend to expose DMC quantisation noise.
 
 #### Bundled DMC samples
 
