@@ -46,9 +46,10 @@ describe('CLI convert wav2dmc', () => {
   const wavPath = join(TEST_OUTPUT_DIR, 'test_input.wav');
   const dmcPath = join(TEST_OUTPUT_DIR, 'test_input.dmc');
   const dmcPathAlt = join(TEST_OUTPUT_DIR, 'test_input_alt.dmc');
+  const dmcPathWithSpace = join(TEST_OUTPUT_DIR, 'space dir', 'test input spaced.dmc');
 
   afterEach(() => {
-    for (const p of [wavPath, dmcPath, dmcPathAlt]) {
+    for (const p of [wavPath, dmcPath, dmcPathAlt, dmcPathWithSpace]) {
       if (existsSync(p)) unlinkSync(p);
     }
   });
@@ -75,6 +76,51 @@ describe('CLI convert wav2dmc', () => {
     expect(output).toContain('dmc_rate=7');
     expect(output).toContain('dmc_loop=false');
     expect(output).toContain('type=dmc');
+  });
+
+  it('--emit-inst percent-encodes spaces in local sample refs', () => {
+    makeTestWav(wavPath);
+    const output = execSync(
+      `node "${CLI_PATH}" convert wav2dmc "${wavPath}" -o "${dmcPathWithSpace}" --emit-inst`,
+      { encoding: 'utf-8' }
+    );
+    expect(output).toContain('dmc_sample="local:');
+    expect(output).toContain('%20');
+    expect(output).not.toContain('dmc_sample="local:tmp/wav2dmc/space dir/test input spaced.dmc"');
+    expect(output).toContain('[OK]');
+    expect(existsSync(dmcPathWithSpace)).toBe(true);
+  });
+
+  it('-q alias for --rate sets dmc_rate', () => {
+    makeTestWav(wavPath);
+    const output = execSync(
+      `node "${CLI_PATH}" convert wav2dmc "${wavPath}" -o "${dmcPath}" -q 7 --emit-inst`,
+      { encoding: 'utf-8' }
+    );
+    expect(output).toContain('dmc_rate=7');
+    expect(output).toContain('type=dmc');
+  });
+
+  it('rejects non-integer --dmc-rate values', () => {
+    makeTestWav(wavPath);
+    const result = spawnSync(
+      'node',
+      [CLI_PATH, 'convert', 'wav2dmc', wavPath, '-o', dmcPath, '--dmc-rate', 'abc'],
+      { encoding: 'utf-8' }
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("invalid --dmc-rate value 'abc'");
+  });
+
+  it('rejects out-of-range --dmc-rate values', () => {
+    makeTestWav(wavPath);
+    const result = spawnSync(
+      'node',
+      [CLI_PATH, 'convert', 'wav2dmc', wavPath, '-o', dmcPath, '--dmc-rate', '99'],
+      { encoding: 'utf-8' }
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("invalid --dmc-rate value '99'");
   });
 
   it('--dmc-loop --emit-inst prints dmc_loop=true', () => {

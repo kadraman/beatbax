@@ -6,7 +6,6 @@ import {
   DMC_RATE_TABLE_NTSC,
   DMC_RATE_TABLE_PAL,
   type NesClockRegion,
-  setNesClockRegion,
 } from './periodTables.js';
 
 export interface EncodeDMCOptions {
@@ -213,6 +212,27 @@ function trimBitsToBytes(bits: number[], maxBytes: number, trim: boolean): Uint8
   return packed.length > targetBytes ? packed.slice(0, targetBytes) : packed;
 }
 
+export function getMaxEncodedByteLength(maxBytes: number, trim: boolean): number {
+  return trim ? trimDmcByteLength(maxBytes, maxBytes) : maxBytes;
+}
+
+export function getMaxSourceSampleCountForDmc(
+  maxBytes: number,
+  rateHz: number,
+  sourceSampleRate: number,
+  trim: boolean
+): number {
+  if (maxBytes <= 0 || rateHz <= 0 || sourceSampleRate <= 0) return 0;
+  const maxEncodedBytes = getMaxEncodedByteLength(maxBytes, trim);
+  const maxEncodedSamples = maxEncodedBytes * 8;
+  return Math.max(1, Math.ceil((maxEncodedSamples * sourceSampleRate) / rateHz));
+}
+
+function capFloat32Length(samples: Float32Array, maxLength: number): Float32Array {
+  if (maxLength <= 0 || samples.length <= maxLength) return samples;
+  return samples.slice(0, maxLength);
+}
+
 export function encodeDMCFromPCM(
   samples: Float32Array,
   sourceSampleRate: number,
@@ -230,10 +250,8 @@ export function encodeDMCFromPCM(
   const tailMs = options.tailMs ?? 8;
   const fadeOutMs = options.fadeOutMs ?? 4;
 
-  const prevRegion = setNesClockRegion(region);
   const rateTable = region === 'pal' ? DMC_RATE_TABLE_PAL : DMC_RATE_TABLE_NTSC;
   const rateHz = rateTable[rateIndex];
-  setNesClockRegion(prevRegion);
 
   let pcm = copyFloat32(samples);
   if (options.normalize && pcm.length > 0) {
@@ -255,41 +273,18 @@ export function encodeDMCFromPCM(
   pcm = capDuration(pcm, sourceSampleRate, options.maxDurationMs);
   pcm = applyFadeOut(pcm, sourceSampleRate, fadeOutMs);
 
+  const maxSourceSampleCount = getMaxSourceSampleCountForDmc(maxBytes, rateHz, sourceSampleRate, trim);
+  pcm = capFloat32Length(pcm, maxSourceSampleCount);
+
   const pcmForResample = lowPass
     ? applyLowPass(pcm, rateHz * 0.45, sourceSampleRate)
     : pcm;
 
-  const resampled = resampleLinear(pcmForResample, sourceSampleRate, rateHz);
-  const targets = pcmToDacTargets(resampled);
-  const bits: number[] = [];
-  let level = 64;
-  let lastDir = 1;
-
-  for (const target of targets) {
-    const t = Math.max(0, Math.min(127, target));
-    const upLevel = level <= 125 ? level + 2 : level;
-    const downLevel = level >= 2 ? level - 2 : level;
-    const errUp = Math.abs(upLevel - t);
-    const errDown = Math.abs(downLevel - t);
-
-    let bit: number;
-    if (errUp < errDown) bit = 1;
-    else if (errDown < errUp) bit = 0;
-    else if (t > level) bit = 1;
-    else if (t < level) bit = 0;
-    else if (keepDirection) bit = lastDir;
-    else bit = lastDir === 1 ? 0 : 1;
-
-    if (bit) {
-      if (level <= 125) level += 2;
-    } else {
-      if (level >= 2) level -= 2;
-    }
-    lastDir = bit;
-    bits.push(bit);
-  }
-
-  const bytes = trimBitsToBytes(bits, maxBytes, trim);
+  const resampled = capFloat32Length(
+    resampleLinear(pcmForResample, sourceSampleRate, rateHz),
+    getMaxEncodedByteLength(maxBytes, trim) * 8
+  );
+  const bytes = encodeDMC(pcmToDacTargets(resampled), keepDirection);
   const durationSec = (bytes.length * 8) / rateHz;
 
   return {
@@ -308,10 +303,13 @@ export function formatDmcInstrumentLine(opts: {
   dmcRate: number;
   dmcLoop: boolean;
 }): string {
-  const name = opts.instName.replace(/[^a-zA-Z0-9_]/g, '_') || 'sample';
+  const name = opts.instName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]+/, '') || 'sample';
   const loop = opts.dmcLoop ? 'true' : 'false';
   const rate = Math.max(0, Math.min(15, opts.dmcRate));
-  return `inst ${name} type=dmc dmc_rate=${rate} dmc_loop=${loop} dmc_sample="${opts.sampleRef}"`;
+  const sampleRef = opts.sampleRef.startsWith('local:') && /\s/.test(opts.sampleRef)
+    ? `local:${encodeURI(opts.sampleRef.slice('local:'.length))}`
+    : opts.sampleRef;
+  return `inst ${name} type=dmc dmc_rate=${rate} dmc_loop=${loop} dmc_sample="${sampleRef}"`;
 }
 
 /** Resolve DMC rate Hz for a region without mutating global clock state. */

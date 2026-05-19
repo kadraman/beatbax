@@ -123,7 +123,7 @@ play
 The DMC channel plays raw 1-bit delta-encoded `.dmc` data, not PCM, WAV, or MOD samples. Use the CLI converter to bake a WAV into the NES format:
 
 ```bash
-beatbax convert wav2dmc samples/wav/kick.wav --dmc-rate 15 --emit-inst
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
 ```
 
 The converter writes a headerless `.dmc` file and can print a matching BeatBax instrument line:

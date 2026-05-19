@@ -148,7 +148,7 @@ node bin/beatbax export uge  songs/sample.bax output.uge
 node bin/beatbax export wav  songs/sample.bax output.wav
 
 # Convert a WAV into a raw NES DMC sample
-node bin/beatbax convert wav2dmc samples/wav/kick.wav --dmc-rate 15 --emit-inst
+node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
 
 # Inspect a .bax or .uge file
 node bin/beatbax inspect songs/sample.bax
@@ -175,10 +175,10 @@ node bin/beatbax inspect output.uge --json
 
 ### NES DMC sample conversion
 
-`convert wav2dmc` turns a PCM WAV into a raw NES `.dmc` sample for `type=dmc` instruments:
+`convert wav2dmc` turns a 16-bit mono/stereo PCM WAV into a raw NES `.dmc` sample for `type=dmc` instruments:
 
 ```powershell
-node bin/beatbax convert wav2dmc samples/wav/kick.wav --dmc-rate 15 --emit-inst --play
+node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
 ```
 
 The output is a headerless DMC byte stream. Playback settings live on the BeatBax instrument, so the converter prints the matching line when you pass `--emit-inst`:

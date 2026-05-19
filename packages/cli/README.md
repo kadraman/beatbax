@@ -87,7 +87,7 @@ beatbax convert wav2dmc kick.wav --dmc-rate 15 --emit-inst
 beatbax convert wav2dmc kick.wav --dmc-rate 10 --trim-silence -50 --tail-ms 12 --play
 ```
 
-This creates a raw `.dmc` byte stream for NES DMC playback. The file does not store playback settings, so the chosen `--dmc-rate` must match the `dmc_rate=` value used by the instrument:
+This creates a raw `.dmc` byte stream for NES DMC playback. Input WAV files must be 16-bit PCM; other WAV encodings, including common 24-bit PCM files, are not supported. The file does not store playback settings, so the chosen `--dmc-rate` must match the `dmc_rate=` value used by the instrument:
 
 ```bax
 inst kick type=dmc dmc_rate=15 dmc_loop=false dmc_sample="local:kick.dmc"

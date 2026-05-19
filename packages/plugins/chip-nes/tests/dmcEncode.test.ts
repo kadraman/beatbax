@@ -1,8 +1,11 @@
 import { describe, test, expect } from '@jest/globals';
 import { decodeDMC } from '../src/dmc.js';
+import { getNesClockRegion, setNesClockRegion } from '../src/periodTables.js';
 import {
   encodeDMC,
   encodeDMCFromPCM,
+  getMaxEncodedByteLength,
+  getMaxSourceSampleCountForDmc,
   packBitsLSBFirst,
   trimDmcByteLength,
   formatDmcInstrumentLine,
@@ -48,6 +51,21 @@ describe('encodeDMC', () => {
 });
 
 describe('encodeDMCFromPCM', () => {
+  test('does not change the global NES clock region', () => {
+    const previousRegion = setNesClockRegion('ntsc');
+    try {
+      const sr = 44100;
+      const samples = new Float32Array(sr / 100);
+      samples.fill(0.25);
+
+      encodeDMCFromPCM(samples, sr, { region: 'pal', rateIndex: 15, trim: false });
+
+      expect(getNesClockRegion()).toBe('ntsc');
+    } finally {
+      setNesClockRegion(previousRegion);
+    }
+  });
+
   test('produces non-empty output for a short tone', () => {
     const sr = 44100;
     const samples = new Float32Array(sr / 100);
@@ -66,6 +84,13 @@ describe('encodeDMCFromPCM', () => {
     for (let i = 0; i < samples.length; i++) samples[i] = Math.sin(i * 0.01);
     const result = encodeDMCFromPCM(samples, sr, { rateIndex: 7, maxBytes: 64, trim: true });
     expect(result.byteLength).toBeLessThanOrEqual(64);
+  });
+
+  test('caps working source length before resampling', () => {
+    expect(getMaxEncodedByteLength(64, false)).toBe(64);
+    expect(getMaxEncodedByteLength(64, true)).toBe(49);
+    expect(getMaxSourceSampleCountForDmc(3, 2, 4, false)).toBe(48);
+    expect(getMaxSourceSampleCountForDmc(64, 8363.42, 44100, true)).toBe(2068);
   });
 
   test('silence trimming removes quiet tails by default', () => {
@@ -110,6 +135,27 @@ describe('formatDmcInstrumentLine', () => {
     expect(line).toContain('dmc_rate=7');
     expect(line).toContain('dmc_loop=false');
     expect(line).toContain('local:kick.dmc');
+  });
+
+  test('strips leading digits from instrument names', () => {
+    const line = formatDmcInstrumentLine({
+      instName: '909_kick',
+      sampleRef: 'local:kick.dmc',
+      dmcRate: 7,
+      dmcLoop: false,
+    });
+    expect(line).toContain('inst _kick type=dmc');
+  });
+
+  test('encodes spaces in local sample refs', () => {
+    const line = formatDmcInstrumentLine({
+      instName: 'kick',
+      sampleRef: 'local:samples/kick sample.dmc',
+      dmcRate: 7,
+      dmcLoop: false,
+    });
+    expect(line).toContain('dmc_sample="local:samples/kick%20sample.dmc"');
+    expect(line).not.toContain('kick sample.dmc');
   });
 
   test('dmc_loop true', () => {

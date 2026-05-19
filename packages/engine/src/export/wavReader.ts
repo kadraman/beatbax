@@ -60,9 +60,10 @@ export function readWAV(buffer: Buffer | Uint8Array): ReadWAVResult {
     throw new Error(`Unsupported channel count: ${channels} (only mono or stereo)`);
   }
 
-  const bytesPerFrame = (bitsPerSample / 8) * channels;
-  const frameCount = Math.floor(dataSize / bytesPerFrame);
   const end = Math.min(dataOffset + dataSize, buf.length);
+  const bytesPerFrame = (bitsPerSample / 8) * channels;
+  const availableBytes = Math.max(0, end - dataOffset);
+  const frameCount = Math.floor(Math.min(dataSize, availableBytes) / bytesPerFrame);
   const samples = new Float32Array(frameCount);
 
   for (let i = 0; i < frameCount; i++) {

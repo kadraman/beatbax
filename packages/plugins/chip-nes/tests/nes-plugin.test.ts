@@ -2,6 +2,8 @@
  * NES chip plugin integration tests.
  * Tests registration, channel creation, instrument validation, and audio rendering.
  */
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 import nesPlugin, { PULSE_PERIOD, TRIANGLE_PERIOD, NES_MIX_GAIN } from '../src/index.js';
 import { validateNesInstrument } from '../src/validate.js';
 import { NESPulseBackend } from '../src/pulse.js';
@@ -487,6 +489,27 @@ describe('NES DMC sample resolution', () => {
     const { resolveDMCSample } = await import('../src/dmc.js');
     // This would be blocked in both browser and Node.js
     await expect(resolveDMCSample('local:../../../etc/passwd')).rejects.toThrow();
+  });
+
+  test('local: path with spaces resolves when percent-encoded', async () => {
+    const { resolveDMCSample } = await import('../src/dmc.js');
+    const samplePath = join(process.cwd(), 'tmp', 'chip nes sample.dmc');
+
+    try {
+      const sampleDir = dirname(samplePath);
+      if (!existsSync(sampleDir)) {
+        await import('fs').then(({ mkdirSync }) => mkdirSync(sampleDir, { recursive: true }));
+      }
+      writeFileSync(samplePath, Buffer.from([0xff]));
+      const encodedRef = `local:${samplePath.replace(/\\/g, '/').replace(/ /g, '%20')}`;
+      const samples = await resolveDMCSample(encodedRef);
+      expect(samples).toBeInstanceOf(Float32Array);
+      expect(samples.length).toBe(8);
+    } finally {
+      if (existsSync(samplePath)) {
+        unlinkSync(samplePath);
+      }
+    }
   });
 
   test('unsupported scheme throws', async () => {

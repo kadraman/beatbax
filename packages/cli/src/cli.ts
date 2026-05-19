@@ -819,9 +819,22 @@ async function discoverExporterPlugins(options: { verbose?: boolean } = {}): Pro
 }
 
 function parseDmcRateOption(options: { dmcRate?: string; rate?: string; q?: string }): number {
-  const raw = options.dmcRate ?? options.rate ?? options.q ?? '15';
-  const n = parseInt(String(raw), 10);
-  return Number.isFinite(n) ? Math.max(0, Math.min(15, n)) : 15;
+  const raw = options.rate ?? options.q ?? options.dmcRate ?? '15';
+  const text = String(raw).trim();
+  if (!/^(0|[1-9]\d*)$/.test(text)) {
+    throw new Error(`invalid --dmc-rate value '${raw}'; expected an integer from 0 to 15`);
+  }
+  const n = Number(text);
+  if (n < 0 || n > 15) {
+    throw new Error(`invalid --dmc-rate value '${raw}'; expected an integer from 0 to 15`);
+  }
+  return n;
+}
+
+function failCommand(message: string): never {
+  console.error(message);
+  process.exit(1);
+  throw new Error(message);
 }
 
 function sanitizeInstName(name: string): string {
@@ -917,7 +930,12 @@ convertCmd
       process.exit(1);
     }
 
-    const rateIndex = parseDmcRateOption(options);
+    let rateIndex: number;
+    try {
+      rateIndex = parseDmcRateOption(options);
+    } catch (err: any) {
+      failCommand(`Error: ${err.message ?? err}`);
+    }
     if (options.ntsc === true && options.pal === true) {
       console.error('Error: choose only one DMC clock region (--ntsc or --pal)');
       process.exit(1);
