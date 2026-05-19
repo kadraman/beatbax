@@ -2,6 +2,8 @@ export { exportJSON } from './jsonExport.js';
 export { exportMIDI } from './midiExport.js';
 export { exportUGE } from './ugeWriter.js';
 export { exportWAV, writeWAV, exportWAVFromSong } from './wavWriter.js';
+export { readWAV } from './wavReader.js';
+export type { ReadWAVResult } from './wavReader.js';
 export type { ExportOptions, ExporterPlugin, ExporterUIContribution } from './types.js';
 export { ExporterRegistry, exporterRegistry } from './registry.js';
 export {

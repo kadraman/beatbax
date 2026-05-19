@@ -108,3 +108,13 @@ export {
 } from './mixer.js';
 export { validateNesInstrument } from './validate.js';
 export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';
+export {
+  encodeDMC,
+  encodeDMCFromPCM,
+  packBitsLSBFirst,
+  trimDmcByteLength,
+  formatDmcInstrumentLine,
+  getDmcRateHz,
+  type EncodeDMCOptions,
+  type EncodeDMCResult,
+} from './dmcEncode.js';

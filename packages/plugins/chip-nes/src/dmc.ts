@@ -57,6 +57,15 @@ export function resolveGitHubUrl(ref: string): string {
   return ref; // already a raw or other URL — return unchanged
 }
 
+function decodeLocalSamplePath(ref: string): string {
+  const rawPath = ref.slice('local:'.length);
+  try {
+    return decodeURI(rawPath);
+  } catch (_) {
+    return rawPath;
+  }
+}
+
 // ─── DMC decoding ─────────────────────────────────────────────────────────────
 
 /**
@@ -118,7 +127,7 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
     if (isBrowser) {
       throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
     }
-    const path = ref.slice(6);
+    const path = decodeLocalSamplePath(ref);
     // Normalise separators then check for '..' as a path segment (not as part of
     // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
     const normalized = path.replace(/\\/g, '/');
@@ -171,7 +180,7 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
     if (isBrowser) {
       throw new Error(`NES DMC: 'local:' sample references are blocked in browser contexts for security. Use '@nes/<name>', 'https://', or 'github:' instead.`);
     }
-    const path = ref.slice(6);
+    const path = decodeLocalSamplePath(ref);
     // Normalise separators then check for '..' as a path segment (not as part of
     // a filename like 'file..dmc'). Mirrors the check in importResolver.ts.
     const normalized = path.replace(/\\/g, '/');
