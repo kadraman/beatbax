@@ -46,6 +46,25 @@ High level
 - **Security**: AI responses rendered via `marked` + `DOMPurify.sanitize()` to prevent XSS. Generated code is validated but never `eval`-ed.
 - See `docs/features/complete/ai-chatbot-assistant.md` for the full feature spec, RAG roadmap, and testing strategy.
 
+## CLI WAV → NES DMC conversion
+
+- Command: `beatbax convert wav2dmc <input.wav> [-o output.dmc]`.
+- Implementation split:
+  - `packages/engine/src/export/wavReader.ts` parses 16-bit PCM WAV data and downmixes mono/stereo to mono `Float32Array` samples.
+  - `packages/plugins/chip-nes/src/dmcEncode.ts` owns NES-specific preprocessing, DMC rate lookup, greedy 1-bit delta encoding, and instrument snippet formatting.
+  - `packages/cli/src/cli.ts` handles batch file I/O, `--emit-inst`, and `--play` preview.
+- DMC output is a raw headerless byte stream. It intentionally does not include `dmc_rate` or `dmc_loop`; these remain BeatBax instrument fields.
+- `--dmc-rate` / `-q` maps directly to instrument `dmc_rate=` and selects the resample target from the NTSC/PAL DMC rate table. `--ntsc` is the default; `--pal` switches tables; passing both is rejected.
+- User-facing audio cleanup options are intentionally focused on sample-tail quality:
+  - `--trim-silence <db>` / `--no-trim-silence`
+  - `--tail-ms <ms>`
+  - `--fade-out-ms <ms>`
+  - `--max-duration-ms <ms>`
+- Low-value/debug options (`--no-trim` for hardware byte alignment, `--keep-direction`, and `--preview-wav`) were removed from the public CLI surface because they did not address common hiss problems and confused the meaning of “trim”.
+- Tests:
+  - `packages/plugins/chip-nes/tests/dmcEncode.test.ts`
+  - `packages/cli/tests/convert-wav2dmc.integration.test.ts`
+
 ## UGE Reader — implementation notes
 - Module: `packages/engine/src/import/uge/uge.reader.ts`
 - Supports hUGETracker versions 1-6 with backward compatibility

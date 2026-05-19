@@ -147,7 +147,7 @@ tests/*.js
 # web-ui generated / build artifacts
 /apps/web-ui/dist/
 /apps/web-ui/public/songs/
-
+/apps/web-ui/public/engine/
 /packages/engine/tmp/
 
 # sample source code
@@ -158,12 +158,12 @@ lib
 tools
 
 # output files
-*.uge
 *.wav
-*.mid
-*.vgm
+!samples/wav/*.wav
 output.*
 test.ps1
+songs/**/*.uge
+songs/**/*.mid
 songs/**/*.txt
 songs/**/*.vgm
 songs/**/*.json
