@@ -56,7 +56,7 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
       });
       continue;
     }
-    const mOct = mod.match(/^oct\((-?\d+)\)$/i);
+    const mOct = mod.match(/^oct\(([+-]?\d+)\)$/i);
     if (mOct) { octaves += parseInt(mOct[1], 10); continue; }
     if (/^rev$/i.test(mod)) { tokens = tokens.slice().reverse(); continue; }
     const mSlow = mod.match(/^slow(?:\((\d+)\))?$/i);

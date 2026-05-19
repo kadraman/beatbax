@@ -1,6 +1,12 @@
 import { applyModsToTokens } from '../expand/refExpander.js';
 
 describe('applyModsToTokens', () => {
+  test('oct(+N) accepts explicit plus sign', () => {
+    const base = ['C4', 'E4', 'G4'];
+    const res = applyModsToTokens(base, ['oct(+1)']);
+    expect(res.tokens).toEqual(['C5', 'E5', 'G5']);
+  });
+
   test('octave and semitone transposition', () => {
     const base = ['C4', 'E4', 'G4'];
     const res = applyModsToTokens(base, ['oct(-1)', '+12']);
