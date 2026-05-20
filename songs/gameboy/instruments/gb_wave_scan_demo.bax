@@ -19,7 +19,7 @@ song tags "gameboy,wave,scan,morphing,advanced,instruments,demo"
 
 chip gameboy
 bpm 156
-time 4
+stepsPerBar 4
 
 # =============================================================================
 # INSTRUMENTS

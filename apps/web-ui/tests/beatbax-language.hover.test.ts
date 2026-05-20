@@ -106,6 +106,38 @@ describe('BeatBax Monaco hover provider', () => {
     expect(hover.contents[0].value).toContain('atari-st');
   });
 
+  test('time keyword hover notes deprecation', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'time 4';
+
+    const model = {
+      getLineContent: jest.fn(() => line),
+      getWordAtPosition: jest.fn(() => ({ word: 'time', startColumn: 1, endColumn: 5 })),
+    } as any;
+
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 2 });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('deprecated');
+    expect(hover.contents[0].value).toContain('stepsPerBar');
+  });
+
+  test('ticksPerStep keyword hover notes deprecation', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'ticksPerStep 16';
+
+    const model = {
+      getLineContent: jest.fn(() => line),
+      getWordAtPosition: jest.fn(() => ({ word: 'ticksPerStep', startColumn: 1, endColumn: 13 })),
+    } as any;
+
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 5 });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('deprecated');
+    expect(hover.contents[0].value).toContain('no effect');
+  });
+
   test('suppresses hovers on continuation lines inside triple-quoted metadata', () => {
     const hoverProvider = getHoverProvider();
     const lines = [

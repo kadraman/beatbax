@@ -12,7 +12,7 @@
 song name "SMS Layered Percussion (Slow Groove)"
 chip sms
 bpm 90
-time 4
+stepsPerBar 4
 
 # SMS attenuation: 0 = loudest, 15 = mute
 

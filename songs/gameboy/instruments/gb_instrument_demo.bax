@@ -10,7 +10,7 @@ song tags "instruments,example,imported"
 
 chip gameboy
 bpm 120
-time 4
+stepsPerBar 4
 
 # =============================================================================
 # PULSE CHANNEL INSTRUMENTS (Channels 1 & 2)

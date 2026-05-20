@@ -7,6 +7,7 @@ import * as monaco from 'monaco-editor';
 import { parse } from '@beatbax/engine/parser';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { eventBus } from '../utils/event-bus';
+import { isTopLevelBaxLine } from './top-level-directives';
 
 let latestAST: any = null;
 /** Cached semantic-token result. Invalidated whenever the model version changes. */
@@ -574,8 +575,9 @@ export function registerBeatBaxLanguage(): void {
     keywords: [
       'chip',
       'bpm',
-      'time',
       'stepsPerBar',
+      // Deprecated — kept for syntax highlighting in legacy songs (not in completions)
+      'time',
       'ticksPerStep',
       'inst',
       'pat',
@@ -637,9 +639,12 @@ export function registerBeatBaxLanguage(): void {
         // Song metadata properties (appear after 'song' directive)
         [/\b(name|artist|author|description|tags)\b(?=\s+")/, 'attribute'],
 
+        // Deprecated top-level directives (before generic keyword rule)
+        [/\b(time|ticksPerStep)\b/, 'keyword.deprecated'],
+
         // Top-level directives
         [
-          /\b(song|chip|bpm|time|stepsPerBar|ticksPerStep|volume|title|artist|author|comment)\b/,
+          /\b(song|chip|bpm|stepsPerBar|volume|title|artist|author|comment)\b/,
           'keyword',
         ],
 
@@ -838,16 +843,10 @@ export function registerBeatBaxLanguage(): void {
       const directives = [
         { label: 'chip', detail: 'Set target chip', insertText: 'chip gameboy' },
         { label: 'bpm', detail: 'Set tempo', insertText: 'bpm 120' },
-        { label: 'time', detail: 'Set time signature', insertText: 'time 4' },
         {
           label: 'stepsPerBar',
           detail: 'Set steps per bar',
           insertText: 'stepsPerBar 4',
-        },
-        {
-          label: 'ticksPerStep',
-          detail: 'Set ticks per step',
-          insertText: 'ticksPerStep 16',
         },
         { label: 'volume', detail: 'Set global volume', insertText: 'volume 0.8' },
         { label: 'title', detail: 'Set song title', insertText: 'title "My Song"' },
@@ -1073,9 +1072,10 @@ export function registerBeatBaxLanguage(): void {
           'Example: `chip gameboy`, `chip atari-st`, `chip nes`',
         ].join('\n\n'),
         bpm: 'Sets the tempo in beats per minute. Example: `bpm 120`',
-        time: 'Sets beats per bar (time signature numerator). Example: `time 4`',
-        stepsPerBar: 'Alternative to `time`. Sets steps per bar.',
-        ticksPerStep: 'Sets tick resolution per step. Example: `ticksPerStep 16`',
+        stepsPerBar: 'Sets steps per bar for bar/beat display (default 4). Example: `stepsPerBar 4`',
+        time: '*(deprecated)* Alias for `stepsPerBar`. Still parsed; prefer `stepsPerBar`. Example: `time 4`',
+        ticksPerStep:
+          '*(deprecated, no effect)* Ignored by the engine. Use `stepsPerBar` for bar grouping. Example: `ticksPerStep 16`',
         inst: 'Declares a named instrument. Syntax: `inst <name> type=<channel-type> [...]`. Hover over type values or fields for chip-specific documentation.',
         pat: 'Defines a pattern. Example: `pat melody = C4 E4 G4 C5`',
         seq: [
@@ -1451,6 +1451,7 @@ export function registerBeatBaxLanguage(): void {
       { token: 'operator', foreground: 'D4D4D4' }, // White/gray - operators
       { token: 'delimiter', foreground: '808080' }, // Gray - delimiters
       { token: 'keyword', foreground: 'C8A227' }, // Amber - keywords like pat, seq, inst
+      { token: 'keyword.deprecated', foreground: 'CCA700', fontStyle: 'italic' }, // Deprecated directives (time, ticksPerStep)
       { token: 'keyword.channel.1', foreground: '569CD6' }, // Pulse 1 — blue
       { token: 'keyword.channel.2', foreground: '9CDCFE' }, // Pulse 2 — light blue
       { token: 'keyword.channel.3', foreground: '4EC9B0' }, // Wave    — teal
@@ -1487,6 +1488,7 @@ export function registerBeatBaxLanguage(): void {
       { token: 'operator', foreground: '000000' }, // White/gray - operators
       { token: 'delimiter', foreground: '000000' }, // Gray - delimiters
       { token: 'keyword', foreground: '9A7110' }, // Amber - keywords
+      { token: 'keyword.deprecated', foreground: '9A7110', fontStyle: 'italic' }, // Deprecated directives (time, ticksPerStep)
       { token: 'keyword.channel.1', foreground: '1565C0' }, // Pulse 1 — darker blue
       { token: 'keyword.channel.2', foreground: '0277BD' }, // Pulse 2 — mid blue
       { token: 'keyword.channel.3', foreground: '00796B' }, // Wave    — darker teal
@@ -1512,7 +1514,7 @@ export function registerBeatBaxLanguage(): void {
         const line = lines[i].replace(/\s+$/, '');
 
         const isBlank = line.trim() === '';
-        const isTopLevel = /^\s*(song|chip|bpm|time|stepsPerBar|ticksPerStep|inst|pat|seq|channel|play|export|import)\b/.test(line);
+        const isTopLevel = isTopLevelBaxLine(line);
 
         // Insert a blank line before each top-level statement (except at start)
         if (isTopLevel && out.length > 0 && !prevWasBlank) {

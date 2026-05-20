@@ -22,7 +22,7 @@ song tags "percussion,drums,hugetracker"
 
 chip gameboy
 bpm 140
-time 4
+stepsPerBar 4
 
 # =============================================================================
 # KICK DRUM INSTRUMENTS (Pulse Channel)

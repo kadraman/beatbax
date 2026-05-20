@@ -63,11 +63,11 @@ song tags "example,demo"
 ```beatbax
 chip gameboy
 bpm 120
-time 4
+stepsPerBar 4
 volume 80
 ```
 
-- Directive names (`chip`, `bpm`, `time`, `volume`) → Blue (keyword)
+- Directive names (`chip`, `bpm`, `stepsPerBar`, `volume`) → Amber (keyword); deprecated `time` / `ticksPerStep` → italic warning tone (`keyword.deprecated`)
 - Values → Orange (numbers) or Orange (type for `gameboy`)
 
 ### Instrument Definitions
