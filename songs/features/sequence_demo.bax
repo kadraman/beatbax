@@ -1,6 +1,5 @@
 ## sequence_demo.bax
-## Demonstrates sequencing via 'arrange' and channel `seq` multi-item syntax:
-##  - arrange with slots
+## Demonstrates channel `seq` multi-item syntax:
 ##  - comma-separated: `seq a,b`
 ##  - repetition: `seq a * 2` or `a*2`
 ##  - space-separated: `seq a b`
@@ -8,7 +7,7 @@
 
 song name "Sequence Demo"
 song artist "kadraman"
-song description """Demonstrates `arrange` and `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
+song description """Demonstrates `seq` multi-item syntax (comma-separated, repetition, space-separated) and inline modifiers applied to items."""
 song tags "sequence,arrangement"
 
 chip gameboy
@@ -38,28 +37,11 @@ seq bass_seq    = bass_pat, bass_pat                            # 32 notes
 seq wave_seq    = wave_pat wave_pat                             # 32 notes
 seq drums_seq   = drums_pat drums_alt_pat                       # 32 notes
 
-# Arrangement demonstrating slots with defaults
-arrange main defaults(inst=leadA|leadB|wave1|perc) {
-   lead_seq  | bass_seq | wave_seq | drums_seq
-   lead2_seq | bass_seq | wave_seq:oct(-1) | drums_seq
-}
-
-# Notes on mapping and compatibility
-# Prefer `arrange` blocks (above) for multi-channel, multi-row song layout.
-# `arrange` is expanded early in the pipeline: defaults and per-slot
-# modifiers (e.g. `:oct(-1)`, `:inst(name)`, `:slow()`) are applied at
-# expansion time and flow into the per-channel ISM. Existing `channel`
-# mappings are supported for backward compatibility but are considered
-# a legacy/fallback mechanism. Example `channel` forms (for reference):
-# 1) Comma-separated: plays `lead` then `lead2`
-#    channel 1 => inst leadA seq lead_seq, lead2_seq
-# 2) Repetition: repeats `bass` sequence twice
-#    channel 2 => inst leadB seq bass_seq*2
-# 3) Space-separated list: shorthand for multiple items
-#    also shows a per-item modifier (:oct(-1)) applied to second item
-#    channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-2)
-# 4) Example using immediate named hits / percussion sequence
-#    channel 4 => inst perc seq drums_seq drums_seq
+# Multi-channel layout (two rows concatenated in time per channel)
+channel 1 => inst leadA seq lead_seq, lead2_seq
+channel 2 => inst leadB seq bass_seq, bass_seq
+channel 3 => inst wave1 seq wave_seq, wave_seq:oct(-1)
+channel 4 => inst perc  seq drums_seq, drums_seq
 
 # Playback directive for interactive demos
 play auto repeat

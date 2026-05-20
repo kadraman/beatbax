@@ -300,7 +300,7 @@ program
     }
 
     // Run the resolver to materialize sequences/channels and collect any
-    // resolver warnings (e.g. arrange expansion issues).
+    // resolver warnings (e.g. channel expansion issues).
     const resolverWarnings: Array<{ component: string; message: string; file?: string; loc?: any }> = [];
     try {
       await resolveSongAsync(ast, {

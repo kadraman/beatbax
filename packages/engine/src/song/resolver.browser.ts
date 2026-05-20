@@ -389,57 +389,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
 
   // use shared expander
 
-  // Support `arrange` AST: if present prefer it over channel mappings.
-  const channelSources = (() => {
-    if (ast.arranges && Object.keys(ast.arranges).length > 0) {
-      if (ast.channels && ast.channels.length > 0) {
-        emitResolverWarn('Both `arrange` and `channel` mappings present; using `arrange` and ignoring `channel` mappings.', undefined);
-      }
-      // choose 'main' arrange if present, otherwise first arrange
-      const keys = Object.keys(ast.arranges!);
-      const selected = keys.includes('main') ? 'main' : keys[0];
-      const arr = (ast.arranges as any)[selected];
-      // If the arrange supplies a bpm default, prefer it for this resolved song
-      if (arr.defaults && arr.defaults.bpm != null) {
-        const nb = Number(arr.defaults.bpm);
-        if (!Number.isNaN(nb)) bpm = nb;
-      }
-      const rows: (string | null)[][] = arr.arrangements || [];
-      // support per-column instrument defaults encoded as a '|' separated string
-      let arrangeInstList: string[] | null = null;
-      if (arr.defaults && arr.defaults.inst && typeof arr.defaults.inst === 'string' && arr.defaults.inst.indexOf('|') >= 0) {
-        arrangeInstList = String(arr.defaults.inst).split('|').map(s => s.trim());
-      }
-      const maxSlots = rows.reduce((m, r) => Math.max(m, r.length), 0);
-      const channelNodes: any[] = [];
-      for (let i = 0; i < maxSlots; i++) {
-        const concatenated: string[] = [];
-        for (const row of rows) {
-          const slot = row[i];
-          if (!slot) continue;
-          // do not insert inline `inst(...)` tokens here; per-column defaults are applied
-          // via the synthesized channel's `inst` property (handled below)
-          // expand the referenced sequence into tokens (if available), supporting transforms
-          const toks = expandRefToTokens(slot, expandedSeqs, pats, ast.effects as any);
-          const base = String(slot).split(':')[0];
-          // If expansion produced a single raw token equal to the slot and the base
-          // name doesn't exist as a sequence or pattern, emit a warning.
-          if (toks.length === 1 && toks[0] === slot && !expandedSeqs[base] && !pats[base]) {
-            emitResolverWarn(`arrange: sequence '${slot}' not found while expanding arrange '${selected}'.`, arr.loc);
-            continue;
-          }
-          concatenated.push(slot); // Push the unresolved item reference string
-        }
-        const instForCol = arrangeInstList ? (arrangeInstList[i] || undefined) : (arr.defaults && arr.defaults.inst ? arr.defaults.inst : undefined);
-        const speedForCol = arr.defaults && arr.defaults.speed ? arr.defaults.speed : undefined;
-        channelNodes.push({ id: i + 1, pat: 'arrange-synth', seqSpecTokens: concatenated, inst: instForCol, speed: speedForCol });
-      }
-      return channelNodes;
-    }
-    return ast.channels || [];
-  })();
-
-  for (const ch of channelSources) {
+  for (const ch of ast.channels || []) {
     log.debug(`Processing channel ${ch.id}, ch.pat type: ${typeof ch.pat}, value:`, ch.pat);
     const chModel: ChannelModel = { id: ch.id, speed: ch.speed, events: [], defaultInstrument: ch.inst };
 

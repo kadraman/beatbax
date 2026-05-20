@@ -3,7 +3,7 @@
 - **Schema**: [schema/ast.schema.json](schema/ast.schema.json#L1)
 - **Validator (CLI)**: [scripts/validate-ast.cjs](scripts/validate-ast.cjs#L1)
 
-The schema validates the **assembled AST** returned by `parseWithPeggy` — the structured object with top-level `pats`, `insts`, `seqs`, `channels`, and optional fields (`effects`, `patternEvents`, `sequenceItems`, `arranges`, `imports`, `bpm`, `chip`, `volume`, `play`, `metadata`, `diagnostics`).
+The schema validates the **assembled AST** returned by `parseWithPeggy` — the structured object with top-level `pats`, `insts`, `seqs`, `channels`, and optional fields (`effects`, `patternEvents`, `sequenceItems`, `imports`, `bpm`, `chip`, `volume`, `play`, `metadata`, `diagnostics`).
 
 Usage:
 

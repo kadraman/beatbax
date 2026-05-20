@@ -44,7 +44,6 @@ function validateInsFile(ast: AST, source: string): void {
   if (Object.keys(ast.pats || {}).length > 0) disallowed.push('patterns');
   if (Object.keys(ast.seqs || {}).length > 0) disallowed.push('sequences');
   if ((ast.channels || []).length > 0) disallowed.push('channels');
-  if (ast.arranges && Object.keys(ast.arranges).length > 0) disallowed.push('arranges');
   if (ast.play !== undefined) disallowed.push('play');
   
   // Top-level scalar directives (should not be in .ins files)
@@ -70,7 +69,7 @@ function validateInsFile(ast: AST, source: string): void {
   
   // Check for any other non-standard properties that might be added
   const allowedKeys = new Set([
-    'insts', 'imports', 'pats', 'seqs', 'channels', 'arranges', 'play',
+    'insts', 'imports', 'pats', 'seqs', 'channels', 'play',
     'chip', 'bpm', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
   ]);
   

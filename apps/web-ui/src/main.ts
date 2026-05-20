@@ -1284,7 +1284,7 @@ async function emitParse(content: string): Promise<void> {
       return;
     }
 
-    // Run the resolver to surface arrange/expand warnings.
+    // Run the resolver to surface channel/expand warnings.
     // Use the async path when imports are present so remote/local imports
     // (github:, https://) don't throw in browser sync mode and don't
     // incorrectly mark a valid song as a parse error.
