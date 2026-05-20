@@ -63,7 +63,7 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - **Single pattern shorthand**: `channel 1 => inst leadA pat melody` (omit list, just one pattern)
   - Channels: 1 (Pulse1), 2 (Pulse2), 3 (Wave), 4 (Noise)
 
-Note: For multi-channel arrangements prefer using the `arrange` construct. `arrange` blocks are expanded early so per-arrange defaults and per-slot modifiers (for example `:inst(name)` or `:oct(-1)`) are applied during expansion and flow into the per-channel ISM. `channel` mappings continue to work for backward compatibility but are considered a legacy/fallback for compact examples and single-channel usage.
+Note: For multi-channel songs use `channel` mappings — one line per chip channel. Comma-separated `seq` items on a channel play in order (use this for multi-row layouts). Per-item modifiers (for example `:inst(name)` or `:oct(-1)`) are applied during expansion and flow into the per-channel ISM.
 
 Extended `seq` syntax examples
 - Multiple sequences on one channel (comma-separated): `seq a,b` — plays `a` then `b`.
