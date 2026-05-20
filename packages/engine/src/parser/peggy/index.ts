@@ -137,7 +137,6 @@ interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: s
 interface EffectStmt extends BaseStmt { nodeType: 'EffectStmt'; name: string; rhs?: string }
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
 interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
-interface ArrangeStmt extends BaseStmt { nodeType: 'ArrangeStmt'; name: string; arrangements: (string | null)[][]; defaults?: string | null }
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
 interface PlayStmt extends BaseStmt { nodeType: 'PlayStmt'; args: string }
 interface ExportStmt extends BaseStmt { nodeType: 'ExportStmt'; format: string; path: string }
@@ -156,7 +155,6 @@ type Statement =
   | EffectStmt
   | PatStmt
   | SeqStmt
-  | ArrangeStmt
   | ChannelStmt
   | PlayStmt
   | ExportStmt
@@ -429,32 +427,6 @@ const parsePlay = (args: string): PlayNode => {
   };
 };
 
-const parseArrangeDefaults = (raw: string | null | undefined): any => {
-  if (!raw) return undefined;
-  const out: any = {};
-  // support comma-separated or space-separated key=value pairs
-  const parts = String(raw).split(/[\,\s]+/).map(p => p.trim()).filter(Boolean);
-  for (const p of parts) {
-    const eq = p.indexOf('=');
-    if (eq >= 0) {
-      const k = p.slice(0, eq).trim();
-      const v = p.slice(eq + 1).trim();
-      if (/^bpm$/i.test(k)) {
-        const n = parseInt(v, 10);
-        out.bpm = !Number.isNaN(n) ? n : v;
-      } else if (/^speed$/i.test(k)) {
-        const n = parseFloat(String(v).replace(/x$/i, ''));
-        out.speed = !Number.isNaN(n) ? n : v;
-      } else if (/^inst$/i.test(k)) {
-        out.inst = v;
-      } else {
-        out[k] = v;
-      }
-    }
-  }
-  return out;
-};
-
 /**
  * Enhance Peggy parse error messages for common cases
  */
@@ -492,7 +464,7 @@ function enhanceParseError(error: any, source: string): Error {
 
 const VALID_KEYWORDS = [
   'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep',
-  'song', 'import', 'inst', 'effect', 'pat', 'seq', 'arrange',
+  'song', 'import', 'inst', 'effect', 'pat', 'seq',
   'channel', 'play', 'export',
 ];
 
@@ -593,7 +565,6 @@ export function parseWithPeggy(source: string): ParseResult {
   const seqs: SeqMap = {};
   const effects: Record<string, string> = {};
   const channels: ChannelNode[] = [];
-  const arrs: Record<string, any> = {};
   const metadata: SongMetadata = {};
   const imports: { source: string; loc?: SourceLocation }[] = [];
 
@@ -705,12 +676,6 @@ export function parseWithPeggy(source: string): ParseResult {
           sequenceItems[stmt.name] = items;
         }
         seqs[stmt.name] = materializeSequenceItems(items);
-        break;
-      }
-      case 'ArrangeStmt': {
-        // stmt.arrangements is an array of rows; each row is an array of slot names or null
-        const parsedDefaults = parseArrangeDefaults((stmt as any).defaults ?? null);
-        arrs[stmt.name] = { name: stmt.name, arrangements: (stmt as any).arrangements || [], defaults: parsedDefaults, loc: stmt.loc };
         break;
       }
       case 'ChannelStmt': {
@@ -952,7 +917,7 @@ export function parseWithPeggy(source: string): ParseResult {
 
   const includeStructured = true;
 
-  const ast: AST = { pats, insts, seqs, channels, arranges: Object.keys(arrs).length ? arrs : undefined, bpm: topBpm, chip: chipName, chipRegion, volume: topVolume, play: playNode, metadata,
+  const ast: AST = { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, chipRegion, volume: topVolume, play: playNode, metadata,
     time: topTime, stepsPerBar: topStepsPerBar };
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;

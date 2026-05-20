@@ -116,15 +116,6 @@ export type SeqMap = Record<string, string[]>;
 export type PatternEventMap = Record<string, PatternEvent[]>;
 export type SequenceItemMap = Record<string, SequenceItem[]>;
 
-export interface ArrangeNode {
-  type?: 'arrange';
-  name: string;
-  arrangements: (string | null)[][]; // rows of slots, null for empty slot
-  defaults?: { bpm?: number; inst?: string; speed?: number | string; [key: string]: any };
-  loc?: SourceLocation;
-  raw?: string;
-}
-
 export interface ImportNode {
   source: string;
   loc?: SourceLocation;
@@ -161,7 +152,6 @@ export interface AST {
   patternEvents?: PatternEventMap;
   sequenceItems?: SequenceItemMap;
   channels: ChannelNode[];
-  arranges?: Record<string, ArrangeNode>;
   imports?: ImportNode[];
   bpm?: number;
   time?: number;

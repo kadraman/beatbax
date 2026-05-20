@@ -1116,7 +1116,7 @@ export function registerBeatBaxLanguage(): void {
   monaco.languages.setMonarchTokensProvider('beatbax', {
     keywords: [
       'chip', 'bpm', 'time', 'stepsPerBar', 'ticksPerStep', 'volume',
-      'inst', 'pat', 'seq', 'channel', 'arrange', 'play', 'export',
+      'inst', 'pat', 'seq', 'channel', 'play', 'export',
       'import', 'song', 'effect'
     ],
 
@@ -1131,7 +1131,7 @@ export function registerBeatBaxLanguage(): void {
     tokenizer: {
       root: [
         // Keywords
-        [/\b(chip|bpm|time|stepsPerBar|ticksPerStep|volume|inst|pat|seq|channel|arrange|play|export|import|song|effect)\b/, 'keyword'],
+        [/\b(chip|bpm|time|stepsPerBar|ticksPerStep|volume|inst|pat|seq|channel|play|export|import|song|effect)\b/, 'keyword'],
 
         // Type keywords
         [/\b(type|duty|env|wave|sweep|gm)\b/, 'keyword.control'],

@@ -25,7 +25,7 @@ The `beatbax-dark` theme is based on VS Code's `vs-dark` theme with customizatio
 
 | Element | Color | Hex Code | Token Type | Example |
 |---------|-------|----------|------------|---------|
-| **Keywords** | Blue | `#569CD6` | `keyword` | `song`, `chip`, `inst`, `pat`, `seq`, `effect`, `arrange`, `channel`, `from`, `auto`, `repeat` |
+| **Keywords** | Blue | `#569CD6` | `keyword` | `song`, `chip`, `inst`, `pat`, `seq`, `effect`, `channel`, `from`, `auto`, `repeat` |
 | **Control Keywords** | Purple/Pink | `#C586C0` | `keyword.control` | `play`, `export` |
 | **Definition Names** | Yellow | `#DCDCAA` | `variable.name` | Instrument names, pattern names, sequence names, effect names |
 | **Property Names** | Light Blue | `#9CDCFE` | `attribute` | `type`, `duty`, `env`, `wave`, `sweep`, `volume`, `gm`, `length`, `note`, `width`, `inst`, `defaults`, `name`, `artist`, `tags`, etc. |
@@ -122,27 +122,10 @@ pat vib_pat = C5<vib:3,6> E5 G5<echo:0.5,30,20>
 - Effect names (`vib`, `echo`) → Magenta
 - Parameters → Orange (numbers)
 
-### Arrangement Blocks
-
-```beatbax
-arrange main defaults(inst=leadA|leadB|wave1|perc) {
-   lead_seq  | bass_seq | wave_seq | drums_seq
-   lead2_seq | bass_seq | wave_seq:oct(-1) | drums_seq
-}
-```
-
-- `arrange` → Blue (keyword)
-- `main` → Yellow (arrangement name)
-- `defaults` → Light Blue (property)
-- `inst` → Light Blue (property)
-- Instrument names → Yellow (identifiers)
-- Sequence names → Yellow (identifiers)
-- Modifiers → Magenta
-
 ### Channel Mappings
 
 ```beatbax
-channel 1 => inst leadA seq lead_seq lead_seq
+channel 1 => inst leadA seq lead_seq, lead2_seq
 channel 2 => inst leadB seq bass_seq:oct(-1)
 ```
 

@@ -42,11 +42,6 @@
       "description": "Channel assignment nodes.",
       "items": { "$ref": "#/definitions/channelNode" }
     },
-    "arranges": {
-      "type": "object",
-      "description": "Arrange nodes keyed by name.",
-      "additionalProperties": { "$ref": "#/definitions/arrangeNode" }
-    },
     "imports": {
       "type": "array",
       "description": "Import directives.",
@@ -246,30 +241,6 @@
         "artist": { "type": "string" },
         "description": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } }
-      }
-    },
-
-    "arrangeNode": {
-      "type": "object",
-      "required": ["name", "arrangements"],
-      "additionalProperties": false,
-      "properties": {
-        "type": { "type": "string", "const": "arrange" },
-        "name": { "type": "string" },
-        "arrangements": {
-          "type": "array",
-          "description": "2D array of pattern/sequence slot references. null indicates an empty slot.",
-          "items": {
-            "type": "array",
-            "items": { "type": ["string", "null"] }
-          }
-        },
-        "defaults": {
-          "type": "object",
-          "description": "Default overrides (bpm, inst, speed, etc.). Open-ended for extensibility."
-        },
-        "loc": { "$ref": "#/definitions/loc" },
-        "raw": { "type": "string" }
       }
     },
 

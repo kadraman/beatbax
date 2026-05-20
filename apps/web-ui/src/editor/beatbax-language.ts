@@ -630,9 +630,6 @@ export function registerBeatBaxLanguage(): void {
         // Namespaced properties (e.g., gb:width) - MUST come before single properties
         [/\b(gb)(:)(width|lfsr)(?=\s*=)/, ['type', 'operator', 'attribute']],
 
-        // Arrangement properties (appear after 'arrange' or in defaults())
-        [/\b(defaults)\b(?=\s*\()/, 'attribute'],
-
         // Instrument/Effect property names (MUST come before keywords since 'volume' and 'wave' conflict)
         [/\b(type|duty|env|wave|sweep|volume|gm|length|lfsr|speed|depth|mode|delay|feedback|mix|interval|volumeDelta|waveform|note|width|inst|vol|noise|noise_rate|use_envelope|vol_env|arp_env|pitch_env|noise_rate_env)\b(?=\s*=)/, 'attribute'],
 
@@ -649,7 +646,7 @@ export function registerBeatBaxLanguage(): void {
         ],
 
         // Definitions - use state to capture definition names
-        [/\b(inst|pat|seq|effect|arrange)\b/, { token: 'keyword', next: '@definitionName' }],
+        [/\b(inst|pat|seq|effect)\b/, { token: 'keyword', next: '@definitionName' }],
         [/\bimport\b/, { token: 'keyword', next: '@importStatement' }],
         [/\bchannel\b/, { token: 'keyword', next: '@channelNum' }],
         [/\bfrom\b/, 'keyword'],

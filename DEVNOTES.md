@@ -17,10 +17,9 @@ This document captures architecture, implementation details, and testing notes f
 
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
-  - `arrange` expansion: the parser supports a first-class `arrange` construct which is
-    expanded early in the pipeline. Per-arrange defaults and per-slot modifiers (e.g.
-    `:inst(name)`, `:oct(-1)`) are applied during expansion and produce the per-channel
-    ISM directly. Existing `channel` mappings remain supported as a legacy/fallback.
+  - `channel` mappings: each `channel N => inst … seq …` line assigns patterns/sequences
+    and instruments to a chip channel. Per-item modifiers (e.g. `:inst(name)`, `:oct(-1)`)
+    are applied during expansion and produce the per-channel ISM.
 - Key folders:
   - `packages/engine/src/parser/` — Peggy grammar + generated parser (default). Legacy tokenizer/parser has been removed after the Peggy migration. Produces the minimal AST: `pats`, `insts`, `channels`. After a successful parse the parser runs a semantic validation pass that populates `ast.diagnostics: ParseDiagnostic[]` with `'error'` and `'warning'` level entries (see `ast.ts`). Consumers should check `ast.diagnostics` rather than catching exceptions for semantic issues.
   - `packages/engine/src/patterns/` — `expandPattern` and `transposePattern` utilities.
