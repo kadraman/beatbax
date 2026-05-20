@@ -277,7 +277,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["oct", "rev", "slow", "fast", "inst", "pan", "transpose", "unknown"]
+          "enum": ["oct", "rotate", "rev", "palindrome", "slow", "fast", "arp", "clamp", "fold", "mute", "inst", "pan", "transpose", "unknown"]
         },
         "value": {
           "oneOf": [

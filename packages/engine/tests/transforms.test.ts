@@ -35,4 +35,22 @@ describe('pattern transforms', () => {
     const ch = ast.channels.find(c => c.id === 1)!;
     expect(ch.pat).toEqual(['E4', 'E4', 'D4', 'D4', 'C4', 'C4']);
   });
+
+  test('tier-1 modifiers apply on channel pattern references', () => {
+    const src = `
+      pat A = C4 D4 E4
+      pat B = A2 C4 E6
+      channel 1 => inst lead pat A:rot(1):pal A:arp(0,4,7) B:clamp(C3,C5) B:fold(C3,C5) A:mute A:transpose(+1)
+    `;
+    const ast = parse(src);
+    const ch = ast.channels.find(c => c.id === 1)!;
+    expect(ch.pat).toEqual([
+      'D4', 'E4', 'C4', 'E4', 'D4',
+      'C4<arp:0,4,7>', 'D4<arp:0,4,7>', 'E4<arp:0,4,7>',
+      'C3', 'C4', 'C5',
+      'A3', 'C4', 'E5',
+      '.', '.', '.',
+      'C#4', 'D#4', 'F4',
+    ]);
+  });
 });

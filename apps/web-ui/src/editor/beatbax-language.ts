@@ -598,7 +598,7 @@ export function registerBeatBaxLanguage(): void {
     instrumentTypes: ['pulse1', 'pulse2', 'wave', 'noise'],
 
     // Transform names (sequence modifiers)
-    transforms: ['oct', 'inst', 'rev', 'slow', 'fast', 'transpose'],
+    transforms: ['oct', 'rot', 'rotate', 'rev', 'pal', 'palindrome', 'slow', 'fast', 'transpose', 'semitone', 'st', 'trans', 'arp', 'clamp', 'fold', 'mute', 'rest', 'inst', 'pan'],
 
     // Inline effects (inside <...>)
     inlineEffects: ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep'],
@@ -619,11 +619,21 @@ export function registerBeatBaxLanguage(): void {
 
         // Sequence modifiers - MUST be first before keywords catch pattern names
         [/:oct\b/, 'entity.name.function'],
+        [/:rot(?:ate)?\b/, 'entity.name.function'],
         [/:inst\b/, 'entity.name.function'],
         [/:rev\b/, 'entity.name.function'],
+        [/:pal(?:indrome)?\b/, 'entity.name.function'],
         [/:slow\b/, 'entity.name.function'],
         [/:fast\b/, 'entity.name.function'],
+        [/:arp\b/, 'entity.name.function'],
+        [/:clamp\b/, 'entity.name.function'],
+        [/:fold\b/, 'entity.name.function'],
+        [/:mute\b/, 'entity.name.function'],
+        [/:rest\b/, 'entity.name.function'],
         [/:transpose\b/, 'entity.name.function'],
+        [/:semitone\b/, 'entity.name.function'],
+        [/:st\b/, 'entity.name.function'],
+        [/:trans\b/, 'entity.name.function'],
         // User-defined effect preset modifiers (e.g., :ambient, :slapback)
         [/:[a-zA-Z_]\w*\b/, 'entity.name.function'],
 
@@ -1080,11 +1090,17 @@ export function registerBeatBaxLanguage(): void {
           '```\nseq <name> = <pat>[:<transform>[:…]] …\n```',
           '**Per-pattern transforms** (chainable with `:`):',
           '- `oct(+N)` / `oct(-N)` — shift octave up or down',
+          '- `rot(N)` / `rotate(N)` — cyclic left-rotate tokens by N',
           '- `transpose(+N)` — shift by N semitones',
           '- `inst(<name>)` — override instrument for all notes in that pattern slot',
           '- `rev` — reverse the pattern',
+          '- `pal` / `palindrome` — mirror forward+backward without duplicating pivot',
           '- `slow` — double each note duration',
           '- `fast` — halve each note duration',
+          '- `arp(a,b,c)` — apply arpeggio offsets to each note token',
+          '- `clamp(C3,C6)` — clamp notes into a pitch range',
+          '- `fold(C3,C6)` — octave-fold notes into a pitch range',
+          '- `mute` / `rest` — replace notes with rests, preserving rhythm',
           '- `<effectName>` — apply a named effect preset to every note',
           '',
           'Examples:',
@@ -1096,10 +1112,21 @@ export function registerBeatBaxLanguage(): void {
         import: 'Imports instruments from file. Example: `import * from "lib/instruments.bax"`',
         volume: 'Sets global volume (0.0-1.0). Example: `volume 0.8`',
         oct: 'Octave shift transform. Example: `pat:oct(+1)`',
+        rot: 'Rotate transform. Example: `pat:rot(1)`',
+        rotate: 'Rotate transform alias. Example: `pat:rotate(2)`',
         rev: 'Reverse pattern. Example: `pat:rev`',
+        pal: 'Palindrome transform. Example: `pat:pal`',
+        palindrome: 'Palindrome transform alias. Example: `pat:palindrome`',
         slow: 'Slow down pattern (double duration). Example: `pat:slow`',
         fast: 'Speed up pattern (half duration). Example: `pat:fast`',
         transpose: 'Transpose pattern. Example: `pat:transpose(+2)`',
+        semitone: 'Transpose alias. Example: `pat:semitone(+2)`',
+        st: 'Transpose alias. Example: `pat:st(+2)`',
+        trans: 'Transpose alias. Example: `pat:trans(+2)`',
+        clamp: 'Range clamp transform. Example: `pat:clamp(C3,C6)`',
+        fold: 'Range fold transform. Example: `pat:fold(C3,C6)`',
+        mute: 'Replace notes with rests. Example: `pat:mute`',
+        rest: 'Replace notes with rests (alias). Example: `pat:rest`',
         effect: 'Defines a named effect preset. Example: `effect shimmer = vib:3,6`\nUse inline as `C4<shimmer>` in a pattern.',
         // Built-in inline effects
         arp: [

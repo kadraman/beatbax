@@ -90,9 +90,16 @@ Notes:
 **Transforms (applied at parse/expansion time)**
 - `:oct(n)` — transpose by octaves
 - `:+N` or `:-N` — semitone transpose
+- `:transpose(+N/-N)` / `:semitone(±N)` / `:st(±N)` / `:trans(±N)` — semitone transpose aliases
+- `:rot(N)` / `:rotate(N)` — cyclic left shift by N tokens
 - `:rev` — reverse pattern
+- `:pal` / `:palindrome` — mirror pattern forward then backward (without duplicating pivot)
 - `:slow(N)` — repeat each token N times (default 2)
 - `:fast(N)` — take every Nth token (default 2)
+- `:arp(a,b,c)` — apply arpeggio offsets to every note token in the pattern slot
+- `:clamp(C3,C6)` — clip notes into a note range
+- `:fold(C3,C6)` — octave-wrap notes into a note range
+- `:mute` / `:rest` — replace notes with rests while preserving rhythm skeleton
 
 **Noise Channel Note Mapping (for UGE Export)**
 

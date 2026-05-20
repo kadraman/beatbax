@@ -84,13 +84,18 @@ const SAMPLE_PAT_SNIPPET = `pat melody = C4 E4 G4 C5
 const TRANSFORMS = [
   { label: 'oct(+1)  — octave up',        insert: 'oct(+1)' },
   { label: 'oct(-1)  — octave down',       insert: 'oct(-1)' },
+  { label: 'rot(1)   — rotate left',       insert: 'rot(1)' },
+  { label: 'pal      — palindrome mirror', insert: 'pal' },
   { label: 'rev      — reverse pattern',   insert: 'rev' },
   { label: 'slow     — halve speed',       insert: 'slow' },
   { label: 'fast     — double speed',      insert: 'fast' },
   { label: 'transpose(+1) — semitone up',  insert: 'transpose(+1)' },
   { label: 'transpose(-1) — semitone down',insert: 'transpose(-1)' },
-  { label: 'arp(0,3,7) — major arp',       insert: 'arp(0,3,7)' },
-  { label: 'arp(0,3,6) — minor arp',       insert: 'arp(0,3,6)' },
+  { label: 'arp(0,4,7) — major arp',       insert: 'arp(0,4,7)' },
+  { label: 'arp(0,3,7) — minor arp',       insert: 'arp(0,3,7)' },
+  { label: 'clamp(C3,C6) — clip to range', insert: 'clamp(C3,C6)' },
+  { label: 'fold(C3,C6) — octave fold',    insert: 'fold(C3,C6)' },
+  { label: 'mute     — notes to rests',    insert: 'mute' },
   { label: 'inst(name) — override inst',   insert: 'inst(name)' },
 ];
 
@@ -1796,7 +1801,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         { label: 'effect — Named effect preset',    value: 'effect' },
         { label: 'play — Start playback',            value: 'play' },
         { label: 'Notes — Note syntax (C4, C#4…)',   value: 'notes' },
-        { label: 'Transforms — oct, rev, slow, fast…', value: 'transforms' },
+        { label: 'Transforms — oct, rot, pal, clamp, fold…', value: 'transforms' },
         { label: 'Effects — pan, vib, port, arp…',  value: 'effects' },
       ];
 
@@ -1811,7 +1816,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         effect: 'effect NAME TYPE(params)\n  Define a named effect preset for reuse.\n  Example: effect myVib vib(12,4)',
         play: 'play\n  Start song playback.',
         notes: 'Notes: C4 D4 E4 F4 G4 A4 B4\n  Sharp: C#4  Flat: Cb4\n  Rest: . (dot)\n  Octaves 1–8',
-        transforms: 'Transforms applied in seq body:\n  oct(+N/-N) — shift octave\n  rev — reverse pattern\n  slow — halve speed\n  fast — double speed\n  transpose(+N/-N) — semitone shift\n  arp(a,b,c) — arpeggio offsets\n  inst(NAME) — override instrument',
+        transforms: 'Transforms applied in seq body:\n  oct(+N/-N) — shift octave\n  rot(N) / rotate(N) — cyclic shift left\n  rev — reverse pattern\n  pal / palindrome — mirror without duplicating pivot\n  slow — halve speed\n  fast — double speed\n  transpose(+N/-N) — semitone shift\n  arp(a,b,c) — apply arp effect to each note\n  clamp(C3,C6) — clip notes into range\n  fold(C3,C6) — octave-wrap notes into range\n  mute / rest — replace notes with rests\n  inst(NAME) — override instrument',
         effects: 'Effects applied per-note with | separator:\n  C4|pan(left)  D4|vib(12,4)  E4|cut(4)\n  Full list: pan, vib, port, arp, volSlide, trem, cut, retrig, bend, sweep, echo',
       };
 

@@ -1,0 +1,45 @@
+## advanced_modifiers_demo.bax
+## Demonstrates tier-1 advanced BeatBax sequence modifiers.
+
+song name "Game Boy Advanced Modifiers Demo"
+song artist "BeatBax"
+song description "Exercises rot/rotate, pal/palindrome, arp, clamp/fold, mute/rest, and transpose alias."
+song tags "features,gameboy,modifiers,advanced"
+
+chip gameboy
+bpm 120
+
+inst lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
+inst lead_alt type=pulse1 duty=12.5 env={"level":10,"direction":"down","period":1,"format":"gb"}
+inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":1,"format":"gb"}
+inst wave1 type=wave wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,8,7,6,5,4,3,2,1,1,2,3,4,5,6,7,8]
+inst kit type=noise gb:width=7 env={"level":10,"direction":"down","period":1,"format":"gb"}
+
+pat lead_core = C4 D4 E4 G4
+pat arp_source = C4 . E4 . G4 .
+pat out_of_range = A2 C4 E6 A6
+pat bassline = C2 . G2 .
+pat harmony = C5 E5 G5 E5
+pat drums = C6 . C6 .
+
+seq demo_rot = lead_core:rot(1)
+seq demo_rotate = lead_core:rotate(2)
+seq demo_pal = lead_core:pal
+seq demo_palindrome = lead_core:palindrome
+seq demo_arp = arp_source:arp(0,4,7)
+seq demo_clamp = out_of_range:clamp(C3,C6)
+seq demo_fold = out_of_range:fold(C3,C6)
+seq demo_mute = lead_core:mute
+seq demo_rest = lead_core:rest
+seq demo_transpose = lead_core:transpose(+2)
+
+seq bass_seq = bassline bassline bassline bassline
+seq wave_seq = harmony harmony harmony harmony
+seq drum_seq = drums drums drums drums
+
+channel 1 => inst lead seq demo_rot demo_rotate demo_pal demo_palindrome demo_arp demo_clamp demo_fold demo_mute demo_rest demo_transpose
+channel 2 => inst bass seq bass_seq bass_seq bass_seq
+channel 3 => inst wave1 seq wave_seq wave_seq wave_seq
+channel 4 => inst kit seq drum_seq drum_seq drum_seq
+
+play auto repeat

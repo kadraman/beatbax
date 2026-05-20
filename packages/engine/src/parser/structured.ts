@@ -73,18 +73,28 @@ export const parseSeqTransforms = (mods: RawSeqModifier[]): SequenceTransform[] 
     if (!raw) continue;
     const mOct = raw.match(/^oct\(([+-]?\d+)\)$/i);
     if (mOct) { out.push({ kind: 'oct', value: parseInt(mOct[1], 10), raw, loc }); continue; }
+    const mRot = raw.match(/^rot(?:ate)?\(([+-]?\d+)\)$/i);
+    if (mRot) { out.push({ kind: 'rotate', value: parseInt(mRot[1], 10), raw, loc }); continue; }
     if (/^rev$/i.test(raw)) { out.push({ kind: 'rev', raw, loc }); continue; }
+    if (/^pal(?:indrome)?$/i.test(raw)) { out.push({ kind: 'palindrome', raw, loc }); continue; }
     const mSlow = raw.match(/^slow(?:\((\d+)\))?$/i);
     if (mSlow) { out.push({ kind: 'slow', value: mSlow[1] ? parseInt(mSlow[1], 10) : 2, raw, loc }); continue; }
     const mFast = raw.match(/^fast(?:\((\d+)\))?$/i);
     if (mFast) { out.push({ kind: 'fast', value: mFast[1] ? parseInt(mFast[1], 10) : 2, raw, loc }); continue; }
+    const mArp = raw.match(/^arp\(([^)]*)\)$/i);
+    if (mArp) { out.push({ kind: 'arp', value: mArp[1].trim(), raw, loc }); continue; }
+    const mClamp = raw.match(/^clamp\(([^,]+),([^)]*)\)$/i);
+    if (mClamp) { out.push({ kind: 'clamp', value: `${mClamp[1].trim()},${mClamp[2].trim()}`, raw, loc }); continue; }
+    const mFold = raw.match(/^fold\(([^,]+),([^)]*)\)$/i);
+    if (mFold) { out.push({ kind: 'fold', value: `${mFold[1].trim()},${mFold[2].trim()}`, raw, loc }); continue; }
+    if (/^(mute|rest)$/i.test(raw)) { out.push({ kind: 'mute', raw, loc }); continue; }
     const mInst = raw.match(/^inst\(([^)]*)\)$/i);
     if (mInst) { out.push({ kind: 'inst', value: mInst[1], raw, loc }); continue; }
     const mPan = raw.match(/^pan\(([^)]*)\)$/i);
     if (mPan) { out.push({ kind: 'pan', value: mPan[1].trim(), raw, loc }); continue; }
     const mTrans = raw.match(/^([+-]?\d+)$/);
     if (mTrans) { out.push({ kind: 'transpose', value: parseInt(mTrans[1], 10), raw, loc }); continue; }
-    const mSem = raw.match(/^semitone\((-?\d+)\)$/i) || raw.match(/^st\((-?\d+)\)$/i) || raw.match(/^trans\((-?\d+)\)$/i);
+    const mSem = raw.match(/^semitone\(([+-]?\d+)\)$/i) || raw.match(/^st\(([+-]?\d+)\)$/i) || raw.match(/^trans\(([+-]?\d+)\)$/i) || raw.match(/^transpose\(([+-]?\d+)\)$/i);
     if (mSem) { out.push({ kind: 'transpose', value: parseInt(mSem[1], 10), raw, loc }); continue; }
     out.push({ kind: 'unknown', raw, loc });
   }
@@ -96,9 +106,15 @@ const sequenceTransformToString = (tr: SequenceTransform): string => {
   if (tr.raw) return tr.raw;
   switch (tr.kind) {
     case 'oct': return `oct(${tr.value ?? 0})`;
+    case 'rotate': return `rot(${tr.value ?? 0})`;
     case 'rev': return 'rev';
+    case 'palindrome': return 'pal';
     case 'slow': return `slow(${tr.value ?? 2})`;
     case 'fast': return `fast(${tr.value ?? 2})`;
+    case 'arp': return `arp(${tr.value ?? ''})`;
+    case 'clamp': return `clamp(${tr.value ?? ''})`;
+    case 'fold': return `fold(${tr.value ?? ''})`;
+    case 'mute': return 'mute';
     case 'inst': return `inst(${tr.value ?? ''})`;
     case 'pan': return `pan(${tr.value ?? ''})`;
     case 'transpose': {
