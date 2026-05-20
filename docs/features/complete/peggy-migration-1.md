@@ -41,7 +41,7 @@ No language surface changes are introduced by this migration.
 ```bax
 chip gameboy
 bpm 128
-time 4
+stepsPerBar 4
 
 a:  # comments supported
 inst lead  type=pulse1 duty=50 env=12,down
@@ -118,7 +118,7 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 
 - Grammar-level tests (Peggy):
   - parse minimal valid programs
-  - parse common directives (`chip`, `bpm`, `time`, `stepsPerBar`, `ticksPerStep`)
+  - parse common directives (`chip`, `bpm`, `stepsPerBar`, and deprecated `time` / `ticksPerStep` — see [metadata-directives.md](../../language/metadata-directives.md))
   - parse metadata directives including triple-quoted strings
   - parse edge-case identifiers (hyphens/underscores)
   - parse comments and blank lines

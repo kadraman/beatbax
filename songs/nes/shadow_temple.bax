@@ -23,7 +23,7 @@
 ##
 ## Timing (same model as duck_tales.bax):
 ##   bpm=90: one scheduler step = one 8th-note row at 180 BPM.
-##   16 steps × bpm=90 → one bar (4 quarter-note beats) at 90 BPM. ✓
+##   stepsPerBar=16: one bar = 16 steps = 4 quarter-note beats at 90 BPM. ✓
 ##   Intro patterns: 15 steps each (15 rows × ~111 ms = ~1.67 s per pattern).
 ##   Main/Bridge patterns: 16 steps each.
 ##   Total: 1×15 + 5×15 + 8×16 + 5×16 = 15+75+128+80 = 298 steps ≈ 33 s.
@@ -37,6 +37,7 @@ song tags "nes,rpg,atmospheric,dungeon,example,demo"
 
 chip nes
 bpm 90
+stepsPerBar 16
 
 # =============================================================================
 # Instruments

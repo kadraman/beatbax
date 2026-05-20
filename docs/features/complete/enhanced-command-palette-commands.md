@@ -142,7 +142,7 @@ Current command palette coverage is limited to exports, basic generation, transf
     ```
     chip gameboy
     bpm 120
-    time 4
+    stepsPerBar 4
     inst _tmp type=pulse1 duty=50 env=12,down
     pat __preview__ = [pattern body]
     channel 1 => inst _tmp seq __preview__
