@@ -137,7 +137,7 @@ Apply `MOD` only to every Nth token (1-based or 0-based — pick one and documen
 seq bass = line:every(2,oct(+1))   # octave hop on offbeats
 ```
 
-**Chiptune use:** alternating octave bass (SMS/GB classic), highlight backbeats, cheap variation in `arrange` slots.
+**Chiptune use:** alternating octave bass (SMS/GB classic), highlight backbeats, cheap variation via per-channel `seq` items.
 
 ### `off(N)` / `lag(N)` — insert rests before pattern
 
@@ -157,7 +157,7 @@ Alternate tokens from two patterns (pad shorter one with rests). Enables call-re
 seq call_response = lead_a:zip(lead_b)
 ```
 
-**Chiptune use:** dialogue between two lead timbres on one channel timeline (when not using multi-channel `arrange`).
+**Chiptune use:** dialogue between two lead timbres on one channel timeline (when not using multiple `channel` lines).
 
 ### `duty(+1)` / `widen` — pulse timbre shift (chip-aware)
 

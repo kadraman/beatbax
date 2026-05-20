@@ -6,6 +6,8 @@ created: 2025-12-12
 issue: "https://github.com/kadraman/beatbax/issues/10"
 ---
 
+> **Removed:** The `arrange` directive was removed from the language. Use `channel` mappings with comma-separated `seq` items for multi-row, multi-channel layouts (see `songs/features/sequence_demo.bax`).
+
 ## Summary
 
 Introduce a first-class `arrange` construct that contains ordered rows of n-slot sequence arrangements. Each row is played in parallel across n channels and rows concatenate in time. Sequences may carry defaults (inst, bpm, speed, transforms) that are applied during expansion rather than at final channel mapping time.

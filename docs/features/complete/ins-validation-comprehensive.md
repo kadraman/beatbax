@@ -19,7 +19,6 @@ The `validateInsFile` function now checks **all** AST properties and rejects:
 - `patterns` (pat definitions)
 - `sequences` (seq definitions)
 - `channels` (channel declarations)
-- `arranges` (arrange blocks)
 - `play` (play command)
 
 #### Top-level Scalar Directives:
