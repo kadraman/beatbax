@@ -44,7 +44,7 @@ These mirror how chip musicians already work in trackers and in your SMS/GB comp
 
 ### `rot(N)` / `rotate(N)` — cyclic shift
 
-Rotate the pattern left by N steps. Pairs naturally with `rev` and arrangement blocks.
+Rotate the pattern left by N steps. Pairs naturally with `rev` and comma-separated `seq` items on a `channel` line.
 
 ```bax
 seq verse = bass_a bass_b bass_c
@@ -92,7 +92,7 @@ Map every note token to `.` (preserve rhythm skeleton, drop pitch).
 seq rhythm_only = melody:mute
 ```
 
-**Chiptune use:** ghost arrangements, rhythm-reference channels, teaching/drafting layouts before harmony is written.
+**Chiptune use:** rhythm-only channel layouts, reference channels without pitch, teaching/drafting layouts before harmony is written.
 
 ### `vel(N)` or `preset` shorthand — global articulation
 
@@ -189,7 +189,7 @@ Lower priority unless you want a more “pattern language” feel:
 - **`pick(1,3,5)`** — keep only indices (sparse extraction; generalizes `fast`)
 - **`shuffle` / `shuffle(seed)`** — randomize order (deterministic seed for reproducible songs)
 - **`chunk(N)`** — group tokens and reverse/rotate within chunks (builds polyrhythms from `slow`/`fast`)
-- **`echo_pat(N)`** — duplicate pattern with `oct(-1)` and implicit quieter preset (arrangement shortcut)
+- **`echo_pat(N)`** — duplicate pattern with `oct(-1)` and implicit quieter preset (handy when chaining `seq` items on a channel)
 - **`chord(3,7)`** — duplicate each note as extra tokens at offsets (static harmony vs time-multiplexed `arp`)
 
 ---
@@ -197,7 +197,7 @@ Lower priority unless you want a more “pattern language” feel:
 ## Recommended implementation order (if you build later)
 
 1. **`arp(...)` as transform** — UI already promises it; reuses export path.
-2. **`rot` / `pal`** — tiny diffs, big arrangement wins (matches existing `:rev` / `:oct` usage in [`docs/chips/sms/composition_guide.md`](docs/chips/sms/composition_guide.md)).
+2. **`rot` / `pal`** — tiny diffs, big variation wins on reused patterns (matches existing `:rev` / `:oct` usage in [`docs/chips/sms/composition_guide.md`](docs/chips/sms/composition_guide.md)).
 3. **`clamp` / `fold`** — export-safe chip music.
 4. **`every` / `mute`** — live-coding ergonomics.
 5. **Scale quantize** — more parsing + music theory edge cases.
