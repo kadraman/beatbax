@@ -122,6 +122,6 @@ The `volume` directive is the **master control** for overall loudness, while ins
 
 ## See Also
 
-- [Metadata Directives](metadata-directives.md) - Other top-level directives (`bpm`, `chip`, `time`)
+- [Metadata Directives](metadata-directives.md) - Other top-level directives (`bpm`, `chip`, `stepsPerBar`)
 - [Instruments](instruments.md) - Instrument-level volume controls (Wave channel)
 - [WAV Export Guide](wav-export-guide.md) - Normalization options for WAV export

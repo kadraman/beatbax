@@ -747,7 +747,7 @@ channel 4 => inst kick  seq beat
 play
 ```
 
-**Timing note:** One macro frame = 1/60 s (~16.7 ms) on NTSC, regardless of BPM or `ticksPerStep`. `vol_env` and `env` are mutually exclusive per instrument — if `vol_env` is present, the hardware `env` decay is not applied.
+**Timing note:** One macro frame = 1/60 s (~16.7 ms) on NTSC, regardless of BPM or `stepsPerBar` (bar grouping only; `ticksPerStep` is deprecated and has no effect). `vol_env` and `env` are mutually exclusive per instrument — if `vol_env` is present, the hardware `env` decay is not applied.
 
 See `songs/features/nes/nes_macro_*.bax` for demos, and `docs/chips/nes.md` for the full hardware reference.
 

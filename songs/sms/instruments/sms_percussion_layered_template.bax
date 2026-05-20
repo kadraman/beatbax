@@ -10,7 +10,7 @@
 song name "SMS Layered Percussion Template"
 chip sms
 bpm 132
-time 4
+stepsPerBar 4
 
 # SMS attenuation reminder:
 #   0 = loudest, 15 = mute

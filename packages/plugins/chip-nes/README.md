@@ -194,7 +194,7 @@ channel 4 => inst kick  seq beat
 play
 ```
 
-**Timing:** One macro frame = 1/60 s (~16.7 ms). Macros reset on every `noteOn` and are independent of `ticksPerStep` or BPM. Macros and hardware `env` are mutually exclusive per instrument: if `vol_env` is present, `env` decay is ignored for that instrument.
+**Timing:** One macro frame = 1/60 s (~16.7 ms). Macros reset on every `noteOn` and are independent of BPM or song timing directives (`ticksPerStep` is deprecated and ignored). Macros and hardware `env` are mutually exclusive per instrument: if `vol_env` is present, `env` decay is ignored for that instrument.
 
 See `songs/features/nes/*.bax` for demonstrations.
 

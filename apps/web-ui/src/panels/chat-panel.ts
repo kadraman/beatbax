@@ -96,10 +96,9 @@ TOP-LEVEL DIRECTIVES
   chip <name>           — audio backend (detected: ${chip})
   bpm <n>               — tempo in BPM (default 120)
   volume <v>            — master volume 0.0–1.0 (default 1.0)
-  time <n>              — beats per bar (default 4)
-  ticksPerStep <n>      — tick resolution per step (default 16)
+  stepsPerBar <n>       — steps per bar (default 4)
   OMIT any directive whose value equals the default — only write it if you are
-  changing it. Never write: volume 1.0  time 4  ticksPerStep 16
+  changing it. Never write: volume 1.0  stepsPerBar 4
 
 INSTRUMENT NAMES
   All inst names are user-defined. Use the SAME name everywhere (inst, seq transforms, channel).

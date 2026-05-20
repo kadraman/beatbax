@@ -1111,6 +1111,8 @@ export function registerBeatBaxLanguage(): void {
   monaco.languages.register({ id: 'beatbax' });
 
   // Define tokenizer (syntax highlighting)
+  // Note: as of the timing-directive deprecation, Monaco highlights deprecated
+  // `time` / `ticksPerStep` separately; autocomplete omits them. See metadata-directives.md.
   monaco.languages.setMonarchTokensProvider('beatbax', {
     keywords: [
       'chip', 'bpm', 'time', 'stepsPerBar', 'ticksPerStep', 'volume',

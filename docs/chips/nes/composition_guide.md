@@ -311,7 +311,7 @@ duty_env=[2,2,2,2,0,0,0,0|0]      ; alternate between 50% (warm) and 12.5% (thin
 
 **Loop point:** The `|N` suffix sets the index to return to when the sequence ends. Index 0 = return to the beginning (infinite loop); any other index creates a partial loop (attack-then-sustain-loop pattern).
 
-**Macro timing:** One frame = 1/60 second (~16.7 ms) on NTSC. A 10-frame `vol_env` decays over ~167 ms regardless of the BPM or `ticksPerStep` setting. Macros reset on every `noteOn`.
+**Macro timing:** One frame = 1/60 second (~16.7 ms) on NTSC. A 10-frame `vol_env` decays over ~167 ms regardless of BPM or song timing directives (`stepsPerBar` affects bar display only; `ticksPerStep` is deprecated and ignored). Macros reset on every `noteOn`.
 
 **Common patterns:**
 
