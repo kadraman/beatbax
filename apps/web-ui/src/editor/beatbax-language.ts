@@ -574,9 +574,7 @@ export function registerBeatBaxLanguage(): void {
     keywords: [
       'chip',
       'bpm',
-      'time',
       'stepsPerBar',
-      'ticksPerStep',
       'inst',
       'pat',
       'seq',
@@ -639,7 +637,7 @@ export function registerBeatBaxLanguage(): void {
 
         // Top-level directives
         [
-          /\b(song|chip|bpm|time|stepsPerBar|ticksPerStep|volume|title|artist|author|comment)\b/,
+          /\b(song|chip|bpm|stepsPerBar|volume|title|artist|author|comment)\b/,
           'keyword',
         ],
 
@@ -838,16 +836,10 @@ export function registerBeatBaxLanguage(): void {
       const directives = [
         { label: 'chip', detail: 'Set target chip', insertText: 'chip gameboy' },
         { label: 'bpm', detail: 'Set tempo', insertText: 'bpm 120' },
-        { label: 'time', detail: 'Set time signature', insertText: 'time 4' },
         {
           label: 'stepsPerBar',
           detail: 'Set steps per bar',
           insertText: 'stepsPerBar 4',
-        },
-        {
-          label: 'ticksPerStep',
-          detail: 'Set ticks per step',
-          insertText: 'ticksPerStep 16',
         },
         { label: 'volume', detail: 'Set global volume', insertText: 'volume 0.8' },
         { label: 'title', detail: 'Set song title', insertText: 'title "My Song"' },
@@ -1073,9 +1065,7 @@ export function registerBeatBaxLanguage(): void {
           'Example: `chip gameboy`, `chip atari-st`, `chip nes`',
         ].join('\n\n'),
         bpm: 'Sets the tempo in beats per minute. Example: `bpm 120`',
-        time: 'Sets beats per bar (time signature numerator). Example: `time 4`',
-        stepsPerBar: 'Alternative to `time`. Sets steps per bar.',
-        ticksPerStep: 'Sets tick resolution per step. Example: `ticksPerStep 16`',
+        stepsPerBar: 'Sets steps per bar for bar/beat display (default 4). Example: `stepsPerBar 4`',
         inst: 'Declares a named instrument. Syntax: `inst <name> type=<channel-type> [...]`. Hover over type values or fields for chip-specific documentation.',
         pat: 'Defines a pattern. Example: `pat melody = C4 E4 G4 C5`',
         seq: [
@@ -1512,7 +1502,7 @@ export function registerBeatBaxLanguage(): void {
         const line = lines[i].replace(/\s+$/, '');
 
         const isBlank = line.trim() === '';
-        const isTopLevel = /^\s*(song|chip|bpm|time|stepsPerBar|ticksPerStep|inst|pat|seq|channel|play|export|import)\b/.test(line);
+        const isTopLevel = /^\s*(song|chip|bpm|stepsPerBar|inst|pat|seq|channel|play|export|import)\b/.test(line);
 
         // Insert a blank line before each top-level statement (except at start)
         if (isTopLevel && out.length > 0 && !prevWasBlank) {

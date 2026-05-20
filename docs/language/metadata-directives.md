@@ -1,7 +1,7 @@
 # Song Metadata and Global Directives
 
 BeatBax supports top-level directives inside `.bax` files to:
-1. Configure global playback settings (`chip`, `bpm`, `volume`, `time`)
+1. Configure global playback settings (`chip`, `bpm`, `volume`, `stepsPerBar`)
 2. Capture human-readable song metadata (`song name`, `song artist`, etc.)
 
 ## Global Playback Directives
@@ -13,8 +13,9 @@ BeatBax supports top-level directives inside `.bax` files to:
 - **`bpm <number>`** — Sets the tempo in beats per minute (default: `120`)
 - **`volume <float>`** — Sets master output volume, range `0.0` to `1.0` (default: `1.0`)
   - See [volume-directive.md](volume-directive.md) for details
-- **`time <number>`** or **`stepsPerBar <number>`** — Sets beats per bar (default: `4`)
-- **`ticksPerStep <number>`** — Sets tick resolution per step (default: `16`)
+- **`stepsPerBar <number>`** — Sets steps per bar for bar/beat display and bar numbering (default: `4`). This is the canonical directive for time-signature-style grouping in the editor and resolver.
+- **`time <number>`** — *(deprecated)* Alias for `stepsPerBar`. Still parsed for backward compatibility; emits a parser warning. Prefer `stepsPerBar`.
+- **`ticksPerStep <number>`** — *(deprecated, no effect)* Parsed for backward compatibility only. The value is ignored; the engine uses a fixed internal tick resolution. Emits a parser warning.
 
 ### Example
 
@@ -22,7 +23,7 @@ BeatBax supports top-level directives inside `.bax` files to:
 chip gameboy
 bpm 140
 volume 0.5
-time 4
+stepsPerBar 4
 
 inst lead type=pulse1 duty=75 env=15,up
 pat melody = C5 E5 G5 C6

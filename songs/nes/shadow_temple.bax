@@ -22,7 +22,7 @@
 ##   Ch4 (Noise)   : Drums — enter in last 4 rows of intro slot 4, then full loop
 ##
 ## Timing (same model as duck_tales.bax):
-##   bpm=90, ticksPerStep=16: one scheduler step = one 8th-note row at 180 BPM.
+##   bpm=90: one scheduler step = one 8th-note row at 180 BPM.
 ##   16 steps × bpm=90 → one bar (4 quarter-note beats) at 90 BPM. ✓
 ##   Intro patterns: 15 steps each (15 rows × ~111 ms = ~1.67 s per pattern).
 ##   Main/Bridge patterns: 16 steps each.
@@ -37,7 +37,6 @@ song tags "nes,rpg,atmospheric,dungeon,example,demo"
 
 chip nes
 bpm 90
-ticksPerStep 16
 
 # =============================================================================
 # Instruments

@@ -17,7 +17,7 @@ song tags "panning,gameboy,imported"
 chip gameboy
 
 bpm 128
-time 4
+stepsPerBar 4
 
 # Panning notes:
 # - `gb:pan=<L|R|C>`: Game Boy NR51 terminal mapping (hardware L/R flags). Used for GB-specific exports.
