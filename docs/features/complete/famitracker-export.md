@@ -275,11 +275,12 @@ BPM = (tempo × 6) / speed
 
 Standard FamiTracker default: `speed=6, tempo=150` → 150 BPM.
 
-For a BeatBax song with `bpm=B` and `ticksPerStep=T`:
-- One BeatBax tick = one FTM row.
+For a BeatBax song with `bpm=B` (see [metadata-directives.md](../../language/metadata-directives.md) for the canonical timing model):
+- One BeatBax scheduler step = one FTM row. (`ticksPerStep` is deprecated and has no effect on export.)
 - `speed = 1` (one clock tick per row).
 - `tempo = round(B × speed / 6)` → `tempo = round(B / 6)`.
 - If `tempo` falls outside the range 32–255, warn and clamp.
+- `stepsPerBar` affects bar display only, not FTM tempo conversion.
 
 ### Pattern Length and Frames
 

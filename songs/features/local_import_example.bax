@@ -10,7 +10,7 @@ import "local:lib/gameboy-common.ins"
 import "local:lib/gameboy-drums.ins"
 
 bpm 140
-time 4
+stepsPerBar 4
 
 # Define patterns using imported instruments
 pat melody = C5 E5 G5 C6 E5 G5 B4 D5

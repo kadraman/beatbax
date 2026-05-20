@@ -55,11 +55,9 @@ This allows .ins files with no metadata directives to pass validation.
 
 ### 3. Parser Behavior Documentation
 
-**Discovered:** The `time`, `stepsPerBar`, and `ticksPerStep` directives are parsed by the grammar but **never added to the AST** - they're silently ignored by the parser.
+**Historical note (superseded):** At the time of this investigation, `time`, `stepsPerBar`, and `ticksPerStep` were parsed but not stored on the AST.
 
-**Impact:** Cannot test validation for these directives since they never reach the validation layer.
-
-**Documentation:** Added comments in test file noting that these directives are not currently handled.
+**Current behavior (see [metadata-directives.md](../../language/metadata-directives.md)):** `stepsPerBar` and deprecated `time` are on the AST (`stepsPerBar` / `time` fields). `ticksPerStep` is parsed, emits a deprecation warning, and is ignored. None of these are valid inside `.ins` imports — validation still rejects them in imported instrument libraries.
 
 ### 4. Comment-Only Files
 
@@ -145,7 +143,7 @@ inst hat type=noise env=8,down
 
 ## Limitations & Notes
 
-1. **Parser Directives:** `time`, `stepsPerBar`, and `ticksPerStep` are parsed but not added to AST, so validation cannot catch them. If these are ever added to the AST, validation will need updating.
+1. **Parser directives in `.ins` files:** `time`, `stepsPerBar`, and `ticksPerStep` must not appear in `.ins` imports (disallowed like `bpm` / `chip`). Main `.bax` files may use `stepsPerBar`; `time` and `ticksPerStep` are deprecated on the main song only.
 
 2. **Comment-Only Files:** Cannot be parsed due to parser requirements. Empty files work fine.
 

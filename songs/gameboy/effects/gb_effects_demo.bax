@@ -3,7 +3,7 @@ chip gameboy
 # Top-level directives
 #  - `chip <name>`: select audio backend (default: gameboy).
 #  - `bpm <n>`: tempo in beats per minute (default: 120).
-#  - `time` / `stepsPerBar`, `ticksPerStep`: see docs for advanced timing.
+#  - `stepsPerBar`: see docs for bar/beat grouping in the editor.
 
 bpm 128
 

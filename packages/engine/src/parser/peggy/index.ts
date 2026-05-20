@@ -635,11 +635,30 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       case 'TimeStmt': {
-        topTime = (stmt as TimeStmt).time;
+        const t = (stmt as TimeStmt).time;
+        topTime = t;
+        if (topStepsPerBar === undefined) {
+          topStepsPerBar = t;
+        }
+        diagnostics.push({
+          level: 'warning',
+          component: 'parser',
+          message: '`time` is deprecated; use `stepsPerBar` instead.',
+          loc: stmt.loc,
+        });
         break;
       }
       case 'StepsPerBarStmt': {
         topStepsPerBar = (stmt as StepsPerBarStmt).stepsPerBar;
+        break;
+      }
+      case 'TicksPerStepStmt': {
+        diagnostics.push({
+          level: 'warning',
+          component: 'parser',
+          message: '`ticksPerStep` is deprecated and has no effect; the engine uses a fixed tick resolution.',
+          loc: stmt.loc,
+        });
         break;
       }
       case 'VolumeStmt': {
@@ -708,7 +727,7 @@ export function parseWithPeggy(source: string): ParseResult {
         break;
       }
       default:
-        // ignore for now (time/stepsPerBar/ticksPerStep/export)
+        // ignore unhandled top-level stmts (e.g. export)
         break;
     }
   }

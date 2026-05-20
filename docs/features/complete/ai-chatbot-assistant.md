@@ -111,8 +111,9 @@ A `buildLanguageRef(chip: string)` function generates a chip-aware language refe
 - Hard rules: each channel number appears at most once; no `inst` definitions inside `pat` bodies
 
 **TOP-LEVEL DIRECTIVES:**
-- `chip`, `bpm`, `volume`, `time`, `ticksPerStep` with defaults
-- Rule: omit any directive whose value equals the default (never write `volume 1.0`, `time 4`, `ticksPerStep 16`)
+- `chip`, `bpm`, `volume`, `stepsPerBar` with defaults (see [metadata-directives.md](../../language/metadata-directives.md))
+- Do **not** emit deprecated `time` or `ticksPerStep` (aliases / no-ops; parser warnings)
+- Rule: omit any directive whose value equals the default (never write `volume 1.0`, `stepsPerBar 4`)
 
 **PATTERNS:**
 - Note range C3–B8, sharps only (no flats — use enharmonic equivalent)

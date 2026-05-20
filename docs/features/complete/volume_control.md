@@ -74,7 +74,7 @@ Implemented a `volume` directive to control master output level for all channels
 - **Updated metadata directives** (`docs/metadata-directives.md`)
   - Renamed to "Song Metadata and Global Directives"
   - Added "Global Playback Directives" section
-  - Documented `chip`, `bpm`, `volume`, `time`, `ticksPerStep`
+  - Documented `chip`, `bpm`, `volume`, and timing directives (now canonical: `stepsPerBar`; `time` / `ticksPerStep` deprecated — see [metadata-directives.md](../../language/metadata-directives.md))
   - Cross-referenced volume-directive.md
 
 - **Updated README.md**
