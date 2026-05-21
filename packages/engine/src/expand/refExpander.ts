@@ -2,6 +2,7 @@ import { transposePattern } from '../patterns/expand.js';
 import { midiToNote, noteToMidi } from '../util/music.js';
 import { warn } from '../util/diag.js';
 import type { SourceLocation } from '../parser/ast.js';
+import { splitTopLevel } from './splitTopLevel.js';
 
 export interface ModResult {
   tokens: string[];
@@ -194,7 +195,7 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
 }
 
 export function expandRefToTokens(itemRef: string, expandedSeqs: Record<string, string[]>, pats: Record<string, string[]>, presets?: Record<string, string>, loc?: SourceLocation): string[] {
-  const parts = itemRef.split(':');
+  const parts = splitTopLevel(itemRef, ':');
   const base = parts[0];
   const mods = parts.slice(1);
 

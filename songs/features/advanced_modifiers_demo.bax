@@ -13,30 +13,59 @@ inst lead type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"for
 inst lead_alt type=pulse1 duty=12.5 env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,8,7,6,5,4,3,2,1,1,2,3,4,5,6,7,8]
-inst kit type=noise gb:width=7 env={"level":10,"direction":"down","period":1,"format":"gb"}
+inst kit type=noise gb:width=7 env={"level":10,"direction":"down","period":1,"format":"gb"} note=C5
 
+# Source patterns for the modifier demos on channel 1.
 pat lead_core = C4 D4 E4 G4
 pat arp_source = C4 . E4 . G4 .
 pat out_of_range = A2 C4 E6 A6
+
+# Backing patterns for channels 2–4.
 pat bassline = C2 . G2 .
 pat harmony = C5 E5 G5 E5
-pat drums = C6 . C6 .
+pat drums = kit . kit .
 
+# rot(N) / rotate(N): cyclic left-shift by N tokens.
+# lead_core becomes D4 E4 G4 C4 (downbeat moves to the second note).
 seq demo_rot = lead_core:rot(1)
+
+# rotate(N) is an alias for rot(N); here N=2 → E4 G4 C4 D4.
 seq demo_rotate = lead_core:rotate(2)
+
+# pal / palindrome: play forward, then backward without repeating the pivot note.
+# lead_core becomes C4 D4 E4 G4 E4 D4 C4.
 seq demo_pal = lead_core:pal
+
+# palindrome is a synonym for pal.
 seq demo_palindrome = lead_core:palindrome
+
+# arp(0,4,7): attach an arpeggio effect (root, +4, +7 semitones) to each note in the pattern.
+# On arp_source you hear C4/E4/G4 with rapid pitch cycling on each step.
 seq demo_arp = arp_source:arp(0,4,7)
+
+# clamp(min,max): clip every note into the MIDI range [C3, C6].
+# out_of_range A2 C4 E6 A6 becomes C3 C4 C6 C6 (low/high notes are cut, not wrapped).
 seq demo_clamp = out_of_range:clamp(C3,C6)
+
+# fold(min,max): octave-wrap notes into the range instead of clipping.
+# Same source pattern, but A2 folds up and E6/A6 fold down into the C3–C6 window.
 seq demo_fold = out_of_range:fold(C3,C6)
+
+# mute: replace every note token with a rest (silence for that step).
 seq demo_mute = lead_core:mute
+
+# rest: synonym for mute.
 seq demo_rest = lead_core:rest
+
+# transpose(+N) / trans(+N) / st(+N): shift all notes up by N semitones.
+# lead_core becomes D4 E4 F#4 A4.
 seq demo_transpose = lead_core:transpose(+2)
 
 seq bass_seq = bassline bassline bassline bassline
 seq wave_seq = harmony harmony harmony harmony
 seq drum_seq = drums drums drums drums
 
+# Channel 1 walks through each advanced modifier demo in the order defined above.
 channel 1 => inst lead seq demo_rot demo_rotate demo_pal demo_palindrome demo_arp demo_clamp demo_fold demo_mute demo_rest demo_transpose
 channel 2 => inst bass seq bass_seq bass_seq bass_seq
 channel 3 => inst wave1 seq wave_seq wave_seq wave_seq
