@@ -20,6 +20,7 @@ import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
 import { warn } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
+import { normalizeArpOffsets } from '../util/arpOffsets.js';
 
 const log = createLogger('export:uge');
 
@@ -425,10 +426,12 @@ const ArpeggioHandler: EffectHandler = {
 
         const params = fx.params || (Array.isArray(fx) ? fx : []);
 
-        // Parse semitone offsets - filter out non-numeric values
-        const offsets = params
-            .map((p: any) => Number(p))
-            .filter((n: number) => Number.isFinite(n) && n >= 0 && n <= 15);
+        // Parse semitone offsets - filter out non-numeric values; root is implicit in 0xy
+        const offsets = normalizeArpOffsets(
+            params
+                .map((p: any) => Number(p))
+                .filter((n: number) => Number.isFinite(n) && n >= 0 && n <= 15),
+        );
 
         if (offsets.length === 0) return null;
 

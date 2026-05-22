@@ -29,7 +29,7 @@ describe('Peggy structured parsing', () => {
     const src = `
 chip gameboy
 pat p = C4 D4 E4
-seq advanced = p:rotate(1):palindrome p:arp(0,4,7) p:clamp(C3,C6) p:fold(C3,C6) p:mute p:transpose(+2)
+seq advanced = p:rotate(1):palindrome p:arp(4,7) p:clamp(C3,C6) p:fold(C3,C6) p:mute p:transpose(+2)
 `;
     const ast = parseWithPeggy(src).ast;
     const items = ast.sequenceItems?.advanced ?? [];

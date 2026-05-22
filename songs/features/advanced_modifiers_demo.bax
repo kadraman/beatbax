@@ -39,9 +39,9 @@ seq demo_pal = lead_core:pal
 # palindrome is a synonym for pal.
 seq demo_palindrome = lead_core:palindrome
 
-# arp(0,4,7): attach an arpeggio effect (root, +4, +7 semitones) to each note in the pattern.
+# arp(4,7): major-triad arpeggio (+4, +7 semitones; root is implicit, do not pass 0).
 # On arp_source you hear C4/E4/G4 with rapid pitch cycling on each step.
-seq demo_arp = arp_source:arp(0,4,7)
+seq demo_arp = arp_source:arp(4,7)
 
 # clamp(min,max): clip every note into the MIDI range [C3, C6].
 # out_of_range A2 C4 E6 A6 becomes C3 C4 C6 C6 (low/high notes are cut, not wrapped).

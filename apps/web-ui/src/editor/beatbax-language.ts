@@ -1097,7 +1097,7 @@ export function registerBeatBaxLanguage(): void {
           '- `pal` / `palindrome` — mirror forward+backward without duplicating pivot',
           '- `slow` — double each note duration',
           '- `fast` — halve each note duration',
-          '- `arp(a,b,c)` — apply arpeggio offsets to each note token',
+          '- `arp(a,b,c)` — apply arpeggio semitone offsets above the root (omit 0; e.g. major `arp(4,7)`, minor `arp(3,7)`)',
           '- `clamp(C3,C6)` — clamp notes into a pitch range',
           '- `fold(C3,C6)` — octave-fold notes into a pitch range',
           '- `mute` / `rest` — replace notes with rests, preserving rhythm',

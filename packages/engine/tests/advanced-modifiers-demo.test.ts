@@ -36,7 +36,7 @@ describe('advanced_modifiers_demo.bax', () => {
     const clamped = expandRefToTokens('out_of_range:clamp(C3,C6)', expanded, pats);
     expect(clamped).toEqual(['C3', 'C4', 'C6', 'C6']);
 
-    const arp = expandRefToTokens('arp_source:arp(0,4,7)', expanded, pats);
-    expect(arp[0]).toMatch(/^C4<arp:0,4,7>$/);
+    const arp = expandRefToTokens('arp_source:arp(4,7)', expanded, pats);
+    expect(arp[0]).toMatch(/^C4<arp:4,7>$/);
   });
 });

@@ -1,5 +1,6 @@
 import { transposePattern } from '../patterns/expand.js';
 import { midiToNote, noteToMidi } from '../util/music.js';
+import { normalizeArpOffsets } from '../util/arpOffsets.js';
 import { warn } from '../util/diag.js';
 import type { SourceLocation } from '../parser/ast.js';
 import { splitTopLevel } from './splitTopLevel.js';
@@ -66,7 +67,7 @@ function parseArpOffsets(raw: string): number[] | null {
     .filter(Boolean)
     .map(s => Number.parseInt(s, 10));
   if (offsets.length === 0 || offsets.some(n => Number.isNaN(n))) return null;
-  return offsets;
+  return normalizeArpOffsets(offsets);
 }
 
 export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>, loc?: SourceLocation): ModResult {

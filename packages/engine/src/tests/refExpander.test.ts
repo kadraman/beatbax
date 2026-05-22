@@ -46,8 +46,14 @@ describe('applyModsToTokens', () => {
 
   test('arp(...) applies inline arp effect only to notes', () => {
     const base = ['C4', '.', 'E4<vib:3,6>', 'inst(bass)'];
+    const res = applyModsToTokens(base, ['arp(4,7)']);
+    expect(res.tokens).toEqual(['C4<arp:4,7>', '.', 'E4<vib:3,6,arp:4,7>', 'inst(bass)']);
+  });
+
+  test('arp(...) strips redundant leading zero', () => {
+    const base = ['C4'];
     const res = applyModsToTokens(base, ['arp(0,4,7)']);
-    expect(res.tokens).toEqual(['C4<arp:0,4,7>', '.', 'E4<vib:3,6,arp:0,4,7>', 'inst(bass)']);
+    expect(res.tokens).toEqual(['C4<arp:4,7>']);
   });
 
   test('clamp(min,max) clips notes into range', () => {

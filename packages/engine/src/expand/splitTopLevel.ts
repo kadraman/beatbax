@@ -1,6 +1,6 @@
 /**
  * Split a string on a separator while respecting (), [], and quoted strings.
- * Used for sequence/pattern refs like `pat:clamp(C3,C6)` or `pat:arp(0,4,7)`.
+ * Used for sequence/pattern refs like `pat:clamp(C3,C6)` or `pat:arp(4,7)`.
  */
 export function splitTopLevel(s: string, sep = ':'): string[] {
   const out: string[] = [];
