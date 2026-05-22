@@ -5,6 +5,7 @@ import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTable
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
 import type { ChipChannelBackend } from '../chips/types.js';
+import { arpCycleOffsets } from '../util/arpOffsets.js';
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -939,8 +940,8 @@ function renderPulse(
       const frameRate = CHIP_FRAME_RATES[chipType || 'gameboy'] || 60; // Default to 60 Hz
       const cycleDuration = 1 / frameRate; // e.g., ~16.667ms at 60Hz, ~20ms at 50Hz
 
-      // Build arpeggio cycle: [0 (root), ...offsets]
-      const allOffsets = [0, ...arpOffsets];
+      // Build arpeggio cycle: root (0) plus upper partials (leading 0 in list is redundant)
+      const allOffsets = arpCycleOffsets(arpOffsets);
 
       const offsetIndex = Math.floor((t % (cycleDuration * allOffsets.length)) / cycleDuration);
       const semitoneOffset = allOffsets[offsetIndex % allOffsets.length] || 0;

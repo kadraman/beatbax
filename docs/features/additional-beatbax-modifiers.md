@@ -23,7 +23,7 @@ Sequence and pattern references accept colon-chained transforms applied at **par
 
 Pattern syntax already covers **`*N` repetition**, **groups**, **durations** (`C4:4`), and **per-note effects** (`arp`, `vib`, `cut`, `port`, etc.) — see [`docs/features/complete/effects-system.md`](docs/features/complete/effects-system.md).
 
-**Gap to be aware of:** the web UI help and command palette list `arp(0,3,7)` and `transpose(+1)` as transforms, but the engine only implements arpeggio as a **per-note effect** (`C4<arp:0,4,7>`), not as a sequence modifier. Closing that doc/implementation gap is a natural first step before adding more transforms.
+**Note:** `:arp(4,7)` is implemented as a sequence modifier (expands to inline `arp:` on each note). Omit leading `0` — root is implicit in playback and UGE `0xy` export.
 
 ```mermaid
 flowchart LR
@@ -63,12 +63,12 @@ seq fill = lick:pal
 
 **Chiptune use:** classic “mirror” fills, symmetrical lead runs, tension/release in one line.
 
-### `arp(0,4,7)` — pattern-level arpeggiate (close the UI gap)
+### `arp(4,7)` — pattern-level arpeggiate
 
 For each **note** token, emit a mini-cycle of transposed copies (or append `<arp:…>` to each note — prefer matching existing `arp` effect semantics for export).
 
 ```bax
-seq pad = chord_bar:arp(0,4,7):slow(2)
+seq pad = chord_bar:arp(4,7):slow(2)
 ```
 
 **Chiptune use:** one held chord pattern becomes duty-cycle arps on GB pulse; harmonized bass without duplicating `pat` definitions. Align with [`docs/features/complete/arpeggio-effect.md`](docs/features/complete/arpeggio-effect.md).
@@ -230,7 +230,7 @@ Don’t add modifiers that overlap existing features without clear benefit:
 
 If you only add five, these match how your songs and docs already compose:
 
-1. **`arp(0,4,7)`** — pattern-level chord cycling
+1. **`arp(4,7)`** — pattern-level chord cycling
 2. **`rot(N)`** — rhythmic/melodic variation without new `pat`s
 3. **`pal`** — symmetrical fills
 4. **`clamp` / `fold`** — safe transposition for GB noise and export

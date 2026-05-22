@@ -35,4 +35,14 @@ describe('pattern transforms', () => {
     const ch = ast.channels.find(c => c.id === 1)!;
     expect(ch.pat).toEqual(['E4', 'E4', 'D4', 'D4', 'C4', 'C4']);
   });
+
+  test('tier-1 modifiers apply on single channel pattern reference', () => {
+    const src = `
+      pat A = C4 D4 E4
+      channel 1 => inst lead pat A:rot(1):pal:transpose(+1)
+    `;
+    const ast = parse(src);
+    const ch = ast.channels.find(c => c.id === 1)!;
+    expect(ch.pat).toEqual(['D#4', 'F4', 'C#4', 'F4', 'D#4']);
+  });
 });

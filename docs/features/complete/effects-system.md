@@ -1282,7 +1282,7 @@ pat vibrato_melody = C4<wobble>:4 E4<subtle>:4
 **Syntax:**
 ```bax
 # Inline effect with explicit parameters
-pat melody = C4<arp:0,4,7>:4 E4<arp:0,3,7>:4
+pat melody = C4<arp:4,7>:4 E4<arp:3,7>:4
 
 # Named effect presets
 effect arpMinor = arp:3,7          # Minor triad (root + minor 3rd + perfect 5th)
@@ -1294,7 +1294,7 @@ pat chord_prog = C4<arpMinor>:4 F4<arpMajor>:4 G4<arpMajor7>:4
 ```
 
 **Parameters:**
-- Semitone offsets from base note (e.g., `0,4,7` for major triad, `0,3,7` for minor triad)
+- Semitone offsets above the base note (e.g., `4,7` for major triad, `3,7` for minor; omit redundant `0`)
 - Supports 2-4 note arpeggios
 - UGE export limitation: only first 2 offsets are exported to hUGETracker's `0xy` effect
 

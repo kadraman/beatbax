@@ -9,6 +9,7 @@ import {
   patternEventsToTokens,
 } from '../parser/structured.js';
 import { expandRefToTokens } from '../expand/refExpander.js';
+import { splitTopLevel } from '../expand/splitTopLevel.js';
 import { resolveImports, resolveImportsSync } from './importResolver.js';
 import { isRemoteImport } from '../import/urlUtils.js';
 import { createLogger } from '../util/logger.js';
@@ -200,7 +201,7 @@ function getLeafPats(
     realItem = mRep[1].trim();
     repeat = parseInt(mRep[2], 10);
   }
-  const parts = realItem.split(':');
+  const parts = splitTopLevel(realItem, ':');
   const base = parts[0].trim();
   const mods = parts.slice(1);
 
@@ -463,7 +464,7 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           outTokens.push(...toks);
 
           // Build per-token source metadata for this batch of tokens
-          const itemBase = itemRef.split(':')[0].trim();
+          const itemBase = splitTopLevel(itemRef, ':')[0].trim();
           if (expandedSeqs[itemBase]) {
             // Named sequence — tag with seq name and infer per-token pattern names
             const rawSeqDef = seqs[itemBase];

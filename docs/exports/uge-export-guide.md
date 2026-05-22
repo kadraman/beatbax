@@ -205,8 +205,8 @@ The following effects are **not supported** in UGE export:
 
 BeatBax `arp` effect exports to hUGETracker's `0xy` arpeggio effect, cycling through pitch offsets at the Game Boy frame rate (60 Hz).
 
-- **Syntax:** `<arp:3,7>` defines semitone offsets from the root note
-- **Cycle behavior:** Always includes root (offset 0): Root → +x → +y → Root → ...
+- **Syntax:** `<arp:3,7>` lists semitone offsets **above** the written note (do not include `0`; root is implicit)
+- **Cycle behavior:** Playback and hUGE always start on the root: Root → +x → +y → Root → …
   - Example: `arp:3,7` (C minor) cycles C → Eb → G → C at 60 Hz
   - Each step lasts ~16.667ms, creating a chord illusion
 - **Mapping rule:** First 2 offsets map to x and y nibbles of `0xy` effect code

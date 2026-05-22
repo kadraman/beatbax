@@ -63,7 +63,7 @@ describe('UGE arpeggio export', () => {
     try { fs.unlinkSync(tmpJson); } catch (e) {}
   });
 
-  test('maps arp:0,4,7 to 0x04 and 0x07 (first 2 offsets only)', async () => {
+  test('normalizes arp:0,4,7 to major triad 0x47 (omit redundant root)', async () => {
     const src = `
       inst lead type=pulse1
       pat p = C4<arp:0,4,7>:4
@@ -76,28 +76,8 @@ describe('UGE arpeggio export', () => {
     const song = parsed.song;
 
     const outPath = path.join(os.tmpdir(), `beatbax_arp3_test_${Date.now()}.uge`);
-
-    // Capture console warnings
-    const originalWarn = console.warn;
-    const warnings: string[] = [];
-    console.warn = jest.fn((...args: any[]) => {
-      warnings.push(args.join(' '));
-    });
-
     await exportUGE(song as any, outPath, { debug: false, strictGb: false } as any);
 
-    // Restore console.warn
-    console.warn = originalWarn;
-
-    // Verify warning was emitted for >2 offsets
-    const arpeggioWarning = warnings.find(w =>
-      w.includes('Arpeggio') &&
-      w.includes('3 offsets') &&
-      w.includes('Extra offsets [7]')
-    );
-    expect(arpeggioWarning).toBeDefined();
-
-    // Read back and verify encoding (should be 0x04, ignoring the third offset)
     const ugeSong = readUGEFile(outPath);
     const patternIndex = ugeSong.orders.duty1[0];
     const pattern = ugeSong.patterns.find(p => p.index === patternIndex);
@@ -105,14 +85,13 @@ describe('UGE arpeggio export', () => {
     const row0 = pattern!.rows[0];
 
     expect(row0.effectCode).toBe(0);
-    expect(row0.effectParam).toBe(0x04); // 0 in high nibble, 4 in low nibble
+    expect(row0.effectParam).toBe(0x47); // +4 and +7; root is implicit in hUGE
 
-    // cleanup
     try { fs.unlinkSync(outPath); } catch (e) {}
     try { fs.unlinkSync(tmpJson); } catch (e) {}
   });
 
-  test('maps arp:0,4,7,11 to 0x04 and warns about extra offsets', async () => {
+  test('maps arp:0,4,7,11 to 0x47 and warns about extra offsets', async () => {
     const src = `
       inst lead type=pulse1
       pat p = C4<arp:0,4,7,11>:4
@@ -138,15 +117,14 @@ describe('UGE arpeggio export', () => {
     // Restore console.warn
     console.warn = originalWarn;
 
-    // Verify warning was emitted for >2 offsets with all extra offsets listed
+    // Verify warning was emitted for >2 offsets (third partial dropped on export)
     const arpeggioWarning = warnings.find(w =>
       w.includes('Arpeggio') &&
-      w.includes('4 offsets') &&
-      w.includes('Extra offsets [7, 11]')
+      w.includes('3 offsets') &&
+      w.includes('Extra offsets [11]')
     );
     expect(arpeggioWarning).toBeDefined();
 
-    // Read back and verify encoding (should be 0x04, ignoring offsets 7 and 11)
     const ugeSong = readUGEFile(outPath);
     const patternIndex = ugeSong.orders.duty1[0];
     const pattern = ugeSong.patterns.find(p => p.index === patternIndex);
@@ -154,7 +132,7 @@ describe('UGE arpeggio export', () => {
     const row0 = pattern!.rows[0];
 
     expect(row0.effectCode).toBe(0);
-    expect(row0.effectParam).toBe(0x04);
+    expect(row0.effectParam).toBe(0x47);
 
     // cleanup
     try { fs.unlinkSync(outPath); } catch (e) {}
@@ -230,7 +208,7 @@ describe('UGE arpeggio export', () => {
   test('multiple notes with different arpeggios', async () => {
     const src = `
       inst lead type=pulse1
-      pat p = C4<arp:3,7>:2 E4<arp:4,7>:2 G4<arp:0,4>:2
+      pat p = C4<arp:3,7>:2 E4<arp:4,7>:2 G4<arp:4>:2
       channel 1 => inst lead pat p
     `;
     const ast = parse(src as any);
@@ -257,9 +235,9 @@ describe('UGE arpeggio export', () => {
     expect(rows[2].effectCode).toBe(0);
     expect(rows[2].effectParam).toBe(0x47);
 
-    // Third note: G4<arp:0,4> at row 4
+    // Third note: G4<arp:4> at row 4 (+4 only; y nibble 0)
     expect(rows[4].effectCode).toBe(0);
-    expect(rows[4].effectParam).toBe(0x04);
+    expect(rows[4].effectParam).toBe(0x40);
 
     // Note: Sustain rows (1, 3, 5) should also have respective arpeggios but currently
     // have note cut effects due to a pre-existing bug. Skipping those checks.
