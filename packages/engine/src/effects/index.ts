@@ -1,6 +1,7 @@
 import { EffectHandler, EffectRegistry } from './types.js';
 import { warn } from '../util/diag.js';
 import { parseEnvelope } from '../chips/gameboy/pulse.js';
+import { arpCycleOffsets } from '../util/arpOffsets.js';
 
 const registry = new Map<string, EffectHandler>();
 
@@ -318,6 +319,9 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
   if (offsets.length === 0) return;
 
+  const allOffsets = arpCycleOffsets(offsets);
+  if (allOffsets.length === 0) return;
+
   // Chip frame rates (Hz) - based on TV standards and hardware specs
   // Note: Defaults reflect the dominant market/scene for each chip:
   // - C64: 50 Hz (PAL) because the European demoscene/SID music community was dominant
@@ -337,7 +341,6 @@ register('arp', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
 
   // hUGETracker arpeggio always includes the root note first
   // For offsets [3, 7], the cycle is: Root (0) → +3 → +7 → Root → ...
-  const allOffsets = [0, ...offsets];
 
   try {
     if (hasFrequency) {

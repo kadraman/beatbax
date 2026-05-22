@@ -24,9 +24,15 @@ export type PatternEvent =
 export interface SequenceTransform {
   kind:
     | 'oct'
+    | 'rotate'
     | 'rev'
+    | 'palindrome'
     | 'slow'
     | 'fast'
+    | 'arp'
+    | 'clamp'
+    | 'fold'
+    | 'mute'
     | 'inst'
     | 'pan'
     | 'transpose'

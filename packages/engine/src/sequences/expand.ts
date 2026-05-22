@@ -1,6 +1,7 @@
 import { transposePattern } from '../patterns/expand.js';
 import { warn } from '../util/diag.js';
 import { applyModsToTokens } from '../expand/refExpander.js';
+import { splitTopLevel } from '../expand/splitTopLevel.js';
 import { SequenceItem } from '../parser/ast.js';
 import { materializeSequenceItems } from '../parser/structured.js';
 
@@ -10,32 +11,6 @@ import { materializeSequenceItems } from '../parser/structured.js';
  * semitone transposition, and inst(name) override which is emitted as an
  * `inst(name)` token preceding the pattern tokens).
  */
-const splitTopLevel = (s: string, sep = ':'): string[] => {
-  const out: string[] = [];
-  let cur = '';
-  let inS = false;
-  let inD = false;
-  let bracket = 0;
-  let paren = 0;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === "'" && !inD) { inS = !inS; cur += ch; continue; }
-    if (ch === '"' && !inS) { inD = !inD; cur += ch; continue; }
-    if (inS || inD) { cur += ch; continue; }
-    if (ch === '[') { bracket++; cur += ch; continue; }
-    if (ch === ']') { if (bracket > 0) bracket--; cur += ch; continue; }
-    if (ch === '(') { paren++; cur += ch; continue; }
-    if (ch === ')') { if (paren > 0) paren--; cur += ch; continue; }
-    if (ch === sep && bracket === 0 && paren === 0) {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += ch;
-  }
-  out.push(cur);
-  return out.map(x => x.trim()).filter(Boolean);
-};
 
 export function expandSequenceItems(
   items: (string | SequenceItem)[],
