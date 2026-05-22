@@ -57,6 +57,10 @@ export const languages = {
     Snippet: 2,
     Function: 3,
     Value: 4,
+    Enum: 5,
+    Constant: 6,
+    Property: 7,
+    File: 8,
   },
   CompletionItemInsertTextRule: {
     InsertAsSnippet: 4,
@@ -78,6 +82,12 @@ export class Range {
   constructor(public startLineNumber: number, public startColumn: number, public endLineNumber: number, public endColumn: number) {}
 }
 
+export class Emitter<T = void> {
+  event = jest.fn();
+  fire = jest.fn();
+  dispose = jest.fn();
+}
+
 export default {
   editor,
   languages,
@@ -85,4 +95,5 @@ export default {
   GlyphMarginLane,
   KeyMod,
   KeyCode,
+  Emitter,
 };
