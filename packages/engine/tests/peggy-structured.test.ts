@@ -25,6 +25,22 @@ describe('Peggy structured parsing', () => {
     expect(transforms?.[1]).toMatchObject({ kind: 'slow', value: 2 });
   });
 
+  test('parses tier-1 transform kinds into structured sequenceItems', () => {
+    const src = `
+chip gameboy
+pat p = C4 D4 E4
+seq advanced = p:rotate(1):palindrome p:arp(4,7) p:clamp(C3,C6) p:fold(C3,C6) p:mute p:transpose(+2)
+`;
+    const ast = parseWithPeggy(src).ast;
+    const items = ast.sequenceItems?.advanced ?? [];
+    expect(items[0]?.transforms?.map(t => t.kind)).toEqual(['rotate', 'palindrome']);
+    expect(items[1]?.transforms?.map(t => t.kind)).toEqual(['arp']);
+    expect(items[2]?.transforms?.map(t => t.kind)).toEqual(['clamp']);
+    expect(items[3]?.transforms?.map(t => t.kind)).toEqual(['fold']);
+    expect(items[4]?.transforms?.map(t => t.kind)).toEqual(['mute']);
+    expect(items[5]?.transforms?.[0]).toMatchObject({ kind: 'transpose', value: 2 });
+  });
+
   test('resolver consumes structured data when token maps are empty', () => {
     const ast = parseWithPeggy(sampleSource).ast;
     ast.pats = {};

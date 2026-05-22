@@ -315,7 +315,7 @@ export class PlaybackManager {
 
       // Emit parse success — include sourceBpm (pre-override) so the transport
       // bar can distinguish a real source edit from a nudge override.
-      this.eventBus.emit('parse:success', { ast: resolved, sourceBpm });
+      this.eventBus.emit('parse:success', { ast: resolved, song: resolved, sourceBpm });
       parseStatus.set('success');
       parsedBpm.set((resolved as any).bpm || 120);
       parsedChip.set((resolved as any).chip || 'gameboy');

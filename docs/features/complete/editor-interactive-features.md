@@ -37,7 +37,7 @@ Each item below lists the recommended Monaco APIs, integration notes, and an est
   - Integration: use `eventBus` or `playbackManager.playPreview(instName)` (add lightweight preview API if needed).
   - **CodeLens instrument preview implemented** (2026-03-11): per-`inst` line CodeLens buttons (`C3` `C4` `C5` `C6` `C7`) trigger single-note playback via `beatbax.previewInstNote`. Notes play on the correct APU channel (pulse1/2/wave/noise) derived from the instrument's `type` field. Only one note plays at a time; auto-stops after 2 s or `onComplete`. Hover-triggered audio on the hover provider itself (without a user gesture) is still pending — CodeLens serves as the primary interaction point.
 
-- Effect preview (High): preview the audio result of inline effect tokens (`<vib:3,6>`, `<arp:0,3,7>`, `<port:8>`) and named `effect` preset blocks by playing a short representative pattern with the effect applied.
+- Effect preview (High): preview the audio result of inline effect tokens (`<vib:3,6>`, `<arp:3,7>`, `<port:8>`) and named `effect` preset blocks by playing a short representative pattern with the effect applied.
   - Monaco API: CodeLens above `effect` definition lines + hover docs for inline effect tokens (already syntax-highlighted).
   - Integration: build a minimal one-pattern AST with the effect applied; play via the shared `AudioContext` using the existing `startInstNotePreview`/`startPatternPreview` path.
   - Each `effect` definition line should get `▶ Preview` / `↺ Loop` / `⬛ Stop` lenses (same pattern as `pat`/`seq`).
