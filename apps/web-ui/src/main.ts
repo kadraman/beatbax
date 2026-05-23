@@ -1291,12 +1291,21 @@ async function emitParse(content: string): Promise<void> {
     let song: any = null;
     let resolvedAst: typeof ast = ast;
     try {
-      const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
+      const resolveSongOpts = {
+        onWarn: (w: { component: string; message: string; loc?: any }) => {
+          warnings.push(w);
+        },
+      };
+      const resolveImportsOpts = {
+        onWarn: (message: string, loc?: any) => {
+          warnings.push({ component: 'import-resolver', message, loc });
+        },
+      };
       if ((ast as any).imports?.length > 0) {
-        resolvedAst = await resolveImports(ast as any, resolveOpts);
-        song = resolveSong(resolvedAst as any, resolveOpts);
+        resolvedAst = await resolveImports(ast as any, resolveImportsOpts);
+        song = resolveSong(resolvedAst as any, resolveSongOpts);
       } else {
-        song = resolveSong(ast as any, resolveOpts);
+        song = resolveSong(ast as any, resolveSongOpts);
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });

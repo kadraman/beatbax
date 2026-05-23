@@ -19,7 +19,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
     types: ['pulse1', 'pulse2', 'wave', 'noise'],
     properties: {
       type: { values: ['pulse1', 'pulse2', 'wave', 'noise'], detail: 'Channel type' },
-      duty: { values: ['12', '25', '50', '75'], detail: 'Duty cycle (%)' },
+      duty: { values: ['12.5', '12', '25', '50', '75'], detail: 'Duty cycle (%)' },
       env: { detail: 'Envelope e.g. 12,down or gb:12,down,1' },
       wave: { detail: '32-sample wavetable array' },
       sweep: { detail: 'Hardware sweep (pulse1)' },

@@ -18,7 +18,6 @@ export const KNOWN_IMPORT_PATHS = [
   'local:lib/gameboy-common.ins',
   'local:lib/gameboy-drums.ins',
   'local:lib/instruments.ins',
-  'local:lib/instruments.bax',
   'local:lib/sounds/drums.ins',
   'local:lib/presets.ins',
   'local:lib/bass/sub.ins',
@@ -121,7 +120,7 @@ export function collectImportPathCandidates(source: string): string[] {
   for (const p of parseImportPathsFromSource(source)) add(p);
   for (const p of KNOWN_IMPORT_PATHS) add(p);
   for (const p of loadRecentFilenames()) {
-    if (p.endsWith('.bax') || p.endsWith('.ins')) {
+    if (p.endsWith('.ins')) {
       add(p.startsWith('local:') ? p : `local:${p}`);
     }
   }

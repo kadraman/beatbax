@@ -318,6 +318,19 @@ describe('BeatBax Monaco completion provider', () => {
     expect(labels).toContain('wave');
   });
 
+  test('does not suggest other properties while editing free-form inst values', () => {
+    const line = 'inst lead type=pulse1 env=down';
+    const model = makeModel([line], 1, line.indexOf('down') + 3);
+    const result = provideBeatBaxCompletions(
+      model,
+      { lineNumber: 1, column: line.indexOf('down') + 3 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(labels).not.toContain('wave=');
+    expect(labels).not.toContain('duty=');
+  });
+
   test('suggests import paths inside quoted import string', () => {
     const line = 'import "local:lib/';
     const model = makeModel([line], 1, line.length);

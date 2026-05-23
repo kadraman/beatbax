@@ -369,19 +369,9 @@ function instPropertySuggestions(
     }));
   }
 
-  return Object.entries(chipMeta.properties)
-    .filter(([key]) => key !== property)
-    .map(([key, prop]) => ({
-      label: `${key}=`,
-      kind: monaco.languages.CompletionItemKind.Property,
-      detail: prop.detail ?? key,
-      insertText: `${key}=`,
-      range,
-      sortText: '9' + key,
-      documentation: documentationForCompletion('inst', chip)
-        ? { value: documentationForCompletion('inst', chip)! }
-        : undefined,
-    }));
+  // Free-form values (env, wave, …): do not suggest other property names — the
+  // replace range covers the value token and would corrupt it (e.g. env=down → wave=).
+  return [];
 }
 
 function refSuggestions(
