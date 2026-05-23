@@ -759,6 +759,41 @@
 
 .output-text { flex: 1; word-break: break-word; }
 
+.problems-quick-fix-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: min(480px, 92vw);
+  padding: 4px 0;
+  background: var(--menu-bg, #252526);
+  border: 1px solid var(--border-color, #454545);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.problems-quick-fix-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color, #cccccc);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.problems-quick-fix-item:hover,
+.problems-quick-fix-item:focus {
+  background: var(--menu-hover-bg, #094771);
+  outline: none;
+}
+
+.problems-quick-fix-item.is-preferred {
+  font-weight: 600;
+}
+
 .output-loc {
   flex-shrink: 0;
   font-size: 11px;

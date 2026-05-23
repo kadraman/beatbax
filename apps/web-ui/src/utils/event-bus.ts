@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
+import type { ValidationIssue } from '../types/validation';
 
 const log = createLogger('ui:event-bus');
 
@@ -67,8 +68,8 @@ export interface BeatBaxEvents {
   'song-visualizer:settings-changed': { key: string; value: string };
 
   // Validation events
-  'validation:warnings': { warnings: Array<{ component: string; message: string; suggestion?: string; file?: string; loc?: any }> };
-  'validation:errors': { errors: Array<{ component?: string; message: string; suggestion?: string; loc?: any }> };
+  'validation:warnings': { warnings: ValidationIssue[] };
+  'validation:errors': { errors: ValidationIssue[] };
 
   // Editor navigation (emitted by Problems panel when user clicks a diagnostic row)
   'navigate:to': { line: number; column: number };
