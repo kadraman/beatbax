@@ -15,6 +15,16 @@ const log = createLogger('audio-player');
 // @ts-ignore - play-sound is an optional dependency without types
 declare module 'play-sound';
 
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return String(error);
+}
+
+function logFallbackFailure(method: string, error: unknown, nextMethod: string): void {
+  log.info(`${method} audio playback failed: ${formatErrorMessage(error)}. Trying ${nextMethod}...`);
+  log.debug(`${method} audio playback error:`, error);
+}
+
 function floatTo16BitPCM(float32Arr: Float32Array, gainScale: number = 0.6): Buffer {
   const buf = Buffer.alloc(float32Arr.length * 2);
   const volumeScale = Number.isFinite(gainScale) ? gainScale : 0.6;
@@ -78,7 +88,7 @@ export async function playAudioBuffer(
     const Speaker = speakerModule.default;
     log.info('Using speaker module for audio playback...');
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const speaker = new Speaker({
         channels: options.channels,
         sampleRate: options.sampleRate,
@@ -110,8 +120,9 @@ export async function playAudioBuffer(
 
       writeNext();
     });
+    return;
   } catch (speakerErr) {
-    // Continue to next fallback
+    logFallbackFailure('speaker', speakerErr, 'play-sound');
   }
 
   // Try play-sound (wrapper around system players, works cross-platform)
@@ -124,19 +135,19 @@ export async function playAudioBuffer(
     const wavBuffer = createWAVBuffer(samples, options.sampleRate, options.channels, options.gainScale);
     writeFileSync(tempFile, wavBuffer);
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       player.play(tempFile, (err: Error | null) => {
         try { unlinkSync(tempFile); } catch (e) {}
         if (err) {
-          log.debug('play-sound failed, trying system commands...');
           reject(err);
         } else {
           resolve();
         }
       });
     });
+    return;
   } catch (playSoundErr) {
-    // Continue to final fallback
+    logFallbackFailure('play-sound', playSoundErr, 'system audio player');
   }
 
   // Final fallback: direct system commands (most reliable on Windows)
