@@ -33,14 +33,24 @@ export interface BottomTabsController {
   updateBadge(errors: number, warnings: number): void;
 }
 
+export interface BuildBottomTabsOptions {
+  /** Fired when the active bottom tab changes (null when the pane is collapsed). */
+  onActiveTabChange?: (tab: BottomTabId | null) => void;
+}
+
 export function buildBottomTabs(
   outputPane: HTMLElement,
   layout: ThreePaneLayoutManager,
+  options: BuildBottomTabsOptions = {},
 ): BottomTabsController {
   let activeTab: BottomTabId | null = 'problems';
   const tabOpen:     Record<BottomTabId, boolean>                          = { problems: true, output: true };
   const tabButtons:  Partial<Record<BottomTabId, HTMLButtonElement>>       = {};
   const tabContents: Partial<Record<BottomTabId, HTMLElement>>             = {};
+
+  const notifyActiveTab = (): void => {
+    options.onActiveTabChange?.(activeTab);
+  };
 
   const switchTab = (tab: BottomTabId): void => {
     activeTab = tab;
@@ -48,6 +58,7 @@ export function buildBottomTabs(
       tabButtons[t]?.classList.toggle('bb-bottom-tab--active',         t === tab);
       tabContents[t]?.classList.toggle('bb-bottom-tab-content--active', t === tab);
     }
+    notifyActiveTab();
   };
 
   const show = (tab: BottomTabId): void => {
@@ -69,6 +80,7 @@ export function buildBottomTabs(
       } else {
         activeTab = null;
         layout.setOutputPaneVisible(false);
+        notifyActiveTab();
       }
     }
   };

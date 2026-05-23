@@ -4,7 +4,9 @@
  */
 
 import * as monaco from 'monaco-editor';
+import type { ValidationIssue } from '../types/validation';
 import { eventBus } from '../utils/event-bus';
+import { encodePeggyHintMarkerCode } from './peggy-marker-code';
 
 export interface Diagnostic {
   message: string;
@@ -13,6 +15,9 @@ export interface Diagnostic {
   startColumn: number;
   endLine?: number;
   endColumn?: number;
+  /** Peggy syntax error metadata for quick-fix providers. */
+  peggyExpected?: Array<{ type?: string; text?: string; description?: string }>;
+  peggyFound?: string | null;
 }
 
 export interface DiagnosticsManager {
@@ -44,6 +49,7 @@ export function createDiagnosticsManager(
       // Convert diagnostics to Monaco markers
       const markers: monaco.editor.IMarkerData[] = diagnostics.map((diag) => ({
         message: diag.message,
+        code: encodePeggyHintMarkerCode(diag.peggyExpected, diag.peggyFound),
         severity:
           diag.severity === 'error'
             ? monaco.MarkerSeverity.Error
@@ -109,25 +115,29 @@ export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnos
  * Convert validation diagnostics (errors and/or warnings) to Monaco diagnostics format.
  * Items with `level === 'error'` get red squiggles; all others get yellow.
  */
-export function warningsToDiagnostics(
-  warnings: Array<{ component: string; message: string; loc?: any; level?: string }>
-): Diagnostic[] {
+export function warningsToDiagnostics(warnings: ValidationIssue[]): Diagnostic[] {
   return warnings.map((w) => {
-    const severity = w.level === 'error' ? 'error' : 'warning';
-    if (w.loc && w.loc.start) {
+    const severity: Diagnostic['severity'] =
+      w.level === 'error' ? 'error' : 'warning';
+    const base = {
+      message: `[${w.component}] ${w.message}`,
+      severity,
+      peggyExpected: w.expected,
+      peggyFound: w.found,
+    };
+    if (w.loc?.start) {
+      const startLine = w.loc.start.line ?? 1;
       return {
-        message: `[${w.component}] ${w.message}`,
-        severity,
-        startLine: w.loc.start.line,
+        ...base,
+        startLine,
         startColumn: w.loc.start.column ?? 1,
-        endLine: w.loc.end?.line ?? w.loc.start.line,
+        endLine: w.loc.end?.line ?? startLine,
         endColumn: w.loc.end?.column ?? (w.loc.start.column ?? 1) + 1,
       };
     }
 
     return {
-      message: `[${w.component}] ${w.message}`,
-      severity,
+      ...base,
       startLine: 1,
       startColumn: 1,
     };

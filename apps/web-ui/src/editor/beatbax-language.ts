@@ -12,6 +12,7 @@ import {
   COMPLETION_TRIGGER_CHARACTERS,
   provideBeatBaxCompletions,
 } from './completion';
+import { registerBeatBaxCodeActions } from './code-actions';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */
@@ -1421,6 +1422,8 @@ export function registerBeatBaxLanguage(): void {
       return [{ range: fullRange, text: formatted }];
     },
   });
+
+  registerBeatBaxCodeActions();
 }
 
 // ─── Note transposition helpers ──────────────────────────────────────────────

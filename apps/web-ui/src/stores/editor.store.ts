@@ -11,6 +11,7 @@
  */
 
 import { atom } from 'nanostores';
+import type { ValidationIssue } from '../types/validation';
 
 const STORAGE_KEY = 'beatbax:editor.content';
 
@@ -28,10 +29,10 @@ export const parsedBpm = atom<number>(120);
 export const parsedChip = atom<string>('gameboy');
 
 /** Current validation error list (empty when none). */
-export const validationErrors = atom<Array<{ message: string }>>([]);
+export const validationErrors = atom<ValidationIssue[]>([]);
 
 /** Current validation warning list (empty when none). */
-export const validationWarnings = atom<Array<{ message: string }>>([]);
+export const validationWarnings = atom<ValidationIssue[]>([]);
 
 // ── Editor content ────────────────────────────────────────────────────────────
 

@@ -25,6 +25,39 @@ describe('Peggy structured parsing', () => {
     expect(transforms?.[1]).toMatchObject({ kind: 'slow', value: 2 });
   });
 
+  test('unknown sequence transform emits parser diagnostic with suggestion', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+pat lead_core = C4
+seq main = lead_core:tranpese(+2)
+channel 1 => inst lead seq main
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.find((d) => d.message.includes('tranpese'));
+    expect(unknown).toBeDefined();
+    expect(unknown?.level).toBe('warning');
+    expect(unknown?.message).toContain("Did you mean 'transpose(+2)'");
+    expect(unknown?.loc?.start?.line).toBe(5);
+    expect(unknown?.loc?.start?.column).toBeGreaterThan(1);
+  });
+
+  test('unknown transform on channel seq spec is located on the channel line', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+pat main = C4
+channel 1 => inst lead seq main:tranpese(+2)
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.find(
+      (d) => d.message.includes('tranpese') && d.message.includes('channel'),
+    );
+    expect(unknown).toBeDefined();
+    expect(unknown?.loc?.start?.line).toBe(5);
+    expect(unknown?.loc?.start?.column).toBeGreaterThan(20);
+  });
+
   test('parses tier-1 transform kinds into structured sequenceItems', () => {
     const src = `
 chip gameboy
