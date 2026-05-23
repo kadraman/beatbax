@@ -26,6 +26,7 @@ export const editor = {
   setTheme: jest.fn(),
   defineTheme: jest.fn(),
   setModelMarkers: jest.fn(),
+  getModelMarkers: jest.fn(() => []),
   registerCommand: jest.fn(),
   MouseTargetType: {
     GUTTER_GLYPH_MARGIN: 2,
@@ -44,6 +45,11 @@ export const languages = {
   registerDocumentSemanticTokensProvider: jest.fn(),
   registerDocumentFormattingEditProvider: jest.fn(),
   registerSignatureHelpProvider: jest.fn(),
+  registerCodeActionProvider: jest.fn(),
+  CodeActionKind: {
+    QuickFix: 'quickfix',
+    Refactor: 'refactor',
+  },
   FoldingRangeKind: {
     Comment: 1,
   },

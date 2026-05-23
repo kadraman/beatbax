@@ -5,6 +5,7 @@
 
 import * as monaco from 'monaco-editor';
 import { eventBus } from '../utils/event-bus';
+import { encodePeggyHintMarkerCode } from './peggy-marker-code';
 
 export interface Diagnostic {
   message: string;
@@ -13,6 +14,9 @@ export interface Diagnostic {
   startColumn: number;
   endLine?: number;
   endColumn?: number;
+  /** Peggy syntax error metadata for quick-fix providers. */
+  peggyExpected?: Array<{ type?: string; text?: string; description?: string }>;
+  peggyFound?: string | null;
 }
 
 export interface DiagnosticsManager {
@@ -44,6 +48,7 @@ export function createDiagnosticsManager(
       // Convert diagnostics to Monaco markers
       const markers: monaco.editor.IMarkerData[] = diagnostics.map((diag) => ({
         message: diag.message,
+        code: encodePeggyHintMarkerCode(diag.peggyExpected, diag.peggyFound),
         severity:
           diag.severity === 'error'
             ? monaco.MarkerSeverity.Error
@@ -110,14 +115,26 @@ export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnos
  * Items with `level === 'error'` get red squiggles; all others get yellow.
  */
 export function warningsToDiagnostics(
-  warnings: Array<{ component: string; message: string; loc?: any; level?: string }>
+  warnings: Array<{
+    component: string;
+    message: string;
+    loc?: any;
+    level?: string;
+    expected?: Array<{ type?: string; text?: string; description?: string }>;
+    found?: string | null;
+  }>
 ): Diagnostic[] {
   return warnings.map((w) => {
     const severity = w.level === 'error' ? 'error' : 'warning';
+    const base = {
+      message: `[${w.component}] ${w.message}`,
+      severity,
+      peggyExpected: w.expected,
+      peggyFound: w.found,
+    };
     if (w.loc && w.loc.start) {
       return {
-        message: `[${w.component}] ${w.message}`,
-        severity,
+        ...base,
         startLine: w.loc.start.line,
         startColumn: w.loc.start.column ?? 1,
         endLine: w.loc.end?.line ?? w.loc.start.line,
@@ -126,8 +143,7 @@ export function warningsToDiagnostics(
     }
 
     return {
-      message: `[${w.component}] ${w.message}`,
-      severity,
+      ...base,
       startLine: 1,
       startColumn: 1,
     };

@@ -276,7 +276,10 @@ settingDebugOverlayPosition.subscribe((pos) => debugOverlay.setPosition(pos));
 settingDebugOverlayOpacity.subscribe((pct) => debugOverlay.setOpacity(pct));
 settingDebugOverlayFontSize.subscribe((px) => debugOverlay.setFontSize(px));
 
-const problemsPanel = new OutputPanel(problemsContainer, eventBus, { singleTab: 'problems' });
+const problemsPanel = new OutputPanel(problemsContainer, eventBus, {
+  singleTab: 'problems',
+  getTextModel: () => editor.editor.getModel(),
+});
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
 
@@ -1253,7 +1256,13 @@ async function emitParse(content: string): Promise<void> {
     const errors: Array<{ component: string; message: string; loc?: any }> = [];
     const warnings: Array<{ component: string; message: string; loc?: any }> = [];
     for (const e of parseResult.errors) {
-      errors.push({ component: 'parser', message: e.message, loc: e.loc });
+      errors.push({
+        component: 'parser',
+        message: e.message,
+        loc: e.loc,
+        expected: e.expected,
+        found: e.found,
+      });
     }
     for (const d of ((ast as any).diagnostics ?? [])) {
       const entry = { component: d.component ?? 'parser', message: d.message, loc: d.loc };
