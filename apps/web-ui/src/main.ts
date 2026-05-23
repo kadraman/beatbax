@@ -29,7 +29,7 @@ loadExporterPluginsFromStorage();
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
-import { resolveSong, resolveSongAsync } from '@beatbax/engine/song';
+import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { exporterRegistry } from './plugins/browser-exporter-registry';
 import {
   createLogger,
@@ -1289,12 +1289,23 @@ async function emitParse(content: string): Promise<void> {
     // (github:, https://) don't throw in browser sync mode and don't
     // incorrectly mark a valid song as a parse error.
     let song: any = null;
+    let resolvedAst: typeof ast = ast;
     try {
-      const resolveOpts = { onWarn: (w: any) => warnings.push(w) };
+      const resolveSongOpts = {
+        onWarn: (w: { component: string; message: string; loc?: any }) => {
+          warnings.push(w);
+        },
+      };
+      const resolveImportsOpts = {
+        onWarn: (message: string, loc?: any) => {
+          warnings.push({ component: 'import-resolver', message, loc });
+        },
+      };
       if ((ast as any).imports?.length > 0) {
-        song = await resolveSongAsync(ast as any, resolveOpts);
+        resolvedAst = await resolveImports(ast as any, resolveImportsOpts);
+        song = resolveSong(resolvedAst as any, resolveSongOpts);
       } else {
-        song = resolveSong(ast as any, resolveOpts);
+        song = resolveSong(ast as any, resolveSongOpts);
       }
     } catch (resolveErr: any) {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
@@ -1304,7 +1315,12 @@ async function emitParse(content: string): Promise<void> {
 
     publishValidation();
 
-    eventBus.emit('parse:success', { ast, song, sourceBpm: (ast as any).bpm ?? 120 });
+    eventBus.emit('parse:success', {
+      ast,
+      resolvedAst,
+      song,
+      sourceBpm: (ast as any).bpm ?? 120,
+    });
     parseStatus.set('success');
     parsedBpm.set((ast as any).bpm || 120);
     parsedChip.set((ast as any).chip || 'gameboy');

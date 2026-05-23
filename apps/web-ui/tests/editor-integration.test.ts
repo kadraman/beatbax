@@ -89,6 +89,7 @@ describe('Editor Integration', () => {
         'beatbax',
         expect.objectContaining({
           provideCompletionItems: expect.any(Function),
+          triggerCharacters: [':', '<', '=', '"', '/'],
         })
       );
     });

@@ -8,16 +8,25 @@ import { parse } from '@beatbax/engine/parser';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { eventBus } from '../utils/event-bus';
 import { isTopLevelBaxLine } from './top-level-directives';
+import {
+  COMPLETION_TRIGGER_CHARACTERS,
+  provideBeatBaxCompletions,
+} from './completion';
 
 let latestAST: any = null;
+/** AST with import instruments merged (when imports resolve successfully). */
+let latestResolvedAst: any = null;
+let latestSong: any = null;
 /** Cached semantic-token result. Invalidated whenever the model version changes. */
 let tokenCache: { versionId: number; data: Uint32Array } | null = null;
 /** Emitter used to notify Monaco that semantic tokens should be recomputed. */
 const semanticTokensChangedEmitter = new monaco.Emitter<void>();
 /** Chip name resolved from the latest successfully-parsed AST. */
 let latestChip: string = 'gameboy';
-eventBus.on('parse:success', ({ ast }) => {
+eventBus.on('parse:success', ({ ast, resolvedAst, song }) => {
   latestAST = ast;
+  latestResolvedAst = resolvedAst ?? ast;
+  latestSong = song ?? null;
   const raw: string = (ast?.chip ?? 'gameboy').toLowerCase();
   latestChip = chipRegistry.resolve(raw);
   // Parse results changed independently of model version (debounced parse);
@@ -601,7 +610,7 @@ export function registerBeatBaxLanguage(): void {
     transforms: ['oct', 'rot', 'rotate', 'rev', 'pal', 'palindrome', 'slow', 'fast', 'transpose', 'semitone', 'st', 'trans', 'arp', 'clamp', 'fold', 'mute', 'rest', 'inst', 'pan'],
 
     // Inline effects (inside <...>)
-    inlineEffects: ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep'],
+    inlineEffects: ['vib', 'port', 'arp', 'volSlide', 'trem', 'pan', 'echo', 'retrig', 'sweep', 'cut', 'bend', 'pitch_env'],
 
     // Export formats
     exportFormats: ['json', 'midi', 'uge', 'wav', 'famitracker', 'famitracker-text'],
@@ -668,7 +677,7 @@ export function registerBeatBaxLanguage(): void {
         [/\b(auto|repeat)\b/, 'keyword'],
 
         // Effect names (both inline and in effect definitions) - must come before identifiers
-        [/\b(vib|port|arp|volSlide|trem|pan|echo|retrig|sweep)\b/, 'function'],
+        [/\b(vib|port|arp|volSlide|trem|pan|echo|retrig|sweep|cut|bend|pitch_env)\b/, 'function'],
 
         // Inline effects inside angle brackets: <vib:3,6> <port:8> <arp:3,7>
         // MUST come before generic operators
@@ -717,7 +726,7 @@ export function registerBeatBaxLanguage(): void {
 
       inlineEffect: [
         // Effect names: vib, port, arp, volSlide, trem, pan, echo, retrig, sweep
-        [/\b(vib|port|arp|volSlide|trem|pan|echo|retrig|sweep)\b/, 'function'],
+        [/\b(vib|port|arp|volSlide|trem|pan|echo|retrig|sweep|cut|bend|pitch_env)\b/, 'function'],
         // Colon separator
         [/:/, 'operator'],
         // Parameters (numbers, including signed)
@@ -833,164 +842,16 @@ export function registerBeatBaxLanguage(): void {
     }
   });
 
-  // Register autocomplete provider
+  // Register context-aware autocomplete (symbols, effects, modifiers)
   monaco.languages.registerCompletionItemProvider('beatbax', {
-    provideCompletionItems: (model, position) => {
-      const word = model.getWordUntilPosition(position);
-      const range = {
-        startLineNumber: position.lineNumber,
-        endLineNumber: position.lineNumber,
-        startColumn: word.startColumn,
-        endColumn: word.endColumn,
-      };
-
-      const suggestions: monaco.languages.CompletionItem[] = [];
-
-      // Top-level directives
-      const directives = [
-        { label: 'chip', detail: 'Set target chip', insertText: 'chip gameboy' },
-        { label: 'bpm', detail: 'Set tempo', insertText: 'bpm 120' },
-        {
-          label: 'stepsPerBar',
-          detail: 'Set steps per bar',
-          insertText: 'stepsPerBar 4',
-        },
-        { label: 'volume', detail: 'Set global volume', insertText: 'volume 0.8' },
-        { label: 'title', detail: 'Set song title', insertText: 'title "My Song"' },
-        { label: 'artist', detail: 'Set artist name', insertText: 'artist "Artist"' },
-      ];
-
-      // Definitions
-      const definitions = [
-        {
-          label: 'inst (pulse1)',
-          detail: 'Define pulse1 instrument',
-          insertText: 'inst ${1:name} type=pulse1 duty=50 env=12,down',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'inst (pulse2)',
-          detail: 'Define pulse2 instrument',
-          insertText: 'inst ${1:name} type=pulse2 duty=25 env=10,down',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'inst (wave)',
-          detail: 'Define wave instrument',
-          insertText: 'inst ${1:name} type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'inst (noise)',
-          detail: 'Define noise instrument',
-          insertText: 'inst ${1:name} type=noise env=12,down',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'pat',
-          detail: 'Define pattern',
-          insertText: 'pat ${1:name} = ${2:C4 E4 G4 C5}',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'seq',
-          detail: 'Define sequence',
-          insertText: 'seq ${1:name} = ${2:pattern1 pattern2}',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'channel',
-          detail: 'Define channel mapping',
-          insertText: 'channel ${1:1} => inst ${2:lead} seq ${3:main}',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-        {
-          label: 'import',
-          detail: 'Import instruments from file',
-          insertText: 'import * from "${1:lib/instruments.bax}"',
-          insertTextRules:
-            monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        },
-      ];
-
-      // Commands
-      const commands = [
-        { label: 'play', detail: 'Start playback', insertText: 'play' },
-        {
-          label: 'export json',
-          detail: 'Export to JSON',
-          insertText: 'export json "song.json"',
-        },
-        {
-          label: 'export midi',
-          detail: 'Export to MIDI',
-          insertText: 'export midi "song.mid"',
-        },
-        {
-          label: 'export uge',
-          detail: 'Export to UGE',
-          insertText: 'export uge "song.uge"',
-        },
-        {
-          label: 'export wav',
-          detail: 'Export to WAV',
-          insertText: 'export wav "song.wav"',
-        },
-        {
-          label: 'export famitracker',
-          detail: 'Export to FamiTracker Binary (.ftm) — NES only',
-          insertText: 'export famitracker "song.ftm"',
-        },
-        {
-          label: 'export famitracker-text',
-          detail: 'Export to FamiTracker Text (.txt) — NES only',
-          insertText: 'export famitracker-text "song.txt"',
-        },
-      ];
-
-      // Note names
-      const notes = [];
-      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      for (let octave = 0; octave <= 8; octave++) {
-        for (const note of noteNames) {
-          notes.push({
-            label: `${note}${octave}`,
-            detail: 'Note',
-            insertText: `${note}${octave}`,
-            kind: monaco.languages.CompletionItemKind.Value,
-          });
-        }
-      }
-
-      // Combine all suggestions
-      const allSuggestions = [
-        ...directives.map((s) => ({
-          ...s,
-          kind: monaco.languages.CompletionItemKind.Keyword,
-          range,
-        })),
-        ...definitions.map((s) => ({
-          ...s,
-          kind: monaco.languages.CompletionItemKind.Snippet,
-          range,
-        })),
-        ...commands.map((s) => ({
-          ...s,
-          kind: monaco.languages.CompletionItemKind.Function,
-          range,
-        })),
-        ...notes.map((s) => ({ ...s, range })),
-      ];
-
-      return { suggestions: allSuggestions };
-    },
+    triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
+    provideCompletionItems: (model, position) =>
+      provideBeatBaxCompletions(model, position, {
+        ast: latestAST,
+        resolvedAst: latestResolvedAst,
+        song: latestSong,
+        chip: latestChip,
+      }),
   });
 
   // Register hover provider
@@ -1109,7 +970,7 @@ export function registerBeatBaxLanguage(): void {
         channel: 'Maps a sequence to a channel. Example: `channel 1 => inst lead seq main`',
         play: 'Starts playback',
         export: 'Exports song to format. Example: `export midi "song.mid"`',
-        import: 'Imports instruments from file. Example: `import * from "lib/instruments.bax"`',
+        import: 'Imports instruments from file. Example: `import "local:lib/instruments.ins"` or `import "github:user/repo/file.ins"`',
         volume: 'Sets global volume (0.0-1.0). Example: `volume 0.8`',
         oct: 'Octave shift transform. Example: `pat:oct(+1)`',
         rot: 'Rotate transform. Example: `pat:rot(1)`',
