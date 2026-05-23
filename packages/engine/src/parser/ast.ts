@@ -143,6 +143,10 @@ export interface ParseError {
   message: string;
   loc?: SourceLocation;
   type: ParseErrorType;
+  /** Peggy syntax error: allowed tokens at failure site (when type is 'syntax'). */
+  expected?: Array<{ type?: string; text?: string; description?: string }>;
+  /** Peggy syntax error: actual character/token at failure site. */
+  found?: string | null;
 }
 
 export interface ParseResult {

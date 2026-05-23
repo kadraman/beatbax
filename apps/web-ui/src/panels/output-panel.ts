@@ -5,6 +5,11 @@
  * - Output: Info and success messages (with timestamp, chronological order)
  */
 
+import type * as monaco from 'monaco-editor';
+import {
+  applyQuickFixSuggestion,
+  getQuickFixesForProblem,
+} from '../editor/code-actions';
 import type { EventBus } from '../utils/event-bus';
 import { icon } from '../utils/icons';
 
@@ -21,22 +26,38 @@ export interface OutputMessage {
 /**
  * Manages console/error output display with tabs
  */
+export interface OutputPanelOptions {
+  singleTab?: 'problems' | 'output';
+  /** Editor model — enables Quick Fix on problem rows (right-click). */
+  getTextModel?: () => monaco.editor.ITextModel | null;
+}
+
 export class OutputPanel {
   private messages: OutputMessage[] = [];
   private container: HTMLElement;
   private maxMessages = 1000; // Prevent memory issues
   private activeTab: 'problems' | 'output' = 'problems';
   private singleTab: 'problems' | 'output' | undefined;
+  private getTextModel?: () => monaco.editor.ITextModel | null;
+  private quickFixMenu: HTMLElement | null = null;
+  private quickFixMenuDismiss?: () => void;
 
   constructor(
     container: HTMLElement,
     private eventBus: EventBus,
-    options: { singleTab?: 'problems' | 'output' } = {}
+    options: OutputPanelOptions = {},
   ) {
     this.container = container;
     this.singleTab = options.singleTab;
+    this.getTextModel = options.getTextModel;
     this.setupEventListeners();
+    this.setupQuickFixMenuLifecycle();
     this.render();
+  }
+
+  /** Close any open Problems quick-fix menu (safe to call when the panel is hidden). */
+  dismissQuickFixMenu(): void {
+    this.closeQuickFixMenu();
   }
 
   /**
@@ -213,6 +234,17 @@ export class OutputPanel {
     }
   }
 
+  /** Dismiss the floating menu when panel content or editor context changes. */
+  private setupQuickFixMenuLifecycle(): void {
+    if (!this.getTextModel || this.singleTab === 'output') return;
+
+    const dismiss = () => this.closeQuickFixMenu();
+    this.eventBus.on('parse:started', dismiss);
+    this.eventBus.on('validation:errors', dismiss);
+    this.eventBus.on('validation:warnings', dismiss);
+    this.eventBus.on('navigate:to', dismiss);
+  }
+
   /**
    * Add a message to the output
    */
@@ -261,6 +293,8 @@ export class OutputPanel {
    * Render messages to DOM with tabs
    */
   private render(): void {
+    this.closeQuickFixMenu();
+
     // Separate messages into problems and output
     const problems = this.messages.filter(msg => msg.type === 'error' || msg.type === 'warning');
     const outputs = this.messages.filter(msg => msg.type === 'info' || msg.type === 'success');
@@ -310,6 +344,7 @@ export class OutputPanel {
         btn.addEventListener('click', (e) => {
           const tab = (e.target as HTMLElement).getAttribute('data-tab') as 'problems' | 'output';
           if (tab) {
+            this.closeQuickFixMenu();
             this.activeTab = tab;
             this.render();
           }
@@ -335,6 +370,8 @@ export class OutputPanel {
         if (line > 0) this.eventBus.emit('navigate:to', { line, column });
       });
     });
+
+    this.wireProblemQuickFixes();
 
     // Scroll the output messages list to the bottom so the latest entry is visible.
     const msgList = this.container.querySelector<HTMLElement>('.output-messages');
@@ -395,10 +432,14 @@ export class OutputPanel {
       ? `<div class="output-suggestion">${icon('light-bulb', 'w-3 h-3 inline-block align-middle')} ${this.escapeHtml(msg.suggestion)}</div>`
       : '';
 
-    const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}" style="cursor:pointer" title="Click to jump to line ${line}"` : '';
+    const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}"` : '';
+    const title =
+      line > 0
+        ? 'Click to jump · Right-click for quick fixes'
+        : 'Right-click for quick fixes when available';
 
     return `
-      <div class="output-message output-${msg.type}" ${navAttrs}>
+      <div class="output-message output-${msg.type}" ${navAttrs} data-problem-message="${this.escapeAttr(msg.message)}" style="cursor:pointer" title="${this.escapeAttr(title)}">
         <div class="output-message-main">
           <span class="output-icon">${msgIcon}</span>
           ${source ? `<span class="output-source">${source}</span>` : ''}
@@ -450,5 +491,108 @@ export class OutputPanel {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  private escapeAttr(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  private closeQuickFixMenu(): void {
+    this.quickFixMenuDismiss?.();
+    this.quickFixMenuDismiss = undefined;
+    this.quickFixMenu?.remove();
+    this.quickFixMenu = null;
+  }
+
+  private wireProblemQuickFixes(): void {
+    if (!this.getTextModel || this.singleTab === 'output') return;
+
+    this.container.querySelectorAll<HTMLElement>('.output-message.output-error, .output-message.output-warning').forEach((el) => {
+      el.addEventListener('contextmenu', (event) => {
+        const model = this.getTextModel?.();
+        if (!model) return;
+
+        const message = el.getAttribute('data-problem-message') ?? '';
+        const line = parseInt(el.getAttribute('data-nav-line') ?? '0', 10);
+        const column = parseInt(el.getAttribute('data-nav-col') ?? '1', 10);
+        const loc =
+          line > 0
+            ? { start: { line, column } }
+            : undefined;
+
+        const fixes = getQuickFixesForProblem(model, message, loc);
+        if (fixes.length === 0) return;
+
+        event.preventDefault();
+        this.showQuickFixMenu(event, model, fixes, line, column);
+      });
+    });
+  }
+
+  private showQuickFixMenu(
+    event: MouseEvent,
+    model: monaco.editor.ITextModel,
+    fixes: ReturnType<typeof getQuickFixesForProblem>,
+    line: number,
+    column: number,
+  ): void {
+    this.closeQuickFixMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'problems-quick-fix-menu';
+    menu.setAttribute('role', 'menu');
+
+    for (const fix of fixes) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'problems-quick-fix-item' + (fix.isPreferred ? ' is-preferred' : '');
+      btn.textContent = fix.title;
+      btn.setAttribute('role', 'menuitem');
+      btn.addEventListener('click', () => {
+        if (line > 0) {
+          this.eventBus.emit('navigate:to', { line, column });
+        }
+        applyQuickFixSuggestion(model, fix);
+        this.closeQuickFixMenu();
+      });
+      menu.appendChild(btn);
+    }
+
+    document.body.appendChild(menu);
+    this.quickFixMenu = menu;
+
+    const pad = 4;
+    let left = event.clientX;
+    let top = event.clientY;
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - pad) {
+      left = Math.max(pad, window.innerWidth - rect.width - pad);
+      menu.style.left = `${left}px`;
+    }
+    if (rect.bottom > window.innerHeight - pad) {
+      top = Math.max(pad, window.innerHeight - rect.height - pad);
+      menu.style.top = `${top}px`;
+    }
+
+    const onDismiss = () => this.closeQuickFixMenu();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
+    setTimeout(() => {
+      document.addEventListener('click', onDismiss, { once: true });
+      document.addEventListener('contextmenu', onDismiss, { once: true });
+      document.addEventListener('keydown', onKeyDown, { once: true });
+    }, 0);
+    this.quickFixMenuDismiss = () => {
+      document.removeEventListener('click', onDismiss);
+      document.removeEventListener('contextmenu', onDismiss);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }
 }
