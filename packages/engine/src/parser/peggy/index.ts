@@ -355,9 +355,24 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 };
 
-const parseChannelRhs = (id: number, rhs: string, pats: Record<string, string[]>, loc?: SourceLocation): ChannelNode & { seqSpecTokens?: string[] } => {
+type ChannelParseExtras = { seqSpecTokens?: string[]; channelRhs?: string };
+
+const parseChannelRhs = (
+  id: number,
+  rhs: string,
+  pats: Record<string, string[]>,
+  loc?: SourceLocation,
+): ChannelNode & ChannelParseExtras => {
   const tokens = rhs.split(/\s+/);
-  const ch: { id: number; inst?: string; pat?: string | string[]; speed?: number; seqSpecTokens?: string[]; loc?: SourceLocation } = { id, loc };
+  const ch: {
+    id: number;
+    inst?: string;
+    pat?: string | string[];
+    speed?: number;
+    seqSpecTokens?: string[];
+    channelRhs?: string;
+    loc?: SourceLocation;
+  } = { id, loc, channelRhs: rhs };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === 'inst' && tokens[i + 1]) {
@@ -554,6 +569,7 @@ function reportUnknownTransform(
   context: string,
   itemName: string,
   tr: SequenceTransform,
+  loc?: SourceLocation,
 ) {
   const raw = tr.raw ?? '';
   const suggestion = suggestTransformRaw(raw);
@@ -562,8 +578,70 @@ function reportUnknownTransform(
     'warning',
     'parser',
     `Unknown transform '${raw}' on '${itemName}'${context}.${hint} Supported transforms: ${TRANSFORM_HELP}`,
-    tr.loc,
+    loc ?? tr.loc,
   );
+}
+
+/** Narrow squiggle to a modifier substring on a sequence item line. */
+function locForSequenceItemModifier(
+  item: SequenceItem,
+  modRaw: string,
+): SourceLocation | undefined {
+  const base = item.loc;
+  if (!base?.start) return undefined;
+  const raw = item.raw ?? item.name;
+  const colon = raw.indexOf(':');
+  if (colon < 0) return base;
+  const modStart = raw.indexOf(modRaw, colon + 1);
+  if (modStart < 0) return base;
+  const startColumn = base.start.column + modStart;
+  const endColumn = startColumn + modRaw.length;
+  return {
+    start: { line: base.start.line, column: startColumn, offset: base.start.offset },
+    end: {
+      line: base.end?.line ?? base.start.line,
+      column: endColumn,
+      offset: base.end?.offset ?? base.start.offset,
+    },
+  };
+}
+
+/** Loc for `name:badmod` on a channel `=> inst … seq …` line (uses stored channelRhs + stmt loc). */
+function locForChannelSeqModifier(
+  ch: ChannelNode & ChannelParseExtras,
+  tok: string,
+  modRaw: string,
+): SourceLocation | undefined {
+  const base = ch.loc;
+  if (!base?.start) return undefined;
+
+  const rhs = ch.channelRhs?.trim();
+  if (!rhs) return base;
+
+  let modStartInRhs = -1;
+  const tokPos = rhs.indexOf(tok);
+  if (tokPos >= 0) {
+    const colon = tok.indexOf(':');
+    const modInTok = colon >= 0 ? tok.indexOf(modRaw, colon + 1) : -1;
+    if (modInTok >= 0) modStartInRhs = tokPos + modInTok;
+  }
+  if (modStartInRhs < 0) {
+    const needle = `:${modRaw}`;
+    const i = rhs.indexOf(needle);
+    if (i >= 0) modStartInRhs = i + 1;
+  }
+  if (modStartInRhs < 0) return base;
+
+  const line = base.start.line;
+  const rhsStartColumn = base.end.column - rhs.length;
+  if (rhsStartColumn < base.start.column) return base;
+
+  const startColumn = rhsStartColumn + modStartInRhs;
+  const endColumn = startColumn + modRaw.length;
+  return {
+    start: { line, column: startColumn, offset: base.start.offset },
+    end: { line, column: endColumn, offset: base.end.offset },
+  };
 }
 
 function validateUnknownSequenceTransforms(
@@ -575,24 +653,40 @@ function validateUnknownSequenceTransforms(
     for (const item of items) {
       for (const tr of item.transforms ?? []) {
         if (tr.kind === 'unknown') {
-          reportUnknownTransform(diagFn, ` in sequence '${seqName}'`, item.name, tr);
+          const loc =
+            tr.loc ?? locForSequenceItemModifier(item, tr.raw ?? '');
+          reportUnknownTransform(
+            diagFn,
+            ` in sequence '${seqName}'`,
+            item.name,
+            tr,
+            loc,
+          );
         }
       }
     }
   }
 
   for (const ch of channels) {
-    const tokens = (ch as ChannelNode & { seqSpecTokens?: string[] }).seqSpecTokens;
+    const chExt = ch as ChannelNode & ChannelParseExtras;
+    const tokens = chExt.seqSpecTokens;
     if (!tokens?.length) continue;
     for (const tok of tokens) {
       const parts = splitTopLevel(tok, ':');
       if (parts.length <= 1) continue;
       const itemName = parts[0];
       for (const modRaw of parts.slice(1)) {
-        const transforms = parseSeqTransforms([{ raw: modRaw }]);
+        const modLoc = locForChannelSeqModifier(chExt, tok, modRaw);
+        const transforms = parseSeqTransforms([{ raw: modRaw, loc: modLoc ?? ch.loc }]);
         for (const tr of transforms) {
           if (tr.kind === 'unknown') {
-            reportUnknownTransform(diagFn, ` on channel ${ch.id}`, itemName, tr);
+            reportUnknownTransform(
+              diagFn,
+              ` on channel ${ch.id}`,
+              itemName,
+              tr,
+              modLoc ?? ch.loc,
+            );
           }
         }
       }

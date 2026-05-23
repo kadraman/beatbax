@@ -74,7 +74,7 @@ function markerSpan(marker: monaco.editor.IMarkerData): monaco.IRange {
 }
 
 function isOperatorLiteral(s: string): boolean {
-  return /^=>|=|[<>]+$/.test(s);
+  return /^(=>|=|[<>]+)$/.test(s);
 }
 
 /**

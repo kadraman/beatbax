@@ -54,6 +54,27 @@ describe('peggyExpectedFixes', () => {
     expect(fixes[0].edits[0].text).toBe('seq');
   });
 
+  test('does not treat tokens containing = or trailing brackets as operators', () => {
+    const model = mockModel(['chip foo>', 'pat x=y = C4']);
+    const chipFixes = peggyExpectedFixes(
+      model,
+      marker(1, 6),
+      'Expected "chip" but "foo>" found.',
+      { expectedLabels: ['chip'], found: 'foo>' },
+    );
+    expect(chipFixes[0].title).toBe("Replace with 'chip'");
+    expect(chipFixes.some((f) => f.title.startsWith('Insert'))).toBe(false);
+
+    const patFixes = peggyExpectedFixes(
+      model,
+      marker(2, 6),
+      'Expected "=" but "x=y" found.',
+      { expectedLabels: ['='], found: 'x=y' },
+    );
+    expect(patFixes[0].title).toBe("Replace with '='");
+    expect(patFixes.some((f) => f.title.startsWith('Insert'))).toBe(false);
+  });
+
   test('inserts => on channel line', () => {
     const model = mockModel(['channel 1 inst lead seq main']);
     const fixes = statementRecoveryFixes(

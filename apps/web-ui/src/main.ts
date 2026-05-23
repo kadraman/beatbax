@@ -40,6 +40,7 @@ import {
 
 // Core / editor imports
 import { eventBus } from './utils/event-bus';
+import type { ValidationIssue } from './types/validation';
 import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations } from './editor';
 import {
   createDiagnosticsManager,
@@ -239,7 +240,12 @@ editor.editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; co
 spinner.hideBoot();
 
 // ─── Bottom pane: Problems | Output tabs ─────────────────────────────────────
-const bottomTabs = buildBottomTabs(outputPane, appLayout.layout);
+let problemsPanel: OutputPanel;
+const bottomTabs = buildBottomTabs(outputPane, appLayout.layout, {
+  onActiveTabChange: (tab) => {
+    if (tab !== 'problems') problemsPanel?.dismissQuickFixMenu();
+  },
+});
 
 const problemsContainer = document.createElement('div');
 problemsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
@@ -276,7 +282,7 @@ settingDebugOverlayPosition.subscribe((pos) => debugOverlay.setPosition(pos));
 settingDebugOverlayOpacity.subscribe((pct) => debugOverlay.setOpacity(pct));
 settingDebugOverlayFontSize.subscribe((px) => debugOverlay.setFontSize(px));
 
-const problemsPanel = new OutputPanel(problemsContainer, eventBus, {
+problemsPanel = new OutputPanel(problemsContainer, eventBus, {
   singleTab: 'problems',
   getTextModel: () => editor.editor.getModel(),
 });
@@ -1253,8 +1259,8 @@ async function emitParse(content: string): Promise<void> {
     const ast = parseResult.ast;
 
     // Split parser diagnostics into errors and warnings
-    const errors: Array<{ component: string; message: string; loc?: any }> = [];
-    const warnings: Array<{ component: string; message: string; loc?: any }> = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
     for (const e of parseResult.errors) {
       errors.push({
         component: 'parser',
@@ -1301,7 +1307,7 @@ async function emitParse(content: string): Promise<void> {
     let resolvedAst: typeof ast = ast;
     try {
       const resolveSongOpts = {
-        onWarn: (w: { component: string; message: string; loc?: any }) => {
+        onWarn: (w: ValidationIssue) => {
           warnings.push(w);
         },
       };

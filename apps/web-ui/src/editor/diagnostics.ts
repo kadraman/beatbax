@@ -4,6 +4,7 @@
  */
 
 import * as monaco from 'monaco-editor';
+import type { ValidationIssue } from '../types/validation';
 import { eventBus } from '../utils/event-bus';
 import { encodePeggyHintMarkerCode } from './peggy-marker-code';
 
@@ -114,30 +115,23 @@ export function parseErrorToDiagnostic(error: any, sourceCode?: string): Diagnos
  * Convert validation diagnostics (errors and/or warnings) to Monaco diagnostics format.
  * Items with `level === 'error'` get red squiggles; all others get yellow.
  */
-export function warningsToDiagnostics(
-  warnings: Array<{
-    component: string;
-    message: string;
-    loc?: any;
-    level?: string;
-    expected?: Array<{ type?: string; text?: string; description?: string }>;
-    found?: string | null;
-  }>
-): Diagnostic[] {
+export function warningsToDiagnostics(warnings: ValidationIssue[]): Diagnostic[] {
   return warnings.map((w) => {
-    const severity = w.level === 'error' ? 'error' : 'warning';
+    const severity: Diagnostic['severity'] =
+      w.level === 'error' ? 'error' : 'warning';
     const base = {
       message: `[${w.component}] ${w.message}`,
       severity,
       peggyExpected: w.expected,
       peggyFound: w.found,
     };
-    if (w.loc && w.loc.start) {
+    if (w.loc?.start) {
+      const startLine = w.loc.start.line ?? 1;
       return {
         ...base,
-        startLine: w.loc.start.line,
+        startLine,
         startColumn: w.loc.start.column ?? 1,
-        endLine: w.loc.end?.line ?? w.loc.start.line,
+        endLine: w.loc.end?.line ?? startLine,
         endColumn: w.loc.end?.column ?? (w.loc.start.column ?? 1) + 1,
       };
     }

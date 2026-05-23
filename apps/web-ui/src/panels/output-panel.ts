@@ -51,7 +51,13 @@ export class OutputPanel {
     this.singleTab = options.singleTab;
     this.getTextModel = options.getTextModel;
     this.setupEventListeners();
+    this.setupQuickFixMenuLifecycle();
     this.render();
+  }
+
+  /** Close any open Problems quick-fix menu (safe to call when the panel is hidden). */
+  dismissQuickFixMenu(): void {
+    this.closeQuickFixMenu();
   }
 
   /**
@@ -228,6 +234,17 @@ export class OutputPanel {
     }
   }
 
+  /** Dismiss the floating menu when panel content or editor context changes. */
+  private setupQuickFixMenuLifecycle(): void {
+    if (!this.getTextModel || this.singleTab === 'output') return;
+
+    const dismiss = () => this.closeQuickFixMenu();
+    this.eventBus.on('parse:started', dismiss);
+    this.eventBus.on('validation:errors', dismiss);
+    this.eventBus.on('validation:warnings', dismiss);
+    this.eventBus.on('navigate:to', dismiss);
+  }
+
   /**
    * Add a message to the output
    */
@@ -276,6 +293,8 @@ export class OutputPanel {
    * Render messages to DOM with tabs
    */
   private render(): void {
+    this.closeQuickFixMenu();
+
     // Separate messages into problems and output
     const problems = this.messages.filter(msg => msg.type === 'error' || msg.type === 'warning');
     const outputs = this.messages.filter(msg => msg.type === 'info' || msg.type === 'success');
@@ -325,6 +344,7 @@ export class OutputPanel {
         btn.addEventListener('click', (e) => {
           const tab = (e.target as HTMLElement).getAttribute('data-tab') as 'problems' | 'output';
           if (tab) {
+            this.closeQuickFixMenu();
             this.activeTab = tab;
             this.render();
           }
