@@ -343,7 +343,19 @@ SeqModBody
   = $(IdentifierWithArgs / Identifier)
 
 IdentifierWithArgs
-  = id:Identifier "(" body:$( (!")" .)* )")" { return id + '(' + body + ')'; }
+  = id:Identifier "(" body:BalancedArgContent ")" { return id + '(' + body + ')'; }
+
+// Captures argument content allowing one level of nested parentheses,
+// so modifiers like every(2,oct(+1)) parse correctly.
+BalancedArgContent
+  = $(BalancedArgPart*)
+
+BalancedArgPart
+  = InnerBalancedParen
+  / (!(")" / Newline) .)
+
+InnerBalancedParen
+  = "(" (!(")" / Newline) .)* ")"
 
 // -----------------------------
 // Lexical helpers

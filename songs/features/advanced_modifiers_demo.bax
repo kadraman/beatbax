@@ -1,9 +1,9 @@
 ## advanced_modifiers_demo.bax
-## Demonstrates tier-1 advanced BeatBax sequence modifiers.
+## Demonstrates tier-1 and tier-2 advanced BeatBax sequence modifiers.
 
 song name "Game Boy Advanced Modifiers Demo"
 song artist "BeatBax"
-song description "Exercises rot/rotate, pal/palindrome, arp, clamp/fold, mute/rest, and transpose alias."
+song description "Exercises rot/rotate, pal/palindrome, arp, clamp/fold, mute/rest, transpose alias, invert/inv, every, off/lag, pick, chunk, and shuffle."
 song tags "features,gameboy,modifiers,advanced"
 
 chip gameboy
@@ -24,6 +24,10 @@ pat out_of_range = A2 C4 E6 A6
 pat bassline = C2 . G2 .
 pat harmony = C5 E5 G5 E5
 pat drums = kit . kit .
+
+# -----------------------------------------------------------------------
+# Tier-1 modifiers (original demos)
+# -----------------------------------------------------------------------
 
 # rot(N) / rotate(N): cyclic left-shift by N tokens.
 # lead_core becomes D4 E4 G4 C4 (downbeat moves to the second note).
@@ -61,12 +65,62 @@ seq demo_rest = lead_core:rest
 # lead_core becomes D4 E4 F#4 A4.
 seq demo_transpose = lead_core:transpose(+2)
 
+# -----------------------------------------------------------------------
+# Tier-2 modifiers (new)
+# -----------------------------------------------------------------------
+
+# invert / inv: invert the pitch contour around the first note (pivot).
+# Each note's interval from the pivot is negated, creating a mirror image.
+# lead_core C4 D4 E4 G4 → C4 A#3 G#3 F3
+# (pivot=C4=60; D4=62→2*60-62=58=A#3; E4=64→56=G#3; G4=67→53=F3).
+seq demo_invert = lead_core:invert
+
+# inv is an alias for invert. Combine with rot to create call-and-response.
+seq demo_inv = lead_core:rot(2):inv
+
+# every(N, MOD): apply MOD to every Nth token (1-based).
+# Tokens at positions 2, 4, 6, ... receive the modifier; others are unchanged.
+# Here the 2nd and 4th notes of lead_core jump up an octave for an alternating-octave bass.
+seq demo_every = lead_core:every(2,oct(+1))
+
+# every also works with simple mods like mute: silences positions 2 and 4.
+seq demo_every_mute = lead_core:every(2,mute)
+
+# off(N) / lag(N): prepend N rest tokens before the pattern.
+# Useful for pickup timing—lead_core enters two steps late within the bar.
+seq demo_off = lead_core:off(2)
+
+# lag is an alias for off. Combine with rot to create staggered canon-like entries.
+seq demo_lag = lead_core:rot(1):lag(1)
+
+# pick(1,3,5,...): keep only the specified 1-based token positions.
+# From a 4-note motif, pick positions 1 and 3 to create a sparse accent pattern.
+seq demo_pick = lead_core:pick(1,3)
+
+# pick(2,4) extracts the offbeats of the same motif.
+seq demo_pick_offbeats = lead_core:pick(2,4)
+
+# chunk(N): split tokens into chunks of N and reverse each chunk.
+# lead_core [C4 D4 E4 G4] with chunk(2) → [D4 C4 G4 E4] (each pair reversed).
+seq demo_chunk = lead_core:chunk(2)
+
+# chunk can reshape longer patterns. Combine with rot for phrase-level variation.
+seq demo_chunk_rot = lead_core:rot(1):chunk(2)
+
+# shuffle(seed): deterministic Fisher-Yates reorder with a fixed seed.
+# The seed guarantees identical output on every run and export.
+# Use distinct seeds for different sections while keeping them all reproducible.
+seq demo_shuffle = lead_core:shuffle(42)
+
+# Different seed → different ordering, still fully deterministic.
+seq demo_shuffle_b = lead_core:shuffle(7)
+
 seq bass_seq = bassline bassline bassline bassline
 seq wave_seq = harmony harmony harmony harmony
 seq drum_seq = drums drums drums drums
 
-# Channel 1 walks through each advanced modifier demo in the order defined above.
-channel 1 => inst lead seq demo_rot demo_rotate demo_pal demo_palindrome demo_arp demo_clamp demo_fold demo_mute demo_rest demo_transpose
+# Channel 1: walks through all tier-1 demos first, then all tier-2 demos.
+channel 1 => inst lead seq demo_rot demo_rotate demo_pal demo_palindrome demo_arp demo_clamp demo_fold demo_mute demo_rest demo_transpose demo_invert demo_inv demo_every demo_every_mute demo_off demo_lag demo_pick demo_pick_offbeats demo_chunk demo_chunk_rot demo_shuffle demo_shuffle_b
 channel 2 => inst bass seq bass_seq bass_seq bass_seq
 channel 3 => inst wave1 seq wave_seq wave_seq wave_seq
 channel 4 => inst kit seq drum_seq drum_seq drum_seq
