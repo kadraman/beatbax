@@ -202,7 +202,7 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
     }
 
     // every(N, MOD): apply MOD to every Nth token (1-based: positions N, 2N, 3N, ...).
-    const mEvery = mod.match(/^every\((\d+),\s*(.+)\)$/i);
+    const mEvery = mod.match(/^every\((\d+),(.+)\)$/i);
     if (mEvery) {
       const n = parseInt(mEvery[1], 10);
       const innerMod = mEvery[2].trim();
