@@ -70,6 +70,27 @@ function parseArpOffsets(raw: string): number[] | null {
   return normalizeArpOffsets(offsets);
 }
 
+/** Apply a modifier to one token for every(N,MOD); must stay token-local. */
+function applyEveryInnerMod(
+  token: string,
+  innerMod: string,
+  presets?: Record<string, string>,
+  loc?: SourceLocation,
+): string {
+  const res = applyModsToTokens([token], [innerMod], presets, loc);
+  const instSet = res.instOverride != null && res.instOverride !== '';
+  const panSet = res.panOverride !== undefined;
+  if (res.tokens.length !== 1 || instSet || panSet) {
+    warn(
+      'transforms',
+      `every(...) inner modifier '${innerMod}' must produce exactly one token with no inst/pan override (got ${res.tokens.length} token(s)${instSet ? ', inst override' : ''}${panSet ? ', pan override' : ''}). Token left unchanged.`,
+      { loc },
+    );
+    return token;
+  }
+  return res.tokens[0];
+}
+
 export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>, loc?: SourceLocation): ModResult {
   let tokens = tokensIn.slice();
   let semitones = 0;
@@ -209,8 +230,7 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
       if (n >= 1 && innerMod) {
         tokens = tokens.map((t, i) => {
           if ((i + 1) % n !== 0) return t;
-          const res = applyModsToTokens([t], [innerMod], presets, loc);
-          return res.tokens.length > 0 ? res.tokens[0] : t;
+          return applyEveryInnerMod(t, innerMod, presets, loc);
         });
       }
       continue;

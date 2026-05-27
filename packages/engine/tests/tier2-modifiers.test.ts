@@ -51,6 +51,14 @@ describe('tier-2 modifiers', () => {
     expect(applyModsToTokens(base, ['every(1,oct(-1))']).tokens).toEqual(['C3', 'D3', 'E3']);
   });
 
+  test('every(N,MOD) rejects inner modifiers that are not token-local', () => {
+    const base = ['C4', 'D4', 'E4', 'G4'];
+    expect(applyModsToTokens(base, ['every(2,inst(bass))']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,pan(R))']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,slow)']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,off(1))']).tokens).toEqual(base);
+  });
+
   // -----------------------------------------------------------------------
   // off(N) / lag(N)
   // -----------------------------------------------------------------------

@@ -75,7 +75,7 @@ pat perc     = C6 . . C6` },
       { kind: 'snippet', label: 'Define a sequence', code:
 `seq main  = melody bassline melody perc
 seq intro = melody:inst(bass) bassline:oct(-1)
-seq laggy = lead:rot(1):lag(1)   # chained modifiers` },
+seq canon = melody:rot(1):lag(1)   # chained modifiers` },
       { kind: 'snippet', label: 'Assign channels and play', code:
 `channel 1 => inst lead  seq main
 channel 2 => inst bass  seq main:oct(-1)

@@ -129,6 +129,20 @@ describe('applyModsToTokens', () => {
     expect(res.tokens).toEqual(['C4', 'D4', '.', 'G4', 'A4', '.']);
   });
 
+  test('every(N,MOD) rejects non-token-local inner modifiers', () => {
+    const base = ['C4', 'D4', 'E4', 'G4'];
+    expect(applyModsToTokens(base, ['every(2,inst(bass))']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,pan(R))']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,slow)']).tokens).toEqual(base);
+    expect(applyModsToTokens(base, ['every(2,off(1))']).tokens).toEqual(base);
+  });
+
+  test('every(N,MOD) still applies token-local inner modifiers', () => {
+    const base = ['C4', 'D4', 'E4', 'G4'];
+    expect(applyModsToTokens(base, ['every(2,oct(+1))']).tokens).toEqual(['C4', 'D5', 'E4', 'G5']);
+    expect(applyModsToTokens(base, ['every(2,mute)']).tokens).toEqual(['C4', '.', 'E4', '.']);
+  });
+
   test('off(N)/lag(N) prepends N rest tokens', () => {
     const base = ['C4', 'E4'];
     expect(applyModsToTokens(base, ['off(2)']).tokens).toEqual(['.', '.', 'C4', 'E4']);

@@ -346,16 +346,24 @@ IdentifierWithArgs
   = id:Identifier "(" body:BalancedArgContent ")" { return id + '(' + body + ')'; }
 
 // Captures argument content allowing one level of nested parentheses,
-// so modifiers like every(2,oct(+1)) parse correctly.
+// so modifiers like every(2,oct(+1)) parse correctly. Deeper nesting
+// (e.g. every(2,foo(a(b)))) is not supported — inner groups may not
+// contain '(' and unmatched ')' ends the modifier argument list.
 BalancedArgContent
   = $(BalancedArgPart*)
 
 BalancedArgPart
   = InnerBalancedParen
-  / (!(")" / Newline) .)
+  / BalancedArgChar
+
+BalancedArgChar
+  = !("(" / ")" / Newline) .
 
 InnerBalancedParen
-  = "(" (!(")" / Newline) .)* ")"
+  = "(" InnerBalancedParenBody* ")"
+
+InnerBalancedParenBody
+  = !("(" / ")" / Newline) .
 
 // -----------------------------
 // Lexical helpers
