@@ -1,5 +1,47 @@
 # @beatbax/engine
 
+## 0.17.0
+
+### Minor Changes
+
+- 7dfccea: Deprecated time and ticksPerStep in favor of stepsPerBar.
+- b6e80c9: Add advanced modifier support in the engine pipeline and exports.
+  - Parser/AST and structured parsing updates for advanced modifiers.
+  - Sequence/expansion and resolver updates to apply advanced modifier behavior deterministically.
+  - UGE writer and related effect/audio utility updates for modifier-aware export/runtime behavior.
+  - Regression and feature tests for advanced modifiers and arpeggio offset handling.
+
+- b739513: Remove the `arrange` directive and its `defaults(...)` modifier from the BeatBax language.
+  - Parser, AST, and resolver no longer accept or expand `arrange` blocks.
+  - Multi-channel layouts use `channel` mappings with comma-separated `seq` items (see `songs/features/sequence_demo.bax`).
+  - Songs that used `arrange` must be migrated before they will parse.
+
+- 738e2e3: Add tier-2 sequence modifiers and harden modifier parsing and expansion.
+  - **Tier-2 modifiers** in `refExpander`, structured parsing, and AST: `invert`/`inv`, `every(N,MOD)`, `off(N)`/`lag(N)`, `pick(...)`, `chunk(N)`, and `shuffle(seed)`. Modifiers chain left-to-right with colons (e.g. `lead_core:rot(1):lag(1)`).
+  - **`every(N,MOD)`** applies only token-local inner modifiers: requires exactly one output token and rejects `inst`/`pan` overrides; warns and leaves the token unchanged otherwise.
+  - **Peggy grammar** for modifier arguments allows one level of nested parentheses (e.g. `every(2,oct(+1))`); deeper nesting is not supported and no longer mis-parsed as a truncated body.
+  - **Demo and tests**: rework `songs/features/advanced_modifiers_demo.bax` with a playable arrangement plus `demo_*` reference seqs; add `modifier-chain`, `tier2-modifiers`, and parser regression coverage.
+
+### Patch Changes
+
+- 13e278f: Log Node audio fallback failures before continuing to the next playback backend, and ensure runtime failures in `speaker` and `play-sound` correctly fall through to the system player.
+- 115eacb: Improve Peggy parser diagnostics for mistyped sequence transforms, including better suggestions and locations, and update CLI test resolution to use local engine TypeScript sources reliably.
+- e195402: Fix to prevent multiple channels with the same number being used.
+- 2b6bbbe: Improve WAV-to-DMC conversion correctness, validation, and paste-safe output.
+  - NES DMC encoding:
+    - Removed unintended global NES clock-region mutation during encoding.
+    - Capped pre-resample and resampled working lengths from maxBytes and rateHz to avoid unnecessary work on long inputs.
+    - Reused shared greedy DMC bit-selection logic to remove duplicated encoder logic.
+    - Tightened emitted instrument-name sanitization to match identifier rules (no leading digits).
+    - Made emitted local sample refs paste-safe by percent-encoding spaces and decoding on load.
+  - CLI wav2dmc:
+    - Fixed -q/--rate alias precedence over defaulted --dmc-rate.
+    - Changed --dmc-rate handling to reject invalid, non-integer, or out-of-range values instead of silently clamping/defaulting.
+    - Added integration coverage for invalid rate inputs and spaced output paths in --emit-inst output.
+  - Engine WAV reader:
+    - Fixed truncated data-chunk handling to size output by bytes actually present, avoiding silent zero-padded tails.
+    - Added focused wavReader truncation regression tests.
+
 ## 0.16.0
 
 ### Minor Changes
