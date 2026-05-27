@@ -70,6 +70,27 @@ function parseArpOffsets(raw: string): number[] | null {
   return normalizeArpOffsets(offsets);
 }
 
+/** Apply a modifier to one token for every(N,MOD); must stay token-local. */
+function applyEveryInnerMod(
+  token: string,
+  innerMod: string,
+  presets?: Record<string, string>,
+  loc?: SourceLocation,
+): string {
+  const res = applyModsToTokens([token], [innerMod], presets, loc);
+  const instSet = res.instOverride != null && res.instOverride !== '';
+  const panSet = res.panOverride !== undefined;
+  if (res.tokens.length !== 1 || instSet || panSet) {
+    warn(
+      'transforms',
+      `every(...) inner modifier '${innerMod}' must produce exactly one token with no inst/pan override (got ${res.tokens.length} token(s)${instSet ? ', inst override' : ''}${panSet ? ', pan override' : ''}). Token left unchanged.`,
+      { loc },
+    );
+    return token;
+  }
+  return res.tokens[0];
+}
+
 export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: Record<string, string>, loc?: SourceLocation): ModResult {
   let tokens = tokensIn.slice();
   let semitones = 0;
@@ -180,9 +201,88 @@ export function applyModsToTokens(tokensIn: string[], mods: string[], presets?: 
       || mod.match(/^trans\(([+-]?\d+)\)$/i)
       || mod.match(/^transpose\(([+-]?\d+)\)$/i);
     if (mSem) { semitones += parseInt(mSem[1], 10); continue; }
-    
+
+    // --- Tier-2 modifiers ---
+
+    // invert / inv: invert pitch contour around the first note (pivot).
+    // Each subsequent note's interval from the pivot is negated.
+    if (/^inv(?:ert)?$/i.test(mod)) {
+      let pivot: number | null = null;
+      tokens = tokens.map(t => {
+        if (typeof t !== 'string' || t === '.' || t === '_' || t === '-') return t;
+        const m = t.match(/^([^<]+)(<[^>]*>)?$/);
+        if (!m) return t;
+        const base = m[1];
+        const effectPart = m[2] || '';
+        const midi = noteToMidi(base);
+        if (midi === null) return t;
+        if (pivot === null) { pivot = midi; return t; }
+        return `${midiToNote(2 * pivot - midi)}${effectPart}`;
+      });
+      continue;
+    }
+
+    // every(N, MOD): apply MOD to every Nth token (1-based: positions N, 2N, 3N, ...).
+    const mEvery = mod.match(/^every\((\d+),(.+)\)$/i);
+    if (mEvery) {
+      const n = parseInt(mEvery[1], 10);
+      const innerMod = mEvery[2].trim();
+      if (n >= 1 && innerMod) {
+        tokens = tokens.map((t, i) => {
+          if ((i + 1) % n !== 0) return t;
+          return applyEveryInnerMod(t, innerMod, presets, loc);
+        });
+      }
+      continue;
+    }
+
+    // off(N) / lag(N): prepend N rest tokens before the pattern.
+    const mOff = mod.match(/^(?:off|lag)\((\d+)\)$/i);
+    if (mOff) {
+      const n = parseInt(mOff[1], 10);
+      if (n > 0) tokens = Array(n).fill('.').concat(tokens);
+      continue;
+    }
+
+    // pick(1,3,5,...): keep only the specified 1-based indices (out-of-range ignored).
+    const mPick = mod.match(/^pick\(([^)]+)\)$/i);
+    if (mPick) {
+      const indices = mPick[1].split(',').map(s => parseInt(s.trim(), 10) - 1);
+      tokens = indices.filter(i => i >= 0 && i < tokens.length).map(i => tokens[i]);
+      continue;
+    }
+
+    // chunk(N): split tokens into chunks of N and reverse each chunk.
+    const mChunk = mod.match(/^chunk\((\d+)\)$/i);
+    if (mChunk) {
+      const n = parseInt(mChunk[1], 10);
+      if (n >= 1) {
+        const out: string[] = [];
+        for (let i = 0; i < tokens.length; i += n) {
+          out.push(...tokens.slice(i, i + n).reverse());
+        }
+        tokens = out;
+      }
+      continue;
+    }
+
+    // shuffle(seed): deterministic Fisher-Yates shuffle using a seeded LCG.
+    // A seed is required to guarantee reproducible export.
+    const mShuffle = mod.match(/^shuffle\((\d+)\)$/i);
+    if (mShuffle) {
+      const arr = tokens.slice();
+      let s = parseInt(mShuffle[1], 10) >>> 0;
+      for (let i = arr.length - 1; i > 0; i--) {
+        s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+        const j = s % (i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      tokens = arr;
+      continue;
+    }
+
     // Unknown transform - emit warning
-    warn('transforms', `Unknown transform '${mod}' will be ignored. Supported transforms: oct(N), rot(N)/rotate(N), rev, pal/palindrome, slow(N), fast(N), arp(...), clamp(min,max), fold(min,max), mute/rest, inst(name), pan(value), semitone(N)/st(N)/trans(N)/transpose(N), +N/-N. For repetition, use pattern*N syntax instead of :rep(N).`, { loc });
+    warn('transforms', `Unknown transform '${mod}' will be ignored. Supported transforms: oct(N), rot(N)/rotate(N), rev, pal/palindrome, slow(N), fast(N), arp(...), clamp(min,max), fold(min,max), mute/rest, inst(name), pan(value), semitone(N)/st(N)/trans(N)/transpose(N), +N/-N, invert/inv, every(N,MOD), off(N)/lag(N), pick(...), chunk(N), shuffle(seed). For repetition, use pattern*N syntax instead of :rep(N).`, { loc });
   }
 
   if (semitones !== 0 || octaves !== 0) {

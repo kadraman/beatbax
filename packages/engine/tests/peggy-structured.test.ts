@@ -42,6 +42,44 @@ channel 1 => inst lead seq main
     expect(unknown?.loc?.start?.column).toBeGreaterThan(1);
   });
 
+  test('tier-2 transforms are not reported as unknown', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+pat core = C4 D4 E4
+seq main = core:invert core:every(2,oct(+1)) core:off(1) core:pick(1,3) core:chunk(2) core:shuffle(42)
+channel 1 => inst lead seq main
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.filter((d) => d.message.includes('Unknown transform')) ?? [];
+    expect(unknown).toEqual([]);
+  });
+
+  test('every(2,oct(+1)) captures nested inner modifier args', () => {
+    const src = `
+chip gameboy
+pat p = C4 D4
+seq s = p:every(2,oct(+1))
+`;
+    const { ast } = parseWithPeggy(src);
+    const every = ast.sequenceItems?.s?.[0]?.transforms?.find((t) => t.kind === 'every');
+    expect(every?.raw).toBe('every(2,oct(+1))');
+    expect(every?.value).toBe('2,oct(+1)');
+  });
+
+  test('modifier args reject deeper than one level of parentheses', () => {
+    const src = `
+chip gameboy
+pat p = C4
+seq s = p:every(2,foo(a(b)))
+`;
+    const result = parseWithPeggy(src);
+    expect(result.hasErrors).toBe(true);
+    expect(result.errors[0]?.message).toContain('(2,foo(a(b)))');
+    expect(result.ast.sequenceItems?.s?.[0]?.transforms?.[0]?.raw).toBe('every');
+    expect(result.ast.sequenceItems?.s?.[0]?.transforms?.[0]?.raw).not.toBe('every(2,foo(a(b)');
+  });
+
   test('unknown transform on channel seq spec is located on the channel line', () => {
     const src = `
 chip gameboy

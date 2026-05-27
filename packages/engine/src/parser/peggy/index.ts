@@ -534,10 +534,11 @@ function suggestKeyword(word: string): string | null {
 const VALID_TRANSFORM_NAMES = [
   'oct', 'rot', 'rotate', 'rev', 'pal', 'palindrome', 'slow', 'fast', 'arp',
   'clamp', 'fold', 'mute', 'rest', 'inst', 'pan', 'semitone', 'st', 'trans', 'transpose',
+  'invert', 'inv', 'every', 'off', 'lag', 'pick', 'chunk', 'shuffle',
 ];
 
 const TRANSFORM_HELP =
-  'oct(N), rot(N)/rotate(N), rev, pal/palindrome, slow(N), fast(N), transpose(N)/+N/-N, arp(...), clamp(min,max), fold(min,max), mute/rest, inst(name), pan(value).';
+  'oct(N), rot(N)/rotate(N), rev, pal/palindrome, slow(N), fast(N), transpose(N)/+N/-N, arp(...), clamp(min,max), fold(min,max), mute/rest, inst(name), pan(value), invert/inv, every(N,MOD), off(N)/lag(N), pick(...), chunk(N), shuffle(seed).';
 
 function suggestTransformName(word: string): string | null {
   const lower = word.toLowerCase();

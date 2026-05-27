@@ -96,6 +96,21 @@ export const parseSeqTransforms = (mods: RawSeqModifier[]): SequenceTransform[] 
     if (mTrans) { out.push({ kind: 'transpose', value: parseInt(mTrans[1], 10), raw, loc }); continue; }
     const mSem = raw.match(/^semitone\(([+-]?\d+)\)$/i) || raw.match(/^st\(([+-]?\d+)\)$/i) || raw.match(/^trans\(([+-]?\d+)\)$/i) || raw.match(/^transpose\(([+-]?\d+)\)$/i);
     if (mSem) { out.push({ kind: 'transpose', value: parseInt(mSem[1], 10), raw, loc }); continue; }
+    // Tier-2 (also applied in refExpander.applyModsToTokens)
+    if (/^inv(?:ert)?$/i.test(raw)) { out.push({ kind: 'invert', raw, loc }); continue; }
+    const mEvery = raw.match(/^every\((\d+),(.+)\)$/i);
+    if (mEvery) {
+      out.push({ kind: 'every', value: `${mEvery[1]},${mEvery[2].trim()}`, raw, loc });
+      continue;
+    }
+    const mOff = raw.match(/^(?:off|lag)\((\d+)\)$/i);
+    if (mOff) { out.push({ kind: 'off', value: parseInt(mOff[1], 10), raw, loc }); continue; }
+    const mPick = raw.match(/^pick\(([^)]+)\)$/i);
+    if (mPick) { out.push({ kind: 'pick', value: mPick[1].trim(), raw, loc }); continue; }
+    const mChunk = raw.match(/^chunk\((\d+)\)$/i);
+    if (mChunk) { out.push({ kind: 'chunk', value: parseInt(mChunk[1], 10), raw, loc }); continue; }
+    const mShuffle = raw.match(/^shuffle\((\d+)\)$/i);
+    if (mShuffle) { out.push({ kind: 'shuffle', value: parseInt(mShuffle[1], 10), raw, loc }); continue; }
     out.push({ kind: 'unknown', raw, loc });
   }
   return out;

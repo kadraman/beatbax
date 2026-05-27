@@ -152,4 +152,78 @@ describe('BeatBax Monaco hover provider', () => {
 
     expect(hover).toBeNull();
   });
+
+  test('shows tier-2 transform hover for lag in a chained seq modifier', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'seq demo_lag = lead_core:rot(1):lag(1)';
+    const lagColumn = line.indexOf('lag') + 2;
+
+    const model = makeMultilineModel([line]);
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: lagColumn });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('Lag');
+    expect(hover.contents[0].value).toContain('off');
+    expect(hover.contents[0].value).toContain('rot(1):lag(1)');
+  });
+
+  test('shows tier-2 transform hover for invert and every', () => {
+    const hoverProvider = getHoverProvider();
+
+    const invertLine = 'seq demo = lead_core:invert';
+    const invertModel = makeMultilineModel([invertLine]);
+    const invertHover = hoverProvider.provideHover(invertModel, {
+      lineNumber: 1,
+      column: invertLine.indexOf('invert') + 3,
+    });
+    expect(invertHover?.contents[0].value).toContain('Invert');
+    expect(invertHover?.contents[0].value).toContain('pivot');
+
+    const everyLine = 'seq demo = lead_core:every(2,mute)';
+    const everyModel = makeMultilineModel([everyLine]);
+    const everyHover = hoverProvider.provideHover(everyModel, {
+      lineNumber: 1,
+      column: everyLine.indexOf('every') + 3,
+    });
+    expect(everyHover?.contents[0].value).toContain('Every');
+    expect(everyHover?.contents[0].value).toContain('every(2,oct(+1))');
+  });
+
+  test('seq keyword hover lists tier-2 transforms', () => {
+    const hoverProvider = getHoverProvider();
+    const line = 'seq main = intro';
+
+    const model = {
+      getLineContent: jest.fn(() => line),
+      getWordAtPosition: jest.fn(() => ({ word: 'seq', startColumn: 1, endColumn: 4 })),
+    } as any;
+
+    const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: 2 });
+
+    expect(hover).toBeTruthy();
+    expect(hover.contents[0].value).toContain('Tier-2 transforms');
+    expect(hover.contents[0].value).toContain('shuffle(seed)');
+  });
+
+  test('shows tier-1 transform hover for rot and clamp', () => {
+    const hoverProvider = getHoverProvider();
+
+    const rotLine = 'seq demo_rot = lead_core:rot(1)';
+    const rotModel = makeMultilineModel([rotLine]);
+    const rotHover = hoverProvider.provideHover(rotModel, {
+      lineNumber: 1,
+      column: rotLine.indexOf('rot') + 2,
+    });
+    expect(rotHover?.contents[0].value).toContain('Rotate');
+    expect(rotHover?.contents[0].value).toContain('[C4 D4 E4 G4]');
+
+    const clampLine = 'seq demo = out_of_range:clamp(C3,C6)';
+    const clampModel = makeMultilineModel([clampLine]);
+    const clampHover = hoverProvider.provideHover(clampModel, {
+      lineNumber: 1,
+      column: clampLine.indexOf('clamp') + 3,
+    });
+    expect(clampHover?.contents[0].value).toContain('Clamp');
+    expect(clampHover?.contents[0].value).toContain('cut');
+  });
 });
