@@ -1,10 +1,29 @@
 ## advanced_modifiers_demo.bax
-## Demonstrates tier-1 and tier-2 advanced BeatBax sequence modifiers.
+## A short chiptune arrangement plus per-modifier reference sequences.
+##
+## HOW MODIFIERS FIT IN REAL TRACKS
+## --------------------------------
+## Write plain patterns once (motif, bassline, drums), then reuse them in seq
+## definitions with :modifiers instead of copying note data. Typical uses:
+##
+##   rot / lag     — second voice enters a step late (canon, echo phrases)
+##   pal           — chorus lift: motif plays forward then back without rewriting
+##   oct / transpose — verse in low register, chorus jumps up (+oct or +semitones)
+##   every(2,mute) — thin out a layer on alternate bars (ghost notes, breakdown)
+##   off / lag     — pickup before a phrase; stagger entries across channels
+##   pick          — sparse fills from the same motif (accents, offbeats)
+##   invert        — contrasting bridge from the same seed melody
+##   shuffle(seed) — deterministic variation: same seed = same export every time
+##   clamp / fold  — keep borrowed patterns inside the chip's safe range
+##   arp           — pad or lead shimmer without rewriting the pattern
+##
+## PREVIEWS: each demo_* seq below has ▶ Preview in the editor (CodeLens).
+## PLAYBACK: channel 1 plays the arranged song; open any demo_* to audition one modifier.
 
-song name "Game Boy Advanced Modifiers Demo"
+song name "Modifier Showcase"
 song artist "BeatBax"
-song description "Exercises rot/rotate, pal/palindrome, arp, clamp/fold, mute/rest, transpose alias, invert/inv, every, off/lag, pick, chunk, and shuffle."
-song tags "features,gameboy,modifiers,advanced"
+song description "Short Game Boy sketch using sequence modifiers musically, plus demo_* reference seqs for every modifier."
+song tags "features,gameboy,modifiers,advanced,demo"
 
 chip gameboy
 bpm 120
@@ -15,114 +34,123 @@ inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":1,"form
 inst wave1 type=wave wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,8,7,6,5,4,3,2,1,1,2,3,4,5,6,7,8]
 inst kit type=noise gb:width=7 env={"level":10,"direction":"down","period":1,"format":"gb"} note=C5
 
-# Source patterns for the modifier demos on channel 1.
+# Core musical material — one motif drives most of the arrangement.
 pat lead_core = C4 D4 E4 G4
 pat arp_source = C4 . E4 . G4 .
 pat out_of_range = A2 C4 E6 A6
-
-# Backing patterns for channels 2–4.
 pat bassline = C2 . G2 .
 pat harmony = C5 E5 G5 E5
 pat drums = kit . kit .
 
 # -----------------------------------------------------------------------
-# Tier-1 modifiers (original demos)
+# Reference sequences (one modifier each — use ▶ Preview on the seq line)
 # -----------------------------------------------------------------------
 
 # rot(N) / rotate(N): cyclic left-shift by N tokens.
-# lead_core becomes D4 E4 G4 C4 (downbeat moves to the second note).
 seq demo_rot = lead_core:rot(1)
 
 # rotate(N) is an alias for rot(N); here N=2 → E4 G4 C4 D4.
 seq demo_rotate = lead_core:rotate(2)
 
-# pal / palindrome: play forward, then backward without repeating the pivot note.
-# lead_core becomes C4 D4 E4 G4 E4 D4 C4.
+# pal / palindrome: forward then backward without repeating the pivot note.
 seq demo_pal = lead_core:pal
 
-# palindrome is a synonym for pal.
 seq demo_palindrome = lead_core:palindrome
 
-# arp(4,7): major-triad arpeggio (+4, +7 semitones; root is implicit, do not pass 0).
-# On arp_source you hear C4/E4/G4 with rapid pitch cycling on each step.
+# arp(4,7): major-triad arpeggio on each note token in the pattern.
 seq demo_arp = arp_source:arp(4,7)
 
-# clamp(min,max): clip every note into the MIDI range [C3, C6].
-# out_of_range A2 C4 E6 A6 becomes C3 C4 C6 C6 (low/high notes are cut, not wrapped).
+# clamp(min,max): clip notes into range (hard cut).
 seq demo_clamp = out_of_range:clamp(C3,C6)
 
-# fold(min,max): octave-wrap notes into the range instead of clipping.
-# Same source pattern, but A2 folds up and E6/A6 fold down into the C3–C6 window.
+# fold(min,max): octave-wrap into range instead of clipping.
 seq demo_fold = out_of_range:fold(C3,C6)
 
-# mute: replace every note token with a rest (silence for that step).
 seq demo_mute = lead_core:mute
-
-# rest: synonym for mute.
 seq demo_rest = lead_core:rest
 
-# transpose(+N) / trans(+N) / st(+N): shift all notes up by N semitones.
-# lead_core becomes D4 E4 F#4 A4.
+# transpose(+N) and aliases trans / st / semitone / bare +N.
 seq demo_transpose = lead_core:transpose(+2)
 
-# -----------------------------------------------------------------------
-# Tier-2 modifiers (new)
-# -----------------------------------------------------------------------
-
-# invert / inv: invert the pitch contour around the first note (pivot).
-# Each note's interval from the pivot is negated, creating a mirror image.
-# lead_core C4 D4 E4 G4 → C4 A#3 G#3 F3
-# (pivot=C4=60; D4=62→2*60-62=58=A#3; E4=64→56=G#3; G4=67→53=F3).
+# invert / inv: mirror pitch contour around the first note.
 seq demo_invert = lead_core:invert
 
-# inv is an alias for invert. Combine with rot to create call-and-response.
+# inv alias; rot(2) then invert ≈ call-and-response from a shifted start.
 seq demo_inv = lead_core:rot(2):inv
 
 # every(N, MOD): apply MOD to every Nth token (1-based).
-# Tokens at positions 2, 4, 6, ... receive the modifier; others are unchanged.
-# Here the 2nd and 4th notes of lead_core jump up an octave for an alternating-octave bass.
 seq demo_every = lead_core:every(2,oct(+1))
-
-# every also works with simple mods like mute: silences positions 2 and 4.
 seq demo_every_mute = lead_core:every(2,mute)
 
-# off(N) / lag(N): prepend N rest tokens before the pattern.
-# Useful for pickup timing—lead_core enters two steps late within the bar.
+# off(N) / lag(N): prepend N rests before the pattern.
 seq demo_off = lead_core:off(2)
-
-# lag is an alias for off. Combine with rot to create staggered canon-like entries.
 seq demo_lag = lead_core:rot(1):lag(1)
 
-# pick(1,3,5,...): keep only the specified 1-based token positions.
-# From a 4-note motif, pick positions 1 and 3 to create a sparse accent pattern.
+# pick: keep listed 1-based positions only.
 seq demo_pick = lead_core:pick(1,3)
-
-# pick(2,4) extracts the offbeats of the same motif.
 seq demo_pick_offbeats = lead_core:pick(2,4)
 
-# chunk(N): split tokens into chunks of N and reverse each chunk.
-# lead_core [C4 D4 E4 G4] with chunk(2) → [D4 C4 G4 E4] (each pair reversed).
+# chunk(N): reverse each consecutive group of N tokens.
 seq demo_chunk = lead_core:chunk(2)
-
-# chunk can reshape longer patterns. Combine with rot for phrase-level variation.
 seq demo_chunk_rot = lead_core:rot(1):chunk(2)
 
-# shuffle(seed): deterministic Fisher-Yates reorder with a fixed seed.
-# The seed guarantees identical output on every run and export.
-# Use distinct seeds for different sections while keeping them all reproducible.
+# shuffle(seed): deterministic reorder — fixed seed for reproducible exports.
 seq demo_shuffle = lead_core:shuffle(42)
-
-# Different seed → different ordering, still fully deterministic.
 seq demo_shuffle_b = lead_core:shuffle(7)
 
-seq bass_seq = bassline bassline bassline bassline
-seq wave_seq = harmony harmony harmony harmony
-seq drum_seq = drums drums drums drums
+# -----------------------------------------------------------------------
+# Arrangement — modifiers used as in a real track (same patterns, varied seqs)
+# -----------------------------------------------------------------------
+#
+# Form: intro → verse → ghost bar → chorus (pal + arp + high double) →
+#       verse → chorus → bridge (invert) → fill → transition → breakdown →
+#       final chorus → outro
 
-# Channel 1: walks through all tier-1 demos first, then all tier-2 demos.
-channel 1 => inst lead seq demo_rot demo_rotate demo_pal demo_palindrome demo_arp demo_clamp demo_fold demo_mute demo_rest demo_transpose demo_invert demo_inv demo_every demo_every_mute demo_off demo_lag demo_pick demo_pick_offbeats demo_chunk demo_chunk_rot demo_shuffle demo_shuffle_b
-channel 2 => inst bass seq bass_seq bass_seq bass_seq
-channel 3 => inst wave1 seq wave_seq wave_seq wave_seq
-channel 4 => inst kit seq drum_seq drum_seq drum_seq
+# Pickup: one empty step then the motif (common lead-in).
+seq intro = lead_core:lag(1)
+
+# Verse: plain motif, then same motif rotated so the phrase starts on D4.
+seq verse_a = lead_core
+seq verse_b = lead_core:rot(1)
+
+# Alternate bar thinned with every(2,mute) — same length, half the notes speak.
+seq verse_ghost = lead_core:every(2,mute)
+
+# Chorus: palindrome swell; arpeggiated pad figure; octave-up double on pulse2 later.
+seq chorus_pal = lead_core:pal
+seq chorus_arp = arp_source:arp(4,7)
+seq chorus_high = lead_core:oct(+1)
+
+# Bridge: inverted contour for contrast; second phrase is rotated + inverted (answer).
+seq bridge_invert = lead_core:invert
+seq bridge_answer = lead_core:rot(2):inv
+
+# Fill: offbeat pick from motif; shuffle transition (seed 42 = stable across runs).
+seq fill_pick = lead_core:pick(2,4)
+seq transition = lead_core:shuffle(42)
+
+# Breakdown: fast thins the line; slow doubles it before the last chorus hit.
+seq breakdown_fast = lead_core:fast
+seq breakdown_slow = lead_core:slow
+
+# Outro: reverse the motif into the fade.
+seq outro = lead_core:rev
+
+# Bass: root pattern; verse drops an octave; fold keeps a wide sketch in range.
+seq bass_main = bassline
+seq bass_low = bassline:oct(-1)
+seq bass_safe = out_of_range:fold(C2,C4)
+
+# Wave pad: full harmony; every(2,mute) for a lighter verse bed.
+seq pad_main = harmony
+seq pad_light = harmony:every(2,mute)
+
+seq drum_loop = drums drums drums drums
+
+# Channel 1 — arranged song (reference demo_* seqs are preview-only above).
+channel 1 => inst lead seq intro verse_a verse_b verse_ghost chorus_pal chorus_arp chorus_high verse_a chorus_pal bridge_invert bridge_answer fill_pick transition breakdown_fast breakdown_slow chorus_pal outro
+channel 2 => inst bass seq bass_main bass_main bass_low bass_main bass_main bass_main bass_main bass_main bass_main bass_safe bass_main bass_main bass_main bass_main bass_main bass_main bass_main
+channel 3 => inst wave1 seq pad_main pad_light pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main pad_main
+channel 4 => inst kit seq drum_loop drum_loop drum_loop drum_loop
 
 play auto repeat

@@ -2,7 +2,7 @@
  * HelpPanel - Embedded reference documentation with search and click-to-insert
  *
  * Features:
- * - Collapsible sections: Language Syntax, Instruments, Transforms, Keyboard Shortcuts, Examples
+ * - Collapsible sections: Language Syntax, Instruments, Modifiers, Keyboard Shortcuts, Examples
  * - Incremental search filters all content
  * - Click-to-insert snippets (fires onInsertSnippet callback)
  * - Listens to panel:toggled { panel: 'help' } to show/hide itself
@@ -74,7 +74,8 @@ pat bassline = C3 . G2 .
 pat perc     = C6 . . C6` },
       { kind: 'snippet', label: 'Define a sequence', code:
 `seq main  = melody bassline melody perc
-seq intro = melody:inst(bass) bassline` },
+seq intro = melody:inst(bass) bassline:oct(-1)
+seq laggy = lead:rot(1):lag(1)   # chained modifiers` },
       { kind: 'snippet', label: 'Assign channels and play', code:
 `channel 1 => inst lead  seq main
 channel 2 => inst bass  seq main:oct(-1)
@@ -151,22 +152,66 @@ pat sweep = C4<sweep:7,down,2>:16` },
     ],
   },
   {
-    id: 'transforms',
-    title: 'Transforms',
+    id: 'modifiers',
+    title: 'Modifiers',
     content: [
-      { kind: 'text', text: 'Transforms are applied at compile-time during sequence expansion.' },
-      { kind: 'snippet', label: 'Octave shift', code:
-`seq low = melody:oct(-2)
-seq high = melody:oct(+1)` },
-      { kind: 'snippet', label: 'Assign instrument to a pattern in a sequence', code:
-`seq intro = melody:inst(bass)` },
-      { kind: 'snippet', label: 'Reverse a pattern', code:
-`seq backward = melody:rev` },
-      { kind: 'snippet', label: 'Speed changes', code:
-`seq fast = melody:fast
-seq slow = melody:slow` },
-      { kind: 'snippet', label: 'Combine transforms', code:
-`seq double = melody:oct(-1):fast` },
+      { kind: 'text', text: 'Modifiers reshape pattern references in a seq definition. Chain them with colons after each pattern name — applied left to right at compile time. Syntax: patName:mod1:mod2' },
+      { kind: 'snippet', label: 'Chaining modifiers', code:
+`seq main  = melody:oct(-1) chorus:rev
+seq bass  = bassline:inst(bass):oct(-1)
+seq canon = lead:rot(1):lag(1)   # rotate, then one-step pickup` },
+      { kind: 'snippet', label: 'Pitch & register', code:
+`# oct(+N/-N)     — shift by whole octaves (12 semitones each)
+# transpose(+N)  — semitone shift (+N/-N, st(N), trans(N) also work)
+# clamp(C3,C6)   — hard-limit notes into range (out-of-range notes are cut)
+# fold(C3,C6)    — octave-wrap notes into range instead of clipping
+# invert / inv   — mirror contour around the first note (pivot)
+
+seq low    = melody:oct(-1)
+seq up     = melody:transpose(+2)
+seq safe   = out_of_range:clamp(C3,C6)
+seq wrap   = out_of_range:fold(C3,C6)
+seq mirror = lead_core:invert` },
+      { kind: 'snippet', label: 'Order, length & timing', code:
+`# rot(N) / rotate(N) — cyclic left-shift by N tokens
+# rev                — reverse token order
+# pal / palindrome   — forward then backward (pivot not duplicated)
+# slow / slow(N)     — repeat each token (default ×2)
+# fast / fast(N)     — keep every Nth token (default every 2nd)
+# off(N) / lag(N)    — prepend N rest tokens before the pattern
+
+seq shifted = lead_core:rot(1)
+seq mirror  = lead_core:pal
+seq half    = melody:fast
+seq double  = melody:slow
+seq pickup  = lead_core:off(2)
+seq late    = lead_core:rot(1):lag(1)` },
+      { kind: 'snippet', label: 'Selection & reshaping', code:
+`# pick(1,3,5,…)  — keep only listed 1-based token positions
+# chunk(N)       — split into chunks of N and reverse each chunk
+# shuffle(seed)  — deterministic reorder (seed fixes the permutation)
+# every(N,MOD)   — apply MOD to every Nth token (1-based: N, 2N, 3N, …)
+
+seq sparse  = lead_core:pick(1,3)
+seq pairs   = lead_core:chunk(2)
+seq varied  = lead_core:shuffle(42)
+seq alt_oct = lead_core:every(2,oct(+1))
+seq ghost   = lead_core:every(2,mute)` },
+      { kind: 'snippet', label: 'Instrument, pan & silence', code:
+`# inst(name) — override instrument for all notes in that pattern slot
+# pan(L|R|C) — pan entire slot (also numeric -1.0..1.0)
+# mute / rest — replace notes with rests (rhythm unchanged)
+# <effectName> — apply a named effect preset to every note
+
+seq bass_line = melody:inst(bass):oct(-1)
+seq hard_l    = melody:pan(R)
+seq rhythm    = lead_core:mute
+seq shimmer   = melody:wobble   # wobble from: effect wobble = vib:8,4` },
+      { kind: 'snippet', label: 'Arpeggio modifier', code:
+`# arp(4,7) — attach arpeggio offsets to every note (omit 0; root is implicit)
+# Same offsets as inline C4<arp:4,7>
+
+seq arp_line = arp_source:arp(4,7)` },
     ],
   },
   {

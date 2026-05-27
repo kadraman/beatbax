@@ -166,6 +166,7 @@ function escapeRegex(s: string): string {
 const TRANSFORM_BASE_NAMES = [
   'oct', 'rot', 'rotate', 'rev', 'pal', 'palindrome', 'slow', 'fast', 'arp',
   'clamp', 'fold', 'mute', 'rest', 'inst', 'pan', 'semitone', 'st', 'trans', 'transpose',
+  'invert', 'inv', 'every', 'off', 'lag', 'pick', 'chunk', 'shuffle',
 ];
 
 /** Suggest full modifier text (e.g. tranpese(+2) → transpose(+2)). */

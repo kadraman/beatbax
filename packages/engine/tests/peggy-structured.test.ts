@@ -42,6 +42,19 @@ channel 1 => inst lead seq main
     expect(unknown?.loc?.start?.column).toBeGreaterThan(1);
   });
 
+  test('tier-2 transforms are not reported as unknown', () => {
+    const src = `
+chip gameboy
+inst lead type=pulse1
+pat core = C4 D4 E4
+seq main = core:invert core:every(2,oct(+1)) core:off(1) core:pick(1,3) core:chunk(2) core:shuffle(42)
+channel 1 => inst lead seq main
+`;
+    const { ast } = parseWithPeggy(src);
+    const unknown = ast.diagnostics?.filter((d) => d.message.includes('Unknown transform')) ?? [];
+    expect(unknown).toEqual([]);
+  });
+
   test('unknown transform on channel seq spec is located on the channel line', () => {
     const src = `
 chip gameboy
