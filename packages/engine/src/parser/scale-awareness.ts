@@ -118,8 +118,24 @@ function buildLockPitchClasses(scale: ScaleDirective, lock: ScaleLock): Set<numb
   return out.size > 0 ? out : scaleSet;
 }
 
+function stripRepeatSuffix(raw: string): string {
+  let end = raw.length - 1;
+  while (end >= 0 && raw[end] === ' ') end--;
+  if (end < 0 || raw[end] < '0' || raw[end] > '9') return raw.slice(0, end + 1);
+
+  let digitStart = end;
+  while (digitStart >= 0 && raw[digitStart] >= '0' && raw[digitStart] <= '9') digitStart--;
+  let starPos = digitStart;
+  while (starPos >= 0 && raw[starPos] === ' ') starPos--;
+  if (starPos < 0 || raw[starPos] !== '*') return raw.slice(0, end + 1);
+
+  let suffixStart = starPos - 1;
+  while (suffixStart >= 0 && raw[suffixStart] === ' ') suffixStart--;
+  return raw.slice(0, suffixStart + 1);
+}
+
 function extractBaseName(token: string): string {
-  return token.split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
+  return stripRepeatSuffix(token.split(':')[0].trim());
 }
 
 function getReferencedPatternNames(ast: AST, channel: ChannelNode): Set<string> {

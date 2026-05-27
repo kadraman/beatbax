@@ -368,7 +368,7 @@ const parseChannelRhs = (
   pats: Record<string, string[]>,
   loc?: SourceLocation,
 ): ChannelNode & ChannelParseExtras => {
-  const tokens = rhs.split(/\s+/).filter(Boolean);
+  const tokens = rhs.split(/\s+/);
   const isOptionToken = (token: string): boolean =>
     token === 'inst' ||
     token === 'pat' ||

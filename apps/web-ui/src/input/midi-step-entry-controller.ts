@@ -23,6 +23,7 @@ import {
   type StepLength,
   type EntryMode,
   type ScaleSnapMode,
+  type ScaleLock,
   normalizeScaleConfig,
   scaleLockPitchClasses,
   snapMidiToPitchClasses,
@@ -314,12 +315,12 @@ export class MidiStepEntryController {
     const midi = noteNameToMidi(noteName);
     if (midi === null) return noteName;
     const snapped = snapMidiToPitchClasses(midi, allowedPitchClasses);
-    if (allowedPitchClasses.has(((midi % 12) + 12) % 12)) return noteName;
-    if (this.scaleSnapMode === 'filter') return null;
+    if (this.scaleSnapMode === 'filter' && snapped !== midi) return null;
+    if (snapped === midi) return noteName;
     return midiNoteToName(snapped);
   }
 
-  private _resolvePatternLock(patternName: string): 'scale' | 'root+fifth' | 'chord' | 'chord7' | 'octaves' | undefined {
+  private _resolvePatternLock(patternName: string): ScaleLock | undefined {
     const ast = this.parsedAst;
     if (!ast?.channels || !ast?.seqs) return undefined;
     const channels = [...(ast.channels as any[])].sort((a, b) => Number(a.id ?? 0) - Number(b.id ?? 0));

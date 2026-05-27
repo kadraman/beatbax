@@ -282,6 +282,10 @@ export function scaleLockPitchClasses(root: string, mode: string, lock: ScaleLoc
   return out.size > 0 ? out : scalePitchClasses;
 }
 
+/**
+ * Snap a MIDI pitch to the nearest allowed pitch class.
+ * If two candidates are equally distant (tritone tie), upward movement wins.
+ */
 export function snapMidiToPitchClasses(midiPitch: number, allowedPitchClasses: Set<number>): number {
   const pitchClass = ((midiPitch % 12) + 12) % 12;
   if (allowedPitchClasses.has(pitchClass)) return midiPitch;
