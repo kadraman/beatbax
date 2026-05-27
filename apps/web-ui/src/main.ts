@@ -1064,6 +1064,12 @@ void midiController.requestMidiAccess();
 
 // Expose MIDI controller globally for settings panel and command palette
 (window as any).__beatbax_midiStepEntry = midiController;
+eventBus.on('parse:success', ({ ast }: any) => {
+  midiController.setParsedAst(ast);
+});
+eventBus.on('parse:error', () => {
+  midiController.setParsedAst(null);
+});
 
 // ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
 function _attachHoldRepeat(

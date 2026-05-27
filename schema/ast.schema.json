@@ -70,6 +70,9 @@
     "play": {
       "$ref": "#/definitions/playNode"
     },
+    "scale": {
+      "$ref": "#/definitions/scaleDirective"
+    },
     "metadata": {
       "$ref": "#/definitions/songMetadata"
     },
@@ -218,8 +221,24 @@
           "description": "Pattern or sequence name(s) assigned to this channel."
         },
         "speed": { "type": "number", "description": "Playback speed multiplier." },
+        "lock": {
+          "type": "string",
+          "enum": ["scale", "root+fifth", "chord", "chord7", "octaves"],
+          "description": "Optional scale lock restriction for this channel."
+        },
         "seqSpecTokens": { "type": "array", "items": { "type": "string" }, "description": "Raw sequence spec tokens from the channel RHS." },
         "loc": { "$ref": "#/definitions/loc" }
+      }
+    },
+
+    "scaleDirective": {
+      "type": "object",
+      "required": ["root", "mode", "enforcement"],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string", "description": "Scale root note (normalized to sharps)." },
+        "mode": { "type": "string", "description": "Scale mode keyword." },
+        "enforcement": { "type": "string", "enum": ["warn", "error", "off"] }
       }
     },
 

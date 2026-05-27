@@ -48,6 +48,15 @@ export type StepLength = 'inherit' | '1' | '2' | '4' | '8' | '16';
 
 /** How to handle the current editor selection when MIDI notes arrive. */
 export type EntryMode = 'insert' | 'overwrite-selection';
+/** Scale-awareness behavior for incoming MIDI notes. */
+export type ScaleSnapMode = 'off' | 'snap' | 'filter';
+
+export type ScaleLock = 'scale' | 'root+fifth' | 'chord' | 'chord7' | 'octaves';
+
+export interface ScaleConfig {
+  root: string;
+  mode: string;
+}
 
 /** Information about a detected MIDI input device. */
 export interface MidiDeviceInfo {
@@ -124,6 +133,19 @@ export function midiNoteToName(midiNote: number): string {
   return `${NOTE_NAMES[noteIndex]}${octave}`;
 }
 
+export function noteNameToMidi(noteName: string): number | null {
+  const m = String(noteName ?? '').match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!m) return null;
+  const letter = m[1].toUpperCase();
+  const accidental = m[2] ?? '';
+  const octave = Number(m[3]);
+  if (!Number.isFinite(octave)) return null;
+  const normalized = ROOT_ALIASES[`${letter}${accidental}`] ?? `${letter}${accidental}`;
+  const pitchClass = NOTE_NAMES.indexOf(normalized);
+  if (pitchClass < 0) return null;
+  return (octave + 1) * 12 + pitchClass;
+}
+
 /**
  * Format a BeatBax note token including an optional duration suffix.
  *
@@ -185,6 +207,89 @@ export function extractNoteTokenSpans(text: string): TokenSpan[] {
     spans.push({ start: m.index, end: m.index + m[0].length, value: m[0] });
   }
   return spans;
+}
+
+const SCALE_MODE_INTERVALS: Record<string, number[]> = {
+  major: [0, 2, 4, 5, 7, 9, 11],
+  minor: [0, 2, 3, 5, 7, 8, 10],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  phrygian: [0, 1, 3, 5, 7, 8, 10],
+  lydian: [0, 2, 4, 6, 7, 9, 11],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  locrian: [0, 1, 3, 5, 6, 8, 10],
+  pentatonic_major: [0, 2, 4, 7, 9],
+  pentatonic_minor: [0, 3, 5, 7, 10],
+  blues: [0, 3, 5, 6, 7, 10],
+  chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+};
+
+const LOCK_DEGREES: Record<ScaleLock, number[] | 'root-only'> = {
+  scale: [1, 2, 3, 4, 5, 6, 7],
+  'root+fifth': [1, 5],
+  chord: [1, 3, 5],
+  chord7: [1, 3, 5, 7],
+  octaves: 'root-only',
+};
+
+const ROOT_ALIASES: Record<string, string> = {
+  Db: 'C#',
+  Eb: 'D#',
+  Fb: 'E',
+  Gb: 'F#',
+  Ab: 'G#',
+  Bb: 'A#',
+  Cb: 'B',
+};
+
+function rootToPitchClass(root: string): number | null {
+  const raw = String(root ?? '').trim();
+  const canonical = ROOT_ALIASES[raw] ?? raw;
+  const idx = NOTE_NAMES.indexOf(canonical);
+  return idx >= 0 ? idx : null;
+}
+
+export function normalizeScaleConfig(rawScale: any): ScaleConfig | null {
+  const root = String(rawScale?.root ?? '').trim();
+  const mode = String(rawScale?.mode ?? '').trim().toLowerCase();
+  const normalizedRoot = ROOT_ALIASES[root] ?? root;
+  if (rootToPitchClass(normalizedRoot) === null) return null;
+  if (!SCALE_MODE_INTERVALS[mode]) return null;
+  return { root: normalizedRoot, mode };
+}
+
+export function buildScalePitchClasses(root: string, mode: string): Set<number> | null {
+  const rootPc = rootToPitchClass(root);
+  const intervals = SCALE_MODE_INTERVALS[String(mode ?? '').toLowerCase()];
+  if (rootPc === null || !intervals) return null;
+  return new Set(intervals.map((i) => (rootPc + i) % 12));
+}
+
+export function scaleLockPitchClasses(root: string, mode: string, lock: ScaleLock | undefined): Set<number> | null {
+  const scalePitchClasses = buildScalePitchClasses(root, mode);
+  if (!scalePitchClasses) return null;
+  if (!lock || lock === 'scale') return scalePitchClasses;
+  const rootPc = rootToPitchClass(root);
+  if (rootPc === null) return null;
+  if (lock === 'octaves') return new Set([rootPc]);
+  const intervals = SCALE_MODE_INTERVALS[String(mode ?? '').toLowerCase()] ?? [];
+  const degrees = LOCK_DEGREES[lock];
+  if (!Array.isArray(degrees)) return scalePitchClasses;
+  const out = new Set<number>();
+  for (const degree of degrees) {
+    const i = intervals[degree - 1];
+    if (i !== undefined) out.add((rootPc + i) % 12);
+  }
+  return out.size > 0 ? out : scalePitchClasses;
+}
+
+export function snapMidiToPitchClasses(midiPitch: number, allowedPitchClasses: Set<number>): number {
+  const pitchClass = ((midiPitch % 12) + 12) % 12;
+  if (allowedPitchClasses.has(pitchClass)) return midiPitch;
+  for (let delta = 1; delta <= 6; delta++) {
+    if (allowedPitchClasses.has((pitchClass + delta) % 12)) return midiPitch + delta;
+    if (allowedPitchClasses.has((pitchClass - delta + 12) % 12)) return midiPitch - delta;
+  }
+  return midiPitch;
 }
 
 // ─── MidiStepEntryService ────────────────────────────────────────────────────

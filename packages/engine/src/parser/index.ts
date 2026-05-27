@@ -2,6 +2,13 @@ import { AST } from './ast.js';
 import { parseWithPeggy } from './peggy/index.js';
 
 export { parseWithPeggy } from './peggy/index.js';
+export {
+  buildScalePitchClasses,
+  canonicalizeRoot,
+  normalizeScaleDirective,
+  normalizeLock,
+  validateScaleLocks,
+} from './scale-awareness.js';
 
 export function parse(source: string): AST {
   // Normalize Windows CRLF / bare CR to LF so the parser handles files

@@ -22,6 +22,12 @@ import {
   formatNoteToken,
   type StepLength,
   type EntryMode,
+  type ScaleSnapMode,
+  normalizeScaleConfig,
+  scaleLockPitchClasses,
+  snapMidiToPitchClasses,
+  noteNameToMidi,
+  midiNoteToName,
 } from './midi-step-entry';
 import {
   settingMidiInputEnabled,
@@ -32,6 +38,7 @@ import {
   settingMidiAutoAdvance,
   settingMidiAuditionNotes,
   settingMidiUseNoteDuration,
+  settingMidiScaleSnapMode,
 } from '../stores/settings.store';
 
 const log = createLogger('ui:midi-controller');
@@ -56,6 +63,8 @@ export interface MidiStepEntryControllerOptions {
  */
 export class MidiStepEntryController {
   private service: MidiStepEntryService;
+  private scaleSnapMode: ScaleSnapMode = 'off';
+  private parsedAst: any = null;
   private _accessRequested = false;
   /** Tracks the start position of the last no-advance insertion for replace-in-place. */
   private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
@@ -92,6 +101,7 @@ export class MidiStepEntryController {
     this.service.setAutoAdvance(settingMidiAutoAdvance.get());
     this.service.setAuditionNotes(settingMidiAuditionNotes.get());
     this.service.setUseNoteDuration(settingMidiUseNoteDuration.get());
+    this.scaleSnapMode = settingMidiScaleSnapMode.get() as ScaleSnapMode;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -239,6 +249,15 @@ export class MidiStepEntryController {
     this.service.setUseNoteDuration(v);
   }
 
+  setScaleSnapMode(v: ScaleSnapMode): void {
+    settingMidiScaleSnapMode.set(v);
+    this.scaleSnapMode = v;
+  }
+
+  setParsedAst(ast: any): void {
+    this.parsedAst = ast ?? null;
+  }
+
   /** Clean up MIDI connection. */
   dispose(): void {
     this.service.dispose();
@@ -270,13 +289,56 @@ export class MidiStepEntryController {
       return;
     }
 
-    const token = formatNoteToken(noteName, stepLength, emitDuration);
+    const noteForInsert = this._applyScaleAwareness(noteName, lineText);
+    if (!noteForInsert) return;
+    const token = formatNoteToken(noteForInsert, stepLength, emitDuration);
 
     if (entryMode === 'overwrite-selection') {
       this._replaceSelectionOrInsert(editor, model, pos, token, autoAdvance);
     } else {
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
     }
+  }
+
+  private _applyScaleAwareness(noteName: string, lineText: string): string | null {
+    if (this.scaleSnapMode === 'off') return noteName;
+    const scale = normalizeScaleConfig(this.parsedAst?.scale);
+    if (!scale) return noteName;
+
+    const patternMatch = lineText.match(/^\s*pat\s+([^\s=]+)\s*=/);
+    const patternName = patternMatch?.[1];
+    const lock = patternName ? this._resolvePatternLock(patternName) : undefined;
+    const allowedPitchClasses = scaleLockPitchClasses(scale.root, scale.mode, lock);
+    if (!allowedPitchClasses || allowedPitchClasses.size === 0) return noteName;
+
+    const midi = noteNameToMidi(noteName);
+    if (midi === null) return noteName;
+    const snapped = snapMidiToPitchClasses(midi, allowedPitchClasses);
+    if (allowedPitchClasses.has(((midi % 12) + 12) % 12)) return noteName;
+    if (this.scaleSnapMode === 'filter') return null;
+    return midiNoteToName(snapped);
+  }
+
+  private _resolvePatternLock(patternName: string): 'scale' | 'root+fifth' | 'chord' | 'chord7' | 'octaves' | undefined {
+    const ast = this.parsedAst;
+    if (!ast?.channels || !ast?.seqs) return undefined;
+    const channels = [...(ast.channels as any[])].sort((a, b) => Number(a.id ?? 0) - Number(b.id ?? 0));
+    for (const ch of channels) {
+      const lock = ch?.lock;
+      if (!lock) continue;
+      const refs = Array.isArray(ch?.seqSpecTokens) ? ch.seqSpecTokens : typeof ch?.pat === 'string' ? ch.pat.split(/[\s,]+/) : [];
+      for (const token of refs) {
+        const base = String(token ?? '').split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
+        if (!base) continue;
+        if (base === patternName) return lock;
+        const seq = ast.seqs?.[base];
+        if (!Array.isArray(seq)) continue;
+        if (seq.some((seqToken: string) => String(seqToken).split(':')[0].trim().replace(/\s*\*\s*\d+$/, '') === patternName)) {
+          return lock;
+        }
+      }
+    }
+    return undefined;
   }
 
   private _insertAtCursor(

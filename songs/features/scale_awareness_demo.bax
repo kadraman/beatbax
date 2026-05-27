@@ -1,0 +1,59 @@
+## scale_awareness_demo.bax
+## Demonstrates global scale declarations, channel-level locks, and what warnings mean.
+##
+## QUICK TOUR
+## ----------
+## 1) `scale D dorian warn` declares the global pitch set (D E F G A B C).
+## 2) Each channel can opt in to a lock:
+##      - lock=scale       -> any note in D dorian
+##      - lock=root+fifth  -> D + A only (any octave)
+##      - lock=chord       -> D + F + A
+##      - lock=octaves     -> D only
+## 3) This file intentionally includes one violating note in the melody (`C#5`)
+##    so `beatbax verify` shows a scale-lock warning in `warn` mode.
+##
+## TIP (Web UI MIDI step entry):
+## - Scale snap Off: incoming notes are inserted as played.
+## - Scale snap Snap: out-of-scale notes are moved to nearest allowed pitch.
+## - Scale snap Filter: out-of-scale notes are ignored.
+## These settings are in Editor -> MIDI Step Entry -> Scale snap mode.
+
+song name "Scale Awareness Demo"
+song artist "BeatBax"
+song description "Feature demo for scale directive + channel locks (warn mode with one deliberate violation)."
+song tags "features,scale,lock,midi-step-entry,dorian"
+
+chip gameboy
+bpm 122
+scale D dorian warn
+
+inst lead  type=pulse1 duty=50 env={"level":12,"direction":"down","period":1,"format":"gb"}
+inst bass  type=pulse2 duty=25 env={"level":9,"direction":"down","period":1,"format":"gb"}
+inst pad   type=wave   wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,8,7,6,5,4,3,2,1,1,2,3,4,5,6,7,8]
+inst drone type=noise  env={"level":8,"direction":"down","period":1,"format":"gb"} note=D5
+
+# Melody channel (lock=scale): mostly valid D dorian notes.
+# Deliberate violation: C#5 is outside D dorian and should produce a warning.
+pat melody_a = D5 E5 F5 A5 C#5 A5 G5 F5
+pat melody_b = D5 E5 F5 G5 A5 B5 C6 A5
+
+# Bass channel (lock=root+fifth): only D and A across octaves.
+pat bassline = D3 . A2 . D3 . A2 .
+
+# Pad channel (lock=chord): triad tones from D dorian => D F A.
+pat pad_chord = D4 F4 A4 F4 D4 F4 A4 F4
+
+# Drone channel (lock=octaves): root-only pedal feel.
+pat drone_pat = D5 . D4 . D5 . D3 .
+
+seq melody_seq = melody_a melody_b
+seq bass_seq = bassline bassline
+seq pad_seq = pad_chord pad_chord
+seq drone_seq = drone_pat drone_pat
+
+channel 1 => inst lead  seq melody_seq lock=scale
+channel 2 => inst bass  seq bass_seq   lock=root+fifth
+channel 3 => inst pad   seq pad_seq    lock=chord
+channel 4 => inst drone seq drone_seq  lock=octaves
+
+play auto repeat

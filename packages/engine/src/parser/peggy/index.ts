@@ -15,6 +15,8 @@ import {
   SequenceItemMap,
   SequenceTransform,
   SeqMap,
+  ScaleDirective,
+  ScaleLock,
   SourceLocation,
   SongMetadata,
 } from '../ast.js';
@@ -31,6 +33,7 @@ import { warn } from '../../util/diag.js';
 import { applyModsToTokens } from '../../expand/refExpander.js';
 import { splitTopLevel } from '../../expand/splitTopLevel.js';
 import { createLogger } from '../../util/logger.js';
+import { normalizeScaleDirective, normalizeLock, validateScaleLocks } from '../scale-awareness.js';
 
 const log = createLogger('parser');
 
@@ -132,6 +135,7 @@ interface VolumeStmt extends BaseStmt { nodeType: 'VolumeStmt'; volume: number }
 interface TimeStmt extends BaseStmt { nodeType: 'TimeStmt'; time: number }
 interface StepsPerBarStmt extends BaseStmt { nodeType: 'StepsPerBarStmt'; stepsPerBar: number }
 interface TicksPerStepStmt extends BaseStmt { nodeType: 'TicksPerStepStmt'; ticksPerStep: number }
+interface ScaleStmt extends BaseStmt { nodeType: 'ScaleStmt'; root: string; mode: string; enforcement?: string }
 interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string; value: string }
 interface ImportStmt extends BaseStmt { nodeType: 'ImportStmt'; source: string }
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
@@ -150,6 +154,7 @@ type Statement =
   | TimeStmt
   | StepsPerBarStmt
   | TicksPerStepStmt
+  | ScaleStmt
   | SongMetaStmt
   | ImportStmt
   | InstStmt
@@ -355,7 +360,7 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
   }
 };
 
-type ChannelParseExtras = { seqSpecTokens?: string[]; channelRhs?: string };
+type ChannelParseExtras = { seqSpecTokens?: string[]; channelRhs?: string; lockRaw?: string };
 
 const parseChannelRhs = (
   id: number,
@@ -363,12 +368,25 @@ const parseChannelRhs = (
   pats: Record<string, string[]>,
   loc?: SourceLocation,
 ): ChannelNode & ChannelParseExtras => {
-  const tokens = rhs.split(/\s+/);
+  const tokens = rhs.split(/\s+/).filter(Boolean);
+  const isOptionToken = (token: string): boolean =>
+    token === 'inst' ||
+    token === 'pat' ||
+    token === 'seq' ||
+    token === 'bpm' ||
+    token === 'speed' ||
+    token === 'lock' ||
+    token.startsWith('bpm=') ||
+    token.startsWith('speed=') ||
+    token.startsWith('lock=');
+
   const ch: {
     id: number;
     inst?: string;
     pat?: string | string[];
     speed?: number;
+    lock?: ScaleLock;
+    lockRaw?: string;
     seqSpecTokens?: string[];
     channelRhs?: string;
     loc?: SourceLocation;
@@ -379,21 +397,27 @@ const parseChannelRhs = (
       ch.inst = tokens[i + 1];
       i++;
     } else if (t === 'pat' && tokens[i + 1]) {
-      // Support both single pattern and multiple patterns after 'pat'
-      // e.g., "pat melody" or "pat intro verse chorus"
-      const restTokens = tokens.slice(i + 1);
+      const restTokens: string[] = [];
+      for (let j = i + 1; j < tokens.length; j++) {
+        if (isOptionToken(tokens[j])) break;
+        restTokens.push(tokens[j]);
+      }
       const rest = restTokens.join(' ');
       let patSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['"]|['"]$/g, '') : rest;
       ch.pat = patSpec.trim();
       ch.seqSpecTokens = restTokens;
-      break;
+      i += restTokens.length;
     } else if (t === 'seq' && tokens[i + 1]) {
-      const restTokens = tokens.slice(i + 1);
+      const restTokens: string[] = [];
+      for (let j = i + 1; j < tokens.length; j++) {
+        if (isOptionToken(tokens[j])) break;
+        restTokens.push(tokens[j]);
+      }
       const rest = restTokens.join(' ');
       let seqSpec = (rest.startsWith('"') || rest.startsWith("'")) ? rest.replace(/^['"]|['"]$/g, '') : rest;
       ch.pat = seqSpec.trim();
       ch.seqSpecTokens = restTokens;
-      break;
+      i += restTokens.length;
     } else if (t.startsWith('bpm=')) {
       const v = t.slice(4);
       throw new Error(
@@ -416,6 +440,17 @@ const parseChannelRhs = (
       v = String(v).replace(/x$/i, '');
       const n = parseFloat(v);
       if (!isNaN(n)) { ch.speed = n; i++; }
+    } else if (t.startsWith('lock=')) {
+      const lockVal = t.slice(5).trim();
+      if (lockVal) ch.lockRaw = lockVal;
+      const normalizedLock = normalizeLock(lockVal);
+      if (normalizedLock) ch.lock = normalizedLock;
+    } else if (t === 'lock' && tokens[i + 1]) {
+      const lockVal = String(tokens[i + 1]).replace(/^=/, '').trim();
+      if (lockVal) ch.lockRaw = lockVal;
+      const normalizedLock = normalizeLock(lockVal);
+      if (normalizedLock) ch.lock = normalizedLock;
+      i++;
     }
   }
 
@@ -464,12 +499,12 @@ function enhanceParseError(error: any, source: string): Error {
     if (!foundChar || foundChar === '\r' || foundChar === '\n') {
       // List of valid keywords
       const validKeywords = [
-        'chip', 'bpm', 'time', 'stepsPerBar', 'ticksPerStep',
+        'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
         'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song'
       ];
 
       if (firstWord && !validKeywords.includes(firstWord) && !/^[A-Z]/.test(firstWord)) {
-        message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, time, inst, pat, seq, channel, play, export, import, song`;
+        message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
         error.message = message;
       }
     }
@@ -479,7 +514,7 @@ function enhanceParseError(error: any, source: string): Error {
 }
 
 const VALID_KEYWORDS = [
-  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep',
+  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
   'song', 'import', 'inst', 'effect', 'pat', 'seq',
   'channel', 'play', 'export',
 ];
@@ -761,6 +796,7 @@ export function parseWithPeggy(source: string): ParseResult {
   let chipName: string | undefined = undefined;
   let chipRegion: string | undefined = undefined;
   let chipLoc: SourceLocation | undefined = undefined;
+  let scaleDirective: ScaleDirective | undefined = undefined;
   let topVolume: number | undefined = undefined;
   let playNode: PlayNode | undefined = undefined;
   let playLoc: SourceLocation | undefined = undefined;
@@ -812,6 +848,20 @@ export function parseWithPeggy(source: string): ParseResult {
           message: '`ticksPerStep` is deprecated and has no effect; the engine uses a fixed tick resolution.',
           loc: stmt.loc,
         });
+        break;
+      }
+      case 'ScaleStmt': {
+        const scale = normalizeScaleDirective((stmt as ScaleStmt).root, (stmt as ScaleStmt).mode, (stmt as ScaleStmt).enforcement);
+        if (!scale) {
+          diagnostics.push({
+            level: 'error',
+            component: 'scale-lock',
+            message: `Invalid scale directive. Expected: scale <root> <mode> [warn|error|off].`,
+            loc: stmt.loc,
+          });
+          break;
+        }
+        scaleDirective = scale;
         break;
       }
       case 'VolumeStmt': {
@@ -1051,6 +1101,19 @@ export function parseWithPeggy(source: string): ParseResult {
         }
       }
     }
+    const chAnyWithLock = ch as any;
+    const rawLock = chAnyWithLock.lockRaw ?? chAnyWithLock.lock;
+    if (rawLock) {
+      const normalized = normalizeLock(rawLock);
+      if (!normalized) {
+        diag('error', 'scale-lock', `Channel ${ch.id}: unknown lock '${rawLock}'. Valid locks: scale, root+fifth, chord, chord7, octaves.`, chLoc);
+      } else {
+        chAnyWithLock.lock = normalized;
+      }
+      if (!scaleDirective) {
+        diag('error', 'scale-lock', `Channel ${ch.id}: lock requires a scale declaration.`, chLoc);
+      }
+    }
   }
 
   // Pattern token validation: flag unrecognised tokens that are not notes/rests/inst-refs
@@ -1090,6 +1153,21 @@ export function parseWithPeggy(source: string): ParseResult {
   }
 
   validateUnknownSequenceTransforms(diag, sequenceItems, channels);
+  if (scaleDirective) {
+    diagnostics.push(...validateScaleLocks({
+      pats,
+      insts,
+      seqs,
+      channels,
+      patternEvents,
+      sequenceItems,
+      scale: scaleDirective,
+    } as AST));
+  }
+  for (const ch of channels as any[]) {
+    delete ch.channelRhs;
+    delete ch.lockRaw;
+  }
   } catch (e: any) {
     const loc = toSourceLocation((e as any)?.location ?? (e as any)?.loc);
     parseErrors.push({
@@ -1103,6 +1181,7 @@ export function parseWithPeggy(source: string): ParseResult {
 
   const ast: AST = { pats, insts, seqs, channels, bpm: topBpm, chip: chipName, chipRegion, volume: topVolume, play: playNode, metadata,
     time: topTime, stepsPerBar: topStepsPerBar };
+  if (scaleDirective) ast.scale = scaleDirective;
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;
   if (imports.length > 0) ast.imports = imports;
