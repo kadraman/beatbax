@@ -36,6 +36,12 @@ export interface SequenceTransform {
     | 'inst'
     | 'pan'
     | 'transpose'
+    | 'invert'
+    | 'every'
+    | 'off'
+    | 'pick'
+    | 'chunk'
+    | 'shuffle'
     | 'unknown';
   value?: number | string | null;
   raw?: string;

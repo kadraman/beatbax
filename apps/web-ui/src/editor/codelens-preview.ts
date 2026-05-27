@@ -212,18 +212,6 @@ function resolveSeqInstrument(seqName: string, ast: any): string | null {
   return first ?? null;
 }
 
-/** Total step count across all patterns referenced in a seq, for duration estimation. */
-function seqTotalSteps(seqName: string, ast: any): number {
-  const items: any[] = ast.seqs?.[seqName] ?? [];
-  let total = 0;
-  for (const item of items) {
-    const patName = typeof item === 'string' ? item.split(':')[0].trim() : (item?.name ?? '');
-    const tokens: string[] = ast.pats?.[patName] ?? [];
-    total += tokens.length;
-  }
-  return Math.max(1, total);
-}
-
 async function startSeqPreview(
   seqName: string,
   rawAst: any,
@@ -255,7 +243,7 @@ async function startSeqPreview(
 
   const bpm: number = rawAst.bpm ?? 120;
   const stepsPerBar: number = rawAst.stepsPerBar ?? rawAst.time ?? 4;
-  const totalSteps = seqTotalSteps(seqName, rawAst);
+  const totalSteps = Math.max(1, songModel.channels?.[0]?.events?.length ?? 1);
   const barDurationMs = (60_000 / bpm) * stepsPerBar;
   const barsNeeded = Math.max(1, Math.ceil(totalSteps / stepsPerBar));
   const durationMs = barDurationMs * barsNeeded + 500;

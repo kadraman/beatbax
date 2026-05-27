@@ -23,6 +23,7 @@ export const BUILTIN_INLINE_EFFECTS = [
 export const SEQUENCE_TRANSFORMS = [
   'oct', 'rot', 'rotate', 'rev', 'pal', 'palindrome', 'slow', 'fast', 'transpose', 'semitone', 'st', 'trans',
   'arp', 'clamp', 'fold', 'mute', 'rest', 'inst', 'pan',
+  'invert', 'inv', 'every', 'off', 'lag', 'pick', 'chunk', 'shuffle',
 ] as const;
 
 export type CompletionContextKind =

@@ -11,6 +11,23 @@ import { writeWAV } from '@beatbax/engine/export';
 const TEST_OUTPUT_DIR = join(__dirname, '..', '..', '..', 'tmp', 'wav2dmc');
 const CLI_PATH = join(__dirname, '..', 'dist', 'cli.js');
 
+/** Linux CI images often lack aplay/ffplay; Windows/macOS runners can play test WAVs. */
+function canPlayAudioInThisEnvironment(): boolean {
+  if (process.platform === 'darwin' || process.platform === 'win32') return true;
+  if (process.platform !== 'linux') return false;
+  for (const cmd of ['aplay', 'ffplay', 'paplay']) {
+    try {
+      execSync(`command -v ${cmd}`, { stdio: 'ignore' });
+      return true;
+    } catch {
+      // try next player
+    }
+  }
+  return false;
+}
+
+const itPlay = canPlayAudioInThisEnvironment() ? it : it.skip;
+
 beforeAll(() => {
   if (!existsSync(TEST_OUTPUT_DIR)) {
     mkdirSync(TEST_OUTPUT_DIR, { recursive: true });
@@ -132,7 +149,7 @@ describe('CLI convert wav2dmc', () => {
     expect(output).toContain('dmc_loop=true');
   });
 
-  it('--play completes without error', () => {
+  itPlay('--play completes without error', () => {
     makeTestWav(wavPath);
     execSync(
       `node "${CLI_PATH}" convert wav2dmc "${wavPath}" -o "${dmcPath}" --play`,

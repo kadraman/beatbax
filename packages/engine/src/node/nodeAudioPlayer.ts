@@ -6,7 +6,7 @@
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger('audio-player');
@@ -175,8 +175,15 @@ export async function playAudioBuffer(
       cmd = 'afplay';
       args = [tempFile];
     } else {
-      cmd = 'aplay';
-      args = [tempFile];
+      // Prefer ffplay when available (common on dev machines); aplay on minimal Linux.
+      const tryFfplay = spawnSync('sh', ['-c', 'command -v ffplay'], { stdio: 'ignore' });
+      if (tryFfplay.status === 0) {
+        cmd = 'ffplay';
+        args = ['-nodisp', '-autoexit', '-loglevel', 'quiet', tempFile];
+      } else {
+        cmd = 'aplay';
+        args = [tempFile];
+      }
     }
 
     const proc = spawn(cmd, args, { stdio: 'pipe' });
