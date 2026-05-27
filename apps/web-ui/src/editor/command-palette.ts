@@ -1801,13 +1801,13 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         { label: 'effect — Named effect preset',    value: 'effect' },
         { label: 'play — Start playback',            value: 'play' },
         { label: 'Notes — Note syntax (C4, C#4…)',   value: 'notes' },
-        { label: 'Transforms — oct, rot, pal, clamp, fold…', value: 'transforms' },
+        { label: 'Modifiers — oct, rot, invert, pick, shuffle…', value: 'modifiers' },
         { label: 'Effects — pan, vib, port, arp…',  value: 'effects' },
       ];
 
       const HELP_TEXT: Record<string, string> = {
         pat: 'pat NAME = NOTE...\n  Define a pattern of note events.\n  Example: pat melody = C4 E4 G4 C5',
-        seq: 'seq NAME = PATNAME[:TRANSFORM]...\n  Define a sequence of pattern references with optional transforms.\n  Example: seq main = melody:oct(+1) bass_pat',
+        seq: 'seq NAME = PATNAME[:MODIFIER[:MODIFIER…]] …\n  Define a sequence of pattern references with optional modifiers.\n  Example: seq main = melody:oct(+1) bass_pat\n  Chain: seq canon = lead:rot(1):lag(1)',
         inst: 'inst NAME type=TYPE [param=value...]\n  Define an instrument.\n  Types: pulse1 | pulse2 | wave | noise | dpcm | triangle | sawtooth | pcm\n  Example: inst lead type=pulse1 duty=50 env=12,down',
         channel: 'channel N => inst INSTNAME seq SEQNAME\n  Assign instrument and sequence to a channel (1-based).\n  Example: channel 1 => inst lead seq main',
         bpm: 'bpm N\n  Set beats per minute (1–999).\n  Example: bpm 120',
@@ -1816,7 +1816,14 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         effect: 'effect NAME TYPE(params)\n  Define a named effect preset for reuse.\n  Example: effect myVib vib(12,4)',
         play: 'play\n  Start song playback.',
         notes: 'Notes: C4 D4 E4 F4 G4 A4 B4\n  Sharp: C#4  Flat: Cb4\n  Rest: . (dot)\n  Octaves 1–8',
-        transforms: 'Transforms applied in seq body:\n  oct(+N/-N) — shift octave\n  rot(N) / rotate(N) — cyclic shift left\n  rev — reverse pattern\n  pal / palindrome — mirror without duplicating pivot\n  slow — halve speed\n  fast — double speed\n  transpose(+N/-N) — semitone shift\n  arp(a,b,c) — apply arp effect to each note\n  clamp(C3,C6) — clip notes into range\n  fold(C3,C6) — octave-wrap notes into range\n  mute / rest — replace notes with rests\n  inst(NAME) — override instrument',
+        modifiers: [
+          'Modifiers (after : on a pattern reference in a seq):',
+          '  Pitch: oct(±N)  transpose(±N)/+N/-N/st/trans  clamp(min,max)  fold(min,max)  invert/inv',
+          '  Order: rot(N)/rotate(N)  rev  pal/palindrome  slow(N)  fast(N)  off(N)/lag(N)',
+          '  Select: pick(1,3,…)  chunk(N)  shuffle(seed)  every(N,MOD)',
+          '  Other: inst(name)  pan(L|R|C)  mute/rest  arp(4,7)  <effectName>',
+          '  Chain left-to-right: melody:oct(-1):rev',
+        ].join('\n'),
         effects: 'Effects applied per-note with | separator:\n  C4|pan(left)  D4|vib(12,4)  E4|cut(4)\n  Full list: pan, vib, port, arp, volSlide, trem, cut, retrig, bend, sweep, echo',
       };
 
