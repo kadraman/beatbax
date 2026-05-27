@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@beatbax/engine": "*",
-    "@beatbax/plugin-chip-nes": "^0.6.0",
+    "@beatbax/plugin-chip-nes": "^0.6.1",
     "@beatbax/plugin-chip-sms": "^0.3.0",
     "@beatbax/plugin-exporter-famitracker": "^0.2.2",
     "@beatbax/plugin-exporter-vgm": "^0.1.4",
