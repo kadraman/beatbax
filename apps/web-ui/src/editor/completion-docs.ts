@@ -7,6 +7,7 @@ import { chipRegistry } from '@beatbax/engine/chips';
 /** Built-in docs for labels not always present on every chip plugin. */
 const BUILTIN_COMPLETION_DOCS: Record<string, string> = {
   chip: 'Sets the target audio chip for this song.',
+  scale: 'Declares the global pitch set: scale <root> <mode> [warn|error|off]. Example: scale D dorian warn',
   inst: 'Declares a named instrument: inst <name> type=<channel> [props…]',
   pat: 'Pattern definition: pat <name> = <notes…>',
   seq: 'Sequence of pattern references with optional :transforms.',

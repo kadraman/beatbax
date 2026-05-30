@@ -61,7 +61,15 @@ This tutorial shows how to write `.bax` songs, use the CLI for playback and expo
   - **Shorthand with seq keyword**: `channel 1 => inst leadA seq pat1 pat2` (inline pattern list)
   - **Shorthand with pat keyword**: `channel 1 => inst leadA pat pat1 pat2` (same as seq, more explicit)
   - **Single pattern shorthand**: `channel 1 => inst leadA pat melody` (omit list, just one pattern)
+  - Optional scale lock on a channel: `channel 2 => inst bass seq bassline lock=root+fifth`
   - Channels: 1 (Pulse1), 2 (Pulse2), 3 (Wave), 4 (Noise)
+
+- scale-awareness (optional): declare a global scale and per-channel locks
+  - Syntax: `scale <root> <mode> [warn|error|off]` (default enforcement is `warn`)
+  - Example: `scale C major warn`
+  - Channel locks (`lock=...`) are validated against the declared scale
+  - Supported locks: `scale`, `root+fifth`, `chord`, `chord7`, `octaves`
+  - Web UI MIDI step entry can use this scale metadata for snap/filter behavior
 
 Note: For multi-channel songs use `channel` mappings — one line per chip channel. Comma-separated `seq` items on a channel play in order (use this for multi-row layouts). Per-item modifiers (for example `:inst(name)` or `:oct(-1)`) are applied during expansion and flow into the per-channel ISM.
 

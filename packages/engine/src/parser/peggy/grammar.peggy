@@ -58,6 +58,7 @@ Statement
   / TimeStmt
   / StepsPerBarStmt
   / TicksPerStepStmt
+  / ScaleStmt
   / SongMetaStmt
   / ImportStmt
   / InstStmt
@@ -113,6 +114,17 @@ StepsPerBarStmt
 TicksPerStepStmt
   = $("ticksPerStep" !IdentChar) __ value:Int {
       return { nodeType: "TicksPerStepStmt", ticksPerStep: value, loc: loc(location()) };
+    }
+
+ScaleStmt
+  = $("scale" !IdentChar) __ root:$([A-Ga-g] [#b]?) __ mode:Identifier enforcement:(__ ScaleEnforcement)? {
+      return {
+        nodeType: "ScaleStmt",
+        root,
+        mode,
+        enforcement: enforcement ? enforcement[1] : undefined,
+        loc: loc(location())
+      };
     }
 
 SongMetaStmt
@@ -400,6 +412,7 @@ IdentChar
 ReservedWord
   = $("chip" !IdentChar)
   / $("bpm" !IdentChar)
+  / $("scale" !IdentChar)
   / $("time" !IdentChar)
   / $("stepsPerBar" !IdentChar)
   / $("ticksPerStep" !IdentChar)
@@ -411,6 +424,11 @@ ReservedWord
   / $("effect" !IdentChar)
   / $("play" !IdentChar)
   / $("export" !IdentChar)
+
+ScaleEnforcement
+  = $("warn" !IdentChar)
+  / $("error" !IdentChar)
+  / $("off" !IdentChar)
 
 Int
   = digits:$([0-9]+) { return parseInt(digits, 10); }

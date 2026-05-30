@@ -22,7 +22,14 @@ import {
   formatNoteToken,
   type StepLength,
   type EntryMode,
+  type ScaleSnapMode,
+  normalizeScaleConfig,
+  scaleLockPitchClasses,
+  snapMidiToPitchClasses,
+  noteNameToMidi,
+  midiNoteToName,
 } from './midi-step-entry';
+import { resolvePrimaryPatternLock } from '../editor/scale-context';
 import {
   settingMidiInputEnabled,
   settingMidiInputDevice,
@@ -32,6 +39,7 @@ import {
   settingMidiAutoAdvance,
   settingMidiAuditionNotes,
   settingMidiUseNoteDuration,
+  settingMidiScaleSnapMode,
 } from '../stores/settings.store';
 
 const log = createLogger('ui:midi-controller');
@@ -56,6 +64,8 @@ export interface MidiStepEntryControllerOptions {
  */
 export class MidiStepEntryController {
   private service: MidiStepEntryService;
+  private scaleSnapMode: ScaleSnapMode = 'off';
+  private parsedAst: any = null;
   private _accessRequested = false;
   /** Tracks the start position of the last no-advance insertion for replace-in-place. */
   private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
@@ -92,6 +102,7 @@ export class MidiStepEntryController {
     this.service.setAutoAdvance(settingMidiAutoAdvance.get());
     this.service.setAuditionNotes(settingMidiAuditionNotes.get());
     this.service.setUseNoteDuration(settingMidiUseNoteDuration.get());
+    this.scaleSnapMode = settingMidiScaleSnapMode.get() as ScaleSnapMode;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -239,6 +250,15 @@ export class MidiStepEntryController {
     this.service.setUseNoteDuration(v);
   }
 
+  setScaleSnapMode(v: ScaleSnapMode): void {
+    settingMidiScaleSnapMode.set(v);
+    this.scaleSnapMode = v;
+  }
+
+  setParsedAst(ast: any): void {
+    this.parsedAst = ast ?? null;
+  }
+
   /** Clean up MIDI connection. */
   dispose(): void {
     this.service.dispose();
@@ -270,13 +290,34 @@ export class MidiStepEntryController {
       return;
     }
 
-    const token = formatNoteToken(noteName, stepLength, emitDuration);
+    const noteForInsert = this._applyScaleAwareness(noteName, lineText);
+    if (!noteForInsert) return;
+    const token = formatNoteToken(noteForInsert, stepLength, emitDuration);
 
     if (entryMode === 'overwrite-selection') {
       this._replaceSelectionOrInsert(editor, model, pos, token, autoAdvance);
     } else {
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
     }
+  }
+
+  private _applyScaleAwareness(noteName: string, lineText: string): string | null {
+    if (this.scaleSnapMode === 'off') return noteName;
+    const scale = normalizeScaleConfig(this.parsedAst?.scale);
+    if (!scale) return noteName;
+
+    const patternMatch = lineText.match(/^\s*pat\s+([^\s=]+)\s*=/);
+    const patternName = patternMatch?.[1];
+    const lock = patternName ? resolvePrimaryPatternLock(this.parsedAst, patternName) : undefined;
+    const allowedPitchClasses = scaleLockPitchClasses(scale.root, scale.mode, lock);
+    if (!allowedPitchClasses || allowedPitchClasses.size === 0) return noteName;
+
+    const midi = noteNameToMidi(noteName);
+    if (midi === null) return noteName;
+    const snapped = snapMidiToPitchClasses(midi, allowedPitchClasses);
+    if (this.scaleSnapMode === 'filter' && snapped !== midi) return null;
+    if (snapped === midi) return noteName;
+    return midiNoteToName(snapped);
   }
 
   private _insertAtCursor(

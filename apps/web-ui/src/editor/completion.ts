@@ -26,6 +26,19 @@ export const SEQUENCE_TRANSFORMS = [
   'invert', 'inv', 'every', 'off', 'lag', 'pick', 'chunk', 'shuffle',
 ] as const;
 
+/** Scale modes validated by the engine (see packages/engine scale-awareness). */
+export const SCALE_MODES = [
+  'major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian',
+  'pentatonic_major', 'pentatonic_minor', 'blues', 'chromatic',
+] as const;
+
+export const SCALE_ENFORCEMENT = ['warn', 'error', 'off'] as const;
+
+/** Channel scale lock values (see packages/engine scale-awareness). */
+export const SCALE_LOCKS = ['scale', 'root+fifth', 'chord', 'chord7', 'octaves'] as const;
+
+const SCALE_ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+
 export type CompletionContextKind =
   | 'blocked'
   | 'channel-sequence'
@@ -40,7 +53,42 @@ export type CompletionContextKind =
   | 'export-format'
   | 'import-path'
   | 'inst-property'
+  | 'scale-root'
+  | 'scale-mode'
+  | 'scale-enforcement'
+  | 'channel-lock-key'
+  | 'channel-lock-value'
   | 'top-level';
+
+/** Which slot on a `scale` directive line the cursor is editing. Exported for tests. */
+export function getScaleCompletionSlot(before: string): 'root' | 'mode' | 'enforcement' | null {
+  if (!/^\s*scale\b/.test(before)) return null;
+  if (!/\bscale\s+/.test(before)) return null;
+
+  const rest = before.replace(/^\s*scale\b\s+/, '');
+  const filtered = rest.trim() ? rest.trim().split(/\s+/) : [];
+  const endsWithSpace = /\s$/.test(before);
+
+  if (filtered.length === 0) return 'root';
+  if (filtered.length === 1 && !endsWithSpace) return 'root';
+  if (filtered.length === 1 && endsWithSpace) return 'mode';
+  if (filtered.length === 2 && !endsWithSpace) return 'mode';
+  if (filtered.length === 2 && endsWithSpace) return 'enforcement';
+  if (filtered.length === 3 && !endsWithSpace) return 'enforcement';
+  return null;
+}
+
+/** Which slot on a channel `lock` option the cursor is editing. Exported for tests. */
+export function getChannelLockCompletionSlot(
+  before: string,
+  line: string,
+): 'key' | 'value' | null {
+  if (!/^\s*channel\s+\d+\s*=>/.test(line)) return null;
+  if (/\block\s*=\s*[A-Za-z0-9+]*$/i.test(before)) return 'value';
+  if (/\block\s+[A-Za-z0-9+]*$/i.test(before) && !/\block\s*=/.test(before)) return 'value';
+  if (/\block$/i.test(before)) return 'key';
+  return null;
+}
 
 export interface SongSymbols {
   instruments: string[];
@@ -137,6 +185,11 @@ export function detectCompletionContext(
     if (column > valueStart) return { kind: 'export-format', insideAngle: false };
   }
 
+  const scaleSlot = getScaleCompletionSlot(before);
+  if (scaleSlot === 'root') return { kind: 'scale-root', insideAngle: false };
+  if (scaleSlot === 'mode') return { kind: 'scale-mode', insideAngle: false };
+  if (scaleSlot === 'enforcement') return { kind: 'scale-enforcement', insideAngle: false };
+
   if (/^\s*inst\s+\w+/.test(line)) {
     const propMatch = before.match(
       /\b(type|duty|env|wave|volume|width|noise|gm|note|sweep|vol|env_period|sweep_en|sweep_period|sweep_shift|sweep_dir|sample|vol_env|duty_env|arp_env|pitch_env|noise_rate)\s*=\s*([A-Za-z0-9._+#\-]*)$/,
@@ -154,6 +207,10 @@ export function detectCompletionContext(
   }
 
   if (/^\s*channel\s+\d+\s*=>/.test(line)) {
+    const lockSlot = getChannelLockCompletionSlot(before, line);
+    if (lockSlot === 'value') return { kind: 'channel-lock-value', insideAngle: false };
+    if (lockSlot === 'key') return { kind: 'channel-lock-key', insideAngle: false };
+
     const instIdx = line.search(/\binst\s+/);
     const seqIdx = line.search(/\bseq\s+/);
     if (instIdx >= 0) {
@@ -395,6 +452,7 @@ const DIRECTIVES = [
   { label: 'chip', detail: 'Set target chip', insertText: 'chip gameboy' },
   { label: 'bpm', detail: 'Set tempo', insertText: 'bpm 120' },
   { label: 'stepsPerBar', detail: 'Set steps per bar', insertText: 'stepsPerBar 4' },
+  { label: 'scale', detail: 'Declare global pitch set', insertText: 'scale ${1:C} ${2:major} ${3:warn}' },
   { label: 'volume', detail: 'Set global volume', insertText: 'volume 0.8' },
   { label: 'title', detail: 'Set song title', insertText: 'title "My Song"' },
   { label: 'artist', detail: 'Set artist name', insertText: 'artist "Artist"' },
@@ -408,7 +466,7 @@ const DEFINITION_SNIPPETS = [
   { label: 'pat', detail: 'Define pattern', insertText: 'pat ${1:name} = ${2:C4 E4 G4 C5}' },
   { label: 'seq', detail: 'Define sequence', insertText: 'seq ${1:name} = ${2:pattern1 pattern2}' },
   { label: 'effect', detail: 'Define named effect preset', insertText: 'effect ${1:name} = ${2:vib:3,6}' },
-  { label: 'channel', detail: 'Define channel mapping', insertText: 'channel ${1:1} => inst ${2:lead} seq ${3:main}' },
+  { label: 'channel', detail: 'Define channel mapping', insertText: 'channel ${1:1} => inst ${2:lead} seq ${3:main} lock=${4:scale}' },
   { label: 'import', detail: 'Import instruments from file', insertText: 'import "${1:local:lib/instruments.ins}"' },
 ];
 
@@ -474,6 +532,66 @@ export function inlineEffectInsertRange(
     startColumn,
     endColumn: position.column,
   };
+}
+
+function lockValueSuggestions(
+  range: monaco.IRange,
+  chip: string,
+): monaco.languages.CompletionItem[] {
+  return withDocumentation(
+    enumSuggestions(SCALE_LOCKS, range, 'Channel scale lock'),
+    chip,
+  );
+}
+
+function lockKeySuggestions(
+  range: monaco.IRange,
+  chip: string,
+): monaco.languages.CompletionItem[] {
+  return withDocumentation(
+    SCALE_LOCKS.map((value) => ({
+      label: `lock=${value}`,
+      kind: monaco.languages.CompletionItemKind.Snippet,
+      detail: 'Channel scale lock',
+      insertText: `lock=${value}`,
+      range,
+      sortText: '0' + value,
+    })),
+    chip,
+  );
+}
+
+function channelLockAppendSuggestions(
+  range: monaco.IRange,
+  chip: string,
+): monaco.languages.CompletionItem[] {
+  return withDocumentation(
+    SCALE_LOCKS.map((value) => ({
+      label: `lock=${value}`,
+      kind: monaco.languages.CompletionItemKind.Snippet,
+      detail: 'Channel scale lock',
+      insertText: ` lock=${value}`,
+      range,
+      sortText: '2' + value,
+    })),
+    chip,
+  );
+}
+
+function enumSuggestions(
+  values: readonly string[],
+  range: monaco.IRange,
+  detail: string,
+  kind: monaco.languages.CompletionItemKind = monaco.languages.CompletionItemKind.Enum,
+): monaco.languages.CompletionItem[] {
+  return values.map((value) => ({
+    label: value,
+    kind,
+    detail,
+    insertText: value,
+    range,
+    sortText: '0' + value,
+  }));
 }
 
 function buildNoteSuggestions(range: monaco.IRange): monaco.languages.CompletionItem[] {
@@ -640,6 +758,35 @@ export function provideBeatBaxCompletions(
       }
       break;
 
+    case 'scale-root':
+      suggestions.push(...withDocumentation(
+        enumSuggestions(SCALE_ROOTS, range, 'Scale root'),
+        options.chip,
+      ));
+      break;
+
+    case 'scale-mode':
+      suggestions.push(...withDocumentation(
+        enumSuggestions(SCALE_MODES, range, 'Scale mode'),
+        options.chip,
+      ));
+      break;
+
+    case 'scale-enforcement':
+      suggestions.push(...withDocumentation(
+        enumSuggestions(SCALE_ENFORCEMENT, range, 'Scale enforcement'),
+        options.chip,
+      ));
+      break;
+
+    case 'channel-lock-key':
+      suggestions.push(...lockKeySuggestions(range, options.chip));
+      break;
+
+    case 'channel-lock-value':
+      suggestions.push(...lockValueSuggestions(range, options.chip));
+      break;
+
     case 'modifier-inst-arg': {
       const instRange = instModifierArgRange(line, position) ?? range;
       suggestions.push(...refSuggestions(symbols.instruments, instRange, 'Instrument', '0'));
@@ -658,6 +805,9 @@ export function provideBeatBaxCompletions(
         refSuggestions(symbols.sequences, range, 'Sequence', '0'),
         options.chip,
       ));
+      if (!/\block\b/.test(line)) {
+        suggestions.push(...channelLockAppendSuggestions(range, options.chip));
+      }
       break;
 
     case 'sequence-body':
@@ -697,6 +847,7 @@ export function provideBeatBaxCompletions(
           DIRECTIVES.map((s) => ({
             ...s,
             kind: monaco.languages.CompletionItemKind.Keyword,
+            insertTextRules: s.label === 'scale' ? SNIPPET_RULE : undefined,
             range,
             sortText: '9' + s.label,
           })),
