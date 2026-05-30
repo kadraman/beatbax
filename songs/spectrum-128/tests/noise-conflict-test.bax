@@ -1,0 +1,8 @@
+; noise-conflict-test.bax — expects diagnostic (different R6 on same tick)
+; Two instruments with different noise_rate playing simultaneously → R6 conflict
+chip spectrum-128
+inst a type=tone1 vol=12 tone_mix=true noise_rate=4
+inst b type=tone2 vol=12 tone_mix=true noise_rate=20
+
+channel 1 => inst a . : C4 C4 C4 C4
+channel 2 => inst b . : C3 C3 C3 C3

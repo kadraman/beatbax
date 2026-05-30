@@ -1,0 +1,23 @@
+; buzz-bass-demo.bax — envelope-as-oscillator bass on channel C
+; env_bass uses R11–R13 as a sub-oscillator tuned to note pitch
+; NO vol_env on any other channel (they share R11–R13)
+chip spectrum-128
+bpm 120
+
+inst lead type=tone1 vol=12 arp_env=[0,4,7|0]
+inst harm type=tone2 vol=10
+inst bass type=tone3 env_bass=true
+
+pat melody = C4 E4 G4 C5
+pat harm   = E3 G3 B3 E4
+pat bass   = C2 . . .
+
+seq melody = melody melody melody melody
+seq harm   = harm harm harm harm
+seq bass   = bass bass bass bass
+
+channel 1 => inst lead seq melody
+channel 2 => inst harm seq harm
+channel 3 => inst bass seq bass
+
+play

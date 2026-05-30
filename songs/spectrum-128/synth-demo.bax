@@ -1,0 +1,22 @@
+; synth-demo.bax
+; Demonstrates: lead/bass/pad instruments, arp_env, pitch_env, multi-channel polyphony
+chip spectrum-128
+bpm 150
+
+inst lead type=tone1 vol=12 arp_env=[0,2,4,7,4,2,0]
+inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]
+inst pad  type=tone3 vol=10
+
+pat lead_riff = C4 E4 G4 C5 B4 G4 E4 .
+pat bass_line = C2 . . . G1 . . .
+pat pad_sust  = E3 . . . E3 . . .
+
+seq main = lead_riff lead_riff lead_riff lead_riff
+seq bass = bass_line bass_line bass_line bass_line
+seq pad  = pad_sust pad_sust pad_sust pad_sust
+
+channel 1 => inst lead seq main
+channel 2 => inst bass seq bass
+channel 3 => inst pad  seq pad
+
+play

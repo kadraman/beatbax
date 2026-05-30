@@ -1,0 +1,7 @@
+; shared-envelope-test.bax — expects diagnostic (two vol_env programs on R11–R13)
+chip spectrum-128
+inst lead type=tone1 vol=12 vol_env=[15,10,5,0]
+inst bass type=tone2 vol=14 vol_env=[14,10,6,0]
+
+channel 1 => inst lead .
+channel 2 => inst bass .

@@ -1,0 +1,11 @@
+; smoke-test.bax — minimal 4-note song per channel (register-log regression gate)
+chip spectrum-128
+inst tone1 type=tone1 vol=10
+inst tone2 type=tone2 vol=10
+inst tone3 type=tone3 vol=10
+
+channel 1 => inst tone1 . : C4 D4 E4 F4
+channel 2 => inst tone2 . : C3 D3 E3 F3
+channel 3 => inst tone3 . : C2 D2 E2 F2
+
+play

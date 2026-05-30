@@ -1,0 +1,24 @@
+; percussion-demo.bax
+; Demonstrates: hardware-realistic drums — one noise palette, staggered hits
+; Channel C borrowed for bass + percussion (time-multiplexed)
+chip spectrum-128
+bpm 120
+
+; Shared noise palette for all percussion (R6 = 10)
+; Only one drum active per tick on each channel — no R6 conflicts
+inst kick  type=tone3 vol=15 tone_mix=true noise_rate=10
+inst snare type=tone2 vol=14 tone_mix=true noise_rate=10
+inst hat   type=tone1 vol=10 tone_mix=true noise_rate=10
+
+; Multiplexed: stagger hits so they never overlap on the same tick
+pat kick  = C2 . . . . . . .
+pat snare = . . . D3 . . . .
+pat hat   = . F4 . . F4 . . F4
+
+seq drums = kick snare hat kick snare hat kick snare
+
+channel 1 => inst hat  seq drums
+channel 2 => inst snare seq drums
+channel 3 => inst kick  seq drums
+
+play

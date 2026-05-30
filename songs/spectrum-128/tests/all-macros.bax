@@ -1,0 +1,13 @@
+; all-macros.bax — all macro types combined without illegal overlaps
+; - lead: arp_env + pitch_env (software macros, no conflict)
+; - bass: pure tone, constant vol
+; - perc: noise via tone_mix + noise_rate; vol_env for the noise hit decay
+;   NOTE: vol_env here uses hardware envelope (R11–R13); lead + bass have no vol_env
+chip spectrum-128
+inst lead type=tone1 vol=12 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
+inst bass type=tone2 vol=14
+inst perc type=tone3 vol=14 tone_mix=true noise_rate=12 vol_env=[15,8,0]
+
+channel 1 => inst lead .
+channel 2 => inst bass .
+channel 3 => inst perc .

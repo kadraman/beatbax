@@ -1,0 +1,21 @@
+; amstrad-cpc-demo.bax
+; Demonstrates: platform-agnostic note content; chipRegion selects AY clock only
+; CPC AY clock = 1,000,000 Hz (vs Spectrum 128's 1,773,400 Hz)
+chip spectrum-128
+chipRegion cpc
+
+inst lead type=tone1 vol=12 arp_env=[0,2,4,7]
+inst bass type=tone2 vol=14
+inst pad  type=tone3 vol=10
+
+pat melody = C4 E4 G4 C5 B4 A4 G4 .
+pat bass   = C2 . . . G1 . . .
+
+seq main = melody melody melody melody
+seq bass = bass bass bass bass
+
+channel 1 => inst lead seq main
+channel 2 => inst bass seq bass
+channel 3 => inst pad  seq main
+
+play
