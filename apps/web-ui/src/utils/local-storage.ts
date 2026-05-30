@@ -139,6 +139,8 @@ export const StorageKey = {
   MIDI_AUDITION_NOTES: 'midi.auditionNotes',
   /** Determine step length from how long the MIDI key is held (boolean). */
   MIDI_USE_NOTE_DURATION: 'midi.useNoteDuration',
+  /** Scale-aware MIDI step-entry behaviour ('off' | 'snap' | 'filter'). */
+  MIDI_SCALE_SNAP_MODE: 'midi.scaleSnapMode',
 } as const;
 
 export type StorageKeyValue = (typeof StorageKey)[keyof typeof StorageKey];

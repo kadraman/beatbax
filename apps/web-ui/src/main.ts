@@ -83,6 +83,7 @@ import {
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
+import { resolveScaleContext } from './editor/scale-context';
 import { DebugOverlay } from './ui/debug-overlay';
 
 // Export / import imports
@@ -151,6 +152,7 @@ function writePanelVis(key: string, visible: boolean): void {
 // ─── Global state ─────────────────────────────────────────────────────────────
 let editor: any = null;
 let diagnosticsManager: any = null;
+let lastParsedAst: any = null;
 
 // Expose eventBus globally for debugging
 (window as any).__beatbax_eventBus = eventBus;
@@ -231,11 +233,6 @@ eventBus.on('navigate:to', ({ line, column }) => {
   monacoEditor.focus();
 });
 
-// Keep status-bar cursor position in sync with Monaco.
-editor.editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number } }) => {
-  statusBar?.setCursorPosition(e.position.lineNumber, e.position.column);
-});
-
 // Editor is fully initialised — remove the static boot overlay.
 spinner.hideBoot();
 
@@ -288,6 +285,27 @@ problemsPanel = new OutputPanel(problemsContainer, eventBus, {
 });
 const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
+
+function refreshScaleContextStrip(): void {
+  const monacoEditor = editor?.editor;
+  const model = monacoEditor?.getModel?.();
+  if (!model || !statusBar) {
+    statusBar?.setScaleContext(null);
+    return;
+  }
+  const pos = monacoEditor.getPosition();
+  if (!pos) {
+    statusBar.setScaleContext(null);
+    return;
+  }
+  const lineText = model.getLineContent(pos.lineNumber);
+  statusBar.setScaleContext(resolveScaleContext(lastParsedAst, lineText, pos.column));
+}
+
+editor.editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number } }) => {
+  statusBar?.setCursorPosition(e.position.lineNumber, e.position.column);
+  refreshScaleContextStrip();
+});
 
 // Install global error handlers now that panels are ready.
 // Uncaught errors and unhandled rejections are forwarded as error messages.
@@ -1064,6 +1082,20 @@ void midiController.requestMidiAccess();
 
 // Expose MIDI controller globally for settings panel and command palette
 (window as any).__beatbax_midiStepEntry = midiController;
+// Scale context + MIDI snap need the Peggy parsed AST (scale, lock, seqSpecTokens).
+// PlaybackManager also emits parse:success with a resolved SongModel as ast, which
+// lacks those fields — ignore those events (resolvedAst is editor-only).
+eventBus.on('parse:success', ({ ast, resolvedAst }: any) => {
+  if (resolvedAst === undefined) return;
+  lastParsedAst = ast ?? null;
+  midiController.setParsedAst(ast);
+  refreshScaleContextStrip();
+});
+eventBus.on('parse:error', () => {
+  lastParsedAst = null;
+  midiController.setParsedAst(null);
+  refreshScaleContextStrip();
+});
 
 // ─── Hold-to-repeat helper (shared by BPM and VOL steppers) ──────────────────
 function _attachHoldRepeat(

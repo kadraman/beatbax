@@ -16,6 +16,10 @@ import {
   isCursorInsidePatBody,
   extractNoteTokenSpans,
   durationMsToStepLength,
+  normalizeScaleConfig,
+  buildScalePitchClasses,
+  scaleLockPitchClasses,
+  snapMidiToPitchClasses,
   MidiStepEntryService,
 } from '../src/input/midi-step-entry';
 import { MidiStepEntryController } from '../src/input/midi-step-entry-controller';
@@ -224,6 +228,28 @@ describe('extractNoteTokenSpans', () => {
   });
 });
 
+describe('scale-awareness MIDI helpers', () => {
+  it('normalizes scale config and accepts flats', () => {
+    expect(normalizeScaleConfig({ root: 'Bb', mode: 'major' })).toEqual({ root: 'A#', mode: 'major' });
+  });
+
+  it('builds pitch classes for major mode', () => {
+    const pcs = buildScalePitchClasses('C', 'major');
+    expect(pcs ? Array.from(pcs).sort((a, b) => a - b) : []).toEqual([0, 2, 4, 5, 7, 9, 11]);
+  });
+
+  it('restricts lock pitch classes for root+fifth', () => {
+    const pcs = scaleLockPitchClasses('C', 'major', 'root+fifth');
+    expect(pcs ? Array.from(pcs).sort((a, b) => a - b) : []).toEqual([0, 7]);
+  });
+
+  it('snaps to nearest scale pitch (tie prefers up)', () => {
+    // C#4 -> nearest in C major is D4
+    const snapped = snapMidiToPitchClasses(61, new Set([0, 2, 4, 5, 7, 9, 11]));
+    expect(snapped).toBe(62);
+  });
+});
+
 // ─── MidiStepEntryService ─────────────────────────────────────────────────────
 
 describe('MidiStepEntryService', () => {
@@ -394,5 +420,37 @@ describe('MidiStepEntryController overwrite-selection', () => {
 
     (controller as any)._insertNoteInEditor('E4', 'inherit', false);
     expect(state.lineText).toBe('pat melody = E4 D4 D4 D4 C4');
+  });
+
+  it('snaps inserted notes to scale when snap mode is enabled', () => {
+    const lineText = 'pat melody = ';
+    const { editor, state } = createSingleLineEditor(lineText, lineText.length + 1, lineText.length + 1);
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+    });
+    controller.setScaleSnapMode('snap');
+    controller.setParsedAst({
+      scale: { root: 'C', mode: 'major', enforcement: 'warn' },
+      channels: [{ id: 1, lock: 'scale', seqSpecTokens: ['melody'] }],
+      seqs: {},
+    });
+    (controller as any)._insertNoteInEditor('C#4', 'inherit', false);
+    expect(state.lineText).toBe('pat melody = D4 ');
+  });
+
+  it('filters out-of-scale notes when filter mode is enabled', () => {
+    const lineText = 'pat melody = ';
+    const { editor, state } = createSingleLineEditor(lineText, lineText.length + 1, lineText.length + 1);
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+    });
+    controller.setScaleSnapMode('filter');
+    controller.setParsedAst({
+      scale: { root: 'C', mode: 'major', enforcement: 'warn' },
+      channels: [{ id: 1, lock: 'root+fifth', seqSpecTokens: ['melody'] }],
+      seqs: {},
+    });
+    (controller as any)._insertNoteInEditor('E4', 'inherit', false);
+    expect(state.lineText).toBe('pat melody = ');
   });
 });

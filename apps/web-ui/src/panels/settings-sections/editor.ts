@@ -7,7 +7,7 @@ import {
   settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
-  settingMidiAuditionNotes, settingMidiUseNoteDuration,
+  settingMidiAuditionNotes, settingMidiUseNoteDuration, settingMidiScaleSnapMode,
 } from '../../stores/settings.store';
 import { sectionHeading, toggle, numberField, textField, noteText, selectField } from './general';
 import { MidiStepEntryService } from '../../input/midi-step-entry';
@@ -159,6 +159,21 @@ export function buildEditorSection(): HTMLElement {
   midiSettingsContainer.appendChild(noteText('When enabled, the step length is determined by how long you hold the MIDI key. Short taps emit note only; longer holds progress through :2, :4, :8, and :16. The note is entered on key release and always includes a duration suffix, overriding both the "Step Length" setting and the "Emit explicit durations" setting.'));
 
   midiSettingsContainer.appendChild(selectField(
+    'Scale snap mode',
+    [
+      { value: 'off', label: 'Off (insert raw MIDI notes)' },
+      { value: 'snap', label: 'Snap (nearest in-scale note)' },
+      { value: 'filter', label: 'Filter (drop out-of-scale notes)' },
+    ],
+    settingMidiScaleSnapMode.get(),
+    (v) => {
+      settingMidiScaleSnapMode.set(v as any);
+      (window as any).__beatbax_midiStepEntry?.setScaleSnapMode?.(v);
+    },
+  ));
+  midiSettingsContainer.appendChild(noteText('Applies when the current song declares `scale`. Off keeps raw notes. Snap moves out-of-scale notes to the nearest allowed pitch class. Filter discards out-of-scale notes.'));
+
+  midiSettingsContainer.appendChild(selectField(
     'Entry mode',
     [
       { value: 'insert',               label: 'Insert at cursor' },
@@ -208,4 +223,5 @@ export function resetEditorDefaults(): void {
   settingMidiAutoAdvance.set(true);
   settingMidiAuditionNotes.set(false);
   settingMidiUseNoteDuration.set(false);
+  settingMidiScaleSnapMode.set('off');
 }

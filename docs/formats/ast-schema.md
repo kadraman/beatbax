@@ -3,7 +3,7 @@
 - **Schema**: [schema/ast.schema.json](schema/ast.schema.json#L1)
 - **Validator (CLI)**: [scripts/validate-ast.cjs](scripts/validate-ast.cjs#L1)
 
-The schema validates the **assembled AST** returned by `parseWithPeggy` — the structured object with top-level `pats`, `insts`, `seqs`, `channels`, and optional fields (`effects`, `patternEvents`, `sequenceItems`, `imports`, `bpm`, `chip`, `volume`, `play`, `metadata`, `diagnostics`).
+The schema validates the **assembled AST** returned by `parseWithPeggy` — the structured object with top-level `pats`, `insts`, `seqs`, `channels`, and optional fields (`effects`, `patternEvents`, `sequenceItems`, `imports`, `bpm`, `chip`, `volume`, `play`, `scale`, `metadata`, `diagnostics`).
 
 Usage:
 
@@ -36,7 +36,7 @@ The parser attaches a `diagnostics` array to the AST when it detects semantic is
 ```typescript
 interface ParseDiagnostic {
   level: 'error' | 'warning';
-  component: string;       // e.g. 'parser'
+  component: string;       // e.g. 'parser', 'scale-lock'
   message: string;
   loc?: SourceLocation;    // { start: { line, column }, end: { line, column } }
 }
@@ -54,6 +54,7 @@ interface ParseDiagnostic {
 | Channel has no seq/pat | `channel 1 => inst lead` |
 | Channel references undefined seq/pat | `channel 1 => inst lead seq mainX` |
 | Sequence references undefined pat/seq | `seq s = patA ghostPat` |
+| Channel lock used without a scale declaration | `channel 1 => inst lead seq main lock=scale` (without `scale ...`) |
 
 ### Conditions that produce a `warning`
 
@@ -82,6 +83,8 @@ Notes:
 - Top-level required properties are `pats`, `insts`, `seqs`, and `channels`. All other properties are optional.
 - `InstrumentNode` allows additional properties for chip-specific extensibility (e.g. `gm`, `__loc`).
 - `ChannelNode` includes `seqSpecTokens` (raw sequence spec token array from the RHS).
+- `ChannelNode.lock` is optional and, when present, is one of: `scale`, `root+fifth`, `chord`, `chord7`, `octaves`.
+- `AST.scale` is optional and contains `{ root, mode, enforcement }` for scale-aware diagnostics and UI features.
 - Structured parsing is enabled by default. `patternEvents` and `sequenceItems` supplement the legacy `pats`/`seqs` token maps with structured event objects.
 - `duty` accepts any string value (e.g. `"50"`, `"12.5"`, `"75"`). The Game Boy hardware supports 12.5, 25, 50, and 75 percent duty cycles.
 - If you want TypeScript types generated from this JSON Schema, a conversion step using `json-schema-to-typescript` can be added.

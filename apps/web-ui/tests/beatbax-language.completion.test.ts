@@ -4,6 +4,8 @@ import {
   collectSongSymbols,
   detectCompletionContext,
   effectSnippetToPlain,
+  getChannelLockCompletionSlot,
+  getScaleCompletionSlot,
   inlineEffectInsertRange,
   parseSymbolsFromSource,
   provideBeatBaxCompletions,
@@ -61,6 +63,33 @@ describe('BeatBax completion context', () => {
 
   test('blocks completions inside strings', () => {
     expect(detectCompletionContext('title "My Song"', 12, true).kind).toBe('blocked');
+  });
+
+  test('detects scale directive value slots', () => {
+    expect(getScaleCompletionSlot('scale ')).toBe('root');
+    expect(getScaleCompletionSlot('scale D')).toBe('root');
+    expect(getScaleCompletionSlot('scale D ')).toBe('mode');
+    expect(getScaleCompletionSlot('scale D dorian')).toBe('mode');
+    expect(getScaleCompletionSlot('scale D dorian ')).toBe('enforcement');
+    expect(getScaleCompletionSlot('scale D dorian warn')).toBe('enforcement');
+    expect(getScaleCompletionSlot('bpm 120')).toBeNull();
+
+    expect(detectCompletionContext('scale ', 7, false).kind).toBe('scale-root');
+    expect(detectCompletionContext('scale D ', 9, false).kind).toBe('scale-mode');
+    expect(detectCompletionContext('scale D dorian ', 18, false).kind).toBe('scale-enforcement');
+  });
+
+  test('detects channel lock key and value slots', () => {
+    const line = 'channel 1 => inst lead seq main lock=scale';
+    expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main lock=', line)).toBe('value');
+    expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main lock=sc', line)).toBe('value');
+    expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main lock', line)).toBe('key');
+    expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main lock scale', line)).toBe('value');
+    expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main', line)).toBeNull();
+
+    expect(detectCompletionContext(line, line.indexOf('=') + 2, false).kind).toBe('channel-lock-value');
+    const lockLine = 'channel 1 => inst lead seq main lock';
+    expect(detectCompletionContext(lockLine, lockLine.length + 1, false).kind).toBe('channel-lock-key');
   });
 });
 
@@ -261,7 +290,56 @@ describe('BeatBax Monaco completion provider', () => {
     );
     const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
     expect(labels).toContain('chip');
+    expect(labels).toContain('scale');
     expect(labels).not.toContain('C4');
+  });
+
+  test('suggests scale roots, modes, and enforcement on scale directive line', () => {
+    const rootResult = provideBeatBaxCompletions(
+      makeModel(['scale '], 1, 7),
+      { lineNumber: 1, column: 7 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    expect((rootResult as { suggestions: { label: string }[] }).suggestions.map((s) => s.label)).toContain('D');
+
+    const modeResult = provideBeatBaxCompletions(
+      makeModel(['scale D '], 1, 9),
+      { lineNumber: 1, column: 9 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    expect((modeResult as { suggestions: { label: string }[] }).suggestions.map((s) => s.label)).toContain('dorian');
+
+    const enforcementResult = provideBeatBaxCompletions(
+      makeModel(['scale D dorian '], 1, 16),
+      { lineNumber: 1, column: 16 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    expect((enforcementResult as { suggestions: { label: string }[] }).suggestions.map((s) => s.label)).toContain('warn');
+  });
+
+  test('suggests lock values after lock= on channel line', () => {
+    const line = 'channel 1 => inst lead seq main lock=';
+    const result = provideBeatBaxCompletions(
+      makeModel([line], 1, line.length + 1),
+      { lineNumber: 1, column: line.length + 1 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(labels).toContain('scale');
+    expect(labels).toContain('root+fifth');
+    expect(labels).toContain('chord7');
+  });
+
+  test('suggests lock= snippets when typing lock on channel line', () => {
+    const line = 'channel 1 => inst lead seq main lock';
+    const result = provideBeatBaxCompletions(
+      makeModel([line], 1, line.length + 1),
+      { lineNumber: 1, column: line.length + 1 },
+      { ast: null, resolvedAst: null, song: null, chip: 'gameboy' },
+    );
+    const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(labels).toContain('lock=scale');
+    expect(labels).toContain('lock=root+fifth');
   });
 
   test('suggests chip ids on chip directive line', () => {
