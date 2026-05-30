@@ -590,6 +590,18 @@
 .status-errors  { color: var(--error-color-light,   #ffc1c1); }
 .status-warnings { color: var(--warning-color-light, #ffd666); }
 
+.status-section.status-scale-context {
+  max-width: min(42vw, 520px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.95;
+}
+
+.status-scale-text {
+  font-variant-numeric: tabular-nums;
+}
+
 .status-section.status-brand {
   margin-left: 8px;
   opacity: 0.7;

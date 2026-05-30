@@ -602,6 +602,11 @@ export function registerBeatBaxLanguage(): void {
       'artist',
       'author',
       'comment',
+      'scale',
+      'lock',
+      'warn',
+      'error',
+      'off',
     ],
 
     // Instrument types
@@ -659,11 +664,39 @@ export function registerBeatBaxLanguage(): void {
         // Deprecated top-level directives (before generic keyword rule)
         [/\b(time|ticksPerStep)\b/, 'keyword.deprecated'],
 
-        // Top-level directives
+        // Top-level directives (scale handled separately — line-start only)
         [
           /\b(song|chip|bpm|stepsPerBar|volume|title|artist|author|comment)\b/,
           'keyword',
         ],
+
+        // Channel lock option with value (lock=scale, lock scale) — before standalone lock/scale rules
+        [
+          /(\block)(\s*=\s*)(scale|root\+fifth|chord7|chord|octaves)\b/,
+          ['attribute', 'operator', 'constant.language'],
+        ],
+        [
+          /(\block)(\s+)(scale|root\+fifth|chord7|chord|octaves)\b/,
+          ['attribute', '', 'constant.language'],
+        ],
+
+        // Channel lock option key only (lock=..., lock ...)
+        [/\block\b(?=\s*[= ])/, 'attribute'],
+
+        // Top-level scale directive (line start only — avoids clash with lock=scale)
+        [/^\s*scale\b/, 'keyword'],
+
+        // Scale lock values (partial / standalone occurrences)
+        [/\b(root\+fifth|chord7|chord|octaves)\b/, 'constant.language'],
+
+        // Scale modes
+        [
+          /\b(major|minor|dorian|phrygian|lydian|mixolydian|locrian|pentatonic_major|pentatonic_minor|blues|chromatic)\b/,
+          'constant.language',
+        ],
+
+        // Scale enforcement (standalone; :off(N) handled by sequence modifier rules above)
+        [/\b(warn|error|off)\b/, 'constant.language'],
 
         // Definitions - use state to capture definition names
         [/\b(inst|pat|seq|effect)\b/, { token: 'keyword', next: '@definitionName' }],
@@ -697,6 +730,9 @@ export function registerBeatBaxLanguage(): void {
 
         // Notes (C0-B8)
         [/[A-G][#b]?[0-8]\b/, 'number.note'],
+
+        // Pitch classes without octave (scale roots, etc.)
+        [/[A-Ga-g][#b]?\b/, 'number.note'],
 
         // Rest token
         [/\./, 'number.rest'],
@@ -941,6 +977,33 @@ export function registerBeatBaxLanguage(): void {
           'Example: `chip gameboy`, `chip atari-st`, `chip nes`',
         ].join('\n\n'),
         bpm: 'Sets the tempo in beats per minute. Example: `bpm 120`',
+        scale: [
+          '**scale** — declares the global pitch set for scale-aware editing and validation.',
+          '```\nscale <root> <mode> [warn|error|off]\n```',
+          '- `<root>` — pitch class (`C`, `F#`, `Bb`, …)',
+          '- `<mode>` — `major`, `minor`, `dorian`, `phrygian`, `lydian`, `mixolydian`, `locrian`, `pentatonic_major`, `pentatonic_minor`, `blues`, `chromatic`',
+          '- Enforcement: `warn` (default) — diagnostics only; `error` — block on violations; `off` — metadata only',
+          '',
+          'Example: `scale D dorian warn`',
+          '',
+          'Channels can opt in with `lock=<value>`: `scale`, `root+fifth`, `chord`, `chord7`, `octaves`',
+        ].join('\n\n'),
+        lock: [
+          '**lock** — channel option restricting notes to a subset of the declared scale.',
+          '```\nchannel N => inst <name> seq <name> lock=<value>\n```',
+          '- `scale` — any note in the declared scale',
+          '- `root+fifth` — root and fifth only (any octave)',
+          '- `chord` — degrees 1, 3, 5',
+          '- `chord7` — degrees 1, 3, 5, 7',
+          '- `octaves` — root pitch class only',
+          '',
+          'Example: `channel 1 => inst lead seq main lock=root+fifth`',
+        ].join('\n\n'),
+        warn: 'Scale enforcement: emit diagnostics for out-of-scale notes (default). Example: `scale C major warn`',
+        error: 'Scale enforcement: treat out-of-scale notes as errors. Example: `scale C major error`',
+        dorian: 'Scale mode: dorian (natural minor with raised 6th). Example: `scale D dorian warn`',
+        major: 'Scale mode: major (Ionian). Example: `scale C major warn`',
+        minor: 'Scale mode: natural minor (Aeolian). Example: `scale A minor warn`',
         stepsPerBar: 'Sets steps per bar for bar/beat display (default 4). Example: `stepsPerBar 4`',
         time: '*(deprecated)* Alias for `stepsPerBar`. Still parsed; prefer `stepsPerBar`. Example: `time 4`',
         ticksPerStep:
@@ -1160,7 +1223,10 @@ export function registerBeatBaxLanguage(): void {
           'Example: `lead_core:every(2,mute)` — silence every other note',
         ].join('\n\n'),
         off: [
-          '**Off** — prepend N rest tokens before the pattern (pickup delay).',
+          '**Off (scale enforcement)** — store scale metadata only, no diagnostics.',
+          'Example: `scale C major off`',
+          '',
+          '**Off (sequence transform)** — prepend N rest tokens before the pattern (pickup delay).',
           '```\noff(N)\n```',
           '- `N` — number of rest steps to insert at the start (0 = no change)',
           '',

@@ -1,12 +1,8 @@
 import { noteToMidi, midiToNote } from '../util/music.js';
 import type {
-  AST,
-  ChannelNode,
-  ParseDiagnostic,
   ScaleDirective,
   ScaleEnforcement,
   ScaleLock,
-  SourceLocation,
 } from './ast.js';
 
 const SCALE_MODES: Record<string, number[]> = {
@@ -88,14 +84,7 @@ export function normalizeLock(rawLock: string | undefined): ScaleLock | undefine
   return lock as ScaleLock;
 }
 
-function pitchClassSetToNames(pitchClasses: Set<number>): string {
-  return Array.from(pitchClasses)
-    .sort((a, b) => a - b)
-    .map((pc) => midiToNote(60 + pc).replace(/-?\d+$/, ''))
-    .join(', ');
-}
-
-function buildLockPitchClasses(scale: ScaleDirective, lock: ScaleLock): Set<number> | null {
+export function buildLockPitchClasses(scale: ScaleDirective, lock: ScaleLock): Set<number> | null {
   const scaleSet = buildScalePitchClasses(scale.root, scale.mode);
   if (!scaleSet) return null;
   if (lock === 'scale') return scaleSet;
@@ -118,106 +107,13 @@ function buildLockPitchClasses(scale: ScaleDirective, lock: ScaleLock): Set<numb
   return out.size > 0 ? out : scaleSet;
 }
 
-function stripRepeatSuffix(raw: string): string {
-  let end = raw.length - 1;
-  while (end >= 0 && raw[end] === ' ') end--;
-  if (end < 0 || raw[end] < '0' || raw[end] > '9') return raw.slice(0, end + 1);
+export {
+  validateScaleLocks,
+  expandChannelTokens,
+  expandChannelNotesWithProvenance,
+  formatScaleLockViolationMessage,
+  noteNameFromExpandedToken,
+  scaleLockViolationKey,
+} from './scale-lock-provenance.js';
 
-  let digitStart = end;
-  while (digitStart >= 0 && raw[digitStart] >= '0' && raw[digitStart] <= '9') digitStart--;
-  let starPos = digitStart;
-  while (starPos >= 0 && raw[starPos] === ' ') starPos--;
-  if (starPos < 0 || raw[starPos] !== '*') return raw.slice(0, end + 1);
-
-  let suffixStart = starPos - 1;
-  while (suffixStart >= 0 && raw[suffixStart] === ' ') suffixStart--;
-  return raw.slice(0, suffixStart + 1);
-}
-
-function extractBaseName(token: string): string {
-  return stripRepeatSuffix(token.split(':')[0].trim());
-}
-
-function getReferencedPatternNames(ast: AST, channel: ChannelNode): Set<string> {
-  const names = new Set<string>();
-  const rawTokens: string[] = Array.isArray((channel as any).seqSpecTokens)
-    ? ((channel as any).seqSpecTokens as string[])
-    : typeof channel.pat === 'string'
-      ? channel.pat.split(/[\s,]+/)
-      : [];
-  for (const rawToken of rawTokens) {
-    const base = extractBaseName(rawToken);
-    if (!base) continue;
-    if (ast.pats[base]) {
-      names.add(base);
-      continue;
-    }
-    const seq = ast.seqs[base];
-    if (!seq) continue;
-    for (const seqToken of seq) {
-      const seqBase = extractBaseName(seqToken);
-      if (seqBase && ast.pats[seqBase]) names.add(seqBase);
-    }
-  }
-  return names;
-}
-
-function levelForEnforcement(enforcement: ScaleEnforcement): ParseDiagnostic['level'] | null {
-  if (enforcement === 'off') return null;
-  return enforcement === 'error' ? 'error' : 'warning';
-}
-
-export function validateScaleLocks(ast: AST): ParseDiagnostic[] {
-  const diagnostics: ParseDiagnostic[] = [];
-  const scale = ast.scale;
-  if (!scale) return diagnostics;
-
-  const severity = levelForEnforcement(scale.enforcement);
-  if (!severity) return diagnostics;
-
-  const normalizedScale = normalizeScaleDirective(scale.root, scale.mode, scale.enforcement);
-  if (!normalizedScale) return diagnostics;
-
-  for (const ch of ast.channels ?? []) {
-    const rawLock = (ch as any).lock as string | undefined;
-    if (!rawLock) continue;
-
-    const lock = normalizeLock(rawLock);
-    if (!lock) {
-      diagnostics.push({
-        level: 'error',
-        component: 'scale-lock',
-        message: `Channel ${ch.id}: unknown lock '${rawLock}'. Valid locks: scale, root+fifth, chord, chord7, octaves.`,
-        loc: ch.loc,
-      });
-      continue;
-    }
-
-    const instName = ch.inst;
-    const instType = instName ? String((ast.insts as any)?.[instName]?.type ?? '').toLowerCase() : '';
-    if (instType === 'noise') continue;
-
-    const allowed = buildLockPitchClasses(normalizedScale, lock);
-    if (!allowed) continue;
-    const allowedNames = pitchClassSetToNames(allowed);
-    const patternNames = getReferencedPatternNames(ast, ch);
-    for (const patternName of patternNames) {
-      const events = ast.patternEvents?.[patternName] ?? [];
-      for (const ev of events) {
-        if (!ev || ev.kind !== 'note') continue;
-        const midi = noteToMidi(ev.value);
-        if (midi === null) continue;
-        const pitchClass = ((midi % 12) + 12) % 12;
-        if (allowed.has(pitchClass)) continue;
-        diagnostics.push({
-          level: severity,
-          component: 'scale-lock',
-          message: `Note ${ev.value} is outside the declared lock "${lock}" for channel ${ch.id} (${normalizedScale.root} ${normalizedScale.mode} ${lock} = ${allowedNames}).`,
-          loc: ev.loc as SourceLocation | undefined,
-        });
-      }
-    }
-  }
-
-  return diagnostics;
-}
+export type { ExpandedScaleNote, ScaleNoteProvenance } from './scale-lock-provenance.js';

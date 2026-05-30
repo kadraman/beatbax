@@ -4,11 +4,18 @@ import { parseWithPeggy } from './peggy/index.js';
 export { parseWithPeggy } from './peggy/index.js';
 export {
   buildScalePitchClasses,
+  buildLockPitchClasses,
   canonicalizeRoot,
+  expandChannelNotesWithProvenance,
+  expandChannelTokens,
+  formatScaleLockViolationMessage,
   normalizeScaleDirective,
   normalizeLock,
+  noteNameFromExpandedToken,
+  scaleLockViolationKey,
   validateScaleLocks,
 } from './scale-awareness.js';
+export type { ExpandedScaleNote, ScaleNoteProvenance } from './scale-awareness.js';
 
 export function parse(source: string): AST {
   // Normalize Windows CRLF / bare CR to LF so the parser handles files

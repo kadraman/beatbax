@@ -23,13 +23,13 @@ import {
   type StepLength,
   type EntryMode,
   type ScaleSnapMode,
-  type ScaleLock,
   normalizeScaleConfig,
   scaleLockPitchClasses,
   snapMidiToPitchClasses,
   noteNameToMidi,
   midiNoteToName,
 } from './midi-step-entry';
+import { resolvePrimaryPatternLock } from '../editor/scale-context';
 import {
   settingMidiInputEnabled,
   settingMidiInputDevice,
@@ -308,7 +308,7 @@ export class MidiStepEntryController {
 
     const patternMatch = lineText.match(/^\s*pat\s+([^\s=]+)\s*=/);
     const patternName = patternMatch?.[1];
-    const lock = patternName ? this._resolvePatternLock(patternName) : undefined;
+    const lock = patternName ? resolvePrimaryPatternLock(this.parsedAst, patternName) : undefined;
     const allowedPitchClasses = scaleLockPitchClasses(scale.root, scale.mode, lock);
     if (!allowedPitchClasses || allowedPitchClasses.size === 0) return noteName;
 
@@ -318,28 +318,6 @@ export class MidiStepEntryController {
     if (this.scaleSnapMode === 'filter' && snapped !== midi) return null;
     if (snapped === midi) return noteName;
     return midiNoteToName(snapped);
-  }
-
-  private _resolvePatternLock(patternName: string): ScaleLock | undefined {
-    const ast = this.parsedAst;
-    if (!ast?.channels || !ast?.seqs) return undefined;
-    const channels = [...(ast.channels as any[])].sort((a, b) => Number(a.id ?? 0) - Number(b.id ?? 0));
-    for (const ch of channels) {
-      const lock = ch?.lock;
-      if (!lock) continue;
-      const refs = Array.isArray(ch?.seqSpecTokens) ? ch.seqSpecTokens : typeof ch?.pat === 'string' ? ch.pat.split(/[\s,]+/) : [];
-      for (const token of refs) {
-        const base = String(token ?? '').split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
-        if (!base) continue;
-        if (base === patternName) return lock;
-        const seq = ast.seqs?.[base];
-        if (!Array.isArray(seq)) continue;
-        if (seq.some((seqToken: string) => String(seqToken).split(':')[0].trim().replace(/\s*\*\s*\d+$/, '') === patternName)) {
-          return lock;
-        }
-      }
-    }
-    return undefined;
   }
 
   private _insertAtCursor(
