@@ -3,7 +3,7 @@ title: "Song Composition Abstractions — Sections, Aliases, Concatenation, and 
 status: proposed
 authors: ["kadraman"]
 created: 2026-05-27
-issue: "<LINK_TO_GITHUB_ISSUE>"
+issue: "https://github.com/kadraman/beatbax/issues/125"
 ---
 
 ## Summary

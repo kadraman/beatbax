@@ -44,10 +44,10 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
   - Melodic patterns and sequences
 
 - **Percussion Demo** (`percussion-demo.bax`) — Demonstrates:
-  - Tone/noise mixing via `tone_mix=true` and `noise_rate` on tone3
-  - Volume envelope macros (`vol_env`) for attack/decay
-  - Drum patterns (kick, snare, hi-hat simulations)
-  - Rhythmic patterns and drum sequences
+  - **Time-multiplexed drums** under one shared `noise_rate` (hardware-accurate)
+  - Per-channel mixer routing (`tone_mix`) — not independent noise timbres
+  - Software volume shaping (`vol` + BeatBax slides) instead of conflicting hardware `vol_env`
+  - Classic Spectrum layout: melody on A, harmony on B, bass/drums borrowing C
 
 - **Effects Showcase** (`effects-showcase.bax`) — Demonstrates:
   - All macro types combined: `vol_env`, `arp_env`, `pitch_env`, `noise_rate`
@@ -56,14 +56,16 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
   - Complex polyphonic arrangements
 
 - **Amstrad CPC Version** (`amstrad-cpc-demo.bax`) — Demonstrates:
-  - Same song compiled with `chipRegion=cpc-128k`
-  - Platform-agnostic note structure, region-aware clock scaling
+  - Same song compiled with `chipRegion=cpc`
+  - Platform-agnostic note structure, region-aware AY clock scaling
   - Deterministic output across platforms
 
 **Test Songs** (`songs/spectrum-128/tests/`):
 - `smoke-test.bax` — Minimal 4-note song per channel (regression gate)
 - `shared-envelope-test.bax` — Multiple channels with vol_env conflict detection
-- `noise-mixing-test.bax` — Noise blending on each channel independently
+- `noise-mixing-test.bax` — Independent **mixer** routing per channel (same global noise source)
+- `noise-conflict-test.bax` — Overlapping hits with different `noise_rate` values (expects diagnostic)
+- `buzz-bass-demo.bax` — Envelope-as-oscillator bass on channel C
 - `all-macros.bax` — All instrument macro types in one song
 
 ### Excluded
@@ -74,17 +76,19 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
 
 ## Technical Notes
 
-- Shared-resource behavior is hardware-accurate and must be explicit in docs and validation.
-- Deterministic ordering of register writes is required across render/export paths.
-- Plugin-scoped validation should reject conflicting instrument settings around shared envelope/noise ownership.
+- **One shared AY chip per song** — not three independent emulators. Preview, PCM, and future VGM export must share the same register stream.
+- **50 Hz tick alignment** — Spectrum/CPC tracker workflows are PAL-frame based; register commits happen once per chip tick.
+- **Register arbitration** — R6 (noise period), R7 (mixer), and R11–R13 (envelope) are global and last-writer-wins each tick. Conflicts emit diagnostics, not silent wrong audio.
+- **Authoring-first percussion** — a full GM-style drum kit with simultaneous different noise timbres is **not** a hardware target; sample songs must teach multiplexed drums instead.
 
 ## Implementation Outline
 
-1. Define plugin package and platform profiles (`zx-spectrum-128` default, `amstrad-cpc` compatibility).
-2. Wire channel backend with shared AY-compatible emulator behavior.
-3. Add and validate Spectrum-focused song templates.
-4. Implement/export adapter contracts for PT3/Arkos/VGM/register streams.
-5. Add deterministic regression tests for playback and export.
+1. Define plugin package, platform profiles, and **shared `AyChipSimulator`** (see Architecture below).
+2. Implement **register-intent collection + arbitration** per 50 Hz tick; wire thin `ChipChannelBackend` facades that queue intents.
+3. Add **song-level validation** for shared-register conflicts (noise period, envelope program).
+4. Add Spectrum-focused song templates that match real tracker constraints (see `docs/chips/zx-spectrum-128/composition_guide.md`).
+5. Expose deterministic **register logs** as the primary regression artifact; playback preview is derived from that log.
+6. Wire export adapter contracts for PT3/Arkos/VGM/register streams (export implementation is a separate feature).
 
 ## Out of Scope
 
@@ -111,862 +115,385 @@ Implementation and updates of exporter plugins, this will be implemented in a se
 
 Implement `@beatbax/plugin-chip-spectrum-128` as a standalone npm package that:
 
-- Provides the `ChipPlugin` interface for AY-3-8910 PSG emulation
-- Supports both **Spectrum 128** (3.5469 MHz) and **Amstrad CPC** (1.0 MHz, 2.0 MHz per region) clock configurations
-- Implements **3 tone channels** (square wave) with **noise generator** (15-bit LFSR)
-- Handles **shared envelope generator** and **shared noise period** (hardware constraints)
-- Renders audio via **Web Audio API** (AudioWorklet for browser) and **PCM** (CLI/headless)
-- Validates instrument definitions for AY-specific constraints
-- Provides UI contributions: Copilot prompts, hover documentation, help sections
-- Includes song templates via New Song Wizard
-- Exports deterministic, byte-identical output across repeated renders
+- Targets the **AY-3-8912** PSG family (Spectrum 128 primary; Amstrad CPC as a clock preset)
+- Emulates **one shared chip** per song — three tone outputs (A/B/C), one noise source, one envelope generator
+- Advances simulation on **50 Hz PAL chip ticks** with deterministic register write ordering
+- Exposes thin `ChipChannelBackend` facades that **queue register intents**, not isolated emulators
+- Validates **song-level shared-resource conflicts** (especially noise period and envelope program)
+- Renders preview audio from the **same register stream** used by future VGM/PT3 export (export itself is out of scope here)
+- Provides UI contributions and New Song Wizard templates aligned with real Spectrum tracker practice
 
-### Package Structure
+Reference docs (authoritative for composition constraints):
+
+- [docs/chips/zx-spectrum-128/hardware_guide.md](../chips/zx-spectrum-128/hardware_guide.md)
+- [docs/chips/zx-spectrum-128/composition_guide.md](../chips/zx-spectrum-128/composition_guide.md)
+
+### Design principles
+
+1. **Register stream is the source of truth** — PCM preview and export both consume the same per-tick register log.
+2. **Do not fake independent noise channels** — unlike NES/Game Boy, AY has no fourth noise voice; drums are time-multiplexed.
+3. **Fail visibly on conflicts** — when two active notes require different R6 or R11–R13 values on the same tick, emit a diagnostic with channel + loc context.
+4. **Spectrum-first defaults** — CPC is a region/clock preset, not a parallel feature matrix in v1.
+
+### Package structure
 
 ```
 packages/plugins/chip-spectrum-128/
-├── package.json                    # @beatbax/plugin-chip-spectrum-128, peer: @beatbax/engine
-├── tsconfig.json                   # ESM, strict, ES2022 target
+├── package.json
+├── tsconfig.json
 ├── src/
-│   ├── index.ts                    # ChipPlugin entry point
-│   ├── channel.ts                  # Shared AY-compatible channel backend factory
-│   ├── ay-emulator.ts              # AY-3-8910 PSG emulation core
-│   ├── envelope-generator.ts       # AY envelope hardware state machine
-│   ├── periodTables.ts             # Frequency → AY period lookup tables (12-bit, per region)
-│   ├── validate.ts                 # Instrument validation (shared envelope/noise constraints)
-│   ├── platform-profiles.ts        # Clock/region configs (Spectrum 128, Amstrad CPC variants)
-│   ├── ui-contributions.ts         # Copilot prompts, hover docs, help sections
-│   ├── songWizard.ts               # New Song Wizard templates
-│   └── version.ts                  # Package version string
+│   ├── index.ts                 # ChipPlugin entry; song-scoped chip factory
+│   ├── ay-chip.ts               # Shared AyChipSimulator (single R0–R15 state)
+│   ├── register-intent.ts       # Per-note/channel intended writes per tick
+│   ├── register-arbitrator.ts   # Merge intents → one register frame; conflict detection
+│   ├── register-log.ts          # Deterministic tick log (primary test artifact)
+│   ├── channel-backend.ts       # ChipChannelBackend facades → queue intents
+│   ├── audio-from-registers.ts  # PCM / WebAudio preview from register log
+│   ├── envelope-generator.ts    # AY envelope state machine (16 shapes)
+│   ├── periodTables.ts          # MIDI/freq → tone period; buzz-bass env period helper
+│   ├── validate.ts              # Per-instrument field validation
+│   ├── validate-song.ts         # Song-level shared-resource conflict validation
+│   ├── platform-profiles.ts     # Clock + frame rate per region
+│   ├── ui-contributions.ts
+│   ├── songWizard.ts
+│   └── version.ts
 ├── tests/
-│   ├── ay-emulator.test.ts         # PSG behavior, envelope, noise LFSR
-│   ├── channel.test.ts             # Channel rendering, macro handling
-│   ├── validate.test.ts            # Instrument validation
-│   ├── platform-profiles.test.ts   # Clock scaling per region
-│   └── plugin.test.ts              # Integration: registration, channel creation
-└── README.md                       # User documentation
+│   ├── ay-chip.test.ts
+│   ├── register-arbitrator.test.ts
+│   ├── register-log.test.ts
+│   ├── validate-song.test.ts
+│   ├── platform-profiles.test.ts
+│   └── plugin.test.ts
+└── README.md
 ```
 
-### Channel Architecture
+### Hardware model
 
-The AY-3-8910 provides **3 tone channels** with a **shared noise generator** that can be mixed into any combination of channels:
+| Voice | BeatBax type | AY register | Notes |
+|-------|--------------|-------------|-------|
+| A | `tone1` | R0–R1 tone period, R8 attenuation | Square wave, 12-bit period |
+| B | `tone2` | R2–R3, R9 | Square wave |
+| C | `tone3` | R4–R5, R10 | Square wave; commonly bass or drum borrow |
+| — | *(mixer)* | R7 | Per-channel tone/noise enable bits (active-low on hardware) |
+| — | *(shared)* | R6 | **One** noise period (5-bit) for entire chip |
+| — | *(shared)* | R11–R13 | **One** envelope period + shape; all envelope-mode channels read the same level |
 
-| Channel | Type | Hardware | Notes |
-|---------|------|----------|-------|
-| 0 | `tone1` | AY Tone A | 12-bit period, square wave |
-| 1 | `tone2` | AY Tone B | 12-bit period, square wave |
-| 2 | `tone3` | AY Tone C | 12-bit period, square wave |
-| — | `noise` | AY Noise Generator | 5-bit LFSR, applied to channels via mixer |
+**Critical constraints (must drive validation and sample songs):**
 
-**Hardware Constraints:**
-- **Shared envelope generator:** Only one envelope running at a time across all channels. If multiple channels use `vol_env`, only one will play the envelope; others must use constant attenuation.
-- **Shared noise generator:** The noise source is global. All channels using noise mixing share the same noise period (`noise_rate`, 0–31).
-- **Tone/Noise mixing:** Each channel has independent tone/noise mix bits in the AY mixer register. You can blend tone and noise on any channel independently (e.g., tone1 = pure tone, tone2 = tone + noise, tone3 = pure noise).
+| Resource | Scope | What composers can do | What they cannot do |
+|----------|-------|----------------------|---------------------|
+| Noise period R6 | Global | One palette per phrase; stagger hits; same `noise_rate` when overlapping | Kick/snare/hat with **different** `noise_rate` at the **same tick** |
+| Envelope R11–R13 | Global | One envelope program active; buzz bass on C; software volume elsewhere | Independent per-channel hardware `vol_env` curves simultaneously |
+| Mixer R7 | Per channel | Route tone-only, noise-only, or tone+noise per A/B/C | — |
+| Tone period | Per channel | Independent pitch on A/B/C | — |
 
-### Instrument Fields
+Noise generator internals: **5-bit period register**, **17-bit LFSR** with fixed feedback (not three independent LFSRs).
+
+### Architecture
+
+#### Why not three independent channel backends?
+
+The previous approach gave each `ChipChannelBackend` its own `AYState`. That breaks hardware semantics:
+
+- Three noise LFSRs → drum timbres that cannot exist on real hardware
+- Three envelope generators → misleading `vol_env` previews
+- Per-channel `noise_rate` appearing to work in WebAudio but failing on export
+
+The engine's `createChannel()` API is per-channel, but **AY requires shared chip state**. The plugin resolves this with a **song-scoped chip instance** and backends that are facades.
+
+```mermaid
+flowchart TB
+  subgraph song [Per song session]
+    ARB[RegisterArbitrator]
+    CHIP[AyChipSimulator R0-R15]
+    LOG[RegisterLog 50Hz]
+    AUDIO[AudioFromRegisters]
+  end
+  CHA[ChannelBackend A] --> ARB
+  CHB[ChannelBackend B] --> ARB
+  CHC[ChannelBackend C] --> ARB
+  ARB --> CHIP
+  CHIP --> LOG
+  LOG --> AUDIO
+  LOG --> VGM[VGM export future]
+```
+
+#### Tick model
+
+- **Chip tick** = 1/50 s (PAL). All register commits align to chip ticks, not the engine's 60 Hz PCM envelope cadence.
+- On each tick:
+  1. Collect **register intents** from all active notes on all channels
+  2. **Arbitrate** global registers (R6, R7, R11–R13)
+  3. **Commit** final R0–R15 into `AyChipSimulator`
+  4. **Step** tone/noise/envelope generators for that tick
+  5. **Append** to `RegisterLog`
+- Between ticks, tone periods (R0–R5) and per-channel attenuation (R8–R10) may update freely — they are not shared.
+
+#### Register intents and arbitration
+
+Each active note produces **intended writes** for the ticks it spans:
+
+```typescript
+interface RegisterIntent {
+  tick: number;
+  channel: 0 | 1 | 2;
+  tonePeriod?: number;       // R0+R1 / R2+R3 / R4+R5
+  attenuation?: number;      // R8 / R9 / R10 (0=loudest … 15=silent)
+  useEnvelope?: boolean;     // route amplitude through shared envelope
+  toneEnable?: boolean;      // R7 tone bit
+  noiseEnable?: boolean;     // R7 noise bit
+  noisePeriod?: number;      // R6 (global)
+  envelopePeriod?: number;   // R11+R12 (global)
+  envelopeShape?: number;    // R13 (global)
+  source: { pat?: string; loc?: SourceLocation }; // for diagnostics
+}
+```
+
+**Arbitration rules (v1):**
+
+| Register | Rule on conflict | Diagnostic |
+|----------|------------------|------------|
+| R6 noise period | Last-writer-wins; **warn** if values differ same tick | `scale-lock`-style message listing channels |
+| R11–R13 envelope | Last-writer-wins; **warn** if shape/period differ | Envelope program conflict |
+| R7 mixer bits | **Merge per channel** — each channel owns its own tone/noise enable bits | — |
+| R0–R5, R8–R10 | Per-channel — no conflict | — |
+
+Optional strict mode (future): **error** instead of warn on R6/R11–R13 conflicts.
+
+#### Engine integration
+
+`ChipPlugin.createChannel()` remains the engine API. The plugin also implements a song-scoped factory:
+
+```typescript
+interface SpectrumChipPlugin extends ChipPlugin {
+  /** Called once per song before channels are created (matches NES configureForSong pattern). */
+  configureForSong(song: { chip?: string; chipRegion?: string }): void;
+
+  /** Creates shared chip state for this render/playback session. */
+  beginSongSession(): AySongSession;
+}
+
+interface AySongSession {
+  createChannel(index: number): ChipChannelBackend; // facades bound to shared arbitrator
+  finalizeRegisterLog(): RegisterFrame[];           // for tests + export
+  renderPreviewPcm(sampleRate: number): Float32Array;
+}
+```
+
+`pcmRenderer` / `Player` integration options (pick one during implementation):
+
+1. **Plugin-owned session (recommended)** — engine calls `beginSongSession()` once; backends share arbitrator.
+2. **Engine extension** — add optional `createChipRenderer()` to `ChipPlugin` for chips that need shared state (AY, future YM2149).
+
+Either way, **never** allocate three standalone `AyChipSimulator` instances.
+
+#### Platform clocks
+
+Align with [hardware_guide.md](../chips/zx-spectrum-128/hardware_guide.md):
+
+| Region key | Machine | AY clock | Frame rate |
+|------------|---------|----------|------------|
+| `spectrum-128` | ZX Spectrum 128 | **1,773,400 Hz** | 50 Hz |
+| `cpc` | Amstrad CPC (464/6128) | **1,000,000 Hz** | 50 Hz |
+
+Note: 3.5469 MHz is the Spectrum 128 **CPU** clock, not the AY clock. Do not use it in period tables.
+
+Tone period: `N = floor(f_clock / (16 × f_tone))` (12-bit, clamp 1–4095).
+
+Buzz bass envelope period: `N_env = floor(f_clock / (256 × f_note))` — see composition guide.
+
+### Instrument fields
 
 #### Common (all types)
 
 | Field | Type | Range | Description |
 |-------|------|-------|-------------|
-| `vol` | number | 0–15 | Fixed volume (0 = silent, 15 = loudest) |
-| `vol_env` | array \| string | `[0-15,...\|loopIdx]` | Volume envelope macro. Only one per song due to shared HW. |
+| `vol` | number | 0–15 | Fixed attenuation (15 = loudest in BeatBax; mapped to AY inverted scale) |
+| `vol_env` | array \| string | `[0-15,...\|loopIdx]` | **Hardware envelope program** (global R11–R13). All envelope-mode channels share the same level each tick. Prefer software volume slides for independent drum decay. |
+| `env_bass` | boolean | — | *(optional)* Buzz-bass mode: envelope period from note pitch (`N_env` formula) |
 
-#### Tone Channels (tone1, tone2, tone3)
-
-| Field | Type | Range | Description |
-|-------|------|-------|-------------|
-| `arp_env` | array \| string | Semitone offsets | Arpeggio (pitch quantized to semitones) |
-| `pitch_env` | array \| string | Semitone offsets | Pitch bend envelope |
-
-#### Noise Mixing (All Channels)
-
-Noise can be mixed into any tone channel via the `tone_mix` field:
-
-| Field | Type | Range | Description |
-|-------|------|-------|-------------||
-| `noise_rate` | 0–31 | Number | Global AY noise period (lower = higher frequency). Shared across all channels using noise. |
-| `tone_mix` | boolean | true \| false | Enable noise mixing on this channel (default: false). When true, this channel blends its tone with the shared noise generator. |
-
-#### Platform-Specific (optional)
+#### Tone channels (`tone1`, `tone2`, `tone3`)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `chipRegion` | string | Override region: `spectrum-128`, `cpc-64k`, `cpc-128k` (see platform profiles) |
+| `arp_env` | array \| string | Arpeggio as semitone offsets (50 Hz step) |
+| `pitch_env` | array \| string | Pitch bend as semitone offsets |
 
-### Implementation: Core Modules
+#### Noise mixing (any tone channel)
 
-#### 1. `src/index.ts` — Plugin Entry Point
+| Field | Type | Description |
+|-------|------|-------------|
+| `tone_mix` | boolean | Enable noise in R7 mixer for this channel (default: false) |
+| `noise_rate` | 0–31 | Intended R6 when note is active — **global**; song validator diagnoses conflicts |
+
+#### Platform (optional)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chipRegion` | string | `spectrum-128` (default) or `cpc` |
+
+### Song-level validation (`validate-song.ts`)
+
+| Check | Severity | Example |
+|-------|----------|---------|
+| Same tick, different `noise_rate` from two active notes | warn | Kick on A + snare on B with different R6 |
+| Same tick, different envelope shape/period | warn | Two `vol_env` programs on R11–R13 |
+| Overlapping buzz bass + envelope program on C | warn | `env_bass` + `vol_env` same phrase |
+
+### Percussion composition model
+
+Do **not** target a GM drum kit with simultaneous independent noise timbres.
+
+| Role | Channel | Technique |
+|------|---------|-----------|
+| Lead | A | Pure tone + `arp_env` |
+| Harmony | B | Pure tone |
+| Bass / drums | C | Buzz bass or **time-multiplexed** noise hits |
+
+**Working patterns:** (1) multiplexed kit — drums share one `noise_rate` or never overlap; (2) tone kick on A + noise snare/hat on B/C; (3) borrow channel C between bass and percussion; (4) software volume decay via BeatBax effects, not hardware `vol_env`.
+
+**Anti-pattern (wizard/Copilot must not suggest):**
+
+```bax
+inst kick  type=tone1 tone_mix=true noise_rate=2
+inst snare type=tone2 tone_mix=true noise_rate=8   ; conflicts when overlapping
+inst hihat type=tone3 tone_mix=true noise_rate=15
+```
+
+### Module responsibilities
+
+| Module | Responsibility |
+|--------|----------------|
+| `ay-chip.ts` | Single R0–R15 state; step generators |
+| `register-arbitrator.ts` | Merge per-tick intents; conflict diagnostics |
+| `register-log.ts` | Deterministic tick log (primary regression artifact) |
+| `channel-backend.ts` | Facades queuing intents into arbitrator |
+| `audio-from-registers.ts` | PCM preview from register log |
+| `validate-song.ts` | Shared R6 / R11–R13 conflict detection |
+
+### Plugin entry point (summary)
 
 ```typescript
-import type { ChipPlugin, ChipChannelBackend, ValidationError } from '@beatbax/engine';
-import { version } from './version.js';
-import { createChannel } from './channel.js';
-import { validateInstrument } from './validate.js';
-import { spectrumUIContributions } from './ui-contributions.js';
-import { spectrumSongWizard } from './songWizard.js';
-import { getPlatformProfile, setPlatformRegion } from './platform-profiles.js';
-
-interface SpectrumChipPlugin extends ChipPlugin {
-  configureForSong(song: { chip?: string; chipRegion?: string }): void;
-}
-
 const spectrumPlugin: SpectrumChipPlugin = {
   name: 'spectrum-128',
-  aliases: ['spectrum', 'spectrum128', 'zx-spectrum'],
-  version,
   channels: 3,
-  supportsPerChannelVolume: true,
-  instrumentVolumeRange: { min: 0, max: 15 }, // 0 = silent, 15 = loudest
-  uiContributions: spectrumUIContributions,
-  newSongWizard: spectrumSongWizard,
-
-  validateInstrument(inst: any): ValidationError[] {
-    return validateInstrument(inst);
-  },
-
-  createChannel(channelIndex: number, audioContext: BaseAudioContext): ChipChannelBackend {
-    return createChannel(channelIndex, audioContext);
-  },
-
-  configureForSong(song: { chip?: string; chipRegion?: string }) {
-    // Allow per-song region override: chipRegion=cpc-128k, spectrum-128, etc.
-    const region = song.chipRegion || 'spectrum-128';
-    setPlatformRegion(region);
-  },
-};
-
-export default spectrumPlugin;
-export { spectrumPlugin };
-```
-
-#### 2. `src/platform-profiles.ts` — Clock & Region Configuration
-
-```typescript
-export interface PlatformProfile {
-  name: string;
-  clock: number;           // Hz
-  frameRate: number;       // Hz (50 for PAL, 60 for NTSC)
-  description: string;
-}
-
-const PROFILES: Record<string, PlatformProfile> = {
-  'spectrum-128': {
-    name: 'ZX Spectrum 128',
-    clock: 3546900,         // 3.5469 MHz
-    frameRate: 50,          // PAL
-    description: 'ZX Spectrum 128K (1986+)',
-  },
-  'cpc-64k': {
-    name: 'Amstrad CPC 464',
-    clock: 1000000,         // 1.0 MHz
-    frameRate: 50,
-    description: 'Amstrad CPC 464',
-  },
-  'cpc-128k': {
-    name: 'Amstrad CPC 6128',
-    clock: 2000000,         // 2.0 MHz
-    frameRate: 50,
-    description: 'Amstrad CPC 6128 (1985)',
-  },
-};
-
-let currentRegion = 'spectrum-128';
-
-export function getPlatformProfile(region?: string): PlatformProfile {
-  return PROFILES[region || currentRegion] || PROFILES['spectrum-128'];
-}
-
-export function setPlatformRegion(region: string): void {
-  if (!PROFILES[region]) {
-    console.warn(`Unknown platform region: ${region}. Defaulting to spectrum-128.`);
-    return;
-  }
-  currentRegion = region;
-}
-```
-
-#### 3. `src/ay-emulator.ts` — PSG Core
-
-```typescript
-/**
- * AY-3-8910 PSG emulator for Spectrum 128 and Amstrad CPC.
- * Implements 3 tone channels + 1 noise, shared envelope generator, and 5-bit LFSR.
- */
-
-export interface AYState {
-  // Tone generators (12-bit period per channel)
-  tonePeriod: [number, number, number];     // Channels A, B, C
-  toneCounter: [number, number, number];
-  toneOutput: [number, number, number];
-
-  // Shared noise generator (5-bit LFSR)
-  noisePeriod: number;                      // 0–31 (global)
-  noiseCounter: number;
-  noiseLFSR: number;                        // 17-bit state
-  noiseOutput: number;
-
-  // Mixer control (independent tone/noise blend per channel)
-  toneMix: [boolean, boolean, boolean];      // Enable tone per channel
-  noiseMix: [boolean, boolean, boolean];     // Enable noise mixing per channel
-
-  // Attenuation (4-bit per tone channel)
-  attenuation: [number, number, number];    // A, B, C
-  useEnvelope: [boolean, boolean, boolean]; // Use envelope for each tone channel
-
-  // Envelope generator (hardware state machine)
-  envelopeShape: number;                    // 0–15 (16 envelope shapes)
-  envelopeCounter: number;                  // 16-bit counter
-  envelopeOutput: number;                   // 0–15 current envelope level
-  envelopeActive: boolean;
-
-  // Clock scaling
-  clock: number;                            // Hz (3.5469e6 for Spectrum, 1e6 for CPC)
-}
-
-export function makeAYState(clock: number): AYState {
-  return {
-    tonePeriod: [0, 0, 0],
-    toneCounter: [0, 0, 0],
-    toneOutput: [0, 0, 0],
-    noisePeriod: 0,
-    noiseCounter: 0,
-    noiseLFSR: 0x1ffff,  // 17-bit seed
-    noiseOutput: 0,
-    toneMix: [true, true, true],
-    noiseMix: [false, false, false],
-    attenuation: [0, 0, 0],
-    useEnvelope: [false, false, false],
-    envelopeShape: 0,
-    envelopeCounter: 0,
-    envelopeOutput: 15,
-    envelopeActive: false,
-    clock,
-  };
-}
-
-/**
- * Advance PSG by one frame (1/60 Hz for rendering).
- * Updates all tone, noise, and envelope counters.
- */
-export function advanceAYFrame(state: AYState, frameDuration: number): void {
-  // Advance tone generators
-  for (let ch = 0; ch < 3; ch++) {
-    if (state.tonePeriod[ch] > 0) {
-      state.toneCounter[ch] -= frameDuration * state.clock;
-      while (state.toneCounter[ch] <= 0) {
-        state.toneOutput[ch] ^= 1;
-        state.toneCounter[ch] += state.tonePeriod[ch] * 2;
-      }
-    }
-  }
-
-  // Advance noise generator
-  if (state.noisePeriod >= 0 && state.noisePeriod <= 31) {
-    const noiseClock = state.clock / (16 * (state.noisePeriod + 1));
-    state.noiseCounter -= frameDuration * noiseClock;
-    while (state.noiseCounter <= 0) {
-      // 17-bit Galois LFSR
-      const feedback = (state.noiseLFSR ^ (state.noiseLFSR >> 2)) & 1;
-      state.noiseLFSR = ((state.noiseLFSR >> 1) | (feedback << 16)) & 0x1ffff;
-      state.noiseOutput = state.noiseLFSR & 1;
-      state.noiseCounter += 1.0 / noiseClock;
-    }
-  }
-
-  // Advance envelope generator
-  if (state.envelopeActive) {
-    const envClock = state.clock / 256;  // AY envelope clock prescaler
-    state.envelopeCounter -= frameDuration * envClock;
-    while (state.envelopeCounter <= 0) {
-      state.envelopeCounter += 1.0 / envClock;
-      advanceEnvelopeStep(state);
-    }
-  }
-}
-
-/**
- * Get final attenuation for a tone channel (0–15, where 15 = silent).
- * Accounts for envelope if enabled.
- * Channels are 0–2 (Tone A, B, C).
- */
-export function getChannelAttenuation(
-  state: AYState,
-  channelIndex: number
-): number {
-  if (channelIndex < 0 || channelIndex > 2) return 15;
-  let att = state.attenuation[channelIndex];
-  if (state.useEnvelope[channelIndex] && state.envelopeActive) {
-    att = (att & 0xf0) | (state.envelopeOutput & 0x0f);
-  }
-  return att & 0x0f;
-}
-
-/**
- * Get mixed audio output for a tone channel (0.0–1.0).
- * Combines tone and/or noise based on mixer settings.
- * Channels are 0–2 (Tone A, B, C).
- */
-export function getChannelOutput(
-  state: AYState,
-  channelIndex: number
-): number {
-  if (channelIndex < 0 || channelIndex > 2) return 0;
-  let output = 0;
-  if (state.toneMix[channelIndex]) {
-    output |= state.toneOutput[channelIndex];
-  }
-  if (state.noiseMix[channelIndex]) {
-    output |= state.noiseOutput;
-  }
-  // Convert to amplitude (0.0–1.0)
-  const amp = output ? 1.0 : 0.0;
-  // Apply attenuation: 0=loudest, 15=silent
-  const att = getChannelAttenuation(state, channelIndex);
-  return amp * (1.0 - att / 15.0);
-}
-
-// Envelope state machine (16 shapes, AY-3-8910 datasheet)
-function advanceEnvelopeStep(state: AYState): void {
-  const shape = state.envelopeShape;
-  // Simplified envelope: attack, hold, decay, repeat patterns
-  // Full implementation follows AY datasheet shapes 0–15
-  // (see docs/chips/ay/hardware_guide.md for envelope shapes)
-
-  // For now, linear decay from 15 to 0 (shape 0)
-  if (state.envelopeOutput > 0) {
-    state.envelopeOutput--;
-  } else if (shape & 0x01) { // Repeat
-    state.envelopeOutput = 15;
-  }
-}
-```
-
-#### 4. `src/periodTables.ts` — Frequency Lookup
-
-```typescript
-import { midiToFreq } from '@beatbax/engine';
-import { getPlatformProfile } from './platform-profiles.js';
-
-/**
- * Convert frequency (Hz) to AY 12-bit period value.
- * AY formula: period = clock / (16 * freq)
- */
-export function freqToAYPeriod(freq: number, clock: number): number {
-  if (freq <= 0) return 0;
-  const period = Math.round(clock / (16 * freq));
-  return Math.max(0, Math.min(4095, period));  // Clamp to 12-bit
-}
-
-/**
- * Create a lookup table: MIDI note → AY period.
- * Covers MIDI 0–127, A4 (69) = 440 Hz, equal temperament.
- */
-export function buildPeriodTable(clock: number): Uint16Array {
-  const table = new Uint16Array(128);
-  for (let midi = 0; midi < 128; midi++) {
-    const freq = midiToFreq(midi);
-    table[midi] = freqToAYPeriod(freq, clock);
-  }
-  return table;
-}
-
-let cachedPeriodTable: Uint16Array | null = null;
-let cachedClock = 0;
-
-/**
- * Get or create the period table for the current platform clock.
- */
-export function getPeriodTable(): Uint16Array {
-  const profile = getPlatformProfile();
-  if (!cachedPeriodTable || cachedClock !== profile.clock) {
-    cachedPeriodTable = buildPeriodTable(profile.clock);
-    cachedClock = profile.clock;
-  }
-  return cachedPeriodTable;
-}
-```
-
-#### 5. `src/validate.ts` — Instrument Validation
-
-```typescript
-import type { ValidationError } from '@beatbax/engine';
-
-export function validateInstrument(inst: any): ValidationError[] {
-  const errors: ValidationError[] = [];
-
-  // Validate vol
-  if (inst.vol !== undefined) {
-    const vol = Number(inst.vol);
-    if (!Number.isInteger(vol) || vol < 0 || vol > 15) {
-      errors.push({
-        field: 'vol',
-        message: 'vol must be an integer 0–15 (0 = silent, 15 = loudest)',
-      });
-    }
-  }
-
-  // Validate vol_env (only one per song due to shared HW)
-  if (inst.vol_env !== undefined && !Array.isArray(inst.vol_env) && typeof inst.vol_env !== 'string') {
-    errors.push({
-      field: 'vol_env',
-      message: 'vol_env must be an array [0-15,...|loopIdx] or string "[...]"',
-    });
-  }
-
-  // Validate arp_env and pitch_env (tone channels only)
-  if (inst.type === 'tone1' || inst.type === 'tone2' || inst.type === 'tone3') {
-    // These are optional, but if provided, must be valid macros
-    if (inst.arp_env !== undefined && !Array.isArray(inst.arp_env) && typeof inst.arp_env !== 'string') {
-      errors.push({
-        field: 'arp_env',
-        message: 'arp_env must be an array [semitone,...] or string "[...]"',
-      });
-    }
-  }
-
-  // Validate noise_rate (if tone_mix is enabled)
-  if (inst.tone_mix === true && inst.noise_rate !== undefined) {
-    const rate = Number(inst.noise_rate);
-    if (!Number.isInteger(rate) || rate < 0 || rate > 31) {
-      errors.push({
-        field: 'noise_rate',
-        message: 'noise_rate must be 0–31 when tone_mix is enabled',
-      });
-    }
-  }
-
-  return errors;
-}
-```
-
-#### 6. `src/channel.ts` — Channel Backend
-
-```typescript
-import type { ChipChannelBackend, InstrumentNode } from '@beatbax/engine';
-import { advanceAYFrame, getChannelOutput, makeAYState } from './ay-emulator.js';
-import { getPeriodTable, freqToAYPeriod } from './periodTables.js';
-import { getPlatformProfile } from './platform-profiles.js';
-
-export class SpectrumChannelBackend implements ChipChannelBackend {
-  private channelIndex: number;
-  private ayState: any;
-  private currentFreq: number = 0;
-  private currentVolume: number = 0;
-  private isMuted: boolean = true;
-
-  constructor(channelIndex: number, audioContext: BaseAudioContext) {
-    this.channelIndex = channelIndex;
-    const profile = getPlatformProfile();
-    this.ayState = makeAYState(profile.clock);
-  }
-
-  reset(): void {
-    this.currentFreq = 0;
-    this.currentVolume = 0;
-    this.isMuted = true;
-    this.ayState = makeAYState(getPlatformProfile().clock);
-  }
-
-  noteOn(frequency: number, instrument: InstrumentNode): void {
-    if (this.channelIndex < 0 || this.channelIndex > 2) return;  // Valid channels: 0–2
-
-    this.currentFreq = frequency;
-    this.isMuted = false;
-
-    // Convert frequency to AY period
-    const profile = getPlatformProfile();
-    const period = freqToAYPeriod(frequency, profile.clock);
-    this.ayState.tonePeriod[this.channelIndex] = period;
-    this.ayState.toneCounter[this.channelIndex] = 0;
-
-    // Set initial attenuation (0–15, where 15 = silent)
-    const vol = (instrument as any).vol ?? 0;
-    this.ayState.attenuation[this.channelIndex] = 15 - (vol & 0x0f);
-
-    // Set up mixer: enable tone by default, check for noise mixing in instrument
-    this.ayState.toneMix[this.channelIndex] = true;
-    const usesNoise = (instrument as any).tone_mix === true;
-    this.ayState.noiseMix[this.channelIndex] = usesNoise;
-
-    // Parse and set macros (vol_env, arp_env, pitch_env)
-    // These would integrate with the effects system
-  }
-
-  noteOff(): void {
-    if (this.channelIndex < 0 || this.channelIndex > 2) return;
-    this.isMuted = true;
-    this.ayState.tonePeriod[this.channelIndex] = 0;
-    this.ayState.toneMix[this.channelIndex] = false;
-    this.ayState.noiseMix[this.channelIndex] = false;
-  }
-
-  applyEnvelope(_frame: number): void {
-    // Handled by ay-emulator effects advancement
-  }
-
-  render(buffer: Float32Array, sampleRate: number): void {
-    const profile = getPlatformProfile();
-    const samplesPerFrame = Math.round(sampleRate / profile.frameRate);
-    const frameDuration = 1.0 / profile.frameRate;
-
-    let sampleIndex = 0;
-    for (let frame = 0; frame < buffer.length; frame += samplesPerFrame) {
-      advanceAYFrame(this.ayState, frameDuration);
-      const output = this.isMuted ? 0 : getChannelOutput(this.ayState, this.channelIndex);
-
-      // Write to buffer (mono, one sample per frame for simplicity)
-      const samplesThisFrame = Math.min(samplesPerFrame, buffer.length - sampleIndex);
-      for (let s = 0; s < samplesThisFrame; s++) {
-        buffer[sampleIndex++] = output;
-      }
-    }
-  }
-}
-
-export function createChannel(
-  channelIndex: number,
-  audioContext: BaseAudioContext
-): ChipChannelBackend {
-  return new SpectrumChannelBackend(channelIndex, audioContext);
-}
-```
-
-#### 7. `src/ui-contributions.ts` — Editor Integration
-
-```typescript
-import type { ChipUIContributions } from '@beatbax/engine';
-
-export const spectrumUIContributions: ChipUIContributions = {
-  copilotSystemPrompt: `
-You are a BeatBax composer targeting the ZX Spectrum 128 and Amstrad CPC computers.
-The Spectrum 128 has a 3.5469 MHz AY-3-8910 PSG with:
-- 3 tone channels (square wave, 12-bit period)
-- 1 noise channel (15-bit LFSR)
-- Shared envelope generator (one envelope per song)
-- Shared noise period across all channels
-
-Constraints:
-- \`vol\` range: 0–15 (0 = silent, 15 = loudest)
-- Only one \`vol_env\` active per song (hardware limitation)
-- Tone channels support \`arp_env\` and \`pitch_env\` macros
-- Noise channel has fixed \`noise_rate\` (0–31)
-- Register writes are deterministic per frame
-
-Suggested template:
-\`\`\`bax
-chip spectrum-128
-bpm 150
-
-inst lead   type=tone1 vol=12 arp_env=[0,2,4,5]
-inst bass   type=tone2 vol=14
-inst perc   type=tone3  vol=10 tone_mix=true noise_rate=10 vol_env=[15,10,5,0]
-
-pat melody = C4 D4 E4 F4 G4 A4 B4 C5
-pat bass   = C2 . . . G1 . . .
-pat drums  = C2 . . C2
-
-seq main    = melody melody melody melody
-seq bassline = bass bass bass bass
-seq drumline = drums drums drums drums
-
-channel 1 => inst lead  seq main
-channel 2 => inst bass  seq bassline
-channel 3 => inst perc  seq drumline
-
-play
-\`\`\`
-  `,
-
-  hoverDocs: {
-    'tone1': 'Tone channel A (square wave, 12-bit period). Supports arp_env and pitch_env.',
-    'tone2': 'Tone channel B (square wave, 12-bit period). Supports arp_env and pitch_env.',
-    'tone3': 'Tone channel C (square wave, 12-bit period). Enable tone_mix for noise blending.',
-    'vol': 'Volume: 0 (silent) to 15 (loudest). Applies to all channels.',
-    'vol_env': 'Volume envelope [0-15,...|loopIdx]. Only one per song (shared HW).',
-    'arp_env': 'Arpeggio macro (semitone offsets). Tone channels only.',
-    'pitch_env': 'Pitch bend envelope (semitone offsets). Tone channels only.',
-    'tone_mix': 'Enable noise mixing on this channel (default: false). When true, blends with shared noise generator.',
-    'noise_rate': 'Noise period: 0–31 (lower = higher frequency). Global, shared by all channels using tone_mix.',
-  },
-
-  helpSections: [
-    {
-      id: 'channels',
-      title: 'Channels (Spectrum 128)',
-      content: `
-## Audio Channels
-
-The Spectrum 128 provides 3 tone channels, each of which can optionally mix in a shared noise generator:
-
-| # | Name | Type | Hardware |
-|---|------|------|----------|
-| 1 | Tone A | Square wave | 12-bit period |
-| 2 | Tone B | Square wave | 12-bit period |
-| 3 | Tone C | Square wave | 12-bit period |
-| — | Noise | Shared generator | 5-bit LFSR (applied via mixer) |
-
-### Shared Resources
-
-- **Envelope Generator:** Only one envelope can run at a time. If multiple instruments use \`vol_env\`, only one channel will play the envelope.
-- **Noise Generator:** The noise source is global (5-bit LFSR). All channels using noise mixing blend in the same noise signal. The `noise_rate` (0–31) is shared globally.
-      `,
-    },
-    {
-      id: 'instruments',
-      title: 'Instrument Fields',
-      content: `
-## Instrument Definition
-
-### Common Fields (all types)
-
-- \`vol\`: Fixed volume (0 = silent, 15 = loudest)
-- \`vol_env\`: Volume envelope macro \`[0-15,...|loopIdx]\`
-
-### Tone Channels (tone1, tone2, tone3)
-
-- \`arp_env\`: Arpeggio as semitone offsets \`[0,2,4,5,...]\`
-- \`pitch_env\`: Pitch bend as semitone offsets \`[0,-1,-2,...]\`
-
-### Noise Mixing (all tone channels)
-
-- \`tone_mix\`: Enable noise mixing (default: false)
-- \`noise_rate\`: Noise period when tone_mix is enabled (0–31, lower = higher pitch)
-
-## Example
-
-\`\`\`bax
-inst lead  type=tone1 vol=12 arp_env=[0,2,4,5]
-inst bass  type=tone2 vol=14
-inst perc  type=tone3  vol=15 tone_mix=true noise_rate=12 vol_env=[15,8,0]
-\`\`\`
-      `,
-    },
-  ],
+  configureForSong(song) { setPlatformRegion(song.chipRegion ?? 'spectrum-128'); },
+  beginSongSession() { return createAySongSession(getPlatformProfile()); },
+  createChannel(i, ctx) { return getCurrentSession().createChannel(i); },
+  validateInstrument(inst) { return validateInstrument(inst); },
+  // validateSong(ast) — song-level shared-resource pass
 };
 ```
 
-#### 8. `src/songWizard.ts` — New Song Templates
-
-```typescript
-import type { ChipNewSongWizardConfig } from '@beatbax/engine';
-
-export const spectrumSongWizard: ChipNewSongWizardConfig = {
-  metadata: {
-    chipDisplayName: 'ZX Spectrum 128',
-    platform: 'Sinclair ZX Spectrum 128K',
-    year: '1986',
-    channelSummary: '3 tone channels (noise mixed per channel)',
-  },
-  templates: {
-    instruments: [
-      {
-        id: 'spectrum-lead',
-        label: 'Lead (Tone A)',
-        content: 'inst lead type=tone1 vol=12 arp_env=[0,2,4,5]',
-      },
-      {
-        id: 'spectrum-bass',
-        label: 'Bass (Tone B)',
-        content: 'inst bass type=tone2 vol=14',
-      },
-      {
-        id: 'spectrum-perc',
-        label: 'Percussion (Tone C + Noise)',
-        content: 'inst kick type=tone3 vol=15 tone_mix=true noise_rate=10 vol_env=[15,6,0]',
-      },
-    ],
-    effects: [
-      {
-        id: 'spectrum-vib',
-        label: 'Vibrato (pitch_env)',
-        content: 'pitch_env=[0,1,2,1,0,-1,-2,-1]',
-      },
-      {
-        id: 'spectrum-arp',
-        label: 'Arpeggio',
-        content: 'arp_env=[0,2,4,7]',
-      },
-    ],
-    patterns: [
-      {
-        id: 'spectrum-melody',
-        label: 'Melody pattern',
-        content: 'pat melody = C4 D4 E4 F4 G4 A4 B4 C5',
-      },
-      {
-        id: 'spectrum-bass-line',
-        label: 'Bass pattern',
-        content: 'pat bass = C2 . . . G1 . . .',
-      },
-      {
-        id: 'spectrum-drums',
-        label: 'Drum pattern',
-        content: 'pat drums = C2 . . C2',
-      },
-    ],
-    sequences: [
-      {
-        id: 'spectrum-main',
-        label: 'Main sequence',
-        content: 'seq main = melody melody melody melody',
-      },
-      {
-        id: 'spectrum-bass-seq',
-        label: 'Bass sequence',
-        content: 'seq bassline = bass bass bass bass',
-      },
-      {
-        id: 'spectrum-drums-seq',
-        label: 'Drums sequence',
-        content: 'seq drumline = drums drums drums drums',
-      },
-    ],
-    arrangement: [
-      {
-        id: 'spectrum-full',
-        label: 'Full arrangement',
-        content: `channel 1 => inst lead seq main
-channel 2 => inst bass seq bassline
-channel 3 => inst kick seq drumline`,
-      },
-    ],
-  },
-};
-```
+See **Architecture** above for `AySongSession`, register intents, and engine integration. Detailed UI/wizard snippets live in implementation PRs — not duplicated here.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Core Infrastructure
+### Phase 1: Shared chip core
 
-1. Create package structure (`src/` directories, `package.json`, `tsconfig.json`)
-2. Implement `ay-emulator.ts` (PSG tone/noise/envelope generation)
-3. Implement `platform-profiles.ts` (Spectrum 128, Amstrad CPC clock configs)
-4. Implement `periodTables.ts` (MIDI → AY period lookup)
-5. Add unit tests for emulator and period tables
-6. Verify deterministic output (repeated renders match exactly)
+1. Create package structure (`package.json`, `tsconfig.json`, `src/`, `tests/`)
+2. Implement `platform-profiles.ts` — `spectrum-128` (1.7734 MHz AY) and `cpc` (1.0 MHz AY), 50 Hz frame rate
+3. Implement `ay-chip.ts` — single R0–R15 state; tone/noise/envelope stepping aligned to chip ticks
+4. Implement `periodTables.ts` — MIDI/freq → tone period; buzz-bass `N_env` helper
+5. Unit tests: LFSR seed/feedback, tone period formula, clock presets, determinism
 
-**Gate:** Emulator test suite passes; determinism verified.
+**Gate:** `ay-chip.test.ts` passes; repeated register steps produce identical state.
 
-### Phase 2: Chip Plugin Interface
+### Phase 2: Register intents + plugin wiring
 
-1. Implement `validate.ts` (instrument validation)
-2. Implement `channel.ts` (ChipChannelBackend factory)
-3. Implement `index.ts` (ChipPlugin entry point)
-4. Wire plugin registration in engine
-5. Add integration tests: channel creation, instrument validation
-6. Test playback on a simple 4-note song (CLI + Web Audio)
+1. Implement `register-intent.ts`, `register-arbitrator.ts`, `register-log.ts`
+2. Implement `channel-backend.ts` — facades that queue intents (no per-channel `AYState`)
+3. Implement `validate.ts` (instrument fields) and `validate-song.ts` (R6 / R11–R13 conflicts)
+4. Implement `index.ts` — `configureForSong`, `beginSongSession`, `createChannel`
+5. Wire plugin registration in engine; integration test with minimal 3-channel song
 
-**Gate:** Plugin registers correctly; channels render non-zero audio.
+**Gate:** `smoke-test.bax` produces identical register log hash across 3 runs.
 
-### Phase 3: UI & New Song Wizard
+### Phase 3: Preview audio + UI
 
-1. Implement `ui-contributions.ts` (Copilot prompts, hover docs, help sections)
-2. Implement `songWizard.ts` (New Song templates)
-3. Wire UI contributions into web editor
-4. Test Copilot completions and hover docs
+1. Implement `audio-from-registers.ts` — PCM from register log (same stream export will use)
+2. Implement `ui-contributions.ts` — Copilot/hover docs that teach multiplexed drums and shared R6/R11–R13
+3. Implement `songWizard.ts` — templates from composition guide (lead A, harmony B, bass/drums C)
+4. Wire UI contributions into web editor
 
-**Gate:** New Song modal loads; Copilot suggestions appear in editor.
+**Gate:** Web + CLI playback of `synth-demo.bax` renders non-zero audio; wizard loads.
 
-### Phase 4: Effects Integration
+### Phase 4: Macros + effects
 
-1. Implement macro parsing in `channel.ts`: `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`
-2. Integrate with effects system for per-tick advancement
-3. Add tests for effect application across all channels
-4. Verify deterministic effect output
+1. Map `arp_env`, `pitch_env` to per-tick tone period offsets (50 Hz)
+2. Map `vol_env` / `env_bass` to global R11–R13 intents with conflict diagnostics
+3. Map `tone_mix` / `noise_rate` to R7 + R6 intents with conflict diagnostics
+4. Prefer BeatBax software volume slides for independent drum decay where hardware envelope is unavailable
 
-**Gate:** All effects render correctly; determinism preserved.
+**Gate:** `effects-showcase.bax` and `shared-envelope-test.bax` behave as documented; determinism preserved.
 
-### Phase 5: Sample Songs & Documentation
+### Phase 5: Sample songs + docs
 
-1. Create `songs/spectrum-128/synth-demo.bax`:
-   - Define 3 synth instruments (lead, bass, harmonic) with `vol`, `arp_env`, `pitch_env`
-   - Compose a 16-bar polyphonic melody
-   - Include documentation comments explaining each instrument and macro
+1. `synth-demo.bax` — polyphonic melody with `arp_env` / `pitch_env`
+2. `percussion-demo.bax` — **multiplexed** drums (one `noise_rate`, staggered hits)
+3. `effects-showcase.bax` — all macro types; documents envelope + noise constraints
+4. `amstrad-cpc-demo.bax` — same song with `chipRegion=cpc`
+5. Test songs: `smoke-test`, `shared-envelope-test`, `noise-mixing-test`, `noise-conflict-test`, `buzz-bass-demo`, `all-macros`
+6. `songs/spectrum-128/README.md` — index, play instructions, troubleshooting
 
-2. Create `songs/spectrum-128/percussion-demo.bax`:
-   - Define percussion instruments using `tone_mix=true`, `noise_rate`, `vol_env`
-   - Compose kick, snare, hi-hat drum patterns
-   - Demonstrate attack/decay curves via volume envelopes
-   - Include pattern/sequence templates
+**Gate:** All sample songs render; regression hashes match baseline.
 
-3. Create `songs/spectrum-128/effects-showcase.bax`:
-   - Combine all macro types: `vol_env`, `arp_env`, `pitch_env`, `noise_rate`
-   - Demonstrate hardware limitations (one envelope per song)
-   - Show noise mixing across multiple channels
-   - Include comments on mixing strategies
+### Phase 6: Export integration (future)
 
-4. Create `songs/spectrum-128/amstrad-cpc-demo.bax`:
-   - Port one of the above songs with `chipRegion=cpc-128k`
-   - Verify clock scaling produces correct output
-   - Include region-aware comments
+When VGM/PT3 exporters land:
 
-5. Create regression test songs in `songs/spectrum-128/tests/`:
-   - `smoke-test.bax` — Minimal 4-note monotonic song (binary output regression gate)
-   - `shared-envelope-test.bax` — Conflict detection for multiple `vol_env` instruments
-   - `noise-mixing-test.bax` — Independent noise blending on each channel
-   - `all-macros.bax` — One of each macro type in single song
-
-6. Add README: `songs/spectrum-128/README.md`
-   - Index of sample songs
-   - How to play each song (CLI: `beatbax play`, Web: drag-and-drop)
-   - Macro parameter reference
-   - Troubleshooting section
-
-**Gate:** All sample songs render without errors; regression test hashes match baseline.
-
-### Phase 6: Export Integration (Future)
-
-When VGM exporter is ready:
-1. Register the exporter via explicit plugin/host registration (`exporterPlugins` or host discovery)
-2. Wire VGM backend for AY-3-8910 (per VGM exporter feature doc)
-3. Add snapshot tests for VGM export determinism
+1. Register export adapters against the **register log**, not per-channel PCM
+2. Wire existing VGM AY backend stub to consume `RegisterFrame[]`
+3. Snapshot tests for export determinism
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests
+### Unit tests
 
 | Test file | Scope |
 |-----------|-------|
-| `ay-emulator.test.ts` | Tone/noise/envelope generation, LFSR behavior, attenuation calculation |
-| `periodTables.test.ts` | Frequency → period conversion, lookup table consistency |
-| `validate.test.ts` | Instrument validation (valid/invalid ranges, macros) |
-| `platform-profiles.test.ts` | Clock scaling, region switching |
-| `channel.test.ts` | Channel rendering, macro state advancement, noteOn/noteOff |
+| `ay-chip.test.ts` | R0–R15 stepping, 17-bit LFSR, envelope shapes, attenuation |
+| `register-arbitrator.test.ts` | Intent merge, R6/R11–R13 conflict detection, R7 per-channel merge |
+| `register-log.test.ts` | Deterministic tick serialization |
+| `periodTables.test.ts` | 1.7734 MHz / 1.0 MHz period tables, buzz-bass formula |
+| `validate.test.ts` | Instrument field ranges |
+| `validate-song.test.ts` | Overlapping noise_rate, dual vol_env, buzz bass conflicts |
+| `platform-profiles.test.ts` | Region switching, wrong CPU clock rejected |
 
-### Integration Tests
+### Integration tests
 
 | Test file | Scope |
 |-----------|-------|
-| `plugin.test.ts` | Plugin registration, channel creation, validateInstrument, configureForSong |
-| Playback tests | Play a 4-note melody on each channel; compare output across runs (determinism) |
-| Effects tests | Apply vol_env, arp_env, pitch_env; verify per-frame advancement |
-| Sample song tests | Load and render all sample songs; verify non-zero audio output and determinism |
+| `plugin.test.ts` | `beginSongSession`, three facades → one arbitrator, `configureForSong` |
+| Playback | Register log + PCM preview determinism on repeated renders |
+| Macros | `arp_env`, `pitch_env`, `vol_env`, `env_bass`, `noise_rate` intent mapping |
 
-### Sample Song Tests
+### Sample song tests
 
 | Song | Scope |
 |------|-------|
-| `synth-demo.bax` | Verify arp_env, pitch_env, polyphonic playback; render to WAV |
-| `percussion-demo.bax` | Verify tone_mix, noise_rate, vol_env; drum pattern timing |
-| `effects-showcase.bax` | Verify all macros interact; check for envelope conflicts |
-| `amstrad-cpc-demo.bax` | Verify chipRegion switching; clock scaling accuracy |
-| `smoke-test.bax` | Minimal regression gate (4 notes per channel, compare SHA-256) |
-| `shared-envelope-test.bax` | Verify validation warns of vol_env conflicts |
-| `noise-mixing-test.bax` | Verify independent noise mixing per channel |
-| `all-macros.bax` | Verify all macro types work in one song |
+| `synth-demo.bax` | Polyphony, arp/pitch macros |
+| `percussion-demo.bax` | Multiplexed drums, single R6 palette |
+| `effects-showcase.bax` | Macro interaction + documented HW limits |
+| `amstrad-cpc-demo.bax` | `chipRegion=cpc` clock scaling |
+| `smoke-test.bax` | Minimal regression gate (register log SHA-256) |
+| `shared-envelope-test.bax` | Diagnostic when two `vol_env` programs overlap |
+| `noise-mixing-test.bax` | Independent R7 mixer bits, **same** R6 noise source |
+| `noise-conflict-test.bax` | Diagnostic when overlapping hits need different R6 |
+| `buzz-bass-demo.bax` | Envelope-as-oscillator on channel C |
+| `all-macros.bax` | All macro types without illegal overlaps |
 
-### Regression Gate
+### Regression gate
 
 Before merging each phase:
-1. **Phase 2 Gate:** `smoke-test.bax` renders to identical bytes across 3 runs (SHA-256 match)
-2. **Phase 4 Gate:** All effect tests pass; all sample songs render non-zero audio
-3. **Phase 5 Gate:** All sample songs produce byte-for-byte identical output on repeated renders
-4. **Cross-platform test:** Both `synth-demo.bax` and `amstrad-cpc-demo.bax` render without errors; regional clock scaling verified via spectrum analyzer
+
+1. **Phase 2:** `smoke-test.bax` register log identical across 3 runs
+2. **Phase 4:** Conflict test songs emit expected diagnostics; non-conflict songs render cleanly
+3. **Phase 5:** All sample songs byte-identical on repeated register-log renders
 
 ---
 
@@ -974,26 +501,19 @@ Before merging each phase:
 
 ### synth-demo.bax
 
-**Purpose:** Demonstrate instrument definitions and melodic macros.
+**Purpose:** Melodic polyphony with software macros on independent tone periods.
 
-**Structure:**
 ```bax
 chip spectrum-128
 bpm 150
 
-; Lead synthesizer: arpeggio-based melody
 inst lead type=tone1 vol=12 arp_env=[0,2,4,7,4,2,0]
-
-; Bass synthesizer: pitch bend for expression
 inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]
-
-; Harmonic pad: constant tone, no macros
 inst pad  type=tone3 vol=10
 
-; 16-bar patterns
-pat lead_riff = C4 E4 G4 C5 B4 G4 E4 . | ...
-pat bass_line = C2 . . . G1 . . . | ...
-pat pad_sust  = E3 . . . E3 . . . | ...
+pat lead_riff = C4 E4 G4 C5 B4 G4 E4 .
+pat bass_line = C2 . . . G1 . . .
+pat pad_sust  = E3 . . . E3 . . .
 
 seq main = lead_riff lead_riff lead_riff lead_riff
 seq bass = bass_line bass_line bass_line bass_line
@@ -1006,115 +526,81 @@ channel 3 => inst pad  seq pad
 play
 ```
 
-**Demonstrates:**
-- 3-channel polyphonic playback
-- `arp_env` for step-sequenced arpeggio
-- `pitch_env` for expressive pitch bends
-- Constant volume instruments
-- Pattern reuse via sequences
-
 ---
 
 ### percussion-demo.bax
 
-**Purpose:** Demonstrate noise mixing, volume envelopes, and percussive articulation.
+**Purpose:** Hardware-realistic drums — one noise palette, staggered hits, channel C borrowed for bass + percussion.
 
-**Structure:**
 ```bax
 chip spectrum-128
 bpm 120
 
-; Kick drum: low tone + noise, fast decay
-inst kick type=tone3 vol=15 tone_mix=true noise_rate=2 vol_env=[15,10,5,0]
+; Shared noise palette for all percussion (R6 = 10)
+inst kick  type=tone3 vol=15 tone_mix=true noise_rate=10
+inst snare type=tone2 vol=14 tone_mix=true noise_rate=10
+inst hat   type=tone1 vol=10 tone_mix=true noise_rate=10
 
-; Snare: mid noise with quick attack
-inst snare type=tone1 vol=14 tone_mix=true noise_rate=8 vol_env=[14,8,0]
+; Multiplexed: only one drum voice active per tick on channel C
+pat kick  = C2 . . . . . . .
+pat snare = . . . D3 . . . .
+pat hat   = . F4 . . F4 . . F4 .
 
-; Hi-hat: bright noise, short sustain
-inst hihat type=tone2 vol=12 tone_mix=true noise_rate=15 vol_env=[12,6,0]
+seq drums = kick snare hat kick snare hat kick snare
 
-; Bass drum fill
-pat kick = C2 . . C2 . C2 . .
-
-; Snare on 2 and 4
-pat snare = . . D3 . . . E3 .
-
-; Hi-hat eighth notes
-pat hihat = F4 . F4 . F4 . F4 .
-
-seq drums = kick . snare . hihat hihat snare .
-
-channel 1 => inst kick  seq drums
+channel 1 => inst kick  seq drums   ; melody lane free — use for lead in full arr
 channel 2 => inst snare seq drums
-channel 3 => inst hihat seq drums
+channel 3 => inst hat   seq drums
 
 play
 ```
 
-**Demonstrates:**
-- Noise mixing via `tone_mix=true` on all 3 channels
-- Per-channel `noise_rate` (shared globally)
-- `vol_env` for percussive attack/decay
-- Drum pattern timing and articulation
-- Practical arrangement (kick + snare + hi-hat)
+Use BeatBax volume slides (not competing `vol_env` programs) for per-hit decay when hits do not overlap on the same channel.
 
 ---
 
 ### effects-showcase.bax
 
-**Purpose:** Demonstrate all macro types and hardware constraints.
+**Purpose:** All macro types with explicit hardware trade-offs documented in comments.
 
-**Structure:**
 ```bax
 chip spectrum-128
 bpm 140
 
-; Lead with all three macros
-inst complex type=tone1 vol=13
-  arp_env=[0,2,4,5]     ; Arpeggio pattern
-  pitch_env=[0,1,0,-1]  ; Subtle vibrato-like pitch bend
-  vol_env=[15,12,9,6]   ; Fade out over 4 steps
+; arp + pitch on A — no hardware vol_env here
+inst lead type=tone1 vol=13 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
 
-; Bass: volume envelope (uses the one shared envelope HW)
+; Single hardware envelope program for the phrase (R11–R13)
 inst bass type=tone2 vol=14 vol_env=[14,14,10,6]
 
-; Percussion: noise mixing + no macros
+; Noise on C shares global R6 with any other active noise hits
 inst perc type=tone3 vol=15 tone_mix=true noise_rate=12
 
 pat melody = C4 E4 G4 C5 B4 A4 G4 .
 pat bass   = C2 . . . G1 . . .
-pat drums  = D2 . . D2 . . D2 .
+pat drums  = . . D2 . . . D2 .
 
 seq main = melody melody melody melody
 seq bass = bass bass bass bass
 seq perc = drums drums drums drums
 
-channel 1 => inst complex seq main  ; Uses arp_env + pitch_env
-channel 2 => inst bass    seq bass  ; Uses vol_env (shared HW)
-channel 3 => inst perc    seq perc  ; Uses tone_mix
+channel 1 => inst lead seq main
+channel 2 => inst bass seq bass
+channel 3 => inst perc seq perc
 
 play
 ```
-
-**Demonstrates:**
-- Multiple macro types: `arp_env`, `pitch_env`, `vol_env`
-- Hardware limitation: only one `vol_env` per song (ch2 gets it, ch1 has other macros)
-- Noise mixing independent of macros
-- Deterministic macro advancement per frame
-- Practical polyphonic arrangement
 
 ---
 
 ### amstrad-cpc-demo.bax
 
-**Purpose:** Verify platform-agnostic song structure and region-aware clock scaling.
+**Purpose:** Platform-agnostic note content; region selects AY clock only.
 
-**Structure:**
 ```bax
 chip spectrum-128
-chipRegion amstrad-cpc-128k
+chipRegion cpc
 
-; Same instruments as synth-demo, platform independent
 inst lead type=tone1 vol=12 arp_env=[0,2,4,7]
 inst bass type=tone2 vol=14
 inst pad  type=tone3 vol=10
@@ -1132,17 +618,12 @@ channel 3 => inst pad  seq main:oct(-1)
 play
 ```
 
-**Demonstrates:**
-- `chipRegion` override to CPC 128K (2.0 MHz clock)
-- Platform-agnostic note names and macros
-- Deterministic output across clock regions
-- Usage in multi-target homebrew projects
-
 ---
 
-### Test Songs
+### Test songs
 
-**smoke-test.bax** — Binary regression gate:
+**smoke-test.bax** — register-log regression gate:
+
 ```bax
 chip spectrum-128
 inst tone1 type=tone1 vol=10
@@ -1156,29 +637,43 @@ channel 3 => inst tone3 . : C2 D2 E2 F2
 play
 ```
 
-**shared-envelope-test.bax** — Validates envelope conflict detection (should warn or error):
+**shared-envelope-test.bax** — expects diagnostic (two `vol_env` programs):
+
 ```bax
 chip spectrum-128
 inst lead type=tone1 vol=12 vol_env=[15,10,5,0]
-inst bass type=tone2 vol=14 vol_env=[14,10,6,0]  ; Conflict!
+inst bass type=tone2 vol=14 vol_env=[14,10,6,0]
 
 channel 1 => inst lead .
 channel 2 => inst bass .
 ```
 
-**noise-mixing-test.bax** — Verifies per-channel noise control:
+**noise-mixing-test.bax** — independent mixer routing, shared noise source:
+
 ```bax
 chip spectrum-128
-inst tone  type=tone1 vol=12               ; Pure tone
-inst blend type=tone2 vol=12 tone_mix=true noise_rate=8  ; Tone + noise
-inst noise type=tone3 vol=12 tone_mix=true noise_rate=20 ; Mostly noise
+inst tone  type=tone1 vol=12
+inst blend type=tone2 vol=12 tone_mix=true noise_rate=8
+inst noise type=tone3 vol=12 tone_mix=true noise_rate=8
 
 channel 1 => inst tone  . : C4 C4 C4 C4
 channel 2 => inst blend . : C3 C3 C3 C3
 channel 3 => inst noise . : C2 C2 C2 C2
 ```
 
-**all-macros.bax** — Tests all macro types in one song (no conflicts):
+**noise-conflict-test.bax** — expects diagnostic (different R6 same tick):
+
+```bax
+chip spectrum-128
+inst a type=tone1 vol=12 tone_mix=true noise_rate=4
+inst b type=tone2 vol=12 tone_mix=true noise_rate=20
+
+channel 1 => inst a . : C4 C4 C4 C4
+channel 2 => inst b . : C3 C3 C3 C3
+```
+
+**all-macros.bax** — valid combination (no overlapping envelope/noise conflicts):
+
 ```bax
 chip spectrum-128
 inst lead type=tone1 vol=12 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
@@ -1194,47 +689,41 @@ channel 3 => inst perc .
 
 ## Compatibility & Constraints
 
-### Shared Hardware Limitations
+### Shared hardware limitations
 
-1. **One Envelope:** Only one channel can use `vol_env` at a time due to single shared envelope generator. Validation must warn if multiple instruments declare `vol_env`.
-2. **Noise Period:** All channels using `tone_mix=true` share the same global `noise_rate`. Recommend documenting this in help + Copilot prompts.
-3. **Mixer Blending:** Each tone channel has independent tone/noise mix control. Recommended patterns: tone1/tone2 use pure tone, tone3 can blend with noise for percussion effects.
+1. **One envelope program (R11–R13):** All envelope-mode channels read the **same** level each tick. Only one `vol_env` / buzz-bass program should be active per phrase; validation warns on overlap.
+2. **One noise period (R6):** All channels with noise enabled share one timbre. Stagger hits or use the same `noise_rate` when overlapping.
+3. **Mixer (R7):** Per-channel tone/noise routing is independent — this is how channels differ in noise **mix**, not noise **pitch**.
+4. **Tone periods (R0–R5) and fixed attenuation (R8–R10):** Independent per channel.
 
-### Clock Accuracy
+### Clock accuracy
 
-The period table uses equal temperament (A4 = 440 Hz) and must be recomputed when switching regions (Spectrum 128 vs. Amstrad CPC). The `configureForSong()` hook handles this.
+Period tables use equal temperament (A4 = 440 Hz) with the **AY clock** from `platform-profiles.ts`:
+
+- Spectrum 128: **1,773,400 Hz** (not the 3.5469 MHz CPU clock)
+- Amstrad CPC: **1,000,000 Hz**
+
+`configureForSong()` selects the profile; recomputes period tables when `chipRegion` changes.
 
 ---
 
 ## Documentation
 
-### User-Facing
+### User-facing
 
-- [docs/chips/zx-spectrum-128/](docs/chips/zx-spectrum-128/) — Hardware reference, constraints, limitations
-  - `hardware.md` — AY-3-8910 registers, LFSR, envelope shapes
-  - `tutorial.md` — First song template, macro examples
-- [packages/plugins/chip-spectrum-128/README.md](packages/plugins/chip-spectrum-128/README.md) — Installation, usage, channel types
+- [docs/chips/zx-spectrum-128/hardware_guide.md](../chips/zx-spectrum-128/hardware_guide.md) — Registers, LFSR, envelope, clocks
+- [docs/chips/zx-spectrum-128/composition_guide.md](../chips/zx-spectrum-128/composition_guide.md) — Tracker-realistic arranging
+- [packages/plugins/chip-spectrum-128/README.md](../../packages/plugins/chip-spectrum-128/README.md) — Installation and usage (when package exists)
 
-### Sample Songs & Examples
+### Sample songs
 
-- [songs/spectrum-128/synth-demo.bax](songs/spectrum-128/synth-demo.bax) — Polyphonic synthesis with arp_env and pitch_env
-- [songs/spectrum-128/percussion-demo.bax](songs/spectrum-128/percussion-demo.bax) — Drum kit using noise mixing and vol_env
-- [songs/spectrum-128/effects-showcase.bax](songs/spectrum-128/effects-showcase.bax) — All macros combined; demonstrates hardware constraints
-- [songs/spectrum-128/amstrad-cpc-demo.bax](songs/spectrum-128/amstrad-cpc-demo.bax) — Platform-agnostic song with regional clock scaling
-- [songs/spectrum-128/README.md](songs/spectrum-128/README.md) — Index, how to play, troubleshooting
+- [songs/spectrum-128/](../../songs/spectrum-128/) — Demos and test songs listed above
+- [songs/spectrum-128/README.md](../../songs/spectrum-128/README.md) — Index and play instructions
 
-### Test Songs
+### Implementation-facing
 
-- [songs/spectrum-128/tests/smoke-test.bax](songs/spectrum-128/tests/smoke-test.bax) — Minimal regression gate (4 notes per channel)
-- [songs/spectrum-128/tests/shared-envelope-test.bax](songs/spectrum-128/tests/shared-envelope-test.bax) — Envelope conflict detection
-- [songs/spectrum-128/tests/noise-mixing-test.bax](songs/spectrum-128/tests/noise-mixing-test.bax) — Independent noise per channel
-- [songs/spectrum-128/tests/all-macros.bax](songs/spectrum-128/tests/all-macros.bax) — All macro types in one song
-
-### Implementation-Facing
-
-- `src/*.ts` — Inline JSDoc comments on all public functions
-- Test files — Clear test names describing behavior verified
-- Sample songs — Inline comments explaining instruments, macros, and mixing strategies
+- Inline JSDoc on public APIs in `src/*.ts`
+- Register log snapshots as primary regression artifacts (preferred over PCM-only hashes)
 
 ---
 
@@ -1242,18 +731,18 @@ The period table uses equal temperament (A4 = 440 Hz) and must be recomputed whe
 
 ### Short-term
 
-- **AY envelope shapes:** Implement all 16 AY hardware envelope curves per datasheet
-- **Effects refinement:** Integrate with BeatBax effects system (cut, retrig, volslide, etc.)
-- **Atari ST support:** Add clock profiles for Atari ST (2.0 MHz) as separate platform profile
+- All 16 AY envelope shapes per datasheet
+- BeatBax effect integration (cut, retrig, volslide) mapped to register intents
+- Strict mode: error (not warn) on R6/R11–R13 conflicts
 
 ### Mid-term
 
-- **VGM export:** Integrate with VGM exporter backend (when multi-chip architecture lands)
-- **PT3 export:** Native ProTracker 3 format export (Spectrum homebrew standard)
-- **Arkos Tracker support:** Export to Arkos Tracker format
+- VGM export from register log
+- PT3 / Arkos export adapters
+- Optional engine `createChipRenderer()` hook for shared-state chips
 
 ### Long-term
 
-- **Debugger:** Visualize per-channel register state in web editor
-- **Hardware simulation:** Accurate cycle-level register write timing
-- **Multi-song format:** Support for linked modules (e.g. menu music + gameplay music)
+- Register-state debugger in web editor
+- Cycle-accurate write timing (beyond 50 Hz tracker model)
+- Linked multi-song modules (menu + gameplay)
