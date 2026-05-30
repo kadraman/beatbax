@@ -10,6 +10,7 @@ BeatBax supports top-level directives inside `.bax` files to:
 
 1. Configure global playback settings (`chip`, `bpm`, `volume`, `stepsPerBar`)
 2. Capture human-readable song metadata (`song name`, `song artist`, etc.)
+3. Configure optional scale-awareness validation (`scale` + channel `lock`)
 
 ## Global Playback Directives
 
@@ -23,6 +24,23 @@ BeatBax supports top-level directives inside `.bax` files to:
 - `**stepsPerBar <number>**` — Sets steps per bar for bar/beat display and bar numbering (default: `4`). This is the canonical directive for time-signature-style grouping in the editor and resolver.
 - `**time <number>**` — *(deprecated)* Alias for `stepsPerBar`. Still parsed for backward compatibility; emits a parser warning. Prefer `stepsPerBar`.
 - `**ticksPerStep <number>*`* — *(deprecated, no effect)* Parsed for backward compatibility only. The value is ignored; the engine uses a fixed internal tick resolution. Emits a parser warning.
+- `**scale <root> <mode> [warn|error|off]**` — Declares a song-level musical scale used by parser diagnostics and MIDI step-entry scale snap.
+  - Examples: `scale C major`, `scale A minor error`, `scale F# dorian off`.
+  - `warn` (default): out-of-lock notes produce warnings.
+  - `error`: out-of-lock notes produce errors.
+  - `off`: keeps scale metadata for UI/MIDI features but disables diagnostics.
+
+### Channel locks
+
+Channel locks restrict notes on a per-channel basis when `scale` is declared:
+
+- `lock=scale` — any note in the declared scale
+- `lock=root+fifth` — degree 1 + 5 only
+- `lock=chord` — degree 1 + 3 + 5
+- `lock=chord7` — degree 1 + 3 + 5 + 7
+- `lock=octaves` — root note only (all octaves)
+
+`lock` is optional per channel. If a lock is used without `scale`, the parser emits an error.
 
 ### Example
 
@@ -31,11 +49,12 @@ chip gameboy
 bpm 140
 volume 0.5
 stepsPerBar 4
+scale C major warn
 
 inst lead type=pulse1 duty=75 env=15,up
 pat melody = C5 E5 G5 C6
 seq main = melody
-channel 1 => inst lead seq main
+channel 1 => inst lead seq main lock=scale
 play
 ```
 
@@ -81,4 +100,3 @@ Notes
 
 - Metadata parsing happens at parse/expansion time and is preserved into the resolved `SongModel.metadata` used by the player and exporters.
 - Multiline descriptions preserve newline characters; tags are normalized and trimmed.
-

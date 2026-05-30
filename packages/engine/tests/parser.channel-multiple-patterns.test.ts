@@ -151,4 +151,36 @@ describe('parser: channel with multiple patterns after pat keyword', () => {
     expect((ast.channels[0] as any).seqSpecTokens).toEqual(['a', 'b', 'c']);
     expect((ast.channels[1] as any).seqSpecTokens).toEqual(['a']);
   });
+
+  test('allows pattern or sequence named lock in channel seq/pat lists', () => {
+    const src = `
+      scale C major warn
+      inst lead type=pulse1 duty=50 env=gb:12,down,1
+      pat melody = C4 D4
+      pat lock = E4 G4
+      seq lock = melody
+      channel 1 => inst lead seq lock
+      channel 2 => inst lead pat melody lock
+      channel 3 => inst lead seq melody lock lock=scale
+    `;
+    const ast = parse(src);
+    expect((ast.channels[0] as any).seqSpecTokens).toEqual(['lock']);
+    expect((ast.channels[1] as any).seqSpecTokens).toEqual(['melody', 'lock']);
+    expect((ast.channels[2] as any).seqSpecTokens).toEqual(['melody', 'lock']);
+    expect((ast.channels[2] as any).lock).toBe('scale');
+  });
+
+  test('still parses lock option after seq list when unambiguous', () => {
+    const src = `
+      scale C major warn
+      inst lead type=pulse1 duty=50 env=gb:12,down,1
+      pat melody = C4 D4
+      channel 1 => inst lead seq melody lock scale
+      channel 2 => inst lead seq melody lock=root+fifth
+    `;
+    const ast = parse(src);
+    expect((ast.channels[0] as any).seqSpecTokens).toEqual(['melody']);
+    expect((ast.channels[0] as any).lock).toBe('scale');
+    expect((ast.channels[1] as any).lock).toBe('root+fifth');
+  });
 });

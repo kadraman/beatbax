@@ -8,6 +8,10 @@ import { playbackStatus, playbackTimeLabel, playbackError } from '../stores/play
 import { parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '../stores/editor.store';
 import { exportStatus, exportFormat } from '../stores/ui.store';
 import { icon } from '../utils/icons';
+import {
+  formatScaleContextStatusLabel,
+  type ScaleContext,
+} from '../editor/scale-context';
 
 export interface StatusBarConfig {
   container: HTMLElement;
@@ -28,6 +32,7 @@ export interface StatusInfo {
  */
 export class StatusBar {
   private container: HTMLElement;
+  private scaleContext: ScaleContext | null = null;
   private info: StatusInfo = {
     line: 1,
     column: 1,
@@ -123,6 +128,11 @@ export class StatusBar {
     this.render();
   }
 
+  setScaleContext(ctx: ScaleContext | null): void {
+    this.scaleContext = ctx;
+    this.render();
+  }
+
   updateInfo(partial: Partial<StatusInfo>): void {
     this.info = { ...this.info, ...partial };
     this.render();
@@ -138,6 +148,16 @@ export class StatusBar {
         <div class="status-section">
           <span class="status-label">Ln ${this.info.line}, Col ${this.info.column}</span>
         </div>
+
+        ${(() => {
+          if (!this.scaleContext) return '';
+          const label = formatScaleContextStatusLabel(this.scaleContext);
+          return `
+          <div class="status-section status-scale-context" title="${this.escapeHtml(label.title)}">
+            <span class="status-icon">${icon('musical-note', 'w-3.5 h-3.5 inline-block align-middle')}</span>
+            <span class="status-label status-scale-text">${this.escapeHtml(label.text)}</span>
+          </div>`;
+        })()}
 
         ${(() => {
           const errorCount = validationErrors.get().length + (playbackError.get() !== null ? 1 : 0);

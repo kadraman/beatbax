@@ -114,7 +114,17 @@ export interface ChannelNode {
   inst?: string;
   pat?: string | string[];
   speed?: number;
+  lock?: ScaleLock;
   loc?: SourceLocation;
+}
+
+export type ScaleEnforcement = 'warn' | 'error' | 'off';
+export type ScaleLock = 'scale' | 'root+fifth' | 'chord' | 'chord7' | 'octaves';
+
+export interface ScaleDirective {
+  root: string;
+  mode: string;
+  enforcement: ScaleEnforcement;
 }
 
 export interface PlayNode {
@@ -175,6 +185,7 @@ export interface AST {
   chip?: string;
   chipRegion?: string;
   volume?: number;
+  scale?: ScaleDirective;
   play?: PlayNode;
   metadata?: SongMetadata;
   /** Diagnostics emitted during parsing (type errors, unknown properties, etc.) */
