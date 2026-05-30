@@ -35,26 +35,65 @@ function normalizePatternRef(token: string): string {
   return String(token ?? '').split(':')[0].trim().replace(/\s*\*\s*\d+$/, '');
 }
 
+function stripRepeat(base: string): string {
+  const m = base.match(/^(.+?)\*(\d+)$/);
+  return m ? m[1].trim() : base;
+}
+
+/**
+ * Whether a sequence item list references a pattern, directly or through
+ * nested seq definitions (matches engine expandSequenceEntries reachability).
+ */
+export function sequenceItemsReferencePattern(
+  ast: any,
+  items: string[],
+  patternName: string,
+  visiting: Set<string> = new Set(),
+): boolean {
+  if (!patternName || !Array.isArray(items)) return false;
+  const seqs = ast?.seqs ?? {};
+
+  for (const it of items) {
+    if (!it || String(it).trim() === '') continue;
+
+    let base = stripRepeat(normalizePatternRef(it));
+
+    const mGroup = base.match(/^\((.*)\)$/s);
+    if (mGroup) {
+      const innerParts = mGroup[1].trim().match(/[^\s]+/g) || [];
+      if (sequenceItemsReferencePattern(ast, innerParts, patternName, visiting)) {
+        return true;
+      }
+      continue;
+    }
+
+    if (base === patternName) return true;
+
+    if (Object.prototype.hasOwnProperty.call(seqs, base)) {
+      if (visiting.has(base)) continue;
+      visiting.add(base);
+      const nested = seqs[base];
+      const found =
+        Array.isArray(nested) &&
+        sequenceItemsReferencePattern(ast, nested, patternName, visiting);
+      visiting.delete(base);
+      if (found) return true;
+    }
+  }
+
+  return false;
+}
+
 function channelSeqRefs(ch: any): string[] {
   if (Array.isArray(ch?.seqSpecTokens)) return ch.seqSpecTokens;
   if (typeof ch?.pat === 'string') return ch.pat.split(/[\s,]+/);
   return [];
 }
 
-/** Whether a channel's seq references a pattern (directly or via a seq definition). */
+/** Whether a channel's seq references a pattern (directly or via nested seqs). */
 export function channelReferencesPattern(ast: any, ch: any, patternName: string): boolean {
   if (!patternName) return false;
-  for (const token of channelSeqRefs(ch)) {
-    const base = normalizePatternRef(token);
-    if (!base) continue;
-    if (base === patternName) return true;
-    const seq = ast?.seqs?.[base];
-    if (!Array.isArray(seq)) continue;
-    if (seq.some((seqToken: string) => normalizePatternRef(seqToken) === patternName)) {
-      return true;
-    }
-  }
-  return false;
+  return sequenceItemsReferencePattern(ast, channelSeqRefs(ch), patternName);
 }
 
 /** All channel locks that apply to a named pattern, in channel order. */

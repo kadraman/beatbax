@@ -362,6 +362,33 @@ const expandPatternSpec = (nameSpec: string, rhsRaw?: string, rhsTokens?: string
 
 type ChannelParseExtras = { seqSpecTokens?: string[]; channelRhs?: string; lockRaw?: string };
 
+/** True when a token starts a channel option, not a seq/pat name in a list. */
+const isChannelSeqPatBoundary = (tokens: string[], index: number): boolean => {
+  const token = tokens[index];
+  if (
+    token === 'inst' ||
+    token === 'pat' ||
+    token === 'seq' ||
+    token === 'bpm' ||
+    token === 'speed'
+  ) {
+    return true;
+  }
+  if (token.startsWith('bpm=') || token.startsWith('speed=') || token.startsWith('lock=')) {
+    return true;
+  }
+  // Bare `lock` is only the scale-lock option when followed by a valid lock value.
+  // Otherwise it may be a pattern/sequence name (lock is not grammar-reserved).
+  if (token === 'lock') {
+    const next = tokens[index + 1];
+    if (next !== undefined) {
+      const lockVal = String(next).replace(/^=/, '').trim();
+      if (normalizeLock(lockVal)) return true;
+    }
+  }
+  return false;
+};
+
 const parseChannelRhs = (
   id: number,
   rhs: string,
@@ -369,16 +396,6 @@ const parseChannelRhs = (
   loc?: SourceLocation,
 ): ChannelNode & ChannelParseExtras => {
   const tokens = rhs.split(/\s+/);
-  const isOptionToken = (token: string): boolean =>
-    token === 'inst' ||
-    token === 'pat' ||
-    token === 'seq' ||
-    token === 'bpm' ||
-    token === 'speed' ||
-    token === 'lock' ||
-    token.startsWith('bpm=') ||
-    token.startsWith('speed=') ||
-    token.startsWith('lock=');
 
   const ch: {
     id: number;
@@ -399,7 +416,7 @@ const parseChannelRhs = (
     } else if (t === 'pat' && tokens[i + 1]) {
       const restTokens: string[] = [];
       for (let j = i + 1; j < tokens.length; j++) {
-        if (isOptionToken(tokens[j])) break;
+        if (isChannelSeqPatBoundary(tokens, j)) break;
         restTokens.push(tokens[j]);
       }
       const rest = restTokens.join(' ');
@@ -410,7 +427,7 @@ const parseChannelRhs = (
     } else if (t === 'seq' && tokens[i + 1]) {
       const restTokens: string[] = [];
       for (let j = i + 1; j < tokens.length; j++) {
-        if (isOptionToken(tokens[j])) break;
+        if (isChannelSeqPatBoundary(tokens, j)) break;
         restTokens.push(tokens[j]);
       }
       const rest = restTokens.join(' ');
@@ -447,10 +464,12 @@ const parseChannelRhs = (
       if (normalizedLock) ch.lock = normalizedLock;
     } else if (t === 'lock' && tokens[i + 1]) {
       const lockVal = String(tokens[i + 1]).replace(/^=/, '').trim();
-      if (lockVal) ch.lockRaw = lockVal;
       const normalizedLock = normalizeLock(lockVal);
-      if (normalizedLock) ch.lock = normalizedLock;
-      i++;
+      if (normalizedLock) {
+        ch.lockRaw = lockVal;
+        ch.lock = normalizedLock;
+        i++;
+      }
     }
   }
 
@@ -1107,6 +1126,8 @@ export function parseWithPeggy(source: string): ParseResult {
       const normalized = normalizeLock(rawLock);
       if (!normalized) {
         diag('error', 'scale-lock', `Channel ${ch.id}: unknown lock '${rawLock}'. Valid locks: scale, root+fifth, chord, chord7, octaves.`, chLoc);
+        delete chAnyWithLock.lockRaw;
+        delete chAnyWithLock.lock;
       } else {
         chAnyWithLock.lock = normalized;
       }

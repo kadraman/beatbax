@@ -14,6 +14,18 @@ describe('parser scale awareness', () => {
     expect((result.ast.channels[0] as any).lock).toBe('scale');
   });
 
+  test('reports unknown lock once when scale is declared', () => {
+    const src = `
+      scale C major warn
+      inst lead type=pulse1 duty=50 env=12,down
+      pat melody = C4 D4
+      channel 1 => inst lead seq melody lock=invalid
+    `;
+    const diags = parseWithPeggy(src).ast.diagnostics ?? [];
+    const unknown = diags.filter((d) => d.component === 'scale-lock' && d.message.includes('unknown lock'));
+    expect(unknown).toHaveLength(1);
+  });
+
   test('reports lock without scale declaration', () => {
     const src = `
       inst lead type=pulse1 duty=50 env=12,down

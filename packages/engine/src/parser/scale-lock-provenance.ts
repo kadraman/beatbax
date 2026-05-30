@@ -507,19 +507,8 @@ export function validateScaleLocks(ast: AST): ParseDiagnostic[] {
   const scaleLabel = `${normalizedScale.root} ${normalizedScale.mode}`;
 
   for (const ch of ast.channels ?? []) {
-    const rawLock = (ch as any).lock as string | undefined;
-    if (!rawLock) continue;
-
-    const lock = normalizeLock(rawLock);
-    if (!lock) {
-      diagnostics.push({
-        level: 'error',
-        component: 'scale-lock',
-        message: `Channel ${ch.id}: unknown lock '${rawLock}'. Valid locks: scale, root+fifth, chord, chord7, octaves.`,
-        loc: ch.loc,
-      });
-      continue;
-    }
+    const lock = normalizeLock((ch as any).lock as string | undefined);
+    if (!lock) continue;
 
     const instName = ch.inst;
     const instType = instName ? String((ast.insts as any)?.[instName]?.type ?? '').toLowerCase() : '';

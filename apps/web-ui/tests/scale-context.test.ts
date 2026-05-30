@@ -31,6 +31,21 @@ describe('scale-context', () => {
     expect(channelReferencesPattern(ast, ast.channels[0], 'bassline')).toBe(false);
   });
 
+  test('finds lock bindings through nested sequence references', () => {
+    const nestedAst = {
+      scale: { root: 'C', mode: 'major', enforcement: 'warn' },
+      pats: { melody: [] },
+      seqs: {
+        form: ['verse'],
+        verse: ['melody'],
+      },
+      channels: [{ id: 1, lock: 'scale', seqSpecTokens: ['form'] }],
+    };
+    expect(resolvePatternLockBindings(nestedAst, 'melody')).toEqual([{ channelId: 1, lock: 'scale' }]);
+    expect(resolvePrimaryPatternLock(nestedAst, 'melody')).toBe('scale');
+    expect(channelReferencesPattern(nestedAst, nestedAst.channels[0], 'melody')).toBe(true);
+  });
+
   test('resolveScaleContext requires scale and pat body cursor', () => {
     const patLine = 'pat bassline = D3 . A2 .';
     const inside = patLine.indexOf('D3') + 1;

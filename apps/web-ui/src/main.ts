@@ -1082,7 +1082,11 @@ void midiController.requestMidiAccess();
 
 // Expose MIDI controller globally for settings panel and command palette
 (window as any).__beatbax_midiStepEntry = midiController;
-eventBus.on('parse:success', ({ ast }: any) => {
+// Scale context + MIDI snap need the Peggy parsed AST (scale, lock, seqSpecTokens).
+// PlaybackManager also emits parse:success with a resolved SongModel as ast, which
+// lacks those fields — ignore those events (resolvedAst is editor-only).
+eventBus.on('parse:success', ({ ast, resolvedAst }: any) => {
+  if (resolvedAst === undefined) return;
   lastParsedAst = ast ?? null;
   midiController.setParsedAst(ast);
   refreshScaleContextStrip();
