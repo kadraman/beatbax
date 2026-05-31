@@ -48,6 +48,32 @@ export const PLATFORM_PROFILES: Record<string, PlatformProfile> = {
 /** Default platform (Spectrum 128). */
 const DEFAULT_REGION = 'spectrum-128';
 
+/** `chip` directive names that select the Amstrad CPC 1 MHz AY clock profile. */
+export const CPC_CHIP_ALIASES = new Set(['cpc', 'amstrad-cpc']);
+
+/**
+ * Resolve the platform region key from song-level chip / chipRegion fields.
+ * CPC-targeted songs use `chip cpc` or `chip amstrad-cpc`; legacy `chipRegion=cpc`
+ * on a Spectrum chip line is still honoured.
+ */
+export function resolvePlatformRegionFromSong(song: {
+  chip?: string | null;
+  chipRegion?: string | null;
+}): string {
+  const chip = String(song?.chip ?? '').toLowerCase();
+  if (CPC_CHIP_ALIASES.has(chip)) {
+    return 'cpc';
+  }
+  const region = String(song?.chipRegion ?? '').toLowerCase();
+  if (region === 'cpc') {
+    return 'cpc';
+  }
+  if (!region || region === 'spectrum-128') {
+    return DEFAULT_REGION;
+  }
+  return region;
+}
+
 let _currentRegion: string = DEFAULT_REGION;
 
 /**

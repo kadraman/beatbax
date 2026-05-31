@@ -42,6 +42,21 @@ export function validateSpectrumInstrument(inst: InstrumentNode): ValidationErro
     checkRange(inst.noise_rate, 0, 31, 'noise_rate', errors);
   }
 
+  // ── noise_frames (transient noise mix duration at 60 Hz) ─────────────────
+  if (inst.noise_frames !== undefined) {
+    checkRange(inst.noise_frames, 0, 60, 'noise_frames', errors);
+  }
+
+  // ── tone_frames (transient tone mix duration at 60 Hz) ───────────────────
+  if (inst.tone_frames !== undefined) {
+    checkRange(inst.tone_frames, 0, 60, 'tone_frames', errors);
+  }
+
+  // ── tone_vol (attenuated tone path for stick transients) ─────────────────
+  if (inst.tone_vol !== undefined) {
+    checkRange(inst.tone_vol, 0, 15, 'tone_vol', errors);
+  }
+
   // ── chipRegion ───────────────────────────────────────────────────────────
   if (inst.chipRegion !== undefined) {
     const validRegions = new Set(['spectrum-128', 'cpc']);

@@ -1,0 +1,19 @@
+# AY hardware envelope conflict demo (intentional).
+# Two instruments define vol_env → shared R11–R13 conflict warning.
+# Run: beatbax verify songs/spectrum-128/instruments/ay_vol_env_conflict.bax
+
+chip spectrum-128
+bpm 120
+
+song name "AY Vol Env Conflict"
+song artist "The BeatBax Team"
+song description "Intentional envelope conflict: lead and bass both use vol_env. Expect validateSong diagnostic — only one hardware envelope program should be active per phrase."
+song tags "spectrum-128,ay,instrument,demo,envelope,conflict"
+
+inst lead type=tone1 vol=12 vol_env=[15,10,5,0]
+inst bass type=tone2 vol=14 vol_env=[14,10,6,0]
+
+channel 1 => inst lead .
+channel 2 => inst bass .
+
+play

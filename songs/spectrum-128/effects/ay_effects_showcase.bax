@@ -1,0 +1,28 @@
+# AY macro and hardware trade-off showcase.
+# Documents which macros share global registers (R6, R11–R13).
+
+chip spectrum-128
+bpm 140
+
+song name "AY Effects Showcase"
+song artist "The BeatBax Team"
+song description "Lead uses arp_env and pitch_env (software). Bass holds the single hardware vol_env program (R11–R13). Percussion uses one shared noise_rate on channel C."
+song tags "spectrum-128,ay,effects,demo,macros"
+
+inst lead type=tone1 vol=13 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
+inst bass type=tone2 vol=14 vol_env=[14,14,10,6]
+inst perc type=tone3 vol=15 tone_mix=true noise_rate=12
+
+pat melody = C4 E4 G4 C5 B4 A4 G4 .
+pat bass   = C2 . . . G1 . . .
+pat drums  = . . D2 . . . D2 .
+
+seq main = melody melody melody melody
+seq bass = bass bass bass bass
+seq perc = drums drums drums drums
+
+channel 1 => inst lead seq main
+channel 2 => inst bass seq bass
+channel 3 => inst perc seq perc
+
+play

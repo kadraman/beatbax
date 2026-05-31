@@ -1,0 +1,20 @@
+# AY noise mixer routing demo.
+# Independent R7 tone/noise enable per channel; shared R6 (same noise_rate, no conflict).
+
+chip spectrum-128
+bpm 120
+
+song name "AY Noise Mixing"
+song artist "The BeatBax Team"
+song description "Channel A tone-only, B tone+noise blend, C noise-only. All noise uses noise_rate=8 so R6 does not conflict."
+song tags "spectrum-128,ay,instrument,demo,noise,mixer"
+
+inst tone  type=tone1 vol=12
+inst blend type=tone2 vol=12 tone=true  tone_mix=true noise_rate=8
+inst noise type=tone3 vol=12 tone=false tone_mix=true noise_rate=8
+
+channel 1 => inst tone  . : C4 C4 C4 C4
+channel 2 => inst blend . : C3 C3 C3 C3
+channel 3 => inst noise . : C2 C2 C2 C2
+
+play

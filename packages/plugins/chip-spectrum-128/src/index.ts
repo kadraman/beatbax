@@ -30,7 +30,11 @@
 import type { ChipPlugin, ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
 import { version } from './version.js';
-import { setPlatformRegion, getPlatformProfile } from './platform-profiles.js';
+import {
+  setPlatformRegion,
+  getPlatformProfile,
+  resolvePlatformRegionFromSong,
+} from './platform-profiles.js';
 import { AyChipSimulator } from './ay-chip.js';
 import { RegisterArbitrator } from './register-arbitrator.js';
 import { RegisterLog } from './register-log.js';
@@ -134,7 +138,7 @@ type SpectrumChipPlugin = ChipPlugin & {
 
 const spectrumPlugin: SpectrumChipPlugin = {
   name: 'spectrum-128',
-  aliases: ['spectrum', 'ay', 'ay-3-8912'],
+  aliases: ['spectrum', 'ay', 'ay-3-8912', 'cpc', 'amstrad-cpc'],
   version,
   channels: 3,
   supportsPerChannelVolume: true,
@@ -147,7 +151,7 @@ const spectrumPlugin: SpectrumChipPlugin = {
   },
 
   configureForSong(song: { chip?: string; chipRegion?: string }) {
-    setPlatformRegion(song?.chipRegion ?? 'spectrum-128');
+    setPlatformRegion(resolvePlatformRegionFromSong(song));
   },
 
   beginSongSession() {
@@ -184,6 +188,8 @@ export { validateSong } from './validate-song.js';
 export {
   getPlatformProfile,
   setPlatformRegion,
+  resolvePlatformRegionFromSong,
+  CPC_CHIP_ALIASES,
   PLATFORM_PROFILES,
   type PlatformProfile,
 } from './platform-profiles.js';

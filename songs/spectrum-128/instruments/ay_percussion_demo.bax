@@ -1,0 +1,46 @@
+# AY named drum kit — split lanes + multiplexed single-channel kit.
+#
+# Structure (each pattern = 16 steps, stepsPerBar 4 → 4 bars per pattern):
+#   • Intro  — 2 patterns: split kit on channels 1–3 (hat / snare / kick lanes)
+#   • Middle — 5 patterns: full kit multiplexed on channel 3 only; ch1/ch2 rest
+#   • Outro  — 2 patterns: split kit again
+#
+# R6 noise period is global — different noise_rate values are OK when only one
+# noise hit is active per tick (staggered tokens or split channels).
+
+chip spectrum-128
+bpm 128
+
+song name "AY Percussion Demo"
+song artist "The BeatBax Team"
+song description """Demonstrates AY-3-8912 percussion: kick/snare/hat/crash recipes using tone_mix, noise_rate, vol_env, noise_frames, tone_frames, tone_vol, and pitch_env. Section A splits one drum per channel; Section B multiplexes six named drums on channel 3. Crashes use _ sustain ticks so vol_env tails are not cut short."""
+song tags "spectrum-128,ay,instrument,demo,percussion,drums"
+
+# ── Named drum kit (60 Hz software vol_env / pitch_env unless noted) ─────────
+inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[15,12,9,6,3,0]
+inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5 vol_env=[15,12,9,6,4,2,0]
+inst hatc  type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7 vol_env=[15,10,6,3,0]
+inst hato  type=tone1 vol=15 tone_mix=true           noise_rate=2          vol_env=[15,13,11,9,7,5,3,1,0]
+inst rim   type=tone2 vol=11 tone_mix=true           noise_rate=6          vol_env=[15,8,3,0]
+inst crash type=tone3 vol=15 tone=true tone_mix=true noise_rate=1 tone_frames=2 tone_vol=4 note=E7 vol_env=[15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]
+
+pat lane_kick  = kick . . . kick . . kick . . . kick . . . .
+pat lane_snare = . . snare . . . snare . . . snare . . . . .
+pat lane_hat   = hatc . hatc . hatc . hatc . hatc . hatc . hatc . hatc .
+
+pat kit_groove = kick . hatc . snare . hatc kick . hatc snare . . . . .
+pat kit_syncop = kick . hatc snare . hatc . kick . hato . . . . . .
+pat kit_fill   = kick snare kick snare crash _ _ _ rim . hato . . . . .
+pat kit_outro  = kick . . snare . hatc . . crash _ _ _ . . . . .
+
+pat rest_bar   = . . . . . . . . . . . . . . . .
+
+seq drums_hat   = lane_hat lane_hat rest_bar rest_bar rest_bar rest_bar rest_bar lane_hat lane_hat
+seq drums_snare = lane_snare lane_snare rest_bar rest_bar rest_bar rest_bar rest_bar lane_snare lane_snare
+seq drums_kick  = lane_kick lane_kick kit_groove kit_syncop kit_groove kit_fill kit_outro lane_kick lane_kick
+
+channel 1 => inst hatc  seq drums_hat
+channel 2 => inst snare seq drums_snare
+channel 3 => inst kick  seq drums_kick
+
+play

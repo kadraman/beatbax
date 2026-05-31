@@ -15,6 +15,7 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
 import nesPlugin from '@beatbax/plugin-chip-nes';
 import smsPlugin from '@beatbax/plugin-chip-sms';
+import spectrumPlugin from '@beatbax/plugin-chip-spectrum-128';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
@@ -46,6 +47,15 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
       'Enables `chip sms` in .bax scripts.',
     badge: 'Beta',
     plugin: smsPlugin,
+  },
+  {
+    id: 'spectrum-128',
+    label: 'ZX Spectrum 128 / AY-3-8912',
+    description:
+      'ZX Spectrum 128 and Amstrad CPC AY PSG — 3 tone channels + noise. ' +
+      'Enables `chip spectrum-128` in .bax scripts.',
+    badge: 'Experimental',
+    plugin: spectrumPlugin,
   },
   // Future plugins — add entries here as packages are published:
   // {

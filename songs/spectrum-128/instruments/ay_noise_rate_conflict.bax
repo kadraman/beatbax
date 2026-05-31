@@ -1,0 +1,19 @@
+# AY R6 noise-period conflict demo (intentional).
+# Two channels play simultaneously with different noise_rate → validateSong warning.
+# Run: beatbax verify songs/spectrum-128/instruments/ay_noise_rate_conflict.bax
+
+chip spectrum-128
+bpm 120
+
+song name "AY Noise Rate Conflict"
+song artist "The BeatBax Team"
+song description "Intentional R6 conflict: channels A and B use noise_rate 4 and 20 on the same ticks. Expect a validateSong diagnostic; at runtime last-writer-wins on R6."
+song tags "spectrum-128,ay,instrument,demo,noise,conflict"
+
+inst a type=tone1 vol=12 tone_mix=true noise_rate=4
+inst b type=tone2 vol=12 tone_mix=true noise_rate=20
+
+channel 1 => inst a . : C4 C4 C4 C4
+channel 2 => inst b . : C3 C3 C3 C3
+
+play

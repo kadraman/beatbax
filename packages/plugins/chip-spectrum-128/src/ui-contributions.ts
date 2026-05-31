@@ -23,7 +23,7 @@ Use channels 1–3 only (AY-3-8912 has exactly 3 channels).
 
 CLOCK:
   ZX Spectrum 128 (default): AY clock = 1,773,400 Hz, 50 Hz PAL tick.
-  Amstrad CPC (chipRegion=cpc): AY clock = 1,000,000 Hz, 50 Hz PAL tick.
+  Amstrad CPC (chip cpc): AY clock = 1,000,000 Hz, 50 Hz PAL tick.
   Note: 3.5469 MHz is the Spectrum 128 CPU clock — DO NOT use it for period tables.
   Tone period: N = floor(f_clock / (16 × f_tone)),  clamped to 1–4095.
 
@@ -37,7 +37,10 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
                  For per-channel volume shaping use BeatBax volSlide effect instead.
     arp_env    — Arpeggio in semitone offsets (software, 50 Hz step).
     pitch_env  — Pitch bend in semitone offsets (software, 50 Hz step).
-    tone_mix   — true = include noise in this channel's output (R7 mixer bit).
+    tone_mix   — true = route shared noise into this channel (R7 mixer bit).
+                 Default: tone OFF when tone_mix + noise_rate (noise-only percussion).
+                 Set tone=true for kick / tone+noise blend.
+    tone       — true/false: force tone generator on/off (kick uses tone=true).
     noise_rate — R6 value (0–31). GLOBAL — last writer per tick wins.
                  ⚠ CONFLICT: all simultaneously active noise instruments MUST use the same noise_rate.
     env_bass   — true = buzz-bass mode; uses hardware envelope as oscillator.
@@ -78,7 +81,7 @@ CHIPTUNE STYLE GUIDE:
   4. Noise percussion: same noise_rate for all drums; stagger or time-multiplex hits.
   5. Buzz bass (env_bass=true) for sub-bass oscillator on channel C.
      Cannot coexist with vol_env on any other channel.
-  6. Use chipRegion=cpc to switch to Amstrad CPC 1 MHz clock with identical notation.
+  6. Use chip cpc (or chip amstrad-cpc) for Amstrad CPC 1 MHz clock with identical notation.
 `.trim();
 
 // —— Hover docs ———————————————————————————————————————————————
@@ -97,8 +100,11 @@ const hoverDocs: Record<string, string> = {
     '- `pitch_env` — pitch bend in semitone offsets',
     '- `tone_mix` — enable noise mixing for this channel',
     '- `noise_rate` — R6 noise period (0–31, global)',
+    '- `noise_frames` — mix noise for first N 60 Hz frames only (transient click)',
+    '- `tone_frames` — mix tone for first N 60 Hz frames only (stick transient)',
+    '- `tone_vol` — cap tone path volume 0–15 (quieter stick; noise uses `vol`/`vol_env`)',
     '- `env_bass` — buzz bass (envelope as oscillator)',
-    '- `chipRegion` — `spectrum-128` (default) or `cpc`',
+    '- `chip cpc` / `chip amstrad-cpc` — Amstrad CPC 1 MHz AY clock (same plugin)',
   ].join('\n'),
 
   tone_mix: [
@@ -121,7 +127,33 @@ const hoverDocs: Record<string, string> = {
     'To avoid conflicts: use the same `noise_rate` for all percussion instruments,',
     'or stagger hits so only one noise instrument is active per tick.',
     '',
-    'Range: 0 (fastest) – 31 (slowest).',
+    'Range: 0 (fastest/brightest) – 31 (slowest/darkest).',
+    'Kick attack: low values (2–4); body/sustain: higher values (8–24).',
+  ].join('\n'),
+
+  noise_frames: [
+    '**noise_frames** — Limit noise mixing to the first N 60 Hz frames of each hit.',
+    '',
+    'Simulates turning off the R7 noise bit after the attack transient.',
+    'Omit for noise on the whole note; use 1–3 for kick/snare click.',
+    '',
+    '```bax\ninst kick type=tone3 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C2\n```',
+  ].join('\n'),
+
+  tone_frames: [
+    '**tone_frames** — Limit tone mixing to the first N 60 Hz frames of each hit.',
+    '',
+    'Use with `tone=true` for a short stick/beater click on snares or rims,',
+    'while noise carries the body for the rest of the hit.',
+    '',
+    '```bax\ninst snare type=tone2 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5\n```',
+  ].join('\n'),
+
+  tone_vol: [
+    '**tone_vol** — Maximum volume for the tone path only (0–15).',
+    '',
+    'Use with `tone_frames` so a stick click sits under the noise body instead of dominating it.',
+    'Noise still follows `vol` / `vol_env`.',
   ].join('\n'),
 
   vol_env: [
@@ -153,17 +185,17 @@ const hoverDocs: Record<string, string> = {
   ].join('\n'),
 
   chipRegion: [
-    '**chipRegion** — Platform region / AY clock preset.',
+    '**chip cpc** — Amstrad CPC platform (1 MHz AY clock).',
     '',
-    '| Value | Machine | AY Clock |',
+    '| Chip directive | Machine | AY Clock |',
     '|-------|---------|----------|',
-    '| `spectrum-128` (default) | ZX Spectrum 128 | 1,773,400 Hz |',
-    '| `cpc` | Amstrad CPC 464/6128 | 1,000,000 Hz |',
+    '| `chip spectrum-128` (default) | ZX Spectrum 128 | 1,773,400 Hz |',
+    '| `chip cpc` / `chip amstrad-cpc` | Amstrad CPC 464/6128 | 1,000,000 Hz |',
     '',
-    'The region only affects pitch resolution (tone period formula).',
-    'Note content and macros are identical across regions.',
+    'The platform only affects pitch resolution (tone period formula).',
+    'Note content and macros are identical across profiles.',
     '',
-    'Usage: `chipRegion cpc`',
+    'Usage: `chip cpc`',
   ].join('\n'),
 };
 
@@ -224,9 +256,14 @@ const helpSections = [
           'All channels with noise enabled share the same noise timbre (R6).',
           '',
           '**Working percussion patterns:**',
-          '1. All drums use the same `noise_rate` — stagger hits to avoid overlap',
-          '2. Tone kick on A + noise snare/hat on B or C',
-          '3. Borrow channel C between bass and percussion',
+          '1. Stagger hits so only one drum is active per tick',
+          '2. Use different `noise_rate` per drum when staggered (hat=2 bright, snare=8, kick=4 attack)',
+          '3. Shape hits with `vol_env` decay — raw noise without it sounds flat',
+          '4. **AY kick recipe:** C2–C3 body + `pitch_env` drop from above + bright `noise_rate` (2–4) for 1–3 frames via `noise_frames`, then tone-only sustain (C3 = punchier, C2 = subbier)',
+          '5. Snare: noise body + `tone_frames=1` + low `tone_vol` (4–6) + mid `note` (E5) for stick under the noise',
+          '6. **Closed hat:** `noise_rate=2–4`, fast `vol_env=[15,10,6,3,0]`; optional `tone_frames=1` + `tone_vol=2` + high `note` for tick',
+          '7. **Open hat:** same `noise_rate`, slow tail `vol_env=[15,13,11,9,7,5,3,1,0]` (~9 frames)',
+          '8. **Crash:** `noise_rate=1` (brightest), long 1-step `vol_env` fade (15+ frames), optional `tone_frames=2` ping; sustain with `_` after the token so the tail is not cut off by the next tick',
           '',
           '⚠ **Do not use different `noise_rate` values for simultaneous hits.**',
           'The last writer wins — other channels get the wrong timbre.',
@@ -234,23 +271,21 @@ const helpSections = [
       },
       {
         kind: 'song' as const,
-        label: 'Multiplexed drum kit (correct)',
+        label: 'Single-channel named kit',
         code: [
           'chip spectrum-128',
-          'bpm 120',
+          'bpm 128',
           '',
-          '; Same noise_rate for all percussion — stagger hits',
-          'inst kick  type=tone3 vol=15 tone_mix=true noise_rate=10',
-          'inst snare type=tone2 vol=14 tone_mix=true noise_rate=10',
-          'inst hat   type=tone1 vol=10 tone_mix=true noise_rate=10',
+          'inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[15,12,9,6,3,0]',
+          'inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5 vol_env=[15,12,9,6,4,2,0]',
+          'inst hatc  type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7 vol_env=[15,10,6,3,0]',
+          'inst hato  type=tone1 vol=15 tone_mix=true noise_rate=2 vol_env=[15,13,11,9,7,5,3,1,0]',
+          'inst crash type=tone3 vol=15 tone=true tone_mix=true noise_rate=1 tone_frames=2 tone_vol=4 note=E7 vol_env=[15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]',
           '',
-          'pat kick  = C2 . . . . . . .',
-          'pat snare = . . . D3 . . . .',
-          'pat hat   = . F4 . . F4 . . F4',
+          '; Named tokens select the instrument — one channel, full kit',
+          'pat kit = kick . hatc . snare . hato kick . hatc snare .',
           '',
-          'channel 1 => inst hat  pat hat',
-          'channel 2 => inst snare pat snare',
-          'channel 3 => inst kick  pat kick',
+          'channel 3 => inst kick pat kit',
           '',
           'play',
         ].join('\n'),

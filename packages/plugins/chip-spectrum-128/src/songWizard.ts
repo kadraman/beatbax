@@ -3,7 +3,7 @@
  *
  * Two console variants are exposed:
  *  1. ZX Spectrum 128 (default clock 1,773,400 Hz)
- *  2. Amstrad CPC     (clock 1,000,000 Hz, chipRegion=cpc)
+ *  2. Amstrad CPC     (clock 1,000,000 Hz, `chip cpc`)
  */
 import type { ChipNewSongWizard } from '@beatbax/engine';
 
@@ -30,8 +30,8 @@ const SPECTRUM_INSTRUMENTS = {
       content: [
         'inst lead  type=tone1 vol=13',
         '; Same noise_rate for all percussion — stagger hits to avoid R6 conflict',
-        'inst kick  type=tone3 vol=15 tone_mix=true noise_rate=10',
-        'inst snare type=tone2 vol=12 tone_mix=true noise_rate=10',
+        'inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[15,12,9,6,3,0]',
+        'inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5 vol_env=[15,12,9,6,4,2,0]',
       ].join('\n'),
     },
     {
@@ -174,7 +174,7 @@ export const spectrumSongWizard: ChipNewSongWizard = {
       templates: SPECTRUM_INSTRUMENTS,
     },
     {
-      chipId: 'spectrum-128',
+      chipId: 'cpc',
       metadata: {
         chipDisplayName: 'Amstrad CPC',
         platform: 'Amstrad CPC 464/6128',

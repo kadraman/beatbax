@@ -13,7 +13,7 @@ Targets the **AY-3-8912** PSG with Spectrum 128 as the primary platform and Amst
 - Software macros: `arp_env`, `pitch_env`, `vol_env`
 - Buzz-bass mode (`env_bass`) — envelope as sub-oscillator
 - Conflict detection for simultaneous `noise_rate` and `vol_env` writes
-- Amstrad CPC platform profile (`chipRegion=cpc`, 1 MHz AY clock)
+- Amstrad CPC platform profile (`chip cpc` / `chip amstrad-cpc`, 1 MHz AY clock)
 - New Song Wizard with Spectrum 128 and CPC variants
 - Full UI contributions (Copilot system prompt, hover docs, help sections)
 
@@ -66,16 +66,17 @@ play
 
 ## Platform Profiles
 
-| `chipRegion` | Machine | AY clock | Frame rate |
+| Chip directive | Machine | AY clock | Frame rate |
 |---|---|---|---|
-| `spectrum-128` (default) | ZX Spectrum 128 | 1,773,400 Hz | 50 Hz |
-| `cpc` | Amstrad CPC 464/6128 | 1,000,000 Hz | 50 Hz |
+| `chip spectrum-128` (default) | ZX Spectrum 128 | 1,773,400 Hz | 50 Hz |
+| `chip cpc` or `chip amstrad-cpc` | Amstrad CPC 464/6128 | 1,000,000 Hz | 50 Hz |
 
 To target Amstrad CPC:
 ```bax
-chip spectrum-128
-chipRegion cpc
+chip cpc
 ```
+
+Aliases `cpc` and `amstrad-cpc` use the same `@beatbax/plugin-chip-spectrum-128` plugin with the 1 MHz clock preset. Note content and macros are identical across profiles.
 
 ## Instrument Fields
 
@@ -87,6 +88,9 @@ chipRegion cpc
 | `pitch_env` | array/string | semitone offsets | Pitch bend macro |
 | `tone_mix` | boolean | — | Enable noise in R7 mixer for this channel |
 | `noise_rate` | number | 0–31 | R6 noise period (global — conflicts when different values overlap) |
+| `noise_frames` | number | 0–60 | Mix noise for first N 60 Hz frames only (transient attack) |
+| `tone_frames` | number | 0–60 | Mix tone for first N 60 Hz frames only (stick transient) |
+| `tone_vol` | number | 0–15 | Cap tone-path volume separately from noise (`vol` / `vol_env`) |
 | `env_bass` | boolean | — | Buzz-bass mode (envelope as oscillator) |
 | `chipRegion` | string | `spectrum-128` \| `cpc` | Platform clock preset |
 
@@ -107,21 +111,30 @@ Only **one** hardware envelope program (`vol_env` or `env_bass`) should be activ
 
 ## Sample Songs
 
-See `songs/spectrum-128/` for example BeatBax songs demonstrating:
+See `songs/spectrum-128/` for example BeatBax songs:
 
-- `synth-demo.bax` — Polyphonic melody with `arp_env` and `pitch_env`
-- `percussion-demo.bax` — Hardware-realistic drums (multiplexed, one noise palette)
-- `effects-showcase.bax` — All macro types with hardware trade-off comments
-- `amstrad-cpc-demo.bax` — Same song compiled with `chipRegion=cpc`
+**Full arrangements**
 
-Test songs in `songs/spectrum-128/tests/`:
+- `amstrad-cpc-demo.bax` — Same song with `chip cpc`
 
-- `smoke-test.bax` — Minimal 4-note regression gate
-- `shared-envelope-test.bax` — Expects conflict diagnostic (two `vol_env` programs)
-- `noise-mixing-test.bax` — Independent mixer routing, shared noise source
-- `noise-conflict-test.bax` — Expects conflict diagnostic (different R6 same tick)
-- `buzz-bass-demo.bax` — Envelope-as-oscillator bass on channel C
-- `all-macros.bax` — All macro types without illegal overlaps
+**Instrument demos** (`instruments/`)
+
+| Song | Purpose |
+|------|---------|
+| `ay_synth_channels.bax` | Minimal tone A/B/C smoke check |
+| `ay_macro_arp_pitch.bax` | `arp_env` and `pitch_env` on three channels |
+| `ay_percussion_demo.bax` | Named drum kit (split + multiplexed) |
+| `ay_noise_mixing.bax` | Tone / tone+noise / noise-only mixer routing |
+| `ay_buzz_bass.bax` | Buzz bass (`env_bass`) |
+| `ay_all_macros.bax` | Valid macro combination without illegal overlaps |
+| `ay_noise_rate_conflict.bax` | Intentional R6 conflict — expect `verify` warning |
+| `ay_vol_env_conflict.bax` | Intentional R11–R13 conflict — expect `verify` warning |
+
+**Effect demos** (`effects/`)
+
+| Song | Purpose |
+|------|---------|
+| `ay_effects_showcase.bax` | Macro types with hardware trade-off comments |
 
 ## Development
 

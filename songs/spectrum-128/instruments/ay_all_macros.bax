@@ -1,0 +1,20 @@
+# AY software macro combination demo (valid layout).
+# arp_env + pitch_env on lead; percussion vol_env on C — no overlapping hardware conflicts.
+
+chip spectrum-128
+bpm 140
+
+song name "AY All Macros"
+song artist "The BeatBax Team"
+song description "Combines arp_env, pitch_env, and noise percussion with vol_env in one song without illegal R6/R11–R13 overlaps."
+song tags "spectrum-128,ay,instrument,demo,macros"
+
+inst lead type=tone1 vol=12 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
+inst bass type=tone2 vol=14
+inst perc type=tone3 vol=14 tone_mix=true noise_rate=12 vol_env=[15,8,0]
+
+channel 1 => inst lead .
+channel 2 => inst bass .
+channel 3 => inst perc .
+
+play

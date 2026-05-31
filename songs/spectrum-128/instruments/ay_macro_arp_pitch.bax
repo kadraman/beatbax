@@ -1,7 +1,12 @@
-; synth-demo.bax
-; Demonstrates: lead/bass/pad instruments, arp_env, pitch_env, multi-channel polyphony
+# AY arp_env and pitch_env demo — three-channel arrangement.
+
 chip spectrum-128
 bpm 150
+
+song name "AY Macro Arp and Pitch"
+song artist "The BeatBax Team"
+song description "Lead with arp_env, bass with pitch_env bend, sustained pad on channel C. No hardware envelope programs."
+song tags "spectrum-128,ay,instrument,demo,arp,pitch"
 
 inst lead type=tone1 vol=12 arp_env=[0,2,4,7,4,2,0]
 inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]

@@ -1,8 +1,13 @@
-; buzz-bass-demo.bax — envelope-as-oscillator bass on channel C
-; env_bass uses R11–R13 as a sub-oscillator tuned to note pitch
-; NO vol_env on any other channel (they share R11–R13)
+# AY buzz-bass demo — envelope-as-oscillator on channel C.
+# env_bass uses R11–R13 as a sub-oscillator; no vol_env on other channels.
+
 chip spectrum-128
 bpm 120
+
+song name "AY Buzz Bass"
+song artist "The BeatBax Team"
+song description "Classic Spectrum buzz bass on channel C (env_bass=true) with lead arpeggio and harmony on A/B. Do not add vol_env elsewhere while buzz bass is active."
+song tags "spectrum-128,ay,instrument,demo,buzz-bass"
 
 inst lead type=tone1 vol=12 arp_env=[0,4,7|0]
 inst harm type=tone2 vol=10

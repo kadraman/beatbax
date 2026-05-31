@@ -1,6 +1,7 @@
 import {
   getPlatformProfile,
   setPlatformRegion,
+  resolvePlatformRegionFromSong,
   PLATFORM_PROFILES,
 } from '../src/platform-profiles.js';
 
@@ -55,5 +56,27 @@ describe('Platform profiles', () => {
     expect(clock).not.toBe(3_579_545);
     // Must be the correct AY clock
     expect(clock).toBe(1_773_400);
+  });
+});
+
+describe('resolvePlatformRegionFromSong', () => {
+  test('chip cpc selects cpc profile', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'cpc' })).toBe('cpc');
+  });
+
+  test('chip amstrad-cpc selects cpc profile', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'amstrad-cpc' })).toBe('cpc');
+  });
+
+  test('chip spectrum-128 defaults to spectrum-128', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'spectrum-128' })).toBe('spectrum-128');
+  });
+
+  test('legacy chipRegion cpc on spectrum chip is honoured', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'spectrum-128', chipRegion: 'cpc' })).toBe('cpc');
+  });
+
+  test('chip alias takes precedence over chipRegion', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'cpc', chipRegion: 'spectrum-128' })).toBe('cpc');
   });
 });

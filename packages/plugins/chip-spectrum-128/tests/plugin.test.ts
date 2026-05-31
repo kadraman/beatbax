@@ -46,14 +46,19 @@ describe('spectrumPlugin metadata', () => {
     expect(spectrumPlugin.uiContributions?.copilotSystemPrompt).toBeTruthy();
   });
 
-  test('has newSongWizard', () => {
+  test('has newSongWizard with Spectrum and CPC variants', () => {
     expect(spectrumPlugin.newSongWizard).toBeDefined();
     expect(spectrumPlugin.newSongWizard?.consoleVariants).toHaveLength(2);
+    const cpcVariant = spectrumPlugin.newSongWizard?.consoleVariants?.find((v) => v.chipId === 'cpc');
+    expect(cpcVariant).toBeDefined();
+    expect(cpcVariant?.metadata.platform).toContain('Amstrad CPC');
   });
 
-  test('aliases include ay and spectrum', () => {
+  test('aliases include ay, spectrum, and cpc targets', () => {
     expect(spectrumPlugin.aliases).toContain('ay');
     expect(spectrumPlugin.aliases).toContain('spectrum');
+    expect(spectrumPlugin.aliases).toContain('cpc');
+    expect(spectrumPlugin.aliases).toContain('amstrad-cpc');
   });
 });
 
@@ -152,7 +157,19 @@ describe('spectrumPlugin.configureForSong', () => {
     expect(getPlatformProfile().ayClockHz).toBe(1_773_400);
   });
 
-  test('sets cpc region when specified', () => {
+  test('sets cpc region when chip is cpc alias', () => {
+    spectrumPlugin.configureForSong({ chip: 'cpc' });
+    const { getPlatformProfile } = require('../src/platform-profiles.js');
+    expect(getPlatformProfile().ayClockHz).toBe(1_000_000);
+  });
+
+  test('sets cpc region when chip is amstrad-cpc alias', () => {
+    spectrumPlugin.configureForSong({ chip: 'amstrad-cpc' });
+    const { getPlatformProfile } = require('../src/platform-profiles.js');
+    expect(getPlatformProfile().ayClockHz).toBe(1_000_000);
+  });
+
+  test('sets cpc region when chipRegion is cpc (legacy)', () => {
     spectrumPlugin.configureForSong({ chip: 'spectrum-128', chipRegion: 'cpc' });
     const { getPlatformProfile } = require('../src/platform-profiles.js');
     expect(getPlatformProfile().ayClockHz).toBe(1_000_000);

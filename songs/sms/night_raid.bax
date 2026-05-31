@@ -1,0 +1,336 @@
+## night_raid.bax
+## Original SMS/Game Gear chiptune.
+##
+## This is an entirely original composition — it does not reproduce any copyrighted
+## material. It captures the dark, brooding, synth-driven urban action feel of
+## late-1980s Sega beat-em-up soundtracks: a dramatic sweeping intro that builds
+## through bass pedal and chord entry before the full drum-and-bass groove drops
+## hard on bar 5. Minor-key pentatonic lead runs, syncopated bass, staccato
+## harmony stabs, and an intensified bridge section with double-kick drums all
+## reference the aesthetic of classic Mega Drive / SMS urban action music.
+##
+## Key: A minor | Tempo: 148 BPM | Style: Dark urban action / beat-em-up
+##
+## SMS attenuation reminder throughout this file:
+##   0 = loudest, 15 = mute
+## All vol_env arrays count UP toward 15 to express decay / fade-out.
+##
+## Structure (20 bars, each bar = 16 scheduler ticks at 148 BPM):
+##   Bars  1– 2 : Intro       — Solo sweeping Am arpeggios (Tone1 only).
+##                              Dramatic ascending A3→C6→E6 climb then descending
+##                              A6→A4 fall, with inline vibrato on the peak holds.
+##   Bars  3– 4 : Intro Build — Tone2 chord enters (ctr, soft Am pad); Tone3 bass
+##                              enters as a tonic A1 pedal; Tone1 melodic build
+##                              climbs from A4 to E6 then falls into the drop;
+##                              bar 4 kick-only drum entry telegraphs the drop.
+##   Bars  5– 8 : Section A   — Full groove drop: 4-on-the-floor kick, snare 2&4,
+##                              8th hi-hats; syncopated Am bass; punchy 16th-note
+##                              Am pentatonic lead runs; staccato Am stab harmony.
+##   Bars  9–12 : Section B   — Contrast section: F major / C major color;
+##                              double-kick intensified drum pattern; bass walks
+##                              F1-C2-F1-G1 then Am–E2 approach back to A.
+##   Bars 13–16 : Reprise A   — Full return to Am groove with a melodic variation
+##                              adding an inner descending D5-C5-A4 tail for
+##                              increased drive. Beat fill on bar 15.
+##   Bars 17–20 : Ending      — Stepwise Am descent (A5→A3) over bridge stabs,
+##                              closing with sustained Am chord and sparse drums.
+##
+## Channels:
+##   Ch1 (Tone1) : Lead — solo sweep arpeggios, 16th-note Am runs.     gg:pan=R
+##   Ch2 (Tone2) : Harmony — soft intro chord, staccato stabs, pad end.gg:pan=L
+##   Ch3 (Tone3) : Bass — quarter-note pedal then syncopated groove.    gg:pan=C
+##   Ch4 (Noise) : Drums — 4-on-the-floor kick, snare 2&4, 8th hi-hat. gg:pan=C
+##
+## Timing reference (148 BPM, 4 ticks per beat):
+##   1 tick  = 1/16 note  ≈  101 ms
+##   4 ticks = 1 quarter note  (one beat)
+##   8 ticks = 1 half note     (two beats)
+##  16 ticks = 1 whole bar     (four beats)
+##
+## All patterns are exactly 16 ticks. All sequences are exactly 320 ticks (20 × 16).
+##
+## Play: node bin/beatbax play songs/sms/night_raid.bax
+
+song name "Night Raid"
+song artist "The BeatBax Team"
+song description """Original SMS/Game Gear PSG chiptune at 148 BPM in A minor. Captures the dark urban action aesthetic of late-1980s Sega beat-em-up soundtracks. Features a dramatic solo ascending Am arpeggio intro (Tone1 only), stepped chord and bass build into a hard groove drop, syncopated Am pentatonic lead with vibrato on held notes, staccato harmony stabs, syncopated Am bass, double-kick bridge section, and a descending Am farewell. Uses Game Gear stereo panning, vol_env attenuation envelopes, inline vibrato, noise_rate_env snare crack sweep, and cut articulation."""
+song tags "gg,gamegear,sms,action,beat-em-up,dark,urban,minor,example,demo"
+
+chip gg
+bpm 148
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# ── Tone1 (type=tone1) — Lead / sweep, panned RIGHT ──────────────────────────
+#
+# sweep — smooth sostenuto voice for the dramatic intro ascending arpeggios.
+#   vol_env=[1,3,5,7|7] : fires at attenuation 1 (near-full) for single-tick sweep
+#   notes, then for sustained notes settles to a warm mid-level plateau at 7.
+#   gg:pan=R : sweep and lead both right for a bright spatial image.
+inst sweep    type=tone1  vol=1  vol_env=[1,3,5,7|7]  gg:pan=R
+
+# lead — bright punchy melodic lead for the main section Am runs.
+#   vol_env=[0,3,6,9,12,15] : full-brightness attack (attn 0), decays cleanly
+#   to mute over 6 frames. Crisp enough for driving 16th-note runs at 148 BPM.
+inst lead     type=tone1  vol=0  vol_env=[0,3,6,9,12,15]  gg:pan=R
+
+# ── Tone2 (type=tone2) — Harmony / counter, panned LEFT ──────────────────────
+#
+# stab — staccato harmony punches for main sections.
+#   vol_env=[0,2,5,8,11,14,15] : punchy bright attack, 7-frame decay.
+#   cut:3 per-note in patterns for crisp staccato against the lead.
+#   gg:pan=L : stabs left, lead right — classic Sega stereo width.
+inst stab     type=tone2  vol=0  vol_env=[0,2,5,8,11,14,15]  gg:pan=L
+
+# ctr — smooth pad voice for the intro build chord and the ending hold.
+#   vol=2, vol_env=[2,5,8,11|11] : soft attack, sustain plateau at attenuation 11.
+#   The looping hold (|11) keeps the chord audible through the full 2-bar build.
+inst ctr      type=tone2  vol=2  vol_env=[2,5,8,11|11]  gg:pan=L
+
+# ── Tone3 (type=tone3) — Bass, centered ──────────────────────────────────────
+#
+# bass — heavy punchy bass anchoring the Am groove.
+#   vol_env=[0,4,8,12,15] : full attack, 5-frame decay. Notes remain distinct
+#   even in syncopated patterns at 148 BPM with quarter-note spacing.
+inst bass     type=tone3  vol=0  vol_env=[0,4,8,12,15]  gg:pan=C
+
+# ── Noise (type=noise) — Drums, centered ─────────────────────────────────────
+#
+# kick — rate=2 (deepest/slowest LFSR clock). Short low-noise thump.
+#   vol_env starts at 3 (not 0) — avoids overpowering the tone channels on frame 1.
+#   Fast 6-frame decay gives a tight kick body suited to 148 BPM 4-on-the-floor.
+inst kick     type=noise  noise_mode=white  noise_rate=2  vol_env=[3,5,7,10,13,15]  gg:pan=C
+
+# snare — rate=1 mid-clock noise; noise_rate_env adds a bright click transient.
+#   noise_rate_env=[0,0,1,1,2] : starts at rate 0 (brightest/fastest LFSR) for
+#   the crack attack, then settles through 1→2 for the tail body.
+#   vol_env=[3,5,8,11,13,15] : slightly slower decay than kick for audible tail.
+inst snare    type=noise  noise_mode=white  noise_rate=1  vol_env=[3,5,8,11,13,15]  noise_rate_env=[0,0,1,1,2]  gg:pan=C
+
+# hihat — fastest LFSR clock (rate=0). Very short 4-frame tick for 8th-note groove.
+inst hihat    type=noise  noise_mode=white  noise_rate=0  vol_env=[6,10,13,15]  gg:pan=C
+
+# ohhat — open hi-hat variant: same pitch but 6-frame decay for fills and openings.
+inst ohhat    type=noise  noise_mode=white  noise_rate=0  vol_env=[5,7,9,11,13,15]  gg:pan=C
+
+# =============================================================================
+# Patterns — every pattern is exactly 16 ticks (one bar at 148 BPM)
+# =============================================================================
+
+# ── Silence — 16-tick all-rest used by inactive channels during the intro ─────
+#
+pat silence = . . . . . . . . . . . . . . . .  # 16 ✓
+
+# ── Intro: dramatic solo ascending sweep (bars 1–2, Tone1 only) ──────────────
+#
+# sweep1 — Ascending Am arpeggio from A3 to C6 in rapid 16th-note steps (8 ticks),
+#   then a dramatic peak hold: E6 for 4 ticks with vibrato, C6 for 4 ticks.
+#   The fast staircase up fuses into a cinematic sweep; the held E6 sighs before
+#   the descent in sweep2.
+#   tick:  0   1   2   3   4   5   6   7   8..11           12..15
+#   note: A3  C4  E4  A4  C5  E5  A5  C6  E6<vib>:4        C6<vib>:4
+pat sweep1 = A3 C4 E4 A4 C5 E5 A5 C6 E6<vib:3,5,sine,0,1>:4 C6<vib:3,5,sine,0,1>:4  # 8+4+4 = 16 ✓
+
+# sweep2 — Dramatic high peak A6 with vibrato, then a 2-tick step descent
+#   back through the Am triad register: A6→E6→C6→A5→E5→C5→A4.
+#   A6:4 E6:2 C6:2 A5:2 E5:2 C5:2 A4:2   → 4+2+2+2+2+2+2 = 16 ✓
+pat sweep2 = A6<vib:3,5,sine,0,1>:4 E6:2 C6:2 A5:2 E5:2 C5:2 A4:2  # 16 ✓
+
+# ── Intro Build (bars 3–4, Tone1 + Tone2 chord + Tone3 bass) ─────────────────
+#
+# mel_build1 — Bar 3 Tone1: ascending Am 8th-note steps A4→C5→E5→A5→C6→E6,
+#   then a brief Am fall A5→G5 to generate tension into bar 4.
+#   tick:  0   2   4   6   8  10  12  14
+#   note: A4  C5  E5  A5  C6  E6  A5  G5
+pat mel_build1 = A4:2 C5:2 E5:2 A5:2 C6:2 E6:2 A5:2 G5:2  # 8×2 = 16 ✓
+
+# mel_build2 — Bar 4 Tone1: descending G major / Am tension build before the drop.
+#   G5→E5→C5→A4 step down then G4→E4→A4→B4 rises — B4 is the leading note
+#   that propels into the A-section Am drop on bar 5.
+pat mel_build2 = G5:2 E5:2 C5:2 A4:2 G4:2 E4:2 A4:2 B4:2  # 8×2 = 16 ✓
+
+# harm_build — Tone2 soft intro chord: ascending Am chord E4→A4→C5→E5 in quarter
+#   notes. Each note 4 ticks — the ctr instrument's sustain plateau keeps them
+#   warm and present under the sweeping Tone1 melody build.
+#   4×4 = 16 ✓
+pat harm_build = E4:4 A4:4 C5:4 E5:4  # 16 ✓
+
+# bass_pedal — Tone3 tonic pedal: A1 on every beat. Quarter-note anchor for bar 3.
+pat bass_pedal = A1 . . . A1 . . . A1 . . . A1 . . .  # 4×4 = 16 ✓
+
+# bass_pedal2 — Bar 4 bass: adds E2 and G2 motion, anticipating the groove drop.
+#   A1:4 E2:4 A1:4 G2:4 — roots of Am then E then Am then G (leading to Section A).
+pat bass_pedal2 = A1 . . . E2 . . . A1 . . . G2 . . .  # 4×4 = 16 ✓
+
+# ── Section A: Am main groove (bars 5–8) ─────────────────────────────────────
+#
+# mel_a1 — Driving 16th-note Am pentatonic lead run. 16 single ticks.
+#   Ascends through Am (A4-C5-E5-A5) then descends through G5-E5-C5-A4,
+#   then re-ascends and falls — relentless 16th groove energy.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: A4  C5  E5  A5  E5  C5  A4  G4  E4  G4  A4  C5  E5  A5  G5  E5
+pat mel_a1 = A4 C5 E5 A5 E5 C5 A4 G4 E4 G4 A4 C5 E5 A5 G5 E5  # 16×1 = 16 ✓
+
+# mel_a2 — Statement then descent: A5 held for a quarter note with vibrato,
+#   then a stepwise descent E5→C5→G4→A4→G4→E4.
+#   A5<vib>:4 E5:2 C5:2 G4:2 A4:2 G4:2 E4:2   → 4+2+2+2+2+2+2 = 16 ✓
+pat mel_a2 = A5<vib:3,5,sine,0,1>:4 E5:2 C5:2 G4:2 A4:2 G4:2 E4:2  # 16 ✓
+
+# harm_a1 — Staccato Am stab: E4 (perfect 5th) then A3 (root). Half-bar punches.
+#   cut:3 gives clean staccato articulation that punches through the lead.
+pat harm_a1 = E4<cut:3>:8 A3<cut:3>:8  # 8+8 = 16 ✓
+
+# harm_a2 — Stab answer: G4 (G major root stab) then D5 (5th). Color contrast.
+#   Alternating Am and G stabs creates the push-pull tension of the Am groove.
+pat harm_a2 = G4<cut:3>:8 D5<cut:3>:8  # 8+8 = 16 ✓
+
+# bass_a1 — Syncopated Am bass — the signature groove element.
+#   A1 hits on tick 0, syncopated retrigger on tick 2, then E2 passing note
+#   on tick 6, pattern repeats with G2 approach at the end.
+#   tick:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: A1  .  A1 .  .  A1 E2 .  A1 .  A1 .  .  G2 .  .
+pat bass_a1 = A1 . A1 . . A1 E2 . A1 . A1 . . G2 . .  # 16 ✓
+
+# bass_a2 — Bass variant: quarter-note roots A1→E2→A1→G2 then a passing E2
+#   on the last 8th note — propels back into bass_a1 on the next bar.
+#   tick:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+#   note: A1  .  .  .  E2 .  .  .  A1 .  .  .  G2 .  E2 .
+pat bass_a2 = A1 . . . E2 . . . A1 . . . G2 . E2 .  # 16 ✓
+
+# beat — Full 4-on-the-floor groove: kick on all 4 beats, snare on 2 & 4,
+#   hi-hat on the 8th-note "and" of each beat.
+#   tick:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#   hit:  KCK  HHT   .   HHT  SNR  HHT   .   HHT  KCK  HHT   .   HHT  SNR  HHT   .   HHT
+pat beat = kick hihat . hihat snare hihat . hihat kick hihat . hihat snare hihat . hihat  # 16 ✓
+
+# beat_entry — Bar 4 kick-only: 4-on-the-floor kick without snare or hi-hat.
+#   One bar of just kick on the beat telegraphs the groove drop on bar 5.
+pat beat_entry = kick . . . kick . . . kick . . . kick . . .  # 4×4 = 16 ✓
+
+# ── Section B: F / C bridge (bars 9–12) ──────────────────────────────────────
+#
+# mel_b1 — Bridge melody in F major (relative major area). Same 16th-note energy.
+#   F4-A4-C5-F5 ascent then A4-F4-E4 descent, re-ascend and fall — major brightness
+#   contrasting the Am darkness of Section A.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: F4  A4  C5  F5  C5  A4  F4  E4  C4  E4  F4  A4  C5  F5  E5  C5
+pat mel_b1 = F4 A4 C5 F5 C5 A4 F4 E4 C4 E4 F4 A4 C5 F5 E5 C5  # 16×1 = 16 ✓
+
+# mel_b2 — Bridge descent from C5 through F major and Dm back toward Am territory.
+#   C5:4 A4:2 F4:2 E4:2 D4:2 C4:2 B3:2   → 4+2+2+2+2+2+2 = 16 ✓
+pat mel_b2 = C5:4 A4:2 F4:2 E4:2 D4:2 C4:2 B3:2  # 16 ✓
+
+# harm_b1 — Bridge stab: C4 (F major 5th) then F3 (root). F major color.
+pat harm_b1 = C4<cut:3>:8 F3<cut:3>:8  # 8+8 = 16 ✓
+
+# harm_b2 — Bridge stab: G4 (C major 5th) then C4 (root). C major color.
+pat harm_b2 = G4<cut:3>:8 C4<cut:3>:8  # 8+8 = 16 ✓
+
+# bass_b1 — Bridge bass: F1-C2-F1-G1 — F major root/5th then G approach.
+pat bass_b1 = F1 . . . C2 . . . F1 . . . G1 . . .  # 4×4 = 16 ✓
+
+# bass_b2 — Bridge bass return: Am-E2-G1-E2 walk back toward A.
+#   The final E2 is the dominant of Am — creates strong pull back into the reprise.
+pat bass_b2 = A1 . . . E2 . . . G1 . . . E2 . . .  # 4×4 = 16 ✓
+
+# beat_b — Intensified bridge drum: double kick on beat 1 for extra drive.
+#   kick(0) kick(2) creates a machine-gun 16th kick feel on the downbeat.
+#   tick:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#   hit:  KCK  HHT  KCK  HHT  SNR  HHT   .   HHT  KCK  HHT   .   HHT  SNR  HHT   .   HHT
+pat beat_b = kick hihat kick hihat snare hihat . hihat kick hihat . hihat snare hihat . hihat  # 16 ✓
+
+# ── Reprise A variation (bars 13–16) ─────────────────────────────────────────
+#
+# mel_a1_var — Reprise variation on the Am lead run. Same ascending A4-C5-E5-A5
+#   climb, but then the descending tail takes a different inner path: G5-E5-C5-A4
+#   then a re-descend C5-E5-A5-G5-E5-D5-C5-A4 with the added D5 for intensity.
+#   tick:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+#   note: A4  C5  E5  A5  G5  E5  C5  A4  C5  E5  A5  G5  E5  D5  C5  A4
+pat mel_a1_var = A4 C5 E5 A5 G5 E5 C5 A4 C5 E5 A5 G5 E5 D5 C5 A4  # 16×1 = 16 ✓
+
+# ── Ending (bars 17–20) ───────────────────────────────────────────────────────
+#
+# mel_end1 — Descending Am farewell: A5 down to A3 in 8th-note steps.
+#   A5:2 E5:2 C5:2 A4:2 G4:2 E4:2 C4:2 A3:2   → 8×2 = 16 ✓
+#   The stepwise octave descent mirrors the ascending sweep of the intro.
+pat mel_end1 = A5:2 E5:2 C5:2 A4:2 G4:2 E4:2 C4:2 A3:2  # 16 ✓
+
+# mel_end2 — Final hold: A4 sustained 8 ticks with vibrato, then settle to E4
+#   and A3 for the final cadence close.
+pat mel_end2 = A4<vib:3,5,sine,0,2>:8 E4:4 A3:4  # 8+4+4 = 16 ✓
+
+# harm_end — Sustained final Am chord: A3 half-note then E4 half-note.
+#   Used with inst(ctr) for a warm pad hold on the final two bars.
+pat harm_end = A3:8 E4:8  # 8+8 = 16 ✓
+
+# bass_end1 — Descending Am bass: A1→G1→F1→E1 in quarter notes.
+#   Mirrors the melodic farewell descent and creates a sense of resolution.
+pat bass_end1 = A1 . . . G1 . . . F1 . . . E1 . . .  # 4×4 = 16 ✓
+
+# bass_end2 — Final bass pedal: A1 on all four beats. Anchors the outro.
+pat bass_end2 = A1 . . . A1 . . . A1 . . . A1 . . .  # 4×4 = 16 ✓
+
+# beat_fill — 16th-note drum fill: dense kick/snare run for bar 15 transition.
+#   Creates energy spike before the reprise's final 16-bar climax.
+pat beat_fill = kick hihat snare hihat kick snare kick hihat snare hihat kick snare kick hihat snare .  # 16 ✓
+
+# beat_end — Sparse ending drum: kick on beats 1 & 3, snare on beat 3.
+#   Strips back for the quiet outro — just enough to keep time.
+pat beat_end = kick . . . . . . . kick . . . snare . . .  # 16 ✓
+
+# =============================================================================
+# Sequences — 20 patterns × 16 ticks = 320 ticks per channel
+# =============================================================================
+
+# Tone1 lead:
+#   Bars  1– 2 : Solo sweep intro (sweep inst) — ascending Am arpeggios with vibrato
+#   Bars  3– 4 : Melodic intro build (lead inst) — Am tension climb into the drop
+#   Bars  5– 8 : Section A Am groove — driving 16th-note lead runs
+#   Bars  9–12 : Section B F/C bridge — major-key contrast melody
+#   Bars 13–16 : Reprise A variation — Am runs with inner D5 tail added
+#   Bars 17–20 : Ending — descending Am farewell + final vibrato hold
+seq lead_main = sweep1:inst(sweep) sweep2:inst(sweep) mel_build1 mel_build2 mel_a1 mel_a2 mel_a1 mel_a2 mel_b1 mel_b2 mel_b1 mel_b2 mel_a1_var mel_a2 mel_a1_var mel_a2 mel_end1 mel_end2 mel_end1 mel_end2
+
+# Tone2 harmony:
+#   Bars  1– 2 : Silent — spotlight on the solo sweep (no harmony during intro)
+#   Bars  3– 4 : Soft Am pad chord (ctr inst) — ascending E4→A4→C5→E5 entry
+#   Bars  5– 8 : Section A staccato stabs (stab inst) — Am and G punches
+#   Bars  9–12 : Section B F/C stabs (stab inst) — F major and C major punches
+#   Bars 13–16 : Reprise A stabs (stab inst) — full Am/G stab return
+#   Bars 17–18 : Bridge stabs (stab inst) — F and C color during the descent
+#   Bars 19–20 : Sustained Am pad hold (ctr inst) — final closing chord
+seq harm_main = silence silence harm_build:inst(ctr) harm_build:inst(ctr) harm_a1 harm_a2 harm_a1 harm_a2 harm_b1 harm_b2 harm_b1 harm_b2 harm_a1 harm_a2 harm_a1 harm_a2 harm_b1 harm_b2 harm_end:inst(ctr) harm_end:inst(ctr)
+
+# Tone3 bass:
+#   Bars  1– 2 : Silent — intro is purely melodic sweep
+#   Bar   3    : A1 tonic quarter-note pedal — grounding entry
+#   Bar   4    : A1-E2-A1-G2 — bass motion to anticipate the groove
+#   Bars  5– 8 : Syncopated Am bass groove (bass_a1 / bass_a2 alternating)
+#   Bars  9–12 : Section B F/C bass walk
+#   Bars 13–16 : Reprise syncopated Am bass
+#   Bars 17–20 : Descending Am bass then final A1 pedal
+seq bass_main = silence silence bass_pedal bass_pedal2 bass_a1 bass_a2 bass_a1 bass_a2 bass_b1 bass_b2 bass_b1 bass_b2 bass_a1 bass_a2 bass_a1 bass_a2 bass_end1 bass_end2 bass_end1 bass_end2
+
+# Noise drums:
+#   Bars  1– 3 : Silent — drums hold back for maximum impact on the drop
+#   Bar   4    : Kick-only entry — 4-on-the-floor kick telegraphs the incoming drop
+#   Bars  5– 8 : Section A full groove (4-on-the-floor)
+#   Bars  9–12 : Section B double-kick intensified beat (beat_b)
+#   Bars 13–14 : Reprise full groove returns
+#   Bar  15    : Fill — 16th-note snare/kick fill into the final 4 bars
+#   Bar  16    : Full groove
+#   Bar  17    : Fill — again before the ending strip-back
+#   Bars 18–20 : Sparse ending beat (kick + snare only)
+seq drum_main = silence silence silence beat_entry beat beat beat beat beat_b beat_b beat_b beat_b beat beat beat_fill beat beat_fill beat_end beat_end beat_end
+
+# =============================================================================
+# Channels
+# =============================================================================
+channel 1 => inst lead  seq lead_main   # Tone1 — sweeping Am intro + punchy lead runs
+channel 2 => inst stab  seq harm_main   # Tone2 — staccato Am/F stabs + ending pad
+channel 3 => inst bass  seq bass_main   # Tone3 — quarter-note pedal + syncopated groove
+channel 4 => inst kick  seq drum_main   # Noise — 4-on-the-floor beat + fills
+
+play
