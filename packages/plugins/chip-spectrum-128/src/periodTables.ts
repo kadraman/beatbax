@@ -10,6 +10,7 @@
  *   - hardware_guide.md
  *   - AY-3-8912 datasheet
  */
+import type { InstrumentNode } from '@beatbax/engine';
 import { midiToFreq } from '@beatbax/engine';
 import { getPlatformProfile, AY_CLOCK_SPECTRUM_128 } from './platform-profiles.js';
 
@@ -38,10 +39,11 @@ export function tonePeriodToFreq(period: number): number {
 
 /**
  * Convert a frequency (Hz) to a 16-bit AY envelope period register value.
- * Used for buzz-bass mode (env_bass=true): the envelope generator oscillates
- * at the note frequency instead of the tone oscillator.
  *
  * Formula: N_env = floor(f_clock / (256 × f_note))
+ *
+ * One envelope step per tone period at this setting — useful when the envelope
+ * alone defines pitch. For buzz bass (tone + fast AM), use {@link freqToBuzzBassEnvPeriod}.
  *
  * @param freq - Note frequency in Hz
  */
@@ -49,6 +51,54 @@ export function freqToEnvPeriod(freq: number): number {
   if (freq <= 0) return 1;
   const clock = getPlatformProfile().ayClockHz;
   return Math.max(1, Math.min(65535, Math.floor(clock / (256 * freq))));
+}
+
+/** R13 shape 8 (1000): continuous sawtooth decay — classic Spectrum buzz-bass timbre. */
+export const AY_BUZZ_BASS_ENVELOPE_SHAPE = 8;
+
+/** R13 shape 10 (1010): two saw-down legs per cycle — sharper alternate buzz. */
+export const AY_BUZZ_BASS_ENVELOPE_SHAPE_ALT = 10;
+/** @deprecated Use {@link AY_BUZZ_BASS_ENVELOPE_SHAPE_ALT}. */
+export const AY_BUZZ_BASS_ENVELOPE_SHAPE_ARKOS = AY_BUZZ_BASS_ENVELOPE_SHAPE_ALT;
+
+/**
+ * Resolve R13 envelope shape for `env_bass=true` instruments.
+ * Defaults to {@link AY_BUZZ_BASS_ENVELOPE_SHAPE} when omitted.
+ */
+export function resolveEnvShape(inst: InstrumentNode): number {
+  const raw = (inst as { env_shape?: number | string }).env_shape;
+  if (raw === undefined || raw === null || raw === '') {
+    return AY_BUZZ_BASS_ENVELOPE_SHAPE;
+  }
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return AY_BUZZ_BASS_ENVELOPE_SHAPE;
+  return Math.max(0, Math.min(15, n));
+}
+
+/**
+ * PCM preview gain boost for env_bass. Sawtooth AM (0–15) averages well below a
+ * steady square at the same `vol`; this restores comparable loudness to vol-matched tones.
+ */
+export const AY_BUZZ_BASS_LOUDNESS_COMPENSATION = 2.5;
+
+/**
+ * Target envelope level steps per tone period. Higher = faster AM, grittier buzz.
+ * At bass frequencies N_env often clamps to 1, yielding ~100+ steps/period (many
+ * complete 16-step sawtooth cycles per wave). Values ≤16 sound like tremolo/vibrato.
+ */
+export const AY_BUZZ_BASS_STEPS_PER_TONE = 128;
+
+/**
+ * Envelope period for `env_bass=true` (square tone × hardware envelope).
+ *
+ * Picks N_env so the hardware envelope advances about
+ * {@link AY_BUZZ_BASS_STEPS_PER_TONE} times per tone period. Use shape 8 (saw
+ * down repeat), not zigzag — triangle AM reads as vibrato on held bass notes.
+ */
+export function freqToBuzzBassEnvPeriod(freq: number): number {
+  const tonePeriod = freqToTonePeriod(freq);
+  const divisor = 16 * AY_BUZZ_BASS_STEPS_PER_TONE;
+  return Math.max(1, Math.min(65535, Math.floor(tonePeriod / divisor)));
 }
 
 /**

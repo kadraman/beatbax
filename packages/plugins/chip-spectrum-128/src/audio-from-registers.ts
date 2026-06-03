@@ -9,6 +9,7 @@
  * derived from R8–R10 (fixed attenuation or hardware envelope routing).
  */
 import { AyChipSimulator } from './ay-chip.js';
+import { AY_BUZZ_BASS_LOUDNESS_COMPENSATION } from './periodTables.js';
 import type { RegisterLogEntry } from './register-log.js';
 
 /** Mix gain for a single AY channel (3 channels summed). */
@@ -57,23 +58,27 @@ export function renderFromRegisterLog(
     const regs = entry.regs;
     const mixer = regs[7] & 0x3f;
 
+    const chipClocksPerSample = Math.max(1, Math.round(ayClockHz / sampleRate));
+
     // Render samplesPerTick samples for this tick
     for (let s = 0; s < samplesPerTick && outOffset < totalSamples; s++, outOffset++) {
+      chip.step(chipClocksPerSample);
+      const levels = chip.getOutputLevels();
       let sample = 0;
 
       for (let ch = 0; ch < 3; ch++) {
         const ampReg = regs[8 + ch] & 0x1f;
         const envMode = (ampReg & 0x10) !== 0;
         const fixedAmp = ampReg & 0x0f;
-
-        // In envelope mode, use a fixed mid-level for preview (no full envelope sim here)
-        const amplitude = envMode ? 8 : fixedAmp;
-        if (amplitude === 0) continue;
+        const envLevel = ch === 0 ? levels.levelA : ch === 1 ? levels.levelB : levels.levelC;
+        const amp = envMode
+          ? Math.min(15, Math.round(envLevel * AY_BUZZ_BASS_LOUDNESS_COMPENSATION))
+          : fixedAmp;
+        if (amp === 0) continue;
 
         const toneOff  = (mixer >> ch) & 1;
         const noiseOff = (mixer >> (ch + 3)) & 1;
 
-        // Compute tone period
         const regBase = ch * 2;
         const period  = (regs[regBase] | ((regs[regBase + 1] & 0x0f) << 8)) || 1;
         const freq    = periodToFreq(period);
@@ -83,10 +88,9 @@ export function renderFromRegisterLog(
           phase[ch] += phaseInc;
           if (phase[ch] >= 2) phase[ch] -= 2;
           const squareOut = phase[ch] < 1 ? 1.0 : -1.0;
-          sample += squareOut * (amplitude / 15) * CHANNEL_GAIN;
+          sample += squareOut * (amp / 15) * CHANNEL_GAIN;
         } else if (!noiseOff) {
-          // Noise: simple white noise approximation
-          sample += (Math.random() * 2 - 1) * (amplitude / 15) * CHANNEL_GAIN;
+          sample += (Math.random() * 2 - 1) * (amp / 15) * CHANNEL_GAIN;
         }
       }
 

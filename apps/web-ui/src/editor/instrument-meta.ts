@@ -1,5 +1,6 @@
 /**
- * Chip-specific instrument type and property value hints for autocomplete.
+ * Chip-specific instrument type and property value hints for autocomplete,
+ * syntax highlighting, and hover helpers.
  */
 
 export interface InstPropertyMeta {
@@ -37,7 +38,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       env: { detail: 'Volume envelope e.g. 15,down' },
       env_period: { detail: 'Envelope period 0–15' },
       vol: { detail: 'Static volume 0–15' },
-      vol_env: { detail: 'Volume macro [levels|loop]' },
+      vol_env: { detail: 'Software volume macro [levels|loop]' },
       duty_env: { detail: 'Duty macro [indices|loop]' },
       arp_env: { detail: 'Arpeggio macro semitone offsets' },
       pitch_env: { detail: 'Pitch macro semitone offsets' },
@@ -49,6 +50,37 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       sample: { detail: 'DMC sample reference' },
     },
   },
+  'spectrum-128': {
+    types: ['tone1', 'tone2', 'tone3'],
+    properties: {
+      type: { values: ['tone1', 'tone2', 'tone3'], detail: 'AY tone channel A/B/C' },
+      vol: { detail: 'Fixed amplitude 0–15' },
+      vol_env: { detail: 'Hardware envelope on R11–R13 (global; one at a time)' },
+      arp_env: { detail: 'Software arpeggio macro (semitone offsets)' },
+      pitch_env: { detail: 'Software pitch macro (semitone offsets)' },
+      tone: { values: ['true', 'false'], detail: 'Force tone generator on/off (R7 mixer)' },
+      tone_mix: { values: ['true', 'false'], detail: 'Route shared noise into this channel' },
+      noise_rate: { detail: 'R6 noise period 0–31 (global)' },
+      noise_frames: { detail: 'Mix noise for first N 60 Hz frames only' },
+      tone_frames: { detail: 'Mix tone for first N 60 Hz frames only (stick click)' },
+      tone_vol: { detail: 'Tone-path volume cap 0–15' },
+      env_bass: { values: ['true', 'false'], detail: 'Buzz bass — envelope as oscillator' },
+      env_shape: { detail: 'R13 shape 0–15 (env_bass only; 8=saw repeat, 10=double saw)' },
+      chipRegion: { values: ['spectrum-128', 'cpc'], detail: 'Platform AY clock preset' },
+      note: { detail: 'Default hit note e.g. E7' },
+      gm: { detail: 'MIDI program 0–127' },
+    },
+  },
+};
+
+/** Canonical chip ids for instrument metadata (mirrors chipRegistry aliases). */
+const CHIP_ALIASES: Record<string, string> = {
+  gb: 'gameboy',
+  dmg: 'gameboy',
+  ay: 'spectrum-128',
+  spectrum: 'spectrum-128',
+  cpc: 'spectrum-128',
+  'amstrad-cpc': 'spectrum-128',
 };
 
 const GENERIC_PROPERTIES: Record<string, InstPropertyMeta> = {
@@ -56,10 +88,27 @@ const GENERIC_PROPERTIES: Record<string, InstPropertyMeta> = {
   env: { detail: 'Envelope' },
   gm: { detail: 'MIDI program' },
   note: { detail: 'Default note' },
+  vol: { detail: 'Volume 0–15' },
 };
 
+/** Union of every instrument property name across all chips (for Monarch / regex). */
+export const ALL_INST_PROPERTY_NAMES: readonly string[] = (() => {
+  const names = new Set<string>();
+  for (const meta of Object.values(CHIP_INSTRUMENT_META)) {
+    for (const key of Object.keys(meta.properties)) names.add(key);
+  }
+  names.add('noise');
+  names.add('use_envelope');
+  names.add('noise_rate_env');
+  return [...names].sort((a, b) => b.length - a.length);
+})();
+
+/** Regex fragment for `\b(prop1|prop2|…)\b(?=\s*=)` — longest names first. */
+export const INST_PROPERTY_NAME_PATTERN = ALL_INST_PROPERTY_NAMES.join('|');
+
 export function getChipInstrumentMeta(chip: string): ChipInstrumentMeta {
-  return CHIP_INSTRUMENT_META[chip] ?? {
+  const canonical = CHIP_ALIASES[chip] ?? chip;
+  return CHIP_INSTRUMENT_META[canonical] ?? {
     types: [],
     properties: { ...GENERIC_PROPERTIES },
   };
@@ -71,4 +120,18 @@ export function getInstPropertyCompletions(
 ): InstPropertyMeta | null {
   const meta = getChipInstrumentMeta(chip);
   return meta.properties[property] ?? GENERIC_PROPERTIES[property] ?? null;
+}
+
+/** Property names valid for autocomplete on an `inst` line for the active chip. */
+export function getInstPropertyNamesForChip(chip: string): string[] {
+  return Object.keys(getChipInstrumentMeta(chip).properties);
+}
+
+/** Parse property keys already present on an `inst` definition line. */
+export function parseUsedInstProperties(line: string): Set<string> {
+  const used = new Set<string>();
+  for (const match of line.matchAll(/\b([A-Za-z_][\w]*)\s*=/g)) {
+    used.add(match[1]);
+  }
+  return used;
 }

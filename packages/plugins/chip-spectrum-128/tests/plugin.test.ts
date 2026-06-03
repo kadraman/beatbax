@@ -106,6 +106,34 @@ describe('spectrumPlugin.validateInstrument', () => {
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].field).toBe('sweep');
   });
+
+  test('env_shape without env_bass returns error', () => {
+    const errors = spectrumPlugin.validateInstrument({
+      type: 'tone3',
+      env_shape: 10,
+    } as any);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].field).toBe('env_shape');
+  });
+
+  test('env_shape out of range returns error', () => {
+    const errors = spectrumPlugin.validateInstrument({
+      type: 'tone3',
+      env_bass: true,
+      env_shape: 20,
+    } as any);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].field).toBe('env_shape');
+  });
+
+  test('env_bass with env_shape=10 passes', () => {
+    const errors = spectrumPlugin.validateInstrument({
+      type: 'tone3',
+      env_bass: true,
+      env_shape: 10,
+    } as any);
+    expect(errors).toHaveLength(0);
+  });
 });
 
 describe('spectrumPlugin.createChannel', () => {

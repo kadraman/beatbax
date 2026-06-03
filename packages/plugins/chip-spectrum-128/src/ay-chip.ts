@@ -15,6 +15,7 @@
  */
 
 import {
+  AY_ENVELOPE_CLOCKS_PER_STEP,
   createEnvelopeState,
   stepEnvelope,
   getEnvelopeLevel,
@@ -142,7 +143,7 @@ export class AyChipSimulator {
       // ── Envelope generator ───────────────────────────────────────────────
       const envPeriod = (this.regs[11] | (this.regs[12] << 8)) || 1;
       this.envelopeCounter++;
-      if (this.envelopeCounter >= envPeriod) {
+      if (this.envelopeCounter >= envPeriod * AY_ENVELOPE_CLOCKS_PER_STEP) {
         this.envelopeCounter = 0;
         stepEnvelope(this.envelopeState);
       }

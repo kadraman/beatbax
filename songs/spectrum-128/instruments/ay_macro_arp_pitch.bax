@@ -1,27 +1,34 @@
-# AY arp_env and pitch_env demo — three-channel arrangement.
+# AY arp_env and pitch_env demo — two channels (A = lead, B = bass).
+#
+# arp_env   — Stepped semitone offsets at ~60 Hz from the pattern root. Hold the
+#             root with `_` sustains; a written melody (C4 E4 G4…) overrides it.
+# pitch_env — Knot values linearly interpolated across the whole held note (smooth
+#             glide). Same sustain rule; one root per phrase works best.
+#
+# Patterns are 16 steps (stepsPerBar 4 → one pattern = four bars at 128 BPM).
 
 chip spectrum-128
-bpm 150
+bpm 128
+stepsPerBar 4
 
 song name "AY Macro Arp and Pitch"
 song artist "The BeatBax Team"
-song description "Lead with arp_env, bass with pitch_env bend, sustained pad on channel C. No hardware envelope programs."
+song description "Channel A: arp_env major triad on held C4 then F4. Channel B: pitch_env glide on held C3. Channel C unused."
 song tags "spectrum-128,ay,instrument,demo,arp,pitch"
 
-inst lead type=tone1 vol=12 arp_env=[0,2,4,7,4,2,0]
-inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]
-inst pad  type=tone3 vol=10
+# |0 loops the arp table; offsets are semitones above the pattern root
+inst lead type=tone1 vol=12 arp_env=[0,4,7|0]
+inst bass type=tone2 vol=14 pitch_env=[0,-1,-2,-3,-4,-3,-2,-1,0]
 
-pat lead_riff = C4 E4 G4 C5 B4 G4 E4 .
-pat bass_line = C2 . . . G1 . . .
-pat pad_sust  = E3 . . . E3 . . .
+# Lead: half-bar C4, half-bar F4 — arp retriggers on each new root
+pat lead_arp   = C4 _ _ _ _ _ _ _ F4 _ _ _ _ _ _ _ _
+# Bass: one root for the full bar — pitch_env glides down and back
+pat bass_pitch = C3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-seq main = lead_riff lead_riff lead_riff lead_riff
-seq bass = bass_line bass_line bass_line bass_line
-seq pad  = pad_sust pad_sust pad_sust pad_sust
+seq main = lead_arp lead_arp lead_arp lead_arp
+seq bass = bass_pitch bass_pitch bass_pitch bass_pitch
 
 channel 1 => inst lead seq main
 channel 2 => inst bass seq bass
-channel 3 => inst pad  seq pad
 
 play

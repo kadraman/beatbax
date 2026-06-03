@@ -10,7 +10,8 @@ Targets the **AY-3-8912** PSG with Spectrum 128 as the primary platform and Amst
 - Shared noise generator (R6, 5-bit period)
 - Shared hardware envelope generator (R11–R13, 16 shapes)
 - Per-channel mixer routing (R7, independent tone/noise enable)
-- Software macros: `arp_env`, `pitch_env`, `vol_env`
+- Software macros: `arp_env`, `pitch_env`
+- Hardware envelope: `vol_env` (global R11–R13; one program at a time)
 - Buzz-bass mode (`env_bass`) — envelope as sub-oscillator
 - Conflict detection for simultaneous `noise_rate` and `vol_env` writes
 - Amstrad CPC platform profile (`chip cpc` / `chip amstrad-cpc`, 1 MHz AY clock)
@@ -92,6 +93,7 @@ Aliases `cpc` and `amstrad-cpc` use the same `@beatbax/plugin-chip-spectrum-128`
 | `tone_frames` | number | 0–60 | Mix tone for first N 60 Hz frames only (stick transient) |
 | `tone_vol` | number | 0–15 | Cap tone-path volume separately from noise (`vol` / `vol_env`) |
 | `env_bass` | boolean | — | Buzz-bass mode (envelope as oscillator) |
+| `env_shape` | integer | 8 | R13 envelope shape (0–15); only with `env_bass=true` |
 | `chipRegion` | string | `spectrum-128` \| `cpc` | Platform clock preset |
 
 ## Shared-Resource Constraints
@@ -134,7 +136,7 @@ See `songs/spectrum-128/` for example BeatBax songs:
 
 | Song | Purpose |
 |------|---------|
-| `ay_effects_showcase.bax` | Macro types with hardware trade-off comments |
+| `ay_effects_showcase.bax` | Inline effect coverage (mirrors SMS effects demo layout) |
 
 ## Development
 

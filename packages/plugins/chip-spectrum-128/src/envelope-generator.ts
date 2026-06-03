@@ -47,7 +47,11 @@ export interface EnvelopeGeneratorState {
  */
 export function createEnvelopeState(shape: number): EnvelopeGeneratorState {
   const s = Math.max(0, Math.min(15, shape & 0x0f));
-  return { level: 0, step: 0, half: 0, finished: false, shape: s };
+  const cont = (s >> 3) & 1;
+  const att = (s >> 2) & 1;
+  // Continuous shapes start at the beginning of their ramp (not silent step 0).
+  const level = cont ? (att ? 0 : 15) : 0;
+  return { level, step: 0, half: 0, finished: false, shape: s };
 }
 
 /**
@@ -56,6 +60,37 @@ export function createEnvelopeState(shape: number): EnvelopeGeneratorState {
  */
 export function getEnvelopeLevel(state: EnvelopeGeneratorState): number {
   return state.level;
+}
+
+/** AY-3-8912: one envelope level step every (period × 256) chip clock cycles. */
+export const AY_ENVELOPE_CLOCKS_PER_STEP = 256;
+
+export interface EnvelopeClockState {
+  env: EnvelopeGeneratorState;
+  clockRemainder: number;
+}
+
+export function createEnvelopeClockState(shape: number): EnvelopeClockState {
+  return { env: createEnvelopeState(shape), clockRemainder: 0 };
+}
+
+/**
+ * Advance the shared envelope generator by `chipClocks` AY clock cycles.
+ * Returns the current level (0–15) after processing.
+ */
+export function advanceEnvelopeClockState(
+  clockState: EnvelopeClockState,
+  chipClocks: number,
+  period: number,
+): number {
+  const periodClamped = Math.max(1, Math.min(65535, Math.round(period)));
+  const clocksPerStep = periodClamped * AY_ENVELOPE_CLOCKS_PER_STEP;
+  clockState.clockRemainder += chipClocks;
+  while (clockState.clockRemainder >= clocksPerStep) {
+    clockState.clockRemainder -= clocksPerStep;
+    stepEnvelope(clockState.env);
+  }
+  return getEnvelopeLevel(clockState.env);
 }
 
 /**

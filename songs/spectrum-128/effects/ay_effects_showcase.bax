@@ -1,28 +1,59 @@
-# AY macro and hardware trade-off showcase.
-# Documents which macros share global registers (R6, R11–R13).
-
-chip spectrum-128
-bpm 140
+# AY-3-8912 effect coverage fixture.
+#
+# Covers BeatBax effects supported on Spectrum-128 / AY:
+#   vol_env, arp_env, pitch_env, noise_rate_env, vib, port, bend, volSlide, trem, cut
+#
+# AY volume reminder:
+#   0 = silent, 15 = loudest
+# vol_env is HARDWARE (R11–R13) — only one instrument may use it at a time.
+# Other voices use fixed vol and BeatBax volSlide for per-channel shaping.
+# Instrument arp_env / pitch_env (software, per channel) are in instruments/ay_all_macros.bax;
+# inline arp and pitch_env are exercised below on tone1.
 
 song name "AY Effects Showcase"
-song artist "The BeatBax Team"
-song description "Lead uses arp_env and pitch_env (software). Bass holds the single hardware vol_env program (R11–R13). Percussion uses one shared noise_rate on channel C."
-song tags "spectrum-128,ay,effects,demo,macros"
+chip spectrum-128
+bpm 132
 
-inst lead type=tone1 vol=13 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
-inst bass type=tone2 vol=14 vol_env=[14,14,10,6]
-inst perc type=tone3 vol=15 tone_mix=true noise_rate=12
+# =============================================================================
+# Instruments
+# =============================================================================
 
-pat melody = C4 E4 G4 C5 B4 A4 G4 .
-pat bass   = C2 . . . G1 . . .
-pat drums  = . . D2 . . . D2 .
+# Sole hardware vol_env holder — global R11–R13 program while this voice sounds.
+inst i_t1    type=tone1 vol=12 vol_env=[12,11,10,11|11]
 
-seq main = melody melody melody melody
-seq bass = bass bass bass bass
-seq perc = drums drums drums drums
+# Fixed volume — inline effects only (matches SMS tone2 layout).
+inst i_t2    type=tone2 vol=12
 
-channel 1 => inst lead seq main
-channel 2 => inst bass seq bass
-channel 3 => inst perc seq perc
+# Noise-mixed percussion: fixed noise_rate on instrument; inline noise_rate_env on hits.
+inst i_noise type=tone3 vol=15 tone_mix=true noise_rate=2
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+# Tone1: vibrato, arpeggio, pitch_env, cut (vol_env from instrument).
+pat p_fx_t1 = C4<vib:4,5,sine,0,4>:8 E4<arp:3,7>:8 G4<pitch_env:[0,2,0,-2,0]>:8 C5<cut:1>:8
+
+# Tone2: portamento, bend, tremolo, volume slide.
+pat p_fx_t2 = E3<volSlide:-4,8>:8 C3<port:8>:8 G3<trem:6,4,sine,0,1>:8 D3<bend:-7,exp,0,1>:8
+
+# Tone3 noise mix: noise_rate_env animation, attenuation slide, and cut.
+pat p_fx_noise = C2<noise_rate_env:[0,1,2,1|0]>:4 . . . . C2<volSlide:-4,2>:4 . . . . C2<cut:2>:4 . . . . C2<cut:3>:4
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq s_t1 = p_fx_t1 p_fx_t1
+seq s_t2 = p_fx_t2 p_fx_t2
+seq s_noise = p_fx_noise p_fx_noise
+
+# =============================================================================
+# Channels
+# =============================================================================
+
+channel 1 => inst i_t1 seq s_t1
+channel 2 => inst i_t2 seq s_t2
+channel 3 => inst i_noise seq s_noise
 
 play

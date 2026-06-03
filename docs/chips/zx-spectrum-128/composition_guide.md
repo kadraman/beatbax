@@ -28,15 +28,36 @@ See `songs/spectrum-128/instruments/ay_percussion_demo.bax` for both layouts in 
 
 ## Envelope Bass Technique
 
-The classic Spectrum buzz bass uses repeating envelope shapes at short envelope periods.
-
-Compute envelope period from note target:
+The classic Spectrum buzz bass runs a **low square wave** through the **hardware envelope as a fast sawtooth** (shape **8**, repeating decay). BeatBax sets `env_bass=true` to route the channel through envelope mode with a very short period — many complete 16-step saw ramps per tone cycle:
 
 $$
-N_{env} = \left\lfloor \frac{f_{clock}}{256 \times f_{note}} \right\rfloor
+N_{env} \approx \max\!\left(1,\ \left\lfloor \frac{N_{tone}}{2048} \right\rfloor\right),\quad N_{tone} = \left\lfloor \frac{f_{clock}}{16 \times f_{note}} \right\rfloor
 $$
 
-Set channel volume to envelope mode (`env_bass=true`) and select a repeating shape for sustained bass tone. Do **not** use `vol_env` on another instrument in the same phrase — both program R11–R13.
+At bass frequencies $N_{env}$ often clamps to **1**, giving ~100+ envelope level steps per tone period (gritty buzz). Shape **10** (zigzag) or ~8 steps/period sounds like tremolo/vibrato — avoid. Do not layer `pitch_env` bass on another channel over the same roots while `env_bass` is active. Do **not** use `vol_env` on another instrument in the same phrase — both program R11–R13.
+
+### How trackers use buzz bass (arrangement)
+
+On real Spectrum / AY music, buzz bass is almost always a **long drone**, not short stabs:
+
+- **Hold the root** on channel C for a bar or several beats while melody and arpeggios move on A/B.
+- **Change pitch occasionally** (new root every 1–2 bars), not every step — the “buzz” is the timbre from the fast hardware envelope on that held note.
+- **Arpeggios above** (channel A/B) provide harmony; the bass stays on one pitch so the envelope modulation stays steady.
+- **Pitch slides** appear in some tunes (portamento between roots), but the hallmark is sustain + timbre, not fast `pitch_env` wobble on the bass channel.
+
+In BeatBax, one pattern token = one tick. A lone `C2` is only ~117 ms at 128 BPM unless you extend it:
+
+```bax
+# Whole-bar C2 (16 steps): hit once, sustain 15 ticks
+pat bass_bar = C2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+# Two roots per bar: half-bar each
+pat bass = C2 _ _ _ _ _ _ _ G1 _ _ _ _ _ _ _
+```
+
+Use **`.`** for silence between roots, **`_`** to lengthen the previous note. Do not expect `C2 . . .` to hold — dots are rests.
+
+`pitch_env` on a normal (non-`env_bass`) bass line is fine for slides; on `env_bass=true` it retunes every 60 Hz frame and usually fights the buzz — prefer held roots and rare note changes.
 
 ## Arpeggios as Harmony Compression
 
@@ -247,5 +268,5 @@ Use rendered WAV/OGG as preview artifacts, not as hardware-native outputs.
 | `songs/spectrum-128/instruments/ay_all_macros.bax` | Valid macro combination |
 | `songs/spectrum-128/instruments/ay_noise_rate_conflict.bax` | Intentional R6 conflict (verify warning) |
 | `songs/spectrum-128/instruments/ay_vol_env_conflict.bax` | Intentional R11–R13 conflict (verify warning) |
-| `songs/spectrum-128/effects/ay_effects_showcase.bax` | Macro trade-offs and hardware envelope notes |
+| `songs/spectrum-128/effects/ay_effects_showcase.bax` | Supported inline effects (vib, port, bend, volSlide, trem, cut, etc.) |
 | `songs/spectrum-128/amstrad-cpc-demo.bax` | Same arrangement with `chipRegion=cpc` |

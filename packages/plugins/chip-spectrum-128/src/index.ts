@@ -40,6 +40,7 @@ import { RegisterArbitrator } from './register-arbitrator.js';
 import { RegisterLog } from './register-log.js';
 import { AyChannelBackend, type AySongSession } from './channel-backend.js';
 import { validateSpectrumInstrument, SPECTRUM_TYPES } from './validate.js';
+import { validateSong as validateSpectrumSong } from './validate-song.js';
 import { spectrumUIContributions } from './ui-contributions.js';
 import { spectrumSongWizard } from './songWizard.js';
 import type { RegisterIntent } from './register-intent.js';
@@ -150,6 +151,10 @@ const spectrumPlugin: SpectrumChipPlugin = {
     return validateSpectrumInstrument(inst);
   },
 
+  validateSong(ctx) {
+    return validateSpectrumSong(ctx);
+  },
+
   configureForSong(song: { chip?: string; chipRegion?: string }) {
     setPlatformRegion(resolvePlatformRegionFromSong(song));
   },
@@ -196,6 +201,12 @@ export {
 export {
   freqToTonePeriod,
   freqToEnvPeriod,
+  freqToBuzzBassEnvPeriod,
+  AY_BUZZ_BASS_ENVELOPE_SHAPE,
+  AY_BUZZ_BASS_ENVELOPE_SHAPE_ALT,
+  AY_BUZZ_BASS_ENVELOPE_SHAPE_ARKOS,
+  AY_BUZZ_BASS_LOUDNESS_COMPENSATION,
+  resolveEnvShape,
   tonePeriodToFreq,
   midiToTonePeriod,
   midiToEnvPeriod,

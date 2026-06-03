@@ -35,7 +35,8 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
     vol_env    — HARDWARE envelope program on R11–R13.
                  ⚠ GLOBAL: only ONE vol_env may be active at a time across all channels.
                  For per-channel volume shaping use BeatBax volSlide effect instead.
-    arp_env    — Arpeggio in semitone offsets (software, 50 Hz step).
+    arp_env    — Arpeggio in semitone offsets (software, ~60 Hz).
+    pitch_env  — Pitch bend in semitones; knots are linearly interpolated over the held note (smooth slide). arp_env stays stepped at ~60 Hz.
     pitch_env  — Pitch bend in semitone offsets (software, 50 Hz step).
     tone_mix   — true = route shared noise into this channel (R7 mixer bit).
                  Default: tone OFF when tone_mix + noise_rate (noise-only percussion).
@@ -44,6 +45,7 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
     noise_rate — R6 value (0–31). GLOBAL — last writer per tick wins.
                  ⚠ CONFLICT: all simultaneously active noise instruments MUST use the same noise_rate.
     env_bass   — true = buzz-bass mode; uses hardware envelope as oscillator.
+                 env_shape — optional R13 shape 0–15 (default 8; try 10 for alternate saw-down repeat).
                  ⚠ Incompatible with vol_env on any other instrument.
 
 SHARED-RESOURCE CONSTRAINTS (CRITICAL — Copilot must enforce these):
@@ -95,16 +97,41 @@ const hoverDocs: Record<string, string> = {
     '',
     '**Common fields:**',
     '- `vol` — fixed amplitude 0 (silent) to 15 (loudest)',
-    '- `vol_env` — hardware envelope (global; one at a time)',
-    '- `arp_env` — arpeggio in semitone offsets',
-    '- `pitch_env` — pitch bend in semitone offsets',
-    '- `tone_mix` — enable noise mixing for this channel',
+    '- `vol_env` — **hardware** envelope on R11–R13 (global; one at a time)',
+    '- `arp_env` / `pitch_env` — **software** macros (per channel, 60 Hz)',
+    '- `tone` / `tone_mix` — R7 mixer routing (tone on/off, noise blend)',
     '- `noise_rate` — R6 noise period (0–31, global)',
-    '- `noise_frames` — mix noise for first N 60 Hz frames only (transient click)',
-    '- `tone_frames` — mix tone for first N 60 Hz frames only (stick transient)',
-    '- `tone_vol` — cap tone path volume 0–15 (quieter stick; noise uses `vol`/`vol_env`)',
-    '- `env_bass` — buzz bass (envelope as oscillator)',
-    '- `chip cpc` / `chip amstrad-cpc` — Amstrad CPC 1 MHz AY clock (same plugin)',
+    '- `noise_frames` / `tone_frames` / `tone_vol` — percussion transients',
+    '- `env_bass` / `env_shape` — buzz bass (hardware envelope as oscillator)',
+    '- `chipRegion` — `spectrum-128` or `cpc` platform clock',
+  ].join('\n'),
+
+  vol: [
+    '**vol** — Fixed channel amplitude (0–15).',
+    '',
+    'Use when you do not need envelope shaping. For drum decay without touching',
+    'the shared hardware envelope, combine fixed `vol` with `volSlide` on pattern notes.',
+  ].join('\n'),
+
+  tone: [
+    '**tone** — Force the tone generator on or off (R7 mixer bit).',
+    '',
+    'Use `tone=true` with `tone_mix=true` for kick/snare (tone click + noise body).',
+    'Use `tone=false` with `tone_mix=true` for noise-only percussion.',
+  ].join('\n'),
+
+  arp_env: [
+    '**arp_env** — Software arpeggio macro (semitone offsets, ~60 Hz).',
+    '',
+    'Independent per channel — does not use R11–R13.',
+    'Example: `arp_env=[0,4,7|0]`',
+  ].join('\n'),
+
+  pitch_env: [
+    '**pitch_env** — Software pitch bend macro (semitone offsets, ~60 Hz).',
+    '',
+    'Knots are linearly interpolated over the held note. Independent per channel.',
+    'Example: `pitch_env=[0,-2,0,2,0]`',
   ].join('\n'),
 
   tone_mix: [
@@ -171,17 +198,29 @@ const hoverDocs: Record<string, string> = {
   ].join('\n'),
 
   env_bass: [
-    '**env_bass** — Buzz-bass mode: uses the hardware envelope as an oscillator.',
+    '**env_bass** — Buzz-bass mode: square tone × fast hardware sawtooth envelope (shape 8).',
     '',
-    'When `true`, the envelope period is derived from the note frequency:',
-    '`N_env = floor(f_clock / (256 × f_note))`',
+    'When `true`, envelope period is short (~`N_tone / 2048`, shape 8 saw down repeat):',
+    'many hardware envelope cycles per tone wave — gritty buzz, not slow tremolo.',
     '',
-    'This produces a characteristic buzzing bass tone.',
+    'This produces a gritty buzzing bass — not a slow volume filter.',
     '⚠ Incompatible with `vol_env` on any other instrument (same R11–R13).',
     '',
     'Best suited for channel C (traditionally the bass voice in Spectrum music).',
     '',
     'Example: `inst bass type=tone3 env_bass=true`',
+  ].join('\n'),
+
+  env_shape: [
+    '**env_shape** — R13 hardware envelope shape (0–15) for `env_bass=true` only.',
+    '',
+    'Default **8** — R13 bit pattern `1000`: saw down from 15→0, repeat (classic buzz bass).',
+    '**10** — R13 bit pattern `1010`: two saw-down legs per cycle; sharper, more alternating buzz.',
+    '',
+    'Only one shape may be active at a time — overlapping `env_bass` voices must use the same value.',
+    'Ignored unless `env_bass=true` (does not apply to `vol_env`).',
+    '',
+    'Example: `inst bass type=tone3 env_bass=true env_shape=10`',
   ].join('\n'),
 
   chipRegion: [

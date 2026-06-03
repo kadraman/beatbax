@@ -13,6 +13,7 @@ export type {
   ChipPlugin,
   ChipChannelBackend,
   ValidationError,
+  SongValidationContext,
   ChipUIContributions,
   ChipHelpSection,
   ChipNewSongWizard,
@@ -22,4 +23,5 @@ export type {
   NewSongWizardTemplateOption,
 } from './types.js';
 export { ChipRegistry, chipRegistry } from './registry.js';
+export { getSongValidationIssues } from './songValidation.js';
 export { gameboyPlugin } from './gameboy/plugin.js';

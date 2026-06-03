@@ -1,19 +1,34 @@
 # AY R6 noise-period conflict demo (intentional).
-# Two channels play simultaneously with different noise_rate → validateSong warning.
-# Run: beatbax verify songs/spectrum-128/instruments/ay_noise_rate_conflict.bax
+#
+# R6 (noise period) is global — one value for the whole chip. This song plays
+# channel A and B together with different noise_rate (4 vs 20) on every tick.
+#
+#   beatbax verify …  → expect a noise_rate / R6 conflict warning
+#   beatbax play …    → last-writer-wins at runtime; one channel gets wrong timbre
+#
+# Fix in real songs: same noise_rate for all simultaneous noise hits, or stagger
+# hits so only one noise voice is active per tick (see ay_percussion_demo.bax).
 
 chip spectrum-128
 bpm 120
+stepsPerBar 4
 
 song name "AY Noise Rate Conflict"
 song artist "The BeatBax Team"
-song description "Intentional R6 conflict: channels A and B use noise_rate 4 and 20 on the same ticks. Expect a validateSong diagnostic; at runtime last-writer-wins on R6."
+song description "Intentional R6 conflict: channels A and B overlap with noise_rate 4 and 20. Expect validateSong warning; playback uses last-writer-wins on R6."
 song tags "spectrum-128,ay,instrument,demo,noise,conflict"
 
-inst a type=tone1 vol=12 tone_mix=true noise_rate=4
-inst b type=tone2 vol=12 tone_mix=true noise_rate=20
+inst bright type=tone1 vol=12 tone_mix=true noise_rate=4
+inst dark  type=tone2 vol=12 tone_mix=true noise_rate=20
 
-channel 1 => inst a . : C4 C4 C4 C4
-channel 2 => inst b . : C3 C3 C3 C3
+# Both channels sound for the full bar — guaranteed overlap every tick
+pat bright_line = C4 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+pat dark_line   = C3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+seq bright_seq = bright_line bright_line bright_line bright_line
+seq dark_seq   = dark_line dark_line dark_line dark_line
+
+channel 1 => inst bright seq bright_seq
+channel 2 => inst dark  seq dark_seq
 
 play

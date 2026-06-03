@@ -1,8 +1,12 @@
 # AY tone channel verification song.
-# Minimal melody on tone1 / tone2 / tone3 — useful register-log smoke check.
+# Minimal four-note riff on tone1 / tone2 / tone3 — register-log smoke check.
+#
+#   beatbax play …   → three parallel voices (A/B/C)
+#   beatbax verify … → should pass with no shared-resource warnings
 
 chip spectrum-128
 bpm 120
+stepsPerBar 4
 
 song name "AY Synth Channels"
 song artist "The BeatBax Team"
@@ -13,8 +17,16 @@ inst tone1 type=tone1 vol=10
 inst tone2 type=tone2 vol=10
 inst tone3 type=tone3 vol=10
 
-channel 1 => inst tone1 . : C4 D4 E4 F4
-channel 2 => inst tone2 . : C3 D3 E3 F3
-channel 3 => inst tone3 . : C2 D2 E2 F2
+pat riff_a = C4 D4 E4 F4
+pat riff_b = C3 D3 E3 F3
+pat riff_c = C2 D2 E2 F2
+
+seq main_a = riff_a riff_a riff_a riff_a
+seq main_b = riff_b riff_b riff_b riff_b
+seq main_c = riff_c riff_c riff_c riff_c
+
+channel 1 => inst tone1 seq main_a
+channel 2 => inst tone2 seq main_b
+channel 3 => inst tone3 seq main_c
 
 play

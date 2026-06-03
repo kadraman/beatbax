@@ -57,6 +57,18 @@ export function validateSpectrumInstrument(inst: InstrumentNode): ValidationErro
     checkRange(inst.tone_vol, 0, 15, 'tone_vol', errors);
   }
 
+  // ── env_shape (0–15, env_bass only) ─────────────────────────────────────
+  if ((inst as { env_shape?: number }).env_shape !== undefined) {
+    if (!inst.env_bass) {
+      errors.push({
+        field: 'env_shape',
+        message: 'env_shape is only valid when env_bass=true (hardware R13 shape).',
+      });
+    } else {
+      checkRange((inst as { env_shape?: number }).env_shape, 0, 15, 'env_shape', errors);
+    }
+  }
+
   // ── chipRegion ───────────────────────────────────────────────────────────
   if (inst.chipRegion !== undefined) {
     const validRegions = new Set(['spectrum-128', 'cpc']);

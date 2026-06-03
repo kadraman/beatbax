@@ -167,6 +167,9 @@ function renderWithPluginBackend(
   gains: { left: number; right: number } = { left: 1, right: 1 }
 ): void {
   backend.noteOn(freq, inst);
+  if (typeof backend.prepareNoteRender === 'function') {
+    backend.prepareNoteRender(durationSamples);
+  }
   const chunk = new Float32Array(PCM_PLUGIN_CHUNK);
   const samplesPerFrame = Math.floor(sampleRate / 60);
   let rendered = 0;

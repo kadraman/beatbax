@@ -1,19 +1,34 @@
 # AY hardware envelope conflict demo (intentional).
-# Two instruments define vol_env → shared R11–R13 conflict warning.
-# Run: beatbax verify songs/spectrum-128/instruments/ay_vol_env_conflict.bax
+#
+# R11-R13 (envelope period/shape/level) are global — one program for the whole chip.
+# This song plays channel A and B together, each with its own vol_env table.
+#
+#   beatbax verify …  → expect a vol_env / R11-R13 conflict warning
+#   beatbax play …    → last-writer-wins at runtime; one channel gets wrong envelope
+#
+# Fix in real songs: vol_env on at most one instrument per phrase; use software
+# volume slides (volSlide) for independent shaping on other channels.
 
 chip spectrum-128
 bpm 120
+stepsPerBar 4
 
 song name "AY Vol Env Conflict"
 song artist "The BeatBax Team"
-song description "Intentional envelope conflict: lead and bass both use vol_env. Expect validateSong diagnostic — only one hardware envelope program should be active per phrase."
+song description "Intentional envelope conflict: lead and bass both use vol_env while overlapping every tick. Expect validateSong warning; only one hardware envelope program should be active per phrase."
 song tags "spectrum-128,ay,instrument,demo,envelope,conflict"
 
 inst lead type=tone1 vol=12 vol_env=[15,10,5,0]
 inst bass type=tone2 vol=14 vol_env=[14,10,6,0]
 
-channel 1 => inst lead .
-channel 2 => inst bass .
+# Both channels sound for the full bar — guaranteed overlap every tick
+pat lead_line = C4 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+pat bass_line = C3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+seq lead_seq = lead_line lead_line lead_line lead_line
+seq bass_seq = bass_line bass_line bass_line bass_line
+
+channel 1 => inst lead seq lead_seq
+channel 2 => inst bass seq bass_seq
 
 play

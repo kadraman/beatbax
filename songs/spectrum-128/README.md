@@ -28,7 +28,7 @@ beatbax verify songs/spectrum-128/instruments/ay_noise_rate_conflict.bax
 | `ay_percussion_demo.bax` | Full named drum kit |
 | `ay_noise_mixing.bax` | R7 mixer routing |
 | `ay_buzz_bass.bax` | Buzz bass |
-| `ay_all_macros.bax` | Valid macro mix |
+| `ay_all_macros.bax` | All macro fields (3 sections; hardware-multiplexed) |
 | `ay_noise_rate_conflict.bax` | Intentional R6 conflict (verify warning) |
 | `ay_vol_env_conflict.bax` | Intentional envelope conflict (verify warning) |
 
