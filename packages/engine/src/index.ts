@@ -24,5 +24,5 @@ export { ChipRegistry, chipRegistry, gameboyPlugin, getSongValidationIssues } fr
 export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
 export { ExporterRegistry, exporterRegistry } from './export/registry.js';
 export { BeatBaxEngine } from './engine.js';
-export { resolveSong, resolveSongAsync } from './song/index.js';
+export { resolveSong, resolveSongAsync } from './song/index.browser.js';
 export type { SongModel, ChannelModel, ChannelEvent } from './song/songModel.js';

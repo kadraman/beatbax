@@ -169,11 +169,11 @@ export class AyChipSimulator {
       const toneOff  = (mixer >> ch) & 1;        // 1 = disabled
       const noiseOff = (mixer >> (ch + 3)) & 1;  // 1 = disabled
 
+      // Mixer AND gate: disabled sources are constant 1; enabled sources pass generator bits.
       const toneOut  = toneOff  ? 1 : this.toneBit[ch];
       const noiseOut = noiseOff ? 1 : this.noiseBit;
 
-      // Output is active when EITHER tone OR noise is high
-      const active = (toneOut | noiseOut) !== 0;
+      const active = (toneOut & noiseOut) !== 0;
       if (!active) continue;
 
       const amplitude = envMode ? envLevel : fixedLevel;

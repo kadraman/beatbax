@@ -9,6 +9,7 @@
  * derived from R8–R10 (fixed attenuation or hardware envelope routing).
  */
 import { AyChipSimulator } from './ay-chip.js';
+import { ayNoiseBit } from './ay-noise.js';
 import { AY_BUZZ_BASS_LOUDNESS_COMPENSATION } from './periodTables.js';
 import type { RegisterLogEntry } from './register-log.js';
 
@@ -90,7 +91,8 @@ export function renderFromRegisterLog(
           const squareOut = phase[ch] < 1 ? 1.0 : -1.0;
           sample += squareOut * (amp / 15) * CHANNEL_GAIN;
         } else if (!noiseOff) {
-          sample += (Math.random() * 2 - 1) * (amp / 15) * CHANNEL_GAIN;
+          const noiseSign = ayNoiseBit(chip.getNoiseLfsr()) ? 1 : -1;
+          sample += noiseSign * (amp / 15) * CHANNEL_GAIN;
         }
       }
 

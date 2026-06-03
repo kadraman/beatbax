@@ -72,6 +72,41 @@ describe('AyChipSimulator', () => {
     expect(levels.levelA).toBeLessThanOrEqual(10);
   });
 
+  test('tone-only channel gates with tone bit when noise is disabled (AND mixer)', () => {
+    chip.writeRegister(0, 2);
+    chip.writeRegister(1, 0);
+    chip.writeRegister(7, 0b111000);
+    chip.writeRegister(8, 10);
+
+    let sawZero = false;
+    let sawFull = false;
+    for (let i = 0; i < 500; i++) {
+      chip.step(1);
+      const { levelA } = chip.getOutputLevels();
+      if (levelA === 0) sawZero = true;
+      if (levelA === 10) sawFull = true;
+    }
+    expect(sawZero).toBe(true);
+    expect(sawFull).toBe(true);
+  });
+
+  test('noise-only channel gates with noise bit when tone is disabled (AND mixer)', () => {
+    chip.writeRegister(6, 1);
+    chip.writeRegister(7, 0b110111);
+    chip.writeRegister(8, 10);
+
+    let sawZero = false;
+    let sawFull = false;
+    for (let i = 0; i < 500; i++) {
+      chip.step(1);
+      const { levelA } = chip.getOutputLevels();
+      if (levelA === 0) sawZero = true;
+      if (levelA === 10) sawFull = true;
+    }
+    expect(sawZero).toBe(true);
+    expect(sawFull).toBe(true);
+  });
+
   test('noise LFSR starts at 1', () => {
     expect(chip.getNoiseLfsr()).toBe(1);
   });

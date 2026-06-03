@@ -121,6 +121,37 @@ describe('env_bass buzz synthesis', () => {
     expect(intents.some((i: { envelopeShape?: number }) => i.envelopeShape === 10)).toBe(true);
   });
 
+  test('vol_env queues attenuation intent, not hardware envelope routing', () => {
+    const session = makeSession();
+    const backend = new AyChannelBackend(0, session);
+    backend.noteOn(440, { type: 'tone1', vol_env: [15, 10, 5, 0] } as any);
+    const intents = (session as any)._pendingIntents ?? [];
+    const last = intents[intents.length - 1];
+    expect(last.useEnvelope).toBe(false);
+    expect(last.attenuation).toBe(15);
+    expect(last.envelopePeriod).toBeUndefined();
+    expect(last.envelopeShape).toBeUndefined();
+
+    const frame = session.arbitrator.arbitrate(0, intents, session.prevRegs);
+    expect(frame.regs[8] & 0x10).toBe(0);
+    expect(frame.regs[8] & 0x0f).toBe(15);
+  });
+
+  test('env_bass still routes through hardware envelope on register intent', () => {
+    const session = makeSession();
+    const backend = new AyChannelBackend(2, session);
+    backend.noteOn(65.41, { type: 'tone3', env_bass: true } as any);
+    const intents = (session as any)._pendingIntents ?? [];
+    const last = intents[intents.length - 1];
+    expect(last.useEnvelope).toBe(true);
+    expect(last.attenuation).toBeUndefined();
+    expect(last.envelopePeriod).toBeDefined();
+    expect(last.envelopeShape).toBeDefined();
+
+    const frame = session.arbitrator.arbitrate(0, intents, session.prevRegs);
+    expect(frame.regs[10] & 0x10).toBe(0x10);
+  });
+
   test('buzz bass envelope period is much faster than one-step-per-tone', () => {
     const freq = 65.41;
     const fastPeriod = freqToBuzzBassEnvPeriod(freq);

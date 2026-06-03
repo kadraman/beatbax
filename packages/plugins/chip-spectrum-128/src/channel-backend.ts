@@ -587,7 +587,8 @@ export class AyChannelBackend implements ChipChannelBackend {
       this.noisePeriod = undefined;
     }
 
-    // Envelope mode
+    // Envelope mode — only env_bass routes amplitude through R11–R13 hardware.
+    // vol_env is a software volume macro (same as renderAyNotePcm): write R8–R10 attenuation.
     this.envBass = !!instrument.env_bass;
     if (this.envBass) {
       this.envelopePeriod = freqToBuzzBassEnvPeriod(frequency);
@@ -597,16 +598,15 @@ export class AyChannelBackend implements ChipChannelBackend {
       this.amplitude = instrument.vol !== undefined
         ? volToAmplitude(Number(instrument.vol))
         : 15;
-    } else if (instrument.vol_env !== undefined) {
-      this.useEnvelope = true;
-      this.envelopePeriod = undefined;
-      this.envelopeShape = 8;
-      this.amplitude = 0;
     } else if (instrument.vol !== undefined) {
       this.useEnvelope = false;
+      this.envelopePeriod = undefined;
+      this.envelopeShape = undefined;
       this.amplitude = volToAmplitude(Number(instrument.vol));
     } else {
       this.useEnvelope = false;
+      this.envelopePeriod = undefined;
+      this.envelopeShape = undefined;
       this.amplitude = 10;
     }
 
@@ -689,8 +689,8 @@ export class AyChannelBackend implements ChipChannelBackend {
       toneEnable: this.toneEnable,
       noiseEnable: this.noiseEnable,
       noisePeriod: this.noisePeriod,
-      useEnvelope: this.useEnvelope,
-      attenuation: this.useEnvelope ? undefined : this.amplitude,
+      useEnvelope: this.envBass,
+      attenuation: this.envBass ? undefined : this.amplitude,
       envelopePeriod: this.envBass ? this.envelopePeriod : undefined,
       envelopeShape: this.envBass ? this.envelopeShape : undefined,
       source: { channel: this.channel },
