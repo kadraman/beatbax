@@ -136,7 +136,8 @@ See `songs/spectrum-128/` for example BeatBax songs:
 
 | Song | Purpose |
 |------|---------|
-| `ay_effects_showcase.bax` | Inline effect coverage (mirrors SMS effects demo layout) |
+| `ay_effects_showcase.bax` | Supported inline effect coverage |
+| `ay_unsupported_effects_demo.bax` | Invalid / SMS-only effects for `verify` |
 
 ## Development
 

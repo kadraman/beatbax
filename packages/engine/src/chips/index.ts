@@ -16,6 +16,7 @@ export type {
   SongValidationContext,
   ChipUIContributions,
   ChipHelpSection,
+  ChipHelpContext,
   ChipNewSongWizard,
   ChipConsoleVariant,
   NewSongWizardMetadata,

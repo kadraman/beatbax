@@ -209,6 +209,52 @@ describe('env_bass buzz synthesis', () => {
     expect(lateZc).toBeLessThan(earlyZc);
   });
 
+  test('renderAyNotePcm volSlide fades amplitude over the note', () => {
+    const sampleRate = 44100;
+    const sampleCount = sampleRate;
+    const loud = renderAyNotePcm(sampleCount, sampleRate, {
+      freq: 164.81,
+      toneEnable: true,
+      noiseEnable: false,
+      peakAmplitude: 12,
+    });
+    const faded = renderAyNotePcm(sampleCount, sampleRate, {
+      freq: 164.81,
+      toneEnable: true,
+      noiseEnable: false,
+      peakAmplitude: 12,
+      volSlide: { delta: -4, steps: 8 },
+    });
+    const rms = (buf: Float32Array, from: number, to: number) => {
+      let sum = 0;
+      for (let i = from; i < to; i++) sum += buf[i] * buf[i];
+      return Math.sqrt(sum / Math.max(1, to - from));
+    };
+    const early = rms(faded, 0, Math.floor(sampleCount * 0.2));
+    const late = rms(faded, Math.floor(sampleCount * 0.8), sampleCount);
+    const flatLate = rms(loud, Math.floor(sampleCount * 0.8), sampleCount);
+    expect(early).toBeGreaterThan(late);
+    expect(late).toBeLessThan(flatLate);
+  });
+
+  test('renderAyNotePcm inline-style pitch_env bracket string glides over full note', () => {
+    const macro = parseMacro('[0,2,0,-2,0]')!;
+    const sampleCount = 44100;
+    expect(pitchEnvSemitonesAt(macro, 0, sampleCount)).toBeCloseTo(0, 5);
+    expect(pitchEnvSemitonesAt(macro, Math.floor(sampleCount * 0.25), sampleCount)).toBeGreaterThan(0);
+    expect(pitchEnvSemitonesAt(macro, Math.floor(sampleCount * 0.5), sampleCount)).toBeLessThan(0);
+    expect(pitchEnvSemitonesAt(macro, sampleCount - 1, sampleCount)).toBeCloseTo(0, 5);
+
+    const pcm = renderAyNotePcm(sampleCount, 44100, {
+      freq: 392,
+      toneEnable: true,
+      noiseEnable: false,
+      peakAmplitude: 12,
+      pitchEnvMacro: macro,
+    });
+    expect(rms(pcm)).toBeGreaterThan(0);
+  });
+
   test('renderAyNotePcm arp_env changes pitch over held note', () => {
     const sampleRate = 44100;
     const samplesPerFrame = Math.floor(sampleRate / 60);

@@ -36,7 +36,8 @@ beatbax verify songs/spectrum-128/instruments/ay_noise_rate_conflict.bax
 
 | File | Purpose |
 |------|---------|
-| `ay_effects_showcase.bax` | Macros + hardware limits |
+| `ay_effects_showcase.bax` | Supported inline effects (vib, port, bend, volSlide, trem, cut, …) |
+| `ay_unsupported_effects_demo.bax` | Invalid / SMS-only effects and instrument fields (for `verify`) |
 
 ## Docs
 

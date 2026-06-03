@@ -44,6 +44,29 @@ describe('spectrumPlugin metadata', () => {
   test('has uiContributions', () => {
     expect(spectrumPlugin.uiContributions).toBeDefined();
     expect(spectrumPlugin.uiContributions?.copilotSystemPrompt).toBeTruthy();
+    const instrumentsSection = spectrumPlugin.uiContributions?.helpSections?.find(
+      (s) => s.id === 'instruments',
+    );
+    expect(instrumentsSection).toBeDefined();
+    expect(instrumentsSection?.title).toMatch(/Instruments/i);
+    expect(instrumentsSection?.content.length).toBeGreaterThan(1);
+  });
+
+  test('buildHelpSections uses platform-specific instruments title', () => {
+    const build = spectrumPlugin.uiContributions?.buildHelpSections;
+    expect(build).toBeDefined();
+
+    const spectrumTitle = build!({ chip: 'spectrum-128' }).find((s) => s.id === 'instruments')?.title;
+    expect(spectrumTitle).toBe('Instruments (ZX Spectrum 128 / AY-3-8912)');
+
+    const cpcTitle = build!({ chip: 'cpc' }).find((s) => s.id === 'instruments')?.title;
+    expect(cpcTitle).toBe('Instruments (Amstrad CPC / AY-3-8912)');
+
+    const aliasTitle = build!({ chip: 'amstrad-cpc' }).find((s) => s.id === 'instruments')?.title;
+    expect(aliasTitle).toBe('Instruments (Amstrad CPC / AY-3-8912)');
+
+    const legacyTitle = build!({ chip: 'spectrum-128', chipRegion: 'cpc' }).find((s) => s.id === 'instruments')?.title;
+    expect(legacyTitle).toBe('Instruments (Amstrad CPC / AY-3-8912)');
   });
 
   test('has newSongWizard with Spectrum and CPC variants', () => {
@@ -105,6 +128,16 @@ describe('spectrumPlugin.validateInstrument', () => {
     } as any);
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].field).toBe('sweep');
+  });
+
+  test('SMS noise_rate_env field returns error', () => {
+    const errors = spectrumPlugin.validateInstrument({
+      type: 'tone3',
+      tone_mix: true,
+      noise_rate: 2,
+      noise_rate_env: [0, 1, 2],
+    } as any);
+    expect(errors.some(e => e.field === 'noise_rate_env')).toBe(true);
   });
 
   test('env_shape without env_bass returns error', () => {

@@ -6,7 +6,8 @@
  *  - hoverDocs            — keyword hover docs for Spectrum 128-specific syntax
  *  - helpSections         — help-panel sections tailored to Spectrum/AY authoring
  */
-import type { ChipUIContributions } from '@beatbax/engine';
+import type { ChipHelpContext, ChipUIContributions } from '@beatbax/engine';
+import { resolvePlatformRegionFromSong } from './platform-profiles.js';
 
 // —— CoPilot system prompt ———————————————————————————————————————
 
@@ -90,10 +91,12 @@ CHIPTUNE STYLE GUIDE:
 
 const hoverDocs: Record<string, string> = {
   inst: [
-    '**Instrument definition** — declares a named instrument.',
+    '**Instrument definition** — declares a named instrument with channel type and parameters.',
     '```\ninst <name> type=<type> [field=value ...]\n```',
+    '- `note` — default note when the instrument name is used as a hit token, e.g. `note=C3`',
+    '',
     '**Spectrum 128 / AY-3-8912 instrument types:**',
-    '- `type=tone1` / `type=tone2` / `type=tone3` — square wave channels A/B/C',
+    '- `type=tone1` / `type=tone2` / `type=tone3` — square wave channels A/B/C (fixed 50% duty)',
     '',
     '**Common fields:**',
     '- `vol` — fixed amplitude 0 (silent) to 15 (loudest)',
@@ -240,7 +243,92 @@ const hoverDocs: Record<string, string> = {
 
 // —— Help sections ———————————————————————————————————————————————
 
-const helpSections = [
+const helpSections: ChipUIContributions['helpSections'] = [
+  {
+    id: 'instruments',
+    title: 'Instruments (Spectrum 128 / AY-3-8912)',
+    content: [
+      {
+        kind: 'text',
+        text: 'The AY-3-8912 has 3 tone channels (A/B/C). Each BeatBax channel maps to a fixed instrument type. All three output a 50% square wave — there is no hardware duty control.',
+      },
+      {
+        kind: 'snippet',
+        label: 'Channel → instrument type',
+        code: [
+          '# Channel 1  →  type=tone1  (AY voice A)',
+          '# Channel 2  →  type=tone2  (AY voice B)',
+          '# Channel 3  →  type=tone3  (AY voice C)',
+          '',
+          'inst <name> type=<type> [field=value ...]',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Melodic tone channels (type=tone1 / tone2 / tone3)',
+        code: [
+          'inst lead type=tone1 vol=12 arp_env=[0,4,7|0]',
+          'inst harm type=tone2 vol=10 pitch_env=[0,2,0,-2,0]',
+          'inst bass type=tone3 vol=14',
+          '# vol: 0 (silent) – 15 (loudest)',
+          '# arp_env / pitch_env: software macros (~60 Hz), independent per channel',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Hardware envelope (vol_env) — one program for the whole chip',
+        code: [
+          'inst lead type=tone1 vol_env=[15,12,9,6,3,0]',
+          '# ⚠ GLOBAL: only ONE vol_env may be active at a time (R11–R13)',
+          '# For drum decay on other channels, use fixed vol + volSlide on notes instead',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Buzz bass (env_bass) — channel C sub oscillator',
+        code: [
+          'inst buzz type=tone3 env_bass=true',
+          'inst alt  type=tone3 env_bass=true env_shape=10',
+          '# env_bass uses the hardware envelope as a fast sub-oscillator',
+          '# Cannot coexist with vol_env on any other instrument',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Noise percussion (tone_mix + noise_rate)',
+        code: [
+          'inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3',
+          'inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5',
+          'inst hihat type=tone1 vol=15 tone_mix=true noise_rate=2',
+          '# tone=true — mix square tone with noise (kick click + body)',
+          '# tone_mix=true — route shared noise into this channel (R7)',
+          '# noise_rate: 0–31 (GLOBAL — same value for overlapping hits)',
+          '# noise_frames / tone_frames — limit mix to first N 60 Hz frames',
+          '# tone_vol — cap tone path separately from noise (stick under snare body)',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Named hit tokens (note= default pitch)',
+        code: [
+          'inst kick type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 note=C3',
+          'pat drums = kick . kick .',
+          '# Using the instrument name as a token triggers a hit at note= pitch',
+        ].join('\n'),
+      },
+      {
+        kind: 'snippet',
+        label: 'Inline instrument switch in a pattern',
+        code: [
+          'pat riff = inst lead C5 E5 inst bass G3 .',
+          '# Switches instrument for remaining notes in the pattern',
+          '',
+          'pat fill = C6 C6 inst(hat,2) C6 C6',
+          '# inst(name,N) — temporary override for N steps, then reverts',
+        ].join('\n'),
+      },
+    ],
+  },
   {
     id: 'chip-overview',
     title: 'ZX Spectrum 128 / AY-3-8912 Overview',
@@ -365,10 +453,26 @@ const helpSections = [
   },
 ];
 
+function helpPlatformLabel(ctx: ChipHelpContext): string {
+  return resolvePlatformRegionFromSong(ctx) === 'cpc'
+    ? 'Amstrad CPC / AY-3-8912'
+    : 'ZX Spectrum 128 / AY-3-8912';
+}
+
+export function buildSpectrumHelpSections(ctx: ChipHelpContext): ChipUIContributions['helpSections'] {
+  const platform = helpPlatformLabel(ctx);
+  return helpSections.map((section) =>
+    section.id === 'instruments'
+      ? { ...section, title: `Instruments (${platform})` }
+      : section,
+  );
+}
+
 // —— Export ───────────────────────────────────────────────────────
 
 export const spectrumUIContributions: ChipUIContributions = {
   copilotSystemPrompt,
   hoverDocs,
   helpSections,
+  buildHelpSections: buildSpectrumHelpSections,
 };

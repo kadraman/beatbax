@@ -130,6 +130,14 @@ export interface ChipHelpSection {
   >;
 }
 
+/** Active song chip context passed to optional help-section builders. */
+export interface ChipHelpContext {
+  /** Raw `chip` directive from the song AST (may be an alias, e.g. `cpc`). */
+  chip?: string;
+  /** Optional `chipRegion` directive (legacy platform selector). */
+  chipRegion?: string;
+}
+
 /**
  * Optional UI contributions provided by a chip plugin.
  * These are consumed by the web-UI at runtime to tailor the editor experience
@@ -156,6 +164,12 @@ export interface ChipUIContributions {
    * replaces it; unknown ids are appended after the built-in sections.
    */
   helpSections: ChipHelpSection[];
+
+  /**
+   * Optional builder for chip-variant help sections (e.g. Spectrum 128 vs CPC).
+   * When provided, the web UI calls this instead of using `helpSections` directly.
+   */
+  buildHelpSections?: (ctx: ChipHelpContext) => ChipHelpSection[];
 }
 
 export interface NewSongWizardTemplateOption {

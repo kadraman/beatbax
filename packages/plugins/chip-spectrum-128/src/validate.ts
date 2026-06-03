@@ -92,6 +92,7 @@ export function validateSpectrumInstrument(inst: InstrumentNode): ValidationErro
     ['sweep_dir', 'Hardware sweep is not supported. Use pitch_env instead.'],
     ['linear', 'Linear counter is an NES triangle channel feature. Not applicable to AY-3-8912.'],
     ['noise_mode', 'noise_mode is not applicable to AY-3-8912. Use noise_rate (0–31) and tone_mix=true.'],
+    ['noise_rate_env', 'noise_rate_env is an SMS SN76489 macro (rates 0–3). On AY-3-8912 use fixed noise_rate (0–31) or stagger hits with different instruments.'],
     ['dmc_rate', 'DMC fields are NES features. Not applicable to AY-3-8912.'],
     ['dmc_loop', 'DMC fields are NES features. Not applicable to AY-3-8912.'],
     ['dmc_sample', 'DMC fields are NES features. Not applicable to AY-3-8912.'],

@@ -96,6 +96,45 @@ function amplitudeToGain(amplitude: number): number {
   return Math.max(0, amplitude / 15) * 0.3;
 }
 
+/** Progress 0–1 for volSlide across a note (stepped when `steps` is set). */
+export function volSlideProgress(
+  steps: number | undefined,
+  sampleIndex: number,
+  sampleCount: number,
+): number {
+  if (sampleCount <= 1) return 1;
+  const linear = sampleIndex / (sampleCount - 1);
+  if (steps === undefined || steps <= 0) return linear;
+  const stepIndex = Math.min(steps, Math.max(1, Math.ceil(linear * steps)));
+  return stepIndex / steps;
+}
+
+/** Apply inline volSlide delta (AY amplitude units 0–15) at a sample position. */
+export function applyVolSlideToAmplitude(
+  amplitude: number,
+  volSlide: { delta: number; steps?: number } | null | undefined,
+  sampleIndex: number,
+  sampleCount: number,
+): number {
+  if (!volSlide || volSlide.delta === 0) return amplitude;
+  const progress = volSlideProgress(volSlide.steps, sampleIndex, sampleCount);
+  return Math.max(0, Math.min(15, amplitude + volSlide.delta * progress));
+}
+
+export function parseInstVolSlide(
+  inst: InstrumentNode | null | undefined,
+): { delta: number; steps?: number } | null {
+  const raw = inst && (inst as any).__volSlide;
+  if (!raw || typeof raw !== 'object') return null;
+  const delta = Number((raw as any).delta);
+  if (!Number.isFinite(delta) || delta === 0) return null;
+  const stepsRaw = (raw as any).steps;
+  const steps = stepsRaw !== undefined && Number.isFinite(Number(stepsRaw))
+    ? Math.max(1, Math.round(Number(stepsRaw)))
+    : undefined;
+  return { delta, ...(steps !== undefined ? { steps } : {}) };
+}
+
 /** Spread macro steps evenly across a note (vol_env); arp_env stays at 60 Hz. */
 export function macroSamplesPerStep(sampleCount: number, macro: ParsedMacro): number {
   return Math.max(1, Math.floor(sampleCount / macro.values.length));
@@ -212,6 +251,7 @@ export function renderAyNotePcm(
     volEnvMacro?: ParsedMacro | null;
     arpEnvMacro?: ParsedMacro | null;
     pitchEnvMacro?: ParsedMacro | null;
+    volSlide?: { delta: number; steps?: number } | null;
     noiseFrames?: number;
     toneFrames?: number;
     toneVolAmplitude?: number;
@@ -261,17 +301,23 @@ export function renderAyNotePcm(
     const toneEnable = isToneMixActive(!!params.toneEnable, params.toneFrames, frameIndex);
 
     if (envClock && params.envelopePeriod && toneEnable) {
+      const buzzAmp = params.volSlide
+        ? applyVolSlideToAmplitude(params.peakAmplitude, params.volSlide, offset, sampleCount)
+        : params.peakAmplitude;
       const buzz = renderAyBuzzBassSamples(slice, sampleRate, {
         freq,
         envelopePeriod: params.envelopePeriod,
         envelopeClock: envClock,
         phase,
-        peakGain: amplitudeToGain(params.peakAmplitude),
+        peakGain: amplitudeToGain(buzzAmp),
       });
       phase = buzz.phase;
     } else {
+      const sliceAmplitude = params.volSlide
+        ? applyVolSlideToAmplitude(amplitude, params.volSlide, offset, sampleCount)
+        : amplitude;
       const { toneGain, noiseGain } = resolveToneNoiseGains(
-        amplitude,
+        sliceAmplitude,
         params.toneVolAmplitude,
       );
       if (toneGain > 0 || noiseGain > 0) {
@@ -440,6 +486,7 @@ export class AyChannelBackend implements ChipChannelBackend {
   private volEnvState: MacroState = makeMacroState();
   private arpEnvState: MacroState = makeMacroState();
   private pitchEnvState: MacroState = makeMacroState();
+  private volSlide: { delta: number; steps?: number } | null = null;
 
   // PCM synthesis state
   private phase = 0;
@@ -484,6 +531,7 @@ export class AyChannelBackend implements ChipChannelBackend {
     this.volEnvState = makeMacroState();
     this.arpEnvState = makeMacroState();
     this.pitchEnvState = makeMacroState();
+    this.volSlide = null;
     this.phase = 0;
     this.noiseLfsr = 1;
     this.noisePhase = 0;
@@ -565,6 +613,7 @@ export class AyChannelBackend implements ChipChannelBackend {
     this.volEnvMacro = instrument.vol_env !== undefined ? parseMacro(instrument.vol_env) : null;
     this.arpEnvMacro = instrument.arp_env !== undefined ? parseMacro(instrument.arp_env) : null;
     this.pitchEnvMacro = instrument.pitch_env !== undefined ? parseMacro(instrument.pitch_env) : null;
+    this.volSlide = parseInstVolSlide(instrument);
     this.volEnvState = makeMacroState();
     this.arpEnvState = makeMacroState();
     this.pitchEnvState = makeMacroState();
@@ -661,6 +710,14 @@ export class AyChannelBackend implements ChipChannelBackend {
       : undefined;
 
     if (this.envBass && this.envelopePeriod && this.envClockState && this.toneEnable) {
+      const buzzAmp = this.volSlide && this.noteDurationSamples > 0
+        ? applyVolSlideToAmplitude(
+          this.amplitude,
+          this.volSlide,
+          this.noteRenderedSamples,
+          this.noteDurationSamples,
+        )
+        : this.amplitude;
       const buzz = renderAyBuzzBassSamples(buffer, sampleRate, {
         freq: pitchAtSample
           ? pitchAtSample(this.noteRenderedSamples)
@@ -668,7 +725,7 @@ export class AyChannelBackend implements ChipChannelBackend {
         envelopePeriod: this.envelopePeriod,
         envelopeClock: this.envClockState,
         phase: this.phase,
-        peakGain: amplitudeToGain(this.amplitude),
+        peakGain: amplitudeToGain(buzzAmp),
       });
       this.phase = buzz.phase;
       this.noteRenderedSamples += buffer.length;
@@ -676,7 +733,14 @@ export class AyChannelBackend implements ChipChannelBackend {
     }
 
     const { toneGain, noiseGain } = resolveToneNoiseGains(
-      this.amplitude,
+      this.volSlide && this.noteDurationSamples > 0
+        ? applyVolSlideToAmplitude(
+          this.amplitude,
+          this.volSlide,
+          this.noteRenderedSamples,
+          this.noteDurationSamples,
+        )
+        : this.amplitude,
       this.toneVolAmplitude,
     );
     if (toneGain === 0 && noiseGain === 0) {
@@ -730,6 +794,7 @@ export class AyChannelBackend implements ChipChannelBackend {
     const volEnvMacro = inst.vol_env !== undefined ? parseMacro(inst.vol_env) : null;
     const arpEnvMacro = inst.arp_env !== undefined ? parseMacro(inst.arp_env) : null;
     const pitchEnvMacro = inst.pitch_env !== undefined ? parseMacro(inst.pitch_env) : null;
+    const volSlide = parseInstVolSlide(inst);
     const noiseFramesVal = parseBaxNumber(inst.noise_frames);
     const noiseFrames = noiseFramesVal !== undefined ? Math.max(0, Math.round(noiseFramesVal)) : undefined;
     const toneFramesVal = parseBaxNumber(inst.tone_frames);
@@ -748,6 +813,7 @@ export class AyChannelBackend implements ChipChannelBackend {
       volEnvMacro: envBass ? null : volEnvMacro,
       arpEnvMacro,
       pitchEnvMacro,
+      volSlide,
       noiseFrames,
       toneFrames,
       toneVolAmplitude,

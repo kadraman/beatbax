@@ -6,6 +6,7 @@ import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
 import type { ChipChannelBackend } from '../chips/types.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
+import { applyInlineRenderEffects } from './inlineMacroEffects.js';
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -483,7 +484,8 @@ function renderNoteEvent(
   if (!isGameBoy && pluginBackend) {
     const panSpec = resolveEventPan(ev, inst);
     const gains = panToGains(panSpec);
-    renderWithPluginBackend(pluginBackend, freq, inst, buffer, startSample, durationSamples, sampleRate, channels, gains);
+    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
 
@@ -579,7 +581,8 @@ function renderNamedEvent(
         if (midi !== null) freq = midiToFreq(midi);
       }
     }
-    renderWithPluginBackend(pluginBackend, freq, inst, buffer, startSample, durationSamples, sampleRate, channels, gains);
+    const { effectiveInst } = applyInlineRenderEffects(inst, ev.effects);
+    renderWithPluginBackend(pluginBackend, freq, effectiveInst, buffer, startSample, durationSamples, sampleRate, channels, gains);
     return;
   }
 
