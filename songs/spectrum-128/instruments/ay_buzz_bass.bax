@@ -1,0 +1,49 @@
+# AY buzz-bass demo — envelope-as-oscillator on channel C.
+#
+# env_bass programs R11-R13 as a buzz sub-oscillator. Any other voice that uses
+# hardware vol_env on the same tick will fight for those registers.
+#
+# This song demonstrates two hat recipes on channel 1:
+#
+#   1. hat      + vol_env  — hardware decay on R11-R13; hats MUST land on bass
+#                            rest ticks (steps 8-15 of each 16-step cycle).
+#   2. hat_soft + volSlide — software volume fade per note; no vol_env, so it
+#                            never programs R11-R13 (same stagger as hats_hw here).
+#
+# In BeatBax each pattern step is one tick (~500 ms at 120 BPM / 50 Hz tick).
+
+chip spectrum-128
+bpm 120
+
+song name "AY Buzz Bass"
+song artist "The BeatBax Team"
+song description "Buzz bass (env_bass) on channel C with two hat styles on channel A: hardware vol_env vs software volSlide, both staggered to bass rest ticks. Shows volSlide as the R11-R13-safe alternative to vol_env."
+song tags "spectrum-128,ay,instrument,demo,buzz-bass,volSlide,percussion"
+
+# Hardware-envelope hat — same stick+noise recipe as ay_percussion_demo hatc.
+inst hat      type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7 vol_env=[15,10,0]
+
+# Software-decay hat — no vol_env; per-note fade via volSlide (does not touch R11-R13).
+inst hat_soft type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7
+
+effect hat_fade = volSlide:-6
+
+inst bass type=tone3 vol=10 env_bass=true env_shape=10
+
+# Section A — vol_env hats on bass *rest* ticks only (steps 8, 11, 14).
+pat rest16  = . . . . . . . . . . . . . . . .
+pat hats_hw = . . . . . . . . hat . . hat . . hat .
+
+# Section B — volSlide hats on the same rest ticks as hats_hw (steps 8, 11, 14).
+pat hats_sw = inst(hat_soft) . . . . . . . . E7<hat_fade> . . E7<hat_fade> . . E7<hat_fade> .
+
+# Bass: notes + sustains on steps 0-7; rest on steps 8-15.
+pat bass    = C3 _ C3 _ E2 _ F2 _ . . . . . . . .
+
+seq drum_seq = rest16 hats_hw rest16 hats_sw
+seq bass_seq = bass bass bass bass
+
+channel 1 => inst hat seq drum_seq
+channel 3 => inst bass seq bass_seq
+
+play

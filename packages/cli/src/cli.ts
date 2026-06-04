@@ -1,5 +1,5 @@
 import { Command, Argument } from 'commander';
-import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry } from '@beatbax/engine';
+import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry, getSongValidationIssues } from '@beatbax/engine';
 import { playFile } from '@beatbax/engine/node';
 import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
@@ -104,6 +104,17 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
     } catch (importErr: any) {
       errors.push({ message: `Import error: ${extractErrorMessage(importErr)}` });
       return { errors, warnings, ast: null as any };
+    }
+  }
+
+  // Song-level chip validation after import resolution (parser skips this when imports are present).
+  if (!hasSyntaxErrors && ast?.imports?.length > 0 && ast?.chip && ast?.insts) {
+    const existingMessages = new Set(warnings.map(w => w.message));
+    for (const e of getSongValidationIssues(ast)) {
+      if (!existingMessages.has(e.message)) {
+        warnings.push({ message: e.message, component: chipRegistry.resolve(String(ast.chip).toLowerCase()) });
+        existingMessages.add(e.message);
+      }
     }
   }
 

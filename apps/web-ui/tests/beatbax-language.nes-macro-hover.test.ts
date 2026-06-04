@@ -3,8 +3,9 @@ import {
   parseNesMacroAtPosition,
   renderNesMacroSparkline,
   ParsedNesMacro,
+  registerBeatBaxLanguage,
 } from '../src/editor/beatbax-language';
-import { registerBeatBaxLanguage } from '../src/editor/beatbax-language';
+import { eventBus } from '../src/utils/event-bus';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -170,7 +171,14 @@ describe('renderNesMacroSparkline', () => {
 // ── provideHover integration ──────────────────────────────────────────────────
 
 describe('provideHover — NES macro hover', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    eventBus.emit('parse:success', {
+      ast: { chip: 'gameboy', insts: {}, pats: {}, seqs: {} },
+      resolvedAst: undefined,
+      song: null,
+    });
+  });
 
   function getHoverProvider() {
     registerBeatBaxLanguage();
@@ -195,6 +203,26 @@ describe('provideHover — NES macro hover', () => {
     expect(hover.contents[2].value).toContain('One-shot');
   });
 
+  it('returns AY hardware vol_env hover when chip is spectrum-128', () => {
+    eventBus.emit('parse:success', {
+      ast: { chip: 'spectrum-128', insts: {}, pats: {}, seqs: {} },
+      resolvedAst: undefined,
+      song: null,
+    });
+
+    const provider = getHoverProvider();
+    const line = 'inst hat type=tone1 vol_env=[15,10,6,3,0]';
+    const col = colOf(line, '15,10');
+
+    const hover = provider.provideHover(makeModel(line), pos(col));
+
+    expect(hover).not.toBeNull();
+    expect(hover.contents[0].value).toContain('Hardware envelope program (AY R11–R13)');
+    expect(hover.contents[0].value).not.toContain('NES');
+    expect(hover.contents[2].value).toContain('Global');
+    expect(hover.contents[2].value).toContain('volSlide');
+  });
+
   it('returns arp_env hover with semitone offsets', () => {
     const provider = getHoverProvider();
     const line = 'inst p type=pulse1 arp_env=[0,4,7|0]';
@@ -210,6 +238,11 @@ describe('provideHover — NES macro hover', () => {
   });
 
   it('returns pitch_env hover with FamiTracker unit note', () => {
+    eventBus.emit('parse:success', {
+      ast: { chip: 'nes', insts: {}, pats: {}, seqs: {} },
+      resolvedAst: undefined,
+      song: null,
+    });
     const provider = getHoverProvider();
     const line = 'inst p type=pulse2 pitch_env=[5,4,3,2,1,0,0,0]';
     const col = colOf(line, '5,4,3');

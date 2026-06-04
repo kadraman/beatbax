@@ -1058,6 +1058,28 @@ export function parseWithPeggy(source: string): ParseResult {
     }
   }
 
+  // Song-level plugin validation (shared hardware resources).
+  // Deferred when imports are present — merged instruments are validated post-import.
+  if (activePlugin?.validateSong && imports.length === 0) {
+    const songAst = {
+      pats,
+      insts,
+      seqs,
+      channels,
+      bpm: topBpm,
+      chip: chipName,
+      chipRegion,
+      time: topTime,
+      stepsPerBar: topStepsPerBar,
+      effects: Object.keys(effects).length ? effects : undefined,
+      patternEvents,
+      sequenceItems,
+    };
+    for (const e of activePlugin.validateSong({ instruments: insts, song: songAst as any })) {
+      diag('warning', activePlugin.name || 'plugin', e.message);
+    }
+  }
+
   // Channel validation: detect and report duplicate channel IDs, then deduplicate
   {
     const channelIdsSeen = new Set<number>();

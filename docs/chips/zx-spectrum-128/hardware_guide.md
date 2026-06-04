@@ -34,11 +34,13 @@ $$
 f_{tone} = \frac{f_{clock}}{16 \times \max(1, N)}
 $$
 
-Envelope-as-oscillator frequency (buzz bass workflows):
+Envelope step rate:
 
 $$
-f_{env} = \frac{f_{clock}}{256 \times \max(1, N_{env})}
+f_{env\_step} = \frac{f_{clock}}{256 \times \max(1, N_{env})}
 $$
+
+Buzz bass (`env_bass`): set $N_{env} \approx N_{tone}/2048$ (target ~128 envelope steps per tone period). Use R13 **shape 8** (repeating sawtooth decay), not shape 10 zigzag — triangle AM sounds like vibrato on held bass notes.
 
 Where $f_{clock}$ is the Spectrum target clock and $N$/$N_{env}$ are register periods.
 

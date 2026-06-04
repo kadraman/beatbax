@@ -36,37 +36,29 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
 - Implementation of `ui-contributions.js` including copilot prompts, hover providers and help
 
 **Sample Songs & Documentation** (`songs/spectrum-128/`):
-- **Synth Demo** (`synth-demo.bax`) — Demonstrates:
-  - Lead/bass instrument definitions with constant volume
-  - Arpeggio macros (`arp_env`)
-  - Pitch bend macros (`pitch_env`)
-  - Multi-channel polyphony
-  - Melodic patterns and sequences
 
-- **Percussion Demo** (`percussion-demo.bax`) — Demonstrates:
-  - **Time-multiplexed drums** under one shared `noise_rate` (hardware-accurate)
-  - Per-channel mixer routing (`tone_mix`) — not independent noise timbres
-  - Software volume shaping (`vol` + BeatBax slides) instead of conflicting hardware `vol_env`
-  - Classic Spectrum layout: melody on A, harmony on B, bass/drums borrowing C
+Layout matches NES/SMS: full songs at the chip root, focused demos under `instruments/` and `effects/`.
 
-- **Effects Showcase** (`effects-showcase.bax`) — Demonstrates:
-  - All macro types combined: `vol_env`, `arp_env`, `pitch_env`, `noise_rate`
-  - Hardware limitation handling (one envelope per song)
-  - Channel mixer blending strategies
-  - Complex polyphonic arrangements
+- **Amstrad CPC demo** (`amstrad-cpc-demo.bax`) — Same arrangement with `chipRegion=cpc`
 
-- **Amstrad CPC Version** (`amstrad-cpc-demo.bax`) — Demonstrates:
-  - Same song compiled with `chipRegion=cpc`
-  - Platform-agnostic note structure, region-aware AY clock scaling
-  - Deterministic output across platforms
+**Instrument demos** (`instruments/`):
 
-**Test Songs** (`songs/spectrum-128/tests/`):
-- `smoke-test.bax` — Minimal 4-note song per channel (regression gate)
-- `shared-envelope-test.bax` — Multiple channels with vol_env conflict detection
-- `noise-mixing-test.bax` — Independent **mixer** routing per channel (same global noise source)
-- `noise-conflict-test.bax` — Overlapping hits with different `noise_rate` values (expects diagnostic)
-- `buzz-bass-demo.bax` — Envelope-as-oscillator bass on channel C
-- `all-macros.bax` — All instrument macro types in one song
+| Song | Demonstrates |
+|------|----------------|
+| `ay_synth_channels.bax` | Minimal tone A/B/C smoke check |
+| `ay_macro_arp_pitch.bax` | `arp_env`, `pitch_env`, three-channel polyphony |
+| `ay_percussion_demo.bax` | Named drum kit (split lanes + multiplexed), full percussion recipes |
+| `ay_noise_mixing.bax` | Independent R7 mixer routing, shared R6 |
+| `ay_buzz_bass.bax` | Buzz bass (`env_bass`) on channel C |
+| `ay_all_macros.bax` | Valid macro combination without illegal overlaps |
+| `ay_noise_rate_conflict.bax` | Intentional R6 conflict — expect `verify` warning |
+| `ay_vol_env_conflict.bax` | Intentional R11–R13 conflict — expect `verify` warning |
+
+**Effect demos** (`effects/`):
+
+| Song | Demonstrates |
+|------|----------------|
+| `ay_effects_showcase.bax` | Macro types with hardware trade-off comments |
 
 ### Excluded
 
@@ -409,7 +401,7 @@ See **Architecture** above for `AySongSession`, register intents, and engine int
 4. Implement `index.ts` — `configureForSong`, `beginSongSession`, `createChannel`
 5. Wire plugin registration in engine; integration test with minimal 3-channel song
 
-**Gate:** `smoke-test.bax` produces identical register log hash across 3 runs.
+**Gate:** `instruments/ay_synth_channels.bax` produces identical register log hash across 3 runs.
 
 ### Phase 3: Preview audio + UI
 
@@ -418,7 +410,7 @@ See **Architecture** above for `AySongSession`, register intents, and engine int
 3. Implement `songWizard.ts` — templates from composition guide (lead A, harmony B, bass/drums C)
 4. Wire UI contributions into web editor
 
-**Gate:** Web + CLI playback of `synth-demo.bax` renders non-zero audio; wizard loads.
+**Gate:** Web + CLI playback of `instruments/ay_macro_arp_pitch.bax` renders non-zero audio; wizard loads.
 
 ### Phase 4: Macros + effects
 
@@ -427,15 +419,15 @@ See **Architecture** above for `AySongSession`, register intents, and engine int
 3. Map `tone_mix` / `noise_rate` to R7 + R6 intents with conflict diagnostics
 4. Prefer BeatBax software volume slides for independent drum decay where hardware envelope is unavailable
 
-**Gate:** `effects-showcase.bax` and `shared-envelope-test.bax` behave as documented; determinism preserved.
+**Gate:** `effects/ay_effects_showcase.bax` and `instruments/ay_vol_env_conflict.bax` behave as documented; determinism preserved.
 
 ### Phase 5: Sample songs + docs
 
-1. `synth-demo.bax` — polyphonic melody with `arp_env` / `pitch_env`
-2. `percussion-demo.bax` — **multiplexed** drums (one `noise_rate`, staggered hits)
-3. `effects-showcase.bax` — all macro types; documents envelope + noise constraints
+1. `instruments/ay_macro_arp_pitch.bax` — polyphonic melody with `arp_env` / `pitch_env`
+2. `instruments/ay_percussion_demo.bax` — named drum kit, split + multiplexed layouts
+3. `effects/ay_effects_showcase.bax` — macro types; documents envelope + noise constraints
 4. `amstrad-cpc-demo.bax` — same song with `chipRegion=cpc`
-5. Test songs: `smoke-test`, `shared-envelope-test`, `noise-mixing-test`, `noise-conflict-test`, `buzz-bass-demo`, `all-macros`
+5. Instrument demos: `ay_synth_channels`, `ay_noise_mixing`, `ay_buzz_bass`, `ay_all_macros`, `ay_noise_rate_conflict`, `ay_vol_env_conflict`
 6. `songs/spectrum-128/README.md` — index, play instructions, troubleshooting
 
 **Gate:** All sample songs render; regression hashes match baseline.
@@ -472,124 +464,48 @@ When VGM/PT3 exporters land:
 | Playback | Register log + PCM preview determinism on repeated renders |
 | Macros | `arp_env`, `pitch_env`, `vol_env`, `env_bass`, `noise_rate` intent mapping |
 
-### Sample song tests
+### Sample song catalog
 
 | Song | Scope |
 |------|-------|
-| `synth-demo.bax` | Polyphony, arp/pitch macros |
-| `percussion-demo.bax` | Multiplexed drums, single R6 palette |
-| `effects-showcase.bax` | Macro interaction + documented HW limits |
+| `instruments/ay_macro_arp_pitch.bax` | Polyphony, arp/pitch macros |
+| `instruments/ay_percussion_demo.bax` | Named drum kit, percussion recipes |
+| `effects/ay_effects_showcase.bax` | Macro interaction + documented HW limits |
 | `amstrad-cpc-demo.bax` | `chipRegion=cpc` clock scaling |
-| `smoke-test.bax` | Minimal regression gate (register log SHA-256) |
-| `shared-envelope-test.bax` | Diagnostic when two `vol_env` programs overlap |
-| `noise-mixing-test.bax` | Independent R7 mixer bits, **same** R6 noise source |
-| `noise-conflict-test.bax` | Diagnostic when overlapping hits need different R6 |
-| `buzz-bass-demo.bax` | Envelope-as-oscillator on channel C |
-| `all-macros.bax` | All macro types without illegal overlaps |
+| `instruments/ay_synth_channels.bax` | Minimal regression gate (register log SHA-256) |
+| `instruments/ay_vol_env_conflict.bax` | Diagnostic when two `vol_env` programs overlap |
+| `instruments/ay_noise_mixing.bax` | Independent R7 mixer bits, **same** R6 noise source |
+| `instruments/ay_noise_rate_conflict.bax` | Diagnostic when overlapping hits need different R6 |
+| `instruments/ay_buzz_bass.bax` | Envelope-as-oscillator on channel C |
+| `instruments/ay_all_macros.bax` | All macro types without illegal overlaps |
 
 ### Regression gate
 
 Before merging each phase:
 
-1. **Phase 2:** `smoke-test.bax` register log identical across 3 runs
-2. **Phase 4:** Conflict test songs emit expected diagnostics; non-conflict songs render cleanly
+1. **Phase 2:** `instruments/ay_synth_channels.bax` register log identical across 3 runs
+2. **Phase 4:** Conflict demo songs emit expected diagnostics; non-conflict songs render cleanly
 3. **Phase 5:** All sample songs byte-identical on repeated register-log renders
 
 ---
 
 ## Sample Songs Reference
 
-### synth-demo.bax
+### instruments/ay_macro_arp_pitch.bax
 
-**Purpose:** Melodic polyphony with software macros on independent tone periods.
-
-```bax
-chip spectrum-128
-bpm 150
-
-inst lead type=tone1 vol=12 arp_env=[0,2,4,7,4,2,0]
-inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]
-inst pad  type=tone3 vol=10
-
-pat lead_riff = C4 E4 G4 C5 B4 G4 E4 .
-pat bass_line = C2 . . . G1 . . .
-pat pad_sust  = E3 . . . E3 . . .
-
-seq main = lead_riff lead_riff lead_riff lead_riff
-seq bass = bass_line bass_line bass_line bass_line
-seq pad  = pad_sust pad_sust pad_sust pad_sust
-
-channel 1 => inst lead seq main
-channel 2 => inst bass seq bass
-channel 3 => inst pad  seq pad
-
-play
-```
+**Purpose:** Melodic polyphony with software macros on independent tone periods. See file in repo.
 
 ---
 
-### percussion-demo.bax
+### instruments/ay_percussion_demo.bax
 
-**Purpose:** Hardware-realistic drums — one noise palette, staggered hits, channel C borrowed for bass + percussion.
-
-```bax
-chip spectrum-128
-bpm 120
-
-; Shared noise palette for all percussion (R6 = 10)
-inst kick  type=tone3 vol=15 tone_mix=true noise_rate=10
-inst snare type=tone2 vol=14 tone_mix=true noise_rate=10
-inst hat   type=tone1 vol=10 tone_mix=true noise_rate=10
-
-; Multiplexed: only one drum voice active per tick on channel C
-pat kick  = C2 . . . . . . .
-pat snare = . . . D3 . . . .
-pat hat   = . F4 . . F4 . . F4 .
-
-seq drums = kick snare hat kick snare hat kick snare
-
-channel 1 => inst kick  seq drums   ; melody lane free — use for lead in full arr
-channel 2 => inst snare seq drums
-channel 3 => inst hat   seq drums
-
-play
-```
-
-Use BeatBax volume slides (not competing `vol_env` programs) for per-hit decay when hits do not overlap on the same channel.
+**Purpose:** Full named drum kit — split lanes (intro/outro) and multiplexed single-channel kit (middle). See `docs/chips/zx-spectrum-128/composition_guide.md` for recipes.
 
 ---
 
-### effects-showcase.bax
+### effects/ay_effects_showcase.bax
 
-**Purpose:** All macro types with explicit hardware trade-offs documented in comments.
-
-```bax
-chip spectrum-128
-bpm 140
-
-; arp + pitch on A — no hardware vol_env here
-inst lead type=tone1 vol=13 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
-
-; Single hardware envelope program for the phrase (R11–R13)
-inst bass type=tone2 vol=14 vol_env=[14,14,10,6]
-
-; Noise on C shares global R6 with any other active noise hits
-inst perc type=tone3 vol=15 tone_mix=true noise_rate=12
-
-pat melody = C4 E4 G4 C5 B4 A4 G4 .
-pat bass   = C2 . . . G1 . . .
-pat drums  = . . D2 . . . D2 .
-
-seq main = melody melody melody melody
-seq bass = bass bass bass bass
-seq perc = drums drums drums drums
-
-channel 1 => inst lead seq main
-channel 2 => inst bass seq bass
-channel 3 => inst perc seq perc
-
-play
-```
+**Purpose:** All macro types with explicit hardware trade-offs documented in comments. See file in repo.
 
 ---
 
@@ -620,70 +536,9 @@ play
 
 ---
 
-### Test songs
+### Instrument & effect demos
 
-**smoke-test.bax** — register-log regression gate:
-
-```bax
-chip spectrum-128
-inst tone1 type=tone1 vol=10
-inst tone2 type=tone2 vol=10
-inst tone3 type=tone3 vol=10
-
-channel 1 => inst tone1 . : C4 D4 E4 F4
-channel 2 => inst tone2 . : C3 D3 E3 F3
-channel 3 => inst tone3 . : C2 D2 E2 F2
-
-play
-```
-
-**shared-envelope-test.bax** — expects diagnostic (two `vol_env` programs):
-
-```bax
-chip spectrum-128
-inst lead type=tone1 vol=12 vol_env=[15,10,5,0]
-inst bass type=tone2 vol=14 vol_env=[14,10,6,0]
-
-channel 1 => inst lead .
-channel 2 => inst bass .
-```
-
-**noise-mixing-test.bax** — independent mixer routing, shared noise source:
-
-```bax
-chip spectrum-128
-inst tone  type=tone1 vol=12
-inst blend type=tone2 vol=12 tone_mix=true noise_rate=8
-inst noise type=tone3 vol=12 tone_mix=true noise_rate=8
-
-channel 1 => inst tone  . : C4 C4 C4 C4
-channel 2 => inst blend . : C3 C3 C3 C3
-channel 3 => inst noise . : C2 C2 C2 C2
-```
-
-**noise-conflict-test.bax** — expects diagnostic (different R6 same tick):
-
-```bax
-chip spectrum-128
-inst a type=tone1 vol=12 tone_mix=true noise_rate=4
-inst b type=tone2 vol=12 tone_mix=true noise_rate=20
-
-channel 1 => inst a . : C4 C4 C4 C4
-channel 2 => inst b . : C3 C3 C3 C3
-```
-
-**all-macros.bax** — valid combination (no overlapping envelope/noise conflicts):
-
-```bax
-chip spectrum-128
-inst lead type=tone1 vol=12 arp_env=[0,2,4,5] pitch_env=[0,1,0,-1]
-inst bass type=tone2 vol=14
-inst perc type=tone3 vol=14 tone_mix=true noise_rate=12 vol_env=[15,8,0]
-
-channel 1 => inst lead .
-channel 2 => inst bass .
-channel 3 => inst perc .
-```
+Focused demos live under `songs/spectrum-128/instruments/` and `effects/`. See the catalog table above. Conflict demos (`ay_noise_rate_conflict.bax`, `ay_vol_env_conflict.bax`) are played normally but should also report warnings from `beatbax verify`.
 
 ---
 

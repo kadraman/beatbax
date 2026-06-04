@@ -13,6 +13,10 @@ import {
   provideBeatBaxCompletions,
 } from './completion';
 import { registerBeatBaxCodeActions } from './code-actions';
+import {
+  CHIP_INSTRUMENT_META,
+  INST_PROPERTY_NAME_PATTERN,
+} from './instrument-meta';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */
@@ -485,9 +489,12 @@ const DUTY_INDEX_LABELS = ['12.5%', '25%', '50%', '75%'];
 function buildNesMacroHover(
   model: monaco.editor.ITextModel,
   position: monaco.IPosition,
+  chip: string = latestChip,
 ): monaco.languages.Hover | null {
   const macro = parseNesMacroAtPosition(model, position);
   if (!macro) return null;
+
+  const canonicalChip = chipRegistry.resolve(chip);
 
   let title: string;
   let sparkline: string;
@@ -501,14 +508,28 @@ function buildNesMacroHover(
   switch (macro.macroType) {
     case 'vol_env': {
       const clamped = macro.values.map((v) => Math.max(0, Math.min(15, Math.round(v))));
-      title = '**Volume envelope** (NES macro, per-frame, 0–15)';
       sparkline = renderNesMacroSparkline(clamped, 0, 15);
       const lo = Math.min(...clamped), hi = Math.max(...clamped);
-      meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
+      if (canonicalChip === 'spectrum-128') {
+        title = '**vol_env** — Hardware envelope program (AY R11–R13)';
+        meta = [
+          `Levels: **${clamped.length}**  Range: **${lo}–${hi}** / 15`,
+          '⚠ **Global**: only one hardware envelope program (R11–R13) may be active at a time.',
+          'For independent per-channel decay, use the `volSlide` effect instead.',
+          loopStr,
+        ].join('  \n');
+      } else if (canonicalChip === 'nes') {
+        title = '**Volume envelope** (NES software macro, per-frame, 0–15)';
+        meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
+      } else {
+        title = '**Volume envelope** (software macro, per-frame, 0–15)';
+        meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
+      }
       break;
     }
     case 'arp_env': {
-      title = '**Arpeggio envelope** (NES macro, semitone offsets from root)';
+      const macroKind = canonicalChip === 'nes' ? 'NES software macro' : 'software macro';
+      title = `**Arpeggio envelope** (${macroKind}, semitone offsets from root)`;
       const lo = Math.min(...macro.values, 0);
       const hi = Math.max(...macro.values, 0);
       sparkline = renderNesMacroSparkline(macro.values, lo, hi);
@@ -517,7 +538,8 @@ function buildNesMacroHover(
       break;
     }
     case 'pitch_env': {
-      title = '**Pitch envelope** (NES macro, semitone offsets from root)';
+      const macroKind = canonicalChip === 'nes' ? 'NES software macro' : 'software macro';
+      title = `**Pitch envelope** (${macroKind}, semitone offsets from root)`;
       const lo = Math.min(...macro.values, 0);
       const hi = Math.max(...macro.values, 0);
       sparkline = renderNesMacroSparkline(macro.values, lo, hi);
@@ -525,13 +547,17 @@ function buildNesMacroHover(
       meta = [
         `Frames: **${macro.values.length}**  Offsets (semitones): ${valStr}`,
         loopStr,
-        '_Note: FamiTracker PITCH macro uses 1/16-semitone units — each value is multiplied by 16 on export._',
+        ...(canonicalChip === 'nes'
+          ? ['_Note: FamiTracker PITCH macro uses 1/16-semitone units — each value is multiplied by 16 on export._']
+          : []),
       ].join('  \n');
       break;
     }
     case 'duty_env': {
       const clamped = macro.values.map((v) => Math.max(0, Math.min(3, Math.round(v))));
-      title = '**Duty envelope** (NES macro, duty indices 0–3)';
+      title = canonicalChip === 'nes'
+        ? '**Duty envelope** (NES software macro, duty indices 0–3)'
+        : '**Duty envelope** (software macro, duty indices 0–3)';
       sparkline = renderNesMacroSparkline(clamped, 0, 3);
       const dutyStr = clamped.map((v) => DUTY_INDEX_LABELS[v] ?? String(v)).join(', ');
       meta = `Frames: **${clamped.length}**  Duty cycle sequence: ${dutyStr}  \n${loopStr}`;
@@ -581,6 +607,11 @@ export function registerBeatBaxLanguage(): void {
   });
 
   // Set syntax highlighting (Monarch tokenizer)
+  const allInstrumentTypes = [
+    ...new Set(Object.values(CHIP_INSTRUMENT_META).flatMap((m) => m.types)),
+  ].join('|');
+  const allChipTypeNames = chipRegistry.list().join('|');
+
   monaco.languages.setMonarchTokensProvider('beatbax', {
     keywords: [
       'chip',
@@ -656,7 +687,7 @@ export function registerBeatBaxLanguage(): void {
         [/\b(gb)(:)(width|lfsr)(?=\s*=)/, ['type', 'operator', 'attribute']],
 
         // Instrument/Effect property names (MUST come before keywords since 'volume' and 'wave' conflict)
-        [/\b(type|duty|env|wave|sweep|volume|gm|length|lfsr|speed|depth|mode|delay|feedback|mix|interval|volumeDelta|waveform|note|width|inst|vol|noise|noise_rate|use_envelope|vol_env|arp_env|pitch_env|noise_rate_env)\b(?=\s*=)/, 'attribute'],
+        [new RegExp(`\\b(${INST_PROPERTY_NAME_PATTERN})\\b(?=\\s*=)`, ''), 'attribute'],
 
         // Song metadata properties (appear after 'song' directive)
         [/\b(name|artist|author|description|tags)\b(?=\s+")/, 'attribute'],
@@ -717,16 +748,16 @@ export function registerBeatBaxLanguage(): void {
         // MUST come before generic operators
         [/</, { token: 'delimiter.angle', next: '@inlineEffect' }],
 
-        // Instrument types
-        [/\b(pulse1|pulse2|wave|noise)\b/, 'type'],
+        // Instrument types (all chips)
+        [new RegExp(`\\b(${allInstrumentTypes})\\b`), 'type'],
 
         // Export formats (teal/cyan like constants)
         // famitracker-text must come before famitracker to avoid partial match
         [/\bfamitracker-text\b/, 'constant.language'],
-        [/\b(json|midi|uge|wav|famitracker)\b/, 'constant.language'],
+        [/\b(json|midi|uge|wav|famitracker|vgm)\b/, 'constant.language'],
 
-        // Chip types
-        [/\b(gameboy|gb|dmg)\b/, 'type'],
+        // Chip types (registered plugins + aliases)
+        [new RegExp(`\\b(${allChipTypeNames})\\b`), 'type'],
 
         // Notes (C0-B8)
         [/[A-G][#b]?[0-8]\b/, 'number.note'],
@@ -900,7 +931,7 @@ export function registerBeatBaxLanguage(): void {
       const envelopeHover = buildEnvelopeHover(model, position);
       if (envelopeHover) return envelopeHover;
 
-      const nesMacroHover = buildNesMacroHover(model, position);
+      const nesMacroHover = buildNesMacroHover(model, position, latestChip);
       if (nesMacroHover) return nesMacroHover;
 
       const word = model.getWordAtPosition(position);
@@ -1406,55 +1437,26 @@ export function registerBeatBaxLanguage(): void {
       }
 
       if (latestAST?.insts && latestAST.insts[word.word]) {
-        const inst = latestAST.insts[word.word];
+        const inst = latestAST.insts[word.word] as Record<string, unknown>;
         const props: string[] = [];
+        const skip = new Set(['__loc', 'loc']);
 
-        if (inst.type) props.push(`type=${inst.type}`);
-        if (inst.duty !== undefined) props.push(`duty=${inst.duty}`);
-        if (inst.env !== undefined) {
-          const envStr = typeof inst.env === 'string' ? inst.env : JSON.stringify(inst.env);
-          props.push(`env=${envStr}`);
-        }
-        if (inst.wave !== undefined) {
-          const waveStr = Array.isArray(inst.wave) ? `[${inst.wave.join(',')}]` : inst.wave;
-          props.push(`wave=${waveStr}`);
-        }
-        if (inst.sweep !== undefined) {
-          const sweepStr = typeof inst.sweep === 'string' ? inst.sweep : JSON.stringify(inst.sweep);
-          props.push(`sweep=${sweepStr}`);
-        }
-        if (inst.noise !== undefined) {
-          const noiseStr = typeof inst.noise === 'string' ? inst.noise : JSON.stringify(inst.noise);
-          props.push(`noise=${noiseStr}`);
-        }
-        if (inst.noise_rate !== undefined) props.push(`noise_rate=${inst.noise_rate}`);
-        if (inst.vol !== undefined) {
-          const volStr = typeof inst.vol === 'string' ? inst.vol : inst.vol;
-          props.push(`vol=${volStr}`);
-        }
-        if (inst.use_envelope !== undefined) props.push(`use_envelope=${inst.use_envelope}`);
-        if ((inst as any).vol_env !== undefined) {
-          const volEnvStr = Array.isArray((inst as any).vol_env) ? `[${(inst as any).vol_env.join(',')}]` : (inst as any).vol_env;
-          props.push(`vol_env=${volEnvStr}`);
-        }
-        if ((inst as any).arp_env !== undefined) {
-          const arpEnvStr = Array.isArray((inst as any).arp_env) ? `[${(inst as any).arp_env.join(',')}]` : (inst as any).arp_env;
-          props.push(`arp_env=${arpEnvStr}`);
-        }
-        if ((inst as any).pitch_env !== undefined) {
-          const pitchEnvStr = Array.isArray((inst as any).pitch_env) ? `[${(inst as any).pitch_env.join(',')}]` : (inst as any).pitch_env;
-          props.push(`pitch_env=${pitchEnvStr}`);
-        }
-        if ((inst as any).noise_rate_env !== undefined) {
-          const nrEnvStr = Array.isArray((inst as any).noise_rate_env) ? `[${(inst as any).noise_rate_env.join(',')}]` : (inst as any).noise_rate_env;
-          props.push(`noise_rate_env=${nrEnvStr}`);
+        for (const [key, value] of Object.entries(inst)) {
+          if (skip.has(key) || value === undefined || value === null) continue;
+          if (Array.isArray(value)) {
+            props.push(`${key}=[${value.join(',')}]`);
+          } else if (typeof value === 'object') {
+            props.push(`${key}=${JSON.stringify(value)}`);
+          } else {
+            props.push(`${key}=${value}`);
+          }
         }
 
         return {
           contents: [
             { value: `**Instrument**: \`${word.word}\`` },
-            { value: "```beatbax\n" + props.join(' ') + "\n```" }
-          ]
+            { value: '```beatbax\n' + props.join(' ') + '\n```' },
+          ],
         };
       }
 

@@ -266,6 +266,12 @@ export class HelpPanel {
   private abortCtrl = new AbortController();
   /** The canonicalised chip name from the last successful parse. */
   private currentChip: string = 'gameboy';
+  /** Raw `chip` directive from the last successful parse (may be an alias). */
+  private currentSongChip: string = 'gameboy';
+  /** Optional `chipRegion` from the last successful parse. */
+  private currentSongChipRegion: string | undefined;
+  /** Cache key so help re-renders when platform variant changes within one plugin. */
+  private helpContextKey = 'gameboy|gameboy|';
 
   constructor(options: HelpPanelOptions) {
     this.container = options.container;
@@ -446,7 +452,15 @@ export class HelpPanel {
     }
 
     // 3. Merge chip-plugin sections: replace matching ids, append new ones
-    const pluginSections = chipRegistry.get(this.currentChip)?.uiContributions?.helpSections;
+    const plugin = chipRegistry.get(this.currentChip);
+    const ui = plugin?.uiContributions;
+    const helpCtx = {
+      chip: this.currentSongChip,
+      chipRegion: this.currentSongChipRegion,
+    };
+    const pluginSections = ui?.buildHelpSections
+      ? ui.buildHelpSections(helpCtx)
+      : ui?.helpSections;
     if (pluginSections && pluginSections.length > 0) {
       const replacedIds = new Set(pluginSections.map(ps => ps.id));
       // Replace existing sections by id, preserving order
@@ -712,8 +726,15 @@ export class HelpPanel {
       this.eventBus.on('parse:success', ({ ast }) => {
         const raw: string = ((ast?.chip ?? 'gameboy') as string).toLowerCase();
         const chip = chipRegistry.resolve(raw);
-        if (chip !== this.currentChip) {
+        const chipRegion = ast?.chipRegion != null && ast.chipRegion !== ''
+          ? String(ast.chipRegion).toLowerCase()
+          : undefined;
+        const ctxKey = `${chip}|${raw}|${chipRegion ?? ''}`;
+        if (ctxKey !== this.helpContextKey) {
           this.currentChip = chip;
+          this.currentSongChip = raw;
+          this.currentSongChipRegion = chipRegion;
+          this.helpContextKey = ctxKey;
           // Re-render the body if visible so sections update immediately
           if (this.visible || this.embedded) {
             const body = this.container.querySelector<HTMLElement>('.bb-help__body');

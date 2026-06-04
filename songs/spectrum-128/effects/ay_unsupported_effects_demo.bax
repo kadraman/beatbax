@@ -1,0 +1,69 @@
+# AY-3-8912 unsupported / invalid-effect coverage fixture.
+#
+# Intentionally mixes:
+#   1) inline effects invalid or SMS-specific on AY (sweep, noise_rate_env, …)
+#   2) instrument fields rejected by validateInstrument (duty, noise_mode, type=noise, …)
+#   3) warning-level / implementation-dependent (retrig; echo is WebAudio-only, not chip output)
+#
+# Run: beatbax verify songs/spectrum-128/effects/ay_unsupported_effects_demo.bax
+#
+# AY volume reminder: 0 = silent, 15 = loudest.
+
+song name "AY Unsupported Effects Demo"
+chip spectrum-128
+bpm 128
+
+# =============================================================================
+# Instruments — valid baseline
+# =============================================================================
+
+inst i_t1 type=tone1 vol=12
+
+# =============================================================================
+# Instruments — invalid fields (expect validateInstrument errors)
+# =============================================================================
+
+inst i_bad_duty     type=tone1 vol=10 duty=25
+inst i_bad_sweep    type=tone1 vol=10 sweep=up
+inst i_bad_mode     type=tone2 vol=10 noise_mode=white
+inst i_bad_type     type=noise  vol=10 noise_rate=2
+inst i_bad_shape    type=tone3 vol=10 env_shape=8
+inst i_bad_linear   type=tone1 vol=10 linear=96
+inst i_bad_dmc      type=tone1 vol=10 dmc_rate=1
+# SMS SN76489 macro — not implemented on AY (use fixed noise_rate 0–31 instead).
+inst i_bad_rateenv  type=tone3 vol=15 tone_mix=true noise_rate=2 noise_rate_env=[0,1,2|0]
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+# Inline effects that are invalid or not meaningful on AY:
+#   sweep          — Game Boy NR10 hardware; use pitch_env or bend
+#   noise_rate_env — SMS macro (rates 0–3); AY uses R6 period 0–31, no per-frame macro yet
+#   echo           — not AY hardware; may appear in WebAudio preview only
+#   retrig         — allowed but phase-reset is emulation-dependent (warning-level)
+pat p_unsupported_global = C4<sweep:4,up,7>:8 E4<echo:0.25,40,25>:8 G4<retrig:2,-3>:8 A4<noise_rate_env:[0,1,2,1|0]>:8
+
+# Inline SMS/GB/NES fields on notes (same semantics as invalid inst fields).
+pat p_invalid_inline = C4<noise_mode:white>:4 D4<duty:50>:4 E4<sweep:2,down,3>:4 F4<noise_rate_env:[0,1,2|0]>:4
+
+# Song-level conflict demos live elsewhere:
+#   ay_vol_env_conflict.bax   — two hardware vol_env holders
+#   ay_noise_rate_conflict.bax — overlapping different R6 values
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq s_global  = p_unsupported_global p_unsupported_global
+seq s_inline  = p_invalid_inline p_invalid_inline
+
+# =============================================================================
+# Channels — only channel 1 audible by default (mirror SMS demo layout)
+# =============================================================================
+
+channel 1 => inst i_t1 seq s_global
+#channel 2 => inst i_bad_duty seq s_inline
+#channel 3 => inst i_bad_rateenv seq s_inline
+
+play

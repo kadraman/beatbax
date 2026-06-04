@@ -16,7 +16,7 @@ import './styles.css';
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { loadPluginsFromStorage } from './plugins/registry-config';
-import { chipRegistry } from '@beatbax/engine/chips';
+import { chipRegistry, getSongValidationIssues } from '@beatbax/engine/chips';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
 import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
 import { storage, StorageKey } from './utils/local-storage';
@@ -1358,6 +1358,18 @@ async function emitParse(content: string): Promise<void> {
       eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
       parseStatus.set('error');
       return;
+    }
+
+    if ((ast as any).imports?.length > 0) {
+      for (const e of getSongValidationIssues(resolvedAst as any)) {
+        const message = e.message;
+        if (!warnings.some(w => w.message === message)) {
+          warnings.push({
+            component: resolvedAst.chip ? chipRegistry.resolve(String(resolvedAst.chip).toLowerCase()) : 'plugin',
+            message,
+          });
+        }
+      }
     }
 
     publishValidation();
