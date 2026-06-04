@@ -519,7 +519,7 @@ function buildNesMacroHover(
           loopStr,
         ].join('  \n');
       } else if (canonicalChip === 'nes') {
-        title = '**Volume envelope** (NES software macro, per-frame, 0–15)';
+        title = '**Volume envelope** (NES/Famicom software macro, per-frame, 0–15)';
         meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
       } else {
         title = '**Volume envelope** (software macro, per-frame, 0–15)';
@@ -528,7 +528,7 @@ function buildNesMacroHover(
       break;
     }
     case 'arp_env': {
-      const macroKind = canonicalChip === 'nes' ? 'NES software macro' : 'software macro';
+      const macroKind = canonicalChip === 'nes' ? 'NES/Famicom software macro' : 'software macro';
       title = `**Arpeggio envelope** (${macroKind}, semitone offsets from root)`;
       const lo = Math.min(...macro.values, 0);
       const hi = Math.max(...macro.values, 0);
@@ -538,7 +538,7 @@ function buildNesMacroHover(
       break;
     }
     case 'pitch_env': {
-      const macroKind = canonicalChip === 'nes' ? 'NES software macro' : 'software macro';
+      const macroKind = canonicalChip === 'nes' ? 'NES/Famicom software macro' : 'software macro';
       title = `**Pitch envelope** (${macroKind}, semitone offsets from root)`;
       const lo = Math.min(...macro.values, 0);
       const hi = Math.max(...macro.values, 0);
@@ -556,7 +556,7 @@ function buildNesMacroHover(
     case 'duty_env': {
       const clamped = macro.values.map((v) => Math.max(0, Math.min(3, Math.round(v))));
       title = canonicalChip === 'nes'
-        ? '**Duty envelope** (NES software macro, duty indices 0–3)'
+        ? '**Duty envelope** (NES/Famicom software macro, duty indices 0–3)'
         : '**Duty envelope** (software macro, duty indices 0–3)';
       sparkline = renderNesMacroSparkline(clamped, 0, 3);
       const dutyStr = clamped.map((v) => DUTY_INDEX_LABELS[v] ?? String(v)).join(', ');
@@ -975,7 +975,7 @@ export function registerBeatBaxLanguage(): void {
             }
           }
 
-          lines.push('Example: `chip gameboy`, `chip atari-st`, `chip nes`');
+          lines.push('Example: `chip gameboy`, `chip atari-st`, `chip nes`, `chip famicom`');
 
           return {
             range: new monaco.Range(position.lineNumber, valueStart, position.lineNumber, valueEnd),
@@ -1005,7 +1005,7 @@ export function registerBeatBaxLanguage(): void {
           '```\nchip <chipId>\n```',
           '**Installed chips:**',
           installedChips,
-          'Example: `chip gameboy`, `chip atari-st`, `chip nes`',
+          'Example: `chip gameboy`, `chip atari-st`, `chip nes`, `chip famicom`',
         ].join('\n\n'),
         bpm: 'Sets the tempo in beats per minute. Example: `bpm 120`',
         scale: [

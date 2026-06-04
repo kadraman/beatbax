@@ -1,10 +1,19 @@
 {
   "extends": "../../../tsconfig.json",
+  "references": [
+    { "path": "../../engine" }
+  ],
   "compilerOptions": {
     "composite": true,
     "rootDir": "src",
     "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "paths": {
+      "@beatbax/engine/chips/nes": ["../../engine/src/chips/nes/index.ts"],
+      "@beatbax/engine/chips/nes/*": ["../../engine/src/chips/nes/*"],
+      "@beatbax/engine/chips": ["../../engine/src/chips/index.ts"],
+      "@beatbax/engine": ["../../engine/src/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

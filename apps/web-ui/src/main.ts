@@ -18,7 +18,7 @@ import './styles.css';
 import { loadPluginsFromStorage } from './plugins/registry-config';
 import { chipRegistry, getSongValidationIssues } from '@beatbax/engine/chips';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
-import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
+import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/engine/chips/nes';
 import { storage, StorageKey } from './utils/local-storage';
 
 const storedNesMixMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);

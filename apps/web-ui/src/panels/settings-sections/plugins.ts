@@ -7,7 +7,7 @@
 
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
 import { sectionHeading, noteText, selectField } from './general';
-import { chipRegistry, gameboyPlugin } from '@beatbax/engine/chips';
+import { chipRegistry, gameboyPlugin, nesPlugin } from '@beatbax/engine/chips';
 import { exporterRegistry } from '../../plugins/browser-exporter-registry';
 import {
   BUILTIN_EXPORTER_IDS,
@@ -21,7 +21,7 @@ import {
   setNesWebAudioMixMode,
   getNesWebAudioMixMode,
   type NesWebAudioMixMode,
-} from '@beatbax/plugin-chip-nes';
+} from '@beatbax/engine/chips/nes';
 
 const BADGE_CLASS: Record<string, string> = {
   Stable:       'bb-settings-badge--stable',
@@ -50,19 +50,16 @@ export function buildPluginsSection(): HTMLElement {
       version: gameboyPlugin.version,
       badge: 'Stable',
     },
-  ];
-  const nesPlugin = chipRegistry.get('nes');
-  if (nesPlugin) {
-    builtinChips.push({
+    {
       id: 'nes',
-      label: 'NES (Ricoh 2A03)',
+      label: 'NES/Famicom (Ricoh 2A03)',
       description:
-        'Nintendo Entertainment System APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
-        'Enables `chip nes` in .bax scripts.',
+        'Nintendo Entertainment System / Famicom APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
+        'Enables `chip nes` or `chip famicom` in .bax scripts.',
       version: nesPlugin.version,
       badge: 'Beta',
-    });
-  }
+    },
+  ];
   for (const builtin of builtinChips) {
     const row = document.createElement('div');
     row.className = 'bb-settings-feature-row';
@@ -141,12 +138,12 @@ export function buildPluginsSection(): HTMLElement {
   }
 
   if (chipRegistry.has('nes')) {
-    el.appendChild(sectionHeading('NES plugin audio'));
+    el.appendChild(sectionHeading('NES/Famicom plugin audio'));
     const currentMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);
     const initialMode: NesWebAudioMixMode = currentMode === 'hardware' ? 'hardware' : getNesWebAudioMixMode();
 
     el.appendChild(selectField(
-      'NES WebAudio mix mode',
+      'NES/Famicom WebAudio mix mode',
       [
         { value: 'normalized', label: 'Normalized (BeatBax parity, louder)' },
         { value: 'hardware', label: 'Hardware-accurate (quieter, tracker-like)' },
@@ -158,7 +155,7 @@ export function buildPluginsSection(): HTMLElement {
         setNesWebAudioMixMode(mode);
       },
     ));
-    el.appendChild(noteText('Applied immediately to NES playback and Web UI WAV export. Choose Hardware-accurate for closer level matching with FamiTracker/hardware renders.'));
+    el.appendChild(noteText('Applied immediately to NES/Famicom playback and Web UI WAV export. Choose Hardware-accurate for closer level matching with FamiTracker/hardware renders.'));
   }
 
   // ── Exporter plugins ────────────────────────────────────────────────────────

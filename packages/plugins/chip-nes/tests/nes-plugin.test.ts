@@ -4,20 +4,26 @@
  */
 import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
-import nesPlugin, { PULSE_PERIOD, TRIANGLE_PERIOD, NES_MIX_GAIN } from '../src/index.js';
-import { validateNesInstrument } from '../src/validate.js';
-import { NESPulseBackend } from '../src/pulse.js';
-import { NESTriangleBackend } from '../src/triangle.js';
-import { NESNoiseBackend } from '../src/noise.js';
-import { NESDMCBackend, decodeDMC } from '../src/dmc.js';
-import { getNesWebAudioNorm } from '../src/mixer.js';
-import { ChipRegistry } from '@beatbax/engine';
+import {
+  nesPlugin,
+  PULSE_PERIOD,
+  TRIANGLE_PERIOD,
+  NES_MIX_GAIN,
+  validateNesInstrument,
+  decodeDMC,
+  getNesWebAudioNorm,
+} from '@beatbax/engine/chips/nes';
+import { NESPulseBackend } from '@beatbax/engine/chips/nes/pulse.js';
+import { NESTriangleBackend } from '@beatbax/engine/chips/nes/triangle.js';
+import { NESNoiseBackend } from '@beatbax/engine/chips/nes/noise.js';
+import { NESDMCBackend } from '@beatbax/engine/chips/nes/dmc.js';
+import { ChipRegistry } from '@beatbax/engine/chips';
 import {
   noteNameToMidi, pulsePeriodToFreq, trianglePeriodToFreq,
   NES_CLOCK_NTSC, NES_CLOCK_PAL, setNesClockRegion, getNesClockRegion, NES_CLOCK,
   getNoisePeriodTable, getDmcRateTable, NOISE_PERIOD_TABLE_NTSC, NOISE_PERIOD_TABLE_PAL,
   DMC_RATE_TABLE_NTSC, DMC_RATE_TABLE_PAL,
-} from '../src/periodTables.js';
+} from '@beatbax/engine/chips/nes/periodTables.js';
 
 const MOCK_AUDIO_CONTEXT = {} as BaseAudioContext;
 
@@ -50,21 +56,20 @@ describe('NES plugin metadata', () => {
 // ─── Registry integration ─────────────────────────────────────────────────────
 
 describe('NES plugin registration', () => {
-  test('can be registered with a fresh ChipRegistry', () => {
+  test('is built into a fresh ChipRegistry', () => {
     const reg = new ChipRegistry();
-    reg.register(nesPlugin);
     expect(reg.has('nes')).toBe(true);
+    expect(reg.has('famicom')).toBe(true);
+    expect(reg.resolve('famicom')).toBe('nes');
   });
 
   test('get() returns the NES plugin', () => {
     const reg = new ChipRegistry();
-    reg.register(nesPlugin);
     expect(reg.get('nes')).toBe(nesPlugin);
   });
 
   test('registering twice throws', () => {
     const reg = new ChipRegistry();
-    reg.register(nesPlugin);
     expect(() => reg.register(nesPlugin)).toThrow('already registered');
   });
 
@@ -473,7 +478,7 @@ describe('NES DMC channel', () => {
 
 describe('NES DMC sample resolution', () => {
   test('@nes/kick resolves from bundled library', async () => {
-    const { resolveDMCSample } = await import('../src/dmc.js');
+    const { resolveDMCSample } = await import('@beatbax/engine/chips/nes/dmc.js');
     const samples = await resolveDMCSample('@nes/kick');
     expect(samples).toBeInstanceOf(Float32Array);
     expect(samples.length).toBeGreaterThan(0);
@@ -481,18 +486,18 @@ describe('NES DMC sample resolution', () => {
   });
 
   test('unknown @nes/ sample throws', async () => {
-    const { resolveDMCSample } = await import('../src/dmc.js');
+    const { resolveDMCSample } = await import('@beatbax/engine/chips/nes/dmc.js');
     await expect(resolveDMCSample('@nes/nonexistent')).rejects.toThrow('not found');
   });
 
   test('local: path with .. throws path traversal error', async () => {
-    const { resolveDMCSample } = await import('../src/dmc.js');
+    const { resolveDMCSample } = await import('@beatbax/engine/chips/nes/dmc.js');
     // This would be blocked in both browser and Node.js
     await expect(resolveDMCSample('local:../../../etc/passwd')).rejects.toThrow();
   });
 
   test('local: path with spaces resolves when percent-encoded', async () => {
-    const { resolveDMCSample } = await import('../src/dmc.js');
+    const { resolveDMCSample } = await import('@beatbax/engine/chips/nes/dmc.js');
     const samplePath = join(process.cwd(), 'tmp', 'chip nes sample.dmc');
 
     try {
@@ -513,7 +518,7 @@ describe('NES DMC sample resolution', () => {
   });
 
   test('unsupported scheme throws', async () => {
-    const { resolveDMCSample } = await import('../src/dmc.js');
+    const { resolveDMCSample } = await import('@beatbax/engine/chips/nes/dmc.js');
     await expect(resolveDMCSample('ftp://example.com/sample.dmc')).rejects.toThrow('unsupported');
   });
 });
@@ -725,7 +730,7 @@ describe('NES mixer gain weights', () => {
   });
 
   test('total max output does not clip (< 1.0)', async () => {
-    const { nesMix } = await import('../src/mixer.js');
+    const { nesMix } = await import('@beatbax/engine/chips/nes/mixer.js');
     const maxOut = nesMix(15, 15, 15, 15, 127);
     expect(maxOut).toBeLessThan(1.0);
   });

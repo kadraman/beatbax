@@ -1,12 +1,8 @@
 /**
- * @beatbax/plugin-chip-nes — compatibility shim.
- *
- * NES is built into @beatbax/engine. This package re-exports the engine APIs
- * for existing imports of @beatbax/plugin-chip-nes.
+ * NES chip public utilities and plugin export.
  */
+export { nesPlugin } from './plugin.js';
 export {
-  nesPlugin as default,
-  nesPlugin,
   PULSE_PERIOD,
   TRIANGLE_PERIOD,
   NOISE_PERIOD_TABLE,
@@ -19,6 +15,8 @@ export {
   NES_CLOCK_PAL,
   setNesClockRegion,
   getNesClockRegion,
+} from './periodTables.js';
+export {
   nesMix,
   getNesGainWeights,
   NES_MIX_GAIN,
@@ -26,12 +24,10 @@ export {
   getNesWebAudioMixMode,
   getNesWebAudioNorm,
   type NesWebAudioMixMode,
-  validateNesInstrument,
-  decodeDMC,
-  resolveDMCSample,
-  resolveRawDMCSample,
-  resolveGitHubUrl,
-  preloadDMCSamples,
+} from './mixer.js';
+export { validateNesInstrument } from './validate.js';
+export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';
+export {
   encodeDMC,
   encodeDMCFromPCM,
   packBitsLSBFirst,
@@ -40,4 +36,4 @@ export {
   getDmcRateHz,
   type EncodeDMCOptions,
   type EncodeDMCResult,
-} from '@beatbax/engine/chips/nes';
+} from './dmcEncode.js';

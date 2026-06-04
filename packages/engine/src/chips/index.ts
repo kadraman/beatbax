@@ -25,4 +25,6 @@ export type {
 } from './types.js';
 export { ChipRegistry, chipRegistry } from './registry.js';
 export { getSongValidationIssues } from './songValidation.js';
+export { BUILTIN_CHIP_PLUGINS } from './builtin-chips.js';
 export { gameboyPlugin } from './gameboy/plugin.js';
+export { nesPlugin } from './nes/plugin.js';

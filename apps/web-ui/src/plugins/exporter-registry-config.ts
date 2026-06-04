@@ -25,8 +25,8 @@ export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
     label: plugin.label,
     description:
       plugin.id === 'famitracker-text'
-        ? 'FamiTracker text export placeholder (.txt) - chips: nes.'
-        : 'FamiTracker binary export placeholder (.ftm) - chips: nes.',
+        ? 'FamiTracker text export placeholder (.txt) - chips: nes, famicom.'
+        : 'FamiTracker binary export placeholder (.ftm) - chips: nes, famicom.',
     badge: 'Experimental' as const,
     plugin,
     dependsOnChipPlugins: ['nes'],

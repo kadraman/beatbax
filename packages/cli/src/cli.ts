@@ -196,8 +196,7 @@ program
     // ── .dmc sample playback ──────────────────────────────────────────────
     if (file.toLowerCase().endsWith('.dmc')) {
       const { playAudioBuffer } = await import('@beatbax/engine/node');
-      const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
-      const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
+      const { decodeDMC, DMC_RATE_TABLE } = await import('@beatbax/engine/chips/nes');
       const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));
       const dmcHz = DMC_RATE_TABLE[rateIdx];
       const sampleRate = parseInt(globalOpts.sampleRate, 10) || 44100;
@@ -722,6 +721,8 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
     // Skip the built-in Game Boy plugin if it ever gets published as a
     // standalone package — it is always pre-registered by ChipRegistry.
     if (pkgName === '@beatbax/plugin-chip-gameboy') continue;
+    // NES is built into @beatbax/engine; shim package is not loaded at runtime.
+    if (pkgName === '@beatbax/plugin-chip-nes' && chipRegistry.has('nes')) continue;
     try {
       const mod = await import(pkgName);
       const plugin: ChipPlugin = mod.default || mod;
@@ -974,7 +975,7 @@ convertCmd
       formatDmcInstrumentLine,
       decodeDMC,
       getDmcRateHz,
-    } = await import('@beatbax/plugin-chip-nes');
+    } = await import('@beatbax/engine/chips/nes');
 
     const rateHz = getDmcRateHz(rateIndex, region);
 

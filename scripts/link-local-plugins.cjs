@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// This script links all local BeatBax plugins (e.g., plugin-chip-nes) into the web-ui's node_modules for local development.
+// Links built optional plugins into web-ui node_modules for local development.
+// NES is built into @beatbax/engine — chip-nes is a compatibility shim and is skipped.
 // Usage: node scripts/link-local-plugins.cjs
+
+const SKIP_PLUGINS = new Set(['chip-nes']);
 
 const repoRoot = path.resolve(__dirname, '..');
 const pluginsDir = path.join(repoRoot, 'packages', 'plugins');
@@ -24,6 +27,10 @@ try {
   fs.mkdirSync(webUiNodeModules, { recursive: true });
 
   for (const pluginName of fs.readdirSync(pluginsDir)) {
+    if (SKIP_PLUGINS.has(pluginName)) {
+      console.log(`Skipping ${pluginName}: NES is built into @beatbax/engine.`);
+      continue;
+    }
     const pluginPath = path.join(pluginsDir, pluginName);
     const stat = fs.statSync(pluginPath);
     if (!stat.isDirectory()) continue;
