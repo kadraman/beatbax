@@ -51,6 +51,8 @@ describe('BeatBax completion context', () => {
   test('detects chip value and inst property contexts', () => {
     expect(detectCompletionContext('chip ', 6, false).kind).toBe('chip-value');
     expect(detectCompletionContext('inst lead type=', 16, false).kind).toBe('inst-property');
+    expect(detectCompletionContext('inst hat type=tone1 vol=15 ', 32, false).kind).toBe('inst-property-key');
+    expect(detectCompletionContext('inst hat type=tone1 env_bass=', 33, false).kind).toBe('inst-property');
     expect(detectCompletionContext('export ', 8, false).kind).toBe('export-format');
     expect(detectCompletionContext('seq main = pat:inst(', 22, false).kind).toBe('modifier-inst-arg');
   });
@@ -87,7 +89,7 @@ describe('BeatBax completion context', () => {
     expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main lock scale', line)).toBe('value');
     expect(getChannelLockCompletionSlot('channel 1 => inst lead seq main', line)).toBeNull();
 
-    expect(detectCompletionContext(line, line.indexOf('=') + 2, false).kind).toBe('channel-lock-value');
+    expect(detectCompletionContext(line, line.indexOf('lock=') + 'lock='.length + 1, false).kind).toBe('channel-lock-value');
     const lockLine = 'channel 1 => inst lead seq main lock';
     expect(detectCompletionContext(lockLine, lockLine.length + 1, false).kind).toBe('channel-lock-key');
   });
@@ -394,6 +396,41 @@ describe('BeatBax Monaco completion provider', () => {
     const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
     expect(labels).toContain('pulse1');
     expect(labels).toContain('wave');
+  });
+
+  test('suggests AY tone types and properties for spectrum-128', () => {
+    const typeResult = provideBeatBaxCompletions(
+      makeModel(['inst bass type='], 1, 16),
+      { lineNumber: 1, column: 16 },
+      { ast: null, resolvedAst: null, song: null, chip: 'spectrum-128' },
+    );
+    const typeLabels = (typeResult as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(typeLabels).toContain('tone1');
+    expect(typeLabels).toContain('tone3');
+
+    const propLine = 'inst bass type=tone3 vol=10 ';
+    const propResult = provideBeatBaxCompletions(
+      makeModel([propLine], 1, propLine.length + 1),
+      { lineNumber: 1, column: propLine.length + 1 },
+      { ast: null, resolvedAst: null, song: null, chip: 'spectrum-128' },
+    );
+    const propLabels = (propResult as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(propLabels).toContain('env_bass');
+    expect(propLabels).toContain('noise_rate');
+    expect(propLabels).not.toContain('type');
+    expect(propLabels).not.toContain('vol');
+  });
+
+  test('suggests env_bass=true on spectrum inst property value', () => {
+    const line = 'inst bass type=tone3 env_bass=';
+    const result = provideBeatBaxCompletions(
+      makeModel([line], 1, line.length + 1),
+      { lineNumber: 1, column: line.length + 1 },
+      { ast: null, resolvedAst: null, song: null, chip: 'spectrum-128' },
+    );
+    const labels = (result as { suggestions: { label: string }[] }).suggestions.map((s) => s.label);
+    expect(labels).toContain('true');
+    expect(labels).toContain('false');
   });
 
   test('does not suggest other properties while editing free-form inst values', () => {

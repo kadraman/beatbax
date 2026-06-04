@@ -19,8 +19,10 @@ export type { InstrumentNode, InstMap, AST, PatternEvent, SequenceItem, ChannelN
 
 // ─── Plugin system ────────────────────────────────────────────────────────────
 
-export type { ChipPlugin, ChipChannelBackend, ValidationError, ChipUIContributions, ChipHelpSection } from './chips/types.js';
-export { ChipRegistry, chipRegistry, gameboyPlugin } from './chips/index.js';
+export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipUIContributions, ChipHelpSection, ChipHelpContext, ChipNewSongWizard } from './chips/types.js';
+export { ChipRegistry, chipRegistry, gameboyPlugin, getSongValidationIssues } from './chips/index.js';
 export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
 export { ExporterRegistry, exporterRegistry } from './export/registry.js';
 export { BeatBaxEngine } from './engine.js';
+export { resolveSong, resolveSongAsync } from './song/index.browser.js';
+export type { SongModel, ChannelModel, ChannelEvent } from './song/songModel.js';

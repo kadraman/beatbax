@@ -1,0 +1,87 @@
+# AY-3-8912 effect coverage fixture.
+#
+# Covers BeatBax effects supported on Spectrum-128 / AY:
+#   vol_env, arp_env, pitch_env, vib, port, bend, volSlide, trem, cut
+# Unsupported / SMS-only effects: see effects/ay_unsupported_effects_demo.bax
+#
+# AY volume reminder:
+#   0 = silent, 15 = loudest
+# vol_env is HARDWARE (R11–R13) — only one instrument may use it at a time.
+# Other voices use fixed vol and BeatBax volSlide for per-channel shaping.
+#
+# Software macros (arp_env / pitch_env):
+#   - Instrument-level demos: instruments/ay_all_macros.bax, ay_macro_arp_pitch.bax
+#   - Inline pitch_env / arp_env on notes below are baked into the AY PCM renderer:
+#     pitch_env knots glide smoothly across the full note; arp_env stays stepped at ~60 Hz.
+#   - Inline arp: (semitone list effect) is separate from arp_env and also stepped per tick.
+#   - Inline volSlide is also baked into PCM (fade in/out in amplitude units 0–15).
+#
+# Noise percussion (tone_mix, tone off by default):
+#   cut, volSlide, trem — amplitude / length shaping; note name does not retune noise (R6 is per-inst).
+# Tone+noise hits (tone=true, noise_frames / tone_frames):
+#   pitch_env, bend — affect the tone click; pair with noise_rate / noise_frames on the instrument.
+
+song name "AY Effects Showcase"
+chip spectrum-128
+bpm 132
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+# Sole hardware vol_env holder — global R11–R13 program while this voice sounds.
+inst i_t1    type=tone1 vol=12 vol_env=[12,11,10,11|11]
+
+# Fixed volume — inline effects only (matches SMS tone2 layout).
+inst i_t2    type=tone2 vol=12
+
+# Noise-only percussion (tone off): fixed noise_rate; shape with cut / volSlide / trem.
+inst i_noise type=tone3 vol=15 tone_mix=true noise_rate=2
+
+# Kick body: tone click + short noise burst — inline pitch_env on the pattern drops the tone pitch.
+inst i_kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3
+
+# Same recipe with instrument-level pitch_env (equivalent to inline on p_fx_kick below):
+# inst i_kick_instenv type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 pitch_env=[+5,+2,0,-2,-4,-6]
+
+# =============================================================================
+# Patterns
+# =============================================================================
+
+# Tone1 — one effect per note (vol_env comes from i_t1 on every hit):
+#   C4  — vibrato after 4-row delay (inline vib)
+#   E4  — major-3rd / 5th arpeggio (inline arp, not arp_env)
+#   G4  — smooth pitch wobble: +2 st → root → −2 st → root, spread over the whole :8 note
+#   C5  — cut after 1 tick (staccato)
+pat p_fx_t1 = C4<vib:4,5,sine,0,4>:8 E4<arp:3,7>:8 G4<pitch_env:[0,2,0,-2,0]>:8 C5<cut:1>:8
+
+# Tone2 — one effect per note on fixed-vol i_t2 (no hardware vol_env):
+#   E3  — volSlide −12 over 8 steps (fade out across the :8 note)
+#   C3  — portamento into the next pitch
+#   G3  — tremolo on amplitude
+#   D3  — exponential pitch bend down
+pat p_fx_t2 = E3<volSlide:-12,8>:8 C3<port:8>:8 G3<trem:6,4,sine,0,1>:8 D3<bend:-7,exp,0,1>:8
+
+# Tone3 noise-only — trem (hiss wobble), volSlide fade, cut (staccato gate):
+pat p_fx_noise = C2<trem:6,4,sine,0,1>:4 C2<volSlide:-8,4>:4 C2<cut:2>:4 . . . .
+
+# Tone3 kick — inline pitch_env glides the tone click down (noise burst from i_kick inst fields):
+pat p_fx_kick  = C3<pitch_env:[+5,+2,0,-2,-4,-6]>:8 . . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq s_t1 = p_fx_t1 p_fx_t1
+seq s_t2 = p_fx_t2 p_fx_t2
+seq s_perc = p_fx_noise p_fx_kick:inst(i_kick)
+
+# =============================================================================
+# Channels
+# =============================================================================
+
+channel 1 => inst i_t1 seq s_t1
+channel 2 => inst i_t2 seq s_t2
+channel 3 => inst i_noise seq s_perc
+
+play

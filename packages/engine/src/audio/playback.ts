@@ -14,6 +14,7 @@ import BufferedRenderer from './bufferedRenderer.js';
 import { get as getEffect, clearEffectState } from '../effects/index.js';
 import { createLogger } from '../util/logger.js';
 import { chipRegistry } from '../chips/index.js';
+import { applyInlineRenderEffects } from './inlineMacroEffects.js';
 
 const log = createLogger('player');
 
@@ -717,30 +718,18 @@ export class Player {
               }
               if (this.solo !== null && this.solo !== capturedChId) return;
               if (this.muted.has(capturedChId)) return;
-              // Merge any inline "instrument-property" effects into the instrument before rendering.
-              // Effects like noise_rate_env carry their payload as params and must reach createPlaybackNodes.
-              let effectiveInst = capturedInst;
-              if (capturedToken?.effects && Array.isArray(capturedToken.effects) && capturedToken.effects.length > 0) {
-                const instOverrides: Record<string, any> = {};
-                for (const fx of capturedToken.effects) {
-                  const fxType = fx && fx.type ? String(fx.type).toLowerCase() : '';
-                  if (fxType === 'noise_rate_env' && fx.params && fx.params.length > 0) {
-                    instOverrides['noise_rate_env'] = fx.params[0];
-                  } else if (fxType === 'vol_env' && fx.params && fx.params.length > 0) {
-                    instOverrides['vol_env'] = fx.params[0];
-                  }
-                }
-                if (Object.keys(instOverrides).length > 0) {
-                  effectiveInst = { ...capturedInst, ...instOverrides };
-                }
-              }
+              // Bake inline macros and volSlide into the instrument for chip PCM renderers.
+              const { effectiveInst, remainingEffects } = applyInlineRenderEffects(
+                capturedInst,
+                capturedToken?.effects,
+              );
               const nodes = backend.createPlaybackNodes(this.ctx, capturedFreq, time, capturedDur, effectiveInst, this.scheduler, this._getChannelDest(capturedChId));
               if (nodes && nodes.length > 0) {
                 const prevFreq = this._lastNoteFreqByChannel.get(capturedChId);
                 if (nodes[0] && Number.isFinite(prevFreq) && (prevFreq as number) > 0) {
                   (nodes[0] as any)._prevFreq = prevFreq;
                 }
-                this.tryApplyEffects(this.ctx, nodes, capturedToken && capturedToken.effects ? capturedToken.effects : [], time, capturedDur, capturedChId, capturedTickSec, capturedInst);
+                this.tryApplyEffects(this.ctx, nodes, remainingEffects, time, capturedDur, capturedChId, capturedTickSec, capturedInst);
                 this._lastNoteFreqByChannel.set(capturedChId, capturedFreq);
                 this.tryApplyPan(this.ctx, nodes, capturedPanVal, this._getChannelDest(capturedChId));
                 this.tryScheduleEcho(nodes);
@@ -757,7 +746,11 @@ export class Player {
               }
               if (this.solo !== null && this.solo !== capturedChId) return;
               if (this.muted.has(capturedChId)) return;
-              backend.noteOn(capturedFreq, capturedInst);
+              const { effectiveInst } = applyInlineRenderEffects(
+                capturedInst,
+                capturedToken?.effects,
+              );
+              backend.noteOn(capturedFreq, effectiveInst);
             });
             this.scheduler.schedule(time + capturedDur, () => { backend.noteOff(); });
           }
