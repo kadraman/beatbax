@@ -16,7 +16,7 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 | Game Boy APU (DMG-01) | [x] | Low | `@beatbax/plugin-chip-gameboy` — exports: UGE (hUGETracker), JSON ISM, WAV, MIDI |
 | SN76489 (PSG — SMS / Game Gear) | [x] | Low | `@beatbax/plugin-chip-sms` — exports: VGM (`@beatbax/plugin-exporter-vgm`), WAV |
 | NES APU / RP2A03 | [x] | Medium | `@beatbax/plugin-chip-nes` — exports: FamiTracker `.ftm`/`.txt` (`@beatbax/plugin-export-famitracker`), WAV, MIDI |
-| ZX Spectrum 128 / Amstrad CPC (AY-compatible PSG) | [ ] | Low–Medium | `@beatbax/plugin-chip-spectrum-128` — target formats: PT3 (ProTracker), Arkos Tracker, VGM, register dumps; Amstrad CPC included because of hardware similarity |
+| ZX Spectrum 128 / Amstrad CPC (AY-compatible PSG) | [x] | Low–Medium | `@beatbax/plugin-chip-spectrum-128` implemented; AY export formats (PT3/Arkos/VGM/register dumps) tracked as follow-up work |
 | Atari ST (YM2149 PSG) | [ ] | Low–Medium | `@beatbax/plugin-chip-atari-st` — target formats: YM, SND, VGM, register dumps |
 | YM2413 (OPLL) | [ ] | Medium | Preset-based 2‑op FM — easiest FM entry (MSX/PC‑88 coverage) |
 | OPL2 / YM3812 (AdLib / early FM) | [ ] | Medium | PC FM; requires operator/patch handling and OPL register export |
@@ -68,6 +68,7 @@ Using that definition, here’s a clean, authoritative list of the major chips t
   - Homebrew suitability: Yes — `VGM`/`GYM` or driver-ready register dumps are commonly used for Genesis homebrew; compilation into engine-friendly data structures is required.
 
 - **ZX Spectrum 128 / Amstrad CPC (AY-compatible PSG)**
+  - Status: Implemented core chip plugin (`@beatbax/plugin-chip-spectrum-128`); AY VGM export tracked separately
   - Channels: 3 PSG channels, envelope generator on-chip
   - Features: PSG envelopes, easy square/noise synthesis, Spectrum 128 and Amstrad CPC timing/compatibility differences
   - Difficulty: Low–Medium

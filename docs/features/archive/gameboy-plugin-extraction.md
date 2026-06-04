@@ -1,10 +1,12 @@
 ---
 title: "Extract Game Boy Backend as @beatbax/plugin-chip-gameboy"
-status: proposed
+status: deprecated
 authors: ["kadraman"]
 created: 2026-04-16
 issue: ""
 ---
+
+> IMPORTANT: This feature has been deprecated and will not be implemented, instead we will be providing a number of built-in Nintendo Chips: GameBoy, NES and SMS.
 
 ## Summary
 
