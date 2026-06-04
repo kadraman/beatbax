@@ -10,7 +10,13 @@ import {
   buildImportPathCompletionItems,
   isImportPathPosition,
 } from './import-paths';
-import { getChipInstrumentMeta, getInstPropertyCompletions } from './instrument-meta';
+import {
+  getChipInstrumentMeta,
+  getInstPropertyCompletions,
+  getInstPropertyNamesForChip,
+  INST_PROPERTY_NAME_PATTERN,
+  parseUsedInstProperties,
+} from './instrument-meta';
 
 const SNIPPET_RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
 
@@ -53,6 +59,7 @@ export type CompletionContextKind =
   | 'export-format'
   | 'import-path'
   | 'inst-property'
+  | 'inst-property-key'
   | 'scale-root'
   | 'scale-mode'
   | 'scale-enforcement'
@@ -103,6 +110,8 @@ export interface CompletionContext {
   insideAngle: boolean;
   /** Set when kind is `inst-property`. */
   instProperty?: string;
+  /** Partial property name when kind is `inst-property-key`. */
+  instPropertyPrefix?: string;
 }
 
 interface QuoteScanState {
@@ -192,10 +201,24 @@ export function detectCompletionContext(
 
   if (/^\s*inst\s+\w+/.test(line)) {
     const propMatch = before.match(
-      /\b(type|duty|env|wave|volume|width|noise|gm|note|sweep|vol|env_period|sweep_en|sweep_period|sweep_shift|sweep_dir|sample|vol_env|duty_env|arp_env|pitch_env|noise_rate)\s*=\s*([A-Za-z0-9._+#\-]*)$/,
+      new RegExp(`\\b(${INST_PROPERTY_NAME_PATTERN})\\s*=\\s*([A-Za-z0-9._+#\\-]*)$`),
     );
     if (propMatch) {
       return { kind: 'inst-property', insideAngle: false, instProperty: propMatch[1] };
+    }
+
+    const afterInst = before.match(/^\s*inst\s+\S+\s+(.*)$/);
+    if (afterInst) {
+      const tail = afterInst[1];
+      const partialKey = tail.match(/(?:^|\s)([A-Za-z_][\w]*)$/)?.[1];
+      const editingValue = /\b[A-Za-z_][\w]*=\S*$/.test(tail) && !/\b[A-Za-z_][\w]*=\s*$/.test(tail);
+      if (!editingValue && (partialKey || tail.endsWith(' ') || tail.endsWith('\t'))) {
+        return {
+          kind: 'inst-property-key',
+          insideAngle: false,
+          instPropertyPrefix: partialKey ?? '',
+        };
+      }
     }
   }
 
@@ -394,6 +417,32 @@ function exportFormatSuggestions(
   }));
 }
 
+function instPropertyKeySuggestions(
+  line: string,
+  range: monaco.IRange,
+  chip: string,
+  prefix: string,
+): monaco.languages.CompletionItem[] {
+  const meta = getChipInstrumentMeta(chip);
+  const used = parseUsedInstProperties(line);
+  const lowerPrefix = prefix.toLowerCase();
+
+  return Object.entries(meta.properties)
+    .filter(([name]) => !used.has(name))
+    .filter(([name]) => !prefix || name.toLowerCase().startsWith(lowerPrefix))
+    .map(([name, prop]) => ({
+      label: name,
+      kind: monaco.languages.CompletionItemKind.Property,
+      detail: prop.detail ?? 'Instrument property',
+      insertText: `${name}=`,
+      range,
+      sortText: '0' + name,
+      documentation: documentationForCompletion(name, chip)
+        ? { value: documentationForCompletion(name, chip)! }
+        : undefined,
+    }));
+}
+
 function instPropertySuggestions(
   range: monaco.IRange,
   property: string,
@@ -458,11 +507,44 @@ const DIRECTIVES = [
   { label: 'artist', detail: 'Set artist name', insertText: 'artist "Artist"' },
 ];
 
-const DEFINITION_SNIPPETS = [
+const GB_DEFINITION_SNIPPETS = [
   { label: 'inst (pulse1)', detail: 'Define pulse1 instrument', insertText: 'inst ${1:name} type=pulse1 duty=50 env=12,down' },
   { label: 'inst (pulse2)', detail: 'Define pulse2 instrument', insertText: 'inst ${1:name} type=pulse2 duty=25 env=10,down' },
   { label: 'inst (wave)', detail: 'Define wave instrument', insertText: 'inst ${1:name} type=wave wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]' },
   { label: 'inst (noise)', detail: 'Define noise instrument', insertText: 'inst ${1:name} type=noise env=12,down' },
+];
+
+const NES_DEFINITION_SNIPPETS = [
+  { label: 'inst (pulse1)', detail: 'Define NES pulse1 instrument', insertText: 'inst ${1:name} type=pulse1 duty=50 vol_env=[15,12,8,4,0]' },
+  { label: 'inst (pulse2)', detail: 'Define NES pulse2 instrument', insertText: 'inst ${1:name} type=pulse2 duty=25 vol_env=[15,10,6,0]' },
+  { label: 'inst (triangle)', detail: 'Define NES triangle instrument', insertText: 'inst ${1:name} type=triangle vol=10' },
+  { label: 'inst (noise)', detail: 'Define NES noise instrument', insertText: 'inst ${1:name} type=noise vol_env=[15,8,4,0] note=C5' },
+];
+
+const SPECTRUM_DEFINITION_SNIPPETS = [
+  { label: 'inst (tone1)', detail: 'Define AY channel A instrument', insertText: 'inst ${1:name} type=tone1 vol=12' },
+  { label: 'inst (tone2)', detail: 'Define AY channel B instrument', insertText: 'inst ${1:name} type=tone2 vol=12' },
+  { label: 'inst (tone3)', detail: 'Define AY channel C instrument', insertText: 'inst ${1:name} type=tone3 vol=12' },
+  {
+    label: 'inst (hat)',
+    detail: 'AY closed hat (noise + stick)',
+    insertText: 'inst ${1:hat} type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7',
+  },
+  {
+    label: 'inst (buzz bass)',
+    detail: 'AY buzz bass (env_bass)',
+    insertText: 'inst ${1:bass} type=tone3 vol=10 env_bass=true',
+  },
+];
+
+function definitionSnippetsForChip(chip: string) {
+  const canonical = chipRegistry.resolve(chip);
+  if (canonical === 'spectrum-128') return SPECTRUM_DEFINITION_SNIPPETS;
+  if (canonical === 'nes') return NES_DEFINITION_SNIPPETS;
+  return GB_DEFINITION_SNIPPETS;
+}
+
+const DEFINITION_SNIPPETS_COMMON = [
   { label: 'pat', detail: 'Define pattern', insertText: 'pat ${1:name} = ${2:C4 E4 G4 C5}' },
   { label: 'seq', detail: 'Define sequence', insertText: 'seq ${1:name} = ${2:pattern1 pattern2}' },
   { label: 'effect', detail: 'Define named effect preset', insertText: 'effect ${1:name} = ${2:vib:3,6}' },
@@ -758,6 +840,17 @@ export function provideBeatBaxCompletions(
       }
       break;
 
+    case 'inst-property-key':
+      suggestions.push(
+        ...instPropertyKeySuggestions(
+          line,
+          range,
+          options.chip,
+          ctx.instPropertyPrefix ?? '',
+        ),
+      );
+      break;
+
     case 'scale-root':
       suggestions.push(...withDocumentation(
         enumSuggestions(SCALE_ROOTS, range, 'Scale root'),
@@ -854,7 +947,7 @@ export function provideBeatBaxCompletions(
           options.chip,
         ),
         ...withDocumentation(
-          DEFINITION_SNIPPETS.map((s) => ({
+          [...definitionSnippetsForChip(options.chip), ...DEFINITION_SNIPPETS_COMMON].map((s) => ({
             ...s,
             kind: monaco.languages.CompletionItemKind.Snippet,
             insertTextRules: SNIPPET_RULE,

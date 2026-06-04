@@ -5,7 +5,7 @@
  * channel audio backends through `ChipChannelBackend`. The Game Boy chip
  * is built-in; all other chips are loaded via the plugin system.
  */
-import { InstrumentNode } from '../parser/ast.js';
+import { InstrumentNode, AST } from '../parser/ast.js';
 import { SongModel } from '../song/songModel.js';
 import type { ExporterPlugin } from '../export/types.js';
 import type { EffectHandler } from '../effects/types.js';
@@ -15,6 +15,13 @@ import type { EffectHandler } from '../effects/types.js';
 export interface ValidationError {
   field: string;
   message: string;
+}
+
+/** Context for song-level chip validation (shared hardware resources). */
+export interface SongValidationContext {
+  instruments: Record<string, InstrumentNode>;
+  /** Parsed song AST for tick-aware overlap checks. */
+  song?: AST;
 }
 
 // ─── Channel backend ─────────────────────────────────────────────────────────
@@ -49,6 +56,12 @@ export interface ChipChannelBackend {
    * @param frame - Frame counter (incremented each audio frame).
    */
   applyEnvelope(frame: number): void;
+
+  /**
+   * Optional: stretch `pitch_env` / `vol_env` across a held note's sample length.
+   * Called after `noteOn` when the engine knows how long the note will sound.
+   */
+  prepareNoteRender?(durationSamples: number): void;
 
   /**
    * Render audio samples into `buffer`.
@@ -117,6 +130,14 @@ export interface ChipHelpSection {
   >;
 }
 
+/** Active song chip context passed to optional help-section builders. */
+export interface ChipHelpContext {
+  /** Raw `chip` directive from the song AST (may be an alias, e.g. `cpc`). */
+  chip?: string;
+  /** Optional `chipRegion` directive (legacy platform selector). */
+  chipRegion?: string;
+}
+
 /**
  * Optional UI contributions provided by a chip plugin.
  * These are consumed by the web-UI at runtime to tailor the editor experience
@@ -143,6 +164,12 @@ export interface ChipUIContributions {
    * replaces it; unknown ids are appended after the built-in sections.
    */
   helpSections: ChipHelpSection[];
+
+  /**
+   * Optional builder for chip-variant help sections (e.g. Spectrum 128 vs CPC).
+   * When provided, the web UI calls this instead of using `helpSections` directly.
+   */
+  buildHelpSections?: (ctx: ChipHelpContext) => ChipHelpSection[];
 }
 
 export interface NewSongWizardTemplateOption {
@@ -310,6 +337,13 @@ export interface ChipPlugin {
    * Return an empty array when the instrument is valid.
    */
   validateInstrument(inst: InstrumentNode): ValidationError[];
+
+  /**
+   * Optional song-level validation for shared chip resources (e.g. AY noise
+   * period or envelope generator conflicts between instruments).
+   * Return an empty array when no issues are found.
+   */
+  validateSong?(ctx: SongValidationContext): ValidationError[];
 
   /**
    * Create a channel backend instance for the given channel index.

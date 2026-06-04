@@ -1,0 +1,64 @@
+# AY instrument field tour — grouped by how the plugin applies them.
+#
+# Software macros (~60 Hz, per channel): arp_env, pitch_env
+# Hardware / chip-global (stagger hits — one voice per tick): vol_env, env_bass, noise_rate
+#
+# Layout (16 steps per pattern, stepsPerBar 4):
+#   §1 (4 pats): lead arp_env + pitch_env, bass pitch_env, pad
+#   §2 (3 pats): env_bass buzz on channel C; lead + bass rest
+#   §3 (3 pats): split drum lanes (kick / snare / hat stagger from ay_percussion_demo)
+#
+#   Bars  1-4 : §1 macros
+#   Bars  5-7 : §2 buzz + rests
+#   Bar   8   : rest gap (clears buzz before drums)
+#   Bars  9-11: §3 staggered kit (one drum hit per tick)
+
+chip spectrum-128
+bpm 128
+
+song name "AY All Macros"
+song artist "The BeatBax Team"
+song description """Walkthrough of AY instrument fields: §1 software arp_env and pitch_env, §2 hardware env_bass (optional env_shape), §3 split percussion with staggered vol_env drums so R6 and R11–R13 never fight."""
+song tags "spectrum-128,ay,instrument,demo,macros,arp,pitch,env-bass,percussion"
+
+# ── §1 Melodic voices ────────────────────────────────────────────────────────
+
+inst lead type=tone1 vol=12 arp_env=[0,4,7|0] pitch_env=[+1,0,-1,0]
+inst bass type=tone2 vol=14 pitch_env=[0,-2,-4,-2,0]
+inst pad  type=tone3 vol=10
+
+# ── §2 Buzz bass ─────────────────────────────────────────────────────────────
+
+inst buzz type=tone3 vol=15 env_bass=true env_shape=10
+
+# ── §3 Drums (recipes from ay_percussion_demo.bax) ───────────────────────────
+
+inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[15,12,9,6,3,0]
+inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5 vol_env=[15,12,9,6,4,2,0]
+inst hatc  type=tone1 vol=15 tone=true tone_mix=true noise_rate=2 tone_frames=1 tone_vol=2 note=E7 vol_env=[15,10,6,3,0]
+
+# ── Patterns (16 steps each) ─────────────────────────────────────────────────
+
+pat macro_lead = C4 E4 G4 C5 B4 G4 E4 C4 E4 G4 C5 B4 G4 E4 G4 .
+pat macro_bass = C2 . . . G1 . . . C2 . . . G1 . . .
+pat macro_pad  = E3 . . . E3 . . . E3 . . . E3 . . .
+
+pat buzz_line  = C2 _ _ _ _ _ _ _ G1 _ _ _ _ _ _ _
+pat rest_bar   = . . . . . . . . . . . . . . . .
+
+# 3-way stagger — at most one drum per tick (kick 1, hat 2/4, snare 3)
+pat lane_kick  = kick . . . kick . . . kick . . . kick . . .
+pat lane_snare = . . snare . . . snare . . . snare . . . snare .
+pat lane_hat   = . hatc . hatc . hatc . hatc . hatc . hatc . hatc . hatc
+
+# ── Sequences (12 × 16 steps per channel) ────────────────────────────────────
+
+seq lead_tour = macro_lead macro_lead macro_lead macro_lead rest_bar rest_bar rest_bar rest_bar rest_bar lane_hat lane_hat lane_hat
+seq bass_tour = macro_bass macro_bass macro_bass macro_bass rest_bar rest_bar rest_bar rest_bar rest_bar lane_snare lane_snare lane_snare
+seq c_tour    = macro_pad macro_pad macro_pad macro_pad buzz_line:inst(buzz) buzz_line:inst(buzz) buzz_line:inst(buzz) rest_bar rest_bar lane_kick lane_kick lane_kick
+
+channel 1 => inst lead seq lead_tour
+channel 2 => inst bass seq bass_tour
+channel 3 => inst pad  seq c_tour
+
+play
