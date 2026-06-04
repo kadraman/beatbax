@@ -1,10 +1,16 @@
 ---
 title: "ZX Spectrum 128 Chip Plugin"
-status: proposed
+status: complete
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-05-14
 issue: "https://github.com/kadraman/beatbax/issues/108"
 ---
+
+## Completion Status
+
+Core scope in this feature document is complete: plugin package, shared AY chip semantics, Spectrum/CPC profiles, UI contributions, song wizard, validation, tests, and sample-song documentation are implemented.
+
+AY VGM export implementation remains intentionally out of scope for this feature and is tracked as a separate task in `.github/ISSUES/ay-vgm-export.md`.
 
 ## Summary
 

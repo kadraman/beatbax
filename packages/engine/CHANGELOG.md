@@ -1,5 +1,14 @@
 # @beatbax/engine
 
+## 0.18.0
+
+### Minor Changes
+
+- a115c2c: Export `getSongValidationIssues()` for chip plugins’ optional `validateSong()` hook; add `SongValidationContext` and `validateSong?` on `ChipPlugin`.
+  - Shared inline render effects (`applyInlineRenderEffects`) for `arp_env`, `pitch_env`, and `noise_rate_env` in playback and PCM render; optional `prepareNoteRender` on channel backends.
+  - `ChipConsoleVariant` / `buildHelpSections` for multi-console New Song Wizard and variant-aware help; `ChipHelpContext` with `chip` / `chipRegion`.
+  - Parser: additional chip aliases and chip directive handling for Spectrum targets.
+
 ## 0.17.0
 
 ### Minor Changes
