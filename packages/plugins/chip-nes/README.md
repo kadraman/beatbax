@@ -14,6 +14,15 @@ Adds support for the Nintendo Entertainment System audio hardware to BeatBax. Pr
 | 4       | Noise     | 15-bit LFSR noise generator (normal + loop modes) |
 | 5       | DMC       | Delta-modulation sample playback |
 
+## Deprecation notice (planned)
+
+NES support is moving into `@beatbax/engine` as a built-in chip. This package will remain as a compatibility shim for a transition period, then be deprecated on npm.
+
+Recommended migration:
+
+- `import { nesPlugin } from '@beatbax/engine/chips'`
+- `import { decodeDMC, encodeDMCFromPCM, setNesWebAudioMixMode } from '@beatbax/engine/chips/nes'`
+
 ## Installation
 
 ```bash

@@ -7,7 +7,7 @@
 
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
 import { sectionHeading, noteText, selectField } from './general';
-import { gameboyPlugin } from '@beatbax/engine/chips';
+import { chipRegistry, gameboyPlugin } from '@beatbax/engine/chips';
 import { exporterRegistry } from '../../plugins/browser-exporter-registry';
 import {
   BUILTIN_EXPORTER_IDS,
@@ -36,41 +36,63 @@ export function buildPluginsSection(): HTMLElement {
   el.appendChild(sectionHeading('Chip plugins'));
   el.appendChild(noteText(
     'Enable or disable pre-bundled chip backends. ' +
-    'The built-in Game Boy chip is always available. ' +
+    'Built-in chips are always available. ' +
     'Changes take effect after a page reload.'
   ));
 
   // ── Built-in chips (always on, no toggle) ──────────────────────────────────
   el.appendChild(builtinSubheading('Built-in'));
+  const builtinChips: Array<{ id: string; label: string; description: string; version: string; badge: 'Stable' | 'Beta' }> = [
+    {
+      id: 'gameboy',
+      label: 'Game Boy DMG-01 APU',
+      description: '4-channel APU — 2 pulse, wave, and noise. Enables `chip gameboy` in .bax scripts.',
+      version: gameboyPlugin.version,
+      badge: 'Stable',
+    },
+  ];
+  const nesPlugin = chipRegistry.get('nes');
+  if (nesPlugin) {
+    builtinChips.push({
+      id: 'nes',
+      label: 'NES (Ricoh 2A03)',
+      description:
+        'Nintendo Entertainment System APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
+        'Enables `chip nes` in .bax scripts.',
+      version: nesPlugin.version,
+      badge: 'Beta',
+    });
+  }
+  for (const builtin of builtinChips) {
+    const row = document.createElement('div');
+    row.className = 'bb-settings-feature-row';
 
-  const gbRow = document.createElement('div');
-  gbRow.className = 'bb-settings-feature-row';
+    const left = document.createElement('div');
+    left.className = 'bb-settings-feature-info';
 
-  const gbLeft = document.createElement('div');
-  gbLeft.className = 'bb-settings-feature-info';
+    const title = document.createElement('div');
+    title.className = 'bb-settings-feature-title';
+    const name = document.createElement('span');
+    name.textContent = builtin.label;
+    const ver = document.createElement('span');
+    ver.className = 'bb-settings-plugin-version';
+    ver.textContent = `v${builtin.version}`;
+    const badge = document.createElement('span');
+    badge.className = `bb-settings-badge ${BADGE_CLASS[builtin.badge] ?? ''}`;
+    badge.textContent = builtin.badge;
+    title.append(name, ver, badge);
 
-  const gbTitle = document.createElement('div');
-  gbTitle.className = 'bb-settings-feature-title';
-  const gbName = document.createElement('span');
-  gbName.textContent = 'Game Boy DMG-01 APU';
-  const gbVer = document.createElement('span');
-  gbVer.className = 'bb-settings-plugin-version';
-  gbVer.textContent = `v${gameboyPlugin.version}`;
-  const gbBadge = document.createElement('span');
-  gbBadge.className = 'bb-settings-badge bb-settings-badge--stable';
-  gbBadge.textContent = 'Stable';
-  gbTitle.append(gbName, gbVer, gbBadge);
+    const desc = document.createElement('span');
+    desc.className = 'bb-settings-feature-desc';
+    desc.textContent = builtin.description;
+    left.append(title, desc);
 
-  const gbDesc = document.createElement('span');
-  gbDesc.className = 'bb-settings-feature-desc';
-  gbDesc.textContent = '4-channel APU — 2 pulse, wave, and noise. Enables `chip gameboy` in .bax scripts.';
-  gbLeft.append(gbTitle, gbDesc);
-
-  const gbLocked = document.createElement('span');
-  gbLocked.className = 'bb-settings-plugin-builtin';
-  gbLocked.textContent = 'Built-in';
-  gbRow.append(gbLeft, gbLocked);
-  el.appendChild(gbRow);
+    const locked = document.createElement('span');
+    locked.className = 'bb-settings-plugin-builtin';
+    locked.textContent = 'Built-in';
+    row.append(left, locked);
+    el.appendChild(row);
+  }
 
   // ── Optional plugins (togglable) ───────────────────────────────────────────
   el.appendChild(builtinSubheading('Optional'));
@@ -118,7 +140,7 @@ export function buildPluginsSection(): HTMLElement {
     el.appendChild(row);
   }
 
-  if (enabled.includes('nes')) {
+  if (chipRegistry.has('nes')) {
     el.appendChild(sectionHeading('NES plugin audio'));
     const currentMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);
     const initialMode: NesWebAudioMixMode = currentMode === 'hardware' ? 'hardware' : getNesWebAudioMixMode();
@@ -252,7 +274,7 @@ function builtinSubheading(text: string): HTMLElement {
 }
 
 export function resetPluginsDefaults(): void {
-  storage.setJSON(StorageKey.ENABLED_PLUGINS, ['nes']);
+  storage.setJSON(StorageKey.ENABLED_PLUGINS, ['sms']);
   storage.setJSON(StorageKey.ENABLED_EXPORTER_PLUGINS, OPTIONAL_EXPORTER_PLUGINS.map((entry) => entry.id));
   storage.set(StorageKey.NES_WEB_AUDIO_MIX_MODE, 'normalized');
   window.location.reload();
