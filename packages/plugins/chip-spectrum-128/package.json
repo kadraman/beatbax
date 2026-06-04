@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-chip-spectrum-128",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ZX Spectrum 128 / Amstrad CPC AY-3-8912 PSG chip plugin for BeatBax.",
   "private": false,
   "type": "module",

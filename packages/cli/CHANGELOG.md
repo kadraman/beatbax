@@ -1,5 +1,15 @@
 # @beatbax/cli
 
+## 0.4.8
+
+### Patch Changes
+
+- a115c2c: Run song-level chip validation after import resolution in `verify` (warnings for shared-resource overlaps when imports are present).
+
+- Updated dependencies [cfff62d]
+- Updated dependencies [a115c2c]
+  - @beatbax/engine@0.18.0
+
 ## 0.4.7
 
 ### Patch Changes
