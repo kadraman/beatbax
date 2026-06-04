@@ -240,7 +240,7 @@ When the shim grace period ends, deprecate the npm package with an explicit migr
 
 1. Ensure the final shim release is published and README migration guidance is live.
 2. Deprecate all historical versions:
-   - `npm deprecate @beatbax/plugin-chip-nes@"<0.0.0-0 || >=0.0.0" "Deprecated: NES is now built in to @beatbax/engine. Migrate imports to @beatbax/engine/chips and @beatbax/engine/chips/nes."`
+   - `npm deprecate @beatbax/plugin-chip-nes@"*" "Deprecated: NES is now built in to @beatbax/engine. Migrate imports to @beatbax/engine/chips and @beatbax/engine/chips/nes."`
 3. Verify notice visibility:
    - `npm view @beatbax/plugin-chip-nes deprecated`
 4. Keep the package available (do not unpublish) so existing installs remain reproducible.
