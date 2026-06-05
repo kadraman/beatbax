@@ -1,5 +1,13 @@
 # @beatbax/plugin-exporter-famitracker
 
+## 0.2.3
+
+### Patch Changes
+
+- 004f40d: Move the NES Ricoh 2A03 APU into `@beatbax/engine` as a built-in chip alongside Game Boy.
+  - Accept `chip famicom` for FamiTracker Text export via `chipRegistry.resolve()` (not strict `chip === 'nes'`).
+  - Advertise `famicom` in `supportedChips` and raise minimum `@beatbax/engine` peer dependency to `>=0.18.0`.
+
 ## 0.2.2
 
 ### Patch Changes
