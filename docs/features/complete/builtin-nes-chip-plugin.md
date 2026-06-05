@@ -1,8 +1,9 @@
 ---
 title: "Built-in NES Chip Plugin"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-06-04
+implemented: 2026-06-05
 issue: "https://github.com/kadraman/beatbax/issues/127"
 ---
 
@@ -12,11 +13,21 @@ Move the NES Ricoh 2A03 APU implementation from the standalone package `@beatbax
 
 This supports BeatBax’s Nintendo-first product direction while keeping optional chips (SMS, Spectrum, community plugins) on the existing host-driven registration path.
 
+## Implementation Outcome
+
+Implemented in the current workspace and published packages:
+
+- NES source now lives under `packages/engine/src/chips/nes/`
+- `ChipRegistry` auto-registers both Game Boy and NES via `BUILTIN_CHIP_PLUGINS`
+- `@beatbax/engine/chips/nes` exports the public NES utilities used by the CLI and web-ui
+- CLI and web-ui no longer depend on `@beatbax/plugin-chip-nes`
+- The compatibility `@beatbax/plugin-chip-nes` package remains published on npm and is now deprecated with a migration message; its shim packaging is maintained outside this monorepo
+
 ---
 
 ## Problem Statement
 
-Today NES and Game Boy are treated differently:
+Before this feature landed, NES and Game Boy were treated differently:
 
 | Aspect | Game Boy | NES |
 |--------|----------|-----|
@@ -40,7 +51,7 @@ Related prior work: NES was originally implemented as an external plugin per [`d
 
 ### Summary
 
-1. **Inline** all NES source from `packages/plugins/chip-nes/src/` into `packages/engine/src/chips/nes/`.
+1. **Inline** all NES source from the former `packages/plugins/chip-nes/src/` package into `packages/engine/src/chips/nes/`.
 2. **Register** `nesPlugin` via a central built-in list (e.g. `BUILTIN_CHIP_PLUGINS`) used by `ChipRegistry` at construction time.
 3. **Export** chip-specific utilities from `@beatbax/engine/chips/nes` (DMC encode/decode, mixer settings, period tables).
 4. **Retain** `@beatbax/plugin-chip-nes` as a thin npm **shim** re-exporting from the engine (backward compatibility).
@@ -112,7 +123,7 @@ Implement in ordered phases; each phase should leave tests green.
 
 ### Phase 1 — Relocate NES source into engine
 
-Move all modules from [`packages/plugins/chip-nes/src/`](../../packages/plugins/chip-nes/src/) to **`packages/engine/src/chips/nes/`**:
+Move all modules from the former `packages/plugins/chip-nes/src/` package to **`packages/engine/src/chips/nes/`**:
 
 - `pulse.ts`, `triangle.ts`, `noise.ts`, `dmc.ts`, `dmcEncode.ts`, `dmcSamples.ts`, `mixer.ts`, `macros.ts`, `periodTables.ts`, `validate.ts`, `ui-contributions.ts`, `songWizard.ts`
 
@@ -148,7 +159,7 @@ export const BUILTIN_CHIP_PLUGINS = [gameboyPlugin, nesPlugin] as const;
 
 ### Phase 3 — Tests
 
-- Move [`packages/plugins/chip-nes/tests/`](../../packages/plugins/chip-nes/tests/) → `packages/engine/tests/nes/`
+- Move the former `packages/plugins/chip-nes/tests/` suite → `packages/engine/tests/nes/`
 - Extend [`packages/engine/tests/chip-registry.test.ts`](../../packages/engine/tests/chip-registry.test.ts): `chipRegistry.has('nes')` without manual `register()`
 - Run `npm run engine:test`
 
@@ -159,6 +170,8 @@ Keep publishing `@beatbax/plugin-chip-nes`:
 - Replace implementation with re-exports from `@beatbax/engine/chips/nes`
 - `peerDependencies`: `@beatbax/engine` >= version that includes built-in NES
 - README: deprecation / compatibility notice
+
+The shim package remains relevant for published npm consumers, but its source is no longer part of this monorepo.
 
 **CLI:** [`packages/cli/src/cli.ts`](../../packages/cli/src/cli.ts) `discoverPlugins()` — skip `@beatbax/plugin-chip-nes` when `chipRegistry.has('nes')`.
 
@@ -255,15 +268,15 @@ When the shim grace period ends, deprecate the npm package with an explicit migr
 
 ## Implementation Checklist
 
-- [ ] Move `chip-nes/src` → `engine/src/chips/nes/`
-- [ ] Add `builtin-chips.ts` and register NES in `ChipRegistry`
-- [ ] Add `@beatbax/engine/chips/nes` package export
-- [ ] Move tests to `engine/tests/nes/`
-- [ ] Shim `@beatbax/plugin-chip-nes`
-- [ ] Update web-ui registry, settings (data-driven built-ins), `main.ts`
-- [ ] Update CLI imports and `package.json`
-- [ ] Update docs/README/copilot instructions
-- [ ] Changesets and `build-all` / test pass
+- [x] Move `chip-nes/src` → `engine/src/chips/nes/`
+- [x] Add `builtin-chips.ts` and register NES in `ChipRegistry`
+- [x] Add `@beatbax/engine/chips/nes` package export
+- [x] Move tests to `engine/tests/nes/`
+- [x] Publish and deprecate the `@beatbax/plugin-chip-nes` compatibility shim
+- [x] Update web-ui registry, settings (data-driven built-ins), `main.ts`
+- [x] Update CLI imports and `package.json`
+- [x] Update docs/README/copilot instructions
+- [x] Validate with `npm run build-all`, `npm test`, and `npm view @beatbax/plugin-chip-nes deprecated`
 
 ---
 
@@ -278,8 +291,6 @@ When the shim grace period ends, deprecate the npm package with an explicit migr
 
 ## Open Questions
 
-- **Shim lifetime:** How many releases keep `@beatbax/plugin-chip-nes` before deprecating on npm major?
-- **Engine semver:** Minor vs major for adding built-in NES and `./chips/nes` export?
 - **Game Boy extraction:** Still proposed separately; built-in list should work whether GB stays inline or moves to `@beatbax/plugin-chip-gameboy` with engine dependency.
 
 ---
@@ -290,7 +301,6 @@ When the shim grace period ends, deprecate the npm package with an explicit migr
 - [`docs/features/complete/plugin-system.md`](complete/plugin-system.md) — `ChipPlugin`, `ChipRegistry`, host registration
 - [`docs/features/gameboy-plugin-extraction.md`](gameboy-plugin-extraction.md) — inverse direction (GB out of engine)
 - [`packages/engine/src/chips/registry.ts`](../../packages/engine/src/chips/registry.ts)
-- [`packages/plugins/chip-nes/`](../../packages/plugins/chip-nes/)
 - [`apps/web-ui/src/plugins/registry-config.ts`](../../apps/web-ui/src/plugins/registry-config.ts)
 
 ---

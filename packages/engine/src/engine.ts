@@ -12,10 +12,11 @@ import { chipRegistry } from './chips/registry.js';
  *
  * ```typescript
  * import { BeatBaxEngine } from '@beatbax/engine';
- * import { nesPlugin } from '@beatbax/engine/chips';
+ * import smsPlugin from '@beatbax/plugin-chip-sms';
  *
  * const engine = new BeatBaxEngine();
- * engine.registerChipPlugin(nesPlugin);
+ * engine.validateChip('nes'); // true, built-in
+ * engine.registerChipPlugin(smsPlugin);
  * engine.validateChip('nes'); // true
  * ```
  */

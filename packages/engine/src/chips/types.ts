@@ -246,8 +246,8 @@ export interface ChipNewSongWizard {
  *
  * @example
  * ```typescript
- * import { nesPlugin } from '@beatbax/engine/chips';
- * engine.registerChipPlugin(nesPlugin);
+ * import smsPlugin from '@beatbax/plugin-chip-sms';
+ * engine.registerChipPlugin(smsPlugin);
  * ```
  */
 export interface ChipPlugin {

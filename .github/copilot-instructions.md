@@ -52,6 +52,7 @@ If essential information is missing, **ask before implementing**.
 
 - Deterministic parser → AST → ISM expansion pipeline
 - Accurate multi‑channel Game Boy APU emulation
+- Accurate multi-channel NES Ricoh 2A03 APU emulation, built in to `@beatbax/engine`
 - Deterministic tick scheduler and playback engine
 - JSON (ISM), MIDI (SMF), and hUGETracker v6 `.UGE` export
 - UGE import (versions 1–6)
