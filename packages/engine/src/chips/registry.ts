@@ -2,11 +2,11 @@
  * Global chip plugin registry.
  *
  * The registry is the single source of truth for which chip backends are
- * available at runtime. The Game Boy plugin is always present (built-in);
- * additional plugins are registered via `register()` before compilation.
+ * available at runtime. Built-in chips (Game Boy, NES) are registered in the
+ * constructor; additional plugins are registered via `register()` before compilation.
  */
 import { ChipPlugin } from './types.js';
-import { gameboyPlugin } from './gameboy/plugin.js';
+import { BUILTIN_CHIP_PLUGINS } from './builtin-chips.js';
 import { exporterRegistry } from '../export/registry.js';
 
 export class ChipRegistry {
@@ -15,8 +15,9 @@ export class ChipRegistry {
   private aliases = new Map<string, string>();
 
   constructor() {
-    // Register the built-in Game Boy plugin immediately.
-    this.register(gameboyPlugin);
+    for (const plugin of BUILTIN_CHIP_PLUGINS) {
+      this.register(plugin);
+    }
     // Register well-known aliases so `chip gb` and `chip dmg` are accepted
     // everywhere the registry is consulted (parser, player, renderers).
     this.aliases.set('gb', 'gameboy');

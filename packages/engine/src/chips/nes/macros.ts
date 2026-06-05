@@ -5,7 +5,7 @@ import {
   makeMacroState,
   type ParsedMacro,
   type MacroState,
-} from '@beatbax/engine';
+} from '../../util/music.js';
 
 /**
  * Software macro engine for the NES plugin.

@@ -21,6 +21,7 @@ import {
   SongLike,
   nesChannelType,
 } from './ftm-types.js';
+import { isNesChip } from './nes-chip.js';
 import {
   buildInstrumentMacros,
   deduplicateMacros,
@@ -449,7 +450,7 @@ function emptyRowSegment(numEffectCols: number): string {
  */
 export async function writeFtmText(song: SongLike, options?: WriterOptions): Promise<string> {
   const chip = String(song.chip ?? 'gameboy').toLowerCase();
-  if (chip !== 'nes') {
+  if (!isNesChip(chip)) {
     throw new Error(
       `FamiTracker text export requires chip 'nes', but got '${chip}'`,
     );

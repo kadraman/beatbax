@@ -33,7 +33,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
   nes: {
     types: ['pulse1', 'pulse2', 'triangle', 'noise', 'dmc'],
     properties: {
-      type: { values: ['pulse1', 'pulse2', 'triangle', 'noise', 'dmc'], detail: 'NES channel type' },
+      type: { values: ['pulse1', 'pulse2', 'triangle', 'noise', 'dmc'], detail: 'NES/Famicom channel type' },
       duty: { values: ['12', '12.5', '25', '50', '75'], detail: 'Pulse duty (%)' },
       env: { detail: 'Volume envelope e.g. 15,down' },
       env_period: { detail: 'Envelope period 0–15' },

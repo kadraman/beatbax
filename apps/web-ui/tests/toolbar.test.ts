@@ -4,6 +4,7 @@
 
 import { Toolbar } from '../src/ui/toolbar';
 import { EventBus } from '../src/utils/event-bus';
+import { exporterRegistry } from '../src/plugins/browser-exporter-registry';
 
 function makeToolbar() {
   const container = document.createElement('div');
@@ -42,6 +43,19 @@ afterEach(() => {
 
 describe('Toolbar — setExportEnabled', () => {
   it('shows famitracker export only for NES chip and dispatches on click', () => {
+    if (!exporterRegistry.has('famitracker')) {
+      exporterRegistry.register({
+        id: 'famitracker',
+        label: 'FamiTracker Binary',
+        version: '0.0.0',
+        extension: 'ftm',
+        mimeType: 'application/octet-stream',
+        supportedChips: ['nes'],
+        async export() {
+          throw new Error('mock');
+        },
+      });
+    }
     const container = document.createElement('div');
     document.body.appendChild(container);
     const eventBus = new EventBus();
@@ -58,6 +72,10 @@ describe('Toolbar — setExportEnabled', () => {
     toolbar.setChip('gameboy');
     expect(btn!.hidden).toBe(true);
     toolbar.setChip('nes');
+    expect(btn!.hidden).toBe(false);
+    toolbar.setChip('gameboy');
+    expect(btn!.hidden).toBe(true);
+    toolbar.setChip('famicom');
     expect(btn!.hidden).toBe(false);
     btn!.click();
     expect(onExport).toHaveBeenCalledWith('famitracker');

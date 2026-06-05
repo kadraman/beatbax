@@ -10,7 +10,7 @@ function makeChip(id: string, overrides: Partial<ChipPlugin> = {}): ChipPlugin {
     createChannel: () => ({ reset() {}, noteOn() {}, noteOff() {}, applyEnvelope() {}, render() {} }),
     newSongWizard: {
       metadata: {
-        chipDisplayName: `${id.toUpperCase()} Chip`,
+        chipDisplayName: id === 'nes' ? 'NES/Famicom (Ricoh 2A03)' : `${id.toUpperCase()} Chip`,
         platform: `${id} platform`,
         year: '1990',
         channelSummary: '1 channel',
@@ -62,7 +62,7 @@ describe('New Song Wizard', () => {
     });
     wizard.open();
     const el = getWizardElements();
-    expect(el.chipName().textContent).toContain('NES Chip');
+    expect(el.chipName().textContent).toContain('NES/Famicom');
     expect(el.chipPagination().textContent).toContain('1 / 1');
     expect(el.chipPrevBtn().disabled).toBe(true);
     expect(el.chipNextBtn().disabled).toBe(true);
@@ -124,13 +124,13 @@ describe('New Song Wizard', () => {
 
     const backdrop = document.querySelector<HTMLElement>('.bb-new-song-wizard-backdrop')!;
     const el = getWizardElements();
-    expect(el.chipName().textContent).toContain('NES Chip');
+    expect(el.chipName().textContent).toContain('NES/Famicom');
 
     backdrop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(el.chipName().textContent).toContain('SMS Chip');
 
     backdrop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-    expect(el.chipName().textContent).toContain('NES Chip');
+    expect(el.chipName().textContent).toContain('NES/Famicom');
   });
 
   it('creates song source from selected wizard values and closes on cancel', () => {

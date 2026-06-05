@@ -30,22 +30,27 @@ function parseArgs(argv) {
   return { scriptName, excluded };
 }
 
-function expandWorkspacePattern(repoRoot, pattern) {
+function resolveWorkspacePattern(repoRoot, pattern) {
   const segments = pattern.split('/');
   const wildcardIndex = segments.indexOf('*');
-  if (wildcardIndex === -1 || wildcardIndex !== segments.length - 1) {
-    throw new Error(`Unsupported workspace pattern: ${pattern}`);
+
+  if (wildcardIndex !== -1) {
+    if (wildcardIndex !== segments.length - 1) {
+      throw new Error(`Unsupported workspace pattern: ${pattern}`);
+    }
+    const parentDir = path.join(repoRoot, ...segments.slice(0, -1));
+    if (!fs.existsSync(parentDir)) {
+      return [];
+    }
+    const entries = fs.readdirSync(parentDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(parentDir, entry.name));
   }
 
-  const parentDir = path.join(repoRoot, ...segments.slice(0, -1));
-  if (!fs.existsSync(parentDir)) {
-    return [];
-  }
-
-  const entries = fs.readdirSync(parentDir, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(parentDir, entry.name));
+  // Explicit workspace path (e.g. packages/plugins/chip-sms)
+  const dirPath = path.join(repoRoot, pattern);
+  return fs.existsSync(dirPath) ? [dirPath] : [];
 }
 
 function findWorkspacePackages(repoRoot, rootPkg) {
@@ -53,7 +58,7 @@ function findWorkspacePackages(repoRoot, rootPkg) {
   const packageDirs = [];
 
   for (const pattern of workspaces) {
-    for (const dirPath of expandWorkspacePattern(repoRoot, pattern)) {
+    for (const dirPath of resolveWorkspacePattern(repoRoot, pattern)) {
       const pkgPath = path.join(dirPath, 'package.json');
       if (fs.existsSync(pkgPath)) {
         packageDirs.push(dirPath);

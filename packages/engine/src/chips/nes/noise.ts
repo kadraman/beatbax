@@ -10,8 +10,8 @@
  *
  * Noise period is indexed via NOISE_PERIOD_TABLE (16 values, NTSC rates).
  */
-import type { ChipChannelBackend } from '@beatbax/engine';
-import type { InstrumentNode } from '@beatbax/engine';
+import type { ChipChannelBackend } from '../types.js';
+import type { InstrumentNode } from '../../parser/ast.js';
 import { NOISE_PERIOD_TABLE, getNoisePeriodTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {

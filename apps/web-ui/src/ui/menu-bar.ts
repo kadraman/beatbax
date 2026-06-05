@@ -15,6 +15,7 @@ import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
 import { exporterRegistry } from '../plugins/browser-exporter-registry';
+import { resolveUiChipId } from '../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 
 /** Fallback icon per built-in exporter id (matches toolbar defaults). */
@@ -228,7 +229,7 @@ export class MenuBar {
    * items are shown / hidden the next time the Export submenu opens.
    */
   setChip(chip: string): void {
-    this.activeChip = (chip || 'gameboy').toLowerCase();
+    this.activeChip = resolveUiChipId(chip);
   }
 
   /** Update the song name shown in the menu bar title area. */

@@ -3,6 +3,7 @@
 const aliases: Record<string, string> = {
   gb: 'gameboy',
   dmg: 'gameboy',
+  famicom: 'nes',
   ay: 'spectrum-128',
   spectrum: 'spectrum-128',
   cpc: 'spectrum-128',

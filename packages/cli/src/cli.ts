@@ -196,8 +196,7 @@ program
     // ── .dmc sample playback ──────────────────────────────────────────────
     if (file.toLowerCase().endsWith('.dmc')) {
       const { playAudioBuffer } = await import('@beatbax/engine/node');
-      const { decodeDMC } = await import('@beatbax/plugin-chip-nes');
-      const { DMC_RATE_TABLE } = await import('@beatbax/plugin-chip-nes');
+      const { decodeDMC, DMC_RATE_TABLE } = await import('@beatbax/engine/chips/nes');
       const rateIdx = Math.max(0, Math.min(15, parseInt(options.rate ?? '7', 10)));
       const dmcHz = DMC_RATE_TABLE[rateIdx];
       const sampleRate = parseInt(globalOpts.sampleRate, 10) || 44100;
@@ -693,7 +692,7 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
         const entries = readdirSync(nmDir, { withFileTypes: true });
         for (const entry of entries) {
           if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-          // Scoped packages (e.g. @beatbax/plugin-chip-nes)
+          // Scoped packages (e.g. @beatbax/plugin-chip-sms)
           if (entry.name === '@beatbax') {
             const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
             for (const scoped of scopedEntries) {
@@ -974,7 +973,7 @@ convertCmd
       formatDmcInstrumentLine,
       decodeDMC,
       getDmcRateHz,
-    } = await import('@beatbax/plugin-chip-nes');
+    } = await import('@beatbax/engine/chips/nes');
 
     const rateHz = getDmcRateHz(rateIndex, region);
 

@@ -6,7 +6,10 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "packages/plugins/*",
+    "packages/plugins/chip-sms",
+    "packages/plugins/chip-spectrum-128",
+    "packages/plugins/export-famitracker",
+    "packages/plugins/export-vgm",
     "apps/*"
   ],
   "scripts": {
@@ -21,8 +24,6 @@
     "cli:dev": "npm run engine:build && npm -w @beatbax/cli run dev",
     "cli:clean": "npm -w @beatbax/cli run clean",
     "cli:debug": "node --loader ts-node/esm packages/cli/src/cli-dev.ts",
-    "chip-nes:build": "npm -w @beatbax/plugin-chip-nes run build",
-    "chip-nes:test": "npm -w @beatbax/plugin-chip-nes test",
     "chip-sms:build": "npm -w @beatbax/plugin-chip-sms run build",
     "chip-sms:test": "npm -w @beatbax/plugin-chip-sms test",
     "chip-spectrum:build": "npm -w @beatbax/plugin-chip-spectrum run build",

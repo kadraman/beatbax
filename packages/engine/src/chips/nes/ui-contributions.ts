@@ -6,12 +6,12 @@
  *  - hoverDocs            — keyword hover docs for NES-specific syntax
  *  - helpSections         — help-panel sections tailored to NES authoring
  */
-import type { ChipUIContributions } from '@beatbax/engine';
+import type { ChipUIContributions } from '../types.js';
 
 // ─── CoPilot system prompt ────────────────────────────────────────────────────
 
 const copilotSystemPrompt = `
-══ NES (RICOH 2A03) HARDWARE — READ FIRST ══
+══ NES/FAMICOM (RICOH 2A03) HARDWARE — READ FIRST ══
 Exactly 5 channels. Each channel number (1–5) must appear AT MOST ONCE per song.
 Channel-to-type mapping is FIXED — you cannot swap these:
   channel 1 → type=pulse1   (melodic) — lead melody; supports duty, envelope, hardware sweep
@@ -181,7 +181,7 @@ const hoverDocs: Record<string, string> = {
 const helpSections: ChipUIContributions['helpSections'] = [
   {
     id: 'instruments',
-    title: 'Instruments (NES)',
+    title: 'Instruments (NES/Famicom)',
     content: [
       { kind: 'text', text: 'The NES has 5 channels. Each requires a matching instrument type.' },
       {
@@ -236,7 +236,7 @@ inst sfx      type=dmc dmc_rate=10 dmc_loop=false dmc_sample="@nes/crash"
   },
   {
     id: 'examples',
-    title: 'Examples — Click to Insert (NES)',
+    title: 'Examples — Click to Insert (NES/Famicom)',
     content: [
       {
         kind: 'song',
@@ -258,7 +258,7 @@ play`,
       },
       {
         kind: 'song',
-        label: '5-channel NES chiptune',
+        label: '5-channel NES/Famicom chiptune',
         code:
 `chip nes
 bpm 150
@@ -316,7 +316,7 @@ play`,
       },
       {
         kind: 'song',
-        label: 'NES hardware sweep effect',
+        label: 'NES/Famicom hardware sweep effect',
         code:
 `chip nes
 bpm 120
