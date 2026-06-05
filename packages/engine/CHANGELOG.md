@@ -1,5 +1,15 @@
 # @beatbax/engine
 
+## 0.19.0
+
+### Minor Changes
+
+- 004f40d: Move the NES Ricoh 2A03 APU into `@beatbax/engine` as a built-in chip alongside Game Boy.
+  - Register `nesPlugin` automatically via `BUILTIN_CHIP_PLUGINS`; `chip nes` and `chip famicom` work without a separate plugin install.
+  - Add `@beatbax/engine/chips/nes` package export for NES utilities (period tables, DMC encode/decode, channel backends, validation).
+  - Move NES implementation and tests from the former standalone plugin into `packages/engine/src/chips/nes/` and `packages/engine/tests/nes/`.
+  - Parser chip-region diagnostics mention `chip famicom` where relevant.
+
 ## 0.18.0
 
 ### Minor Changes
