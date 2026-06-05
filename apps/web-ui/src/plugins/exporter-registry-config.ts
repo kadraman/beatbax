@@ -1,4 +1,5 @@
 import type { ExporterPlugin } from '@beatbax/engine/export';
+import { chipRegistry } from '@beatbax/engine/chips';
 import famitrackerExporterPlugins from '@beatbax/plugin-exporter-famitracker';
 import vgmExporterPlugin from '@beatbax/plugin-exporter-vgm';
 import { storage, StorageKey } from '../utils/local-storage.js';
@@ -24,8 +25,8 @@ export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
     label: plugin.label,
     description:
       plugin.id === 'famitracker-text'
-        ? 'FamiTracker text export placeholder (.txt) - chips: nes.'
-        : 'FamiTracker binary export placeholder (.ftm) - chips: nes.',
+        ? 'FamiTracker text export placeholder (.txt) - chips: nes, famicom.'
+        : 'FamiTracker binary export placeholder (.ftm) - chips: nes, famicom.',
     badge: 'Experimental' as const,
     plugin,
     dependsOnChipPlugins: ['nes'],
@@ -61,7 +62,7 @@ export function setExporterPluginEnabled(id: string, enabled: boolean): void {
 export function isExporterDependencySatisfied(entry: ExporterPluginEntry): boolean {
   if (!entry.dependsOnChipPlugins || entry.dependsOnChipPlugins.length === 0) return true;
   const enabledChips = getEnabledPluginIds();
-  return entry.dependsOnChipPlugins.every((chipId) => enabledChips.includes(chipId));
+  return entry.dependsOnChipPlugins.every((chipId) => enabledChips.includes(chipId) || chipRegistry.has(chipId));
 }
 
 export function loadExporterPluginsFromStorage(): void {

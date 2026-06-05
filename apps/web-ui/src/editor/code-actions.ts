@@ -233,7 +233,7 @@ function defaultInstTypeForSource(source: string): string {
   const chipMatch = source.match(/^\s*chip\s+(\S+)/m);
   const chip = chipMatch?.[1]?.toLowerCase() ?? 'gameboy';
   if (chip === 'sms' || chip === 'gg' || chip === 'gamegear') return 'tone';
-  if (chip === 'nes') return 'pulse1';
+  if (chip === 'nes' || chip === 'famicom') return 'pulse1';
   return 'pulse1';
 }
 

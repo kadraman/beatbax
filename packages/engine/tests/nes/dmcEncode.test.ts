@@ -1,6 +1,6 @@
 import { describe, test, expect } from '@jest/globals';
-import { decodeDMC } from '../src/dmc.js';
-import { getNesClockRegion, setNesClockRegion } from '../src/periodTables.js';
+import { decodeDMC } from '../../src/chips/nes/index.js';
+import { getNesClockRegion, setNesClockRegion } from '../../src/chips/nes/periodTables.js';
 import {
   encodeDMC,
   encodeDMCFromPCM,
@@ -9,7 +9,7 @@ import {
   packBitsLSBFirst,
   trimDmcByteLength,
   formatDmcInstrumentLine,
-} from '../src/dmcEncode.js';
+} from '../../src/chips/nes/dmcEncode.js';
 
 describe('packBitsLSBFirst', () => {
   test('packs 8 bits LSB-first into one byte', () => {

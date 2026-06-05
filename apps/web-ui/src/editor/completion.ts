@@ -515,10 +515,10 @@ const GB_DEFINITION_SNIPPETS = [
 ];
 
 const NES_DEFINITION_SNIPPETS = [
-  { label: 'inst (pulse1)', detail: 'Define NES pulse1 instrument', insertText: 'inst ${1:name} type=pulse1 duty=50 vol_env=[15,12,8,4,0]' },
-  { label: 'inst (pulse2)', detail: 'Define NES pulse2 instrument', insertText: 'inst ${1:name} type=pulse2 duty=25 vol_env=[15,10,6,0]' },
-  { label: 'inst (triangle)', detail: 'Define NES triangle instrument', insertText: 'inst ${1:name} type=triangle vol=10' },
-  { label: 'inst (noise)', detail: 'Define NES noise instrument', insertText: 'inst ${1:name} type=noise vol_env=[15,8,4,0] note=C5' },
+  { label: 'inst (pulse1)', detail: 'Define NES/Famicom pulse1 instrument', insertText: 'inst ${1:name} type=pulse1 duty=50 vol_env=[15,12,8,4,0]' },
+  { label: 'inst (pulse2)', detail: 'Define NES/Famicom pulse2 instrument', insertText: 'inst ${1:name} type=pulse2 duty=25 vol_env=[15,10,6,0]' },
+  { label: 'inst (triangle)', detail: 'Define NES/Famicom triangle instrument', insertText: 'inst ${1:name} type=triangle vol=10' },
+  { label: 'inst (noise)', detail: 'Define NES/Famicom noise instrument', insertText: 'inst ${1:name} type=noise vol_env=[15,8,4,0] note=C5' },
 ];
 
 const SPECTRUM_DEFINITION_SNIPPETS = [
@@ -558,8 +558,8 @@ const COMMANDS = [
   { label: 'export midi', detail: 'Export to MIDI', insertText: 'export midi "song.mid"' },
   { label: 'export uge', detail: 'Export to UGE', insertText: 'export uge "song.uge"' },
   { label: 'export wav', detail: 'Export to WAV', insertText: 'export wav "song.wav"' },
-  { label: 'export famitracker', detail: 'Export to FamiTracker Binary (.ftm) — NES only', insertText: 'export famitracker "song.ftm"' },
-  { label: 'export famitracker-text', detail: 'Export to FamiTracker Text (.txt) — NES only', insertText: 'export famitracker-text "song.txt"' },
+  { label: 'export famitracker', detail: 'Export to FamiTracker Binary (.ftm) — NES/Famicom only', insertText: 'export famitracker "song.ftm"' },
+  { label: 'export famitracker-text', detail: 'Export to FamiTracker Text (.txt) — NES/Famicom only', insertText: 'export famitracker-text "song.txt"' },
 ];
 
 const MODIFIER_SNIPPETS: Array<{ label: string; insertText: string; detail: string }> = [

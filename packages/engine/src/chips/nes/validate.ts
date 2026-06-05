@@ -4,8 +4,8 @@
  * Validates instrument definitions against NES-specific field requirements.
  * Called by the plugin's `validateInstrument()` method.
  */
-import type { InstrumentNode } from '@beatbax/engine';
-import type { ValidationError } from '@beatbax/engine';
+import type { InstrumentNode } from '../../parser/ast.js';
+import type { ValidationError } from '../types.js';
 
 /** NES instrument types and their channel assignments. */
 export const NES_TYPES = new Set(['pulse1', 'pulse2', 'triangle', 'noise', 'dmc']);

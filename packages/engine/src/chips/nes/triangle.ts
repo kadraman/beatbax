@@ -14,8 +14,8 @@
  *     using an odd-harmonic PeriodicWave that closely matches the NES 32-step
  *     staircase. This enables arp, vib, and portamento effects in the web-ui.
  */
-import type { ChipChannelBackend } from '@beatbax/engine';
-import type { InstrumentNode } from '@beatbax/engine';
+import type { ChipChannelBackend } from '../types.js';
+import type { InstrumentNode } from '../../parser/ast.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import { NES_CLOCK } from './periodTables.js';
 import {
