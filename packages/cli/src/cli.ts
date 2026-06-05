@@ -692,7 +692,7 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
         const entries = readdirSync(nmDir, { withFileTypes: true });
         for (const entry of entries) {
           if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-          // Scoped packages (e.g. @beatbax/plugin-chip-nes)
+          // Scoped packages (e.g. @beatbax/plugin-chip-sms)
           if (entry.name === '@beatbax') {
             const scopedEntries = readdirSync(join(nmDir, '@beatbax'), { withFileTypes: true });
             for (const scoped of scopedEntries) {
@@ -721,8 +721,6 @@ async function discoverPlugins(options: { verbose?: boolean } = {}): Promise<Chi
     // Skip the built-in Game Boy plugin if it ever gets published as a
     // standalone package — it is always pre-registered by ChipRegistry.
     if (pkgName === '@beatbax/plugin-chip-gameboy') continue;
-    // NES is built into @beatbax/engine; shim package is not loaded at runtime.
-    if (pkgName === '@beatbax/plugin-chip-nes' && chipRegistry.has('nes')) continue;
     try {
       const mod = await import(pkgName);
       const plugin: ChipPlugin = mod.default || mod;
