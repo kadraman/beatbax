@@ -9,13 +9,13 @@ issue: "https://github.com/kadraman/beatbax/issues/4"
 
 ## Summary
 
-Create a plugin system that allows chip backends (NES, SID, Genesis, etc.) to be installed and loaded dynamically at runtime. This enables the BeatBax engine to remain lightweight while supporting extensible audio backends through npm packages.
+Create a plugin system that allows chip backends (SMS, SID, Genesis, etc.) to be installed and loaded dynamically at runtime while keeping built-in chips available immediately. The BeatBax engine now ships with Game Boy and NES built in and supports additional chip backends through npm packages.
 
 This spec combines the npm plugin distribution model with runtime dynamic loading strategies for maximum flexibility across Node.js, browser, and bundled environments.
 
 ## Motivation
 
-- **Lightweight Core:** Users only install the chips they need (e.g., `@beatbax/engine` + `@beatbax/plugin-chip-nes`)
+- **Built-ins + Optional Extensions:** Users get Game Boy and NES immediately from `@beatbax/engine`, then install only the additional chips they need
 - **Community Extensions:** Third-party developers can create and publish their own chip backends
 - **Clean Separation:** Each chip backend is independently versioned, tested, and maintained
 - **Tree-Shaking:** Bundlers can eliminate unused chip code from browser builds
@@ -26,11 +26,8 @@ This spec combines the npm plugin distribution model with runtime dynamic loadin
 ### Installation
 
 ```bash
-# Core engine only (includes Game Boy)
+# Core engine (includes Game Boy and NES)
 npm install @beatbax/engine
-
-# Add NES support
-npm install @beatbax/plugin-chip-nes
 
 # Add SID support
 npm install @beatbax/plugin-chip-sid
@@ -40,16 +37,14 @@ npm install @beatbax/plugin-chip-sid
 
 ```typescript
 import { BeatBaxEngine } from '@beatbax/engine';
-import nesPlugin from '@beatbax/plugin-chip-nes';
 import sidPlugin from '@beatbax/plugin-chip-sid';
 
 const engine = new BeatBaxEngine();
 
-// Register plugins
-engine.registerChipPlugin(nesPlugin);
+// Register optional external plugins
 engine.registerChipPlugin(sidPlugin);
 
-// Now scripts can use these chips
+// Built-in chips like NES are available immediately
 const script = `
 chip nes
 bpm 140
@@ -66,9 +61,8 @@ engine.play();
 ### CLI Auto-Discovery
 
 ```bash
-# CLI automatically discovers installed plugins
+# CLI can play built-in chips immediately and auto-discovers optional plugins
 npm install -g @beatbax/cli
-npm install -g @beatbax/plugin-chip-nes
 
 # Now the CLI can play NES songs
 beatbax play song.bax --chip nes
@@ -80,7 +74,7 @@ The `chip` directive already exists in the language:
 
 ```
 chip gameboy   # Default, built-in
-chip nes       # Requires @beatbax/plugin-chip-nes
+chip nes       # Built-in
 chip sid       # Requires @beatbax/plugin-chip-sid
 chip genesis   # Requires @beatbax/plugin-chip-genesis
 ```
@@ -183,8 +177,9 @@ export class ChipRegistry {
   private plugins = new Map<string, ChipPlugin>();
 
   constructor() {
-    // Game Boy is always available (built-in)
+    // Built-in chips are always available
     this.register(gameboyPlugin);
+    this.register(nesPlugin);
   }
 
   register(plugin: ChipPlugin): void {
@@ -242,18 +237,18 @@ export class BeatBaxEngine {
 
 Each plugin is a standalone npm package:
 
-```
-packages/plugins/chip-nes/
+```text
+packages/plugins/chip-example/
 ├── package.json
 ├── src/
 │   ├── index.ts              # Plugin entry point
-│   ├── pulse.ts              # NES pulse channels
-│   ├── triangle.ts           # NES triangle channel
-│   ├── noise.ts              # NES noise channel
-│   ├── dmc.ts                # NES DMC channel
-│   └── periodTables.ts       # NES frequency tables
+│   ├── voice-a.ts            # Chip voice/backend A
+│   ├── voice-b.ts            # Chip voice/backend B
+│   ├── noise.ts              # Optional noise backend
+│   ├── samples.ts            # Optional sampled channel helpers
+│   └── periodTables.ts       # Chip frequency tables
 ├── tests/
-│   └── nes.test.ts
+│   └── plugin.test.ts
 └── README.md
 ```
 
@@ -261,7 +256,7 @@ Example `package.json`:
 
 ```json
 {
-  "name": "@beatbax/plugin-chip-nes",
+  "name": "@beatbax/plugin-chip-example",
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -326,13 +321,13 @@ For Vite/Webpack/esbuild, provide a static registry with explicit imports:
 
 ```typescript
 // packages/engine/src/chips/static-registry.ts
-import gameboyPlugin from './gameboy';
-import nesPlugin from '@beatbax/plugin-chip-nes'; // optional dependency
+import { gameboyPlugin, nesPlugin } from '@beatbax/engine/chips';
+import sidPlugin from '@beatbax/plugin-chip-sid';
 
 export const staticRegistry: Record<string, ChipPlugin> = {
   gameboy: gameboyPlugin,
-  // Only include if package is installed
-  ...(nesPlugin ? { nes: nesPlugin } : {})
+  nes: nesPlugin,
+  sid: sidPlugin,
 };
 ```
 
@@ -345,7 +340,7 @@ For unbundled browsers using import maps:
 {
   "imports": {
     "@beatbax/engine": "https://cdn.jsdelivr.net/npm/@beatbax/engine/+esm",
-    "@beatbax/plugin-chip-nes": "https://cdn.jsdelivr.net/npm/@beatbax/plugin-chip-nes/+esm"
+    "@beatbax/plugin-chip-sid": "https://cdn.jsdelivr.net/npm/@beatbax/plugin-chip-sid/+esm"
   }
 }
 </script>
@@ -355,10 +350,10 @@ For unbundled browsers using import maps:
 
 The engine tries loading strategies in order:
 
-1. **Registry lookup** (if pre-registered via `registerChipPlugin()`)
+1. **Registry lookup** (built-ins or chips pre-registered via `registerChipPlugin()`)
 2. **Dynamic import** (Node.js, modern bundlers)
 3. **Static registry** (bundler with tree-shaking)
-4. **Error:** Chip not available, suggest installation
+4. **Error:** Chip not available, suggest installation for non built-in chips
 
 ## Implementation Checklist
 
@@ -376,14 +371,15 @@ The engine tries loading strategies in order:
 - [x] Verify no regressions in existing tests
 - [x] Document plugin API in `/docs/creating-plugins.md`
 
-### Phase 3: Create First External Plugin (NES)
-- [x] Create `packages/plugins/chip-nes/` with proper structure (see `docs/features/nes-apu-chip-plugin.md` for full implementation plan)
+### Phase 3: Create First Additional Chip Backend (NES, later built-in)
+- [x] Prototype NES as an external plugin package
 - [x] Implement NES APU channels (2 pulse, 1 triangle, 1 noise, 1 DMC)
 - [x] Add NES period tables and frequency mappings (61 MIDI notes, C2–C7)
 - [x] Implement `bundledSamples` for DMC channel built-in library (`@nes/kick`, `@nes/snare`, `@nes/bass_c2`, `@nes/hihat`, `@nes/crash`)
 - [x] Implement `resolveSampleAsset()` supporting `@nes/`, `local:`, `github:`, and `https://` references
-- [x] Write tests for NES plugin
+- [x] Write tests for NES support
 - [x] Add example NES songs in `/songs/` (e.g. `wily_fortress.bax`, `kingdom_hall.bax`)
+- [x] Fold NES into `@beatbax/engine` as a built-in chip while keeping npm compatibility for existing consumers
 
 ### Phase 4: CLI Auto-Discovery
 - [x] Implement `discoverPlugins()` in CLI
@@ -425,7 +421,7 @@ The engine tries loading strategies in order:
 ## Success Metrics
 
 - ✅ Core engine bundle size remains under 50KB (gzipped)
-- ✅ NES plugin can be installed and used independently
+- ✅ NES is available from `@beatbax/engine` without additional installation
 - ✅ CLI auto-discovers and loads plugins without manual configuration
 - ✅ Plugin API is documented and stable for external developers
 - ✅ At least 2 community-contributed plugins within 6 months of release
@@ -434,7 +430,7 @@ The engine tries loading strategies in order:
 
 1. **Phase 1:** Add plugin API to engine (Game Boy remains built-in)
 2. **Phase 2:** Refactor Game Boy to use plugin interface internally (no external changes)
-3. **Phase 3:** Create first external plugin (NES) as proof-of-concept
+3. **Phase 3:** Create first additional chip backend (NES) as proof-of-concept
 4. **Phase 4:** Update CLI to auto-discover plugins
 5. **Phase 5:** Publish plugin creation guide and template
 6. **Phase 6:** Consider making Game Boy an optional plugin in v2.0 (breaking change)
@@ -445,7 +441,7 @@ The engine tries loading strategies in order:
 - **Code review:** Document recommended vetting for third-party chips (code review, minimal API surface, no network access).
 - **Sandboxing:** Consider Web Workers or isolated contexts for untrusted plugins (post-v1).
 - **Official plugins:** Plugins published under `@beatbax/*` namespace are reviewed and maintained by core team.
-- **Sample asset loading:** Plugins that use sampled audio (e.g. `@beatbax/plugin-chip-nes` DMC channel) must follow the same import security model as BeatBax imports (see `docs/language/import-security.md`):
+- **Sample asset loading:** Chips that use sampled audio (e.g. the NES DMC channel) must follow the same import security model as BeatBax imports (see `docs/language/import-security.md`):
   - `"@<chip>/<name>"` — bundled library (always safe; embedded in plugin package)
   - `"local:<path>"` — file system access; blocked automatically in browser contexts; path-traversal guard applies in Node.js/CLI
   - `"https://..."` — remote fetch; allowed in browser and Node.js 18+; plugins should not load samples from untrusted origins
