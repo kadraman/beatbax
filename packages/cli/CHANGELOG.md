@@ -1,5 +1,17 @@
 # @beatbax/cli
 
+## 0.4.9
+
+### Patch Changes
+
+- 004f40d: Move the NES Ricoh 2A03 APU into `@beatbax/engine` as a built-in chip alongside Game Boy.
+  - Drop dependency on `@beatbax/plugin-chip-nes`; NES DMC helpers import from `@beatbax/engine/chips/nes`.
+  - Plugin auto-discovery no longer special-cases the removed NES shim package.
+
+- Updated dependencies [004f40d]
+  - @beatbax/engine@0.19.0
+  - @beatbax/plugin-exporter-famitracker@0.2.3
+
 ## 0.4.8
 
 ### Patch Changes
