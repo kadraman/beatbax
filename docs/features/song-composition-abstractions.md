@@ -51,9 +51,72 @@ The removed `arrange` directive ([sequence-arrangements.md](complete/sequence-ar
 
 - **Compile-time only** — expansion happens in the parser/resolver; expanded output is debuggable (optional `--expand` flag).
 - **Lower to existing AST** — no new runtime node types in the player; `section` and `cat` desugar to `seq` + `channel`.
+- **Two-phase symbol handling** — collect declarations first, then resolve/expand references (deterministic but less brittle than pure top-down lookup).
 - **Immutable bindings** — `alias` and `const` (if added later) cannot be reassigned.
 - **No general expressions** — v1 avoids `ROOT + 2`, loops with indices, or Turing-complete macros in the core grammar.
 - **Explicit over magical** — prefer named sections and `cat(intro, hook, …)` over hidden channel synthesis.
+- **Observable expansion** — expansion output must be stable and inspectable in CLI/Web UI with diagnostics mapped back to authored source.
+
+---
+
+### User-Friendly Authoring Layer (Beginner Mode)
+
+To reduce cognitive load for first-time and intermediate users, add a **Beginner Mode** surface that desugars to the same `section` / `form` / `channel role` core model.
+
+This is authoring sugar only; runtime and exported song semantics stay identical.
+
+#### Beginner syntax (author-facing)
+
+```bax
+# Role order is fixed in Beginner Mode: mel, harm, bass, perc
+section intro use intro_mel intro_harm intro_bass intro_perc
+section hook  use hook_mel  hook_harm  hook_bass  hook_perc
+
+# `>` is accepted as a readable alias for comma in forms
+form main = intro > hook > bridge > hook > outro
+
+# Auto-bind four channels to default roles
+channel auto form main inst=lead|arp|bass|kick
+```
+
+#### Desugaring contract (compiler-facing)
+
+Beginner forms desugar before normal section/form expansion:
+
+1. `section <name> use a b c d` desugars to:
+
+```bax
+section <name> {
+  mel = a
+  harm = b
+  bass = c
+  perc = d
+}
+```
+
+2. `form main = a > b > c` desugars to `form main = a, b, c`.
+
+3. `channel auto form <f> inst=i1|i2|i3|i4` desugars to:
+
+```bax
+channel 1 => inst i1 role mel  form <f>
+channel 2 => inst i2 role harm form <f>
+channel 3 => inst i3 role bass form <f>
+channel 4 => inst i4 role perc form <f>
+```
+
+#### Beginner Mode constraints (v1)
+
+- Exactly four role lanes (`mel`, `harm`, `bass`, `perc`).
+- `channel auto` is valid only once per song in v1.
+- If song chip uses non-4-channel layouts, parser returns a targeted diagnostic recommending advanced mode.
+- Advanced syntax and Beginner syntax may coexist, but duplicate generated channels are errors.
+
+#### Pedagogy model
+
+- Docs and templates should teach Beginner Mode first.
+- Generated/expanded source panel shows canonical advanced syntax so users can learn progressively.
+- Help and diagnostics should offer “show expanded version” and “convert to advanced syntax” actions.
 
 ---
 
@@ -110,8 +173,8 @@ alias <name> = <seqItem>+
 
 - `alias` names are **file-scoped** and immutable.
 - Resolution: when an alias appears in a `seq` RHS, expand to its item list before pattern/seq reference resolution.
-- Aliases may reference patterns and seqs, not other aliases in v1 (avoid cycles and multi-pass lookup complexity).
-- Alias resolution is single-pass and top-down in v1: using an alias before its declaration is a compile-time error.
+- Alias resolution in v1 is declaration-collection + resolve (forward references allowed).
+- Alias-to-alias references are allowed when acyclic; any cycle is a compile-time error with a cycle trace.
 - **Not** in `pat` note lists in v1 (keeps pitch validation simple).
 
 ---
@@ -178,6 +241,22 @@ Expands to four `cat()` seqs and four `channel` lines.
 
 Section-qualified refs (for example `intro.mel`) are out of scope for v1.
 
+#### Validation contract for `section` + `form` (v1)
+
+- `form` referencing an unknown section: compile-time error.
+- `channel ... role <r> form <f>` where any section in `<f>` omits role `<r>`: compile-time error.
+- Duplicate role keys inside a section: compile-time error.
+- Empty section blocks: compile-time error.
+- Expansion must preserve strict left-to-right section ordering exactly as listed in `form`.
+
+#### Generated sequence naming and collision policy
+
+Default generated naming remains `<section>_<role>` in v1 for readability.
+
+- If generated name collides with an explicit user `seq` declaration: compile-time error (no silent overwrite).
+- If two generated names collide after include prefixes are applied: compile-time error.
+- v1.1 candidate: optional generated-name prefix on `form` for very large modular projects.
+
 #### Optional `defaults` on `form` (Phase 2.1)
 
 ```bax
@@ -211,14 +290,15 @@ import "instruments/gameboy-lead.ins"
 Phase 3 is staged to keep resolver behavior deterministic:
 
 - **Phase 3a (MVP):** included files may contain only `pat`, `seq`, `effect`.
-- **Phase 3b (follow-up):** may allow `alias` and `section` once ordering/visibility semantics are proven in fixtures.
+- **Phase 3b (follow-up):** add `export`/namespace semantics and include-once behavior for library-style composition units.
+- **Phase 3c (follow-up):** may allow `alias` and `section` once ordering/visibility semantics are proven in fixtures.
 - `channel` and `play` remain out of scope.
 
 **Merge semantics:**
 
 - Included symbols merge into the parent compilation unit **in source order**.
 - Includes are local-path only in Phase 3a (same trust boundary as local source files).
-- Re-including the same file is allowed, but resulting duplicate symbol declarations are still errors unless prefixed.
+- Re-including the same file in the same compilation unit is a compile-time error in v1 unless each include uses a distinct explicit prefix.
 - Duplicate `pat`/`seq`/`inst` names: **error** unless `include` carries a prefix:
 
   ```bax
@@ -227,6 +307,12 @@ Phase 3 is staged to keep resolver behavior deterministic:
   ```
 
 - Same security model as [instrument-imports.md](complete/instrument-imports.md) and remote imports: allowed roots, size limits, no arbitrary code execution.
+
+**Phase 3b module-direction (design target):**
+
+- `include "x.bax" as x_` remains available for simple prefixing.
+- Optional namespaced include form (candidate): `include "x.bax" as x` with qualified refs in expansion/debug output.
+- Optional explicit export lists in included fragments to avoid accidental symbol leakage.
 
 ---
 
@@ -296,11 +382,13 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 - **Peggy** (`grammar.peggy`): new statement rules `AliasStmt`, `SectionStmt`, `FormStmt`, `IncludeStmt`; extend `SeqRhs` with `CatExpr`; extend `ChannelStmt` with optional `role` + `form` clauses.
 - **Structured recovery**: partial parses for incomplete `section { }` blocks.
 - **Expansion pass** (new or extend `resolver.ts` / `refExpander.ts`):
-  1. Resolve `alias` → inline items (single-pass, top-down)
-  2. Expand `section` → synthetic `seq` decls
-  3. Expand `form` + `channel role` → `cat` seqs + standard `channel` lines
-  4. Expand `seq` RHS `cat()` → flat seq item list
-  5. Continue existing pat/seq/modifier expansion unchanged
+  1. Collect declarations (`pat`, `seq`, `effect`, `alias`, `section`, `form`, `include`)
+  2. Resolve include graph + prefixes (v1 rules)
+  3. Resolve aliases (including forward refs); detect and report alias cycles
+  4. Expand `section` → synthetic `seq` decls (with collision checks)
+  5. Expand `form` + `channel role` → `cat` seqs + standard `channel` lines
+  6. Expand `seq` RHS `cat()` → flat seq item list
+  7. Continue existing pat/seq/modifier expansion unchanged
 
 ### CLI Changes
 
@@ -313,7 +401,30 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 - Syntax highlighting and completions for `section`, `form`, `alias`, `cat`, `include`.
 - Help panel: new **Song structure** section with `cat` / `section` / `form` examples.
 - CodeLens: optional “expand section” preview showing generated seq names.
+- New **Song Structure Outline** panel: list sections, roles, forms, and channel role bindings with jump-to-definition.
+- New **Arrangement Timeline** preview: section order rendered per channel role to expose misalignment early.
+- Add **Expanded Source** side panel (toggle) that shows desugared output and keeps diagnostics mapped to original lines.
+- Add quick refactors in editor actions:
+  - Convert repeated channel seq lists to `cat(...)` timeline seq
+  - Extract repeated seq item runs into `alias`
+  - Create missing role stubs in sections referenced by active `form`
+- Add Beginner Mode authoring actions:
+  - “Create section (simple)” snippet: `section <name> use <mel> <harm> <bass> <perc>`
+  - “Create form timeline” wizard using draggable section chips (`>` output)
+  - “Auto-map channels” assistant to emit `channel auto ...` and preview expanded lines
+- Extend folding provider to fold `section { ... }` blocks and form-centric regions (not comment-only folding).
+- New Song Wizard structure templates include form-first examples for long-song workflows.
+- Add settings toggle: “Beginner authoring mode” (UI affordance only; does not alter parser strictness).
 - No change to playback engine beyond parsing/resolution.
+
+**Implementation anchors in current web-ui codebase:**
+
+- Language tokens/directives/completions: `apps/web-ui/src/editor/beatbax-language.ts`, `apps/web-ui/src/editor/top-level-directives.ts`, `apps/web-ui/src/editor/completion.ts`, `apps/web-ui/src/editor/completion-docs.ts`
+- Existing CodeLens infrastructure: `apps/web-ui/src/editor/codelens-preview.ts`
+- Existing quick-fix pipeline: `apps/web-ui/src/editor/code-actions.ts`
+- Help panel sectioning: `apps/web-ui/src/panels/help-panel.ts`
+- New Song Wizard templates: `apps/web-ui/src/panels/new-song-wizard.ts`
+- Parse/resolve lifecycle events: `apps/web-ui/src/playback/playback-manager.ts`, `apps/web-ui/src/utils/event-bus.ts`
 
 ### Export Changes
 
@@ -336,17 +447,21 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 | Area | Cases |
 |------|-------|
 | `cat()` | Two/three operands; per-operand modifiers; nested cat; unknown seq ref |
-| `alias` | Use in seq RHS; duplicate name error; forward reference error; alias-to-alias disallowed |
-| `section` | Role expansion naming; empty section; duplicate role |
-| `form` + `role` | Four-channel expansion matches hand-written `crypt` channel lines |
-| `include` | Local file; prefix; duplicate symbol error; circular include; repeated include behavior |
+| `alias` | Use in seq RHS; duplicate name error; forward references; alias-to-alias acyclic success; cycle error |
+| `section` | Role expansion naming; empty section; duplicate role; generated-name collision with explicit seq |
+| `form` + `role` | Four-channel expansion matches hand-written `crypt` channel lines; missing role in referenced section errors |
+| `include` | Local file; prefix; duplicate symbol error; circular include; repeated include without prefix error |
 | Expansion idempotence | Expand twice === expand once |
 
 ### Integration Tests
 
 - Parse + `resolveSong` on `song_composition_demo.bax` — event counts match equivalent manual song.
 - Golden ISM snapshot: expanded form vs manual `sequence_demo.bax` / crypt excerpt.
+- Parse + `resolveSong` on a Beginner Mode fixture (`section ... use`, `form ... > ...`, `channel auto ...`) equals canonical expanded source fixture.
 - Web UI: parse diagnostics for malformed `section` block.
+- Web UI: outline/timeline panels reflect updated `form` order after edits.
+- Web UI: expanded-source panel maps diagnostics to authored line/column correctly.
+- Web UI: Beginner Mode helpers generate valid canonical output and preserve round-trip edits.
 
 ---
 
@@ -366,21 +481,26 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 ### Phase 1
 - [ ] AST: `AliasDecl`, `SeqCatRhs`
 - [ ] Parser: `alias`, `cat()` in seq RHS
-- [ ] Resolver: alias inline + cat expansion
+- [ ] Resolver: declaration-collection + alias/cat expansion + alias cycle diagnostics
 - [ ] Tests: unit + demo song snippet
 - [ ] Web UI: syntax + help snippet
+- [ ] Beginner Mode: `>` form separator and `section ... use ...` desugaring tests
 
 ### Phase 2
 - [ ] AST: `SectionDecl`, `FormDecl`, channel `role`/`form`
-- [ ] Parser + desugar pass
+- [ ] Parser + desugar pass + generated-name collision checks
 - [ ] Tests: crypt-equivalent expansion golden test
 - [ ] Web UI: completions for section roles
+- [ ] Web UI: Song Structure Outline + Arrangement Timeline (read-only)
+- [ ] Web UI: section/form CodeLens expand preview + create-missing-role quick fix
+- [ ] Beginner Mode: `channel auto form ... inst=...|...|...|...` desugaring + diagnostics
 
 ### Phase 3
 - [ ] Phase 3a `include` resolver (pat/seq/effect only)
 - [ ] Prefix option + security parity with local-source trust model
-- [ ] Tests: multi-file fixture + repeated include duplicate handling
-- [ ] Phase 3b design note for alias/section include support
+- [ ] Tests: multi-file fixture + repeated include collision handling
+- [ ] Phase 3b design note for include exports/namespaces/include-once behavior
+- [ ] Phase 3c design note for alias/section include support
 
 ### Phase 4 (optional)
 - [ ] `beatbax expand` CLI
@@ -397,7 +517,8 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 | Per-section `bpm` / `speed` | Requires scheduler support |
 | `pat`/`effect` aliases | Same machinery as seq alias |
 | Inline `cat()` on `channel` seq lists | Convenience (v1.1 candidate) |
-| IDE outline view | Sections as foldable regions |
+| IDE outline/timeline editing | Promote read-only outline/timeline to lightweight structure editor |
+| Beginner Mode to Advanced conversion action | One-click rewrite from sugar syntax to canonical syntax |
 
 **Related but separate:** [scale-awareness.md](scale-awareness.md) — compile-time pitch validation; composes with sections but does not reduce line count.
 
@@ -406,14 +527,133 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 ## Resolved Decisions
 
 1. **Channel binding syntax (v1)** — use channel `role` + `form` binding.
-2. **Generated seq naming (v1)** — `<section>_<role>` only.
+2. **Generated seq naming (v1)** — `<section>_<role>` with explicit collision errors.
 3. **Inline `cat` on `channel`** — deferred to v1.1.
 4. **`include` and `channel`** — included `channel` lines are out of scope for v1/v1.1.
-5. **Alias resolution** — single-pass top-down; no forward alias references; no alias-to-alias.
+5. **Alias resolution** — two-phase declaration + resolve; forward refs allowed; alias cycles are errors.
+6. **Form/role strictness** — missing role coverage is a compile-time error in v1.
+7. **Beginner Mode** — sugar syntax is supported, but always lowered to canonical `section`/`form`/`channel role` before main expansion.
 
 ## Remaining Question
 
-1. **Diagnostic verbosity** — Should `--expand` be default in web UI “show expanded source” panel?
+1. **Expanded source UX default** — Should expanded-source panel be opt-in per session, or auto-open only on structure-related diagnostics?
+
+---
+
+## Constraints and Chip Mapping
+
+This feature set is designed for constrained chips and tracker/export targets. All new constructs are compile-time authoring abstractions and must not relax channel, memory, or export constraints.
+
+### Hard guarantees
+
+- `section`, `form`, `alias`, `cat`, `include`, and Beginner Mode sugar always lower to canonical `pat` / `seq` / `channel` source before normal resolution.
+- Lowering must not add runtime behavior, mutable state, or scheduler branches.
+- Expanded output must honor the active chip channel count exactly.
+- Exporters remain the final authority for format limits; this feature does not bypass exporter validation.
+- Equivalent authored/expanded songs must produce equivalent resolved song structure and deterministic playback.
+
+### Constraint mapping
+
+| Constraint type | Impact of new constructs | Required behavior |
+|-----------------|--------------------------|-------------------|
+| Channel count (chip limit) | Structural only | Error when generated/explicit channel mapping exceeds chip channel limit |
+| Pattern/order memory | Indirect | No automatic bloat reduction promised; provide diagnostics and refactor suggestions |
+| Instrument/macro memory | Indirect | Keep existing validation/export checks unchanged |
+| Export format limits | None by design | Expanded source must pass the same exporter checks as hand-written canonical source |
+
+### Chip-profile behavior
+
+- Beginner Mode role lanes are profile-driven in UI and templates.
+- v1 parser sugar remains 4-lane (`mel`, `harm`, `bass`, `perc`) unless extended by a chip-profile revision.
+- If Beginner Mode sugar is used with an incompatible chip/profile, emit a targeted diagnostic with a suggested advanced-mode rewrite.
+
+### Acceptance criteria for constrained targets
+
+- For a constrained target fixture, canonical source and sugar-authored source resolve to equivalent event counts and timing.
+- Exceeding channel limits via `channel auto` or expanded role mapping fails with a clear compile-time error.
+- Export validation warnings/errors remain unchanged versus equivalent canonical source.
+- Expanded source view shows the exact channel and sequence material sent to resolver/exporter.
+
+### Web UI requirements for constrained workflows
+
+- Add a chip-aware budget panel summarizing channel usage and target-sensitive structure metrics.
+- Add constraint diagnostics with direct fixes where possible.
+- Add refactor hints for repeated expanded material (for example alias/cat extraction suggestions).
+- Keep Expanded Source panel available from diagnostics so users can inspect canonical output under limits.
+- New Song Wizard should expose chip/profile templates and indicate when Beginner Mode shortcuts are compatible.
+
+### Out of scope for this feature
+
+- Automatic pattern packing or memory optimization in exporters.
+- Implicit channel virtualization or hidden lane multiplexing.
+- Any runtime adaptation to chip limits.
+
+---
+
+## Strudel-Inspired UX Appendix (Non-Normative)
+
+This appendix captures REPL-style interaction patterns inspired by Strudel that can improve authoring ergonomics for large songs, while preserving BeatBax determinism and export correctness.
+
+### Adoption rule
+
+- Borrow interaction patterns, not runtime semantics.
+- All UI interactions must still lower to canonical BeatBax source before parse/resolve/export.
+- No hidden state that changes playback/export output without visible source changes.
+
+### Must-have capabilities (high value)
+
+1. **Live expanded-structure preview**
+  - Always-available preview of `section`/`form`/`alias`/`cat` lowering.
+  - Bidirectional navigation: authored line -> expanded output and back.
+
+2. **Section timeline lanes**
+  - Visual section order and per-role/per-channel occupancy.
+  - Immediate visual warnings for missing roles and likely misalignment.
+
+3. **Progressive onboarding path**
+  - Beginner snippets first (`section ... use ...`, `form ... > ...`, `channel auto ...`).
+  - One-click “show canonical source” to teach advanced syntax naturally.
+
+4. **Actionable diagnostics**
+  - Diagnostics should explain intent, not just parse form.
+  - Every structure error should provide at least one safe refactor action where possible.
+
+### Should-have capabilities (next wave)
+
+1. **Tweak-and-accept workflow**
+  - Temporary UI-only edits (timeline reorder, role remap) with explicit Apply/Revert into source.
+
+2. **Per-section audition controls**
+  - Quick preview/solo/mute for section slices without requiring whole-song playback.
+
+3. **Constraint-aware budget HUD**
+  - Chip/export profile indicators (channel usage and structure-size heuristics).
+  - Surface likely limit pressure early in authoring.
+
+4. **Round-trip conversion actions**
+  - Beginner -> canonical rewrite.
+  - Canonical -> beginner-friendly scaffold where representable.
+
+### Out-of-scope borrowings from live-coding REPLs
+
+- Runtime-evaluated expression language.
+- Implicit timing/state mutation not represented in source.
+- Non-deterministic transformations that cannot round-trip through canonical output.
+
+### Candidate implementation mapping (current web-ui)
+
+- Expanded preview + structural tokens: `apps/web-ui/src/editor/beatbax-language.ts`
+- Timeline/outline panels + event wiring: `apps/web-ui/src/utils/event-bus.ts`, `apps/web-ui/src/playback/playback-manager.ts`
+- CodeLens/inline affordances: `apps/web-ui/src/editor/codelens-preview.ts`
+- Quick refactors from diagnostics: `apps/web-ui/src/editor/code-actions.ts`
+- Beginner template flow: `apps/web-ui/src/panels/new-song-wizard.ts`
+- Contextual docs/help authoring: `apps/web-ui/src/panels/help-panel.ts`
+
+### Acceptance criteria for this appendix
+
+- REPL-like UX features do not alter resolved output unless source is explicitly updated.
+- Any UI-generated source is valid canonical BeatBax or deterministic Beginner sugar that lowers to canonical BeatBax.
+- Preview, diagnostics, and export all agree on the same lowered source for a given edit state.
 
 ---
 
