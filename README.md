@@ -10,7 +10,7 @@ Creating chiptunes is rewarding but can be hard and time-consuming, so the [Beat
 you write your song. This is not a replacement for creativity and inspiration just a
 way to help you with the construction of your song.
 
-**BeatBax** currently supports Nintendo Game Boy (DMG-01) APU, Nintendo Entertainment System (NES) Ricoh 2A03 APU. However, the architecture is designed so additional chip backends (PC-Engine, SID, Genesis) can be added (see [ROADMAP](ROADMAP.md) for further details).
+**BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in chips. Additional chip backends can still be added as plugins (see [ROADMAP](ROADMAP.md) for further details).
 
 One of the main aims in creating **BeatBax** was to be able to aid in the creation of
 songs for Homebrew games. So where possible, BeatBax songs can be exported into
@@ -33,6 +33,8 @@ formats that game libraries can consume. For example hUGETracker (UGE) format fo
 - **BeatBax Copilot** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
 - **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
+
+Game Boy and NES are available immediately from `@beatbax/engine`; optional chips such as SMS and Spectrum remain host-registered plugins.
 
 > **Note:** BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) — no key is included or stored by BeatBax.
 
