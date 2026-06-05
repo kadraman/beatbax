@@ -12,13 +12,13 @@ import './styles.css';
 
 // ─── Chip plugin registration ─────────────────────────────────────────────────
 // Register optional plugins enabled in localStorage.
-// (Game Boy is built-in and already present in chipRegistry.)
+// (Built-in chips like Game Boy and NES are already present in chipRegistry.)
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { loadPluginsFromStorage } from './plugins/registry-config';
 import { chipRegistry, getSongValidationIssues } from '@beatbax/engine/chips';
 import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
-import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/plugin-chip-nes';
+import { setNesWebAudioMixMode, type NesWebAudioMixMode } from '@beatbax/engine/chips/nes';
 import { storage, StorageKey } from './utils/local-storage';
 
 const storedNesMixMode = storage.get(StorageKey.NES_WEB_AUDIO_MIX_MODE);

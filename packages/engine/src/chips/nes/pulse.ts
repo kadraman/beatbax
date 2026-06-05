@@ -15,8 +15,8 @@
  *     the full effects system (arp, vib, portamento, etc.) in the web-ui, exactly
  *     as the built-in Game Boy pulse channels work.
  */
-import type { ChipChannelBackend } from '@beatbax/engine';
-import type { InstrumentNode } from '@beatbax/engine';
+import type { ChipChannelBackend } from '../types.js';
+import type { InstrumentNode } from '../../parser/ast.js';
 import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import {

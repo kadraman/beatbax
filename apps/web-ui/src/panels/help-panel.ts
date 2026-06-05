@@ -67,7 +67,7 @@ stepsPerBar 4` },
       { kind: 'snippet', label: 'Define an instrument', code:
 `# Instrument syntax is chip-specific — see the Instruments section below.
 # Example (Game Boy): inst lead  type=pulse1 duty=50 env=12,down
-# Example (NES):      inst lead  type=pulse1 duty=50 env=15,flat` },
+# Example (NES/Famicom): inst lead  type=pulse1 duty=50 env=15,flat` },
       { kind: 'snippet', label: 'Define a pattern', code:
 `pat melody  = C5 E5 G5 C6
 pat bassline = C3 . G2 .

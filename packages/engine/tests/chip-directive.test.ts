@@ -23,6 +23,20 @@ describe('chip directive', () => {
     expect(messages.some(m => m.includes("Did you mean 'ntsc'?"))).toBe(true);
   });
 
+  test('famicom is accepted as an alias for nes', () => {
+    const src = `chip famicom`;
+    const result = parseWithPeggy(src);
+    expect(result.ast.chip).toBe('famicom');
+    expect(result.ast.diagnostics?.filter(d => d.level === 'error') ?? []).toHaveLength(0);
+  });
+
+  test('famicom chip region qualifier is parsed', () => {
+    const src = `chip famicom pal`;
+    const result = parseWithPeggy(src);
+    expect(result.ast.chip).toBe('famicom');
+    expect((result.ast as any).chipRegion).toBe('pal');
+  });
+
   test('nes chip region qualifier is parsed', () => {
     const src = `chip nes pal`;
     const result = parseWithPeggy(src);
@@ -49,6 +63,6 @@ describe('chip directive', () => {
     const src = `chip gameboy pal`;
     const result = parseWithPeggy(src);
     const messages = (result.ast.diagnostics || []).map(d => d.message);
-    expect(messages.some(m => m.includes("only supported for 'chip sms' and 'chip nes'"))).toBe(true);
+    expect(messages.some(m => m.includes("only supported for 'chip sms', 'chip nes', and 'chip famicom'"))).toBe(true);
   });
 });

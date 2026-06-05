@@ -1,4 +1,5 @@
 import type { ExporterPlugin } from '@beatbax/engine/export';
+import { chipRegistry } from '@beatbax/engine/chips';
 
 const BUILTIN_BROWSER_EXPORTERS: ExporterPlugin[] = [
   {
@@ -79,12 +80,18 @@ export class BrowserExporterRegistry {
   list(chipName?: string): ExporterPlugin[] {
     if (!chipName) return this.all();
     const chip = chipName.toLowerCase();
+    const canonical = chipRegistry.resolve(chip);
     const chipNormalized = normalizeChipName(chip);
     return this.all().filter((plugin) =>
       plugin.supportedChips.includes('*') ||
       plugin.supportedChips.some((x) => {
         const supported = x.toLowerCase();
-        return supported === chip || normalizeChipName(supported) === chipNormalized;
+        const supportedCanonical = chipRegistry.resolve(supported);
+        return (
+          supported === chip ||
+          supportedCanonical === canonical ||
+          normalizeChipName(supported) === chipNormalized
+        );
       }),
     );
   }

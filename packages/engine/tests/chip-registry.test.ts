@@ -1,7 +1,7 @@
 /**
  * Tests for the ChipRegistry and ChipPlugin system.
  */
-import { ChipRegistry, chipRegistry, gameboyPlugin } from '../src/chips/index.js';
+import { ChipRegistry, chipRegistry, gameboyPlugin, nesPlugin } from '../src/chips/index.js';
 import type { ChipPlugin, ChipChannelBackend, ValidationError } from '../src/chips/types.js';
 import { BeatBaxEngine } from '../src/engine.js';
 import { get as getEffect } from '../src/effects/index.js';
@@ -36,8 +36,11 @@ describe('ChipRegistry', () => {
     reg = new ChipRegistry();
   });
 
-  test('Game Boy is registered by default', () => {
+  test('built-in chips are registered by default', () => {
     expect(reg.has('gameboy')).toBe(true);
+    expect(reg.has('nes')).toBe(true);
+    expect(reg.has('famicom')).toBe(true);
+    expect(reg.resolve('famicom')).toBe('nes');
   });
 
   test('list() returns registered chip names', () => {
@@ -51,10 +54,10 @@ describe('ChipRegistry', () => {
   });
 
   test('register() adds a new plugin', () => {
-    const mock = makeMockPlugin('nes');
+    const mock = makeMockPlugin('sid');
     reg.register(mock);
-    expect(reg.has('nes')).toBe(true);
-    expect(reg.get('nes')).toBe(mock);
+    expect(reg.has('sid')).toBe(true);
+    expect(reg.get('sid')).toBe(mock);
   });
 
   test('register() auto-registers plugin aliases', () => {
@@ -66,7 +69,7 @@ describe('ChipRegistry', () => {
   });
 
   test('register() throws on duplicate name', () => {
-    const mock = makeMockPlugin('nes');
+    const mock = makeMockPlugin('sid');
     reg.register(mock);
     expect(() => reg.register(mock)).toThrow("already registered");
   });
@@ -80,12 +83,13 @@ describe('ChipRegistry', () => {
   });
 
   test('list() returns all registered names', () => {
-    reg.register(makeMockPlugin('nes'));
     reg.register(makeMockPlugin('sid'));
+    reg.register(makeMockPlugin('atari-st'));
     const names = reg.list();
     expect(names).toContain('gameboy');
     expect(names).toContain('nes');
     expect(names).toContain('sid');
+    expect(names).toContain('atari-st');
   });
 
   test('register() does not override global effect handlers', () => {
@@ -103,12 +107,14 @@ describe('ChipRegistry', () => {
 // ─── Global chipRegistry singleton ───────────────────────────────────────────
 
 describe('chipRegistry singleton', () => {
-  test('has gameboy built-in', () => {
+  test('has built-in gameboy and nes', () => {
     expect(chipRegistry.has('gameboy')).toBe(true);
+    expect(chipRegistry.has('nes')).toBe(true);
   });
 
-  test('returns gameboyPlugin from get()', () => {
+  test('returns built-in plugins from get()', () => {
     expect(chipRegistry.get('gameboy')).toBe(gameboyPlugin);
+    expect(chipRegistry.get('nes')).toBe(nesPlugin);
   });
 
   test('playback resolves effect handler from active chip plugin', () => {
@@ -254,9 +260,10 @@ describe('BeatBaxEngine', () => {
     expect(engine.validateChip('nonexistent')).toBe(false);
   });
 
-  test('listChips includes gameboy', () => {
+  test('listChips includes built-in chips', () => {
     const engine = new BeatBaxEngine();
     expect(engine.listChips()).toContain('gameboy');
+    expect(engine.listChips()).toContain('nes');
   });
 
   test('registerChipPlugin makes chip available', () => {

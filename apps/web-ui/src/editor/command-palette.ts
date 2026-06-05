@@ -1812,7 +1812,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         channel: 'channel N => inst INSTNAME seq SEQNAME\n  Assign instrument and sequence to a channel (1-based).\n  Example: channel 1 => inst lead seq main',
         bpm: 'bpm N\n  Set beats per minute (1–999).\n  Example: bpm 120',
         time: 'time N\n  Set steps per bar (e.g. 4 for 4/4).\n  Example: time 4',
-        chip: 'chip NAME\n  Select sound chip backend.\n  Options: gameboy | nes | sms | ...\n  Example: chip gameboy',
+        chip: 'chip NAME\n  Select sound chip backend.\n  Options: gameboy | nes | famicom | sms | ...\n  Example: chip gameboy',
         effect: 'effect NAME TYPE(params)\n  Define a named effect preset for reuse.\n  Example: effect myVib vib(12,4)',
         play: 'play\n  Start song playback.',
         notes: 'Notes: C4 D4 E4 F4 G4 A4 B4\n  Sharp: C#4  Flat: Cb4\n  Rest: . (dot)\n  Octaves 1–8',
@@ -1912,7 +1912,7 @@ export interface SeqChunk { seqName: string; noteCount: number; patNames: string
  */
 const CHIP_MAX_CHANNELS: Record<string, number> = {
   gameboy: 4, 'game-boy': 4, gb: 4,
-  nes: 5,
+  nes: 5, famicom: 5,
   c64: 3, sid: 3,
   genesis: 9, 'sega-genesis': 9, megadrive: 9,
 };

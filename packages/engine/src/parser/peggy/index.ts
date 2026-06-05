@@ -991,7 +991,7 @@ export function parseWithPeggy(source: string): ParseResult {
         diag('error', 'parser', `Invalid ${canonicalChip.toUpperCase()} region '${chipRegion}'. Valid values: ntsc, pal.${hint}`, chipLoc);
       }
     } else {
-      diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms' and 'chip nes'.`, chipLoc);
+      diag('error', 'parser', `Chip region qualifier '${chipRegion}' is only supported for 'chip sms', 'chip nes', and 'chip famicom'.`, chipLoc);
     }
   }
 

@@ -10,8 +10,8 @@
  *   - `"local:<path>"` — file system (CLI/Node.js only; blocked in browser)
  *   - `"https://..."`  — remote fetch (browser + Node.js 18+)
  */
-import type { ChipChannelBackend } from '@beatbax/engine';
-import type { InstrumentNode } from '@beatbax/engine';
+import type { ChipChannelBackend } from '../types.js';
+import type { InstrumentNode } from '../../parser/ast.js';
 import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';

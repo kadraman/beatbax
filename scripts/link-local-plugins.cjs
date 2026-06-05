@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// This script links all local BeatBax plugins (e.g., plugin-chip-nes) into the web-ui's node_modules for local development.
+// Links built optional plugins into web-ui node_modules for local development.
 // Usage: node scripts/link-local-plugins.cjs
 
 const repoRoot = path.resolve(__dirname, '..');

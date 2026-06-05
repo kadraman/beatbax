@@ -246,7 +246,7 @@ export interface ChipNewSongWizard {
  *
  * @example
  * ```typescript
- * import nesPlugin from '@beatbax/plugin-chip-nes';
+ * import { nesPlugin } from '@beatbax/engine/chips';
  * engine.registerChipPlugin(nesPlugin);
  * ```
  */

@@ -5,15 +5,12 @@
  * The user can toggle each plugin on/off via Settings → Plugins; the choice is
  * persisted to localStorage and applied on the next page load.
  *
- * To add a new plugin:
- *   1. `npm install --workspace=apps/web-ui @beatbax/plugin-chip-<id>`
- *   2. Add an import below.
- *   3. Add an entry to AVAILABLE_PLUGINS.
+ * Built-in chips (Game Boy, NES) are always provided by the engine.
+ * This registry only handles optional chip plugins.
  */
 
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
-import nesPlugin from '@beatbax/plugin-chip-nes';
 import smsPlugin from '@beatbax/plugin-chip-sms';
 import spectrumPlugin from '@beatbax/plugin-chip-spectrum-128';
 import { storage, StorageKey } from '../utils/local-storage.js';
@@ -30,15 +27,6 @@ export interface PluginEntry {
 }
 
 export const AVAILABLE_PLUGINS: PluginEntry[] = [
-  {
-    id: 'nes',
-    label: 'NES (Ricoh 2A03)',
-    description:
-      'Nintendo Entertainment System APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
-      'Enables `chip nes` in .bax scripts.',
-    badge: 'Beta',
-    plugin: nesPlugin,
-  },
   {
     id: 'sms',
     label: 'SMS (SN76489)',
@@ -69,7 +57,7 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
-const DEFAULT_ENABLED = ['nes', 'sms'];
+const DEFAULT_ENABLED = ['sms'];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

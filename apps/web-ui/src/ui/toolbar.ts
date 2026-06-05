@@ -10,6 +10,7 @@ import { openFilePicker } from '../import/file-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { exporterRegistry } from '../plugins/browser-exporter-registry';
+import { resolveUiChipId } from '../utils/chip-resolve';
 
 /** Fallback toolbar icon per built-in exporter id. */
 const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
@@ -560,7 +561,7 @@ export class Toolbar {
 
   /** Show/hide chip-specific export actions based on the current parsed chip. */
   setChip(chip: string): void {
-    this.activeChip = (chip || 'gameboy').toLowerCase();
+    this.activeChip = resolveUiChipId(chip);
     const btns = this.el.querySelectorAll<HTMLButtonElement>('[data-format]');
     btns.forEach((btn) => {
       const supported = (btn.dataset.supportedChips || '*')

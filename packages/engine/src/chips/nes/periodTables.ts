@@ -1,4 +1,4 @@
-import { noteToMidi, midiToFreq } from '@beatbax/engine';
+import { noteToMidi, midiToFreq } from '../../util/music.js';
 
 /**
  * NES APU period tables for pulse and triangle channels.

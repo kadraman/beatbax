@@ -12,7 +12,7 @@ import { chipRegistry } from './chips/registry.js';
  *
  * ```typescript
  * import { BeatBaxEngine } from '@beatbax/engine';
- * import nesPlugin from '@beatbax/plugin-chip-nes';
+ * import { nesPlugin } from '@beatbax/engine/chips';
  *
  * const engine = new BeatBaxEngine();
  * engine.registerChipPlugin(nesPlugin);

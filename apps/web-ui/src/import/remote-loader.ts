@@ -179,7 +179,7 @@ export interface ExampleSong {
 
 /** A named group of songs, e.g. for a specific chip. */
 export interface ExampleSongGroup {
-  /** Display label for the group (e.g. "Game Boy", "NES"). */
+  /** Display label for the group (e.g. "Game Boy", "NES/Famicom"). */
   group: string;
   songs: ExampleSong[];
 }
@@ -202,7 +202,7 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
     ],
   },
   {
-    group: 'NES',
+    group: 'NES/Famicom',
     songs: [
       { label: 'battle_fanfare.bax',         path: '/songs/nes/battle_fanfare.bax' },
       { label: 'iron_keep.bax',              path: '/songs/nes/iron_keep.bax' },

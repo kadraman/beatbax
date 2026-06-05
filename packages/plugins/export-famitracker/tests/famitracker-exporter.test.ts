@@ -23,6 +23,18 @@ describe('famitracker exporter plugins', () => {
     expect(famitrackerTextExporterPlugin.validate?.(gbSong).length).toBeGreaterThan(0);
   });
 
+  test('text exporter accepts famicom alias for nes', async () => {
+    const song: any = {
+      chip: 'famicom',
+      bpm: 120,
+      channels: [{ id: 1, events: [] }],
+      metadata: { name: 'famicom song' },
+    };
+    expect(famitrackerTextExporterPlugin.validate?.(song)).toEqual([]);
+    const data = await famitrackerTextExporterPlugin.export(song);
+    expect(String(data)).toContain('FamiTracker text export');
+  });
+
   test('text exporter warns when a pattern has a non-power-of-2 row count', async () => {
     // 17 events with sourcePattern 'bad_pat' → frame length 17 (not a power of 2)
     const events = Array.from({ length: 17 }, (_, i) => ({
