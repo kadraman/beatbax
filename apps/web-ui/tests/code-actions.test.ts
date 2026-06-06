@@ -293,11 +293,11 @@ describe('suggestQuickFixes', () => {
       model,
       marker('seq', 5, 30),
     );
-    expect(fixes[0].title).toBe("Use sequence 'main'");
+    expect(fixes[0].title).toBe("Use pattern 'main'");
     expect(editText(fixes[0])).toBe('main');
     expect(fixes.map((f) => f.title)).toEqual(
       expect.arrayContaining([
-        "Use sequence 'main'",
+        "Use pattern 'main'",
         "Create pattern 'mainn'",
         "Create sequence 'mainn'",
       ]),

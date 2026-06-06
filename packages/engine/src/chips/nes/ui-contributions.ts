@@ -91,6 +91,47 @@ const hoverDocs: Record<string, string> = {
     'Example: `inst kick type=noise noise_mode=normal noise_period=12 env=15,down env_period=3`',
   ].join('\n\n'),
 
+  type: [
+    '**Channel type** — selects which NES APU voice this instrument drives.',
+    '```\ntype=<pulse1|pulse2|triangle|noise|dmc>\n```',
+    '- `pulse1` — square wave, channel 1; supports `duty`, `env`, hardware sweep',
+    '- `pulse2` — square wave, channel 2; same as pulse1 but on channel 2',
+    '- `triangle` — fixed 32-step triangle, channel 3; no hardware volume envelope',
+    '- `noise` — LFSR percussion, channel 4; tune with `noise_period` and `env`',
+    '- `dmc` — delta sample playback, channel 5; set `dmc_sample` and `dmc_rate`',
+    '',
+    'Hover a type value (e.g. `pulse1`) for channel-specific documentation.',
+    '',
+    'Example: `inst lead type=pulse1 duty=25 env=13,down env_period=2`',
+  ].join('\n\n'),
+
+  duty: [
+    '**Duty cycle** — pulse width for NES square-wave channels (`pulse1` and `pulse2`).',
+    '```\nduty=<value>\n```',
+    '- `12` / `12.5` — thin, bright, cutting (leads, arpeggios)',
+    '- `25` — classic hollow square timbre',
+    '- `50` — balanced, full-sounding (common default)',
+    '- `75` — darker, thicker tone (phase-inverted 25%)',
+    '',
+    'Hover a value like `duty=50` to see the selected width.',
+    '',
+    'Example: `inst lead type=pulse1 duty=25 env=13,down`',
+  ].join('\n\n'),
+
+  vol: [
+    '**Constant volume** — fixed amplitude **0–15** for the note (bypasses envelope decay).',
+    '```\nvol=<0-15>\n```',
+    '- Use instead of `env=` when you want a steady level for the whole note',
+    '- `0` mutes the channel (software gate; useful on triangle for rhythmic cuts)',
+    '- When `vol_env=[…]` is set, the macro overrides `vol` at playback time',
+    '',
+    '_Triangle channel: hardware level is always maximum; only `vol=0` silences._',
+    '',
+    'Hover a value like `vol=10` for level details.',
+    '',
+    'Example: `inst lead type=pulse1 duty=50 vol=10`',
+  ].join('\n\n'),
+
   pulse1: [
     '**Pulse 1** — NES APU square-wave oscillator (channel 1).',
     'Supports duty cycle, envelope, constant volume, and hardware frequency sweep.',

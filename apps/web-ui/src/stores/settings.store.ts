@@ -72,6 +72,7 @@ export const settingVizBgImage         = stringAtom<string>(StorageKey.VIZ_BG_IM
 
 export const settingAutoSave        = boolAtom(StorageKey.AUTO_SAVE,         true);
 export const settingWordWrap        = boolAtom(StorageKey.WORD_WRAP,         false);
+export const settingFoldComments    = boolAtom(StorageKey.FOLD_COMMENTS,     false);
 export const settingCodeLens        = boolAtom(StorageKey.CODELENS,          true);
 export const settingBeatDecorations = boolAtom(StorageKey.BEAT_DECORATIONS,  true);
 export const settingDefaultBpm      = numberAtom(StorageKey.BPM,              128);
@@ -156,6 +157,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
   editor: [
     StorageKey.AUTO_SAVE,
     StorageKey.WORD_WRAP,
+    StorageKey.FOLD_COMMENTS,
     StorageKey.CODELENS,
     StorageKey.BEAT_DECORATIONS,
     StorageKey.BPM,

@@ -250,8 +250,8 @@ describe('Editor Integration', () => {
       eventBus.on('validation:warnings', warningHandler);
 
       const warnings = [
-        { component: 'resolver', message: 'Undefined instrument: snare', loc: { line: 5 } },
-        { component: 'resolver', message: 'Undefined pattern: melody', loc: { line: 10 } },
+        { component: 'resolver', message: 'Undefined instrument: snare', loc: { start: { line: 5 } } },
+        { component: 'resolver', message: 'Undefined pattern: melody', loc: { start: { line: 10 } } },
       ];
 
       eventBus.emit('validation:warnings', { warnings });
