@@ -21,7 +21,7 @@
  */
 
 import * as monaco from 'monaco-editor';
-import { parse } from '@beatbax/engine/parser';
+import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
@@ -89,6 +89,21 @@ export function resolveAuditionInstrumentForLine(lineText: string, ast: any): st
   if (!patMatch) return null;
 
   return resolvePreviewInstrument(patMatch[1], ast);
+}
+
+/**
+ * Parse source for preview/audition playback. Unlike `parse()`, tolerates recoverable
+ * syntax errors (e.g. empty `pat foo =`) when instruments/chip are still available.
+ */
+export function parseSourceForPreview(source: string): any | null {
+  const result = parseWithPeggy(source);
+  if (!result.hasErrors) return result.ast;
+
+  const ast = result.ast;
+  const hasInsts = ast?.insts && Object.keys(ast.insts).length > 0;
+  const hasChip = Boolean(ast?.chip);
+  if (hasInsts || hasChip) return ast;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -591,7 +606,7 @@ let _commandsRegistered = false;
 // ---------------------------------------------------------------------------
 let _sharedCtx: any = null;
 
-function ensureAudioCtxReady(): void {
+export function ensureAudioCtxReady(): void {
   const Ctor = typeof window !== 'undefined'
     ? ((window as any).AudioContext ?? (window as any).webkitAudioContext)
     : null;
@@ -718,8 +733,8 @@ export function setupCodeLensPreview(
   };
 
   _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = parseSourceForPreview(getSource());
+    if (!rawAst) return;
 
     const instName = resolveAuditionInstrumentForLine(lineText, rawAst);
     if (!instName) return;
@@ -1042,4 +1057,8 @@ export function setupCodeLensPreview(
 
 export function triggerStepEntryAudition(lineText: string, note: string): void {
   _stepEntryAuditionTrigger?.(lineText, note);
+}
+
+export function triggerEffectPreview(effectName: string): void {
+  _effectPreviewTrigger?.(effectName);
 }

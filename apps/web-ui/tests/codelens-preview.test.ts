@@ -1,5 +1,12 @@
+const mockParseWithPeggy = jest.fn();
+
+jest.mock('@beatbax/engine/parser', () => ({
+  parse: (source?: string) => ({ pats: {}, patsOrder: [], insts: {}, seqs: {}, channels: [], bpm: 120 }),
+  parseWithPeggy: (...args: unknown[]) => mockParseWithPeggy(...args),
+}));
+
 import { EventBus } from '../src/utils/event-bus';
-import { resolveAuditionInstrumentForLine, setupCodeLensPreview } from '../src/editor/codelens-preview';
+import { resolveAuditionInstrumentForLine, parseSourceForPreview, setupCodeLensPreview } from '../src/editor/codelens-preview';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -92,5 +99,31 @@ describe('CodeLens Preview provider', () => {
     };
 
     expect(resolveAuditionInstrumentForLine('inst arpLead type=pulse1 duty=50', ast)).toBe('arpLead');
+  });
+
+  it('parseSourceForPreview returns partial AST when empty pat is a syntax error', () => {
+    mockParseWithPeggy.mockReturnValue({
+      hasErrors: true,
+      errors: [{ message: "Pattern statement is incomplete: missing pattern content after '='." }],
+      ast: {
+        chip: 'nes',
+        insts: { lead: { type: 'pulse1' } },
+        pats: {},
+        channels: [],
+      },
+    });
+    const ast = parseSourceForPreview('chip nes\ninst lead type=pulse1\npat test =\n');
+    expect(ast).not.toBeNull();
+    expect(Object.keys(ast.insts)).toContain('lead');
+    expect(ast.chip).toBe('nes');
+  });
+
+  it('parseSourceForPreview returns null when source has no preview context', () => {
+    mockParseWithPeggy.mockReturnValue({
+      hasErrors: true,
+      errors: [{ message: "Pattern statement is incomplete: missing pattern content after '='." }],
+      ast: { pats: {}, insts: {}, channels: [] },
+    });
+    expect(parseSourceForPreview('pat test =')).toBeNull();
   });
 });

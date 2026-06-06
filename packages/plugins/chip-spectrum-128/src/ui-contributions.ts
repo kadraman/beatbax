@@ -116,6 +116,40 @@ const hoverDocs: Record<string, string> = {
     'the shared hardware envelope, combine fixed `vol` with `volSlide` on pattern notes.',
   ].join('\n'),
 
+  type: [
+    '**Channel type** — selects which AY-3-8912 tone/noise voice this instrument drives.',
+    '```\ntype=<tone1|tone2|tone3>\n```',
+    '- `tone1` — square wave, AY channel A (BeatBax channel 1)',
+    '- `tone2` — square wave, AY channel B (BeatBax channel 2)',
+    '- `tone3` — square wave, AY channel C (BeatBax channel 3)',
+    '',
+    'All tone channels output a fixed 50% duty square wave. Percussion uses `tone_mix=true`',
+    'to blend the shared noise generator into a tone channel.',
+    '',
+    'Hover a type value (e.g. `tone1`) for channel-specific documentation.',
+    '',
+    'Example: `inst lead type=tone1 vol=12 arp_env=[0,4,7|0]`',
+  ].join('\n'),
+
+  tone1: [
+    '**Tone 1** — AY-3-8912 square-wave channel A (BeatBax channel 1).',
+    'Fixed 50% duty. No hardware duty or sweep.',
+    '```\ninst lead type=tone1 vol=12 arp_env=[0,4,7|0] pitch_env=[0,-2,0]\n```',
+    'Supported fields: `vol`, `vol_env`, `arp_env`, `pitch_env`, `tone`, `tone_mix`, `noise_rate`, …',
+  ].join('\n'),
+
+  tone2: [
+    '**Tone 2** — AY-3-8912 square-wave channel B (BeatBax channel 2).',
+    'Same capabilities as tone1.',
+    '```\ninst harm type=tone2 vol=10 pitch_env=[0,2,0,-2,0]\n```',
+  ].join('\n'),
+
+  tone3: [
+    '**Tone 3** — AY-3-8912 square-wave channel C (BeatBax channel 3).',
+    'Same capabilities as tone1/tone2. Commonly used for bass and multiplexed percussion.',
+    '```\ninst bass type=tone3 vol=14\ninst kick type=tone3 tone_mix=true noise_rate=4 note=C3\n```',
+  ].join('\n'),
+
   tone: [
     '**tone** — Force the tone generator on or off (R7 mixer bit).',
     '',

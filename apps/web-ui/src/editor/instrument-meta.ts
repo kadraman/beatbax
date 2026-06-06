@@ -71,6 +71,22 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       gm: { detail: 'MIDI program 0–127' },
     },
   },
+  sms: {
+    types: ['tone1', 'tone2', 'tone3', 'noise'],
+    properties: {
+      type: { values: ['tone1', 'tone2', 'tone3', 'noise'], detail: 'SN76489 channel type' },
+      vol: { values: ['0', '5', '10', '15'], detail: 'Attenuation 0–15 (0=loudest, 15=mute)' },
+      vol_env: { detail: 'Volume macro [levels|loop]; 0=loudest, 15=silent' },
+      arp_env: { detail: 'Arpeggio macro semitone offsets' },
+      pitch_env: { detail: 'Pitch macro semitone offsets' },
+      noise_mode: { values: ['white', 'periodic'], detail: 'LFSR noise mode' },
+      noise_rate: { values: ['0', '1', '2', 'tone3'], detail: 'Noise clock divisor' },
+      noise_rate_env: { detail: 'Animate noise_rate per frame' },
+      gg_pan: { values: ['L', 'C', 'R'], detail: 'Game Gear stereo routing' },
+      note: { detail: 'Default note for hits' },
+      gm: { detail: 'MIDI program 0–127' },
+    },
+  },
 };
 
 /** Canonical chip ids for instrument metadata (mirrors chipRegistry aliases). */
@@ -81,6 +97,8 @@ const CHIP_ALIASES: Record<string, string> = {
   spectrum: 'spectrum-128',
   cpc: 'spectrum-128',
   'amstrad-cpc': 'spectrum-128',
+  gg: 'sms',
+  gamegear: 'sms',
 };
 
 const GENERIC_PROPERTIES: Record<string, InstPropertyMeta> = {

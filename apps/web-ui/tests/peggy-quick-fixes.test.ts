@@ -71,8 +71,8 @@ describe('peggyExpectedFixes', () => {
       'Expected "=" but "x=y" found.',
       { expectedLabels: ['='], found: 'x=y' },
     );
-    expect(patFixes[0].title).toBe("Replace with '='");
-    expect(patFixes.some((f) => f.title.startsWith('Insert'))).toBe(false);
+    expect(patFixes[0].title).toBe("Insert '='");
+    expect(patFixes.some((f) => f.title.startsWith('Replace'))).toBe(false);
   });
 
   test('inserts => on channel line', () => {

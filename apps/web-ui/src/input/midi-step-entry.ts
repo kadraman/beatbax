@@ -94,6 +94,8 @@ export interface MidiStepEntryCallbacks {
   onAuditionStart?: (noteName: string) => void;
   /** Called when a MIDI note-off occurs (for audition). Optional. */
   onAuditionStop?: (noteName: string) => void;
+  /** Called on note-on while step entry is disarmed (instrument/effect preview). Optional. */
+  onIdlePreview?: (noteName: string) => void;
   /** Called for non-fatal diagnostic messages. Optional. */
   onWarning?: (message: string) => void;
 }
@@ -164,6 +166,21 @@ export function formatNoteToken(
 }
 
 /**
+ * Prefix a leading space when inserting a note token immediately after a
+ * non-whitespace character (e.g. cursor after `A4` → insert ` C4`, not `C4`).
+ *
+ * @param lineText       Full pat line text
+ * @param insertColumn   1-based Monaco column where the token will be inserted
+ * @param token          Note token to insert
+ */
+export function prefixSpacingBeforeInsert(lineText: string, insertColumn: number, token: string): string {
+  if (insertColumn <= 1) return token;
+  const charBefore = lineText[insertColumn - 2];
+  if (charBefore === undefined || /\s/.test(charBefore)) return token;
+  return ` ${token}`;
+}
+
+/**
  * Check whether the given editor cursor position is inside the body of a
  * `pat` definition.
  *
@@ -180,6 +197,31 @@ export function isCursorInsidePatBody(lineText: string, column: number): boolean
   if (!patMatch) return false;
   // column is 1-based; patMatch[1].length is 0-based end of the "=" character
   return column > patMatch[1].length;
+}
+
+/** Extract the effect name from an `effect <name> =` definition line. */
+export function resolveEffectNameFromLine(lineText: string): string | null {
+  const match = lineText.match(/^\s*effect\s+([A-Za-z0-9_-]+)\s*=/);
+  return match?.[1] ?? null;
+}
+
+/** True when the line defines an instrument (`inst <name> ...`). */
+export function isInstrumentDefinitionLine(lineText: string): boolean {
+  return /^\s*inst\s+/.test(lineText);
+}
+
+/** True when the line defines an effect preset (`effect <name> = ...`). */
+export function isEffectDefinitionLine(lineText: string): boolean {
+  return /^\s*effect\s+/.test(lineText);
+}
+
+/**
+ * Whether a MIDI note-on should trigger preview (not step entry) for the
+ * current cursor line.
+ */
+export function isMidiPreviewLine(lineText: string, column: number): boolean {
+  if (isInstrumentDefinitionLine(lineText) || isEffectDefinitionLine(lineText)) return true;
+  return isCursorInsidePatBody(lineText, column);
 }
 
 /**
@@ -497,11 +539,16 @@ export class MidiStepEntryService {
       this._noteOnTimes.set(midiNote, Date.now());
     }
 
-    // Step entry only when armed
-    if (!this.armed) return;
+    // Preview instruments/effects when step entry is disarmed
+    if (!this.armed) {
+      this.callbacks.onIdlePreview?.(noteName);
+      return;
+    }
 
-    // Audition (play entered notes) only when armed
-    if (this.auditionNotes) {
+    // Step entry only when armed (below)
+    // Hold-duration mode: audition on note-on so the user hears pitch while holding.
+    // Instant step entry defers audition until after the note token is inserted (controller).
+    if (this.auditionNotes && this.useNoteDuration) {
       this.callbacks.onAuditionStart?.(noteName);
     }
 
