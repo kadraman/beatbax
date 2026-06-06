@@ -3,7 +3,7 @@
  * Tests plugin registration, instrument validation, and channel creation.
  */
 import { ChipRegistry } from '@beatbax/engine';
-import smsPlugin, { ggPanToGains, applyStereoRouting } from '../src/index.js';
+import smsPlugin, { ggPanToGains, applyStereoRouting, SMS_MIX_GAIN, SMS_TARGET_PEAK } from '../src/index.js';
 
 describe('plugin metadata', () => {
   it('has a valid name', () => {
@@ -21,6 +21,20 @@ describe('plugin metadata', () => {
 
   it('reports per-channel volume support', () => {
     expect(smsPlugin.supportsPerChannelVolume).toBe(true);
+  });
+
+  it('keeps full-arrangement peak near SMS_TARGET_PEAK', () => {
+    const fullArrangementPeak =
+      3 * SMS_MIX_GAIN.tone + SMS_MIX_GAIN.noise;
+    expect(fullArrangementPeak).toBeCloseTo(SMS_TARGET_PEAK, 6);
+  });
+
+  it('exposes chip-aware meter display gain per channel type', () => {
+    expect(smsPlugin.getMeterDisplayGain?.(0)).toBeCloseTo(1 / SMS_MIX_GAIN.tone, 6);
+    expect(smsPlugin.getMeterDisplayGain?.(1)).toBeCloseTo(1 / SMS_MIX_GAIN.tone, 6);
+    expect(smsPlugin.getMeterDisplayGain?.(2)).toBeCloseTo(1 / SMS_MIX_GAIN.tone, 6);
+    expect(smsPlugin.getMeterDisplayGain?.(3)).toBeCloseTo(1 / SMS_MIX_GAIN.noise, 6);
+    expect(smsPlugin.getMeterDisplayGain?.(4)).toBe(1);
   });
 });
 

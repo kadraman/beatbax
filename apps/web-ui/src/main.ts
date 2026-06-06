@@ -770,7 +770,7 @@ patternGridContainer.appendChild(patternGrid.el);
 let _currentBpm = 120;          // last BPM from AST (or nudged override) — drives the transport display
 let _lastAstBpm = 120;          // last BPM seen from the AST — used to detect direct source edits
 let _currentSig = 4;            // stepsPerBar from AST
-let _masterVolPct = storage.getJSON<number>(StorageKey.MASTER_VOLUME, 60) ?? 60;        // master volume 0-100 %
+let _masterVolPct = storage.getJSON<number>(StorageKey.MASTER_VOLUME, 100) ?? 100;    // master volume 0-100 %
 let _loopMode = storage.getJSON<boolean>(StorageKey.PLAYBACK_LOOP, false) ?? false;
 let _lastBeat = -1;             // last beat value, used to detect beat changes for LED
 // When true the user has manually toggled loop since the last song load,

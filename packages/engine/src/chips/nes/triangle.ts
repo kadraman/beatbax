@@ -247,7 +247,7 @@ function createNESTriangleWave(ctx: BaseAudioContext): any {
     const sign = (k % 2 === 0) ? 1 : -1;
     imag[n] = sign * (8 / (Math.PI * Math.PI * n * n));
   }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  return (ctx as any).createPeriodicWave(real, imag);
 }
 
 export function createTriangleChannel(_audioContext: BaseAudioContext): ChipChannelBackend {

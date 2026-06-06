@@ -446,7 +446,8 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
     const a = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * d);
     imag[n] = Number.isFinite(a) ? a : 0;
   }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  // Use Web Audio default normalization so oscillator peaks match PCM square levels.
+  return (ctx as any).createPeriodicWave(real, imag);
 }
 
 /**

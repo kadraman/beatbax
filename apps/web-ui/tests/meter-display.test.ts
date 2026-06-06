@@ -6,6 +6,11 @@ describe('meter-display utilities', () => {
     expect(gain).toBeCloseTo(1 / (0.00752 * 15), 2);
   });
 
+  test('returns chip-aware gain for SMS tone channel', () => {
+    const gain = getMeterDisplayGain('sms', 1);
+    expect(gain).toBeGreaterThan(1);
+  });
+
   test('falls back to unity gain for invalid channel ids', () => {
     expect(getMeterDisplayGain('nes', -1)).toBe(1);
   });
