@@ -209,6 +209,29 @@ describe('Spectrum-128 inst property hovers', () => {
     expect(hover?.contents[0].value).toContain('Volume 10');
     expect(hover?.contents[0].value).toContain('15 = loudest');
   });
+
+  test('buildInstPropertyKeywordHover explains camelCase chipRegion= property name', () => {
+    const line = 'inst kick type=tone3 chipRegion=cpc vol=10';
+    const column = line.indexOf('chipRegion') + 5;
+    const model = {
+      getLineContent: jest.fn(() => line),
+    } as unknown as monaco.editor.ITextModel;
+
+    const hover = buildInstPropertyKeywordHover(model, { lineNumber: 1, column }, 'spectrum-128');
+    expect(hover?.contents[0].value).toContain('Amstrad CPC');
+  });
+
+  test('buildInstPropertyHover explains chipRegion= enum value from chip hoverDocs', () => {
+    const line = 'inst kick type=tone3 chipRegion=cpc vol=10';
+    const column = line.indexOf('cpc') + 2;
+    const model = {
+      getLineContent: jest.fn(() => line),
+    } as unknown as monaco.editor.ITextModel;
+
+    const hover = buildInstPropertyHover(model, { lineNumber: 1, column }, 'spectrum-128');
+    expect(hover?.contents[0].value).toContain('chipRegion=cpc');
+    expect(hover?.contents[0].value).toContain('Amstrad CPC');
+  });
 });
 
 describe('BeatBax Monaco hover provider — Spectrum-128 inst properties', () => {

@@ -21,6 +21,12 @@ const spectrumTestHoverDocs = {
   vol_env: '**vol_env** — Hardware envelope program on AY R11–R13.',
   tone_mix: '**tone_mix** — Enable noise mixing for this channel (R7 mixer bit).',
   noise_rate: '**noise_rate** — AY R6 noise period (0–31).',
+  chipRegion: [
+    '**chip cpc** — Amstrad CPC platform (1 MHz AY clock).',
+    '',
+    '| Chip directive | Machine | AY Clock |',
+    '| `chip cpc` | Amstrad CPC 464/6128 | 1,000,000 Hz |',
+  ].join('\n'),
 };
 
 const aliases: Record<string, string> = {

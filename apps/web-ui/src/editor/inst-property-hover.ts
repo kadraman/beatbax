@@ -55,20 +55,31 @@ interface InstAssignmentMatch {
   tokenEnd: number;
 }
 
+/** Resolve a source property token to its canonical allowed key (case-insensitive). */
+function resolveAllowedProperty(name: string, allowedProperties: Set<string>): string | null {
+  if (allowedProperties.has(name)) return name;
+  const lower = name.toLowerCase();
+  for (const key of allowedProperties) {
+    if (key.toLowerCase() === lower) return key;
+  }
+  return null;
+}
+
 function iterInstAssignments(
   line: string,
   allowedProperties: Set<string>,
 ): InstAssignmentMatch[] {
   const matches: InstAssignmentMatch[] = [];
-  const re = /\b([a-z][a-z0-9_]*)\s*=/gi;
+  const re = /\b([a-zA-Z][a-zA-Z0-9_]*)\s*=/g;
   let match: RegExpExecArray | null;
 
   while ((match = re.exec(line)) !== null) {
-    const property = match[1].toLowerCase();
-    if (!allowedProperties.has(property)) continue;
+    const rawProperty = match[1];
+    const property = resolveAllowedProperty(rawProperty, allowedProperties);
+    if (!property) continue;
 
     const propStart = match.index;
-    const propEnd = propStart + match[1].length;
+    const propEnd = propStart + rawProperty.length;
     const valueMatch = ASSIGNMENT_VALUE_RE.exec(line.slice(propEnd));
     if (!valueMatch) continue;
 
@@ -317,6 +328,23 @@ function buildPropertyKeywordMarkdown(property: string, chip: string): string | 
   return lines.join('\n');
 }
 
+/** Value hover backed by chip `hoverDocs[property]` (any literal, not only booleans/numbers). */
+function buildChipDocPropertyValueMarkdown(
+  property: string,
+  value: string,
+  chip: string,
+): string | null {
+  const canonical = resolveChip(chip);
+  const chipDoc = chipRegistry.get(canonical)?.uiContributions?.hoverDocs?.[property];
+  if (!chipDoc) return null;
+
+  const meta = getInstPropertyCompletions(canonical, property);
+  const lines = [`**${property}=${value}**`];
+  if (meta?.detail) lines.push('', meta.detail);
+  lines.push('', chipDoc);
+  return lines.join('\n');
+}
+
 function parseInstTypeFromLine(line: string): string | undefined {
   const match = /\btype\s*=\s*([a-zA-Z][\w-]*)/.exec(line);
   return match?.[1]?.toLowerCase();
@@ -380,9 +408,16 @@ export function buildInstPropertyHover(
       markdown = buildNoiseRateValueMarkdown(parsed.value, chip);
       break;
     default: {
-      const chipDoc = chipRegistry.get(resolveChip(chip))?.uiContributions?.hoverDocs?.[parsed.property];
-      if (chipDoc && /^(true|false|\d+)$/i.test(parsed.value)) {
-        markdown = chipDoc;
+      markdown = buildChipDocPropertyValueMarkdown(parsed.property, parsed.value, chip);
+      if (!markdown) {
+        const canonical = resolveChip(chip);
+        const meta = getInstPropertyCompletions(canonical, parsed.property);
+        if (meta?.values?.includes(parsed.value)) {
+          const lines = [`**${parsed.property}=${parsed.value}**`];
+          if (meta.detail) lines.push('', meta.detail);
+          lines.push('', `Values: ${meta.values.map((v) => `\`${v}\``).join(' · ')}`);
+          markdown = lines.join('\n');
+        }
       }
       break;
     }
