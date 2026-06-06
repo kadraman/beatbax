@@ -1,5 +1,12 @@
 # @beatbax/plugin-chip-sms
 
+## 0.3.1
+
+### Patch Changes
+
+- d500a1e: Web UI song-editing polish: chip-aware instrument hovers, MIDI idle preview, editor UX improvements, and parser validation fixes.
+  - Add `hoverDocs` for `type` and `vol` (SMS attenuation semantics documented for editor hovers).
+
 ## 0.3.0
 
 ### Minor Changes
