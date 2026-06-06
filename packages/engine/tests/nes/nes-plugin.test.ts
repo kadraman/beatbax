@@ -11,7 +11,6 @@ import {
   NES_MIX_GAIN,
   validateNesInstrument,
   decodeDMC,
-  getNesWebAudioNorm,
 } from '../../src/chips/nes/index.js';
 import { NESPulseBackend } from '../../src/chips/nes/pulse.js';
 import { NESTriangleBackend } from '../../src/chips/nes/triangle.js';
@@ -49,6 +48,14 @@ describe('NES plugin metadata', () => {
     expect(nesPlugin.bundledSamples!['hihat']).toBeDefined();
     expect(nesPlugin.bundledSamples!['crash']).toBeDefined();
     expect(nesPlugin.bundledSamples!['bass_c2']).toBeDefined();
+  });
+
+  test('exposes chip-aware meter display gain per channel', () => {
+    expect(nesPlugin.getMeterDisplayGain?.(0)).toBeCloseTo(1 / (NES_MIX_GAIN.pulse * 15), 6);
+    expect(nesPlugin.getMeterDisplayGain?.(1)).toBeCloseTo(1 / (NES_MIX_GAIN.pulse * 15), 6);
+    expect(nesPlugin.getMeterDisplayGain?.(2)).toBeCloseTo(1 / (NES_MIX_GAIN.triangle * 15), 6);
+    expect(nesPlugin.getMeterDisplayGain?.(3)).toBeCloseTo(1 / (NES_MIX_GAIN.noise * 15), 6);
+    expect(nesPlugin.getMeterDisplayGain?.(4)).toBeCloseTo(1 / (NES_MIX_GAIN.dmc * 127), 6);
   });
 
 });
@@ -435,7 +442,7 @@ describe('NES DMC channel', () => {
     expect(buf.every(s => s === 0)).toBe(true);
   });
 
-  test('web audio path applies DMC normalization factor', () => {
+  test('web audio path uses hardware DMC gain', () => {
     const backend = new NESDMCBackend();
     backend.loadSampleForTest(new Float32Array([1]));
 
@@ -469,7 +476,7 @@ describe('NES DMC channel', () => {
     );
 
     expect(nodes).not.toBeNull();
-    const expected = NES_MIX_GAIN.dmc * 127 * getNesWebAudioNorm();
+    const expected = NES_MIX_GAIN.dmc * 127;
     expect(rendered[0]).toBeCloseTo(expected, 6);
   });
 });

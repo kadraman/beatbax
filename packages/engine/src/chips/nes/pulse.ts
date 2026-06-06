@@ -18,7 +18,7 @@
 import type { ChipChannelBackend } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
 import { PULSE_PERIOD, pulsePeriodToFreq, noteNameToMidi, NES_CLOCK } from './periodTables.js';
-import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
+import { NES_MIX_GAIN } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
@@ -405,9 +405,8 @@ export class NESPulseBackend implements ChipChannelBackend {
 
     // ── Volume macro or hardware envelope ────────────────────────────────────
     const volEnvM = parseMacro(inst.vol_env);
-    const webNorm = getNesWebAudioNorm();
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.pulse * webNorm, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.pulse, dur);
       try {
         gain.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -455,8 +454,7 @@ function createNESPulseWave(ctx: BaseAudioContext, dutyRatio: number): any {
  * Steps through volume levels at the NES hardware frame rate.
  */
 function applyNESEnvelopeToGain(gainParam: any, env: NESEnvelope, start: number, dur: number): void {
-  // WebAudio loudness is runtime-configurable: normalized (default) or hardware-accurate.
-  const mixGain = NES_MIX_GAIN.pulse * getNesWebAudioNorm();
+  const mixGain = NES_MIX_GAIN.pulse;
   const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.

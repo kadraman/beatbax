@@ -13,7 +13,7 @@
 import type { ChipChannelBackend } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
 import { NOISE_PERIOD_TABLE, getNoisePeriodTable, NES_CLOCK } from './periodTables.js';
-import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
+import { NES_MIX_GAIN } from './mixer.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve,
@@ -269,9 +269,8 @@ export class NESNoiseBackend implements ChipChannelBackend {
 
     const gainNode = (ctx as any).createGain();
     const volEnvM = parseMacro(inst.vol_env);
-    const webNorm = getNesWebAudioNorm();
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise * webNorm, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, NES_MIX_GAIN.noise, dur);
       try {
         gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -307,8 +306,7 @@ function applyNESNoiseEnvelopeToGain(
   start: number,
   dur: number
 ): void {
-  // WebAudio loudness is runtime-configurable: normalized (default) or hardware-accurate.
-  const mixGain = NES_MIX_GAIN.noise * getNesWebAudioNorm();
+  const mixGain = NES_MIX_GAIN.noise;
   const initialGain = env.initial * mixGain;
 
   // NES hardware: period=0 means fastest decay (one step per 60Hz frame), NOT constant volume.
