@@ -1,20 +1,18 @@
 [![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
 
-<p align="center"><img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/></p>
+<p align="center">
+  <img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/>
+</p>
+<p align="center">
+  <a href="https://app.beatbax.com">
+    <img src="https://img.shields.io/badge/Try-BeatBax-blue?style=for-the-badge">
+  </a>
+</p>
+
 
 # BeatBax
 
-**BeatBax** is a creative toolchain for making chiptune music in the style of classic computers and game consoles. Instead of using a Tracker or DAW to develop your songs, you write your songs using a simple grammar that describe your instruments, melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sound.
-
-Creating chiptunes is rewarding but can be hard and time-consuming, so the [BeatBax Web UI](https://app.beatbax.com) includes **BeatBax CoPilot" an AI Assistant to help
-you write your song. This is not a replacement for creativity and inspiration just a
-way to help you with the construction of your song.
-
-**BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in chips. Additional chip backends can still be added as plugins (see [ROADMAP](ROADMAP.md) for further details).
-
-One of the main aims in creating **BeatBax** was to be able to aid in the creation of
-songs for Homebrew games. So where possible, BeatBax songs can be exported into
-formats that game libraries can consume. For example hUGETracker (UGE) format for the Game Boy, or FamiTracker (Txt) for the NES.
+**BeatBax** is a creative toolchain for making chiptune music in the style of classic 8/16 bit computers and game consoles. Instead of using a Tracker or DAW to develop your songs, you write your songs using a simple, but powerful grammar that describe your instruments, melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sound. **BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in sound chips. Additional sound chip backends can still be added as plugins (see [ROADMAP](ROADMAP.md) for further details of currently implemented and future sound chips).
 
 <p align="center">
   <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
@@ -22,34 +20,29 @@ formats that game libraries can consume. For example hUGETracker (UGE) format fo
   <em>An example screenshot of the BeatBax Web-UI.</em>
 </p>
 
+Creating chiptunes is rewarding but can be hard and time-consuming, so the BeatBax App includes **BeatBax Copilot*** an AI Assistant (with BYOK model) to help you write your song. This is not a replacement for creativity - don't expect it to write you a classic chiptunes song from scratch - but it can certainly help with the construction and editing of your song, and understanding of good practices and techniques for getting the most out of the BeatBax replace.
+
+One of the main aims in creating **BeatBax** was to be able to aid in the rapid creation of
+songs for Homebrew games. So where possible, BeatBax songs can be exported into
+Tracker formats that game libraries can consume. For example [hUGETracker](https://nickfa.ro/wiki/HUGETracker) (UGE) format for the Game Boy, or [FamiTracker](http://famitracker.com/) (Txt) for the NES. Standard output formats are also supported including WAV, MIDI and in some cases VGM - with additional chip specific output formats on the (see [ROADMAP](ROADMAP.md)
+
 ## Features
 
-- **Simple text-based language** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
+- **Simple text-based replace** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
 - **Authentic retro sound** — Chip specific implementation, e.g.: 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
 - **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
 - **Web UI IDE** — live editor with syntax highlighting, real-time validation, channel mixer, and one-click playback
-- **BeatBax Copilot** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
+- **BeatBax Copilot*** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
 - **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
 
 Game Boy and NES are available immediately from `@beatbax/engine`; optional chips such as SMS and Spectrum remain host-registered plugins.
 
-> **Note:** BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) — no key is included or stored by BeatBax.
+> *BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) - no API key is included. Your own API key will only be stored locally (in browser or app) for use with by BeatBax Copilot.
 
-## Quick Start
-
-The quickest way to get started with BeatBax is to try out the Web UI:
-
-<p align="center">
-<a href="https://app.beatbax.com">
-  <img src="https://img.shields.io/badge/Click-Here-blue?style=for-the-badge">
-</a>
-
-</p>
-
-## Language overview
+## Grammar
 
 A `.bax` song defines instruments, effects, patterns, sequences, and a channel arrangement.
 
@@ -93,11 +86,19 @@ channel 4 => inst snare seq drums_seq
 play auto repeat
 ```
 
-Please see the [TUTORIAL](TUTORIAL.md) for more details on the BeatBax language format.
+Please see the [TUTORIAL](TUTORIAL.md) for more details on how to use the BeatBax grammar.
+
+---
+
+## Instruments
+
+TBD
 
 ---
 
 ## Effects
+
+BeatBax songs can make use of built-in instrument and
 
 | Effect | Syntax | Description |
 |--------|--------|-------------|
@@ -113,7 +114,7 @@ Please see the [TUTORIAL](TUTORIAL.md) for more details on the BeatBax language 
 | Retrigger | `retrig:<rate>[,<vol>]` | Rhythmic note restart (WebAudio only) |
 | Echo | `echo:<delay>,<feedback>` | Feedback delay (WebAudio only) |
 
-Annotated examples for seffect are in chip specific directories [songs/features/**](songs/features/).
+Annotated examples for effect are in chip specific directories [songs/features/**](songs/features/).
 
 
 **Export compatibility:**
@@ -244,61 +245,34 @@ Features:
 
 ```
 beatbax/
-├── packages/
-│   ├── engine/              # @beatbax/engine — core library (ESM, browser + Node)
-│   │   └── src/
-│   │       ├── audio/       # WebAudio playback + offline PCM renderer
-│   │       ├── chips/       # Chip backends (gameboy/: pulse, wave, noise, APU)
-│   │       ├── effects/     # Effect processors (vib, port, arp, sweep, …)
-│   │       ├── export/      # JSON / MIDI / UGE / WAV exporters
-│   │       ├── import/      # UGE reader (v1–v6), remote fetch cache
-│   │       ├── instruments/ # Instrument state management
-│   │       ├── parser/      # Peggy grammar, AST types, structured helpers
-│   │       ├── patterns/    # Pattern expansion and transforms
-│   │       ├── scheduler/   # Deterministic tick scheduler
-│   │       ├── sequences/   # Sequence expansion
-│   │       ├── song/        # Song resolver and ISM model
-│   │       └── util/        # Logger, diagnostics, parse utilities
-│   │
-│   └── cli/                 # @beatbax/cli — command-line interface
-│       └── src/
-│           ├── cli.ts       # play, verify, export, inspect commands
-│           └── nodeAudioPlayer.ts  # Headless audio playback
-│
 ├── apps/
-│   └── web-ui/              # @beatbax/web-ui — browser IDE (Vite + TypeScript)
-│       └── src/
-│           ├── editor/      # Monaco integration, syntax highlighting, CodeLens
-│           ├── panels/      # Channel mixer, Copilot, output panels
-│           ├── playback/    # WebAudio playback bridge
-│           └── export/      # Export dialogs and format handlers
+│   ├── desktop/               # BeatBax Desktop Client
+│   └── web-ui/                # BeatBax Browser Client
+|
+├── packages/
+│   ├── engine/                # Live-coding language and runtime for retro console chiptunes
+│       └── chip-
+│   └── cli/                   # Command-line interface for BeatBax chiptune live-coding language.
+│   └── plugins/
+│       └── chip-sms           # Sega Master System / Game Gear SN76489 PSG chip plugin for BeatBax
+│       └── chip-spectrum-128  # ZX Spectrum 128 / Amstrad CPC AY-3-8912 PSG chip plugin for BeatBax
+│       └── ...
+│       └── export-famitracker # FamiTracker text exporter plugin for BeatBax (.txt format)
+│       └── export-vgm         # VGM (Video Game Music) exporter plugin for BeatBax — SN76489 PSG (SMS/Game Gear)
+│       └── ...
 │
 ├── bin/
-│   └── beatbax              # CLI entry point (Node shebang wrapper)
+│   └── beatbax                # CLI entry point (Node shebang wrapper)
 │
-├── songs/                   # Example .bax files
-│   ├── *.bax                # Full songs (sample, heroes_call, night_hawk, …)
-│   ├── effects/             # One .bax demo per effect
-│   ├── features/            # Feature-demonstration songs
-│   └── gameboy/             # GB-specific examples
-│
-├── docs/                    # Documentation
-│   ├── language/            # Language reference (instruments, metadata, import security, …)
-│   ├── exports/             # Export guides (UGE, WAV, MIDI)
-│   ├── formats/             # Binary format specs (UGE v6, AST schema)
-│   ├── api/                 # API reference (scheduler, logger, UGE reader)
-│   ├── chips/               # Sound chip hardware references (gameboy.md, …)
-│   ├── ui/                  # Web UI documentation
-│   ├── contributing/        # Contributor guides (browser-safe imports, releasing)
-│   └── features/            # Feature specs (active and complete/)
-│
+├── songs/                     # Example .bax files
+├── docs/                      # Documentation
 ├── schema/
-│   └── ast.schema.json      # JSON Schema for the BeatBax AST
+│   └── ast.schema.json        # JSON Schema for the BeatBax AST
 │
-├── tests/                   # Root-level integration tests
-├── scripts/                 # Build and tooling scripts
-├── examples/                # Standalone code examples
-└── media/                   # Logo and promotional assets
+├── tests/                     # Root-level integration tests
+├── scripts/                   # Build and tooling scripts
+├── examples/                  # Standalone code examples
+└── media/                     # Logo and promotional assets
 ```
 
 ---
