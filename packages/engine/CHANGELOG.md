@@ -1,5 +1,14 @@
 # @beatbax/engine
 
+## 0.19.1
+
+### Patch Changes
+
+- d500a1e: Web UI song-editing polish: chip-aware instrument hovers, MIDI idle preview, editor UX improvements, and parser validation fixes.
+  - Add NES `hoverDocs` entries for `type`, `duty`, and `vol` (keyword hovers in the web editor).
+  - **Parser:** resolve unknown `chip` via `chipRegistry.has()` and skip Game Boy instrument validation when the chip is unknown, avoiding misleading cascade errors (e.g. NES-only types flagged on a typo'd chip name).
+  - Regression test: unknown chip reports only the chip error, not spurious instrument type/property warnings.
+
 ## 0.19.0
 
 ### Minor Changes
