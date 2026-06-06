@@ -3,12 +3,40 @@ title: Electron Desktop Client
 status: proposed
 authors: ["kadraman"]
 created: 2026-03-29
+updated: 2026-06-06
 issue: "https://github.com/kadraman/beatbax/issues/69"
+supersedes: "renderer symlink approach — see Architecture Revision below"
+related:
+  - docs/features/desktop-first-client-split.md
 ---
 
 ## Summary
 
-Build a native cross-platform desktop application for BeatBax using Electron, reusing the existing `apps/web-ui` codebase as the renderer. The app will live at `apps/desktop/` alongside the web UI and share the same engine library, editor, playback, and panel components — replacing only the browser-specific I/O layer with real file system and native dialog support.
+Build a native cross-platform desktop application for BeatBax using Electron at `apps/desktop/`. The Electron **main process, preload IPC layer, native menus, and packaging** described in this document remain the plan. The **renderer approach has been revised**: instead of reusing the vanilla `apps/web-ui` DOM via symlink, the desktop app will use a **React renderer** consuming shared logic from `@beatbax/app-core`, while the web UI is simplified to a **web-lite** profile.
+
+**Master plan:** [desktop-first-client-split.md](./desktop-first-client-split.md)
+
+This document retains Electron-specific technical details (IPC API, main process, electron-builder, file associations). Cross-cutting architecture (app-core extraction, web-lite scope, React component map, distribution positioning) lives in the master plan.
+
+---
+
+## Architecture Revision (2026-06-06)
+
+The original proposal assumed the desktop renderer would symlink or alias `apps/web-ui/src` unchanged, with only an `fs` alias swap. That approach is **superseded** by [desktop-first-client-split.md](./desktop-first-client-split.md):
+
+| Aspect | Original (this doc, 2026-03-29) | Revised (2026-06-06) |
+|--------|----------------------------------|----------------------|
+| Renderer | Vanilla web-ui source reused | **React** shell in `apps/desktop/src/renderer/` |
+| Code sharing | Symlink web-ui → desktop renderer | **`@beatbax/app-core`** workspace package |
+| Web UI | Unchanged full IDE | **web-lite** — simplified edit/play, Visualizer only, no export/CoPilot |
+| Positioning | Opt-in additive distribution | **Desktop is the default client** |
+| Effort | ~3–3.5 days | ~12–18 days (see master plan) |
+
+**Unchanged from this doc:** electron-vite scaffold, main/preload processes, `electronAPI` IPC surface, `electron-fs.ts` adapter pattern, native OS menu, electron-builder targets, file associations, testing strategy for Electron plumbing.
+
+**Tracking:** Issue draft at [.github/ISSUES/desktop-first-client-split.md](../../.github/ISSUES/desktop-first-client-split.md)
+
+---
 
 ## Problem Statement
 
@@ -20,41 +48,52 @@ The web UI runs in a browser sandboxed environment:
 - Long audio render tasks cannot spawn dedicated workers with access to the local file system.
 - Distribution requires a running web server; there is no standalone installable app.
 
-A desktop client eliminates all of these friction points while keeping the full feature set of the web UI intact.
+A desktop client eliminates these friction points. With the revised plan, the **full IDE feature set moves to desktop**; the browser client becomes a lightweight try/edit/play experience (see master plan feature matrix).
+
+---
 
 ## Proposed Solution
 
 ### Summary
 
-Use **`electron-vite`** (Vite 5 compatible) to scaffold an `apps/desktop/` package that wraps the existing web UI renderer. The Electron main process handles window lifecycle, native menus, and IPC-backed file I/O. The renderer process is the web UI with a single alias swap: `browser-fs.ts` is replaced by an IPC adapter that calls `dialog.showSaveDialog` / `fs.writeFile` on the main side.
+Use **`electron-vite`** (Vite 5 compatible) to scaffold an `apps/desktop/` package. The Electron main process handles window lifecycle, native menus, and IPC-backed file I/O. The renderer process is a **React application** (`main.tsx`, `App.tsx`, components/) that imports `@beatbax/app-core` with the `desktop-full` client profile. The `fs` Vite alias points to `electron-fs.ts`, which calls the main process via IPC.
 
-The engine (`@beatbax/engine`) and all editor, playback, panel, and UI components reuse without modification.
+The engine (`@beatbax/engine`) and shared application logic (`@beatbax/app-core`) are consumed by both clients; UI chrome differs per app.
 
 ### Architecture
 
 ```
 apps/desktop/
   electron.vite.config.ts       # electron-vite config (main + preload + renderer)
+  electron-builder.yml          # Packaging config for Win/Mac/Linux
+  package.json
   src/
     main/
       index.ts                  # BrowserWindow creation, app lifecycle
       ipc-handlers.ts           # File open/save IPC handlers (fs, dialog)
-      menu.ts                   # Native application menu (mirrors MenuBar component)
+      menu.ts                   # Native application menu (mirrors MenuBar actions)
     preload/
       index.ts                  # contextBridge: exposes safe electronAPI to renderer
     renderer/
-      index.html                # Entry HTML (reuses/symlinks apps/web-ui/index.html)
-      src -> ../../web-ui/src   # Symlink or path alias to shared web-ui source
-  electron-builder.yml          # Packaging config for Win/Mac/Linux
-  package.json
+      main.tsx                  # React entry
+      App.tsx                   # Root layout
+      electron-fs.ts            # IPC-backed fs shim (replaces browser-fs.ts)
+      components/               # React UI (Toolbar, EditorPane, panels, …)
+      hooks/                    # useAppContext, usePlayback, useEditor
+      styles/                   # Tailwind (shared design tokens with web-ui)
+
+packages/app-core/              # NEW — shared logic (see master plan)
+  src/
+    client-profile.ts           # web-lite vs desktop-full capabilities
+    stores/, playback/, editor/, export/, import/, …
 ```
 
-The only file that differs from the web UI is the `fs` alias in `electron.vite.config.ts`:
+The `fs` alias differs per app:
 
-| Build | `fs` alias target |
-|---|---|
-| Web UI (`apps/web-ui`) | `src/utils/browser-fs.ts` (in-memory capture → download) |
-| Desktop (`apps/desktop`) | `src/renderer/electron-fs.ts` (IPC → main process → real fs) |
+| Build | `fs` alias target | Client profile |
+|-------|-------------------|----------------|
+| Web UI (`apps/web-ui`) | `src/utils/browser-fs.ts` (in-memory capture → download) | `web-lite` |
+| Desktop (`apps/desktop`) | `src/renderer/electron-fs.ts` (IPC → main process → real fs) | `desktop-full` |
 
 ### IPC File API (`electronAPI`)
 
@@ -71,6 +110,8 @@ interface ElectronAPI {
   addRecentFile(path: string): void;
   // App version
   getVersion(): string;
+  // Native menu → renderer actions (added in revised plan)
+  onMenuAction(callback: (action: string) => void): void;
 }
 ```
 
@@ -89,7 +130,7 @@ export function writeFileSync(path: string, data: Uint8Array): void {
 
 ### Native Menu
 
-`apps/desktop/src/main/menu.ts` builds the OS-native menu from `Menu.buildFromTemplate`, mirroring the existing `MenuBar` component actions (New, Open, Save, Export, Play/Stop, Help). The custom `MenuBar` DOM component is hidden in desktop mode via a feature flag.
+`apps/desktop/src/main/menu.ts` builds the OS-native menu from `Menu.buildFromTemplate`, mirroring the existing `MenuBar` component actions (New, Open, Save, Export, Play/Stop, Help). The desktop React app has **no DOM MenuBar** — all file/edit/view actions come from the native menu via `onMenuAction` IPC.
 
 ### Example Usage
 
@@ -108,14 +149,19 @@ Installers produced:
 - **macOS**: `.dmg` with drag-to-Applications
 - **Linux**: `.AppImage` + `.deb`
 
+---
+
 ## Implementation Plan
+
+> Phases 1–2 (app-core, web-lite) and React renderer component map are in [desktop-first-client-split.md](./desktop-first-client-split.md). This section covers **Electron-specific work** (Phase 3 subset).
 
 ### New Package: `apps/desktop/`
 
-1. Scaffold with `electron-vite` (`npx create-electron-vite@latest`).
-2. Add `@beatbax/engine` and `@beatbax/cli` as workspace dependencies.
+1. Scaffold with `electron-vite` (`npx create-electron-vite@latest`) — use React template for renderer.
+2. Add `@beatbax/app-core`, `@beatbax/engine`, and plugin packages as workspace dependencies.
 3. Configure `electron.vite.config.ts`:
-   - Renderer: inherit web-ui Vite config; swap `fs` alias to `electron-fs.ts`.
+   - Renderer: React + Vite; `define: { __CLIENT_PROFILE__: '"desktop-full"' }`.
+   - Swap `fs` alias to `electron-fs.ts`.
    - Add `optimizeDeps.exclude: ['@beatbax/engine']` (same as web-ui).
    - Set `conditions: ['browser', 'module', 'import', 'default']` for engine resolution.
 4. Add `electron-builder.yml` for cross-platform packaging.
@@ -133,15 +179,17 @@ Installers produced:
 ### Renderer (`src/renderer/`)
 
 - `electron-fs.ts`: IPC-backed write adapter (replaces `browser-fs.ts`).
-- `feature-flags.ts` override: set `ELECTRON = true` to hide the DOM `MenuBar`, enable native file dialogs, and show the window title bar path.
-- `file-loader.ts` update: add native Open dialog path alongside existing drag-drop and URL loading.
+- React app wired to `@beatbax/app-core` `createAppContext()` with `desktop-full` profile.
+- Native Open/Save via `window.electronAPI` (not browser hidden input).
+- Complex panels (Visualizer, Mixer): bridge-mount app-core panel classes initially; native React rewrites post-MVP (see master plan Phase 5).
 
 ### Web UI Changes
 
-- Add a `isElectron()` utility returning `typeof window !== 'undefined' && !!window.electronAPI`.
-- Gate DOM `MenuBar` rendering behind `!isElectron()`.
-- Gate browser-download logic in `ExportManager` behind `!isElectron()`.
-- No other changes to shared web-ui source.
+Handled in [desktop-first-client-split.md — Phase 2](./desktop-first-client-split.md#phase-2-simplify-web-ui-web-lite):
+
+- Web-ui becomes **web-lite** — not an Electron renderer peer.
+- No `isElectron()` guards needed in web-ui (desktop is a separate React app).
+- Export, CoPilot, mixer, pattern grid, and advanced editor removed from web-lite build.
 
 ### CLI Changes
 
@@ -149,13 +197,17 @@ None — the CLI remains a separate package unaffected by this feature.
 
 ### Export Changes
 
-No changes to export logic in the engine. The `ExportManager` already calls `fs.writeFileSync`; the alias swap handles the rest.
+No changes to export logic in the engine. `ExportManager` in app-core calls `fs.writeFileSync`; the desktop `fs` alias handles native writes. Export UI is **desktop-only**.
 
 ### Documentation Updates
 
+- [desktop-first-client-split.md](./desktop-first-client-split.md) — master plan (this revision).
+- This document — Electron plumbing reference.
 - Add `apps/desktop/README.md` covering dev setup, build, and packaging.
-- Update root `README.md` to mention the desktop app under distribution targets.
-- Update `ROADMAP.md` to mark this feature in-progress / complete as work proceeds.
+- Update root `README.md` — desktop as primary download; web as try-in-browser.
+- Update `ROADMAP.md` as work proceeds.
+
+---
 
 ## Testing Strategy
 
@@ -179,27 +231,44 @@ No changes to export logic in the engine. The `ExportManager` already calls `fs.
 - Export JSON, MIDI, UGE, and WAV and verify outputs open correctly in target tools.
 - Verify `.bax` double-click opens the app on Windows and macOS.
 
+Additional tests for app-core and web-lite: see [desktop-first-client-split.md — Testing Strategy](./desktop-first-client-split.md#testing-strategy).
+
+---
+
 ## Migration Path
 
-This is an additive new package — no existing packages change their public API. Users who prefer the browser-based web UI are unaffected. The desktop app is an opt-in distribution target.
+Revised from "additive opt-in" to **desktop-first product split**:
+
+1. **Phase 1** (app-core): Internal refactor; deployed web-ui unchanged.
+2. **Phase 2** (web-lite): Browser users get simplified experience; messaging directs to desktop download.
+3. **Phase 3** (desktop): Full IDE ships as installable app — primary client.
+4. Engine and CLI public APIs unchanged.
+
+See [desktop-first-client-split.md — Migration Path](./desktop-first-client-split.md#migration-path).
+
+---
 
 ## Implementation Checklist
 
-- [ ] Scaffold `apps/desktop/` with `electron-vite`
-- [ ] Configure renderer to reuse web-ui source via path aliases
+### Electron plumbing (this document)
+
+- [ ] Scaffold `apps/desktop/` with electron-vite (React renderer)
 - [ ] Implement `electron-fs.ts` IPC adapter
 - [ ] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
-- [ ] Implement preload `contextBridge`
-- [ ] Add `isElectron()` guard to web-ui shared code
-- [ ] Gate DOM `MenuBar` and browser-download logic
+- [ ] Implement preload `contextBridge` (including `onMenuAction`)
 - [ ] Add native file Open/Save dialogs
 - [ ] Register `.bax` and `.uge` file associations
 - [ ] Configure `electron-builder.yml` for Win/Mac/Linux
 - [ ] Add unit tests for IPC handlers and FS adapter
 - [ ] Add Playwright integration tests
 - [ ] Manual QA on Windows, macOS, Linux
-- [ ] Update root `README.md` and `ROADMAP.md`
 - [ ] Optional: add `electron-updater` for auto-update support
+
+### Full initiative (master plan)
+
+See [desktop-first-client-split.md — Implementation Checklist](./desktop-first-client-split.md#implementation-checklist) for app-core extraction, web-lite simplification, React shell, CI, and distribution tasks.
+
+---
 
 ## Future Enhancements
 
@@ -210,16 +279,23 @@ This is an additive new package — no existing packages change their public API
 - **Offline AI chat** — route the Chat panel to a local LLM (Ollama) when no internet is available.
 - **Multi-window** support: open multiple songs simultaneously in separate windows.
 - **File watcher** — auto-reload the editor when the `.bax` file is modified externally.
+- **Native React panels** — replace bridge-mounted Visualizer/Mixer (master plan Phase 5).
+
+---
 
 ## Open Questions
 
-1. **Code sharing strategy**: symlink `apps/web-ui/src` into `apps/desktop/src/renderer/src`, or extract shared code into a `packages/ui-shared/` workspace package? The symlink approach is simpler for now; the shared package approach is cleaner long-term.
+1. ~~**Code sharing strategy**~~: **Resolved** — use `packages/app-core/` (see [desktop-first-client-split.md](./desktop-first-client-split.md)).
 2. **WAV export**: the CLI's WAV export uses `standardized-audio-context` offline rendering → temp file → shell player. In Electron, `OfflineAudioContext` is native — should WAV export be reimplemented without the polyfill for the desktop client?
 3. **Code signing**: required for macOS notarisation and Windows SmartScreen bypass. Are certificates available for CI/CD?
 4. **Target platform priority**: should the initial release target Windows only (given the primary developer platform), or all three simultaneously?
 
+---
+
 ## References
 
+- **[desktop-first-client-split.md](./desktop-first-client-split.md)** — master plan (app-core, web-lite, React desktop, distribution)
+- [.github/ISSUES/desktop-first-client-split.md](../../.github/ISSUES/desktop-first-client-split.md) — GitHub issue draft
 - [electron-vite documentation](https://electron-vite.org/)
 - [electron-builder documentation](https://www.electron.build/)
 - [Playwright for Electron](https://playwright.dev/docs/api/class-electronapplication)
@@ -228,6 +304,10 @@ This is an additive new package — no existing packages change their public API
 - [apps/web-ui/src/utils/browser-fs.ts](../../apps/web-ui/src/utils/browser-fs.ts)
 - [apps/web-ui/src/export/ExportManager.ts](../../apps/web-ui/src/export/ExportManager.ts)
 
+---
+
 ## Additional Notes
 
-The estimated implementation effort is **3–3.5 developer days** for a fully functional desktop build (excluding auto-update and code signing setup). The work is largely configuration and thin adapter code — the audio engine, editor, and all panels transfer unchanged. The bulk of the effort is in the Electron main/preload plumbing and integration testing across platforms.
+The original estimate of **3–3.5 developer days** applied to reusing the vanilla web-ui renderer unchanged. With the revised architecture (app-core extraction, web-lite split, React desktop shell), total effort is **~12–18 developer days** — see [desktop-first-client-split.md — Additional Notes](./desktop-first-client-split.md#additional-notes).
+
+Electron-specific plumbing (main/preload/IPC/packaging) remains largely as originally scoped; the additional effort is in app-core extraction and the React renderer.
