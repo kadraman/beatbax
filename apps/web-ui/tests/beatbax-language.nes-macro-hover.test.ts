@@ -1,6 +1,7 @@
 import * as monaco from 'monaco-editor';
 import {
   parseNesMacroAtPosition,
+  renderAttenuationSparkline,
   renderNesMacroSparkline,
   ParsedNesMacro,
   registerBeatBaxLanguage,
@@ -168,6 +169,27 @@ describe('renderNesMacroSparkline', () => {
   });
 });
 
+describe('renderAttenuationSparkline', () => {
+  it('maps SMS attenuation decay to a falling loudness sparkline', () => {
+    const chars = ' ▁▂▃▄▅▆▇█';
+    const line = renderAttenuationSparkline([0, 3, 6, 9, 12, 15]);
+    expect(line).toHaveLength(6);
+    const indices = [...line].map((c) => chars.indexOf(c));
+    expect(indices[0]).toBeGreaterThan(indices[indices.length - 1]);
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i]).toBeLessThanOrEqual(indices[i - 1]);
+    }
+  });
+
+  it('renders loudest attenuation (0) as full block', () => {
+    expect(renderAttenuationSparkline([0])).toBe('█');
+  });
+
+  it('renders silent attenuation (15) as empty', () => {
+    expect(renderAttenuationSparkline([15])).toBe(' ');
+  });
+});
+
 // ── provideHover integration ──────────────────────────────────────────────────
 
 describe('provideHover — NES macro hover', () => {
@@ -252,6 +274,31 @@ describe('provideHover — NES macro hover', () => {
     expect(hover).not.toBeNull();
     expect(hover.contents[0].value).toContain('Pitch envelope');
     expect(hover.contents[2].value).toContain('multiplied by 16');
+  });
+
+  it('returns SMS vol_env hover with inverted loudness sparkline', () => {
+    eventBus.emit('parse:success', {
+      ast: { chip: 'sms', insts: {}, pats: {}, seqs: {} },
+      resolvedAst: undefined,
+      song: null,
+    });
+    const provider = getHoverProvider();
+    const line = 'inst lead type=tone1 vol=0 vol_env=[0,3,6,9,12,15]';
+    const col = colOf(line, '0,3,6');
+
+    const hover = provider.provideHover(makeModel(line), pos(col));
+
+    expect(hover).not.toBeNull();
+    expect(hover.contents[0].value).toContain('SMS volume macro');
+    expect(hover.contents[2].value).toContain('perceived loudness');
+
+    const sparkBlock = hover.contents[1].value;
+    const sparkline = sparkBlock.match(/```text\n([\s\S]*?)\n```/)?.[1] ?? '';
+    const chars = ' ▁▂▃▄▅▆▇█';
+    const indices = [...sparkline.trim()].map((c) => chars.indexOf(c));
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i]).toBeLessThanOrEqual(indices[i - 1]);
+    }
   });
 
   it('returns duty_env hover with duty cycle labels', () => {

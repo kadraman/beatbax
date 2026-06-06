@@ -52,8 +52,6 @@ export interface ToolbarOptions {
   onRedo?: () => void;
   /** Format / auto-indent the document. */
   //onFormat?: () => void;
-  /** Select all text in the editor. */
-  onSelectAll?: () => void;
   /** Toggle dark/light theme. */
   onToggleTheme?: () => void;
   /** Toggle word-wrap. Receives the new enabled state. */
@@ -115,14 +113,11 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (Ctrl+Y)">
           ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Redo</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-fold-comments" title="Fold/Unfold All Comments">
-          ${icon('hashtag', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Fold</span>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-fold-comments" title="Fold All Comments">
+          ${icon('chevron-down', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Fold</span>
         </button>
         <!-- <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button> -->
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-selectall" title="Select All (Ctrl+A)">
-          ${icon('bars-3', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Select All</span>
-        </button>
       </div>
 
       <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
@@ -207,7 +202,7 @@ export class Toolbar {
 
   private attachEvents(): void {
         const { eventBus, onLoad, onExport, onVerify,
-          onNew, onSave, onUndo, onRedo, /*onFormat,*/ onSelectAll,
+          onNew, onSave, onUndo, onRedo, /*onFormat,*/
           onToggleTheme, onToggleWrap, onToggleFoldComments,
           onOpenFileReadStart, onOpenFileReadEnd,
           onBeforeOpenFile, onBeforeExampleLoad } = this.options;
@@ -382,15 +377,13 @@ export class Toolbar {
       });
     }
 
-    // Undo / Redo / Format / Select All
+    // Undo / Redo / Format
     const undoBtn = this.el.querySelector<HTMLButtonElement>('#tb-undo');
     if (undoBtn) undoBtn.addEventListener('click', () => onUndo?.());
     const redoBtn = this.el.querySelector<HTMLButtonElement>('#tb-redo');
     if (redoBtn) redoBtn.addEventListener('click', () => onRedo?.());
     //const formatBtn = this.el.querySelector<HTMLButtonElement>('#tb-format');
     //if (formatBtn) formatBtn.addEventListener('click', () => onFormat?.());
-    const selectAllBtn = this.el.querySelector<HTMLButtonElement>('#tb-selectall');
-    if (selectAllBtn) selectAllBtn.addEventListener('click', () => onSelectAll?.());
 
     // Theme toggle
     this._themeToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-theme') ?? undefined;
@@ -464,7 +457,14 @@ export class Toolbar {
   /** Set the active state of the fold-comments toggle. */
   setFoldCommentsActive(folded: boolean): void {
     this._foldCommentsEnabled = folded;
-    this._foldCommentsToggleBtn?.classList.toggle('bb-toolbar__btn--active', folded);
+    if (this._foldCommentsToggleBtn) {
+      const iconClass = 'w-4 h-4 inline-block align-text-bottom';
+      this._foldCommentsToggleBtn.innerHTML = folded
+        ? `${icon('chevron-up', iconClass)} <span class="bb-toolbar__btn-label">Fold</span>`
+        : `${icon('chevron-down', iconClass)} <span class="bb-toolbar__btn-label">Fold</span>`;
+      this._foldCommentsToggleBtn.title = folded ? 'Unfold All Comments' : 'Fold All Comments';
+      this._foldCommentsToggleBtn.classList.toggle('bb-toolbar__btn--active', folded);
+    }
   }
 
   /** Switch between icons+labels and icons-only display style. */

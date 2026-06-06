@@ -3,7 +3,7 @@
  */
 
 import {
-  settingAutoSave, settingWordWrap, settingCodeLens,
+  settingAutoSave, settingWordWrap, settingFoldComments, settingCodeLens,
   settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
@@ -210,6 +210,7 @@ export function buildEditorSection(): HTMLElement {
 export function resetEditorDefaults(): void {
   settingAutoSave.set(true);
   settingWordWrap.set(false);
+  settingFoldComments.set(false);
   settingCodeLens.set(true);
   settingBeatDecorations.set(true);
   settingDefaultBpm.set(128);

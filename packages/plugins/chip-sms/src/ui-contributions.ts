@@ -101,6 +101,34 @@ const hoverDocs: Record<string, string> = {
     'Example: `inst lead type=tone1 vol=10 vol_env=[0,3,6,9,12,15]`',
   ].join('\n\n'),
 
+  type: [
+    '**Channel type** — selects which SN76489 voice this instrument drives.',
+    '```\ntype=<tone1|tone2|tone3|noise>\n```',
+    '- `tone1` — square wave, channel 1; `vol`, `vol_env`, `arp_env`, `pitch_env`',
+    '- `tone2` — square wave, channel 2; same fields as tone1',
+    '- `tone3` — square wave, channel 3; can sync noise via `noise_rate=tone3`',
+    '- `noise` — LFSR percussion, channel 4; `noise_mode`, `noise_rate`, `vol`, `vol_env`',
+    '',
+    'Hover a type value (e.g. `tone1`) for channel-specific documentation.',
+    '',
+    'Example: `inst lead type=tone1 vol=10 vol_env=[0,3,6,9,12,15]`',
+  ].join('\n\n'),
+
+  vol: [
+    '**Constant volume** — fixed attenuation level **0–15** for the note.',
+    '```\nvol=<0-15>\n```',
+    'SMS uses **attenuation** semantics (opposite of NES):',
+    '- **`0` = loudest** (minimum attenuation, full level)',
+    '- **`15` = silent** (maximum attenuation, mute)',
+    '',
+    'Use `vol_env=[…]` for shaped dynamics; the macro overrides a static `vol` at playback.',
+    'On Game Gear, combine with `gg:pan=L|C|R` for stereo placement.',
+    '',
+    'Hover a value like `vol=10` for level details.',
+    '',
+    'Example: `inst lead type=tone1 vol=10`',
+  ].join('\n\n'),
+
   sms: [
     '**Sega Master System (SMS)** — SN76489 PSG sound chip.',
     '',

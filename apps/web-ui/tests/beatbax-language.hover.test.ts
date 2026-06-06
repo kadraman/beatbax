@@ -156,7 +156,7 @@ describe('BeatBax Monaco hover provider', () => {
   test('shows tier-2 transform hover for lag in a chained seq modifier', () => {
     const hoverProvider = getHoverProvider();
     const line = 'seq demo_lag = lead_core:rot(1):lag(1)';
-    const lagColumn = line.indexOf('lag') + 2;
+    const lagColumn = line.lastIndexOf('lag') + 2;
 
     const model = makeMultilineModel([line]);
     const hover = hoverProvider.provideHover(model, { lineNumber: 1, column: lagColumn });
@@ -212,7 +212,7 @@ describe('BeatBax Monaco hover provider', () => {
     const rotModel = makeMultilineModel([rotLine]);
     const rotHover = hoverProvider.provideHover(rotModel, {
       lineNumber: 1,
-      column: rotLine.indexOf('rot') + 2,
+      column: rotLine.lastIndexOf('rot') + 2,
     });
     expect(rotHover?.contents[0].value).toContain('Rotate');
     expect(rotHover?.contents[0].value).toContain('[C4 D4 E4 G4]');

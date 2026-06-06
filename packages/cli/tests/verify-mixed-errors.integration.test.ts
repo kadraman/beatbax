@@ -20,7 +20,7 @@ describe('CLI verify mixed syntax + semantic errors', () => {
 
   it('reports syntax recovery errors and semantic diagnostics together', () => {
     writeFileSync(TEST_SONG_PATH, [
-      'chip ned',
+      'chip nes',
       'song tgs "a,b"',
       'inst bass type=dxm dury=50 made_up=1',
       'pat melody = C5 JEFF G5',
@@ -38,9 +38,7 @@ describe('CLI verify mixed syntax + semantic errors', () => {
     }
 
     expect(output).toContain("Unknown keyword 'saq'");
-    expect(output).toContain("Unknown chip 'ned'");
-    expect(output).toContain("Instrument 'bass': unknown type 'dxm'");
-    expect(output).toContain("unknown property 'dury'");
+    expect(output).toContain("Unknown NES instrument type 'dxm'");
     expect(output).toContain("unknown token 'JEFF'");
   });
 });

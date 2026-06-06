@@ -36,7 +36,7 @@ describe('EventBus', () => {
       bus.on('playback:started', callback1);
       bus.on('playback:started', callback2);
       
-      bus.emit('playback:started', undefined);
+      bus.emit('playback:started', {});
       
       expect(callback1).toHaveBeenCalledTimes(1);
       expect(callback2).toHaveBeenCalledTimes(1);
@@ -105,12 +105,12 @@ describe('EventBus', () => {
       const callback = jest.fn();
       const unsubscribe = bus.on('playback:started', callback);
       
-      bus.emit('playback:started', undefined);
+      bus.emit('playback:started', {});
       expect(callback).toHaveBeenCalledTimes(1);
       
       unsubscribe();
       
-      bus.emit('playback:started', undefined);
+      bus.emit('playback:started', {});
       expect(callback).toHaveBeenCalledTimes(1); // Still 1, not called again
     });
   });
@@ -126,7 +126,7 @@ describe('EventBus', () => {
       bus.clear();
       
       bus.emit('editor:changed', { content: 'test' });
-      bus.emit('playback:started', undefined);
+      bus.emit('playback:started', {});
       
       expect(callback1).not.toHaveBeenCalled();
       expect(callback2).not.toHaveBeenCalled();
