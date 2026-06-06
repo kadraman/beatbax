@@ -292,7 +292,7 @@ export class Player {
       : astVolume;
 
     this._ensureMasterOutputChain();
-    this.masterGain.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
+    this.masterGain!.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
 
     const chip = chipRegistry.resolve(ast.chip || 'gameboy');
     const isGameboy = chip === 'gameboy';
