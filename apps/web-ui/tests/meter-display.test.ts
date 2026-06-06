@@ -7,7 +7,7 @@ describe('meter-display utilities', () => {
   });
 
   test('falls back to unity gain for invalid channel ids', () => {
-    expect(getMeterDisplayGain('nes', 0)).toBe(1);
+    expect(getMeterDisplayGain('nes', -1)).toBe(1);
   });
 
   test('scaleRmsForMeter applies gain and clamps to 1', () => {

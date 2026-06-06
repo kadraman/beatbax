@@ -1,6 +1,7 @@
 import { chipRegistry } from '@beatbax/engine/chips';
 
 export function getMeterDisplayGain(chipName: string | undefined, channelId: number): number {
+  // UI channel ids are 1-based, plugin channel indices are 0-based.
   if (!Number.isFinite(channelId) || channelId < 1) return 1;
   const resolvedChip = chipRegistry.resolve((chipName ?? 'gameboy').toLowerCase());
   const plugin = chipRegistry.get(resolvedChip);

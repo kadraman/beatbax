@@ -241,4 +241,4 @@ Game Boy: omit hook (defaults to 1.0).
 - [`apps/web-ui/src/panels/channel-mixer.ts`](../../apps/web-ui/src/panels/channel-mixer.ts) — VU meter
 - [`apps/web-ui/src/panels/song-visualizer.ts`](../../apps/web-ui/src/panels/song-visualizer.ts) — Waveform display
 - [`docs/language/volume-directive.md`](../language/volume-directive.md) — Song-level `volume` directive
-- [`docs/features/complete/per-channel-analyser.md`](complete/per-channel-analyser.md) — Analyser infrastructure
+- [`docs/features/complete/per-channel-analyser.md`](per-channel-analyser.md) — Analyser infrastructure
