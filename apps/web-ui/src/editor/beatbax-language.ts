@@ -17,6 +17,9 @@ import {
   CHIP_INSTRUMENT_META,
   INST_PROPERTY_NAME_PATTERN,
 } from './instrument-meta';
+import { buildGmHoverMarkdown, parseGmAtPosition } from './gm-programs';
+import { buildNoteHoverMarkdown, parseNoteAtPosition } from './inst-note-hover';
+import { buildInstPropertyHover, buildInstPropertyKeywordHover } from './inst-property-hover';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */
@@ -365,6 +368,33 @@ export function renderEnvelopeSparkline(levels: number[]): string {
     .join('');
 }
 
+function buildGmHover(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+): monaco.languages.Hover | null {
+  const parsed = parseGmAtPosition(model, position);
+  if (!parsed) return null;
+
+  return {
+    range: parsed.range,
+    contents: [{ value: buildGmHoverMarkdown(parsed.program) }],
+  };
+}
+
+function buildNoteHover(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+  chip: string,
+): monaco.languages.Hover | null {
+  const parsed = parseNoteAtPosition(model, position);
+  if (!parsed) return null;
+
+  return {
+    range: parsed.range,
+    contents: [{ value: buildNoteHoverMarkdown(parsed, chip) }],
+  };
+}
+
 function buildEnvelopeHover(
   model: monaco.editor.ITextModel,
   position: monaco.IPosition,
@@ -484,6 +514,17 @@ export function renderNesMacroSparkline(values: number[], min: number, max: numb
     .join('');
 }
 
+/**
+ * SMS/SN76489 attenuation sparkline — bar height = perceived loudness.
+ * Attenuation 0 (loudest) → full block; 15 (silent) → empty.
+ */
+export function renderAttenuationSparkline(attenuationLevels: number[]): string {
+  const loudness = attenuationLevels.map((v) =>
+    Math.max(0, Math.min(15, 15 - Math.round(v))),
+  );
+  return renderNesMacroSparkline(loudness, 0, 15);
+}
+
 const DUTY_INDEX_LABELS = ['12.5%', '25%', '50%', '75%'];
 
 function buildNesMacroHover(
@@ -508,9 +549,9 @@ function buildNesMacroHover(
   switch (macro.macroType) {
     case 'vol_env': {
       const clamped = macro.values.map((v) => Math.max(0, Math.min(15, Math.round(v))));
-      sparkline = renderNesMacroSparkline(clamped, 0, 15);
       const lo = Math.min(...clamped), hi = Math.max(...clamped);
       if (canonicalChip === 'spectrum-128') {
+        sparkline = renderNesMacroSparkline(clamped, 0, 15);
         title = '**vol_env** — Hardware envelope program (AY R11–R13)';
         meta = [
           `Levels: **${clamped.length}**  Range: **${lo}–${hi}** / 15`,
@@ -519,9 +560,19 @@ function buildNesMacroHover(
           loopStr,
         ].join('  \n');
       } else if (canonicalChip === 'nes') {
+        sparkline = renderNesMacroSparkline(clamped, 0, 15);
         title = '**Volume envelope** (NES/Famicom software macro, per-frame, 0–15)';
         meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
+      } else if (canonicalChip === 'sms') {
+        sparkline = renderAttenuationSparkline(clamped);
+        title = '**vol_env** — SMS volume macro (per-frame attenuation, 0–15)';
+        meta = [
+          `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15`,
+          '**0 = loudest** · **15 = silent** — sparkline shows perceived loudness',
+          loopStr,
+        ].join('  \n');
       } else {
+        sparkline = renderNesMacroSparkline(clamped, 0, 15);
         title = '**Volume envelope** (software macro, per-frame, 0–15)';
         meta = `Frames: **${clamped.length}**  Range: **${lo}–${hi}** / 15  \n${loopStr}`;
       }
@@ -930,6 +981,18 @@ export function registerBeatBaxLanguage(): void {
 
       const envelopeHover = buildEnvelopeHover(model, position);
       if (envelopeHover) return envelopeHover;
+
+      const gmHover = buildGmHover(model, position);
+      if (gmHover) return gmHover;
+
+      const noteHover = buildNoteHover(model, position, latestChip);
+      if (noteHover) return noteHover;
+
+      const instPropertyKeywordHover = buildInstPropertyKeywordHover(model, position, latestChip);
+      if (instPropertyKeywordHover) return instPropertyKeywordHover;
+
+      const instPropertyHover = buildInstPropertyHover(model, position, latestChip);
+      if (instPropertyHover) return instPropertyHover;
 
       const nesMacroHover = buildNesMacroHover(model, position, latestChip);
       if (nesMacroHover) return nesMacroHover;
@@ -1428,6 +1491,44 @@ export function registerBeatBaxLanguage(): void {
       if (doc) {
         return {
           contents: [{ value: doc }],
+        };
+      }
+
+      if (
+        word.word === 'gm'
+        && /^\s*inst\s+/.test(lineText)
+        && !lineText.slice(word.startColumn - 1).match(/^gm\s*=/)
+      ) {
+        return {
+          contents: [{
+            value: [
+              '**gm** — General MIDI program number (**0–127**) for MIDI export.',
+              '',
+              'Sets the Program Change message used when this instrument is exported to MIDI.',
+              'Hover a value like `gm=81` to see the patch name.',
+              '',
+              'Example: `inst lead type=pulse1 duty=50 gm=81`',
+            ].join('\n'),
+          }],
+        };
+      }
+
+      if (
+        word.word === 'note'
+        && /^\s*inst\s+/.test(lineText)
+        && !lineText.slice(word.startColumn - 1).match(/^note\s*=/)
+      ) {
+        return {
+          contents: [{
+            value: [
+              '**note** — default pitch for named hit tokens on this instrument.',
+              '',
+              'When a pattern uses the instrument name directly (`kick`, `snare`, `hihat`, …), playback and export use this note instead of requiring an explicit pitch in the pattern.',
+              'Hover a value like `note=C7` to see MIDI number, frequency, and export mapping.',
+              '',
+              'Example: `inst snare type=noise gb:width=7 env=13,down note=C7`',
+            ].join('\n'),
+          }],
         };
       }
 

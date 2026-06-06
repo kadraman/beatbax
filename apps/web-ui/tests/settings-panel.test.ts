@@ -20,8 +20,8 @@ import { SECTION_KEYS } from '../src/stores/settings.store';
 describe('StorageKey', () => {
   it('has new keys added for settings panel', () => {
     expect(StorageKey.TOOLBAR_STYLE).toBe('ui.toolbarStyle');
-    expect(StorageKey.CHANNEL_COMPACT).toBe('ui.channelCompact');
     expect(StorageKey.WORD_WRAP).toBe('editor.wordWrap');
+    expect(StorageKey.FOLD_COMMENTS).toBe('editor.foldComments');
     expect(StorageKey.CODELENS).toBe('editor.codelens');
     expect(StorageKey.BEAT_DECORATIONS).toBe('editor.beatDecorations');
     expect(StorageKey.FONT_SIZE).toBe('editor.fontSize');
@@ -32,7 +32,7 @@ describe('StorageKey', () => {
     expect(StorageKey.DEBUG_OVERLAY).toBe('debug.overlay');
     expect(StorageKey.DEBUG_EXPOSE_PLAYER).toBe('debug.exposePlayer');
     expect(StorageKey.FEATURE_PER_CHANNEL_ANALYSER).toBe('feature.perChannelAnalyser');
-    expect(StorageKey.FEATURE_DAW_MIXER).toBe('feature.dawMixer');
+    expect(StorageKey.FEATURE_CHANNEL_MIXER).toBe('feature.channelMixer');
     expect(StorageKey.FEATURE_PATTERN_GRID).toBe('feature.patternGrid');
     expect(StorageKey.FEATURE_HOT_RELOAD).toBe('feature.hotReload');
   });
@@ -43,7 +43,7 @@ describe('StorageKey', () => {
 describe('FeatureFlag', () => {
   it('has new flags', () => {
     expect(FeatureFlag.PER_CHANNEL_ANALYSER).toBe('feature.perChannelAnalyser');
-    expect(FeatureFlag.DAW_MIXER).toBe('feature.dawMixer');
+    expect(FeatureFlag.CHANNEL_MIXER).toBe('feature.channelMixer');
     expect(FeatureFlag.PATTERN_GRID).toBe('feature.patternGrid');
     expect(FeatureFlag.HOT_RELOAD).toBe('feature.hotReload');
   });
@@ -101,14 +101,14 @@ describe('SECTION_KEYS', () => {
   it('general section includes all panel visibility keys', () => {
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_TOOLBAR);
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_TRANSPORT_BAR);
-    expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_DAW_MIXER);
+    expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_CHANNEL_MIXER);
     expect(SECTION_KEYS.general).toContain(StorageKey.PANEL_VIS_PATTERN_GRID);
   });
 
   it('features section includes all feature flag keys', () => {
     expect(SECTION_KEYS.features).toContain(StorageKey.AI_ASSISTANT);
     expect(SECTION_KEYS.features).toContain(StorageKey.FEATURE_PER_CHANNEL_ANALYSER);
-    expect(SECTION_KEYS.features).toContain(StorageKey.FEATURE_DAW_MIXER);
+    expect(SECTION_KEYS.features).toContain(StorageKey.FEATURE_CHANNEL_MIXER);
     expect(SECTION_KEYS.features).toContain(StorageKey.FEATURE_PATTERN_GRID);
     expect(SECTION_KEYS.features).toContain(StorageKey.FEATURE_HOT_RELOAD);
   });

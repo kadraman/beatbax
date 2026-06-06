@@ -980,7 +980,8 @@ export function parseWithPeggy(source: string): ParseResult {
   const requestedChip = String(chipName || '').toLowerCase();
   const canonicalChip = requestedChip ? chipRegistry.resolve(requestedChip) : '';
   const registeredChips = chipRegistry.list();
-  if (chipName && !registeredChips.includes(requestedChip)) {
+  const chipIsKnown = !chipName || chipRegistry.has(requestedChip);
+  if (chipName && !chipIsKnown) {
     diag('error', 'parser', `Unknown chip '${chipName}'. Supported chips: ${registeredChips.join(', ')}.`, chipLoc);
   }
   if (chipRegion) {
@@ -1007,7 +1008,9 @@ export function parseWithPeggy(source: string): ParseResult {
   // When the song targets a registered chip plugin, delegate to its validateInstrument()
   // so the plugin can accept its own types (e.g. 'triangle', 'dmc' for NES) and
   // known properties (e.g. sweep_en, noise_period) without false warnings.
-  const activePlugin = chipName ? chipRegistry.get(String(chipName).toLowerCase()) : undefined;
+  // Skip entirely when `chip` is unknown — otherwise we fall back to Game Boy rules and
+  // flood the editor with misleading instrument errors (e.g. NES triangle → unknown type).
+  const activePlugin = chipIsKnown && chipName ? chipRegistry.get(requestedChip) : undefined;
 
   const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
   const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
@@ -1017,7 +1020,7 @@ export function parseWithPeggy(source: string): ParseResult {
     wave:   new Set(['wave']),
     noise:  new Set(['width', 'divisor', 'shift', 'lfsr']),
   };
-  for (const [instName, instDef] of Object.entries(insts)) {
+  if (chipIsKnown) for (const [instName, instDef] of Object.entries(insts)) {
     const p = instDef as any;
     const instLoc: SourceLocation | undefined = p.__loc;
     const type: string | undefined = p.type;

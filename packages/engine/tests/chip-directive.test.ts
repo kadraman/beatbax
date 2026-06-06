@@ -65,4 +65,17 @@ describe('chip directive', () => {
     const messages = (result.ast.diagnostics || []).map(d => d.message);
     expect(messages.some(m => m.includes("only supported for 'chip sms', 'chip nes', and 'chip famicom'"))).toBe(true);
   });
+
+  test('unknown chip does not cascade into Game Boy instrument validation', () => {
+    const src = [
+      'chip nesx',
+      'inst bass type=triangle linear=true',
+      'inst hihat type=noise noise_mode=periodic noise_period=8 env_period=1',
+    ].join('\n');
+    const result = parseWithPeggy(src);
+    const messages = (result.ast.diagnostics || []).map(d => d.message);
+    expect(messages.some(m => m.includes("Unknown chip 'nesx'"))).toBe(true);
+    expect(messages.some(m => m.includes('unknown type'))).toBe(false);
+    expect(messages.some(m => m.includes('unknown property'))).toBe(false);
+  });
 });

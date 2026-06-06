@@ -18,15 +18,6 @@ import { exporterRegistry } from '../plugins/browser-exporter-registry';
 import { resolveUiChipId } from '../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 
-/** Fallback icon per built-in exporter id (matches toolbar defaults). */
-const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
-  json: 'document',
-  midi: 'musical-note',
-  wav:  'speaker-wave',
-  uge:  'cpu-chip',
-  vgm:  'cpu-chip',
-};
-
 const log = createLogger('ui:menu-bar');
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -77,6 +68,8 @@ export interface MenuBarOptions {
   onCopy?: () => void;
   /** Paste from clipboard. */
   onPaste?: () => void;
+  /** Select all text in the editor (Ctrl+A). */
+  onSelectAll?: () => void;
   /** Open Monaco find widget (Ctrl+F). */
   onFind?: () => void;
   /** Open Monaco find-and-replace widget (Ctrl+H). */
@@ -91,6 +84,10 @@ export interface MenuBarOptions {
   onZoomReset?: () => void;
   /** Toggle dark / light theme. */
   onToggleTheme?: () => void;
+  /** Toggle editor word wrap. */
+  onToggleWrapText?: () => void;
+  /** Fold or unfold all block comments. */
+  onToggleFoldAll?: () => void;
   /** Toggle the AI Copilot chat panel. */
   onToggleAI?: () => void;
   /** Open the Settings panel (Ctrl+,). */
@@ -149,6 +146,30 @@ function esc(str: string): string {
 
 // ─── MenuBar class ────────────────────────────────────────────────────────────
 
+/** Maps panel ids to menu item ids for toggle checkmarks. */
+const PANEL_CHECK_IDS: Record<string, string> = {
+  output: 'output-toggle',
+  problems: 'problems-toggle',
+  toolbar: 'toolbar-toggle',
+  'transport-bar': 'transport-bar-toggle',
+  'channel-mixer': 'channel-mixer-toggle',
+  'song-visualizer': 'song-visualizer-toggle',
+  'pattern-grid': 'pattern-grid-toggle',
+  help: 'help-panel-toggle',
+};
+
+/** Feature-gated panels — no checkmark unless the feature flag is on. */
+const PANEL_FEATURE_FLAGS: Partial<Record<string, string>> = {
+  'channel-mixer': FeatureFlag.CHANNEL_MIXER,
+  'pattern-grid': FeatureFlag.PATTERN_GRID,
+  'song-visualizer': FeatureFlag.SONG_VISUALIZER,
+};
+
+function isPanelFeatureEnabled(panel: string): boolean {
+  const flag = PANEL_FEATURE_FLAGS[panel];
+  return !flag || isFeatureEnabled(flag);
+}
+
 export class MenuBar {
   private el!: HTMLElement;
   private songNameEl!: HTMLElement;
@@ -169,6 +190,8 @@ export class MenuBar {
     ['channel-mixer', true],
     ['toolbar', true],
     ['transport-bar', true],
+    ['pattern-grid', false],
+    ['song-visualizer', false],
     ['ai-assistant', false],
   ]);
 
@@ -202,6 +225,24 @@ export class MenuBar {
     for (const [panel, visible] of Object.entries(states)) {
       this.panelVisible.set(panel, visible);
     }
+    this.refreshPanelToggleChecks();
+  }
+
+  /** Refresh checkmarks for panel visibility toggles. */
+  refreshPanelToggleChecks(): void {
+    for (const [panel, menuId] of Object.entries(PANEL_CHECK_IDS)) {
+      this.setItemChecked(menuId, this.isPanelEffectivelyVisible(panel));
+    }
+    this.setItemChecked(
+      'ai-assistant',
+      isFeatureEnabled(FeatureFlag.AI_ASSISTANT) && (this.panelVisible.get('ai-assistant') ?? false),
+    );
+  }
+
+  /** True when a panel is both feature-eligible and marked visible. */
+  private isPanelEffectivelyVisible(panel: string): boolean {
+    if (!isPanelFeatureEnabled(panel)) return false;
+    return this.panelVisible.get(panel) ?? false;
   }
 
   /** Enable or disable a menu item at runtime by its id. */
@@ -211,6 +252,25 @@ export class MenuBar {
     li.classList.toggle('bb-menu__item--disabled', !enabled);
     li.setAttribute('aria-disabled', String(!enabled));
     if (enabled) { li.tabIndex = -1; } else { li.removeAttribute('tabindex'); }
+  }
+
+  /** Update the checkmark for a checkable menu item. */
+  setItemChecked(id: string, checked: boolean): void {
+    const li = this.el.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    if (!li) return;
+    const gutter = li.querySelector<HTMLElement>('.bb-menu__item-gutter');
+    if (gutter) gutter.textContent = checked ? '✓' : '';
+    if (li.getAttribute('role') === 'menuitemcheckbox') {
+      li.setAttribute('aria-checked', String(checked));
+    }
+  }
+
+  setWrapTextChecked(checked: boolean): void {
+    this.setItemChecked('wrap-text', checked);
+  }
+
+  setFoldAllChecked(checked: boolean): void {
+    this.setItemChecked('fold-all', checked);
   }
 
   triggerNew(): void { this.opts.onNew?.(); }
@@ -301,7 +361,7 @@ export class MenuBar {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         this.openMenuPanel(id, btn, panel);
-        (panel.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])') ?? btn).focus();
+        (this.firstFocusableMenuItem(panel) ?? btn).focus();
       }
     });
 
@@ -323,13 +383,15 @@ export class MenuBar {
     }
 
     const li = document.createElement('li');
-    li.setAttribute('role', 'menuitem');
+    const checkable = !!def.checkable;
+    li.setAttribute('role', checkable ? 'menuitemcheckbox' : 'menuitem');
     li.className = 'bb-menu__item' + (def.disabled ? ' bb-menu__item--disabled' : '');
     if (def.disabled) li.setAttribute('aria-disabled', 'true');
     if (def.id) li.dataset.itemId = def.id;
+    if (checkable) li.setAttribute('aria-checked', 'false');
 
     li.innerHTML = `
-      ${def.icon ? `<span class="bb-menu__item-icon" aria-hidden="true">${icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom')}</span>` : ''}
+      <span class="bb-menu__item-gutter" aria-hidden="true"></span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
       ${def.shortcut ? `<span class="bb-menu__item-shortcut" aria-hidden="true">${esc(def.shortcut)}</span>` : ''}
     `;
@@ -364,7 +426,7 @@ export class MenuBar {
     if (def.id) li.dataset.itemId = def.id;
 
     li.innerHTML = `
-      <span class="bb-menu__item-icon" aria-hidden="true">${def.icon ? icon(def.icon, 'w-3.5 h-3.5 inline-block align-text-bottom') : ''}</span>
+      <span class="bb-menu__item-gutter" aria-hidden="true"></span>
       <span class="bb-menu__item-label">${esc(def.label)}</span>
       <span class="bb-menu__item-arrow" aria-hidden="true">${icon('chevron-down', 'w-3 h-3 inline-block -rotate-90')}</span>
     `;
@@ -408,7 +470,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'New',
-        icon: 'document-plus',
         // Ctrl+N is reserved by browsers (opens a new window) and cannot be
         // intercepted — access New via the menu or toolbar instead.
         action: () => this.opts.onNew?.(),
@@ -416,7 +477,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Open…',
-        icon: 'folder-open',
         shortcut: 'Ctrl+O',
         action: () => this.opts.onOpen?.(),
       },
@@ -424,21 +484,18 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Export',
-        icon: 'arrow-up-tray',
         id: 'export',
         lazyChildren: () => this.exportItems(),
       },
       {
         type: 'item',
         label: 'Save',
-        icon: 'arrow-down-tray',
         shortcut: 'Ctrl+S',
         action: () => this.opts.onSave?.(),
       },
       {
         type: 'item',
         label: 'Save As…',
-        icon: 'document-arrow-down',
         shortcut: 'Ctrl+Shift+S',
         action: () => this.opts.onSaveAs?.(),
       },
@@ -446,7 +503,6 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Recent Files',
-        icon: 'clock',
         id: 'recent-files',
         lazyChildren: () => this.recentFileItems(),
       },
@@ -458,14 +514,12 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Undo',
-        icon: 'arrow-uturn-left',
         shortcut: 'Ctrl+Z',
         action: () => this.opts.onUndo?.(),
       },
       {
         type: 'item',
         label: 'Redo',
-        icon: 'arrow-uturn-right',
         shortcut: 'Ctrl+Y',
         action: () => this.opts.onRedo?.(),
       },
@@ -473,21 +527,18 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Cut',
-        icon: 'scissors',
         shortcut: 'Ctrl+X',
         action: () => this.opts.onCut?.(),
       },
       {
         type: 'item',
         label: 'Copy',
-        icon: 'document-duplicate',
         shortcut: 'Ctrl+C',
         action: () => this.opts.onCopy?.(),
       },
       {
         type: 'item',
         label: 'Paste',
-        icon: 'clipboard-document',
         shortcut: 'Ctrl+V',
         action: () => this.opts.onPaste?.(),
       },
@@ -495,16 +546,21 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Find',
-        icon: 'magnifying-glass',
         shortcut: 'Ctrl+F',
         action: () => this.opts.onFind?.(),
       },
       {
         type: 'item',
         label: 'Replace',
-        icon: 'arrows-right-left',
         shortcut: 'Ctrl+H',
         action: () => this.opts.onReplace?.(),
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'Select All',
+        shortcut: 'Ctrl+A',
+        action: () => this.opts.onSelectAll?.(),
       },
     ];
   }
@@ -513,12 +569,16 @@ export class MenuBar {
   private emitPanelToggle(panel: string): void {
     const next = !(this.panelVisible.get(panel) ?? false);
     this.panelVisible.set(panel, next);
+    const menuId = PANEL_CHECK_IDS[panel];
+    if (menuId) this.setItemChecked(menuId, this.isPanelEffectivelyVisible(panel));
     this.opts.eventBus.emit('panel:toggled', { panel, visible: next });
   }
 
   /** Show a tab panel (always emits visible:true). */
   private emitPanelShow(panel: string): void {
     this.panelVisible.set(panel, true);
+    const menuId = PANEL_CHECK_IDS[panel];
+    if (menuId) this.setItemChecked(menuId, this.isPanelEffectivelyVisible(panel));
     this.opts.eventBus.emit('panel:toggled', { panel, visible: true });
   }
 
@@ -527,7 +587,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Command Palette…',
-        icon: 'command-line',
         shortcut: 'Ctrl+Alt+P',
         action: () => this.opts.onOpenCommandPalette?.(),
       },
@@ -535,100 +594,108 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Output',
-        icon: 'command-line',
+        id: 'output-toggle',
+        checkable: true,
         shortcut: 'Ctrl+`',
-        action: () => this.emitPanelShow('output'),
+        action: () => this.emitPanelToggle('output'),
       },
       {
         type: 'item',
         label: 'Problems',
-        icon: 'exclamation-triangle',
+        id: 'problems-toggle',
+        checkable: true,
         shortcut: 'Alt+Shift+P',
-        action: () => this.emitPanelShow('problems'),
+        action: () => this.emitPanelToggle('problems'),
       },
       {
         type: 'item',
         label: 'Toolbar',
-        icon: 'bars-3',
+        id: 'toolbar-toggle',
+        checkable: true,
         shortcut: 'Ctrl+Shift+B',
         action: () => this.emitPanelToggle('toolbar'),
       },
       {
         type: 'item',
         label: 'Transport Bar',
-        icon: 'queue-list',
+        id: 'transport-bar-toggle',
+        checkable: true,
         shortcut: 'Ctrl+Shift+R',
         action: () => this.emitPanelToggle('transport-bar'),
       },
       {
         type: 'item',
         label: 'Channel Mixer',
-        icon: 'adjustments-vertical',
-        shortcut: 'Ctrl+Shift+M',
         id: 'channel-mixer-toggle',
+        checkable: true,
+        shortcut: 'Ctrl+Shift+M',
         disabled: !isFeatureEnabled(FeatureFlag.CHANNEL_MIXER),
         action: () => this.emitPanelToggle('channel-mixer'),
       },
       {
         type: 'item',
         label: 'Song Visualizer',
-        icon: 'adjustments-horizontal',
-        shortcut: 'Ctrl+Shift+V',
         id: 'song-visualizer-toggle',
+        checkable: true,
+        shortcut: 'Ctrl+Shift+V',
         disabled: !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
         action: () => this.emitPanelToggle('song-visualizer'),
       },
       {
         type: 'item',
         label: 'Pattern Grid',
-        icon: 'bars-3-center-left',
-        shortcut: 'Ctrl+Shift+G',
         id: 'pattern-grid-toggle',
+        checkable: true,
+        shortcut: 'Ctrl+Shift+G',
         disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
       },
-/*      {
-        type: 'item',
-        label: 'Help',
-        shortcut: 'Shift+F1',
-        action: () => this.emitPanelShow('help'),
-      },
-      {
-        type: 'item',
-        label: 'Shortcuts',
-        shortcut: 'Alt+Shift+K',
-        action: () => this.emitPanelShow('shortcuts'),
-      },
-      */
       { type: 'separator' },
       {
         type: 'item',
         label: 'AI Assistant',
-        icon: 'sparkles',
-        shortcut: 'Alt+Shift+I',
         id: 'ai-assistant',
+        checkable: true,
+        shortcut: 'Alt+Shift+I',
         disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
-        action: () => this.opts.onToggleAI?.(),
+        action: () => {
+          this.opts.onToggleAI?.();
+          const enabled = isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
+          this.panelVisible.set('ai-assistant', enabled);
+          this.setItemChecked('ai-assistant', enabled);
+        },
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'Wrap Text',
+        id: 'wrap-text',
+        checkable: true,
+        action: () => this.opts.onToggleWrapText?.(),
+      },
+      {
+        type: 'item',
+        label: 'Fold All',
+        id: 'fold-all',
+        checkable: true,
+        action: () => this.opts.onToggleFoldAll?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Zoom In',
-        icon: 'magnifying-glass-plus',
         shortcut: 'Ctrl++',
         action: () => this.opts.onZoomIn?.(),
       },
       {
         type: 'item',
         label: 'Zoom Out',
-        icon: 'magnifying-glass-minus',
         shortcut: 'Ctrl+-',
         action: () => this.opts.onZoomOut?.(),
       },
       {
         type: 'item',
         label: 'Reset Zoom',
-        icon: 'arrows-pointing-in',
         shortcut: 'Ctrl+0',
         action: () => this.opts.onZoomReset?.(),
       },
@@ -636,7 +703,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Theme (Dark / Light)',
-        icon: 'sun',
         shortcut: 'Ctrl+Shift+L',
         action: () => this.opts.onToggleTheme?.(),
       },
@@ -644,7 +710,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Settings…',
-        icon: 'cog-6-tooth',
         shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+,`,
         action: () => this.opts.onShowSettings?.(),
       },
@@ -656,21 +721,19 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Documentation',
-        icon: 'information-circle',
         action: () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer'),
       },
       {
         type: 'item',
         label: 'Keyboard Shortcuts…',
-        icon: 'key',
         shortcut: 'Alt+Shift+K',
         action: () => this.opts.onShowShortcuts?.(),
       },
       {
-        // Opens the full Help Panel (syntax reference, snippets, keyboard shortcuts).
-        label: 'Help Panel…',
-        icon: 'question-mark-circle',
         type: 'item',
+        label: 'Help Panel…',
+        id: 'help-panel-toggle',
+        checkable: true,
         shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
       },
@@ -678,7 +741,6 @@ export class MenuBar {
       {
         type: 'submenu',
         label: 'Examples',
-        icon: 'book-open',
         id: 'examples',
         lazyChildren: () => this.exampleItems(),
       },
@@ -686,7 +748,6 @@ export class MenuBar {
       {
         type: 'item',
         label: 'About BeatBax',
-        icon: 'globe-alt',
         action: () => window.open(ABOUT_URL, '_blank', 'noopener,noreferrer'),
       },
     ];
@@ -707,13 +768,9 @@ export class MenuBar {
 
     for (const plugin of plugins) {
       const isUniversal = plugin.supportedChips.includes('*');
-      const iconName = plugin.uiContributions?.toolbarIcon
-        ?? EXPORTER_DEFAULT_ICONS[plugin.id]
-        ?? 'document-arrow-down';
       const ext = plugin.extension.startsWith('.') ? plugin.extension : `.${plugin.extension}`;
       const item: MenuItemDef = {
         type: 'item',
-        icon: iconName,
         label: `Export as ${plugin.label} (${ext})`,
         action: () => this.opts.onExport?.(plugin.id),
       };
@@ -761,7 +818,6 @@ export class MenuBar {
     return EXAMPLE_SONG_GROUPS.map(group => ({
       type: 'submenu' as const,
       label: group.group,
-      icon: 'cpu-chip',
       children: group.songs.map(s => ({
         type: 'item' as const,
         label: s.label,
@@ -810,6 +866,13 @@ export class MenuBar {
     panel.hidden = false;
     btn.setAttribute('aria-expanded', 'true');
     btn.classList.add('bb-menu__trigger--active');
+    if (id === 'view' || id === 'help') this.refreshPanelToggleChecks();
+  }
+
+  private firstFocusableMenuItem(panel: HTMLElement): HTMLElement | null {
+    return panel.querySelector<HTMLElement>(
+      '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"])',
+    );
   }
 
   private closeAll(): void {
@@ -827,9 +890,13 @@ export class MenuBar {
   // ─── Keyboard navigation inside a panel ───────────────────────────────────────
 
   private handleItemKeydown(e: KeyboardEvent, current: HTMLElement): void {
-    const panel = current.closest<HTMLElement>('.bb-menu__panel');
+    const panel = current.closest<HTMLElement>('.bb-menu__panel, .bb-menu__sub-panel');
     if (!panel) return;
-    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
+    const items = Array.from(
+      panel.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"])',
+      ),
+    );
     const idx = items.indexOf(current);
 
     if (e.key === 'ArrowDown') {
@@ -968,6 +1035,14 @@ export class MenuBar {
     // who emitted it (keyboard shortcuts, toolbar buttons, other components).
     this.opts.eventBus.on('panel:toggled', ({ panel, visible }) => {
       this.panelVisible.set(panel, visible);
+      const menuId = PANEL_CHECK_IDS[panel];
+      if (menuId) this.setItemChecked(menuId, this.isPanelEffectivelyVisible(panel));
+      if (panel === 'ai-assistant') {
+        this.setItemChecked(
+          'ai-assistant',
+          isFeatureEnabled(FeatureFlag.AI_ASSISTANT) && visible,
+        );
+      }
     });
 
     // Disable / re-enable feature-gated menu items when the flag is toggled.
@@ -976,6 +1051,14 @@ export class MenuBar {
       if (flag === FeatureFlag.PATTERN_GRID)    this.setItemEnabled('pattern-grid-toggle', enabled);
       if (flag === FeatureFlag.AI_ASSISTANT)    this.setItemEnabled('ai-assistant', enabled);
       if (flag === FeatureFlag.CHANNEL_MIXER)   this.setItemEnabled('channel-mixer-toggle', enabled);
+      if (
+        flag === FeatureFlag.SONG_VISUALIZER
+        || flag === FeatureFlag.PATTERN_GRID
+        || flag === FeatureFlag.AI_ASSISTANT
+        || flag === FeatureFlag.CHANNEL_MIXER
+      ) {
+        this.refreshPanelToggleChecks();
+      }
     });
   }
 
@@ -1001,8 +1084,8 @@ interface ActionItemDef extends BaseItemDef {
   type: 'item';
   label: string;
   shortcut?: string;
-  /** Optional heroicon name to prefix the label. */
-  icon?: string;
+  /** Show a checkmark in the left gutter when toggled on. */
+  checkable?: boolean;
   action: () => void;
 }
 
@@ -1013,8 +1096,6 @@ interface SeparatorDef {
 interface SubmenuItemDef extends BaseItemDef {
   type: 'submenu';
   label: string;
-  /** Optional heroicon name to prefix the label. */
-  icon?: string;
   /** Static children (resolved at render time). */
   children?: MenuItemDef[];
   /** Dynamic children (resolved each time the submenu opens). */

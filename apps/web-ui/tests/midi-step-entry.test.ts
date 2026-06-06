@@ -13,6 +13,7 @@
 import {
   midiNoteToName,
   formatNoteToken,
+  prefixSpacingBeforeInsert,
   isCursorInsidePatBody,
   extractNoteTokenSpans,
   durationMsToStepLength,
@@ -20,9 +21,14 @@ import {
   buildScalePitchClasses,
   scaleLockPitchClasses,
   snapMidiToPitchClasses,
+  resolveEffectNameFromLine,
+  isInstrumentDefinitionLine,
+  isEffectDefinitionLine,
+  isMidiPreviewLine,
   MidiStepEntryService,
 } from '../src/input/midi-step-entry';
 import { MidiStepEntryController } from '../src/input/midi-step-entry-controller';
+import { settingMidiInputEnabled } from '../src/stores/settings.store';
 
 // ─── midiNoteToName ───────────────────────────────────────────────────────────
 
@@ -127,6 +133,29 @@ describe('durationMsToStepLength', () => {
   it('maps 1600+ ms to step 16 (maximum)', () => {
     expect(durationMsToStepLength(1600)).toBe('16');
     expect(durationMsToStepLength(5000)).toBe('16');
+  });
+});
+
+// ─── prefixSpacingBeforeInsert ────────────────────────────────────────────────
+
+describe('prefixSpacingBeforeInsert', () => {
+  it('adds a leading space after a note token with no trailing space', () => {
+    const line = 'pat xxx = A4';
+    const col = line.length + 1;
+    expect(prefixSpacingBeforeInsert(line, col, 'C4')).toBe(' C4');
+  });
+
+  it('does not add a leading space when already preceded by whitespace', () => {
+    expect(prefixSpacingBeforeInsert('pat xxx = A4 ', 14, 'C4')).toBe('C4');
+  });
+
+  it('adds a leading space after = when cursor follows it directly', () => {
+    const line = 'pat xxx =';
+    expect(prefixSpacingBeforeInsert(line, line.length + 1, 'C4')).toBe(' C4');
+  });
+
+  it('does not add a leading space at column 1', () => {
+    expect(prefixSpacingBeforeInsert('pat xxx = A4', 1, 'C4')).toBe('C4');
   });
 });
 
@@ -256,6 +285,7 @@ describe('MidiStepEntryService', () => {
   let onNoteEntered: jest.Mock;
   let onAuditionStart: jest.Mock;
   let onAuditionStop: jest.Mock;
+  let onIdlePreview: jest.Mock;
   let onWarning: jest.Mock;
   let service: MidiStepEntryService;
 
@@ -263,11 +293,13 @@ describe('MidiStepEntryService', () => {
     onNoteEntered = jest.fn();
     onAuditionStart = jest.fn();
     onAuditionStop = jest.fn();
+    onIdlePreview = jest.fn();
     onWarning = jest.fn();
     service = new MidiStepEntryService({
       onNoteEntered,
       onAuditionStart,
       onAuditionStop,
+      onIdlePreview,
       onWarning,
     });
   });
@@ -348,6 +380,140 @@ describe('MidiStepEntryService', () => {
 
   it('isSupported() returns false in jsdom (no Web MIDI API)', () => {
     expect(MidiStepEntryService.isSupported()).toBe(false);
+  });
+
+  it('instant step entry does not audition on note-on (audition happens after insert)', () => {
+    (service as any).selectedInput = { addEventListener: () => {}, removeEventListener: () => {} };
+    service.setAuditionNotes(true);
+    service.setUseNoteDuration(false);
+    service.arm();
+    expect(service.isArmed()).toBe(true);
+
+    (service as any)._handleNoteOn(60, 100);
+
+    expect(onAuditionStart).not.toHaveBeenCalled();
+    expect(onNoteEntered).toHaveBeenCalledWith('C4', 'inherit', false);
+  });
+
+  it('hold-duration step entry auditions on note-on before insert', () => {
+    (service as any).selectedInput = { addEventListener: () => {}, removeEventListener: () => {} };
+    service.setAuditionNotes(true);
+    service.setUseNoteDuration(true);
+    service.arm();
+
+    (service as any)._handleNoteOn(60, 100);
+
+    expect(onAuditionStart).toHaveBeenCalledWith('C4');
+    expect(onNoteEntered).not.toHaveBeenCalled();
+  });
+
+  it('disarmed note-on triggers idle preview instead of step entry', () => {
+    (service as any).selectedInput = { addEventListener: () => {}, removeEventListener: () => {} };
+    expect(service.isArmed()).toBe(false);
+
+    (service as any)._handleNoteOn(60, 100);
+
+    expect(onIdlePreview).toHaveBeenCalledWith('C4');
+    expect(onNoteEntered).not.toHaveBeenCalled();
+    expect(onAuditionStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('MIDI preview line detection', () => {
+  it('resolveEffectNameFromLine extracts effect name', () => {
+    expect(resolveEffectNameFromLine('effect reverb = echo:4')).toBe('reverb');
+    expect(resolveEffectNameFromLine('  effect bass_fx = volSlide:-2')).toBe('bass_fx');
+    expect(resolveEffectNameFromLine('inst melody type=pulse1')).toBeNull();
+  });
+
+  it('isMidiPreviewLine matches inst, effect, and pat body lines', () => {
+    expect(isMidiPreviewLine('inst melody type=pulse1 duty=25', 20)).toBe(true);
+    expect(isMidiPreviewLine('effect reverb = echo:4', 10)).toBe(true);
+    expect(isMidiPreviewLine('pat melody = C4 D4', 15)).toBe(true);
+    expect(isMidiPreviewLine('pat melody = C4 D4', 5)).toBe(false);
+    expect(isMidiPreviewLine('seq main', 5)).toBe(false);
+  });
+});
+
+describe('MidiStepEntryController idle preview', () => {
+  function createCursorEditor(lineText: string, column: number) {
+    const state = { lineText, position: { lineNumber: 1, column } };
+    const model = {
+      getLineContent: (_lineNumber: number) => state.lineText,
+    };
+    const editor = {
+      getModel: () => model,
+      getPosition: () => state.position,
+    };
+    return { editor, state };
+  }
+
+  beforeEach(() => {
+    settingMidiInputEnabled.set(true);
+  });
+
+  afterEach(() => {
+    settingMidiInputEnabled.set(false);
+  });
+
+  it('previews instrument on inst line when disarmed', () => {
+    const lineText = 'inst melody   type=pulse1  duty=25  env=12,flat';
+    const { editor } = createCursorEditor(lineText, 20);
+    const onAuditionNote = jest.fn();
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onAuditionNote,
+    });
+
+    (controller as any)._handleIdlePreview('A4');
+
+    expect(onAuditionNote).toHaveBeenCalledWith('A4');
+  });
+
+  it('previews effect on effect line when disarmed', () => {
+    const lineText = 'effect reverb = echo:4';
+    const { editor } = createCursorEditor(lineText, 10);
+    const onPreviewEffect = jest.fn();
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onPreviewEffect,
+    });
+
+    (controller as any)._handleIdlePreview('C4');
+
+    expect(onPreviewEffect).toHaveBeenCalledWith('reverb');
+  });
+
+  it('previews instrument on pat body when disarmed', () => {
+    const lineText = 'pat melody = C4 D4';
+    const column = lineText.indexOf('C4') + 1;
+    const { editor } = createCursorEditor(lineText, column);
+    const onAuditionNote = jest.fn();
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onAuditionNote,
+    });
+
+    (controller as any)._handleIdlePreview('G4');
+
+    expect(onAuditionNote).toHaveBeenCalledWith('G4');
+  });
+
+  it('previews instrument on inst line when armed instead of warning', () => {
+    const lineText = 'inst melody type=pulse1 duty=25';
+    const { editor } = createCursorEditor(lineText, 15);
+    const onAuditionNote = jest.fn();
+    const onWarning = jest.fn();
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onAuditionNote,
+      onWarning,
+    });
+
+    (controller as any)._insertNoteInEditor('A4', 'inherit', false);
+
+    expect(onAuditionNote).toHaveBeenCalledWith('A4');
+    expect(onWarning).not.toHaveBeenCalled();
   });
 });
 
@@ -452,5 +618,43 @@ describe('MidiStepEntryController overwrite-selection', () => {
     });
     (controller as any)._insertNoteInEditor('E4', 'inherit', false);
     expect(state.lineText).toBe('pat melody = ');
+  });
+
+  it('auditions after inserting into an empty pat line when enabled', () => {
+    const lineText = 'pat melody = ';
+    const onAuditionNote = jest.fn();
+    const { editor } = createSingleLineEditor(lineText, lineText.length + 1, lineText.length + 1);
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onAuditionNote,
+    });
+    controller.setAuditionNotes(true);
+    (controller as any)._insertNoteInEditor('C4', 'inherit', false);
+    expect(onAuditionNote).toHaveBeenCalledTimes(1);
+    expect(onAuditionNote).toHaveBeenCalledWith('C4');
+  });
+
+  it('does not audition after insert when audition is disabled', () => {
+    const lineText = 'pat melody = ';
+    const onAuditionNote = jest.fn();
+    const { editor } = createSingleLineEditor(lineText, lineText.length + 1, lineText.length + 1);
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+      onAuditionNote,
+    });
+    controller.setAuditionNotes(false);
+    (controller as any)._insertNoteInEditor('C4', 'inherit', false);
+    expect(onAuditionNote).not.toHaveBeenCalled();
+  });
+
+  it('inserts a leading space when cursor follows a note without trailing space', () => {
+    const lineText = 'pat xxx = A4';
+    const cursorCol = lineText.length + 1;
+    const { editor, state } = createSingleLineEditor(lineText, cursorCol, cursorCol);
+    const controller = new MidiStepEntryController({
+      getEditor: () => editor as any,
+    });
+    (controller as any)._insertNoteInEditor('C4', 'inherit', false);
+    expect(state.lineText).toBe('pat xxx = A4 C4 ');
   });
 });

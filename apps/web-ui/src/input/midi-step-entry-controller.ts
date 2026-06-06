@@ -18,8 +18,13 @@ import { createLogger } from '@beatbax/engine/util/logger';
 import {
   MidiStepEntryService,
   isCursorInsidePatBody,
+  isEffectDefinitionLine,
+  isInstrumentDefinitionLine,
+  isMidiPreviewLine,
+  resolveEffectNameFromLine,
   extractNoteTokenSpans,
   formatNoteToken,
+  prefixSpacingBeforeInsert,
   type StepLength,
   type EntryMode,
   type ScaleSnapMode,
@@ -30,6 +35,7 @@ import {
   midiNoteToName,
 } from './midi-step-entry';
 import { resolvePrimaryPatternLock } from '../editor/scale-context';
+import { ensureAudioCtxReady } from '../editor/codelens-preview';
 import {
   settingMidiInputEnabled,
   settingMidiInputDevice,
@@ -51,6 +57,8 @@ export interface MidiStepEntryControllerOptions {
   getEditor: () => monaco.editor.IStandaloneCodeEditor | null;
   /** Called with a note name to trigger a brief audition playback. */
   onAuditionNote?: (noteName: string) => void;
+  /** Called with an effect name to trigger effect preset preview. */
+  onPreviewEffect?: (effectName: string) => void;
   /** Called with a human-readable warning message. */
   onWarning?: (message: string) => void;
   /** Called when the armed state changes. Used to update the record button UI. */
@@ -89,6 +97,9 @@ export class MidiStepEntryController {
       onAuditionStop: (_noteName) => {
         // Audition stop is informational for now; the playback engine handles
         // timing, so we don't need to explicitly stop anything here.
+      },
+      onIdlePreview: (noteName) => {
+        this._handleIdlePreview(noteName);
       },
       onWarning: (message) => {
         this.opts.onWarning?.(message);
@@ -188,6 +199,7 @@ export class MidiStepEntryController {
     const armed = this.service.isArmed();
     this.opts.onArmedChanged?.(armed);
     if (armed) {
+      ensureAudioCtxReady();
       log.info('MIDI step entry armed');
     }
   }
@@ -286,6 +298,10 @@ export class MidiStepEntryController {
 
     // Gate: only allow entry inside a pat body
     if (!isCursorInsidePatBody(lineText, pos.column)) {
+      if (isMidiPreviewLine(lineText, pos.column)) {
+        this._triggerLinePreview(lineText, pos.column, noteName);
+        return;
+      }
       this.opts.onWarning?.('MIDI step entry: cursor must be inside a pat body (after the = on a pat line).');
       return;
     }
@@ -295,9 +311,40 @@ export class MidiStepEntryController {
     const token = formatNoteToken(noteForInsert, stepLength, emitDuration);
 
     if (entryMode === 'overwrite-selection') {
-      this._replaceSelectionOrInsert(editor, model, pos, token, autoAdvance);
+      if (this._replaceSelectionOrInsert(editor, model, pos, token, autoAdvance)) {
+        this._maybeAuditionAfterInsert(noteForInsert);
+      }
     } else {
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
+      this._maybeAuditionAfterInsert(noteForInsert);
+    }
+  }
+
+  private _maybeAuditionAfterInsert(noteName: string): void {
+    if (!this.service.isAuditionNotes()) return;
+    this.opts.onAuditionNote?.(noteName);
+  }
+
+  private _handleIdlePreview(noteName: string): void {
+    if (!settingMidiInputEnabled.get()) return;
+    ensureAudioCtxReady();
+    const editor = this.opts.getEditor();
+    if (!editor) return;
+    const model = editor.getModel();
+    const pos = editor.getPosition();
+    if (!model || !pos) return;
+    const lineText = model.getLineContent(pos.lineNumber);
+    this._triggerLinePreview(lineText, pos.column, noteName);
+  }
+
+  private _triggerLinePreview(lineText: string, column: number, noteName: string): void {
+    if (isEffectDefinitionLine(lineText)) {
+      const effectName = resolveEffectNameFromLine(lineText);
+      if (effectName) this.opts.onPreviewEffect?.(effectName);
+      return;
+    }
+    if (isInstrumentDefinitionLine(lineText) || isCursorInsidePatBody(lineText, column)) {
+      this.opts.onAuditionNote?.(noteName);
     }
   }
 
@@ -322,7 +369,7 @@ export class MidiStepEntryController {
 
   private _insertAtCursor(
     editor: monaco.editor.IStandaloneCodeEditor,
-    _model: monaco.editor.ITextModel,
+    model: monaco.editor.ITextModel,
     pos: monaco.IPosition,
     token: string,
     autoAdvance: boolean,
@@ -334,6 +381,7 @@ export class MidiStepEntryController {
     const insertRange = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
     let editRange: monaco.IRange = insertRange;
     let insertText: string;
+    const lineText = model.getLineContent(pos.lineNumber);
 
     if (!autoAdvance && this._noAdvanceStart) {
       // Replace-in-place: overwrite the token inserted by the previous note press.
@@ -348,14 +396,23 @@ export class MidiStepEntryController {
       }
     }
 
+    const isReplaceInPlace =
+      editRange.startLineNumber === editRange.endLineNumber &&
+      editRange.startColumn !== editRange.endColumn;
+
+    let noteToken = token;
+    if (!isReplaceInPlace) {
+      noteToken = prefixSpacingBeforeInsert(lineText, editRange.startColumn, token);
+    }
+
     if (autoAdvance) {
       // Append a space so the cursor lands after the token (ready for the next note).
-      insertText = `${token} `;
+      insertText = `${noteToken} `;
       this._noAdvanceStart = null;
     } else {
       // No trailing space — record where the token starts so a follow-up press
       // can replace it in-place.
-      insertText = token;
+      insertText = noteToken;
       this._noAdvanceStart = { lineNumber: pos.lineNumber, startColumn: editRange.startColumn };
     }
 
@@ -374,13 +431,13 @@ export class MidiStepEntryController {
     pos: monaco.IPosition,
     token: string,
     autoAdvance: boolean,
-  ): void {
+  ): boolean {
     const sel = editor.getSelection();
     if (!sel || (sel.startLineNumber === sel.endLineNumber && sel.startColumn === sel.endColumn)) {
       this._overwriteCycle = null;
       // No selection — fall back to insert at cursor
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
-      return;
+      return true;
     }
 
     const continuingCycle = this._resolveOverwriteCycleSelection(editor, model, sel);
@@ -394,7 +451,7 @@ export class MidiStepEntryController {
       this._overwriteCycle = null;
       // Selection contains no note/rest tokens — warn and abort
       this.opts.onWarning?.('MIDI step entry: selection contains no note or rest tokens to replace.');
-      return;
+      return false;
     }
 
     const targetIndex = continuingCycle ? (continuingCycle.nextSpanIndex % spans.length) : 0;
@@ -436,6 +493,7 @@ export class MidiStepEntryController {
 
     this._noAdvanceStart = null;
     editor.focus();
+    return true;
   }
 
   private _resolveOverwriteCycleSelection(

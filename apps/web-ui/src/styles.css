@@ -2577,14 +2577,14 @@
 }
 .bb-menu__item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 16px 5px 24px; color: #cccccc; cursor: pointer;
-  gap: 24px; outline: none; transition: background 0.1s;
+  padding: 5px 16px 5px 8px; color: #cccccc; cursor: pointer;
+  gap: 8px; outline: none; transition: background 0.1s;
 }
 .bb-menu__item:hover:not(.bb-menu__item--disabled),
 .bb-menu__item:focus:not(.bb-menu__item--disabled) { background: var(--bb-accent-bg); color: #ffffff; }
 .bb-menu__item--disabled { color: #666; cursor: default; }
 .bb-menu__item--submenu { position: relative; }
-.bb-menu__item-icon { width: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.bb-menu__item-gutter { width: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
 .bb-menu__item-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb-menu__item-shortcut { font-size: 11px; color: #888; white-space: nowrap; flex-shrink: 0; }
 .bb-menu__item:hover .bb-menu__item-shortcut,
@@ -4183,14 +4183,14 @@
 }
 .bb-menu__item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 16px 5px 24px; color: #cccccc; cursor: pointer;
-  gap: 24px; outline: none; transition: background 0.1s;
+  padding: 5px 16px 5px 8px; color: #cccccc; cursor: pointer;
+  gap: 8px; outline: none; transition: background 0.1s;
 }
 .bb-menu__item:hover:not(.bb-menu__item--disabled),
 .bb-menu__item:focus:not(.bb-menu__item--disabled) { background: var(--bb-accent-bg); color: #ffffff; }
 .bb-menu__item--disabled { color: #666; cursor: default; }
 .bb-menu__item--submenu { position: relative; }
-.bb-menu__item-icon { width: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.bb-menu__item-gutter { width: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
 .bb-menu__item-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb-menu__item-shortcut { font-size: 11px; color: #888; white-space: nowrap; flex-shrink: 0; }
 .bb-menu__item:hover .bb-menu__item-shortcut,

@@ -49,7 +49,7 @@ import {
   warningsToDiagnostics,
   type Diagnostic,
 } from './editor/diagnostics';
-import { setupCodeLensPreview, triggerStepEntryAudition } from './editor/codelens-preview';
+import { setupCodeLensPreview, triggerStepEntryAudition, triggerEffectPreview } from './editor/codelens-preview';
 import { setupGlyphMargin } from './editor/glyph-margin';
 import { setupCommandPalette } from './editor/command-palette';
 import { getInitialContent } from './app/bootstrap';
@@ -74,7 +74,7 @@ import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
   settingShowSongVisualizer,
-  settingWordWrap, settingDefaultBpm, settingSongArtist,
+  settingWordWrap, settingFoldComments, settingDefaultBpm, settingSongArtist,
   settingDebugOverlay, settingDebugOverlayPosition, settingDebugOverlayOpacity,
   settingDebugOverlayFontSize, settingDebugExposePlayer,
   settingMidiInputEnabled,
@@ -1039,6 +1039,9 @@ const midiController = new MidiStepEntryController({
     const lineText = model.getLineContent(pos.lineNumber);
     triggerStepEntryAudition(lineText, noteName);
   },
+  onPreviewEffect: (effectName) => {
+    triggerEffectPreview(effectName);
+  },
   onWarning: (message) => {
     opWarn(outputPanel, message, 'midi');
   },
@@ -1502,6 +1505,7 @@ function createSongFromWizard(source: string, songName: string): void {
   storage.set(StorageKey.EDITOR_CONTENT, source);
   opLog(outputPanel, '📄 New song');
   emitParse(source);
+  scheduleCommentsFoldPreference();
 }
 
 function openSongFromDisk(): void {
@@ -1519,6 +1523,7 @@ function openSongFromDisk(): void {
       eventBus.emit('song:loaded', { filename: result.filename });
       menuBar.recordRecent(result.filename);
       emitParse(result.content);
+      scheduleCommentsFoldPreference();
       loadingOverlay.hide();
     },
     onError: () => loadingOverlay.hide(),
@@ -1529,6 +1534,43 @@ function openSongFromDisk(): void {
 // ─── LoadingOverlay ──────────────────────────────────────────────────────────
 // Used to block user interaction during async file loading operations.
 const loadingOverlay = new LoadingOverlay();
+
+function applyCommentsFoldPreference(folded = settingFoldComments.get()): void {
+  const monacoEditor = editor?.editor;
+  if (!monacoEditor) return;
+  if (folded) {
+    monacoEditor.trigger('toolbar', 'editor.foldAllBlockComments', null);
+  } else {
+    monacoEditor.trigger('toolbar', 'editor.unfoldAll', null);
+  }
+  toolbar?.setFoldCommentsActive(folded);
+}
+
+function scheduleCommentsFoldPreference(): void {
+  const folded = settingFoldComments.get();
+  if (!folded) {
+    applyCommentsFoldPreference(false);
+    return;
+  }
+
+  // Folding ranges are recomputed asynchronously after setValue; defer and retry.
+  const fold = () => applyCommentsFoldPreference(true);
+  requestAnimationFrame(() => requestAnimationFrame(fold));
+  window.setTimeout(fold, 100);
+}
+
+function toggleWordWrap(): void {
+  const wrap = !settingWordWrap.get();
+  settingWordWrap.set(wrap);
+  editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
+  toolbar?.setWrapActive(wrap);
+}
+
+function toggleFoldAllComments(): void {
+  const folded = !settingFoldComments.get();
+  settingFoldComments.set(folded);
+  applyCommentsFoldPreference(folded);
+}
 
 const menuBar = new MenuBar({
   container: menuBarContainer,
@@ -1572,6 +1614,7 @@ const menuBar = new MenuBar({
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
+    scheduleCommentsFoldPreference();
     loadingOverlay.hide();
   },
   onUndo: () => editor.editor?.trigger('menu', 'undo', null),
@@ -1579,6 +1622,7 @@ const menuBar = new MenuBar({
   onCut: () => editor.editor?.trigger('menu', 'editor.action.clipboardCutAction', null),
   onCopy: () => editor.editor?.trigger('menu', 'editor.action.clipboardCopyAction', null),
   onPaste: () => editor.editor?.trigger('menu', 'editor.action.clipboardPasteAction', null),
+  onSelectAll: () => editor.editor?.trigger('menu', 'editor.action.selectAll', null),
   onFind: () => editor.editor?.trigger('menu', 'actions.find', null),
   onReplace: () => editor.editor?.trigger('menu', 'editor.action.startFindReplaceAction', null),
   onZoomIn: () => {
@@ -1591,6 +1635,8 @@ const menuBar = new MenuBar({
   },
   onZoomReset: () => editor.editor?.updateOptions({ fontSize: 14 }),
   onToggleTheme: () => themeManager.toggle(),
+  onToggleWrapText: () => toggleWordWrap(),
+  onToggleFoldAll: () => toggleFoldAllComments(),
   onToggleAI: () => toggleAIAssistant(),
 });
 
@@ -1616,6 +1662,11 @@ if (claimNewSongWizardOnboarding(
 
 (window as any).__beatbax_menuBar = menuBar;
 
+menuBar.setWrapTextChecked(settingWordWrap.get());
+menuBar.setFoldAllChecked(settingFoldComments.get());
+settingWordWrap.subscribe((wrap) => menuBar.setWrapTextChecked(wrap));
+settingFoldComments.subscribe((folded) => menuBar.setFoldAllChecked(folded));
+
 // Keep the menu bar song name in sync with the parsed metadata.name directive.
 // Falls back to the loaded filename stem when no name directive is present.
 // 'song' is the internal sentinel for "no file loaded" — display as 'untitled'.
@@ -1638,12 +1689,17 @@ eventBus.on('preview:error', ({ message }: { message: string }) => {
 });
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
+// Feature-gated panels are only marked visible when their feature flag is enabled.
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'channel-mixer':     readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
-  'pattern-grid':      readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
-  'song-visualizer':   readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
+  'channel-mixer':     isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
+    && readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
+  'pattern-grid':      isFeatureEnabled(FeatureFlag.PATTERN_GRID)
+    && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
+  'song-visualizer':   isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
+    && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
+  'ai-assistant':      isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
 });
 // Apply initial pattern-grid visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
@@ -1651,7 +1707,7 @@ if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
-let commentsFolded = false;
+
 toolbar = new Toolbar({
   container: toolbarContainer,
   eventBus,
@@ -1661,8 +1717,6 @@ toolbar = new Toolbar({
   onBeforeExampleLoad: () => playbackManager.stop(),
   onLoad: (filename, content) => {
     playbackManager.stop();
-    commentsFolded = false;
-    toolbar?.setFoldCommentsActive(false);
     setLoadedFilename(fileBaseStem(filename));
     editor.setValue?.(content);
     storage.set(StorageKey.EDITOR_CONTENT, content);
@@ -1670,6 +1724,7 @@ toolbar = new Toolbar({
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
+    scheduleCommentsFoldPreference();
   },
   onExport: handleExport,
   onVerify: doVerify,
@@ -1677,31 +1732,20 @@ toolbar = new Toolbar({
   onSave:      () => menuBar.triggerSave(),
   onUndo:      () => editor.editor?.trigger('toolbar', 'undo', null),
   onRedo:      () => editor.editor?.trigger('toolbar', 'redo', null),
-  onSelectAll: () => editor.editor?.trigger('toolbar', 'editor.action.selectAll', null),
   onToggleTheme: () => themeManager.toggle(),
   onToggleWrap:  (wrap: boolean) => {
     settingWordWrap.set(wrap);
     editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
   },
-  onToggleFoldComments: () => {
-    const monacoEditor = editor.editor;
-    if (!commentsFolded) {
-      // Monaco has a built-in command to fold all comment ranges at once.
-      monacoEditor.trigger('toolbar', 'editor.foldAllBlockComments', null);
-      commentsFolded = true;
-    } else {
-      monacoEditor.trigger('toolbar', 'editor.unfoldAll', null);
-      commentsFolded = false;
-    }
-    toolbar?.setFoldCommentsActive(commentsFolded);
-  },
+  onToggleFoldComments: () => toggleFoldAllComments(),
 });
 
 // Restore toolbar visibility
 if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
 // Sync the Wrap button active state with the persisted word-wrap setting
 toolbar.setWrapActive(settingWordWrap.get());
-toolbar.setFoldCommentsActive(false);
+toolbar.setFoldCommentsActive(settingFoldComments.get());
+if (settingFoldComments.get()) scheduleCommentsFoldPreference();
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 toolbar.setChip(parsedChip.get());
@@ -1756,6 +1800,7 @@ const dragDrop = new DragDropHandler(document.body, {
     eventBus.emit('song:loaded', { filename });
     menuBar.recordRecent(filename);
     emitParse(content);
+    scheduleCommentsFoldPreference();
     setTimeout(() => playbackManager.play(getSource()), 200);
   },
 });
@@ -1778,6 +1823,7 @@ const dragDrop = new DragDropHandler(document.body, {
       eventBus.emit('song:loaded', { filename });
       menuBar.recordRecent(filename);
       emitParse(result.content);
+      scheduleCommentsFoldPreference();
       setTimeout(() => playbackManager.play(getSource()), 300);
     }
   } catch (err: any) {

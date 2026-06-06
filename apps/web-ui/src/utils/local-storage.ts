@@ -40,6 +40,8 @@ export const StorageKey = {
   AUTO_SAVE: 'editor.autoSave',
   /** Word wrap enabled flag (boolean). */
   WORD_WRAP: 'editor.wordWrap',
+  /** Fold all block comments enabled flag (boolean). */
+  FOLD_COMMENTS: 'editor.foldComments',
   /** CodeLens previews enabled (boolean). */
   CODELENS: 'editor.codelens',
   /** Beat decorations enabled (boolean). */
