@@ -1,7 +1,7 @@
 import { Menu, shell } from 'electron';
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
-import type { MenuAction } from '../shared/electron-api.js';
-import { IPC_CHANNELS } from '../shared/ipc.js';
+import type { MenuAction } from '../shared/electron-api';
+import { IPC_CHANNELS } from '../shared/ipc';
 
 function sendMenuAction(window: BrowserWindow, action: MenuAction): void {
   window.webContents.send(IPC_CHANNELS.MENU_ACTION, action);

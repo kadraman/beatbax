@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopFilePayload, DesktopOpenFileOptions, DesktopSaveFileOptions, ElectronAPI, MenuAction } from '../shared/electron-api.js';
-import { IPC_CHANNELS } from '../shared/ipc.js';
+import type { DesktopFilePayload, DesktopOpenFileOptions, DesktopSaveFileOptions, ElectronAPI, MenuAction } from '../shared/electron-api';
+import { IPC_CHANNELS } from '../shared/ipc';
 
 const electronAPI: ElectronAPI = {
   openFile: (options?: DesktopOpenFileOptions) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, options),

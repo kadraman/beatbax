@@ -2,9 +2,9 @@ import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
-import { addRecentFileEntry, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers.js';
-import { installAppMenu } from './menu.js';
-import { IPC_CHANNELS } from '../shared/ipc.js';
+import { addRecentFileEntry, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
+import { installAppMenu } from './menu';
+import { IPC_CHANNELS } from '../shared/ipc';
 
 let mainWindow: BrowserWindow | null = null;
 let pendingOpenPaths: string[] = [];

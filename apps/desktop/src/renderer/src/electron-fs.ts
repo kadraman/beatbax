@@ -1,5 +1,11 @@
+import type { ElectronAPI } from '../../shared/electron-api';
+
+function getElectronApi(): ElectronAPI {
+  return (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
+}
+
 export function writeFileSync(targetPath: string, data: Uint8Array): void {
-  window.electronAPI.writeFileSync(targetPath, data);
+  getElectronApi().writeFileSync(targetPath, data);
 }
 
 export function readFileSync(): never {

@@ -2,12 +2,12 @@ import { app, dialog, ipcMain } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
-import { IPC_CHANNELS } from '../shared/ipc.js';
+import { IPC_CHANNELS } from '../shared/ipc';
 import type {
   DesktopFilePayload,
   DesktopOpenFileOptions,
   DesktopSaveFileOptions,
-} from '../shared/electron-api.js';
+} from '../shared/electron-api';
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -137,7 +137,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     return savedPath;
   });
 
-  ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (event, targetPath: string, data: Uint8Array) => {
+  ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (_event, targetPath: string, data: Uint8Array) => {
     const safePath = assertAbsoluteFilePath(targetPath);
     fs.mkdir(path.dirname(safePath), { recursive: true })
       .then(() => fs.writeFile(safePath, data))

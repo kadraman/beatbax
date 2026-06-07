@@ -24,8 +24,5 @@ export default defineConfig({
       exclude: ['@beatbax/engine'],
     },
     plugins: [react()],
-    build: {
-      chunkSizeWarningLimit: 5000,
-    },
   },
 });
