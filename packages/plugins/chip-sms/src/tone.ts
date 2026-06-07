@@ -17,7 +17,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
+import { SMS_MIX_GAIN } from './mixer.js';
 import { freqToPeriod, periodToFreq, SMS_CLOCK } from './periodTables.js';
 import { smsCoordinator } from './scheduler.js';
 import {
@@ -285,8 +285,6 @@ export class SMSToneBackend implements ChipChannelBackend {
     const volEnvM = parseMacro(inst.vol_env);
     const arpEnvM = parseMacro(inst.arp_env);
     const pitchEnvM = parseMacro(inst.pitch_env);
-    const webNorm = getSmsWebAudioNorm();
-
     // ── Frequency macros (arp_env takes priority over pitch_env) ─────────────
     if (arpEnvM) {
       scheduleArpEnvToFreq(osc.frequency, safeFreq, arpEnvM, start, dur);
@@ -296,7 +294,7 @@ export class SMSToneBackend implements ChipChannelBackend {
 
     // ── Volume macro or constant volume ────────────────────────────────────
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.tone * webNorm, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.tone, dur);
       try {
         gain.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -308,11 +306,11 @@ export class SMSToneBackend implements ChipChannelBackend {
       // Constant volume
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
       const att = vol;
-      const gainVal = SMS_MIX_GAIN.tone * (1.0 - (att / 15)) * webNorm;
+      const gainVal = SMS_MIX_GAIN.tone * (1.0 - (att / 15));
       try { gain.gain.setValueAtTime(gainVal, start); } catch (_) {}
     } else {
       // Default: use attenuation from noteOn
-      const gainVal = SMS_MIX_GAIN.tone * (1.0 - (this.attenuation / 15)) * webNorm;
+      const gainVal = SMS_MIX_GAIN.tone * (1.0 - (this.attenuation / 15));
       try { gain.gain.setValueAtTime(gainVal, start); } catch (_) {}
     }
 

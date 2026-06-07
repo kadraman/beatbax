@@ -148,6 +148,7 @@ export class Player {
   private scheduler: TickScheduler;
   private bpmDefault = 128;
   private masterGain: GainNode | null = null;
+  private masterLimiter: DynamicsCompressorNode | null = null;
   private activeNodes: Array<{ node: any; chId: number; endTime?: number }> = [];
   public muted = new Set<number>();
   public solo: number | null = null;
@@ -234,6 +235,50 @@ export class Player {
     }
   }
 
+  /**
+   * Drop only the masterGain → speakers routing edge(s), preserving parallel UI taps
+   * (e.g. masterGain → AnalyserNode for oscilloscope / meters).
+   */
+  private _disconnectMasterGainFromOutputSinks(): void {
+    if (!this.masterGain) return;
+    const destination = this.ctx.destination;
+    try { this.masterGain.disconnect(destination); } catch (_) {}
+    if (this.masterLimiter) {
+      try { this.masterGain.disconnect(this.masterLimiter); } catch (_) {}
+    }
+  }
+
+  /** Drop only the limiter → destination edge before re-wiring the output chain. */
+  private _disconnectLimiterFromDestination(): void {
+    if (!this.masterLimiter) return;
+    try { this.masterLimiter.disconnect(this.ctx.destination); } catch (_) {}
+  }
+
+  private _ensureMasterOutputChain(): GainNode {
+    if (!this.masterGain) {
+      this.masterGain = this.ctx.createGain();
+    }
+    const destination = this.ctx.destination;
+    if (typeof (this.ctx as any).createDynamicsCompressor !== 'function') {
+      this._disconnectMasterGainFromOutputSinks();
+      this.masterGain.connect(destination);
+      return this.masterGain;
+    }
+    if (!this.masterLimiter) {
+      this.masterLimiter = this.ctx.createDynamicsCompressor();
+      this.masterLimiter.threshold.setValueAtTime(-6, this.ctx.currentTime);
+      this.masterLimiter.knee.setValueAtTime(6, this.ctx.currentTime);
+      this.masterLimiter.ratio.setValueAtTime(12, this.ctx.currentTime);
+      this.masterLimiter.attack.setValueAtTime(0.003, this.ctx.currentTime);
+      this.masterLimiter.release.setValueAtTime(0.1, this.ctx.currentTime);
+    }
+    this._disconnectMasterGainFromOutputSinks();
+    this._disconnectLimiterFromDestination();
+    this.masterGain.connect(this.masterLimiter);
+    this.masterLimiter.connect(destination);
+    return this.masterGain;
+  }
+
   async playAST(ast: AST) {
     log.debug('=== Player.playAST() called ===');
     log.debug('AST:', ast);
@@ -266,11 +311,8 @@ export class Player {
       ? this._userMasterVolumeOverride
       : astVolume;
 
-    if (!this.masterGain) {
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.connect(this.ctx.destination);
-    }
-    this.masterGain.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
+    this._ensureMasterOutputChain();
+    this.masterGain!.gain.setValueAtTime(effectiveMasterVolume, this.ctx.currentTime);
 
     const chip = chipRegistry.resolve(ast.chip || 'gameboy');
     const isGameboy = chip === 'gameboy';
@@ -1298,10 +1340,7 @@ export class Player {
    */
   public setMasterVolume(volume: number): void {
     const clamped = Math.max(0, Math.min(1, volume));
-    if (!this.masterGain) {
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.connect(this.ctx.destination);
-    }
+    this._ensureMasterOutputChain();
     if (this.masterGain) {
       this.masterGain.gain.setValueAtTime(clamped, this.ctx.currentTime);
     }
@@ -1637,4 +1676,3 @@ export class Player {
 }
 
 export default Player;
-

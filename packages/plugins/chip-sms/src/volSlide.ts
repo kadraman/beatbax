@@ -11,7 +11,7 @@
  */
 
 // EffectHandler imported from engine via ChipPlugin interface
-import { SMS_MIX_GAIN, getSmsWebAudioNorm } from './mixer.js';
+import { SMS_MIX_GAIN } from './mixer.js';
 import { parseMacro, makeMacroState, getMacroValue, advanceMacro } from './macros.js';
 
 export const smsVolSlideEffect = (
@@ -51,7 +51,6 @@ export const smsVolSlideEffect = (
   // SMS attenuation semantics: 0=loudest, 15=silent.
   let baselineAttenuation = 0;
   let mixGain = SMS_MIX_GAIN.tone;
-  const webNorm = getSmsWebAudioNorm();
 
   if (inst) {
     try {
@@ -75,7 +74,7 @@ export const smsVolSlideEffect = (
 
   const gainFromAttenuation = (att: number): number => {
     const clampedAtt = clampAttenuation(att);
-    return clampGain((1 - (clampedAtt / 15)) * mixGain * webNorm);
+    return clampGain((1 - (clampedAtt / 15)) * mixGain);
   };
 
   const baselineGain = gainFromAttenuation(baselineAttenuation);
@@ -107,7 +106,7 @@ export const smsVolSlideEffect = (
             ? Math.min(1, Math.ceil(progress * steps) / steps)
             : progress);
           const combinedAtt = Math.max(0, Math.min(15, envAtt + slideAtt));
-          combinedVals.push((1 - combinedAtt / 15) * mixGain * webNorm);
+          combinedVals.push((1 - combinedAtt / 15) * mixGain);
           advanceMacro(volEnvMacro, envState);
         }
 

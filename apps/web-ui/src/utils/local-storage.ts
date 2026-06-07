@@ -120,8 +120,6 @@ export const StorageKey = {
   ENABLED_PLUGINS: 'plugins.enabled',
   /** Enabled exporter plugin IDs (JSON string[]). */
   ENABLED_EXPORTER_PLUGINS: 'plugins.exporters.enabled',
-  /** NES plugin WebAudio mix mode ('normalized' | 'hardware'). */
-  NES_WEB_AUDIO_MIX_MODE: 'plugins.nes.webAudioMixMode',
   /** New Song Wizard auto-open onboarding state. */
   NEW_SONG_WIZARD_ONBOARDED: 'ui.newSongWizard.onboarded',
   // ─── MIDI step entry ──────────────────────────────────────────────────────
