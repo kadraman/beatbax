@@ -15,39 +15,35 @@ import './styles.css';
 // (Built-in chips like Game Boy and NES are already present in chipRegistry.)
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
-import { loadPluginsFromStorage } from './plugins/registry-config';
-import { chipRegistry, getSongValidationIssues } from '@beatbax/engine/chips';
-import { loadExporterPluginsFromStorage } from './plugins/exporter-registry-config';
-import { storage, StorageKey } from './utils/local-storage';
+import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core/app/create-app-context';
+import { chipRegistry } from '@beatbax/engine/chips';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 
-loadPluginsFromStorage();
-loadExporterPluginsFromStorage();
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { parse, parseWithPeggy } from '@beatbax/engine/parser';
-import { resolveImports, resolveSong } from '@beatbax/engine/song';
-import { exporterRegistry } from './plugins/browser-exporter-registry';
+const parseHooks: ParsePipelineHooks = {};
+const appContext = createAppContext({ parseHooks });
+appContext.initializePlugins();
+const { eventBus, capabilities } = appContext;
+let { playbackManager, exportManager, emitParse } = appContext;
+import type { ValidationIssue } from '@beatbax/app-core/types/validation';
 import {
   createLogger,
   loadLoggingFromStorage,
   loadLoggingFromURL,
   getLoggingConfig,
 } from '@beatbax/engine/util/logger';
-
-// Core / editor imports
-import { eventBus } from './utils/event-bus';
-import type { ValidationIssue } from './types/validation';
-import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations } from './editor';
+import { parse } from '@beatbax/engine/parser';
+import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
+import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations } from '@beatbax/app-core/editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
   parseErrorToDiagnostic,
   warningsToDiagnostics,
   type Diagnostic,
-} from './editor/diagnostics';
-import { setupCodeLensPreview, triggerStepEntryAudition, triggerEffectPreview } from './editor/codelens-preview';
-import { setupGlyphMargin } from './editor/glyph-margin';
-import { setupCommandPalette } from './editor/command-palette';
+} from '@beatbax/app-core/editor/diagnostics';
+import { setupCodeLensPreview, triggerStepEntryAudition, triggerEffectPreview } from '@beatbax/app-core/editor/codelens-preview';
+import { setupGlyphMargin } from '@beatbax/app-core/editor/glyph-margin';
+import { setupCommandPalette } from '@beatbax/app-core/editor/command-palette';
 import { getInitialContent } from './app/bootstrap';
 import { buildAppLayout } from './app/layout';
 import { buildBottomTabs, buildRightTabs } from './app/tabs';
@@ -56,16 +52,15 @@ import { buildSettingsModal } from './panels/settings-panel';
 import { buildNewSongWizard, claimNewSongWizardOnboarding } from './panels/new-song-wizard';
 
 // Playback imports
-import { PlaybackManager } from './playback/playback-manager';
-import { TransportControls } from './playback/transport-controls';
-import { toggleChannelMuted, toggleChannelSoloed, ensureChannels } from './stores/channel.store';
+import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
+import { toggleChannelMuted, toggleChannelSoloed, ensureChannels } from '@beatbax/app-core/stores/channel.store';
 import {
   parseStatus,
   parsedBpm,
   parsedChip,
   validationErrors as validationErrorsAtom,
   validationWarnings as validationWarningsAtom,
-} from './stores/editor.store';
+} from '@beatbax/app-core/stores/editor.store';
 import {
   settingShowToolbar, settingShowTransportBar,
   settingShowPatternGrid, settingShowChannelMixer,
@@ -75,18 +70,18 @@ import {
   settingDebugOverlayFontSize, settingDebugExposePlayer,
   settingMidiInputEnabled,
   settingMidiInputDevice,
-} from './stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 import { OutputPanel } from './panels/output-panel';
 import type { OutputMessage } from './panels/output-panel';
 import { StatusBar } from './ui/status-bar';
-import { resolveScaleContext } from './editor/scale-context';
+import type { PanelMenuId, PanelMenuState } from './ui/panels-menu';
+import { resolveScaleContext } from '@beatbax/app-core/editor/scale-context';
 import { DebugOverlay } from './ui/debug-overlay';
 
 // Export / import imports
 import { Toolbar } from './ui/toolbar';
-import { ExportManager } from './export/export-manager';
-import type { ExportFormat } from './export/export-manager';
-import { DragDropHandler } from './import/drag-drop-handler';
+import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
+import { DragDropHandler } from '@beatbax/app-core/import/drag-drop-handler';
 
 import { KeyCode, KeyMod } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
@@ -100,9 +95,9 @@ import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
 import { MidiStepEntryController } from './input/midi-step-entry-controller';
 import { ChatPanel } from './panels/chat-panel';
-import { downloadText, sanitizeFilename } from './export/download-helper';
-import { openFilePicker } from './import/file-loader';
-import { loadFromQueryParams } from './import/remote-loader';
+import { downloadText, sanitizeFilename } from '@beatbax/app-core/export/download-helper';
+import { openFilePicker } from '@beatbax/app-core/import/file-loader';
+import { loadFromQueryParams } from '@beatbax/app-core/import/remote-loader';
 import { KeyboardShortcuts } from './utils/keyboard-shortcuts';
 import {
   withErrorBoundary,
@@ -110,8 +105,8 @@ import {
   installGlobalErrorHandlers,
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
-import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
-import { BeatBaxStorage } from './utils/local-storage';
+import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import { BeatBaxStorage } from '@beatbax/app-core/utils/local-storage';
 
 const log = createLogger('ui:main');
 
@@ -196,11 +191,26 @@ editor.editor.updateOptions({
 diagnosticsManager = createDiagnosticsManager(editor.editor);
 setupDiagnosticsIntegration(diagnosticsManager);
 
-// CodeLens previews: always register the provider (language-level, global),
-// then enable/disable via updateOptions based on stored preference.
-const _storedCodeLens = storage.get(StorageKey.CODELENS, 'true') !== 'false';
-setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
-editor.editor.updateOptions({ codeLens: _storedCodeLens });
+parseHooks.onSetValidation = (errors, warnings) => {
+  const allDiags = [
+    ...errors.map(e => ({ ...e, level: 'error' as const })),
+    ...warnings.map(w => ({ ...w, level: 'warning' as const })),
+  ];
+  if (allDiags.length > 0) {
+    diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
+  } else {
+    diagnosticsManager?.clear?.();
+  }
+};
+
+// CodeLens previews (desktop-full / advanced editor only).
+if (capabilities.advancedEditor) {
+  const _storedCodeLens = storage.get(StorageKey.CODELENS, 'true') !== 'false';
+  setupCodeLensPreview(editor.editor, eventBus, () => (editor?.getValue?.() as string) || '');
+  editor.editor.updateOptions({ codeLens: _storedCodeLens });
+} else {
+  editor.editor.updateOptions({ codeLens: false });
+}
 
 // Beat decorations: highlights downbeats/upbeats in the editor.
 // Returns a cleanup function so we can teardown when the setting is toggled off.
@@ -245,8 +255,10 @@ problemsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex;
 bottomTabs.tabContents['problems'].appendChild(problemsContainer);
 
 const outputLogsContainer = document.createElement('div');
-outputLogsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-bottomTabs.tabContents['output'].appendChild(outputLogsContainer);
+if (capabilities.outputPanel) {
+  outputLogsContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
+  bottomTabs.tabContents['output'].appendChild(outputLogsContainer);
+}
 
 // ─── EditorState ─────────────────────────────────────────────────────────────
 // EditorState has been removed; monaco-setup now emits editor:changed
@@ -259,8 +271,9 @@ statusBarContainer.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-ind
 document.body.appendChild(statusBarContainer);
 
 // ─── Core components ─────────────────────────────────────────────────────────────────
-setupGlyphMargin(editor.editor, eventBus);
-const playbackManager = new PlaybackManager(eventBus);
+if (capabilities.advancedEditor) {
+  setupGlyphMargin(editor.editor, eventBus);
+}
 
 // ─── Debug overlay ────────────────────────────────────────────────────────────
 const debugOverlay = new DebugOverlay(
@@ -279,8 +292,39 @@ problemsPanel = new OutputPanel(problemsContainer, eventBus, {
   singleTab: 'problems',
   getTextModel: () => editor.editor.getModel(),
 });
-const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
-const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({ container: statusBarContainer }), statusBarContainer);
+const outputPanel = capabilities.outputPanel
+  ? new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' })
+  : problemsPanel;
+
+/** Status-bar Panels menu bridge (getState refined after toolbar/transport init). */
+const panelMenuBridge = {
+  getState(): PanelMenuState {
+    return {
+      outputOpen: bottomTabs.tabOpen.output ?? false,
+      problemsOpen: bottomTabs.tabOpen.problems ?? true,
+      outputPaneVisible: bottomTabs.isPaneVisible(),
+      channelsOpen: rightTabs.tabOpen.channels ?? false,
+      helpOpen: rightTabs.tabOpen.help ?? false,
+      rightPaneVisible: appLayout.layout.isRightPaneVisible(),
+      toolbarVisible: true,
+      transportVisible: true,
+      channelMixerVisible: false,
+      patternGridVisible: patternGridContainer.style.display !== 'none',
+      aiOpen: rightTabs.tabOpen.ai ?? false,
+    };
+  },
+  toggle(_id: PanelMenuId): void { /* assigned after toolbar init */ },
+  showProblems(): void {
+    eventBus.emit('panel:toggled', { panel: 'problems', visible: true });
+  },
+};
+
+const statusBar = withErrorBoundary('StatusBar', () => new StatusBar({
+  container: statusBarContainer,
+  getPanelMenuState: () => panelMenuBridge.getState(),
+  onPanelMenuToggle: (id) => panelMenuBridge.toggle(id),
+  onShowProblems: () => panelMenuBridge.showProblems(),
+}), statusBarContainer);
 
 function refreshScaleContextStrip(): void {
   const monacoEditor = editor?.editor;
@@ -319,7 +363,7 @@ installGlobalErrorHandlers((message, _err) => {
 eventBus.on('parse:error', () => bottomTabs.show('problems'));
 eventBus.on('validation:errors', ({ errors }) => { if (errors.length > 0) bottomTabs.show('problems'); });
 eventBus.on('validation:warnings', ({ warnings }) => { if (warnings.length > 0) bottomTabs.show('problems'); });
-eventBus.on('playback:started', () => bottomTabs.show('output'));
+eventBus.on('playback:started', () => { if (capabilities.outputPanel) bottomTabs.show('output'); });
 
 // ─── Problems tab badge ───────────────────────────────────────────────────────
 let _badgeErrors = 0, _badgeWarnings = 0;
@@ -346,24 +390,27 @@ const songVisualizer = withErrorBoundary(
   ccContainer,
 );
 
-// ─── ChannelMixer — horizontal strip at the bottom ──────────────────────────
-// The mixer is gated by the CHANNEL_MIXER feature flag; it can be shown/hidden via
-// the View → Channel Mixer menu item or Settings → General → Show channel mixer.
-const channelMixer = withErrorBoundary(
-  'ChannelMixer',
-  () => new ChannelMixer({
-    container: mixerHostContainer,
-    inlineContainer: inlineMixerContainer,
-    eventBus,
-    playbackManager,
-  }),
-  mixerHostContainer,
-);
+// ─── ChannelMixer — horizontal strip at the bottom (desktop-full) ───────────
+let channelMixer: ChannelMixer | null = null;
+if (capabilities.channelMixer) {
+  channelMixer = withErrorBoundary(
+    'ChannelMixer',
+    () => new ChannelMixer({
+      container: mixerHostContainer,
+      inlineContainer: inlineMixerContainer,
+      eventBus,
+      playbackManager,
+    }),
+    mixerHostContainer,
+  );
+}
 
-// ─── HelpPanel — embedded in the help tab ──────────────────────────────────
+// ─── HelpPanel — embedded in the help tab (desktop-full) ───────────────────
 const helpContainer = document.createElement('div');
 helpContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-rightTabs.tabContents['help']!.appendChild(helpContainer);
+if (rightTabs.tabContents['help']) {
+  rightTabs.tabContents['help']!.appendChild(helpContainer);
+}
 
 // ─── Keyboard Shortcuts modal ───────────────────────────────────────────────
 const shortcutsModal = buildShortcutsModal();
@@ -384,7 +431,9 @@ const settingsModal = buildSettingsModal({
 // Shortcuts are registered after all components are instantiated (see bottom).
 const ks = new KeyboardShortcuts();
 
-    const helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
+let helpPanel: HelpPanel | null = null;
+if (capabilities.helpPanel) {
+  helpPanel = withErrorBoundary('HelpPanel', () => new HelpPanel({
       container: helpContainer,
       eventBus,
       embedded: true,
@@ -414,8 +463,10 @@ const ks = new KeyboardShortcuts();
         monacoEditor.focus();
       },
     }), appContainer);
+}
 
-// ─── ChatPanel — AI Copilot tab ─────────────────────────────────────────────
+// ─── ChatPanel — AI Copilot tab (desktop-full) ───────────────────────────────
+if (capabilities.copilot) {
 // The AI tab container is always present in the DOM; the ChatPanel itself is
 // only created when the feature flag is first enabled (lazy instantiation).
 const aiContainer = document.createElement('div');
@@ -596,11 +647,14 @@ if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
   rightTabs.tabOpen['ai'] = true;
   getChatPanel().show();
 }
+} // capabilities.copilot
 
 // Restore the last active tab now that all tabs (including AI) are initialised.
 rightTabs.restorePersistedTab();
-// Show the Song Visualizer tab only when its feature flag is enabled.
-const songVisualizerEnabled = isFeatureEnabled(FeatureFlag.SONG_VISUALIZER);
+// Show the Song Visualizer tab only when its feature flag is enabled (desktop-full).
+const songVisualizerEnabled = capabilities.export
+  ? isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
+  : true;
 if (!songVisualizerEnabled) {
   rightTabs.close('channels');
 }
@@ -666,8 +720,8 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
   if (panel === 'song-visualizer') {
     // Song Visualizer in the right pane.
-    // Only honour show requests when the Song Visualizer feature is enabled.
-    if (visible && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
+    // Web-lite always allows the Visualizer tab; desktop requires the feature flag.
+    if (visible && capabilities.export && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
     settingShowSongVisualizer.set(visible);
   }
@@ -762,9 +816,12 @@ eventBus.on('playback:started', () => {
 const transportBar = new TransportBar({ container: layoutHost });
 if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
 
-// ─── Pattern Grid (sequence overview, sits below TransportBar) ─────────────────
-const patternGrid = new PatternGrid();
-patternGridContainer.appendChild(patternGrid.el);
+// ─── Pattern Grid (sequence overview, sits below TransportBar) ───────────────
+let patternGrid: PatternGrid | null = null;
+if (capabilities.patternGrid) {
+  patternGrid = new PatternGrid();
+  patternGridContainer.appendChild(patternGrid.el);
+}
 
 // ── Runtime state for transport extras ───────────────────────────────────────
 let _currentBpm = 120;          // last BPM from AST (or nudged override) — drives the transport display
@@ -842,11 +899,12 @@ eventBus.on('parse:success', ({ ast, song }: any) => {
     if (ast?.channels?.length) {
       ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
     }
-    if (song) patternGrid.setSong(song, ast);
+    if (song) patternGrid?.setSong(song, ast);
   } catch (_e) {}
 });
 
 // Navigate Monaco editor when user clicks a pattern block in the grid
+if (patternGrid) {
 patternGrid.onNavigate = (patName: string) => {
   try {
     const source = getSource();
@@ -860,6 +918,7 @@ patternGrid.onNavigate = (patName: string) => {
     }
   } catch (_e) {}
 };
+}
 
 eventBus.on('playback:position', ({ current, total }) => {
   try {
@@ -883,7 +942,7 @@ eventBus.on('playback:position', ({ current, total }) => {
 
     // Global Pattern Grid playhead follows elapsed wall-clock time.
     const playheadProgress = total > 0 ? (current / total) : 0;
-    patternGrid.setGlobalProgress(playheadProgress);
+    patternGrid?.setGlobalProgress(playheadProgress);
   } catch (_e) {}
 });
 
@@ -897,22 +956,22 @@ eventBus.on('playback:position-changed', ({ channelId, position }) => {
     } catch (_e) {}
   }
   // Advance pattern grid cursor for every channel
-  try { patternGrid.setPosition(channelId, position.progress ?? 0); } catch (_e) {}
+  try { patternGrid?.setPosition(channelId, position.progress ?? 0); } catch (_e) {}
 });
 
 // Reset position LCDs when playback stops
 eventBus.on('playback:stopped', () => {
   try { transportBar.resetPosition(); } catch (_e) {}
-  try { patternGrid.clearPositions(); } catch (_e) {}
+  try { patternGrid?.clearPositions(); } catch (_e) {}
   _lastBeat = -1;
 });
 
 eventBus.on('playback:paused', () => {
-  try { patternGrid.pausePositions(); } catch (_e) {}
+  try { patternGrid?.pausePositions(); } catch (_e) {}
 });
 
-eventBus.on('playback:started',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
-eventBus.on('playback:resumed',  () => { try { patternGrid.resumePositions(); } catch (_e) {} });
+eventBus.on('playback:started',  () => { try { patternGrid?.resumePositions(); } catch (_e) {} });
+eventBus.on('playback:resumed',  () => { try { patternGrid?.resumePositions(); } catch (_e) {} });
 
 // When a new file is loaded, clear the manual loop override so the next
 // parse:success can re-sync the loop button from the incoming song's play directive.
@@ -1022,9 +1081,15 @@ if (_loopMode) _applyLoopMode(true);
 // Apply stored live mode on startup
 if (liveMode) _applyLiveMode(true);
 
-// ─── MIDI Step Entry ──────────────────────────────────────────────────────────
+// ─── MIDI Step Entry (desktop-full only) ─────────────────────────────────────
 
-const midiController = new MidiStepEntryController({
+if (!capabilities.midiStepEntry) {
+  transportBar.recordButton.style.display = 'none';
+}
+
+let midiController: MidiStepEntryController | null = null;
+if (capabilities.midiStepEntry) {
+midiController = new MidiStepEntryController({
   getEditor: () => editor?.editor ?? null,
   onAuditionNote: (noteName) => {
     const monacoEditor = editor?.editor;
@@ -1050,49 +1115,44 @@ const midiController = new MidiStepEntryController({
 });
 
 // Helper to sync the Record button's enabled/disabled state.
-// The button is only enabled when: MIDI input is on, a MIDI device is selected,
-// and playback is not running.
 function _updateRecordButtonEnabled(): void {
+  if (!capabilities.midiStepEntry) return;
   const midiOn = settingMidiInputEnabled.get();
   const midiDeviceSelected = !!settingMidiInputDevice.get();
   const playing = playbackManager.isPlaying();
   transportBar.recordButton.disabled = !midiOn || !midiDeviceSelected || playing;
 }
 
-// Set initial state (transport-bar starts with record button disabled)
 _updateRecordButtonEnabled();
 transportBar.recordButton.title = 'Arm MIDI Step Entry (requires MIDI input enabled in Settings)';
 transportBar.recordButton.addEventListener('click', () => {
-  void midiController.toggleStepEntry();
+  void midiController?.toggleStepEntry();
 });
 
-// Disable Record button while song is playing; re-enable when stopped/paused
 eventBus.on('playback:started', () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:stopped', () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:paused',  () => { _updateRecordButtonEnabled(); });
 eventBus.on('playback:resumed', () => { _updateRecordButtonEnabled(); });
 
-// Re-evaluate Record button state whenever MIDI settings change.
 settingMidiInputEnabled.subscribe(() => { _updateRecordButtonEnabled(); });
 settingMidiInputDevice.subscribe(() => { _updateRecordButtonEnabled(); });
 
-// Request MIDI access on startup if MIDI is enabled in settings
-void midiController.requestMidiAccess();
+void midiController?.requestMidiAccess();
 
-// Expose MIDI controller globally for settings panel and command palette
 (window as any).__beatbax_midiStepEntry = midiController;
+} // capabilities.midiStepEntry
 // Scale context + MIDI snap need the Peggy parsed AST (scale, lock, seqSpecTokens).
 // PlaybackManager also emits parse:success with a resolved SongModel as ast, which
 // lacks those fields — ignore those events (resolvedAst is editor-only).
 eventBus.on('parse:success', ({ ast, resolvedAst }: any) => {
   if (resolvedAst === undefined) return;
   lastParsedAst = ast ?? null;
-  midiController.setParsedAst(ast);
+  midiController?.setParsedAst(ast);
   refreshScaleContextStrip();
 });
 eventBus.on('parse:error', () => {
   lastParsedAst = null;
-  midiController.setParsedAst(null);
+  midiController?.setParsedAst(null);
   refreshScaleContextStrip();
 });
 
@@ -1239,7 +1299,7 @@ eventBus.on('editor:changed', () => {
 
 
 // ─── ExportManager ───────────────────────────────────────────────────────────
-const exportManager = new ExportManager(eventBus);
+// exportManager provided by appContext (createAppContext)
 
 // Show activity spinner during exports (WAV can take several seconds).
 eventBus.on('export:started', ({ format }) =>
@@ -1276,119 +1336,8 @@ function fileBaseStem(path: string): string {
   return (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '') || 'song';
 }
 
-/**
- * Parse song source and emit parse:success / parse:error so all subscribers
- * (ChannelMixer, StatusBar, etc.) immediately reflect the new song.
- * Runs the full parse + resolve pipeline so semantic errors (undefined
- * sequences, instruments, patterns) are detected and shown live.
- */
-async function emitParse(content: string): Promise<void> {
-  try {
-    eventBus.emit('parse:started', undefined);
-    parseStatus.set('parsing');
-    const parseResult = parseWithPeggy(content);
-    const ast = parseResult.ast;
-
-    // Split parser diagnostics into errors and warnings
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    for (const e of parseResult.errors) {
-      errors.push({
-        component: 'parser',
-        message: e.message,
-        loc: e.loc,
-        expected: e.expected,
-        found: e.found,
-      });
-    }
-    for (const d of ((ast as any).diagnostics ?? [])) {
-      const entry = { component: d.component ?? 'parser', message: d.message, loc: d.loc };
-      if (d.level === 'error') errors.push(entry); else warnings.push(entry);
-    }
-
-    const publishValidation = () => {
-      eventBus.emit('validation:errors', { errors });
-      validationErrorsAtom.set(errors);
-      eventBus.emit('validation:warnings', { warnings });
-      validationWarningsAtom.set(warnings);
-      const allDiags = [
-        ...errors.map(e => ({ ...e, level: 'error' as const })),
-        ...warnings.map(w => ({ ...w, level: 'warning' as const })),
-      ];
-      if (allDiags.length > 0) {
-        diagnosticsManager?.setDiagnostics?.(warningsToDiagnostics(allDiags));
-      } else {
-        diagnosticsManager?.clear?.();
-      }
-    };
-
-    // If grammar recovery produced syntax errors, skip resolver but still surface
-    // all diagnostics in one pass so users can fix multiple issues at once.
-    if (parseResult.hasErrors) {
-      publishValidation();
-      parseStatus.set('error');
-      return;
-    }
-
-    // Run the resolver to surface channel/expand warnings.
-    // Use the async path when imports are present so remote/local imports
-    // (github:, https://) don't throw in browser sync mode and don't
-    // incorrectly mark a valid song as a parse error.
-    let song: any = null;
-    let resolvedAst: typeof ast = ast;
-    try {
-      const resolveSongOpts = {
-        onWarn: (w: ValidationIssue) => {
-          warnings.push(w);
-        },
-      };
-      const resolveImportsOpts = {
-        onWarn: (message: string, loc?: any) => {
-          warnings.push({ component: 'import-resolver', message, loc });
-        },
-      };
-      if ((ast as any).imports?.length > 0) {
-        resolvedAst = await resolveImports(ast as any, resolveImportsOpts);
-        song = resolveSong(resolvedAst as any, resolveSongOpts);
-      } else {
-        song = resolveSong(ast as any, resolveSongOpts);
-      }
-    } catch (resolveErr: any) {
-      eventBus.emit('parse:error', { error: resolveErr, message: resolveErr.message ?? String(resolveErr) });
-      parseStatus.set('error');
-      return;
-    }
-
-    if ((ast as any).imports?.length > 0) {
-      for (const e of getSongValidationIssues(resolvedAst as any)) {
-        const message = e.message;
-        if (!warnings.some(w => w.message === message)) {
-          warnings.push({
-            component: resolvedAst.chip ? chipRegistry.resolve(String(resolvedAst.chip).toLowerCase()) : 'plugin',
-            message,
-          });
-        }
-      }
-    }
-
-    publishValidation();
-
-    eventBus.emit('parse:success', {
-      ast,
-      resolvedAst,
-      song,
-      sourceBpm: (ast as any).bpm ?? 120,
-    });
-    parseStatus.set('success');
-    parsedBpm.set((ast as any).bpm || 120);
-    parsedChip.set((ast as any).chip || 'gameboy');
-  } catch (err: any) {
-    eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
-    parseStatus.set('error');
-  }
-}
-
 async function handleExport(format: ExportFormat) {
+  if (!capabilities.export) return;
   const source = getSource();
   if (!source.trim()) {
     opWarn(problemsPanel, 'Nothing to export — write or load a song first (File → Open or drag a .bax file).', 'export');
@@ -1496,7 +1445,7 @@ function createSongFromWizard(source: string, songName: string): void {
   playbackManager.stop();
   const stem = sanitizeFilename(songName.toLowerCase()) || 'song';
   setLoadedFilename(stem);
-  menuBar.setSongName(songName || 'untitled');
+  menuBar?.setSongName(songName || 'untitled');
   editor.setValue?.(source);
   storage.set(StorageKey.EDITOR_CONTENT, source);
   opLog(outputPanel, '📄 New song');
@@ -1512,12 +1461,12 @@ function openSongFromDisk(): void {
     onLoad: (result) => {
       playbackManager.stop();
       setLoadedFilename(fileBaseStem(result.filename));
-      menuBar.setSongName(loadedFilename);
+      menuBar?.setSongName(loadedFilename);
       editor.setValue?.(result.content);
       storage.set(StorageKey.EDITOR_CONTENT, result.content);
       opLog(outputPanel, `📂 Opened ${result.filename}`);
       eventBus.emit('song:loaded', { filename: result.filename });
-      menuBar.recordRecent(result.filename);
+      menuBar?.recordRecent(result.filename);
       emitParse(result.content);
       scheduleCommentsFoldPreference();
       loadingOverlay.hide();
@@ -1568,7 +1517,20 @@ function toggleFoldAllComments(): void {
   applyCommentsFoldPreference(folded);
 }
 
-const menuBar = new MenuBar({
+function downloadCurrentBax(): void {
+  const content = getSource();
+  if (!content.trim()) {
+    opWarn(problemsPanel, 'Nothing to download — the editor is empty.');
+    return;
+  }
+  const stem = preferredSongFilenameStem(content);
+  downloadText(content, `${stem}.bax`, 'text/plain');
+  opLog(problemsPanel, `Downloaded ${stem}.bax`);
+}
+
+let menuBar: MenuBar | null = null;
+if (capabilities.export) {
+menuBar = new MenuBar({
   container: menuBarContainer,
   eventBus,
   loadingOverlay,
@@ -1608,7 +1570,7 @@ const menuBar = new MenuBar({
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🎵 Loaded ${filename}`);
     eventBus.emit('song:loaded', { filename });
-    menuBar.recordRecent(filename);
+    menuBar?.recordRecent(filename);
     emitParse(content);
     scheduleCommentsFoldPreference();
     loadingOverlay.hide();
@@ -1635,6 +1597,7 @@ const menuBar = new MenuBar({
   onToggleFoldAll: () => toggleFoldAllComments(),
   onToggleAI: () => toggleAIAssistant(),
 });
+} // capabilities.export
 
 newSongWizard = buildNewSongWizard({
   getEnabledChips: () => {
@@ -1658,20 +1621,20 @@ if (claimNewSongWizardOnboarding(
 
 (window as any).__beatbax_menuBar = menuBar;
 
+if (menuBar) {
 menuBar.setWrapTextChecked(settingWordWrap.get());
 menuBar.setFoldAllChecked(settingFoldComments.get());
-settingWordWrap.subscribe((wrap) => menuBar.setWrapTextChecked(wrap));
-settingFoldComments.subscribe((folded) => menuBar.setFoldAllChecked(folded));
+settingWordWrap.subscribe((wrap) => menuBar?.setWrapTextChecked(wrap));
+settingFoldComments.subscribe((folded) => menuBar?.setFoldAllChecked(folded));
+}
 
 // Keep the menu bar song name in sync with the parsed metadata.name directive.
-// Falls back to the loaded filename stem when no name directive is present.
-// 'song' is the internal sentinel for "no file loaded" — display as 'untitled'.
 eventBus.on('parse:success', ({ ast }: any) => {
   const metaName = (ast as any)?.metadata?.name;
-  menuBar.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
+  menuBar?.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
   toolbar?.setChip((ast as any)?.chip || 'gameboy');
-  menuBar.setChip((ast as any)?.chip || 'gameboy');
-  toolbar?.setExportEnabled(true);
+  menuBar?.setChip((ast as any)?.chip || 'gameboy');
+  if (capabilities.export) toolbar?.setExportEnabled(true);
 });
 
 eventBus.on('parse:error', () => {
@@ -1685,7 +1648,7 @@ eventBus.on('preview:error', ({ message }: { message: string }) => {
 });
 
 // Seed MenuBar with persisted panel visibility so its toggle logic starts correct.
-// Feature-gated panels are only marked visible when their feature flag is enabled.
+if (menuBar) {
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
@@ -1697,8 +1660,9 @@ menuBar.seedPanelVisible({
     && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
   'ai-assistant':      isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
 });
+}
 // Apply initial pattern-grid visibility
-if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
+if (capabilities.patternGrid && !readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
   patternGridContainer.style.display = 'none';
 }
 
@@ -1718,14 +1682,17 @@ toolbar = new Toolbar({
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `📂 Opened ${filename}`);
     eventBus.emit('song:loaded', { filename });
-    menuBar.recordRecent(filename);
+    menuBar?.recordRecent(filename);
     emitParse(content);
     scheduleCommentsFoldPreference();
   },
   onExport: handleExport,
   onVerify: doVerify,
-  onNew:       () => menuBar.triggerNew(),
-  onSave:      () => menuBar.triggerSave(),
+  onNew: () => menuBar?.triggerNew() ?? newSongWizard?.open(),
+  onSave: () => {
+    if (capabilities.export) menuBar?.triggerSave();
+    else downloadCurrentBax();
+  },
   onUndo:      () => editor.editor?.trigger('toolbar', 'undo', null),
   onRedo:      () => editor.editor?.trigger('toolbar', 'redo', null),
   onToggleTheme: () => themeManager.toggle(),
@@ -1745,7 +1712,7 @@ if (settingFoldComments.get()) scheduleCommentsFoldPreference();
 // Sync theme icon with the current theme, then keep it updated
 toolbar.setThemeIcon(themeManager.currentTheme);
 toolbar.setChip(parsedChip.get());
-menuBar.setChip(parsedChip.get());
+menuBar?.setChip(parsedChip.get());
 eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
   toolbar.setThemeIcon(theme);
   transportBar.volKnob.redraw();
@@ -1757,6 +1724,62 @@ toolbar.setStyle(storedToolbarStyle);
 
 (window as any).__beatbax_toolbar = toolbar;
 (window as any).__beatbax_exportManager = exportManager;
+
+// ─── Status bar Panels menu (live state + toggles) ───────────────────────────
+panelMenuBridge.getState = (): PanelMenuState => ({
+  outputOpen: bottomTabs.tabOpen.output ?? false,
+  problemsOpen: bottomTabs.tabOpen.problems ?? true,
+  outputPaneVisible: bottomTabs.isPaneVisible(),
+  channelsOpen: rightTabs.tabOpen.channels ?? false,
+  helpOpen: rightTabs.tabOpen.help ?? false,
+  rightPaneVisible: appLayout.layout.isRightPaneVisible(),
+  toolbarVisible: toolbar?.isVisible?.() ?? true,
+  transportVisible: transportBar?.isVisible?.() ?? true,
+  channelMixerVisible: channelMixer?.isVisible?.() ?? false,
+  patternGridVisible: patternGridContainer.style.display !== 'none',
+  aiOpen: rightTabs.tabOpen.ai ?? false,
+});
+
+panelMenuBridge.toggle = (id: PanelMenuId): void => {
+  const s = panelMenuBridge.getState();
+  switch (id) {
+    case 'output':
+      eventBus.emit('panel:toggled', { panel: 'output', visible: !(s.outputOpen && s.outputPaneVisible) });
+      break;
+    case 'problems':
+      eventBus.emit('panel:toggled', { panel: 'problems', visible: !(s.problemsOpen && s.outputPaneVisible) });
+      break;
+    case 'song-visualizer':
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: !(s.channelsOpen && s.rightPaneVisible) });
+      break;
+    case 'help':
+      eventBus.emit('panel:toggled', { panel: 'help', visible: !(s.helpOpen && s.rightPaneVisible) });
+      break;
+    case 'ai-assistant':
+      eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !(s.aiOpen && s.rightPaneVisible) });
+      break;
+    case 'toolbar':
+      eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !s.toolbarVisible });
+      break;
+    case 'transport-bar':
+      eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !s.transportVisible });
+      break;
+    case 'channel-mixer':
+      eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !s.channelMixerVisible });
+      break;
+    case 'pattern-grid':
+      eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !s.patternGridVisible });
+      break;
+  }
+  statusBar.refreshPanelsMenu();
+};
+
+panelMenuBridge.showProblems = (): void => {
+  eventBus.emit('panel:toggled', { panel: 'problems', visible: true });
+  statusBar.refreshPanelsMenu();
+};
+
+eventBus.on('panel:toggled', () => statusBar.refreshPanelsMenu());
 
 // ─── Shared verify helper ─────────────────────────────────────────────
 function doVerify(): void {
@@ -1794,7 +1817,7 @@ const dragDrop = new DragDropHandler(document.body, {
     storage.set(StorageKey.EDITOR_CONTENT, content);
     opLog(outputPanel, `🗂 Dropped ${filename}`);
     eventBus.emit('song:loaded', { filename });
-    menuBar.recordRecent(filename);
+    menuBar?.recordRecent(filename);
     emitParse(content);
     scheduleCommentsFoldPreference();
     setTimeout(() => playbackManager.play(getSource()), 200);
@@ -1817,7 +1840,7 @@ const dragDrop = new DragDropHandler(document.body, {
       storage.set(StorageKey.EDITOR_CONTENT, result.content);
       opLog(outputPanel, `🌐 Loaded from URL: ${filename}`);
       eventBus.emit('song:loaded', { filename });
-      menuBar.recordRecent(filename);
+      menuBar?.recordRecent(filename);
       emitParse(result.content);
       scheduleCommentsFoldPreference();
       setTimeout(() => playbackManager.play(getSource()), 300);
@@ -1864,7 +1887,7 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify
 // Ctrl+Shift+L → Theme toggle.
 // Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
 // here via addCommand overrides that default while Monaco has focus.
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar.triggerToggleTheme(); });
+monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { menuBar?.triggerToggleTheme(); });
 // Ctrl+Shift+V → Switch to Song Visualizer tab (Monaco captures this key when focused).
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
   rightTabs.show('channels');
@@ -1923,19 +1946,19 @@ ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allow
 // Note: Ctrl+N is reserved by browsers (new window) and cannot be intercepted —
 // use File → New from the menu bar instead.
 ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
-  action: () => menuBar.triggerOpen() });
+  action: () => menuBar?.triggerOpen() });
 ks.register({ key: 's', ctrlKey: true, description: 'Save', allowInInput: true,
-  action: () => menuBar.triggerSave() });
+  action: () => menuBar?.triggerSave() });
 ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
-  action: () => menuBar.triggerSaveAs() });
+  action: () => menuBar?.triggerSaveAs() });
 
 // Edit
 // Ctrl+Z / Ctrl+Y: Monaco handles these natively when the editor is focused.
 // These entries let them work via the global handler when focus is elsewhere.
 ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
-  action: () => menuBar.triggerUndo() });
+  action: () => menuBar?.triggerUndo() });
 ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
-  action: () => menuBar.triggerRedo() });
+  action: () => menuBar?.triggerRedo() });
 // Note transposition — handled by Monaco addCommand inside registerNoteEditCommands.
 // These entries exist solely for help-panel display; allowInInput: false ensures the
 // global handler never fires while the editor (textarea) is focused.
@@ -1952,7 +1975,7 @@ ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave
 // bookmarks, Ctrl+Shift+H = history, Ctrl+Shift+Y = reading list/pocket).
 // Ctrl+` is the exception (VS Code-style output/terminal toggle; no conflict).
 ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
-  action: () => menuBar.triggerToggleTheme() });
+  action: () => menuBar?.triggerToggleTheme() });
 ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowInInput: true,
   action: () => bottomTabs.show('output'),
 });
@@ -2016,6 +2039,7 @@ ks.mount();
 helpPanel?.refresh();
 
 // ─── Command Palette — BeatBax-specific commands in the Monaco palette ────────
+if (capabilities.advancedEditor) {
 setupCommandPalette({
   editor: monacoInst,
   getSource,
@@ -2033,6 +2057,7 @@ setupCommandPalette({
   },
   onExportData: handleExportData,
 });
+}
 
 // ─── Shortcuts panel — instantiated after ks.mount() so the full registered ─
 // shortcut list is available when HelpPanel first renders the section.

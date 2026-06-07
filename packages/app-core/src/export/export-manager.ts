@@ -9,7 +9,7 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { exportUGE, writeWAV } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry';
-import { getCapturedWrite, clearCapturedWrite } from '../utils/browser-fs';
+import { getCapturedWrite, clearCapturedWrite } from '../io/write-capture';
 
 import type { EventBus } from '../utils/event-bus';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';

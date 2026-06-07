@@ -6,8 +6,8 @@
  * header so it is easier to find.
  */
 
-import { storage, StorageKey } from '../../utils/local-storage';
-import { updateChatSettings, chatMode, chatSettings } from '../../stores/chat.store';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { updateChatSettings, chatMode, chatSettings } from '@beatbax/app-core/stores/chat.store';
 import { sectionHeading, radioGroup, noteText } from './general';
 
 interface ChatSettings {

@@ -10,7 +10,7 @@
  *   (F1 is reserved for Monaco's command palette when the editor is focused)
  */
 
-import type { EventBus } from '../utils/event-bus';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ShortcutDescriptor } from '../utils/keyboard-shortcuts';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { icon } from '../utils/icons';

@@ -3,14 +3,15 @@
  * Provides: Open, example songs, export format buttons, drag-and-drop trigger
  */
 
-import type { EventBus } from '../utils/event-bus';
-import type { ExportFormat } from '../export/export-manager';
-import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
-import { openFilePicker } from '../import/file-loader';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
+import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '@beatbax/app-core/import/remote-loader';
+import { openFilePicker } from '@beatbax/app-core/import/file-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
-import { exporterRegistry } from '../plugins/browser-exporter-registry';
+import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { resolveUiChipId } from '../utils/chip-resolve';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 
 /** Fallback toolbar icon per built-in exporter id. */
 const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
@@ -81,9 +82,11 @@ export class Toolbar {
 
   private render(): void {
     const { container } = this.options;
+    const caps = getCurrentCapabilities();
 
     this.el = document.createElement('div');
     this.el.className = 'bb-toolbar';
+
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" title="New song (Ctrl+N)">
@@ -117,14 +120,14 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-fold-comments" title="Fold All Comments">
           ${icon('chevron-down', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Fold</span>
         </button>
-        <!-- <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-format" title="Format document">{ } <span class="bb-toolbar__btn-label">Format</span></button> -->
       </div>
 
-      <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
-
+      ${caps.export ? `
+      <div class="bb-toolbar__separator bb-toolbar__sep--export" aria-hidden="true"></div>
       <div class="bb-toolbar__group bb-toolbar__group--export" id="tb-export-group">
         <span class="bb-toolbar__label bb-toolbar__item--pri-export-label bb-toolbar__btn-label">Export:</span>
       </div>
+      ` : ''}
 
       <div class="bb-toolbar__separator bb-toolbar__sep--verify" aria-hidden="true"></div>
 
@@ -144,7 +147,9 @@ export class Toolbar {
     `;
 
     container.appendChild(this.el);
-    this.buildExportButtons();
+    if (caps.export) {
+      this.buildExportButtons();
+    }
     this.setChip(this.activeChip);
   }
 

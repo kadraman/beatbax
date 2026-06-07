@@ -14,9 +14,9 @@
  *   footer (Reset section + Close)
  */
 
-import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
-import { storage } from '../utils/local-storage';
-import { SECTION_KEYS } from '../stores/settings.store';
+import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { storage } from '@beatbax/app-core/utils/local-storage';
+import { SECTION_KEYS } from '@beatbax/app-core/stores/settings.store';
 
 import { buildGeneralSection,  resetGeneralDefaults  } from './settings-sections/general';
 import { buildEditorSection,   resetEditorDefaults   } from './settings-sections/editor';

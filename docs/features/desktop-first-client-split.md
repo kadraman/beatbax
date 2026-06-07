@@ -1,8 +1,9 @@
 ---
 title: "Desktop-First Client Split (app-core + web-lite + React Desktop)"
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-06-06
+updated: 2026-06-07
 issue: "https://github.com/kadraman/beatbax/issues/136"
 related:
   - docs/features/electron-desktop-client.md
@@ -13,6 +14,35 @@ related:
 Restructure BeatBax's client applications so the **Electron desktop app is the primary, full-featured IDE**, while the **browser web UI becomes a simplified "web-lite" experience** for trying BeatBax without installation. Shared application logic moves into a new `@beatbax/app-core` workspace package; the desktop renderer is built with **React** (not a symlink of the vanilla web-ui DOM).
 
 This feature supersedes the original "additive Electron wrapper around web-ui" approach documented in [electron-desktop-client.md](./electron-desktop-client.md). Electron-specific plumbing (IPC, native menus, packaging) remains as specified there; the renderer architecture and web-ui scope change significantly.
+
+---
+
+## Implementation Progress
+
+**Last updated:** 2026-06-07  
+**Overall status:** Phases 1–2 **complete**; Phases 3–4 not started.
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **1 — `@beatbax/app-core`** | ✅ Complete | Package builds and tests independently (26 suites, 392 tests). Web-ui consumes app-core. |
+| **2 — web-lite** | ✅ Complete | `apps/web-ui` ships as web-lite profile. See [Phase 2 deviations](#phase-2-deviations-from-original-spec) below. |
+| **3 — Electron desktop (React)** | ⬜ Not started | `apps/desktop/` does not exist yet. |
+| **4 — Distribution** | ⬜ Not started | README positioning, desktop CI, GitHub Releases. |
+
+**Key artifacts (Phases 1–2):**
+
+- `packages/app-core/` — shared stores, playback, editor, export, import, plugins, utils, `client-profile.ts`, `createAppContext()`, `FileIOAdapter`
+- `apps/web-ui/vite.config.ts` — `__CLIENT_PROFILE__: "web-lite"`
+- `apps/web-ui/src/app/web-lite-header.ts` — text logo + social icon links
+- `apps/web-ui/tests/web-lite.test.ts`, `web-lite-download.test.ts`, `status-bar-panels.test.ts`, `panels-menu.test.ts`, `bottom-expand-strip.test.ts`
+
+**Not yet done (deferred to later phases / docs):**
+
+- `packages/app-core/README.md`
+- `apps/web-ui/README.md` web-lite scope note
+- Root `README.md` desktop-first positioning (Phase 4)
+
+`@beatbax/app-core` is **`private: true`** — internal workspace package only, not published to npm (same as `@beatbax/web-ui`).
 
 ---
 
@@ -70,12 +100,12 @@ Rationale:
 
 ```
 packages/
-  engine/          @beatbax/engine        (unchanged)
-  app-core/        @beatbax/app-core      (NEW — shared logic)
+  engine/          @beatbax/engine        (unchanged; published)
+  app-core/        @beatbax/app-core      (NEW — shared logic; **private**, not on npm)
 
 apps/
-  web-ui/          @beatbax/web-ui        web-lite profile, vanilla TS shell
-  desktop/         @beatbax/desktop       desktop-full profile, Electron + React
+  web-ui/          @beatbax/web-ui        web-lite profile, vanilla TS shell (**private**)
+  desktop/         @beatbax/desktop       desktop-full profile, Electron + React (Phase 3)
 ```
 
 ```mermaid
@@ -141,12 +171,12 @@ export interface ClientCapabilities {
 |------------|----------|--------------|
 | Editing | Basic Monaco (syntax, diagnostics, completions, folding) | Full IDE (code lens, glyph margin, command palette, MIDI step entry) |
 | Playback | Play/pause/stop, BPM, volume, loop | Full transport + pattern grid sync |
-| Panels | Visualizer + Problems (validation) | Visualizer, Mixer, Help, Copilot, Problems, Output |
+| Panels | Visualizer, Help, Problems, Output | Visualizer, Mixer, Help, Copilot, Problems, Output |
 | Export | **None** | All formats via native save dialog |
 | CoPilot | **No** | Yes |
 | File open | Hidden input + `?song=` URL | Native Open dialog + drag-drop + associations |
-| File save | localStorage auto-save only | Native Save/Save As |
-| Menu | Simplified toolbar | Native OS menu (no DOM MenuBar) |
+| File save | localStorage auto-save + **Save downloads `.bax`** | Native Save/Save As |
+| Menu | Web-lite header (text logo + social links); no DOM MenuBar | Native OS menu (no DOM MenuBar) |
 
 ---
 
@@ -185,21 +215,36 @@ export interface ClientCapabilities {
 
 **Deliverable:** `@beatbax/app-core` builds and tests independently; web-ui behavior unchanged.
 
+**Status (2026-06-07):** ✅ Delivered. All checklist items complete. Phase 2 subsequently changed deployed web-ui behaviour (see below).
+
 ---
 
 ### Phase 2: Simplify Web UI (web-lite)
 
 1. Set `__CLIENT_PROFILE__ = "web-lite"` in `apps/web-ui/vite.config.ts`.
 2. Slim layout in `app/layout.ts` and `app/tabs.ts`:
-   - Remove: MenuBar, Help/Copilot right tabs, Output bottom tab, pattern grid host, channel mixer hosts.
-   - Keep: simplified toolbar (Open, theme), transport bar, editor, Visualizer (fixed/collapsible right pane), Problems pane, status bar.
-   - Add: "Get the Desktop App" link in header → GitHub Releases.
-3. Gate features via `getCapabilities()` — no export UI, no CoPilot, no advanced editor bootstrap, no MIDI step entry, minimal settings (theme + word wrap).
-4. File I/O: open via hidden input + URL loading; save via localStorage auto-save only; no export.
+   - Remove / hide: DOM MenuBar, CoPilot right tab, pattern grid host, channel mixer hosts.
+   - Keep: toolbar (Open, New, Save, Verify, theme, examples), transport bar, editor, Visualizer (right pane), Help (right pane), Problems + Output (bottom pane), status bar with Window menu.
+   - Add: web-lite header — text **BeatBax** logo (left) and social icon links (right; GitHub today; X / itch.io when URLs are configured in `web-lite-header.ts`).
+3. Gate features via `getCapabilities()` — no export UI, no CoPilot bootstrap, no advanced editor bootstrap, no MIDI step entry, no pattern grid / channel mixer.
+4. File I/O: open via hidden input + URL loading; localStorage auto-save; **Save** toolbar action downloads `.bax` (no export menu).
 
 **Deliverable:** Deployed web app is a lightweight try/edit/play experience.
 
----
+**Status (2026-06-07):** ✅ Delivered. See [Phase 2 deviations](#phase-2-deviations-from-original-spec).
+
+#### Phase 2 deviations from original spec
+
+During implementation the web-lite scope was refined:
+
+| Original spec | As shipped |
+|---------------|------------|
+| Remove Help and Output bottom tabs | **Help** and **Output** retained — useful for docs and playback logs in browser |
+| "Get the Desktop App" header CTA | **Text logo + social icons** (GitHub; X / itch.io optional) |
+| Save = localStorage only | **Save** also triggers `.bax` download via `download-helper` |
+| Minimal settings (theme + word wrap) | Full settings modal retained (`settingsPanel: true`); desktop-only features hidden by capability / feature flags |
+
+These are reflected in `packages/app-core/src/client-profile.ts` and `apps/web-ui/src/app/web-lite-header.ts`.
 
 ### Phase 3: Build Electron Desktop (React)
 
@@ -343,22 +388,23 @@ This is a **breaking change in product positioning**, not in engine or CLI APIs:
 
 ### Phase 1 — app-core
 
-- [ ] Scaffold `packages/app-core/` workspace package
-- [ ] Implement `client-profile.ts` and `getCapabilities()`
-- [ ] Implement `FileIOAdapter` interface
-- [ ] Move stores, playback, editor, export, import, plugins, utils, types from web-ui
-- [ ] Extract `createAppContext()` from `main.ts`
-- [ ] Refactor web-ui to consume app-core (no behavior change)
-- [ ] Move applicable unit tests to app-core
+- [x] Scaffold `packages/app-core/` workspace package (`private: true`, not published to npm)
+- [x] Implement `client-profile.ts` and `getCapabilities()`
+- [x] Implement `FileIOAdapter` interface (`src/io/fs-adapter.ts`)
+- [x] Move stores, playback, editor, export, import, plugins, utils, types from web-ui
+- [x] Extract `createAppContext()` from `main.ts`
+- [x] Refactor web-ui to consume app-core (Phase 1 refactor-only milestone)
+- [x] Move applicable unit tests to app-core (26 suites)
 
 ### Phase 2 — web-lite
 
-- [ ] Set `__CLIENT_PROFILE__ = "web-lite"` in web-ui Vite config
-- [ ] Slim layout (Visualizer + Problems only; no MenuBar/mixer/grid/copilot)
-- [ ] Remove export UI and CoPilot entirely
-- [ ] Disable advanced editor features (code lens, glyph margin, command palette)
-- [ ] Add "Get Desktop App" CTA in header
-- [ ] Update web-ui tests for web-lite gating
+- [x] Set `__CLIENT_PROFILE__ = "web-lite"` in web-ui Vite config
+- [x] Slim layout — Visualizer + Help (right); Problems + Output (bottom); no MenuBar / mixer / grid / copilot
+- [x] Remove export UI and CoPilot entirely
+- [x] Disable advanced editor features (code lens, glyph margin, command palette)
+- [x] Web-lite header (text logo + social links; was originally "Get Desktop App" CTA)
+- [x] Update web-ui tests for web-lite gating (`web-lite.test.ts`, related panel/status tests)
+- [x] Save downloads `.bax` in web-lite (toolbar Save; no export formats)
 
 ### Phase 3 — desktop
 
@@ -406,7 +452,7 @@ Additional (from this feature):
 1. **Code signing:** Required for macOS notarisation and Windows SmartScreen. Are certificates available for CI/CD?
 2. **Target platform priority:** Windows first for initial release, or all three simultaneously?
 3. **WAV export in Electron:** Reimplement without `standardized-audio-context` polyfill using native `OfflineAudioContext`?
-4. **Web-lite save UX:** Is localStorage auto-save sufficient, or should web-lite offer explicit in-browser download of edited `.bax` (without full export menu)?
+4. **Web-lite save UX:** Partially resolved — Save downloads `.bax`; localStorage auto-save also active. Full export menu remains desktop-only (Phase 3).
 
 ---
 
@@ -417,7 +463,9 @@ Additional (from this feature):
 - [monorepo-refactoring.md](./complete/monorepo-refactoring.md) — workspace structure
 - [ai-chatbot-assistant.md](./complete/ai-chatbot-assistant.md) — CoPilot (desktop-only after this change)
 - [apps/web-ui/vite.config.ts](../../apps/web-ui/vite.config.ts)
+- [apps/web-ui/src/app/web-lite-header.ts](../../apps/web-ui/src/app/web-lite-header.ts)
 - [apps/web-ui/src/main.ts](../../apps/web-ui/src/main.ts)
+- [packages/app-core/src/client-profile.ts](../../packages/app-core/src/client-profile.ts)
 - [electron-vite documentation](https://electron-vite.org/)
 - [electron-builder documentation](https://www.electron.build/)
 - [Playwright for Electron](https://playwright.dev/docs/api/class-electronapplication)

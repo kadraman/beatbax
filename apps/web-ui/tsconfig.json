@@ -9,11 +9,14 @@
     ,
     "paths": {
       "@beatbax/engine": ["packages/engine/dist/index.d.ts"],
-      "@beatbax/engine/*": ["packages/engine/dist/*"]
+      "@beatbax/engine/*": ["packages/engine/dist/*"],
+      "@beatbax/app-core": ["packages/app-core/src/index.ts"],
+      "@beatbax/app-core/*": ["packages/app-core/src/*"]
     }
   },
   "references": [
-    { "path": "../../packages/engine" }
+    { "path": "../../packages/engine" },
+    { "path": "../../packages/app-core" }
   ],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

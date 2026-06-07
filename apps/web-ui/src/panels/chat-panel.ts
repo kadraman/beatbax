@@ -11,8 +11,8 @@
  * action buttons: "Insert at cursor" and "Replace selection".
  */
 
-import type { EventBus } from '../utils/event-bus';
-import type { Diagnostic } from '../editor/diagnostics';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { chipRegistry } from '@beatbax/engine/chips';
@@ -29,7 +29,7 @@ import {
   markChatRead,
   type AISettings,
   type ChatMode,
-} from '../stores/chat.store';
+} from '@beatbax/app-core/stores/chat.store';
 import { icon } from '../utils/icons';
 
 const MAX_SELF_CORRECTION_ATTEMPTS = 4;

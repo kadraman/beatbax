@@ -23,6 +23,7 @@ module.exports = {
     'node_modules/(?!(@beatbax|nanostores)/)',
   ],
   moduleNameMapper: {
+    '^@beatbax/app-core(.*)$': '<rootDir>/../../packages/app-core/src$1',
     '^@beatbax/engine/util/logger$': '<rootDir>/tests/__mocks__/logger.ts',
     '^monaco-editor$': '<rootDir>/tests/__mocks__/monaco-editor.ts',
     '^@beatbax/engine/parser$': '<rootDir>/tests/__mocks__/engine-parser.ts',

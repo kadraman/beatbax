@@ -1,0 +1,53 @@
+{
+  "name": "@beatbax/app-core",
+  "version": "0.1.0",
+  "description": "Shared application logic for BeatBax web and desktop clients.",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js",
+    "./stores": "./dist/stores/index.js",
+    "./stores/*": "./dist/stores/*.js",
+    "./playback": "./dist/playback/index.js",
+    "./playback/*": "./dist/playback/*.js",
+    "./editor": "./dist/editor/index.js",
+    "./editor/*": "./dist/editor/*.js",
+    "./export": "./dist/export/index.js",
+    "./export/*": "./dist/export/*.js",
+    "./import": "./dist/import/index.js",
+    "./import/*": "./dist/import/*.js",
+    "./plugins": "./dist/plugins/browser-exporter-registry.js",
+    "./plugins/*": "./dist/plugins/*.js",
+    "./utils/*": "./dist/utils/*.js",
+    "./types/*": "./dist/types/*.js",
+    "./input/*": "./dist/input/*.js",
+    "./app/*": "./dist/app/*.js",
+    "./io/*": "./dist/io/*.js",
+    "./client-profile": "./dist/client-profile.js"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -b",
+    "dev": "tsc --watch",
+    "pretest": "npm run build --if-present && node ../../scripts/link-local-engine.cjs",
+    "test": "jest --config ./jest.config.cjs --passWithNoTests"
+  },
+  "dependencies": {
+    "@beatbax/engine": "*",
+    "@beatbax/plugin-chip-sms": "^0.3.2",
+    "@beatbax/plugin-chip-spectrum-128": "^0.2.1",
+    "@beatbax/plugin-exporter-famitracker": "^0.2.3",
+    "@beatbax/plugin-exporter-vgm": "^0.1.4",
+    "nanostores": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "ts-jest": "^29.3.3",
+    "typescript": "^5.6.3"
+  }
+}
