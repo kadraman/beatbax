@@ -20,14 +20,14 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 ## Implementation Progress
 
 **Last updated:** 2026-06-07  
-**Overall status:** Phases 1–2 **complete**; Phases 3–4 not started.
+**Overall status:** Phases 1–2 **complete**; Phases 3–4 **in progress**.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **1 — `@beatbax/app-core`** | ✅ Complete | Package builds and tests independently (26 suites, 392 tests). Web-ui consumes app-core. |
 | **2 — web-lite** | ✅ Complete | `apps/web-ui` ships as web-lite profile. See [Phase 2 deviations](#phase-2-deviations-from-original-spec) below. |
-| **3 — Electron desktop (React)** | ⬜ Not started | `apps/desktop/` does not exist yet. |
-| **4 — Distribution** | ⬜ Not started | README positioning, desktop CI, GitHub Releases. |
+| **3 — Electron desktop (React)** | 🟨 In progress | `apps/desktop/` scaffolded with Electron + React, native menu/file I/O, and an initial app-core-backed shell. |
+| **4 — Distribution** | 🟨 In progress | Root README/scripts, `apps/desktop/README.md`, and desktop CI workflow added; releases/manual QA still pending. |
 
 **Key artifacts (Phases 1–2):**
 
@@ -408,21 +408,21 @@ This is a **breaking change in product positioning**, not in engine or CLI APIs:
 
 ### Phase 3 — desktop
 
-- [ ] Scaffold `apps/desktop/` with electron-vite + React
-- [ ] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
-- [ ] Implement preload `contextBridge`
-- [ ] Implement `electron-fs.ts` IPC adapter
-- [ ] Build React shell (AppLayout, Toolbar, TransportBar, EditorPane)
+- [x] Scaffold `apps/desktop/` with electron-vite + React
+- [x] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
+- [x] Implement preload `contextBridge`
+- [x] Implement `electron-fs.ts` IPC adapter
+- [x] Build React shell (AppLayout, Toolbar, TransportBar, EditorPane)
 - [ ] Wire panel bridges / React components to app-core
-- [ ] Register `.bax` and `.uge` file associations
-- [ ] Configure `electron-builder.yml`
-- [ ] Add desktop unit and Playwright integration tests
+- [x] Register `.bax` and `.uge` file associations
+- [x] Configure `electron-builder.yml`
+- [x] Add desktop unit and Playwright integration tests
 
 ### Phase 4 — distribution
 
-- [ ] Add desktop CI workflow
-- [ ] Add root `desktop:*` npm scripts
-- [ ] Update README, ROADMAP, package READMEs
+- [x] Add desktop CI workflow
+- [x] Add root `desktop:*` npm scripts
+- [x] Update README, ROADMAP, package READMEs
 - [ ] Manual QA on Windows (primary platform)
 - [ ] Publish first desktop release on GitHub Releases
 

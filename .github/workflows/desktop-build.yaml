@@ -1,0 +1,99 @@
+name: Desktop Build
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/app-core/**'
+      - 'packages/engine/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-build.yaml'
+  push:
+    branches:
+      - main
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate desktop shell
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: v22.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: npm run build-all
+
+      - name: Run desktop unit tests
+        run: npm run desktop:test
+
+      - name: Run desktop Electron smoke test
+        run: npm -w @beatbax/desktop run test:e2e
+
+  package:
+    name: Package desktop (${{ matrix.os }})
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/desktop-v') }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: v22.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installers
+        run: npm run desktop:dist
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: apps/desktop/dist/**
+          if-no-files-found: error
+
+  release:
+    name: Publish desktop release
+    needs: package
+    if: ${{ startsWith(github.ref, 'refs/tags/desktop-v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**/**
+          generate_release_notes: true
