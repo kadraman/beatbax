@@ -1,5 +1,16 @@
 # @beatbax/cli
 
+## 0.4.10
+
+### Patch Changes
+
+- b4be200: Web Audio loudness, clipping prevention, chip-aware meters, and CLI/web-ui WAV export parity.
+  - Change `--play-gain` default from **0.6** to **1.0** (peak-limited via engine `playbackLimiter`); update DMC preview playback gain default to match.
+
+- Updated dependencies [b4be200]
+  - @beatbax/engine@0.20.0
+  - @beatbax/plugin-chip-sms@0.3.2
+
 ## 0.4.9
 
 ### Patch Changes
