@@ -32,9 +32,10 @@ function updateFile(file) {
   // Replace relative import/export specifiers without extensions
   // Matches '"./foo"' or '"../bar/baz"'
   src = src.replace(/(['"])(\.\.\/|\.\/)([^'"\)\n;]+?)\1/g, (m, q, prefix, spec) => {
-    // Skip if it already has an extension or query/hash
+    // Skip query/hash suffixes (e.g. dynamic import with ?url).
     if (spec.includes('?') || spec.includes('#')) return m;
-    if (/\.[a-zA-Z0-9]+$/.test(spec)) return m; // already has extension
+    // Skip if it already has a runtime ESM extension (not .ts — emitted as .js).
+    if (/\.(js|mjs|cjs|json|wasm|css)$/.test(spec)) return m;
 
     const fileDir = path.dirname(file);
     const candidateTs = path.resolve(fileDir, prefix + spec + '.ts');

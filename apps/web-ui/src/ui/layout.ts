@@ -4,7 +4,7 @@
  * Pure vanilla JS implementation (no React required)
  */
 
-import { eventBus } from '../utils/event-bus';
+import { eventBus } from '@beatbax/app-core/utils/event-bus';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:layout');
@@ -57,6 +57,12 @@ export interface ThreePaneLayoutManager extends LayoutManager {
   setRightPaneVisible: (visible: boolean) => void;
   /** Get the thin expand strip shown when the right pane is collapsed. */
   getRightPaneExpandStrip: () => HTMLElement;
+  /** Get the thin expand strip shown when the output pane is collapsed. */
+  getOutputPaneExpandStrip: () => HTMLElement;
+  /** Whether the output (bottom) pane is currently visible. */
+  isOutputPaneVisible: () => boolean;
+  /** Whether the right pane is currently visible. */
+  isRightPaneVisible: () => boolean;
   /**
    * Show or hide the output pane + its splitter, expanding the editor to fill
    * the full height when hidden, or restoring layout sizes when shown.
@@ -480,6 +486,22 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   topWrapper.appendChild(outputPane);
   leftContentArea.appendChild(topWrapper);
 
+  // Thin strip shown when the output pane is collapsed (mirrors right-pane expand strip).
+  const outputPaneExpandStrip = document.createElement('div');
+  outputPaneExpandStrip.className = 'bb-bottom-expand-strip';
+  outputPaneExpandStrip.style.display = 'none';
+  outputPaneExpandStrip.title = 'Expand bottom panel';
+  outputPaneExpandStrip.setAttribute('aria-label', 'Expand bottom panel');
+  const outputExpandStripBtn = document.createElement('button');
+  outputExpandStripBtn.className = 'bb-bottom-expand-strip__btn';
+  outputExpandStripBtn.title = 'Expand bottom panel';
+  outputExpandStripBtn.setAttribute('aria-label', 'Expand bottom panel');
+  outputPaneExpandStrip.appendChild(outputExpandStripBtn);
+  leftContentArea.appendChild(outputPaneExpandStrip);
+
+  let outputPaneVisible = true;
+  let rightPaneVisible = true;
+
   // ========== HORIZONTAL SPLITTER (between left and right) ==========
   const horizontalSplitter = document.createElement('div');
   horizontalSplitter.className = 'bb-splitter';
@@ -666,6 +688,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
     getVerticalSplitter: () => verticalSplitter,
     getHorizontalSplitter: () => horizontalSplitter,
     setRightPaneVisible(visible: boolean): void {
+      rightPaneVisible = visible;
       rightPane.style.display = visible ? '' : 'none';
       horizontalSplitter.style.display = visible ? '' : 'none';
       rightPaneExpandStrip.style.display = visible ? 'none' : 'flex';
@@ -673,12 +696,17 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
       window.dispatchEvent(new Event('resize'));
     },
     getRightPaneExpandStrip: () => rightPaneExpandStrip,
+    getOutputPaneExpandStrip: () => outputPaneExpandStrip,
+    isOutputPaneVisible: () => outputPaneVisible,
+    isRightPaneVisible: () => rightPaneVisible,
     setOutputPaneVisible(visible: boolean): void {
+      outputPaneVisible = visible;
       // Use 'flex' (not '') to restore — outputPane is repurposed as a flex
       // column tab container by main.ts, so '' would revert to block and
       // collapse the flex-based tab content areas to zero height.
       outputPane.style.display = visible ? 'flex' : 'none';
       verticalSplitter.style.display = visible ? '' : 'none';
+      outputPaneExpandStrip.style.display = visible ? 'none' : 'flex';
       editorPane.style.height = visible ? `${editorHeight}%` : '100%';
       window.dispatchEvent(new Event('resize'));
     },

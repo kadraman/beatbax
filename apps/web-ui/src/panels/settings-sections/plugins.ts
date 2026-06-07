@@ -5,18 +5,18 @@
  * reload so the chipRegistry is cleanly rebuilt (it has no unregister API).
  */
 
-import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '../../plugins/registry-config';
+import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '@beatbax/app-core/plugins/registry-config';
 import { sectionHeading, noteText } from './general';
 import { chipRegistry, gameboyPlugin, nesPlugin } from '@beatbax/engine/chips';
-import { exporterRegistry } from '../../plugins/browser-exporter-registry';
+import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import {
   BUILTIN_EXPORTER_IDS,
   OPTIONAL_EXPORTER_PLUGINS,
   getEnabledExporterPluginIds,
   isExporterDependencySatisfied,
   setExporterPluginEnabled,
-} from '../../plugins/exporter-registry-config';
-import { StorageKey, storage } from '../../utils/local-storage';
+} from '@beatbax/app-core/plugins/exporter-registry-config';
+import { StorageKey, storage } from '@beatbax/app-core/utils/local-storage';
 
 const BADGE_CLASS: Record<string, string> = {
   Stable:       'bb-settings-badge--stable',

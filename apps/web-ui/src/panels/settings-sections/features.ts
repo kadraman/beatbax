@@ -2,8 +2,8 @@
  * Features section — toggles for opt-in / gated capabilities.
  */
 
-import { storage, StorageKey } from '../../utils/local-storage';
-import { setFeatureEnabled, FeatureFlag } from '../../utils/feature-flags';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { setFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import {
   settingFeatureAI,
   settingFeaturePerChannelAnalyser,
@@ -11,7 +11,7 @@ import {
   settingFeaturePatternGrid,
   settingFeatureHotReload,
   settingFeatureSongVisualizer,
-} from '../../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, noteText } from './general';
 
 interface FeatureEntry {

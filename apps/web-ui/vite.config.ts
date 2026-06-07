@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: '@', replacement: path.resolve(__dirname, 'src') },
+      { find: '@beatbax/app-core', replacement: path.resolve(__dirname, '../../packages/app-core/src') },
       // @beatbax/engine: resolve via node_modules junction (link-local-engine.cjs), not a
       // directory alias — subpaths like /chips must use package.json "exports" → dist/.
       // Capture engine export writeFileSync calls in the browser.
@@ -18,6 +19,7 @@ export default defineConfig({
   },
   define: {
     global: 'globalThis',
+    __CLIENT_PROFILE__: '"web-lite"',
   },
   optimizeDeps: {
     include: ['monaco-editor', 'buffer'],

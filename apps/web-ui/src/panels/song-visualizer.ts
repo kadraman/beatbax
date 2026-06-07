@@ -1,5 +1,5 @@
-import type { EventBus } from '../utils/event-bus';
-import type { PlaybackPosition, PlaybackManager } from '../playback/playback-manager';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import type { PlaybackPosition, PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
 import {
   channelStates,
   isChannelAudible,
@@ -7,11 +7,11 @@ import {
   toggleChannelSoloed,
   unmuteAll,
   clearAllSolo,
-} from '../stores/channel.store';
+} from '@beatbax/app-core/stores/channel.store';
 import { createLogger, getLoggingConfig } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
-import { storage, StorageKey } from '../utils/local-storage';
-import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/settings.store';
 import { getChannelMeta } from '../utils/chip-meta';
 import { getMeterDisplayGain, scaleSamplesForWaveform } from '../utils/meter-display';
 

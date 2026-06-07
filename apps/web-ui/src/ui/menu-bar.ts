@@ -9,12 +9,12 @@
  * dropdowns use role="menu"; items use role="menuitem".
  */
 
-import type { EventBus } from '../utils/event-bus';
-import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '../import/remote-loader';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '@beatbax/app-core/import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
-import { isFeatureEnabled, FeatureFlag } from '../utils/feature-flags';
-import { exporterRegistry } from '../plugins/browser-exporter-registry';
+import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { resolveUiChipId } from '../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 

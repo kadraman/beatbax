@@ -10,10 +10,10 @@
 
 // jsdom provides localStorage and window automatically — no manual mocking needed.
 
-import { StorageKey } from '../src/utils/local-storage';
-import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '../src/utils/feature-flags';
-import { eventBus } from '../src/utils/event-bus';
-import { SECTION_KEYS } from '../src/stores/settings.store';
+import { StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import { eventBus } from '@beatbax/app-core/utils/event-bus';
+import { SECTION_KEYS } from '@beatbax/app-core/stores/settings.store';
 
 // ─── StorageKey additions ─────────────────────────────────────────────────────
 

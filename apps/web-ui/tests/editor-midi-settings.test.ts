@@ -1,5 +1,5 @@
 import { buildEditorSection } from '../src/panels/settings-sections/editor';
-import { settingMidiInputDevice } from '../src/stores/settings.store';
+import { settingMidiInputDevice } from '@beatbax/app-core/stores/settings.store';
 
 describe('Editor MIDI settings', () => {
   afterEach(() => {

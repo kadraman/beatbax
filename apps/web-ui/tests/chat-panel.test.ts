@@ -7,7 +7,7 @@ const appendChildSpy = jest.spyOn(document.head, 'appendChild').mockImplementati
 
 import { ChatPanel } from '../src/panels/chat-panel';
 import type { ChatPanelOptions } from '../src/panels/chat-panel';
-import type { Diagnostic } from '../src/editor/diagnostics';
+import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 
 // ─── Minimal EventBus stub ────────────────────────────────────────────────────
 

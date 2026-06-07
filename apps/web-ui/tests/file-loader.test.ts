@@ -2,7 +2,7 @@
  * Tests for openFilePicker — cancel / cleanup path
  */
 
-import { openFilePicker } from '../src/import/file-loader';
+import { openFilePicker } from '@beatbax/app-core/import/file-loader';
 
 // Helper: return the hidden <input> appended to body (if any)
 function pickerInput(): HTMLInputElement | null {

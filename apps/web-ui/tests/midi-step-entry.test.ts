@@ -26,9 +26,9 @@ import {
   isEffectDefinitionLine,
   isMidiPreviewLine,
   MidiStepEntryService,
-} from '../src/input/midi-step-entry';
+} from '@beatbax/app-core/input/midi-step-entry';
 import { MidiStepEntryController } from '../src/input/midi-step-entry-controller';
-import { settingMidiInputEnabled } from '../src/stores/settings.store';
+import { settingMidiInputEnabled } from '@beatbax/app-core/stores/settings.store';
 
 // ─── midiNoteToName ───────────────────────────────────────────────────────────
 

@@ -6,9 +6,9 @@
  * Polls the PlaybackManager and AudioContext at ~4 Hz to keep CPU impact low.
  */
 
-import type { PlaybackManager } from '../playback/playback-manager';
-import { playbackStatus } from '../stores/playback.store';
-import { parsedBpm, parsedChip } from '../stores/editor.store';
+import type { PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
+import { playbackStatus } from '@beatbax/app-core/stores/playback.store';
+import { parsedBpm, parsedChip } from '@beatbax/app-core/stores/editor.store';
 
 export type OverlayPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 

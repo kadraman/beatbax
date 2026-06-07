@@ -9,8 +9,8 @@ import type * as monaco from 'monaco-editor';
 import {
   applyQuickFixSuggestion,
   getQuickFixesForProblem,
-} from '../editor/code-actions';
-import type { EventBus } from '../utils/event-bus';
+} from '@beatbax/app-core/editor/code-actions';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { icon } from '../utils/icons';
 
 export interface OutputMessage {

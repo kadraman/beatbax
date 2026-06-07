@@ -35,6 +35,8 @@
     "web-ui:build": "npm -w @beatbax/web-ui run build",
     "web-ui:test": "npm -w @beatbax/web-ui test",
     "web-ui:dev": "npm -w @beatbax/web-ui run dev",
+    "app-core:build": "npm -w @beatbax/app-core run build",
+    "app-core:test": "npm -w @beatbax/app-core test",
     "rebuild": "npm run clean && npm run build",
     "prepublishOnly": "npm run build",
     "watch": "tsc --watch",

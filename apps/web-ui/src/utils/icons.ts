@@ -150,7 +150,24 @@ const ICON_PATHS: Record<string, string> = {
   'chevron-double-left': `<path stroke-linecap="round" stroke-linejoin="round" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />`,
 };
 
-// ─── Public API ────────────────────────────────────────────────────────────────
+/** Filled (solid) icons — panel collapse/expand toggles, etc. */
+const FILLED_ICON_PATHS: Record<string, string> = {
+  'triangle-right': `<path fill="currentColor" d="M9 6v12l10-6z" />`,
+  'triangle-left':  `<path fill="currentColor" d="M15 6v12L5 12z" />`,
+  'triangle-down':  `<path fill="currentColor" d="M6 9h12l-6 10z" />`,
+  'triangle-up':    `<path fill="currentColor" d="M6 15h12l-6-10z" />`,
+};
+
+const PANEL_TOGGLE_ICON_CLASS = 'bb-panel-toggle-icon';
+
+/** Brand / social logos (filled paths, currentColor). */
+const BRAND_ICON_PATHS: Record<string, string> = {
+  github: `<path fill="currentColor" fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.178 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.001 10.001 0 0 0 22 12.021C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />`,
+  x: `<path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />`,
+  itch: `<path fill="currentColor" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 1.636c5.707 0 10.364 4.657 10.364 10.364S17.707 22.364 12 22.364 1.636 17.707 1.636 12 6.293 1.636 12 1.636zM8.182 9.273a.545.545 0 0 0-.545.545v4.364c0 .301.244.545.545.545h7.636a.545.545 0 0 0 .545-.545V9.818a.545.545 0 0 0-.545-.545H8.182zm1.09 1.09h5.455v3.273H9.273V10.363z" />`,
+};
+
+const BRAND_ICON_CLASS = 'bb-brand-icon';
 
 /**
  * Return an inline SVG element string for the given heroicon name.
@@ -168,6 +185,33 @@ export function icon(name: string, cssClass = 'w-4 h-4'): string {
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cssClass}" aria-hidden="true">${paths}</svg>`;
 }
+
+/**
+ * Return an inline SVG for a filled icon (solid paths, no stroke).
+ * Used for panel collapse/expand triangles.
+ */
+export function filledIcon(name: string, cssClass = PANEL_TOGGLE_ICON_CLASS): string {
+  const paths = FILLED_ICON_PATHS[name];
+  if (!paths) {
+    console.warn(`[icons] Unknown filled icon: "${name}"`);
+    return `<span aria-hidden="true" class="${cssClass}"></span>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="${cssClass}" aria-hidden="true">${paths}</svg>`;
+}
+
+/**
+ * Return an inline SVG for a social / brand logo (GitHub, X, itch.io, …).
+ */
+export function brandIcon(name: string, cssClass = BRAND_ICON_CLASS): string {
+  const paths = BRAND_ICON_PATHS[name];
+  if (!paths) {
+    console.warn(`[icons] Unknown brand icon: "${name}"`);
+    return `<span aria-hidden="true" class="${cssClass}"></span>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="${cssClass}" aria-hidden="true">${paths}</svg>`;
+}
+
+// ─── Public API (DOM) ────────────────────────────────────────────────────────
 
 /**
  * Create an `<svg>` DOM element for the given heroicon name.

@@ -8,9 +8,9 @@ import {
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
   settingMidiAuditionNotes, settingMidiUseNoteDuration, settingMidiScaleSnapMode,
-} from '../../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, toggle, numberField, textField, noteText, selectField } from './general';
-import { MidiStepEntryService } from '../../input/midi-step-entry';
+import { MidiStepEntryService } from '@beatbax/app-core/input/midi-step-entry';
 
 export function buildEditorSection(): HTMLElement {
   const el = document.createElement('div');
