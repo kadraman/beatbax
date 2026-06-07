@@ -235,13 +235,33 @@ export class Player {
     }
   }
 
+  /**
+   * Drop only the masterGain → speakers routing edge(s), preserving parallel UI taps
+   * (e.g. masterGain → AnalyserNode for oscilloscope / meters).
+   */
+  private _disconnectMasterGainFromOutputSinks(): void {
+    if (!this.masterGain) return;
+    const destination = this.ctx.destination;
+    try { this.masterGain.disconnect(destination); } catch (_) {}
+    if (this.masterLimiter) {
+      try { this.masterGain.disconnect(this.masterLimiter); } catch (_) {}
+    }
+  }
+
+  /** Drop only the limiter → destination edge before re-wiring the output chain. */
+  private _disconnectLimiterFromDestination(): void {
+    if (!this.masterLimiter) return;
+    try { this.masterLimiter.disconnect(this.ctx.destination); } catch (_) {}
+  }
+
   private _ensureMasterOutputChain(): GainNode {
     if (!this.masterGain) {
       this.masterGain = this.ctx.createGain();
     }
+    const destination = this.ctx.destination;
     if (typeof (this.ctx as any).createDynamicsCompressor !== 'function') {
-      try { this.masterGain.disconnect(); } catch (_) {}
-      this.masterGain.connect(this.ctx.destination);
+      this._disconnectMasterGainFromOutputSinks();
+      this.masterGain.connect(destination);
       return this.masterGain;
     }
     if (!this.masterLimiter) {
@@ -252,10 +272,10 @@ export class Player {
       this.masterLimiter.attack.setValueAtTime(0.003, this.ctx.currentTime);
       this.masterLimiter.release.setValueAtTime(0.1, this.ctx.currentTime);
     }
-    try { this.masterGain.disconnect(); } catch (_) {}
-    try { this.masterLimiter.disconnect(); } catch (_) {}
+    this._disconnectMasterGainFromOutputSinks();
+    this._disconnectLimiterFromDestination();
     this.masterGain.connect(this.masterLimiter);
-    this.masterLimiter.connect(this.ctx.destination);
+    this.masterLimiter.connect(destination);
     return this.masterGain;
   }
 
