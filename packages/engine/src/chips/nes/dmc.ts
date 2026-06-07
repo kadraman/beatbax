@@ -13,7 +13,7 @@
 import type { ChipChannelBackend } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
 import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
-import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
+import { NES_MIX_GAIN } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
 // ─── GitHub URL resolution ─────────────────────────────────────────────────────
@@ -329,9 +329,7 @@ export class NESDMCBackend implements ChipChannelBackend {
     // Use the natural sample duration (not the note step duration) so the
     // sample rings out fully — DMC samples play to completion on hardware.
     const phaseInc = dmcHz / sampleRate;
-    // Match WebAudio loudness normalization used by pulse/triangle/noise.
-    // PCM render() path intentionally stays hardware-scaled.
-    const gain = NES_MIX_GAIN.dmc * 127 * getNesWebAudioNorm();
+    const gain = NES_MIX_GAIN.dmc * 127;
     const naturalDurSec = loopSample ? (dur + 0.1) : (sampleData.length / dmcHz + 0.05);
     const playDur = loopSample ? naturalDurSec : Math.max(dur, naturalDurSec);
     const maxSamples = Math.ceil(playDur * sampleRate);

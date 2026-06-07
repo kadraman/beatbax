@@ -13,6 +13,7 @@ import { icon } from '../utils/icons';
 import { storage, StorageKey } from '../utils/local-storage';
 import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
 import { getChannelMeta } from '../utils/chip-meta';
+import { getMeterDisplayGain, scaleSamplesForWaveform } from '../utils/meter-display';
 
 const log = createLogger('ui:song-visualizer');
 
@@ -661,6 +662,8 @@ export class SongVisualizer {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     if (samples.length === 0) return;
+    const gain = getMeterDisplayGain(this.activeChip, channelId);
+    const displaySamples = scaleSamplesForWaveform(samples, gain);
 
     const color = getChannelMeta(this.activeChip, channelId).color;
     ctx.lineWidth = 1.2;
@@ -670,8 +673,8 @@ export class SongVisualizer {
 
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
-      const sampleIdx = Math.min(Math.floor((x / w) * samples.length), samples.length - 1);
-      const y = (h / 2) * (1 - samples[sampleIdx]);
+      const sampleIdx = Math.min(Math.floor((x / w) * displaySamples.length), displaySamples.length - 1);
+      const y = (h / 2) * (1 - displaySamples[sampleIdx]);
       if (x === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }

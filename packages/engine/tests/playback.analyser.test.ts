@@ -15,6 +15,15 @@ function makeAudioContext(overrides: Record<string, any> = {}): any {
       connect: jest.fn(),
       disconnect: jest.fn(),
     }),
+    createDynamicsCompressor: () => ({
+      threshold: { setValueAtTime: jest.fn() },
+      knee: { setValueAtTime: jest.fn() },
+      ratio: { setValueAtTime: jest.fn() },
+      attack: { setValueAtTime: jest.fn() },
+      release: { setValueAtTime: jest.fn() },
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+    }),
     createAnalyser: () => ({
       fftSize: 512,
       smoothingTimeConstant: 0.8,

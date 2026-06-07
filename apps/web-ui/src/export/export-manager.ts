@@ -4,10 +4,10 @@
 
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
-import { Player } from '@beatbax/engine/audio/playback';
+import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { exportUGE } from '@beatbax/engine/export';
+import { exportUGE, writeWAV } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry';
 import { getCapturedWrite, clearCapturedWrite } from '../utils/browser-fs';
 
@@ -15,6 +15,7 @@ import type { EventBus } from '../utils/event-bus';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';
 import { buildMIDI } from './midi-builder';
 import { validateForExport } from './export-validator';
+import { collectPcmWavExportWarnings } from './pcm-export-warnings';
 import {
   downloadText,
   downloadBinary,
@@ -23,7 +24,7 @@ import {
   MIME_TYPES,
   ExportHistory,
 } from './download-helper';
-import { settingAudioSampleRate, settingAudioBufferFrames } from '../stores/settings.store';
+import { settingAudioSampleRate } from '../stores/settings.store';
 
 const log = createLogger('ui:export-manager');
 
@@ -123,6 +124,7 @@ export class ExportManager {
           result = await this.exportUGE(resolved, baseFilename, (msg) => warnings.push(msg));
           break;
         case 'wav':
+          warnings.push(...collectPcmWavExportWarnings(resolved));
           result = await this.exportWAV(source, resolved, baseFilename);
           break;
         case 'famitracker':
@@ -245,7 +247,7 @@ export class ExportManager {
   }
 
   /**
-   * Export as WAV using WebAudio OfflineAudioContext
+   * Export as WAV using the same PCM renderer as the CLI (parity with headless export).
    */
   private async exportWAV(
     _source: string,
@@ -254,80 +256,33 @@ export class ExportManager {
   ): Promise<ExportResult> {
     const filename = ensureExtension(baseFilename, 'wav');
 
-    // Calculate duration from events
-    let maxTicks = 0;
-    for (const ch of (resolved.channels || [])) {
-      const evts = ch.events || ch.pat || [];
-      if (Array.isArray(evts) && evts.length > maxTicks) {
-        maxTicks = evts.length;
-      }
-    }
-
-    const bpm = (typeof resolved.bpm === 'number') ? resolved.bpm : 128;
-    const secondsPerBeat = 60 / bpm;
-    const tickSeconds = secondsPerBeat / 4;
-    const duration = Math.ceil(maxTicks * tickSeconds) + 1;
-
-    if (duration <= 0 || maxTicks === 0) {
+    const channels = Array.isArray(resolved.channels) ? resolved.channels : [];
+    const hasEvents = channels.some((ch: any) => Array.isArray(ch?.events) && ch.events.length > 0);
+    if (!hasEvents) {
       throw new Error('Song has no audio events to export.');
     }
 
-    // Create offline context
-    const OfflineCtxCtor =
-      (globalThis as any).OfflineAudioContext ||
-      (globalThis as any).webkitOfflineAudioContext;
-
-    if (!OfflineCtxCtor) {
-      throw new Error('OfflineAudioContext is not available in this browser.');
-    }
-
     const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
-    const bufferFrames = parseInt(settingAudioBufferFrames.get(), 10) || 4096;
-    const lengthInSamples = Math.ceil(duration * sampleRate);
-    const offlineCtx = new OfflineCtxCtor(2, lengthInSamples, sampleRate);
-
-    // Create player — buffered mode OFF so all events go to the scheduler queue
-    const offlinePlayer = new Player(offlineCtx, { buffered: false });
-
-    // Override the scheduler's tick to drain ALL queued events in chunks of
-    // bufferFrames to balance memory and rendering speed.
-    const scheduler = (offlinePlayer as any).scheduler;
-    if (scheduler) {
-      scheduler.tick = function () {
-        const q: Array<{ time: number; fn: () => void }> = (this as any).queue ?? [];
-        let processed = 0;
-        while (q.length > 0 && processed < bufferFrames) {
-          const ev = q.shift()!;
-          try { ev.fn(); } catch (_e) { /* ignore */ }
-          processed++;
-        }
-        // Drain any remainder
-        while (q.length > 0) {
-          const ev = q.shift()!;
-          try { ev.fn(); } catch (_e) { /* ignore */ }
-        }
-      };
+    const chipId = String(resolved?.chip ?? '').toLowerCase();
+    const chipPlugin = chipId ? chipRegistry.get(chipRegistry.resolve(chipId)) : undefined;
+    if (chipPlugin?.preloadForPCM && resolved.insts) {
+      await chipPlugin.preloadForPCM(resolved.insts as Record<string, any>);
     }
 
-    // playAST schedules all audio events onto the scheduler queue
-    await offlinePlayer.playAST(resolved);
+    const samples = renderSongToPCM(resolved, {
+      sampleRate,
+      channels: 2,
+      bpm: typeof resolved.bpm === 'number' ? resolved.bpm : undefined,
+    });
 
-    // Flush — invoke every queued event so audio nodes are wired into offlineCtx
-    if (scheduler && typeof scheduler.tick === 'function') {
-      scheduler.tick();
-    }
-
-    // Render to audio buffer
-    const audioBuffer = await offlineCtx.startRendering();
-    const wavData = audioBufferToWav(audioBuffer);
-
-    downloadBinary(wavData, filename, MIME_TYPES.wav);
+    const wavBuffer = writeWAV(samples, { sampleRate, bitDepth: 16, channels: 2 });
+    downloadBinary(new Uint8Array(wavBuffer), filename, MIME_TYPES.wav);
 
     return {
       success: true,
       format: 'wav',
       filename,
-      size: wavData.byteLength,
+      size: wavBuffer.byteLength,
     };
   }
 
@@ -388,59 +343,3 @@ export class ExportManager {
   }
 }
 
-// ─── WAV helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Convert an AudioBuffer to a WAV file as ArrayBuffer
- */
-function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
-  const numChannels = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const bitDepth = 16;
-  const bytesPerSample = bitDepth / 8;
-  const blockAlign = numChannels * bytesPerSample;
-
-  const data = new Float32Array(buffer.length * numChannels);
-  for (let i = 0; i < buffer.length; i++) {
-    for (let ch = 0; ch < numChannels; ch++) {
-      data[i * numChannels + ch] = buffer.getChannelData(ch)[i];
-    }
-  }
-
-  const dataLength = data.length * bytesPerSample;
-  const headerLength = 44;
-  const totalLength = headerLength + dataLength;
-
-  const arrayBuffer = new ArrayBuffer(totalLength);
-  const view = new DataView(arrayBuffer);
-
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, totalLength - 8, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);           // PCM
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitDepth, true);
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataLength, true);
-
-  let offset = 44;
-  for (let i = 0; i < data.length; i++) {
-    const sample = Math.max(-1, Math.min(1, data[i]));
-    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-    view.setInt16(offset, intSample, true);
-    offset += 2;
-  }
-
-  return arrayBuffer;
-}
-
-function writeString(view: DataView, offset: number, str: string): void {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}

@@ -8,6 +8,7 @@
   - Add NES `hoverDocs` entries for `type`, `duty`, and `vol` (keyword hovers in the web editor).
   - **Parser:** resolve unknown `chip` via `chipRegistry.has()` and skip Game Boy instrument validation when the chip is unknown, avoiding misleading cascade errors (e.g. NES-only types flagged on a typo'd chip name).
   - Regression test: unknown chip reports only the chip error, not spurious instrument type/property warnings.
+- Remove NES WebAudio mix-mode API (`setNesWebAudioMixMode`, `getNesWebAudioMixMode`, `getNesWebAudioNorm`) and keep NES WebAudio output hardware-scaled only.
 
 ## 0.19.0
 

@@ -15,12 +15,20 @@ export interface WavOptions {
   channels: 1 | 2;
 }
 
+/**
+ * Convert a normalized float sample (−1..1) to signed 16-bit PCM.
+ * Uses Math.floor after scaling so CLI and browser WAV exports are bit-identical.
+ */
+export function quantizeFloatSampleToInt16(sample: number): number {
+  let s = Math.max(-1, Math.min(1, sample));
+  s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  return Math.floor(s);
+}
+
 function floatTo16BitPCM(samples: Float32Array): Buffer {
   const buf = Buffer.alloc(samples.length * 2);
   for (let i = 0; i < samples.length; i++) {
-    let s = Math.max(-1, Math.min(1, samples[i]));
-    s = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    buf.writeInt16LE(Math.floor(s), i * 2);
+    buf.writeInt16LE(quantizeFloatSampleToInt16(samples[i]), i * 2);
   }
   return buf;
 }
@@ -128,7 +136,8 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
   const samples = renderSongToPCM(song, {
     ...options,
     sampleRate,
-    channels: 2 // Always stereo for now to match browser
+    channels: 2, // Always stereo for now to match browser
+    bpm: options.bpm ?? song.bpm,
   });
 
   if (metaOpts && metaOpts.debug) {

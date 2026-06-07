@@ -39,6 +39,12 @@ import { smsUIContributions } from './ui-contributions.js';
 import { smsVolSlideEffect } from './volSlide.js';
 import { setSmsClockRegion } from './periodTables.js';
 import { smsSongWizard } from './songWizard.js';
+import { SMS_MIX_GAIN } from './mixer.js';
+
+const SMS_METER_DISPLAY_GAIN = {
+  tone: 1 / SMS_MIX_GAIN.tone,
+  noise: 1 / SMS_MIX_GAIN.noise,
+} as const;
 
 type SmsChipPlugin = ChipPlugin & {
   aliases?: readonly string[];
@@ -54,6 +60,19 @@ const smsPlugin: SmsChipPlugin = {
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent
   uiContributions: smsUIContributions,
   newSongWizard: smsSongWizard,
+
+  getMeterDisplayGain(channelIndex: number): number {
+    switch (channelIndex) {
+      case 0:
+      case 1:
+      case 2:
+        return SMS_METER_DISPLAY_GAIN.tone;
+      case 3:
+        return SMS_METER_DISPLAY_GAIN.noise;
+      default:
+        return 1;
+    }
+  },
 
   validateInstrument(inst: InstrumentNode) {
     return validateSmsInstrument(inst);
@@ -92,11 +111,9 @@ export {
   type SmsClockRegion,
 } from './periodTables.js';
 export {
-  setSmsWebAudioMixMode,
-  getSmsWebAudioMixMode,
-  getSmsWebAudioNorm,
   SMS_MIX_GAIN,
-  type SmsWebAudioMixMode,
+  SMS_TARGET_PEAK,
+  SMS_MASTER_GAIN,
   ggPanToGains,
   applyStereoRouting,
   type GGPan,

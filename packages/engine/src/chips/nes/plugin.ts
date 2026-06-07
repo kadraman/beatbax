@@ -15,6 +15,14 @@ import { BUNDLED_SAMPLES } from './dmcSamples.js';
 import { nesUIContributions } from './ui-contributions.js';
 import { setNesClockRegion } from './periodTables.js';
 import { nesSongWizard } from './songWizard.js';
+import { NES_MIX_GAIN } from './mixer.js';
+
+const NES_METER_DISPLAY_GAIN = {
+  pulse: 1 / (NES_MIX_GAIN.pulse * 15),
+  triangle: 1 / (NES_MIX_GAIN.triangle * 15),
+  noise: 1 / (NES_MIX_GAIN.noise * 15),
+  dmc: 1 / (NES_MIX_GAIN.dmc * 127),
+} as const;
 
 const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
   name: 'nes',
@@ -29,6 +37,22 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
 
   supportsVolumeForChannel(channelIndex: number): boolean {
     return channelIndex === 0 || channelIndex === 1 || channelIndex === 3;
+  },
+
+  getMeterDisplayGain(channelIndex: number): number {
+    switch (channelIndex) {
+      case 0:
+      case 1:
+        return NES_METER_DISPLAY_GAIN.pulse;
+      case 2:
+        return NES_METER_DISPLAY_GAIN.triangle;
+      case 3:
+        return NES_METER_DISPLAY_GAIN.noise;
+      case 4:
+        return NES_METER_DISPLAY_GAIN.dmc;
+      default:
+        return 1;
+    }
   },
 
   validateInstrument(inst: InstrumentNode) {

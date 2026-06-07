@@ -1,6 +1,20 @@
-import { writeWAV } from '../src/export/wavWriter';
+import { writeWAV, quantizeFloatSampleToInt16 } from '../src/export/wavWriter';
 
 describe('wavWriter', () => {
+  test('quantizeFloatSampleToInt16 uses floor for negative samples', () => {
+    const sample = -7177.5 / 0x8000;
+    expect(quantizeFloatSampleToInt16(sample)).toBe(-7178);
+    // Truncation toward zero (DataView#setInt16) would yield -7177.
+    expect(quantizeFloatSampleToInt16(sample)).not.toBe(-7177);
+  });
+
+  test('quantizeFloatSampleToInt16 clamps to int16 range', () => {
+    expect(quantizeFloatSampleToInt16(1)).toBe(0x7fff);
+    expect(quantizeFloatSampleToInt16(-1)).toBe(-0x8000);
+    expect(quantizeFloatSampleToInt16(2)).toBe(0x7fff);
+    expect(quantizeFloatSampleToInt16(-2)).toBe(-0x8000);
+  });
+
   test('writeWAV produces a buffer with correct RIFF header', () => {
     const samples = new Float32Array([0, 0.5, -0.5, 1, -1]);
     const opts = {

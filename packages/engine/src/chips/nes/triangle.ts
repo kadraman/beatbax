@@ -16,7 +16,7 @@
  */
 import type { ChipChannelBackend } from '../types.js';
 import type { InstrumentNode } from '../../parser/ast.js';
-import { NES_MIX_GAIN, getNesWebAudioNorm } from './mixer.js';
+import { NES_MIX_GAIN } from './mixer.js';
 import { NES_CLOCK } from './periodTables.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
@@ -30,7 +30,7 @@ import {
  * The PCM render path uses raw NES_MIX_GAIN and is unaffected.
  */
 function getNesTriangleWebGain(): number {
-  return NES_MIX_GAIN.triangle * 15 * getNesWebAudioNorm();
+  return NES_MIX_GAIN.triangle * 15;
 }
 
 /** 32-step quantised triangle waveform (hardware NES values, 0–15 each step). */
@@ -247,7 +247,7 @@ function createNESTriangleWave(ctx: BaseAudioContext): any {
     const sign = (k % 2 === 0) ? 1 : -1;
     imag[n] = sign * (8 / (Math.PI * Math.PI * n * n));
   }
-  return (ctx as any).createPeriodicWave(real, imag, { disableNormalization: true });
+  return (ctx as any).createPeriodicWave(real, imag);
 }
 
 export function createTriangleChannel(_audioContext: BaseAudioContext): ChipChannelBackend {

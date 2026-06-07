@@ -112,7 +112,7 @@ chipRegistry.has('nes'); // true immediately
 DMC utilities move to the engine export path:
 
 ```typescript
-import { decodeDMC, encodeDMCFromPCM, setNesWebAudioMixMode } from '@beatbax/engine/chips/nes';
+import { decodeDMC, encodeDMCFromPCM } from '@beatbax/engine/chips/nes';
 ```
 
 ---
@@ -180,9 +180,9 @@ The shim package remains relevant for published npm consumers, but its source is
 | Area | Changes |
 |------|---------|
 | [`apps/web-ui/src/plugins/registry-config.ts`](../../apps/web-ui/src/plugins/registry-config.ts) | Remove `nes` from `AVAILABLE_PLUGINS` and from `DEFAULT_ENABLED` |
-| [`apps/web-ui/src/panels/settings-sections/plugins.ts`](../../apps/web-ui/src/panels/settings-sections/plugins.ts) | Data-driven built-in chip list (GB + NES); NES mix-mode row keyed on `id === 'nes'` |
+| [`apps/web-ui/src/panels/settings-sections/plugins.ts`](../../apps/web-ui/src/panels/settings-sections/plugins.ts) | Data-driven built-in chip list (GB + NES) |
 | [`apps/web-ui/package.json`](../../apps/web-ui/package.json) | Drop `@beatbax/plugin-chip-nes` |
-| [`apps/web-ui/src/main.ts`](../../apps/web-ui/src/main.ts) | Import `setNesWebAudioMixMode` from `@beatbax/engine/chips/nes` |
+| [`apps/web-ui/src/main.ts`](../../apps/web-ui/src/main.ts) | Register built-in NES without mix-mode bootstrap |
 | [`packages/cli/package.json`](../../packages/cli/package.json) | Drop `@beatbax/plugin-chip-nes` |
 | [`packages/cli/src/cli.ts`](../../packages/cli/src/cli.ts) | `.dmc` play / `encode-dmc` imports from `@beatbax/engine/chips/nes` |
 

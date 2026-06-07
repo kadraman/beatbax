@@ -184,7 +184,7 @@ program
   .option('--no-browser', 'Force headless Node.js playback (alias for --headless)')
   .option('--backend <name>', 'Audio backend: auto (default), node-webaudio, browser', 'auto')
   .option('--buffer-frames <n>', 'Buffer length in frames for offline rendering (optional)', '4096')
-  .option('--play-gain <scale>', 'Output gain multiplier for headless CLI playback (default: 0.6)', '0.6')
+  .option('--play-gain <scale>', 'Output gain multiplier for headless CLI playback (default: 1.0; peak-limited)', '1.0')
   .option('--rate <index>', 'DMC rate table index 0-15 (only for .dmc files, default 15 = 33 kHz)', '15')
   .option('-v, --verbose', 'Enable verbose output (show parsed AST)')
   .action(async (file, options) => {
@@ -211,7 +211,7 @@ program
       } else {
         console.log(`Playing ${file} (rate=${rateIdx}, ${durationSec.toFixed(2)}s)`);
       }
-      const playGain = Number.parseFloat(String(options.playGain ?? '0.6'));
+      const playGain = Number.parseFloat(String(options.playGain ?? '1.0'));
       // Upsample from dmcHz to sampleRate
       const phaseInc = dmcHz / sampleRate;
       const outLen = Math.ceil(decoded.length / phaseInc);
@@ -227,7 +227,7 @@ program
       await playAudioBuffer(pcm, {
         channels: 1,
         sampleRate,
-        gainScale: Number.isFinite(playGain) ? playGain : 0.6,
+        gainScale: Number.isFinite(playGain) ? playGain : 1.0,
       });
       return;
     }
@@ -247,8 +247,8 @@ program
       console.log('');
     }
 
-    const parsedPlayGain = Number.parseFloat(String(options.playGain ?? '0.6'));
-    const playGain = Number.isFinite(parsedPlayGain) ? parsedPlayGain : 0.6;
+    const parsedPlayGain = Number.parseFloat(String(options.playGain ?? '1.0'));
+    const playGain = Number.isFinite(parsedPlayGain) ? parsedPlayGain : 1.0;
 
     await playFile(file, {
       browser: options.browser === true,
@@ -1054,7 +1054,7 @@ convertCmd
           await playAudioBuffer(pcm, {
             channels: 1,
             sampleRate: hostSampleRate,
-            gainScale: 0.6,
+            gainScale: 1.0,
           });
         } catch (err: any) {
           if (isMissingAudioPlayerError(err)) {

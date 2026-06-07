@@ -20,10 +20,6 @@ export {
   nesMix,
   getNesGainWeights,
   NES_MIX_GAIN,
-  setNesWebAudioMixMode,
-  getNesWebAudioMixMode,
-  getNesWebAudioNorm,
-  type NesWebAudioMixMode,
 } from './mixer.js';
 export { validateNesInstrument } from './validate.js';
 export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';

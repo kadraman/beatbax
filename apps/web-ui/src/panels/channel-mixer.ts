@@ -31,6 +31,7 @@ import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags';
 import { getChannelMeta } from '../utils/chip-meta';
 import { icon } from '../utils/icons';
 import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
+import { getMeterDisplayGain, scaleRmsForMeter } from '../utils/meter-display';
 import { chipRegistry } from '@beatbax/engine/chips';
 
 /** Number of VU-meter segments per channel strip. */
@@ -729,7 +730,8 @@ export class ChannelMixer {
         // again here; a double-sqrt would compress loud signals and boost quiet
         // ones, making the meter look wrong (low at start, creeping up over time).
         const rms = computeRms(samples);
-        const level = Math.round(rms * VU_SEGMENTS);
+        const gain = getMeterDisplayGain(this.activeChip, channelId);
+        const level = Math.round(scaleRmsForMeter(rms, gain) * VU_SEGMENTS);
         this.updateVuLevel(channelId, level);
       }),
 

@@ -96,4 +96,30 @@ describe('pcmRenderer', () => {
     expect(maxNorm).toBeCloseTo(0.95, 2);
     expect(maxNorm).toBeGreaterThan(maxNoNorm);
   });
+
+  test('renderSongToPCM uses song.bpm when opts.bpm is omitted', () => {
+    const song: SongModel = {
+      pats: {},
+      seqs: {},
+      bpm: 155,
+      insts: {
+        lead: { type: 'pulse1', duty: '50', env: '15,flat' },
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'lead',
+          events: Array.from({ length: 224 }, () => ({ type: 'rest' as const })),
+        },
+      ],
+    };
+
+    const at155 = renderSongToPCM(song, { sampleRate: 44100, channels: 2 });
+    const at128 = renderSongToPCM(song, { sampleRate: 44100, channels: 2, bpm: 128 });
+
+    const frames155 = at155.length / 2;
+    const frames128 = at128.length / 2;
+    expect(frames155 / 44100).toBeCloseTo(23, 0);
+    expect(frames128 / 44100).toBeCloseTo(28, 0);
+  });
 });
