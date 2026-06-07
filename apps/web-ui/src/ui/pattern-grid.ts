@@ -18,7 +18,7 @@
  *   grid.onNavigate = (patName) => { /* jump editor cursor *\/ };
  */
 
-import { channelStates, toggleChannelMuted, toggleChannelSoloed, isChannelAudible } from '../stores/channel.store';
+import { channelStates, toggleChannelMuted, toggleChannelSoloed, isChannelAudible } from '@beatbax/app-core/stores/channel.store';
 import { getChannelColor } from '../utils/chip-meta';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

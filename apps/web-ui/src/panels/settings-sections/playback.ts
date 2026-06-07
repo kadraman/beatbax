@@ -2,11 +2,11 @@
  * Playback settings section.
  */
 
-import { storage, StorageKey } from '../../utils/local-storage';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   settingAudioSampleRate,
   settingDefaultLoop, settingAudioBufferFrames,
-} from '../../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, toggle, selectField, noteText } from './general';
 
 export function buildPlaybackSection(): HTMLElement {

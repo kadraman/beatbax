@@ -10,10 +10,10 @@
  */
 
 import * as monaco from 'monaco-editor';
-import type { EventBus } from '../utils/event-bus';
-import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { BeatBaxSettings, storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { activeTheme } from '../stores/theme.store';
+import { activeTheme } from '@beatbax/app-core/stores/theme.store';
 
 const log = createLogger('ui:theme-manager');
 

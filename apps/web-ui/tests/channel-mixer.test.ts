@@ -7,9 +7,9 @@
  */
 
 import { ChannelMixer } from '../src/panels/channel-mixer';
-import { EventBus } from '../src/utils/event-bus';
-import * as channelStore from '../src/stores/channel.store';
-import type { PlaybackPosition } from '../src/playback/playback-manager';
+import { EventBus } from '@beatbax/app-core/utils/event-bus';
+import * as channelStore from '@beatbax/app-core/stores/channel.store';
+import type { PlaybackPosition } from '@beatbax/app-core/playback/playback-manager';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

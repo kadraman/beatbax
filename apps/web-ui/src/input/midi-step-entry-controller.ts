@@ -33,9 +33,9 @@ import {
   snapMidiToPitchClasses,
   noteNameToMidi,
   midiNoteToName,
-} from './midi-step-entry';
-import { resolvePrimaryPatternLock } from '../editor/scale-context';
-import { ensureAudioCtxReady } from '../editor/codelens-preview';
+} from '@beatbax/app-core/input/midi-step-entry';
+import { resolvePrimaryPatternLock } from '@beatbax/app-core/editor/scale-context';
+import { ensureAudioCtxReady } from '@beatbax/app-core/editor/codelens-preview';
 import {
   settingMidiInputEnabled,
   settingMidiInputDevice,
@@ -46,7 +46,7 @@ import {
   settingMidiAuditionNotes,
   settingMidiUseNoteDuration,
   settingMidiScaleSnapMode,
-} from '../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 
 const log = createLogger('ui:midi-controller');
 

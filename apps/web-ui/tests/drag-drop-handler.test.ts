@@ -2,15 +2,15 @@
  * Unit tests for DragDropHandler
  */
 
-import { DragDropHandler } from '../src/import/drag-drop-handler';
+import { DragDropHandler } from '@beatbax/app-core/import/drag-drop-handler';
 
 // ─── Mock file-loader ────────────────────────────────────────────────────────
 
-jest.mock('../src/import/file-loader', () => ({
+jest.mock('@beatbax/app-core/import/file-loader', () => ({
   readFileAsText: jest.fn(),
 }));
 
-import { readFileAsText } from '../src/import/file-loader';
+import { readFileAsText } from '@beatbax/app-core/import/file-loader';
 const mockReadFile = readFileAsText as jest.MockedFunction<typeof readFileAsText>;
 
 // ─── Deterministic async flush ───────────────────────────────────────────────

@@ -552,9 +552,7 @@
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  /* Bottom padding expands into the iOS home-indicator safe area so the bar
-     visually extends to the screen edge without content being obscured. */
+  gap: 12px;
   padding: 4px 12px;
   padding-bottom: max(4px, env(safe-area-inset-bottom, 4px));
   background: var(--status-bar-bg, var(--bb-accent-bg));
@@ -562,7 +560,6 @@
   font-size: 12px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   border-top: 1px solid var(--border-color, #444);
-  /* Height grows to accommodate the safe-area inset on iPadOS / iPhone. */
   height: calc(24px + max(0px, env(safe-area-inset-bottom, 0px) - 4px));
 }
 
@@ -570,11 +567,21 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+.status-diagnostics {
+  gap: 2px;
+}
+
+.status-bar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
 }
 
 .status-main {
-  flex: 1;
   font-weight: 500;
+  opacity: 0.9;
 }
 
 .status-text { opacity: 0.95; }
@@ -585,13 +592,17 @@
   align-items: center;
 }
 
-.status-count { font-weight: 600; }
+.status-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 1ch;
+}
 
 .status-errors  { color: var(--error-color-light,   #ffc1c1); }
 .status-warnings { color: var(--warning-color-light, #ffd666); }
 
 .status-section.status-scale-context {
-  max-width: min(42vw, 520px);
+  max-width: min(32vw, 420px);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -602,23 +613,117 @@
   font-variant-numeric: tabular-nums;
 }
 
-.status-section.status-brand {
-  margin-left: 8px;
-  opacity: 0.7;
+.status-bar-clickable {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 6px;
+  border-radius: 3px;
+  gap: 3px;
+}
+.status-bar-clickable:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.status-bar-clickable:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.25);
+  outline-offset: 1px;
+}
+.status-bar-clickable--empty {
+  opacity: 0.55;
+}
+
+.status-panels-wrap {
+  position: relative;
+}
+
+.status-panels-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+}
+.status-panels-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.status-panels-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  min-width: 220px;
+  max-height: min(420px, 50vh);
+  overflow-y: auto;
+  background: var(--header-bg, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  z-index: 1100;
+  padding: 4px 0;
+}
+.status-panels-menu[hidden] { display: none; }
+
+.status-panels-menu__heading {
+  padding: 6px 12px 4px;
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+.status-panels-menu__heading:not(:first-child) {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color, #3c3c3c);
+  padding-top: 8px;
+}
+
+.status-panels-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-color, #d4d4d4);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-align: left;
+}
+.status-panels-menu__item:hover:not(.status-panels-menu__item--disabled) {
+  background: var(--button-hover-bg, #2a2d2e);
+}
+.status-panels-menu__item--disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.status-panels-menu__shortcut {
+  opacity: 0.55;
   font-size: 11px;
   white-space: nowrap;
 }
 
-.status-brand-link {
-  display: inline-flex;
-  gap: 0;
-  align-items: center;
-  text-decoration: none;
-  cursor: pointer;
+[data-theme="light"] .status-panels-menu {
+  background: #fff;
+  border-color: #ccc;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
-
-.status-brand-link:focus { outline: 2px solid rgba(255,255,255,0.14); outline-offset: 2px; }
+[data-theme="light"] .status-panels-menu__item {
+  color: #333;
+}
+[data-theme="light"] .status-panels-menu__item:hover:not(.status-panels-menu__item--disabled) {
+  background: #e9e9e9;
+}
+[data-theme="light"] .status-panels-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
 
 .bb-letter {
   display: inline-block;
@@ -1110,6 +1215,33 @@
 .bb-bottom-tab__close:hover { background: var(--button-hover-bg, #3a3a3a); color: var(--text-color, #d4d4d4); }
 .bb-bottom-tab-content { flex: 1 1 0; overflow: hidden; display: none; flex-direction: column; }
 .bb-bottom-tab-content--active { display: flex; }
+
+/* ── Bottom-pane collapse button ─────────────────────────────────────────── */
+.bb-bottom-tab-collapse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 100%;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  margin-left: auto;
+}
+.bb-bottom-tab-collapse-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
+.bb-bottom-tab-collapse-btn--collapsed { color: var(--bb-accent, #c8a227); }
+
+.bb-panel-toggle-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
 .bb-tab-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 16px; height: 16px; padding: 0 4px;
@@ -1147,7 +1279,6 @@
   border: none;
   border-left: 1px solid var(--border-color, #3c3c3c);
   color: var(--text-muted, #888);
-  font-size: 13px;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   margin-left: auto;
@@ -1177,12 +1308,42 @@
   background: none;
   border: none;
   color: var(--bb-accent, #c8a227);
-  font-size: 13px;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   padding: 0;
 }
 .bb-right-expand-strip__btn:hover {
+  color: var(--text-color, #d4d4d4);
+  background: var(--button-hover-bg, #2a2d2e);
+}
+
+/* ── Bottom-pane expand strip (shown when output panel is collapsed) ─────── */
+.bb-bottom-expand-strip {
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 22px;
+  background: var(--header-bg, #252526);
+  border-top: 1px solid var(--border-color, #3c3c3c);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.bb-bottom-expand-strip__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 22px;
+  background: none;
+  border: none;
+  color: var(--bb-accent, #c8a227);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  padding: 0;
+}
+.bb-bottom-expand-strip__btn:hover {
   color: var(--text-color, #d4d4d4);
   background: var(--button-hover-bg, #2a2d2e);
 }
@@ -5011,4 +5172,75 @@
   border-top-color: #4ec9b0;
   border-radius: 9999px;
   animation: bb-spin 0.7s linear infinite;
+}
+
+/* ── Web-lite header ─────────────────────────────────────────────────────── */
+.bb-web-lite-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.75rem;
+  background: var(--bb-toolbar-bg);
+  border-bottom: 1px solid var(--bb-toolbar-border);
+  flex-shrink: 0;
+}
+
+.bb-web-lite-header__title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: normal;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bb-web-lite-header__logo {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--bb-fg);
+}
+
+.bb-web-lite-header__social {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.bb-web-lite-header__social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted, #858585);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.bb-web-lite-header__social-link:hover {
+  color: var(--bb-fg);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bb-web-lite-header__social-link:focus-visible {
+  outline: 2px solid var(--bb-accent-hover, #e8b84b);
+  outline-offset: 1px;
+}
+
+.bb-web-lite-header__social-link .bb-brand-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+[data-theme="light"] .bb-web-lite-header__social-link:hover {
+  background: rgba(0, 0, 0, 0.06);
 }

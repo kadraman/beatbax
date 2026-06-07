@@ -7,7 +7,9 @@
  */
 
 import type { ThreePaneLayoutManager } from '../ui/layout';
-import { storage, StorageKey } from '../utils/local-storage';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { filledIcon } from '../utils/icons';
 
 // ─── Bottom Tabs (Problems | Output) ─────────────────────────────────────────
 
@@ -29,6 +31,12 @@ export interface BottomTabsController {
   close(tab: BottomTabId): void;
   /** Activate an already-open tab without toggling pane visibility. */
   switch(tab: BottomTabId): void;
+  /** Expand the bottom pane and restore the last active tab (or Problems). */
+  expandPane(): void;
+  /** Collapse the bottom pane without closing tabs (mirrors right-pane collapse). */
+  collapsePane(): void;
+  /** Whether the bottom pane is currently visible. */
+  isPaneVisible(): boolean;
   /** Update the Problems tab badge with current error/warning counts. */
   updateBadge(errors: number, warnings: number): void;
 }
@@ -43,10 +51,35 @@ export function buildBottomTabs(
   layout: ThreePaneLayoutManager,
   options: BuildBottomTabsOptions = {},
 ): BottomTabsController {
+  const caps = getCurrentCapabilities();
+  const bottomTabOrder: BottomTabId[] = caps.outputPanel
+    ? BOTTOM_TAB_ORDER
+    : ['problems'];
+
   let activeTab: BottomTabId | null = 'problems';
-  const tabOpen:     Record<BottomTabId, boolean>                          = { problems: true, output: true };
+  let lastActiveTab: BottomTabId = 'problems';
+  const tabOpen: Record<BottomTabId, boolean> = {
+    problems: true,
+    output: caps.outputPanel,
+  };
   const tabButtons:  Partial<Record<BottomTabId, HTMLButtonElement>>       = {};
   const tabContents: Partial<Record<BottomTabId, HTMLElement>>             = {};
+  let collapseBtn: HTMLButtonElement | null = null;
+
+  const syncCollapseBtn = (expanded: boolean): void => {
+    if (!collapseBtn) return;
+    if (expanded) {
+      collapseBtn.title = 'Collapse panel';
+      collapseBtn.setAttribute('aria-label', 'Collapse bottom panel');
+      collapseBtn.innerHTML = filledIcon('triangle-down');
+      collapseBtn.classList.remove('bb-bottom-tab-collapse-btn--collapsed');
+    } else {
+      collapseBtn.title = 'Expand panel';
+      collapseBtn.setAttribute('aria-label', 'Expand bottom panel');
+      collapseBtn.innerHTML = filledIcon('triangle-up');
+      collapseBtn.classList.add('bb-bottom-tab-collapse-btn--collapsed');
+    }
+  };
 
   const notifyActiveTab = (): void => {
     options.onActiveTabChange?.(activeTab);
@@ -54,7 +87,8 @@ export function buildBottomTabs(
 
   const switchTab = (tab: BottomTabId): void => {
     activeTab = tab;
-    for (const t of BOTTOM_TAB_ORDER) {
+    lastActiveTab = tab;
+    for (const t of bottomTabOrder) {
       tabButtons[t]?.classList.toggle('bb-bottom-tab--active',         t === tab);
       tabContents[t]?.classList.toggle('bb-bottom-tab-content--active', t === tab);
     }
@@ -65,6 +99,7 @@ export function buildBottomTabs(
     tabOpen[tab] = true;
     tabButtons[tab]?.classList.remove('bb-bottom-tab--hidden');
     layout.setOutputPaneVisible(true);
+    syncCollapseBtn(true);
     switchTab(tab);
   };
 
@@ -74,15 +109,32 @@ export function buildBottomTabs(
     tabButtons[tab]?.classList.add('bb-bottom-tab--hidden');
     tabContents[tab]?.classList.remove('bb-bottom-tab-content--active');
     if (activeTab === tab) {
-      const next = BOTTOM_TAB_ORDER.find(t => t !== tab && tabOpen[t]);
+      const next = bottomTabOrder.find(t => t !== tab && tabOpen[t]);
       if (next) {
         switchTab(next);
       } else {
         activeTab = null;
         layout.setOutputPaneVisible(false);
+        syncCollapseBtn(false);
         notifyActiveTab();
       }
     }
+  };
+
+  const collapsePane = (): void => {
+    if (!layout.isOutputPaneVisible()) return;
+    layout.setOutputPaneVisible(false);
+    syncCollapseBtn(false);
+  };
+
+  const expandPane = (): void => {
+    const preferred = activeTab && tabOpen[activeTab]
+      ? activeTab
+      : tabOpen[lastActiveTab]
+        ? lastActiveTab
+        : null;
+    const fallback = bottomTabOrder.find(t => tabOpen[t]) ?? 'problems';
+    show(preferred ?? fallback);
   };
 
   let badgeErrors   = 0;
@@ -105,7 +157,7 @@ export function buildBottomTabs(
   tabBar.className = 'bb-bottom-tab-bar';
   outputPane.appendChild(tabBar);
 
-  for (const t of BOTTOM_TAB_ORDER) {
+  for (const t of bottomTabOrder) {
     const btn = document.createElement('button');
     btn.className = 'bb-bottom-tab';
     btn.title = BOTTOM_TAB_LABELS[t];
@@ -131,6 +183,43 @@ export function buildBottomTabs(
     outputPane.appendChild(content);
   }
 
+  // ── Collapse / expand button at the far right of the tab bar ─────────────
+  // Mirrors the right-pane collapse control so users can hide the bottom pane
+  // without closing individual tabs.
+  let bottomPaneCollapsed = false;
+  collapseBtn = document.createElement('button');
+  collapseBtn.className = 'bb-bottom-tab-collapse-btn';
+  collapseBtn.title = 'Collapse panel';
+  collapseBtn.setAttribute('aria-label', 'Collapse bottom panel');
+  collapseBtn.innerHTML = filledIcon('triangle-down');
+  tabBar.appendChild(collapseBtn);
+
+  // ── Expand strip (thin bar visible when pane is collapsed) ────────────────
+  const expandStrip = layout.getOutputPaneExpandStrip();
+  expandStrip.title = 'Expand panel';
+  expandStrip.setAttribute('aria-label', 'Expand bottom panel');
+  const expandStripBtn = expandStrip.querySelector('button');
+  if (expandStripBtn) {
+    expandStripBtn.title = 'Expand panel';
+    expandStripBtn.setAttribute('aria-label', 'Expand bottom panel');
+    expandStripBtn.innerHTML = filledIcon('triangle-up');
+  }
+
+  const doExpand = (): void => {
+    bottomPaneCollapsed = false;
+    expandPane();
+  };
+
+  const doCollapse = (): void => {
+    bottomPaneCollapsed = true;
+    collapsePane();
+  };
+
+  collapseBtn.addEventListener('click', () => {
+    bottomPaneCollapsed ? doExpand() : doCollapse();
+  });
+  expandStrip.addEventListener('click', doExpand);
+
   switchTab('problems');
 
   return {
@@ -140,6 +229,9 @@ export function buildBottomTabs(
     show,
     close,
     switch: switchTab,
+    expandPane: doExpand,
+    collapsePane: doCollapse,
+    isPaneVisible: () => layout.isOutputPaneVisible(),
     updateBadge,
   };
 }
@@ -181,6 +273,14 @@ export function buildRightTabs(
   rightPane: HTMLElement,
   layout: ThreePaneLayoutManager,
 ): RightTabsController {
+  const caps = getCurrentCapabilities();
+  const rightTabOrder: RightTabId[] = caps.copilot || caps.helpPanel
+    ? RIGHT_TAB_ORDER.filter(t => {
+        if (t === 'ai') return caps.copilot;
+        if (t === 'help') return caps.helpPanel;
+        return true;
+      })
+    : ['channels'];
   // Capture the saved tab BEFORE switchTab('channels') overwrites it.
   let savedInitialTab: RightTabId | null = null;
   try {
@@ -191,7 +291,11 @@ export function buildRightTabs(
   } catch { /* ignore */ }
 
   let activeTab: RightTabId | null = 'channels';
-  const tabOpen:     Record<RightTabId, boolean>                    = { channels: true, help: true, ai: false };
+  const tabOpen: Record<RightTabId, boolean> = {
+    channels: true,
+    help: caps.helpPanel,
+    ai: caps.copilot,
+  };
   const tabButtons:  Partial<Record<RightTabId, HTMLButtonElement>> = {};
   const tabContents: Partial<Record<RightTabId, HTMLElement>>       = {};
 
@@ -203,7 +307,7 @@ export function buildRightTabs(
     activeTab = tab;
     try { storage.set(StorageKey.ACTIVE_RIGHT_TAB, tab); } catch { /* ignore */ }
     rightTabs.classList.remove('bb-right-tabs--empty');
-    for (const t of RIGHT_TAB_ORDER) {
+    for (const t of rightTabOrder) {
       tabButtons[t]?.classList.toggle('bb-right-tab--active',         t === tab);
       tabContents[t]?.classList.toggle('bb-right-tab-content--active', t === tab);
     }
@@ -222,7 +326,7 @@ export function buildRightTabs(
     tabButtons[tab]?.classList.add('bb-right-tab--hidden');
     tabContents[tab]?.classList.remove('bb-right-tab-content--active');
     if (activeTab === tab) {
-      const next = RIGHT_TAB_ORDER.find(t => t !== tab && tabOpen[t]);
+      const next = rightTabOrder.find(t => t !== tab && tabOpen[t]);
       if (next) {
         switchTab(next);
       } else {
@@ -248,7 +352,7 @@ export function buildRightTabs(
   tabBar.className = 'bb-right-tab-bar';
   rightTabs.appendChild(tabBar);
 
-  for (const t of RIGHT_TAB_ORDER) {
+  for (const t of rightTabOrder) {
     const btn = document.createElement('button');
     btn.className = 'bb-right-tab';
     btn.title = RIGHT_TAB_LABELS[t];
@@ -282,7 +386,7 @@ export function buildRightTabs(
   collapseBtn.className = 'bb-right-tab-collapse-btn';
   collapseBtn.title = 'Collapse panel';
   collapseBtn.setAttribute('aria-label', 'Collapse right panel');
-  collapseBtn.textContent = '⟩';
+  collapseBtn.innerHTML = filledIcon('triangle-right');
 
   // ── Expand strip (thin sidebar visible when pane is collapsed) ────────────
   const expandStrip = layout.getRightPaneExpandStrip();
@@ -292,7 +396,7 @@ export function buildRightTabs(
   expandStripBtn.className = 'bb-right-expand-strip__btn';
   expandStripBtn.title = 'Expand panel';
   expandStripBtn.setAttribute('aria-label', 'Expand right panel');
-  expandStripBtn.textContent = '⟨';
+  expandStripBtn.innerHTML = filledIcon('triangle-left');
   expandStrip.appendChild(expandStripBtn);
 
   const doCollapse = () => {
@@ -300,7 +404,7 @@ export function buildRightTabs(
     layout.setRightPaneVisible(false);
     collapseBtn.title = 'Expand panel';
     collapseBtn.setAttribute('aria-label', 'Expand right panel');
-    collapseBtn.textContent = '⟨';
+    collapseBtn.innerHTML = filledIcon('triangle-left');
     collapseBtn.classList.add('bb-right-tab-collapse-btn--collapsed');
   };
 
@@ -309,7 +413,7 @@ export function buildRightTabs(
     layout.setRightPaneVisible(true);
     collapseBtn.title = 'Collapse panel';
     collapseBtn.setAttribute('aria-label', 'Collapse right panel');
-    collapseBtn.textContent = '⟩';
+    collapseBtn.innerHTML = filledIcon('triangle-right');
     collapseBtn.classList.remove('bb-right-tab-collapse-btn--collapsed');
   };
 

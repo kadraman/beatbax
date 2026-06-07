@@ -2,8 +2,8 @@
  * General settings section — Appearance and Panels.
  */
 
-import { storage, StorageKey } from '../../utils/local-storage';
-import { eventBus } from '../../utils/event-bus';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { eventBus } from '@beatbax/app-core/utils/event-bus';
 import {
   settingTheme, settingToolbarStyle,
   settingShowToolbar, settingShowTransportBar,
@@ -12,7 +12,7 @@ import {
   settingFeatureChannelMixer,
   settingFeaturePatternGrid,
   settingFeatureSongVisualizer,
-} from '../../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 
 export function buildGeneralSection(): HTMLElement {
   const el = document.createElement('div');

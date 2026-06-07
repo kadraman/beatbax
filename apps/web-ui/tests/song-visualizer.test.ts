@@ -1,8 +1,8 @@
 import { SongVisualizer } from '../src/panels/song-visualizer';
-import { EventBus } from '../src/utils/event-bus';
-import * as channelStore from '../src/stores/channel.store';
-import { storage, StorageKey } from '../src/utils/local-storage';
-import type { PlaybackPosition } from '../src/playback/playback-manager';
+import { EventBus } from '@beatbax/app-core/utils/event-bus';
+import * as channelStore from '@beatbax/app-core/stores/channel.store';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import type { PlaybackPosition } from '@beatbax/app-core/playback/playback-manager';
 
 function makeAst(channelIds: number[], chip = 'gameboy') {
   return {

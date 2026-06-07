@@ -3,9 +3,9 @@
  * Tests the full flow: Monaco + BeatBax language + Diagnostics + EventBus + Layout
  */
 
-import { EventBus } from '../src/utils/event-bus';
-import { createEditor, registerBeatBaxLanguage, configureMonaco } from '../src/editor';
-import { createDiagnosticsManager, setupDiagnosticsIntegration } from '../src/editor/diagnostics';
+import { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { createEditor, registerBeatBaxLanguage, configureMonaco } from '@beatbax/app-core/editor';
+import { createDiagnosticsManager, setupDiagnosticsIntegration } from '@beatbax/app-core/editor/diagnostics';
 import { createLayout } from '../src/ui/layout';
 import * as monaco from 'monaco-editor';
 import { createLogger } from '@beatbax/engine/util/logger';

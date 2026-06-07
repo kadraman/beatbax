@@ -10,6 +10,8 @@
  */
 
 import { createThreePaneLayout, type ThreePaneLayoutManager } from '../ui/layout';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { buildWebLiteHeader } from './web-lite-header';
 
 export interface AppLayout {
   menuBarContainer: HTMLElement;
@@ -33,10 +35,20 @@ export interface AppLayout {
  * Call this once, early in bootstrap, before mounting any component.
  */
 export function buildAppLayout(appContainer: HTMLElement): AppLayout {
-  // ─── Menu bar host (topmost) ──────────────────────────────────────────────
+  const caps = getCurrentCapabilities();
+
+  // ─── Web-lite header (text logo + social links) ────────────────────────────
+  if (!caps.nativeMenu) {
+    appContainer.appendChild(buildWebLiteHeader());
+  }
+
+  // ─── Menu bar host (desktop-full only) ─────────────────────────────────────
   const menuBarContainer = document.createElement('div');
   menuBarContainer.id = 'bb-menu-bar-host';
   appContainer.appendChild(menuBarContainer);
+  if (!caps.nativeMenu) {
+    menuBarContainer.style.display = 'none';
+  }
 
   // ─── Toolbar host (below menu bar) ────────────────────────────────────────
   const toolbarContainer = document.createElement('div');
@@ -58,7 +70,11 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   // it will push in above this element automatically.
   const patternGridContainer = document.createElement('div');
   patternGridContainer.id = 'bb-pattern-grid-host';
-  layoutHost.appendChild(patternGridContainer);
+  if (caps.patternGrid) {
+    layoutHost.appendChild(patternGridContainer);
+  } else {
+    patternGridContainer.style.display = 'none';
+  }
 
   const layout = createThreePaneLayout({ container: layoutHost, persist: true });
   const editorPane = layout.getEditorPane();
@@ -81,12 +97,19 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   const inlineMixerContainer = document.createElement('div');
   inlineMixerContainer.id = 'bb-inline-mixer-host';
   inlineMixerContainer.style.flexShrink = '0';
-  layout.getLeftContentArea().appendChild(inlineMixerContainer);
+  if (caps.channelMixer) {
+    layout.getLeftContentArea().appendChild(inlineMixerContainer);
+  } else {
+    inlineMixerContainer.style.display = 'none';
+  }
 
-  // ─── Docked mixer host (full-width, below all three panes) ───────────────
   const mixerHostContainer = document.createElement('div');
   mixerHostContainer.id = 'bb-mixer-host';
-  layoutHost.appendChild(mixerHostContainer);
+  if (caps.channelMixer) {
+    layoutHost.appendChild(mixerHostContainer);
+  } else {
+    mixerHostContainer.style.display = 'none';
+  }
 
   return { menuBarContainer, toolbarContainer, layoutHost, patternGridContainer, mixerHostContainer, inlineMixerContainer, editorPane, outputPane, rightPane, layout };
 }
