@@ -1,5 +1,5 @@
 import * as monaco from 'monaco-editor';
-import type { EventBus } from '../utils/event-bus';
+import type { EventBus } from '../utils/event-bus.js';
 
 function injectBeatStyles() {
   if (document.getElementById('bb-beat-styles')) return;

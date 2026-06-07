@@ -4,19 +4,19 @@
 
 import * as monaco from 'monaco-editor';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { exporterRegistry } from '../plugins/browser-exporter-registry';
-import { documentationForCompletion, withDocumentation } from './completion-docs';
+import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
+import { documentationForCompletion, withDocumentation } from './completion-docs.js';
 import {
   buildImportPathCompletionItems,
   isImportPathPosition,
-} from './import-paths';
+} from './import-paths.js';
 import {
   getChipInstrumentMeta,
   getInstPropertyCompletions,
   getInstPropertyNamesForChip,
   INST_PROPERTY_NAME_PATTERN,
   parseUsedInstProperties,
-} from './instrument-meta';
+} from './instrument-meta.js';
 
 const SNIPPET_RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
 

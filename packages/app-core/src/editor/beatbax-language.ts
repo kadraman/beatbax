@@ -6,20 +6,20 @@
 import * as monaco from 'monaco-editor';
 import { parse } from '@beatbax/engine/parser';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { eventBus } from '../utils/event-bus';
-import { isTopLevelBaxLine } from './top-level-directives';
+import { eventBus } from '../utils/event-bus.js';
+import { isTopLevelBaxLine } from './top-level-directives.js';
 import {
   COMPLETION_TRIGGER_CHARACTERS,
   provideBeatBaxCompletions,
-} from './completion';
-import { registerBeatBaxCodeActions } from './code-actions';
+} from './completion.js';
+import { registerBeatBaxCodeActions } from './code-actions.js';
 import {
   CHIP_INSTRUMENT_META,
   INST_PROPERTY_NAME_PATTERN,
-} from './instrument-meta';
-import { buildGmHoverMarkdown, parseGmAtPosition } from './gm-programs';
-import { buildNoteHoverMarkdown, parseNoteAtPosition } from './inst-note-hover';
-import { buildInstPropertyHover, buildInstPropertyKeywordHover } from './inst-property-hover';
+} from './instrument-meta.js';
+import { buildGmHoverMarkdown, parseGmAtPosition } from './gm-programs.js';
+import { buildNoteHoverMarkdown, parseNoteAtPosition } from './inst-note-hover.js';
+import { buildInstPropertyHover, buildInstPropertyKeywordHover } from './inst-property-hover.js';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */

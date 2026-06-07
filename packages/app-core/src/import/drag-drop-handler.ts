@@ -3,7 +3,7 @@
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
-import { readFileAsText } from './file-loader';
+import { readFileAsText } from './file-loader.js';
 
 const log = createLogger('ui:drag-drop');
 

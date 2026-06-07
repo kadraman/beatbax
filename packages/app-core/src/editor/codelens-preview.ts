@@ -25,7 +25,7 @@ import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
-import type { EventBus } from '../utils/event-bus';
+import type { EventBus } from '../utils/event-bus.js';
 
 // ---------------------------------------------------------------------------
 // Instrument resolution

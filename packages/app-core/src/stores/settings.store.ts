@@ -7,7 +7,7 @@
  */
 
 import { atom } from 'nanostores';
-import { storage, StorageKey } from '../utils/local-storage';
+import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

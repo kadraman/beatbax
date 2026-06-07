@@ -2,8 +2,8 @@
  * TransportControls - Manages play/pause/stop state machine and keyboard shortcuts
  */
 
-import type { EventBus } from '../utils/event-bus';
-import type { PlaybackManager } from './playback-manager';
+import type { EventBus } from '../utils/event-bus.js';
+import type { PlaybackManager } from './playback-manager.js';
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:transport-controls');

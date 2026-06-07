@@ -9,7 +9,7 @@ import {
   getChipInstrumentMeta,
   getInstPropertyCompletions,
   getInstPropertyNamesForChip,
-} from './instrument-meta';
+} from './instrument-meta.js';
 
 export interface ParsedInstProperty {
   property: string;

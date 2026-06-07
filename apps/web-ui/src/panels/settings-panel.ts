@@ -63,6 +63,13 @@ export interface SettingsModalController {
   refresh(): void;
 }
 
+/** No-op controller used when settingsPanel capability is off (web-lite). */
+export const noopSettingsModal: SettingsModalController = {
+  open: () => {},
+  close: () => {},
+  refresh: () => {},
+};
+
 export interface SettingsModalOptions {
   /** Optional callback fired when the modal is closed (e.g. to refocus the editor) */
   onClose?: () => void;

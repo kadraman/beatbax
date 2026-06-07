@@ -8,14 +8,14 @@ import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { exportUGE, writeWAV } from '@beatbax/engine/export';
-import { exporterRegistry } from '../plugins/browser-exporter-registry';
-import { getCapturedWrite, clearCapturedWrite } from '../io/write-capture';
+import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
+import { getCapturedWrite, clearCapturedWrite } from '../io/write-capture.js';
 
-import type { EventBus } from '../utils/event-bus';
-import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store';
-import { buildMIDI } from './midi-builder';
-import { validateForExport } from './export-validator';
-import { collectPcmWavExportWarnings } from './pcm-export-warnings';
+import type { EventBus } from '../utils/event-bus.js';
+import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store.js';
+import { buildMIDI } from './midi-builder.js';
+import { validateForExport } from './export-validator.js';
+import { collectPcmWavExportWarnings } from './pcm-export-warnings.js';
 import {
   downloadText,
   downloadBinary,
@@ -23,8 +23,8 @@ import {
   sanitizeFilename,
   MIME_TYPES,
   ExportHistory,
-} from './download-helper';
-import { settingAudioSampleRate } from '../stores/settings.store';
+} from './download-helper.js';
+import { settingAudioSampleRate } from '../stores/settings.store.js';
 
 const log = createLogger('ui:export-manager');
 

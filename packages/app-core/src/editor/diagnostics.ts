@@ -4,9 +4,9 @@
  */
 
 import * as monaco from 'monaco-editor';
-import type { ValidationIssue } from '../types/validation';
-import { eventBus } from '../utils/event-bus';
-import { encodePeggyHintMarkerCode } from './peggy-marker-code';
+import type { ValidationIssue } from '../types/validation.js';
+import { eventBus } from '../utils/event-bus.js';
+import { encodePeggyHintMarkerCode } from './peggy-marker-code.js';
 
 export interface Diagnostic {
   message: string;

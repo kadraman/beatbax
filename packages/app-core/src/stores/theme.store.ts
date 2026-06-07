@@ -11,7 +11,7 @@
  */
 
 import { atom } from 'nanostores';
-import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage';
+import { BeatBaxSettings, storage, StorageKey } from '../utils/local-storage.js';
 
 export type Theme = 'dark' | 'light';
 

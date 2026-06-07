@@ -24,6 +24,7 @@ describe('web-lite profile', () => {
     expect(caps.helpPanel).toBe(true);
     expect(caps.outputPanel).toBe(true);
     expect(caps.problemsPanel).toBe(true);
+    expect(caps.settingsPanel).toBe(false);
   });
 
   it('buildAppLayout adds web-lite header with text logo and social links', () => {

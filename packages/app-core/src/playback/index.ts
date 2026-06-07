@@ -2,9 +2,9 @@
  * Playback subsystem exports
  */
 
-export { PlaybackManager } from './playback-manager';
-export type { PlaybackState, PlaybackOptions } from './playback-manager';
+export { PlaybackManager } from './playback-manager.js';
+export type { PlaybackState, PlaybackOptions } from './playback-manager.js';
 
-export { TransportControls } from './transport-controls';
-export type { TransportState, TransportControlsConfig } from './transport-controls';
+export { TransportControls } from './transport-controls.js';
+export type { TransportState, TransportControlsConfig } from './transport-controls.js';
 

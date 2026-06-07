@@ -242,7 +242,7 @@ During implementation the web-lite scope was refined:
 | Remove Help and Output bottom tabs | **Help** and **Output** retained — useful for docs and playback logs in browser |
 | "Get the Desktop App" header CTA | **Text logo + social icons** (GitHub; X / itch.io optional) |
 | Save = localStorage only | **Save** also triggers `.bax` download via `download-helper` |
-| Minimal settings (theme + word wrap) | Full settings modal retained (`settingsPanel: true`); desktop-only features hidden by capability / feature flags |
+| Minimal settings (theme + word wrap) | **Settings modal disabled** (`settingsPanel: false`); theme via toolbar / **Alt+Shift+L**, word wrap via toolbar |
 
 These are reflected in `packages/app-core/src/client-profile.ts` and `apps/web-ui/src/app/web-lite-header.ts`.
 

@@ -7,10 +7,10 @@ import {
   findTokenRangeOnLine,
   rankAllowedValues,
   type QuickFixSuggestion,
-} from './code-actions';
-import type { PeggyParseHint } from './peggy-marker-code';
-export type { PeggyParseHint } from './peggy-marker-code';
-export { peggyHintFromMarkerCode } from './peggy-marker-code';
+} from './code-actions.js';
+import type { PeggyParseHint } from './peggy-marker-code.js';
+export type { PeggyParseHint } from './peggy-marker-code.js';
+export { peggyHintFromMarkerCode } from './peggy-marker-code.js';
 
 function localReplaceFix(
   title: string,

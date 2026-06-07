@@ -24,7 +24,7 @@ const WEB_LITE: ClientCapabilities = {
   helpPanel: true,
   problemsPanel: true,
   outputPanel: true,
-  settingsPanel: true,
+  settingsPanel: false,
   nativeMenu: false,
 };
 

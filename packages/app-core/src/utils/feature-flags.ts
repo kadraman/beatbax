@@ -10,8 +10,8 @@
  *   ?ai=0  → AI_ASSISTANT disabled regardless of localStorage
  */
 
-import { storage, StorageKey } from './local-storage';
-import { eventBus } from './event-bus';
+import { storage, StorageKey } from './local-storage.js';
+import { eventBus } from './event-bus.js';
 
 // ─── Well-known flags ─────────────────────────────────────────────────────────
 

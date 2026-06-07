@@ -434,13 +434,7 @@ export class Toolbar {
       eventBus.off('export:error', onExportError);
     });
 
-    // Keyboard shortcut: Ctrl+O → open file
-    document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'o') {
-        e.preventDefault();
-        openBtn.click();
-      }
-    }, { signal: this.abortController.signal });
+    // Ctrl+O is registered globally via KeyboardShortcuts in main.ts.
   }
 
   /** Update the theme toggle button to reflect the current theme. */

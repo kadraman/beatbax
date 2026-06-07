@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
-import type { ValidationIssue } from '../types/validation';
+import type { ValidationIssue } from '../types/validation.js';
 
 const log = createLogger('ui:event-bus');
 

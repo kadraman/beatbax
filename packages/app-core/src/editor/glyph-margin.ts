@@ -22,8 +22,8 @@
  */
 
 import * as monaco from 'monaco-editor';
-import type { EventBus } from '../utils/event-bus';
-import { channelStates, toggleChannelMuted, toggleChannelSoloed } from '../stores/channel.store';
+import type { EventBus } from '../utils/event-bus.js';
+import { channelStates, toggleChannelMuted, toggleChannelSoloed } from '../stores/channel.store.js';
 
 // ---------------------------------------------------------------------------
 // CSS

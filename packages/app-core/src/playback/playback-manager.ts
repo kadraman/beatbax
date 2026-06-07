@@ -5,11 +5,11 @@
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
-import type { EventBus } from '../utils/event-bus';
-import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store';
+import type { EventBus } from '../utils/event-bus.js';
+import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { storage, StorageKey } from '../utils/local-storage';
-import { settingAudioSampleRate } from '../stores/settings.store';
+import { storage, StorageKey } from '../utils/local-storage.js';
+import { settingAudioSampleRate } from '../stores/settings.store.js';
 import {
   playbackStatus,
   playbackBpm,
@@ -17,12 +17,12 @@ import {
   playbackDuration,
   playbackTimeLabel,
   playbackError,
-} from '../stores/playback.store';
+} from '../stores/playback.store.js';
 import {
   parseStatus,
   parsedBpm,
   parsedChip,
-} from '../stores/editor.store';
+} from '../stores/editor.store.js';
 
 function formatPlaybackTime(secs: number): string {
   const m = Math.floor(secs / 60);

@@ -11,7 +11,7 @@
  */
 
 import { atom } from 'nanostores';
-import type { ValidationIssue } from '../types/validation';
+import type { ValidationIssue } from '../types/validation.js';
 
 const STORAGE_KEY = 'beatbax:editor.content';
 

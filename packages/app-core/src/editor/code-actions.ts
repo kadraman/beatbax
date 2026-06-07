@@ -3,12 +3,12 @@
  */
 
 import * as monaco from 'monaco-editor';
-import { parseSymbolsFromSource, type SongSymbols } from './completion';
+import { parseSymbolsFromSource, type SongSymbols } from './completion.js';
 import {
   peggyExpectedFixes,
   peggyHintFromMarkerCode,
   statementRecoveryFixes,
-} from './peggy-quick-fixes';
+} from './peggy-quick-fixes.js';
 
 /** Strip `[component]` prefix added by warningsToDiagnostics. */
 export function stripDiagnosticComponentPrefix(message: string): string {

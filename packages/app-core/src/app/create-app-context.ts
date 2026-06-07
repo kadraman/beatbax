@@ -1,25 +1,25 @@
 import { parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { chipRegistry, getSongValidationIssues } from '@beatbax/engine/chips';
-import { loadPluginsFromStorage } from '../plugins/registry-config';
-import { loadExporterPluginsFromStorage } from '../plugins/exporter-registry-config';
-import { eventBus } from '../utils/event-bus';
-import { PlaybackManager } from '../playback/playback-manager';
-import { ExportManager } from '../export/export-manager';
+import { loadPluginsFromStorage } from '../plugins/registry-config.js';
+import { loadExporterPluginsFromStorage } from '../plugins/exporter-registry-config.js';
+import { eventBus } from '../utils/event-bus.js';
+import { PlaybackManager } from '../playback/playback-manager.js';
+import { ExportManager } from '../export/export-manager.js';
 import {
   parseStatus,
   parsedBpm,
   parsedChip,
   validationErrors as validationErrorsAtom,
   validationWarnings as validationWarningsAtom,
-} from '../stores/editor.store';
-import type { ValidationIssue } from '../types/validation';
+} from '../stores/editor.store.js';
+import type { ValidationIssue } from '../types/validation.js';
 import {
   getCapabilities,
   getClientProfile,
   type ClientCapabilities,
   type ClientProfile,
-} from '../client-profile';
+} from '../client-profile.js';
 
 export interface ParsePipelineHooks {
   /** Called when validation errors/warnings are published after a parse pass. */

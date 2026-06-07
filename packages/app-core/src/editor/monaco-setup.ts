@@ -4,8 +4,8 @@
  */
 
 import * as monaco from 'monaco-editor';
-import { eventBus } from '../utils/event-bus';
-import { editorContent, editorDirty } from '../stores/editor.store';
+import { eventBus } from '../utils/event-bus.js';
+import { editorContent, editorDirty } from '../stores/editor.store.js';
 
 export interface EditorOptions {
   /** Container element for the editor */

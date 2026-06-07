@@ -4,14 +4,14 @@ export {
   getCapabilities,
   getClientProfile,
   getCurrentCapabilities,
-} from './client-profile';
-export { type FileIOAdapter, type OpenFileResult } from './io/fs-adapter';
+} from './client-profile.js';
+export { type FileIOAdapter, type OpenFileResult } from './io/fs-adapter.js';
 export {
   createAppContext,
   type AppContext,
   type CreateAppContextOptions,
   type ParsePipelineHooks,
-} from './app/create-app-context';
-export { eventBus } from './utils/event-bus';
-export { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags';
-export { BeatBaxStorage, storage, StorageKey } from './utils/local-storage';
+} from './app/create-app-context.js';
+export { eventBus } from './utils/event-bus.js';
+export { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from './utils/feature-flags.js';
+export { BeatBaxStorage, storage, StorageKey } from './utils/local-storage.js';

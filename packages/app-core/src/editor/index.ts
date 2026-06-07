@@ -2,19 +2,19 @@
  * Editor subsystem public API
  */
 
-export { createEditor, configureMonaco } from './monaco-setup';
-export type { EditorOptions, BeatBaxEditor } from './monaco-setup';
+export { createEditor, configureMonaco } from './monaco-setup.js';
+export type { EditorOptions, BeatBaxEditor } from './monaco-setup.js';
 
-export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language';
+export { registerBeatBaxLanguage, registerNoteEditCommands, transposeCurrentNote } from './beatbax-language.js';
 
-export { setupBeatDecorations } from './beat-decorations';
+export { setupBeatDecorations } from './beat-decorations.js';
 export {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
   parseErrorToDiagnostic,
   warningsToDiagnostics,
-} from './diagnostics';
-export type { Diagnostic, DiagnosticsManager } from './diagnostics';
+} from './diagnostics.js';
+export type { Diagnostic, DiagnosticsManager } from './diagnostics.js';
 
 export {
   registerBeatBaxCodeActions,
@@ -33,5 +33,5 @@ export {
   findInstrumentReferenceRange,
   findTopLevelKeywordRange,
   suggestTransformReplacement,
-} from './code-actions';
-export type { QuickFixSuggestion, QuickFixTextEdit } from './code-actions';
+} from './code-actions.js';
+export type { QuickFixSuggestion, QuickFixTextEdit } from './code-actions.js';
