@@ -20,6 +20,8 @@ jobs:
   validate:
     name: Validate desktop shell
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       CI: true
     steps:
@@ -48,6 +50,8 @@ jobs:
   package:
     name: Package desktop (${{ matrix.os }})
     needs: validate
+    permissions:
+      contents: read
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/desktop-v') }}
     strategy:
       matrix:
