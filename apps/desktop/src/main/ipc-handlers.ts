@@ -1,0 +1,166 @@
+import { app, dialog, ipcMain } from 'electron';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
+import { IPC_CHANNELS } from '../shared/ipc.js';
+import type {
+  DesktopFilePayload,
+  DesktopOpenFileOptions,
+  DesktopSaveFileOptions,
+} from '../shared/electron-api.js';
+
+const TEXT_FILE_FILTERS = [
+  { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
+  { name: 'All Files', extensions: ['*'] },
+];
+
+const RECENT_FILES_LIMIT = 10;
+
+export interface DesktopIpcHandlersOptions {
+  window: BrowserWindow;
+  recentFilesPath: string;
+  onRecentFilesChanged?: () => void;
+}
+
+function assertAbsoluteFilePath(targetPath: string): string {
+  const resolvedPath = path.resolve(targetPath);
+  if (!path.isAbsolute(targetPath)) {
+    throw new Error('Expected an absolute file path.');
+  }
+  if (resolvedPath !== targetPath) {
+    throw new Error('Path traversal is not allowed.');
+  }
+  return resolvedPath;
+}
+
+async function readFilePayload(filePath: string): Promise<DesktopFilePayload> {
+  const safePath = assertAbsoluteFilePath(filePath);
+  const data = new Uint8Array(await fs.readFile(safePath));
+  return {
+    path: safePath,
+    name: path.basename(safePath),
+    data,
+  };
+}
+
+async function readRecentFiles(recentFilesPath: string): Promise<string[]> {
+  try {
+    const raw = await fs.readFile(recentFilesPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeRecentFiles(recentFilesPath: string, recentFiles: string[]): Promise<void> {
+  await fs.mkdir(path.dirname(recentFilesPath), { recursive: true });
+  await fs.writeFile(recentFilesPath, JSON.stringify(recentFiles, null, 2), 'utf8');
+}
+
+export function mergeRecentFiles(existing: string[], filePath: string): string[] {
+  const safePath = assertAbsoluteFilePath(filePath);
+  return [safePath, ...existing.filter((entry) => entry !== safePath)].slice(0, RECENT_FILES_LIMIT);
+}
+
+export async function addRecentFileEntry(recentFilesPath: string, filePath: string): Promise<string[]> {
+  const recentFiles = mergeRecentFiles(await readRecentFiles(recentFilesPath), filePath);
+  await writeRecentFiles(recentFilesPath, recentFiles);
+  app.addRecentDocument(filePath);
+  return recentFiles;
+}
+
+async function chooseOpenFile(
+  browserWindow: BrowserWindow,
+  options?: DesktopOpenFileOptions,
+): Promise<DesktopFilePayload | null> {
+  const result = await dialog.showOpenDialog(browserWindow, {
+    title: options?.title ?? 'Open BeatBax Song',
+    defaultPath: options?.defaultPath,
+    properties: ['openFile'],
+    filters: TEXT_FILE_FILTERS,
+  });
+
+  const selectedPath = result.canceled ? null : result.filePaths[0];
+  return selectedPath ? readFilePayload(selectedPath) : null;
+}
+
+async function persistFile(
+  browserWindow: BrowserWindow,
+  options: DesktopSaveFileOptions,
+  data: Uint8Array,
+): Promise<string | null> {
+  let destination = options.defaultPath?.trim() || '';
+
+  if (options.showDialog !== false || !destination) {
+    const result = await dialog.showSaveDialog(browserWindow, {
+      title: options.title ?? 'Save BeatBax Song',
+      defaultPath: destination || undefined,
+      filters: TEXT_FILE_FILTERS,
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    destination = result.filePath;
+  }
+
+  const safePath = assertAbsoluteFilePath(destination);
+  await fs.mkdir(path.dirname(safePath), { recursive: true });
+  await fs.writeFile(safePath, data);
+  return safePath;
+}
+
+export async function openRecentFile(_window: BrowserWindow, filePath: string): Promise<DesktopFilePayload> {
+  return readFilePayload(filePath);
+}
+
+export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): void {
+  const { window, recentFilesPath, onRecentFilesChanged } = options;
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_FILE, async (_event: IpcMainInvokeEvent, request?: DesktopOpenFileOptions) => {
+    const payload = await chooseOpenFile(window, request);
+    if (payload?.path) {
+      await addRecentFileEntry(recentFilesPath, payload.path);
+      onRecentFilesChanged?.();
+    }
+    return payload;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SAVE_FILE, async (_event, request: DesktopSaveFileOptions, data: Uint8Array) => {
+    const savedPath = await persistFile(window, request, data);
+    if (savedPath) {
+      await addRecentFileEntry(recentFilesPath, savedPath);
+      onRecentFilesChanged?.();
+    }
+    return savedPath;
+  });
+
+  ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (event, targetPath: string, data: Uint8Array) => {
+    const safePath = assertAbsoluteFilePath(targetPath);
+    fs.mkdir(path.dirname(safePath), { recursive: true })
+      .then(() => fs.writeFile(safePath, data))
+      .catch((error) => {
+        console.error('desktop writeFileSync failed', error);
+      });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.GET_RECENT_FILES, async () => readRecentFiles(recentFilesPath));
+
+  ipcMain.handle(IPC_CHANNELS.ADD_RECENT_FILE, async (_event, targetPath: string) => {
+    await addRecentFileEntry(recentFilesPath, targetPath);
+    onRecentFilesChanged?.();
+  });
+
+  ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
+    event.returnValue = app.getVersion();
+  });
+}
+
+export {
+  assertAbsoluteFilePath,
+  chooseOpenFile,
+  persistFile,
+  readRecentFiles,
+};

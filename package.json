@@ -50,7 +50,11 @@
     "validate-ast": "node scripts/validate-ast.cjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "npm run build-all && changeset publish"
+    "release": "npm run build-all && changeset publish",
+    "desktop:dev": "npm -w @beatbax/desktop run dev",
+    "desktop:build": "npm -w @beatbax/desktop run build",
+    "desktop:test": "npm -w @beatbax/desktop run test",
+    "desktop:dist": "npm -w @beatbax/desktop run dist"
   },
   "bin": {
     "beatbax": "bin/beatbax"
