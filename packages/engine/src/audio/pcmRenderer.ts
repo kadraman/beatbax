@@ -7,6 +7,7 @@ import { chipRegistry } from '../chips/registry.js';
 import type { ChipChannelBackend } from '../chips/types.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
 import { applyInlineRenderEffects } from './inlineMacroEffects.js';
+import { peakLimitForPlayback, PLAYBACK_PEAK_CEILING } from './playbackLimiter.js';
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -204,7 +205,7 @@ function renderWithPluginBackend(
 export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Float32Array {
   const sampleRate = opts.sampleRate ?? 44100;
   const channels = opts.channels ?? 1;
-  const bpm = opts.bpm ?? 128;
+  const bpm = opts.bpm ?? song.bpm ?? 128;
   const renderChannels = opts.renderChannels ?? song.channels.map(c => c.id);
   const normalize = opts.normalize ?? false;
 
@@ -1678,6 +1679,11 @@ function getEnvelopeValue(t: number, envObj: any, dur?: number): number {
  *              If false, only normalizes if the peak exceeds 0.95 (to prevent clipping).
  */
 function normalizeBuffer(buffer: Float32Array, force: boolean): void {
+  if (!force) {
+    peakLimitForPlayback(buffer, PLAYBACK_PEAK_CEILING);
+    return;
+  }
+
   let max = 0;
   for (let i = 0; i < buffer.length; i++) {
     const abs = Math.abs(buffer[i]);
@@ -1685,11 +1691,9 @@ function normalizeBuffer(buffer: Float32Array, force: boolean): void {
   }
 
   if (max > 0) {
-    if (force || max > 0.95) {
-      const scale = 0.95 / max;
-      for (let i = 0; i < buffer.length; i++) {
-        buffer[i] *= scale;
-      }
+    const scale = PLAYBACK_PEAK_CEILING / max;
+    for (let i = 0; i < buffer.length; i++) {
+      buffer[i] *= scale;
     }
   }
 }

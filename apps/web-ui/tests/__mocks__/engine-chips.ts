@@ -44,6 +44,7 @@ const aliases: Record<string, string> = {
 const plugins = new Map<string, {
   effects?: Record<string, unknown>;
   supportsPerChannelVolume?: boolean;
+  getMeterDisplayGain?: (channelIndex: number) => number;
   uiContributions?: { hoverDocs?: Record<string, string> };
 }>();
 
@@ -64,6 +65,7 @@ export class ChipRegistry {
     name: string;
     effects?: Record<string, unknown>;
     supportsPerChannelVolume?: boolean;
+    getMeterDisplayGain?: (channelIndex: number) => number;
     uiContributions?: { hoverDocs?: Record<string, string> };
   }) {
     plugins.set(plugin.name, plugin);
@@ -92,7 +94,27 @@ chipRegistry.register({
 chipRegistry.register({
   name: 'nes',
   supportsPerChannelVolume: true,
+  getMeterDisplayGain: (channelIndex: number) => {
+    if (channelIndex === 0 || channelIndex === 1) return 1 / (0.00752 * 15);
+    if (channelIndex === 2) return 1 / (0.00851 * 15);
+    if (channelIndex === 3) return 1 / (0.00494 * 15);
+    if (channelIndex === 4) return 1 / (0.00335 * 127);
+    return 1;
+  },
   uiContributions: nesUIContributions,
 });
-chipRegistry.register({ name: 'sms', uiContributions: smsUIContributions });
+const SMS_TONE_MIX_GAIN = 0.35 * (0.85 / (3 * 0.35 + 0.30));
+const SMS_NOISE_MIX_GAIN = 0.30 * (0.85 / (3 * 0.35 + 0.30));
+chipRegistry.register({
+  name: 'sms',
+  supportsPerChannelVolume: true,
+  getMeterDisplayGain: (channelIndex: number) => {
+    if (channelIndex === 0 || channelIndex === 1 || channelIndex === 2) {
+      return 1 / SMS_TONE_MIX_GAIN;
+    }
+    if (channelIndex === 3) return 1 / SMS_NOISE_MIX_GAIN;
+    return 1;
+  },
+  uiContributions: smsUIContributions,
+});
 chipRegistry.register({ name: 'spectrum-128', uiContributions: { hoverDocs: spectrumTestHoverDocs } });

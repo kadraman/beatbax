@@ -1,6 +1,6 @@
 ---
 title: "Web Audio Loudness, Clipping Prevention, and Chip-Aware Meter Display"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-06-06
 issue: "https://github.com/kadraman/beatbax/issues/135"
@@ -173,7 +173,6 @@ Game Boy: omit hook (defaults to 1.0).
 | File | Change |
 |------|--------|
 | `docs/features/complete/builtin-nes-chip-plugin.md` | Remove `setNesWebAudioMixMode` references |
-| This document | Move to `docs/features/complete/` when shipped |
 
 ---
 
@@ -242,4 +241,4 @@ Game Boy: omit hook (defaults to 1.0).
 - [`apps/web-ui/src/panels/channel-mixer.ts`](../../apps/web-ui/src/panels/channel-mixer.ts) — VU meter
 - [`apps/web-ui/src/panels/song-visualizer.ts`](../../apps/web-ui/src/panels/song-visualizer.ts) — Waveform display
 - [`docs/language/volume-directive.md`](../language/volume-directive.md) — Song-level `volume` directive
-- [`docs/features/complete/per-channel-analyser.md`](complete/per-channel-analyser.md) — Analyser infrastructure
+- [`docs/features/complete/per-channel-analyser.md`](per-channel-analyser.md) — Analyser infrastructure

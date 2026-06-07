@@ -19,7 +19,7 @@
  */
 import type { ChipChannelBackend } from '@beatbax/engine';
 import type { InstrumentNode } from '@beatbax/engine';
-import { SMS_MIX_GAIN, getSmsWebAudioNorm, ggPanToGains } from './mixer.js';
+import { SMS_MIX_GAIN, ggPanToGains } from './mixer.js';
 import { SMS_CLOCK, freqToPeriod, NOISE_RATE_DIVIDERS, resolveNoiseRateDivisor } from './periodTables.js';
 import { smsCoordinator } from './scheduler.js';
 import {
@@ -418,12 +418,11 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     }
 
     const gainNode = (ctx as any).createGain();
-    const webNorm = getSmsWebAudioNorm();
 
     // Apply volume envelope or constant volume
     const volEnvM = parseMacro(inst.vol_env);
     if (volEnvM) {
-      const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.noise * webNorm, dur);
+      const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.noise, dur);
       try {
         gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
       } catch (_) {
@@ -434,10 +433,10 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     } else if (inst.vol !== undefined) {
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
       const att = vol;
-      const gainVal = SMS_MIX_GAIN.noise * (1.0 - (att / 15)) * webNorm;
+      const gainVal = SMS_MIX_GAIN.noise * (1.0 - (att / 15));
       try { gainNode.gain.setValueAtTime(gainVal, start); } catch (_) {}
     } else {
-      const gainVal = SMS_MIX_GAIN.noise * (1.0 - (this.attenuation / 15)) * webNorm;
+      const gainVal = SMS_MIX_GAIN.noise * (1.0 - (this.attenuation / 15));
       try { gainNode.gain.setValueAtTime(gainVal, start); } catch (_) {}
     }
 

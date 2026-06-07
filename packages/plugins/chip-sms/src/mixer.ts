@@ -27,46 +27,29 @@ export const SMS_TONE_GAIN = 0.35;
 export const SMS_NOISE_GAIN = 0.30;
 
 /**
- * Master gain multiplier for overall SMS output.
- * This scales all channels equally to match the typical volume
- * level of SMS music relative to other chips (GB, NES).
+ * Linear sum when three tone channels and noise all play at vol=0 (loudest).
+ * Web Audio routes each channel independently to the master bus, so per-channel
+ * gains must leave headroom for simultaneous max-level notes.
  */
-export const SMS_MASTER_GAIN = 1.1;
+const SMS_MAX_RAW_SUM = 3 * SMS_TONE_GAIN + SMS_NOISE_GAIN;
 
-/** Mix gains for each channel type. */
+/**
+ * Target peak when all four channels are simultaneously at max loudness.
+ * Matches NES PCM combined-mix headroom (~0.85); master limiter handles transients.
+ */
+export const SMS_TARGET_PEAK = 0.85;
+
+/**
+ * Master gain multiplier applied equally to all SMS channels.
+ * Scales raw tone/noise weights so a full 4-channel arrangement stays below clipping.
+ */
+export const SMS_MASTER_GAIN = SMS_TARGET_PEAK / SMS_MAX_RAW_SUM;
+
+/** Mix gains for each channel type (PCM and Web Audio use the same values). */
 export const SMS_MIX_GAIN = {
   tone: SMS_TONE_GAIN * SMS_MASTER_GAIN,
   noise: SMS_NOISE_GAIN * SMS_MASTER_GAIN,
 } as const;
-
-// ─── Web Audio normalization ─────────────────────────────────────────────────
-
-/**
- * Web Audio normalization mode.
- * - 'normalized': Normalize output to prevent clipping (default)
- * - 'hardware': Use hardware-accurate gain values (may clip)
- */
-export type SmsWebAudioMixMode = 'normalized' | 'hardware';
-
-let smsWebAudioMixMode: SmsWebAudioMixMode = 'normalized';
-
-/** Set the Web Audio mix mode. */
-export function setSmsWebAudioMixMode(mode: SmsWebAudioMixMode): void {
-  smsWebAudioMixMode = mode;
-}
-
-/** Get the current Web Audio mix mode. */
-export function getSmsWebAudioMixMode(): SmsWebAudioMixMode {
-  return smsWebAudioMixMode;
-}
-
-/**
- * Get the normalization factor based on current mode.
- * In normalized mode, we reduce gain to prevent clipping with max volume notes.
- */
-export function getSmsWebAudioNorm(): number {
-  return smsWebAudioMixMode === 'normalized' ? 0.7 : 1.0;
-}
 
 /**
  * Compute the mix for all SMS channels (for PCM rendering).

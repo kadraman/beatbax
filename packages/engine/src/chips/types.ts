@@ -315,6 +315,12 @@ export interface ChipPlugin {
   supportsVolumeForChannel?(channelIndex: number): boolean;
 
   /**
+   * Optional display-only gain for per-channel UI metering (VU/waveform).
+   * Does not affect audio output; absent plugins default to 1.0.
+   */
+  getMeterDisplayGain?(channelIndex: number): number;
+
+  /**
    * The integer range used by `vol` and `env` level fields in instrument
    * definitions for this chip.
    *
