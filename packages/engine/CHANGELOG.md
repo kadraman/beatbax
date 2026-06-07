@@ -1,5 +1,17 @@
 # @beatbax/engine
 
+## 0.20.0
+
+### Minor Changes
+
+- b4be200: Web Audio loudness, clipping prevention, chip-aware meters, and CLI/web-ui WAV export parity.
+  - **Playback loudness**: insert a `DynamicsCompressorNode` master limiter after `masterGain`; rewire output with targeted `disconnect(destination|limiter)` only so parallel UI analyser taps on `masterGain` survive `playAST()` / `setMasterVolume()` restarts.
+  - **NES Web Audio**: remove `setNesWebAudioMixMode`, `getNesWebAudioMixMode`, `getNesWebAudioNorm`, and `NES_WEB_AUDIO_NORM`; use hardware `NES_MIX_GAIN` weights only in pulse/triangle/noise/DMC backends.
+  - **Chip plugin API**: add optional `getMeterDisplayGain(channelIndex)` on `ChipPlugin`; implement on built-in NES plugin for meter UI compensation.
+  - **PCM / WAV parity**: `renderSongToPCM()` uses `song.bpm` when caller omits BPM; shared `quantizeFloatSampleToInt16()` (`Math.floor`) in `writeWAV()`; NES pulse/triangle Web Audio oscillators use default `createPeriodicWave` normalization (matches PCM).
+  - **CLI Node playback**: add `peakLimitForPlayback()` in `playbackLimiter.ts`; export from `@beatbax/engine/node`; apply before int16 output in `nodeAudioPlayer`.
+  - Regression tests for BPM rendering, WAV quantization, playback limiter, master-volume limiter wiring, and analyser mock `createDynamicsCompressor` support.
+
 ## 0.19.1
 
 ### Patch Changes

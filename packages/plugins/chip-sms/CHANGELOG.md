@@ -1,5 +1,17 @@
 # @beatbax/plugin-chip-sms
 
+## 0.3.2
+
+### Patch Changes
+
+- b4be200: Web Audio loudness, clipping prevention, chip-aware meters, and CLI/web-ui WAV export parity.
+  ### @beatbax/plugin-chip-sms
+  - **Loudness parity**: remove `setSmsWebAudioMixMode`, `getSmsWebAudioMixMode`, `getSmsWebAudioNorm`, and the Web-Audio-only 0.7× normalization; unify PCM and Web Audio on `SMS_MIX_GAIN`.
+  - Retune `SMS_MASTER_GAIN` for ~0.85 headroom when all four channels play at max attenuation (prevents web-ui clipping on dense arrangements).
+  - Add `getMeterDisplayGain()` for tone (ch 0–2) and noise (ch 3) channels.
+  - Export `SMS_TARGET_PEAK` and `SMS_MASTER_GAIN` from the plugin entry point.
+  - Tests for full-arrangement peak target and meter display gain values.
+
 ## 0.3.1
 
 ### Patch Changes
