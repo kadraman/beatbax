@@ -7,7 +7,7 @@ import {
   loadFromQueryParams,
   EXAMPLE_SONGS,
   RemoteLoader,
-} from '../src/import/remote-loader';
+} from '@beatbax/app-core/import/remote-loader';
 
 // ─── fetch mock helpers ──────────────────────────────────────────────────────
 

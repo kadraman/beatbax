@@ -3,8 +3,8 @@
  */
 
 import { Toolbar } from '../src/ui/toolbar';
-import { EventBus } from '../src/utils/event-bus';
-import { exporterRegistry } from '../src/plugins/browser-exporter-registry';
+import { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 
 function makeToolbar() {
   const container = document.createElement('div');

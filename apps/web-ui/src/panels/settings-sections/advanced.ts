@@ -2,11 +2,11 @@
  * Advanced settings section.
  */
 
-import { storage, StorageKey } from '../../utils/local-storage';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   settingLogLevel, settingDebugOverlay, settingDebugOverlayPosition,
   settingDebugOverlayOpacity, settingDebugOverlayFontSize, settingDebugExposePlayer,
-} from '../../stores/settings.store';
+} from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, toggle, selectField, rangeField, noteText } from './general';
 
 export function buildAdvancedSection(): HTMLElement {

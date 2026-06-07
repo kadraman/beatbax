@@ -19,18 +19,18 @@
  *  - Show/hide via the View menu or Ctrl+Shift+M
  */
 
-import type { EventBus } from '../utils/event-bus';
-import type { PlaybackPosition, PlaybackManager } from '../playback/playback-manager';
+import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import type { PlaybackPosition, PlaybackManager } from '@beatbax/app-core/playback/playback-manager';
 import {
   channelStates, isChannelAudible,
   toggleChannelMuted, toggleChannelSoloed, setChannelVolume,
   unmuteAll, clearAllSolo,
-} from '../stores/channel.store';
-import { storage, StorageKey } from '../utils/local-storage';
-import { FeatureFlag, isFeatureEnabled } from '../utils/feature-flags';
+} from '@beatbax/app-core/stores/channel.store';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import { getChannelMeta } from '../utils/chip-meta';
 import { icon } from '../utils/icons';
-import { settingFeaturePerChannelAnalyser } from '../stores/settings.store';
+import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/settings.store';
 import { getMeterDisplayGain, scaleRmsForMeter } from '../utils/meter-display';
 import { chipRegistry } from '@beatbax/engine/chips';
 
