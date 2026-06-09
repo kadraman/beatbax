@@ -8,4 +8,12 @@ export const IPC_CHANNELS = {
   MENU_ACTION: 'desktop:menu-action',
   FILE_OPENED: 'desktop:file-opened',
   FILE_OPENED_REQUEST: 'desktop:file-opened-request',
+  OPEN_EXTERNAL: 'desktop:open-external',
+  OPEN_RECENT_FILE: 'desktop:open-recent-file',
+  WINDOW_MINIMIZE: 'desktop:window-minimize',
+  WINDOW_TOGGLE_MAXIMIZE: 'desktop:window-toggle-maximize',
+  WINDOW_CLOSE: 'desktop:window-close',
+  WINDOW_QUERY_STATE: 'desktop:window-query-state',
+  WINDOW_STATE_CHANGED: 'desktop:window-state-changed',
+  WINDOW_TOGGLE_DEVTOOLS: 'desktop:window-toggle-devtools',
 } as const;

@@ -594,6 +594,7 @@ let _effectSlowPreviewTrigger: ((effectName: string) => void) | null = null;
 let _effectLoopTrigger: ((effectName: string) => void) | null = null;
 let _stopTrigger: (() => void) | null = null;
 let _commandsRegistered = false;
+let _codeLensSetupDispose: (() => void) | null = null;
 
 // ---------------------------------------------------------------------------
 // Shared AudioContext
@@ -664,7 +665,10 @@ export function setupCodeLensPreview(
   _editor: monaco.editor.IStandaloneCodeEditor,
   eventBus: EventBus,
   getSource: () => string,
-): void {
+): () => void {
+  _codeLensSetupDispose?.();
+  _codeLensSetupDispose = null;
+
   ensureCommandsRegistered();
 
   let hasValidParse = false;
@@ -897,9 +901,9 @@ export function setupCodeLensPreview(
   _stopTrigger = () => stopPreview();
 
   // ── EventBus subscriptions ────────────────────────────────────────────────
-  eventBus.on('parse:success', () => { hasValidParse = true;  notifyChange(); });
-  eventBus.on('parse:error',   () => { hasValidParse = false; stopPreview(); });
-  eventBus.on('playback:started', () => stopPreview());
+  const unsubParseSuccess = eventBus.on('parse:success', () => { hasValidParse = true;  notifyChange(); });
+  const unsubParseError = eventBus.on('parse:error',   () => { hasValidParse = false; stopPreview(); });
+  const unsubPlaybackStarted = eventBus.on('playback:started', () => stopPreview());
 
   // ── Register CodeLens provider ────────────────────────────────────────────
   providerInstance = {
@@ -1052,7 +1056,32 @@ export function setupCodeLensPreview(
       return codeLens;
     },
   };
-  monaco.languages.registerCodeLensProvider('beatbax', providerInstance);
+  const providerRegistration = monaco.languages.registerCodeLensProvider('beatbax', providerInstance);
+
+  const dispose = (): void => {
+    stopPreview();
+    unsubParseSuccess();
+    unsubParseError();
+    unsubPlaybackStarted();
+    providerRegistration.dispose();
+    changeListeners = [];
+    if (_codeLensSetupDispose === dispose) {
+      _previewTrigger = null;
+      _loopTrigger = null;
+      _seqPreviewTrigger = null;
+      _seqLoopTrigger = null;
+      _instNotePreviewTrigger = null;
+      _stepEntryAuditionTrigger = null;
+      _effectPreviewTrigger = null;
+      _effectSlowPreviewTrigger = null;
+      _effectLoopTrigger = null;
+      _stopTrigger = null;
+      _codeLensSetupDispose = null;
+    }
+  };
+
+  _codeLensSetupDispose = dispose;
+  return dispose;
 }
 
 export function triggerStepEntryAudition(lineText: string, note: string): void {

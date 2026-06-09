@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron';
+import { app, dialog, ipcMain, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
@@ -23,14 +23,13 @@ export interface DesktopIpcHandlersOptions {
 }
 
 function assertAbsoluteFilePath(targetPath: string): string {
-  const resolvedPath = path.resolve(targetPath);
   if (!path.isAbsolute(targetPath)) {
     throw new Error('Expected an absolute file path.');
   }
-  if (resolvedPath !== targetPath) {
+  if (targetPath.split(/[/\\]/).some((segment) => segment === '..')) {
     throw new Error('Path traversal is not allowed.');
   }
-  return resolvedPath;
+  return path.resolve(targetPath);
 }
 
 async function readFilePayload(filePath: string): Promise<DesktopFilePayload> {
@@ -156,6 +155,52 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();
   });
+
+  ipcMain.on(IPC_CHANNELS.OPEN_RECENT_FILE, (_event, filePath: string) => {
+    window.webContents.send(IPC_CHANNELS.FILE_OPENED_REQUEST, filePath);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, url: string) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+      await shell.openExternal(url);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
+    window.minimize();
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE, () => {
+    if (window.isMaximized()) window.unmaximize();
+    else window.maximize();
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => {
+    window.close();
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEVTOOLS, () => {
+    window.webContents.toggleDevTools();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.WINDOW_QUERY_STATE, () => ({
+    maximized: window.isMaximized(),
+  }));
+}
+
+export function attachWindowStateEvents(window: BrowserWindow): () => void {
+  const emitState = (): void => {
+    window.webContents.send(IPC_CHANNELS.WINDOW_STATE_CHANGED, {
+      maximized: window.isMaximized(),
+    });
+  };
+
+  window.on('maximize', emitState);
+  window.on('unmaximize', emitState);
+  return () => {
+    window.removeListener('maximize', emitState);
+    window.removeListener('unmaximize', emitState);
+  };
 }
 
 export {

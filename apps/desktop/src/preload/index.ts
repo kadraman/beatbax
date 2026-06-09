@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopFilePayload, DesktopOpenFileOptions, DesktopSaveFileOptions, ElectronAPI, MenuAction } from '../shared/electron-api';
+import type {
+  DesktopFilePayload,
+  DesktopOpenFileOptions,
+  DesktopSaveFileOptions,
+  DesktopWindowState,
+  ElectronAPI,
+  MenuAction,
+} from '../shared/electron-api';
 import { IPC_CHANNELS } from '../shared/ipc';
 
 const electronAPI: ElectronAPI = {
@@ -13,6 +20,21 @@ const electronAPI: ElectronAPI = {
     await ipcRenderer.invoke(IPC_CHANNELS.ADD_RECENT_FILE, targetPath);
   },
   getVersion: () => ipcRenderer.sendSync(IPC_CHANNELS.GET_VERSION),
+  getPlatform: () => process.platform,
+  openRecentFile: (filePath: string) => {
+    ipcRenderer.send(IPC_CHANNELS.OPEN_RECENT_FILE, filePath);
+  },
+  openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
+  minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_MINIMIZE),
+  toggleMaximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
+  closeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_CLOSE),
+  toggleDevTools: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_DEVTOOLS),
+  queryWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_QUERY_STATE) as Promise<DesktopWindowState>,
+  onWindowStateChanged: (callback: (state: DesktopWindowState) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: DesktopWindowState) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_STATE_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_STATE_CHANGED, listener);
+  },
   onMenuAction: (callback: (action: MenuAction) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, action: MenuAction) => callback(action);
     ipcRenderer.on(IPC_CHANNELS.MENU_ACTION, listener);

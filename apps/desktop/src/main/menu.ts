@@ -54,7 +54,11 @@ export function createMenuTemplate(window: BrowserWindow, recentFiles: string[])
         { role: 'forceReload' },
         { role: 'togglefullscreen' },
         { type: 'separator' },
-        { label: 'Toggle Developer Tools', accelerator: 'Alt+CmdOrCtrl+I', click: () => sendMenuAction(window, 'view:toggle-devtools') },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+          click: () => window.webContents.toggleDevTools(),
+        },
       ],
     },
     {

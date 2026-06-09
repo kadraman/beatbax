@@ -27,9 +27,14 @@ export type MenuAction =
   | 'playback:play'
   | 'playback:pause'
   | 'playback:stop'
+  | 'view:reload'
   | 'view:toggle-devtools'
   | 'help:docs'
   | 'help:repo';
+
+export interface DesktopWindowState {
+  maximized: boolean;
+}
 
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
@@ -37,7 +42,16 @@ export interface ElectronAPI {
   writeFileSync(targetPath: string, data: Uint8Array): void;
   getRecentFiles(): Promise<string[]>;
   addRecentFile(targetPath: string): Promise<void>;
+  openRecentFile(filePath: string): void;
+  openExternal(url: string): Promise<void>;
   getVersion(): string;
+  getPlatform(): NodeJS.Platform;
+  minimizeWindow(): void;
+  toggleMaximizeWindow(): void;
+  closeWindow(): void;
+  queryWindowState(): Promise<DesktopWindowState>;
+  toggleDevTools(): void;
+  onWindowStateChanged(callback: (state: DesktopWindowState) => void): () => void;
   onMenuAction(callback: (action: MenuAction) => void): () => void;
   onFileOpened(callback: (payload: DesktopFilePayload) => void): () => void;
 }

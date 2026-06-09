@@ -13,8 +13,8 @@ test('desktop shell renders editor chrome', async () => {
   });
 
   const page = await electronApp.firstWindow();
-  await expect(page.getByText('BeatBax Desktop')).toBeVisible();
-  await expect(page.getByText('Desktop roadmap')).toBeVisible();
+  await expect(page.locator('.status-document-name')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Open/i })).toBeVisible();
 
   await electronApp.close();
 });

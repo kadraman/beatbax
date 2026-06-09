@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+const webUiRoot = resolve(__dirname, '../web-ui');
 
 export default defineConfig({
   main: {},
@@ -9,6 +12,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),
+        '@web-ui': resolve(webUiRoot, 'src'),
         '@beatbax/app-core': resolve(__dirname, '../../packages/app-core/src'),
         fs: resolve(__dirname, 'src/renderer/src/electron-fs.ts'),
         path: resolve(__dirname, '../web-ui/src/utils/browser-path.ts'),
@@ -19,10 +23,11 @@ export default defineConfig({
       global: 'globalThis',
       __CLIENT_PROFILE__: '"desktop-full"',
     },
+    publicDir: resolve(webUiRoot, 'public'),
     optimizeDeps: {
-      include: ['monaco-editor', 'buffer'],
+      include: ['monaco-editor', 'buffer', 'marked', 'dompurify'],
       exclude: ['@beatbax/engine'],
     },
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
   },
 });

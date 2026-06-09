@@ -1,90 +1,72 @@
-import './styles.css';
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createAppContext } from '@beatbax/app-core';
+import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
-import type { ValidationIssue } from '@beatbax/app-core/types/validation';
 import { editorContent, editorDirty } from '@beatbax/app-core/stores/editor.store';
-import { playbackStatus, playbackTimeLabel, playbackBpm } from '@beatbax/app-core/stores/playback.store';
 import { settingDefaultBpm } from '@beatbax/app-core/stores/settings.store';
 import { StorageKey, storage } from '@beatbax/app-core/utils/local-storage';
 import type { MenuAction } from '../../shared/electron-api';
-import { EditorPane } from './components/EditorPane';
-import { HelpPanel } from './components/HelpPanel';
-import { OutputPanel, type OutputEntry } from './components/OutputPanel';
-import { Toolbar } from './components/Toolbar';
-import { TransportBar } from './components/TransportBar';
+import { DesktopWorkspaceShell, mapMenuActionToExport } from './components/DesktopWorkspaceShell';
+import { DesktopTitleBar } from './components/DesktopTitleBar';
 import { useStoreValue } from './hooks/useStoreValue';
-import { getInitialContent, getStarterSong } from './lib/bootstrap';
+import { getInitialContent } from './lib/bootstrap';
+import type { DesktopWorkspaceHandle } from './lib/desktop-workspace';
 
 interface OpenDocument {
   path: string | null;
   name: string;
 }
 
-function useAppContext() {
+function useAppContext(parseHooks: ParsePipelineHooks) {
   const appContextRef = useRef<ReturnType<typeof createAppContext> | null>(null);
-
   if (!appContextRef.current) {
-    appContextRef.current = createAppContext();
+    appContextRef.current = createAppContext({ parseHooks });
     appContextRef.current.initializePlugins();
   }
-
   return appContextRef.current;
 }
 
-function normalizeIssues(issues: ValidationIssue[], tone: OutputEntry['tone']): OutputEntry[] {
-  return issues.map((issue, index) => ({
-    id: index,
-    tone,
-    message: `${issue.component}: ${issue.message}`,
-  }));
-}
-
 export default function App(): React.JSX.Element {
-  const appContext = useAppContext();
+  const parseHooksRef = useRef<ParsePipelineHooks>({});
+  const appContext = useAppContext(parseHooksRef.current);
   const editorRef = useRef<BeatBaxEditor | null>(null);
-  const parseTimeoutRef = useRef<number | null>(null);
-  const [version, setVersion] = useState('0.0.0');
+  const workspaceRef = useRef<DesktopWorkspaceHandle | null>(null);
+  const menuBarHostRef = useRef<HTMLDivElement | null>(null);
+  const toolbarHostRef = useRef<HTMLDivElement | null>(null);
+  const workspaceHostRef = useRef<HTMLDivElement | null>(null);
+  const statusBarHostRef = useRef<HTMLDivElement | null>(null);
   const [documentState, setDocumentState] = useState<OpenDocument>({ path: null, name: 'untitled.bax' });
-  const [validationErrors, setValidationErrors] = useState<ValidationIssue[]>([]);
-  const [validationWarnings, setValidationWarnings] = useState<ValidationIssue[]>([]);
-  const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([]);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
-  const currentContent = useStoreValue(editorContent);
-  const isDirty = useStoreValue(editorDirty);
-  const currentPlaybackState = useStoreValue(playbackStatus);
-  const timeLabel = useStoreValue(playbackTimeLabel);
-  const bpm = useStoreValue(playbackBpm);
   const defaultBpm = useStoreValue(settingDefaultBpm);
-
   const initialContent = useMemo(() => getInitialContent(defaultBpm), [defaultBpm]);
 
-  const appendOutput = useCallback((tone: OutputEntry['tone'], message: string) => {
-    setOutputEntries((entries) => [
-      ...entries,
-      { id: Date.now() + entries.length, tone, message },
-    ]);
+  const getEditor = useCallback(() => editorRef.current, []);
+  const setEditorRef = useCallback((editor: BeatBaxEditor | null) => {
+    editorRef.current = editor;
+  }, []);
+
+  const syncDocumentStatus = useCallback((doc: OpenDocument) => {
+    workspaceRef.current?.statusBar?.setDocumentInfo({
+      name: doc.name,
+      path: doc.path,
+    });
   }, []);
 
   const runParse = useCallback((content: string) => {
-    if (parseTimeoutRef.current !== null) {
-      window.clearTimeout(parseTimeoutRef.current);
-    }
-    parseTimeoutRef.current = window.setTimeout(() => {
-      void appContext.emitParse(content);
-    }, 180);
-  }, [appContext]);
+    workspaceRef.current?.runParse(content);
+  }, []);
 
   const loadDocument = useCallback((name: string, content: string, filePath: string | null) => {
     editorRef.current?.setValue(content);
     editorContent.set(content);
     editorDirty.set(false);
-    setDocumentState({ path: filePath, name });
+    const nextDoc = { path: filePath, name };
+    setDocumentState(nextDoc);
     storage.set(StorageKey.LOADED_FILENAME, name);
-    appendOutput('info', `Loaded ${name}`);
+    syncDocumentStatus(nextDoc);
+    workspaceRef.current?.menuBar?.recordRecent(name);
     runParse(content);
-  }, [appendOutput, runParse]);
+  }, [runParse, syncDocumentStatus]);
 
   const decodePayload = useCallback((payload: { path: string; name: string; data: Uint8Array }) => {
     const content = new TextDecoder().decode(payload.data);
@@ -93,168 +75,131 @@ export default function App(): React.JSX.Element {
 
   const handleOpen = useCallback(async () => {
     const payload = await window.electronAPI.openFile();
-    if (payload) {
-      decodePayload(payload);
-    }
+    if (payload) decodePayload(payload);
   }, [decodePayload]);
 
   const handleSave = useCallback(async (saveAs = false) => {
-    const content = editorRef.current?.getValue() ?? currentContent;
+    const content = editorRef.current?.getValue() ?? editorContent.get();
     const defaultPath = documentState.path ?? documentState.name;
     const savedPath = await window.electronAPI.saveFile(
       { defaultPath, showDialog: saveAs || !documentState.path },
       new TextEncoder().encode(content),
     );
-
     if (savedPath) {
       const name = savedPath.split(/[/\\]/).pop() ?? 'untitled.bax';
-      setDocumentState({ path: savedPath, name });
+      const nextDoc = { path: savedPath, name };
+      setDocumentState(nextDoc);
       editorDirty.set(false);
-      appendOutput('info', `Saved ${name}`);
+      syncDocumentStatus(nextDoc);
     }
-  }, [appendOutput, currentContent, documentState.name, documentState.path]);
+  }, [documentState.name, documentState.path, syncDocumentStatus]);
+
+  const handleCreateFromWizard = useCallback((source: string, songName: string) => {
+    const name = songName.trim() ? `${songName.trim()}.bax` : 'untitled.bax';
+    loadDocument(name, source, null);
+  }, [loadDocument]);
+
+  const handleLoadDocument = useCallback((name: string, content: string) => {
+    loadDocument(name, content, null);
+  }, [loadDocument]);
+
+  const handleWorkspaceReady = useCallback((handle: DesktopWorkspaceHandle) => {
+    workspaceRef.current = handle;
+    syncDocumentStatusRef.current(documentStateRef.current);
+  }, []);
 
   const handleNew = useCallback(() => {
-    const content = getStarterSong(defaultBpm);
-    loadDocument('untitled.bax', content, null);
-  }, [defaultBpm, loadDocument]);
-
-  const handlePlay = useCallback(async () => {
-    const source = editorRef.current?.getValue() ?? currentContent;
-    if (currentPlaybackState === 'paused') {
-      await appContext.playbackManager.resume();
-      return;
-    }
-    await appContext.playbackManager.play(source);
-  }, [appContext.playbackManager, currentContent, currentPlaybackState]);
-
-  const handlePause = useCallback(async () => {
-    if (currentPlaybackState === 'playing') {
-      await appContext.playbackManager.pause();
-    }
-  }, [appContext.playbackManager, currentPlaybackState]);
-
-  const handleStop = useCallback(() => {
-    appContext.playbackManager.stop();
-  }, [appContext.playbackManager]);
+    workspaceRef.current?.openNewSongWizard();
+  }, []);
 
   const handleMenuAction = useCallback((action: MenuAction) => {
     switch (action) {
-      case 'file:new':
-        handleNew();
-        break;
-      case 'file:open':
-        void handleOpen();
-        break;
-      case 'file:save':
-        void handleSave(false);
-        break;
-      case 'file:save-as':
-        void handleSave(true);
-        break;
+      case 'file:new': handleNew(); break;
+      case 'file:open': void handleOpen(); break;
+      case 'file:save': void handleSave(false); break;
+      case 'file:save-as': void handleSave(true); break;
       case 'playback:play':
-        void handlePlay();
+        workspaceRef.current?.transportBar.playButton.click();
         break;
       case 'playback:pause':
-        void handlePause();
+        workspaceRef.current?.transportBar.pauseButton.click();
         break;
       case 'playback:stop':
-        handleStop();
+        workspaceRef.current?.transportBar.stopButton.click();
         break;
       case 'view:toggle-devtools':
-      case 'help:docs':
-      case 'help:repo':
-      case 'file:export-json':
-      case 'file:export-midi':
-      case 'file:export-uge':
-      case 'file:export-wav':
-        appendOutput('warning', `${action} is wired through the native menu; richer desktop integrations are next.`);
+        window.electronAPI.toggleDevTools();
         break;
-      default:
+      default: {
+        const exportFormat = mapMenuActionToExport(action);
+        if (exportFormat) void workspaceRef.current?.handleExport(exportFormat);
         break;
+      }
     }
-  }, [appendOutput, handleNew, handleOpen, handlePause, handlePlay, handleSave, handleStop]);
+  }, [handleNew, handleOpen, handleSave]);
+
+  const handleMenuActionRef = useRef(handleMenuAction);
+  handleMenuActionRef.current = handleMenuAction;
+  const decodePayloadRef = useRef(decodePayload);
+  decodePayloadRef.current = decodePayload;
+  const documentStateRef = useRef(documentState);
+  documentStateRef.current = documentState;
+  const syncDocumentStatusRef = useRef(syncDocumentStatus);
+  syncDocumentStatusRef.current = syncDocumentStatus;
 
   useEffect(() => {
-    setVersion(window.electronAPI.getVersion());
-
-    const cleanupMenu = window.electronAPI.onMenuAction(handleMenuAction);
-    const cleanupFileOpen = window.electronAPI.onFileOpened(decodePayload);
-
-    const removeEditorChanged = appContext.eventBus.on('editor:changed', ({ content }) => {
-      runParse(content);
-    });
-    const removeParseError = appContext.eventBus.on('parse:error', ({ message }) => {
-      appendOutput('error', message);
-    });
-    const removePlaybackError = appContext.eventBus.on('playback:error', ({ error }) => {
-      appendOutput('error', error.message);
-    });
-    const removeValidationErrors = appContext.eventBus.on('validation:errors', ({ errors }) => {
-      setValidationErrors(errors);
-    });
-    const removeValidationWarnings = appContext.eventBus.on('validation:warnings', ({ warnings }) => {
-      setValidationWarnings(warnings);
-    });
-
-    runParse(initialContent);
-
+    if (!window.electronAPI) {
+      setBootstrapError('Electron preload failed to load. Restart the app or check the terminal for preload errors.');
+      return;
+    }
+    const cleanupMenu = window.electronAPI.onMenuAction((action) => handleMenuActionRef.current(action));
+    const cleanupFileOpen = window.electronAPI.onFileOpened((payload) => decodePayloadRef.current(payload));
     return () => {
       cleanupMenu();
       cleanupFileOpen();
-      removeEditorChanged();
-      removeParseError();
-      removePlaybackError();
-      removeValidationErrors();
-      removeValidationWarnings();
-      if (parseTimeoutRef.current !== null) {
-        window.clearTimeout(parseTimeoutRef.current);
-      }
     };
-  }, [appContext, appendOutput, decodePayload, handleMenuAction, initialContent, runParse]);
+  }, []);
 
-  const diagnostics = useMemo(
-    () => [...normalizeIssues(validationErrors, 'error'), ...normalizeIssues(validationWarnings, 'warning')],
-    [validationErrors, validationWarnings],
-  );
+  useEffect(() => {
+    runParse(initialContent);
+    syncDocumentStatusRef.current({ path: null, name: 'untitled.bax' });
+  }, [initialContent, runParse]);
+
+  useEffect(() => {
+    syncDocumentStatus(documentState);
+  }, [documentState, syncDocumentStatus]);
+
+  if (bootstrapError) {
+    return (
+      <div className="desktop-fatal">
+        <h1>BeatBax Desktop</h1>
+        <p>{bootstrapError}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="desktop-shell">
-      <Toolbar
-        documentName={documentState.name}
-        isDirty={isDirty}
-        version={version}
-        onNew={handleNew}
-        onOpen={() => void handleOpen()}
-        onSave={() => void handleSave(false)}
-        onSaveAs={() => void handleSave(true)}
-        onVerify={() => runParse(editorRef.current?.getValue() ?? currentContent)}
+      <DesktopTitleBar menuHostRef={menuBarHostRef} />
+      <div ref={toolbarHostRef} id="bb-toolbar-host" />
+      <div ref={workspaceHostRef} className="desktop-workspace-host" />
+      <div ref={statusBarHostRef} id="bb-status-bar-host" className="desktop-status-bar-host" />
+      <DesktopWorkspaceShell
+        appContext={appContext}
+        parseHooks={parseHooksRef.current}
+        menuBarHostRef={menuBarHostRef}
+        toolbarHostRef={toolbarHostRef}
+        workspaceHostRef={workspaceHostRef}
+        statusBarHostRef={statusBarHostRef}
+        initialContent={initialContent}
+        getEditor={getEditor}
+        setEditorRef={setEditorRef}
+        onOpen={handleOpen}
+        onSave={handleSave}
+        onLoadDocument={handleLoadDocument}
+        onCreateFromWizard={handleCreateFromWizard}
+        onWorkspaceReady={handleWorkspaceReady}
       />
-      <TransportBar
-        playbackState={currentPlaybackState}
-        bpm={bpm}
-        timeLabel={timeLabel}
-        onPlay={() => void handlePlay()}
-        onPause={() => void handlePause()}
-        onStop={handleStop}
-      />
-      <main className="workspace-grid">
-        <section className="workspace-grid__editor">
-          <EditorPane initialValue={initialContent} onReady={(editor) => { editorRef.current = editor; }} />
-        </section>
-        <aside className="workspace-grid__side">
-          <HelpPanel />
-        </aside>
-        <section className="workspace-grid__bottom">
-          <OutputPanel title="Problems" entries={diagnostics} />
-          <OutputPanel title="Output" entries={outputEntries} />
-        </section>
-      </main>
-      <footer className="status-bar">
-        <span>Profile: {appContext.profile}</span>
-        <span>Native menu: {appContext.capabilities.nativeMenu ? 'enabled' : 'disabled'}</span>
-        <span>Current file: {documentState.path ?? 'Unsaved draft'}</span>
-      </footer>
     </div>
   );
 }

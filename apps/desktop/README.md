@@ -19,4 +19,18 @@ From the repository root:
 
 ## Current scope
 
-This first implementation adds the desktop package scaffold, native file I/O plumbing, a React editor shell, and distribution automation. Mixer/visualizer panel bridges and richer export workflows will continue in follow-up iterations.
+The desktop renderer bridges the web-ui panel implementations via `@web-ui` imports:
+
+- **Toolbar** — full export menu, examples, theme/wrap/fold controls
+- **Transport bar** — play/pause/stop/apply, BPM LCDs, pattern grid sync
+- **Three-pane layout** — resizable editor, Problems/Output tabs, Visualizer/Help tabs
+- **Song Visualizer**, **Channel Mixer**, **Pattern Grid** (feature-flag gated)
+- **Help panel** — full syntax reference with click-to-insert
+- **Settings modal** — Ctrl+, 
+- **Export** — JSON/MIDI/UGE/WAV via native menu and toolbar
+- **Status bar** — cursor position, parse status, chip/BPM, panels menu, diagnostics counts
+- **AI Copilot** — right-tab ChatPanel (enable in Settings → Features → AI Assistant)
+- **New Song Wizard** — toolbar New / File → New; first-run onboarding
+- **Advanced editor** — Monaco diagnostics, code lens previews, glyph margin, command palette (Ctrl+Alt+P)
+
+Still planned: MIDI step entry, debug overlay, native React rewrites of Visualizer/Mixer (Phase 5).

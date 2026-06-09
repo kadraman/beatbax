@@ -2,12 +2,16 @@ import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
-import { addRecentFileEntry, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
+import { addRecentFileEntry, attachWindowStateEvents, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
 import { installAppMenu } from './menu';
+import { resolvePreloadPath } from './resolve-preload';
 import { IPC_CHANNELS } from '../shared/ipc';
 
 let mainWindow: BrowserWindow | null = null;
 let pendingOpenPaths: string[] = [];
+let detachWindowStateEvents: (() => void) | null = null;
+
+const isMac = process.platform === 'darwin';
 
 const recentFilesPath = join(app.getPath('userData'), 'recent-files.json');
 
@@ -42,20 +46,42 @@ async function flushPendingOpenPaths(): Promise<void> {
 }
 
 async function createWindow(): Promise<void> {
+  const preloadPath = resolvePreloadPath(__dirname);
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 960,
     minWidth: 1024,
     minHeight: 700,
     show: false,
-    title: 'BeatBax Desktop',
+    title: 'BeatBax',
+    ...(isMac
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 12, y: 11 },
+        }
+      : { frame: false }),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+
+  if (!isMac) {
+    mainWindow.setMenuBarVisibility(false);
+  }
+
+  detachWindowStateEvents?.();
+  detachWindowStateEvents = attachWindowStateEvents(mainWindow);
+
+  mainWindow.webContents.on('preload-error', (_event, path, error) => {
+    console.error('Preload script failed:', path, error);
+  });
+  mainWindow.webContents.on('did-fail-load', (_event, code, description, url) => {
+    console.error('Renderer failed to load:', code, description, url);
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -63,6 +89,8 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.on('closed', () => {
+    detachWindowStateEvents?.();
+    detachWindowStateEvents = null;
     mainWindow = null;
   });
 
@@ -88,6 +116,7 @@ async function createWindow(): Promise<void> {
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
