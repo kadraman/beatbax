@@ -1,8 +1,8 @@
-import path from 'node:path';
 import { Menu, shell } from 'electron';
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import type { MenuAction } from '../shared/electron-api';
 import { IPC_CHANNELS } from '../shared/ipc';
+import { basenameFromPath } from './path-utils';
 
 function sendMenuAction(window: BrowserWindow, action: MenuAction): void {
   window.webContents.send(IPC_CHANNELS.MENU_ACTION, action);
@@ -11,7 +11,7 @@ function sendMenuAction(window: BrowserWindow, action: MenuAction): void {
 export function createMenuTemplate(window: BrowserWindow, recentFiles: string[]): MenuItemConstructorOptions[] {
   const recentSubmenu: MenuItemConstructorOptions[] = recentFiles.length > 0
     ? recentFiles.map((filePath) => ({
-        label: path.basename(filePath),
+        label: basenameFromPath(filePath),
         toolTip: filePath,
         click: () => window.webContents.send(IPC_CHANNELS.FILE_OPENED_REQUEST, filePath),
       }))

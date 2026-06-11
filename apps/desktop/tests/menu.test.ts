@@ -24,6 +24,15 @@ describe('desktop native menu', () => {
   });
 
   it('shows basename labels in Open Recent', () => {
+    const template = createMenuTemplate(mockWindow, ['/home/runner/music/duck_tales.bax']);
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
+    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
+    expect(recentItems[0].label).toBe('duck_tales.bax');
+    expect(recentItems[0].toolTip).toBe('/home/runner/music/duck_tales.bax');
+  });
+
+  it('shows basename labels for Windows-style paths on any platform', () => {
     const template = createMenuTemplate(mockWindow, ['C:\\music\\duck_tales.bax']);
     const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
     const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
