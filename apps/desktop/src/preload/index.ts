@@ -15,6 +15,16 @@ const electronAPI: ElectronAPI = {
   writeFileSync: (targetPath: string, data: Uint8Array) => {
     ipcRenderer.send(IPC_CHANNELS.WRITE_FILE_SYNC, targetPath, data);
   },
+  readFileSync: (targetPath: string, encoding?: string) => {
+    const result = ipcRenderer.sendSync(IPC_CHANNELS.READ_FILE_SYNC, targetPath, encoding) as
+      | string
+      | { __error: string };
+    if (result && typeof result === 'object' && '__error' in result) {
+      throw new Error(result.__error);
+    }
+    return result;
+  },
+  existsSync: (targetPath: string) => ipcRenderer.sendSync(IPC_CHANNELS.EXISTS_SYNC, targetPath) as boolean,
   getRecentFiles: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RECENT_FILES),
   addRecentFile: async (targetPath: string) => {
     await ipcRenderer.invoke(IPC_CHANNELS.ADD_RECENT_FILE, targetPath);

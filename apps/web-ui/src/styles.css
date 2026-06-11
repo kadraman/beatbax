@@ -4355,149 +4355,6 @@
 [data-theme="light"] .bb-channel-mixer__seq  { color: #9a7110; }
 [data-theme="light"] .bb-channel-mixer__pat  { color: #0060a0; }
 
-/* ─── Toolbar ────────────────────────────────────────────────────────────── */
-.bb-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: #1f1f1f;
-  border-bottom: 1px solid #3c3c3c;
-  flex-shrink: 0;
-  flex-wrap: nowrap;   /* never wrap — items are hidden progressively instead */
-  /* Allow dropdowns to overflow the toolbar so popovers (Examples) are visible */
-  overflow: visible;
-  min-height: 36px;
-  min-width: 0;        /* Safari flex-item fix */
-  user-select: none;
-}
-.bb-toolbar__group { display: flex; align-items: center; gap: 2px; }
-.bb-toolbar__label { font-size: 11px; color: #888; margin-right: 2px; white-space: nowrap; }
-.bb-toolbar__separator { width: 1px; height: 20px; background: #3c3c3c; margin: 0 4px; flex-shrink: 0; }
-.bb-toolbar__btn {
-  padding: 3px 8px; font-size: 12px; background: transparent; color: #cccccc;
-  border: 1px solid transparent; border-radius: 3px; cursor: pointer;
-  white-space: nowrap; display: flex; align-items: center; gap: 4px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.bb-toolbar__btn svg {
-  width: 1rem;
-  height: 1rem;
-  display: inline-block;
-  vertical-align: text-bottom;
-  flex-shrink: 0;
-}
-.bb-toolbar__btn svg.w-3,
-.bb-toolbar__btn svg.h-3 {
-  width: 0.75rem;
-  height: 0.75rem;
-}
-.bb-toolbar__btn:hover:not(:disabled) { background: #2a2d2e; border-color: #3c3c3c; color: #ffffff; }
-.bb-toolbar__btn:active:not(:disabled) { background: #37373d; }
-.bb-toolbar__btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.bb-toolbar__btn--export { color: #9cdcfe; }
-.bb-toolbar__btn--export:hover:not(:disabled) { color: #ffffff; border-color: var(--bb-accent); }
-.bb-toolbar__dropdown-wrap { position: relative; }
-.bb-toolbar__dropdown {
-  position: absolute; top: calc(100% + 4px); left: 0;
-  background: #2d2d30; border: 1px solid #555; border-radius: 4px;
-  list-style: none; min-width: 180px; z-index: 1000;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4); padding: 4px 0;
-}
-.bb-toolbar__dropdown[hidden] { display: none; }
-.bb-toolbar__dropdown-item {
-  display: block; width: 100%; padding: 6px 12px; font-size: 12px;
-  background: transparent; color: #cccccc; border: none; cursor: pointer;
-  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.bb-toolbar__dropdown-item:hover { background: #3e3e42; color: #ffffff; }
-.bb-toolbar__dropdown-group-header {
-  padding: 5px 12px 3px;
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--bb-accent, #c8a227); pointer-events: none; user-select: none;
-}
-.bb-toolbar__dropdown-group-header:not(:first-child) { margin-top: 4px; border-top: 1px solid #444; padding-top: 7px; }
-
-/* ── Examples two-column chip explorer ────────────────────────────────────── */
-.bb-examples-panel {
-  position: absolute; top: calc(100% + 4px); left: 0;
-  display: flex; flex-direction: row;
-  background: #2d2d30; border: 1px solid #555; border-radius: 4px;
-  z-index: 1000; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-  min-height: 120px; max-height: 320px;
-}
-.bb-examples-panel[hidden] { display: none; }
-.bb-examples-panel__groups {
-  list-style: none; padding: 4px 0; margin: 0;
-  min-width: 110px; border-right: 1px solid #444;
-  overflow-y: auto; flex-shrink: 0;
-}
-.bb-examples-panel__group-btn {
-  display: block; width: 100%; padding: 7px 14px;
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
-  background: none; border: none; color: #888; cursor: pointer;
-  text-align: left; white-space: nowrap;
-  transition: color 0.1s, background 0.1s;
-}
-.bb-examples-panel__group-btn:hover { background: #3e3e42; color: #ccc; }
-.bb-examples-panel__group-btn--active { color: var(--bb-accent, #c8a227) !important; background: #35353a; }
-.bb-examples-panel__songs {
-  list-style: none; padding: 4px 0; margin: 0;
-  min-width: 180px; max-width: 260px; overflow-y: auto;
-}
-.bb-examples-panel__song-btn {
-  display: block; width: 100%; padding: 6px 14px;
-  font-size: 12px; background: none; border: none;
-  color: #cccccc; cursor: pointer; text-align: left;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  transition: background 0.1s, color 0.1s;
-}
-.bb-examples-panel__song-btn:hover { background: #3e3e42; color: #ffffff; }
-[data-theme="light"] .bb-examples-panel { background: #fff; border-color: #ccc; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
-[data-theme="light"] .bb-examples-panel__groups { border-right-color: #ddd; }
-[data-theme="light"] .bb-examples-panel__group-btn { color: #777; }
-[data-theme="light"] .bb-examples-panel__group-btn:hover { background: #f0f0f0; color: #333; }
-[data-theme="light"] .bb-examples-panel__group-btn--active { background: #e8e8e8; }
-[data-theme="light"] .bb-examples-panel__song-btn { color: #333; }
-[data-theme="light"] .bb-examples-panel__song-btn:hover { background: #e9e9e9; color: #111; }
-.bb-toolbar__status {
-  margin-left: auto; font-size: 11px; padding: 2px 6px; border-radius: 3px;
-  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: #888; transition: color 0.2s;
-}
-.bb-toolbar__status[data-type="success"] { color: #4ec9b0; }
-.bb-toolbar__status[data-type="error"]   { color: #f48771; }
-.bb-toolbar__status[data-type="info"]    { color: #9cdcfe; }
-/* Icons-only toolbar style: hide all label spans and the "Export:" label */
-.bb-toolbar[data-style="icons"] .bb-toolbar__btn-label { display: none; }
-/* Active / toggled-on state for wrap and theme toggle buttons */
-.bb-toolbar__btn--active {
-  background: linear-gradient(to bottom, #1a331a 0%, #2a4a2a 100%);
-  border-color: #3a8040 #1c3d20 #183419 #3a8040;
-  color: #89d185;
-}
-.bb-toolbar__btn--active:hover:not(:disabled) { color: #b5e8b3; filter: brightness(1.15); }
-[data-theme="light"] .bb-toolbar__btn--active {
-  background: linear-gradient(to bottom, #d0ebd0 0%, #b8d4b8 100%);
-  border-color: #3a7a3a #245224 #1e4620 #3a7a3a;
-  color: #1b4d1e;
-}
-[data-theme="light"] .bb-toolbar__btn--active:hover:not(:disabled) { color: #0a300d; }
-[data-theme="light"] .bb-toolbar { background: var(--bb-toolbar-bg, #f3f3f3); border-bottom-color: var(--bb-toolbar-border, #ddd); }
-[data-theme="light"] .bb-toolbar__label { color: var(--bb-toolbar-label-fg, #666); }
-[data-theme="light"] .bb-toolbar__separator { background: var(--bb-toolbar-separator, #ddd); }
-[data-theme="light"] .bb-toolbar__btn { color: var(--bb-toolbar-fg, #333); }
-[data-theme="light"] .bb-toolbar__btn:hover:not(:disabled) { background: var(--bb-toolbar-btn-hover-bg, #e4e4e4); border-color: var(--bb-toolbar-btn-hover-border, #ccc); color: #111; }
-[data-theme="light"] .bb-toolbar__btn:active:not(:disabled) { background: var(--bb-toolbar-btn-active-bg, #d8d8d8); }
-[data-theme="light"] .bb-toolbar__btn--export { color: #0366d6; }
-[data-theme="light"] .bb-toolbar__btn--export:hover:not(:disabled) { color: #003080; border-color: #0366d6; }
-[data-theme="light"] .bb-toolbar__dropdown { background: var(--bb-toolbar-dropdown-bg, #fff); border-color: var(--bb-toolbar-dropdown-border, #ccc); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
-[data-theme="light"] .bb-toolbar__dropdown-item { color: var(--bb-toolbar-dropdown-fg, #333); }
-[data-theme="light"] .bb-toolbar__dropdown-item:hover { background: var(--bb-toolbar-dropdown-hover-bg, #e9e9e9); color: var(--bb-toolbar-dropdown-hover-fg, #111); }
-[data-theme="light"] .bb-toolbar__status { color: var(--bb-toolbar-status-fg, #666); }
-[data-theme="light"] .bb-toolbar__status[data-type="success"] { color: #1a7a4c; }
-[data-theme="light"] .bb-toolbar__status[data-type="error"]   { color: #d73a49; }
-
 /* ─── Menu Bar ───────────────────────────────────────────────────────────── */
 .bb-menu-bar {
   display: flex; align-items: stretch; background: #1f1f1f;
@@ -5417,6 +5274,16 @@
   font-weight: normal;
   line-height: 1;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bb-web-lite-header__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .bb-web-lite-header__logo {

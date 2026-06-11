@@ -7,7 +7,18 @@ const webUiRoot = resolve(__dirname, '../web-ui');
 
 export default defineConfig({
   main: {},
-  preload: {},
+  preload: {
+    build: {
+      externalizeDeps: false,
+      // @ts-expect-error vite 7 typings omit rollupOptions from BuildEnvironmentOptions
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.js',
+        },
+      },
+    },
+  },
   renderer: {
     resolve: {
       alias: {

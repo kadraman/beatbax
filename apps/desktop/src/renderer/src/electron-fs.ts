@@ -8,12 +8,12 @@ export function writeFileSync(targetPath: string, data: Uint8Array): void {
   getElectronApi().writeFileSync(targetPath, data);
 }
 
-export function readFileSync(): never {
-  throw new Error('readFileSync is not available in the desktop renderer.');
+export function readFileSync(targetPath: string, encoding?: BufferEncoding | string): string {
+  return getElectronApi().readFileSync(targetPath, typeof encoding === 'string' ? encoding : 'utf-8');
 }
 
-export function existsSync(): boolean {
-  return false;
+export function existsSync(targetPath: string): boolean {
+  return getElectronApi().existsSync(targetPath);
 }
 
 export function mkdirSync(): void {

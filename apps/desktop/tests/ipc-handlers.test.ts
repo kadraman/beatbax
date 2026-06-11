@@ -2,8 +2,16 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { assertAbsoluteFilePath, mergeRecentFiles, persistFile, toFileBuffer } from '../src/main/ipc-handlers';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  assertAbsoluteFilePath,
+  addRecentFileEntry,
+  existsSyncSafe,
+  mergeRecentFiles,
+  persistFile,
+  readFileSyncSafe,
+  toFileBuffer,
+} from '../src/main/ipc-handlers';
 
 jest.mock('electron', () => ({
   dialog: {
@@ -15,7 +23,7 @@ jest.mock('electron', () => ({
   },
 }));
 
-const { dialog } = jest.requireMock<{ dialog: { showSaveDialog: jest.Mock } }>('electron');
+const { dialog, app } = jest.requireMock<{ dialog: { showSaveDialog: jest.Mock }; app: { addRecentDocument: jest.Mock } }>('electron');
 
 describe('ipc handlers path validation', () => {
   const songPath = path.join(os.tmpdir(), 'song.bax');
@@ -39,6 +47,29 @@ describe('ipc handlers path validation', () => {
       path.resolve(songPath),
       path.resolve(olderPath),
     ]);
+  });
+});
+
+describe('addRecentFileEntry', () => {
+  let tempDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-recent-'));
+    app.addRecentDocument.mockReset();
+  });
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('registers the normalized path with the OS recent-documents list', async () => {
+    const recentFilesPath = path.join(tempDir, 'recent-files.json');
+    const unnormalized = `${tempDir}${path.sep}.${path.sep}song.bax`;
+
+    await addRecentFileEntry(recentFilesPath, unnormalized);
+
+    expect(app.addRecentDocument).toHaveBeenCalledWith(path.resolve(unnormalized));
+    expect(app.addRecentDocument).not.toHaveBeenCalledWith(unnormalized);
   });
 });
 
@@ -73,5 +104,32 @@ describe('persistFile', () => {
     expect(savedPath).toBe(path.resolve(target));
     expect(readFileSync(target, 'utf8')).toBe('chip gameboy\n');
     expect(dialog.showSaveDialog).not.toHaveBeenCalled();
+  });
+});
+
+describe('desktop sync file reads', () => {
+  let tempDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-read-'));
+  });
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('reads text files with path validation', () => {
+    const target = path.join(tempDir, 'foo.ins');
+    writeFileSync(target, 'inst foo\n', 'utf8');
+
+    expect(readFileSyncSafe(target, 'utf-8')).toBe('inst foo\n');
+  });
+
+  it('reports file existence with path validation', () => {
+    const target = path.join(tempDir, 'foo.ins');
+    writeFileSync(target, 'inst foo\n', 'utf8');
+
+    expect(existsSyncSafe(path.join(tempDir, 'missing.ins'))).toBe(false);
+    expect(existsSyncSafe(target)).toBe(true);
   });
 });

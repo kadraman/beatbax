@@ -36,7 +36,6 @@ export function DesktopTitleBar({ menuHostRef }: DesktopTitleBarProps): React.JS
             className="desktop-title-bar__control desktop-title-bar__control--minimize"
             aria-label="Minimize"
             title="Minimize"
-            tabIndex={-1}
             onClick={() => window.electronAPI.minimizeWindow()}
           />
           <button
@@ -44,7 +43,6 @@ export function DesktopTitleBar({ menuHostRef }: DesktopTitleBarProps): React.JS
             className={`desktop-title-bar__control desktop-title-bar__control--maximize${maximized ? ' desktop-title-bar__control--restore' : ''}`}
             aria-label={maximized ? 'Restore' : 'Maximize'}
             title={maximized ? 'Restore' : 'Maximize'}
-            tabIndex={-1}
             onClick={() => window.electronAPI.toggleMaximizeWindow()}
           />
           <button
@@ -52,7 +50,6 @@ export function DesktopTitleBar({ menuHostRef }: DesktopTitleBarProps): React.JS
             className="desktop-title-bar__control desktop-title-bar__control--close"
             aria-label="Close"
             title="Close"
-            tabIndex={-1}
             onClick={() => window.electronAPI.closeWindow()}
           />
         </div>

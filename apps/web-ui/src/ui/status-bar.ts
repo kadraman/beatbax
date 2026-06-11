@@ -79,6 +79,7 @@ export class StatusBar {
   private documentName = 'untitled.bax';
   private documentPath: string | null = null;
   private documentDirty = false;
+  private storeUnsubs: Array<() => void> = [];
   private info: StatusInfo = {
     line: 1,
     column: 1,
@@ -111,6 +112,8 @@ export class StatusBar {
   }
 
   dispose(): void {
+    for (const unsub of this.storeUnsubs) unsub();
+    this.storeUnsubs = [];
     this.abort.abort();
     this.root.remove();
   }
@@ -345,69 +348,73 @@ export class StatusBar {
   private setupStoreSubscriptions(): void {
     if (this.showDocumentInfo) {
       this.documentDirty = editorDirty.get();
-      editorDirty.listen((dirty) => {
-        this.documentDirty = dirty;
-        this.renderDocumentInfo();
-      });
+      this.storeUnsubs.push(
+        editorDirty.listen((dirty) => {
+          this.documentDirty = dirty;
+          this.renderDocumentInfo();
+        }),
+      );
     }
 
-    parseStatus.listen((status) => {
-      switch (status) {
-        case 'parsing': this.setStatus('Parsing...'); break;
-        case 'success':
-          if (this.info.status === 'Parsing...') this.setStatus('Idle');
-          break;
-        case 'error':
-          this.setStatus('Parse error');
-          break;
-      }
-    });
+    this.storeUnsubs.push(
+      parseStatus.listen((status) => {
+        switch (status) {
+          case 'parsing': this.setStatus('Parsing...'); break;
+          case 'success':
+            if (this.info.status === 'Parsing...') this.setStatus('Idle');
+            break;
+          case 'error':
+            this.setStatus('Parse error');
+            break;
+        }
+      }),
 
-    parsedBpm.listen((bpm) => {
-      this.info.bpm = bpm;
-      this.chipEl.textContent = `Chip: ${this.info.chip}`;
-    });
+      parsedBpm.listen((bpm) => {
+        this.info.bpm = bpm;
+        this.chipEl.textContent = `Chip: ${this.info.chip}`;
+      }),
 
-    parsedChip.listen((chip) => {
-      this.info.chip = chip;
-      this.chipEl.textContent = `Chip: ${chip}`;
-    });
+      parsedChip.listen((chip) => {
+        this.info.chip = chip;
+        this.chipEl.textContent = `Chip: ${chip}`;
+      }),
 
-    validationErrors.listen(() => this.updateDiagnosticCounts());
-    validationWarnings.listen((warnings) => {
-      this.info.warningCount = warnings.length;
-      this.updateDiagnosticCounts();
-    });
+      validationErrors.listen(() => this.updateDiagnosticCounts()),
+      validationWarnings.listen((warnings) => {
+        this.info.warningCount = warnings.length;
+        this.updateDiagnosticCounts();
+      }),
 
-    playbackStatus.listen((status) => {
-      switch (status) {
-        case 'playing': this.setStatus('Playing'); break;
-        case 'stopped':
-          this.info.playbackTime = '0:00';
-          this.setStatus('Stopped');
-          break;
-        case 'paused': this.setStatus('Paused'); break;
-      }
-    });
+      playbackStatus.listen((status) => {
+        switch (status) {
+          case 'playing': this.setStatus('Playing'); break;
+          case 'stopped':
+            this.info.playbackTime = '0:00';
+            this.setStatus('Stopped');
+            break;
+          case 'paused': this.setStatus('Paused'); break;
+        }
+      }),
 
-    playbackTimeLabel.listen(() => { /* reserved for future status-bar time display */ });
+      playbackTimeLabel.listen(() => { /* reserved for future status-bar time display */ }),
 
-    playbackError.listen((msg) => {
-      this.updateDiagnosticCounts();
-      if (msg !== null) this.setStatus('Playback error');
-    });
+      playbackError.listen((msg) => {
+        this.updateDiagnosticCounts();
+        if (msg !== null) this.setStatus('Playback error');
+      }),
 
-    exportStatus.listen((status) => {
-      const fmt = exportFormat.get();
-      switch (status) {
-        case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
-        case 'success':
-          this.setStatus(`Export ${fmt} successful`);
-          setTimeout(() => this.setStatus('Idle'), 3000);
-          break;
-        case 'error': this.setStatus(`Export ${fmt} failed`); break;
-      }
-    });
+      exportStatus.listen((status) => {
+        const fmt = exportFormat.get();
+        switch (status) {
+          case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
+          case 'success':
+            this.setStatus(`Export ${fmt} successful`);
+            setTimeout(() => this.setStatus('Idle'), 3000);
+            break;
+          case 'error': this.setStatus(`Export ${fmt} failed`); break;
+        }
+      }),
+    );
   }
 
   private updateDiagnosticCounts(): void {

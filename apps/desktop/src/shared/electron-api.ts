@@ -40,6 +40,8 @@ export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
   saveFile(options: DesktopSaveFileOptions, data: Uint8Array): Promise<string | null>;
   writeFileSync(targetPath: string, data: Uint8Array): void;
+  readFileSync(targetPath: string, encoding?: string): string;
+  existsSync(targetPath: string): boolean;
   getRecentFiles(): Promise<string[]>;
   addRecentFile(targetPath: string): Promise<void>;
   openRecentFile(filePath: string): void;

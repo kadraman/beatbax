@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain, shell } from 'electron';
+import { existsSync as fsExistsSync, readFileSync as fsReadFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
@@ -79,10 +80,23 @@ export function mergeRecentFiles(existing: string[], filePath: string): string[]
   return [safePath, ...existing.filter((entry) => entry !== safePath)].slice(0, RECENT_FILES_LIMIT);
 }
 
+export function readFileSyncSafe(targetPath: string, encoding: BufferEncoding = 'utf-8'): string {
+  return fsReadFileSync(assertAbsoluteFilePath(targetPath), encoding);
+}
+
+export function existsSyncSafe(targetPath: string): boolean {
+  try {
+    return fsExistsSync(assertAbsoluteFilePath(targetPath));
+  } catch {
+    return false;
+  }
+}
+
 export async function addRecentFileEntry(recentFilesPath: string, filePath: string): Promise<string[]> {
-  const recentFiles = mergeRecentFiles(await readRecentFiles(recentFilesPath), filePath);
+  const safePath = assertAbsoluteFilePath(filePath);
+  const recentFiles = mergeRecentFiles(await readRecentFiles(recentFilesPath), safePath);
   await writeRecentFiles(recentFilesPath, recentFiles);
-  app.addRecentDocument(filePath);
+  app.addRecentDocument(safePath);
   return recentFiles;
 }
 
@@ -180,6 +194,18 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
 
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();
+  });
+
+  ipcMain.on(IPC_CHANNELS.READ_FILE_SYNC, (event, targetPath: string, encoding?: string) => {
+    try {
+      event.returnValue = readFileSyncSafe(targetPath, (encoding as BufferEncoding) || 'utf-8');
+    } catch (error) {
+      event.returnValue = { __error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.EXISTS_SYNC, (event, targetPath: string) => {
+    event.returnValue = existsSyncSafe(targetPath);
   });
 
   ipcMain.on(IPC_CHANNELS.OPEN_RECENT_FILE, (_event, filePath: string) => {
