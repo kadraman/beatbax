@@ -32,5 +32,8 @@ The desktop renderer bridges the web-ui panel implementations via `@web-ui` impo
 - **AI Copilot** — right-tab ChatPanel (enable in Settings → Features → AI Assistant)
 - **New Song Wizard** — toolbar New / File → New; first-run onboarding
 - **Advanced editor** — Monaco diagnostics, code lens previews, glyph margin, command palette (Ctrl+Alt+P)
+- **Transport extras** — loop, live, rewind, BPM nudge, master volume
+- **MIDI step entry** — record button (requires MIDI input enabled in Settings)
+- **Debug overlay** — Settings → Advanced → Show debug overlay
 
-Still planned: MIDI step entry, debug overlay, native React rewrites of Visualizer/Mixer (Phase 5).
+Still planned: native React rewrites of Visualizer/Mixer (Phase 5).

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve, isAbsolute } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { addRecentFileEntry, attachWindowStateEvents, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
@@ -45,6 +46,16 @@ async function flushPendingOpenPaths(): Promise<void> {
   }
 }
 
+function queueStartupSongPaths(): void {
+  for (const arg of process.argv) {
+    if (!/\.(bax|uge)$/i.test(arg)) continue;
+    const resolved = isAbsolute(arg) ? arg : resolve(process.cwd(), arg);
+    if (existsSync(resolved)) {
+      pendingOpenPaths.push(resolved);
+    }
+  }
+}
+
 async function createWindow(): Promise<void> {
   const preloadPath = resolvePreloadPath(__dirname);
 
@@ -61,7 +72,7 @@ async function createWindow(): Promise<void> {
           trafficLightPosition: { x: 12, y: 11 },
         }
       : { frame: false }),
-    ...(process.platform === 'linux' ? { icon } : {}),
+    ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -143,6 +154,7 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
 
+  queueStartupSongPaths();
   await createWindow();
 
   app.on('activate', async () => {

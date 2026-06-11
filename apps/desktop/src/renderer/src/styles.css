@@ -10,8 +10,8 @@
 
 body {
   margin: 0;
-  background: #0f1320;
-  color: #e6e9ef;
+  background: var(--bb-app-bg, #1e1e1e);
+  color: var(--bb-fg, #d4d4d4);
   min-height: 100vh;
 }
 
@@ -91,20 +91,20 @@ code {
 
 .desktop-title-bar .bb-menu__trigger {
   -webkit-app-region: no-drag;
+  color: var(--bb-toolbar-fg, #cccccc);
 }
 
-.desktop-title-bar .bb-menu__trigger:focus {
-  outline: none;
-}
-
-.desktop-title-bar .bb-menu__trigger:focus:not(:focus-visible) {
-  background: transparent;
-  color: #cccccc;
-}
-
+.desktop-title-bar .bb-menu__trigger:focus,
 .desktop-title-bar .bb-menu__trigger:focus-visible {
-  outline: 1px dotted var(--bb-accent, #c8a227);
-  outline-offset: -1px;
+  outline: none;
+  background: transparent;
+  color: var(--bb-toolbar-fg, #cccccc);
+}
+
+.desktop-title-bar .bb-menu__trigger:hover,
+.desktop-title-bar .bb-menu__trigger.bb-menu__trigger--active {
+  background: var(--bb-toolbar-btn-hover-bg, #2a2d2e);
+  color: var(--bb-toolbar-dropdown-hover-fg, #ffffff);
 }
 
 .desktop-title-bar .bb-menu__item--submenu > .bb-menu__sub-panel {
@@ -204,6 +204,18 @@ code {
 
 #bb-toolbar-host {
   flex-shrink: 0;
+}
+
+#bb-toolbar-host .bb-toolbar__btn:focus,
+#bb-toolbar-host .bb-toolbar__btn:focus-visible,
+.bb-transport .bb-transport__btn:focus,
+.bb-transport .bb-transport__btn:focus-visible,
+.bb-transport .bb-transport__nudge-btn:focus,
+.bb-transport .bb-transport__nudge-btn:focus-visible,
+#bb-status-bar-host .status-bar-clickable:focus,
+#bb-status-bar-host .status-bar-clickable:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .toolbar,

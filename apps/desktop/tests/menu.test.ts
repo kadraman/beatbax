@@ -1,5 +1,6 @@
 /** @jest-environment node */
 
+import type { MenuItemConstructorOptions } from 'electron';
 import { createMenuTemplate } from '../src/main/menu';
 
 describe('desktop native menu', () => {
@@ -16,8 +17,18 @@ describe('desktop native menu', () => {
 
   it('includes export submenu entries', () => {
     const template = createMenuTemplate(mockWindow, []);
-    const fileMenu = template[0].submenu as any[];
-    const exportMenu = fileMenu.find((item) => item.label === 'Export');
-    expect(exportMenu.submenu.map((item: { label: string }) => item.label)).toEqual(['JSON', 'MIDI', 'UGE', 'WAV']);
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const exportMenu = fileMenu.find((item) => item.label === 'Export')!;
+    expect((exportMenu.submenu as MenuItemConstructorOptions[]).map((item) => item.label))
+      .toEqual(['JSON', 'MIDI', 'UGE', 'WAV']);
+  });
+
+  it('shows basename labels in Open Recent', () => {
+    const template = createMenuTemplate(mockWindow, ['C:\\music\\duck_tales.bax']);
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
+    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
+    expect(recentItems[0].label).toBe('duck_tales.bax');
+    expect(recentItems[0].toolTip).toBe('C:\\music\\duck_tales.bax');
   });
 });

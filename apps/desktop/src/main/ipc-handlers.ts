@@ -14,6 +14,23 @@ const TEXT_FILE_FILTERS = [
   { name: 'All Files', extensions: ['*'] },
 ];
 
+/** Normalize IPC file payloads (Uint8Array, Buffer, or serialized arrays) for fs.writeFile. */
+function toFileBuffer(data: unknown): Buffer {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof Uint8Array) return Buffer.from(data);
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (Array.isArray(data)) return Buffer.from(data);
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    if (record.type === 'Buffer' && Array.isArray(record.data)) {
+      return Buffer.from(record.data as number[]);
+    }
+    const bytes = Object.values(record).filter((v): v is number => typeof v === 'number');
+    if (bytes.length > 0) return Buffer.from(bytes);
+  }
+  throw new Error('Invalid file payload type.');
+}
+
 const RECENT_FILES_LIMIT = 10;
 
 export interface DesktopIpcHandlersOptions {
@@ -106,8 +123,9 @@ async function persistFile(
   }
 
   const safePath = assertAbsoluteFilePath(destination);
+  const payload = toFileBuffer(data);
   await fs.mkdir(path.dirname(safePath), { recursive: true });
-  await fs.writeFile(safePath, data);
+  await fs.writeFile(safePath, payload);
   return safePath;
 }
 
@@ -136,10 +154,18 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     return savedPath;
   });
 
-  ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (_event, targetPath: string, data: Uint8Array) => {
-    const safePath = assertAbsoluteFilePath(targetPath);
+  ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (_event, targetPath: string, data: unknown) => {
+    let safePath: string;
+    let payload: Buffer;
+    try {
+      safePath = assertAbsoluteFilePath(targetPath);
+      payload = toFileBuffer(data);
+    } catch (error) {
+      console.error('desktop writeFileSync rejected payload', error);
+      return;
+    }
     fs.mkdir(path.dirname(safePath), { recursive: true })
-      .then(() => fs.writeFile(safePath, data))
+      .then(() => fs.writeFile(safePath, payload))
       .catch((error) => {
         console.error('desktop writeFileSync failed', error);
       });
@@ -208,4 +234,5 @@ export {
   chooseOpenFile,
   persistFile,
   readRecentFiles,
+  toFileBuffer,
 };

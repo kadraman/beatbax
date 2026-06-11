@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { editorContent, editorDirty } from '@beatbax/app-core/stores/editor.store';
-import { settingDefaultBpm } from '@beatbax/app-core/stores/settings.store';
-import { StorageKey, storage } from '@beatbax/app-core/utils/local-storage';
+import { settingAutoSave, settingDefaultBpm } from '@beatbax/app-core/stores/settings.store';
 import type { MenuAction } from '../../shared/electron-api';
 import { DesktopWorkspaceShell, mapMenuActionToExport } from './components/DesktopWorkspaceShell';
 import { DesktopTitleBar } from './components/DesktopTitleBar';
 import { useStoreValue } from './hooks/useStoreValue';
 import { getInitialContent } from './lib/bootstrap';
+import { autoSaveDocumentToDisk, saveDocumentToDisk } from './lib/desktop-document-save';
+import { persistDocumentSession, readPersistedDocument } from './lib/desktop-session';
 import type { DesktopWorkspaceHandle } from './lib/desktop-workspace';
 
 interface OpenDocument {
@@ -34,16 +35,14 @@ export default function App(): React.JSX.Element {
   const toolbarHostRef = useRef<HTMLDivElement | null>(null);
   const workspaceHostRef = useRef<HTMLDivElement | null>(null);
   const statusBarHostRef = useRef<HTMLDivElement | null>(null);
-  const [documentState, setDocumentState] = useState<OpenDocument>({ path: null, name: 'untitled.bax' });
+  const [documentState, setDocumentState] = useState<OpenDocument>(() => readPersistedDocument());
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   const defaultBpm = useStoreValue(settingDefaultBpm);
   const initialContent = useMemo(() => getInitialContent(defaultBpm), [defaultBpm]);
 
   const getEditor = useCallback(() => editorRef.current, []);
-  const setEditorRef = useCallback((editor: BeatBaxEditor | null) => {
-    editorRef.current = editor;
-  }, []);
+  const pendingEditorContentRef = useRef<string | null>(null);
 
   const syncDocumentStatus = useCallback((doc: OpenDocument) => {
     workspaceRef.current?.statusBar?.setDocumentInfo({
@@ -56,17 +55,38 @@ export default function App(): React.JSX.Element {
     workspaceRef.current?.runParse(content);
   }, []);
 
+  const handleEditorReady = useCallback((editor: BeatBaxEditor) => {
+    editorRef.current = editor;
+    if (pendingEditorContentRef.current !== null) {
+      const content = pendingEditorContentRef.current;
+      pendingEditorContentRef.current = null;
+      editor.setValue(content);
+      editorContent.set(content);
+      runParse(content);
+    }
+  }, [runParse]);
+
   const loadDocument = useCallback((name: string, content: string, filePath: string | null) => {
-    editorRef.current?.setValue(content);
-    editorContent.set(content);
-    editorDirty.set(false);
     const nextDoc = { path: filePath, name };
     setDocumentState(nextDoc);
-    storage.set(StorageKey.LOADED_FILENAME, name);
+    persistDocumentSession(filePath, name);
     syncDocumentStatus(nextDoc);
     workspaceRef.current?.menuBar?.recordRecent(name);
-    runParse(content);
-  }, [runParse, syncDocumentStatus]);
+    appContext.eventBus.emit('song:loaded', { filename: name });
+
+    if (editorRef.current) {
+      editorRef.current.setValue(content);
+      editorContent.set(content);
+      editorDirty.set(false);
+      runParse(content);
+      workspaceRef.current?.refreshEditorViewPrefs();
+    } else {
+      pendingEditorContentRef.current = content;
+      editorContent.set(content);
+      editorDirty.set(false);
+    }
+    void workspaceRef.current?.refreshRecentFiles();
+  }, [appContext.eventBus, runParse, syncDocumentStatus]);
 
   const decodePayload = useCallback((payload: { path: string; name: string; data: Uint8Array }) => {
     const content = new TextDecoder().decode(payload.data);
@@ -79,20 +99,25 @@ export default function App(): React.JSX.Element {
   }, [decodePayload]);
 
   const handleSave = useCallback(async (saveAs = false) => {
+    const api = window.electronAPI;
+    if (!api) return;
     const content = editorRef.current?.getValue() ?? editorContent.get();
-    const defaultPath = documentState.path ?? documentState.name;
-    const savedPath = await window.electronAPI.saveFile(
-      { defaultPath, showDialog: saveAs || !documentState.path },
-      new TextEncoder().encode(content),
-    );
-    if (savedPath) {
-      const name = savedPath.split(/[/\\]/).pop() ?? 'untitled.bax';
-      const nextDoc = { path: savedPath, name };
-      setDocumentState(nextDoc);
-      editorDirty.set(false);
-      syncDocumentStatus(nextDoc);
+    try {
+      const savedPath = await saveDocumentToDisk(api, content, documentStateRef.current, saveAs);
+      if (savedPath) {
+        const name = savedPath.split(/[/\\]/).pop() ?? 'untitled.bax';
+        const nextDoc = { path: savedPath, name };
+        setDocumentState(nextDoc);
+        persistDocumentSession(savedPath, name);
+        editorDirty.set(false);
+        syncDocumentStatus(nextDoc);
+        appContext.eventBus.emit('editor:saved', { filename: name });
+        void workspaceRef.current?.refreshRecentFiles();
+      }
+    } catch (error) {
+      console.error('Save failed', error);
     }
-  }, [documentState.name, documentState.path, syncDocumentStatus]);
+  }, [appContext.eventBus, syncDocumentStatus]);
 
   const handleCreateFromWizard = useCallback((source: string, songName: string) => {
     const name = songName.trim() ? `${songName.trim()}.bax` : 'untitled.bax';
@@ -103,9 +128,14 @@ export default function App(): React.JSX.Element {
     loadDocument(name, content, null);
   }, [loadDocument]);
 
+  const handleOpenRecent = useCallback((filePath: string) => {
+    window.electronAPI.openRecentFile(filePath);
+  }, []);
+
   const handleWorkspaceReady = useCallback((handle: DesktopWorkspaceHandle) => {
     workspaceRef.current = handle;
     syncDocumentStatusRef.current(documentStateRef.current);
+    void handle.refreshRecentFiles();
   }, []);
 
   const handleNew = useCallback(() => {
@@ -161,13 +191,38 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    if (pendingEditorContentRef.current) return;
     runParse(initialContent);
-    syncDocumentStatusRef.current({ path: null, name: 'untitled.bax' });
+    syncDocumentStatusRef.current(documentStateRef.current);
   }, [initialContent, runParse]);
 
   useEffect(() => {
     syncDocumentStatus(documentState);
   }, [documentState, syncDocumentStatus]);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    let queuedSave: Promise<void> = Promise.resolve();
+
+    const unsub = appContext.eventBus.on('editor:changed', ({ content }) => {
+      if (!settingAutoSave.get()) return;
+      const filePath = documentStateRef.current.path;
+      if (!filePath) return;
+
+      queuedSave = queuedSave
+        .then(async () => {
+          const saved = await autoSaveDocumentToDisk(api, content, filePath);
+          if (saved) editorDirty.set(false);
+        })
+        .catch((error) => {
+          console.error('Auto-save failed', error);
+        });
+    });
+
+    return unsub;
+  }, [appContext.eventBus]);
 
   if (bootstrapError) {
     return (
@@ -193,8 +248,9 @@ export default function App(): React.JSX.Element {
         statusBarHostRef={statusBarHostRef}
         initialContent={initialContent}
         getEditor={getEditor}
-        setEditorRef={setEditorRef}
+        onEditorReady={handleEditorReady}
         onOpen={handleOpen}
+        onOpenRecent={handleOpenRecent}
         onSave={handleSave}
         onLoadDocument={handleLoadDocument}
         onCreateFromWizard={handleCreateFromWizard}

@@ -28,6 +28,7 @@ fileAssociations:
     description: hUGETracker song import for BeatBax
     role: Viewer
 win:
+  icon: build/icon.ico
   executableName: BeatBax
   target:
     - nsis

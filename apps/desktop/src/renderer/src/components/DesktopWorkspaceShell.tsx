@@ -15,8 +15,9 @@ export interface DesktopWorkspaceShellProps {
   statusBarHostRef: React.RefObject<HTMLDivElement | null>;
   initialContent: string;
   getEditor: () => BeatBaxEditor | null;
-  setEditorRef: (editor: BeatBaxEditor | null) => void;
+  onEditorReady: (editor: BeatBaxEditor) => void;
   onOpen: () => void | Promise<void>;
+  onOpenRecent?: (filePath: string) => void;
   onSave: (saveAs?: boolean) => void | Promise<void>;
   onLoadDocument: (name: string, content: string) => void;
   onCreateFromWizard: (source: string, songName: string) => void;
@@ -32,8 +33,9 @@ export function DesktopWorkspaceShell({
   statusBarHostRef,
   initialContent,
   getEditor,
-  setEditorRef,
+  onEditorReady,
   onOpen,
+  onOpenRecent,
   onSave,
   onLoadDocument,
   onCreateFromWizard,
@@ -45,6 +47,7 @@ export function DesktopWorkspaceShell({
   // Keep latest callbacks without re-mounting the vanilla DOM workspace.
   const actionsRef = useRef({
     onOpen,
+    onOpenRecent,
     onSave,
     onLoadDocument,
     onCreateFromWizard,
@@ -52,6 +55,7 @@ export function DesktopWorkspaceShell({
   });
   actionsRef.current = {
     onOpen,
+    onOpenRecent,
     onSave,
     onLoadDocument,
     onCreateFromWizard,
@@ -79,6 +83,7 @@ export function DesktopWorkspaceShell({
       parseHooks,
       getEditor,
       onOpen: () => actionsRef.current.onOpen(),
+      onOpenRecent: (filePath) => actionsRef.current.onOpenRecent?.(filePath),
       onSave: (saveAs) => actionsRef.current.onSave(saveAs),
       onLoadDocument: (name, content) => actionsRef.current.onLoadDocument(name, content),
       onCreateFromWizard: (source, songName) => actionsRef.current.onCreateFromWizard(source, songName),
@@ -105,8 +110,9 @@ export function DesktopWorkspaceShell({
       host={editorHost}
       initialValue={initialContent}
       onReady={(editor) => {
-        setEditorRef(editor);
+        onEditorReady(editor);
         workspaceRef.current?.setupEditor(editor);
+        workspaceRef.current?.focusEditor();
       }}
     />
   );
