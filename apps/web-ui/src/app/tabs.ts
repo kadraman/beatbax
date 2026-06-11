@@ -221,6 +221,8 @@ export function buildBottomTabs(
   expandStrip.addEventListener('click', doExpand);
 
   switchTab('problems');
+  layout.setOutputPaneVisible(true);
+  syncCollapseBtn(true);
 
   return {
     tabContents: tabContents as Record<BottomTabId, HTMLElement>,

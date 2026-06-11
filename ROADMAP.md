@@ -4,6 +4,12 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 
 ## Principles
 
+## Client distribution
+
+- `apps/desktop` is the primary client target for the full BeatBax IDE (Electron + React, currently being phased in).
+- `apps/web-ui` is the web-lite browser client for trying BeatBax without installation.
+- Shared playback, editor, and import/export orchestration lives in `packages/app-core`.
+
 - Prioritize chips with strong chiptune communities and existing tracker/export ecosystems.
 - Provide both human-editable tracker exports and machine-playable register/driver streams where possible.
 - Prefer common archival formats (VGM, NSF, SID, MOD, SPC) plus tracker-specific formats (hUGETracker, FamiTracker, GoatTracker, etc.)

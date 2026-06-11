@@ -6,7 +6,7 @@
  */
 
 import { playbackStatus, playbackTimeLabel, playbackError } from '@beatbax/app-core/stores/playback.store';
-import { parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '@beatbax/app-core/stores/editor.store';
+import { editorDirty, parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '@beatbax/app-core/stores/editor.store';
 import { exportStatus, exportFormat } from '@beatbax/app-core/stores/ui.store';
 import { icon } from '../utils/icons';
 import {
@@ -22,12 +22,19 @@ import {
 
 export interface StatusBarConfig {
   container: HTMLElement;
+  /** Show current document name and modified indicator (desktop). */
+  showDocumentInfo?: boolean;
   /** Snapshot of panel visibility for the Panels menu. */
   getPanelMenuState?: () => PanelMenuState;
   /** Toggle or show a panel (mirrors View menu / panel:toggled wiring). */
   onPanelMenuToggle?: (id: PanelMenuId) => void;
   /** Open the Problems panel (clickable error/warning counts). */
   onShowProblems?: () => void;
+}
+
+export interface DocumentStatusInfo {
+  name: string;
+  path?: string | null;
 }
 
 export interface StatusInfo {
@@ -66,6 +73,13 @@ export class StatusBar {
   private getPanelMenuState?: () => PanelMenuState;
   private onPanelMenuToggle?: (id: PanelMenuId) => void;
   private onShowProblems?: () => void;
+  private showDocumentInfo = false;
+  private documentNameEl?: HTMLElement;
+  private documentDirtyEl?: HTMLElement;
+  private documentName = 'untitled.bax';
+  private documentPath: string | null = null;
+  private documentDirty = false;
+  private storeUnsubs: Array<() => void> = [];
   private info: StatusInfo = {
     line: 1,
     column: 1,
@@ -79,6 +93,7 @@ export class StatusBar {
 
   constructor(config: StatusBarConfig) {
     this.container = config.container;
+    this.showDocumentInfo = config.showDocumentInfo ?? false;
     this.getPanelMenuState = config.getPanelMenuState;
     this.onPanelMenuToggle = config.onPanelMenuToggle;
     this.onShowProblems = config.onShowProblems;
@@ -88,7 +103,17 @@ export class StatusBar {
     this.render();
   }
 
+  /** Update the displayed document name/path (desktop status bar). */
+  setDocumentInfo(info: DocumentStatusInfo): void {
+    if (!this.showDocumentInfo) return;
+    this.documentName = info.name || 'untitled.bax';
+    this.documentPath = info.path ?? null;
+    this.renderDocumentInfo();
+  }
+
   dispose(): void {
+    for (const unsub of this.storeUnsubs) unsub();
+    this.storeUnsubs = [];
     this.abort.abort();
     this.root.remove();
   }
@@ -202,15 +227,39 @@ export class StatusBar {
     this.panelsMenu.hidden = true;
     this.panelsWrap.append(this.panelsBtn, this.panelsMenu);
 
-    this.root.append(
-      chipSection,
-      diagnosticsGroup,
-      mainSection,
-      spacer,
-      cursorSection,
-      this.scaleSection,
-      this.panelsWrap,
-    );
+    if (this.showDocumentInfo) {
+      this.documentNameEl = document.createElement('span');
+      this.documentNameEl.className = 'status-document-name';
+      this.documentDirtyEl = document.createElement('span');
+      this.documentDirtyEl.className = 'status-document-dirty';
+      this.documentDirtyEl.textContent = 'Modified';
+
+      const leftZone = document.createElement('div');
+      leftZone.className = 'status-bar-zone status-bar-zone--left';
+      leftZone.append(chipSection, diagnosticsGroup, mainSection);
+
+      const centerZone = document.createElement('div');
+      centerZone.className = 'status-bar-zone status-bar-zone--center';
+      centerZone.appendChild(this.documentNameEl);
+
+      const rightZone = document.createElement('div');
+      rightZone.className = 'status-bar-zone status-bar-zone--right';
+      rightZone.append(this.documentDirtyEl, cursorSection, this.scaleSection, this.panelsWrap);
+
+      this.root.classList.add('status-bar--document');
+      this.root.append(leftZone, centerZone, rightZone);
+    } else {
+      this.root.append(
+        chipSection,
+        diagnosticsGroup,
+        mainSection,
+        spacer,
+        cursorSection,
+        this.scaleSection,
+        this.panelsWrap,
+      );
+    }
+
     this.container.appendChild(this.root);
 
     if (!this.getPanelMenuState || !this.onPanelMenuToggle) {
@@ -297,63 +346,75 @@ export class StatusBar {
   }
 
   private setupStoreSubscriptions(): void {
-    parseStatus.listen((status) => {
-      switch (status) {
-        case 'parsing': this.setStatus('Parsing...'); break;
-        case 'success':
-          if (this.info.status === 'Parsing...') this.setStatus('Idle');
-          break;
-        case 'error':
-          this.setStatus('Parse error');
-          break;
-      }
-    });
+    if (this.showDocumentInfo) {
+      this.documentDirty = editorDirty.get();
+      this.storeUnsubs.push(
+        editorDirty.listen((dirty) => {
+          this.documentDirty = dirty;
+          this.renderDocumentInfo();
+        }),
+      );
+    }
 
-    parsedBpm.listen((bpm) => {
-      this.info.bpm = bpm;
-      this.chipEl.textContent = `Chip: ${this.info.chip}`;
-    });
+    this.storeUnsubs.push(
+      parseStatus.listen((status) => {
+        switch (status) {
+          case 'parsing': this.setStatus('Parsing...'); break;
+          case 'success':
+            if (this.info.status === 'Parsing...') this.setStatus('Idle');
+            break;
+          case 'error':
+            this.setStatus('Parse error');
+            break;
+        }
+      }),
 
-    parsedChip.listen((chip) => {
-      this.info.chip = chip;
-      this.chipEl.textContent = `Chip: ${chip}`;
-    });
+      parsedBpm.listen((bpm) => {
+        this.info.bpm = bpm;
+        this.chipEl.textContent = `Chip: ${this.info.chip}`;
+      }),
 
-    validationErrors.listen(() => this.updateDiagnosticCounts());
-    validationWarnings.listen((warnings) => {
-      this.info.warningCount = warnings.length;
-      this.updateDiagnosticCounts();
-    });
+      parsedChip.listen((chip) => {
+        this.info.chip = chip;
+        this.chipEl.textContent = `Chip: ${chip}`;
+      }),
 
-    playbackStatus.listen((status) => {
-      switch (status) {
-        case 'playing': this.setStatus('Playing'); break;
-        case 'stopped':
-          this.info.playbackTime = '0:00';
-          this.setStatus('Stopped');
-          break;
-        case 'paused': this.setStatus('Paused'); break;
-      }
-    });
+      validationErrors.listen(() => this.updateDiagnosticCounts()),
+      validationWarnings.listen((warnings) => {
+        this.info.warningCount = warnings.length;
+        this.updateDiagnosticCounts();
+      }),
 
-    playbackTimeLabel.listen(() => { /* reserved for future status-bar time display */ });
+      playbackStatus.listen((status) => {
+        switch (status) {
+          case 'playing': this.setStatus('Playing'); break;
+          case 'stopped':
+            this.info.playbackTime = '0:00';
+            this.setStatus('Stopped');
+            break;
+          case 'paused': this.setStatus('Paused'); break;
+        }
+      }),
 
-    playbackError.listen((msg) => {
-      this.updateDiagnosticCounts();
-      if (msg !== null) this.setStatus('Playback error');
-    });
+      playbackTimeLabel.listen(() => { /* reserved for future status-bar time display */ }),
 
-    exportStatus.listen((status) => {
-      const fmt = exportFormat.get();
-      switch (status) {
-        case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
-        case 'success':
-          this.setStatus(`Export ${fmt} successful`);
-          setTimeout(() => this.setStatus('Idle'), 3000);
-          break;
-        case 'error': this.setStatus(`Export ${fmt} failed`); break;
-      }
-    });
+      playbackError.listen((msg) => {
+        this.updateDiagnosticCounts();
+        if (msg !== null) this.setStatus('Playback error');
+      }),
+
+      exportStatus.listen((status) => {
+        const fmt = exportFormat.get();
+        switch (status) {
+          case 'exporting': this.setStatus(`Exporting ${fmt}...`); break;
+          case 'success':
+            this.setStatus(`Export ${fmt} successful`);
+            setTimeout(() => this.setStatus('Idle'), 3000);
+            break;
+          case 'error': this.setStatus(`Export ${fmt} failed`); break;
+        }
+      }),
+    );
   }
 
   private updateDiagnosticCounts(): void {
@@ -368,7 +429,18 @@ export class StatusBar {
     this.warningsBtn.classList.toggle('status-bar-clickable--empty', warningCount === 0);
   }
 
+  private renderDocumentInfo(): void {
+    if (!this.documentNameEl || !this.documentDirtyEl) return;
+    this.documentNameEl.textContent = this.documentName;
+    const pathHint = this.documentPath ?? 'Unsaved draft';
+    this.documentNameEl.title = this.documentDirty
+      ? `${pathHint} (modified)`
+      : pathHint;
+    this.documentDirtyEl.hidden = !this.documentDirty;
+  }
+
   private render(): void {
+    this.renderDocumentInfo();
     this.statusTextEl.textContent = this.info.status;
     this.cursorEl.textContent = `Ln ${this.info.line}, Col ${this.info.column}`;
     this.chipEl.textContent = `Chip: ${this.info.chip}`;

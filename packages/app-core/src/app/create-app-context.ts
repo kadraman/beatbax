@@ -20,6 +20,7 @@ import {
   type ClientCapabilities,
   type ClientProfile,
 } from '../client-profile.js';
+import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 
 export interface ParsePipelineHooks {
   /** Called when validation errors/warnings are published after a parse pass. */
@@ -103,11 +104,11 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
             warnings.push(w);
           },
         };
-        const resolveImportsOpts = {
+        const resolveImportsOpts = buildImportResolverOptions({
           onWarn: (message: string, loc?: any) => {
             warnings.push({ component: 'import-resolver', message, loc });
           },
-        };
+        });
         if ((ast as any).imports?.length > 0) {
           resolvedAst = await resolveImports(ast as any, resolveImportsOpts);
           song = resolveSong(resolvedAst as any, resolveSongOpts);

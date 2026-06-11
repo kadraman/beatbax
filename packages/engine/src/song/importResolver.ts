@@ -43,6 +43,16 @@ interface ImportContext {
   remoteCache?: RemoteInstrumentCache;
 }
 
+/** Block local file imports only in browser contexts without filesystem access. */
+function blocksLocalFileImports(options: ImportResolverOptions): boolean {
+  if (options.readFile || options.fileExists) return false;
+  if (typeof window !== 'undefined') {
+    const electronAPI = (window as unknown as { electronAPI?: unknown }).electronAPI;
+    if (electronAPI) return false;
+  }
+  return typeof window !== 'undefined';
+}
+
 /**
  * Validate an import path for security vulnerabilities.
  * Rejects paths with:
@@ -271,8 +281,8 @@ async function loadImportFile(
     return await loadRemoteImportFile(importSource, ctx);
   }
 
-  // Check if this is a local import in browser context
-  if (isLocalImport(importSource) && typeof window !== 'undefined') {
+  // Block local imports in browser contexts without filesystem access (desktop uses electron-fs).
+  if (isLocalImport(importSource) && blocksLocalFileImports(ctx.options)) {
     throw new Error(
       `Local imports are not supported in the browser for security reasons. ` +
       `Import "${importSource}" cannot be loaded. ` +
@@ -559,8 +569,8 @@ function loadImportFileSync(
     );
   }
 
-  // Check if this is a local import in browser context
-  if (isLocalImport(importSource) && typeof window !== 'undefined') {
+  // Block local imports in browser contexts without filesystem access (desktop uses electron-fs).
+  if (isLocalImport(importSource) && blocksLocalFileImports(ctx.options)) {
     throw new Error(
       `Local imports are not supported in the browser for security reasons. ` +
       `Import "${importSource}" cannot be loaded. ` +
