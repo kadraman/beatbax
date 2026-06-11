@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, '..', '..');
 
 test('desktop shell renders editor chrome', async () => {
+  test.setTimeout(60_000);
   const electronApp = await electron.launch({
     args: [appRoot],
     cwd: appRoot,

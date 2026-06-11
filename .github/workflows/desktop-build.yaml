@@ -44,8 +44,13 @@ jobs:
       - name: Run desktop unit tests
         run: npm run desktop:test
 
+      - name: Install Linux GUI dependencies for Electron
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnotify4 libnss3 libxss1 libasound2t64 libgbm1
+
       - name: Run desktop Electron smoke test
-        run: npm -w @beatbax/desktop run test:e2e
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm -w @beatbax/desktop run test:e2e
 
   package:
     name: Package desktop (${{ matrix.os }})
