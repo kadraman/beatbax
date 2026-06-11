@@ -3,7 +3,7 @@ title: "Desktop-First Client Split (app-core + web-lite + React Desktop)"
 status: in-progress
 authors: ["kadraman"]
 created: 2026-06-06
-updated: 2026-06-07
+updated: 2026-06-11
 issue: "https://github.com/kadraman/beatbax/issues/136"
 related:
   - docs/features/electron-desktop-client.md
@@ -19,28 +19,46 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-07  
-**Overall status:** Phases 1–2 **complete**; Phases 3–4 not started.
+**Last updated:** 2026-06-11  
+**Overall status:** Phases 1–3 **complete**; Phase 4 **in progress** (CI/scripts/docs done; manual QA and first GitHub Release pending).
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **1 — `@beatbax/app-core`** | ✅ Complete | Package builds and tests independently (26 suites, 392 tests). Web-ui consumes app-core. |
 | **2 — web-lite** | ✅ Complete | `apps/web-ui` ships as web-lite profile. See [Phase 2 deviations](#phase-2-deviations-from-original-spec) below. |
-| **3 — Electron desktop (React)** | ⬜ Not started | `apps/desktop/` does not exist yet. |
-| **4 — Distribution** | ⬜ Not started | README positioning, desktop CI, GitHub Releases. |
+| **3 — Electron desktop (React)** | ✅ Complete | Full IDE via web-ui panel bridges; native file I/O, session restore, Open Recent, custom title bar, sandboxed preload. 21 unit tests + Playwright e2e. |
+| **4 — Distribution** | 🟨 In progress | Root README/scripts, `apps/desktop/README.md`, desktop CI workflow, and `@beatbax/engine` changeset added; manual QA and first GitHub Release still pending. |
 
 **Key artifacts (Phases 1–2):**
 
 - `packages/app-core/` — shared stores, playback, editor, export, import, plugins, utils, `client-profile.ts`, `createAppContext()`, `FileIOAdapter`
 - `apps/web-ui/vite.config.ts` — `__CLIENT_PROFILE__: "web-lite"`
-- `apps/web-ui/src/app/web-lite-header.ts` — text logo + social icon links
+- `apps/web-ui/src/app/web-lite-header.ts` — favicon + text logo + social icon links
 - `apps/web-ui/tests/web-lite.test.ts`, `web-lite-download.test.ts`, `status-bar-panels.test.ts`, `panels-menu.test.ts`, `bottom-expand-strip.test.ts`
 
-**Not yet done (deferred to later phases / docs):**
+**Key artifacts (Phase 3):**
 
+- `apps/desktop/` — electron-vite + React renderer with `desktop-full` profile
+- `apps/desktop/src/main/` — window lifecycle, IPC handlers, native menu (Open Recent), file associations, Windows/Linux icon
+- `apps/desktop/src/preload/` — `contextBridge` → `window.electronAPI` (CJS bundle for `sandbox: true`)
+- `apps/desktop/src/renderer/` — `App.tsx`, `DesktopWorkspaceShell`, `DesktopTitleBar`, `electron-fs.ts` (read/write/exists via IPC)
+- `packages/app-core/src/utils/local-storage.ts` — `LAST_DOCUMENT_PATH` for desktop session restore
+- `packages/app-core/src/import/import-resolver-options.ts` — passes on-disk song path to engine import resolver
+- `packages/engine/src/song/importResolver.ts` — allows local `.ins`/import resolution when `window.electronAPI` or explicit fs hooks are present
+- `.changeset/desktop-local-imports-engine.md` — patch bump for engine import-resolver desktop support
+
+**Key artifacts (Phase 4, partial):**
+
+- `.github/workflows/desktop-build.yaml` — build engine → app-core → desktop; Playwright smoke tests; upload installers
+- Root `package.json` — `desktop:dev`, `desktop:build`, `desktop:test`, `desktop:dist`
+- Root `README.md` and `ROADMAP.md` — desktop-first positioning
+
+**Not yet done (deferred / Phase 4 remainder):**
+
+- Manual QA on Windows (primary platform), then macOS/Linux
+- First desktop GitHub Release with installers
 - `packages/app-core/README.md`
 - `apps/web-ui/README.md` web-lite scope note
-- Root `README.md` desktop-first positioning (Phase 4)
 
 `@beatbax/app-core` is **`private: true`** — internal workspace package only, not published to npm (same as `@beatbax/web-ui`).
 
@@ -301,6 +319,23 @@ interface ElectronAPI {
 
 **Deliverable:** Installable desktop app with full feature parity to today's web-ui.
 
+**Status (2026-06-11):** ✅ Delivered. See [Phase 3 implementation notes](#phase-3-implementation-notes) below.
+
+#### Phase 3 implementation notes
+
+The desktop renderer bridges existing web-ui panel implementations via `@web-ui` Vite aliases rather than native React rewrites (Phase 5 follow-up). Shipped capabilities include:
+
+| Area | As shipped |
+|------|------------|
+| Layout | Three-pane resizable layout (`DesktopWorkspaceShell`); custom frameless title bar on Windows/Linux; hidden inset title bar on macOS |
+| File I/O | Native Open/Save/Save As; write-in-place on Ctrl+S; drag-drop and argv `.bax`/`.uge` startup; `.ins` import resolution via IPC-backed `readFileSync`/`existsSync` |
+| Session | Last on-disk document path persisted (`LAST_DOCUMENT_PATH`); restores real filename on restart |
+| Recent files | Native OS recent-documents list + File → Open Recent submenu (basename labels, full path tooltips) |
+| Panels / IDE | Toolbar, transport (loop/live/rewind/vol/BPM), pattern grid, channel mixer, visualizer, help, problems/output, settings, CoPilot, new-song wizard, advanced Monaco (code lens, glyph margin, command palette), MIDI step entry, debug overlay |
+| Security | `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`; preload bundled as CommonJS (`index.js`) with `externalizeDeps: false` |
+| Branding | Game Boy favicon/icon on window (Windows/Linux) and web-lite header |
+| Tests | 21 Jest unit tests (IPC, menu, fs adapter, document save, preload path); Playwright e2e smoke + integration specs |
+
 ---
 
 ### Phase 4: Distribution and positioning
@@ -311,6 +346,8 @@ interface ElectronAPI {
 4. Root `package.json` scripts: `desktop:dev`, `desktop:build`, `desktop:dist`.
 5. GitHub Releases: desktop installers as primary artifact.
 6. Existing `beatbax-build.yaml` continues deploying web-lite to app.beatbax.com.
+
+**Status (2026-06-11):** 🟨 Partially delivered — CI workflow, root scripts, README/ROADMAP, and `apps/desktop/README.md` are in place. Manual QA on Windows and the first GitHub Release remain.
 
 ---
 
@@ -408,21 +445,28 @@ This is a **breaking change in product positioning**, not in engine or CLI APIs:
 
 ### Phase 3 — desktop
 
-- [ ] Scaffold `apps/desktop/` with electron-vite + React
-- [ ] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
-- [ ] Implement preload `contextBridge`
-- [ ] Implement `electron-fs.ts` IPC adapter
-- [ ] Build React shell (AppLayout, Toolbar, TransportBar, EditorPane)
-- [ ] Wire panel bridges / React components to app-core
-- [ ] Register `.bax` and `.uge` file associations
-- [ ] Configure `electron-builder.yml`
-- [ ] Add desktop unit and Playwright integration tests
+- [x] Scaffold `apps/desktop/` with electron-vite + React
+- [x] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
+- [x] Implement preload `contextBridge`
+- [x] Implement `electron-fs.ts` IPC adapter (read/write/exists)
+- [x] Build React shell (AppLayout, Toolbar, TransportBar, EditorPane)
+- [x] Wire panel bridges / React components to app-core (Visualizer, Help, Output, Mixer, Pattern Grid, Settings, export)
+- [x] Register `.bax` and `.uge` file associations
+- [x] Configure `electron-builder.yml`
+- [x] Add desktop unit and Playwright integration tests
+- [x] Native Save in place + session restore (`LAST_DOCUMENT_PATH`)
+- [x] File → Open Recent (native recent documents + renderer submenu)
+- [x] Custom title bar (Windows/Linux) with window controls
+- [x] Sandboxed renderer + CJS preload bundle
+- [x] Engine import resolver desktop support (local `.ins` imports)
+- [x] Windows/Linux taskbar icon
 
 ### Phase 4 — distribution
 
-- [ ] Add desktop CI workflow
-- [ ] Add root `desktop:*` npm scripts
-- [ ] Update README, ROADMAP, package READMEs
+- [x] Add desktop CI workflow
+- [x] Add root `desktop:*` npm scripts
+- [x] Update README, ROADMAP, `apps/desktop/README.md`
+- [x] Add `@beatbax/engine` changeset for desktop import-resolver fix
 - [ ] Manual QA on Windows (primary platform)
 - [ ] Publish first desktop release on GitHub Releases
 

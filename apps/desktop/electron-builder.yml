@@ -1,0 +1,59 @@
+appId: com.beatbax.desktop
+productName: BeatBax
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!tests/*'
+  - '!playwright.config.ts'
+  - '!jest.config.cjs'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,README.md}'
+  - '!{.env,.env.*,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+protocols:
+  - name: BeatBax song links
+    schemes:
+      - beatbax
+fileAssociations:
+  - ext: bax
+    name: BeatBax Song
+    description: BeatBax text song
+    role: Editor
+  - ext: uge
+    name: hUGETracker Song
+    description: hUGETracker song import for BeatBax
+    role: Viewer
+win:
+  icon: build/icon.ico
+  executableName: BeatBax
+  target:
+    - nsis
+    - portable
+mac:
+  target:
+    - dmg
+    - zip
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+linux:
+  category: AudioVideo
+  target:
+    - AppImage
+    - deb
+nsis:
+  artifactName: ${productName}-${version}-setup.${ext}
+  createDesktopShortcut: always
+  shortcutName: ${productName}
+dmg:
+  artifactName: ${productName}-${version}.${ext}
+appImage:
+  artifactName: ${productName}-${version}.${ext}
+npmRebuild: false
+publish:
+  provider: github
+  owner: kadraman
+  repo: beatbax

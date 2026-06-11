@@ -411,18 +411,22 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
       if (savedSizes) {
         const sizes = JSON.parse(savedSizes);
         if (sizes.leftArea !== undefined) leftAreaWidth = sizes.leftArea;
-        if (sizes.editor !== undefined) editorHeight = sizes.editor;
+        if (sizes.editor !== undefined) {
+          editorHeight = Math.min(80, Math.max(35, sizes.editor));
+        }
       }
     } catch (e) {
       log.warn('Failed to load 3-pane layout sizes:', e);
     }
   }
 
-  // Create main horizontal container
+  // Create main horizontal container — flex:1 so it fills remaining space when
+  // the layout host is a column flex container (transport bar, pattern grid, etc.).
   const mainContainer = document.createElement('div');
   mainContainer.style.display = 'flex';
+  mainContainer.style.flex = '1 1 0';
+  mainContainer.style.minHeight = '0';
   mainContainer.style.width = '100%';
-  mainContainer.style.height = '100%';
   mainContainer.style.overflow = 'hidden';
 
   // ========== LEFT CONTENT AREA (will contain editor + output vertically) ==========
@@ -524,8 +528,10 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
   rightPane.id = 'right-pane';
   rightPane.style.flex = '1';
   rightPane.style.height = '100%';
-  rightPane.style.overflow = 'auto';
-  rightPane.style.padding = '10px';
+  rightPane.style.overflow = 'hidden';
+  rightPane.style.padding = '0';
+  rightPane.style.display = 'flex';
+  rightPane.style.flexDirection = 'column';
 
   // Thin strip shown when the right pane is collapsed, so the user can expand it again.
   const rightPaneExpandStrip = document.createElement('div');
@@ -654,7 +660,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
           leftContentArea.style.width = `${leftAreaWidth}%`;
         }
         if (sizes.editor !== undefined) {
-          editorHeight = sizes.editor;
+          editorHeight = Math.min(80, Math.max(35, sizes.editor));
           editorPane.style.height = `${editorHeight}%`;
         }
       }
@@ -689,7 +695,7 @@ export function createThreePaneLayout(config: LayoutConfig): ThreePaneLayoutMana
     getHorizontalSplitter: () => horizontalSplitter,
     setRightPaneVisible(visible: boolean): void {
       rightPaneVisible = visible;
-      rightPane.style.display = visible ? '' : 'none';
+      rightPane.style.display = visible ? 'flex' : 'none';
       horizontalSplitter.style.display = visible ? '' : 'none';
       rightPaneExpandStrip.style.display = visible ? 'none' : 'flex';
       leftContentArea.style.width = visible ? `${leftAreaWidth}%` : '100%';

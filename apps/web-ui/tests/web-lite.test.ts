@@ -27,11 +27,13 @@ describe('web-lite profile', () => {
     expect(caps.settingsPanel).toBe(false);
   });
 
-  it('buildAppLayout adds web-lite header with text logo and social links', () => {
+  it('buildAppLayout adds web-lite header with brand icon, text logo, and social links', () => {
     document.body.innerHTML = '<div id="app"></div>';
     const app = document.getElementById('app')!;
     buildAppLayout(app);
     expect(document.getElementById('bb-web-lite-header')).not.toBeNull();
+    const brandIcon = document.querySelector('.bb-web-lite-header__icon') as HTMLImageElement | null;
+    expect(brandIcon?.getAttribute('src')).toBe('/favicon.svg');
     expect(document.querySelector('.bb-web-lite-header__logo')?.textContent).toBe('BeatBax');
     expect(document.querySelector('.bb-web-lite-header__cta')).toBeNull();
     const github = document.querySelector('.bb-web-lite-header__social-link[data-social="github"]');

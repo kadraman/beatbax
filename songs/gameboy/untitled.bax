@@ -1,0 +1,16 @@
+# Use File → Open or drag-and-drop a .bax file to load an existing song.
+# See Help for BeatBax syntax and examples.
+# Below is a simple 1-channel song with a single lead instrument and a repeating 4-note melody.
+
+chip gameboy
+bpm 128
+
+inst lead type=pulse1 duty=50
+
+pat melody = C5 E5 G5 C6
+
+seq main  = melody melody:oct(-1) melody melody:oct(-2)
+
+channel 1 => inst lead seq main
+
+play

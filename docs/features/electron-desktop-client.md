@@ -1,9 +1,9 @@
 ---
 title: Electron Desktop Client
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-03-29
-updated: 2026-06-06
+updated: 2026-06-11
 issue: "https://github.com/kadraman/beatbax/issues/69"
 supersedes: "renderer symlink approach — see Architecture Revision below"
 related:
@@ -17,6 +17,28 @@ Build a native cross-platform desktop application for BeatBax using Electron at 
 **Master plan:** [desktop-first-client-split.md](./desktop-first-client-split.md)
 
 This document retains Electron-specific technical details (IPC API, main process, electron-builder, file associations). Cross-cutting architecture (app-core extraction, web-lite scope, React component map, distribution positioning) lives in the master plan.
+
+---
+
+## Implementation Progress
+
+**Last updated:** 2026-06-11  
+**Electron plumbing status:** ✅ **Implemented** — main/preload/renderer/IPC/packaging scaffold complete and dev-verified on Windows. Manual QA and first GitHub Release remain (see master plan Phase 4).
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Scaffold (`apps/desktop/`) | ✅ | electron-vite + React renderer, `desktop-full` profile |
+| Main process | ✅ | Window lifecycle, IPC handlers, native menu, file associations, single-instance lock |
+| Preload | ✅ | `contextBridge` → `window.electronAPI`; CJS bundle for sandboxed renderer |
+| `electron-fs.ts` | ✅ | IPC-backed `writeFileSync`, `readFileSync`, `existsSync` |
+| Native file dialogs | ✅ | Open, Save, Save As; write-in-place on Ctrl+S |
+| Session / recent files | ✅ | `LAST_DOCUMENT_PATH` restore; Open Recent submenu + `app.addRecentDocument` |
+| Custom chrome | ✅ | Frameless title bar + window controls (Windows/Linux); hidden inset bar (macOS) |
+| Packaging | ✅ | `electron-builder.yml` configured (NSIS/dmg/AppImage/deb) |
+| Unit tests | ✅ | 21 tests — IPC handlers, menu, fs adapter, document save, preload path |
+| E2E tests | ✅ | Playwright smoke + integration specs |
+| CI | ✅ | `.github/workflows/desktop-build.yaml` |
+| Manual QA / release | 🟨 | Windows QA and first GitHub Release pending |
 
 ---
 
@@ -101,32 +123,57 @@ Exposed via `contextBridge` in the preload script:
 
 ```typescript
 interface ElectronAPI {
-  // File open
-  openFile(options: OpenDialogOptions): Promise<{ path: string; data: Uint8Array } | null>;
-  // File save
+  // File open / save
+  openFile(options?: OpenDialogOptions): Promise<{ path: string; name: string; data: Uint8Array } | null>;
   saveFile(options: SaveDialogOptions, data: Uint8Array): Promise<string | null>;
+  writeFileSync(targetPath: string, data: Uint8Array): void;
+  readFileSync(targetPath: string, encoding?: string): string;
+  existsSync(targetPath: string): boolean;
   // Recent files
   getRecentFiles(): Promise<string[]>;
-  addRecentFile(path: string): void;
-  // App version
+  addRecentFile(targetPath: string): Promise<void>;
+  openRecentFile(filePath: string): void;
+  // App / shell
   getVersion(): string;
-  // Native menu → renderer actions (added in revised plan)
-  onMenuAction(callback: (action: string) => void): void;
+  getPlatform(): NodeJS.Platform;
+  openExternal(url: string): Promise<void>;
+  // Window chrome (frameless title bar on Windows/Linux)
+  minimizeWindow(): void;
+  toggleMaximizeWindow(): void;
+  closeWindow(): void;
+  queryWindowState(): Promise<{ maximized: boolean }>;
+  toggleDevTools(): void;
+  onWindowStateChanged(callback: (state: { maximized: boolean }) => void): () => void;
+  // Native menu → renderer actions
+  onMenuAction(callback: (action: MenuAction) => void): () => void;
+  // Main → renderer file events (open-file, drag-drop, argv startup)
+  onFileOpened(callback: (payload: { path: string; name: string; data: Uint8Array }) => void): () => void;
 }
 ```
+
+Implemented in `apps/desktop/src/preload/index.ts` and typed in `apps/desktop/src/shared/electron-api.ts`. IPC channel names live in `apps/desktop/src/shared/ipc.ts`.
 
 ### Electron FS Adapter (`electron-fs.ts`)
 
 Replaces `browser-fs.ts` in the renderer — same interface, different backend:
 
 ```typescript
-// Instead of capturing bytes in memory and triggering a download,
-// call the main process via IPC to write to a real file path.
+// Async IPC write (used by export pipeline via fs.writeFileSync alias)
 export function writeFileSync(path: string, data: Uint8Array): void {
-  // Queues an async IPC write; synchronous illusion maintained for engine compat.
-  window.electronAPI.saveFile({ defaultPath: path }, data);
+  window.electronAPI.writeFileSync(path, data);
+}
+
+// Sync IPC read/exists (used by engine import resolver for local .ins files)
+export function readFileSync(path: string, encoding?: string): string {
+  return window.electronAPI.readFileSync(path, encoding);
+}
+
+export function existsSync(path: string): boolean {
+  return window.electronAPI.existsSync(path);
 }
 ```
+
+The engine import resolver permits local file imports when `window.electronAPI` is present (desktop) or when explicit `readFile`/`fileExists` options are supplied. See `.changeset/desktop-local-imports-engine.md`.
 
 ### Native Menu
 
@@ -135,13 +182,13 @@ export function writeFileSync(path: string, data: Uint8Array): void {
 ### Example Usage
 
 ```bash
-# Development
-cd apps/desktop
-npm run dev          # electron-vite dev server with HMR
+# Development (from repository root)
+npm run desktop:dev      # electron-vite dev server with HMR
 
 # Production build
-npm run build        # compiles main + preload + renderer
-npm run dist         # runs electron-builder → produces installers
+npm run desktop:build    # compiles main + preload + renderer
+npm run desktop:test     # Jest unit tests
+npm run desktop:dist     # runs electron-builder → produces installers
 ```
 
 Installers produced:
@@ -168,20 +215,22 @@ Installers produced:
 
 ### Main Process (`src/main/`)
 
-- `index.ts`: Create `BrowserWindow` (1280×800 default, frame, webPreferences with `contextIsolation: true`, `nodeIntegration: false`). Handle `app.on('open-file')` for macOS file association. Register as default handler for `.bax` and `.uge` file extensions.
-- `ipc-handlers.ts`: Register handlers for `dialog:openFile`, `dialog:saveFile`, `fs:writeFile`, `app:getRecentFiles`, `app:addRecentFile` using `ipcMain.handle`.
-- `menu.ts`: Build native `Menu` from template; emit IPC events to renderer for actions (play, stop, export, open, new).
+- `index.ts`: Create `BrowserWindow` (1440×960 default; frameless on Windows/Linux with custom title bar; hidden inset on macOS). `webPreferences`: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. Handle `app.on('open-file')` for macOS file association. Register as default handler for `.bax` and `.uge` file extensions. Queue argv startup paths and drag-drop opens via `FILE_OPENED` IPC.
+- `ipc-handlers.ts`: Register handlers for open/save dialogs, sync read/write/exists, recent files, window controls, and external URLs using `ipcMain.handle` / `ipcMain.on`. Path traversal validation on all file paths.
+- `menu.ts`: Build native `Menu` from template; Open Recent submenu with basename labels; emit IPC events to renderer for actions (play, stop, export, open, new).
 
 ### Preload (`src/preload/`)
 
 - `index.ts`: Expose `window.electronAPI` via `contextBridge.exposeInMainWorld`, forwarding all IPC calls with input validation. Never expose raw `ipcRenderer` to renderer.
+- **Sandbox compatibility:** Renderer runs with `sandbox: true`. Preload is bundled as **CommonJS** (`out/preload/index.js`) with `externalizeDeps: false` so dependencies are inlined — ESM preload (`.mjs`) is incompatible with sandboxed renderers.
 
 ### Renderer (`src/renderer/`)
 
-- `electron-fs.ts`: IPC-backed write adapter (replaces `browser-fs.ts`).
+- `electron-fs.ts`: IPC-backed fs shim (replaces `browser-fs.ts`).
 - React app wired to `@beatbax/app-core` `createAppContext()` with `desktop-full` profile.
 - Native Open/Save via `window.electronAPI` (not browser hidden input).
-- Complex panels (Visualizer, Mixer): bridge-mount app-core panel classes initially; native React rewrites post-MVP (see master plan Phase 5).
+- Session restore via `StorageKey.LAST_DOCUMENT_PATH` — last on-disk path survives restart.
+- Complex panels (Visualizer, Mixer): bridge-mount web-ui panel classes via `@web-ui` aliases; native React rewrites scheduled post-MVP (see master plan Phase 5).
 
 ### Web UI Changes
 
@@ -252,16 +301,21 @@ See [desktop-first-client-split.md — Migration Path](./desktop-first-client-sp
 
 ### Electron plumbing (this document)
 
-- [ ] Scaffold `apps/desktop/` with electron-vite (React renderer)
-- [ ] Implement `electron-fs.ts` IPC adapter
-- [ ] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
-- [ ] Implement preload `contextBridge` (including `onMenuAction`)
-- [ ] Add native file Open/Save dialogs
-- [ ] Register `.bax` and `.uge` file associations
-- [ ] Configure `electron-builder.yml` for Win/Mac/Linux
-- [ ] Add unit tests for IPC handlers and FS adapter
-- [ ] Add Playwright integration tests
+- [x] Scaffold `apps/desktop/` with electron-vite (React renderer)
+- [x] Implement `electron-fs.ts` IPC adapter (read/write/exists)
+- [x] Implement main process (`index.ts`, `ipc-handlers.ts`, `menu.ts`)
+- [x] Implement preload `contextBridge` (including `onMenuAction`, `onFileOpened`, window controls)
+- [x] Add native file Open/Save dialogs + Save in place
+- [x] Session restore and Open Recent
+- [x] Register `.bax` and `.uge` file associations
+- [x] Configure `electron-builder.yml` for Win/Mac/Linux
+- [x] Sandboxed renderer + CJS preload bundle
+- [x] Custom title bar (Windows/Linux)
+- [x] Windows/Linux taskbar icon
+- [x] Add unit tests for IPC handlers and FS adapter (21 tests)
+- [x] Add Playwright integration tests
 - [ ] Manual QA on Windows, macOS, Linux
+- [ ] First GitHub Release with installers
 - [ ] Optional: add `electron-updater` for auto-update support
 
 ### Full initiative (master plan)

@@ -5,8 +5,8 @@
  * then appends everything to the given `appContainer`.  Returns element
  * references so the caller can mount components into each pane.
  *
- * The `outputPane` is pre-configured as a flex column (padding cleared,
- * overflow hidden) so the tab system can mount directly inside it.
+ * The `outputPane` and `rightPane` are pre-configured as flex columns (padding
+ * cleared, overflow hidden) so the tab system can mount directly inside them.
  */
 
 import { createThreePaneLayout, type ThreePaneLayoutManager } from '../ui/layout';
@@ -88,6 +88,10 @@ export function buildAppLayout(appContainer: HTMLElement): AppLayout {
   outputPane.style.flexDirection = 'column';
   outputPane.style.fontFamily    = '';
   outputPane.style.fontSize      = '';
+  rightPane.style.padding        = '0';
+  rightPane.style.overflow       = 'hidden';
+  rightPane.style.display        = 'flex';
+  rightPane.style.flexDirection  = 'column';
 
   // ─── Inline mixer host (bottom of the left content column, below the output pane).
   // Placing it here (in leftContentArea, not inside outputPane) means its full height
