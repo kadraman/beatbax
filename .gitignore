@@ -153,6 +153,8 @@ tests/*.js
 # sample source code
 lib
 !songs/lib
+!apps/desktop/src/renderer/src/lib/
+!apps/desktop/src/renderer/src/lib/**
 
 # generate tools
 tools

@@ -62,6 +62,8 @@ export const StorageKey = {
   LAST_EXPORT_FORMAT: 'export.lastFormat',
   /** Stem of the last loaded .bax filename (persisted across reloads). */
   LOADED_FILENAME: 'editor.loadedFilename',
+  /** Absolute path of the last on-disk document (desktop session restore). */
+  LAST_DOCUMENT_PATH: 'editor.lastDocumentPath',
   /** Logger level setting ('error' | 'warn' | 'info' | 'debug'). */
   LOG_LEVEL: 'debug.logLevel',
   /** Show debug overlay (boolean). */

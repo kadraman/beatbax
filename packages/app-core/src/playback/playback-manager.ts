@@ -6,6 +6,7 @@ import { parse } from '@beatbax/engine/parser';
 import { resolveSong, resolveImports } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import type { EventBus } from '../utils/event-bus.js';
+import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { storage, StorageKey } from '../utils/local-storage.js';
@@ -156,11 +157,11 @@ export class PlaybackManager {
       let resolvedAST = ast;
       if ((ast as any).imports && (ast as any).imports.length > 0) {
         try {
-          resolvedAST = await resolveImports(ast as any, {
+          resolvedAST = await resolveImports(ast as any, buildImportResolverOptions({
             onWarn: (message: string, loc?: any) => {
               warnings.push({ component: 'import-resolver', message, loc });
             },
-          });
+          }));
         } catch (importErr: any) {
           const error = new Error(`Import failed: ${importErr.message || String(importErr)}`);
           this.state.error = error;

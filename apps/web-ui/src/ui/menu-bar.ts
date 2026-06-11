@@ -44,6 +44,8 @@ export interface MenuBarOptions {
   onNew?: () => void;
   /** Open a .bax file from disk (Ctrl+O). */
   onOpen?: () => void;
+  /** Open a recent file by absolute path (desktop). */
+  onOpenRecent?: (filePath: string) => void;
   /** Called immediately when an example load is initiated. */
   onBeforeExampleLoad?: () => void;
   /** Save the current document (Ctrl+S). */
@@ -112,6 +114,8 @@ export interface MenuBarOptions {
 
 interface RecentFile {
   filename: string;
+  /** Absolute path when available (desktop). */
+  path?: string;
   /** ISO timestamp of last open. */
   opened: string;
 }
@@ -181,6 +185,8 @@ export class MenuBar {
   private abort = new AbortController();
   /** Cached example content keyed by path. */
   private exampleCache = new Map<string, string>();
+  /** Desktop Open Recent entries (absolute paths); web falls back to localStorage names. */
+  private cachedRecentFiles: RecentFile[] = [];
   /** Tracks current visibility state for each toggleable panel. */
   private panelVisible = new Map<string, boolean>([
     ['output', true],
@@ -204,12 +210,17 @@ export class MenuBar {
   // ─── Public API ─────────────────────────────────────────────────────────────
 
   /**
-   * Record a file in the "Recent Files" list that appears under File > Recent Files.
+   * Record a file in the Open Recent list under File → Open Recent.
    * Call this whenever the editor loads a new file.
    */
   recordRecent(filename: string): void {
     recordRecentFile(filename);
     this.refreshRecentFiles();
+  }
+
+  /** Replace Open Recent entries (desktop — absolute paths from main process). */
+  setRecentFiles(files: RecentFile[]): void {
+    this.cachedRecentFiles = files.slice(0, MAX_RECENT);
   }
 
   dispose(): void {
@@ -502,7 +513,7 @@ export class MenuBar {
       { type: 'separator' },
       {
         type: 'submenu',
-        label: 'Recent Files',
+        label: 'Open Recent',
         id: 'recent-files',
         lazyChildren: () => this.recentFileItems(),
       },
@@ -799,16 +810,21 @@ export class MenuBar {
   }
 
   private recentFileItems(): MenuItemDef[] {
-    const recent = loadRecentFiles();
+    const recent = this.cachedRecentFiles.length > 0
+      ? this.cachedRecentFiles
+      : loadRecentFiles();
     if (recent.length === 0) {
       return [{ type: 'item', label: '(no recent files)', disabled: true, action: () => {} }];
     }
-    return recent.map(f => ({
+    return recent.map((f) => ({
       type: 'item' as const,
       label: f.filename,
       action: () => {
-        // Recent files are stored by name only — we can only re-open via the file-picker
-        log.debug(`Recent file clicked: ${f.filename}`);
+        if (f.path) {
+          this.opts.onOpenRecent?.(f.path);
+          return;
+        }
+        log.debug(`Recent file clicked (name only): ${f.filename}`);
         this.opts.onOpen?.();
       },
     }));

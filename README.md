@@ -9,6 +9,7 @@
   </a>
 </p>
 
+> **Desktop-first split:** BeatBax Desktop is the primary full-featured client in progress at `apps/desktop`, while `apps/web-ui` now targets a lighter web-lite browser experience.
 
 # BeatBax
 
@@ -33,7 +34,8 @@ Tracker formats that game libraries can consume. For example [hUGETracker](https
 - **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
-- **Web UI IDE** — live editor with syntax highlighting, real-time validation, channel mixer, and one-click playback
+- **Desktop IDE (in progress)** — Electron + React client with native file dialogs, recent files, and full desktop-first foundations
+- **Web-lite browser client** — simplified try-in-browser editor/playback experience for quick demos and lightweight edits
 - **BeatBax Copilot*** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
 - **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
@@ -214,7 +216,19 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 
 ---
 
+## Desktop
+
+Start the desktop client during development:
+
+```powershell
+npm run desktop:dev
+```
+
+Current desktop scope includes the Electron shell, native menu + file I/O plumbing, a React editor workspace, playback controls, and packaging workflow scaffolding.
+
 ## Web UI
+
+The browser app is now the **web-lite** profile: a lighter try-in-browser surface that keeps editing, validation, and playback while desktop-only IDE capabilities continue moving into `apps/desktop`.
 
 Start the development server:
 
@@ -304,6 +318,10 @@ npm test
 | `npm run engine:build` | Build `@beatbax/engine` |
 | `npm run cli:build` | Build `@beatbax/cli` |
 | `npm run web-ui:dev` | Start Web UI dev server |
+| `npm run desktop:dev` | Start the desktop Electron + React app |
+| `npm run desktop:build` | Build the desktop app bundles |
+| `npm run desktop:test` | Run desktop unit tests |
+| `npm run desktop:dist` | Create desktop installers |
 | `npm run cli:dev` | Build engine + run CLI dev entry |
 | `npm run build-all` | Full monorepo build |
 | `npm run clean-all` | Clean all dist outputs |

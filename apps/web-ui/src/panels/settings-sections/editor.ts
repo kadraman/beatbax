@@ -21,7 +21,11 @@ export function buildEditorSection(): HTMLElement {
   el.appendChild(toggle('Auto-save', settingAutoSave.get(), (v) => {
     settingAutoSave.set(v);
   }));
-  el.appendChild(noteText('When enabled, the editor auto-saves content to local storage 500 ms after each keystroke. Changes to this setting take effect after a page reload.'));
+  el.appendChild(noteText(
+    (window as unknown as { electronAPI?: unknown }).electronAPI
+      ? 'When enabled, saves the open file to disk shortly after each edit (requires a saved file path).'
+      : 'When enabled, the editor auto-saves content to local storage 500 ms after each keystroke. Changes to this setting take effect after a page reload.',
+  ));
 
   el.appendChild(toggle('Word wrap', settingWordWrap.get(), (v) => {
     settingWordWrap.set(v);

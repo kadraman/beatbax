@@ -1,5 +1,5 @@
 /**
- * Web-lite top bar: text logo + optional social icon links.
+ * Web-lite top bar: brand icon + text logo + optional social icon links.
  */
 
 import { brandIcon } from '../utils/icons';
@@ -30,10 +30,17 @@ export function buildWebLiteHeader(): HTMLElement {
 
   const title = document.createElement('h1');
   title.className = 'bb-web-lite-header__title';
+
+  const icon = document.createElement('img');
+  icon.src = '/favicon.svg';
+  icon.alt = '';
+  icon.className = 'bb-web-lite-header__icon';
+  icon.setAttribute('aria-hidden', 'true');
+
   const logo = document.createElement('span');
   logo.className = 'bb-web-lite-header__logo';
   logo.textContent = 'BeatBax';
-  title.appendChild(logo);
+  title.append(icon, logo);
   header.appendChild(title);
 
   const social = document.createElement('nav');

@@ -1,0 +1,402 @@
+@import './assets/base.css';
+
+/* Register web-ui sources so Tailwind scans heroicon utility classes in the desktop bundle. */
+@source "../../../../web-ui/src/**/*.{ts,tsx,js}";
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bb-app-bg, #1e1e1e);
+  color: var(--bb-fg, #d4d4d4);
+  min-height: 100vh;
+}
+
+.desktop-fatal button {
+  border: 1px solid #39425e;
+  background: #1d2438;
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+}
+
+.desktop-fatal button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.desktop-shell {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-height: 100vh;
+  background: var(--bb-app-bg, #1e1e1e);
+  color: var(--bb-fg, #d4d4d4);
+}
+
+/* ─── Custom title bar (frameless window chrome) ─────────────────────────── */
+.desktop-title-bar {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 32px;
+  background: var(--bb-app-bg, #1e1e1e);
+  border-bottom: 1px solid var(--border-color, #333);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.desktop-title-bar--mac {
+  padding-left: 72px;
+}
+
+.desktop-title-bar__menu-host,
+.desktop-title-bar__controls,
+.desktop-title-bar__control {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-title-bar__menu-host {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 100%;
+  min-width: 0;
+}
+
+.desktop-title-bar__menu-host .bb-menu-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border-bottom: none;
+  background: transparent;
+  position: relative;
+  z-index: 1000;
+}
+
+/* Document title lives in the status bar on desktop — hide menu-bar duplicate. */
+.desktop-title-bar .bb-menu-bar__song-name {
+  display: none;
+}
+
+.desktop-title-bar .bb-menu__trigger {
+  -webkit-app-region: no-drag;
+  color: var(--bb-toolbar-fg, #cccccc);
+}
+
+.desktop-title-bar .bb-menu__trigger:focus,
+.desktop-title-bar .bb-menu__trigger:focus-visible {
+  outline: none;
+  background: transparent;
+  color: var(--bb-toolbar-fg, #cccccc);
+}
+
+.desktop-title-bar .bb-menu__trigger:hover,
+.desktop-title-bar .bb-menu__trigger.bb-menu__trigger--active {
+  background: var(--bb-toolbar-btn-hover-bg, #2a2d2e);
+  color: var(--bb-toolbar-dropdown-hover-fg, #ffffff);
+}
+
+.desktop-title-bar .bb-menu__item--submenu > .bb-menu__sub-panel {
+  display: none;
+}
+
+.desktop-title-bar .bb-menu__item--submenu:hover > .bb-menu__sub-panel {
+  display: block;
+}
+
+.desktop-title-bar__drag {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.desktop-title-bar__controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.desktop-title-bar__control {
+  width: 46px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  position: relative;
+  cursor: default;
+  color: var(--bb-fg, #d4d4d4);
+}
+
+.desktop-title-bar__control:focus {
+  outline: none;
+}
+
+.desktop-title-bar__control:focus-visible {
+  outline: 1px dotted var(--bb-accent, #c8a227);
+  outline-offset: -2px;
+}
+
+.desktop-title-bar__control:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-title-bar__control--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.desktop-title-bar__control--minimize::before,
+.desktop-title-bar__control--maximize::before,
+.desktop-title-bar__control--close::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.desktop-title-bar__control--minimize::before {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+}
+
+.desktop-title-bar__control--maximize::before {
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+.desktop-title-bar__control--restore::before {
+  width: 9px;
+  height: 9px;
+  border: none;
+  background:
+    linear-gradient(currentColor, currentColor) 2px 0 / 7px 1px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 2px / 1px 7px no-repeat,
+    linear-gradient(currentColor, currentColor) 2px 2px / 7px 7px no-repeat;
+  box-shadow: inset 0 0 0 1px currentColor;
+  transform: translate(2px, -2px);
+}
+
+.desktop-title-bar__control--close::before {
+  width: 12px;
+  height: 12px;
+  background:
+    linear-gradient(45deg, transparent 46%, currentColor 46%, currentColor 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, currentColor 46%, currentColor 54%, transparent 54%);
+}
+
+.desktop-workspace-host {
+  min-height: 0;
+  overflow: hidden;
+}
+
+#bb-toolbar-host {
+  flex-shrink: 0;
+}
+
+#bb-toolbar-host .bb-toolbar__btn:focus,
+#bb-toolbar-host .bb-toolbar__btn:focus-visible,
+.bb-transport .bb-transport__btn:focus,
+.bb-transport .bb-transport__btn:focus-visible,
+.bb-transport .bb-transport__nudge-btn:focus,
+.bb-transport .bb-transport__nudge-btn:focus-visible,
+#bb-status-bar-host .status-bar-clickable:focus,
+#bb-status-bar-host .status-bar-clickable:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.toolbar,
+.transport-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid #252c42;
+  background: rgba(11, 16, 28, 0.94);
+}
+
+.toolbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toolbar__brand div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.toolbar__brand span,
+.toolbar__brand small,
+.transport-bar__status {
+  color: #9ca8c7;
+  font-size: 0.9rem;
+}
+
+.toolbar__actions,
+.transport-bar__controls,
+.transport-bar__status {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr) 240px;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.workspace-grid__editor,
+.workspace-grid__side,
+.workspace-grid__bottom {
+  min-height: 0;
+}
+
+.workspace-grid__editor {
+  border: 1px solid #252c42;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #111827;
+  min-height: 360px;
+}
+
+.workspace-grid__side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.workspace-grid__bottom {
+  grid-column: 1 / span 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.editor-pane {
+  width: 100%;
+  height: 100%;
+}
+
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid #252c42;
+  border-radius: 16px;
+  background: #111827;
+  overflow: hidden;
+}
+
+.panel-card__header {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #252c42;
+  font-weight: 600;
+}
+
+.panel-card__body {
+  padding: 1rem;
+  overflow: auto;
+  color: #c9d2ea;
+  line-height: 1.5;
+}
+
+.panel-card__body--list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.log-entry {
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid transparent;
+  background: #182036;
+}
+
+.log-entry--warning {
+  border-color: #735d2f;
+  background: #2b2417;
+}
+
+.log-entry--error {
+  border-color: #7c3341;
+  background: #2d171d;
+}
+
+.desktop-status-bar-host {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: var(--status-bar-bg, var(--bb-accent-bg));
+}
+
+.desktop-status-bar-host .status-bar {
+  position: static;
+  width: 100%;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border-color, #444);
+  border-bottom: none;
+  min-height: 26px;
+  height: auto;
+  line-height: 1.35;
+  padding: 5px 14px;
+}
+
+.desktop-fatal {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.desktop-fatal pre,
+.editor-pane--error {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #2d171d;
+  border: 1px solid #7c3341;
+  color: #f3c2cb;
+  white-space: pre-wrap;
+}
+
+.editor-pane--error {
+  display: grid;
+  place-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+
+  .workspace-grid__bottom {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+}
