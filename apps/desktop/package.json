@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Electron desktop client for BeatBax.",
+  "desktopName": "BeatBax",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
