@@ -21,12 +21,8 @@ protocols:
 fileAssociations:
   - ext: bax
     name: BeatBax Song
-    description: BeatBax text song
+    description: BeatBax song file
     role: Editor
-  - ext: uge
-    name: hUGETracker Song
-    description: hUGETracker song import for BeatBax
-    role: Viewer
 win:
   icon: build/icon.ico
   executableName: BeatBax
