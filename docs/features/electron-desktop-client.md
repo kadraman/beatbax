@@ -3,7 +3,7 @@ title: Electron Desktop Client
 status: in-progress
 authors: ["kadraman"]
 created: 2026-03-29
-updated: 2026-06-11
+updated: 2026-06-12
 issue: "https://github.com/kadraman/beatbax/issues/69"
 supersedes: "renderer symlink approach — see Architecture Revision below"
 related:
@@ -22,8 +22,8 @@ This document retains Electron-specific technical details (IPC API, main process
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-11  
-**Electron plumbing status:** ✅ **Implemented** — main/preload/renderer/IPC/packaging scaffold complete and dev-verified on Windows. Manual QA and first GitHub Release remain (see master plan Phase 4).
+**Last updated:** 2026-06-12  
+**Electron plumbing status:** ✅ **Complete** — main/preload/renderer/IPC/packaging shipped in v0.1.0. QA sign-off: [desktop-release-qa.md](../qa/desktop-release-qa.md). Release: `desktop-v0.1.0`.
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -38,7 +38,7 @@ This document retains Electron-specific technical details (IPC API, main process
 | Unit tests | ✅ | 21 tests — IPC handlers, menu, fs adapter, document save, preload path |
 | E2E tests | ✅ | Playwright smoke + integration specs |
 | CI | ✅ | `.github/workflows/desktop-build.yaml` |
-| Manual QA / release | 🟨 | Windows QA and first GitHub Release pending |
+| Manual QA / release | ✅ | QA sign-off 2026-06-12; GitHub Release `desktop-v0.1.0` |
 
 ---
 
@@ -314,8 +314,8 @@ See [desktop-first-client-split.md — Migration Path](./desktop-first-client-sp
 - [x] Windows/Linux taskbar icon
 - [x] Add unit tests for IPC handlers and FS adapter (21 tests)
 - [x] Add Playwright integration tests
-- [ ] Manual QA on Windows, macOS, Linux
-- [ ] First GitHub Release with installers
+- [x] Manual QA on Windows, macOS, Linux — Windows primary + Linux CI e2e; macOS/Linux installers via release matrix ([desktop-release-qa.md](../qa/desktop-release-qa.md))
+- [x] First GitHub Release with installers (`desktop-v0.1.0`)
 - [ ] Optional: add `electron-updater` for auto-update support
 
 ### Full initiative (master plan)

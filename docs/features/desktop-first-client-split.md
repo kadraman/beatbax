@@ -3,7 +3,7 @@ title: "Desktop-First Client Split (app-core + web-lite + React Desktop)"
 status: in-progress
 authors: ["kadraman"]
 created: 2026-06-06
-updated: 2026-06-11
+updated: 2026-06-12
 issue: "https://github.com/kadraman/beatbax/issues/136"
 related:
   - docs/features/electron-desktop-client.md
@@ -19,15 +19,15 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-11  
-**Overall status:** Phases 1–3 **complete**; Phase 4 **in progress** (CI/scripts/docs done; manual QA and first GitHub Release pending).
+**Last updated:** 2026-06-12  
+**Overall status:** Phases 1–4 **complete** for v0.1.0. Phase 5 (native React panels, design tokens) remains post-MVP.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **1 — `@beatbax/app-core`** | ✅ Complete | Package builds and tests independently (26 suites, 392 tests). Web-ui consumes app-core. |
 | **2 — web-lite** | ✅ Complete | `apps/web-ui` ships as web-lite profile. See [Phase 2 deviations](#phase-2-deviations-from-original-spec) below. |
 | **3 — Electron desktop (React)** | ✅ Complete | Full IDE via web-ui panel bridges; native file I/O, session restore, Open Recent, custom title bar, sandboxed preload. 21 unit tests + Playwright e2e. |
-| **4 — Distribution** | 🟨 In progress | Root README/scripts, `apps/desktop/README.md`, desktop CI workflow, and `@beatbax/engine` changeset added; manual QA and first GitHub Release still pending. |
+| **4 — Distribution** | ✅ Complete | CI, scripts, docs, QA sign-off ([desktop-release-qa.md](../qa/desktop-release-qa.md)), and first GitHub Release (`desktop-v0.1.0`). |
 
 **Key artifacts (Phases 1–2):**
 
@@ -53,12 +53,11 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 - Root `package.json` — `desktop:dev`, `desktop:build`, `desktop:test`, `desktop:dist`
 - Root `README.md` and `ROADMAP.md` — desktop-first positioning
 
-**Not yet done (deferred / Phase 4 remainder):**
+**Deferred (Phase 5 / post-MVP):**
 
-- Manual QA on Windows (primary platform), then macOS/Linux
-- First desktop GitHub Release with installers
-- `packages/app-core/README.md`
-- `apps/web-ui/README.md` web-lite scope note
+- Native React Visualizer and Channel Mixer
+- Shared `packages/ui-tokens/` design tokens
+- `electron-updater` auto-update
 
 `@beatbax/app-core` is **`private: true`** — internal workspace package only, not published to npm (same as `@beatbax/web-ui`).
 
@@ -347,7 +346,7 @@ The desktop renderer bridges existing web-ui panel implementations via `@web-ui`
 5. GitHub Releases: desktop installers as primary artifact.
 6. Existing `beatbax-build.yaml` continues deploying web-lite to app.beatbax.com.
 
-**Status (2026-06-11):** 🟨 Partially delivered — CI workflow, root scripts, README/ROADMAP, and `apps/desktop/README.md` are in place. Manual QA on Windows and the first GitHub Release remain.
+**Status (2026-06-12):** ✅ Delivered — CI workflow, root scripts, READMEs, QA sign-off, and first GitHub Release (`desktop-v0.1.0`).
 
 ---
 
@@ -467,8 +466,8 @@ This is a **breaking change in product positioning**, not in engine or CLI APIs:
 - [x] Add root `desktop:*` npm scripts
 - [x] Update README, ROADMAP, `apps/desktop/README.md`
 - [x] Add `@beatbax/engine` changeset for desktop import-resolver fix
-- [ ] Manual QA on Windows (primary platform)
-- [ ] Publish first desktop release on GitHub Releases
+- [x] Manual QA on Windows (primary platform) — see [desktop-release-qa.md](../qa/desktop-release-qa.md)
+- [x] Publish first desktop release on GitHub Releases (`desktop-v0.1.0`)
 
 ---
 
