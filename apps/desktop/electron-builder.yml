@@ -43,6 +43,7 @@ linux:
   category: AudioVideo
   executableName: BeatBax
   syncDesktopName: true
+  maintainer: kadraman <kadraman@users.noreply.github.com>
   target:
     - AppImage
     - deb

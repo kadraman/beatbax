@@ -4,6 +4,16 @@
   "private": true,
   "description": "Electron desktop client for BeatBax.",
   "desktopName": "BeatBax",
+  "author": {
+    "name": "kadraman",
+    "email": "kadraman@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/kadraman/beatbax#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kadraman/beatbax.git",
+    "directory": "apps/desktop"
+  },
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
