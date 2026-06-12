@@ -41,6 +41,8 @@ mac:
   notarize: false
 linux:
   category: AudioVideo
+  executableName: BeatBax
+  syncDesktopName: true
   target:
     - AppImage
     - deb
