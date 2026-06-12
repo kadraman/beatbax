@@ -9,7 +9,7 @@
   </a>
 </p>
 
-> **Desktop-first split:** BeatBax Desktop is the primary full-featured client in progress at `apps/desktop`, while `apps/web-ui` now targets a lighter web-lite browser experience.
+> **Desktop-first split:** [BeatBax Desktop](apps/desktop/README.md) is the primary full-featured client; [app.beatbax.com](https://app.beatbax.com) runs the lighter **web-lite** browser experience at `apps/web-ui`.
 
 # BeatBax
 
@@ -34,7 +34,7 @@ Tracker formats that game libraries can consume. For example [hUGETracker](https
 - **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
-- **Desktop IDE (in progress)** — Electron + React client with native file dialogs, recent files, and full desktop-first foundations
+- **Desktop IDE** — Electron + React client with native file dialogs, recent files, export, CoPilot, and the full IDE feature set
 - **Web-lite browser client** — simplified try-in-browser editor/playback experience for quick demos and lightweight edits
 - **BeatBax Copilot*** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
@@ -224,11 +224,13 @@ Start the desktop client during development:
 npm run desktop:dev
 ```
 
-Current desktop scope includes the Electron shell, native menu + file I/O plumbing, a React editor workspace, playback controls, and packaging workflow scaffolding.
+BeatBax Desktop ships the full IDE: native menus and file I/O, export, CoPilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform installers. See [apps/desktop/README.md](apps/desktop/README.md) and [docs/qa/desktop-release-qa.md](docs/qa/desktop-release-qa.md).
+
+Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tag `desktop-v*`).
 
 ## Web UI
 
-The browser app is now the **web-lite** profile: a lighter try-in-browser surface that keeps editing, validation, and playback while desktop-only IDE capabilities continue moving into `apps/desktop`.
+The browser app is the **web-lite** profile: a lighter try-in-browser surface for editing, validation, and playback. Export, CoPilot, mixer, and other IDE features require the desktop app. See [apps/web-ui/README.md](apps/web-ui/README.md).
 
 Start the development server:
 
