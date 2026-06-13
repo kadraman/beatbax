@@ -4,12 +4,6 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 
 ## Principles
 
-## Client distribution
-
-- `apps/desktop` is the primary client for the full BeatBax IDE (Electron + React; v0.1.0 shipped). Post-MVP enhancements: [docs/features/desktop-client-enhancements.md](docs/features/desktop-client-enhancements.md).
-- `apps/web-ui` is the web-lite browser client for trying BeatBax without installation.
-- Shared playback, editor, and import/export orchestration lives in `packages/app-core`.
-
 - Prioritize chips with strong chiptune communities and existing tracker/export ecosystems.
 - Provide both human-editable tracker exports and machine-playable register/driver streams where possible.
 - Prefer common archival formats (VGM, NSF, SID, MOD, SPC) plus tracker-specific formats (hUGETracker, FamiTracker, GoatTracker, etc.)
@@ -38,7 +32,7 @@ A solid way to define a “chiptune sound chip” is:
 
 > A hardware PSG (Programmable Sound Generator) or FM synth that generates sound in real time using simple waveforms, not samples.
 
-Using that definition, here’s a clean, authoritative list of the major chips that truly qualify as chiptune hardware:
+Using that definition, below is list of the major chips that qualify as chiptune hardware:
 
 - **Game Boy (DMG‑01)** ✅ _Implemented_
   - Plugin: `@beatbax/plugin-chip-gameboy`
