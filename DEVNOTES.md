@@ -15,6 +15,20 @@
 
 This document captures architecture, implementation details, and testing notes for the completed MVP: a live-coding language targeting a Game Boy 4-channel sound model with deterministic scheduling, WebAudio playback, and multiple export formats.
 
+## Client architecture (2026-06)
+
+BeatBax ships two clients plus shared logic:
+
+| Package | Profile | Role |
+|---------|---------|------|
+| `apps/desktop` | `desktop-full` | Primary IDE — Electron + React shell; native file I/O, export, CoPilot, mixer, pattern grid |
+| `apps/web-ui` | `web-lite` | Browser try/edit/play at app.beatbax.com — no export, CoPilot, or advanced editor |
+| `packages/app-core` | — | Shared stores, playback, editor, export, import, `createAppContext()`, client-profile gating |
+
+Desktop bridges many web-ui panel modules via `@web-ui` Vite aliases (`desktop-workspace.ts`). Capability gating: `packages/app-core/src/client-profile.ts`.
+
+Docs: [desktop-first-client-split](docs/features/complete/desktop-first-client-split.md), [desktop enhancements](docs/features/desktop-client-enhancements.md), [releasing](docs/releasing.md).
+
 High level
 - Parser → AST → expansion → channel event streams → Player scheduler → WebAudio nodes
   - `channel` mappings: each `channel N => inst … seq …` line assigns patterns/sequences
@@ -27,12 +41,15 @@ High level
   - `packages/engine/src/scheduler/` — `TickScheduler` implementation and `README.md` describing `TickSchedulerOptions` and usage (supports RAF or injected timers).
   - `packages/engine/src/export/` — JSON, MIDI, and UGE exporters with validation.
   - `packages/engine/src/import/` — UGE reader for importing hUGETracker v1-v6 files with helper functions.
-  - `apps/web-ui/` — browser web UI that uses the real parser and Player for live playback.
-  - `apps/web-ui/src/panels/chat-panel.ts` — BeatBax Copilot AI assistant panel. Calls any OpenAI-compatible `/chat/completions` endpoint directly from the browser. Builds a chip-aware system prompt via `buildLanguageRef(chip)` and `assembleContext()`, runs a self-correction loop (up to 4 attempts) on generated `.bax` code, and applies validated code to the Monaco editor. Extended `validateBax()` checks instrument references not caught by `resolveSong()`: channel `inst` refs, pattern inline `inst` tokens, and sequence `inst` transforms.
+  - `apps/web-ui/` — web-lite browser client (`__CLIENT_PROFILE__ = "web-lite"`).
+  - `apps/desktop/` — desktop-full Electron client; bridges web-ui panels for full IDE features.
+  - `packages/app-core/` — shared client logic consumed by web-ui and desktop.
+  - `apps/web-ui/src/panels/chat-panel.ts` — BeatBax Copilot (desktop-full only; panel code lives in web-ui, mounted by desktop).
 
 ## BeatBax Copilot — implementation notes
-- Module: `apps/web-ui/src/panels/chat-panel.ts`
-- All API calls go directly from the browser to the user-configured endpoint (no proxy server).
+
+Desktop-only (gated by `desktop-full` profile). Module: `apps/web-ui/src/panels/chat-panel.ts`
+- All API calls go from the renderer to the user-configured endpoint (no proxy server).
 - **Chip detection**: `detectChip(source)` extracts the `chip` directive from editor content; aliases `gb` and `dmg` are normalised to `gameboy`. Defaults to `gameboy` when absent.
 - **Prompt assembly** (`assembleContext()`): system prompt = language reference + mode suffix + `[EDITOR CONTENT]` (capped 3000 chars) + `[DIAGNOSTICS]`. Last 10 conversation messages are prepended to the user turn.
 - **Self-correction loop** (Edit mode): after generation, `validateBax()` is called; if errors are found the error list is fed back as a correction request. The loop runs up to 4 times. On the final failed attempt `baxCode` is set to `null` and nothing is applied. Correction exchanges are not shown in the conversation history.

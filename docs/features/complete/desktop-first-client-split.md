@@ -1,12 +1,14 @@
 ---
 title: "Desktop-First Client Split (app-core + web-lite + React Desktop)"
-status: in-progress
+status: complete
 authors: ["kadraman"]
 created: 2026-06-06
-updated: 2026-06-12
+updated: 2026-06-13
 issue: "https://github.com/kadraman/beatbax/issues/136"
 related:
-  - docs/features/electron-desktop-client.md
+  - docs/features/complete/electron-desktop-client.md
+  - docs/features/desktop-client-enhancements.md
+  - docs/features/desktop-client-enhancements.md
 ---
 
 ## Summary
@@ -19,8 +21,8 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-12  
-**Overall status:** Phases 1–4 **complete** for v0.1.0. Phase 5 (native React panels, design tokens) remains post-MVP.
+**Last updated:** 2026-06-13  
+**Overall status:** ✅ **Complete** — Phases 1–4 shipped in desktop v0.1.0 (`desktop-v0.1.0`). Post-MVP work tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 | Phase | Status | Notes |
 |-------|--------|-------|
@@ -47,7 +49,7 @@ This feature supersedes the original "additive Electron wrapper around web-ui" a
 - `packages/engine/src/song/importResolver.ts` — allows local `.ins`/import resolution when `window.electronAPI` or explicit fs hooks are present
 - `.changeset/desktop-local-imports-engine.md` — patch bump for engine import-resolver desktop support
 
-**Key artifacts (Phase 4, partial):**
+**Key artifacts (Phase 4):**
 
 - `.github/workflows/desktop-build.yaml` — build engine → app-core → desktop; Playwright smoke tests; upload installers
 - Root `package.json` — `desktop:dev`, `desktop:build`, `desktop:test`, `desktop:dist`
@@ -352,9 +354,7 @@ The desktop renderer bridges existing web-ui panel implementations via `@web-ui`
 
 ### Phase 5: Post-MVP polish
 
-- Rewrite Visualizer and Channel Mixer as native React components.
-- Shared Tailwind design tokens (`packages/ui-tokens/` optional).
-- `electron-updater` auto-update (see electron-desktop-client future enhancements).
+Moved to [desktop-client-enhancements.md](./desktop-client-enhancements.md) — native React panels, auto-update, code signing, and other desktop polish items.
 
 ---
 
@@ -473,29 +473,16 @@ This is a **breaking change in product positioning**, not in engine or CLI APIs:
 
 ## Future Enhancements
 
-See [electron-desktop-client.md — Future Enhancements](./electron-desktop-client.md#future-enhancements):
-
-- Auto-update via `electron-updater`
-- System tray with play/stop
-- Global keyboard shortcut
-- Crash reporting
-- Offline AI chat (Ollama routing)
-- Multi-window support
-- External file watcher
-
-Additional (from this feature):
-
-- Native React Visualizer and Channel Mixer (remove bridge mounts)
-- Shared `packages/ui-tokens/` for Tailwind consistency
+See [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 ---
 
 ## Open Questions
 
-1. **Code signing:** Required for macOS notarisation and Windows SmartScreen. Are certificates available for CI/CD?
-2. **Target platform priority:** Windows first for initial release, or all three simultaneously?
-3. **WAV export in Electron:** Reimplement without `standardized-audio-context` polyfill using native `OfflineAudioContext`?
-4. **Web-lite save UX:** Partially resolved — Save downloads `.bax`; localStorage auto-save also active. Full export menu remains desktop-only (Phase 3).
+1. **Code signing:** Required for macOS notarisation and Windows SmartScreen. Are certificates available for CI/CD? → tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+2. ~~**Target platform priority**~~: **Resolved** — all three platforms ship in v0.1.0 (Windows NSIS/portable, macOS dmg/zip, Linux AppImage/deb).
+3. **WAV export in Electron:** Reimplement without `standardized-audio-context` polyfill using native `OfflineAudioContext`? → tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+4. ~~**Web-lite save UX**~~: **Resolved** — Save downloads `.bax`; localStorage auto-save also active. Full export menu remains desktop-only.
 
 ---
 
@@ -509,6 +496,7 @@ Additional (from this feature):
 - [apps/web-ui/src/app/web-lite-header.ts](../../apps/web-ui/src/app/web-lite-header.ts)
 - [apps/web-ui/src/main.ts](../../apps/web-ui/src/main.ts)
 - [packages/app-core/src/client-profile.ts](../../packages/app-core/src/client-profile.ts)
+- [desktop-client-enhancements.md](./desktop-client-enhancements.md) — Phase 5 post-MVP desktop polish
 - [electron-vite documentation](https://electron-vite.org/)
 - [electron-builder documentation](https://www.electron.build/)
 - [Playwright for Electron](https://playwright.dev/docs/api/class-electronapplication)
