@@ -88,7 +88,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
-          path: apps/desktop/dist/**
+          path: |
+            apps/desktop/dist/BeatBax-*.exe
+            apps/desktop/dist/BeatBax-*.dmg
+            apps/desktop/dist/BeatBax-*.zip
+            apps/desktop/dist/BeatBax-*.AppImage
+            apps/desktop/dist/BeatBax-*.deb
           if-no-files-found: error
 
   release:
@@ -107,5 +112,11 @@ jobs:
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/**/**
+          files: |
+            release-artifacts/**/BeatBax-*.exe
+            release-artifacts/**/BeatBax-*.dmg
+            release-artifacts/**/BeatBax-*.zip
+            release-artifacts/**/BeatBax-*.AppImage
+            release-artifacts/**/BeatBax-*.deb
+          overwrite_assets: true
           generate_release_notes: true
