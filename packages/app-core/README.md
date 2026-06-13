@@ -57,7 +57,7 @@ npm -w @beatbax/app-core run test    # Jest unit tests
 
 ## Related docs
 
-- [Desktop-first client split](../../docs/features/desktop-first-client-split.md) — master plan
-- [Electron desktop client](../../docs/features/electron-desktop-client.md) — IPC and packaging
+- [Desktop-first client split](../../docs/features/complete/desktop-first-client-split.md) — master plan
+- [Electron desktop client](../../docs/features/complete/electron-desktop-client.md) — IPC and packaging
 - [apps/web-ui README](../../apps/web-ui/README.md) — web-lite browser client
 - [apps/desktop README](../../apps/desktop/README.md) — Electron desktop client

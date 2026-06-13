@@ -1,6 +1,8 @@
 # BeatBax Desktop
 
-BeatBax Desktop is the Electron + React desktop client for the desktop-first client split.
+BeatBax Desktop is the Electron + React **desktop-full** client — the primary full-featured BeatBax IDE.
+
+Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
 
 ## Scripts
 
@@ -26,7 +28,7 @@ The desktop renderer bridges the web-ui panel implementations via `@web-ui` impo
 - **Three-pane layout** — resizable editor, Problems/Output tabs, Visualizer/Help tabs
 - **Song Visualizer**, **Channel Mixer**, **Pattern Grid** (feature-flag gated)
 - **Help panel** — full syntax reference with click-to-insert
-- **Settings modal** — Ctrl+, 
+- **Settings modal** — Ctrl+,
 - **Export** — JSON/MIDI/UGE/WAV via native menu and toolbar
 - **Status bar** — cursor position, parse status, chip/BPM, panels menu, diagnostics counts
 - **AI Copilot** — right-tab ChatPanel (enable in Settings → Features → AI Assistant)
@@ -36,4 +38,23 @@ The desktop renderer bridges the web-ui panel implementations via `@web-ui` impo
 - **MIDI step entry** — record button (requires MIDI input enabled in Settings)
 - **Debug overlay** — Settings → Advanced → Show debug overlay
 
-Still planned: native React rewrites of Visualizer/Mixer (Phase 5).
+Post-MVP enhancements (native React panels, auto-update, code signing): [desktop-client-enhancements.md](../../docs/features/desktop-client-enhancements.md).
+
+## Releasing
+
+Desktop installers are published via git tags and CI — not npm.
+
+```powershell
+git tag -a desktop-v0.2.0 -m "BeatBax Desktop v0.2.0"
+git push origin desktop-v0.2.0
+```
+
+The [Desktop: Build](https://github.com/kadraman/beatbax/actions/workflows/desktop-build.yaml) workflow validates, packages on all three OSes, and publishes installer assets to GitHub Releases.
+
+Full details: [docs/releasing.md](../../docs/releasing.md).
+
+## Related docs
+
+- [docs/features/complete/desktop-first-client-split.md](../../docs/features/complete/desktop-first-client-split.md) — completed master plan
+- [docs/features/complete/electron-desktop-client.md](../../docs/features/complete/electron-desktop-client.md) — IPC and packaging reference
+- [docs/qa/desktop-release-qa.md](../../docs/qa/desktop-release-qa.md) — QA sign-off

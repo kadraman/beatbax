@@ -33,4 +33,9 @@ License
 
 - By contributing you agree your changes will be included under the project's existing license.
 
+Releasing
+
+- npm packages: see [docs/releasing.md](docs/releasing.md) (`changeset` → `version-packages` → `release`).
+- Desktop installers: tag `desktop-v*` and push; see [docs/releasing.md](docs/releasing.md).
+
 Thanks — we appreciate your help improving BeatBax!

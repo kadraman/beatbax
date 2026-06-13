@@ -7,7 +7,7 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@beatbax/web-ui","@beatbax/app-core"],
+  "ignore": ["@beatbax/web-ui", "@beatbax/app-core", "@beatbax/desktop"],
   "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
     "onlyUpdatePeerDependentsWhenOutOfRange": true
   }

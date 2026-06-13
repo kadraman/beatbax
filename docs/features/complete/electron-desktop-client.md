@@ -1,13 +1,15 @@
 ---
 title: Electron Desktop Client
-status: in-progress
+status: complete
 authors: ["kadraman"]
 created: 2026-03-29
-updated: 2026-06-12
+updated: 2026-06-13
 issue: "https://github.com/kadraman/beatbax/issues/69"
 supersedes: "renderer symlink approach — see Architecture Revision below"
 related:
-  - docs/features/desktop-first-client-split.md
+  - docs/features/complete/desktop-first-client-split.md
+  - docs/features/desktop-client-enhancements.md
+  - docs/features/desktop-client-enhancements.md
 ---
 
 ## Summary
@@ -22,8 +24,8 @@ This document retains Electron-specific technical details (IPC API, main process
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-12  
-**Electron plumbing status:** ✅ **Complete** — main/preload/renderer/IPC/packaging shipped in v0.1.0. QA sign-off: [desktop-release-qa.md](../qa/desktop-release-qa.md). Release: `desktop-v0.1.0`.
+**Last updated:** 2026-06-13  
+**Electron plumbing status:** ✅ **Complete** — shipped in desktop v0.1.0. Post-MVP enhancements tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -316,7 +318,8 @@ See [desktop-first-client-split.md — Migration Path](./desktop-first-client-sp
 - [x] Add Playwright integration tests
 - [x] Manual QA on Windows, macOS, Linux — Windows primary + Linux CI e2e; macOS/Linux installers via release matrix ([desktop-release-qa.md](../qa/desktop-release-qa.md))
 - [x] First GitHub Release with installers (`desktop-v0.1.0`)
-- [ ] Optional: add `electron-updater` for auto-update support
+
+Post-MVP items (auto-update, native React panels, code signing, etc.) are tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 ### Full initiative (master plan)
 
@@ -326,29 +329,23 @@ See [desktop-first-client-split.md — Implementation Checklist](./desktop-first
 
 ## Future Enhancements
 
-- **Auto-update** via `electron-updater` integrated with GitHub Releases.
-- **System tray** icon with quick-access play/stop controls.
-- **Global keyboard shortcut** to toggle the app window (e.g. `Ctrl+Shift+B`).
-- **Crash reporting** via Sentry or a self-hosted endpoint.
-- **Offline AI chat** — route the Chat panel to a local LLM (Ollama) when no internet is available.
-- **Multi-window** support: open multiple songs simultaneously in separate windows.
-- **File watcher** — auto-reload the editor when the `.bax` file is modified externally.
-- **Native React panels** — replace bridge-mounted Visualizer/Mixer (master plan Phase 5).
+Moved to [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 ---
 
 ## Open Questions
 
 1. ~~**Code sharing strategy**~~: **Resolved** — use `packages/app-core/` (see [desktop-first-client-split.md](./desktop-first-client-split.md)).
-2. **WAV export**: the CLI's WAV export uses `standardized-audio-context` offline rendering → temp file → shell player. In Electron, `OfflineAudioContext` is native — should WAV export be reimplemented without the polyfill for the desktop client?
-3. **Code signing**: required for macOS notarisation and Windows SmartScreen bypass. Are certificates available for CI/CD?
-4. **Target platform priority**: should the initial release target Windows only (given the primary developer platform), or all three simultaneously?
+2. **WAV export:** should WAV export be reimplemented without the `standardized-audio-context` polyfill for the desktop client? → [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+3. **Code signing:** required for macOS notarisation and Windows SmartScreen bypass. Are certificates available for CI/CD? → [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+4. ~~**Target platform priority**~~: **Resolved** — all three platforms ship in v0.1.0.
 
 ---
 
 ## References
 
 - **[desktop-first-client-split.md](./desktop-first-client-split.md)** — master plan (app-core, web-lite, React desktop, distribution)
+- **[desktop-client-enhancements.md](./desktop-client-enhancements.md)** — Phase 5 post-MVP desktop polish
 - [.github/ISSUES/desktop-first-client-split.md](../../.github/ISSUES/desktop-first-client-split.md) — GitHub issue draft
 - [electron-vite documentation](https://electron-vite.org/)
 - [electron-builder documentation](https://www.electron.build/)

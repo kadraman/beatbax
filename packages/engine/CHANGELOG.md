@@ -1,5 +1,11 @@
 # @beatbax/engine
 
+## 0.20.1
+
+### Patch Changes
+
+- 7ad1850: Allow local file imports in Electron/desktop contexts when filesystem access is available via `window.electronAPI` or explicit `readFile`/`fileExists` options.
+
 ## 0.20.0
 
 ### Minor Changes
