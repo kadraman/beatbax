@@ -12,11 +12,14 @@
   </a>
 </p>
 
-> **Desktop-first split:** [BeatBax Desktop](apps/desktop/README.md) is the primary full-featured client; [app.beatbax.com](https://app.beatbax.com) runs the lighter **web-lite** browser experience at `apps/web-ui`.
-
 # BeatBax
 
-**BeatBax** is a creative toolchain for making chiptune music in the style of classic 8/16 bit computers and game consoles. Instead of using a Tracker or DAW to develop your songs, you write your songs using a simple, but powerful grammar that describe your instruments, melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sound. **BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in sound chips. Additional sound chip backends can still be added as plugins (see [ROADMAP](ROADMAP.md) for further details of currently implemented and future sound chips).
+**BeatBax** is a live coding language and creative toolchain for making chiptune music in the style of classic 8/16 bit computers and game consoles. 
+Instead of using a Tracker or DAW to develop your songs, you write your songs using a simple, but powerful grammar that describe your instruments, 
+melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sounds. 
+
+**BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in sound chips. 
+Additional sound chip backends can be added as plugins (see [ROADMAP](ROADMAP.md) for further details of currently implemented and future sound chips).
 
 <p align="center">
   <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
@@ -24,26 +27,25 @@
   <em>BeatBax web-lite browser client (full IDE features require the desktop app).</em>
 </p>
 
-Creating chiptunes is rewarding but can be hard and time-consuming. The **BeatBax Desktop** app includes **BeatBax Copilot*** — an AI assistant (BYOK) to help you write and edit songs. This is not a replacement for creativity, but it can help with construction, editing, and good practices for getting the most out of the BeatBax grammar.
+One of the main aims in creating **BeatBax** was to aid in the creation of songs for Homebrew games. So where possible, BeatBax songs can be exported into
+Tracker formats that game libraries can consume. For example [hUGETracker](https://nickfa.ro/wiki/HUGETracker) (UGE) format for the Game Boy, or [FamiTracker](http://famitracker.com/) (Txt) 
+for the NES. Standard output formats are also supported including WAV, MIDI and in some cases VGM - with additional chip specific output formats on the ([ROADMAP](ROADMAP.md).
 
-One of the main aims in creating **BeatBax** was to be able to aid in the rapid creation of
-songs for Homebrew games. So where possible, BeatBax songs can be exported into
-Tracker formats that game libraries can consume. For example [hUGETracker](https://nickfa.ro/wiki/HUGETracker) (UGE) format for the Game Boy, or [FamiTracker](http://famitracker.com/) (Txt) for the NES. Standard output formats are also supported including WAV, MIDI and in some cases VGM - with additional chip specific output formats on the (see [ROADMAP](ROADMAP.md)
+Creating chiptunes is rewarding but can be hard and time-consuming. The **BeatBax Desktop** app includes **BeatBax Copilot*** — an AI assistant (BYOK) to help you write and edit songs. 
+This is not a replacement for creativity, but it can help with construction, editing, and implementation of typical chiptunes practices to get the most out of the BeatBax grammar.
 
 ## Features
 
-- **Simple text-based replace** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
+- **Simple text-based grammar** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
 - **Authentic retro sound** — Chip specific implementation, e.g.: 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
 - **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
-- **Desktop IDE** — Electron + React client with native file dialogs, recent files, export, CoPilot, and the full IDE feature set
+- **Desktop IDE** — Electron + React client with native file dialogs, recent files, export, BeatBax Copilot, and the full IDE feature set
 - **Web-lite browser client** — simplified try-in-browser editor/playback experience for quick demos and lightweight edits
-- **BeatBax Copilot*** — AI assistant in the desktop app (BYOK); not available in web-lite
-- **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
-- **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
-
-Game Boy and NES are available immediately from `@beatbax/engine`; optional chips such as SMS and Spectrum remain host-registered plugins.
+- **BeatBax Copilot*** — AI assistant in the desktop app (BYOK)
+- **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows, converting samples and more
+- **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing the funadmentals of your song
 
 > *BeatBax Copilot (desktop only) requires your own API key from any OpenAI-compatible provider (including local LLM). Your API key is stored locally in the app only.
 
@@ -121,7 +123,6 @@ BeatBax songs can make use of built-in instrument and
 
 Annotated examples for effect are in chip specific directories [songs/features/**](songs/features/).
 
-
 **Export compatibility:**
 
 | Effect | JSON | MIDI | UGE | FamiTracker Text | WAV |
@@ -131,7 +132,6 @@ Annotated examples for effect are in chip specific directories [songs/features/*
 | sweep | ✓ | ✓ | Instrument-level only | Instrument-level only | ✓ |
 | trem | ✓ | ✓ | Metadata only | Metadata only | ✓ |
 | retrig, echo | ✓ | ✓ | — | — | — |
-
 
 ---
 
@@ -221,39 +221,31 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 
 ## Desktop
 
-Start the desktop client during development:
+BeatBax Desktop ships the full IDE: native menus and file I/O, export, Copilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform 
+installers. See [apps/desktop/README.md](apps/desktop/README.md) for more details.
+
+Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases).
+
+Start the development server:
 
 ```powershell
 npm run desktop:dev
 ```
 
-BeatBax Desktop ships the full IDE: native menus and file I/O, export, CoPilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform installers. See [apps/desktop/README.md](apps/desktop/README.md) and [docs/qa/desktop-release-qa.md](docs/qa/desktop-release-qa.md).
-
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tag `desktop-v*`). To publish a new desktop release, see [docs/releasing.md](docs/releasing.md).
-
 ## Web UI
 
-The browser app is the **web-lite** profile: a lighter try-in-browser surface for editing, validation, and playback. Export, CoPilot, mixer, and other IDE features require the desktop app. See [apps/web-ui/README.md](apps/web-ui/README.md).
+The browser app is the **web-lite** profile: a lighter try-in-browser surface for editing, validation, and playback. 
+Export, CoPilot, mixer, and other IDE features require the desktop app. See [apps/web-ui/README.md](apps/web-ui/README.md) more details.
+
+Try the latest version of the web-ui at [app.beatbax.com](https://app.beatbax.com).
 
 Start the development server:
 
 ```powershell
 npm run web-ui:dev
-# → http://localhost:5173
 ```
 
-Features (web-lite):
-
-- Monaco editor with `.bax` syntax highlighting, diagnostics, completions, and folding
-- Live validation — squiggles for undefined instruments, patterns, and sequences
-- Transport bar — play, pause, stop, apply, BPM, volume
-- **Visualizer** and **Help** panels (right pane)
-- **Problems** and **Output** panels (bottom pane)
-- Toolbar — Open, New, Save (downloads `.bax`), Verify, theme, word wrap, examples
-- localStorage auto-save; open via hidden file input or `?song=` URL
-
-For export, CoPilot, channel mixer, pattern grid, advanced editor, and native file dialogs, use [BeatBax Desktop](apps/desktop/README.md).
-
+Then browse to: [http://localhost:5173](http://localhost:5173)
 
 ---
 
@@ -308,12 +300,16 @@ beatbax/
 
 ## Development
 
+To build the BeatBax engine and all plugins, carry out the following:
+
 ```powershell
 npm install
 npm run clean-all
 npm run build-all
 npm test
 ```
+
+Then you can run the development Desktop UI or Web-UI as described above.
 
 ### Workspace scripts
 

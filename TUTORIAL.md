@@ -1,6 +1,7 @@
 # BeatBax — Tutorial
 
-This tutorial shows how to write `.bax` songs, use the CLI for playback and export, and use the Web UI at [app.beatbax.com](https://app.beatbax.com). BeatBax is a complete live-coding language for Game Boy-style chiptunes with deterministic playback and multiple export formats.
+This tutorial shows how to write `.bax` songs, use the CLI for playback and export, and use the Web UI at [app.beatbax.com](https://app.beatbax.com). 
+BeatBax is a complete live-coding language for retro console chiptunes with deterministic playback and multiple export formats.
 
 **Files used in the demo**
 - `songs/sample.bax` — example song shipped with the repo.
