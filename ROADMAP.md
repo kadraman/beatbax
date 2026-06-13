@@ -6,7 +6,7 @@ This document lists candidate "chiptunes" sound chips to implement in BeatBax, p
 
 ## Client distribution
 
-- `apps/desktop` is the primary client target for the full BeatBax IDE (Electron + React, currently being phased in).
+- `apps/desktop` is the primary client for the full BeatBax IDE (Electron + React; v0.1.0 shipped). Post-MVP enhancements: [docs/features/desktop-client-enhancements.md](docs/features/desktop-client-enhancements.md).
 - `apps/web-ui` is the web-lite browser client for trying BeatBax without installation.
 - Shared playback, editor, and import/export orchestration lives in `packages/app-core`.
 

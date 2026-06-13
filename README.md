@@ -4,8 +4,11 @@
   <img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/>
 </p>
 <p align="center">
+  <a href="https://github.com/kadraman/beatbax/releases">
+    <img src="https://img.shields.io/badge/Download-Desktop-2ea043?style=for-the-badge">
+  </a>
   <a href="https://app.beatbax.com">
-    <img src="https://img.shields.io/badge/Try-BeatBax-blue?style=for-the-badge">
+    <img src="https://img.shields.io/badge/Try_in_Browser-blue?style=for-the-badge">
   </a>
 </p>
 
@@ -18,10 +21,10 @@
 <p align="center">
   <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
   <br/>
-  <em>An example screenshot of the BeatBax Web-UI.</em>
+  <em>BeatBax web-lite browser client (full IDE features require the desktop app).</em>
 </p>
 
-Creating chiptunes is rewarding but can be hard and time-consuming, so the BeatBax App includes **BeatBax Copilot*** an AI Assistant (with BYOK model) to help you write your song. This is not a replacement for creativity - don't expect it to write you a classic chiptunes song from scratch - but it can certainly help with the construction and editing of your song, and understanding of good practices and techniques for getting the most out of the BeatBax replace.
+Creating chiptunes is rewarding but can be hard and time-consuming. The **BeatBax Desktop** app includes **BeatBax Copilot*** — an AI assistant (BYOK) to help you write and edit songs. This is not a replacement for creativity, but it can help with construction, editing, and good practices for getting the most out of the BeatBax grammar.
 
 One of the main aims in creating **BeatBax** was to be able to aid in the rapid creation of
 songs for Homebrew games. So where possible, BeatBax songs can be exported into
@@ -36,13 +39,13 @@ Tracker formats that game libraries can consume. For example [hUGETracker](https
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
 - **Desktop IDE** — Electron + React client with native file dialogs, recent files, export, CoPilot, and the full IDE feature set
 - **Web-lite browser client** — simplified try-in-browser editor/playback experience for quick demos and lightweight edits
-- **BeatBax Copilot*** — AI assistant that writes and edits songs from natural-language descriptions (BYOK)
+- **BeatBax Copilot*** — AI assistant in the desktop app (BYOK); not available in web-lite
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows
 - **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing your songs
 
 Game Boy and NES are available immediately from `@beatbax/engine`; optional chips such as SMS and Spectrum remain host-registered plugins.
 
-> *BeatBax Copilot requires your own API key from any OpenAI-compatible provider (including local LLM) - no API key is included. Your own API key will only be stored locally (in browser or app) for use with by BeatBax Copilot.
+> *BeatBax Copilot (desktop only) requires your own API key from any OpenAI-compatible provider (including local LLM). Your API key is stored locally in the app only.
 
 ## Grammar
 
@@ -226,7 +229,7 @@ npm run desktop:dev
 
 BeatBax Desktop ships the full IDE: native menus and file I/O, export, CoPilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform installers. See [apps/desktop/README.md](apps/desktop/README.md) and [docs/qa/desktop-release-qa.md](docs/qa/desktop-release-qa.md).
 
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tag `desktop-v*`).
+Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tag `desktop-v*`). To publish a new desktop release, see [docs/releasing.md](docs/releasing.md).
 
 ## Web UI
 
@@ -239,20 +242,17 @@ npm run web-ui:dev
 # → http://localhost:5173
 ```
 
-Features:
+Features (web-lite):
 
-- Monaco editor with `.bax` syntax highlighting (15+ token types, dark/light themes)
-- Live validation — red squiggles for undefined instruments, patterns, and sequences
-- Resizable split-pane layout (state persisted to `localStorage`)
-- Transport bar: Play, Pause, Stop, and ⚡ **Live mode** (800 ms debounce, auto-replays on edit)
-- Menu bar with File, View, Playback, Export, and Help menus; full keyboard shortcut registry
-- **New Song Wizard** — File → New and toolbar New open a guided modal that uses enabled chip plugins for metadata/templates, and auto-opens once on first run
-- Unified channel mixer with per-channel mute, solo, and volume controls
-- **CodeLens inline actions** — `▶ Preview` and `↺ Loop` above every `pat`, `seq`, and `effect`; five note buttons (`C3`–`C7`) above every `inst` for instant timbre checks
-- **Play selected** (`Ctrl+Shift+Space`) — play one or more selected `pat`/`seq` lines simultaneously, each on its own channel
-- **Command palette** (`F1` or `Ctrl+Alt+P`) — export, validate, generate snippets, format, mute/solo by name
-- **BeatBax Copilot** — AI chat panel backed by any OpenAI-compatible endpoint (OpenAI, Groq, Ollama, LM Studio). Injects editor content and active diagnostics as context. **Edit mode** auto-applies generated code with up to 4 self-correction retries; **Ask mode** answers without touching the editor
-- **Settings panel** — unified modal (`Ctrl+,` or `View → Settings…`) with sections for General, Editor, Playback, Features, AI Copilot, and Advanced; most changes apply live without a page reload (exceptions: Auto-save and Audio backend / Sample rate take effect after reload)
+- Monaco editor with `.bax` syntax highlighting, diagnostics, completions, and folding
+- Live validation — squiggles for undefined instruments, patterns, and sequences
+- Transport bar — play, pause, stop, apply, BPM, volume
+- **Visualizer** and **Help** panels (right pane)
+- **Problems** and **Output** panels (bottom pane)
+- Toolbar — Open, New, Save (downloads `.bax`), Verify, theme, word wrap, examples
+- localStorage auto-save; open via hidden file input or `?song=` URL
+
+For export, CoPilot, channel mixer, pattern grid, advanced editor, and native file dialogs, use [BeatBax Desktop](apps/desktop/README.md).
 
 
 ---
@@ -262,19 +262,18 @@ Features:
 ```
 beatbax/
 ├── apps/
-│   ├── desktop/               # BeatBax Desktop Client
-│   └── web-ui/                # BeatBax Browser Client
-|
+│   ├── desktop/               # BeatBax Desktop (Electron + React, desktop-full)
+│   └── web-ui/                # BeatBax web-lite browser client
+│
 ├── packages/
-│   ├── engine/                # Live-coding language and runtime for retro console chiptunes
-│       └── chip-
-│   └── cli/                   # Command-line interface for BeatBax chiptune live-coding language.
+│   ├── engine/                # Live-coding language and runtime
+│   ├── app-core/              # Shared client logic (web-lite + desktop-full)
+│   ├── cli/                   # Command-line interface
 │   └── plugins/
-│       └── chip-sms           # Sega Master System / Game Gear SN76489 PSG chip plugin for BeatBax
-│       └── chip-spectrum-128  # ZX Spectrum 128 / Amstrad CPC AY-3-8912 PSG chip plugin for BeatBax
-│       └── ...
-│       └── export-famitracker # FamiTracker text exporter plugin for BeatBax (.txt format)
-│       └── export-vgm         # VGM (Video Game Music) exporter plugin for BeatBax — SN76489 PSG (SMS/Game Gear)
+│       ├── chip-sms           # Sega Master System / Game Gear SN76489
+│       ├── chip-spectrum-128  # ZX Spectrum 128 / Amstrad CPC AY-3-8912
+│       ├── export-famitracker # FamiTracker text exporter
+│       ├── export-vgm         # VGM exporter
 │       └── ...
 │
 ├── bin/
@@ -299,6 +298,9 @@ beatbax/
 |-------|----------|
 | Tutorial | [TUTORIAL.md](TUTORIAL.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
+| Releasing (npm + desktop) | [docs/releasing.md](docs/releasing.md) |
+| Desktop app | [apps/desktop/README.md](apps/desktop/README.md) |
+| Web-lite client | [apps/web-ui/README.md](apps/web-ui/README.md) |
 | Dev notes | [DEVNOTES.md](DEVNOTES.md) |
 | Contributing guide | [CONTRIBUTING.md](CONTRIBUTING.md) |
 

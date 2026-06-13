@@ -57,5 +57,5 @@ Desktop reuses many panel implementations via Vite `@web-ui` aliases in its Reac
 
 ## Related docs
 
-- [Desktop-first client split](../../docs/features/desktop-first-client-split.md)
+- [Desktop-first client split](../../docs/features/complete/desktop-first-client-split.md)
 - [packages/app-core README](../../packages/app-core/README.md)
