@@ -22,9 +22,9 @@ melodies, basslines, and beats - and BeatBax brings them to life with authentic 
 Additional sound chip backends can be added as plugins (see [ROADMAP](ROADMAP.md) for further details of currently implemented and future sound chips).
 
 <p align="center">
-  <img src="./media/web-ui-screenshot-1.png" alt="Alt text" width="600"/>
+  <img src="./media/desktop-screenshot-1.png" alt="Alt text" width="600"/>
   <br/>
-  <em>BeatBax web-lite browser client (full IDE features require the desktop app).</em>
+  <em>BeatBax Desktop</em>
 </p>
 
 One of the main aims in creating **BeatBax** was to aid in the creation of songs for Homebrew games. So where possible, BeatBax songs can be exported into
