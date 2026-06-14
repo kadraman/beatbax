@@ -381,7 +381,7 @@ const rightTabs = buildRightTabs(rightPane, appLayout.layout);
 // clears innerHTML on every parse:success) never conflicts with sibling nodes.
 const ccContainer = document.createElement('div');
 ccContainer.id = 'bb-channel-controls-host';
-ccContainer.style.cssText = 'flex: 1 1 0; overflow-y: auto;';
+ccContainer.className = 'bb-right-panel-scroll';
 rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
 const songVisualizer = withErrorBoundary(

@@ -259,7 +259,7 @@ export class SongVisualizer {
     unmuteBtn.id = 'bb-viz-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
     unmuteBtn.disabled = !Object.values(channelStates.get()).some(s => s.muted);
-    unmuteBtn.innerHTML = icon('speaker-wave', 'w-3.5 h-3.5');
+    unmuteBtn.innerHTML = icon('speaker-wave');
     unmuteBtn.addEventListener('click', () => unmuteAll());
 
     const clearSoloBtn = document.createElement('button');
@@ -268,12 +268,12 @@ export class SongVisualizer {
     clearSoloBtn.id = 'bb-viz-clear-solo';
     clearSoloBtn.title = 'Clear solo';
     clearSoloBtn.disabled = !Object.values(channelStates.get()).some(s => s.soloed);
-    clearSoloBtn.innerHTML = icon('eye', 'w-3.5 h-3.5');
+    clearSoloBtn.innerHTML = icon('eye');
     clearSoloBtn.addEventListener('click', () => clearAllSolo());
 
     const performanceBtn = document.createElement('button');
     performanceBtn.type = 'button';
-    performanceBtn.className = 'bb-viz__toolbar-btn';
+    performanceBtn.className = 'bb-viz__toolbar-btn bb-viz__toolbar-btn--performance';
     performanceBtn.id = 'bb-viz-fullscreen';
     performanceBtn.title = this.isPerformanceMode ? 'Exit performance mode' : 'Enter performance mode';
     performanceBtn.innerHTML = this.isPerformanceMode ? icon('arrows-pointing-in') : icon('arrows-pointing-out');
@@ -353,6 +353,7 @@ export class SongVisualizer {
     card.className = 'bb-viz__card' + (!isAudible ? ' bb-viz__card--silent' : '');
     card.id = `bb-viz-card-${ch.id}`;
     card.dataset.channel = String(ch.id);
+    card.style.setProperty('--bb-ch-accent', meta.color);
 
     const header = document.createElement('div');
     header.className = 'bb-viz__card-header';
@@ -376,7 +377,6 @@ export class SongVisualizer {
     const chipLabel = document.createElement('span');
     chipLabel.className = 'bb-viz__chip-label';
     chipLabel.textContent = meta.label;
-    chipLabel.style.color = meta.color;
 
     titleBlock.appendChild(channelTitle);
     titleBlock.appendChild(chipLabel);

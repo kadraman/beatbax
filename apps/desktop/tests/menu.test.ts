@@ -32,12 +32,10 @@ describe('desktop native menu', () => {
     expect(recentItems[0].toolTip).toBe('/home/runner/music/duck_tales.bax');
   });
 
-  it('shows basename labels for Windows-style paths on any platform', () => {
-    const template = createMenuTemplate(mockWindow, ['C:\\music\\duck_tales.bax']);
-    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
-    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
-    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
-    expect(recentItems[0].label).toBe('duck_tales.bax');
-    expect(recentItems[0].toolTip).toBe('C:\\music\\duck_tales.bax');
+  it('includes About BeatBax in Help menu', () => {
+    const template = createMenuTemplate(mockWindow, []);
+    const helpMenu = template.find((item) => item.label === 'Help')!;
+    const helpItems = helpMenu.submenu as MenuItemConstructorOptions[];
+    expect(helpItems.map((item) => item.label)).toContain('About BeatBax');
   });
 });

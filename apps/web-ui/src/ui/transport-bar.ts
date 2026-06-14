@@ -116,7 +116,7 @@ export class TransportBar {
     this.loopButton.classList.add('bb-loop-btn', 'bb-transport__btn--pri-2');
     this.recordButton = mkBtn('● Rec',   'Arm recording (coming soon)', 'record');
     this.recordButton.disabled = true;
-    this.recordButton.classList.add('bb-transport__btn--pri-2');
+
     this.rewindButton.classList.add('bb-transport__btn--pri-4');
     this.pauseButton.classList.add('bb-transport__btn--pri-5');
     this.liveButton.classList.add('bb-transport__btn--pri-5');
@@ -127,20 +127,23 @@ export class TransportBar {
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
 
-    // ── Master volume knob — standalone directly on the transport bar ──────
-    // The knob is always visible (hides only at the pri-5 breakpoint, ≤549 px)
+    const volPreSep = this._mkSep();
+    volPreSep.classList.add('bb-transport__separator--post-record');
+    this.el.appendChild(volPreSep);
+
+    // ── Master volume — knob + LCD in a recessed tray matching the info bay ─
+    // The knob stays visible (hides only at the pri-5 breakpoint, ≤549 px)
     // so users retain volume control even when the numeric LCD is hidden.
+    const volGroup = document.createElement('div');
+    volGroup.className = 'bb-transport__vol-group';
     this.volKnob = new RotaryKnob(28);
     this.volKnob.el.classList.add('bb-transport__vol-knob');
-    this.el.appendChild(this.volKnob.el);
-
-    // ── VOL LCD — separate numeric readout; hidden below 1200 px ──────────
     const volLcdSep = this._mkSep();
     volLcdSep.classList.add('bb-transport__separator--vol-lcd');
-    this.el.appendChild(volLcdSep);
     const volLcd = this._mkLcd('VOL', '100%', '000%');
     volLcd.lcd.classList.add('bb-transport__lcd--vol');
-    this.el.appendChild(volLcd.lcd);
+    volGroup.append(this.volKnob.el, volLcdSep, volLcd.lcd);
+    this.el.appendChild(volGroup);
 
     // Insert at top of provided container (before existing children)
     const parent = this.opts.container;

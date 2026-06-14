@@ -429,7 +429,7 @@ export class OutputPanel {
     }
 
     const suggestionHtml = msg.suggestion
-      ? `<div class="output-suggestion">${icon('light-bulb', 'w-3 h-3 inline-block align-middle')} ${this.escapeHtml(msg.suggestion)}</div>`
+      ? `<div class="output-suggestion"><span class="output-suggestion-icon" aria-hidden="true">${icon('light-bulb')}</span><span>${this.escapeHtml(msg.suggestion)}</span></div>`
       : '';
 
     const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}"` : '';
@@ -476,10 +476,10 @@ export class OutputPanel {
    */
   private getIcon(type: OutputMessage['type']): string {
     const iconMap: Record<OutputMessage['type'], string> = {
-      error:   icon('exclamation-circle',   'w-4 h-4 inline-block align-middle'),
-      warning: icon('exclamation-triangle', 'w-4 h-4 inline-block align-middle'),
-      info:    icon('information-circle',   'w-4 h-4 inline-block align-middle'),
-      success: icon('check-circle',         'w-4 h-4 inline-block align-middle'),
+      error:   icon('exclamation-circle'),
+      warning: icon('exclamation-triangle'),
+      info:    icon('information-circle'),
+      success: icon('check-circle'),
     };
     return iconMap[type];
   }
