@@ -3,6 +3,13 @@ productName: BeatBax
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   buildResources: build
+extraFiles:
+  - from: build/README.txt
+    to: README.txt
+  - from: build/RELEASE-NOTES.txt
+    to: RELEASE-NOTES.txt
+  - from: build/songs
+    to: songs
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -26,6 +33,7 @@ fileAssociations:
 win:
   icon: build/icon.ico
   executableName: BeatBax
+  publisherName: The BeatBax Team
   target:
     - nsis
     - portable
@@ -39,12 +47,17 @@ linux:
   category: AudioVideo
   executableName: BeatBax
   syncDesktopName: true
-  maintainer: kadraman <kadraman@users.noreply.github.com>
+  maintainer: The BeatBax Team <kadraman@users.noreply.github.com>
   target:
     - AppImage
     - deb
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  perMachine: false
+  selectPerMachineByDefault: false
   createDesktopShortcut: always
   shortcutName: ${productName}
 dmg:

@@ -98,6 +98,7 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (Ctrl+O)">
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Open</span>
         </button>
+        ${caps.exampleMenu ? `
         <div class="bb-toolbar__dropdown-wrap bb-toolbar__item--pri-examples">
           <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-examples-btn" title="Load an example song"
             aria-haspopup="true" aria-expanded="false">
@@ -105,6 +106,7 @@ export class Toolbar {
           </button>
           <div class="bb-examples-panel" id="tb-examples-panel" hidden></div>
         </div>
+        ` : ''}
       </div>
 
       <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
@@ -211,6 +213,7 @@ export class Toolbar {
           onToggleTheme, onToggleWrap, onToggleFoldComments,
           onOpenFileReadStart, onOpenFileReadEnd,
           onBeforeOpenFile, onBeforeExampleLoad } = this.options;
+        const caps = getCurrentCapabilities();
 
     // New file
     const newBtn = this.el.querySelector<HTMLButtonElement>('#tb-new');
@@ -246,7 +249,8 @@ export class Toolbar {
       }
     });
 
-    // Examples two-column panel
+    // Examples two-column panel (web-lite only — desktop uses bundled songs via File → Open)
+    if (caps.exampleMenu) {
     const examplesBtn  = this.el.querySelector<HTMLButtonElement>('#tb-examples-btn')!;
     const examplesPanel = this.el.querySelector<HTMLElement>('#tb-examples-panel')!;
     let examplesPanelReady = false;
@@ -371,6 +375,8 @@ export class Toolbar {
         }
       }
     }, { signal: this.abortController.signal });
+
+    }
 
     // Export buttons are wired individually in buildExportButtons()
 

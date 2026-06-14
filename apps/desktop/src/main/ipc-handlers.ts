@@ -9,6 +9,7 @@ import type {
   DesktopOpenFileOptions,
   DesktopSaveFileOptions,
 } from '../shared/electron-api';
+import { resolveBundledSongsDir } from './path-utils';
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -104,9 +105,10 @@ async function chooseOpenFile(
   browserWindow: BrowserWindow,
   options?: DesktopOpenFileOptions,
 ): Promise<DesktopFilePayload | null> {
+  const bundledSongsDir = resolveBundledSongsDir(__dirname, app.isPackaged);
   const result = await dialog.showOpenDialog(browserWindow, {
     title: options?.title ?? 'Open BeatBax Song',
-    defaultPath: options?.defaultPath,
+    defaultPath: options?.defaultPath ?? bundledSongsDir ?? undefined,
     properties: ['openFile'],
     filters: TEXT_FILE_FILTERS,
   });

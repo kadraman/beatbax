@@ -2,6 +2,18 @@
  * Tests for Toolbar — setExportEnabled behaviour and dispose() teardown
  */
 
+jest.mock('@beatbax/app-core/client-profile', () => {
+  const actual = jest.requireActual('@beatbax/app-core/client-profile');
+  return {
+    ...actual,
+    getClientProfile: () => 'web-lite',
+    getCurrentCapabilities: () => ({
+      ...actual.getCapabilities('web-lite'),
+      export: true,
+    }),
+  };
+});
+
 import { Toolbar } from '../src/ui/toolbar';
 import { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';

@@ -5,7 +5,7 @@
   "description": "Electron desktop client for BeatBax.",
   "desktopName": "BeatBax",
   "author": {
-    "name": "kadraman",
+    "name": "The BeatBax Team",
     "email": "kadraman@users.noreply.github.com"
   },
   "homepage": "https://github.com/kadraman/beatbax#readme",
@@ -26,7 +26,7 @@
     "dev": "npm run prepare-local && node ../../node_modules/electron-vite/bin/electron-vite.js dev",
     "start": "node ../../node_modules/electron-vite/bin/electron-vite.js preview",
     "build": "npm run prepare-local && npm run typecheck && node ../../node_modules/electron-vite/bin/electron-vite.js build",
-    "dist": "npm run build && node ../../node_modules/electron-builder/cli.js --publish never",
+    "dist": "npm run build && node scripts/generate-install-docs.cjs && node scripts/prepare-bundle-songs.cjs && node ../../node_modules/electron-builder/cli.js --publish never",
     "test": "jest --config ./jest.config.cjs --runInBand",
     "test:e2e": "npm run build && playwright test --config ./playwright.config.ts",
     "postinstall": "electron-builder install-app-deps"

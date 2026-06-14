@@ -12,6 +12,8 @@ export interface ClientCapabilities {
   outputPanel: boolean;
   settingsPanel: boolean;
   nativeMenu: boolean;
+  /** Load curated example songs from the hosted /songs/ bundle (web-lite only). */
+  exampleMenu: boolean;
 }
 
 const WEB_LITE: ClientCapabilities = {
@@ -26,6 +28,7 @@ const WEB_LITE: ClientCapabilities = {
   outputPanel: true,
   settingsPanel: false,
   nativeMenu: false,
+  exampleMenu: true,
 };
 
 const DESKTOP_FULL: ClientCapabilities = {
@@ -40,6 +43,7 @@ const DESKTOP_FULL: ClientCapabilities = {
   outputPanel: true,
   settingsPanel: true,
   nativeMenu: true,
+  exampleMenu: false,
 };
 
 export function getCapabilities(profile: ClientProfile): ClientCapabilities {
