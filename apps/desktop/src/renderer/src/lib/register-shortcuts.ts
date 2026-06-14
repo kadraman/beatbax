@@ -6,6 +6,7 @@ import type { buildShortcutsModal } from '@web-ui/app/modals';
 import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
 import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
+import type { Toolbar } from '@web-ui/ui/toolbar';
 import type { TransportBar } from '@web-ui/ui/transport-bar';
 import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
 import type { DesktopCopilotHandle } from './desktop-copilot';
@@ -20,6 +21,7 @@ export interface RegisterDesktopShortcutsOptions {
   eventBus: EventBus;
   getEditor: () => BeatBaxEditor | null;
   transportBar: TransportBar;
+  toolbar: Toolbar;
   bottomTabs: BottomTabs;
   rightTabs: RightTabs;
   settingsModal: SettingsModal;
@@ -34,15 +36,21 @@ export interface RegisterDesktopShortcutsOptions {
   copilot: DesktopCopilotHandle | null;
 }
 
+/**
+ * Desktop-global shortcuts. Unlike the browser client, standard file shortcuts
+ * (Ctrl+N/O/S) are available here. Editor-focused transport keys (F5/F8,
+ * Ctrl+Enter) are duplicated in setupDesktopMonacoShortcuts().
+ */
 export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions): void {
   const {
-    ks, eventBus, getEditor, transportBar, bottomTabs, rightTabs,
+    ks, eventBus, getEditor, transportBar, toolbar, bottomTabs, rightTabs,
     settingsModal, shortcutsModal, runParse, getSource,
     onNew, onOpen, onSave, themeManager, channelMixer, copilot,
   } = opts;
 
   const monacoInst = () => getEditor()?.editor;
 
+  // ── Transport ─────────────────────────────────────────────────────────────
   ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
     action: () => {
       if (!transportBar.playButton.disabled) transportBar.playButton.click();
@@ -62,6 +70,10 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     action: () => transportBar.applyButton.click(),
   });
 
+  // ── File (native desktop — not browser-limited) ───────────────────────────
+  ks.register({ key: 'n', ctrlKey: true, description: 'New song', allowInInput: true,
+    action: () => onNew(),
+  });
   ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
     action: () => { void onOpen(); },
   });
@@ -71,17 +83,28 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
   ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
     action: () => { void onSave(true); },
   });
-  ks.register({ key: 'n', ctrlKey: true, description: 'New song', allowInInput: true,
-    action: () => onNew(),
-  });
 
+  // ── Edit (global fallback when Monaco is not focused) ─────────────────────
   ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
     action: () => monacoInst()?.trigger('menu', 'undo', null),
   });
   ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
     action: () => monacoInst()?.trigger('menu', 'redo', null),
   });
+  ks.register({ key: 'z', ctrlKey: true, shiftKey: true, description: 'Redo', allowInInput: false,
+    action: () => monacoInst()?.trigger('menu', 'redo', null),
+  });
 
+  // Monaco-only note edits — listed for the shortcuts help panel.
+  ks.register({ key: '.', altKey: true, description: 'Note: semitone up (editor)', allowInInput: false, action: () => {} });
+  ks.register({ key: ',', altKey: true, description: 'Note: semitone down (editor)', allowInInput: false, action: () => {} });
+  ks.register({ key: '.', altKey: true, shiftKey: true, description: 'Note: octave up (editor)', allowInInput: false, action: () => {} });
+  ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave down (editor)', allowInInput: false, action: () => {} });
+
+  // ── View ──────────────────────────────────────────────────────────────────
+  ks.register({ key: 'l', ctrlKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
+    action: () => themeManager.toggle(),
+  });
   ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
     action: () => themeManager.toggle(),
   });
@@ -101,8 +124,24 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
     },
   });
+  ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
+    action: () => {
+      const vis = toolbar.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+    },
+  });
+  ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
+    action: () => {
+      const vis = transportBar.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
+    },
+  });
 
+  // ── Help / tools ──────────────────────────────────────────────────────────
   ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInInput: true,
+    action: () => rightTabs.show('help'),
+  });
+  ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
     action: () => rightTabs.show('help'),
   });
   ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
@@ -122,8 +161,9 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       window.setTimeout(() => ed.trigger('', 'editor.action.quickCommand', null), 50);
     },
   });
+
   if (copilot) {
-    ks.register({ key: 'i', ctrlKey: true, shiftKey: true, description: 'Toggle AI Copilot', allowInInput: true,
+    ks.register({ key: 'i', altKey: true, shiftKey: true, description: 'Toggle AI Copilot', allowInInput: true,
       action: () => copilot.toggle(),
     });
   }

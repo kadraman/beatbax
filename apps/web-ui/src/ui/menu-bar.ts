@@ -13,8 +13,10 @@ import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '@beatbax/app-core/import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
+import { appAssetUrl } from '../utils/app-asset-url';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import { resolveUiChipId } from '../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 
@@ -319,7 +321,7 @@ export class MenuBar {
 
     // App icon — mirroring the VS Code title-bar logo placement
     const logoImg = document.createElement('img');
-    logoImg.src = '/favicon.svg';
+    logoImg.src = appAssetUrl('favicon.svg');
     logoImg.alt = 'BeatBax';
     logoImg.className = 'bb-menu-bar__logo';
     this.el.appendChild(logoImg);
@@ -728,7 +730,7 @@ export class MenuBar {
   }
 
   private helpItems(): MenuItemDef[] {
-    return [
+    const items: MenuItemDef[] = [
       {
         type: 'item',
         label: 'Documentation',
@@ -748,20 +750,30 @@ export class MenuBar {
         shortcut: 'Shift+F1',
         action: () => this.emitPanelToggle('help'),
       },
-      { type: 'separator' },
-      {
-        type: 'submenu',
-        label: 'Examples',
-        id: 'examples',
-        lazyChildren: () => this.exampleItems(),
-      },
+    ];
+
+    if (getCurrentCapabilities().exampleMenu) {
+      items.push(
+        { type: 'separator' },
+        {
+          type: 'submenu',
+          label: 'Examples',
+          id: 'examples',
+          lazyChildren: () => this.exampleItems(),
+        },
+      );
+    }
+
+    items.push(
       { type: 'separator' },
       {
         type: 'item',
         label: 'About BeatBax',
         action: () => window.open(ABOUT_URL, '_blank', 'noopener,noreferrer'),
       },
-    ];
+    );
+
+    return items;
   }
 
   // ─── Dynamic item builders ────────────────────────────────────────────────────

@@ -1,0 +1,5 @@
+  - Initial BeatBax Desktop release
+  - Channel mixer, pattern grid, song visualizer, and interactive song editor
+  - BeatBax Copilot (AI assistant, bring your own API key)
+  - Bundled example songs in the songs folder (Game Boy, NES, SMS)
+  - Assisted installer with per-user or system-wide install and custom folder

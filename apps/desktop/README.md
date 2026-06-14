@@ -44,6 +44,11 @@ Post-MVP enhancements (native React panels, auto-update, code signing): [desktop
 
 Desktop installers are published via git tags and CI — not npm.
 
+Before tagging, update `apps/desktop/package.json` version (if needed) and edit
+`apps/desktop/build/release-notes.body.txt` with bullet points for that release.
+`npm run desktop:dist` generates `README.txt` and `RELEASE-NOTES.txt` from the
+templates and bundles both next to the application.
+
 ```powershell
 git tag -a desktop-v0.2.0 -m "BeatBax Desktop v0.2.0"
 git push origin desktop-v0.2.0

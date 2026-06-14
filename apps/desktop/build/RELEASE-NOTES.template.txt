@@ -1,0 +1,34 @@
+================================================================================
+  BeatBax Desktop - Release Notes
+  Version {{VERSION}}
+================================================================================
+
+  Release tag:  {{DESKTOP_TAG}}
+  Build date:   {{BUILD_DATE}}
+
+  Full release history:
+    {{RELEASES_URL}}
+
+
+WHAT'S NEW IN THIS VERSION
+--------------------------
+
+{{RELEASE_NOTES_BODY}}
+
+
+UPGRADING
+---------
+
+  Download the latest installer for your platform from GitHub Releases and run
+  it to upgrade. You can install over an existing installation.
+
+  Your .bax song files are not removed when you uninstall or upgrade.
+  Application settings are stored in your user profile.
+
+
+MORE INFORMATION
+----------------
+
+  Product overview and install guide:  README.txt (in this folder)
+  Project home:                        {{HOMEPAGE}}
+  Report issues:                       {{REPOSITORY}}/issues
