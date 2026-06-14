@@ -8,4 +8,5 @@ declare global {
   }
 
   const __CLIENT_PROFILE__: 'web-lite' | 'desktop-full';
+  const __BEATBAX_GIT_COMMIT__: string;
 }

@@ -1,10 +1,11 @@
 /**
  * App modal dialogs.
  *
- * Currently exposes the Keyboard Shortcuts modal.  CSS for the modal lives in
- * src/styles.css (moved from the original document.createElement('style')
- * injection in main.ts).
+ * Keyboard Shortcuts and About modals. CSS lives in src/styles.css.
  */
+
+export type { AboutModalController, AboutModalInfo } from './about-modal';
+export { buildAboutModal, buildBugReportUrl } from './about-modal';
 
 export interface ShortcutsModalController {
   /**

@@ -1,9 +1,20 @@
+import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 const webUiRoot = resolve(__dirname, '../web-ui');
+
+function resolveGitCommit(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
+const gitCommit = resolveGitCommit();
 
 export default defineConfig({
   main: {},
@@ -34,6 +45,7 @@ export default defineConfig({
     define: {
       global: 'globalThis',
       __CLIENT_PROFILE__: '"desktop-full"',
+      __BEATBAX_GIT_COMMIT__: JSON.stringify(gitCommit),
     },
     publicDir: resolve(webUiRoot, 'public'),
     optimizeDeps: {

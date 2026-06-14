@@ -93,7 +93,7 @@ export class Toolbar {
           ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">New</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" title="Save .bax file (Ctrl+S)">
-          ${icon('arrow-down-tray', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Save</span>
+          ${icon('document-check', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Save</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (Ctrl+O)">
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Open</span>

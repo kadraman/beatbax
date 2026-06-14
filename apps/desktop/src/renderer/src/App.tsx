@@ -160,6 +160,9 @@ export default function App(): React.JSX.Element {
       case 'view:toggle-devtools':
         window.electronAPI.toggleDevTools();
         break;
+      case 'help:about':
+        workspaceRef.current?.aboutModal.open();
+        break;
       default: {
         const exportFormat = mapMenuActionToExport(action);
         if (exportFormat) void workspaceRef.current?.handleExport(exportFormat);

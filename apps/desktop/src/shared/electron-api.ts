@@ -30,7 +30,8 @@ export type MenuAction =
   | 'view:reload'
   | 'view:toggle-devtools'
   | 'help:docs'
-  | 'help:repo';
+  | 'help:repo'
+  | 'help:about';
 
 export interface DesktopWindowState {
   maximized: boolean;

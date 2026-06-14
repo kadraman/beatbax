@@ -8,7 +8,7 @@ import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/s
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
 import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
-import type { buildShortcutsModal } from '@web-ui/app/modals';
+import type { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
 import { LoadingOverlay } from '@web-ui/ui/loading-overlay';
 import { MenuBar } from '@web-ui/ui/menu-bar';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
@@ -20,6 +20,7 @@ type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
 type SettingsModal = ReturnType<typeof buildSettingsModal>;
 type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
+type AboutModal = ReturnType<typeof buildAboutModal>;
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -38,6 +39,7 @@ export interface SetupDesktopMenuBarOptions {
   rightTabs: RightTabs;
   settingsModal: SettingsModal;
   shortcutsModal: ShortcutsModal;
+  aboutModal: AboutModal;
   themeManager: ThemeManager;
   copilot: DesktopCopilotHandle | null;
   runParse: (content: string) => void;
@@ -63,6 +65,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     bottomTabs,
     settingsModal,
     shortcutsModal,
+    aboutModal,
     themeManager,
     copilot,
     runParse,
@@ -93,6 +96,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     },
     onShowShortcuts: () => shortcutsModal.open(),
     onShowSettings: () => settingsModal.open(),
+    onShowAbout: () => aboutModal.open(),
     onExport: (format) => { void handleExport(format as ExportFormat); },
     onNew: () => openNewSongWizard(),
     onOpen: () => { void onOpen(); },
