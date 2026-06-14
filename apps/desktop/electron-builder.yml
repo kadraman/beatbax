@@ -33,7 +33,6 @@ fileAssociations:
 win:
   icon: build/icon.ico
   executableName: BeatBax
-  publisherName: The BeatBax Team
   target:
     - nsis
     - portable
