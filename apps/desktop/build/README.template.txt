@@ -28,6 +28,34 @@ SYSTEM REQUIREMENTS
   with GTK 3 and PulseAudio or PipeWire.
 
 
+INSTALLING
+----------
+
+  Desktop installers are published on GitHub Releases (tags desktop-v*).
+  Download the setup program for your platform from:
+
+    {{RELEASES_URL}}
+
+  Installers are not code-signed yet. Your operating system may show a security
+  warning the first time you install or run BeatBax. The app is open source;
+  you can review the source at {{REPOSITORY}} if you wish.
+
+  Windows (BeatBax-*-setup.exe or portable .exe)
+    If SmartScreen shows "Windows protected your PC", click "More info", then
+    "Run anyway". The installer is built by the project's public CI workflow.
+
+  macOS (.dmg or .zip)
+    If Gatekeeper says the app cannot be opened, right-click BeatBax in
+    Applications and choose Open, then confirm. Alternatively, open System
+    Settings -> Privacy & Security and allow the app when prompted.
+
+  Linux (.AppImage or .deb)
+    For AppImage: make the file executable (chmod +x) if needed, then run it.
+    For .deb: install with your package manager (e.g. sudo dpkg -i BeatBax-*.deb).
+
+  See RELEASE-NOTES.txt in this folder for changes in the version you installed.
+
+
 COPYRIGHT AND LICENSE
 ---------------------
 

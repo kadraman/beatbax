@@ -1,6 +1,7 @@
-  - Initial BeatBax Desktop release
-  - Supports built in sound chips (Game Boy and NES) as well as plugins (SMS/Game Gear)
-  - Includes interactive song editor, channel mixer, visualizer and pattern grid
-  - Also includes BeatBax Copilot (AI assistant, bring your own API key)
-  - Bundled example songs in the songs folder (Game Boy, NES, SMS)
-  - Assisted installer with per-user or system-wide install and custom folder
+  - Initial BeatBax Desktop release.
+  - Supports built in sound chips (Game Boy and NES) as well as plugins (SMS/Game Gear).
+  - Includes interactive song editor, channel mixer, visualizer and pattern grid, WAV and Tracker exports.
+  - Also includes BeatBax Copilot (AI assistant, bring your own API key).
+  - Bundled example songs in the songs folder (Game Boy, NES, SMS).
+  - Assisted installer with per-user or system-wide install and custom folder.
+  - Installers are not code-signed yet. Windows SmartScreen and macOS Gatekeeper may warn on first install; see README.txt in the install folder for steps.
