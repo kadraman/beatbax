@@ -1,4 +1,4 @@
-[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Deploy Now: Orchestration](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
+[![CI](https://github.com/kadraman/beatbax/actions/workflows/ci.yml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/ci.yml) [![Desktop: Build](https://github.com/kadraman/beatbax/actions/workflows/desktop-build.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/desktop-build.yaml) [![Web-UI: Build](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml/badge.svg)](https://github.com/kadraman/beatbax/actions/workflows/beatbax-orchestration.yaml)
 
 <p align="center">
   <img src="./media/logo-transparent-bg.png" alt="BeatBax" width="420"/>
