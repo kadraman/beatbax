@@ -224,7 +224,9 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 BeatBax Desktop ships the full IDE: native menus and file I/O, export, Copilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform 
 installers. See [apps/desktop/README.md](apps/desktop/README.md) for more details.
 
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases).
+Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
+
+**Installers are not code-signed yet.** Windows SmartScreen and macOS Gatekeeper may warn on first install or launch. See `README.txt` in the install folder (next to the BeatBax application) for platform-specific steps.
 
 Start the development server:
 
