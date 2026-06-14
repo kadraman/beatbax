@@ -11,6 +11,7 @@ import { getCapabilities } from '@beatbax/app-core/client-profile';
 import { buildAppLayout } from '../src/app/layout';
 import { buildBottomTabs, buildRightTabs } from '../src/app/tabs';
 import { Toolbar } from '../src/ui/toolbar';
+import { appAssetUrl } from '../src/utils/app-asset-url';
 
 describe('web-lite profile', () => {
   it('web-lite disables full IDE features but keeps help and output', () => {
@@ -33,7 +34,7 @@ describe('web-lite profile', () => {
     buildAppLayout(app);
     expect(document.getElementById('bb-web-lite-header')).not.toBeNull();
     const brandIcon = document.querySelector('.bb-web-lite-header__icon') as HTMLImageElement | null;
-    expect(brandIcon?.getAttribute('src')).toBe('/favicon.svg');
+    expect(brandIcon?.getAttribute('src')).toBe(appAssetUrl('favicon.svg'));
     expect(document.querySelector('.bb-web-lite-header__logo')?.textContent).toBe('BeatBax');
     expect(document.querySelector('.bb-web-lite-header__cta')).toBeNull();
     const github = document.querySelector('.bb-web-lite-header__social-link[data-social="github"]');

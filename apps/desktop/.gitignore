@@ -1,6 +1,9 @@
 node_modules
 dist
 out
+build/README.txt
+build/RELEASE-NOTES.txt
+build/songs
 .DS_Store
 .eslintcache
 *.log*

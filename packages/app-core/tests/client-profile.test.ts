@@ -20,5 +20,12 @@ describe('client-profile', () => {
     expect(caps.outputPanel).toBe(true);
     expect(caps.problemsPanel).toBe(true);
     expect(caps.settingsPanel).toBe(false);
+    expect(caps.exampleMenu).toBe(true);
+  });
+
+  it('desktop-full disables remote example menus', () => {
+    const caps = getCapabilities('desktop-full');
+    expect(caps.exampleMenu).toBe(false);
+    expect(caps.nativeMenu).toBe(true);
   });
 });

@@ -3,6 +3,7 @@
  */
 
 import { brandIcon } from '../utils/icons';
+import { appAssetUrl } from '../utils/app-asset-url';
 
 export type WebLiteSocialId = 'github' | 'x' | 'itch';
 
@@ -32,7 +33,7 @@ export function buildWebLiteHeader(): HTMLElement {
   title.className = 'bb-web-lite-header__title';
 
   const icon = document.createElement('img');
-  icon.src = '/favicon.svg';
+  icon.src = appAssetUrl('favicon.svg');
   icon.alt = '';
   icon.className = 'bb-web-lite-header__icon';
   icon.setAttribute('aria-hidden', 'true');

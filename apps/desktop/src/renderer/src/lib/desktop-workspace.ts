@@ -35,6 +35,7 @@ import { handleDesktopExport } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
 import type { MenuBar } from '@web-ui/ui/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
+import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
 import { setupFullIdeFeatures, type TransportDisplayState } from '@web-ui/app/full-ide-setup';
 import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '@web-ui/app/editor-view-prefs';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
@@ -633,6 +634,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     eventBus,
     getEditor,
     transportBar,
+    toolbar,
     bottomTabs,
     rightTabs,
     settingsModal,
@@ -647,6 +649,18 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     copilot,
   });
   ks.mount();
+
+  const shortcutsPanel = new HelpPanel({
+    container: shortcutsModal.container,
+    eventBus,
+    embedded: true,
+    singleSection: 'shortcuts',
+    hideHeader: true,
+    twoColumns: true,
+    defaultVisible: true,
+    getShortcuts: () => ks.list(),
+  });
+
   helpPanel?.refresh();
 
   suppressChromeTabFocus(container);
@@ -657,8 +671,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     rightTabs.close('channels');
   }
 
+  let monacoShortcutsDispose: (() => void) | null = null;
+
   const setupEditor = (editor: BeatBaxEditor) => {
     editorSetup?.dispose();
+    monacoShortcutsDispose?.();
     editorSetup = setupDesktopEditor({
       editor,
       appContext,
@@ -672,6 +689,20 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       onAstParsed: () => { /* scale context refreshed inside setup */ },
       toolbar: toolbarRef.current,
     });
+    monacoShortcutsDispose = setupDesktopMonacoShortcuts({
+      editor: editor.editor,
+      transportBar,
+      rightTabs,
+      bottomTabs,
+      shortcutsModal,
+      settingsModal,
+      themeManager,
+      channelMixer,
+      copilot,
+      eventBus,
+      runParse,
+      getSource,
+    });
     refreshEditorViewPrefs();
     focusWorkspaceEditor(editor);
     bottomTabs.expandPane();
@@ -681,8 +712,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const dispose = () => {
     fullIdeSetup.dispose();
     editorSetup?.dispose();
+    monacoShortcutsDispose?.();
     copilot?.dispose();
     disposeMenuBar?.();
+    shortcutsPanel.dispose();
+    helpPanel?.dispose();
     statusBar?.dispose();
     transportBar.dispose();
     ks.dispose();
