@@ -282,21 +282,21 @@ export class ChannelMixer {
     clearSoloBtn.addEventListener('click', () => { if (!clearSoloBtn.dataset.ariaDisabled) clearAllSolo(); });
     toolbar.appendChild(clearSoloBtn);
 
-    // Dock-mode toggle button
+    const mixerLabel = document.createElement('span');
+    mixerLabel.className = 'bb-channel-mixer__toolbar-label';
+    mixerLabel.textContent = 'CHANNEL MIXER';
+    toolbar.appendChild(mixerLabel);
+
+    // Dock-mode toggle button — pinned to the right edge of the toolbar
     const dockBtn = document.createElement('button');
     dockBtn.type = 'button';
-    dockBtn.className = 'bb-channel-mixer__toolbar-btn';
+    dockBtn.className = 'bb-channel-mixer__toolbar-btn bb-channel-mixer__toolbar-btn--dock';
     dockBtn.id = 'bb-channel-mixer-dock-mode';
     this.applyDockModeBtn(dockBtn);
     dockBtn.addEventListener('click', () => {
       this.setDockMode(this.dockMode === 'docked' ? 'inline' : 'docked');
     });
     toolbar.appendChild(dockBtn);
-
-    const mixerLabel = document.createElement('span');
-    mixerLabel.className = 'bb-channel-mixer__toolbar-label';
-    mixerLabel.textContent = 'CHANNEL MIXER';
-    toolbar.appendChild(mixerLabel);
 
     root.appendChild(toolbar);
 
@@ -357,6 +357,7 @@ export class ChannelMixer {
     strip.className = 'bb-channel-mixer__strip' + (!isAudible ? ' bb-channel-mixer__strip--silent' : '');
     strip.id = `bb-channel-mixer-strip-${ch.id}`;
     strip.dataset.channel = String(ch.id);
+    strip.style.setProperty('--bb-ch-accent', meta.color);
 
     // ── Colour accent bar (top) ───────────────────────────────────────────────
     const accent = document.createElement('div');
@@ -368,7 +369,6 @@ export class ChannelMixer {
     const label = document.createElement('div');
     label.className = 'bb-channel-mixer__label';
     label.textContent = meta.label.toUpperCase();
-    label.style.color = meta.color;
     strip.appendChild(label);
 
     // ── Mid section: [VOL FADER left] | [VU METER right] ────────────────────

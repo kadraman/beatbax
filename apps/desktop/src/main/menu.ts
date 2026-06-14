@@ -68,6 +68,8 @@ export function createMenuTemplate(window: BrowserWindow, recentFiles: string[])
       submenu: [
         { label: 'BeatBax Docs', click: () => { sendMenuAction(window, 'help:docs'); void shell.openExternal('https://github.com/kadraman/beatbax#readme'); } },
         { label: 'GitHub Repository', click: () => { sendMenuAction(window, 'help:repo'); void shell.openExternal('https://github.com/kadraman/beatbax'); } },
+        { type: 'separator' },
+        { label: 'About BeatBax', click: () => sendMenuAction(window, 'help:about') },
       ],
     },
   ];

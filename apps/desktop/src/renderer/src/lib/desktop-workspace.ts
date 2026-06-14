@@ -9,7 +9,7 @@ import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
-import { buildShortcutsModal } from '@web-ui/app/modals';
+import { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
 import { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import { HelpPanel } from '@web-ui/panels/help-panel';
 import {
@@ -72,6 +72,7 @@ export interface DesktopWorkspaceHandle {
   helpPanel: HelpPanel | null;
   settingsModal: ReturnType<typeof buildSettingsModal>;
   shortcutsModal: ReturnType<typeof buildShortcutsModal>;
+  aboutModal: ReturnType<typeof buildAboutModal>;
   keyboardShortcuts: KeyboardShortcuts;
   themeManager: ThemeManager;
   statusBar: StatusBar | null;
@@ -251,7 +252,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const ccContainer = document.createElement('div');
   ccContainer.id = 'bb-channel-controls-host';
-  ccContainer.style.cssText = 'flex:1 1 0;overflow-y:auto;';
+  ccContainer.className = 'bb-right-panel-scroll';
   rightTabs.tabContents.channels!.appendChild(ccContainer);
   const songVisualizer = new SongVisualizer({ container: ccContainer, eventBus, playbackManager });
   void songVisualizer;
@@ -281,6 +282,19 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       })
     : noopSettingsModal;
   const shortcutsModal = buildShortcutsModal();
+  const aboutModal = buildAboutModal(
+    {
+      version: window.electronAPI?.getVersion?.() ?? '0.1.0',
+      commitId: typeof __BEATBAX_GIT_COMMIT__ !== 'undefined' ? __BEATBAX_GIT_COMMIT__ : 'unknown',
+      platform: window.electronAPI?.getPlatform?.(),
+    },
+    {
+      onOpenLink: (url) => {
+        if (window.electronAPI?.openExternal) void window.electronAPI.openExternal(url);
+        else window.open(url, '_blank', 'noopener,noreferrer');
+      },
+    },
+  );
 
   let helpPanel: HelpPanel | null = null;
   if (capabilities.helpPanel) {
@@ -455,6 +469,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       rightTabs,
       settingsModal,
       shortcutsModal,
+      aboutModal,
       themeManager,
       copilot,
       runParse,
@@ -737,6 +752,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     helpPanel,
     settingsModal,
     shortcutsModal,
+    aboutModal,
     keyboardShortcuts: ks,
     themeManager,
     statusBar,

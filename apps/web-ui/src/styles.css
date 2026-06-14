@@ -282,6 +282,7 @@
   gap: 6px;
   align-items: center;
   margin-right: 4px;
+  flex-shrink: 0;
   /* Recessed panel tray — LCDs sit in a sunken bay cut into the metal face */
   padding: 5px 8px;
   border-radius: 5px;
@@ -481,7 +482,8 @@
 }
 
 
-[data-theme=light] .bb-transport__info {
+[data-theme=light] .bb-transport__info,
+[data-theme=light] .bb-transport__vol-group {
   background: rgba(0, 0, 0, 0.07);
   box-shadow:
     inset 0 2px 7px rgba(0, 0, 0, 0.22),
@@ -549,18 +551,15 @@
  *  Priority classes control which controls disappear first at narrower widths.
  *  Lower pri number = higher priority (hidden first at lowest BPs).
  *
- *  pri-1  → BAR:BT, STEP LCDs             hidden at < 1400 px
- *  pri-2  → LOOP LCD; ⟳ Loop, ● Rec        hidden at < 1150 px
- *  pri-3  → BPM nudge (+ sep), VOL LCD     hidden at < 1200 px
- *            (1200 px ensures both the vol LCD and BPM nudge are gone before
- *             the pri-2 items at 1149 px reappear, preventing the ~1160 px
- *             overflow that occurred when the two groups collided)
- *  pri-4  → TIME LCD, ⏮ Rewind             hidden at <  720 px
- *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply,    hidden at <  550 px
- *            vol knob
+ *  pri-1  → BAR:BT, STEP LCDs             hidden at ≤ 1440 px (default desktop width)
+ *  pri-2  → LOOP LCD; ⟳ Loop                     hidden at < 1150 px
+ *  pri-3  → BPM nudge (+ sep)                     hidden at < 1024 px (desktop min keeps nudge)
+ *  pri-4  → TIME LCD, ⏮ Rewind                     hidden at <  720 px
+ *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply,            hidden at <  550 px
+ *            vol knob; VOL LCD hidden at < 550 px
  *
- *  The vol knob is separated from the VOL LCD so it persists as a compact
- *  standalone control on the bar even when the numeric display is hidden.
+ *  ● Rec and the volume cluster stay visible down to the desktop minimum
+ *  (1024 px). A separator sits between Rec and the volume tray.
  *
  *  Only ▶ Play and ⏹ Stop are always visible.
  *  overflow-x: auto (set on the base rule) is the final safety net; the
@@ -568,29 +567,27 @@
  *  correctly in Safari / iOS WebKit.
  * ───────────────────────────────────────────────────────────────────────── */
 
-/* 1400 px — hide BAR:BT and STEP LCDs */
-@media (max-width: 1399px) {
+/* 1440 px — hide BAR:BT and STEP LCDs (keeps the default desktop window comfortable) */
+@media (max-width: 1440px) {
   .bb-transport__lcd--pri-1 { display: none; }
 }
 
-/* 1150 px — hide LOOP LCD, ⟳ Loop, ● Rec */
+/* 1150 px — hide LOOP LCD and ⟳ Loop (Rec stays visible) */
 @media (max-width: 1149px) {
   .bb-transport__lcd--pri-2,
   .bb-transport__btn--pri-2 { display: none; }
 }
 
-/* 1200 px — hide BPM nudge (+ sep) and VOL LCD (+ its sep).
-   Threshold sits above the pri-2 boundary (1149 px) so neither the nudge
-   nor the VOL LCD reappears at the same moment as Loop/Rec, preventing
-   the overflow that manifested at ~1160 px on desktop browsers. */
+/* 1200 px — tighten button sizing on narrower layouts */
 @media (max-width: 1199px) {
-  .bb-transport__nudge-wrap--pri-3,
-  .bb-transport__separator--pri-3,
-  .bb-transport__lcd--vol,
-  .bb-transport__separator--vol-lcd { display: none; }
-  /* Compact gap + smaller buttons to keep remaining items comfortable */
   .bb-transport { gap: 6px; }
   .bb-transport__btn { padding: 5px 9px; font-size: 12px; }
+}
+
+/* 1024 px — hide BPM nudge below the desktop minimum width */
+@media (max-width: 1023px) {
+  .bb-transport__nudge-wrap.bb-transport__nudge-wrap--pri-3,
+  .bb-transport__separator--pri-3 { display: none; }
 }
 
 /* 720 px — hide TIME LCD, ⏮ Rewind */
@@ -599,10 +596,12 @@
   .bb-transport__btn--pri-4 { display: none; }
 }
 
-/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply and the vol knob */
+/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply, vol knob, and VOL LCD */
 @media (max-width: 549px) {
   .bb-transport__btn--pri-5,
-  .bb-transport__vol-knob { display: none; }
+  .bb-transport__vol-knob,
+  .bb-transport__lcd--vol,
+  .bb-transport__separator--vol-lcd { display: none; }
   /* Tighten spacing so BPM LCD + Play + Stop still fit comfortably */
   .bb-transport { gap: 4px; padding: 6px 8px; }
 }
@@ -610,6 +609,85 @@
 /* Layout panes & splitters */
 #output-pane { background-color: var(--bb-output-bg); color: var(--bb-output-fg); }
 #right-pane  { background-color: var(--bb-right-pane-bg); }
+
+/* Scrollable right-panel hosts (visualizer, help, mixer strips, AI chat) */
+#bb-channel-controls-host,
+.bb-right-panel-scroll,
+.bb-help__body,
+.bb-channel-mixer__strips,
+.bb-chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #1e1e1e;
+}
+#bb-channel-controls-host::-webkit-scrollbar,
+.bb-right-panel-scroll::-webkit-scrollbar,
+.bb-help__body::-webkit-scrollbar,
+.bb-channel-mixer__strips::-webkit-scrollbar,
+.bb-chat-messages::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+#bb-channel-controls-host::-webkit-scrollbar-track,
+.bb-right-panel-scroll::-webkit-scrollbar-track,
+.bb-help__body::-webkit-scrollbar-track,
+.bb-channel-mixer__strips::-webkit-scrollbar-track,
+.bb-chat-messages::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+#bb-channel-controls-host::-webkit-scrollbar-thumb,
+.bb-right-panel-scroll::-webkit-scrollbar-thumb,
+.bb-help__body::-webkit-scrollbar-thumb,
+.bb-channel-mixer__strips::-webkit-scrollbar-thumb,
+.bb-chat-messages::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+#bb-channel-controls-host::-webkit-scrollbar-thumb:hover,
+.bb-right-panel-scroll::-webkit-scrollbar-thumb:hover,
+.bb-help__body::-webkit-scrollbar-thumb:hover,
+.bb-channel-mixer__strips::-webkit-scrollbar-thumb:hover,
+.bb-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+#bb-channel-controls-host,
+.bb-right-panel-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-theme="light"] #bb-channel-controls-host,
+[data-theme="light"] .bb-right-panel-scroll,
+[data-theme="light"] .bb-help__body,
+[data-theme="light"] .bb-channel-mixer__strips,
+[data-theme="light"] .bb-chat-messages {
+  scrollbar-color: #b0b0b0 #ececec;
+}
+[data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-track,
+[data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-track,
+[data-theme="light"] .bb-help__body::-webkit-scrollbar-track,
+[data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-track,
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-track {
+  background: #ececec;
+}
+[data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-thumb,
+[data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-thumb,
+[data-theme="light"] .bb-help__body::-webkit-scrollbar-thumb,
+[data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-thumb,
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb {
+  background: #b0b0b0;
+}
+[data-theme="light"] #bb-channel-controls-host::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .bb-right-panel-scroll::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .bb-help__body::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .bb-channel-mixer__strips::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .bb-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #909090;
+}
+
+[data-theme="light"] .bb-help__snippet-pre::-webkit-scrollbar-track { background: #ececec; }
+[data-theme="light"] .bb-help__snippet-pre::-webkit-scrollbar-thumb  { background: #b0b0b0; }
 .bb-splitter { background-color: var(--bb-splitter-color); }
 
 /* ─── Shared keyframe (used by boot + activity spinner) ─────────────────── */
@@ -992,7 +1070,7 @@
 .output-message-main {
   display: flex;
   gap: 8px;
-  align-items: baseline;
+  align-items: center;
 }
 
 .output-error   { color: var(--error-color,   #f48771); }
@@ -1000,7 +1078,20 @@
 .output-info    { color: var(--info-color,    #75beff); }
 .output-success { color: var(--success-color, #89d185); }
 
-.output-icon { flex-shrink: 0; width: 20px; display: inline-flex; align-items: center; }
+.output-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  line-height: 0;
+}
+.output-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
 
 .output-time {
   color: var(--text-muted, #858585);
@@ -1070,13 +1161,27 @@
 }
 
 .output-suggestion {
-  margin-left: 28px;
+  margin-left: 24px;
   font-size: 11px;
   color: var(--text-muted, #858585);
   font-style: italic;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+.output-suggestion-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  line-height: 0;
+}
+.output-suggestion-icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
 }
 
 /* ─── Help Panel ──────────────────────────────────────────────────────────── */
@@ -1336,14 +1441,22 @@
 [data-theme="light"] .bb-help           { background: #f3f3f3; color: #333; }
 [data-theme="light"] .bb-help__header   { background: #e8e8e8; border-color: #ddd; }
 
-[data-theme="light"] .bb-help__section-header       { background: #eaeaea; color: #333; }
+[data-theme="light"] .bb-help__section { border-bottom-color: #ddd; }
+[data-theme="light"] .bb-help__section-header       { background: #eaeaea; color: #222; }
 [data-theme="light"] .bb-help__section-header:hover { background: #e0e0e0; }
 [data-theme="light"] .bb-help__section-body          { background: #f3f3f3; }
+[data-theme="light"] .bb-help__section-arrow         { color: #666; }
+
+[data-theme="light"] .bb-help__text          { color: #444; }
+[data-theme="light"] .bb-help__shortcut-desc { color: #333; }
+[data-theme="light"] .bb-help__key-sep        { color: #888; }
 
 [data-theme="light"] .bb-help__search         { background: #fff; border-color: #ccc; color: #333; }
 [data-theme="light"] .bb-help__kbd            { background: #eaeaea; border-color: #aaa; color: #333; }
+[data-theme="light"] .bb-help__snippet        { border-color: #ccc; }
 [data-theme="light"] .bb-help__snippet-pre    { background: #f8f8f8; color: #a31515; }
 [data-theme="light"] .bb-help__snippet-header { background: #ebebeb; border-color: #ddd; }
+[data-theme="light"] .bb-help__snippet-label  { color: #0d47a1; }
 
 /* ─── Bottom Pane Tabs (Problems | Output) ──────────────────────────────── */
 .bb-bottom-tab-bar { display: flex; flex-shrink: 0; background: var(--header-bg, #252526); border-bottom: 1px solid var(--border-color, #3c3c3c); }
@@ -1529,6 +1642,119 @@
 }
 .bb-shortcuts-modal-close:hover { color: #eee; background: #383838; }
 .bb-shortcuts-modal-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+
+/* ─── About Modal ────────────────────────────────────────────────────────── */
+.bb-about-modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 9050;
+  align-items: center;
+  justify-content: center;
+}
+.bb-about-modal-backdrop.bb-about-modal--open { display: flex; }
+.bb-about-modal {
+  background: #1f1f1f;
+  border: 1px solid #444;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 92vw);
+  overflow: hidden;
+}
+.bb-about-modal__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 28px 24px;
+  gap: 6px;
+}
+.bb-about-modal__logo-btn {
+  display: inline-flex;
+  padding: 0;
+  margin: 0 0 8px;
+  background: none;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.bb-about-modal__logo-btn:hover { transform: scale(1.04); opacity: 0.92; }
+.bb-about-modal__logo-btn:focus-visible {
+  outline: 2px solid #3794ff;
+  outline-offset: 4px;
+}
+.bb-about-modal__logo {
+  width: 128px;
+  height: 128px;
+  border-radius: 16px;
+  display: block;
+}
+.bb-about-modal__version {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #eee;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+}
+.bb-about-modal__tagline {
+  margin: 0;
+  font-size: 14px;
+  color: #aaa;
+  line-height: 1.45;
+  max-width: 34ch;
+}
+.bb-about-modal__license {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+.bb-about-modal__report-bug {
+  margin: 14px 0 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #6cb6ff;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+.bb-about-modal__report-bug:hover { color: #9ccfff; }
+.bb-about-modal__report-bug:focus-visible {
+  outline: 2px solid #3794ff;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.bb-about-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid #333;
+  background: #1a1a1a;
+}
+.bb-about-modal__ok {
+  min-width: 80px;
+  padding: 6px 20px;
+  background: #0e639c;
+  border: 1px solid #1177bb;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.bb-about-modal__ok:hover { background: #1177bb; }
+.bb-about-modal__ok:focus-visible {
+  outline: 2px solid #3794ff;
+  outline-offset: 2px;
+}
 
 /* ─── Settings Modal ─────────────────────────────────────────────────────── */
 .bb-settings-backdrop {
@@ -2374,6 +2600,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 .bb-transport__nudge-label {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -2388,11 +2615,21 @@
   display: flex;
   gap: 2px;
 }
-.bb-transport__vol-inner {
+/* Recessed tray for the master-volume knob + numeric readout */
+.bb-transport__vol-group {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin-left: auto;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow:
+    inset 0 2px 7px rgba(0, 0, 0, 0.72),
+    inset 0 1px 2px rgba(0, 0, 0, 0.50),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
 }
 .bb-transport__nudge-btn {
   width: 22px;
@@ -2437,16 +2674,19 @@
 .bb-transport__btn--rewind { border-top-color: #4a8fd4; color: #c4d8ed; }
 .bb-transport__btn--loop   { border-top-color: #4caf50; color: #c8edca; }
 
-/* ── VOL LCD: compact width (knob is now separate) ──────────────────────── */
-.bb-transport__lcd--vol { min-width: 54px; }
+/* ── VOL LCD — match sibling readouts; four-digit ghost needs a bit more room */
+.bb-transport__lcd--vol {
+  min-width: 70px;
+  flex-shrink: 0;
+  padding: 3px 8px 4px;
+}
+.bb-transport__lcd--vol .bb-transport__lcd-screen {
+  min-width: 4.25em;
+}
 
-/* ── Vol knob — standalone transport element ─────────────────────────────── */
-/* Sits directly on the bar after the transport buttons; the LCD is separate.
-   flex-shrink: 0 prevents the canvas from being squeezed in the flex row.
-   A small horizontal margin gives visual breathing room from adjacent items. */
+/* ── Vol knob — lives inside the recessed vol tray ─────────────────────── */
 .bb-transport__vol-knob {
   flex-shrink: 0;
-  margin: 0 2px;
 }
 
 /* ── Rotary knob ─────────────────────────────────────────────────────────── */
@@ -2937,7 +3177,7 @@
 .bb-viz__toolbar-btn {
   border: 1px solid #444;
   background: #2d2d2d;
-  color: #ddd;
+  color: #eee;
   border-radius: 4px;
   width: 28px;
   height: 28px;
@@ -2947,6 +3187,22 @@
   line-height: 0;
   cursor: pointer;
 }
+.bb-viz__toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.bb-viz__toolbar-btn:disabled {
+  opacity: 1;
+  cursor: default;
+  color: #777;
+  background: #242424;
+  border-color: #3a3a3a;
+}
+.bb-viz__toolbar-btn:disabled svg {
+  stroke-width: 1.75;
+}
+.bb-viz__toolbar-btn--performance { margin-left: auto; }
 .bb-viz__channels {
   display: grid;
   gap: 6px;
@@ -3030,10 +3286,12 @@
 
 .bb-viz__chip-label {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 8px;
-  letter-spacing: 1.6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.80;
+  color: color-mix(in srgb, var(--bb-ch-accent, #9cdcfe) 72%, white 38%);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
 }
 
 .bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
@@ -3237,6 +3495,10 @@
   color: rgba(255,255,255,0.95);
   text-shadow: 0 1px 3px rgba(0,0,0,0.90), 0 0 8px rgba(0,0,0,0.70);
 }
+.bb-viz--fullscreen .bb-viz__chip-label {
+  color: color-mix(in srgb, var(--bb-ch-accent, #9cdcfe) 65%, white 55%);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.90), 0 0 6px rgba(0,0,0,0.65);
+}
 .bb-viz--fullscreen .bb-viz__inst {
   text-shadow: 0 0 6px rgba(61,255,112,0.90), 0 0 12px rgba(61,255,112,0.40);
 }
@@ -3347,6 +3609,75 @@
 }
 [data-theme="light"] .bb-viz--fullscreen {
   background: #fff;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn {
+  background: #e8e8e8;
+  border-color: #aaa;
+  color: #1a1a1a;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.85);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn svg {
+  stroke-width: 2;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled) {
+  background: #f4f4f4;
+  border-color: #888;
+  color: #000;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
+  opacity: 1;
+  color: #8a8a8a;
+  background: #f2f2f2;
+  border-color: #ccc;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
+  stroke-width: 1.75;
+}
+[data-theme="light"] .bb-viz .bb-cp__btn {
+  color: #222;
+  font-weight: 800;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn {
+  border-color: #bbb #999 #888 #bbb;
+  color: #444;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.80) 0%, transparent 65%),
+    linear-gradient(to bottom, #f0f0f0 0%, #d8d8d8 100%);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.10),
+    inset 0  1px 0 rgba(255,255,255,0.90),
+    inset 0 -1px 0 rgba(0,0,0,0.08);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn:hover {
+  filter: none;
+  color: #222;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.90) 0%, transparent 65%),
+    linear-gradient(to bottom, #f8f8f8 0%, #e0e0e0 100%);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn--active {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(154,113,16,0.18) 0%, transparent 65%),
+    linear-gradient(to bottom, #f0e8d0 0%, #e0d4b0 100%);
+  border-color: var(--bb-accent, #9a7110) #c8b880 #b8a870 var(--bb-accent, #9a7110);
+  color: var(--bb-accent, #9a7110);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.08),
+    inset 0 1px 2px rgba(0,0,0,0.05),
+    0 0 4px rgba(154,113,16,0.12);
+}
+[data-theme="light"] .bb-viz__chip-label {
+  color: color-mix(in srgb, var(--bb-ch-accent, #569cd6) 42%, black 78%);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__channel-title {
+  color: #444;
+  text-shadow: none;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__position {
+  color: #777;
 }
 .bb-cp {
   display: flex; flex-direction: column;
@@ -3906,6 +4237,7 @@
 }
 
 .bb-channel-mixer__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
+.bb-channel-mixer__toolbar-btn--dock { margin-left: auto; }
 .bb-channel-mixer__toolbar-btn--active { background: var(--bb-accent-bg, #3d2d08); border-color: var(--bb-accent, #c8a227); color: var(--bb-accent, #c8a227); }
 
 /* ── Strips container ─────────────────────────────────────────────────────── */
@@ -3985,8 +4317,8 @@
 
 /* Channel label — silk-screened nameplate on the panel face */
 .bb-channel-mixer__label {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.06em;
   text-align: center;
   overflow: hidden;
@@ -3994,8 +4326,8 @@
   white-space: nowrap;
   width: 100%;
   margin-bottom: 2px;
-  color: rgba(255,255,255,0.80);
-  text-shadow: 0 1px 1px rgba(0,0,0,0.70), 0 -1px 0 rgba(255,255,255,0.06);
+  color: color-mix(in srgb, var(--bb-ch-accent, #9cdcfe) 72%, white 38%);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
 }
 
 /* Mid row: fader (left) and VU meter (right), same fixed width, fills strip height */
@@ -4206,7 +4538,7 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  padding: 2px 4px;
+  padding: 3px 4px;
   background: #0b130b;
   border: 1px solid;
   border-color: #111 #2e4a2e #2e4a2e #111;
@@ -4216,7 +4548,7 @@
     inset 1px 0 3px rgba(0,0,0,0.40),
     0 0 6px rgba(61,255,112,0.07);
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #3dff70;
@@ -4228,6 +4560,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
+  min-height: 14px;
 }
 
 /* Compact instrument-volume readout (e.g. "vol 12/15") displayed below the
@@ -4334,8 +4667,8 @@
 }
 
 [data-theme="light"] .bb-channel-mixer__label {
-  color: rgba(0,0,0,0.80);
-  text-shadow: 0 1px 0 rgba(255,255,255,0.50), 0 -1px 0 rgba(0,0,0,0.10);
+  color: color-mix(in srgb, var(--bb-ch-accent, #569cd6) 42%, black 78%);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
 }
 
 [data-theme="light"] .bb-channel-mixer__vu-seg--green  { background: #c8e8c8; }
@@ -4350,7 +4683,20 @@
 [data-theme="light"] .bb-channel-mixer__inst-vol-notch { background: #d97706; box-shadow: 0 0 3px rgba(217,119,6,0.6); }
 [data-theme="light"] .bb-channel-mixer__inst-vol-notch::before { background: #d97706; }
 
-[data-theme="light"] .bb-channel-mixer__inst { color: #007050; }
+[data-theme="light"] .bb-channel-mixer__inst {
+  background: #070d07;
+  border-color: #888 #d0d0d0 #d0d0d0 #888;
+  color: #3dff70;
+  text-shadow:
+    0 0 4px rgba(61,255,112,0.80),
+    0 0 8px rgba(61,255,112,0.30);
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.80),
+    inset 2px 0  4px rgba(0,0,0,0.30),
+    inset 0 0  2px rgba(0,0,0,0.50),
+    0 1px 0 rgba(255,255,255,0.90),
+    0 2px 0 rgba(255,255,255,0.50);
+}
 [data-theme="light"] .bb-channel-mixer__vol-readout { color: #a05010; }
 [data-theme="light"] .bb-channel-mixer__seq  { color: #9a7110; }
 [data-theme="light"] .bb-channel-mixer__pat  { color: #0060a0; }
@@ -4441,7 +4787,7 @@
 .bb-viz__toolbar-btn {
   border: 1px solid #444;
   background: #2d2d2d;
-  color: #ddd;
+  color: #eee;
   border-radius: 4px;
   width: 28px;
   height: 28px;
@@ -4451,6 +4797,22 @@
   line-height: 0;
   cursor: pointer;
 }
+.bb-viz__toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.bb-viz__toolbar-btn:disabled {
+  opacity: 1;
+  cursor: default;
+  color: #777;
+  background: #242424;
+  border-color: #3a3a3a;
+}
+.bb-viz__toolbar-btn:disabled svg {
+  stroke-width: 1.75;
+}
+.bb-viz__toolbar-btn--performance { margin-left: auto; }
 .bb-viz__channels {
   display: grid;
   gap: 6px;
@@ -4534,10 +4896,12 @@
 
 .bb-viz__chip-label {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 8px;
-  letter-spacing: 1.6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.80;
+  color: color-mix(in srgb, var(--bb-ch-accent, #9cdcfe) 72%, white 38%);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
 }
 
 .bb-viz__header-right { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
@@ -4741,6 +5105,10 @@
   color: rgba(255,255,255,0.95);
   text-shadow: 0 1px 3px rgba(0,0,0,0.90), 0 0 8px rgba(0,0,0,0.70);
 }
+.bb-viz--fullscreen .bb-viz__chip-label {
+  color: color-mix(in srgb, var(--bb-ch-accent, #9cdcfe) 65%, white 55%);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.90), 0 0 6px rgba(0,0,0,0.65);
+}
 .bb-viz--fullscreen .bb-viz__inst {
   text-shadow: 0 0 6px rgba(61,255,112,0.90), 0 0 12px rgba(61,255,112,0.40);
 }
@@ -4851,6 +5219,75 @@
 }
 [data-theme="light"] .bb-viz--fullscreen {
   background: #fff;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn {
+  background: #e8e8e8;
+  border-color: #aaa;
+  color: #1a1a1a;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.85);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn svg {
+  stroke-width: 2;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled) {
+  background: #f4f4f4;
+  border-color: #888;
+  color: #000;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
+  opacity: 1;
+  color: #8a8a8a;
+  background: #f2f2f2;
+  border-color: #ccc;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
+  stroke-width: 1.75;
+}
+[data-theme="light"] .bb-viz .bb-cp__btn {
+  color: #222;
+  font-weight: 800;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn {
+  border-color: #bbb #999 #888 #bbb;
+  color: #444;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.80) 0%, transparent 65%),
+    linear-gradient(to bottom, #f0f0f0 0%, #d8d8d8 100%);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.10),
+    inset 0  1px 0 rgba(255,255,255,0.90),
+    inset 0 -1px 0 rgba(0,0,0,0.08);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn:hover {
+  filter: none;
+  color: #222;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.90) 0%, transparent 65%),
+    linear-gradient(to bottom, #f8f8f8 0%, #e0e0e0 100%);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__btn--active {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(154,113,16,0.18) 0%, transparent 65%),
+    linear-gradient(to bottom, #f0e8d0 0%, #e0d4b0 100%);
+  border-color: var(--bb-accent, #9a7110) #c8b880 #b8a870 var(--bb-accent, #9a7110);
+  color: var(--bb-accent, #9a7110);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.08),
+    inset 0 1px 2px rgba(0,0,0,0.05),
+    0 0 4px rgba(154,113,16,0.12);
+}
+[data-theme="light"] .bb-viz__chip-label {
+  color: color-mix(in srgb, var(--bb-ch-accent, #569cd6) 42%, black 78%);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__channel-title {
+  color: #444;
+  text-shadow: none;
+}
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__position {
+  color: #777;
 }
 .bb-cp {
   display: flex; flex-direction: column;

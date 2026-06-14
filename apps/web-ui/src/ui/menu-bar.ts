@@ -96,6 +96,8 @@ export interface MenuBarOptions {
   onToggleAI?: () => void;
   /** Open the Settings panel (Ctrl+,). */
   onShowSettings?: () => void;
+  /** Open the About modal (desktop). */
+  onShowAbout?: () => void;
   /** Open Monaco Command Palette (F1 / Ctrl+Alt+P). */
   onOpenCommandPalette?: () => void;
 
@@ -769,7 +771,10 @@ export class MenuBar {
       {
         type: 'item',
         label: 'About BeatBax',
-        action: () => window.open(ABOUT_URL, '_blank', 'noopener,noreferrer'),
+        action: () => {
+          if (this.opts.onShowAbout) this.opts.onShowAbout();
+          else window.open(ABOUT_URL, '_blank', 'noopener,noreferrer');
+        },
       },
     );
 
