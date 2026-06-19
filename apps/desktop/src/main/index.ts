@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
-import { addRecentFileEntry, attachWindowStateEvents, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
+import { addRecentFileEntry, attachWindowStateEvents, clearRecentFileEntries, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
 import { installAppMenu } from './menu';
 import { resolvePreloadPath } from './resolve-preload';
 import { IPC_CHANNELS } from '../shared/ipc';
@@ -18,7 +18,11 @@ const recentFilesPath = join(app.getPath('userData'), 'recent-files.json');
 
 async function refreshMenu(): Promise<void> {
   if (!mainWindow) return;
-  installAppMenu(mainWindow, await readRecentFiles(recentFilesPath));
+  installAppMenu(mainWindow, await readRecentFiles(recentFilesPath), (filePath) => {
+    void sendOpenedFile(filePath);
+  }, () => {
+    void clearRecentFileEntries(recentFilesPath).then(refreshMenu);
+  });
 }
 
 async function sendOpenedFile(filePath: string): Promise<void> {

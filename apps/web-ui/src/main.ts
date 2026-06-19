@@ -386,7 +386,13 @@ rightTabs.tabContents['channels']!.appendChild(ccContainer);
 
 const songVisualizer = withErrorBoundary(
   'SongVisualizer',
-  () => new SongVisualizer({ container: ccContainer, eventBus, playbackManager }),
+  () => new SongVisualizer({
+    container: ccContainer,
+    eventBus,
+    playbackManager,
+    onPlay: () => transportBar.playButton.click(),
+    onStop: () => transportBar.stopButton.click(),
+  }),
   ccContainer,
 );
 
@@ -1931,12 +1937,9 @@ monacoInst.onKeyDown((e: IKeyboardEvent) => {
 // All app-wide shortcuts live here so HelpPanel can list them dynamically.
 
 // Transport
-// Space only fires when the editor does NOT have focus (allowInInput: false is
-// correct — users must be able to type spaces). F5/F8 are desktop-only in-editor
-// transport shortcuts (browser page refresh when unfocused).
-ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
-  action: () => { if (!transportBar.playButton.disabled) transportBar.playButton.click(); else transportBar.pauseButton.click(); },
-});
+// F5/F8 are desktop-only transport shortcuts (browser page refresh when unfocused).
+// Space is intentionally not a shortcut because BeatBax is editor-first and users
+// need to type spaces without playback side effects.
 if (capabilities.nativeMenu) {
   ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
     action: () => transportBar.playButton.click(),
@@ -1945,9 +1948,6 @@ if (capabilities.nativeMenu) {
     action: () => transportBar.stopButton.click(),
   });
 }
-ks.register({ key: 'Escape', description: 'Stop playback (when editor not focused)', allowInInput: false,
-  action: () => transportBar.stopButton.click(),
-});
 // Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
 // addCommand above handles the in-editor case.
 ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,

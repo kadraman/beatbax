@@ -47,6 +47,7 @@ export interface SetupDesktopMenuBarOptions {
   openNewSongWizard: () => void;
   onOpen: () => void | Promise<void>;
   onOpenRecent?: (filePath: string) => void;
+  onClearRecent?: () => void;
   onSave: (saveAs?: boolean) => void | Promise<void>;
   onLoadDocument: (name: string, content: string) => void;
   viewPrefsHandlers: EditorViewPrefsHandlers;
@@ -73,6 +74,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     openNewSongWizard,
   onOpen,
   onOpenRecent,
+  onClearRecent,
   onSave,
     onLoadDocument,
     viewPrefsHandlers,
@@ -101,13 +103,13 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onNew: () => openNewSongWizard(),
     onOpen: () => { void onOpen(); },
     onOpenRecent: (filePath) => { onOpenRecent?.(filePath); },
+    onClearRecent: () => onClearRecent?.(),
     onBeforeExampleLoad: () => playbackManager.stop(),
     onSave: () => { void onSave(false); },
     onSaveAs: () => { void onSave(true); },
     onLoadFile: (filename, content) => {
       playbackManager.stop();
       onLoadDocument(filename, content);
-      menuBar.recordRecent(filename);
       runParse(content);
       scheduleCommentsFoldPreference(monacoInst(), toolbar);
       loadingOverlay.hide();

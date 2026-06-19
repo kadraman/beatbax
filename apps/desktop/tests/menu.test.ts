@@ -32,6 +32,50 @@ describe('desktop native menu', () => {
     expect(recentItems[0].toolTip).toBe('/home/runner/music/duck_tales.bax');
   });
 
+  it('opens recent files via the provided callback', () => {
+    const onOpenRecent = jest.fn();
+    const template = createMenuTemplate(mockWindow, ['/home/runner/music/duck_tales.bax'], onOpenRecent);
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
+    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
+
+    recentItems[0].click?.({} as any, mockWindow, {} as any);
+
+    expect(onOpenRecent).toHaveBeenCalledWith('/home/runner/music/duck_tales.bax');
+    expect(mockWindow.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('includes a clear action in Open Recent', () => {
+    const onClearRecent = jest.fn();
+    const template = createMenuTemplate(
+      mockWindow,
+      ['/home/runner/music/duck_tales.bax'],
+      undefined,
+      onClearRecent,
+    );
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
+    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
+    const clearItem = recentItems.find((item) => item.label === 'Clear Recently Opened...')!;
+
+    clearItem.click?.({} as any, mockWindow, {} as any);
+
+    expect(clearItem).toBeTruthy();
+    expect(onClearRecent).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses function keys for playback accelerators', () => {
+    const template = createMenuTemplate(mockWindow, []);
+    const playbackMenu = template.find((item) => item.label === 'Playback')!;
+    const playbackItems = playbackMenu.submenu as MenuItemConstructorOptions[];
+
+    expect(playbackItems.find((item) => item.label === 'Play / Resume')?.accelerator).toBe('F5');
+    expect(playbackItems.find((item) => item.label === 'Pause')?.accelerator).toBeUndefined();
+    expect(playbackItems.find((item) => item.label === 'Stop')?.accelerator).toBe('F8');
+    expect(playbackItems.map((item) => item.accelerator)).not.toContain('Space');
+    expect(playbackItems.map((item) => item.accelerator)).not.toContain('Shift+Space');
+  });
+
   it('includes About BeatBax in Help menu', () => {
     const template = createMenuTemplate(mockWindow, []);
     const helpMenu = template.find((item) => item.label === 'Help')!;

@@ -254,7 +254,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   ccContainer.id = 'bb-channel-controls-host';
   ccContainer.className = 'bb-right-panel-scroll';
   rightTabs.tabContents.channels!.appendChild(ccContainer);
-  const songVisualizer = new SongVisualizer({ container: ccContainer, eventBus, playbackManager });
+  const songVisualizer = new SongVisualizer({
+    container: ccContainer,
+    eventBus,
+    playbackManager,
+    onPlay: () => transportBar.playButton.click(),
+    onStop: () => transportBar.stopButton.click(),
+  });
   void songVisualizer;
 
   let channelMixer: ChannelMixer | null = null;
@@ -350,6 +356,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const getFilename = () => storage.get(StorageKey.LOADED_FILENAME, 'song') ?? 'song';
 
   const handleExport = async (format: ExportFormat) => {
+    playbackManager.stop();
     await handleDesktopExport(format, {
       eventBus,
       exportManager,
@@ -477,6 +484,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       openNewSongWizard,
       onOpen: options.onOpen,
       onOpenRecent: options.onOpenRecent,
+      onClearRecent: () => {
+        void window.electronAPI?.clearRecentFiles().then(refreshRecentFiles);
+      },
       onSave: options.onSave,
       onLoadDocument: options.onLoadDocument,
       viewPrefsHandlers,
