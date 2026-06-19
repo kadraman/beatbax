@@ -28,8 +28,8 @@ export interface ShortcutDescriptor {
   /** The action to run when the shortcut fires. */
   action: () => void;
   /**
-   * When true the shortcut fires even when focus is inside a text input,
-   * textarea, or contenteditable. Defaults to false.
+   * When true the shortcut fires even when focus is inside an editable surface.
+   * Defaults to false.
    */
   allowInInput?: boolean;
 }
@@ -55,18 +55,29 @@ export function shortcutId(d: Pick<ShortcutDescriptor, 'key' | 'ctrlKey' | 'shif
   return parts.join('+');
 }
 
-/** Return true when the event originates from an editable target. */
-function isInInput(e: KeyboardEvent): boolean {
-  const target = e.target as HTMLElement | null;
-  if (!target) return false;
-  const tag = (target as any).tagName?.toUpperCase?.();
-  if (!tag) return false;
+/** Return true when the element is part of an editable surface. */
+function isEditableElement(element: Element | null): boolean {
+  if (!element) return false;
+  const tag = element.tagName?.toUpperCase?.();
+  const htmlElement = element as HTMLElement;
+
   return (
     tag === 'INPUT' ||
     tag === 'TEXTAREA' ||
     tag === 'SELECT' ||
-    target.isContentEditable
+    htmlElement.isContentEditable ||
+    element.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .monaco-editor') !== null
   );
+}
+
+/** Return true when the event originates from an editable target. */
+function isInInput(e: KeyboardEvent): boolean {
+  const target = e.target instanceof Element ? e.target : null;
+  const active = typeof document !== 'undefined' && document.activeElement instanceof Element
+    ? document.activeElement
+    : null;
+
+  return isEditableElement(target) || isEditableElement(active);
 }
 
 // ─── KeyboardShortcuts ────────────────────────────────────────────────────────

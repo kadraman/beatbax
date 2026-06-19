@@ -6,6 +6,7 @@ export const IPC_CHANNELS = {
   EXISTS_SYNC: 'desktop:exists-sync',
   GET_RECENT_FILES: 'desktop:get-recent-files',
   ADD_RECENT_FILE: 'desktop:add-recent-file',
+  CLEAR_RECENT_FILES: 'desktop:clear-recent-files',
   GET_VERSION: 'desktop:get-version',
   MENU_ACTION: 'desktop:menu-action',
   FILE_OPENED: 'desktop:file-opened',
