@@ -48,6 +48,8 @@ export interface MenuBarOptions {
   onOpen?: () => void;
   /** Open a recent file by absolute path (desktop). */
   onOpenRecent?: (filePath: string) => void;
+  /** Clear the recent files list. */
+  onClearRecent?: () => void;
   /** Called immediately when an example load is initiated. */
   onBeforeExampleLoad?: () => void;
   /** Save the current document (Ctrl+S). */
@@ -144,6 +146,14 @@ function recordRecentFile(filename: string): void {
   saveRecentFiles(files);
 }
 
+function clearRecentFiles(): void {
+  saveRecentFiles([]);
+}
+
+function recentFileKey(file: RecentFile): string {
+  return (file.path ?? file.filename).toLowerCase();
+}
+
 function esc(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -224,7 +234,15 @@ export class MenuBar {
 
   /** Replace Open Recent entries (desktop — absolute paths from main process). */
   setRecentFiles(files: RecentFile[]): void {
-    this.cachedRecentFiles = files.slice(0, MAX_RECENT);
+    const seen = new Set<string>();
+    this.cachedRecentFiles = [];
+    for (const file of files) {
+      const key = recentFileKey(file);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.cachedRecentFiles.push(file);
+      if (this.cachedRecentFiles.length >= MAX_RECENT) break;
+    }
   }
 
   dispose(): void {
@@ -827,24 +845,39 @@ export class MenuBar {
   }
 
   private recentFileItems(): MenuItemDef[] {
-    const recent = this.cachedRecentFiles.length > 0
+    const recent = this.opts.onOpenRecent
       ? this.cachedRecentFiles
       : loadRecentFiles();
     if (recent.length === 0) {
       return [{ type: 'item', label: '(no recent files)', disabled: true, action: () => {} }];
     }
-    return recent.map((f) => ({
-      type: 'item' as const,
-      label: f.filename,
-      action: () => {
-        if (f.path) {
-          this.opts.onOpenRecent?.(f.path);
-          return;
-        }
-        log.debug(`Recent file clicked (name only): ${f.filename}`);
-        this.opts.onOpen?.();
+    return [
+      ...recent.map((f) => ({
+        type: 'item' as const,
+        label: f.filename,
+        action: () => {
+          if (f.path) {
+            this.opts.onOpenRecent?.(f.path);
+            return;
+          }
+          log.debug(`Recent file clicked (name only): ${f.filename}`);
+          this.opts.onOpen?.();
+        },
+      })),
+      { type: 'separator' as const },
+      {
+        type: 'item' as const,
+        label: 'Clear Recently Opened...',
+        action: () => {
+          clearRecentFiles();
+          if (this.opts.onClearRecent) {
+            this.cachedRecentFiles = [];
+            this.opts.onClearRecent();
+            return;
+          }
+        },
       },
-    }));
+    ];
   }
 
   private exampleItems(): MenuItemDef[] {
@@ -1061,6 +1094,7 @@ export class MenuBar {
   private listenBus(): void {
     // When a file is loaded externally (toolbar open, drag-drop), record it
     this.opts.eventBus.on('song:loaded', ({ filename }) => {
+      if (this.opts.onOpenRecent) return;
       recordRecentFile(filename);
     });
 

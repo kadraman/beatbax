@@ -6,6 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import {
   assertAbsoluteFilePath,
   addRecentFileEntry,
+  clearRecentFileEntries,
   existsSyncSafe,
   mergeRecentFiles,
   persistFile,
@@ -20,10 +21,14 @@ jest.mock('electron', () => ({
   },
   app: {
     addRecentDocument: jest.fn(),
+    clearRecentDocuments: jest.fn(),
   },
 }));
 
-const { dialog, app } = jest.requireMock<{ dialog: { showSaveDialog: jest.Mock }; app: { addRecentDocument: jest.Mock } }>('electron');
+const { dialog, app } = jest.requireMock<{
+  dialog: { showSaveDialog: jest.Mock };
+  app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock };
+}>('electron');
 
 describe('ipc handlers path validation', () => {
   const songPath = path.join(os.tmpdir(), 'song.bax');
@@ -48,6 +53,22 @@ describe('ipc handlers path validation', () => {
       path.resolve(olderPath),
     ]);
   });
+
+  it('deduplicates recent files case-insensitively on Windows', () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const upperPath = path.join(os.tmpdir(), 'SONG.bax');
+    const lowerPath = path.join(os.tmpdir(), 'song.bax');
+
+    try {
+      expect(mergeRecentFiles([upperPath, olderPath], lowerPath)).toEqual([
+        path.resolve(lowerPath),
+        path.resolve(olderPath),
+      ]);
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
+    }
+  });
 });
 
 describe('addRecentFileEntry', () => {
@@ -56,6 +77,7 @@ describe('addRecentFileEntry', () => {
   beforeEach(() => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-recent-'));
     app.addRecentDocument.mockReset();
+    app.clearRecentDocuments.mockReset();
   });
 
   afterEach(() => {
@@ -70,6 +92,16 @@ describe('addRecentFileEntry', () => {
 
     expect(app.addRecentDocument).toHaveBeenCalledWith(path.resolve(unnormalized));
     expect(app.addRecentDocument).not.toHaveBeenCalledWith(unnormalized);
+  });
+
+  it('clears stored and OS recent documents', async () => {
+    const recentFilesPath = path.join(tempDir, 'recent-files.json');
+    writeFileSync(recentFilesPath, JSON.stringify([path.join(tempDir, 'song.bax')]), 'utf8');
+
+    await clearRecentFileEntries(recentFilesPath);
+
+    expect(JSON.parse(readFileSync(recentFilesPath, 'utf8'))).toEqual([]);
+    expect(app.clearRecentDocuments).toHaveBeenCalledTimes(1);
   });
 });
 

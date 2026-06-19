@@ -51,6 +51,11 @@ function assertAbsoluteFilePath(targetPath: string): string {
   return path.resolve(targetPath);
 }
 
+function recentFileIdentity(filePath: string): string {
+  const normalized = assertAbsoluteFilePath(filePath);
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
 async function readFilePayload(filePath: string): Promise<DesktopFilePayload> {
   const safePath = assertAbsoluteFilePath(filePath);
   const data = new Uint8Array(await fs.readFile(safePath));
@@ -76,9 +81,25 @@ async function writeRecentFiles(recentFilesPath: string, recentFiles: string[]):
   await fs.writeFile(recentFilesPath, JSON.stringify(recentFiles, null, 2), 'utf8');
 }
 
+export async function clearRecentFileEntries(recentFilesPath: string): Promise<void> {
+  await writeRecentFiles(recentFilesPath, []);
+  app.clearRecentDocuments?.();
+}
+
 export function mergeRecentFiles(existing: string[], filePath: string): string[] {
   const safePath = assertAbsoluteFilePath(filePath);
-  return [safePath, ...existing.filter((entry) => entry !== safePath)].slice(0, RECENT_FILES_LIMIT);
+  const safeIdentity = recentFileIdentity(safePath);
+  const merged = [safePath];
+  const seen = new Set([safeIdentity]);
+
+  for (const entry of existing) {
+    const identity = recentFileIdentity(entry);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    merged.push(assertAbsoluteFilePath(entry));
+  }
+
+  return merged.slice(0, RECENT_FILES_LIMIT);
 }
 
 export function readFileSyncSafe(targetPath: string, encoding: BufferEncoding = 'utf-8'): string {
@@ -194,6 +215,11 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     onRecentFilesChanged?.();
   });
 
+  ipcMain.handle(IPC_CHANNELS.CLEAR_RECENT_FILES, async () => {
+    await clearRecentFileEntries(recentFilesPath);
+    onRecentFilesChanged?.();
+  });
+
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();
   });
@@ -211,7 +237,15 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   });
 
   ipcMain.on(IPC_CHANNELS.OPEN_RECENT_FILE, (_event, filePath: string) => {
-    window.webContents.send(IPC_CHANNELS.FILE_OPENED_REQUEST, filePath);
+    openRecentFile(window, filePath)
+      .then(async (payload) => {
+        await addRecentFileEntry(recentFilesPath, payload.path);
+        onRecentFilesChanged?.();
+        window.webContents.send(IPC_CHANNELS.FILE_OPENED, payload);
+      })
+      .catch((error) => {
+        console.error('Failed to open recent file', error);
+      });
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, url: string) => {
