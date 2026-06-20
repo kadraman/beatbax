@@ -15,7 +15,6 @@ import { resolveScaleContext } from '@beatbax/app-core/editor/scale-context';
 import { toggleChannelMuted, toggleChannelSoloed } from '@beatbax/app-core/stores/channel.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
-import type { OutputPanel } from '@web-ui/panels/output-panel';
 import type { StatusBar } from '@web-ui/ui/status-bar';
 import type { Toolbar } from '@web-ui/ui/toolbar';
 import type { buildBottomTabs } from '@web-ui/app/tabs';
@@ -24,6 +23,7 @@ import {
   scheduleCommentsFoldPreference,
   syncEditorViewPrefsToToolbar,
 } from '@web-ui/app/editor-view-prefs';
+import type { DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 
@@ -32,7 +32,7 @@ export interface DesktopEditorSetupOptions {
   appContext: AppContext;
   parseHooks: ParsePipelineHooks;
   bottomTabs: BottomTabs;
-  outputPanel: OutputPanel;
+  outputPanel: DesktopOutputPanelHandle;
   statusBar: StatusBar | null;
   getSource: () => string;
   runParse: (content: string) => void;

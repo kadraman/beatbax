@@ -17,7 +17,6 @@ import {
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
 } from '@web-ui/panels/new-song-wizard';
-import { OutputPanel } from '@web-ui/panels/output-panel';
 import { buildSettingsModal, noopSettingsModal } from '@web-ui/panels/settings-panel';
 import { SongVisualizer } from '@web-ui/panels/song-visualizer';
 import { createThreePaneLayout } from '@web-ui/ui/layout';
@@ -40,6 +39,7 @@ import { setupFullIdeFeatures, type TransportDisplayState } from '@web-ui/app/fu
 import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '@web-ui/app/editor-view-prefs';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
+import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -67,8 +67,8 @@ export interface DesktopWorkspaceHandle {
   editorPane: HTMLElement;
   toolbar: Toolbar;
   transportBar: TransportBar;
-  problemsPanel: OutputPanel;
-  outputPanel: OutputPanel;
+  problemsPanel: DesktopOutputPanelHandle;
+  outputPanel: DesktopOutputPanelHandle;
   helpPanel: HelpPanel | null;
   settingsModal: ReturnType<typeof buildSettingsModal>;
   shortcutsModal: ReturnType<typeof buildShortcutsModal>;
@@ -185,11 +185,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const problemsContainer = bottomTabs.tabContents.problems;
   const outputLogsContainer = bottomTabs.tabContents.output;
-  const problemsPanel = new OutputPanel(problemsContainer, eventBus, {
+  const problemsPanel = createDesktopOutputPanel(problemsContainer, eventBus, {
     singleTab: 'problems',
     getTextModel: () => getEditor()?.editor.getModel() ?? null,
   });
-  const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
+  const outputPanel = createDesktopOutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 
   const panelMenuBridge = {
     getState(): PanelMenuState {
@@ -740,6 +740,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     monacoShortcutsDispose?.();
     copilot?.dispose();
     disposeMenuBar?.();
+    problemsPanel.dispose();
+    outputPanel.dispose();
     shortcutsPanel.dispose();
     helpPanel?.dispose();
     statusBar?.dispose();

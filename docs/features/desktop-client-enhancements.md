@@ -18,12 +18,12 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 ## Implementation Progress
 
 **Last updated:** 2026-06-20
-**Overall status:** Not started.
+**Overall status:** In progress.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | ⬜ | Targeted Phase 5b plan ready while signing credentials are pending |
+| Native React UI | 🟨 | Phase 5b-1 Output/Problems React migration implemented; verification in progress |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -250,7 +250,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ### 5b — Native React UI
 
-- [ ] 5b-1: Migrate Output + Problems panels
+- [x] 5b-1: Migrate Output + Problems panels
 - [ ] 5b-2: Migrate Help panel and shortcuts Help usage
 - [ ] 5b-3: Migrate Toolbar + TransportBar
 - [ ] Migrate Settings modal + CoPilot panel

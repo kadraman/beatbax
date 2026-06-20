@@ -41,8 +41,18 @@ test('loads a .bax file passed on startup', async () => {
   const { electronApp, page } = await launchDesktopApp([sampleSongPath]);
 
   await expect(page.locator('.status-document-name')).toHaveText('sample.bax', { timeout: 15_000 });
-  await expect(page.locator('.monaco-editor')).toContainText('chip gameboy', { timeout: 15_000 });
-  await expect(page.locator('.monaco-editor')).toContainText('Sample Song', { timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => {
+    const editor = (window as unknown as {
+      __beatbax_editor?: { getValue?: () => string };
+    }).__beatbax_editor;
+    return editor?.getValue?.() ?? '';
+  })).toContain('chip gameboy');
+  await expect.poll(() => page.evaluate(() => {
+    const editor = (window as unknown as {
+      __beatbax_editor?: { getValue?: () => string };
+    }).__beatbax_editor;
+    return editor?.getValue?.() ?? '';
+  })).toContain('Sample Song');
 
   await electronApp.close();
   expect(sampleContent.length).toBeGreaterThan(0);
@@ -87,9 +97,12 @@ test('transport loop and live controls are wired', async () => {
   await expect(liveButton).toBeVisible();
   await expect(rewindButton).toBeVisible();
 
-  const loopTitleBefore = await loopButton.getAttribute('title');
-  await loopButton.click();
-  await expect(loopButton).not.toHaveAttribute('title', loopTitleBefore ?? '');
+  const loopToggled = await loopButton.evaluate((button: HTMLButtonElement) => {
+    const wasActive = button.classList.contains('bb-loop-btn--active');
+    button.click();
+    return button.classList.contains('bb-loop-btn--active') !== wasActive;
+  });
+  expect(loopToggled).toBe(true);
 
   const liveTitleBefore = await liveButton.getAttribute('title');
   await liveButton.click();
