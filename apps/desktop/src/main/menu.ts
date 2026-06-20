@@ -22,7 +22,7 @@ export function createMenuTemplate(
           click: () => onOpenRecent?.(filePath),
         })),
         { type: 'separator' },
-        { label: 'Clear Recently Opened...', click: () => onClearRecent?.() },
+        { label: 'Clear Recently Opened...', enabled: !!onClearRecent, click: () => onClearRecent?.() },
       ]
     : [{ label: 'No recent files', enabled: false }];
 

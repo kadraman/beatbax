@@ -54,6 +54,15 @@ describe('ipc handlers path validation', () => {
     ]);
   });
 
+  it('skips invalid persisted recent file entries while merging', () => {
+    const traversalPath = `${path.dirname(os.tmpdir())}${path.sep}..${path.sep}legacy.bax`;
+
+    expect(mergeRecentFiles(['relative.bax', traversalPath, olderPath], songPath)).toEqual([
+      path.resolve(songPath),
+      path.resolve(olderPath),
+    ]);
+  });
+
   it('deduplicates recent files case-insensitively on Windows', () => {
     const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { value: 'win32' });
