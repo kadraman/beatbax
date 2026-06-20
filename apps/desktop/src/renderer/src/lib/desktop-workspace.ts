@@ -23,8 +23,6 @@ import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
 import { PatternGrid } from '@web-ui/ui/pattern-grid';
 import { StatusBar } from '@web-ui/ui/status-bar';
 import { ThemeManager } from '@web-ui/ui/theme-manager';
-import { Toolbar } from '@web-ui/ui/toolbar';
-import { TransportBar } from '@web-ui/ui/transport-bar';
 import { installGlobalErrorHandlers } from '@web-ui/utils/error-boundary';
 import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
@@ -40,6 +38,8 @@ import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/s
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
+import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
+import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -65,8 +65,8 @@ export interface DesktopWorkspaceOptions {
 
 export interface DesktopWorkspaceHandle {
   editorPane: HTMLElement;
-  toolbar: Toolbar;
-  transportBar: TransportBar;
+  toolbar: DesktopToolbarHandle;
+  transportBar: DesktopTransportBarHandle;
   problemsPanel: DesktopOutputPanelHandle;
   outputPanel: DesktopOutputPanelHandle;
   helpPanel: DesktopHelpPanelHandle | null;
@@ -150,7 +150,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     mixerHostContainer.style.display = 'none';
   }
 
-  const transportBar = new TransportBar({ container: layoutHost });
+  const transportBar = createDesktopTransportBar(layoutHost);
   if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
   suppressChromeTabFocus(transportBar.el);
 
@@ -213,7 +213,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
   };
 
-  const toolbarRef: { current: Toolbar | null } = { current: null };
+  const toolbarRef: { current: DesktopToolbarHandle | null } = { current: null };
   const channelMixerRef: { current: ChannelMixer | null } = { current: null };
   let statusBar: StatusBar | null = null;
 
@@ -345,11 +345,28 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const getSource = () => getEditor()?.getValue() ?? '';
   let parseTimeout: number | null = null;
+  let verifyPending = false;
   const runParse = (content: string) => {
     if (parseTimeout !== null) window.clearTimeout(parseTimeout);
     parseTimeout = window.setTimeout(() => {
       void appContext.emitParse(content);
     }, 180);
+  };
+
+  const runVerify = () => {
+    const source = getSource();
+    if (!source.trim()) {
+      problemsPanel.addMessage({
+        type: 'warning',
+        message: 'Nothing to verify - the editor is empty. Use File > Open or type a song.',
+        source: 'verify',
+        timestamp: new Date(),
+      });
+      bottomTabs.show('problems');
+      return;
+    }
+    verifyPending = true;
+    runParse(source);
   };
 
   const getFilename = () => storage.get(StorageKey.LOADED_FILENAME, 'song') ?? 'song';
@@ -411,13 +428,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     syncEditorViewPrefsToToolbar(toolbarRef.current);
   };
 
-  const toolbar = new Toolbar({
-    container: toolbarHost,
+  const toolbar = createDesktopToolbar(toolbarHost, {
     eventBus,
     onBeforeOpenFile: () => playbackManager.stop(),
     onLoad: (filename, content) => options.onLoadDocument(filename, content),
+    onOpen: options.onOpen,
     onExport: (format: ExportFormat) => { void handleExport(format); },
-    onVerify: () => runParse(getSource()),
+    onVerify: runVerify,
     onNew: openNewSongWizard,
     onSave: () => { void options.onSave(false); },
     onUndo: () => getEditor()?.editor.trigger('toolbar', 'undo', null),
@@ -579,9 +596,43 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         toolbar.setChip((ast as { chip?: string })?.chip || 'gameboy');
         toolbar.setExportEnabled(true);
         menuBar?.setChip((ast as { chip?: string })?.chip || 'gameboy');
+        if (verifyPending) {
+          verifyPending = false;
+          outputPanel.addMessage({
+            type: 'success',
+            message: 'Verification passed',
+            source: 'verify',
+            timestamp: new Date(),
+          });
+          toolbar.setStatus('Verification passed', 'success');
+          bottomTabs.show('output');
+        }
       } catch { /* ignore */ }
     }),
-    eventBus.on('parse:error', () => toolbar.setExportEnabled(false)),
+    eventBus.on('parse:error', ({ message }) => {
+      toolbar.setExportEnabled(false);
+      if (verifyPending) {
+        verifyPending = false;
+        problemsPanel.addMessage({
+          type: 'error',
+          message: `Verification failed: ${message}`,
+          source: 'verify',
+          timestamp: new Date(),
+        });
+        toolbar.setStatus('Verification failed', 'error');
+        bottomTabs.show('problems');
+      }
+    }),
+    eventBus.on('editor:saved', ({ filename }) => {
+      outputPanel.addMessage({
+        type: 'success',
+        message: `Saved ${filename}`,
+        source: 'file',
+        timestamp: new Date(),
+      });
+      toolbar.setStatus(`Saved ${filename}`, 'success');
+      bottomTabs.show('output');
+    }),
     eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
       toolbar.setThemeIcon(theme);
       transportBar.volKnob.redraw();

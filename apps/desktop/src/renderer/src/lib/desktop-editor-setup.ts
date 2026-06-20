@@ -16,7 +16,6 @@ import { toggleChannelMuted, toggleChannelSoloed } from '@beatbax/app-core/store
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { StatusBar } from '@web-ui/ui/status-bar';
-import type { Toolbar } from '@web-ui/ui/toolbar';
 import type { buildBottomTabs } from '@web-ui/app/tabs';
 import {
   applyStoredWordWrap,
@@ -24,6 +23,7 @@ import {
   syncEditorViewPrefsToToolbar,
 } from '@web-ui/app/editor-view-prefs';
 import type { DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
+import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 
@@ -38,7 +38,7 @@ export interface DesktopEditorSetupOptions {
   runParse: (content: string) => void;
   handleExport: (format: ExportFormat) => Promise<void>;
   onAstParsed: (ast: unknown) => void;
-  toolbar?: Toolbar | null;
+  toolbar?: DesktopToolbarHandle | null;
 }
 
 export interface DesktopEditorSetupHandle {

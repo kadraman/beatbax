@@ -1,11 +1,15 @@
 import type * as monaco from 'monaco-editor';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
-import type { Toolbar } from '../ui/toolbar';
+
+export interface EditorViewToolbarHandle {
+  setWrapActive: (wrap: boolean) => void;
+  setFoldCommentsActive: (folded: boolean) => void;
+}
 
 export function applyCommentsFoldPreference(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
   folded = settingFoldComments.get(),
-  toolbar?: Toolbar | null,
+  toolbar?: EditorViewToolbarHandle | null,
 ): void {
   if (!editor) return;
   if (folded) {
@@ -19,7 +23,7 @@ export function applyCommentsFoldPreference(
 /** Folding ranges are computed asynchronously after setValue — defer when folding. */
 export function scheduleCommentsFoldPreference(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
-  toolbar?: Toolbar | null,
+  toolbar?: EditorViewToolbarHandle | null,
 ): void {
   const folded = settingFoldComments.get();
   if (!folded) {
@@ -37,7 +41,7 @@ export function applyStoredWordWrap(
   editor?.updateOptions({ wordWrap: settingWordWrap.get() ? 'on' : 'off' });
 }
 
-export function syncEditorViewPrefsToToolbar(toolbar: Toolbar | null | undefined): void {
+export function syncEditorViewPrefsToToolbar(toolbar: EditorViewToolbarHandle | null | undefined): void {
   if (!toolbar) return;
   toolbar.setWrapActive(settingWordWrap.get());
   toolbar.setFoldCommentsActive(settingFoldComments.get());
@@ -45,7 +49,7 @@ export function syncEditorViewPrefsToToolbar(toolbar: Toolbar | null | undefined
 
 export function toggleWordWrap(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
-  toolbar?: Toolbar | null,
+  toolbar?: EditorViewToolbarHandle | null,
 ): boolean {
   const wrap = !settingWordWrap.get();
   settingWordWrap.set(wrap);
@@ -56,7 +60,7 @@ export function toggleWordWrap(
 
 export function toggleFoldAllComments(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
-  toolbar?: Toolbar | null,
+  toolbar?: EditorViewToolbarHandle | null,
 ): boolean {
   const folded = !settingFoldComments.get();
   settingFoldComments.set(folded);
@@ -77,7 +81,7 @@ export interface EditorViewPrefsHandlers {
 
 export function createEditorViewPrefsHandlers(
   getEditor: () => monaco.editor.IStandaloneCodeEditor | null | undefined,
-  toolbar?: Toolbar | null,
+  toolbar?: EditorViewToolbarHandle | null,
 ): EditorViewPrefsHandlers {
   return {
     onToggleWrap: (wrap) => {

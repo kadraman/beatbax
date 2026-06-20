@@ -5,9 +5,9 @@ import type { buildShortcutsModal } from '@web-ui/app/modals';
 import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
 import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
-import type { TransportBar } from '@web-ui/ui/transport-bar';
 import { KeyCode, KeyMod, type IKeyboardEvent, type editor as MonacoEditor, type IDisposable } from 'monaco-editor';
 import type { DesktopCopilotHandle } from './desktop-copilot';
+import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
@@ -16,7 +16,7 @@ type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
 
 export interface SetupDesktopMonacoShortcutsOptions {
   editor: MonacoEditor.IStandaloneCodeEditor;
-  transportBar: TransportBar;
+  transportBar: DesktopTransportBarHandle;
   rightTabs: RightTabs;
   bottomTabs: BottomTabs;
   shortcutsModal: ShortcutsModal;

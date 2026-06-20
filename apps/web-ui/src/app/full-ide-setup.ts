@@ -21,7 +21,6 @@ import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { MidiStepEntryController } from '../input/midi-step-entry-controller';
 import { DebugOverlay } from '../ui/debug-overlay';
-import type { TransportBar } from '../ui/transport-bar';
 
 export interface OutputPanelLogHandle {
   addMessage: (message: {
@@ -30,6 +29,21 @@ export interface OutputPanelLogHandle {
     source?: string;
     timestamp: Date;
   }) => void;
+}
+
+export interface FullIdeTransportHandle {
+  liveButton: HTMLButtonElement;
+  rewindButton: HTMLButtonElement;
+  loopButton: HTMLButtonElement;
+  recordButton: HTMLButtonElement;
+  bpmDownButton: HTMLButtonElement;
+  bpmUpButton: HTMLButtonElement;
+  volKnob: {
+    onChange: (handler: (value: number) => void) => void;
+  };
+  setLoopActive: (active: boolean) => void;
+  setVol: (pct: number) => void;
+  setBpm: (bpm: number) => void;
 }
 
 function opLog(panel: OutputPanelLogHandle, message: string, source = 'app'): void {
@@ -48,7 +62,7 @@ export interface TransportDisplayState {
 export interface FullIdeSetupOptions {
   playbackManager: PlaybackManager;
   eventBus: EventBus;
-  transportBar: TransportBar;
+  transportBar: FullIdeTransportHandle;
   transportControls: TransportControls;
   outputPanel: OutputPanelLogHandle;
   getEditor: () => BeatBaxEditor | null;

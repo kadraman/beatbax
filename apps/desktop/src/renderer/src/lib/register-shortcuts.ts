@@ -6,10 +6,10 @@ import type { buildShortcutsModal } from '@web-ui/app/modals';
 import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
 import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
-import type { Toolbar } from '@web-ui/ui/toolbar';
-import type { TransportBar } from '@web-ui/ui/transport-bar';
 import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
 import type { DesktopCopilotHandle } from './desktop-copilot';
+import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
+import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
@@ -20,8 +20,8 @@ export interface RegisterDesktopShortcutsOptions {
   ks: KeyboardShortcuts;
   eventBus: EventBus;
   getEditor: () => BeatBaxEditor | null;
-  transportBar: TransportBar;
-  toolbar: Toolbar;
+  transportBar: DesktopTransportBarHandle;
+  toolbar: DesktopToolbarHandle;
   bottomTabs: BottomTabs;
   rightTabs: RightTabs;
   settingsModal: SettingsModal;

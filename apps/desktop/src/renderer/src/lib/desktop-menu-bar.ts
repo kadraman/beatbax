@@ -12,9 +12,9 @@ import type { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
 import { LoadingOverlay } from '@web-ui/ui/loading-overlay';
 import { MenuBar } from '@web-ui/ui/menu-bar';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
-import type { Toolbar } from '@web-ui/ui/toolbar';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import { blurChromeFocus, suppressChromeTabFocus } from './desktop-focus';
+import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
@@ -34,7 +34,7 @@ export interface SetupDesktopMenuBarOptions {
   appContext: AppContext;
   getEditor: () => BeatBaxEditor | null;
   getSource: () => string;
-  toolbar: Toolbar;
+  toolbar: DesktopToolbarHandle;
   bottomTabs: BottomTabs;
   rightTabs: RightTabs;
   settingsModal: SettingsModal;

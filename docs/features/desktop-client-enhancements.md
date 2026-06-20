@@ -252,7 +252,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 - [x] 5b-1: Migrate Output + Problems panels
 - [x] 5b-2: Migrate Help panel and shortcuts Help usage
-- [ ] 5b-3: Migrate Toolbar + TransportBar
+- [x] 5b-3: Migrate Toolbar + TransportBar
 - [ ] Migrate Settings modal + CoPilot panel
 - [ ] Migrate Pattern Grid
 - [ ] Migrate Song Visualizer (canvas)

@@ -16,6 +16,11 @@ test('desktop shell renders editor chrome', async () => {
   const page = await electronApp.firstWindow();
   await expect(page.locator('.status-document-name')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open', exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('.bb-toolbar svg').count()).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'Verify' }).click();
+  await expect(page.locator('#tb-status')).toContainText(/Verifying|Verified/);
+  await expect(page.locator('#output-pane').getByText('Verification passed')).toBeVisible({ timeout: 15_000 });
 
   await electronApp.close();
 });

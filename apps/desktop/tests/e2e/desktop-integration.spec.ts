@@ -72,6 +72,60 @@ test('exports JSON without runtime errors', async () => {
   await electronApp.close();
 });
 
+test('toolbar open preserves file path for silent save', async () => {
+  test.setTimeout(60_000);
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-toolbar-open-'));
+  const songPath = path.join(tempDir, 'toolbar-open-save.bax');
+  const original = readFileSync(sampleSongPath, 'utf8');
+
+  const { electronApp, page } = await launchDesktopApp();
+  await electronApp.evaluate(({ ipcMain }, { filePath, content }) => {
+    ipcMain.removeHandler('desktop:open-file');
+    ipcMain.removeHandler('desktop:save-file');
+    (globalThis as unknown as {
+      __beatbaxSaveCalls?: Array<{ defaultPath?: string; showDialog?: boolean; text: string }>;
+    }).__beatbaxSaveCalls = [];
+    ipcMain.handle('desktop:open-file', async () => ({
+      path: filePath,
+      name: 'toolbar-open-save.bax',
+      data: Buffer.from(content, 'utf8'),
+    }));
+    ipcMain.handle('desktop:save-file', async (_event, options: { defaultPath?: string; showDialog?: boolean }, data: Uint8Array) => {
+      (globalThis as unknown as {
+        __beatbaxSaveCalls: Array<{ defaultPath?: string; showDialog?: boolean; text: string }>;
+      }).__beatbaxSaveCalls.push({
+        defaultPath: options.defaultPath,
+        showDialog: options.showDialog,
+        text: Buffer.from(data).toString('utf8'),
+      });
+      return options.defaultPath ?? null;
+    });
+  }, { filePath: songPath, content: original });
+
+  await page.locator('#tb-open').click();
+  await expect(page.locator('.status-document-name')).toHaveText('toolbar-open-save.bax', { timeout: 15_000 });
+
+  const marker = `// toolbar-open-save-${Date.now()}`;
+  await page.locator('.monaco-editor').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type(marker);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await expect.poll(() => electronApp.evaluate(() => {
+    return (globalThis as unknown as {
+      __beatbaxSaveCalls?: Array<{ defaultPath?: string; showDialog?: boolean; text: string }>;
+    }).__beatbaxSaveCalls?.[0] ?? null;
+  })).toMatchObject({
+    defaultPath: songPath,
+    showDialog: false,
+    text: expect.stringContaining(marker),
+  });
+
+  await electronApp.close();
+  rmSync(tempDir, { recursive: true, force: true });
+});
+
 test('plays the starter song without console errors', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp();
@@ -92,10 +146,12 @@ test('transport loop and live controls are wired', async () => {
   const loopButton = page.getByRole('button', { name: /Toggle loop playback/i });
   const liveButton = page.getByRole('button', { name: /Toggle live-play mode/i });
   const rewindButton = page.getByRole('button', { name: /Rewind to start/i });
+  const volumeKnob = page.getByRole('slider', { name: 'Master volume' });
 
   await expect(loopButton).toBeVisible();
   await expect(liveButton).toBeVisible();
   await expect(rewindButton).toBeVisible();
+  await expect(volumeKnob).toBeVisible();
 
   const loopToggled = await loopButton.evaluate((button: HTMLButtonElement) => {
     const wasActive = button.classList.contains('bb-loop-btn--active');
@@ -194,7 +250,8 @@ test('saves edits back to an opened .bax file', async () => {
   await page.keyboard.type(marker);
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+S' : 'Control+S');
-  await page.waitForTimeout(1500);
+  await expect(page.locator('#tb-status')).toContainText('Saved save-test.bax', { timeout: 15_000 });
+  await expect(page.locator('#output-pane').getByText('Saved save-test.bax')).toBeVisible({ timeout: 15_000 });
 
   expect(readFileSync(songPath, 'utf8')).toContain(marker);
 
