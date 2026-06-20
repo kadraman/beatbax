@@ -150,8 +150,13 @@ function clearRecentFiles(): void {
   saveRecentFiles([]);
 }
 
+function isWindowsDesktop(): boolean {
+  return typeof window !== 'undefined' && window.electronAPI?.getPlatform?.() === 'win32';
+}
+
 function recentFileKey(file: RecentFile): string {
-  return (file.path ?? file.filename).toLowerCase();
+  const identity = file.path ?? file.filename;
+  return isWindowsDesktop() ? identity.toLowerCase() : identity;
 }
 
 function esc(str: string): string {
@@ -845,7 +850,8 @@ export class MenuBar {
   }
 
   private recentFileItems(): MenuItemDef[] {
-    const recent = this.opts.onOpenRecent
+    const isDesktopRecentList = !!this.opts.onOpenRecent;
+    const recent = isDesktopRecentList
       ? this.cachedRecentFiles
       : loadRecentFiles();
     if (recent.length === 0) {
@@ -868,13 +874,14 @@ export class MenuBar {
       {
         type: 'item' as const,
         label: 'Clear Recently Opened...',
+        disabled: isDesktopRecentList && !this.opts.onClearRecent,
         action: () => {
-          clearRecentFiles();
-          if (this.opts.onClearRecent) {
+          if (isDesktopRecentList) {
             this.cachedRecentFiles = [];
-            this.opts.onClearRecent();
+            this.opts.onClearRecent?.();
             return;
           }
+          clearRecentFiles();
         },
       },
     ];
