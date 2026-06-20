@@ -56,6 +56,18 @@ function recentFileIdentity(filePath: string): string {
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
+function normalizeExistingRecentFile(filePath: string): { path: string; identity: string } | null {
+  try {
+    const normalized = assertAbsoluteFilePath(filePath);
+    return {
+      path: normalized,
+      identity: process.platform === 'win32' ? normalized.toLowerCase() : normalized,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function readFilePayload(filePath: string): Promise<DesktopFilePayload> {
   const safePath = assertAbsoluteFilePath(filePath);
   const data = new Uint8Array(await fs.readFile(safePath));
@@ -93,10 +105,10 @@ export function mergeRecentFiles(existing: string[], filePath: string): string[]
   const seen = new Set([safeIdentity]);
 
   for (const entry of existing) {
-    const identity = recentFileIdentity(entry);
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    merged.push(assertAbsoluteFilePath(entry));
+    const normalized = normalizeExistingRecentFile(entry);
+    if (!normalized || seen.has(normalized.identity)) continue;
+    seen.add(normalized.identity);
+    merged.push(normalized.path);
   }
 
   return merged.slice(0, RECENT_FILES_LIMIT);
