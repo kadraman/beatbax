@@ -217,7 +217,7 @@ seq arp_line = arp_source:arp(4,7)` },
   {
     id: 'shortcuts',
     title: 'Keyboard Shortcuts',
-    // Static fallback when getShortcuts is not provided (web-lite oriented).
+    // Static fallback used when getShortcuts is not provided.
     content: [
       { kind: 'shortcut', keys: ['F5'],                 desc: 'Play / re-play (desktop)' },
       { kind: 'shortcut', keys: ['F8'],                 desc: 'Stop playback (desktop)' },
