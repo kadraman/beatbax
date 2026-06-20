@@ -11,7 +11,6 @@ import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
 import { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
 import { ChannelMixer } from '@web-ui/panels/channel-mixer';
-import { HelpPanel } from '@web-ui/panels/help-panel';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
@@ -40,6 +39,7 @@ import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCo
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
+import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -69,7 +69,7 @@ export interface DesktopWorkspaceHandle {
   transportBar: TransportBar;
   problemsPanel: DesktopOutputPanelHandle;
   outputPanel: DesktopOutputPanelHandle;
-  helpPanel: HelpPanel | null;
+  helpPanel: DesktopHelpPanelHandle | null;
   settingsModal: ReturnType<typeof buildSettingsModal>;
   shortcutsModal: ReturnType<typeof buildShortcutsModal>;
   aboutModal: ReturnType<typeof buildAboutModal>;
@@ -302,10 +302,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
   );
 
-  let helpPanel: HelpPanel | null = null;
+  let helpPanel: DesktopHelpPanelHandle | null = null;
   if (capabilities.helpPanel) {
-    helpPanel = new HelpPanel({
-      container: helpContainer,
+    helpPanel = createDesktopHelpPanel(helpContainer, {
       eventBus,
       embedded: true,
       defaultVisible: true,
@@ -675,8 +674,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
   ks.mount();
 
-  const shortcutsPanel = new HelpPanel({
-    container: shortcutsModal.container,
+  const shortcutsPanel = createDesktopHelpPanel(shortcutsModal.container, {
     eventBus,
     embedded: true,
     singleSection: 'shortcuts',
@@ -695,6 +693,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   if (!isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) {
     rightTabs.close('channels');
   }
+  menuBar?.seedPanelVisible({
+    help: rightTabs.tabOpen.help,
+    'song-visualizer': rightTabs.tabOpen.channels,
+  });
 
   let monacoShortcutsDispose: (() => void) | null = null;
 
