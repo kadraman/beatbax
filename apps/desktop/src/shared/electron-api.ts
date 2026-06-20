@@ -45,6 +45,7 @@ export interface ElectronAPI {
   existsSync(targetPath: string): boolean;
   getRecentFiles(): Promise<string[]>;
   addRecentFile(targetPath: string): Promise<void>;
+  clearRecentFiles(): Promise<void>;
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;

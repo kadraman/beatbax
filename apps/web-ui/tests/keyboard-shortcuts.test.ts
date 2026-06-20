@@ -153,6 +153,26 @@ describe('KeyboardShortcuts — input suppression', () => {
     document.body.removeChild(input);
     expect(action).toHaveBeenCalledTimes(1);
   });
+
+  it('does not fire when focus is inside Monaco by default', () => {
+    const action = jest.fn();
+    ks.register({ key: ' ', description: 'Play / pause', action });
+
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    editor.tabIndex = 0;
+    const line = document.createElement('span');
+    editor.appendChild(line);
+    document.body.appendChild(editor);
+    editor.focus();
+
+    const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'target', { value: line, configurable: true });
+    window.dispatchEvent(e);
+
+    document.body.removeChild(editor);
+    expect(action).not.toHaveBeenCalled();
+  });
 });
 
 // ─── metaKey (macOS Cmd) treated as ctrlKey ──────────────────────────────────

@@ -51,19 +51,10 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
   const monacoInst = () => getEditor()?.editor;
 
   // ── Transport ─────────────────────────────────────────────────────────────
-  ks.register({ key: ' ', description: 'Play / Pause (when editor not focused)', allowInInput: false,
-    action: () => {
-      if (!transportBar.playButton.disabled) transportBar.playButton.click();
-      else transportBar.pauseButton.click();
-    },
-  });
   ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
     action: () => transportBar.playButton.click(),
   });
   ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
-    action: () => transportBar.stopButton.click(),
-  });
-  ks.register({ key: 'Escape', description: 'Stop playback (when editor not focused)', allowInInput: false,
     action: () => transportBar.stopButton.click(),
   });
   ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,

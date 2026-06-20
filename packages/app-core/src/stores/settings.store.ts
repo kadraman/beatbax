@@ -62,7 +62,7 @@ export const settingShowPatternGrid    = boolAtom(StorageKey.PANEL_VIS_PATTERN_G
 export const settingShowChannelMixer   = boolAtom(StorageKey.PANEL_VIS_CHANNEL_MIXER,  true);
 export const settingShowSongVisualizer = boolAtom(StorageKey.PANEL_VIS_SONG_VISUALIZER, false);
 export const settingShowChannelMixerLegacy = settingShowSongVisualizer;
-export const settingVizBgEffect        = stringAtom<'none' | 'starfield' | 'scanlines' | 'custom-image'>(
+export const settingVizBgEffect        = stringAtom<'none' | 'starfield' | 'scanlines' | 'matrix-rain' | 'custom-image'>(
   StorageKey.VIZ_BG_EFFECT,
   'none',
 );
@@ -191,11 +191,9 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.CHAT_MODE,
   ],
   advanced: [
-    StorageKey.LOG_LEVEL,
     StorageKey.DEBUG_OVERLAY,
     StorageKey.DEBUG_OVERLAY_POSITION,
     StorageKey.DEBUG_OVERLAY_OPACITY,
     StorageKey.DEBUG_OVERLAY_FONT_SIZE,
-    StorageKey.DEBUG_EXPOSE_PLAYER,
   ],
 };

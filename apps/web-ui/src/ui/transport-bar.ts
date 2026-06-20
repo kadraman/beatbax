@@ -106,9 +106,9 @@ export class TransportBar {
     };
 
     this.rewindButton = mkBtn('⏮',       'Rewind to start', 'rewind');
-    this.playButton   = mkBtn('▶ Play',  'Play current song (F5 / Space when outside editor)', 'play');
+    this.playButton   = mkBtn('▶ Play',  'Play current song (F5 in desktop)', 'play');
     this.pauseButton  = mkBtn('⏸ Pause', 'Pause playback', 'pause');
-    this.stopButton   = mkBtn('⏹ Stop',  'Stop playback (F8 / Esc)', 'stop');
+    this.stopButton   = mkBtn('⏹ Stop',  'Stop playback (F8 in desktop)', 'stop');
     this.applyButton  = mkBtn('↻ Apply', 'Apply & re-play (Ctrl+Enter)', 'apply');
     this.liveButton   = mkBtn('⚡ Live',  'Toggle live-play mode', 'live');
     this.liveButton.classList.add('bb-live-btn');

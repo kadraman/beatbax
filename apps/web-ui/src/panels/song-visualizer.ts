@@ -17,7 +17,7 @@ import { getMeterDisplayGain, scaleSamplesForWaveform } from '../utils/meter-dis
 
 const log = createLogger('ui:song-visualizer');
 
-type BgEffectId = 'none' | 'starfield' | 'scanlines' | 'custom-image';
+type BgEffectId = 'none' | 'starfield' | 'scanlines' | 'matrix-rain' | 'custom-image';
 
 interface BgEffect {
   id: Exclude<BgEffectId, 'none' | 'custom-image'>;
@@ -26,37 +26,107 @@ interface BgEffect {
   dispose(): void;
 }
 
+interface StarfieldStar {
+  x: number;
+  y: number;
+  z: number;
+  pz: number;
+  speed: number;
+  twinkle: number;
+}
+
+function createStarfieldStar(): StarfieldStar {
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 0.02 + Math.pow(Math.random(), 0.55) * 1.45;
+  const z = 0.35 + Math.random() * 1.35;
+
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius,
+    z,
+    pz: z,
+    speed: 0.55 + Math.random() * 1.15,
+    twinkle: 0.65 + Math.random() * 0.7,
+  };
+}
+
+interface MatrixColumn {
+  x: number;
+  y: number;
+  speed: number;
+  length: number;
+  green: number;
+  dim: number;
+  glyphs: string[];
+}
+
+const MATRIX_GLYPHS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZアカサタナハマヤラワンアイウエオキシチニヒミリヲ';
+
+function createMatrixColumn(x: number, rows: number): MatrixColumn {
+  const length = 12 + Math.floor(Math.random() * 26);
+  return {
+    x,
+    y: -Math.random() * rows,
+    speed: 0.18 + Math.random() * 0.52,
+    length,
+    green: 90 + Math.random() * 145,
+    dim: 0.45 + Math.random() * 0.45,
+    glyphs: Array.from({ length }, () => MATRIX_GLYPHS[Math.floor(Math.random() * MATRIX_GLYPHS.length)] ?? '0'),
+  };
+}
+
 const BG_EFFECTS: BgEffect[] = [
   {
     id: 'starfield',
     init(canvas) {
-      const stars = Array.from({ length: 220 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        z: 0.8 + Math.random() * 3.0,
-      }));
+      const stars = Array.from({ length: 260 }, () => createStarfieldStar());
       (canvas as any).__bbStars = stars;
     },
     draw(canvas, rmsValues) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      const stars = ((canvas as any).__bbStars as Array<{ x: number; y: number; z: number }>) ?? [];
+      const stars = ((canvas as any).__bbStars as StarfieldStar[]) ?? [];
       const avgRms = rmsValues.size > 0
         ? Array.from(rmsValues.values()).reduce((a, b) => a + b, 0) / rmsValues.size
         : 0;
       const brightness = Math.min(1, 0.35 + avgRms * 2.0);
-      ctx.fillStyle = 'rgba(0,0,0,0.40)';
+      const W = canvas.width;
+      const H = canvas.height;
+      const cx = W / 2;
+      const cy = H / 2;
+      const scale = Math.min(W, H) * 0.48;
+      const speed = 0.007 + avgRms * 0.035;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       for (const s of stars) {
-        s.y += s.z * 0.8;
-        if (s.y > canvas.height) {
-          s.y = 0;
-          s.x = Math.random() * canvas.width;
+        s.pz = s.z;
+        s.z -= speed * s.speed;
+
+        const x = cx + (s.x / s.z) * scale;
+        const y = cy + (s.y / s.z) * scale;
+
+        if (s.z <= 0.08 || x < -40 || x > W + 40 || y < -40 || y > H + 40) {
+          Object.assign(s, createStarfieldStar());
+          continue;
         }
-        const size = Math.max(2, s.z * 1.8);
-        const alpha = Math.min(1, brightness * (0.45 + s.z * 0.22));
-        ctx.fillStyle = `rgba(200,230,255,${alpha})`;
-        ctx.fillRect(s.x, s.y, size, size);
+
+        const px = cx + (s.x / s.pz) * scale;
+        const py = cy + (s.y / s.pz) * scale;
+        const closeness = Math.min(1, 1 / (s.z * 1.4));
+        const alpha = Math.min(1, brightness * s.twinkle * (0.22 + closeness * 0.7));
+        const size = Math.max(0.9, closeness * (1.8 + s.speed * 0.9));
+
+        ctx.strokeStyle = `rgba(205,230,255,${alpha * 0.85})`;
+        ctx.lineWidth = size;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        ctx.fillStyle = `rgba(235,245,255,${alpha})`;
+        ctx.fillRect(x - size / 2, y - size / 2, size, size);
       }
     },
     dispose() {
@@ -117,23 +187,63 @@ const BG_EFFECTS: BgEffect[] = [
       ctx.fillStyle = '#000804';
       ctx.fillRect(scrX, scrY, scrW, scrH);
 
-      // CRT scanlines: 1 px dark band every 3 px
-      ctx.fillStyle = 'rgba(0,0,0,0.50)';
-      for (let y = scrY; y < scrY + scrH; y += 3) {
-        ctx.fillRect(scrX, y, scrW, 1);
+      // Analogue TV static, drawn before the scanline mask so it reads as noisy
+      // phosphor rather than UI confetti.
+      const staticAlpha = Math.min(0.28, 0.12 + avgRms * 0.18);
+      const speckCount = Math.floor(Math.min(2400, Math.max(520, (scrW * scrH) / 450)));
+      for (let i = 0; i < speckCount; i++) {
+        const noiseX = scrX + Math.random() * scrW;
+        const noiseY = scrY + Math.random() * scrH;
+        const noiseSize = Math.random() > 0.9 ? 2 : 1;
+        const noiseTone = Math.random();
+        const alpha = staticAlpha * (0.35 + Math.random() * 0.95);
+
+        ctx.fillStyle = noiseTone > 0.82
+          ? `rgba(190,255,210,${alpha})`
+          : noiseTone > 0.48
+            ? `rgba(245,255,245,${alpha * 0.9})`
+            : `rgba(0,0,0,${alpha * 1.6})`;
+        ctx.fillRect(noiseX, noiseY, noiseSize, noiseSize);
       }
 
-      // Sweeping phosphor beam
+      const bandCount = 5 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < bandCount; i++) {
+        const bandY = scrY + Math.random() * scrH;
+        const bandH = 1 + Math.random() * 2;
+        const bandX = scrX + Math.random() * scrW * 0.18;
+        const bandW = scrW * (0.45 + Math.random() * 0.55);
+        ctx.fillStyle = `rgba(205,255,220,${staticAlpha * (0.35 + Math.random() * 0.35)})`;
+        ctx.fillRect(bandX, bandY, bandW, bandH);
+      }
+
+      // Retro monitor mask: persistent thin dark scanlines with a faint green
+      // phosphor row between them.
+      for (let y = scrY; y < scrY + scrH; y += 4) {
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(scrX, y, scrW, 2);
+        ctx.fillStyle = 'rgba(42,255,120,0.075)';
+        ctx.fillRect(scrX, y + 2, scrW, 1);
+      }
+
+      // Subtle vertical phosphor grille so the screen reads as a retro display.
+      for (let x = scrX; x < scrX + scrW; x += 3) {
+        ctx.fillStyle = 'rgba(42,255,120,0.025)';
+        ctx.fillRect(x, scrY, 1, scrH);
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(x + 2, scrY, 1, scrH);
+      }
+
+      // A soft refresh sweep, no longer the only visible scanline.
       const state = (canvas as any).__bbScanState as { beamY: number };
-      state.beamY = (state.beamY + 1.5 + avgRms * 10) % scrH;
+      state.beamY = (state.beamY + 0.75 + avgRms * 4) % scrH;
       const beamAbsY = scrY + state.beamY;
-      const beamAlpha = 0.10 + avgRms * 0.30;
-      const beamGrad = ctx.createLinearGradient(0, beamAbsY - 12, 0, beamAbsY + 12);
+      const beamAlpha = 0.045 + avgRms * 0.12;
+      const beamGrad = ctx.createLinearGradient(0, beamAbsY - 10, 0, beamAbsY + 10);
       beamGrad.addColorStop(0,   'rgba(0,255,120,0)');
       beamGrad.addColorStop(0.5, `rgba(0,255,120,${beamAlpha})`);
       beamGrad.addColorStop(1,   'rgba(0,255,120,0)');
       ctx.fillStyle = beamGrad;
-      ctx.fillRect(scrX, beamAbsY - 12, scrW, 24);
+      ctx.fillRect(scrX, beamAbsY - 10, scrW, 20);
 
       // Screen-space vignette (dark edges, bright centre)
       const vigCx = scrX + scrW / 2;
@@ -175,18 +285,96 @@ const BG_EFFECTS: BgEffect[] = [
       // no-op
     },
   },
+  {
+    id: 'matrix-rain',
+    init(canvas) {
+      const fontSize = Math.max(10, Math.floor(Math.min(canvas.width, canvas.height) / 44));
+      const colStep = fontSize * 0.82;
+      const colCount = Math.ceil(canvas.width / colStep) + 3;
+      const rows = Math.ceil(canvas.height / fontSize);
+      const columns = Array.from({ length: colCount }, (_, i) => createMatrixColumn(i * colStep, rows));
+      (canvas as any).__bbMatrixState = { columns, fontSize, colStep };
+    },
+    draw(canvas, rmsValues) {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const avgRms = rmsValues.size > 0
+        ? Array.from(rmsValues.values()).reduce((a, b) => a + b, 0) / rmsValues.size
+        : 0;
+      const nextFontSize = Math.max(10, Math.floor(Math.min(W, H) / 44));
+      const nextColStep = nextFontSize * 0.82;
+      const rows = Math.ceil(H / nextFontSize);
+      let state = (canvas as any).__bbMatrixState as { columns: MatrixColumn[]; fontSize: number; colStep: number } | undefined;
+
+      if (!state || state.fontSize !== nextFontSize || state.colStep !== nextColStep) {
+        const colCount = Math.ceil(W / nextColStep) + 3;
+        state = {
+          columns: Array.from({ length: colCount }, (_, i) => createMatrixColumn(i * nextColStep, rows)),
+          fontSize: nextFontSize,
+          colStep: nextColStep,
+        };
+        (canvas as any).__bbMatrixState = state;
+      }
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.font = `${state.fontSize}px "Cascadia Code", "Consolas", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      for (const col of state.columns) {
+        col.y += col.speed * (0.42 + avgRms * 1.45);
+
+        if (Math.random() < 0.045) {
+          const idx = Math.floor(Math.random() * col.glyphs.length);
+          col.glyphs[idx] = MATRIX_GLYPHS[Math.floor(Math.random() * MATRIX_GLYPHS.length)] ?? '0';
+        }
+
+        for (let i = 0; i < col.length; i++) {
+          const y = (col.y - i) * state.fontSize;
+          if (y < -state.fontSize || y > H + state.fontSize) continue;
+
+          const alpha = Math.max(0, 1 - i / col.length);
+          const glyph = col.glyphs[i] ?? '0';
+          const green = Math.floor(col.green * (0.65 + alpha * 0.35));
+          const bodyAlpha = (0.04 + alpha * 0.5) * col.dim;
+
+          if (i === 0) {
+            ctx.fillStyle = `rgba(${80 + green * 0.25}, 255, ${95 + green * 0.2}, ${0.55 + Math.min(0.25, avgRms * 0.35)})`;
+          } else {
+            ctx.fillStyle = `rgba(18, ${green}, ${34 + Math.floor(green * 0.18)}, ${bodyAlpha})`;
+          }
+          ctx.fillText(glyph, col.x, y);
+        }
+
+        if ((col.y - col.length) * state.fontSize > H) {
+          Object.assign(col, createMatrixColumn(col.x, rows));
+        }
+      }
+    },
+    dispose() {
+      // no-op
+    },
+  },
 ];
 
 export interface SongVisualizerOptions {
   container: HTMLElement;
   eventBus: EventBus;
   playbackManager?: PlaybackManager;
+  onPlay?: () => void;
+  onStop?: () => void;
 }
 
 export class SongVisualizer {
   private container: HTMLElement;
   private eventBus: EventBus;
   private playbackManager: PlaybackManager | null;
+  private onPlay: (() => void) | null;
+  private onStop: (() => void) | null;
   private ast: any = null;
   private unsubscribers: Array<() => void> = [];
   private levelTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
@@ -203,6 +391,8 @@ export class SongVisualizer {
     this.container = options.container;
     this.eventBus = options.eventBus;
     this.playbackManager = options.playbackManager ?? null;
+    this.onPlay = options.onPlay ?? null;
+    this.onStop = options.onStop ?? null;
     this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
     this.refreshSettingsFromStorage();
     this.render();
@@ -211,7 +401,12 @@ export class SongVisualizer {
 
   private refreshSettingsFromStorage(): void {
     const savedEffect = storage.get(StorageKey.VIZ_BG_EFFECT, 'none');
-    this.bgEffectId = (savedEffect === 'starfield' || savedEffect === 'scanlines' || savedEffect === 'custom-image')
+    this.bgEffectId = (
+      savedEffect === 'starfield' ||
+      savedEffect === 'scanlines' ||
+      savedEffect === 'matrix-rain' ||
+      savedEffect === 'custom-image'
+    )
       ? savedEffect
       : 'none';
 
@@ -232,6 +427,10 @@ export class SongVisualizer {
 
   private get isPerformanceMode(): boolean {
     return this.performanceMode;
+  }
+
+  private get isBrowserFullscreen(): boolean {
+    return document.fullscreenElement !== null;
   }
 
   render(): void {
@@ -271,25 +470,84 @@ export class SongVisualizer {
     clearSoloBtn.innerHTML = icon('eye');
     clearSoloBtn.addEventListener('click', () => clearAllSolo());
 
+    const performanceTransport = document.createElement('div');
+    performanceTransport.className = 'bb-viz__performance-transport';
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'bb-viz__toolbar-btn bb-viz__performance-transport-btn';
+    playBtn.title = 'Play current song';
+    playBtn.setAttribute('aria-label', 'Play current song');
+    playBtn.disabled = !this.onPlay;
+    playBtn.innerHTML = icon('play');
+    playBtn.addEventListener('click', () => this.onPlay?.());
+
+    const stopBtn = document.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'bb-viz__toolbar-btn bb-viz__performance-transport-btn';
+    stopBtn.title = 'Stop playback';
+    stopBtn.setAttribute('aria-label', 'Stop playback');
+    stopBtn.disabled = !this.onStop && !this.playbackManager;
+    stopBtn.innerHTML = icon('stop');
+    stopBtn.addEventListener('click', () => {
+      if (this.onStop) {
+        this.onStop();
+        return;
+      }
+      this.playbackManager?.stop();
+    });
+
+    performanceTransport.appendChild(playBtn);
+    performanceTransport.appendChild(stopBtn);
+
     const performanceBtn = document.createElement('button');
     performanceBtn.type = 'button';
     performanceBtn.className = 'bb-viz__toolbar-btn bb-viz__toolbar-btn--performance';
     performanceBtn.id = 'bb-viz-fullscreen';
-    performanceBtn.title = this.isPerformanceMode ? 'Exit performance mode' : 'Enter performance mode';
-    performanceBtn.innerHTML = this.isPerformanceMode ? icon('arrows-pointing-in') : icon('arrows-pointing-out');
+    this.updatePerformanceButton(performanceBtn);
     performanceBtn.addEventListener('click', () => {
-      this.performanceMode = !this.performanceMode;
-      if (this.performanceMode) {
-        document.documentElement.requestFullscreen?.().catch(() => { /* ignore */ });
-      } else if (document.fullscreenElement) {
-        document.exitFullscreen?.();
+      if (!this.performanceMode) {
+        this.performanceMode = true;
+        this.render();
+        return;
+      }
+
+      if (document.fullscreenElement) {
+        const exitFullscreen = document.exitFullscreen?.();
+        void exitFullscreen?.catch(() => { /* ignore */ });
+        return;
+      }
+
+      const enterFullscreen = root.requestFullscreen?.();
+      void enterFullscreen
+        ?.then(() => this.updatePerformanceButton())
+        .catch(() => { /* ignore */ });
+    });
+
+    const exitPerformanceBtn = document.createElement('button');
+    exitPerformanceBtn.type = 'button';
+    exitPerformanceBtn.className = 'bb-viz__toolbar-btn bb-viz__toolbar-btn--exit-performance';
+    exitPerformanceBtn.id = 'bb-viz-exit';
+    exitPerformanceBtn.title = 'Exit performance mode';
+    exitPerformanceBtn.setAttribute('aria-label', 'Exit performance mode');
+    exitPerformanceBtn.innerHTML = icon('x-mark');
+    exitPerformanceBtn.addEventListener('click', () => {
+      this.performanceMode = false;
+      const finishExit = () => this.render();
+      if (document.fullscreenElement) {
+        const exitFullscreen = document.exitFullscreen?.();
+        void exitFullscreen?.finally(finishExit);
+        if (!exitFullscreen) finishExit();
+        return;
       }
       this.render();
     });
 
     toolbar.appendChild(unmuteBtn);
     toolbar.appendChild(clearSoloBtn);
+    if (this.isPerformanceMode) toolbar.appendChild(performanceTransport);
     toolbar.appendChild(performanceBtn);
+    if (this.isPerformanceMode) toolbar.appendChild(exitPerformanceBtn);
     root.appendChild(toolbar);
 
     const bgCanvas = document.createElement('canvas');
@@ -315,19 +573,6 @@ export class SongVisualizer {
 
     root.appendChild(channelsWrap);
 
-    if (this.isPerformanceMode) {
-      const exitBtn = document.createElement('button');
-      exitBtn.className = 'bb-viz__exit-btn';
-      exitBtn.id = 'bb-viz-exit';
-      exitBtn.innerHTML = `${icon('x-mark', 'w-3.5 h-3.5')} Exit`;
-      exitBtn.addEventListener('click', () => {
-        this.performanceMode = false;
-        if (document.fullscreenElement) document.exitFullscreen?.();
-        this.render();
-      });
-      root.appendChild(exitBtn);
-    }
-
     this.container.appendChild(root);
     this.syncCanvasResolution();
     this.refreshBgEffect();
@@ -339,6 +584,30 @@ export class SongVisualizer {
       rightPane.style.minWidth = '300px';
     }
     window.dispatchEvent(new Event('resize'));
+  }
+
+  private updatePerformanceButton(
+    button = document.getElementById('bb-viz-fullscreen') as HTMLButtonElement | null,
+  ): void {
+    if (!button) return;
+
+    if (!this.performanceMode) {
+      button.title = 'Enter performance mode';
+      button.setAttribute('aria-label', 'Enter performance mode');
+      button.innerHTML = icon('bolt');
+      return;
+    }
+
+    if (this.isBrowserFullscreen) {
+      button.title = 'Exit fullscreen';
+      button.setAttribute('aria-label', 'Exit fullscreen');
+      button.innerHTML = icon('arrows-pointing-in');
+      return;
+    }
+
+    button.title = 'Enter fullscreen';
+    button.setAttribute('aria-label', 'Enter fullscreen');
+    button.innerHTML = icon('arrows-pointing-out');
   }
 
   private buildCard(ch: any): HTMLElement {
@@ -514,7 +783,8 @@ export class SongVisualizer {
     this.unsubscribers.push(() => window.removeEventListener('keydown', onKeyDown));
 
     const onFullscreenChange = () => {
-      if (document.fullscreenElement && this.performanceMode) {
+      if (this.performanceMode) {
+        this.updatePerformanceButton();
         // Double rAF: first lets the browser apply fullscreen layout,
         // second ensures paint + reflow are complete before syncing canvas sizes
         requestAnimationFrame(() => {
@@ -523,9 +793,6 @@ export class SongVisualizer {
             this.refreshBgEffect();
           });
         });
-      } else if (!document.fullscreenElement && this.performanceMode) {
-        this.performanceMode = false;
-        this.render();
       }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);

@@ -29,6 +29,9 @@ const electronAPI: ElectronAPI = {
   addRecentFile: async (targetPath: string) => {
     await ipcRenderer.invoke(IPC_CHANNELS.ADD_RECENT_FILE, targetPath);
   },
+  clearRecentFiles: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.CLEAR_RECENT_FILES);
+  },
   getVersion: () => ipcRenderer.sendSync(IPC_CHANNELS.GET_VERSION),
   getPlatform: () => process.platform,
   openRecentFile: (filePath: string) => {
