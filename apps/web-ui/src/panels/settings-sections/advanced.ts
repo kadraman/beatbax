@@ -4,8 +4,8 @@
 
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
-  settingLogLevel, settingDebugOverlay, settingDebugOverlayPosition,
-  settingDebugOverlayOpacity, settingDebugOverlayFontSize, settingDebugExposePlayer,
+  settingDebugOverlay, settingDebugOverlayPosition,
+  settingDebugOverlayOpacity, settingDebugOverlayFontSize,
 } from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, toggle, selectField, rangeField, noteText } from './general';
 
@@ -14,18 +14,6 @@ export function buildAdvancedSection(): HTMLElement {
   el.className = 'bb-settings-section';
 
   el.appendChild(sectionHeading('Diagnostics'));
-
-  el.appendChild(selectField(
-    'Log level',
-    [
-      { value: 'error', label: 'Error' },
-      { value: 'warn',  label: 'Warn (default)' },
-      { value: 'info',  label: 'Info' },
-      { value: 'debug', label: 'Debug' },
-    ],
-    settingLogLevel.get(),
-    (v) => settingLogLevel.set(v as any),
-  ));
 
   el.appendChild(toggle('Show debug overlay', settingDebugOverlay.get(), (v) => settingDebugOverlay.set(v)));
 
@@ -63,12 +51,6 @@ export function buildAdvancedSection(): HTMLElement {
     (v) => settingDebugOverlayFontSize.set(Number(v)),
   ));
 
-  el.appendChild(toggle(
-    'Expose window.__beatbax_player',
-    settingDebugExposePlayer.get(),
-    (v) => settingDebugExposePlayer.set(v),
-  ));
-
   el.appendChild(sectionHeading('Danger zone'));
 
   el.appendChild(noteText('Reset all settings removes every beatbax:* key from localStorage and reloads the page.'));
@@ -88,12 +70,10 @@ export function buildAdvancedSection(): HTMLElement {
 }
 
 export function resetAdvancedDefaults(): void {
-  settingLogLevel.set('warn');
   settingDebugOverlay.set(false);
   settingDebugOverlayPosition.set('top-right');
   settingDebugOverlayOpacity.set(70);
   settingDebugOverlayFontSize.set(11);
-  settingDebugExposePlayer.set(true);
 }
 
 function resetAllSettings(): void {
