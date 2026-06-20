@@ -17,13 +17,13 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-13
+**Last updated:** 2026-06-20
 **Overall status:** Not started.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | ⬜ | Replace `@web-ui` bridge mounts |
+| Native React UI | ⬜ | Targeted Phase 5b plan ready while signing credentials are pending |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -83,7 +83,36 @@ Replace bridge-mounted web-ui DOM panels with native React components, reducing 
 | `@web-ui/panels/output-panel` | `ProblemsPanel.tsx`, `OutputPanel.tsx` | Low |
 | `@web-ui/panels/settings-panel` | `SettingsModal.tsx` | Medium |
 
-**Suggested order:** Help/Output → Toolbar/Transport → Settings/Copilot → Pattern Grid → Visualizer/Mixer (canvas-heavy).
+**Suggested order while waiting for signing certificates:** Output/Problems → Help → Toolbar/Transport → Settings/Copilot → Pattern Grid → Visualizer/Mixer (canvas-heavy).
+
+#### Phase 5b target plan
+
+Phase 5b should reduce bridge coupling incrementally without replacing the whole desktop shell at once. The current React desktop shell still delegates most UI assembly to `desktop-workspace.ts`, which constructs web-ui DOM classes and returns handles consumed by menu actions, shortcuts, playback setup, export handling, and editor diagnostics. The safest path is to introduce React-owned panel components with small compatibility handles, then remove the matching `@web-ui` imports one bridge at a time.
+
+| Target slice | Goal | Bridge compatibility needed | Risk |
+|--------------|------|-----------------------------|------|
+| **5b-1 Output/Problems** | Replace `@web-ui/panels/output-panel` with React `ProblemsPanel` and `OutputPanel` bodies | Preserve `addMessage()`, `dismissQuickFixMenu()`, and Problems tab navigation hooks used by export/editor setup | Low |
+| **5b-2 Help** | Replace embedded Help and shortcuts Help usage with React `HelpPanel` | Preserve `refresh()`, shortcuts listing, snippet insertion, and replace-editor callbacks | Low-medium |
+| **5b-3 Toolbar/Transport** | Replace top toolbar and transport bar with React controls | Provide stable command/handle API for menu actions, shortcuts, `TransportControls`, BPM/loop/live state, volume knob, and playback LEDs | Medium-high |
+| **5b-4 Settings/Copilot** | Replace settings modal and CoPilot panel | Preserve settings refresh, feature flag toggles, editor replacement, diagnostics context, and AI change highlight flows | Medium |
+| **5b-5 Pattern Grid** | Replace pattern grid rendering and navigation | Preserve parse/playback position updates, mute/solo/channel state, and pattern-to-editor navigation | High |
+| **5b-6 Visualizer/Mixer** | Replace canvas-heavy visualizer and mixer | Preserve analyser/playback subscriptions, `channelStates`, responsive canvas lifecycle, fullscreen/body classes, and cleanup | High |
+
+**5b-1 acceptance criteria:**
+
+- `desktop-workspace.ts` no longer imports `@web-ui/panels/output-panel`.
+- Desktop Problems and Output tabs preserve current event-bus behavior for parse errors, validation errors/warnings, playback logs, and export logs.
+- Export handling and editor diagnostics still call a typed desktop panel handle instead of a web-ui class.
+- Quick-fix menu dismissal still works when leaving the Problems tab.
+- Desktop Playwright smoke for startup, playback, JSON export, and save-in-place remains green.
+
+**5b implementation rules:**
+
+- Keep existing `bb-*` CSS classes initially to avoid visual churn and defer `@web-ui/styles.css` removal until enough components are React-native.
+- Prefer typed compatibility handles over DOM button references for new React components. Existing DOM refs can stay temporarily where a slice has not migrated yet.
+- Unsubscribe event-bus and store subscriptions on React unmount; do not rely on DOM class disposal patterns.
+- Keep `channelStates` as the single source for Pattern Grid, Visualizer, and Mixer until those pieces migrate together or get a shared React-facing adapter.
+- Do not extract `packages/ui-tokens/` until at least Output/Problems, Help, and Toolbar have migrated and the repeated styling needs are clear.
 
 Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consistent styling between web-lite and desktop.
 
@@ -129,10 +158,21 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 
 ### Phase 5b — Native React panels (incremental)
 
-1. Create `apps/desktop/src/renderer/src/components/` structure per component map above.
-2. Migrate one panel at a time; keep bridge fallback until parity verified.
-3. Add component-level tests where practical (React Testing Library or Playwright).
-4. Remove `@web-ui` alias imports for migrated panels from `desktop-workspace.ts`.
+1. Create `apps/desktop/src/renderer/src/components/panels/` and `apps/desktop/src/renderer/src/components/workspace/` for React-native panel bodies and compatibility handles.
+2. Implement **5b-1 Output/Problems** first:
+   - Add React `ProblemsPanel` and `OutputPanel` components.
+   - Expose a typed panel handle for `addMessage()`, `dismissQuickFixMenu()`, and any diagnostics/export hooks still needed by desktop glue.
+   - Replace `@web-ui/panels/output-panel` usage in `desktop-workspace.ts`, `desktop-editor-setup.ts`, and `export-handler.ts`.
+3. Implement **5b-2 Help**:
+   - Add React `HelpPanel` for the right pane and shortcuts modal.
+   - Preserve shortcuts listing, search, snippet insertion, and replace-editor callbacks.
+   - Remove `@web-ui/panels/help-panel` from migrated desktop paths.
+4. Implement **5b-3 Toolbar/Transport** only after the panel handle pattern is stable:
+   - Replace DOM button refs with an explicit desktop command/transport handle.
+   - Update menu actions, keyboard shortcuts, `TransportControls`, and full-IDE playback wiring to use that handle.
+5. Defer Settings/Copilot, Pattern Grid, Visualizer, and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
+6. Add targeted desktop tests with each slice, preferring Playwright for user-visible behavior and small unit tests for handle logic.
+7. Remove `@web-ui` alias imports for migrated modules from `desktop-workspace.ts` and related desktop glue as each slice lands.
 
 **Deliverable:** Desktop renderer no longer depends on `@web-ui` for migrated panels.
 
@@ -174,7 +214,7 @@ Possible change in Phase 5d: desktop-specific WAV render path using native Web A
 
 - Updater module (mock `electron-updater`).
 - File watcher path validation.
-- New React panel components (as migrated).
+- New React panel components and compatibility handles (as migrated).
 
 ### Integration tests
 
@@ -210,8 +250,9 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ### 5b — Native React UI
 
-- [ ] Migrate Help + Output panels
-- [ ] Migrate Toolbar + TransportBar
+- [ ] 5b-1: Migrate Output + Problems panels
+- [ ] 5b-2: Migrate Help panel and shortcuts Help usage
+- [ ] 5b-3: Migrate Toolbar + TransportBar
 - [ ] Migrate Settings modal + CoPilot panel
 - [ ] Migrate Pattern Grid
 - [ ] Migrate Song Visualizer (canvas)
@@ -267,4 +308,4 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 Estimated effort (rough): **~15–25 developer days** depending on code-signing setup friction and how many panels are rewritten before declaring bridge removal complete.
 
-Priority recommendation for the next sprint: **5a (signing + auto-update)** — highest user-facing impact for a publicly distributed desktop app.
+Priority recommendation while code-signing certificates are pending: start **5b-1 (Output/Problems React panels)**. Resume **5a (signing + auto-update)** as soon as Windows and Apple credentials are available.
