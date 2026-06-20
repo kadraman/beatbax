@@ -61,7 +61,18 @@ describe('desktop native menu', () => {
     clearItem.click?.({} as any, mockWindow, {} as any);
 
     expect(clearItem).toBeTruthy();
+    expect(clearItem.enabled).toBe(true);
     expect(onClearRecent).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the Open Recent clear action without a clear callback', () => {
+    const template = createMenuTemplate(mockWindow, ['/home/runner/music/duck_tales.bax']);
+    const fileMenu = template[0].submenu as MenuItemConstructorOptions[];
+    const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
+    const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
+    const clearItem = recentItems.find((item) => item.label === 'Clear Recently Opened...')!;
+
+    expect(clearItem.enabled).toBe(false);
   });
 
   it('uses function keys for playback accelerators', () => {
