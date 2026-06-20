@@ -219,8 +219,8 @@ seq arp_line = arp_source:arp(4,7)` },
     title: 'Keyboard Shortcuts',
     // Static fallback when getShortcuts is not provided (web-lite oriented).
     content: [
-      { kind: 'shortcut', keys: ['Space'],              desc: 'Play / Pause (when editor not focused)' },
-      { kind: 'shortcut', keys: ['Esc'],                desc: 'Stop playback (when editor not focused)' },
+      { kind: 'shortcut', keys: ['F5'],                 desc: 'Play / re-play (desktop)' },
+      { kind: 'shortcut', keys: ['F8'],                 desc: 'Stop playback (desktop)' },
       { kind: 'shortcut', keys: ['Ctrl', 'Enter'],      desc: 'Apply & re-play' },
       { kind: 'shortcut', keys: ['Ctrl', 'S'],          desc: 'Save (download .bax)' },
       { kind: 'shortcut', keys: ['Ctrl', 'O'],          desc: 'Open file…' },

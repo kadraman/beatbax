@@ -8,13 +8,22 @@ function sendMenuAction(window: BrowserWindow, action: MenuAction): void {
   window.webContents.send(IPC_CHANNELS.MENU_ACTION, action);
 }
 
-export function createMenuTemplate(window: BrowserWindow, recentFiles: string[]): MenuItemConstructorOptions[] {
+export function createMenuTemplate(
+  window: BrowserWindow,
+  recentFiles: string[],
+  onOpenRecent?: (filePath: string) => void,
+  onClearRecent?: () => void,
+): MenuItemConstructorOptions[] {
   const recentSubmenu: MenuItemConstructorOptions[] = recentFiles.length > 0
-    ? recentFiles.map((filePath) => ({
-        label: basenameFromPath(filePath),
-        toolTip: filePath,
-        click: () => window.webContents.send(IPC_CHANNELS.FILE_OPENED_REQUEST, filePath),
-      }))
+    ? [
+        ...recentFiles.map((filePath) => ({
+          label: basenameFromPath(filePath),
+          toolTip: filePath,
+          click: () => onOpenRecent?.(filePath),
+        })),
+        { type: 'separator' },
+        { label: 'Clear Recently Opened...', click: () => onClearRecent?.() },
+      ]
     : [{ label: 'No recent files', enabled: false }];
 
   return [
@@ -44,9 +53,9 @@ export function createMenuTemplate(window: BrowserWindow, recentFiles: string[])
     {
       label: 'Playback',
       submenu: [
-        { label: 'Play / Resume', accelerator: 'Space', click: () => sendMenuAction(window, 'playback:play') },
-        { label: 'Pause', accelerator: 'Shift+Space', click: () => sendMenuAction(window, 'playback:pause') },
-        { label: 'Stop', accelerator: 'Escape', click: () => sendMenuAction(window, 'playback:stop') },
+        { label: 'Play / Resume', accelerator: 'F5', click: () => sendMenuAction(window, 'playback:play') },
+        { label: 'Pause', click: () => sendMenuAction(window, 'playback:pause') },
+        { label: 'Stop', accelerator: 'F8', click: () => sendMenuAction(window, 'playback:stop') },
       ],
     },
     {
@@ -75,7 +84,12 @@ export function createMenuTemplate(window: BrowserWindow, recentFiles: string[])
   ];
 }
 
-export function installAppMenu(window: BrowserWindow, recentFiles: string[]): void {
-  const menu = Menu.buildFromTemplate(createMenuTemplate(window, recentFiles));
+export function installAppMenu(
+  window: BrowserWindow,
+  recentFiles: string[],
+  onOpenRecent?: (filePath: string) => void,
+  onClearRecent?: () => void,
+): void {
+  const menu = Menu.buildFromTemplate(createMenuTemplate(window, recentFiles, onOpenRecent, onClearRecent));
   Menu.setApplicationMenu(menu);
 }

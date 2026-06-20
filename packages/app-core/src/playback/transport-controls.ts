@@ -95,8 +95,8 @@ export class TransportControls {
     if (!this.config.enableKeyboardShortcuts) return;
 
     this.keyboardHandler = (e: KeyboardEvent) => {
-      // Space = play if stopped, pause/resume if playing
-      if (e.code === 'Space' && !this.isTyping(e)) {
+      // F5 = play if stopped, pause/resume if playing
+      if (e.code === 'F5' && !this.isTyping(e)) {
         e.preventDefault();
         if (this.state === 'stopped') {
           this.handlePlay();
@@ -105,8 +105,8 @@ export class TransportControls {
         }
       }
 
-      // Escape = stop
-      if (e.code === 'Escape') {
+      // F8 = stop
+      if (e.code === 'F8') {
         e.preventDefault();
         this.handleStop();
       }

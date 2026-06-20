@@ -165,11 +165,12 @@ export function buildGeneralSection(): HTMLElement {
       { value: 'none',         label: 'None' },
       { value: 'starfield',    label: 'Starfield' },
       { value: 'scanlines',    label: 'CRT Scanlines' },
+      { value: 'matrix-rain',  label: 'Matrix Rain' },
       { value: 'custom-image', label: 'Custom image' },
     ],
     settingVizBgEffect.get(),
     (v) => {
-      const next = v as 'none' | 'starfield' | 'scanlines' | 'custom-image';
+      const next = v as 'none' | 'starfield' | 'scanlines' | 'matrix-rain' | 'custom-image';
       settingVizBgEffect.set(next);
       // Show image row only when custom-image is selected
       imageRow.style.display = next === 'custom-image' ? '' : 'none';
