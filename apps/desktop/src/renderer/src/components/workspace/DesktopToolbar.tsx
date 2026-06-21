@@ -4,8 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { icon } from '@web-ui/utils/icons';
+
+export type DesktopToolbarStyle = 'icons+labels' | 'icons';
 
 export interface DesktopToolbarHandle {
   show: () => void;
@@ -16,6 +19,7 @@ export interface DesktopToolbarHandle {
   setChip: (chip: string) => void;
   setExportEnabled: (enabled: boolean) => void;
   setThemeIcon: (theme: 'dark' | 'light') => void;
+  setStyle: (style: DesktopToolbarStyle) => void;
   setWrapActive: (wrap: boolean) => void;
   setFoldCommentsActive: (folded: boolean) => void;
   setStatus: (message: string, type?: 'info' | 'success' | 'error' | '') => void;
@@ -87,6 +91,9 @@ function DesktopToolbar({
   const [activeChip, setActiveChip] = useState('gameboy');
   const [exportEnabled, setExportEnabled] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [toolbarStyle, setToolbarStyle] = useState<DesktopToolbarStyle>(() =>
+    storage.get(StorageKey.TOOLBAR_STYLE, 'icons+labels') as DesktopToolbarStyle,
+  );
   const [wrapActive, setWrapActive] = useState(false);
   const [foldActive, setFoldActive] = useState(false);
   const [status, setStatusState] = useState<{ message: string; type: 'info' | 'success' | 'error' | '' }>({
@@ -121,6 +128,7 @@ function DesktopToolbar({
     setChip: (chip) => setActiveChip(resolveUiChipId(chip)),
     setExportEnabled,
     setThemeIcon: setTheme,
+    setStyle: setToolbarStyle,
     setWrapActive,
     setFoldCommentsActive: setFoldActive,
     setStatus,
@@ -153,7 +161,7 @@ function DesktopToolbar({
   };
 
   return (
-    <div className="bb-toolbar" style={{ display: visible ? undefined : 'none' }}>
+    <div className="bb-toolbar" data-style={toolbarStyle} style={{ display: visible ? undefined : 'none' }}>
       <div className="bb-toolbar__group bb-toolbar__group--file">
         <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" onClick={onNew} title="New song (Ctrl+N)" type="button">
           <ToolbarIcon name="document-plus" />
@@ -295,6 +303,7 @@ export function createDesktopToolbar(container: HTMLElement, options: DesktopToo
     setChip: (chip) => call((handle) => handle.setChip(chip)),
     setExportEnabled: (enabled) => call((handle) => handle.setExportEnabled(enabled)),
     setThemeIcon: (theme) => call((handle) => handle.setThemeIcon(theme)),
+    setStyle: (style) => call((handle) => handle.setStyle(style)),
     setWrapActive: (wrap) => call((handle) => handle.setWrapActive(wrap)),
     setFoldCommentsActive: (folded) => call((handle) => handle.setFoldCommentsActive(folded)),
     setStatus: (message, type) => call((handle) => handle.setStatus(message, type)),

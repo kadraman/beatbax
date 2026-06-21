@@ -7,18 +7,17 @@ import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
-import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
 import type { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
 import { LoadingOverlay } from '@web-ui/ui/loading-overlay';
 import { MenuBar } from '@web-ui/ui/menu-bar';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import { blurChromeFocus, suppressChromeTabFocus } from './desktop-focus';
+import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
-type SettingsModal = ReturnType<typeof buildSettingsModal>;
 type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
 type AboutModal = ReturnType<typeof buildAboutModal>;
 
@@ -37,7 +36,7 @@ export interface SetupDesktopMenuBarOptions {
   toolbar: DesktopToolbarHandle;
   bottomTabs: BottomTabs;
   rightTabs: RightTabs;
-  settingsModal: SettingsModal;
+  settingsModal: DesktopSettingsModalHandle;
   shortcutsModal: ShortcutsModal;
   aboutModal: AboutModal;
   themeManager: ThemeManager;
@@ -134,7 +133,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onToggleTheme: () => themeManager.toggle(),
     onToggleWrapText: () => viewPrefsHandlers.onToggleWrapText(),
     onToggleFoldAll: () => viewPrefsHandlers.onToggleFoldAll(),
-    onToggleAI: () => copilot?.toggle(),
+    onToggleAI: () => copilot?.toggle() ?? false,
   });
 
   menuBar.setWrapTextChecked(settingWordWrap.get());
@@ -151,7 +150,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
       && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
     'song-visualizer': isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
       && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
-    'ai-assistant': isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+    'ai-assistant': copilot?.isVisible() ?? false,
     output: bottomTabs.tabOpen.output ?? false,
     problems: bottomTabs.tabOpen.problems ?? true,
     help: false,

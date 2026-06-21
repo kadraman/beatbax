@@ -30,10 +30,62 @@ function saveChatSettings(patch: Partial<ChatSettings>): void {
   storage.setJSON(StorageKey.CHAT_SETTINGS, { ...current, ...patch });
 }
 
+function desktopSecureAIKeyStore():
+  | {
+      getAIAPIKey: () => Promise<string>;
+      setAIAPIKey: (apiKey: string) => Promise<void>;
+      clearAIAPIKey: () => Promise<void>;
+      validateAIAPIKey?: (endpoint: string, apiKey: string) => Promise<{ ok: boolean; message: string }>;
+    }
+  | null {
+  const api = (window as any).electronAPI;
+  return api
+    && typeof api.getAIAPIKey === 'function'
+    && typeof api.setAIAPIKey === 'function'
+    && typeof api.clearAIAPIKey === 'function'
+    ? api
+    : null;
+}
+
+function endpointModelsURL(endpoint: string): string {
+  return `${endpoint.replace(/\/+$/, '')}/models`;
+}
+
+async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
+  if (!endpoint.trim()) return { ok: false, message: 'Enter an API endpoint before validating the key.' };
+  if (!apiKey.trim()) return { ok: false, message: 'No API key set.' };
+
+  const desktopValidator = desktopSecureAIKeyStore()?.validateAIAPIKey;
+  if (typeof desktopValidator === 'function') {
+    return desktopValidator(endpoint, apiKey);
+  }
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(endpointModelsURL(endpoint), {
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      signal: controller.signal,
+    });
+    if (response.ok) return { ok: true, message: 'API key validated.' };
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, message: 'API key was rejected by the provider.' };
+    }
+    return { ok: false, message: `Could not validate key: provider returned HTTP ${response.status}.` };
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      return { ok: false, message: 'Could not validate key: provider did not respond.' };
+    }
+    return { ok: false, message: `Could not validate key: ${(error as Error).message || 'request failed'}.` };
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 /** Preset definitions — must stay in sync with ChatPanel PRESETS. */
 const PRESETS: Record<string, { endpoint: string; model: string }> = {
   openai:   { endpoint: 'https://api.openai.com/v1',         model: 'gpt-4o-mini' },
-  groq:     { endpoint: 'https://api.groq.com/openai/v1',    model: 'llama-3.3-70b-versatile' },
+  groq:     { endpoint: 'https://api.groq.com/openai/v1',    model: 'openai/gpt-oss-120b' },
   ollama:   { endpoint: 'http://localhost:11434/v1',          model: 'llama3.2' },
   lmstudio: { endpoint: 'http://localhost:1234/v1',           model: 'local-model' },
   custom:   { endpoint: '', model: '' },
@@ -51,10 +103,12 @@ export function buildAISection(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'bb-settings-section';
 
-  // Security warning
+  // Security note
   const warning = document.createElement('div');
   warning.className = 'bb-settings-warning';
-  warning.innerHTML = '⚠ The API key is stored in <code>localStorage</code> in plain text. Do not enter a high-spend production key.';
+  warning.innerHTML = desktopSecureAIKeyStore()
+    ? 'API keys are stored with the desktop secure credential store for this OS user.'
+    : 'API keys are kept in memory for this browser session and are not saved.';
   el.appendChild(warning);
 
   el.appendChild(sectionHeading('Provider'));
@@ -76,7 +130,7 @@ export function buildAISection(): HTMLElement {
     const opt = document.createElement('option');
     opt.value = key;
     opt.textContent = key === 'openai' ? 'OpenAI'
-      : key === 'groq'     ? 'Groq (free, fast)'
+      : key === 'groq'     ? 'Groq'
       : key === 'ollama'   ? 'Ollama (local)'
       : key === 'lmstudio' ? 'LM Studio (local)'
       : 'Custom';
@@ -108,7 +162,7 @@ export function buildAISection(): HTMLElement {
   el.appendChild(endpointRow);
 
   // ── API key ───────────────────────────────────────────────────────────────
-  el.appendChild(apiKeyRow());
+  el.appendChild(apiKeyRow(() => endpointInput.value.trim()));
 
   // ── Model ─────────────────────────────────────────────────────────────────
   const modelRow = document.createElement('div');
@@ -155,13 +209,13 @@ export function buildAISection(): HTMLElement {
     (v) => chatMode.set(v as 'edit' | 'ask'),
   ));
 
-  // Max context chars
+  // Max editor chars sent to AI
   const maxCtx = chatSettings.get().maxContextChars;
   const ctxRow = document.createElement('div');
   ctxRow.className = 'bb-settings-row';
   const ctxLabel = document.createElement('label');
   ctxLabel.className = 'bb-settings-label';
-  ctxLabel.textContent = 'Max context chars';
+  ctxLabel.textContent = 'Max editor characters sent to AI';
   const ctxInput = document.createElement('input');
   ctxInput.type = 'number';
   ctxInput.className = 'bb-settings-number';
@@ -176,6 +230,7 @@ export function buildAISection(): HTMLElement {
   });
   ctxRow.append(ctxLabel, ctxInput);
   el.appendChild(ctxRow);
+  el.appendChild(noteText('Larger values give the AI more of your song but may increase latency and token cost.'));
 
   return el;
 }
@@ -201,9 +256,12 @@ function textRow(label: string, initial: string, inputType: string, onChange: (v
   return row;
 }
 
-function apiKeyRow(): HTMLElement {
+function apiKeyRow(getEndpoint: () => string): HTMLElement {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'bb-settings-row bb-settings-row--column bb-ai-key-wrap';
+
   const row = document.createElement('div');
-  row.className = 'bb-settings-row';
+  row.className = 'bb-settings-row bb-ai-key-row';
 
   const lbl = document.createElement('label');
   lbl.className = 'bb-settings-label';
@@ -217,29 +275,140 @@ function apiKeyRow(): HTMLElement {
   input.placeholder = '(stored — redacted)';
   input.autocomplete = 'off';
 
-  // Load existing key from CHAT_SETTINGS if present
-  const cfg = loadChatSettings() as any;
-  if (cfg.apiKey) input.value = cfg.apiKey;
+  const status = document.createElement('span');
+  status.className = 'bb-settings-note bb-ai-key-status';
+  status.setAttribute('aria-live', 'polite');
 
-  input.addEventListener('change', () => {
+  const setStatus = (message: string): void => {
+    status.textContent = message;
+  };
+
+  let requestSerial = 0;
+
+  const secureStore = desktopSecureAIKeyStore();
+  if (secureStore) {
+    void secureStore.getAIAPIKey()
+      .then((apiKey) => {
+        input.value = apiKey;
+        updateChatSettings({ apiKey });
+      })
+      .catch(() => {
+        input.placeholder = '(secure key unavailable)';
+      });
+  } else if (chatSettings.get().apiKey) {
+    input.value = chatSettings.get().apiKey;
+  }
+
+  const persistKey = async (): Promise<boolean> => {
+    const serial = ++requestSerial;
     const trimmed = input.value.trim();
     input.value = trimmed;
-    saveChatSettings({ apiKey: trimmed } as any);
     updateChatSettings({ apiKey: trimmed });
+    if (!trimmed) {
+      setStatus('No API key set.');
+      return false;
+    }
+    if (secureStore) {
+      setStatus('Saving key...');
+      try {
+        await secureStore.setAIAPIKey(trimmed);
+      } catch (error: unknown) {
+        console.error('Failed to store AI API key securely', error);
+        if (serial === requestSerial) setStatus('Failed to save key securely.');
+        return false;
+      }
+    }
+    if (serial !== requestSerial) return false;
+    setStatus('API key saved.');
+    return true;
+  };
+
+  input.addEventListener('change', () => {
+    void persistKey();
+  });
+
+  const validateBtn = document.createElement('button');
+  validateBtn.type = 'button';
+  validateBtn.className = 'bb-settings-btn-secondary';
+  validateBtn.textContent = 'Validate';
+  validateBtn.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+  });
+  validateBtn.addEventListener('click', () => {
+    const serial = ++requestSerial;
+    const trimmed = input.value.trim();
+    input.value = trimmed;
+    updateChatSettings({ apiKey: trimmed });
+    if (!trimmed) {
+      setStatus('No API key set.');
+      return;
+    }
+    validateBtn.disabled = true;
+    clearBtn.disabled = true;
+    setStatus(secureStore ? 'Saving key...' : 'Validating key...');
+    const savePromise = secureStore ? secureStore.setAIAPIKey(trimmed) : Promise.resolve();
+    void savePromise
+      .then(() => {
+        if (serial !== requestSerial) return null;
+        setStatus('Validating key...');
+        return validateAIAPIKey(getEndpoint(), trimmed);
+      })
+      .then((result) => {
+        if (result && serial === requestSerial) setStatus(result.message);
+      })
+      .catch((error: unknown) => {
+        if (serial === requestSerial) {
+          setStatus(`Could not validate key: ${(error as Error).message || 'request failed'}.`);
+        }
+      })
+      .finally(() => {
+        validateBtn.disabled = false;
+        clearBtn.disabled = false;
+      });
   });
 
   const clearBtn = document.createElement('button');
   clearBtn.type = 'button';
   clearBtn.className = 'bb-settings-btn-secondary';
   clearBtn.textContent = 'Clear key';
-  clearBtn.addEventListener('click', () => {
-    input.value = '';
-    saveChatSettings({ apiKey: '' } as any);
-    updateChatSettings({ apiKey: '' });
+
+  clearBtn.addEventListener('mousedown', (event) => {
+    // Avoid blurring the password field first, which would fire a stale save.
+    event.preventDefault();
   });
 
-  row.append(lbl, input, clearBtn);
-  return row;
+  clearBtn.addEventListener('click', () => {
+    const serial = ++requestSerial;
+    input.value = '';
+    updateChatSettings({ apiKey: '' });
+    if (secureStore) {
+      clearBtn.disabled = true;
+      validateBtn.disabled = true;
+      setStatus('Clearing key...');
+      void secureStore.clearAIAPIKey()
+        .then(() => {
+          if (serial === requestSerial) setStatus('API key cleared.');
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to clear secure AI API key', error);
+          if (serial === requestSerial) setStatus('Failed to clear key.');
+        })
+        .finally(() => {
+          clearBtn.disabled = false;
+          validateBtn.disabled = false;
+        });
+    } else {
+      setStatus('API key cleared.');
+    }
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'bb-ai-key-actions';
+  actions.append(validateBtn, clearBtn);
+
+  row.append(lbl, input, actions);
+  wrapper.append(row, status);
+  return wrapper;
 }
 
 export function resetAIDefaults(): void {

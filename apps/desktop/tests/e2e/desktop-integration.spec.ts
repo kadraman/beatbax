@@ -110,7 +110,7 @@ test('toolbar open preserves file path for silent save', async () => {
   await page.keyboard.press('End');
   await page.keyboard.press('Enter');
   await page.keyboard.type(marker);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.locator('#tb-save').click();
 
   await expect.poll(() => electronApp.evaluate(() => {
     return (globalThis as unknown as {
@@ -203,6 +203,115 @@ test('help tab and shortcuts modal render desktop React help', async () => {
   await expect(page.locator('.bb-shortcuts-modal-body')).toContainText('Apply & re-play');
 
   expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  await electronApp.close();
+});
+
+test('settings modal and copilot panel render desktop React UI', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page, consoleErrors } = await launchDesktopApp();
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.aiAssistant', 'false');
+    localStorage.setItem('beatbax:ui.toolbarStyle', 'icons+labels');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+,' : 'Control+,');
+  await expect(page.locator('.bb-settings-backdrop.bb-settings-backdrop--open')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('tab', { name: /General/i })).toBeVisible();
+  await page.locator('.bb-settings-fieldset').filter({ hasText: 'Toolbar style' }).locator('input[value="icons"]').check();
+  await expect(page.locator('.bb-toolbar')).toHaveAttribute('data-style', 'icons');
+
+  await page.getByRole('tab', { name: /Features/i }).click();
+  const aiFeatureRow = page.locator('.bb-settings-feature-row').filter({ hasText: 'AI Copilot' });
+  await expect(aiFeatureRow).toBeVisible();
+  await aiFeatureRow.locator('input[type="checkbox"]').check();
+  await page.locator('.bb-settings-modal-footer').getByRole('button', { name: 'Close', exact: true }).click();
+
+  await expect(page.locator('.bb-chat-panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('BeatBax Copilot')).toBeVisible();
+  await page.locator('button.bb-right-tab[title="Copilot"] .bb-right-tab__close').evaluate((element: Element) => {
+    (element as HTMLElement).click();
+  });
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:feature.aiAssistant'))).toBe('true');
+  await page.keyboard.press('Alt+Shift+I');
+  await expect(page.locator('.bb-chat-panel')).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press('Alt+Shift+I');
+  await expect(page.locator('[data-item-id="ai-assistant"]')).toHaveAttribute('aria-checked', 'false');
+  await page.locator('[data-menu-id="view"] .bb-menu__trigger').click();
+  await page.locator('[data-item-id="ai-assistant"]').click();
+  await expect(page.locator('.bb-chat-panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-item-id="ai-assistant"]')).toHaveAttribute('aria-checked', 'true');
+
+  await page.getByTitle('Open AI settings').click();
+  await expect(page.locator('.bb-settings-backdrop.bb-settings-backdrop--open')).toBeVisible();
+  await expect(page.locator('#bb-ai-endpoint')).toBeVisible();
+  await expect(page.locator('.bb-settings-warning')).not.toContainText('localStorage');
+
+  const fakeApiKey = `sk-test-secure-${Date.now()}`;
+  await page.evaluate(() => {
+    const api = (window as unknown as {
+      electronAPI: { validateAIAPIKey?: (endpoint: string, apiKey: string) => Promise<{ ok: boolean; message: string }> };
+    }).electronAPI;
+    api.validateAIAPIKey = async () => ({ ok: true, message: 'API key validated.' });
+  });
+  await page.locator('#bb-ai-apikey').fill(fakeApiKey);
+  await page.getByRole('button', { name: 'Validate' }).click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
+  })).toBe(fakeApiKey);
+  await expect(page.locator('.bb-settings-row').filter({ hasText: 'API key' })).toContainText('API key validated.');
+  await expect(page.locator('.bb-chat-status')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:ai.settings') ?? '')).not.toContain(fakeApiKey);
+  await page.getByRole('button', { name: 'Clear key' }).click();
+  await expect(page.locator('#bb-ai-apikey')).toHaveValue('');
+  await expect(page.locator('.bb-settings-row').filter({ hasText: 'API key' })).toContainText('API key cleared.');
+  await expect.poll(() => page.evaluate(() => {
+    return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
+  })).toBe('');
+
+  expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.aiAssistant', 'false');
+    localStorage.setItem('beatbax:ui.toolbarStyle', 'icons+labels');
+  });
+  await electronApp.close();
+});
+
+test('copilot renders when restored enabled on startup', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page, consoleErrors } = await launchDesktopApp();
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.aiAssistant', 'true');
+    localStorage.setItem('beatbax:ui.activeRightTab', 'ai');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+
+  await expect(page.locator('button.bb-right-tab[title="Copilot"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.bb-chat-panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('BeatBax Copilot')).toBeVisible();
+  await expect(page.locator('[data-item-id="ai-assistant"]')).toHaveAttribute('aria-checked', 'true');
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.aiAssistant', 'true');
+    localStorage.setItem('beatbax:ui.activeRightTab', 'help');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('button.bb-right-tab[title="Help"]')).toHaveClass(/bb-right-tab--active/);
+  await expect(page.locator('button.bb-right-tab[title="Copilot"]')).not.toHaveClass(/bb-right-tab--active/);
+  await expect(page.locator('button.bb-right-tab[title="Copilot"]')).toBeVisible();
+  await expect(page.locator('.bb-help__search')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.bb-chat-panel')).toBeHidden();
+
+  expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.aiAssistant', 'false');
+    localStorage.setItem('beatbax:ui.activeRightTab', 'channels');
+  });
   await electronApp.close();
 });
 

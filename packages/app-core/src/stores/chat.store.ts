@@ -6,9 +6,10 @@
  * (e.g., status-bar badge showing unread message count).
  *
  * localStorage keys (all under the beatbax: prefix via BeatBaxStorage):
- *   beatbax:ai.settings   — endpoint, apiKey, model
+ *   beatbax:ai.settings   — endpoint, model, maxContextChars (apiKey is runtime-only)
  *   beatbax:ai.mode       — 'edit' | 'ask'
  *   beatbax:ai.chatHistory — persisted message array (capped at MAX_HISTORY)
+ *   beatbax:ai.promptHistory — persisted submitted prompts (capped at MAX_PROMPT_HISTORY)
  */
 
 import { atom, map } from 'nanostores';
@@ -35,6 +36,7 @@ export interface ChatMessage {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_HISTORY = 50;
+const MAX_PROMPT_HISTORY = 50;
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────
 
@@ -51,11 +53,14 @@ function loadSettings(): AISettings {
 
   const saved = storage.getJSON<Partial<AISettings>>(StorageKey.CHAT_SETTINGS);
   if (!saved) return defaults;
-  // Sanitize: strip any corrupt non-ASCII value that may have been stored previously
-  const apiKey = (typeof saved.apiKey === 'string' && /^[\x20-\x7E]*$/.test(saved.apiKey))
-    ? saved.apiKey
-    : '';
-  return { ...defaults, ...saved, apiKey };
+  return {
+    endpoint: typeof saved.endpoint === 'string' && saved.endpoint.trim() ? saved.endpoint : defaults.endpoint,
+    apiKey: '',
+    model: typeof saved.model === 'string' && saved.model.trim() ? saved.model : defaults.model,
+    maxContextChars: typeof saved.maxContextChars === 'number' && Number.isFinite(saved.maxContextChars)
+      ? saved.maxContextChars
+      : defaults.maxContextChars,
+  };
 }
 
 function loadMode(): ChatMode {
@@ -65,7 +70,24 @@ function loadMode(): ChatMode {
 
 function loadHistory(): ChatMessage[] {
   const parsed = storage.getJSON<ChatMessage[]>(StorageKey.CHAT_HISTORY);
-  return Array.isArray(parsed) ? parsed.slice(-MAX_HISTORY) : [];
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((message): message is ChatMessage => {
+      return message
+        && (message.role === 'user' || message.role === 'assistant')
+        && typeof message.content === 'string'
+        && typeof message.timestamp === 'string';
+    })
+    .slice(-MAX_HISTORY);
+}
+
+function loadPromptHistory(): string[] {
+  const parsed = storage.getJSON<string[]>(StorageKey.CHAT_PROMPT_HISTORY);
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((prompt): prompt is string => typeof prompt === 'string' && prompt.trim().length > 0)
+    .map((prompt) => prompt.trim())
+    .slice(-MAX_PROMPT_HISTORY);
 }
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
@@ -79,6 +101,9 @@ export const chatMode = atom<ChatMode>(loadMode());
 /** Chat message history (persisted). */
 export const chatHistory = atom<ChatMessage[]>(loadHistory());
 
+/** Submitted prompt history for input recall (persisted). */
+export const chatPromptHistory = atom<string[]>(loadPromptHistory());
+
 /** True while an AI response is being streamed. */
 export const chatLoading = atom<boolean>(false);
 
@@ -88,7 +113,12 @@ export const chatUnreadCount = atom<number>(0);
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 chatSettings.subscribe((settings) => {
-  storage.setJSON(StorageKey.CHAT_SETTINGS, settings);
+  const persistedSettings = {
+    endpoint: settings.endpoint,
+    model: settings.model,
+    maxContextChars: settings.maxContextChars,
+  };
+  storage.setJSON(StorageKey.CHAT_SETTINGS, persistedSettings);
 });
 
 chatMode.subscribe((mode) => {
@@ -97,6 +127,10 @@ chatMode.subscribe((mode) => {
 
 chatHistory.subscribe((history) => {
   storage.setJSON(StorageKey.CHAT_HISTORY, history.slice(-MAX_HISTORY));
+});
+
+chatPromptHistory.subscribe((history) => {
+  storage.setJSON(StorageKey.CHAT_PROMPT_HISTORY, history.slice(-MAX_PROMPT_HISTORY));
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -115,6 +149,14 @@ export function pushChatMessage(role: 'user' | 'assistant', content: string): vo
 export function clearChatHistory(): void {
   chatHistory.set([]);
   chatUnreadCount.set(0);
+}
+
+/** Record a submitted user prompt for input recall. */
+export function recordChatPrompt(prompt: string): void {
+  const trimmed = prompt.trim();
+  if (!trimmed) return;
+  const deduped = chatPromptHistory.get().filter((entry) => entry !== trimmed);
+  chatPromptHistory.set([...deduped, trimmed].slice(-MAX_PROMPT_HISTORY));
 }
 
 /** Mark all messages as read. */

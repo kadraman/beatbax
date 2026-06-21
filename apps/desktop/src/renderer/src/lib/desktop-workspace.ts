@@ -16,7 +16,6 @@ import {
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
 } from '@web-ui/panels/new-song-wizard';
-import { buildSettingsModal, noopSettingsModal } from '@web-ui/panels/settings-panel';
 import { SongVisualizer } from '@web-ui/panels/song-visualizer';
 import { createThreePaneLayout } from '@web-ui/ui/layout';
 import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
@@ -38,6 +37,7 @@ import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/s
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
+import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
@@ -70,7 +70,7 @@ export interface DesktopWorkspaceHandle {
   problemsPanel: DesktopOutputPanelHandle;
   outputPanel: DesktopOutputPanelHandle;
   helpPanel: DesktopHelpPanelHandle | null;
-  settingsModal: ReturnType<typeof buildSettingsModal>;
+  settingsModal: DesktopSettingsModalHandle;
   shortcutsModal: ReturnType<typeof buildShortcutsModal>;
   aboutModal: ReturnType<typeof buildAboutModal>;
   keyboardShortcuts: KeyboardShortcuts;
@@ -280,13 +280,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const ks = new KeyboardShortcuts();
   const settingsModal = capabilities.settingsPanel
-    ? buildSettingsModal({
+    ? createDesktopSettingsModal({
         onClose: () => {
           getEditor()?.editor.focus();
           getEditor()?.editor.layout();
         },
       })
-    : noopSettingsModal;
+    : noopDesktopSettingsModal;
   const shortcutsModal = buildShortcutsModal();
   const aboutModal = buildAboutModal(
     {
@@ -336,6 +336,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getEditor,
       getDiagnostics: () => editorSetup?.getLastDiagnostics() ?? [],
       onSettingsRefresh: () => settingsModal.refresh(),
+      onOpenSettings: () => settingsModal.open('ai'),
     });
   }
 
@@ -741,12 +742,21 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   blurChromeFocus();
 
   rightTabs.restorePersistedTab();
+  const restoredRightTab = rightTabs.activeTab;
+  if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
+    window.setTimeout(() => {
+      copilot?.show({ activate: restoredRightTab === 'ai' });
+      menuBar?.seedPanelVisible({ 'ai-assistant': copilot?.isVisible() ?? false });
+      statusBar?.refreshPanelsMenu();
+    }, 0);
+  }
   if (!isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) {
     rightTabs.close('channels');
   }
   menuBar?.seedPanelVisible({
     help: rightTabs.tabOpen.help,
     'song-visualizer': rightTabs.tabOpen.channels,
+    'ai-assistant': copilot?.isVisible() ?? false,
   });
 
   let monacoShortcutsDispose: (() => void) | null = null;
@@ -792,6 +802,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     editorSetup?.dispose();
     monacoShortcutsDispose?.();
     copilot?.dispose();
+    settingsModal.dispose();
     disposeMenuBar?.();
     problemsPanel.dispose();
     outputPanel.dispose();

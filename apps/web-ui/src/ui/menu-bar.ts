@@ -95,7 +95,7 @@ export interface MenuBarOptions {
   /** Fold or unfold all block comments. */
   onToggleFoldAll?: () => void;
   /** Toggle the AI Copilot chat panel. */
-  onToggleAI?: () => void;
+  onToggleAI?: () => boolean | void;
   /** Open the Settings panel (Ctrl+,). */
   onShowSettings?: () => void;
   /** Open the About modal (desktop). */
@@ -697,10 +697,12 @@ export class MenuBar {
         shortcut: 'Alt+Shift+I',
         disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
         action: () => {
-          this.opts.onToggleAI?.();
-          const enabled = isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
-          this.panelVisible.set('ai-assistant', enabled);
-          this.setItemChecked('ai-assistant', enabled);
+          const visible = this.opts.onToggleAI?.();
+          const checked = typeof visible === 'boolean'
+            ? visible
+            : isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
+          this.panelVisible.set('ai-assistant', checked);
+          this.setItemChecked('ai-assistant', checked);
         },
       },
       { type: 'separator' },

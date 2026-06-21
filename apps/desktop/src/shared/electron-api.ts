@@ -37,6 +37,25 @@ export interface DesktopWindowState {
   maximized: boolean;
 }
 
+export interface AIAPIKeyValidationResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface AIChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface AIChatCompletionRequest {
+  endpoint: string;
+  apiKey: string;
+  model: string;
+  messages: AIChatCompletionMessage[];
+  temperature?: number;
+  maxTokens?: number;
+}
+
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
   saveFile(options: DesktopSaveFileOptions, data: Uint8Array): Promise<string | null>;
@@ -46,6 +65,11 @@ export interface ElectronAPI {
   getRecentFiles(): Promise<string[]>;
   addRecentFile(targetPath: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
+  getAIAPIKey(): Promise<string>;
+  setAIAPIKey(apiKey: string): Promise<void>;
+  clearAIAPIKey(): Promise<void>;
+  validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPIKeyValidationResult>;
+  createAIChatCompletion(request: AIChatCompletionRequest): Promise<string>;
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;
