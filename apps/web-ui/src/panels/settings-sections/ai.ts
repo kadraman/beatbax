@@ -48,7 +48,14 @@ function desktopSecureAIKeyStore():
 }
 
 function endpointModelsURL(endpoint: string): string {
-  return `${endpoint.replace(/\/+$/, '')}/models`;
+  const url = new URL(endpoint.trim());
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Endpoint must use http or https.');
+  }
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/models`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
 }
 
 async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
@@ -63,7 +70,14 @@ async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok:
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8_000);
   try {
-    const response = await fetch(endpointModelsURL(endpoint), {
+    let url: string;
+    try {
+      url = endpointModelsURL(endpoint);
+    } catch (error) {
+      return { ok: false, message: `Invalid endpoint: ${(error as Error).message}` };
+    }
+
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${apiKey.trim()}` },
       signal: controller.signal,
     });
@@ -319,7 +333,7 @@ function apiKeyRow(getEndpoint: () => string): HTMLElement {
       }
     }
     if (serial !== requestSerial) return false;
-    setStatus('API key saved.');
+    setStatus(secureStore ? 'API key saved.' : 'API key set for this session.');
     return true;
   };
 

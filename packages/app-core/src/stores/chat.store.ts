@@ -37,6 +37,13 @@ export interface ChatMessage {
 
 const MAX_HISTORY = 50;
 const MAX_PROMPT_HISTORY = 50;
+const MIN_CONTEXT_CHARS = 100;
+const MAX_CONTEXT_CHARS = 32000;
+
+function clampContextChars(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(MAX_CONTEXT_CHARS, Math.max(MIN_CONTEXT_CHARS, Math.round(value)));
+}
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────
 
@@ -53,14 +60,18 @@ function loadSettings(): AISettings {
 
   const saved = storage.getJSON<Partial<AISettings>>(StorageKey.CHAT_SETTINGS);
   if (!saved) return defaults;
-  return {
+  const sanitized: AISettings = {
     endpoint: typeof saved.endpoint === 'string' && saved.endpoint.trim() ? saved.endpoint : defaults.endpoint,
     apiKey: '',
     model: typeof saved.model === 'string' && saved.model.trim() ? saved.model : defaults.model,
-    maxContextChars: typeof saved.maxContextChars === 'number' && Number.isFinite(saved.maxContextChars)
-      ? saved.maxContextChars
-      : defaults.maxContextChars,
+    maxContextChars: clampContextChars(saved.maxContextChars, defaults.maxContextChars),
   };
+  storage.setJSON(StorageKey.CHAT_SETTINGS, {
+    endpoint: sanitized.endpoint,
+    model: sanitized.model,
+    maxContextChars: sanitized.maxContextChars,
+  });
+  return sanitized;
 }
 
 function loadMode(): ChatMode {
