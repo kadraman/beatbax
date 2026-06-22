@@ -19,7 +19,6 @@ import {
 import { SongVisualizer } from '@web-ui/panels/song-visualizer';
 import { createThreePaneLayout } from '@web-ui/ui/layout';
 import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
-import { PatternGrid } from '@web-ui/ui/pattern-grid';
 import { StatusBar } from '@web-ui/ui/status-bar';
 import { ThemeManager } from '@web-ui/ui/theme-manager';
 import { installGlobalErrorHandlers } from '@web-ui/utils/error-boundary';
@@ -38,6 +37,7 @@ import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from '.
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
+import { createDesktopPatternGrid, type DesktopPatternGridHandle } from '../components/panels/DesktopPatternGrid';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
@@ -154,14 +154,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
   suppressChromeTabFocus(transportBar.el);
 
-  let patternGrid: PatternGrid | null = null;
+  let patternGrid: DesktopPatternGridHandle | null = null;
   if (capabilities.patternGrid) {
-    patternGrid = new PatternGrid();
-    patternGridContainer.appendChild(patternGrid.el);
     if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
       patternGridContainer.style.display = 'none';
     }
-    patternGrid.onNavigate = (patName: string) => {
+    patternGrid = createDesktopPatternGrid(patternGridContainer, { onNavigate: (patName: string) => {
       const monacoEditor = getEditor()?.editor;
       const source = getEditor()?.getValue() ?? '';
       const lines = source.split('\n');
@@ -173,7 +171,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           break;
         }
       }
-    };
+    } });
   }
 
   const bottomTabs = buildBottomTabs(outputPane, layout, {
@@ -686,6 +684,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (panel === 'transport-bar') transportBar[visible ? 'show' : 'hide']?.();
       if (panel === 'pattern-grid') {
         patternGridContainer.style.display = visible ? '' : 'none';
+        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(visible));
       }
       statusBar?.refreshPanelsMenu();
     }),
@@ -695,6 +694,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       }
       if (flag === FeatureFlag.PATTERN_GRID) {
         patternGridContainer.style.display = enabled ? '' : 'none';
+        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(enabled));
       }
       if (flag === FeatureFlag.SONG_VISUALIZER) {
         enabled ? rightTabs.show('channels') : rightTabs.close('channels');
@@ -803,6 +803,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     monacoShortcutsDispose?.();
     copilot?.dispose();
     settingsModal.dispose();
+    patternGrid?.dispose();
     disposeMenuBar?.();
     problemsPanel.dispose();
     outputPanel.dispose();

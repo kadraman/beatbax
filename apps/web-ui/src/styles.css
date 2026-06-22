@@ -2793,7 +2793,7 @@
   height: 100%;
   position: relative;
   display: flex;
-  gap: 1px;
+  gap: 0;
   border-radius: 2px;
   overflow: hidden;
   background: rgba(255,255,255,0.03);
@@ -2805,7 +2805,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  /* flex-grow is set inline; flex-shrink/basis left at defaults */
+  /* flex-basis is set inline from musical duration for cross-row alignment. */
   min-width: 0;
   border-radius: 2px;
   border: 1px solid rgba(255,255,255,0.18);
@@ -2869,6 +2869,7 @@
 
 /* Secondary per-channel cursors remain visible but de-emphasized. */
 .bb-pgrid__cursor--channel {
+  display: none !important;
   opacity: 0.30;
   width: 1px;
   box-shadow: none;

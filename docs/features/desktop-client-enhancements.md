@@ -17,13 +17,13 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-06-22
 **Overall status:** In progress.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | 🟨 | Phase 5b-1 through 5b-4 React migrations implemented; Pattern Grid, Visualizer, Mixer, and bridge cleanup remain |
+| Native React UI | 🟨 | Phase 5b-1 through 5b-5 React migrations implemented; Visualizer, Mixer, and bridge cleanup remain |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -170,7 +170,7 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 4. Implement **5b-3 Toolbar/Transport** only after the panel handle pattern is stable:
    - Replace DOM button refs with an explicit desktop command/transport handle.
    - Update menu actions, keyboard shortcuts, `TransportControls`, and full-IDE playback wiring to use that handle.
-5. Defer Pattern Grid, Visualizer, and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
+5. Defer Visualizer and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
 6. Add targeted desktop tests with each slice, preferring Playwright for user-visible behavior and small unit tests for handle logic.
 7. Remove `@web-ui` alias imports for migrated modules from `desktop-workspace.ts` and related desktop glue as each slice lands.
 
@@ -254,7 +254,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [x] 5b-2: Migrate Help panel and shortcuts Help usage
 - [x] 5b-3: Migrate Toolbar + TransportBar
 - [x] 5b-4: Migrate Settings modal + CoPilot panel
-- [ ] Migrate Pattern Grid
+- [x] 5b-5: Migrate Pattern Grid
 - [ ] Migrate Song Visualizer (canvas)
 - [ ] Migrate Channel Mixer (canvas)
 - [ ] Optional: `packages/ui-tokens/` shared design tokens

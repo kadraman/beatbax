@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, '..', '..');
 const sampleSongPath = path.resolve(appRoot, '..', '..', 'songs', 'sample.bax');
+const trainersJourneyPath = path.resolve(appRoot, '..', '..', 'songs', 'gameboy', 'a_trainers_journey.bax');
 
 async function launchDesktopApp(extraArgs: string[] = []) {
   const consoleErrors: string[] = [];
@@ -164,6 +165,86 @@ test('transport loop and live controls are wired', async () => {
   await liveButton.click();
   await expect(liveButton).not.toHaveAttribute('title', liveTitleBefore ?? '');
 
+  await electronApp.close();
+});
+
+test('pattern grid renders desktop React UI and navigates to patterns', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page, consoleErrors } = await launchDesktopApp();
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.patternGrid', 'true');
+    localStorage.setItem('beatbax:panel.pattern-grid', 'true');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+
+  await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.bb-pgrid__row')).toHaveCount(4);
+  await expect(page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first()).toBeVisible();
+  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(8);
+  await expect(page.locator('.bb-pgrid__row').nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(8);
+
+  const muteButton = page.getByRole('button', { name: 'Mute channel 1' });
+  await muteButton.click();
+  await expect(muteButton).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first().click();
+  await expect.poll(() => page.evaluate(() => {
+    const editor = (window as unknown as {
+      __beatbax_editor?: {
+        getValue?: () => string;
+        editor?: { getPosition?: () => { lineNumber: number; column: number } | null };
+      };
+    }).__beatbax_editor;
+    const lineNumber = editor?.editor?.getPosition?.()?.lineNumber ?? 0;
+    return editor?.getValue?.().split('\n')[lineNumber - 1]?.trim() ?? '';
+  })).toContain('pat melody_pat');
+
+  expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.patternGrid', 'false');
+    localStorage.setItem('beatbax:panel.pattern-grid', 'false');
+  });
+  await electronApp.close();
+});
+
+test('pattern grid sizes blocks by musical duration', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page, consoleErrors } = await launchDesktopApp([trainersJourneyPath]);
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.patternGrid', 'true');
+    localStorage.setItem('beatbax:panel.pattern-grid', 'true');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toHaveText('a_trainers_journey.bax', { timeout: 15_000 });
+  await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
+
+  const flexValues = await page.locator('.bb-pgrid__row').first().locator('.bb-pgrid__block').evaluateAll((blocks) => {
+    const wanted = new Set(['open_a', 'riff_a']);
+    return blocks
+      .filter((block) => wanted.has(block.getAttribute('data-label') ?? ''))
+      .map((block) => ({
+        label: block.getAttribute('data-label'),
+        flexBasis: getComputedStyle(block).flexBasis,
+      }));
+  });
+
+  const openABasis = flexValues.find((item) => item.label === 'open_a')?.flexBasis;
+  expect(openABasis).toBeTruthy();
+  expect(flexValues.find((item) => item.label === 'riff_a')?.flexBasis).toBe(openABasis);
+
+  const harmFanfareBasis = await page
+    .locator('.bb-pgrid__row')
+    .nth(1)
+    .locator('.bb-pgrid__block[data-label="harm_fanfare"]')
+    .first()
+    .evaluate((block) => getComputedStyle(block).flexBasis);
+  expect(harmFanfareBasis).toBe(openABasis);
+  await expect.poll(() => page.locator('.bb-pgrid__track').first().evaluate((track) => getComputedStyle(track).columnGap)).toBe('0px');
+
+  expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
   await electronApp.close();
 });
 

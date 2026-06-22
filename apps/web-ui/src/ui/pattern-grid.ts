@@ -91,6 +91,71 @@ function buildSegmentsFromEvents(events: any[]): Segment[] {
   return segs;
 }
 
+function tokenConsumesStep(token: string): boolean {
+  const t = token.trim();
+  if (!t) return false;
+  return !/^inst(?:\s|\()/i.test(t);
+}
+
+function tokenStepDuration(token: string): number {
+  if (!tokenConsumesStep(token)) return 0;
+  const match = token.trim().match(/:(\d+)(?:\s*)$/);
+  return match ? Math.max(1, parseInt(match[1], 10) || 1) : 1;
+}
+
+function patternEventStepDuration(event: any): number {
+  const kind = String(event?.kind ?? '');
+  if (kind === 'inline-inst' || kind === 'temp-inst') return 0;
+  const raw = typeof event?.raw === 'string' ? event.raw : typeof event?.value === 'string' ? event.value : '';
+  if (raw && !tokenConsumesStep(raw)) return 0;
+  return Math.max(1, Number(event?.duration) || 1);
+}
+
+function buildPatternDurations(ast: any, pats: Record<string, string[]>): Record<string, number> {
+  const durations: Record<string, number> = {};
+  const patternEvents: Record<string, any[]> | undefined = ast?.patternEvents;
+
+  for (const [name, tokens] of Object.entries(pats)) {
+    const events = patternEvents?.[name];
+    if (Array.isArray(events) && events.length > 0) {
+      durations[name] = Math.max(1, events.reduce((acc, event) => acc + patternEventStepDuration(event), 0));
+      continue;
+    }
+    durations[name] = Math.max(1, tokens.reduce((acc, token) => acc + tokenStepDuration(String(token)), 0));
+  }
+
+  return durations;
+}
+
+function getPatternDuration(
+  patName: string,
+  patternDurations: Record<string, number>,
+  pats: Record<string, string[]>,
+): number {
+  return patternDurations[patName] ?? Math.max(1, pats[patName]?.length ?? 1);
+}
+
+function splitRepeatedPatternRuns(
+  segs: Segment[],
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+): Segment[] {
+  const out: Segment[] = [];
+  for (const seg of segs) {
+    const patLen = getPatternDuration(seg.patName, patternDurations, pats);
+    const shouldSplit = patLen > 0 && seg.count > patLen && seg.count % patLen === 0;
+    if (!shouldSplit) {
+      out.push(seg);
+      continue;
+    }
+    const repeats = seg.count / patLen;
+    for (let i = 0; i < repeats; i++) {
+      out.push({ ...seg, count: patLen });
+    }
+  }
+  return out;
+}
+
 function buildSegmentsFromSequence(seqName: string, seqTokens: string[], pats: Record<string, string[]>): Segment[] {
   const segs: Segment[] = [];
   for (const raw of seqTokens) {
@@ -181,9 +246,12 @@ function buildSegmentsFromAstChannel(astChannel: any, ast: any, pats: Record<str
   return segs;
 }
 
-function getSegmentDisplayUnits(seg: Segment, pats: Record<string, string[]>): number {
-  const patLen = Array.isArray(pats[seg.patName]) ? pats[seg.patName].length : 0;
-  return patLen > 0 ? patLen : seg.count;
+function getSegmentDisplayUnits(
+  seg: Segment,
+  pats: Record<string, string[]>,
+  patternDurations: Record<string, number>,
+): number {
+  return getPatternDuration(seg.patName, patternDurations, pats) || seg.count;
 }
 
 interface RowMeta {
@@ -267,12 +335,13 @@ export class PatternGrid {
     this._globalCursor = globalCursor;
 
     const pats: Record<string, string[]> = song?.pats ?? {};
+    const patternDurations = buildPatternDurations(ast, pats);
     const rowData: RowBuildData[] = channels.map((ch) => {
       const events: any[] = ch.events ?? [];
       const astChannel = (ast?.channels ?? []).find((c: any) => (c?.id ?? 0) === (ch?.id ?? 0));
       const astSegs = astChannel ? buildSegmentsFromAstChannel(astChannel, ast, pats) : [];
-      const segs = astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events);
-      const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + getSegmentDisplayUnits(seg, pats), 0));
+      const segs = splitRepeatedPatternRuns(astSegs.length > 0 ? astSegs : buildSegmentsFromEvents(events), pats, patternDurations);
+      const displayTotal = Math.max(1, segs.reduce((acc, seg) => acc + getSegmentDisplayUnits(seg, pats, patternDurations), 0));
       return {
         ch,
         segs,
@@ -348,9 +417,9 @@ export class PatternGrid {
       for (const seg of segs) {
         const block = document.createElement('div');
         block.className = 'bb-pgrid__block';
-        const displayUnits = getSegmentDisplayUnits(seg, pats);
+        const displayUnits = getSegmentDisplayUnits(seg, pats, patternDurations);
         if (displayUnits <= 1) block.classList.add('bb-pgrid__block--compact');
-        block.style.flex = `${displayUnits} 1 0%`;
+        block.style.flex = `0 0 ${(displayUnits / Math.max(1, this._globalEventTotal)) * 100}%`;
         let tone = patternToneByName.get(seg.patName);
         if (tone === undefined) {
           tone = toneLevels[hashPatternName(seg.patName) % toneLevels.length];
@@ -390,7 +459,7 @@ export class PatternGrid {
       if (tailEvents > 0) {
         const filler = document.createElement('div');
         filler.className = 'bb-pgrid__block bb-pgrid__block--filler';
-        filler.style.flex = `${tailEvents} 1 0%`;
+        filler.style.flex = `0 0 ${(tailEvents / Math.max(1, this._globalEventTotal)) * 100}%`;
         track.appendChild(filler);
       }
 
@@ -460,15 +529,16 @@ export class PatternGrid {
     this._globalCursor?.classList.remove('bb-pgrid__cursor--paused');
   }
 
-  /** Hide all cursors and clear paused state. Call on playback:stopped. */
+  /** Rewind all cursors to the start. Call on playback:stopped. */
   clearPositions(): void {
     for (const { cursor } of this._rows.values()) {
-      cursor.style.display = 'none';
+      cursor.style.display = 'block';
+      cursor.style.left = '0%';
       cursor.classList.remove('bb-pgrid__cursor--paused');
     }
     if (this._globalCursor) {
-      this._globalCursor.style.display = 'none';
       this._globalCursor.classList.remove('bb-pgrid__cursor--paused');
+      this._setGlobalCursorPosition(0);
     }
     this._globalPct = 0;
   }
