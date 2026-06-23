@@ -459,7 +459,7 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
                       <div
                         aria-label={`Navigate to pattern: ${blockLabel}`}
                         className={`bb-pgrid__block${displayUnits <= 1 ? ' bb-pgrid__block--compact' : ''}`}
-                        data-label={chipLabel}
+                        data-label={seg.patName}
                         key={`${row.channelId}-${seg.seqName ?? 'pat'}-${seg.patName}-${index}`}
                         onClick={navigate}
                         onKeyDown={onKeyDown}

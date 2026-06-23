@@ -205,6 +205,7 @@ test('pattern grid renders desktop React UI and navigates to patterns', async ()
   await page.evaluate(() => {
     localStorage.setItem('beatbax:feature.patternGrid', 'false');
     localStorage.setItem('beatbax:panel.pattern-grid', 'false');
+    localStorage.removeItem('beatbax-channel-state');
   });
   await electronApp.close();
 });
@@ -338,7 +339,7 @@ test('settings modal and copilot panel render desktop React UI', async () => {
     api.validateAIAPIKey = async () => ({ ok: true, message: 'API key validated.' });
   });
   await page.locator('#bb-ai-apikey').fill(fakeApiKey);
-  await page.getByRole('button', { name: 'Validate' }).click();
+  await page.locator('.bb-settings-backdrop').getByRole('button', { name: 'Validate', exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
     return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
   })).toBe(fakeApiKey);
@@ -400,7 +401,10 @@ test('view menu reflects open visualizer tab on startup', async () => {
   test.setTimeout(60_000);
   const { electronApp, page } = await launchDesktopApp();
 
-  await page.evaluate(() => localStorage.setItem('beatbax:ui.activeRightTab', 'help'));
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.songVisualizer', 'true');
+    localStorage.setItem('beatbax:ui.activeRightTab', 'help');
+  });
   await page.reload();
   await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
 
