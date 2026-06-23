@@ -6,7 +6,7 @@ import {
   isFeatureEnabled,
   setFeatureEnabled,
 } from '@beatbax/app-core/utils/feature-flags';
-import type { buildRightTabs } from '@web-ui/app/tabs';
+import type { buildRightTabs } from '../desktop-web-ui/app/tabs';
 import { createDesktopCopilotPanel, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
 
 type RightTabs = ReturnType<typeof buildRightTabs>;

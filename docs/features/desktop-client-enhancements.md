@@ -17,13 +17,13 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-22
+**Last updated:** 2026-06-23
 **Overall status:** In progress.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | 🟨 | Phase 5b-1 through 5b-6 Visualizer and Mixer React migrations implemented; bridge cleanup remains |
+| Native React UI | ✅ | Phase 5b native React migrations and desktop bridge cleanup complete |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -257,8 +257,8 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [x] 5b-5: Migrate Pattern Grid
 - [x] 5b-6: Migrate Song Visualizer (canvas)
 - [x] 5b-6: Migrate Channel Mixer
-- [ ] Optional: `packages/ui-tokens/` shared design tokens
-- [ ] Remove `@web-ui` bridge imports for migrated panels
+- [x] Optional: `packages/ui-tokens/` shared design tokens
+- [x] Remove `@web-ui` bridge imports for migrated panels
 
 ### 5c — Power features
 

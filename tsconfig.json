@@ -23,6 +23,7 @@
   },
   "references": [
     { "path": "./packages/engine" },
+    { "path": "./packages/ui-tokens" },
     { "path": "./packages/cli" },
     { "path": "./packages/app-core" },
     { "path": "./apps/web-ui" },

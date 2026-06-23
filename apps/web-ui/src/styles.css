@@ -2,6 +2,7 @@
 .bb-toolbar__group--right {
   margin-left: auto;
 }
+@import "@beatbax/ui-tokens/tokens.css";
 @import "tailwindcss";
 @source "./**/*.{ts,tsx,js}";
 

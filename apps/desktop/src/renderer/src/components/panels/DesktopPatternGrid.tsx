@@ -17,7 +17,7 @@ import {
   toggleChannelSoloed,
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
-import { getChannelColor } from '@web-ui/utils/chip-meta';
+import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
 
 interface Segment {
   patName: string;

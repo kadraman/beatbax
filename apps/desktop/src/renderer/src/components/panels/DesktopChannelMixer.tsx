@@ -27,9 +27,9 @@ import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/setti
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { getChannelMeta } from '@web-ui/utils/chip-meta';
-import { icon } from '@web-ui/utils/icons';
-import { getMeterDisplayGain, scaleRmsForMeter } from '@web-ui/utils/meter-display';
+import { getChannelMeta } from '@beatbax/ui-tokens/channel-meta';
+import { icon } from '../../desktop-web-ui/utils/icons';
+import { getMeterDisplayGain, scaleRmsForMeter } from '../../desktop-web-ui/utils/meter-display';
 
 const VU_SEGMENTS = 12;
 const VU_YELLOW_THRESHOLD = 8;

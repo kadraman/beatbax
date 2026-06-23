@@ -26,9 +26,9 @@ import {
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingFeaturePerChannelAnalyser } from '@beatbax/app-core/stores/settings.store';
 import { getLoggingConfig } from '@beatbax/engine/util/logger';
-import { getChannelMeta } from '@web-ui/utils/chip-meta';
-import { icon } from '@web-ui/utils/icons';
-import { getMeterDisplayGain, scaleSamplesForWaveform } from '@web-ui/utils/meter-display';
+import { getChannelMeta } from '@beatbax/ui-tokens/channel-meta';
+import { icon } from '../../desktop-web-ui/utils/icons';
+import { getMeterDisplayGain, scaleSamplesForWaveform } from '../../desktop-web-ui/utils/meter-display';
 
 type BgEffectId = 'none' | 'starfield' | 'scanlines' | 'matrix-rain' | 'custom-image';
 

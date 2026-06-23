@@ -12,7 +12,7 @@ import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
-import type { ShortcutDescriptor } from '@web-ui/utils/keyboard-shortcuts';
+import type { ShortcutDescriptor } from '../../desktop-web-ui/utils/keyboard-shortcuts';
 
 export interface DesktopHelpPanelHandle {
   show: () => void;

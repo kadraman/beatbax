@@ -2,13 +2,13 @@ import { useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, use
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import { buildGeneralSection, resetGeneralDefaults } from '@web-ui/panels/settings-sections/general';
-import { buildEditorSection, resetEditorDefaults } from '@web-ui/panels/settings-sections/editor';
-import { buildPlaybackSection, resetPlaybackDefaults } from '@web-ui/panels/settings-sections/playback';
-import { buildFeaturesSection, resetFeaturesDefaults } from '@web-ui/panels/settings-sections/features';
-import { buildPluginsSection, resetPluginsDefaults } from '@web-ui/panels/settings-sections/plugins';
-import { buildAISection, resetAIDefaults } from '@web-ui/panels/settings-sections/ai';
-import { buildAdvancedSection, resetAdvancedDefaults } from '@web-ui/panels/settings-sections/advanced';
+import { buildGeneralSection, resetGeneralDefaults } from '../../desktop-web-ui/panels/settings-sections/general';
+import { buildEditorSection, resetEditorDefaults } from '../../desktop-web-ui/panels/settings-sections/editor';
+import { buildPlaybackSection, resetPlaybackDefaults } from '../../desktop-web-ui/panels/settings-sections/playback';
+import { buildFeaturesSection, resetFeaturesDefaults } from '../../desktop-web-ui/panels/settings-sections/features';
+import { buildPluginsSection, resetPluginsDefaults } from '../../desktop-web-ui/panels/settings-sections/plugins';
+import { buildAISection, resetAIDefaults } from '../../desktop-web-ui/panels/settings-sections/ai';
+import { buildAdvancedSection, resetAdvancedDefaults } from '../../desktop-web-ui/panels/settings-sections/advanced';
 
 export type DesktopSettingsSectionId = 'general' | 'editor' | 'playback' | 'features' | 'plugins' | 'ai' | 'advanced';
 

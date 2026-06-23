@@ -8,28 +8,28 @@ import { settingDefaultBpm, settingSongArtist } from '@beatbax/app-core/stores/s
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
-import { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
+import { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
+import { buildShortcutsModal, buildAboutModal } from '../desktop-web-ui/app/modals';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
-} from '@web-ui/panels/new-song-wizard';
-import { createThreePaneLayout } from '@web-ui/ui/layout';
-import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
-import { StatusBar } from '@web-ui/ui/status-bar';
-import { ThemeManager } from '@web-ui/ui/theme-manager';
-import { installGlobalErrorHandlers } from '@web-ui/utils/error-boundary';
-import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
+} from '../desktop-web-ui/panels/new-song-wizard';
+import { createThreePaneLayout } from '../desktop-web-ui/ui/layout';
+import type { PanelMenuId, PanelMenuState } from '../desktop-web-ui/ui/panels-menu';
+import { StatusBar } from '../desktop-web-ui/ui/status-bar';
+import { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+import { installGlobalErrorHandlers } from '../desktop-web-ui/utils/error-boundary';
+import { KeyboardShortcuts } from '../desktop-web-ui/utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
 import { handleDesktopExport } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
-import type { MenuBar } from '@web-ui/ui/menu-bar';
+import type { MenuBar } from '../desktop-web-ui/ui/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
-import { setupFullIdeFeatures, type TransportDisplayState } from '@web-ui/app/full-ide-setup';
-import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '@web-ui/app/editor-view-prefs';
+import { setupFullIdeFeatures, type TransportDisplayState } from '../desktop-web-ui/app/full-ide-setup';
+import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '../desktop-web-ui/app/editor-view-prefs';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
