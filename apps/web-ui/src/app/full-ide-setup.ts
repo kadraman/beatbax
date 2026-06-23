@@ -153,6 +153,17 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     playbackManager.setLoop(loopMode);
   }
 
+  function applyMasterVolume(
+    pct: number,
+    source: 'transport' | 'mixer' | 'settings' = 'transport',
+    emit = true,
+  ): void {
+    masterVolPct = Math.max(0, Math.min(100, Math.round(pct)));
+    transportBar.setVol(masterVolPct);
+    playbackManager.setMasterVolume(masterVolPct / 100);
+    if (emit) eventBus.emit('master-volume:changed', { volumePct: masterVolPct, source });
+  }
+
   win.__beatbax_setLiveMode = (enabled: boolean) => {
     if (hasParseErrors && enabled) return;
     applyLiveMode(enabled);
@@ -191,10 +202,12 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
   transportBar.setVol(masterVolPct);
   playbackManager.setMasterVolume(masterVolPct / 100);
   transportBar.volKnob.onChange((v) => {
-    masterVolPct = v;
-    transportBar.setVol(v);
-    playbackManager.setMasterVolume(v / 100);
+    applyMasterVolume(v, 'transport');
   });
+  cleanups.push(eventBus.on('master-volume:changed', ({ volumePct, source }) => {
+    if (source === 'transport') return;
+    applyMasterVolume(volumePct, source ?? 'settings', false);
+  }));
 
   // ─── BPM nudge + override decoration ────────────────────────────────────────
   function injectBpmOverrideStyles(): void {

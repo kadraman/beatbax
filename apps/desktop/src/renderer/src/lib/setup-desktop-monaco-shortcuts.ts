@@ -2,11 +2,11 @@ import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
 import type { buildShortcutsModal } from '@web-ui/app/modals';
-import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
 import { KeyCode, KeyMod, type IKeyboardEvent, type editor as MonacoEditor, type IDisposable } from 'monaco-editor';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
+import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
@@ -21,7 +21,7 @@ export interface SetupDesktopMonacoShortcutsOptions {
   shortcutsModal: ShortcutsModal;
   settingsModal: DesktopSettingsModalHandle;
   themeManager: ThemeManager;
-  channelMixer: ChannelMixer | null;
+  channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
   eventBus: EventBus;
   runParse: (content: string) => void;

@@ -447,6 +447,58 @@ test('view menu reflects open visualizer tab on startup', async () => {
   await electronApp.close();
 });
 
+test('channel mixer renders desktop React UI and toggles channel state', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page } = await launchDesktopApp();
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:feature.channelMixer', 'true');
+    localStorage.setItem('beatbax:panel.channel-mixer', 'true');
+    localStorage.setItem('beatbax:ui.channelMixerDockMode', 'docked');
+    localStorage.setItem('beatbax:transport.masterVolume', '100');
+  });
+  await page.reload();
+  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+
+  await expect(page.locator('#bb-channel-mixer')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.bb-channel-mixer__strip')).toHaveCount(5);
+  await expect(page.locator('#bb-channel-mixer-master-strip')).toBeVisible();
+  await expect(page.locator('#bb-channel-mixer-master-volume-readout')).toContainText('100%');
+  await expect(page.locator('#bb-channel-mixer-unmute-all')).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('#bb-channel-mixer-clear-solo')).toHaveAttribute('aria-disabled', 'true');
+
+  await page.locator('#bb-channel-mixer-mute-1').click();
+  await expect(page.locator('#bb-channel-mixer-mute-1')).toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-channel-mixer-unmute-all')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#bb-channel-mixer-unmute-all svg').click();
+  await expect(page.locator('#bb-channel-mixer-mute-1')).not.toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-channel-mixer-unmute-all')).toHaveAttribute('aria-disabled', 'true');
+
+  await page.locator('#bb-channel-mixer-solo-2').click();
+  await expect(page.locator('#bb-channel-mixer-solo-2')).toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-channel-mixer-clear-solo')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#bb-channel-mixer-clear-solo svg').click();
+  await expect(page.locator('#bb-channel-mixer-solo-2')).not.toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-channel-mixer-clear-solo')).toHaveAttribute('aria-disabled', 'true');
+
+  const masterShaft = page.locator('#bb-channel-mixer-master-fader-shaft');
+  const masterBox = await masterShaft.boundingBox();
+  expect(masterBox).not.toBeNull();
+  await masterShaft.click({ position: { x: Math.floor((masterBox?.width ?? 20) / 2), y: Math.floor((masterBox?.height ?? 100) * 0.75) } });
+  await expect(page.locator('#bb-channel-mixer-master-volume-readout')).toContainText('25%');
+  await expect(page.locator('[data-lcd="vol"]')).toContainText('25%');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:transport.masterVolume'))).toBe('25');
+
+  await page.locator('#bb-channel-mixer-dock-mode svg').click();
+  await expect(page.locator('#bb-channel-mixer')).toHaveClass(/bb-channel-mixer--inline/);
+
+  await page.evaluate(() => {
+    localStorage.setItem('beatbax:panel.channel-mixer', 'false');
+    localStorage.setItem('beatbax:ui.channelMixerDockMode', 'docked');
+  });
+  await electronApp.close();
+});
+
 test('saves edits back to an opened .bax file', async () => {
   test.setTimeout(60_000);
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-save-'));

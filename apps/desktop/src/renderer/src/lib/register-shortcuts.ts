@@ -3,11 +3,11 @@ import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
 import type { buildShortcutsModal } from '@web-ui/app/modals';
-import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import type { ThemeManager } from '@web-ui/ui/theme-manager';
 import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
+import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
@@ -31,7 +31,7 @@ export interface RegisterDesktopShortcutsOptions {
   onOpen: () => void | Promise<void>;
   onSave: (saveAs?: boolean) => void | Promise<void>;
   themeManager: ThemeManager;
-  channelMixer: ChannelMixer | null;
+  channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
 }
 

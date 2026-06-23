@@ -10,7 +10,6 @@ import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-f
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
 import { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
-import { ChannelMixer } from '@web-ui/panels/channel-mixer';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
@@ -38,6 +37,7 @@ import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../componen
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopPatternGrid, type DesktopPatternGridHandle } from '../components/panels/DesktopPatternGrid';
 import { createDesktopSongVisualizer, type DesktopSongVisualizerHandle } from '../components/panels/DesktopSongVisualizer';
+import { createDesktopChannelMixer, type DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
@@ -212,7 +212,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   };
 
   const toolbarRef: { current: DesktopToolbarHandle | null } = { current: null };
-  const channelMixerRef: { current: ChannelMixer | null } = { current: null };
+  const channelMixerRef: { current: DesktopChannelMixerHandle | null } = { current: null };
   let statusBar: StatusBar | null = null;
 
   cleanups.push(installGlobalErrorHandlers((message) => {
@@ -259,9 +259,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     onStop: () => transportBar.stopButton.click(),
   });
 
-  let channelMixer: ChannelMixer | null = null;
+  let channelMixer: DesktopChannelMixerHandle | null = null;
   if (capabilities.channelMixer) {
-    channelMixer = new ChannelMixer({
+    channelMixer = createDesktopChannelMixer({
       container: mixerHostContainer,
       inlineContainer: inlineMixerContainer,
       eventBus,
@@ -800,6 +800,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     editorSetup?.dispose();
     monacoShortcutsDispose?.();
     songVisualizer.dispose();
+    channelMixer?.destroy();
     copilot?.dispose();
     settingsModal.dispose();
     patternGrid?.dispose();

@@ -4350,6 +4350,29 @@
 .bb-channel-mixer__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
 .bb-channel-mixer__toolbar-btn--dock { margin-left: auto; }
 .bb-channel-mixer__toolbar-btn--active { background: var(--bb-accent-bg, #3d2d08); border-color: var(--bb-accent, #c8a227); color: var(--bb-accent, #c8a227); }
+.bb-channel-mixer__toolbar-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+  color: #565656;
+  background: #202020;
+  border-color: #303030;
+  box-shadow: none;
+}
+.bb-channel-mixer__toolbar-btn[aria-disabled="true"]:hover {
+  filter: none;
+  color: #565656;
+}
+#bb-channel-mixer-unmute-all:not([aria-disabled="true"]),
+#bb-channel-mixer-clear-solo:not([aria-disabled="true"]) {
+  color: var(--bb-accent, #c8a227);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.16) 0%, transparent 70%),
+    linear-gradient(to bottom, #3b3521 0%, #272313 100%);
+  border-color: rgba(200,162,39,0.72) rgba(54,42,12,0.95) rgba(36,28,8,0.95) rgba(200,162,39,0.55);
+  box-shadow:
+    0 0 5px rgba(200,162,39,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
 
 /* ── Strips container ─────────────────────────────────────────────────────── */
 
@@ -4415,6 +4438,75 @@
 
 .bb-channel-mixer__strip--silent {
   opacity: 0.45;
+}
+
+.bb-channel-mixer__master-separator {
+  width: 8px;
+  flex: 0 0 8px;
+  margin: 0 2px;
+  border-left: 1px solid rgba(255,255,255,0.10);
+  border-right: 1px solid rgba(0,0,0,0.55);
+  background:
+    linear-gradient(to right, rgba(0,0,0,0.35), rgba(255,255,255,0.05), rgba(0,0,0,0.45));
+}
+
+.bb-channel-mixer__strip--master {
+  flex: 0 0 74px;
+  min-width: 74px;
+  max-width: 74px;
+  background-color: #242326;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(200,162,39,0.028) 0px,
+      rgba(200,162,39,0.028) 1px,
+      transparent              1px,
+      transparent              3px
+    ),
+    linear-gradient(to bottom, #302d28 0%, #1f1d1c 100%);
+  border-color: rgba(200,162,39,0.28) rgba(0,0,0,0.58) rgba(0,0,0,0.58) rgba(200,162,39,0.16);
+}
+
+.bb-channel-mixer__accent--master {
+  background: linear-gradient(to right, #8a6d18 0%, var(--bb-accent, #c8a227) 50%, #8a6d18 100%);
+}
+
+.bb-channel-mixer__label--master {
+  color: var(--bb-accent, #c8a227);
+}
+
+.bb-channel-mixer__mid--master {
+  justify-content: center;
+}
+
+.bb-channel-mixer__fader-col--master {
+  width: 26px;
+}
+
+.bb-channel-mixer__fader-thumb--master {
+  background: linear-gradient(180deg, #d6c68e 0%, #b89b3c 50%, #725817 100%);
+  border-color: rgba(200,162,39,0.90);
+}
+
+.bb-channel-mixer__vu--master {
+  border-color: #130f04 #3a2d0a #3a2d0a #130f04;
+}
+
+.bb-channel-mixer__inst--master {
+  color: var(--bb-accent, #c8a227);
+  text-shadow:
+    0 0 4px rgba(200,162,39,0.70),
+    0 0 8px rgba(200,162,39,0.22);
+}
+
+.bb-channel-mixer__master-caption {
+  width: 100%;
+  text-align: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(200,162,39,0.68);
+  flex-shrink: 0;
 }
 
 /* Colour accent bar — channel ID stripe at the top of the module face */
@@ -4757,6 +4849,28 @@
   border-color: #aaa;
   color: #444;
 }
+[data-theme="light"] .bb-channel-mixer__toolbar-btn[aria-disabled="true"] {
+  opacity: 0.58;
+  color: #8f8f8f;
+  background: #bdbdbd;
+  border-color: #a8a8a8;
+  box-shadow: none;
+}
+[data-theme="light"] .bb-channel-mixer__toolbar-btn[aria-disabled="true"]:hover {
+  filter: none;
+  color: #8f8f8f;
+}
+[data-theme="light"] #bb-channel-mixer-unmute-all:not([aria-disabled="true"]),
+[data-theme="light"] #bb-channel-mixer-clear-solo:not([aria-disabled="true"]) {
+  color: var(--bb-accent, #9a7110);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(154,113,16,0.18) 0%, transparent 70%),
+    linear-gradient(to bottom, #d9cfb1 0%, #bfb08a 100%);
+  border-color: rgba(154,113,16,0.62) rgba(130,105,52,0.75) rgba(104,82,36,0.85) rgba(154,113,16,0.52);
+  box-shadow:
+    0 0 4px rgba(154,113,16,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.72);
+}
 
 [data-theme="light"] .bb-channel-mixer__strips {
   background: #909092;
@@ -4775,6 +4889,44 @@
     ),
     linear-gradient(to bottom, #d4d4d4 0%, #b8b8b8 100%);
   border-color: rgba(255,255,255,0.70) rgba(0,0,0,0.18) rgba(0,0,0,0.18) rgba(255,255,255,0.35);
+}
+
+[data-theme="light"] .bb-channel-mixer__master-separator {
+  border-left-color: rgba(255,255,255,0.55);
+  border-right-color: rgba(0,0,0,0.18);
+  background:
+    linear-gradient(to right, rgba(0,0,0,0.10), rgba(255,255,255,0.32), rgba(0,0,0,0.14));
+}
+
+[data-theme="light"] .bb-channel-mixer__strip--master {
+  background-color: #c7b98d;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.24) 0px,
+      rgba(255,255,255,0.24) 1px,
+      transparent             1px,
+      transparent             3px
+    ),
+    linear-gradient(to bottom, #d8cfb0 0%, #b8a878 100%);
+  border-color: rgba(255,255,255,0.70) rgba(104,82,36,0.28) rgba(104,82,36,0.35) rgba(154,113,16,0.35);
+}
+
+[data-theme="light"] .bb-channel-mixer__label--master {
+  color: var(--bb-accent, #9a7110);
+}
+
+[data-theme="light"] .bb-channel-mixer__fader-thumb--master {
+  background: linear-gradient(180deg, #f0dfaa 0%, #d1ad44 50%, #9a7110 100%);
+  border-color: rgba(154,113,16,0.70);
+}
+
+[data-theme="light"] .bb-channel-mixer__inst--master {
+  color: #ffd86a;
+}
+
+[data-theme="light"] .bb-channel-mixer__master-caption {
+  color: rgba(80,58,8,0.70);
 }
 
 [data-theme="light"] .bb-channel-mixer__label {
@@ -4807,6 +4959,19 @@
     inset 0 0  2px rgba(0,0,0,0.50),
     0 1px 0 rgba(255,255,255,0.90),
     0 2px 0 rgba(255,255,255,0.50);
+}
+[data-theme="light"] .bb-channel-mixer__label--master {
+  color: var(--bb-accent, #9a7110);
+}
+[data-theme="light"] .bb-channel-mixer__fader-thumb--master {
+  background: linear-gradient(180deg, #f0dfaa 0%, #d1ad44 50%, #9a7110 100%);
+  border-color: rgba(154,113,16,0.70);
+}
+[data-theme="light"] .bb-channel-mixer__inst--master {
+  color: #ffd86a;
+  text-shadow:
+    0 0 4px rgba(200,162,39,0.70),
+    0 0 8px rgba(200,162,39,0.22);
 }
 [data-theme="light"] .bb-channel-mixer__vol-readout { color: #a05010; }
 [data-theme="light"] .bb-channel-mixer__seq  { color: #9a7110; }

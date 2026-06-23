@@ -63,7 +63,7 @@ const HELP_SECTIONS: Section[] = [
     id: 'language',
     title: 'Language Syntax',
     content: [
-      { kind: 'text', text: 'BeatBax is a concise live-coding language for Game Boy chiptunes.' },
+      { kind: 'text', text: 'BeatBax is a live-coding language and toolchain for retro console chiptunes.' },
       { kind: 'snippet', label: 'Top-level directives', code: 'chip gameboy\nbpm 128\nstepsPerBar 4' },
       {
         kind: 'snippet',
