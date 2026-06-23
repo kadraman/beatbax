@@ -3284,16 +3284,28 @@
   padding: 0;
   font-size: 10px;
 }
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not(:disabled),
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not(:disabled) {
+  color: var(--bb-accent, #c8a227);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.16) 0%, transparent 70%),
+    linear-gradient(to bottom, #3b3521 0%, #272313 100%);
+  border-color: rgba(200,162,39,0.72) rgba(54,42,12,0.95) rgba(36,28,8,0.95) rgba(200,162,39,0.55);
+  box-shadow:
+    0 0 5px rgba(200,162,39,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
 .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn svg {
   width: 14px;
   height: 14px;
 }
 .bb-viz__toolbar-btn:disabled {
-  opacity: 1;
+  opacity: 0.55;
   cursor: default;
-  color: #777;
-  background: #242424;
-  border-color: #3a3a3a;
+  color: #565656;
+  background: #202020;
+  border-color: #303030;
+  box-shadow: none;
 }
 .bb-viz__toolbar-btn:disabled svg {
   stroke-width: 1.75;
@@ -3725,10 +3737,11 @@
   color: #000;
 }
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
-  opacity: 1;
-  color: #8a8a8a;
-  background: #f2f2f2;
-  border-color: #ccc;
+  opacity: 0.58;
+  color: #9a9a9a;
+  background: #eeeeee;
+  border-color: #d2d2d2;
+  box-shadow: none;
 }
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
   stroke-width: 1.75;
@@ -4900,12 +4913,24 @@
   height: 16px;
   flex-shrink: 0;
 }
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not(:disabled),
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not(:disabled) {
+  color: var(--bb-accent, #c8a227);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.16) 0%, transparent 70%),
+    linear-gradient(to bottom, #3b3521 0%, #272313 100%);
+  border-color: rgba(200,162,39,0.72) rgba(54,42,12,0.95) rgba(36,28,8,0.95) rgba(200,162,39,0.55);
+  box-shadow:
+    0 0 5px rgba(200,162,39,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
 .bb-viz__toolbar-btn:disabled {
-  opacity: 1;
+  opacity: 0.55;
   cursor: default;
-  color: #777;
-  background: #242424;
-  border-color: #3a3a3a;
+  color: #565656;
+  background: #202020;
+  border-color: #303030;
+  box-shadow: none;
 }
 .bb-viz__toolbar-btn:disabled svg {
   stroke-width: 1.75;
@@ -5320,10 +5345,11 @@
   color: #000;
 }
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
-  opacity: 1;
-  color: #8a8a8a;
-  background: #f2f2f2;
-  border-color: #ccc;
+  opacity: 0.58;
+  color: #9a9a9a;
+  background: #eeeeee;
+  border-color: #d2d2d2;
+  box-shadow: none;
 }
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
   stroke-width: 1.75;

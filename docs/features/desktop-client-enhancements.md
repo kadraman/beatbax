@@ -23,7 +23,7 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | 🟨 | Phase 5b-1 through 5b-5 React migrations implemented; Visualizer, Mixer, and bridge cleanup remain |
+| Native React UI | 🟨 | Phase 5b-1 through 5b-6 Song Visualizer React migrations implemented; Mixer and bridge cleanup remain |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -75,8 +75,8 @@ Replace bridge-mounted web-ui DOM panels with native React components, reducing 
 |----------------------|------------------------|------------|
 | `@web-ui/ui/toolbar` | `Toolbar.tsx` | Medium |
 | `@web-ui/ui/transport-bar` | `TransportBar.tsx` | Medium |
-| `@web-ui/ui/pattern-grid` | `PatternGrid.tsx` | High |
-| `@web-ui/panels/song-visualizer` | `VisualizerPanel.tsx` | High (canvas) |
+| `@web-ui/ui/pattern-grid` | `DesktopPatternGrid.tsx` | High |
+| `@web-ui/panels/song-visualizer` | `DesktopSongVisualizer.tsx` | High (canvas) |
 | `@web-ui/panels/channel-mixer` | `ChannelMixerPanel.tsx` | High (canvas) |
 | `@web-ui/panels/chat-panel` | `CopilotPanel.tsx` | Medium |
 | `@web-ui/panels/help-panel` | `HelpPanel.tsx` | Low |
@@ -255,7 +255,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [x] 5b-3: Migrate Toolbar + TransportBar
 - [x] 5b-4: Migrate Settings modal + CoPilot panel
 - [x] 5b-5: Migrate Pattern Grid
-- [ ] Migrate Song Visualizer (canvas)
+- [x] 5b-6: Migrate Song Visualizer (canvas)
 - [ ] Migrate Channel Mixer (canvas)
 - [ ] Optional: `packages/ui-tokens/` shared design tokens
 - [ ] Remove `@web-ui` bridge imports for migrated panels

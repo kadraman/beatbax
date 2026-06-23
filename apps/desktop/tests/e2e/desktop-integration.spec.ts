@@ -420,6 +420,30 @@ test('view menu reflects open visualizer tab on startup', async () => {
 
   expect(visualizerState).toEqual({ tabShown: true, helpActive: true, menuChecked: true });
 
+  await page.locator('button.bb-right-tab[title="Visualizer"]').click();
+  await expect(page.locator('#bb-viz-root')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.bb-viz__card')).toHaveCount(4);
+  await expect(page.locator('#bb-viz-unmute-all')).toBeVisible();
+  await expect(page.locator('#bb-viz-clear-solo')).toBeVisible();
+  await page.locator('#bb-viz-mute-1').click();
+  await expect(page.locator('#bb-viz-mute-1')).toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-viz-unmute-all')).toBeEnabled();
+  await page.locator('#bb-viz-unmute-all svg').click();
+  await expect(page.locator('#bb-viz-mute-1')).not.toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-viz-unmute-all')).toBeDisabled();
+
+  await page.locator('#bb-viz-solo-2').click();
+  await expect(page.locator('#bb-viz-solo-2')).toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-viz-clear-solo')).toBeEnabled();
+  await page.locator('#bb-viz-clear-solo svg').click();
+  await expect(page.locator('#bb-viz-solo-2')).not.toHaveClass(/bb-cp__btn--active/);
+  await expect(page.locator('#bb-viz-clear-solo')).toBeDisabled();
+
+  await page.locator('#bb-viz-fullscreen svg').click();
+  await expect(page.locator('#bb-viz-root')).toHaveClass(/bb-viz--fullscreen/);
+  await page.locator('#bb-viz-exit svg').click();
+  await expect(page.locator('#bb-viz-root')).not.toHaveClass(/bb-viz--fullscreen/);
+
   await electronApp.close();
 });
 

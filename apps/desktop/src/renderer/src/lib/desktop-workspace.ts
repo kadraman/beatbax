@@ -16,7 +16,6 @@ import {
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
 } from '@web-ui/panels/new-song-wizard';
-import { SongVisualizer } from '@web-ui/panels/song-visualizer';
 import { createThreePaneLayout } from '@web-ui/ui/layout';
 import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
 import { StatusBar } from '@web-ui/ui/status-bar';
@@ -38,6 +37,7 @@ import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../comp
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
 import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import { createDesktopPatternGrid, type DesktopPatternGridHandle } from '../components/panels/DesktopPatternGrid';
+import { createDesktopSongVisualizer, type DesktopSongVisualizerHandle } from '../components/panels/DesktopSongVisualizer';
 import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
@@ -252,14 +252,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   ccContainer.id = 'bb-channel-controls-host';
   ccContainer.className = 'bb-right-panel-scroll';
   rightTabs.tabContents.channels!.appendChild(ccContainer);
-  const songVisualizer = new SongVisualizer({
-    container: ccContainer,
+  const songVisualizer: DesktopSongVisualizerHandle = createDesktopSongVisualizer(ccContainer, {
     eventBus,
     playbackManager,
     onPlay: () => transportBar.playButton.click(),
     onStop: () => transportBar.stopButton.click(),
   });
-  void songVisualizer;
 
   let channelMixer: ChannelMixer | null = null;
   if (capabilities.channelMixer) {
@@ -801,6 +799,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     fullIdeSetup.dispose();
     editorSetup?.dispose();
     monacoShortcutsDispose?.();
+    songVisualizer.dispose();
     copilot?.dispose();
     settingsModal.dispose();
     patternGrid?.dispose();
