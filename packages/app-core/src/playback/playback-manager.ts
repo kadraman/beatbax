@@ -83,6 +83,9 @@ export class PlaybackManager {
   private _masterAnalyser: AnalyserNode | null = null;
   /** Periodic timer for elapsed-time playback:position updates. */
   private _positionTimer: ReturnType<typeof setInterval> | null = null;
+  private _elapsedStartTimestamp = 0;
+  private _elapsedPausedAt = 0;
+  private _elapsedPausedTotalMs = 0;
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
@@ -490,6 +493,7 @@ export class PlaybackManager {
       this.state.isPlaying = false;
       this.state.isPaused = false;
       this.state.currentTime = 0;
+      this._resetElapsedClock();
 
       // Clear position tracking
       this.playbackPosition.clear();
@@ -519,8 +523,10 @@ export class PlaybackManager {
     }
 
     if (this.player && typeof this.player.pause === 'function') {
+      this._markElapsedPaused();
       await this.player.pause();
       this.state.isPaused = true;
+      this._emitElapsedPosition(this.player);
       this.eventBus.emit('playback:paused', undefined);
       playbackStatus.set('paused');
     }
@@ -536,7 +542,9 @@ export class PlaybackManager {
 
     if (this.player && typeof this.player.resume === 'function') {
       await this.player.resume();
+      this._markElapsedResumed();
       this.state.isPaused = false;
+      this._emitElapsedPosition(this.player);
       this.eventBus.emit('playback:resumed', undefined);
       playbackStatus.set('playing');
     }
@@ -749,6 +757,10 @@ export class PlaybackManager {
 
   private _startPositionTimer(player: Player): void {
     this._stopPositionTimer();
+    const playerAny: any = player as any;
+    this._elapsedStartTimestamp = playerAny._playbackStartTimestamp || Date.now();
+    this._elapsedPausedAt = 0;
+    this._elapsedPausedTotalMs = 0;
     this._positionTimer = setInterval(() => this._emitElapsedPosition(player), 33);
   }
 
@@ -758,20 +770,36 @@ export class PlaybackManager {
     this._positionTimer = null;
   }
 
+  private _resetElapsedClock(): void {
+    this._elapsedStartTimestamp = 0;
+    this._elapsedPausedAt = 0;
+    this._elapsedPausedTotalMs = 0;
+  }
+
+  private _markElapsedPaused(): void {
+    if (!this._elapsedStartTimestamp || this._elapsedPausedAt) return;
+    this._elapsedPausedAt = Date.now();
+  }
+
+  private _markElapsedResumed(): void {
+    if (!this._elapsedPausedAt) return;
+    this._elapsedPausedTotalMs += Math.max(0, Date.now() - this._elapsedPausedAt);
+    this._elapsedPausedAt = 0;
+  }
+
   private _emitElapsedPosition(player: Player): void {
     try {
       const playerAny: any = player as any;
-      const startTs = playerAny._playbackStartTimestamp || 0;
-      const pauseTs = playerAny._pauseTimestamp || 0;
+      const startTs = this._elapsedStartTimestamp || playerAny._playbackStartTimestamp || 0;
       const completionMs = playerAny._completionTimeoutMs || 0;
       const isRepeatMode = !!playerAny._isRepeatMode;
       let currentSec = 0;
       let totalSec = 0;
 
       if (startTs) {
-        // If paused, keep elapsed time frozen at pause point.
         const now = Date.now();
-        const pausedOffset = pauseTs && pauseTs > startTs ? (now - pauseTs) : 0;
+        const activePauseMs = this._elapsedPausedAt ? Math.max(0, now - this._elapsedPausedAt) : 0;
+        const pausedOffset = this._elapsedPausedTotalMs + activePauseMs;
         currentSec = Math.max(0, (now - startTs - pausedOffset) / 1000);
       }
 

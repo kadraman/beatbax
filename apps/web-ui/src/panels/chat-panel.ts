@@ -4,8 +4,9 @@
  * Uses any OpenAI-compatible REST API endpoint: OpenAI, Groq, Mistral,
  * Ollama (local), LM Studio, llama.cpp, etc.
  *
- * Connection settings (endpoint URL, API key, model) are persisted to
- * localStorage. Quick presets make switching providers one click.
+ * Connection settings (endpoint URL, model) are persisted to localStorage.
+ * API keys are runtime-only in web and stored via secure desktop IPC in Electron.
+ * Quick presets make switching providers one click.
  *
  * Code blocks fenced in ```bax ... ``` in assistant responses are given
  * action buttons: "Insert at cursor" and "Replace selection".
@@ -52,9 +53,9 @@ const PRESETS: Preset[] = [
     apiKeyPlaceholder: 'sk-…',
   },
   {
-    label: 'Groq (free, fast)',
+    label: 'Groq',
     endpoint: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     apiKeyPlaceholder: 'gsk_…',
   },
   {

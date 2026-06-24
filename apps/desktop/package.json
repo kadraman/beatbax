@@ -34,6 +34,7 @@
   "dependencies": {
     "@beatbax/app-core": "*",
     "@beatbax/engine": "*",
+    "@beatbax/ui-tokens": "*",
     "@beatbax/plugin-chip-sms": "^0.3.2",
     "@beatbax/plugin-chip-spectrum-128": "^0.2.1",
     "@beatbax/plugin-exporter-famitracker": "^0.2.3",

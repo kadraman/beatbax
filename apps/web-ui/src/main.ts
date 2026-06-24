@@ -23,6 +23,12 @@ const parseHooks: ParsePipelineHooks = {};
 const appContext = createAppContext({ parseHooks });
 appContext.initializePlugins();
 const { eventBus, capabilities } = appContext;
+if (!capabilities.export && capabilities.channelMixer) {
+  setFeatureEnabled(FeatureFlag.CHANNEL_MIXER, true);
+  if (storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE) === undefined) {
+    storage.set(StorageKey.CHANNEL_MIXER_DOCK_MODE, 'inline');
+  }
+}
 let { playbackManager, exportManager, emitParse } = appContext;
 import type { ValidationIssue } from '@beatbax/app-core/types/validation';
 import {
@@ -379,22 +385,25 @@ const rightTabs = buildRightTabs(rightPane, appLayout.layout);
 // ─── Unified Channel Panel (SongVisualizer) in the channels tab ─────────────
 // The SongVisualizer lives in a dedicated scoped div so its render() (which
 // clears innerHTML on every parse:success) never conflicts with sibling nodes.
-const ccContainer = document.createElement('div');
-ccContainer.id = 'bb-channel-controls-host';
-ccContainer.className = 'bb-right-panel-scroll';
-rightTabs.tabContents['channels']!.appendChild(ccContainer);
+let songVisualizer: SongVisualizer | null = null;
+if (capabilities.songVisualizer && rightTabs.tabContents['channels']) {
+  const ccContainer = document.createElement('div');
+  ccContainer.id = 'bb-channel-controls-host';
+  ccContainer.className = 'bb-right-panel-scroll';
+  rightTabs.tabContents['channels'].appendChild(ccContainer);
 
-const songVisualizer = withErrorBoundary(
-  'SongVisualizer',
-  () => new SongVisualizer({
-    container: ccContainer,
-    eventBus,
-    playbackManager,
-    onPlay: () => transportBar.playButton.click(),
-    onStop: () => transportBar.stopButton.click(),
-  }),
-  ccContainer,
-);
+  songVisualizer = withErrorBoundary(
+    'SongVisualizer',
+    () => new SongVisualizer({
+      container: ccContainer,
+      eventBus,
+      playbackManager,
+      onPlay: () => transportBar.playButton.click(),
+      onStop: () => transportBar.stopButton.click(),
+    }),
+    ccContainer,
+  );
+}
 
 // ─── ChannelMixer — horizontal strip at the bottom (desktop-full) ───────────
 let channelMixer: ChannelMixer | null = null;
@@ -661,11 +670,12 @@ rightTabs.restorePersistedTab();
 // Show the Song Visualizer tab only when its feature flag is enabled (desktop-full).
 const songVisualizerEnabled = capabilities.export
   ? isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-  : true;
-if (!songVisualizerEnabled) {
+  : capabilities.songVisualizer;
+if (capabilities.songVisualizer && !songVisualizerEnabled) {
   rightTabs.close('channels');
 }
 (window as any).__beatbax_toggleSongVisualizer = (enabled: boolean) => {
+  if (!capabilities.songVisualizer) return;
   enabled ? rightTabs.show('channels') : rightTabs.close('channels');
 };
 
@@ -695,11 +705,11 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     try {
       eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
       if (enabled) {
-        // Hide legacy right-pane mixer when the new one is enabled
-        rightTabs.close('channels');
+        // Hide legacy right-pane visualizer when the new mixer is enabled.
+        if (capabilities.songVisualizer) rightTabs.close('channels');
       } else {
-        // Show legacy right-pane mixer when the new one is disabled
-        rightTabs.show('channels');
+        // Show legacy right-pane visualizer when the new mixer is disabled.
+        if (capabilities.songVisualizer) rightTabs.show('channels');
       }
     } catch (_e) { /* ignore */ }
   }
@@ -727,7 +737,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
   if (panel === 'song-visualizer') {
     // Song Visualizer in the right pane.
-    // Web-lite always allows the Visualizer tab; desktop requires the feature flag.
+    if (!capabilities.songVisualizer) return;
     if (visible && capabilities.export && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
     visible ? rightTabs.show('channels') : rightTabs.close('channels');
     settingShowSongVisualizer.set(visible);
@@ -810,9 +820,9 @@ eventBus.on('playback:started', () => {
     // Legacy tab is a feature-flag side-effect, not a visibility concern,
     // so it stays here rather than inside the panel:toggled handler.
     if (enabled) {
-      rightTabs.close('channels');
+      if (capabilities.songVisualizer) rightTabs.close('channels');
     } else {
-      rightTabs.show('channels');
+      if (capabilities.songVisualizer) rightTabs.show('channels');
     }
   } catch (_e) { /* ignore */ }
 };
@@ -1282,12 +1292,21 @@ _attachHoldRepeat(transportBar.bpmDownButton, -1, _applyBpmStep);
 _attachHoldRepeat(transportBar.bpmUpButton,   +1, _applyBpmStep);
 
 // ─── VOL rotary knob ──────────────────────────────────────────────────────────
+function applyMasterVolume(pct: number, source: 'transport' | 'mixer' | 'settings' = 'transport', emit = true): void {
+  _masterVolPct = Math.max(0, Math.min(100, Math.round(pct)));
+  transportBar.setVol(_masterVolPct);
+  playbackManager.setMasterVolume(_masterVolPct / 100);
+  if (emit) eventBus.emit('master-volume:changed', { volumePct: _masterVolPct, source });
+}
+
 transportBar.setVol(_masterVolPct);
 playbackManager.setMasterVolume(_masterVolPct / 100);
 transportBar.volKnob.onChange((v) => {
-  _masterVolPct = v;
-  transportBar.setVol(v);
-  playbackManager.setMasterVolume(v / 100);
+  applyMasterVolume(v, 'transport');
+});
+eventBus.on('master-volume:changed', ({ volumePct, source }) => {
+  if (source === 'transport') return;
+  applyMasterVolume(volumePct, source ?? 'settings', false);
 });
 
 // React to content changes via the EditorState-emitted event.
@@ -1902,9 +1921,11 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify
 // here via addCommand overrides that default while Monaco has focus.
 monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { toggleTheme(); });
 // Ctrl+Shift+V → Switch to Song Visualizer tab (Monaco captures this key when focused).
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
-  rightTabs.show('channels');
-});
+if (capabilities.songVisualizer) {
+  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
+    rightTabs.show('channels');
+  });
+}
 if (capabilities.channelMixer) {
   // Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
   monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
@@ -2001,9 +2022,11 @@ ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowIn
 ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
   action: () => bottomTabs.show('problems'),
 });
-ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
-  action: () => rightTabs.show('channels'),
-});
+if (capabilities.songVisualizer) {
+  ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
+    action: () => rightTabs.show('channels'),
+  });
+}
 if (capabilities.channelMixer) {
   ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
     action: () => {

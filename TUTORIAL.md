@@ -990,11 +990,11 @@ Choose a built-in preset or enter a custom endpoint:
 | Preset | Endpoint | Default model |
 |---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| Groq (free, fast) | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` |
 | Ollama (local) | `http://localhost:11434/v1` | `llama3.2` |
 | LM Studio (local) | `http://localhost:1234/v1` | `local-model` |
 
-Enter your API key if required (Ollama and LM Studio run without one). Settings are **persisted to `localStorage`** — your API key, endpoint, and model are remembered across page reloads so you only need to configure them once. To clear the saved key go to **Settings → AI → Clear key**.
+Enter your API key if required (Ollama and LM Studio run without one). Endpoint and model settings are persisted across page reloads. In the desktop app, API keys are stored using Electron's secure credential storage; in the web app, API keys are kept in memory for the current session. To clear the saved desktop key go to **Settings → AI → Clear key**.
 
 ### Edit mode vs Ask mode
 
@@ -1030,7 +1030,7 @@ On every request the assistant receives:
 
 ### Security notes
 
-- Your API key is stored in `localStorage` (plain text) and persisted across sessions. Do not use a high-spend production key. Use **Settings → AI → Clear key** to remove it at any time.
+- Desktop API keys are stored via Electron secure storage for the current OS user. Web API keys are session-only and are not saved to `localStorage`.
 - Only printable ASCII characters are accepted as API keys; non-ASCII values are rejected with a clear error message before any network request is made.
 - AI-generated code is validated by the BeatBax parser before being applied to the editor. It is treated as text, not executed as JavaScript.
 - All assistant responses are sanitised with DOMPurify before rendering to prevent XSS.

@@ -1,0 +1,25 @@
+{
+  "name": "@beatbax/ui-tokens",
+  "version": "0.1.0",
+  "description": "Shared UI tokens and channel metadata for BeatBax clients.",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./channel-meta": "./dist/channel-meta.js",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "files": [
+    "dist",
+    "src/tokens.css"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

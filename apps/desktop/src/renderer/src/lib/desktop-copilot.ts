@@ -6,8 +6,8 @@ import {
   isFeatureEnabled,
   setFeatureEnabled,
 } from '@beatbax/app-core/utils/feature-flags';
-import { ChatPanel } from '@web-ui/panels/chat-panel';
-import type { buildRightTabs } from '@web-ui/app/tabs';
+import type { buildRightTabs } from '../desktop-web-ui/app/tabs';
+import { createDesktopCopilotPanel, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
 
 type RightTabs = ReturnType<typeof buildRightTabs>;
 
@@ -23,15 +23,19 @@ export interface DesktopCopilotOptions {
   getEditor: () => BeatBaxEditor | null;
   getDiagnostics: () => Diagnostic[];
   onSettingsRefresh?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export interface DesktopCopilotHandle {
-  toggle: () => void;
+  show: (options?: { activate?: boolean }) => void;
+  hide: () => void;
+  toggle: () => boolean;
+  isVisible: () => boolean;
   dispose: () => void;
 }
 
 export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopilotHandle | null {
-  const { rightTabs, eventBus, getEditor, getDiagnostics, onSettingsRefresh } = options;
+  const { rightTabs, eventBus, getEditor, getDiagnostics, onSettingsRefresh, onOpenSettings } = options;
   const aiContainer = document.createElement('div');
   aiContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
   rightTabs.tabContents.ai!.appendChild(aiContainer);
@@ -39,8 +43,15 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
   const aiTabBtn = rightTabs.tabButtons.ai;
   aiTabBtn?.classList.add('bb-right-tab--hidden');
 
-  let chatPanel: ChatPanel | null = null;
+  let chatPanel: DesktopCopilotPanelHandle | null = null;
   let pendingAIChange: PendingAIChange | null = null;
+  let visible = false;
+
+  function isCopilotOpen(): boolean {
+    return visible
+      && rightTabs.tabOpen.ai
+      && !aiTabBtn?.classList.contains('bb-right-tab--hidden');
+  }
 
   function clearPendingAIChange(restore = false): void {
     if (!pendingAIChange) return;
@@ -63,11 +74,9 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     pendingAIChange = null;
   }
 
-  function getChatPanel(): ChatPanel {
+  function getChatPanel(): DesktopCopilotPanelHandle {
     if (!chatPanel) {
-      chatPanel = new ChatPanel({
-        container: aiContainer,
-        eventBus,
+      chatPanel = createDesktopCopilotPanel(aiContainer, {
         getEditorContent: () => getEditor()?.getValue() ?? '',
         getDiagnostics,
         onInsertSnippet: (text) => {
@@ -134,34 +143,50 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           editorDom.appendChild(banner);
           pendingAIChange = { previousContent, decorationIds: ids, banner };
         },
+        onOpenSettings: () => {
+          onSettingsRefresh?.();
+          onOpenSettings?.();
+        },
       });
     }
     return chatPanel;
   }
 
-  function showCopilot(): void {
+  function showCopilot(options: { activate?: boolean } = {}): void {
+    const { activate = true } = options;
+    visible = true;
     aiTabBtn?.classList.remove('bb-right-tab--hidden');
     rightTabs.tabOpen.ai = true;
+    if (activate) {
+      rightTabs.show('ai');
+    }
     getChatPanel().show();
-    rightTabs.show('ai');
   }
 
   function hideCopilot(): void {
+    visible = false;
     getChatPanel().hide();
     rightTabs.close('ai');
     aiTabBtn?.classList.add('bb-right-tab--hidden');
     rightTabs.tabOpen.ai = false;
   }
 
-  function toggle(): void {
-    const nowEnabled = !isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
-    setFeatureEnabled(FeatureFlag.AI_ASSISTANT, nowEnabled);
-    if (nowEnabled) showCopilot();
-    else hideCopilot();
+  function toggle(): boolean {
+    if (!isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
+      setFeatureEnabled(FeatureFlag.AI_ASSISTANT, true);
+      showCopilot();
+      return true;
+    }
+    if (isCopilotOpen()) {
+      hideCopilot();
+      return false;
+    }
+    showCopilot();
+    return true;
   }
 
   if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
-    showCopilot();
+    showCopilot({ activate: false });
   }
 
   const unsubFeature = eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
@@ -177,17 +202,20 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
       setFeatureEnabled(FeatureFlag.AI_ASSISTANT, true);
       showCopilot();
     } else {
-      setFeatureEnabled(FeatureFlag.AI_ASSISTANT, false);
       hideCopilot();
     }
   });
 
   return {
+    show: showCopilot,
+    hide: hideCopilot,
     toggle,
+    isVisible: isCopilotOpen,
     dispose: () => {
       clearPendingAIChange(false);
       unsubFeature();
       unsubPanel();
+      chatPanel?.dispose();
       chatPanel = null;
     },
   };

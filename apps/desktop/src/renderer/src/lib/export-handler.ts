@@ -2,15 +2,15 @@ import { parse } from '@beatbax/engine/parser';
 import type { ExportManager } from '@beatbax/app-core/export/export-manager';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
-import type { OutputPanel } from '@web-ui/panels/output-panel';
+import type { DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 
 export interface ExportHandlerDeps {
   eventBus: EventBus;
   exportManager: ExportManager;
   getSource: () => string;
   getFilename: () => string;
-  problemsPanel: OutputPanel;
-  outputPanel: OutputPanel;
+  problemsPanel: DesktopOutputPanelHandle;
+  outputPanel: DesktopOutputPanelHandle;
   showProblems: () => void;
 }
 

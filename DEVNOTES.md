@@ -43,7 +43,7 @@ Desktop-only (gated by `desktop-full` profile). Module: `apps/web-ui/src/panels/
   2. Pattern inline `inst` and `temp-inst` nodes (structured `patternEvents` form).
   3. Pattern inline `inst` tokens (string form in `ast.pats`).
   4. Sequence `inst(name)` transforms.
-- **Settings persistence**: endpoint URL, API key, model, and mode are stored under `bb-ai-settings` and `bb-ai-mode` in `localStorage`.
+- **Settings persistence**: endpoint URL, model, max context, mode, and history are stored under `beatbax:ai.*` in `localStorage`. API keys are not stored there; desktop stores them via Electron `safeStorage`, while web keeps them in memory for the current session.
 - **Security**: AI responses rendered via `marked` + `DOMPurify.sanitize()` to prevent XSS. Generated code is validated but never `eval`-ed.
 - See `docs/features/complete/ai-chatbot-assistant.md` for the full feature spec, RAG roadmap, and testing strategy.
 

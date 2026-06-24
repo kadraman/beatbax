@@ -31,6 +31,7 @@ export interface BeatBaxEvents {
   'playback:resumed': void;
   'playback:error': { error: Error };
   'playback:position': { current: number; total: number };
+  'master-volume:changed': { volumePct: number; source?: 'transport' | 'mixer' | 'settings' };
   // Real-time position tracking
   'playback:position-changed': { channelId: number; position: any };
   /** Per-channel analyser waveform data (emitted at uiUpdateHz when analyser is enabled). */

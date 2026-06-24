@@ -1,6 +1,6 @@
 /**
  * Tab system controllers for the bottom pane (Problems | Output) and the
- * right pane (Mixer | Help | Copilot).
+ * right pane (Visualizer | Help | Copilot).
  *
  * CSS for these elements lives in src/styles.css (moved from the original
  * document.createElement('style') injections that were in main.ts).
@@ -238,7 +238,7 @@ export function buildBottomTabs(
   };
 }
 
-// ─── Right Tabs (Mixer | Help | Copilot) ─────────────────────────────────────
+// ─── Right Tabs (Visualizer | Help | Copilot) ────────────────────────────────
 
 export type RightTabId = 'channels' | 'help' | 'ai';
 
@@ -265,7 +265,7 @@ export interface RightTabsController {
   switch(tab: RightTabId): void;
   /**
    * Switch to the tab that was persisted in localStorage when this controller
-   * was created, or fall back to 'channels'.  Call this after all tab content
+   * was created, or fall back to the first available tab.  Call this after all tab content
    * (including the AI panel) has been fully initialised.
    */
   restorePersistedTab(): void;
@@ -276,25 +276,25 @@ export function buildRightTabs(
   layout: ThreePaneLayoutManager,
 ): RightTabsController {
   const caps = getCurrentCapabilities();
-  const rightTabOrder: RightTabId[] = caps.copilot || caps.helpPanel
-    ? RIGHT_TAB_ORDER.filter(t => {
+  const rightTabOrder: RightTabId[] = RIGHT_TAB_ORDER.filter(t => {
+        if (t === 'channels') return caps.songVisualizer;
         if (t === 'ai') return caps.copilot;
         if (t === 'help') return caps.helpPanel;
         return true;
-      })
-    : ['channels'];
-  // Capture the saved tab BEFORE switchTab('channels') overwrites it.
+      });
+  // Capture the saved tab BEFORE the initial switch overwrites it.
   let savedInitialTab: RightTabId | null = null;
   try {
     const raw = storage.get(StorageKey.ACTIVE_RIGHT_TAB);
-    if (raw && (RIGHT_TAB_ORDER as string[]).includes(raw)) {
+    if (raw && (rightTabOrder as string[]).includes(raw)) {
       savedInitialTab = raw as RightTabId;
     }
   } catch { /* ignore */ }
 
-  let activeTab: RightTabId | null = 'channels';
+  const defaultTab = rightTabOrder[0] ?? null;
+  let activeTab: RightTabId | null = defaultTab;
   const tabOpen: Record<RightTabId, boolean> = {
-    channels: true,
+    channels: caps.songVisualizer,
     help: caps.helpPanel,
     ai: caps.copilot,
   };
@@ -306,6 +306,7 @@ export function buildRightTabs(
   rightPane.appendChild(rightTabs);
 
   const switchTab = (tab: RightTabId): void => {
+    if (!rightTabOrder.includes(tab)) return;
     activeTab = tab;
     try { storage.set(StorageKey.ACTIVE_RIGHT_TAB, tab); } catch { /* ignore */ }
     rightTabs.classList.remove('bb-right-tabs--empty');
@@ -316,6 +317,7 @@ export function buildRightTabs(
   };
 
   const show = (tab: RightTabId): void => {
+    if (!rightTabOrder.includes(tab)) return;
     tabOpen[tab] = true;
     tabButtons[tab]?.classList.remove('bb-right-tab--hidden');
     layout.setRightPaneVisible(true);
@@ -323,6 +325,7 @@ export function buildRightTabs(
   };
 
   const close = (tab: RightTabId): void => {
+    if (!rightTabOrder.includes(tab)) return;
     tabOpen[tab] = false;
     tabButtons[tab]?.classList.remove('bb-right-tab--active');
     tabButtons[tab]?.classList.add('bb-right-tab--hidden');
@@ -346,7 +349,7 @@ export function buildRightTabs(
         return;
       }
     } catch { /* ignore */ }
-    switchTab('channels');
+    if (defaultTab) switchTab(defaultTab);
   };
 
   // ─── DOM construction ──────────────────────────────────────────────────────
@@ -426,8 +429,13 @@ export function buildRightTabs(
   expandStrip.addEventListener('click', doExpand);
   tabBar.appendChild(collapseBtn);
 
-  // Initial switch (writes 'channels' to localStorage — saved tab was already captured above).
-  switchTab('channels');
+  // Initial switch writes the default tab to localStorage; saved tab was already captured above.
+  if (defaultTab) switchTab(defaultTab);
+  else {
+    activeTab = null;
+    rightTabs.classList.add('bb-right-tabs--empty');
+    layout.setRightPaneVisible(false);
+  }
 
   return {
     tabContents:     tabContents as Record<RightTabId, HTMLElement>,

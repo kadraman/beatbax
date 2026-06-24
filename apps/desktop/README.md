@@ -21,7 +21,7 @@ From the repository root:
 
 ## Current scope
 
-The desktop renderer bridges the web-ui panel implementations via `@web-ui` imports:
+The desktop renderer owns the desktop-full shell and React panel implementations:
 
 - **Toolbar** — full export menu, examples, theme/wrap/fold controls
 - **Transport bar** — play/pause/stop/apply, BPM LCDs, pattern grid sync

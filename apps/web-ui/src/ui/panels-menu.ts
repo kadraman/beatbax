@@ -76,14 +76,16 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
     });
   }
 
-  entries.push({
-    id: 'song-visualizer',
-    label: 'Visualizer',
-    group: 'side',
-    shortcut: 'Ctrl+Shift+V',
-    checked: state.channelsOpen && state.rightPaneVisible,
-    disabled: caps.export ? !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER) : false,
-  });
+  if (caps.songVisualizer) {
+    entries.push({
+      id: 'song-visualizer',
+      label: 'Visualizer',
+      group: 'side',
+      shortcut: 'Ctrl+Shift+V',
+      checked: state.channelsOpen && state.rightPaneVisible,
+      disabled: caps.export ? !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER) : false,
+    });
+  }
 
   if (caps.helpPanel) {
     entries.push({
