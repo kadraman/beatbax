@@ -40,6 +40,12 @@ interface AIChatCompletionRequest {
   maxTokens?: number;
 }
 
+let e2eMemoryAIAPIKey = '';
+
+function useE2EMemoryAIKeyStore(): boolean {
+  return process.env.BEATBAX_E2E_AI_KEY_STORE === 'memory';
+}
+
 /** Normalize IPC file payloads (Uint8Array, Buffer, or serialized arrays) for fs.writeFile. */
 function toFileBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;
@@ -155,6 +161,7 @@ function aiCredentialPath(): string {
 }
 
 async function readSecureAIAPIKey(): Promise<string> {
+  if (useE2EMemoryAIKeyStore()) return e2eMemoryAIAPIKey;
   try {
     const raw = await fs.readFile(aiCredentialPath(), 'utf8');
     const parsed = JSON.parse(raw) as Partial<SecureAIKeyFile>;
@@ -166,10 +173,18 @@ async function readSecureAIAPIKey(): Promise<string> {
 }
 
 async function clearSecureAIAPIKey(): Promise<void> {
+  if (useE2EMemoryAIKeyStore()) {
+    e2eMemoryAIAPIKey = '';
+    return;
+  }
   await fs.rm(aiCredentialPath(), { force: true });
 }
 
 async function writeSecureAIAPIKey(apiKey: string): Promise<void> {
+  if (useE2EMemoryAIKeyStore()) {
+    e2eMemoryAIAPIKey = apiKey.trim();
+    return;
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('Secure credential storage is not available on this system.');
   }

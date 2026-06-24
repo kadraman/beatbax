@@ -3,6 +3,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +17,10 @@ async function launchDesktopApp(extraArgs: string[] = []) {
   const electronApp = await electron.launch({
     args: [appRoot, ...extraArgs],
     cwd: appRoot,
+    env: {
+      ...process.env,
+      BEATBAX_E2E_AI_KEY_STORE: 'memory',
+    },
   });
 
   const page = await electronApp.firstWindow();
@@ -26,6 +32,20 @@ async function launchDesktopApp(extraArgs: string[] = []) {
 
   await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
   return { electronApp, page, consoleErrors };
+}
+
+async function startMockAIProvider(): Promise<{ server: Server; endpoint: string }> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ data: [] }));
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Mock AI provider did not bind to a TCP port.');
+  return { server, endpoint: `http://127.0.0.1:${address.port}` };
 }
 
 function filterBenignConsoleErrors(lines: string[]): string[] {
@@ -290,6 +310,7 @@ test('help tab and shortcuts modal render desktop React help', async () => {
 
 test('settings modal and copilot panel render desktop React UI', async () => {
   test.setTimeout(60_000);
+  const mockProvider = await startMockAIProvider();
   const { electronApp, page, consoleErrors } = await launchDesktopApp();
 
   await page.evaluate(() => {
@@ -331,27 +352,26 @@ test('settings modal and copilot panel render desktop React UI', async () => {
   await expect(page.locator('#bb-ai-endpoint')).toBeVisible();
   await expect(page.locator('.bb-settings-warning')).not.toContainText('localStorage');
 
-  const fakeApiKey = `sk-test-secure-${Date.now()}`;
-  await page.evaluate(() => {
-    const api = (window as unknown as {
-      electronAPI: { validateAIAPIKey?: (endpoint: string, apiKey: string) => Promise<{ ok: boolean; message: string }> };
-    }).electronAPI;
-    api.validateAIAPIKey = async () => ({ ok: true, message: 'API key validated.' });
-  });
-  await page.locator('#bb-ai-apikey').fill(fakeApiKey);
-  await page.locator('.bb-settings-backdrop').getByRole('button', { name: 'Validate', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => {
-    return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
-  })).toBe(fakeApiKey);
-  await expect(page.locator('.bb-settings-row').filter({ hasText: 'API key' })).toContainText('API key validated.');
-  await expect(page.locator('.bb-chat-status')).toBeHidden();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:ai.settings') ?? '')).not.toContain(fakeApiKey);
-  await page.getByRole('button', { name: 'Clear key' }).click();
-  await expect(page.locator('#bb-ai-apikey')).toHaveValue('');
-  await expect(page.locator('.bb-settings-row').filter({ hasText: 'API key' })).toContainText('API key cleared.');
-  await expect.poll(() => page.evaluate(() => {
-    return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
-  })).toBe('');
+  try {
+    const fakeApiKey = `sk-test-secure-${Date.now()}`;
+    await page.locator('#bb-ai-endpoint').fill(mockProvider.endpoint);
+    await page.locator('#bb-ai-apikey').fill(fakeApiKey);
+    await page.locator('.bb-settings-backdrop').getByRole('button', { name: 'Validate', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => {
+      return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
+    })).toBe(fakeApiKey);
+    await expect(page.locator('.bb-ai-key-wrap')).toContainText('API key validated.');
+    await expect(page.locator('.bb-chat-status')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:ai.settings') ?? '')).not.toContain(fakeApiKey);
+    await page.getByRole('button', { name: 'Clear key' }).click();
+    await expect(page.locator('#bb-ai-apikey')).toHaveValue('');
+    await expect(page.locator('.bb-ai-key-wrap')).toContainText('API key cleared.');
+    await expect.poll(() => page.evaluate(() => {
+      return (window as unknown as { electronAPI: { getAIAPIKey: () => Promise<string> } }).electronAPI.getAIAPIKey();
+    })).toBe('');
+  } finally {
+    await new Promise<void>((resolve) => mockProvider.server.close(() => resolve()));
+  }
 
   expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
   await page.evaluate(() => {
