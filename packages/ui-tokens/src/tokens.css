@@ -1,0 +1,121 @@
+/*
+ * BeatBax shared design tokens.
+ * Component-level bb-* styles remain owned by each client.
+ */
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+:root {
+  --bb-accent:       #c8a227;
+  --bb-accent-hover: #e8b84b;
+  --bb-accent-bg:    #3d2d08;
+  --bb-accent-btn:   #8a6500;
+  --bb-accent-btn-h: #a87c00;
+  --bb-accent-glow:  rgba(200, 162, 39, 0.28);
+
+  --bb-app-bg:    #1e1e1e;
+  --bb-fg:        #d4d4d4;
+  --bg-color:     #1e1e1e;
+  --text-color:   #d4d4d4;
+  --text-muted:   #858585;
+  --header-bg:    #2d2d2d;
+  --panel-bg:     #1e1e1e;
+  --input-bg:     #3c3c3c;
+  --button-bg:    #444;
+  --button-hover-bg: #3a3a3a;
+  --border-color: #444;
+  --error-color:  #f48771;
+  --warning-color: #cca700;
+  --success-color: #89d185;
+  --info-color:    #75beff;
+
+  --bb-toolbar-bg:          #252526;
+  --bb-toolbar-border:      #3c3c3c;
+  --bb-toolbar-fg:          #cccccc;
+  --bb-toolbar-label-fg:    #888;
+  --bb-toolbar-separator:   #3c3c3c;
+  --bb-toolbar-btn-hover-bg:     #2a2d2e;
+  --bb-toolbar-btn-hover-border: #3c3c3c;
+  --bb-toolbar-btn-active-bg:    #37373d;
+  --bb-toolbar-dropdown-bg:      #2d2d30;
+  --bb-toolbar-dropdown-border:  #555;
+  --bb-toolbar-dropdown-fg:      #cccccc;
+  --bb-toolbar-dropdown-hover-bg: #3e3e42;
+  --bb-toolbar-dropdown-hover-fg: #ffffff;
+  --bb-toolbar-status-fg:   #888;
+
+  --bb-splitter-color:  #333;
+  --bb-output-bg:       #1e1e1e;
+  --bb-output-fg:       #d4d4d4;
+  --bb-right-pane-bg:   #252525;
+
+  --bb-transport-bg:     #2d2d2d;
+  --bb-transport-border: #3c3c3c;
+
+  --bb-ch1: #569cd6;
+  --bb-ch2: #9cdcfe;
+  --bb-ch3: #4ec9b0;
+  --bb-ch4: #ce9178;
+  --bb-ch5: #dcdcaa;
+  --bb-ch6: #c586c0;
+  --bb-ch7: #6a9955;
+  --bb-ch8: #f44747;
+}
+
+[data-theme="light"] {
+  --bb-accent:       #9a7110;
+  --bb-accent-hover: #c8a227;
+  --bb-accent-bg:    #9a7110;
+  --bb-accent-btn:   #8a6500;
+  --bb-accent-btn-h: #a87c00;
+  --bb-accent-glow:  rgba(154, 113, 16, 0.28);
+
+  --bb-app-bg:    #f0f0f0;
+  --bb-fg:        #333333;
+  --bg-color:     #ffffff;
+  --text-color:   #333333;
+  --text-muted:   #666666;
+  --header-bg:    #f3f3f3;
+  --panel-bg:     #f8f8f8;
+  --input-bg:     #ffffff;
+  --button-bg:    #e0e0e0;
+  --button-hover-bg: #d0d0d0;
+  --border-color: #ddd;
+  --error-color:  #d73a49;
+  --warning-color: #9a6700;
+  --success-color: #22863a;
+  --info-color:    #0366d6;
+
+  --bb-toolbar-bg:          #f3f3f3;
+  --bb-toolbar-border:      #ddd;
+  --bb-toolbar-fg:          #333333;
+  --bb-toolbar-label-fg:    #666666;
+  --bb-toolbar-separator:   #ddd;
+  --bb-toolbar-btn-hover-bg:     #e4e4e4;
+  --bb-toolbar-btn-hover-border: #ccc;
+  --bb-toolbar-btn-active-bg:    #d8d8d8;
+  --bb-toolbar-dropdown-bg:      #ffffff;
+  --bb-toolbar-dropdown-border:  #ccc;
+  --bb-toolbar-dropdown-fg:      #333333;
+  --bb-toolbar-dropdown-hover-bg: #e9e9e9;
+  --bb-toolbar-dropdown-hover-fg: #111111;
+  --bb-toolbar-status-fg:   #666666;
+
+  --bb-splitter-color:  #c8c8c8;
+  --bb-output-bg:       #f5f5f5;
+  --bb-output-fg:       #333333;
+  --bb-right-pane-bg:   #f0f0f0;
+  --bb-transport-bg:     #e8e8e8;
+  --bb-transport-border: #d0d0d0;
+}
+
+@theme {
+  --color-bb-bg:       var(--bb-app-bg);
+  --color-bb-fg:       var(--bb-fg);
+  --color-bb-border:   var(--border-color);
+  --color-bb-accent:   var(--bb-accent);
+  --color-bb-ch1:      var(--bb-ch1);
+  --color-bb-ch2:      var(--bb-ch2);
+  --color-bb-ch3:      var(--bb-ch3);
+  --color-bb-ch4:      var(--bb-ch4);
+}

@@ -20,15 +20,37 @@ import {
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { MidiStepEntryController } from '../input/midi-step-entry-controller';
-import type { OutputPanel } from '../panels/output-panel';
 import { DebugOverlay } from '../ui/debug-overlay';
-import type { TransportBar } from '../ui/transport-bar';
 
-function opLog(panel: OutputPanel, message: string, source = 'app'): void {
+export interface OutputPanelLogHandle {
+  addMessage: (message: {
+    type: 'error' | 'warning' | 'info' | 'success';
+    message: string;
+    source?: string;
+    timestamp: Date;
+  }) => void;
+}
+
+export interface FullIdeTransportHandle {
+  liveButton: HTMLButtonElement;
+  rewindButton: HTMLButtonElement;
+  loopButton: HTMLButtonElement;
+  recordButton: HTMLButtonElement;
+  bpmDownButton: HTMLButtonElement;
+  bpmUpButton: HTMLButtonElement;
+  volKnob: {
+    onChange: (handler: (value: number) => void) => void;
+  };
+  setLoopActive: (active: boolean) => void;
+  setVol: (pct: number) => void;
+  setBpm: (bpm: number) => void;
+}
+
+function opLog(panel: OutputPanelLogHandle, message: string, source = 'app'): void {
   panel.addMessage({ type: 'info', message, source, timestamp: new Date() });
 }
 
-function opWarn(panel: OutputPanel, message: string, source = 'app'): void {
+function opWarn(panel: OutputPanelLogHandle, message: string, source = 'app'): void {
   panel.addMessage({ type: 'warning', message, source, timestamp: new Date() });
 }
 
@@ -40,9 +62,9 @@ export interface TransportDisplayState {
 export interface FullIdeSetupOptions {
   playbackManager: PlaybackManager;
   eventBus: EventBus;
-  transportBar: TransportBar;
+  transportBar: FullIdeTransportHandle;
   transportControls: TransportControls;
-  outputPanel: OutputPanel;
+  outputPanel: OutputPanelLogHandle;
   getEditor: () => BeatBaxEditor | null;
   getSource: () => string;
   runParse: (content: string) => void;
@@ -131,6 +153,17 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
     playbackManager.setLoop(loopMode);
   }
 
+  function applyMasterVolume(
+    pct: number,
+    source: 'transport' | 'mixer' | 'settings' = 'transport',
+    emit = true,
+  ): void {
+    masterVolPct = Math.max(0, Math.min(100, Math.round(pct)));
+    transportBar.setVol(masterVolPct);
+    playbackManager.setMasterVolume(masterVolPct / 100);
+    if (emit) eventBus.emit('master-volume:changed', { volumePct: masterVolPct, source });
+  }
+
   win.__beatbax_setLiveMode = (enabled: boolean) => {
     if (hasParseErrors && enabled) return;
     applyLiveMode(enabled);
@@ -169,10 +202,12 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
   transportBar.setVol(masterVolPct);
   playbackManager.setMasterVolume(masterVolPct / 100);
   transportBar.volKnob.onChange((v) => {
-    masterVolPct = v;
-    transportBar.setVol(v);
-    playbackManager.setMasterVolume(v / 100);
+    applyMasterVolume(v, 'transport');
   });
+  cleanups.push(eventBus.on('master-volume:changed', ({ volumePct, source }) => {
+    if (source === 'transport') return;
+    applyMasterVolume(volumePct, source ?? 'settings', false);
+  }));
 
   // ─── BPM nudge + override decoration ────────────────────────────────────────
   function injectBpmOverrideStyles(): void {

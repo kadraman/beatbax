@@ -4,6 +4,7 @@ export interface ClientCapabilities {
   export: boolean;
   copilot: boolean;
   channelMixer: boolean;
+  songVisualizer: boolean;
   patternGrid: boolean;
   advancedEditor: boolean;
   midiStepEntry: boolean;
@@ -19,7 +20,8 @@ export interface ClientCapabilities {
 const WEB_LITE: ClientCapabilities = {
   export: false,
   copilot: false,
-  channelMixer: false,
+  channelMixer: true,
+  songVisualizer: false,
   patternGrid: false,
   advancedEditor: false,
   midiStepEntry: false,
@@ -35,6 +37,7 @@ const DESKTOP_FULL: ClientCapabilities = {
   export: true,
   copilot: true,
   channelMixer: true,
+  songVisualizer: true,
   patternGrid: true,
   advancedEditor: true,
   midiStepEntry: true,

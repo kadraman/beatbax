@@ -89,6 +89,7 @@ export class ChannelMixer {
   private visible: boolean;
   private height: number;
   private dockMode: MixerDockMode;
+  private masterVolPct: number;
 
   /**
    * Whether the per-channel analyser feature is enabled (mirrors settingFeaturePerChannelAnalyser).
@@ -135,7 +136,10 @@ export class ChannelMixer {
       : false;
 
     const rawDock = storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE);
-    this.dockMode = rawDock === 'inline' ? 'inline' : 'docked';
+    this.dockMode = rawDock === 'docked' ? 'docked' : 'inline';
+
+    const rawMasterVol = storage.getJSON<number>(StorageKey.MASTER_VOLUME, 100) ?? 100;
+    this.masterVolPct = Math.max(0, Math.min(100, Math.round(rawMasterVol)));
 
     // Sync analyser-enabled flag with the shared settings atom (same as ChannelMixer)
     this.analyserEnabled = settingFeaturePerChannelAnalyser.get();
@@ -315,6 +319,9 @@ export class ChannelMixer {
         this.vuState.set(ch.id, { level: 0, peak: 0, peakTime: 0, lastUpdateTime: 0 });
         strips.appendChild(this.buildStrip(ch));
       }
+      strips.appendChild(this.buildMasterSeparator());
+      this.vuState.set(0, { level: 0, peak: 0, peakTime: 0, lastUpdateTime: 0 });
+      strips.appendChild(this.buildMasterStrip());
     }
 
     root.appendChild(strips);
@@ -540,6 +547,91 @@ export class ChannelMixer {
     return strip;
   }
 
+  private buildMasterSeparator(): HTMLElement {
+    const separator = document.createElement('div');
+    separator.className = 'bb-channel-mixer__master-separator';
+    separator.setAttribute('aria-hidden', 'true');
+    return separator;
+  }
+
+  private buildMasterStrip(): HTMLElement {
+    const strip = document.createElement('div');
+    strip.className = 'bb-channel-mixer__strip bb-channel-mixer__strip--master';
+    strip.id = 'bb-channel-mixer-master-strip';
+
+    const accent = document.createElement('div');
+    accent.className = 'bb-channel-mixer__accent bb-channel-mixer__accent--master';
+    strip.appendChild(accent);
+
+    const label = document.createElement('div');
+    label.className = 'bb-channel-mixer__label bb-channel-mixer__label--master';
+    label.textContent = 'MASTER';
+    strip.appendChild(label);
+
+    const mid = document.createElement('div');
+    mid.className = 'bb-channel-mixer__mid bb-channel-mixer__mid--master';
+
+    const faderCol = document.createElement('div');
+    faderCol.className = 'bb-channel-mixer__fader-col bb-channel-mixer__fader-col--master';
+    faderCol.title = 'Master output volume';
+
+    const shaft = document.createElement('div');
+    shaft.className = 'bb-channel-mixer__fader-shaft';
+    shaft.id = 'bb-channel-mixer-master-fader-shaft';
+    shaft.setAttribute('role', 'slider');
+    shaft.setAttribute('tabindex', '0');
+    shaft.setAttribute('aria-label', 'Master volume');
+    shaft.setAttribute('aria-valuemin', '0');
+    shaft.setAttribute('aria-valuemax', '100');
+    shaft.setAttribute('aria-valuenow', String(this.masterVolPct));
+
+    for (const pct of [0, 25, 50, 75, 100]) {
+      const tick = document.createElement('div');
+      const isMajor = pct % 50 === 0;
+      tick.className = 'bb-channel-mixer__fader-tick ' + (isMajor ? 'bb-channel-mixer__fader-tick--major' : 'bb-channel-mixer__fader-tick--minor');
+      tick.style.top = pct + '%';
+      shaft.appendChild(tick);
+    }
+
+    const thumbEl = document.createElement('div');
+    thumbEl.className = 'bb-channel-mixer__fader-thumb bb-channel-mixer__fader-thumb--master';
+    thumbEl.id = 'bb-channel-mixer-master-fader';
+    thumbEl.style.top = (100 - this.masterVolPct) + '%';
+    shaft.appendChild(thumbEl);
+    this.wireMasterFaderDrag(shaft, thumbEl);
+
+    faderCol.appendChild(shaft);
+    mid.appendChild(faderCol);
+
+    const vu = document.createElement('div');
+    vu.className = 'bb-channel-mixer__vu bb-channel-mixer__vu--master';
+    vu.id = 'bb-channel-mixer-vu-0';
+    for (let i = VU_SEGMENTS - 1; i >= 0; i--) {
+      const seg = document.createElement('div');
+      seg.className = 'bb-channel-mixer__vu-seg';
+      if (i >= VU_RED_THRESHOLD) seg.classList.add('bb-channel-mixer__vu-seg--red');
+      else if (i >= VU_YELLOW_THRESHOLD) seg.classList.add('bb-channel-mixer__vu-seg--yellow');
+      else seg.classList.add('bb-channel-mixer__vu-seg--green');
+      vu.appendChild(seg);
+    }
+    mid.appendChild(vu);
+
+    strip.appendChild(mid);
+
+    const readout = document.createElement('div');
+    readout.className = 'bb-channel-mixer__inst bb-channel-mixer__inst--master';
+    readout.id = 'bb-channel-mixer-master-volume-readout';
+    readout.textContent = `${String(this.masterVolPct).padStart(3, ' ')}%`;
+    strip.appendChild(readout);
+
+    const caption = document.createElement('div');
+    caption.className = 'bb-channel-mixer__master-caption';
+    caption.textContent = 'OUT';
+    strip.appendChild(caption);
+
+    return strip;
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   /**
@@ -632,6 +724,51 @@ export class ChannelMixer {
       applyPct(getPct(e));
       startDrag(e);
     });
+  }
+
+  private wireMasterFaderDrag(shaft: HTMLElement, thumb: HTMLElement): void {
+    const getPct = (e: MouseEvent): number => {
+      const rect = shaft.getBoundingClientRect();
+      if (rect.height === 0) return 0;
+      return Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    };
+    const applyPct = (pct: number) => {
+      const next = Math.max(0, Math.min(100, Math.round((1 - pct) * 100)));
+      this.setMasterVolume(next, true);
+      thumb.style.top = (100 - next) + '%';
+    };
+    const startDrag = (e: MouseEvent) => {
+      e.preventDefault();
+      const onMove = (ev: MouseEvent) => applyPct(getPct(ev));
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.userSelect = '';
+      };
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+    thumb.addEventListener('mousedown', (e: MouseEvent) => {
+      e.stopPropagation();
+      startDrag(e);
+    });
+    shaft.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.target === thumb) return;
+      applyPct(getPct(e));
+      startDrag(e);
+    });
+  }
+
+  private setMasterVolume(volumePct: number, emit: boolean): void {
+    this.masterVolPct = Math.max(0, Math.min(100, Math.round(volumePct)));
+    const thumb = document.getElementById('bb-channel-mixer-master-fader') as HTMLElement | null;
+    if (thumb) thumb.style.top = (100 - this.masterVolPct) + '%';
+    const shaft = document.getElementById('bb-channel-mixer-master-fader-shaft');
+    if (shaft) shaft.setAttribute('aria-valuenow', String(this.masterVolPct));
+    const readout = document.getElementById('bb-channel-mixer-master-volume-readout');
+    if (readout) readout.textContent = `${String(this.masterVolPct).padStart(3, ' ')}%`;
+    if (emit) this.eventBus.emit('master-volume:changed', { volumePct: this.masterVolPct, source: 'mixer' });
   }
 
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
@@ -754,6 +891,10 @@ export class ChannelMixer {
 
       this.eventBus.on('playback:resumed', () => {
         // RAF loop is still running; no action needed
+      }),
+
+      this.eventBus.on('master-volume:changed', ({ volumePct }) => {
+        this.setMasterVolume(volumePct, false);
       }),
 
       // Subscribe to channel store for mute/solo/volume changes
@@ -913,6 +1054,27 @@ export class ChannelMixer {
     if (clamped >= state.peak) {
       state.peak = clamped;
       state.peakTime = now;
+    }
+
+    if (channelId !== 0) {
+      const aggregate = Math.max(
+        0,
+        ...Array.from(this.vuState.entries())
+          .filter(([id]) => id !== 0)
+          .map(([, channelState]) => channelState.level),
+      );
+      let masterState = this.vuState.get(0);
+      if (!masterState) {
+        masterState = { level: 0, peak: 0, peakTime: 0, lastUpdateTime: 0 };
+        this.vuState.set(0, masterState);
+      }
+      const masterLevel = Math.round(aggregate * (this.masterVolPct / 100));
+      masterState.level = Math.max(0, Math.min(VU_SEGMENTS, masterLevel));
+      masterState.lastUpdateTime = now;
+      if (masterState.level >= masterState.peak) {
+        masterState.peak = masterState.level;
+        masterState.peakTime = now;
+      }
     }
   }
 

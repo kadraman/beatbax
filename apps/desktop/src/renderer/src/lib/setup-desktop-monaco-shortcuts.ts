@@ -1,28 +1,27 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import type { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
-import type { buildShortcutsModal } from '@web-ui/app/modals';
-import type { buildSettingsModal } from '@web-ui/panels/settings-panel';
-import type { ChannelMixer } from '@web-ui/panels/channel-mixer';
-import type { ThemeManager } from '@web-ui/ui/theme-manager';
-import type { TransportBar } from '@web-ui/ui/transport-bar';
+import type { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
+import type { buildShortcutsModal } from '../desktop-web-ui/app/modals';
+import type { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
 import { KeyCode, KeyMod, type IKeyboardEvent, type editor as MonacoEditor, type IDisposable } from 'monaco-editor';
 import type { DesktopCopilotHandle } from './desktop-copilot';
+import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
+import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
+import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 type BottomTabs = ReturnType<typeof buildBottomTabs>;
 type RightTabs = ReturnType<typeof buildRightTabs>;
-type SettingsModal = ReturnType<typeof buildSettingsModal>;
 type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
 
 export interface SetupDesktopMonacoShortcutsOptions {
   editor: MonacoEditor.IStandaloneCodeEditor;
-  transportBar: TransportBar;
+  transportBar: DesktopTransportBarHandle;
   rightTabs: RightTabs;
   bottomTabs: BottomTabs;
   shortcutsModal: ShortcutsModal;
-  settingsModal: SettingsModal;
+  settingsModal: DesktopSettingsModalHandle;
   themeManager: ThemeManager;
-  channelMixer: ChannelMixer | null;
+  channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
   eventBus: EventBus;
   runParse: (content: string) => void;

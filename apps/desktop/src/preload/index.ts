@@ -32,6 +32,19 @@ const electronAPI: ElectronAPI = {
   clearRecentFiles: async () => {
     await ipcRenderer.invoke(IPC_CHANNELS.CLEAR_RECENT_FILES);
   },
+  getAIAPIKey: () => ipcRenderer.invoke(IPC_CHANNELS.AI_GET_API_KEY),
+  setAIAPIKey: async (apiKey: string) => {
+    await ipcRenderer.invoke(IPC_CHANNELS.AI_SET_API_KEY, apiKey);
+  },
+  clearAIAPIKey: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.AI_CLEAR_API_KEY);
+  },
+  validateAIAPIKey: (endpoint: string, apiKey: string) => ipcRenderer.invoke(
+    IPC_CHANNELS.AI_VALIDATE_API_KEY,
+    endpoint,
+    apiKey,
+  ),
+  createAIChatCompletion: (request) => ipcRenderer.invoke(IPC_CHANNELS.AI_CHAT_COMPLETION, request),
   getVersion: () => ipcRenderer.sendSync(IPC_CHANNELS.GET_VERSION),
   getPlatform: () => process.platform,
   openRecentFile: (filePath: string) => {
