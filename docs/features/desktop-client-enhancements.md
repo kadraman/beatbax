@@ -17,13 +17,13 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-20
-**Overall status:** Not started.
+**Last updated:** 2026-06-23
+**Overall status:** In progress.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
-| Native React UI | ⬜ | Targeted Phase 5b plan ready while signing credentials are pending |
+| Native React UI | ✅ | Phase 5b native React migrations and desktop bridge cleanup complete |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | ⬜ | Native WAV path in Electron |
 | Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
@@ -75,9 +75,9 @@ Replace bridge-mounted web-ui DOM panels with native React components, reducing 
 |----------------------|------------------------|------------|
 | `@web-ui/ui/toolbar` | `Toolbar.tsx` | Medium |
 | `@web-ui/ui/transport-bar` | `TransportBar.tsx` | Medium |
-| `@web-ui/ui/pattern-grid` | `PatternGrid.tsx` | High |
-| `@web-ui/panels/song-visualizer` | `VisualizerPanel.tsx` | High (canvas) |
-| `@web-ui/panels/channel-mixer` | `ChannelMixerPanel.tsx` | High (canvas) |
+| `@web-ui/ui/pattern-grid` | `DesktopPatternGrid.tsx` | High |
+| `@web-ui/panels/song-visualizer` | `DesktopSongVisualizer.tsx` | High (canvas) |
+| `@web-ui/panels/channel-mixer` | `DesktopChannelMixer.tsx` | High |
 | `@web-ui/panels/chat-panel` | `CopilotPanel.tsx` | Medium |
 | `@web-ui/panels/help-panel` | `HelpPanel.tsx` | Low |
 | `@web-ui/panels/output-panel` | `ProblemsPanel.tsx`, `OutputPanel.tsx` | Low |
@@ -170,7 +170,7 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 4. Implement **5b-3 Toolbar/Transport** only after the panel handle pattern is stable:
    - Replace DOM button refs with an explicit desktop command/transport handle.
    - Update menu actions, keyboard shortcuts, `TransportControls`, and full-IDE playback wiring to use that handle.
-5. Defer Settings/Copilot, Pattern Grid, Visualizer, and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
+5. Defer Visualizer and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
 6. Add targeted desktop tests with each slice, preferring Playwright for user-visible behavior and small unit tests for handle logic.
 7. Remove `@web-ui` alias imports for migrated modules from `desktop-workspace.ts` and related desktop glue as each slice lands.
 
@@ -250,15 +250,15 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ### 5b — Native React UI
 
-- [ ] 5b-1: Migrate Output + Problems panels
-- [ ] 5b-2: Migrate Help panel and shortcuts Help usage
-- [ ] 5b-3: Migrate Toolbar + TransportBar
-- [ ] Migrate Settings modal + CoPilot panel
-- [ ] Migrate Pattern Grid
-- [ ] Migrate Song Visualizer (canvas)
-- [ ] Migrate Channel Mixer (canvas)
-- [ ] Optional: `packages/ui-tokens/` shared design tokens
-- [ ] Remove `@web-ui` bridge imports for migrated panels
+- [x] 5b-1: Migrate Output + Problems panels
+- [x] 5b-2: Migrate Help panel and shortcuts Help usage
+- [x] 5b-3: Migrate Toolbar + TransportBar
+- [x] 5b-4: Migrate Settings modal + CoPilot panel
+- [x] 5b-5: Migrate Pattern Grid
+- [x] 5b-6: Migrate Song Visualizer (canvas)
+- [x] 5b-6: Migrate Channel Mixer
+- [x] Optional: `packages/ui-tokens/` shared design tokens
+- [x] Remove `@web-ui` bridge imports for migrated panels
 
 ### 5c — Power features
 

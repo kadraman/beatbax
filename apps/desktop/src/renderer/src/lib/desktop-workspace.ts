@@ -8,38 +8,38 @@ import { settingDefaultBpm, settingSongArtist } from '@beatbax/app-core/stores/s
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { buildBottomTabs, buildRightTabs } from '@web-ui/app/tabs';
-import { buildShortcutsModal, buildAboutModal } from '@web-ui/app/modals';
-import { ChannelMixer } from '@web-ui/panels/channel-mixer';
-import { HelpPanel } from '@web-ui/panels/help-panel';
+import { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
+import { buildShortcutsModal, buildAboutModal } from '../desktop-web-ui/app/modals';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
-} from '@web-ui/panels/new-song-wizard';
-import { OutputPanel } from '@web-ui/panels/output-panel';
-import { buildSettingsModal, noopSettingsModal } from '@web-ui/panels/settings-panel';
-import { SongVisualizer } from '@web-ui/panels/song-visualizer';
-import { createThreePaneLayout } from '@web-ui/ui/layout';
-import type { PanelMenuId, PanelMenuState } from '@web-ui/ui/panels-menu';
-import { PatternGrid } from '@web-ui/ui/pattern-grid';
-import { StatusBar } from '@web-ui/ui/status-bar';
-import { ThemeManager } from '@web-ui/ui/theme-manager';
-import { Toolbar } from '@web-ui/ui/toolbar';
-import { TransportBar } from '@web-ui/ui/transport-bar';
-import { installGlobalErrorHandlers } from '@web-ui/utils/error-boundary';
-import { KeyboardShortcuts } from '@web-ui/utils/keyboard-shortcuts';
+} from '../desktop-web-ui/panels/new-song-wizard';
+import { createThreePaneLayout } from '../desktop-web-ui/ui/layout';
+import type { PanelMenuId, PanelMenuState } from '../desktop-web-ui/ui/panels-menu';
+import { StatusBar } from '../desktop-web-ui/ui/status-bar';
+import { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+import { installGlobalErrorHandlers } from '../desktop-web-ui/utils/error-boundary';
+import { KeyboardShortcuts } from '../desktop-web-ui/utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
 import { handleDesktopExport } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
-import type { MenuBar } from '@web-ui/ui/menu-bar';
+import type { MenuBar } from '../desktop-web-ui/ui/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
-import { setupFullIdeFeatures, type TransportDisplayState } from '@web-ui/app/full-ide-setup';
-import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '@web-ui/app/editor-view-prefs';
+import { setupFullIdeFeatures, type TransportDisplayState } from '../desktop-web-ui/app/full-ide-setup';
+import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from '../desktop-web-ui/app/editor-view-prefs';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
+import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
+import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
+import { createDesktopSettingsModal, noopDesktopSettingsModal, type DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
+import { createDesktopPatternGrid, type DesktopPatternGridHandle } from '../components/panels/DesktopPatternGrid';
+import { createDesktopSongVisualizer, type DesktopSongVisualizerHandle } from '../components/panels/DesktopSongVisualizer';
+import { createDesktopChannelMixer, type DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
+import { createDesktopToolbar, type DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
+import { createDesktopTransportBar, type DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -65,12 +65,12 @@ export interface DesktopWorkspaceOptions {
 
 export interface DesktopWorkspaceHandle {
   editorPane: HTMLElement;
-  toolbar: Toolbar;
-  transportBar: TransportBar;
-  problemsPanel: OutputPanel;
-  outputPanel: OutputPanel;
-  helpPanel: HelpPanel | null;
-  settingsModal: ReturnType<typeof buildSettingsModal>;
+  toolbar: DesktopToolbarHandle;
+  transportBar: DesktopTransportBarHandle;
+  problemsPanel: DesktopOutputPanelHandle;
+  outputPanel: DesktopOutputPanelHandle;
+  helpPanel: DesktopHelpPanelHandle | null;
+  settingsModal: DesktopSettingsModalHandle;
   shortcutsModal: ReturnType<typeof buildShortcutsModal>;
   aboutModal: ReturnType<typeof buildAboutModal>;
   keyboardShortcuts: KeyboardShortcuts;
@@ -150,18 +150,16 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     mixerHostContainer.style.display = 'none';
   }
 
-  const transportBar = new TransportBar({ container: layoutHost });
+  const transportBar = createDesktopTransportBar(layoutHost);
   if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
   suppressChromeTabFocus(transportBar.el);
 
-  let patternGrid: PatternGrid | null = null;
+  let patternGrid: DesktopPatternGridHandle | null = null;
   if (capabilities.patternGrid) {
-    patternGrid = new PatternGrid();
-    patternGridContainer.appendChild(patternGrid.el);
     if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
       patternGridContainer.style.display = 'none';
     }
-    patternGrid.onNavigate = (patName: string) => {
+    patternGrid = createDesktopPatternGrid(patternGridContainer, { onNavigate: (patName: string) => {
       const monacoEditor = getEditor()?.editor;
       const source = getEditor()?.getValue() ?? '';
       const lines = source.split('\n');
@@ -173,7 +171,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
           break;
         }
       }
-    };
+    } });
   }
 
   const bottomTabs = buildBottomTabs(outputPane, layout, {
@@ -185,11 +183,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const problemsContainer = bottomTabs.tabContents.problems;
   const outputLogsContainer = bottomTabs.tabContents.output;
-  const problemsPanel = new OutputPanel(problemsContainer, eventBus, {
+  const problemsPanel = createDesktopOutputPanel(problemsContainer, eventBus, {
     singleTab: 'problems',
     getTextModel: () => getEditor()?.editor.getModel() ?? null,
   });
-  const outputPanel = new OutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
+  const outputPanel = createDesktopOutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 
   const panelMenuBridge = {
     getState(): PanelMenuState {
@@ -213,8 +211,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
   };
 
-  const toolbarRef: { current: Toolbar | null } = { current: null };
-  const channelMixerRef: { current: ChannelMixer | null } = { current: null };
+  const toolbarRef: { current: DesktopToolbarHandle | null } = { current: null };
+  const channelMixerRef: { current: DesktopChannelMixerHandle | null } = { current: null };
   let statusBar: StatusBar | null = null;
 
   cleanups.push(installGlobalErrorHandlers((message) => {
@@ -254,18 +252,16 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   ccContainer.id = 'bb-channel-controls-host';
   ccContainer.className = 'bb-right-panel-scroll';
   rightTabs.tabContents.channels!.appendChild(ccContainer);
-  const songVisualizer = new SongVisualizer({
-    container: ccContainer,
+  const songVisualizer: DesktopSongVisualizerHandle = createDesktopSongVisualizer(ccContainer, {
     eventBus,
     playbackManager,
     onPlay: () => transportBar.playButton.click(),
     onStop: () => transportBar.stopButton.click(),
   });
-  void songVisualizer;
 
-  let channelMixer: ChannelMixer | null = null;
+  let channelMixer: DesktopChannelMixerHandle | null = null;
   if (capabilities.channelMixer) {
-    channelMixer = new ChannelMixer({
+    channelMixer = createDesktopChannelMixer({
       container: mixerHostContainer,
       inlineContainer: inlineMixerContainer,
       eventBus,
@@ -280,13 +276,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const ks = new KeyboardShortcuts();
   const settingsModal = capabilities.settingsPanel
-    ? buildSettingsModal({
+    ? createDesktopSettingsModal({
         onClose: () => {
           getEditor()?.editor.focus();
           getEditor()?.editor.layout();
         },
       })
-    : noopSettingsModal;
+    : noopDesktopSettingsModal;
   const shortcutsModal = buildShortcutsModal();
   const aboutModal = buildAboutModal(
     {
@@ -302,10 +298,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
   );
 
-  let helpPanel: HelpPanel | null = null;
+  let helpPanel: DesktopHelpPanelHandle | null = null;
   if (capabilities.helpPanel) {
-    helpPanel = new HelpPanel({
-      container: helpContainer,
+    helpPanel = createDesktopHelpPanel(helpContainer, {
       eventBus,
       embedded: true,
       defaultVisible: true,
@@ -337,6 +332,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getEditor,
       getDiagnostics: () => editorSetup?.getLastDiagnostics() ?? [],
       onSettingsRefresh: () => settingsModal.refresh(),
+      onOpenSettings: () => settingsModal.open('ai'),
     });
   }
 
@@ -346,11 +342,28 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const getSource = () => getEditor()?.getValue() ?? '';
   let parseTimeout: number | null = null;
+  let verifyPending = false;
   const runParse = (content: string) => {
     if (parseTimeout !== null) window.clearTimeout(parseTimeout);
     parseTimeout = window.setTimeout(() => {
       void appContext.emitParse(content);
     }, 180);
+  };
+
+  const runVerify = () => {
+    const source = getSource();
+    if (!source.trim()) {
+      problemsPanel.addMessage({
+        type: 'warning',
+        message: 'Nothing to verify - the editor is empty. Use File > Open or type a song.',
+        source: 'verify',
+        timestamp: new Date(),
+      });
+      bottomTabs.show('problems');
+      return;
+    }
+    verifyPending = true;
+    runParse(source);
   };
 
   const getFilename = () => storage.get(StorageKey.LOADED_FILENAME, 'song') ?? 'song';
@@ -412,13 +425,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     syncEditorViewPrefsToToolbar(toolbarRef.current);
   };
 
-  const toolbar = new Toolbar({
-    container: toolbarHost,
+  const toolbar = createDesktopToolbar(toolbarHost, {
     eventBus,
     onBeforeOpenFile: () => playbackManager.stop(),
     onLoad: (filename, content) => options.onLoadDocument(filename, content),
+    onOpen: options.onOpen,
     onExport: (format: ExportFormat) => { void handleExport(format); },
-    onVerify: () => runParse(getSource()),
+    onVerify: runVerify,
     onNew: openNewSongWizard,
     onSave: () => { void options.onSave(false); },
     onUndo: () => getEditor()?.editor.trigger('toolbar', 'undo', null),
@@ -580,9 +593,43 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         toolbar.setChip((ast as { chip?: string })?.chip || 'gameboy');
         toolbar.setExportEnabled(true);
         menuBar?.setChip((ast as { chip?: string })?.chip || 'gameboy');
+        if (verifyPending) {
+          verifyPending = false;
+          outputPanel.addMessage({
+            type: 'success',
+            message: 'Verification passed',
+            source: 'verify',
+            timestamp: new Date(),
+          });
+          toolbar.setStatus('Verification passed', 'success');
+          bottomTabs.show('output');
+        }
       } catch { /* ignore */ }
     }),
-    eventBus.on('parse:error', () => toolbar.setExportEnabled(false)),
+    eventBus.on('parse:error', ({ message }) => {
+      toolbar.setExportEnabled(false);
+      if (verifyPending) {
+        verifyPending = false;
+        problemsPanel.addMessage({
+          type: 'error',
+          message: `Verification failed: ${message}`,
+          source: 'verify',
+          timestamp: new Date(),
+        });
+        toolbar.setStatus('Verification failed', 'error');
+        bottomTabs.show('problems');
+      }
+    }),
+    eventBus.on('editor:saved', ({ filename }) => {
+      outputPanel.addMessage({
+        type: 'success',
+        message: `Saved ${filename}`,
+        source: 'file',
+        timestamp: new Date(),
+      });
+      toolbar.setStatus(`Saved ${filename}`, 'success');
+      bottomTabs.show('output');
+    }),
     eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
       toolbar.setThemeIcon(theme);
       transportBar.volKnob.redraw();
@@ -635,6 +682,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (panel === 'transport-bar') transportBar[visible ? 'show' : 'hide']?.();
       if (panel === 'pattern-grid') {
         patternGridContainer.style.display = visible ? '' : 'none';
+        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(visible));
       }
       statusBar?.refreshPanelsMenu();
     }),
@@ -644,6 +692,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       }
       if (flag === FeatureFlag.PATTERN_GRID) {
         patternGridContainer.style.display = enabled ? '' : 'none';
+        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(enabled));
       }
       if (flag === FeatureFlag.SONG_VISUALIZER) {
         enabled ? rightTabs.show('channels') : rightTabs.close('channels');
@@ -675,8 +724,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
   ks.mount();
 
-  const shortcutsPanel = new HelpPanel({
-    container: shortcutsModal.container,
+  const shortcutsPanel = createDesktopHelpPanel(shortcutsModal.container, {
     eventBus,
     embedded: true,
     singleSection: 'shortcuts',
@@ -692,9 +740,22 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   blurChromeFocus();
 
   rightTabs.restorePersistedTab();
+  const restoredRightTab = rightTabs.activeTab;
+  if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
+    window.setTimeout(() => {
+      copilot?.show({ activate: restoredRightTab === 'ai' });
+      menuBar?.seedPanelVisible({ 'ai-assistant': copilot?.isVisible() ?? false });
+      statusBar?.refreshPanelsMenu();
+    }, 0);
+  }
   if (!isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) {
     rightTabs.close('channels');
   }
+  menuBar?.seedPanelVisible({
+    help: rightTabs.tabOpen.help,
+    'song-visualizer': rightTabs.tabOpen.channels,
+    'ai-assistant': copilot?.isVisible() ?? false,
+  });
 
   let monacoShortcutsDispose: (() => void) | null = null;
 
@@ -738,8 +799,14 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     fullIdeSetup.dispose();
     editorSetup?.dispose();
     monacoShortcutsDispose?.();
+    songVisualizer.dispose();
+    channelMixer?.destroy();
     copilot?.dispose();
+    settingsModal.dispose();
+    patternGrid?.dispose();
     disposeMenuBar?.();
+    problemsPanel.dispose();
+    outputPanel.dispose();
     shortcutsPanel.dispose();
     helpPanel?.dispose();
     statusBar?.dispose();

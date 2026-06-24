@@ -15,8 +15,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
-      "@/*": ["src/renderer/src/*"],
-      "@web-ui/*": ["../web-ui/src/*"]
+      "@/*": ["src/renderer/src/*"]
     }
   }
 }

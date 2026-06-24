@@ -35,7 +35,6 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),
-        '@web-ui': resolve(webUiRoot, 'src'),
         '@beatbax/app-core': resolve(__dirname, '../../packages/app-core/src'),
         fs: resolve(__dirname, 'src/renderer/src/electron-fs.ts'),
         path: resolve(__dirname, '../web-ui/src/utils/browser-path.ts'),

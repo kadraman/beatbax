@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from 'electron';
+import { app, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { existsSync as fsExistsSync, readFileSync as fsReadFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,36 @@ const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
   { name: 'All Files', extensions: ['*'] },
 ];
+
+interface SecureAIKeyFile {
+  version: 1;
+  encryptedApiKey: string;
+}
+
+interface AIAPIKeyValidationResult {
+  ok: boolean;
+  message: string;
+}
+
+interface AIChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface AIChatCompletionRequest {
+  endpoint: string;
+  apiKey: string;
+  model: string;
+  messages: AIChatCompletionMessage[];
+  temperature?: number;
+  maxTokens?: number;
+}
+
+let e2eMemoryAIAPIKey = '';
+
+function useE2EMemoryAIKeyStore(): boolean {
+  return process.env.BEATBAX_E2E_AI_KEY_STORE === 'memory';
+}
 
 /** Normalize IPC file payloads (Uint8Array, Buffer, or serialized arrays) for fs.writeFile. */
 function toFileBuffer(data: unknown): Buffer {
@@ -126,6 +156,203 @@ export function existsSyncSafe(targetPath: string): boolean {
   }
 }
 
+function aiCredentialPath(): string {
+  return path.join(app.getPath('userData'), 'secure-ai-credentials.json');
+}
+
+async function readSecureAIAPIKey(): Promise<string> {
+  if (useE2EMemoryAIKeyStore()) return e2eMemoryAIAPIKey;
+  try {
+    const raw = await fs.readFile(aiCredentialPath(), 'utf8');
+    const parsed = JSON.parse(raw) as Partial<SecureAIKeyFile>;
+    if (parsed.version !== 1 || typeof parsed.encryptedApiKey !== 'string') return '';
+    return safeStorage.decryptString(Buffer.from(parsed.encryptedApiKey, 'base64'));
+  } catch {
+    return '';
+  }
+}
+
+async function clearSecureAIAPIKey(): Promise<void> {
+  if (useE2EMemoryAIKeyStore()) {
+    e2eMemoryAIAPIKey = '';
+    return;
+  }
+  await fs.rm(aiCredentialPath(), { force: true });
+}
+
+async function writeSecureAIAPIKey(apiKey: string): Promise<void> {
+  if (useE2EMemoryAIKeyStore()) {
+    e2eMemoryAIAPIKey = apiKey.trim();
+    return;
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure credential storage is not available on this system.');
+  }
+
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    await clearSecureAIAPIKey();
+    return;
+  }
+  if (/[^\x20-\x7E]/.test(trimmed)) {
+    throw new Error('API key contains invalid characters.');
+  }
+
+  const encrypted = safeStorage.encryptString(trimmed);
+  const targetPath = aiCredentialPath();
+  const payload: SecureAIKeyFile = {
+    version: 1,
+    encryptedApiKey: encrypted.toString('base64'),
+  };
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await fs.writeFile(targetPath, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
+}
+
+function endpointModelsURL(endpoint: string): string {
+  const url = new URL(endpoint.trim());
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Endpoint must use http or https.');
+  }
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/models`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function endpointChatCompletionsURL(endpoint: string): string {
+  const url = new URL(endpoint.trim());
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Endpoint must use http or https.');
+  }
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPIKeyValidationResult> {
+  const trimmedEndpoint = typeof endpoint === 'string' ? endpoint.trim() : '';
+  const trimmedKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!trimmedEndpoint) return { ok: false, message: 'Enter an API endpoint before validating the key.' };
+  if (!trimmedKey) return { ok: false, message: 'No API key set.' };
+
+  let url: string;
+  try {
+    url = endpointModelsURL(trimmedEndpoint);
+  } catch (error) {
+    return { ok: false, message: `Invalid endpoint: ${(error as Error).message}` };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${trimmedKey}` },
+      signal: controller.signal,
+    });
+    if (response.ok) return { ok: true, message: 'API key validated.' };
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, message: 'API key was rejected by the provider.' };
+    }
+    const body = await response.text().catch(() => '');
+    const suffix = body.trim() ? ` ${body.trim().slice(0, 240)}` : '';
+    return { ok: false, message: `Could not validate key: provider returned HTTP ${response.status}.${suffix}` };
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      return { ok: false, message: 'Could not validate key: provider did not respond.' };
+    }
+    return { ok: false, message: `Could not validate key: ${(error as Error).message || 'request failed'}.` };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
+  const value = request as Partial<AIChatCompletionRequest> | null;
+  if (!value || typeof value !== 'object') throw new Error('Invalid AI request.');
+  if (typeof value.endpoint !== 'string' || !value.endpoint.trim()) throw new Error('No AI endpoint configured.');
+  if (typeof value.model !== 'string' || !value.model.trim()) throw new Error('No AI model configured.');
+  if (!Array.isArray(value.messages)) throw new Error('Invalid AI messages.');
+  const messages = value.messages.map((message) => {
+    if (!message || typeof message !== 'object') throw new Error('Invalid AI message.');
+    if (message.role !== 'system' && message.role !== 'user' && message.role !== 'assistant') {
+      throw new Error('Invalid AI message role.');
+    }
+    if (typeof message.content !== 'string') throw new Error('Invalid AI message content.');
+    return { role: message.role, content: message.content };
+  });
+  return {
+    endpoint: value.endpoint.trim(),
+    apiKey: typeof value.apiKey === 'string' ? value.apiKey.trim() : '',
+    model: value.model.trim(),
+    messages,
+    temperature: typeof value.temperature === 'number' ? value.temperature : 0.7,
+    maxTokens: typeof value.maxTokens === 'number' ? value.maxTokens : 1024,
+  };
+}
+
+function formatProviderError(status: number, body: string): string {
+  let providerMessage = body.trim();
+  let providerCode = '';
+  try {
+    const parsed = JSON.parse(body) as {
+      error?: { message?: unknown; code?: unknown; type?: unknown };
+    };
+    if (typeof parsed.error?.message === 'string') providerMessage = parsed.error.message;
+    if (typeof parsed.error?.code === 'string') providerCode = parsed.error.code;
+    else if (typeof parsed.error?.type === 'string') providerCode = parsed.error.type;
+  } catch { /* provider body was not JSON */ }
+
+  if (status === 401 || status === 403) {
+    return 'The AI provider rejected the API key. Check the key in AI Settings.';
+  }
+  if (status === 429) {
+    if (providerCode === 'insufficient_quota') {
+      return 'OpenAI quota exceeded. Check your plan and billing details, or choose a different provider/key in AI Settings.';
+    }
+    return 'The AI provider rate limit was reached. Try again later or use a different provider/key.';
+  }
+  const suffix = providerMessage ? ` ${providerMessage.slice(0, 240)}` : '';
+  return `The AI provider returned HTTP ${status}.${suffix}`;
+}
+
+async function createAIChatCompletion(request: unknown): Promise<string> {
+  const payload = sanitizeAIChatRequest(request);
+  const url = endpointChatCompletionsURL(payload.endpoint);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (payload.apiKey) headers.Authorization = `Bearer ${payload.apiKey}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: payload.model,
+        messages: payload.messages,
+        temperature: payload.temperature,
+        max_tokens: payload.maxTokens,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(formatProviderError(response.status, text));
+    }
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content ?? '(no response)';
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      throw new Error('AI request timed out.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function addRecentFileEntry(recentFilesPath: string, filePath: string): Promise<string[]> {
   const safePath = assertAbsoluteFilePath(filePath);
   const recentFiles = mergeRecentFiles(await readRecentFiles(recentFilesPath), safePath);
@@ -231,6 +458,22 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     await clearRecentFileEntries(recentFilesPath);
     onRecentFilesChanged?.();
   });
+
+  ipcMain.handle(IPC_CHANNELS.AI_GET_API_KEY, async () => readSecureAIAPIKey());
+
+  ipcMain.handle(IPC_CHANNELS.AI_SET_API_KEY, async (_event, apiKey: string) => {
+    await writeSecureAIAPIKey(typeof apiKey === 'string' ? apiKey : '');
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AI_CLEAR_API_KEY, async () => {
+    await clearSecureAIAPIKey();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AI_VALIDATE_API_KEY, async (_event, endpoint: string, apiKey: string) =>
+    validateAIAPIKey(endpoint, apiKey));
+
+  ipcMain.handle(IPC_CHANNELS.AI_CHAT_COMPLETION, async (_event, request: unknown) =>
+    createAIChatCompletion(request));
 
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();
