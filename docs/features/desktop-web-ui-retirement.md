@@ -78,7 +78,7 @@ Current inventory:
 |-----------------|-----------------|----------------|-----------------|
 | Small desktop utility helpers | `utils/icons.ts`, `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `move` | Moved to `apps/desktop/src/renderer/src/utils`; direct desktop-owned imports updated. |
 | Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via remaining shell modules | `defer` | Keep until `menu-bar`, `about-modal`, and `tabs` move out of `desktop-web-ui`. |
-| Settings section builders | `panels/settings-sections/*` from `DesktopSettingsModal.tsx` | `convert` | Convert to React settings components in Phase 3. |
+| Settings sections | `components/settings/*.tsx` from `DesktopSettingsModal.tsx` | `done` | Converted to desktop-owned React components; no DOM builders remain in the desktop settings modal. |
 | Shell tabs/modals/layout/status/theme/menu/loading | `app/*`, `ui/*` imports from desktop lib modules | `defer` | Relocate/convert in Phase 4. |
 | Full IDE/editor wiring | `app/full-ide-setup.ts`, `app/editor-view-prefs.ts` | `defer` | Move into desktop renderer services in Phase 5. |
 | MIDI step entry | `input/midi-step-entry-controller.ts` | `defer` | Move with editor integration in Phase 5. |
@@ -114,17 +114,18 @@ Replace the settings section DOM builders with React components owned by the des
 
 Current dependency:
 
-- `DesktopSettingsModal.tsx` imports builders from `desktop-web-ui/panels/settings-sections/*`.
+- Historical: `DesktopSettingsModal.tsx` imported builders from `desktop-web-ui/panels/settings-sections/*`.
+- Current: settings sections are desktop-owned React components rendered directly by `DesktopSettingsModal.tsx`.
 
 Target shape:
 
-- `components/settings/GeneralSettingsSection.tsx`
-- `components/settings/EditorSettingsSection.tsx`
-- `components/settings/PlaybackSettingsSection.tsx`
-- `components/settings/FeatureSettingsSection.tsx`
-- `components/settings/PluginSettingsSection.tsx`
-- `components/settings/AISettingsSection.tsx`
-- `components/settings/AdvancedSettingsSection.tsx`
+- `components/settings/general.tsx`
+- `components/settings/editor.tsx`
+- `components/settings/playback.tsx`
+- `components/settings/features.tsx`
+- `components/settings/plugins.tsx`
+- `components/settings/ai.tsx`
+- `components/settings/advanced.tsx`
 
 Acceptance criteria:
 
@@ -240,7 +241,7 @@ Before deleting the directory, perform a short desktop smoke pass:
 
 - [x] Inventory all `desktop-web-ui` imports.
 - [x] Move small utility helpers to desktop renderer utilities.
-- [ ] Convert settings section builders to React components.
+- [x] Convert settings section builders to React components.
 - [ ] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
 - [ ] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
 - [ ] Remove `desktop-web-ui/styles.css` import.
@@ -257,6 +258,7 @@ Before deleting the directory, perform a short desktop smoke pass:
 ## Open Questions
 
 - Should `RotaryKnob` remain a desktop-only component or move into a shared UI package later?
+> it should be moved into a shared ui component directory
 - Should keyboard shortcut descriptors become app-core metadata, or remain desktop renderer concerns?
 - Should `@beatbax/ui-tokens` include icon/channel presentation helpers, or stay limited to tokens and channel metadata?
 
