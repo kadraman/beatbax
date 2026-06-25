@@ -45,7 +45,7 @@ export const languages = {
   registerDocumentSemanticTokensProvider: jest.fn(),
   registerDocumentFormattingEditProvider: jest.fn(),
   registerSignatureHelpProvider: jest.fn(),
-  registerCodeActionProvider: jest.fn(),
+  registerCodeActionProvider: jest.fn(() => ({ dispose: jest.fn() })),
   CodeActionKind: {
     QuickFix: 'quickfix',
     Refactor: 'refactor',

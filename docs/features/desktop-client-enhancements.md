@@ -60,7 +60,7 @@ Work is grouped into five workstreams, roughly ordered by impact. Individual ite
 
 | Enhancement | Description |
 |-------------|-------------|
-| **Code signing** | Windows Authenticode + macOS Developer ID signing in CI |
+| **Code signing** | Windows Authenticode via Azure Artifact Signing + macOS Developer ID signing in CI |
 | **macOS notarization** | Enable `notarize: true` in `electron-builder.yml` with Apple credentials in GitHub secrets |
 | **Auto-update** | Integrate `electron-updater` with GitHub Releases (`desktop-v*` tags); surface update prompts in renderer |
 | **Release notes** | Curated release body template; link installers prominently in root README |
@@ -148,8 +148,8 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 
 ### Phase 5a — Distribution hardening
 
-1. Obtain code-signing certificates (Windows + Apple).
-2. Add signing secrets to GitHub Actions; configure `electron-builder` signing fields.
+1. Configure Azure Artifact Signing for Windows Authenticode signing and Apple Developer ID credentials for macOS.
+2. Add signing secrets to GitHub Actions; configure `electron-builder` signing fields, including Azure signing options for Windows.
 3. Enable macOS notarization in CI.
 4. Add `electron-updater` to main process; wire `checkForUpdates` on startup and manual Check for Updates menu item.
 5. Verify delta updates or full-installer fallback on all three platforms.
@@ -241,7 +241,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ### 5a — Distribution
 
-- [ ] Obtain Windows code-signing certificate
+- [ ] Configure Azure Artifact Signing account/certificate profile for Windows Authenticode signing
 - [ ] Obtain Apple Developer ID + notarization credentials
 - [ ] Configure signing in `electron-builder.yml` and CI secrets
 - [ ] Enable macOS notarization (`notarize: true`)
@@ -284,7 +284,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ## Open Questions
 
-1. **Code signing budget:** Are paid certificates available for CI? Self-signed is not sufficient for public distribution.
+1. **Code signing setup:** Is Azure Artifact Signing available for Windows CI, and are Apple Developer ID credentials available for macOS notarization? Self-signed certificates are not sufficient for public distribution.
 2. **Multi-window state model:** Shared `AppContext` singleton vs per-window isolated state?
 3. **UI tokens package:** Worth extracting now, or wait until more panels are React-native?
 4. **Auto-update channel:** Stable only, or beta channel for pre-releases?

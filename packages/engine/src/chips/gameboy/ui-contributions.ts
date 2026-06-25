@@ -236,7 +236,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
         code:
 `chip gameboy
 bpm 120
-time 4
+stepsPerBar 4
 
 inst lead type=pulse1 duty=50 env=12,down
 
@@ -254,7 +254,7 @@ play`,
         code:
 `chip gameboy
 bpm 140
-time 4
+stepsPerBar 4
 
 inst lead  type=pulse1 duty=50  env=12,down
 inst bass  type=pulse2 duty=25  env=10,down

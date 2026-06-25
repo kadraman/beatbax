@@ -1,0 +1,256 @@
+---
+title: "Desktop Web UI Retirement"
+status: proposed
+authors: ["kadraman"]
+created: 2026-06-24
+related:
+  - docs/features/desktop-client-enhancements.md
+  - docs/features/complete/desktop-first-client-split.md
+---
+
+## Summary
+
+Retire the transitional `apps/desktop/src/renderer/src/desktop-web-ui` directory by replacing its remaining DOM-oriented web-ui copies with desktop-owned React components, shared utilities, or small desktop renderer modules.
+
+This is a follow-on cleanup after Phase 5b's native React panel migration. The goal is not to change desktop behavior or visuals; it is to remove the compatibility layer that was copied from `apps/web-ui/src` when the desktop renderer stopped importing `@web-ui/*` directly.
+
+## Problem Statement
+
+`desktop-web-ui` still contains copied shell and utility code that desktop depends on:
+
+- Settings section builders used by `DesktopSettingsModal`.
+- Shell helpers for tabs, layout, menus, status bar, shortcuts, modals, theme management, loading overlays, and full IDE setup.
+- Small utility modules for icons, meter display, chip resolution, asset URLs, keyboard shortcuts, and error handling.
+- Legacy CSS imported by the desktop renderer.
+
+This keeps the desktop build independent from `apps/web-ui`, but it also leaves a confusing boundary: the folder name implies web-ui ownership even though the code now lives inside the desktop app. It also makes it harder to see which pieces are native React, which are copied legacy DOM code, and which should become shared packages.
+
+## Goals
+
+- Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
+- Preserve the current desktop UI behavior, keyboard shortcuts, panel visibility, persistence, and Playwright coverage.
+- Move reusable non-UI helpers into clearly named shared or desktop-owned modules.
+- Convert remaining user-facing shell pieces to native desktop React where practical.
+- Avoid reintroducing direct desktop imports from `apps/web-ui/src` or `@web-ui/*`.
+
+## Non-Goals
+
+- Do not redesign the desktop UI.
+- Do not flatten `apps/desktop/src/renderer/src` as part of this work.
+- Do not merge desktop and web-lite UI implementations back together.
+- Do not publish new shared packages unless a module is genuinely reusable outside desktop.
+
+## Proposed Solution
+
+Treat `desktop-web-ui` as a temporary migration source and retire it in small slices. Each slice should move one category of modules to its final home, update imports, and remove the old files once unused.
+
+Prefer these destinations:
+
+| Current content | Target destination |
+|-----------------|--------------------|
+| Tiny renderer helpers used only by desktop | `apps/desktop/src/renderer/src/lib` or `apps/desktop/src/renderer/src/utils` |
+| React-friendly shared design metadata | `packages/ui-tokens` |
+| Desktop shell UI | `apps/desktop/src/renderer/src/components` |
+| Desktop shell orchestration | `apps/desktop/src/renderer/src/lib` |
+| Legacy settings DOM builders | React components under `apps/desktop/src/renderer/src/components/settings` |
+| Legacy CSS | Component-scoped desktop CSS plus `@beatbax/ui-tokens/tokens.css` |
+
+## Implementation Plan
+
+### Phase 1 — Inventory and Boundaries
+
+Create a short inventory of every `desktop-web-ui` import and classify it as:
+
+- `move`: small utility or type that can be relocated without behavioral change.
+- `convert`: DOM UI code that should become React.
+- `delete`: unused module.
+- `defer`: module that is still entangled with shell orchestration and needs a later slice.
+
+Acceptance criteria:
+
+- A tracked checklist exists in this document or the implementation PR.
+- `rg "desktop-web-ui" apps/desktop/src/renderer/src` is the source of truth for remaining dependencies.
+- No new `desktop-web-ui` imports are added during the migration.
+
+### Phase 2 — Move Small Utilities
+
+Move low-risk helpers first:
+
+- `utils/icons.ts`
+- `utils/meter-display.ts`
+- `utils/app-asset-url.ts`
+- `utils/chip-resolve.ts`
+- type-only shortcut descriptors if separable
+
+Suggested destinations:
+
+- `apps/desktop/src/renderer/src/utils/icons.ts`
+- `apps/desktop/src/renderer/src/utils/meter-display.ts`
+- `apps/desktop/src/renderer/src/utils/app-asset-url.ts`
+- `apps/desktop/src/renderer/src/utils/chip-resolve.ts`
+
+Acceptance criteria:
+
+- Native React panels import utilities from desktop-owned `utils` paths.
+- No behavior changes in Visualizer, Channel Mixer, Toolbar, or Copilot.
+- Desktop typecheck passes.
+
+### Phase 3 — React Settings Sections
+
+Replace the settings section DOM builders with React components owned by the desktop renderer.
+
+Current dependency:
+
+- `DesktopSettingsModal.tsx` imports builders from `desktop-web-ui/panels/settings-sections/*`.
+
+Target shape:
+
+- `components/settings/GeneralSettingsSection.tsx`
+- `components/settings/EditorSettingsSection.tsx`
+- `components/settings/PlaybackSettingsSection.tsx`
+- `components/settings/FeatureSettingsSection.tsx`
+- `components/settings/PluginSettingsSection.tsx`
+- `components/settings/AISettingsSection.tsx`
+- `components/settings/AdvancedSettingsSection.tsx`
+
+Acceptance criteria:
+
+- Settings tabs remain visually equivalent.
+- Reset defaults behavior still works per section.
+- AI API key remains stored via desktop secure IPC and never persisted in `localStorage`.
+- Feature toggles still update panels, menus, shortcuts, and persisted flags.
+- Existing settings/copilot Playwright coverage passes.
+
+### Phase 4 — Desktop Shell Components
+
+Replace or relocate shell UI currently copied from web-ui:
+
+- `app/tabs.ts`
+- `app/modals.ts`
+- `ui/layout.ts`
+- `ui/menu-bar.ts`
+- `ui/status-bar.ts`
+- `ui/panels-menu.ts`
+- `ui/theme-manager.ts`
+- `ui/loading-overlay.ts`
+- `utils/keyboard-shortcuts.ts`
+- `utils/error-boundary.ts`
+
+Target shape:
+
+- React shell components live under `components/workspace` and `components/shell`.
+- Imperative orchestration lives under `lib`.
+- Keyboard shortcut registration exposes typed descriptors and handlers independent of DOM classes.
+
+Acceptance criteria:
+
+- Desktop menu actions and shortcuts still work.
+- Right/bottom tab state, close buttons, active tab persistence, and panel toggles remain stable.
+- Theme switching and status bar updates remain stable.
+- Help, About, New Song Wizard, and shortcut modal behavior remains covered by e2e or focused unit tests.
+
+### Phase 5 — Full IDE Setup and Editor Integration
+
+Untangle the largest orchestration module:
+
+- `app/full-ide-setup.ts`
+- `app/editor-view-prefs.ts`
+- `input/midi-step-entry-controller.ts`
+
+Move editor and playback wiring into desktop-owned renderer services with explicit dependencies passed in from `DesktopWorkspaceShell` or `desktop-workspace.ts`.
+
+Acceptance criteria:
+
+- Playback, live mode, loop mode, BPM, master volume, and transport display updates remain synchronized.
+- Editor view preferences and comments folding remain stable.
+- MIDI step entry still works when enabled.
+- No renderer service depends on copied web-ui paths.
+
+### Phase 6 — CSS Retirement
+
+Remove `desktop-web-ui/styles.css` by moving required styles into:
+
+- `apps/desktop/src/renderer/src/styles.css`
+- component-specific desktop CSS sections
+- `@beatbax/ui-tokens/tokens.css` for shared variables only
+
+Acceptance criteria:
+
+- `main.tsx` no longer imports `./desktop-web-ui/styles.css`.
+- Desktop visual smoke tests remain stable.
+- Web-lite styles are not imported into desktop.
+- No broad CSS rewrite or class rename is required unless a component has already moved to React.
+
+### Phase 7 — Delete Directory
+
+When all imports are gone:
+
+1. Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
+2. Run `rg "desktop-web-ui" apps/desktop`.
+3. Run desktop typecheck, build, and focused e2e.
+4. Update docs that mention the transitional folder.
+
+Acceptance criteria:
+
+- `rg "desktop-web-ui" apps/desktop` returns no source imports.
+- `npm -w @beatbax/desktop run typecheck` passes.
+- `npm -w @beatbax/desktop run build` passes.
+- Desktop Playwright smoke tests pass locally or in CI.
+
+## Testing Strategy
+
+### Unit and Type Tests
+
+- Run desktop typecheck after each slice.
+- Add focused unit tests only when moving logic with meaningful behavior, such as shortcut registration, settings reset behavior, or editor preference persistence.
+
+### E2E Tests
+
+Keep the current desktop e2e suite green and expand only where migration risk is high:
+
+- Settings modal and Copilot panel.
+- Help tab and shortcut modal.
+- Channel Mixer and Song Visualizer.
+- Toolbar, transport, playback, save, export, and panel toggles.
+
+### Manual QA
+
+Before deleting the directory, perform a short desktop smoke pass:
+
+- Open a song, play/stop, adjust BPM and master volume.
+- Toggle every panel from the Panels menu.
+- Open Settings, change a feature flag, reset defaults.
+- Switch theme.
+- Use Help/About/New Song Wizard.
+
+## Migration Checklist
+
+- [ ] Inventory all `desktop-web-ui` imports.
+- [ ] Move small utility helpers to desktop renderer utilities.
+- [ ] Convert settings section builders to React components.
+- [ ] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
+- [ ] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
+- [ ] Remove `desktop-web-ui/styles.css` import.
+- [ ] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
+- [ ] Update documentation and verify desktop build/e2e.
+
+## Risks
+
+- Shell helpers are widely connected to menus, shortcuts, editor setup, and persistence, so broad rewrites can create regressions.
+- Settings sections include secure AI key handling and feature toggles; these should be migrated carefully.
+- CSS removal can cause large visual diffs if done before React components own their markup.
+- Moving modules without improving boundaries can simply rename the compatibility layer rather than retire it.
+
+## Open Questions
+
+- Should `RotaryKnob` remain a desktop-only component or move into a shared UI package later?
+- Should keyboard shortcut descriptors become app-core metadata, or remain desktop renderer concerns?
+- Should `@beatbax/ui-tokens` include icon/channel presentation helpers, or stay limited to tokens and channel metadata?
+
+## References
+
+- `apps/desktop/src/renderer/src/desktop-web-ui`
+- `apps/desktop/src/renderer/src/lib/desktop-workspace.ts`
+- `apps/desktop/src/renderer/src/components/panels/DesktopSettingsModal.tsx`
+- `apps/desktop/src/renderer/src/main.tsx`
+- `docs/features/desktop-client-enhancements.md`

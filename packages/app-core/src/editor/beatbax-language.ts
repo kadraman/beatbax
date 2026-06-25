@@ -1099,7 +1099,7 @@ export function registerBeatBaxLanguage(): void {
         major: 'Scale mode: major (Ionian). Example: `scale C major warn`',
         minor: 'Scale mode: natural minor (Aeolian). Example: `scale A minor warn`',
         stepsPerBar: 'Sets steps per bar for bar/beat display (default 4). Example: `stepsPerBar 4`',
-        time: '*(deprecated)* Alias for `stepsPerBar`. Still parsed; prefer `stepsPerBar`. Example: `time 4`',
+        time: '*(deprecated)* Alias for `stepsPerBar`. Still parsed for compatibility; prefer `stepsPerBar 4`.',
         ticksPerStep:
           '*(deprecated, no effect)* Ignored by the engine. Use `stepsPerBar` for bar grouping. Example: `ticksPerStep 16`',
         inst: 'Declares a named instrument. Syntax: `inst <name> type=<channel-type> [...]`. Hover over type values or fields for chip-specific documentation.',
