@@ -140,6 +140,24 @@ describe('suggestQuickFixes', () => {
     expect(fixes[0].title).toMatch(/pat/i);
   });
 
+  test('deprecated time directive offers stepsPerBar replacement', () => {
+    const model = mockModel(['  time 4']);
+    const fixes = suggestQuickFixes(
+      '[parser] `time` is deprecated; use `stepsPerBar` instead.',
+      model,
+      marker('time', 1, 3, 7),
+    );
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0].title).toBe("Change 'time' to 'stepsPerBar'");
+    expect(editText(fixes[0])).toBe('stepsPerBar');
+    expect(fixes[0].edits[0].range).toMatchObject({
+      startLineNumber: 1,
+      startColumn: 3,
+      endLineNumber: 1,
+      endColumn: 7,
+    });
+  });
+
   test('unknown chip', () => {
     const model = mockModel(['chip atari']);
     const fixes = suggestQuickFixes(
@@ -394,6 +412,17 @@ describe('findMarkerForProblem / getQuickFixesForProblem', () => {
     const fromEditor = suggestQuickFixes(m.message!, model, m);
     expect(fromProblem.map((f) => f.title)).toEqual(fromEditor.map((f) => f.title));
   });
+
+  test('getQuickFixesForProblem offers deprecated time replacement without live marker', () => {
+    const model = mockModel(['time 4']);
+    const fixes = getQuickFixesForProblem(
+      model,
+      '[parser] `time` is deprecated; use `stepsPerBar` instead.',
+      { start: { line: 1, column: 1 }, end: { line: 1, column: 5 } },
+    );
+    expect(fixes[0].title).toBe("Change 'time' to 'stepsPerBar'");
+    expect(editText(fixes[0])).toBe('stepsPerBar');
+  });
 });
 
 describe('registerBeatBaxCodeActions', () => {
@@ -403,5 +432,67 @@ describe('registerBeatBaxCodeActions', () => {
       'beatbax',
       expect.objectContaining({ provideCodeActions: expect.any(Function) }),
     );
+  });
+
+  test('inline provider falls back to same-line markers when context is empty', () => {
+    (monaco.languages.registerCodeActionProvider as jest.Mock).mockClear();
+    registerBeatBaxCodeActions();
+    const provider = (monaco.languages.registerCodeActionProvider as jest.Mock).mock.calls[0][1];
+
+    const model = mockModel(['time 4']);
+    const warning = marker(
+      '[parser] `time` is deprecated; use `stepsPerBar` instead.',
+      1,
+      1,
+      5,
+    );
+    (monaco.editor.getModelMarkers as jest.Mock).mockReturnValueOnce([warning]);
+
+    const result = provider.provideCodeActions(
+      model,
+      { startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 7 },
+      { markers: [] },
+    );
+
+    expect(result.actions.map((action: monaco.languages.CodeAction) => action.title)).toContain(
+      "Change 'time' to 'stepsPerBar'",
+    );
+  });
+
+  test('inline provider collapses duplicate fixes from duplicate markers', () => {
+    (monaco.languages.registerCodeActionProvider as jest.Mock).mockClear();
+    registerBeatBaxCodeActions();
+    const provider = (monaco.languages.registerCodeActionProvider as jest.Mock).mock.calls[0][1];
+
+    const model = mockModel(['time 4']);
+    const warning = marker(
+      '[parser] `time` is deprecated; use `stepsPerBar` instead.',
+      1,
+      1,
+      5,
+    );
+    (monaco.editor.getModelMarkers as jest.Mock).mockReturnValueOnce([warning, warning]);
+
+    const result = provider.provideCodeActions(
+      model,
+      { startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 7 },
+      { markers: [] },
+    );
+    const titles = result.actions.map((action: monaco.languages.CodeAction) => action.title);
+
+    expect(titles.filter((title: string) => title === "Change 'time' to 'stepsPerBar'")).toHaveLength(1);
+  });
+
+  test('re-registering disposes the previous provider', () => {
+    const firstDisposable = { dispose: jest.fn() };
+    const secondDisposable = { dispose: jest.fn() };
+    (monaco.languages.registerCodeActionProvider as jest.Mock)
+      .mockReturnValueOnce(firstDisposable)
+      .mockReturnValueOnce(secondDisposable);
+
+    registerBeatBaxCodeActions();
+    registerBeatBaxCodeActions();
+
+    expect(firstDisposable.dispose).toHaveBeenCalledTimes(1);
   });
 });

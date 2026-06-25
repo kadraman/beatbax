@@ -120,6 +120,8 @@ describe('BeatBax Monaco hover provider', () => {
     expect(hover).toBeTruthy();
     expect(hover.contents[0].value).toContain('deprecated');
     expect(hover.contents[0].value).toContain('stepsPerBar');
+    expect(hover.contents[0].value).toContain('stepsPerBar 4');
+    expect(hover.contents[0].value).not.toContain('Example: `time 4`');
   });
 
   test('ticksPerStep keyword hover notes deprecation', () => {
