@@ -1,14 +1,16 @@
-import { useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import { buildGeneralSection, resetGeneralDefaults } from '../../desktop-web-ui/panels/settings-sections/general';
-import { buildEditorSection, resetEditorDefaults } from '../../desktop-web-ui/panels/settings-sections/editor';
-import { buildPlaybackSection, resetPlaybackDefaults } from '../../desktop-web-ui/panels/settings-sections/playback';
-import { buildFeaturesSection, resetFeaturesDefaults } from '../../desktop-web-ui/panels/settings-sections/features';
-import { buildPluginsSection, resetPluginsDefaults } from '../../desktop-web-ui/panels/settings-sections/plugins';
-import { buildAISection, resetAIDefaults } from '../../desktop-web-ui/panels/settings-sections/ai';
-import { buildAdvancedSection, resetAdvancedDefaults } from '../../desktop-web-ui/panels/settings-sections/advanced';
+import { settingFeatureAI } from '@beatbax/app-core/stores/settings.store';
+import { useStoreValue } from '../../hooks/useStoreValue';
+import { GeneralSettingsSection, resetGeneralDefaults } from '../settings/general';
+import { EditorSettingsSection, resetEditorDefaults } from '../settings/editor';
+import { PlaybackSettingsSection, resetPlaybackDefaults } from '../settings/playback';
+import { FeaturesSettingsSection, resetFeaturesDefaults } from '../settings/features';
+import { PluginsSettingsSection, resetPluginsDefaults } from '../settings/plugins';
+import { AISettingsSection, resetAIDefaults } from '../settings/ai';
+import { AdvancedSettingsSection, resetAdvancedDefaults } from '../settings/advanced';
 
 export type DesktopSettingsSectionId = 'general' | 'editor' | 'playback' | 'features' | 'plugins' | 'ai' | 'advanced';
 
@@ -38,40 +40,44 @@ interface SectionDef {
   id: DesktopSettingsSectionId;
   label: string;
   icon: string;
-  build: () => HTMLElement;
+  Component: ComponentType;
   reset: () => void;
   visible?: () => boolean;
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: 'general', label: 'General', icon: '⚙', build: buildGeneralSection, reset: resetGeneralDefaults },
-  { id: 'editor', label: 'Editor', icon: '✏', build: buildEditorSection, reset: resetEditorDefaults },
-  { id: 'playback', label: 'Playback', icon: '▶', build: buildPlaybackSection, reset: resetPlaybackDefaults },
-  { id: 'features', label: 'Features', icon: '⬡', build: buildFeaturesSection, reset: resetFeaturesDefaults },
-  { id: 'plugins', label: 'Plugins', icon: '🔌', build: buildPluginsSection, reset: resetPluginsDefaults },
+  { id: 'general', label: 'General', icon: '⚙', Component: GeneralSettingsSection, reset: resetGeneralDefaults },
+  { id: 'editor', label: 'Editor', icon: '✏', Component: EditorSettingsSection, reset: resetEditorDefaults },
+  { id: 'playback', label: 'Playback', icon: '▶', Component: PlaybackSettingsSection, reset: resetPlaybackDefaults },
+  { id: 'features', label: 'Features', icon: '⬡', Component: FeaturesSettingsSection, reset: resetFeaturesDefaults },
+  { id: 'plugins', label: 'Plugins', icon: '🔌', Component: PluginsSettingsSection, reset: resetPluginsDefaults },
   {
     id: 'ai',
     label: 'AI Copilot',
     icon: '✦',
-    build: buildAISection,
+    Component: AISettingsSection,
     reset: resetAIDefaults,
     visible: () => isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
   },
-  { id: 'advanced', label: 'Advanced', icon: '⋮', build: buildAdvancedSection, reset: resetAdvancedDefaults },
+  { id: 'advanced', label: 'Advanced', icon: '⋮', Component: AdvancedSettingsSection, reset: resetAdvancedDefaults },
 ];
 
 function DesktopSettingsModal({ modalRef, onClose }: DesktopSettingsModalProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<DesktopSettingsSectionId>('general');
   const [refreshToken, setRefreshToken] = useState(0);
-  const contentRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const aiFeatureEnabled = useStoreValue(settingFeatureAI);
 
   const visibleSections = useMemo(() => {
-    return SECTIONS.filter((section) => !section.visible || section.visible());
-  }, [refreshToken]);
+    return SECTIONS.filter((section) => {
+      if (section.id === 'ai') return aiFeatureEnabled || section.visible?.();
+      return !section.visible || section.visible();
+    });
+  }, [aiFeatureEnabled, refreshToken]);
 
   const activeDef = visibleSections.find((section) => section.id === activeSection) ?? visibleSections[0] ?? SECTIONS[0];
+  const ActiveSection = activeDef.Component;
 
   const close = useCallback(() => {
     setOpen(false);
@@ -99,16 +105,6 @@ function DesktopSettingsModal({ modalRef, onClose }: DesktopSettingsModalProps):
       setActiveSection(visibleSections[0]?.id ?? 'general');
     }
   }, [activeSection, visibleSections]);
-
-  useLayoutEffect(() => {
-    const host = contentRef.current;
-    if (!host || !activeDef) return;
-    host.innerHTML = '';
-    host.appendChild(activeDef.build());
-    return () => {
-      host.innerHTML = '';
-    };
-  }, [activeDef, refreshToken]);
 
   const resetActive = () => {
     activeDef.reset();
@@ -173,9 +169,10 @@ function DesktopSettingsModal({ modalRef, onClose }: DesktopSettingsModalProps):
             aria-labelledby={`bb-settings-tab-${activeDef.id}`}
             className="bb-settings-content"
             id={`bb-settings-panel-${activeDef.id}`}
-            ref={contentRef}
             role="tabpanel"
-          />
+          >
+            <ActiveSection key={`${activeDef.id}-${refreshToken}`} />
+          </div>
         </div>
 
         <div className="bb-settings-modal-footer">
