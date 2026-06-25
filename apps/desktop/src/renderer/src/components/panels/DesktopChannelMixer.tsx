@@ -28,8 +28,8 @@ import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-f
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { getChannelMeta } from '@beatbax/ui-tokens/channel-meta';
-import { icon } from '../../desktop-web-ui/utils/icons';
-import { getMeterDisplayGain, scaleRmsForMeter } from '../../desktop-web-ui/utils/meter-display';
+import { icon } from '../../utils/icons';
+import { getMeterDisplayGain, scaleRmsForMeter } from '../../utils/meter-display';
 
 const VU_SEGMENTS = 12;
 const VU_YELLOW_THRESHOLD = 8;

@@ -1,19 +1,17 @@
 /**
- * Error boundary utilities for BeatBax Web UI.
+ * Error boundary utilities for the desktop renderer.
  *
  * Three layers of protection:
- * 1. withErrorBoundary  — wraps individual component init; renders an inline
+ * 1. withErrorBoundary  - wraps individual component init; renders an inline
  *    error card if it throws so the rest of the app keeps loading.
- * 2. showFatalError     — full-screen overlay for catastrophic init failures.
- * 3. installGlobalErrorHandlers — window `error` + `unhandledrejection` listeners that
+ * 2. showFatalError     - full-screen overlay for catastrophic init failures.
+ * 3. installGlobalErrorHandlers - window `error` + `unhandledrejection` listeners that
  *    forwards to a caller-supplied callback (usually OutputPanel.addMessage).
  */
 
 import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:error-boundary');
-
-// ─── Inline component error card ─────────────────────────────────────────────
 
 function renderErrorCard(container: HTMLElement, label: string, error: unknown): void {
   const msg = error instanceof Error ? error.message : String(error);
@@ -34,11 +32,10 @@ function renderErrorCard(container: HTMLElement, label: string, error: unknown):
   ].join(';');
 
   const title = document.createElement('strong');
-  title.textContent = `Component error — ${label}`;
+  title.textContent = `Component error - ${label}`;
   title.style.cssText = 'font-size:13px;';
 
   const body = document.createElement('span');
-  // Escape text to prevent XSS before inserting via textContent (safe)
   body.textContent = msg;
 
   const hint = document.createElement('span');
@@ -49,13 +46,6 @@ function renderErrorCard(container: HTMLElement, label: string, error: unknown):
   container.appendChild(card);
 }
 
-/**
- * Execute `fn` inside a try/catch.
- *
- * - On success: returns the result of `fn`.
- * - On failure: logs the error, renders an error card inside `container`
- *   (if provided), and returns `null` so callers can guard with `?? fallback`.
- */
 export function withErrorBoundary<T>(
   label: string,
   fn: () => T,
@@ -72,8 +62,6 @@ export function withErrorBoundary<T>(
   }
 }
 
-// ─── Fatal error overlay ──────────────────────────────────────────────────────
-
 /** Render a full-screen error overlay. Call when startup itself fails. */
 export function showFatalError(error: unknown): void {
   const msg = error instanceof Error ? error.message : String(error);
@@ -81,7 +69,6 @@ export function showFatalError(error: unknown): void {
 
   log.error('Fatal initialisation error:', error);
 
-  // Remove any existing overlay first
   document.getElementById('bb-fatal-error')?.remove();
 
   const overlay = document.createElement('div');
@@ -102,7 +89,7 @@ export function showFatalError(error: unknown): void {
   ].join(';');
 
   const icon = document.createElement('div');
-  icon.textContent = '⚠';
+  icon.textContent = '!';
   icon.style.cssText = 'font-size:48px;';
 
   const heading = document.createElement('h2');
@@ -139,7 +126,6 @@ export function showFatalError(error: unknown): void {
     summary.textContent = 'Stack trace';
     summary.style.cssText = 'cursor:pointer; margin-bottom:8px;';
     const pre = document.createElement('pre');
-    // Use textContent to avoid XSS
     pre.textContent = stack;
     pre.style.cssText = [
       'overflow:auto',
@@ -157,17 +143,8 @@ export function showFatalError(error: unknown): void {
   document.body.appendChild(overlay);
 }
 
-// ─── Global error handlers ────────────────────────────────────────────────────
-
 export type GlobalErrorCallback = (message: string, error?: unknown) => void;
 
-/**
- * Install `error` and `unhandledrejection` event listeners on `window`.
- * The provided `callback` receives a human-readable message so the caller
- * can forward it to wherever errors are displayed (e.g. OutputPanel).
- *
- * Returns a teardown function that removes the listeners.
- */
 export function installGlobalErrorHandlers(callback: GlobalErrorCallback): () => void {
   const onError = (ev: ErrorEvent) => {
     const err: Error | undefined = ev.error instanceof Error ? ev.error : undefined;
