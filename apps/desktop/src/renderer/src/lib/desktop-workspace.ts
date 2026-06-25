@@ -1,5 +1,5 @@
 import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
-import type { BeatBaxEditor } from '@beatbax/app-core/editor';
+import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
@@ -308,14 +308,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       onInsertSnippet: (snippet) => {
         const monacoEditor = getEditor()?.editor;
         if (!monacoEditor) return;
-        const selection = monacoEditor.getSelection();
-        if (!selection) return;
-        monacoEditor.executeEdits('help-panel', [{
-          range: selection,
-          text: snippet,
-          forceMoveMarkers: true,
-        }]);
-        monacoEditor.focus();
+        insertHelpSnippetBlock(monacoEditor, snippet);
       },
       onReplaceEditor: (text) => {
         getEditor()?.setValue(text);
