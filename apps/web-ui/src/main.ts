@@ -39,7 +39,7 @@ import {
 } from '@beatbax/engine/util/logger';
 import { parse } from '@beatbax/engine/parser';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
-import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations } from '@beatbax/app-core/editor';
+import { createEditor, registerBeatBaxLanguage, configureMonaco, registerNoteEditCommands, setupBeatDecorations, insertHelpSnippetBlock } from '@beatbax/app-core/editor';
 import {
   createDiagnosticsManager,
   setupDiagnosticsIntegration,
@@ -458,11 +458,7 @@ if (capabilities.helpPanel) {
       onInsertSnippet: (snippet) => {
         const monacoEditor = editor?.editor;
         if (!monacoEditor) return;
-        const selection = monacoEditor.getSelection();
-        const id = { major: 1, minor: 1 };
-        const op = { identifier: id, range: selection, text: snippet, forceMoveMarkers: true };
-        monacoEditor.executeEdits('help-panel', [op]);
-        monacoEditor.focus();
+        insertHelpSnippetBlock(monacoEditor, snippet);
       },
       onReplaceEditor: (text) => {
         const monacoEditor = editor?.editor;
