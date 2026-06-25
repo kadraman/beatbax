@@ -72,6 +72,19 @@ Acceptance criteria:
 - `rg "desktop-web-ui" apps/desktop/src/renderer/src` is the source of truth for remaining dependencies.
 - No new `desktop-web-ui` imports are added during the migration.
 
+Current inventory:
+
+| Dependency area | Current imports | Classification | Target / status |
+|-----------------|-----------------|----------------|-----------------|
+| Small desktop utility helpers | `utils/icons.ts`, `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `move` | Moved to `apps/desktop/src/renderer/src/utils`; direct desktop-owned imports updated. |
+| Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via remaining shell modules | `defer` | Keep until `menu-bar`, `about-modal`, and `tabs` move out of `desktop-web-ui`. |
+| Settings section builders | `panels/settings-sections/*` from `DesktopSettingsModal.tsx` | `convert` | Convert to React settings components in Phase 3. |
+| Shell tabs/modals/layout/status/theme/menu/loading | `app/*`, `ui/*` imports from desktop lib modules | `defer` | Relocate/convert in Phase 4. |
+| Full IDE/editor wiring | `app/full-ide-setup.ts`, `app/editor-view-prefs.ts` | `defer` | Move into desktop renderer services in Phase 5. |
+| MIDI step entry | `input/midi-step-entry-controller.ts` | `defer` | Move with editor integration in Phase 5. |
+| Legacy stylesheet | `main.tsx` imports `desktop-web-ui/styles.css` | `defer` | Retire after component CSS ownership is clear in Phase 6. |
+| `desktop-web-ui` utility files with no imports | `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `delete` | Deleted after moving direct desktop usage. |
+
 ### Phase 2 — Move Small Utilities
 
 Move low-risk helpers first:
@@ -225,8 +238,8 @@ Before deleting the directory, perform a short desktop smoke pass:
 
 ## Migration Checklist
 
-- [ ] Inventory all `desktop-web-ui` imports.
-- [ ] Move small utility helpers to desktop renderer utilities.
+- [x] Inventory all `desktop-web-ui` imports.
+- [x] Move small utility helpers to desktop renderer utilities.
 - [ ] Convert settings section builders to React components.
 - [ ] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
 - [ ] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
