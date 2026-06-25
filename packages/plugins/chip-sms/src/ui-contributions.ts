@@ -305,7 +305,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
         label: 'Minimal SMS song',
         code: `chip sms\n\n` +
           `bpm 150\n` +
-          `time 4\n\n` +
+          `stepsPerBar 4\n\n` +
           `inst lead type=tone1 vol=12 vol_env=[0,3,6,9,12,15]\n\n` +
           `pat melody = C5 E5 G5 C6\n\n` +
           `seq main = melody melody melody melody\n\n` +
@@ -317,7 +317,7 @@ const helpSections: ChipUIContributions['helpSections'] = [
         label: '4-channel SMS chiptune',
         code: `chip sms\n\n` +
           `bpm 154\n` +
-          `time 4\n\n` +
+          `stepsPerBar 4\n\n` +
           `inst lead  type=tone1   vol=8  vol_env=[3,5,7,9|0]\n` +
           `inst harm  type=tone2   vol=6  vol_env=[4,6,8,10|0]\n` +
           `inst bass  type=tone3   vol=10 vol_env=[2,4,6,8|0]\n` +

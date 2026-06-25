@@ -596,6 +596,14 @@ export function suggestQuickFixes(
     if (fixes.length > 0) return fixes;
   }
 
+  // Deprecated timing directive: `time 4` -> `stepsPerBar 4`.
+  if (/^`?time`? is deprecated;\s*use `?stepsPerBar`? instead\./i.test(message)) {
+    const range =
+      findTopLevelKeywordRange(line, lineNumber, 'time') ?? markerSpan(marker);
+    fixes.push(replaceFix("Change 'time' to 'stepsPerBar'", range, 'stepsPerBar'));
+    return fixes;
+  }
+
   // Unknown transform 'tranpese(+2)' on 'lead_core' in sequence 'main'.
   let m = message.match(/^Unknown transform '([^']+)' on '([^']+)'/);
   if (m) {
@@ -936,18 +944,52 @@ function toMonacoCodeAction(
   };
 }
 
+function quickFixKey(fix: QuickFixSuggestion): string {
+  return JSON.stringify({
+    title: fix.title,
+    edits: fix.edits.map((edit) => ({
+      range: edit.range,
+      text: edit.text,
+    })),
+  });
+}
+
+function markersForCodeActionRequest(
+  model: monaco.editor.ITextModel,
+  range: monaco.Range,
+  context: monaco.languages.CodeActionContext,
+): monaco.editor.IMarkerData[] {
+  if (context.markers.length > 0) return context.markers;
+
+  // Monaco's inline quick-fix request can be cursor-based, so `context.markers`
+  // may be empty unless the cursor intersects the squiggle exactly.  Fall back
+  // to BeatBax markers on the same line so "Quick Fix..." still works nearby.
+  return monaco.editor.getModelMarkers({ resource: model.uri, owner: 'beatbax' })
+    .filter((marker) =>
+      marker.startLineNumber <= range.endLineNumber &&
+      marker.endLineNumber >= range.startLineNumber,
+    );
+}
+
+let codeActionsDisposable: monaco.IDisposable | null = null;
+
 /** Register BeatBax quick-fix provider (call once at startup). */
 export function registerBeatBaxCodeActions(): void {
-  monaco.languages.registerCodeActionProvider('beatbax', {
-    provideCodeActions(model, _range, context) {
+  codeActionsDisposable?.dispose();
+  codeActionsDisposable = monaco.languages.registerCodeActionProvider('beatbax', {
+    provideCodeActions(model, range, context) {
       const actions: monaco.languages.CodeAction[] = [];
-      for (const marker of context.markers) {
+      const seen = new Set<string>();
+      for (const marker of markersForCodeActionRequest(model, range, context)) {
         const fixes = suggestQuickFixes(
           marker.message ?? '',
           model,
           marker,
         );
         for (const fix of fixes) {
+          const key = quickFixKey(fix);
+          if (seen.has(key)) continue;
+          seen.add(key);
           actions.push(toMonacoCodeAction(model, marker, fix));
         }
       }

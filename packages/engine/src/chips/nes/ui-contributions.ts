@@ -285,7 +285,7 @@ inst sfx      type=dmc dmc_rate=10 dmc_loop=false dmc_sample="@nes/crash"
         code:
 `chip nes
 bpm 150
-time 4
+stepsPerBar 4
 
 inst lead type=pulse1 duty=50 env=13,down env_period=2
 
@@ -303,7 +303,7 @@ play`,
         code:
 `chip nes
 bpm 150
-time 4
+stepsPerBar 4
 
 inst lead  type=pulse1   duty=50   env=13,down  env_period=2
 inst harm  type=pulse2   duty=50   env=10,down  env_period=4

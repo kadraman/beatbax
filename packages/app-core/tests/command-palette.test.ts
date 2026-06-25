@@ -410,6 +410,8 @@ describe('setupCommandPalette — playSelection dispatch', () => {
     expect(playRawCalls).toHaveLength(1);
     const [src, info] = playRawCalls[0];
     expect(src).toMatch(/pat __sel__ = C4 E4 G4/);
+    expect(src).toMatch(/^stepsPerBar 4$/m);
+    expect(src).not.toMatch(/^time 4$/m);
     expect(src).toMatch(/channel 1 =>/);
     expect(src).toMatch(/play/);
     expect(info).toBeUndefined();
@@ -599,6 +601,17 @@ describe('setupCommandPalette — enhanced commands', () => {
     expect(src).toMatch(/pat __preview__ = C4 E4 G4 C5/);
     expect(src).toMatch(/channel 1 =>/);
     expect(src).toMatch(/play/);
+  });
+
+  it('previewPattern: adds canonical stepsPerBar default when timing is missing', () => {
+    currentSource = BASE_SOURCE.replace(/^time 4\n/m, '');
+    currentWord = 'melody';
+    const run = registeredActions.get('beatbax.previewPattern');
+    run!();
+    expect(playRawCalls).toHaveLength(1);
+    const src = playRawCalls[0][0];
+    expect(src).toMatch(/^stepsPerBar 4$/m);
+    expect(src).not.toMatch(/^time 4$/m);
   });
 
   it('previewSeq: registered', () => {

@@ -661,7 +661,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const syntheticSource = [
         'chip gameboy',
         'bpm 120',
-        'time 4',
+        'stepsPerBar 4',
         'inst _tmp type=pulse1 duty=50 env=12,down',
         `pat __sel__ = ${selectedText}`,
         'channel 1 => inst _tmp seq __sel__',
@@ -876,11 +876,11 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
       const hasChip = /^\s*chip\s+/im.test(source);
       const hasBpm = /^\s*bpm\s+/im.test(source);
-      const hasTime = /^\s*time\s+/im.test(source);
+      const hasTimingDirective = /^\s*(?:stepsPerBar|time)\s+/im.test(source);
       const defaultDirectives = [
         ...(hasChip ? [] : ['chip gameboy']),
         ...(hasBpm ? [] : ['bpm 120']),
-        ...(hasTime ? [] : ['time 4']),
+        ...(hasTimingDirective ? [] : ['stepsPerBar 4']),
       ];
       const synthetic = [
         ...defaultDirectives,
@@ -1796,7 +1796,8 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         { label: 'inst — Instrument definition',     value: 'inst' },
         { label: 'channel — Channel assignment',     value: 'channel' },
         { label: 'bpm — Tempo directive',            value: 'bpm' },
-        { label: 'time — Time signature',            value: 'time' },
+        { label: 'stepsPerBar — Steps per bar',      value: 'stepsPerBar' },
+        { label: 'time — Deprecated stepsPerBar alias', value: 'time' },
         { label: 'chip — Sound chip selection',     value: 'chip' },
         { label: 'effect — Named effect preset',    value: 'effect' },
         { label: 'play — Start playback',            value: 'play' },
@@ -1811,7 +1812,8 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         inst: 'inst NAME type=TYPE [param=value...]\n  Define an instrument.\n  Types: pulse1 | pulse2 | wave | noise | dpcm | triangle | sawtooth | pcm\n  Example: inst lead type=pulse1 duty=50 env=12,down',
         channel: 'channel N => inst INSTNAME seq SEQNAME\n  Assign instrument and sequence to a channel (1-based).\n  Example: channel 1 => inst lead seq main',
         bpm: 'bpm N\n  Set beats per minute (1–999).\n  Example: bpm 120',
-        time: 'time N\n  Set steps per bar (e.g. 4 for 4/4).\n  Example: time 4',
+        stepsPerBar: 'stepsPerBar N\n  Set steps per bar (e.g. 4 for 4/4).\n  Example: stepsPerBar 4',
+        time: 'time N\n  Deprecated alias for stepsPerBar. Still parsed for compatibility; prefer stepsPerBar.\n  Example: stepsPerBar 4',
         chip: 'chip NAME\n  Select sound chip backend.\n  Options: gameboy | nes | famicom | sms | ...\n  Example: chip gameboy',
         effect: 'effect NAME TYPE(params)\n  Define a named effect preset for reuse.\n  Example: effect myVib vib(12,4)',
         play: 'play\n  Start song playback.',
