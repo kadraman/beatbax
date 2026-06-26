@@ -79,23 +79,25 @@ export function RadioGroup({
 }
 
 export function SelectField({
+  id,
   label,
   onChange,
   options,
   value,
 }: {
+  id?: string;
   label: string;
   onChange: (value: string) => void;
   options: SelectOption[];
   value: string;
 }): React.JSX.Element {
-  const id = `bb-sel-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  const fieldId = id ?? `bb-sel-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
+      <label className="bb-settings-label" htmlFor={fieldId}>{label}</label>
       <select
         className="bb-settings-select"
-        id={id}
+        id={fieldId}
         onChange={(event) => onChange(event.currentTarget.value)}
         value={value}
       >
@@ -108,25 +110,27 @@ export function SelectField({
 }
 
 export function NumberField({
+  id,
   label,
   max,
   min,
   onChange,
   value,
 }: {
+  id?: string;
   label: string;
   max: number;
   min: number;
   onChange: (value: number) => void;
   value: number;
 }): React.JSX.Element {
-  const id = `bb-num-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  const fieldId = id ?? `bb-num-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
+      <label className="bb-settings-label" htmlFor={fieldId}>{label}</label>
       <input
         className="bb-settings-number"
-        id={id}
+        id={fieldId}
         max={max}
         min={min}
         onChange={(event) => {
@@ -141,23 +145,25 @@ export function NumberField({
 }
 
 export function TextField({
+  id,
   inputType = 'text',
   label,
   onChange,
   value,
 }: {
+  id?: string;
   inputType?: string;
   label: string;
   onChange: (value: string) => void;
   value: string;
 }): React.JSX.Element {
-  const id = `bb-text-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  const fieldId = id ?? `bb-text-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
+      <label className="bb-settings-label" htmlFor={fieldId}>{label}</label>
       <input
         className="bb-settings-text"
-        id={id}
+        id={fieldId}
         onChange={(event) => onChange(event.currentTarget.value)}
         type={inputType}
         value={value}
