@@ -8,24 +8,24 @@ import { settingDefaultBpm, settingSongArtist } from '@beatbax/app-core/stores/s
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { chipRegistry } from '@beatbax/engine/chips';
-import { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
-import { buildShortcutsModal, buildAboutModal } from '../desktop-web-ui/app/modals';
+import { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
+import { buildShortcutsModal, buildAboutModal } from '../components/shell/modals';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
-} from '../desktop-web-ui/panels/new-song-wizard';
-import { createThreePaneLayout } from '../desktop-web-ui/ui/layout';
-import type { PanelMenuId, PanelMenuState } from '../desktop-web-ui/ui/panels-menu';
-import { StatusBar } from '../desktop-web-ui/ui/status-bar';
-import { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+} from '../components/shell/new-song-wizard';
+import { createThreePaneLayout } from '../components/shell/layout';
+import type { PanelMenuId, PanelMenuState } from '../components/shell/panels-menu';
+import { StatusBar } from '../components/shell/status-bar';
+import { ThemeManager } from './theme-manager';
 import { installGlobalErrorHandlers } from '../utils/error-boundary';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
 import { handleDesktopExport } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
-import type { MenuBar } from '../desktop-web-ui/ui/menu-bar';
+import type { MenuBar } from '../components/shell/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
 import { setupFullIdeFeatures, type TransportDisplayState } from '../desktop-web-ui/app/full-ide-setup';

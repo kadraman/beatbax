@@ -1,9 +1,9 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import type { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
-import type { buildShortcutsModal } from '../desktop-web-ui/app/modals';
-import type { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+import type { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
+import type { buildShortcutsModal } from '../components/shell/modals';
+import type { ThemeManager } from './theme-manager';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
