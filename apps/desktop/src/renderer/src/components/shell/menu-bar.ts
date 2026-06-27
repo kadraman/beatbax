@@ -100,7 +100,7 @@ export interface MenuBarOptions {
   onShowSettings?: () => void;
   /** Open the About modal (desktop). */
   onShowAbout?: () => void;
-  /** Open Monaco Command Palette (F1 / Ctrl+Alt+P). */
+  /** Open Monaco Command Palette (F1 / Ctrl+Shift+P). */
   onOpenCommandPalette?: () => void;
 
   // ── Keyboard shortcut control ───────────────────────────────────────────────
@@ -625,7 +625,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Command Palette…',
-        shortcut: 'Ctrl+Alt+P',
+        shortcut: 'Ctrl+Shift+P',
         action: () => this.opts.onOpenCommandPalette?.(),
       },
       { type: 'separator' },

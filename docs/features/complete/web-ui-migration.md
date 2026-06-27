@@ -121,7 +121,7 @@ This document outlines the migration strategy for transforming the current monol
 - All shortcuts registered with `allowInInput` flags and descriptions (16+ in global registry plus several Monaco-only commands)
 - Browser-reserved shortcuts removed/replaced: Ctrl+N (new window), Ctrl+Shift+T (reopen tab), Ctrl+Alt+T (Firefox new tab), Ctrl+Shift+M (Firefox responsive mode) — none of these are registered
 - Global registry shortcuts: Space (Play/Pause, blocked in editor), F5 (Play), F8 (Stop), Escape (Stop/Close Help), Ctrl+Enter (Apply), Ctrl+O (Open), Ctrl+S (Save), Ctrl+Shift+S (Save As), Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+Shift+L (Theme), Ctrl+` (Output), Ctrl+Shift+Y (Channel Monitor), Shift+F1 / Ctrl+Shift+H (Help Panel), Alt+Shift+K (Jump to Keyboard Shortcuts)
-- Monaco `addCommand` registrations fire when the editor has focus — overrides Monaco's own bindings for: F5, F8, Ctrl+Enter, Shift+F1, Ctrl+Shift+L, Ctrl+Shift+Y, Alt+Shift+K, Ctrl+Alt+P (Command Palette)
+- Monaco `addCommand` registrations fire when the editor has focus — overrides Monaco's own bindings for: F5, F8, Ctrl+Enter, Shift+F1, Ctrl+Shift+L, Ctrl+Shift+Y, Alt+Shift+K, Ctrl+Shift+P (Command Palette)
 - Monaco `onKeyDown` used for Escape: closes Help overlay only; does **not** stop playback (preserves Monaco find-widget / suggest close behaviour)
 - `TransportControls` passes `enableKeyboardShortcuts: false`; `MenuBar` passes `enableGlobalShortcuts: false` — neither registers its own `keydown` handler
 - `HelpPanel` receives `getShortcuts: () => ks.list()` — Keyboard Shortcuts section is always up-to-date

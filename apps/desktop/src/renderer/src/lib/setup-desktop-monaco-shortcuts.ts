@@ -20,8 +20,7 @@ export interface SetupDesktopMonacoShortcutsOptions {
   channelMixer: DesktopChannelMixerHandle | null;
   copilot: DesktopCopilotHandle | null;
   eventBus: EventBus;
-  runParse: (content: string) => void;
-  getSource: () => string;
+  onVerify: () => void;
 }
 
 /**
@@ -39,8 +38,7 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
     channelMixer,
     copilot,
     eventBus,
-    runParse,
-    getSource,
+    onVerify,
   } = options;
 
   const disposables: IDisposable[] = [];
@@ -55,10 +53,10 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
   add(KeyMod.Shift | KeyCode.F1, () => { rightTabs.show('help'); });
   add(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcutsModal.open(); });
   add(KeyMod.CtrlCmd | KeyCode.Comma, () => { settingsModal.open(); });
-  add(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { runParse(getSource()); });
+  add(KeyMod.Alt | KeyCode.KeyV, () => { onVerify(); });
   add(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { themeManager.toggle(); });
   add(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => { rightTabs.show('channels'); });
-  add(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
+  add(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP, () => {
     editor.trigger('', 'editor.action.quickCommand', null);
   });
 
