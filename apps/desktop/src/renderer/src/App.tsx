@@ -90,7 +90,7 @@ export default function App(): React.JSX.Element {
     setDocumentState(nextDoc);
     persistDocumentSession(filePath, name);
     syncDocumentStatus(nextDoc);
-    appContext.eventBus.emit('song:loaded', { filename: name });
+    appContext.eventBus.emit('song:loaded', { filename: name, content });
 
     if (editorRef.current) {
       editorRef.current.setValue(content);

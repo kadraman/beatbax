@@ -3,7 +3,7 @@ title: "Desktop Client Enhancements (Phase 5)"
 status: proposed
 authors: ["kadraman"]
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-27
 related:
   - docs/features/complete/desktop-first-client-split.md
   - docs/features/complete/electron-desktop-client.md
@@ -17,7 +17,7 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-27
 **Overall status:** In progress.
 
 | Workstream | Status | Notes |
@@ -113,6 +113,16 @@ Phase 5b should reduce bridge coupling incrementally without replacing the whole
 - Unsubscribe event-bus and store subscriptions on React unmount; do not rely on DOM class disposal patterns.
 - Keep `channelStates` as the single source for Pattern Grid, Visualizer, and Mixer until those pieces migrate together or get a shared React-facing adapter.
 - Do not extract `packages/ui-tokens/` until at least Output/Problems, Help, and Toolbar have migrated and the repeated styling needs are clear.
+
+#### Keyboard shortcut ownership
+
+Keyboard shortcut metadata should be split by responsibility rather than forced into one shared binding table:
+
+- `@beatbax/app-core` may own product-level command metadata where it is genuinely shared: command id, label, category, and description.
+- `apps/desktop` should own desktop keybindings, Electron/global shortcuts, Monaco-focused command registration, and command handlers.
+- `apps/web-ui` should own browser-safe web keybindings and omit or mark unsupported any shortcuts hijacked by the browser.
+
+This matters because some desktop shortcuts cannot be implemented reliably in a normal browser tab. Examples include common file/window shortcuts such as `Ctrl+N`, `Ctrl+O`, `Ctrl+W`, and other combinations reserved by the browser or OS. Treat the command concept as shared when useful, but keep concrete key combos and availability client-specific.
 
 Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consistent styling between web-lite and desktop.
 

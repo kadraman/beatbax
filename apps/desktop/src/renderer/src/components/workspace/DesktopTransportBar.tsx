@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { RotaryKnob } from '../../desktop-web-ui/ui/rotary-knob';
+import { RotaryKnob } from './rotary-knob';
 
 export interface DesktopVolumeKnobHandle {
   el: HTMLElement;
