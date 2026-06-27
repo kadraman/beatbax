@@ -72,6 +72,19 @@ Acceptance criteria:
 - `rg "desktop-web-ui" apps/desktop/src/renderer/src` is the source of truth for remaining dependencies.
 - No new `desktop-web-ui` imports are added during the migration.
 
+Current inventory:
+
+| Dependency area | Current imports | Classification | Target / status |
+|-----------------|-----------------|----------------|-----------------|
+| Small desktop utility helpers | `utils/icons.ts`, `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `move` | Moved to `apps/desktop/src/renderer/src/utils`; direct desktop-owned imports updated. |
+| Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via desktop shell modules | `done` | Shell modules now import desktop-owned utility paths. |
+| Settings sections | `components/settings/*.tsx` from `DesktopSettingsModal.tsx` | `done` | Converted to desktop-owned React components; no DOM builders remain in the desktop settings modal. |
+| Shell tabs/modals/layout/status/theme/menu/loading | `components/shell/*`, `components/workspace/rotary-knob.ts`, `lib/theme-manager.ts` | `done` | Relocated from `desktop-web-ui`; desktop shell imports updated. |
+| Full IDE/editor wiring | `app/full-ide-setup.ts`, `app/editor-view-prefs.ts` | `defer` | Move into desktop renderer services in Phase 5. |
+| MIDI step entry | `input/midi-step-entry-controller.ts` | `defer` | Move with editor integration in Phase 5. |
+| Legacy stylesheet | `main.tsx` imports `desktop-web-ui/styles.css` | `defer` | Retire after component CSS ownership is clear in Phase 6. |
+| `desktop-web-ui` utility files with no imports | `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `delete` | Deleted after moving direct desktop usage. |
+
 ### Phase 2 — Move Small Utilities
 
 Move low-risk helpers first:
@@ -101,17 +114,18 @@ Replace the settings section DOM builders with React components owned by the des
 
 Current dependency:
 
-- `DesktopSettingsModal.tsx` imports builders from `desktop-web-ui/panels/settings-sections/*`.
+- Historical: `DesktopSettingsModal.tsx` imported builders from `desktop-web-ui/panels/settings-sections/*`.
+- Current: settings sections are desktop-owned React components rendered directly by `DesktopSettingsModal.tsx`.
 
 Target shape:
 
-- `components/settings/GeneralSettingsSection.tsx`
-- `components/settings/EditorSettingsSection.tsx`
-- `components/settings/PlaybackSettingsSection.tsx`
-- `components/settings/FeatureSettingsSection.tsx`
-- `components/settings/PluginSettingsSection.tsx`
-- `components/settings/AISettingsSection.tsx`
-- `components/settings/AdvancedSettingsSection.tsx`
+- `components/settings/general.tsx`
+- `components/settings/editor.tsx`
+- `components/settings/playback.tsx`
+- `components/settings/features.tsx`
+- `components/settings/plugins.tsx`
+- `components/settings/ai.tsx`
+- `components/settings/advanced.tsx`
 
 Acceptance criteria:
 
@@ -148,6 +162,14 @@ Acceptance criteria:
 - Right/bottom tab state, close buttons, active tab persistence, and panel toggles remain stable.
 - Theme switching and status bar updates remain stable.
 - Help, About, New Song Wizard, and shortcut modal behavior remains covered by e2e or focused unit tests.
+
+Status:
+
+- Relocated `tabs`, `modals`, `about-modal`, `new-song-wizard`, `layout`, `menu-bar`, `status-bar`, `panels-menu`, and `loading-overlay` to `components/shell`.
+- Relocated `theme-manager` to `lib/theme-manager.ts`.
+- Relocated `rotary-knob` to `components/workspace/rotary-knob.ts` so the React transport bar no longer imports from `desktop-web-ui`.
+- Desktop shortcut metadata now lives in `lib/desktop-shortcut-descriptors.ts`; `register-shortcuts.ts` attaches desktop-specific handlers separately so keybindings remain client-specific.
+- Remaining `desktop-web-ui` imports are Phase 5 editor orchestration (`full-ide-setup`, `editor-view-prefs`) and Phase 6 stylesheet ownership.
 
 ### Phase 5 — Full IDE Setup and Editor Integration
 
@@ -225,10 +247,10 @@ Before deleting the directory, perform a short desktop smoke pass:
 
 ## Migration Checklist
 
-- [ ] Inventory all `desktop-web-ui` imports.
-- [ ] Move small utility helpers to desktop renderer utilities.
-- [ ] Convert settings section builders to React components.
-- [ ] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
+- [x] Inventory all `desktop-web-ui` imports.
+- [x] Move small utility helpers to desktop renderer utilities.
+- [x] Convert settings section builders to React components.
+- [x] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
 - [ ] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
 - [ ] Remove `desktop-web-ui/styles.css` import.
 - [ ] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
@@ -244,8 +266,11 @@ Before deleting the directory, perform a short desktop smoke pass:
 ## Open Questions
 
 - Should `RotaryKnob` remain a desktop-only component or move into a shared UI package later?
+   - Proposal: Move it into a shared UI component directory.
 - Should keyboard shortcut descriptors become app-core metadata, or remain desktop renderer concerns?
+   - Proposal: see Keyboard shortcut ownership section
 - Should `@beatbax/ui-tokens` include icon/channel presentation helpers, or stay limited to tokens and channel metadata?
+   - Proposal: for now keep `@beatbax/ui-tokens` limited to tokens and static channel metadata. Put icon rendering and app-specific presentation helpers in the consuming app or a separate shared UI package if they become truly reusable.
 
 ## References
 

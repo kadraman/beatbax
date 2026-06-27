@@ -8,7 +8,7 @@
 import { playbackStatus, playbackTimeLabel, playbackError } from '@beatbax/app-core/stores/playback.store';
 import { editorDirty, parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '@beatbax/app-core/stores/editor.store';
 import { exportStatus, exportFormat } from '@beatbax/app-core/stores/ui.store';
-import { icon } from '../utils/icons';
+import { icon } from '../../utils/icons';
 import {
   formatScaleContextStatusLabel,
   type ScaleContext,

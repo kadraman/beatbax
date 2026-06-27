@@ -19,7 +19,7 @@ import {
   type ChatMessage,
   type ChatMode,
 } from '@beatbax/app-core/stores/chat.store';
-import { icon } from '../../desktop-web-ui/utils/icons';
+import { icon } from '../../utils/icons';
 
 interface DesktopCopilotPanelProps {
   panelRef: Ref<DesktopCopilotPanelHandle>;

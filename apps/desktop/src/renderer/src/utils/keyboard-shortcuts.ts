@@ -1,5 +1,5 @@
 /**
- * Keyboard Shortcuts — centralised registry for global keyboard bindings.
+ * Keyboard Shortcuts - centralised registry for global keyboard bindings.
  *
  * Usage:
  *   const ks = new KeyboardShortcuts();
@@ -12,9 +12,9 @@ import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:keyboard-shortcuts');
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface ShortcutDescriptor {
+export interface ShortcutMetadata {
+  /** Stable command id for desktop-owned shortcut metadata. */
+  commandId?: string;
   /** The key value as per KeyboardEvent.key (case-insensitive). */
   key: string;
   /** Require Ctrl / Cmd key. */
@@ -25,8 +25,10 @@ export interface ShortcutDescriptor {
   altKey?: boolean;
   /** Human-readable description shown in help panels. */
   description: string;
-  /** The action to run when the shortcut fires. */
-  action: () => void;
+  /** Optional display group for shortcut help UIs. */
+  category?: string;
+  /** True when this binding intentionally relies on desktop/Electron behavior. */
+  desktopOnly?: boolean;
   /**
    * When true the shortcut fires even when focus is inside an editable surface.
    * Defaults to false.
@@ -34,7 +36,10 @@ export interface ShortcutDescriptor {
   allowInInput?: boolean;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+export interface ShortcutDescriptor extends ShortcutMetadata {
+  /** The action to run when the shortcut fires. */
+  action: () => void;
+}
 
 /**
  * Normalise a key string so comparisons are case-insensitive and consistent.
@@ -80,8 +85,6 @@ function isInInput(e: KeyboardEvent): boolean {
   return isEditableElement(target) || isEditableElement(active);
 }
 
-// ─── KeyboardShortcuts ────────────────────────────────────────────────────────
-
 export class KeyboardShortcuts {
   private shortcuts = new Map<string, ShortcutDescriptor>();
   private abortController: AbortController | null = null;
@@ -96,7 +99,7 @@ export class KeyboardShortcuts {
       log.warn(`Shortcut "${id}" is being overwritten (was: "${this.shortcuts.get(id)!.description}")`);
     }
     this.shortcuts.set(id, descriptor);
-    log.debug(`Registered shortcut: ${id} — ${descriptor.description}`);
+    log.debug(`Registered shortcut: ${id} - ${descriptor.description}`);
   }
 
   /** Remove a previously registered shortcut by its modifier+key combination. */
@@ -109,14 +112,14 @@ export class KeyboardShortcuts {
   /** Start listening for keyboard events on the given target (default: window). */
   mount(target: EventTarget = window): void {
     if (this.abortController) {
-      log.warn('KeyboardShortcuts already mounted — call dispose() first');
+      log.warn('KeyboardShortcuts already mounted - call dispose() first');
       return;
     }
     this.abortController = new AbortController();
     target.addEventListener(
       'keydown',
       (e) => this.handleKeyDown(e as KeyboardEvent),
-      { signal: this.abortController.signal }
+      { signal: this.abortController.signal },
     );
     log.debug('KeyboardShortcuts mounted');
   }
@@ -137,8 +140,6 @@ export class KeyboardShortcuts {
   clear(): void {
     this.shortcuts.clear();
   }
-
-  // ── private ────────────────────────────────────────────────────────────────
 
   private handleKeyDown(e: KeyboardEvent): void {
     const id = shortcutId({
