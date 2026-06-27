@@ -20,7 +20,7 @@ import {
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { MidiStepEntryController } from '../input/midi-step-entry-controller';
-import { DebugOverlay } from '../ui/debug-overlay';
+import { DebugOverlay } from '../../components/shell/debug-overlay';
 
 export interface OutputPanelLogHandle {
   addMessage: (message: {

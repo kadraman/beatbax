@@ -76,14 +76,14 @@ Current inventory:
 
 | Dependency area | Current imports | Classification | Target / status |
 |-----------------|-----------------|----------------|-----------------|
-| Small desktop utility helpers | `utils/icons.ts`, `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `move` | Moved to `apps/desktop/src/renderer/src/utils`; direct desktop-owned imports updated. |
-| Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via desktop shell modules | `done` | Shell modules now import desktop-owned utility paths. |
+| Small desktop utility helpers | `utils/icons.ts`, `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `done` | Moved to `apps/desktop/src/renderer/src/utils`; direct desktop-owned imports updated and old copied utility files removed. |
+| Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via desktop shell modules | `done` | Shell modules now import desktop-owned utility paths; old copied helper files removed. |
 | Settings sections | `components/settings/*.tsx` from `DesktopSettingsModal.tsx` | `done` | Converted to desktop-owned React components; no DOM builders remain in the desktop settings modal. |
-| Shell tabs/modals/layout/status/theme/menu/loading | `components/shell/*`, `components/workspace/rotary-knob.ts`, `lib/theme-manager.ts` | `done` | Relocated from `desktop-web-ui`; desktop shell imports updated. |
+| Shell tabs/modals/layout/status/theme/menu/loading/debug overlay | `components/shell/*`, `components/workspace/rotary-knob.ts`, `lib/theme-manager.ts` | `done` | Relocated from `desktop-web-ui`; desktop shell imports updated. |
 | Full IDE/editor wiring | `app/full-ide-setup.ts`, `app/editor-view-prefs.ts` | `defer` | Move into desktop renderer services in Phase 5. |
 | MIDI step entry | `input/midi-step-entry-controller.ts` | `defer` | Move with editor integration in Phase 5. |
 | Legacy stylesheet | `main.tsx` imports `desktop-web-ui/styles.css` | `defer` | Retire after component CSS ownership is clear in Phase 6. |
-| `desktop-web-ui` utility files with no imports | `utils/meter-display.ts`, `utils/keyboard-shortcuts.ts`, `utils/error-boundary.ts` | `delete` | Deleted after moving direct desktop usage. |
+| Phase 4 copied utility and shell leftovers | `utils/icons.ts`, `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `ui/debug-overlay.ts` | `done` | Deleted or relocated; no Phase 4 shell/helper files remain under `desktop-web-ui`. |
 
 ### Phase 2 — Move Small Utilities
 
@@ -165,11 +165,11 @@ Acceptance criteria:
 
 Status:
 
-- Relocated `tabs`, `modals`, `about-modal`, `new-song-wizard`, `layout`, `menu-bar`, `status-bar`, `panels-menu`, and `loading-overlay` to `components/shell`.
+- Relocated `tabs`, `modals`, `about-modal`, `new-song-wizard`, `layout`, `menu-bar`, `status-bar`, `panels-menu`, `loading-overlay`, and `debug-overlay` to `components/shell`.
 - Relocated `theme-manager` to `lib/theme-manager.ts`.
 - Relocated `rotary-knob` to `components/workspace/rotary-knob.ts` so the React transport bar no longer imports from `desktop-web-ui`.
 - Desktop shortcut metadata now lives in `lib/desktop-shortcut-descriptors.ts`; `register-shortcuts.ts` attaches desktop-specific handlers separately so keybindings remain client-specific.
-- Remaining `desktop-web-ui` imports are Phase 5 editor orchestration (`full-ide-setup`, `editor-view-prefs`) and Phase 6 stylesheet ownership.
+- Remaining `desktop-web-ui` imports are Phase 5 editor orchestration (`full-ide-setup`, `editor-view-prefs`, and MIDI step entry via `full-ide-setup`) and Phase 6 stylesheet ownership.
 
 ### Phase 5 — Full IDE Setup and Editor Integration
 
