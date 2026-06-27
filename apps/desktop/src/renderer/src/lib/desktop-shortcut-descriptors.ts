@@ -69,8 +69,8 @@ export const DESKTOP_SHORTCUT_DESCRIPTORS: readonly DesktopShortcutDescriptor[] 
   { commandId: 'help.showShortcuts', key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', category: 'Help', allowInInput: true },
 
   { commandId: 'tools.openSettings', key: ',', ctrlKey: true, description: 'Open Settings', category: 'Tools', allowInInput: true },
-  { commandId: 'tools.verifySyntax', key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', category: 'Tools', allowInInput: true },
-  { commandId: 'tools.openCommandPalette', key: 'p', ctrlKey: true, altKey: true, description: 'Open Command Palette', category: 'Tools', allowInInput: true },
+  { commandId: 'tools.verifySyntax', key: 'v', altKey: true, description: 'Verify syntax', category: 'Tools', allowInInput: true },
+  { commandId: 'tools.openCommandPalette', key: 'p', ctrlKey: true, shiftKey: true, description: 'Open Command Palette', category: 'Tools', allowInInput: true },
   { commandId: 'tools.toggleCopilot', key: 'i', altKey: true, shiftKey: true, description: 'Toggle AI Copilot', category: 'Tools', allowInInput: true },
 ];
 

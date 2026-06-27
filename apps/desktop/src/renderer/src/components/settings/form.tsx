@@ -79,33 +79,18 @@ export function RadioGroup({
 }
 
 export function SelectField({
-<<<<<<< HEAD
-=======
   id,
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   label,
   onChange,
   options,
   value,
 }: {
-<<<<<<< HEAD
-=======
   id?: string;
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   label: string;
   onChange: (value: string) => void;
   options: SelectOption[];
   value: string;
 }): React.JSX.Element {
-<<<<<<< HEAD
-  const id = `bb-sel-${label.replace(/\s+/g, '-').toLowerCase()}`;
-  return (
-    <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
-      <select
-        className="bb-settings-select"
-        id={id}
-=======
   const fieldId = id ?? `bb-sel-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
@@ -113,7 +98,6 @@ export function SelectField({
       <select
         className="bb-settings-select"
         id={fieldId}
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         onChange={(event) => onChange(event.currentTarget.value)}
         value={value}
       >
@@ -126,35 +110,20 @@ export function SelectField({
 }
 
 export function NumberField({
-<<<<<<< HEAD
-=======
   id,
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   label,
   max,
   min,
   onChange,
   value,
 }: {
-<<<<<<< HEAD
-=======
   id?: string;
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   label: string;
   max: number;
   min: number;
   onChange: (value: number) => void;
   value: number;
 }): React.JSX.Element {
-<<<<<<< HEAD
-  const id = `bb-num-${label.replace(/\s+/g, '-').toLowerCase()}`;
-  return (
-    <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
-      <input
-        className="bb-settings-number"
-        id={id}
-=======
   const fieldId = id ?? `bb-num-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
@@ -162,7 +131,6 @@ export function NumberField({
       <input
         className="bb-settings-number"
         id={fieldId}
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         max={max}
         min={min}
         onChange={(event) => {
@@ -177,33 +145,18 @@ export function NumberField({
 }
 
 export function TextField({
-<<<<<<< HEAD
-=======
   id,
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   inputType = 'text',
   label,
   onChange,
   value,
 }: {
-<<<<<<< HEAD
-=======
   id?: string;
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   inputType?: string;
   label: string;
   onChange: (value: string) => void;
   value: string;
 }): React.JSX.Element {
-<<<<<<< HEAD
-  const id = `bb-text-${label.replace(/\s+/g, '-').toLowerCase()}`;
-  return (
-    <div className="bb-settings-row">
-      <label className="bb-settings-label" htmlFor={id}>{label}</label>
-      <input
-        className="bb-settings-text"
-        id={id}
-=======
   const fieldId = id ?? `bb-text-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="bb-settings-row">
@@ -211,7 +164,6 @@ export function TextField({
       <input
         className="bb-settings-text"
         id={fieldId}
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         onChange={(event) => onChange(event.currentTarget.value)}
         type={inputType}
         value={value}

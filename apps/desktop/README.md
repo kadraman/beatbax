@@ -33,7 +33,7 @@ The desktop renderer owns the desktop-full shell and React panel implementations
 - **Status bar** — cursor position, parse status, chip/BPM, panels menu, diagnostics counts
 - **AI Copilot** — right-tab ChatPanel (enable in Settings → Features → AI Assistant)
 - **New Song Wizard** — toolbar New / File → New; first-run onboarding
-- **Advanced editor** — Monaco diagnostics, code lens previews, glyph margin, command palette (Ctrl+Alt+P)
+- **Advanced editor** — Monaco diagnostics, code lens previews, glyph margin, command palette (Ctrl+Shift+P)
 - **Transport extras** — loop, live, rewind, BPM nudge, master volume
 - **MIDI step entry** — record button (requires MIDI input enabled in Settings)
 - **Debug overlay** — Settings → Advanced → Show debug overlay

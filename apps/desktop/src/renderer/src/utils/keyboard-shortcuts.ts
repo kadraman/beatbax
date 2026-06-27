@@ -12,13 +12,9 @@ import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:keyboard-shortcuts');
 
-<<<<<<< HEAD
-export interface ShortcutDescriptor {
-=======
 export interface ShortcutMetadata {
   /** Stable command id for desktop-owned shortcut metadata. */
   commandId?: string;
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
   /** The key value as per KeyboardEvent.key (case-insensitive). */
   key: string;
   /** Require Ctrl / Cmd key. */
@@ -40,14 +36,11 @@ export interface ShortcutMetadata {
   allowInInput?: boolean;
 }
 
-<<<<<<< HEAD
-=======
 export interface ShortcutDescriptor extends ShortcutMetadata {
   /** The action to run when the shortcut fires. */
   action: () => void;
 }
 
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
 /**
  * Normalise a key string so comparisons are case-insensitive and consistent.
  * Special cases: ' ' (space) becomes 'space'.
@@ -126,7 +119,7 @@ export class KeyboardShortcuts {
     target.addEventListener(
       'keydown',
       (e) => this.handleKeyDown(e as KeyboardEvent),
-      { signal: this.abortController.signal },
+      { capture: true, signal: this.abortController.signal },
     );
     log.debug('KeyboardShortcuts mounted');
   }

@@ -19,19 +19,11 @@ import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
   type NewSongWizardController,
-<<<<<<< HEAD
-} from '../desktop-web-ui/panels/new-song-wizard';
-import { createThreePaneLayout } from '../desktop-web-ui/ui/layout';
-import type { PanelMenuId, PanelMenuState } from '../desktop-web-ui/ui/panels-menu';
-import { StatusBar } from '../desktop-web-ui/ui/status-bar';
-import { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
-=======
 } from '../components/shell/new-song-wizard';
 import { createThreePaneLayout } from '../components/shell/layout';
 import type { PanelMenuId, PanelMenuState } from '../components/shell/panels-menu';
 import { StatusBar } from '../components/shell/status-bar';
 import { ThemeManager } from './theme-manager';
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
 import { installGlobalErrorHandlers } from '../utils/error-boundary';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilot';
@@ -719,8 +711,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     rightTabs,
     settingsModal,
     shortcutsModal,
-    runParse,
-    getSource,
+    onVerify: runVerify,
     onNew: openNewSongWizard,
     onOpen: options.onOpen,
     onSave: options.onSave,
@@ -792,8 +783,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       channelMixer,
       copilot,
       eventBus,
-      runParse,
-      getSource,
+      onVerify: runVerify,
     });
     refreshEditorViewPrefs();
     focusWorkspaceEditor(editor);
