@@ -1,6 +1,6 @@
 ---
 title: "Desktop Web UI Retirement"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-06-24
 related:
@@ -231,6 +231,12 @@ Acceptance criteria:
 - `npm -w @beatbax/desktop run build` passes.
 - Desktop Playwright smoke tests pass locally or in CI.
 
+Status:
+
+- Confirmed no tracked files remain under `apps/desktop/src/renderer/src/desktop-web-ui` after Phase 6 moved stylesheet ownership.
+- Verified `rg "desktop-web-ui" apps/desktop` returns no matches.
+- Verified `npm -w @beatbax/desktop run typecheck`, `npm -w @beatbax/desktop run build`, and focused `desktop-smoke.spec.ts` pass locally.
+
 ## Testing Strategy
 
 ### Unit and Type Tests
@@ -265,8 +271,8 @@ Before deleting the directory, perform a short desktop smoke pass:
 - [x] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
 - [x] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
 - [x] Remove `desktop-web-ui/styles.css` import.
-- [ ] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
-- [ ] Update documentation and verify desktop build/e2e.
+- [x] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
+- [x] Update documentation and verify desktop build/e2e.
 
 ## Risks
 
