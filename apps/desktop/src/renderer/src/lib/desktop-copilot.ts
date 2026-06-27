@@ -6,10 +6,8 @@ import {
   isFeatureEnabled,
   setFeatureEnabled,
 } from '@beatbax/app-core/utils/feature-flags';
-import type { buildRightTabs } from '../components/shell/tabs';
+import type { RightTabsController } from '../components/shell/tabs';
 import { createDesktopCopilotPanel, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
-
-type RightTabs = ReturnType<typeof buildRightTabs>;
 
 interface PendingAIChange {
   previousContent: string;
@@ -18,7 +16,7 @@ interface PendingAIChange {
 }
 
 export interface DesktopCopilotOptions {
-  rightTabs: RightTabs;
+  rightTabs: RightTabsController;
   eventBus: EventBus;
   getEditor: () => BeatBaxEditor | null;
   getDiagnostics: () => Diagnostic[];

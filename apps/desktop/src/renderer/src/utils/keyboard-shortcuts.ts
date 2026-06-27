@@ -12,7 +12,9 @@ import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:keyboard-shortcuts');
 
-export interface ShortcutDescriptor {
+export interface ShortcutMetadata {
+  /** Stable command id for desktop-owned shortcut metadata. */
+  commandId?: string;
   /** The key value as per KeyboardEvent.key (case-insensitive). */
   key: string;
   /** Require Ctrl / Cmd key. */
@@ -23,13 +25,20 @@ export interface ShortcutDescriptor {
   altKey?: boolean;
   /** Human-readable description shown in help panels. */
   description: string;
-  /** The action to run when the shortcut fires. */
-  action: () => void;
+  /** Optional display group for shortcut help UIs. */
+  category?: string;
+  /** True when this binding intentionally relies on desktop/Electron behavior. */
+  desktopOnly?: boolean;
   /**
    * When true the shortcut fires even when focus is inside an editable surface.
    * Defaults to false.
    */
   allowInInput?: boolean;
+}
+
+export interface ShortcutDescriptor extends ShortcutMetadata {
+  /** The action to run when the shortcut fires. */
+  action: () => void;
 }
 
 /**

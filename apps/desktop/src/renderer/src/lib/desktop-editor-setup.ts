@@ -16,7 +16,7 @@ import { toggleChannelMuted, toggleChannelSoloed } from '@beatbax/app-core/store
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { StatusBar } from '../components/shell/status-bar';
-import type { buildBottomTabs } from '../components/shell/tabs';
+import type { BottomTabsController } from '../components/shell/tabs';
 import {
   applyStoredWordWrap,
   scheduleCommentsFoldPreference,
@@ -25,13 +25,11 @@ import {
 import type { DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 
-type BottomTabs = ReturnType<typeof buildBottomTabs>;
-
 export interface DesktopEditorSetupOptions {
   editor: BeatBaxEditor;
   appContext: AppContext;
   parseHooks: ParsePipelineHooks;
-  bottomTabs: BottomTabs;
+  bottomTabs: BottomTabsController;
   outputPanel: DesktopOutputPanelHandle;
   statusBar: StatusBar | null;
   getSource: () => string;

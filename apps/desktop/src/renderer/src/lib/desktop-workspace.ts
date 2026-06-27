@@ -9,7 +9,12 @@ import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
-import { buildShortcutsModal, buildAboutModal } from '../components/shell/modals';
+import {
+  buildShortcutsModal,
+  buildAboutModal,
+  type AboutModalController,
+  type ShortcutsModalController,
+} from '../components/shell/modals';
 import {
   buildNewSongWizard,
   claimNewSongWizardOnboarding,
@@ -71,8 +76,8 @@ export interface DesktopWorkspaceHandle {
   outputPanel: DesktopOutputPanelHandle;
   helpPanel: DesktopHelpPanelHandle | null;
   settingsModal: DesktopSettingsModalHandle;
-  shortcutsModal: ReturnType<typeof buildShortcutsModal>;
-  aboutModal: ReturnType<typeof buildAboutModal>;
+  shortcutsModal: ShortcutsModalController;
+  aboutModal: AboutModalController;
   keyboardShortcuts: KeyboardShortcuts;
   themeManager: ThemeManager;
   statusBar: StatusBar | null;

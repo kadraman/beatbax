@@ -168,6 +168,7 @@ Status:
 - Relocated `tabs`, `modals`, `about-modal`, `new-song-wizard`, `layout`, `menu-bar`, `status-bar`, `panels-menu`, and `loading-overlay` to `components/shell`.
 - Relocated `theme-manager` to `lib/theme-manager.ts`.
 - Relocated `rotary-knob` to `components/workspace/rotary-knob.ts` so the React transport bar no longer imports from `desktop-web-ui`.
+- Desktop shortcut metadata now lives in `lib/desktop-shortcut-descriptors.ts`; `register-shortcuts.ts` attaches desktop-specific handlers separately so keybindings remain client-specific.
 - Remaining `desktop-web-ui` imports are Phase 5 editor orchestration (`full-ide-setup`, `editor-view-prefs`) and Phase 6 stylesheet ownership.
 
 ### Phase 5 — Full IDE Setup and Editor Integration
@@ -265,9 +266,11 @@ Before deleting the directory, perform a short desktop smoke pass:
 ## Open Questions
 
 - Should `RotaryKnob` remain a desktop-only component or move into a shared UI package later?
-> it should be moved into a shared ui component directory
+   - Proposal: Move it into a shared UI component directory.
 - Should keyboard shortcut descriptors become app-core metadata, or remain desktop renderer concerns?
+   - Proposal: see Keyboard shortcut ownership section
 - Should `@beatbax/ui-tokens` include icon/channel presentation helpers, or stay limited to tokens and channel metadata?
+   - Proposal: for now keep `@beatbax/ui-tokens` limited to tokens and static channel metadata. Put icon rendering and app-specific presentation helpers in the consuming app or a separate shared UI package if they become truly reusable.
 
 ## References
 
