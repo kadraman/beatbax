@@ -117,6 +117,7 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
   let bpmUserOverride = false;
   let liveMode = storage.getJSON<boolean>(StorageKey.FEATURE_HOT_RELOAD, false) ?? false;
   let hasParseErrors = false;
+  let suppressLoadedEditorChangeContent: string | null = null;
 
   transportDisplay.currentBpm = currentBpm;
   transportDisplay.currentSig = 4;
@@ -351,14 +352,23 @@ export function setupFullIdeFeatures(options: FullIdeSetupOptions): FullIdeSetup
         }
       } catch { /* ignore */ }
     }),
-    eventBus.on('song:loaded', () => {
+    eventBus.on('song:loaded', ({ content }) => {
       loopUserOverride = false;
       bpmUserOverride = false;
       lastAstBpm = 120;
+      suppressLoadedEditorChangeContent = content ?? null;
       playbackManager.setBpmOverride(null);
       clearBpmOverrideDecoration();
     }),
-    eventBus.on('editor:changed', () => {
+    eventBus.on('editor:changed', ({ content }) => {
+      if (suppressLoadedEditorChangeContent !== null) {
+        if (content === suppressLoadedEditorChangeContent) {
+          suppressLoadedEditorChangeContent = null;
+          return;
+        }
+        suppressLoadedEditorChangeContent = null;
+      }
+
       clearTimeout(win.__bb_parseTimer as ReturnType<typeof setTimeout> | undefined);
       win.__bb_parseTimer = setTimeout(() => runParse(getSource()), 600);
 

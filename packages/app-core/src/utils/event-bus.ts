@@ -61,7 +61,7 @@ export interface BeatBaxEvents {
   'channel:unsoloed': { channel: number };
 
   // Song load events
-  'song:loaded': { filename: string };
+  'song:loaded': { filename: string; content?: string };
 
   // Feature flag events
   'feature-flag:changed': { flag: string; enabled: boolean };
