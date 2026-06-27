@@ -12,12 +12,12 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '@beatbax/app-core/import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { icon } from '../utils/icons';
-import { appAssetUrl } from '../utils/app-asset-url';
+import { icon } from '../../utils/icons';
+import { appAssetUrl } from '../../utils/app-asset-url';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
-import { resolveUiChipId } from '../utils/chip-resolve';
+import { resolveUiChipId } from '../../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 
 const log = createLogger('ui:menu-bar');

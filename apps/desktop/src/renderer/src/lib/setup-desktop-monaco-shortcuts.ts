@@ -1,24 +1,20 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import type { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
-import type { buildShortcutsModal } from '../desktop-web-ui/app/modals';
-import type { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
+import type { ShortcutsModalController } from '../components/shell/modals';
+import type { ThemeManager } from './theme-manager';
 import { KeyCode, KeyMod, type IKeyboardEvent, type editor as MonacoEditor, type IDisposable } from 'monaco-editor';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
-type BottomTabs = ReturnType<typeof buildBottomTabs>;
-type RightTabs = ReturnType<typeof buildRightTabs>;
-type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
-
 export interface SetupDesktopMonacoShortcutsOptions {
   editor: MonacoEditor.IStandaloneCodeEditor;
   transportBar: DesktopTransportBarHandle;
-  rightTabs: RightTabs;
-  bottomTabs: BottomTabs;
-  shortcutsModal: ShortcutsModal;
+  rightTabs: RightTabsController;
+  bottomTabs: BottomTabsController;
+  shortcutsModal: ShortcutsModalController;
   settingsModal: DesktopSettingsModalHandle;
   themeManager: ThemeManager;
   channelMixer: DesktopChannelMixerHandle | null;
