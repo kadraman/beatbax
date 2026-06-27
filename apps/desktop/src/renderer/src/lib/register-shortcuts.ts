@@ -40,7 +40,7 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
   const {
     ks, eventBus, getEditor, transportBar, toolbar, bottomTabs, rightTabs,
     settingsModal, shortcutsModal,
-    onVerify, onNew, onOpen, onSave, themeManager, channelMixer, copilot,
+    onVerify, onNew, onOpen, onSave, themeManager, channelMixer,
   } = opts;
 
   const monacoInst = () => getEditor()?.editor;
@@ -98,9 +98,10 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     },
   };
 
-  if (copilot) {
-    handlers['tools.toggleCopilot'] = () => copilot.toggle();
-  }
+  handlers['tools.toggleCopilot'] = () => {
+    const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
+    eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
+  };
 
   registerDesktopShortcutDescriptors(ks, handlers);
 }

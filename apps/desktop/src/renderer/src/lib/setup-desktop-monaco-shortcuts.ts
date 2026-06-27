@@ -69,7 +69,10 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
   }
 
   if (copilot) {
-    add(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => { copilot.toggle(); });
+    add(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => {
+      const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
+      eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
+    });
   }
 
   disposables.push(editor.onKeyDown((e: IKeyboardEvent) => {

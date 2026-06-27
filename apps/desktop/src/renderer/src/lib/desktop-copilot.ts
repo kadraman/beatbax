@@ -44,10 +44,10 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
   let chatPanel: DesktopCopilotPanelHandle | null = null;
   let pendingAIChange: PendingAIChange | null = null;
   let visible = false;
+  const shortcutAbortController = new AbortController();
 
   function isCopilotOpen(): boolean {
-    return visible
-      && rightTabs.tabOpen.ai
+    return rightTabs.tabOpen.ai
       && !aiTabBtn?.classList.contains('bb-right-tab--hidden');
   }
 
@@ -204,12 +204,22 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     }
   });
 
+  window.addEventListener('keydown', (event) => {
+    const isIKey = event.key.toLowerCase() === 'i' || event.code === 'KeyI';
+    if (!isIKey || !event.altKey || !event.shiftKey || event.metaKey) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
+    eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
+  }, { capture: true, signal: shortcutAbortController.signal });
+
   return {
     show: showCopilot,
     hide: hideCopilot,
     toggle,
     isVisible: isCopilotOpen,
     dispose: () => {
+      shortcutAbortController.abort();
       clearPendingAIChange(false);
       unsubFeature();
       unsubPanel();

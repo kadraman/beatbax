@@ -20,7 +20,7 @@ export function applyCommentsFoldPreference(
   toolbar?.setFoldCommentsActive(folded);
 }
 
-/** Folding ranges are computed asynchronously after setValue — defer when folding. */
+/** Folding ranges are computed asynchronously after setValue - defer when folding. */
 export function scheduleCommentsFoldPreference(
   editor: monaco.editor.IStandaloneCodeEditor | null | undefined,
   toolbar?: EditorViewToolbarHandle | null,
