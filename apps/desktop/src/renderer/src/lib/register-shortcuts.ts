@@ -1,18 +1,11 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-<<<<<<< HEAD
-import type { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
-import type { buildShortcutsModal } from '../desktop-web-ui/app/modals';
-import type { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
-import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
-=======
 import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
 import type { ShortcutsModalController } from '../components/shell/modals';
 import type { ThemeManager } from './theme-manager';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
 import { registerDesktopShortcutDescriptors, type DesktopShortcutHandlers } from './desktop-shortcut-descriptors';
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
@@ -29,8 +22,7 @@ export interface RegisterDesktopShortcutsOptions {
   rightTabs: RightTabsController;
   settingsModal: DesktopSettingsModalHandle;
   shortcutsModal: ShortcutsModalController;
-  runParse: (content: string) => void;
-  getSource: () => string;
+  onVerify: () => void;
   onNew: () => void;
   onOpen: () => void | Promise<void>;
   onSave: (saveAs?: boolean) => void | Promise<void>;
@@ -47,8 +39,8 @@ export interface RegisterDesktopShortcutsOptions {
 export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions): void {
   const {
     ks, eventBus, getEditor, transportBar, toolbar, bottomTabs, rightTabs,
-    settingsModal, shortcutsModal, runParse, getSource,
-    onNew, onOpen, onSave, themeManager, channelMixer, copilot,
+    settingsModal, shortcutsModal,
+    onVerify, onNew, onOpen, onSave, themeManager, channelMixer, copilot,
   } = opts;
 
   const monacoInst = () => getEditor()?.editor;
@@ -97,7 +89,7 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     'help.showShortcuts': () => shortcutsModal.open(),
 
     'tools.openSettings': () => settingsModal.open(),
-    'tools.verifySyntax': () => runParse(getSource()),
+    'tools.verifySyntax': () => onVerify(),
     'tools.openCommandPalette': () => {
       const ed = monacoInst();
       if (!ed) return;

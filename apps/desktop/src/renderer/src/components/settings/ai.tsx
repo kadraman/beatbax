@@ -258,10 +258,7 @@ export function AISettingsSection(): React.JSX.Element {
       </div>
       <SectionHeading>Provider</SectionHeading>
       <SelectField
-<<<<<<< HEAD
-=======
         id="bb-ai-preset"
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         label="Provider preset"
         onChange={(value) => {
           const selected = PRESETS[value];
@@ -273,10 +270,7 @@ export function AISettingsSection(): React.JSX.Element {
         value={preset}
       />
       <TextField
-<<<<<<< HEAD
-=======
         id="bb-ai-endpoint"
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         inputType="url"
         label="API endpoint (base URL)"
         onChange={(value) => {
@@ -287,10 +281,7 @@ export function AISettingsSection(): React.JSX.Element {
       />
       <APIKeyField endpoint={settings.endpoint} />
       <TextField
-<<<<<<< HEAD
-=======
         id="bb-ai-model"
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         label="Model"
         onChange={(value) => {
           saveChatSettings({ model: value });
@@ -311,10 +302,7 @@ export function AISettingsSection(): React.JSX.Element {
         value={mode}
       />
       <NumberField
-<<<<<<< HEAD
-=======
         id="bb-ai-max-ctx"
->>>>>>> d3f1fdac9c32547b75b5d218c6da6621408a191c
         label="Max editor characters sent to AI"
         max={32000}
         min={100}
