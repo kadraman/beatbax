@@ -82,7 +82,7 @@ Current inventory:
 | Shell tabs/modals/layout/status/theme/menu/loading/debug overlay | `components/shell/*`, `components/workspace/rotary-knob.ts`, `lib/theme-manager.ts` | `done` | Relocated from `desktop-web-ui`; desktop shell imports updated. |
 | Full IDE/editor wiring | `lib/full-ide-setup.ts`, `lib/editor-view-prefs.ts` | `done` | Moved into desktop renderer services; callers no longer import copied web-ui paths. |
 | MIDI step entry | `lib/midi-step-entry-controller.ts` | `done` | Moved with desktop editor integration; `full-ide-setup` wires it through explicit dependencies. |
-| Legacy stylesheet | `main.tsx` imports `desktop-web-ui/styles.css` | `defer` | Retire after component CSS ownership is clear in Phase 6. |
+| Legacy stylesheet | `main.tsx` imports desktop-owned `styles.css` | `done` | Moved copied stylesheet rules into `apps/desktop/src/renderer/src/styles.css`; no `desktop-web-ui` stylesheet import remains. |
 | Phase 4 copied utility and shell leftovers | `utils/icons.ts`, `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `ui/debug-overlay.ts` | `done` | Deleted or relocated; no Phase 4 shell/helper files remain under `desktop-web-ui`. |
 
 ### Phase 2 — Move Small Utilities
@@ -209,6 +209,12 @@ Acceptance criteria:
 - Web-lite styles are not imported into desktop.
 - No broad CSS rewrite or class rename is required unless a component has already moved to React.
 
+Status:
+
+- Moved the remaining `desktop-web-ui/styles.css` rules into `apps/desktop/src/renderer/src/styles.css`.
+- Removed the `main.tsx` import of `./desktop-web-ui/styles.css`; `main.tsx` now imports tokens followed by the desktop-owned stylesheet.
+- Removed the old stylesheet file from `desktop-web-ui`.
+
 ### Phase 7 — Delete Directory
 
 When all imports are gone:
@@ -258,7 +264,7 @@ Before deleting the directory, perform a short desktop smoke pass:
 - [x] Convert settings section builders to React components.
 - [x] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
 - [x] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
-- [ ] Remove `desktop-web-ui/styles.css` import.
+- [x] Remove `desktop-web-ui/styles.css` import.
 - [ ] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
 - [ ] Update documentation and verify desktop build/e2e.
 
