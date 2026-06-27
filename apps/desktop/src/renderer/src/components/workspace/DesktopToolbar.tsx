@@ -6,7 +6,7 @@ import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
-import { icon } from '../../desktop-web-ui/utils/icons';
+import { icon } from '../../utils/icons';
 
 export type DesktopToolbarStyle = 'icons+labels' | 'icons';
 

@@ -1,4 +1,4 @@
-import { appAssetUrl } from '../utils/app-asset-url';
+import { appAssetUrl } from '../../utils/app-asset-url';
 
 export interface AboutModalInfo {
   productName?: string;

@@ -6,20 +6,15 @@ import { scheduleCommentsFoldPreference } from '../desktop-web-ui/app/editor-vie
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
-import type { buildBottomTabs, buildRightTabs } from '../desktop-web-ui/app/tabs';
-import type { buildShortcutsModal, buildAboutModal } from '../desktop-web-ui/app/modals';
-import { LoadingOverlay } from '../desktop-web-ui/ui/loading-overlay';
-import { MenuBar } from '../desktop-web-ui/ui/menu-bar';
-import type { ThemeManager } from '../desktop-web-ui/ui/theme-manager';
+import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
+import type { AboutModalController, ShortcutsModalController } from '../components/shell/modals';
+import { LoadingOverlay } from '../components/shell/loading-overlay';
+import { MenuBar } from '../components/shell/menu-bar';
+import type { ThemeManager } from './theme-manager';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import { blurChromeFocus, suppressChromeTabFocus } from './desktop-focus';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
-
-type BottomTabs = ReturnType<typeof buildBottomTabs>;
-type RightTabs = ReturnType<typeof buildRightTabs>;
-type ShortcutsModal = ReturnType<typeof buildShortcutsModal>;
-type AboutModal = ReturnType<typeof buildAboutModal>;
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -34,11 +29,11 @@ export interface SetupDesktopMenuBarOptions {
   getEditor: () => BeatBaxEditor | null;
   getSource: () => string;
   toolbar: DesktopToolbarHandle;
-  bottomTabs: BottomTabs;
-  rightTabs: RightTabs;
+  bottomTabs: BottomTabsController;
+  rightTabs: RightTabsController;
   settingsModal: DesktopSettingsModalHandle;
-  shortcutsModal: ShortcutsModal;
-  aboutModal: AboutModal;
+  shortcutsModal: ShortcutsModalController;
+  aboutModal: AboutModalController;
   themeManager: ThemeManager;
   copilot: DesktopCopilotHandle | null;
   runParse: (content: string) => void;
