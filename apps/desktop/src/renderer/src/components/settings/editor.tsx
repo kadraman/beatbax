@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiStepEntryService } from '@beatbax/app-core/input/midi-step-entry';
 import {
   settingAutoSave,
@@ -27,6 +27,12 @@ interface MidiDevice {
   name: string;
 }
 
+function sameMidiDevices(a: MidiDevice[], b: MidiDevice[]): boolean {
+  return a.length === b.length && a.every((device, index) => (
+    device.id === b[index]?.id && device.name === b[index]?.name
+  ));
+}
+
 function midiController(): any {
   return (window as any).__beatbax_midiStepEntry;
 }
@@ -49,23 +55,45 @@ export function EditorSettingsSection(): React.JSX.Element {
   const midiAutoAdvance = useStoreValue(settingMidiAutoAdvance);
   const midiAuditionNotes = useStoreValue(settingMidiAuditionNotes);
   const [devices, setDevices] = useState<MidiDevice[]>([]);
+  const [refreshStatus, setRefreshStatus] = useState('');
+  const isRefreshingDevicesRef = useRef(false);
 
-  const refreshDevices = useCallback(async (): Promise<void> => {
-    const controller = midiController();
-    await controller?.requestMidiAccess?.();
-    const nextDevices: MidiDevice[] = controller?.listDevices?.() ?? [];
-    let selectedId = settingMidiInputDevice.get();
-    if (selectedId && !nextDevices.some((device) => device.id === selectedId)) {
-      selectedId = '';
-      settingMidiInputDevice.set('');
-      controller?.setDeviceById?.('');
+  const refreshDevices = useCallback(async (force = false): Promise<void> => {
+    if (isRefreshingDevicesRef.current) return;
+    isRefreshingDevicesRef.current = true;
+    setRefreshStatus('Refreshing MIDI devices...');
+    try {
+      const controller = midiController();
+      await controller?.requestMidiAccess?.(force);
+      const nextDevices: MidiDevice[] = controller?.listDevices?.() ?? [];
+      let selectedId = settingMidiInputDevice.get();
+      if (selectedId && !nextDevices.some((device) => device.id === selectedId)) {
+        selectedId = '';
+        settingMidiInputDevice.set('');
+        controller?.setDeviceById?.('');
+      }
+      setDevices((currentDevices) => (
+        sameMidiDevices(currentDevices, nextDevices) ? currentDevices : nextDevices
+      ));
+      const checkedAt = new Date().toLocaleTimeString();
+      setRefreshStatus(
+        nextDevices.length === 1
+          ? `Found 1 MIDI device. Last checked ${checkedAt}.`
+          : `Found ${nextDevices.length} MIDI devices. Last checked ${checkedAt}.`,
+      );
+    } finally {
+      isRefreshingDevicesRef.current = false;
     }
-    setDevices(nextDevices);
   }, []);
 
   useEffect(() => {
-    void refreshDevices();
-  }, [refreshDevices]);
+    if (midiEnabled) {
+      void refreshDevices();
+    } else {
+      setDevices([]);
+      setRefreshStatus('');
+    }
+  }, [midiEnabled, refreshDevices]);
 
   const hasElectronAPI = Boolean((window as unknown as { electronAPI?: unknown }).electronAPI);
 
@@ -127,7 +155,14 @@ export function EditorSettingsSection(): React.JSX.Element {
         label="Enable MIDI input"
         onChange={(value) => {
           settingMidiInputEnabled.set(value);
-          midiController()?.setEnabled(value);
+          void midiController()?.setEnabled(value)?.then(() => {
+            if (value) {
+              void refreshDevices();
+            } else {
+              setDevices([]);
+              setRefreshStatus('');
+            }
+          });
         }}
       />
       <NoteText>Allows a connected MIDI keyboard to enter notes directly into the editor when the Record button is active. Requires browser MIDI support (Chrome / Edge).</NoteText>
@@ -156,13 +191,14 @@ export function EditorSettingsSection(): React.JSX.Element {
           </select>
           <button
             className="bb-settings-btn"
-            onClick={() => { void refreshDevices(); }}
+            onClick={() => { void refreshDevices(true); }}
             title="Re-scan for MIDI devices"
             type="button"
           >
             Refresh
           </button>
         </div>
+        <NoteText><span aria-live="polite">{refreshStatus || ' '}</span></NoteText>
 
         <SelectField
           label="Step length"

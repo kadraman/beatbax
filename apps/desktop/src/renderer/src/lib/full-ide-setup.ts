@@ -1,7 +1,5 @@
 /**
- * Shared wiring for desktop-full IDE features: debug overlay, transport extras,
- * and MIDI step entry. Used by the Electron desktop client; web-ui main.ts
- * inlines equivalent logic for now.
+ * Desktop-full IDE wiring: debug overlay, transport extras, and MIDI step entry.
  */
 
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
@@ -19,8 +17,8 @@ import {
 } from '@beatbax/app-core/stores/settings.store';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
-import { MidiStepEntryController } from '../input/midi-step-entry-controller';
-import { DebugOverlay } from '../../components/shell/debug-overlay';
+import { MidiStepEntryController } from './midi-step-entry-controller';
+import { DebugOverlay } from '../components/shell/debug-overlay';
 
 export interface OutputPanelLogHandle {
   addMessage: (message: {

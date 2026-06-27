@@ -80,8 +80,8 @@ Current inventory:
 | Shell asset/chip helpers | `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `utils/icons.ts` via desktop shell modules | `done` | Shell modules now import desktop-owned utility paths; old copied helper files removed. |
 | Settings sections | `components/settings/*.tsx` from `DesktopSettingsModal.tsx` | `done` | Converted to desktop-owned React components; no DOM builders remain in the desktop settings modal. |
 | Shell tabs/modals/layout/status/theme/menu/loading/debug overlay | `components/shell/*`, `components/workspace/rotary-knob.ts`, `lib/theme-manager.ts` | `done` | Relocated from `desktop-web-ui`; desktop shell imports updated. |
-| Full IDE/editor wiring | `app/full-ide-setup.ts`, `app/editor-view-prefs.ts` | `defer` | Move into desktop renderer services in Phase 5. |
-| MIDI step entry | `input/midi-step-entry-controller.ts` | `defer` | Move with editor integration in Phase 5. |
+| Full IDE/editor wiring | `lib/full-ide-setup.ts`, `lib/editor-view-prefs.ts` | `done` | Moved into desktop renderer services; callers no longer import copied web-ui paths. |
+| MIDI step entry | `lib/midi-step-entry-controller.ts` | `done` | Moved with desktop editor integration; `full-ide-setup` wires it through explicit dependencies. |
 | Legacy stylesheet | `main.tsx` imports `desktop-web-ui/styles.css` | `defer` | Retire after component CSS ownership is clear in Phase 6. |
 | Phase 4 copied utility and shell leftovers | `utils/icons.ts`, `utils/app-asset-url.ts`, `utils/chip-resolve.ts`, `ui/debug-overlay.ts` | `done` | Deleted or relocated; no Phase 4 shell/helper files remain under `desktop-web-ui`. |
 
@@ -169,7 +169,7 @@ Status:
 - Relocated `theme-manager` to `lib/theme-manager.ts`.
 - Relocated `rotary-knob` to `components/workspace/rotary-knob.ts` so the React transport bar no longer imports from `desktop-web-ui`.
 - Desktop shortcut metadata now lives in `lib/desktop-shortcut-descriptors.ts`; `register-shortcuts.ts` attaches desktop-specific handlers separately so keybindings remain client-specific.
-- Remaining `desktop-web-ui` imports are Phase 5 editor orchestration (`full-ide-setup`, `editor-view-prefs`, and MIDI step entry via `full-ide-setup`) and Phase 6 stylesheet ownership.
+- Remaining `desktop-web-ui` import after Phase 5 is the Phase 6 stylesheet ownership work.
 
 ### Phase 5 — Full IDE Setup and Editor Integration
 
@@ -187,6 +187,12 @@ Acceptance criteria:
 - Editor view preferences and comments folding remain stable.
 - MIDI step entry still works when enabled.
 - No renderer service depends on copied web-ui paths.
+
+Status:
+
+- Moved `full-ide-setup.ts`, `editor-view-prefs.ts`, and `midi-step-entry-controller.ts` into `apps/desktop/src/renderer/src/lib`.
+- Updated desktop workspace, editor setup, and menu bar callers to use desktop-owned `lib` imports.
+- Deleted the old copied Phase 5 files from `desktop-web-ui`; only the Phase 6 stylesheet remains in that folder.
 
 ### Phase 6 — CSS Retirement
 
@@ -251,7 +257,7 @@ Before deleting the directory, perform a short desktop smoke pass:
 - [x] Move small utility helpers to desktop renderer utilities.
 - [x] Convert settings section builders to React components.
 - [x] Replace or relocate tabs, panels menu, layout, status bar, menu bar, theme manager, modals, loading overlay, and shortcut helpers.
-- [ ] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
+- [x] Move full IDE setup, editor view preferences, and MIDI step entry into desktop-owned services.
 - [ ] Remove `desktop-web-ui/styles.css` import.
 - [ ] Delete `apps/desktop/src/renderer/src/desktop-web-ui`.
 - [ ] Update documentation and verify desktop build/e2e.
