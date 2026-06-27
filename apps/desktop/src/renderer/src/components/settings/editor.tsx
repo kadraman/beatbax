@@ -69,8 +69,11 @@ export function EditorSettingsSection(): React.JSX.Element {
       let selectedId = settingMidiInputDevice.get();
       if (selectedId && !nextDevices.some((device) => device.id === selectedId)) {
         selectedId = '';
-        settingMidiInputDevice.set('');
-        controller?.setDeviceById?.('');
+        if (controller?.setDeviceById) {
+          controller.setDeviceById('');
+        } else {
+          settingMidiInputDevice.set('');
+        }
       }
       setDevices((currentDevices) => (
         sameMidiDevices(currentDevices, nextDevices) ? currentDevices : nextDevices
@@ -154,15 +157,26 @@ export function EditorSettingsSection(): React.JSX.Element {
         checked={midiEnabled}
         label="Enable MIDI input"
         onChange={(value) => {
+          const controller = midiController();
+          if (controller?.setEnabled) {
+            void controller.setEnabled(value).then(() => {
+              if (value) {
+                void refreshDevices();
+              } else {
+                setDevices([]);
+                setRefreshStatus('');
+              }
+            });
+            return;
+          }
+
           settingMidiInputEnabled.set(value);
-          void midiController()?.setEnabled(value)?.then(() => {
-            if (value) {
-              void refreshDevices();
-            } else {
-              setDevices([]);
-              setRefreshStatus('');
-            }
-          });
+          if (value) {
+            void refreshDevices();
+          } else {
+            setDevices([]);
+            setRefreshStatus('');
+          }
         }}
       />
       <NoteText>Allows a connected MIDI keyboard to enter notes directly into the editor when the Record button is active. Requires browser MIDI support (Chrome / Edge).</NoteText>

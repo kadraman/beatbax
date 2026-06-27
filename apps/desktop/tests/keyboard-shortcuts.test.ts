@@ -66,6 +66,61 @@ describe('desktop keyboard shortcuts', () => {
     shortcuts.dispose();
   });
 
+  it('falls back to physical key code when modifier layouts change event.key', () => {
+    const shortcuts = new KeyboardShortcuts();
+    const action = jest.fn();
+
+    shortcuts.register({
+      key: 'i',
+      altKey: true,
+      shiftKey: true,
+      description: 'Toggle AI Copilot',
+      allowInInput: true,
+      action,
+    });
+    shortcuts.mount(window);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Í',
+      code: 'KeyI',
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    expect(action).toHaveBeenCalledTimes(1);
+    shortcuts.dispose();
+  });
+
+  it('allows alt shortcuts when layouts report an extra ctrl modifier', () => {
+    const shortcuts = new KeyboardShortcuts();
+    const action = jest.fn();
+
+    shortcuts.register({
+      key: 'i',
+      altKey: true,
+      shiftKey: true,
+      description: 'Toggle AI Copilot',
+      allowInInput: true,
+      action,
+    });
+    shortcuts.mount(window);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'I',
+      code: 'KeyI',
+      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    expect(action).toHaveBeenCalledTimes(1);
+    shortcuts.dispose();
+  });
+
   it('defines descriptors for the shortcuts listed in the desktop Help panel', () => {
     const ids = new Set(DESKTOP_SHORTCUT_DESCRIPTORS.map((descriptor) => shortcutId(descriptor)));
 

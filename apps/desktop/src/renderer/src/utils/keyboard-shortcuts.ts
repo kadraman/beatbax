@@ -50,6 +50,12 @@ function normaliseKey(key: string): string {
   return key.toLowerCase();
 }
 
+function keyFromCode(code: string): string | null {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  return null;
+}
+
 /** Build a canonical string ID for a descriptor, used for deduplication. */
 export function shortcutId(d: Pick<ShortcutDescriptor, 'key' | 'ctrlKey' | 'shiftKey' | 'altKey'>): string {
   const parts: string[] = [];
@@ -142,20 +148,48 @@ export class KeyboardShortcuts {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
+    const ctrlKey = e.ctrlKey || e.metaKey;
+    const modifierCandidates = [
+      { ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey },
+      // Some desktop/Linux layouts report AltGraph-style chords as Ctrl+Alt.
+      // Let Alt shortcuts still fire when the extra Ctrl is layout-generated.
+      ...(ctrlKey && e.altKey && !e.metaKey
+        ? [{ ctrlKey: false, shiftKey: e.shiftKey, altKey: e.altKey }]
+        : []),
+    ];
+    const keyCandidates = [
+      e.key,
+      keyFromCode(e.code),
+    ].filter((key): key is string => Boolean(key));
+
+    const descriptor = (() => {
+      for (const key of keyCandidates) {
+        for (const modifiers of modifierCandidates) {
+          const match = this.shortcuts.get(shortcutId({ key, ...modifiers }));
+          if (match) return match;
+        }
+      }
+      return undefined;
+    })();
+
     const id = shortcutId({
       key: e.key,
-      ctrlKey: e.ctrlKey || e.metaKey,
+      ctrlKey,
       shiftKey: e.shiftKey,
       altKey: e.altKey,
     });
 
-    const descriptor = this.shortcuts.get(id);
-    if (!descriptor) return;
+    const matchedDescriptor = descriptor ?? (() => {
+      const codeKey = keyFromCode(e.code);
+      if (!codeKey) return undefined;
+      return this.shortcuts.get(shortcutId({ key: codeKey, ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }));
+    })();
+    if (!matchedDescriptor) return;
 
-    if (isInInput(e) && !descriptor.allowInInput) return;
+    if (isInInput(e) && !matchedDescriptor.allowInInput) return;
 
     log.debug(`Shortcut fired: ${id}`);
     e.preventDefault();
-    descriptor.action();
+    matchedDescriptor.action();
   }
 }
