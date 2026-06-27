@@ -21,7 +21,7 @@ import {
   applyStoredWordWrap,
   scheduleCommentsFoldPreference,
   syncEditorViewPrefsToToolbar,
-} from '../desktop-web-ui/app/editor-view-prefs';
+} from './editor-view-prefs';
 import type { DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 

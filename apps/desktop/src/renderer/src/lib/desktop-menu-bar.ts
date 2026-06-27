@@ -1,8 +1,8 @@
 import type { AppContext } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
-import type { EditorViewPrefsHandlers } from '../desktop-web-ui/app/editor-view-prefs';
-import { scheduleCommentsFoldPreference } from '../desktop-web-ui/app/editor-view-prefs';
+import type { EditorViewPrefsHandlers } from './editor-view-prefs';
+import { scheduleCommentsFoldPreference } from './editor-view-prefs';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';

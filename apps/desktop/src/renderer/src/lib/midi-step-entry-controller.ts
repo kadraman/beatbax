@@ -9,8 +9,8 @@
  *  - Handle editor context checks (is cursor inside a pat body?)
  *  - Manage the transport record-button armed/disarmed visual state
  *  - Provide audition playback via the onAuditionNote callback
- *  - Expose a stable public API consumed by main.ts, settings, and
- *    command-palette commands (via window.__beatbax_midiStepEntry)
+ *  - Expose a stable public API consumed by desktop commands and settings
+ *    (via window.__beatbax_midiStepEntry)
  */
 
 import * as monaco from 'monaco-editor';
@@ -68,13 +68,14 @@ export interface MidiStepEntryControllerOptions {
 // ─── MidiStepEntryController ──────────────────────────────────────────────────
 
 /**
- * Top-level orchestrator for MIDI step entry in the BeatBax web UI.
+ * Top-level orchestrator for MIDI step entry in the BeatBax desktop UI.
  */
 export class MidiStepEntryController {
   private service: MidiStepEntryService;
   private scaleSnapMode: ScaleSnapMode = 'off';
   private parsedAst: any = null;
-  private _accessRequested = false;
+  private _accessGranted = false;
+  private _accessRequest: Promise<void> | null = null;
   /** Tracks the start position of the last no-advance insertion for replace-in-place. */
   private _noAdvanceStart: { lineNumber: number; startColumn: number } | null = null;
   /** Tracks overwrite-selection cycling so repeated notes advance and wrap. */
@@ -119,38 +120,48 @@ export class MidiStepEntryController {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Request MIDI access (once). Call early during app startup. */
-  async requestMidiAccess(): Promise<void> {
-    if (this._accessRequested) return;
+  async requestMidiAccess(force = false): Promise<void> {
+    if (this._accessGranted && !force) return;
+    if (this._accessRequest) return this._accessRequest;
 
     if (!settingMidiInputEnabled.get()) return;
     if (!MidiStepEntryService.isSupported()) return;
 
-    this._accessRequested = true;
-
-    const err = await this.service.requestAccess();
-    if (err) {
-      this.opts.onWarning?.(err);
-      return;
-    }
-
-    // Restore previously-selected device
-    const savedDevice = settingMidiInputDevice.get();
-    if (savedDevice) {
-      const deviceErr = this.service.setDevice(savedDevice);
-      if (deviceErr) {
-        log.warn('Saved MIDI device not found:', deviceErr);
-        // Saved device became unavailable (e.g. unplugged between sessions).
-        // Clear persisted selection so UI and Record button state stay accurate.
-        settingMidiInputDevice.set('');
-        this.service.setDevice('');
+    this._accessRequest = (async () => {
+      const err = await this.service.requestAccess();
+      if (err) {
+        this._accessGranted = false;
+        this.opts.onWarning?.(err);
+        return;
       }
+
+      this._accessGranted = true;
+
+      // Restore previously-selected device
+      const savedDevice = settingMidiInputDevice.get();
+      if (savedDevice) {
+        const deviceErr = this.service.setDevice(savedDevice);
+        if (deviceErr) {
+          log.warn('Saved MIDI device not found:', deviceErr);
+          // Saved device became unavailable (e.g. unplugged between sessions).
+          // Clear persisted selection so UI and Record button state stay accurate.
+          settingMidiInputDevice.set('');
+          this.service.setDevice('');
+        }
+      }
+    })();
+
+    try {
+      await this._accessRequest;
+    } finally {
+      this._accessRequest = null;
     }
   }
 
   /** Called by the settings panel when the MIDI enabled toggle changes. */
   async setEnabled(enabled: boolean): Promise<void> {
     settingMidiInputEnabled.set(enabled);
-    if (enabled && !this._accessRequested) {
+    if (enabled) {
       await this.requestMidiAccess();
     } else if (!enabled) {
       this.service.disarm();
@@ -192,9 +203,7 @@ export class MidiStepEntryController {
       this.opts.onArmedChanged?.(false);
       return;
     }
-    if (!this._accessRequested) {
-      await this.requestMidiAccess();
-    }
+    await this.requestMidiAccess();
     this.service.arm();
     const armed = this.service.isArmed();
     this.opts.onArmedChanged?.(armed);
@@ -376,7 +385,7 @@ export class MidiStepEntryController {
   ): void {
     this._overwriteCycle = null;
 
-    // Always insert at the cursor position — never replace any existing selection.
+    // Always insert at the cursor position - never replace any existing selection.
     // Using a collapsed range ensures Monaco's selection does not get overwritten.
     const insertRange = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
     let editRange: monaco.IRange = insertRange;
@@ -391,7 +400,7 @@ export class MidiStepEntryController {
       if (savedLine === pos.lineNumber) {
         editRange = new monaco.Range(savedLine, startColumn, pos.lineNumber, pos.column);
       } else {
-        // Cursor moved to a different line — discard saved position and start fresh.
+        // Cursor moved to a different line - discard saved position and start fresh.
         this._noAdvanceStart = null;
       }
     }
@@ -410,7 +419,7 @@ export class MidiStepEntryController {
       insertText = `${noteToken} `;
       this._noAdvanceStart = null;
     } else {
-      // No trailing space — record where the token starts so a follow-up press
+      // No trailing space - record where the token starts so a follow-up press
       // can replace it in-place.
       insertText = noteToken;
       this._noAdvanceStart = { lineNumber: pos.lineNumber, startColumn: editRange.startColumn };
@@ -435,7 +444,7 @@ export class MidiStepEntryController {
     const sel = editor.getSelection();
     if (!sel || (sel.startLineNumber === sel.endLineNumber && sel.startColumn === sel.endColumn)) {
       this._overwriteCycle = null;
-      // No selection — fall back to insert at cursor
+      // No selection - fall back to insert at cursor
       this._insertAtCursor(editor, model, pos, token, autoAdvance);
       return true;
     }
@@ -449,7 +458,7 @@ export class MidiStepEntryController {
 
     if (spans.length === 0) {
       this._overwriteCycle = null;
-      // Selection contains no note/rest tokens — warn and abort
+      // Selection contains no note/rest tokens - warn and abort
       this.opts.onWarning?.('MIDI step entry: selection contains no note or rest tokens to replace.');
       return false;
     }
