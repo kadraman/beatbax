@@ -6,10 +6,10 @@
  * document.createElement('style') injections that were in main.ts).
  */
 
-import type { ThreePaneLayoutManager } from '../ui/layout';
+import type { ThreePaneLayoutManager } from './layout';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
-import { filledIcon } from '../utils/icons';
+import { filledIcon } from '../../utils/icons';
 
 // ─── Bottom Tabs (Problems | Output) ─────────────────────────────────────────
 
