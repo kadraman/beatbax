@@ -24,6 +24,14 @@ export interface SongValidationContext {
   song?: AST;
 }
 
+/** Song-level hardware/profile context passed to chip plugins before playback or rendering. */
+export interface ChipSongContext {
+  /** Raw `chip` directive from the song AST (may be an alias, e.g. `cpc`). */
+  chip?: string;
+  /** Optional `chipRegion` directive for chips with region/platform variants. */
+  chipRegion?: string;
+}
+
 // ─── Channel backend ─────────────────────────────────────────────────────────
 
 /**
@@ -350,6 +358,14 @@ export interface ChipPlugin {
    * Return an empty array when no issues are found.
    */
   validateSong?(ctx: SongValidationContext): ValidationError[];
+
+  /**
+   * Optional song-level hardware/profile configuration hook.
+   *
+   * Called before playback or headless PCM rendering so plugins can select
+   * clock rates, frame rates, or platform variants from song metadata.
+   */
+  configureForSong?(ctx: ChipSongContext): void;
 
   /**
    * Create a channel backend instance for the given channel index.
