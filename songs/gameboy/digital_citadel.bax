@@ -77,9 +77,9 @@ inst chip_wide   type=pulse2 duty=75   env={"level":8,"direction":"down","period
 
 inst iron_bass   type=wave   wave=[0,2,5,8,11,13,15,15,14,12,10,8,6,5,4,3,2,2,1,1,1,0,0,0,0,0,0,0,0,0,0,0]
 
-inst kick        type=noise  env={"level":14,"direction":"down","period":1,"format":"gb"} note=C5
-inst snare       type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
-inst hat         type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  note=C7
+inst kick        type=noise  env={"level":14,"direction":"down","period":1,"format":"gb"} uge_note=C-7
+inst snare       type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
+inst hat         type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
 
 # =============================================================================
 # Effect presets
@@ -166,7 +166,7 @@ pat coda_high = C6<shimmer>:4 Bb5<shimmer>:2 G5:2 Eb5:4 C5:4
 
 # coda_end: warm tonic fade — long held C5 with mWobble, then silence until loop
 # 16 steps: 8 + 8 rests
-pat coda_end = inst mech_warm C5<mWobble>:8 . . . . . . .
+pat coda_end = inst mech_warm C5<mWobble>:8 . . . . . . . .
 
 # =============================================================================
 # Harmony patterns  (Channel 2 — Pulse2)

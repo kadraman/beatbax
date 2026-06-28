@@ -35,6 +35,7 @@ const PATTERN_ROWS = 64;
 const NUM_CHANNELS = 4;
 const NUM_ROUTINES = 16;
 const EMPTY_NOTE = 90; // Note value for empty/rest cells
+const warnedFlatNoteConversions = new Set<string>();
 
 // Game Boy channel mapping
 enum GBChannel {
@@ -809,17 +810,34 @@ function writeNoiseInstrument(
  * This is MIDI note number minus 36 (3 octaves offset).
  * Notes below C-3 are transposed up by octaves to fit in range.
  *
- * @param noteName - Note name like "C4", "D#5"
+ * @param noteName - Note name like "C4", "D#5", or "Eb5"
  * @param ugeTranspose - Optional transpose in semitones for UGE export only (e.g., +12 = up one octave)
  */
 function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number {
-    const match = noteName.match(/^([A-G]#?)(-?\d+)$/i);
+    const match = noteName.match(/^([A-G](?:#|b)?)(-?\d+)$/i);
     if (!match) return EMPTY_NOTE;
 
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const [, pitch, octaveStr] = match;
     const octave = parseInt(octaveStr, 10);
-    const noteIndex = noteNames.indexOf(pitch.toUpperCase());
+    const pitchName = pitch.toUpperCase();
+    const flatToSharp: Record<string, string> = {
+        DB: 'C#',
+        EB: 'D#',
+        GB: 'F#',
+        AB: 'G#',
+        BB: 'A#',
+    };
+    const normalizedPitch = flatToSharp[pitchName] ?? pitchName;
+    if (normalizedPitch !== pitchName) {
+        const convertedNoteName = `${normalizedPitch}${octave}`;
+        const warningKey = `${noteName}->${convertedNoteName}`;
+        if (!warnedFlatNoteConversions.has(warningKey)) {
+            warnedFlatNoteConversions.add(warningKey);
+            warn('export', `Converted flat note ${noteName} to ${convertedNoteName} for hUGETracker export.`);
+        }
+    }
+    const noteIndex = noteNames.indexOf(normalizedPitch);
 
     if (noteIndex === -1) return EMPTY_NOTE;
 
@@ -854,6 +872,27 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     // Valid range is 0-72 (C-3 to C-9 in hUGETracker)
     if (ugeIndex < 0) return EMPTY_NOTE;
 
+    return ugeIndex;
+}
+
+/**
+ * Convert hUGETracker display notation (e.g. "C-7", "C#7") to a UGE note index.
+ *
+ * This intentionally accepts tracker notation rather than BeatBax note notation
+ * so noise instruments can declare their UGE export row directly via `uge_note`.
+ */
+function hugeTrackerNoteToIndex(noteName: string): number {
+    const normalized = String(noteName ?? '').trim().toUpperCase();
+    const match = normalized.match(/^([A-G](?:#|-))([3-9])$/);
+    if (!match) return EMPTY_NOTE;
+
+    const noteNames = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
+    const noteIndex = noteNames.indexOf(match[1]);
+    if (noteIndex === -1) return EMPTY_NOTE;
+
+    const octave = parseInt(match[2], 10);
+    const ugeIndex = (octave - 3) * 12 + noteIndex;
+    if (ugeIndex < 0 || ugeIndex > 72) return EMPTY_NOTE;
     return ugeIndex;
 }
 
@@ -1263,14 +1302,24 @@ function eventsToPatterns(
                 }
             }
             currentPan = namedPan;
-            // Use instrument's default note if specified, otherwise look up instruments map
-            // directly as a fallback (handles hit() and inst(name,N) paths in the resolver)
+            // Use explicit hUGETracker display notation first when provided.
+            // Fall back to BeatBax default-note behavior for existing songs.
             let noteValue = 24; // fallback: hUGETracker index 24 = C5 in BeatBax octave numbering
-            const noteSrc: string | undefined = namedEvent.defaultNote ?? (namedInst?.note as string | undefined);
-            if (noteSrc) {
-                const parsedNote = noteNameToMidiNote(noteSrc, 0);
-                if (parsedNote !== EMPTY_NOTE) {
-                    noteValue = parsedNote;
+            const ugeNoteSrc: string | undefined = namedInst?.uge_note as string | undefined;
+            if (ugeNoteSrc) {
+                const parsedUgeNote = hugeTrackerNoteToIndex(ugeNoteSrc);
+                if (parsedUgeNote !== EMPTY_NOTE) {
+                    noteValue = parsedUgeNote;
+                } else {
+                    warn('export', `Invalid uge_note '${ugeNoteSrc}' on instrument '${namedEvent.token}'. Expected hUGETracker notation like C-7 or C#7.`);
+                }
+            } else {
+                const noteSrc: string | undefined = namedEvent.defaultNote ?? (namedInst?.note as string | undefined);
+                if (noteSrc) {
+                    const parsedNote = noteNameToMidiNote(noteSrc, 0);
+                    if (parsedNote !== EMPTY_NOTE) {
+                        noteValue = parsedNote;
+                    }
                 }
             }
             cell = {

@@ -146,8 +146,8 @@ All instrument types (pulse, wave, noise) can specify a default note value using
 
 ```
 inst kick     type=pulse1 duty=12.5 env=15,down note=C2
-inst snare    type=noise  gb:width=7 env=13,down note=C6
-inst hihat_cl type=noise  gb:width=15 env=6,down note=C6
+inst snare    type=noise  gb:width=7 env=13,down uge_note=C-7
+inst hihat_cl type=noise  gb:width=15 env=6,down uge_note=C-8
 
 pat drums = kick . snare . kick . hihat_cl .  # Uses default notes automatically
 ```
@@ -155,22 +155,36 @@ pat drums = kick . snare . kick . hihat_cl .  # Uses default notes automatically
 ### Behavior
 
 1. **Pulse/Wave instruments:** The specified note is the actual pitch played when using the instrument name as a token
-2. **Noise instruments:** The note value is stored for UGE export compatibility (noise doesn't use traditional pitch during playback)
+2. **Noise instruments:** The note value is stored for legacy UGE export compatibility (noise doesn't use traditional pitch during playback)
 3. **Override per-note:** You can still use explicit notes: `inst(snare) D6` overrides the default
 4. **No `note=` specified:** Defaults to C5 for backward compatibility in exports
 
+## UGE Note Parameter (`uge_note=`)
+
+Game Boy noise instruments can specify the exact hUGETracker display note used for named hits during UGE export:
+
+```
+inst kick  type=noise gb:width=7  env=14,down uge_note=C-6
+inst snare type=noise gb:width=7  env=10,down uge_note=C-7
+inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
+
+pat drums = kick hat snare hat
+```
+
+`uge_note=` is only used by UGE export. It does not affect Game Boy noise playback, where `gb:width`, `divisor`, `shift`, `env`, and `length` control the sound. If both `uge_note=` and `note=` are present, UGE export uses `uge_note=` for named hits.
+
 ### Recommended Values
 
-For Game Boy percussion (follows hUGETracker conventions):
+For Game Boy percussion, prefer `uge_note=` hUGETracker notation on noise instruments:
 
-- **Kicks** (pulse channels): `note=C2` (deep bass)
-- **Snares** (7-bit noise): `note=C6` (exports as C-7 in hUGETracker)
-- **Closed hi-hats** (15-bit noise): `note=C6` to `note=D6` (exports as C-7 to D-7)
-- **Open hi-hats** (15-bit noise): `note=D6` to `note=E6` (exports as D-7 to E-7)
-- **Toms** (7-bit noise): `note=C5` to `note=E5` (exports as C-6 to E-6)
-- **Cymbals** (15-bit noise): `note=E6` to `note=F6` (exports as E-7 to F-7)
+- **Kicks** (noise channel): `uge_note=C-6`
+- **Snares** (7-bit noise): `uge_note=C-7`
+- **Closed hi-hats** (15-bit noise): `uge_note=C-7` to `uge_note=D-7`
+- **Open hi-hats** (15-bit noise): `uge_note=D-7` to `uge_note=E-7`
+- **Toms** (7-bit noise): `uge_note=C-6` to `uge_note=E-6`
+- **Cymbals** (15-bit noise): `uge_note=E-7` to `uge_note=F-7`
 
-**Important:** hUGETracker displays notes ONE OCTAVE HIGHER than BeatBax's MIDI notation:
+Legacy `note=` values still work, but hUGETracker displays them one octave higher than BeatBax's MIDI notation:
 - BeatBax `note=C6` → exports as C-7 in hUGETracker
 - BeatBax `note=C2` → exports as C-3 in hUGETracker
 

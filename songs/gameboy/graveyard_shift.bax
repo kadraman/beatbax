@@ -70,9 +70,9 @@ inst atmo_pad    type=pulse2 duty=75   env={"level":8,"direction":"down","period
 inst thriller_bass type=wave wave=[0,8,14,15,15,14,12,10,9,8,7,6,5,4,3,3,2,2,2,1,1,1,1,0,0,0,0,0,0,0,0,0]
 
 # Noise — percussion
-inst kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} note=C5
-inst snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} note=C6
-inst hat    type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  note=C7
+inst kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} uge_note=C-6
+inst snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} uge_note=C-7
+inst hat    type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
 
 # =============================================================================
 # Effect presets

@@ -28,6 +28,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       width: { values: ['7', '15'], detail: 'Noise width mode' },
       gm: { detail: 'MIDI program 0–127' },
       note: { detail: 'Default hit note e.g. C2' },
+      uge_note: { detail: 'UGE export note in hUGETracker notation, e.g. C-8' },
     },
   },
   nes: {
@@ -105,6 +106,7 @@ const GENERIC_PROPERTIES: Record<string, InstPropertyMeta> = {
   env: { detail: 'Envelope' },
   gm: { detail: 'MIDI program' },
   note: { detail: 'Default note' },
+  uge_note: { detail: 'UGE export note in hUGETracker notation' },
   vol: { detail: 'Volume 0–15' },
 };
 
