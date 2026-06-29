@@ -125,14 +125,15 @@ describe('createBlob', () => {
 describe('triggerDownload', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('creates an anchor element, sets href and download, and clicks it', () => {
+  it('creates an anchor element, sets href and download, and clicks it', async () => {
     const { createObjectURL, clickSpy } = setupDownloadMocks();
 
     const blob = new Blob(['data'], { type: 'text/plain' });
-    triggerDownload(blob, 'output.txt');
+    const result = await triggerDownload(blob, 'output.txt');
 
     expect(createObjectURL).toHaveBeenCalledWith(blob);
     expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(result).toBe('output.txt');
   });
 });
 
@@ -141,20 +142,41 @@ describe('triggerDownload', () => {
 describe('downloadText', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('triggers a download with the correct MIME type', () => {
+  it('triggers a download with the correct MIME type', async () => {
     const { clickSpy } = setupDownloadMocks();
-    downloadText('hello world', 'note.txt', 'text/plain');
+    const result = await downloadText('hello world', 'note.txt', 'text/plain');
     expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(result).toBe('note.txt');
   });
 });
 
 describe('downloadBinary', () => {
   beforeEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    delete (window as typeof window & { electronAPI?: unknown }).electronAPI;
+  });
 
-  it('triggers a download for a Uint8Array', () => {
+  it('triggers a download for a Uint8Array', async () => {
     const { clickSpy } = setupDownloadMocks();
-    downloadBinary(new Uint8Array([1, 2, 3]), 'data.bin');
+    const result = await downloadBinary(new Uint8Array([1, 2, 3]), 'data.bin');
     expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(result).toBe('data.bin');
+  });
+
+  it('awaits desktop saveFile and returns the saved path', async () => {
+    const saveFile = jest.fn(async () => 'C:\\Exports\\data.bin');
+    Object.defineProperty(window, 'electronAPI', {
+      configurable: true,
+      value: { saveFile },
+    });
+
+    const result = await downloadBinary(new Uint8Array([1, 2, 3]), 'data.bin');
+
+    expect(saveFile).toHaveBeenCalledWith(
+      { title: 'Export data.bin', defaultPath: 'data.bin', showDialog: true },
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(result).toBe('C:\\Exports\\data.bin');
   });
 });
 

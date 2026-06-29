@@ -63,6 +63,8 @@ export async function handleDesktopExport(
       }
       deps.showProblems();
     }
+  } else if (result.cancelled) {
+    return;
   } else {
     deps.problemsPanel.addMessage({
       type: 'error',

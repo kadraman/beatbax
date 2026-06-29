@@ -50,7 +50,7 @@ npm -w @beatbax/web-ui run test
 
 - **UI shell** — vanilla TypeScript + DOM (`src/main.ts`, `src/app/`, `src/ui/`, `src/panels/`)
 - **Shared logic** — `@beatbax/app-core` (stores, playback, editor core, parse pipeline)
-- **File I/O** — `src/utils/browser-fs.ts` (Vite `fs` alias; captures writes for downloads)
+- **File I/O** — `src/utils/browser-fs.ts` (Vite `fs` alias for legacy path-writing engine helpers; UI exporters prefer returned payloads for downloads)
 - **Profile** — `vite.config.ts` sets `__CLIENT_PROFILE__: '"web-lite"'`
 
 Desktop reuses many panel implementations via Vite `@web-ui` aliases in its React shell; web-ui does not import desktop code.

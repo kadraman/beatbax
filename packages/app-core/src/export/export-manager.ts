@@ -7,9 +7,8 @@ import { resolveSong } from '@beatbax/engine/song';
 import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { exportUGE, writeWAV } from '@beatbax/engine/export';
+import { buildUGE, writeWAV } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
-import { getCapturedWrite, clearCapturedWrite } from '../io/write-capture.js';
 
 import type { EventBus } from '../utils/event-bus.js';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store.js';
@@ -53,6 +52,7 @@ export interface ExportResult {
   size?: number;
   error?: Error;
   warnings?: string[];
+  cancelled?: boolean;
 }
 
 /**
@@ -137,6 +137,15 @@ export class ExportManager {
 
       result.warnings = warnings;
 
+      if (!result.success) {
+        if (result.cancelled) {
+          this.eventBus.emit('export:cancelled', { format, filename: result.filename });
+          exportStatus.set('idle');
+          log.debug(`Export cancelled: ${format}`);
+        }
+        return result;
+      }
+
       // Record in history
       this.history.add({
         format,
@@ -180,12 +189,13 @@ export class ExportManager {
     const filename = ensureExtension(baseFilename, 'json');
     const json = JSON.stringify(resolved, null, 2);
 
-    downloadText(json, filename, MIME_TYPES.json);
+    const savedFilename = await downloadText(json, filename, MIME_TYPES.json);
+    if (!savedFilename) return { success: false, format: 'json', filename, cancelled: true };
 
     return {
       success: true,
       format: 'json',
-      filename,
+      filename: savedFilename,
       size: json.length,
     };
   }
@@ -197,53 +207,33 @@ export class ExportManager {
     const filename = ensureExtension(baseFilename, 'mid');
     const midiData = buildMIDI(resolved);
 
-    downloadBinary(midiData, filename, MIME_TYPES.mid);
+    const savedFilename = await downloadBinary(midiData, filename, MIME_TYPES.mid);
+    if (!savedFilename) return { success: false, format: 'midi', filename, cancelled: true };
 
     return {
       success: true,
       format: 'midi',
-      filename,
+      filename: savedFilename,
       size: midiData.byteLength,
     };
   }
 
   /**
    * Export as UGE (hUGETracker v6 format)
-   * Uses the engine's exportUGE function via a browser-safe fs mock
    */
   private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
     const filename = ensureExtension(baseFilename, 'uge');
+    const ugeData = buildUGE(resolved as any, { onWarn });
 
-    // exportUGE uses writeFileSync; Vite aliases fs to browser-fs at build time.
-    try {
-      clearCapturedWrite();
-      await exportUGE(resolved as any, filename, { onWarn });
+    const savedFilename = await downloadBinary(ugeData, filename, MIME_TYPES.uge);
+    if (!savedFilename) return { success: false, format: 'uge', filename, cancelled: true };
 
-      // Retrieve captured data
-      const captured = getCapturedWrite();
-      if (captured && captured.data.length > 0) {
-        downloadBinary(captured.data, filename, MIME_TYPES.uge);
-        clearCapturedWrite();
-        return {
-          success: true,
-          format: 'uge',
-          filename,
-          size: captured.data.length,
-        };
-      } else {
-        throw new Error('UGE export produced no data. The fs mock may not be configured.');
-      }
-    } catch (err: any) {
-      // If engine UGE export fails in browser (fs not mocked correctly), provide fallback message
-      if (err.message?.includes('writeFileSync is not a function') ||
-          err.message?.includes('writeFileSync') ||
-          err.message?.includes('fs')) {
-        throw new Error(
-          'UGE export requires the CLI in this environment. Run: npm run cli -- export uge song.bax song.uge'
-        );
-      }
-      throw err;
-    }
+    return {
+      success: true,
+      format: 'uge',
+      filename: savedFilename,
+      size: ugeData.byteLength,
+    };
   }
 
   /**
@@ -276,12 +266,13 @@ export class ExportManager {
     });
 
     const wavBuffer = writeWAV(samples, { sampleRate, bitDepth: 16, channels: 2 });
-    downloadBinary(new Uint8Array(wavBuffer), filename, MIME_TYPES.wav);
+    const savedFilename = await downloadBinary(new Uint8Array(wavBuffer), filename, MIME_TYPES.wav);
+    if (!savedFilename) return { success: false, format: 'wav', filename, cancelled: true };
 
     return {
       success: true,
       format: 'wav',
-      filename,
+      filename: savedFilename,
       size: wavBuffer.byteLength,
     };
   }
@@ -318,18 +309,21 @@ export class ExportManager {
     });
 
     if (typeof data === 'string') {
-      downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
-      return { success: true, format, filename, size: data.length };
+      const savedFilename = await downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
+      if (!savedFilename) return { success: false, format, filename, cancelled: true };
+      return { success: true, format, filename: savedFilename, size: data.length };
     }
 
     if (data instanceof Uint8Array) {
-      downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format, filename, size: data.byteLength };
+      const savedFilename = await downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
+      if (!savedFilename) return { success: false, format, filename, cancelled: true };
+      return { success: true, format, filename: savedFilename, size: data.byteLength };
     }
 
     if (data instanceof ArrayBuffer) {
-      downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format, filename, size: data.byteLength };
+      const savedFilename = await downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
+      if (!savedFilename) return { success: false, format, filename, cancelled: true };
+      return { success: true, format, filename: savedFilename, size: data.byteLength };
     }
 
     throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);

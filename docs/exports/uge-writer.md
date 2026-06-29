@@ -44,13 +44,18 @@ Note on Wave instrument volume storage
      - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (0xC) to ensure sharp termination.
      - **Sustain Logic**: Sustains (`_`) are exported as empty cells (Note 90), allowing the previous note to continue.
 
-4. **Main Export Function**: `exportUGE(song: SongModel, outputPath: string, opts?: { debug?: boolean; strictGb?: boolean; verbose?: boolean })`
-   - Writes UGE v6 header (version, title, artist, comment)
-   - Writes 45 instruments (15 duty + 15 wave + 15 noise)
-   - Writes 16 wavetables (16 × 32 nibbles)
-   - Writes patterns section (timing settings + pattern data)
-   - Writes order lists for 4 channels
-   - Writes 16 routine strings
+4. **Payload Builder and Export Wrapper**:
+   - `buildUGE(song: SongModel, opts?: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void }): Uint8Array`
+     - Builds the UGE v6 header (version, title, artist, comment)
+     - Builds 45 instruments (15 duty + 15 wave + 15 noise)
+     - Builds 16 wavetables (16 × 32 nibbles)
+     - Builds the patterns section (timing settings + pattern data)
+     - Builds order lists for 4 channels
+     - Builds 16 routine strings
+     - Returns downloadable bytes for web/desktop UI export
+   - `exportUGE(song: SongModel, outputPath: string, opts?: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void }): Promise<void>`
+     - Calls `buildUGE(...)`
+     - Writes the returned bytes to `outputPath` for CLI/Node workflows
 
    **Options**:
    - `debug?: boolean` - Enable detailed diagnostic output for troubleshooting (instrument mapping, pattern cells, effect encoding)

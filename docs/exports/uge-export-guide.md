@@ -25,6 +25,11 @@ channel 2 => inst bass pat bassline
 
 ### 2. Export to UGE
 
+From the web or desktop app, use the toolbar/menu export option:
+
+- **Export as hUGETracker UGE** downloads or saves a `.uge` file for valid Game Boy songs.
+- Export warnings, such as flat-note conversion warnings, are shown in the UI diagnostics/output panels.
+
 Using the CLI:
 
 ```bash
@@ -45,7 +50,7 @@ npm run cli -- export uge mysong.bax mysong.uge --verbose
 
 Output:
 ```
-Exporting to UGE v6 format: mysong.uge
+Building UGE v6 binary payload
 Processing instruments...
   Instruments exported:
     - Duty: 2/15 slots (lead, bass)
@@ -62,8 +67,7 @@ Applying effects and post-processing...
     - Vibrato: 3 notes
     - Note cuts: 2 occurrences
   Tempo: 128 BPM (7 ticks/row in UGE)
-Writing binary output...
-Export complete: 68,086 bytes (66.49 KB) written
+UGE payload complete: 68,086 bytes (66.49 KB)
 File ready for hUGETracker v6
 ```
 

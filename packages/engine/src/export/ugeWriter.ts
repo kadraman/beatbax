@@ -15,7 +15,6 @@
  * - Volume field: 0x00005A00 (23040) means "no volume change"
  */
 
-import { writeFileSync } from 'fs';
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
 import { warn } from '../util/diag.js';
@@ -1480,15 +1479,15 @@ export function convertPanToEnum(pan: any, strictGb: boolean, context: 'instrume
 }
 
 /**
- * Export a beatbax SongModel to UGE v6 binary format.
+ * Build a UGE v6 binary payload from a beatbax SongModel.
  */
-export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void } = {}): Promise<void> {
+export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void } = {}): Uint8Array {
     const w = new UGEWriter();
     const strictGb = opts && opts.strictGb === true;
     const verbose = opts && opts.verbose === true;
 
     if (verbose) {
-        log.info(`Exporting to UGE v6 format: ${outputPath}`);
+        log.info('Building UGE v6 binary payload');
     }
 
     // ====== Header & NR51 metadata ======
@@ -2318,18 +2317,31 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         w.writeString('');
     }
 
-    // Write final binary
+    // Return final binary
     const out = w.toBuffer();
     if (opts && opts.debug) {
-        log.debug(`UGE: ${out.length} bytes written to ${outputPath}`);
+        log.debug(`UGE: ${out.length} bytes built`);
     }
-    writeFileSync(outputPath, out);
 
     if (verbose) {
-        log.info('Writing binary output...');
         const sizeKB = (out.length / 1024).toFixed(2);
-        log.info(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+        log.info(`UGE payload complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB)`);
         log.info(`File ready for hUGETracker v6`);
+    }
+
+    return out;
+}
+
+/**
+ * Export a beatbax SongModel to a UGE v6 file.
+ */
+export async function exportUGE(song: SongModel, outputPath: string, opts: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void } = {}): Promise<void> {
+    const out = buildUGE(song, opts);
+    const { writeFileSync } = await import('fs');
+    writeFileSync(outputPath, out);
+
+    if (opts && opts.debug) {
+        log.debug(`UGE: ${out.length} bytes written to ${outputPath}`);
     }
 }
 

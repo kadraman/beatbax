@@ -237,12 +237,12 @@ Consumers using the current CLI/path-writing API do not need to change. New UI a
 
 ### Phase 1 - UGE UI Fix
 
-- [ ] Add `buildUGE(song, opts): Uint8Array`.
-- [ ] Keep `exportUGE(song, outputPath, opts)` as a wrapper around `buildUGE`.
-- [ ] Update `ugeExporterPlugin.export()` to return bytes when no `outputPath` is provided.
-- [ ] Update `ExportManager.exportUGE()` to download returned bytes directly.
-- [ ] Remove the UGE CLI-only fallback message from the UI path.
-- [ ] Add tests for UGE byte parity and plugin no-outputPath behavior.
+- [x] Add `buildUGE(song, opts): Uint8Array`.
+- [x] Keep `exportUGE(song, outputPath, opts)` as a wrapper around `buildUGE`.
+- [x] Update `ugeExporterPlugin.export()` to return bytes when no `outputPath` is provided.
+- [x] Update `ExportManager.exportUGE()` to download returned bytes directly.
+- [x] Remove the UGE CLI-only fallback message from the UI path.
+- [x] Add tests for UGE byte parity and plugin no-outputPath behavior.
 
 ### Phase 2 - Exporter Contract Cleanup
 
