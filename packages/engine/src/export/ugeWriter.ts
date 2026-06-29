@@ -35,7 +35,6 @@ const PATTERN_ROWS = 64;
 const NUM_CHANNELS = 4;
 const NUM_ROUTINES = 16;
 const EMPTY_NOTE = 90; // Note value for empty/rest cells
-const warnedFlatNoteConversions = new Set<string>();
 
 // Game Boy channel mapping
 enum GBChannel {
@@ -813,7 +812,11 @@ function writeNoiseInstrument(
  * @param noteName - Note name like "C4", "D#5", or "Eb5"
  * @param ugeTranspose - Optional transpose in semitones for UGE export only (e.g., +12 = up one octave)
  */
-function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number {
+function noteNameToMidiNote(
+    noteName: string,
+    ugeTranspose: number = 0,
+    warnedFlatNoteConversions?: Set<string>,
+): number {
     const match = noteName.match(/^([A-G](?:#|b)?)(-?\d+)$/i);
     if (!match) return EMPTY_NOTE;
 
@@ -832,8 +835,8 @@ function noteNameToMidiNote(noteName: string, ugeTranspose: number = 0): number 
     if (normalizedPitch !== pitchName) {
         const convertedNoteName = `${normalizedPitch}${octave}`;
         const warningKey = `${noteName}->${convertedNoteName}`;
-        if (!warnedFlatNoteConversions.has(warningKey)) {
-            warnedFlatNoteConversions.add(warningKey);
+        if (!warnedFlatNoteConversions || !warnedFlatNoteConversions.has(warningKey)) {
+            warnedFlatNoteConversions?.add(warningKey);
             warn('export', `Converted flat note ${noteName} to ${convertedNoteName} for hUGETracker export.`);
         }
     }
@@ -950,6 +953,7 @@ function eventsToPatterns(
     strictGb: boolean = false,
     songBpm?: number,
     desiredVibMap?: Map<number, number>,
+    warnedFlatNoteConversions?: Set<string>,
 ): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
     const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
 
@@ -1143,7 +1147,7 @@ function eventsToPatterns(
                 ugeTranspose += 12;
             }
 
-            const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose);
+            const midiNote = noteNameToMidiNote(noteEvent.token, ugeTranspose, warnedFlatNoteConversions);
             const instIndex = resolveInstrumentIndex(
                 noteEvent.instrument,
                 noteEvent.instProps,
@@ -1316,7 +1320,7 @@ function eventsToPatterns(
             } else {
                 const noteSrc: string | undefined = namedEvent.defaultNote ?? (namedInst?.note as string | undefined);
                 if (noteSrc) {
-                    const parsedNote = noteNameToMidiNote(noteSrc, 0);
+                    const parsedNote = noteNameToMidiNote(noteSrc, 0, warnedFlatNoteConversions);
                     if (parsedNote !== EMPTY_NOTE) {
                         noteValue = parsedNote;
                     }
@@ -1707,6 +1711,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
 
     // Shared map of desired vibrato durations (globalRow -> rows)
     const desiredVibMap: Map<number, number> = new Map();
+    const warnedFlatNoteConversions = new Set<string>();
     let hasRetrigEffectsInSong = false; // Track if any channel has retrigger effects
 
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
@@ -1715,7 +1720,7 @@ export async function exportUGE(song: SongModel, outputPath: string, opts: { deb
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) log.debug(`Channel ${ch + 1} has ${chEvents.length} events`);
         // share `desiredVibMap` across channels so later passes can inspect desired vib rows
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap);
+        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions);
         channelPatterns.push(patterns);
 
         // Check if this channel has retrigger effects

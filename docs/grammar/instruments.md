@@ -146,8 +146,8 @@ All instrument types (pulse, wave, noise) can specify a default note value using
 
 ```
 inst kick     type=pulse1 duty=12.5 env=15,down note=C2
-inst snare    type=noise  gb:width=7 env=13,down uge_note=C-7
-inst hihat_cl type=noise  gb:width=15 env=6,down uge_note=C-8
+inst snare    type=noise  gb:width=7 env=13,down note=C6
+inst hihat_cl type=noise  gb:width=15 env=6,down note=C7
 
 pat drums = kick . snare . kick . hihat_cl .  # Uses default notes automatically
 ```
