@@ -11,7 +11,7 @@
  */
 
 export interface PlatformProfile {
-  /** Unique region key (used in chipRegion directive). */
+  /** Unique platform profile key. */
   regionKey: string;
   /** Human-readable name. */
   displayName: string;
@@ -53,8 +53,7 @@ export const CPC_CHIP_ALIASES = new Set(['cpc', 'amstrad-cpc']);
 
 /**
  * Resolve the platform region key from song-level chip / chipRegion fields.
- * CPC-targeted songs use `chip cpc` or `chip amstrad-cpc`; legacy `chipRegion=cpc`
- * on a Spectrum chip line is still honoured.
+ * CPC-targeted songs use `chip cpc` or `chip amstrad-cpc`.
  */
 export function resolvePlatformRegionFromSong(song: {
   chip?: string | null;
@@ -64,20 +63,13 @@ export function resolvePlatformRegionFromSong(song: {
   if (CPC_CHIP_ALIASES.has(chip)) {
     return 'cpc';
   }
-  const region = String(song?.chipRegion ?? '').toLowerCase();
-  if (region === 'cpc') {
-    return 'cpc';
-  }
-  if (!region || region === 'spectrum-128') {
-    return DEFAULT_REGION;
-  }
-  return region;
+  return DEFAULT_REGION;
 }
 
 let _currentRegion: string = DEFAULT_REGION;
 
 /**
- * Set the active platform region from a chipRegion directive value.
+ * Set the active platform region from a platform profile key.
  * Unrecognised values fall back to 'spectrum-128'.
  */
 export function setPlatformRegion(region?: string | null): string {

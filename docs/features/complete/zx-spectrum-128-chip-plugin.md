@@ -45,7 +45,7 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
 
 Layout matches NES/SMS: full songs at the chip root, focused demos under `instruments/` and `effects/`.
 
-- **Amstrad CPC demo** (`amstrad-cpc-demo.bax`) — Same arrangement with `chipRegion=cpc`
+- **Amstrad CPC demo** (`amstrad-cpc-demo.bax`) — Same arrangement with `chip cpc`
 
 **Instrument demos** (`instruments/`):
 
@@ -324,11 +324,9 @@ Buzz bass envelope period: `N_env = floor(f_clock / (256 × f_note))` — see co
 | `tone_mix` | boolean | Enable noise in R7 mixer for this channel (default: false) |
 | `noise_rate` | 0–31 | Intended R6 when note is active — **global**; song validator diagnoses conflicts |
 
-#### Platform (optional)
+#### Platform
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `chipRegion` | string | `spectrum-128` (default) or `cpc` |
+Use `chip spectrum-128` for ZX Spectrum 128 or `chip cpc` / `chip amstrad-cpc` for the Amstrad CPC AY clock.
 
 ### Song-level validation (`validate-song.ts`)
 
@@ -432,7 +430,7 @@ See **Architecture** above for `AySongSession`, register intents, and engine int
 1. `instruments/ay_macro_arp_pitch.bax` — polyphonic melody with `arp_env` / `pitch_env`
 2. `instruments/ay_percussion_demo.bax` — named drum kit, split + multiplexed layouts
 3. `effects/ay_effects_showcase.bax` — macro types; documents envelope + noise constraints
-4. `amstrad-cpc-demo.bax` — same song with `chipRegion=cpc`
+4. `amstrad-cpc-demo.bax` — same song with `chip cpc`
 5. Instrument demos: `ay_synth_channels`, `ay_noise_mixing`, `ay_buzz_bass`, `ay_all_macros`, `ay_noise_rate_conflict`, `ay_vol_env_conflict`
 6. `songs/spectrum-128/README.md` — index, play instructions, troubleshooting
 
@@ -477,7 +475,7 @@ When VGM/PT3 exporters land:
 | `instruments/ay_macro_arp_pitch.bax` | Polyphony, arp/pitch macros |
 | `instruments/ay_percussion_demo.bax` | Named drum kit, percussion recipes |
 | `effects/ay_effects_showcase.bax` | Macro interaction + documented HW limits |
-| `amstrad-cpc-demo.bax` | `chipRegion=cpc` clock scaling |
+| `amstrad-cpc-demo.bax` | `chip cpc` clock scaling |
 | `instruments/ay_synth_channels.bax` | Minimal regression gate (register log SHA-256) |
 | `instruments/ay_vol_env_conflict.bax` | Diagnostic when two `vol_env` programs overlap |
 | `instruments/ay_noise_mixing.bax` | Independent R7 mixer bits, **same** R6 noise source |
@@ -520,8 +518,7 @@ Before merging each phase:
 **Purpose:** Platform-agnostic note content; region selects AY clock only.
 
 ```bax
-chip spectrum-128
-chipRegion cpc
+chip cpc
 
 inst lead type=tone1 vol=12 arp_env=[0,2,4,7]
 inst bass type=tone2 vol=14

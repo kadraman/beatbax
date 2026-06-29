@@ -13,7 +13,7 @@
 - See the NES plugin for a canonical example of dual-path rendering and UI contributions.
 - **Effect dispatch changed (2026-05):** Plugin `effects` are **no longer auto-registered into the global effect registry** when the plugin is registered. Instead, they are resolved at playback/PCM-render time for the active chip only — preventing one chip's effect handlers from silently overriding another chip's behavior. If you previously relied on global override behavior, move your logic into the per-chip resolution path (handled automatically by the engine when your plugin declares `effects`).
 - **Exporter registration boundary (2026-05):** Chip plugins should not dynamically load exporter plugins at runtime. The `resolveExporterPlugins()` hook was removed from `ChipPlugin` to keep runtime deterministic and avoid duplicate registration paths. Register exporter plugins explicitly via `exporterPlugins` on the chip plugin object or from the host app/CLI.
-- **`configureForSong()` hook (2026-05):** Plugins may declare an optional `configureForSong(song: { chip?: string; chipRegion?: string }): void` method. The engine calls this before playback and PCM render, passing the resolved song-level chip and region fields. Use it to apply song-level hardware configuration (for example, selecting NTSC vs PAL clock rate). See the SMS plugin (`packages/plugins/chip-sms/src/index.ts`) for a reference implementation.
+- **`configureForSong()` hook (2026-06):** Plugins may declare an optional `configureForSong(ctx: ChipSongContext): void` method. The engine calls this before playback and PCM render, passing song-level chip/profile fields. Use it to apply hardware configuration such as NTSC/PAL clock rates or alias-selected platform profiles. See the SMS and Spectrum plugins for reference implementations.
 
 # Creating BeatBax Chip Plugins
 
@@ -299,6 +299,17 @@ export const myChipUIContributions: ChipUIContributions = {
   ],
 };
 ```
+
+### Step 3c: Configure song-level platform profiles (optional)
+
+Use `configureForSong(ctx: ChipSongContext)` when a plugin needs song-level hardware state before playback or PCM rendering.
+
+Two patterns are supported:
+
+- **Clock-region plugins** use a single chip id plus `chipRegion` for NTSC/PAL-style variants, for example `chip sms pal` or `chip nes ntsc`.
+- **Multi-machine plugins** use chip aliases for distinct host machines when the chip clock/profile changes, for example the Spectrum plugin accepts `chip spectrum-128`, `chip cpc`, and `chip amstrad-cpc`.
+
+Use `consoleVariants` in `newSongWizard` for display/templates when variants share the same hardware timing. Use explicit profile tables when aliases select different clocks, frame rates, or platform behavior.
 
 Then wire it into your plugin:
 

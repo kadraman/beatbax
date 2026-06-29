@@ -106,7 +106,8 @@ const hoverDocs: Record<string, string> = {
     '- `noise_rate` — R6 noise period (0–31, global)',
     '- `noise_frames` / `tone_frames` / `tone_vol` — percussion transients',
     '- `env_bass` / `env_shape` — buzz bass (hardware envelope as oscillator)',
-    '- `chipRegion` — `spectrum-128` or `cpc` platform clock',
+    '',
+    '**Platform selection:** use `chip spectrum-128` for ZX Spectrum 128 or `chip cpc` / `chip amstrad-cpc` for the Amstrad CPC clock.',
   ].join('\n'),
 
   vol: [
@@ -261,7 +262,7 @@ const hoverDocs: Record<string, string> = {
   ].join('\n'),
 
   chipRegion: [
-    '**chip cpc** — Amstrad CPC platform (1 MHz AY clock).',
+    '**Spectrum/CPC platform selection**',
     '',
     '| Chip directive | Machine | AY Clock |',
     '|-------|---------|----------|',
@@ -271,7 +272,7 @@ const hoverDocs: Record<string, string> = {
     'The platform only affects pitch resolution (tone period formula).',
     'Note content and macros are identical across profiles.',
     '',
-    'Usage: `chip cpc`',
+    'Use `chip cpc` or `chip amstrad-cpc` for CPC output. Do not use a `chipRegion` qualifier with Spectrum/CPC songs.',
   ].join('\n'),
 };
 

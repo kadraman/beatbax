@@ -23,6 +23,7 @@ import { smsCoordinator } from './scheduler.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve, scheduleArpEnvToFreq, schedulePitchEnvToFreq,
+  scheduleSmsGain,
   type ParsedMacro, type MacroState,
 } from './macros.js';
 import { ggPanToGains } from './mixer.js';
@@ -295,30 +296,18 @@ export class SMSToneBackend implements ChipChannelBackend {
     // ── Volume macro or constant volume ────────────────────────────────────
     if (volEnvM) {
       const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.tone, dur);
-      try {
-        gain.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
-      } catch (_) {
-        if (curve.length > 0) {
-          try { gain.gain.setValueAtTime(curve[0], start); } catch (_) {}
-        }
-      }
+      scheduleSmsGain(gain.gain, { start, dur, curve });
     } else if (inst.vol !== undefined) {
       // Constant volume
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
       const att = vol;
       const gainVal = SMS_MIX_GAIN.tone * (1.0 - (att / 15));
-      try { gain.gain.setValueAtTime(gainVal, start); } catch (_) {}
+      scheduleSmsGain(gain.gain, { start, dur, constantGain: gainVal });
     } else {
       // Default: use attenuation from noteOn
       const gainVal = SMS_MIX_GAIN.tone * (1.0 - (this.attenuation / 15));
-      try { gain.gain.setValueAtTime(gainVal, start); } catch (_) {}
+      scheduleSmsGain(gain.gain, { start, dur, constantGain: gainVal });
     }
-
-    // Fade out at the end
-    try {
-      gain.gain.setValueAtTime(0.0001, start + dur);
-      gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-    } catch (_) {}
 
     try { osc.start(start); } catch (e) { try { osc.start(); } catch (_) {} }
     try { osc.stop(start + dur + 0.02); } catch (_) {}

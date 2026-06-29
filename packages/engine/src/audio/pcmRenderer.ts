@@ -245,10 +245,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   if (!isGameBoy) {
     const plugin = chipRegistry.get(chipType);
     if (plugin) {
-      const configureForSong = (plugin as any).configureForSong;
-      if (typeof configureForSong === 'function') {
-        configureForSong({ chip: song.chip, chipRegion: (song as any).chipRegion });
-      }
+      plugin.configureForSong?.({ chip: song.chip, chipRegion: song.chipRegion });
       for (let idx = 0; idx < plugin.channels; idx++) {
         try {
           pluginBackendsMap.set(idx + 1, plugin.createChannel(idx, null as any));

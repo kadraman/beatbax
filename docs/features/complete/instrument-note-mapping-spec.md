@@ -31,24 +31,36 @@ inst kick type=pulse1 duty=12.5 env=15,down note=C2
 pat drums = snare hihat snare hihat  # Now exports: C6 C6 C6 C6 (displays as C-7 in hUGETracker)
 ```
 
+For new Game Boy noise instruments targeting UGE export, prefer `uge_note=` to specify the hUGETracker display note directly:
+
+```
+inst snare type=noise gb:width=7 env=12,down uge_note=C-7
+inst hihat type=noise gb:width=15 env=8,down uge_note=C-8
+
+pat drums = snare hihat snare hihat  # Exports as C-7 C-8 C-7 C-8 in hUGETracker
+```
+
 ## Syntax
 
 ```
 inst <name> type=<type> [<params>...] note=<note>
+inst <name> type=noise [<params>...] uge_note=<tracker-note>
 ```
 
 Where `<note>` is:
 - A standard note name: `C2`, `D#5`, `Bb7`, etc.
-- For noise channel: typically `C5`-`C6` (exports as C-6 to C-7 in hUGETracker)
+- For legacy noise channel UGE export: typically `C5`-`C6` (exports as C-6 to C-7 in hUGETracker)
 - For pulse channels: typically `C2`-`C4` for bass/kicks
 
-**Important:** hUGETracker displays notes ONE OCTAVE HIGHER than BeatBax's MIDI notation. For example, `note=C6` in BeatBax exports as C-7 in hUGETracker.
+Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, `C#7`, or `C-8`.
+
+**Important:** hUGETracker displays legacy BeatBax `note=` values one octave higher than BeatBax's MIDI notation. For example, `note=C6` in BeatBax exports as C-7 in hUGETracker. `uge_note=C-7` bypasses that conversion and writes C-7 directly.
 
 ## Behavior
 
 1. **With explicit note:** `inst snare C5` → uses C5 (overrides instrument default)
-2. **Named token only:** `snare` → uses instrument's `note=` value
-3. **No `note=` parameter:** Falls back to C5 (index 24) for backward compatibility
+2. **Named token only:** `snare` → uses instrument's `uge_note=` value for UGE export when present; otherwise uses `note=`
+3. **No `note=` or `uge_note=` parameter:** Falls back to C5 (index 24) for backward compatibility
 
 ## Examples
 
@@ -60,11 +72,11 @@ bpm 140
 
 # Define percussion with specific pitches
 inst kick_deep  type=pulse1 duty=12.5 env=15,down,1 note=C2
-inst snare      type=noise  gb:width=7  env=13,down,1 note=C6
-inst hihat_cl   type=noise  gb:width=15 env=6,down,1  note=C6
-inst hihat_op   type=noise  gb:width=15 env=8,down,3  note=D6
-inst tom_low    type=noise  gb:width=7  env=14,down,5 note=C5
-inst tom_high   type=noise  gb:width=7  env=12,down,3 note=E5
+inst snare      type=noise  gb:width=7  env=13,down,1 uge_note=C-7
+inst hihat_cl   type=noise  gb:width=15 env=6,down,1  uge_note=C-7
+inst hihat_op   type=noise  gb:width=15 env=8,down,3  uge_note=D-7
+inst tom_low    type=noise  gb:width=7  env=14,down,5 uge_note=C-6
+inst tom_high   type=noise  gb:width=7  env=12,down,3 uge_note=E-6
 
 # Use instrument names directly
 pat kick_pat  = kick_deep . . . kick_deep . . .
@@ -80,10 +92,10 @@ channel 4 => seq drums:inst(snare)
 ### Override Default Note
 
 ```
-inst snare type=noise gb:width=7 env=13,down note=C6
+inst snare type=noise gb:width=7 env=13,down uge_note=C-7
 
 # Use default note
-pat p1 = snare . snare .  # Uses C6 (exports as C-7 in hUGETracker)
+pat p1 = snare . snare .  # Exports as C-7 in hUGETracker
 
 # Override per-note
 pat p2 = inst(snare) C5 . C7 .  # Uses C5 and C7

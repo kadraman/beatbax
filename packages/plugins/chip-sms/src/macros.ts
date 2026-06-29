@@ -30,6 +30,11 @@ export { parseMacro, advanceMacro, makeMacroState };
 export type { ParsedMacro, MacroState };
 export const getMacroValue = macroValue;
 
+export const SMS_DECLICK_ATTACK_SECONDS = 0.002;
+export const SMS_DECLICK_RELEASE_SECONDS = 0.005;
+export const SMS_DECLICK_SILENCE_GAIN = 0;
+const SMS_AUTOMATION_EPSILON_SECONDS = 0.000001;
+
 /**
  * Build a Float32Array gain curve for a vol_env macro, for use with
  * `AudioParam.setValueCurveAtTime` in the Web Audio path.
@@ -58,6 +63,93 @@ export function buildVolEnvGainCurve(
   }
 
   return new Float32Array(vals);
+}
+
+export interface SmsGainScheduleOptions {
+  start: number;
+  dur: number;
+  curve?: Float32Array;
+  constantGain?: number;
+  attackSeconds?: number;
+  releaseSeconds?: number;
+}
+
+interface BeatbaxGainScheduleMetadata {
+  start: number;
+  dur: number;
+  attack: number;
+  release: number;
+  curve?: Float32Array;
+  constantGain: number;
+  initialGain: number;
+  finalGain: number;
+}
+
+/**
+ * Schedule SMS WebAudio gain with tiny attack/release ramps. The SN76489 tone
+ * and noise sources are hard-edged by nature, but gain discontinuities at note
+ * boundaries can sum into audible clicks when all channels fire together.
+ */
+export function scheduleSmsGain(param: any, opts: SmsGainScheduleOptions): void {
+  const dur = Math.max(0, Number(opts.dur) || 0);
+  const start = opts.start;
+  const curve = opts.curve;
+  const hasCurve = !!curve && curve.length > 0;
+  const fallbackGain = Math.max(0, Number(opts.constantGain) || 0);
+  const initialGain = hasCurve ? curve[0] : fallbackGain;
+  const finalGain = hasCurve ? curve[curve.length - 1] : fallbackGain;
+
+  if (dur <= 0) {
+    try { param.setValueAtTime(SMS_DECLICK_SILENCE_GAIN, start); } catch (_) {}
+    return;
+  }
+
+  const attack = Math.min(opts.attackSeconds ?? SMS_DECLICK_ATTACK_SECONDS, dur / 2);
+  const release = Math.min(opts.releaseSeconds ?? SMS_DECLICK_RELEASE_SECONDS, Math.max(0, dur - attack));
+  const attackEnd = start + attack;
+  const releaseStart = start + Math.max(attack, dur - release);
+  const end = start + dur;
+
+  try {
+    (param as any).__beatbaxGainSchedule = {
+      start,
+      dur,
+      attack,
+      release,
+      curve,
+      constantGain: fallbackGain,
+      initialGain,
+      finalGain,
+    } satisfies BeatbaxGainScheduleMetadata;
+  } catch (_) {}
+
+  try { param.setValueAtTime(SMS_DECLICK_SILENCE_GAIN, start); } catch (_) {}
+  try {
+    if (attack > 0) {
+      param.linearRampToValueAtTime(initialGain, attackEnd);
+    } else {
+      param.setValueAtTime(initialGain, start);
+    }
+  } catch (_) {
+    try { param.setValueAtTime(initialGain, attackEnd); } catch (_) {}
+  }
+
+  const curveStart = attackEnd + SMS_AUTOMATION_EPSILON_SECONDS;
+  const curveDuration = releaseStart - curveStart - SMS_AUTOMATION_EPSILON_SECONDS;
+  if (hasCurve && curveDuration >= 0.001) {
+    try {
+      param.setValueCurveAtTime(curve, curveStart, curveDuration);
+    } catch (_) {
+      try { param.setValueAtTime(initialGain, attackEnd); } catch (_) {}
+    }
+  } else {
+    try { param.setValueAtTime(initialGain, attackEnd); } catch (_) {}
+  }
+
+  try { param.setValueAtTime(finalGain, releaseStart); } catch (_) {}
+  try { param.linearRampToValueAtTime(SMS_DECLICK_SILENCE_GAIN, end); } catch (_) {
+    try { param.setValueAtTime(SMS_DECLICK_SILENCE_GAIN, end); } catch (_) {}
+  }
 }
 
 /**

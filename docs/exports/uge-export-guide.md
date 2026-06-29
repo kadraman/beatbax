@@ -119,6 +119,20 @@ Notes use standard pitch notation:
 - Middle C (C4) = MIDI note 60
 - Rest events: `.` in patterns
 
+### Game Boy Noise Display Notes
+
+For named Game Boy noise hits, use `uge_note=` when you want the exported UGE row to show a specific hUGETracker note:
+
+```
+inst kick  type=noise gb:width=7  env=14,down uge_note=C-6
+inst snare type=noise gb:width=7  env=10,down uge_note=C-7
+inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
+
+pat drums = kick hat snare hat
+```
+
+`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C#7`, `C-8`) and only affects UGE export. Game Boy noise playback is still controlled by the noise parameters, not by musical pitch. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax note notation, so `note=C6` displays as `C-7` in hUGETracker.
+
 ### Pattern Structure
 - Each pattern can contain up to 64 rows
 - Rows contain: note, instrument, volume, effect code, effect params
@@ -274,41 +288,37 @@ UGE export output:
 
 ### Noise Channel Note Mapping
 
-The Game Boy noise channel doesn't use traditional musical pitches. Instead, notes control the noise generator's shift and divisor parameters. **BeatBax exports noise channel notes directly to hUGETracker** with NO automatic transpose applied.
+The Game Boy noise channel doesn't use traditional musical pitches. Noise sound is controlled by LFSR width, divisor, shift, envelope, and length. hUGETracker still displays a note in the noise pattern row, so BeatBax supports `uge_note=` for named noise hits:
 
-- **Direct 1:1 mapping:** Notes are exported exactly as written in BeatBax:
-  - `C2` in BeatBax → exports as index **0** (displays as C-3 in hUGETracker)
-  - `C4` in BeatBax → exports as index **24** (displays as C-5 in hUGETracker)
-  - `C5` in BeatBax → exports as index **36** (displays as C-6 in hUGETracker)
-  - `C6` in BeatBax → exports as index **48** (displays as C-7 in hUGETracker, **typical percussion range**)
-  - `C8` in BeatBax → exports as index **72** (displays as C-9 in hUGETracker = maximum)
-  - Notes above `C8` are clamped to index **72**
-  - Notes below `C2` are transposed up by octaves to fit in valid range
-- **Write in target range:** For typical percussion sounds, use **C5-C6** (indices 36-48), which map to common snare/hi-hat sounds in hUGETracker
-- **Octave Display Note:** hUGETracker displays all notes ONE OCTAVE HIGHER than BeatBax's MIDI notation (C6 in BeatBax = C-7 in hUGETracker)
-- **Custom transpose if needed:** Add `uge_transpose=N` to your noise instrument to shift all notes:
-  ```
-  inst kick type=noise env=gb:12,down,1 uge_transpose=12  # Shift up 1 octave
-  ```
-- **Round-trip behavior:** When importing UGE files, noise notes remain at their hUGETracker index values (same as exported)
+- `uge_note=C-6` writes UGE note index 36.
+- `uge_note=C-7` writes UGE note index 48.
+- `uge_note=C-8` writes UGE note index 60.
+- `uge_note=C#7` writes the sharp hUGETracker display note directly.
+
+If `uge_note=` is omitted, legacy `note=` values are converted from BeatBax note notation:
+
+- `note=C5` in BeatBax → displays as `C-6` in hUGETracker.
+- `note=C6` in BeatBax → displays as `C-7` in hUGETracker.
+- `note=C7` in BeatBax → displays as `C-8` in hUGETracker.
+
+Prefer `uge_note=` for new Game Boy noise percussion so the `.bax` file matches the tracker display after export. Use `uge_transpose` for melodic instruments whose UGE pitch should derive from the written BeatBax note plus a semitone offset.
 
 Example:
 ```bax
 chip gameboy
 bpm 120
 
-# Write percussion notes in the exact range you want in hUGETracker
-inst kick  type=noise env=gb:12,down,1 width=15  # Use C2-C3 (deep sounds)
-inst snare type=noise env=gb:10,down,2 width=7   # Use C5-C6 (mid-range)
-inst hat   type=noise env=gb:8,down,1 width=7    # Use C6-C7 (bright sounds)
+# Choose the exact hUGETracker display notes for named hits.
+inst kick  type=noise env=gb:12,down,1 width=15 uge_note=C-6
+inst snare type=noise env=gb:10,down,2 width=7  uge_note=C-7
+inst hat   type=noise env=gb:8,down,1 width=7   uge_note=C-8
 
-# Direct mapping: C2→0, C4→24, C5→36, C6→48, C7→60
-pat drums = C2 . C5 . C6 C7 C2 C6
+pat drums = kick . snare . hat hat kick snare
 
 channel 4 => inst kick pat drums
 ```
 
-**Important:** The 1:1 mapping applies during **UGE export**. BeatBax's internal playback uses these as relative brightness controls for the noise generator. MIDI export maps noise notes to GM percussion (e.g., C5→Snare, C7→Hi-hat).
+**Important:** `uge_note=` applies during UGE export only. BeatBax playback uses the instrument's noise parameters, and MIDI export maps noise hits to percussion according to its own rules.
 
 ### Vibrato (vib) mapping
 

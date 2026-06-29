@@ -65,9 +65,9 @@ inst harm_sus   type=pulse2 duty=75   env={"level":9,"direction":"down","period"
 #inst bass       type=wave   wave=[0,4,7,8,10,11,11,11,9,8,6,2,0,2,4,6,7,7,7,6,4,2,0,1,4,6,7,7,7,6,3,1]
 inst bass       type=wave   wave="0478ABBB986202467776420146777631" # Hugetracker format Hex representation
 
-inst kick       type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} note=C6
-inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
-inst hat        type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  note=C7
+inst kick       type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} uge_note=C-7
+inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
+inst hat        type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
 
 # =============================================================================
 # Named effect presets
