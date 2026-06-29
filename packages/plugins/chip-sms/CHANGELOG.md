@@ -1,5 +1,17 @@
 # @beatbax/plugin-chip-sms
 
+## 0.3.3
+
+### Patch Changes
+
+- cdddca3: Fix SMS note-cut clicks by preserving scheduled gain levels when applying cut effects.
+
+  SMS WebAudio gain scheduling now records envelope metadata so the engine cut effect can ramp down from the actual scheduled gain instead of jumping to the AudioParam default value.
+
+- cdddca3: Standardize chip platform profile configuration across the engine and chip plugins.
+
+  The engine now exposes a typed `ChipSongContext` and optional `ChipPlugin.configureForSong()` hook, and playback/PCM rendering call the hook without `any` casts. Spectrum/CPC platform selection is aligned around `chip cpc` / `chip amstrad-cpc` aliases, while SMS and NES keep their `pal` / `ntsc` region qualifiers. UI hints, validation, docs, and regression tests were updated to match the new author-facing syntax.
+
 ## 0.3.2
 
 ### Patch Changes

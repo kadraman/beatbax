@@ -1,5 +1,21 @@
 # @beatbax/engine
 
+## 0.20.2
+
+### Patch Changes
+
+- cdddca3: Improve Game Boy UGE export compatibility and authoring clarity.
+
+  UGE export now supports `uge_note` on named Game Boy noise instruments using hUGETracker display notation, converts BeatBax flat notes to hUGETracker sharp equivalents with export warnings, and accepts 32-nibble hUGETracker hex strings in Game Boy wave validation. Game Boy example songs and docs were updated to use explicit `uge_note` values, add a focused `gb_uge_note_demo.bax`, and improve hUGETracker-friendly timing for affected Game Boy songs. Editor metadata and hover help now include the new `uge_note` property.
+
+- cdddca3: Fix SMS note-cut clicks by preserving scheduled gain levels when applying cut effects.
+
+  SMS WebAudio gain scheduling now records envelope metadata so the engine cut effect can ramp down from the actual scheduled gain instead of jumping to the AudioParam default value.
+
+- cdddca3: Standardize chip platform profile configuration across the engine and chip plugins.
+
+  The engine now exposes a typed `ChipSongContext` and optional `ChipPlugin.configureForSong()` hook, and playback/PCM rendering call the hook without `any` casts. Spectrum/CPC platform selection is aligned around `chip cpc` / `chip amstrad-cpc` aliases, while SMS and NES keep their `pal` / `ntsc` region qualifiers. UI hints, validation, docs, and regression tests were updated to match the new author-facing syntax.
+
 ## 0.20.1
 
 ### Patch Changes
