@@ -94,7 +94,8 @@ Aliases `cpc` and `amstrad-cpc` use the same `@beatbax/plugin-chip-spectrum-128`
 | `tone_vol` | number | 0–15 | Cap tone-path volume separately from noise (`vol` / `vol_env`) |
 | `env_bass` | boolean | — | Buzz-bass mode (envelope as oscillator) |
 | `env_shape` | integer | 8 | R13 envelope shape (0–15); only with `env_bass=true` |
-| `chipRegion` | string | `spectrum-128` \| `cpc` | Platform clock preset |
+
+Select the platform with the chip directive: use `chip spectrum-128` for ZX Spectrum 128 or `chip cpc` / `chip amstrad-cpc` for the Amstrad CPC AY clock.
 
 ## Shared-Resource Constraints
 

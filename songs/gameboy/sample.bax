@@ -49,9 +49,9 @@ bpm 128
 inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81   # Bright pulse lead, slightly wider duty (GM 81)
 inst leadB type=pulse2 duty=30 env={"level":7,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
 inst wave1 type=wave  wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82  # Wavetable arpeggio voice (GM 82)
-inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
-inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
-inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} uge_note=C-7  # Snare-like noise for backbeat
+inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8  # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"} uge_note=C-7  # Generic percussion/noise channel
 
 # =============================================================================
 # PATTERNS

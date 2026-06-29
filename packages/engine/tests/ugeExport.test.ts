@@ -12,6 +12,84 @@ describe('UGE export', () => {
   });
 });
 
+describe('UGE exporter — hUGETracker display note overrides', () => {
+  const file = join(tmpdir(), 'test_uge_note_override.uge');
+
+  afterEach(() => {
+    if (existsSync(file)) unlinkSync(file);
+  });
+
+  function exportNoiseSong(instrumentFields: string) {
+    const src = `
+chip gameboy
+bpm 120
+
+inst snare type=noise env={"level":9,"direction":"down","period":1,"format":"gb"} ${instrumentFields}
+
+pat drums = snare . . .
+channel 4 => inst snare pat drums
+`;
+    const ast = parse(src);
+    return resolveSong(ast as any);
+  }
+
+  function firstExportedNote(filePath: string): number | undefined {
+    const uge = readUGEFile(filePath);
+    for (const pattern of uge.patterns) {
+      const row = pattern.rows.find((cell) => cell.note !== 90);
+      if (row) return row.note;
+    }
+    return undefined;
+  }
+
+  test('uge_note uses literal hUGETracker display notation for named noise hits', async () => {
+    const song = exportNoiseSong('note=C6 uge_note=C-8');
+
+    await exportUGENamed(song, file, { debug: false });
+
+    expect(firstExportedNote(file)).toBe(60); // C-8
+  });
+
+  test('legacy note field still maps through BeatBax octave conversion', async () => {
+    const song = exportNoiseSong('note=C6');
+
+    await exportUGENamed(song, file, { debug: false });
+
+    expect(firstExportedNote(file)).toBe(48); // BeatBax C6 displays as C-7
+  });
+});
+
+describe('UGE exporter — flat note conversion', () => {
+  const file = join(tmpdir(), 'test_flat_note_conversion.uge');
+
+  afterEach(() => {
+    if (existsSync(file)) unlinkSync(file);
+  });
+
+  test('exports BeatBax flat notes as hUGETracker sharp equivalents', async () => {
+    const src = `
+chip gameboy
+bpm 120
+
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+
+pat melody = Eb5 Bb5 Ab5
+channel 1 => inst lead pat melody
+`;
+    const ast = parse(src);
+    const song = resolveSong(ast as any);
+
+    await exportUGENamed(song, file, { debug: false });
+
+    const uge = readUGEFile(file);
+    const notes = uge.patterns
+      .flatMap((pattern) => pattern.rows)
+      .filter((row) => row.note !== 90)
+      .map((row) => row.note);
+    expect(notes.slice(0, 3)).toEqual([39, 46, 44]); // D#5, A#5, G#5 in hUGETracker indices
+  });
+});
+
 // ─── Wavetable round-trip tests ───────────────────────────────────────────────
 
 function buildSongWithWaveInst(waveValue: string): any {

@@ -67,9 +67,9 @@ inst chord_sus    type=pulse2 duty=75   env={"level":8,"direction":"down","perio
 
 inst deep_bass    type=wave   wave=[0,1,1,2,3,5,6,8,10,12,13,14,15,15,14,14,13,12,11,10,8,7,5,4,3,2,1,1,0,0,0,0]
 
-inst kick         type=noise  env={"level":11,"direction":"down","period":1,"format":"gb"} note=C6
-inst snare        type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"}  note=C6
-inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  note=C7
+inst kick         type=noise  env={"level":11,"direction":"down","period":1,"format":"gb"} uge_note=C-7
+inst snare        type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
+inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
 
 # =============================================================================
 # Effect presets
@@ -158,7 +158,7 @@ pat flourish_up = D5:1 E5:1 F#5:1 G5:1 A5:1 B5:1 C#6:1 D6:1 D6<shimmer>:4 A5<her
 # coda_final: closing resolution — long warm D5 with slow heroVib tremolo, then silence
 # The title-screen logo holds; the note blooms and fades into stillness.
 # 16 steps: 8 + 8 rests
-pat coda_final  = inst hero_warm D5<heroVib>:8 . . . . . . .
+pat coda_final  = inst hero_warm D5<heroVib>:8 . . . . . . . .
 
 # =============================================================================
 # Harmony patterns  (Channel 2 — Pulse2)
@@ -273,16 +273,16 @@ pat drums_sparse  = kick . . . . . . . kick . . . . . . .
 # drums_march: light regal march — hi-hat 8ths with snare on beats 2 and 4
 # Steps 5 and 13 = beats 2 and 4 in 4/4 at 16 steps/bar
 # 16 steps
-pat drums_march   = hat . hat . hat snare hat . hat . hat . hat snare hat .
+pat drums_march   = hat . hat . snare . hat . hat . hat . snare . hat .
 
 # drums_bridge: eerie sparse — lone hi-hat strike on each beat; unsettling emptiness
 # 16 steps
 pat drums_bridge  = hat . . . hat . . . hat . . . hat . . .
 
-# drums_climax: full triumphant march — kick-hat-hat-snare repeating 4 times
+# drums_climax: full triumphant march — kick on beats 1/3, snare on beats 2/4, hats between
 # The densest percussion — used under the ascending run and reprise peak bars
-# 16 steps: (kick hat hat snare) × 4
-pat drums_climax  = kick hat hat snare kick hat hat snare kick hat hat snare kick hat hat snare
+# 16 steps
+pat drums_climax  = kick hat hat . snare hat hat . kick hat hat . snare hat hat .
 
 # =============================================================================
 # Sequences  (grouped by song section — all four channels per section)
@@ -348,7 +348,7 @@ seq coda_bass = bass_coda
 seq coda_perc = drums_sparse
 
 # --- Section 9: Final Resolution — warm tonic fade (Bars 20–21) ---
-seq outro_mel  = coda_final
+seq outro_mel  = coda_final coda_final
 seq outro_harm = harm_coda_final harm_coda_final
 seq outro_bass = bass_coda bass_coda
 seq outro_perc = drums_sparse drums_climax

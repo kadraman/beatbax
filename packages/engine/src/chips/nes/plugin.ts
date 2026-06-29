@@ -24,7 +24,7 @@ const NES_METER_DISPLAY_GAIN = {
   dmc: 1 / (NES_MIX_GAIN.dmc * 127),
 } as const;
 
-const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegion?: string }): void } = {
+const nesPlugin: ChipPlugin = {
   name: 'nes',
   aliases: ['famicom'],
   version,
@@ -86,7 +86,7 @@ const nesPlugin: ChipPlugin & { configureForSong(song: { chip?: string; chipRegi
     }
   },
 
-  configureForSong(song: { chip?: string; chipRegion?: string }) {
+  configureForSong(song) {
     setNesClockRegion(song?.chipRegion);
   },
 };

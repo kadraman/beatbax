@@ -49,7 +49,7 @@ export default defineConfig({
     publicDir: resolve(webUiRoot, 'public'),
     optimizeDeps: {
       include: ['monaco-editor', 'buffer', 'marked', 'dompurify'],
-      exclude: ['@beatbax/engine'],
+      exclude: ['@beatbax/engine', '@beatbax/plugin-chip-sms'],
     },
     plugins: [react(), tailwindcss()],
   },

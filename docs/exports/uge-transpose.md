@@ -110,6 +110,10 @@ This is informational - the transpose is applied automatically, and the export s
 - **MIDI Export**: Uses original frequencies (no transpose applied)
 - **JSON Export**: Uses original frequencies (no transpose applied)
 
+## Relationship to `uge_note`
+
+Use `uge_transpose` when the exported UGE pitch should be derived from the BeatBax note plus a semitone offset, typically for melodic pulse or wave instruments. Use `uge_note` when a named Game Boy noise instrument should export with an exact hUGETracker display note such as `C-7` or `C-8`. For named noise hits, `uge_note` takes priority over legacy `note=` during UGE export and does not affect playback.
+
 ## Best Practices
 
 1. **Use `+12` for bass instruments**: Most common case (C2 → C3)

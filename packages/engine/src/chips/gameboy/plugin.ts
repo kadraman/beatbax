@@ -86,12 +86,7 @@ class GBChannelBackend implements ChipChannelBackend {
 
   private _renderWave(buffer: Float32Array, sampleRate: number): void {
     const inst = this.currentInst!;
-    let table: number[] = [];
-    if (Array.isArray(inst.wave)) {
-      table = inst.wave as number[];
-    } else if (typeof inst.wave === 'string') {
-      try { table = JSON.parse(inst.wave); } catch (_) {}
-    }
+    const table = parseGBWaveTable(inst.wave) ?? [];
     if (!table.length) return;
     const freq = this.currentFreq;
     const len = buffer.length;
@@ -135,6 +130,24 @@ class GBChannelBackend implements ChipChannelBackend {
 
 const VALID_GB_TYPES = new Set(['pulse1', 'pulse2', 'wave', 'noise']);
 const VALID_DUTY_VALUES = new Set(['12.5', '25', '50', '75', '12', '0.125', '0.25', '0.5', '0.75']);
+const GB_WAVE_HEX_RE = /^[0-9a-f]{32}$/i;
+
+function parseGBWaveTable(raw: unknown): number[] | null {
+  if (Array.isArray(raw)) return raw as number[];
+  if (typeof raw !== 'string') return null;
+
+  const trimmed = raw.trim();
+  if (GB_WAVE_HEX_RE.test(trimmed)) {
+    return trimmed.split('').map((nibble) => parseInt(nibble, 16));
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -163,11 +176,9 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
     if (inst.wave === undefined) {
       errors.push({ field: 'wave', message: `wave instruments must include a 'wave' parameter` });
     } else {
-      const table = Array.isArray(inst.wave)
-        ? inst.wave
-        : (() => { try { return JSON.parse(String(inst.wave)); } catch (_) { return null; } })();
+      const table = parseGBWaveTable(inst.wave);
       if (!Array.isArray(table)) {
-        errors.push({ field: 'wave', message: `wave must be an array of 16 4-bit samples (0-15)` });
+        errors.push({ field: 'wave', message: `wave must be an array of 16 or 32 4-bit samples (0-15), or a 32-nibble hUGETracker hex string` });
       } else if (table.length !== 16 && table.length !== 32) {
         errors.push({ field: 'wave', message: `wave array must have 16 or 32 samples, got ${table.length}` });
       }

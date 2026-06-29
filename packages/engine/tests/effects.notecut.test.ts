@@ -207,6 +207,44 @@ describe('Note Cut Effect', () => {
     expect(rampCalls[0].time).toBeCloseTo(expectedCutTime + 0.005, 5);
   });
 
+  it('uses scheduled gain metadata instead of default AudioParam value', () => {
+    const handler = get('cut');
+    if (!handler) throw new Error('cut handler not found');
+
+    const gainCalls: Array<{ method: string; time: number; value?: number }> = [];
+    const mockGainNode = {
+      gain: {
+        value: 1.0,
+        __beatbaxGainSchedule: {
+          start: 1.0,
+          dur: 1.0,
+          attack: 0.002,
+          release: 0.005,
+          constantGain: 0,
+          initialGain: 0.2,
+          finalGain: 0,
+          curve: new Float32Array([0.2, 0.15, 0.1, 0.05, 0]),
+        },
+        setValueAtTime: (value: number, time: number) => {
+          gainCalls.push({ method: 'setValueAtTime', time, value });
+        },
+        cancelScheduledValues: (time: number) => {
+          gainCalls.push({ method: 'cancelScheduledValues', time });
+        },
+        exponentialRampToValueAtTime: (value: number, time: number) => {
+          gainCalls.push({ method: 'exponentialRampToValueAtTime', time, value });
+        },
+      },
+    };
+
+    handler({}, [mockGainNode], [3], 1.0, 1.0, 1, 0.1);
+
+    const cutSetValue = gainCalls.find(c => c.method === 'setValueAtTime' && Math.abs(c.time - 1.3) < 0.001);
+    expect(cutSetValue).toBeDefined();
+    expect(cutSetValue?.value).toBeGreaterThan(0);
+    expect(cutSetValue?.value).toBeLessThan(0.2);
+  });
+
   it('should stop source node at cut time as fallback', () => {
     const handler = get('cut');
     if (!handler) throw new Error('cut handler not found');

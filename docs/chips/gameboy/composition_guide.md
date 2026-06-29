@@ -166,6 +166,16 @@ A 50% duty square wave has harmonic content at odd multiples of the fundamental 
 
 **The kick illusion:** True kick drums have a pitched component (100–200 Hz) that descends rapidly. CH4 cannot produce true pitch. The "kick illusion" uses a very low LFSR frequency with a slow-decay envelope to create a low-frequency thump that the brain accepts as kick-like in context.
 
+**UGE export note labels:** Game Boy noise playback is shaped by LFSR parameters rather than musical pitch, but hUGETracker still shows a note value in the noise pattern row. Use `uge_note=` on named noise instruments to choose that display value directly:
+
+```
+inst kick  type=noise gb:width=7  env=14,down uge_note=C-6
+inst snare type=noise gb:width=7  env=10,down uge_note=C-7
+inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
+```
+
+This keeps BeatBax files aligned with what you will see after exporting to UGE.
+
 ---
 
 ### 1.7 Wave Channel Bass

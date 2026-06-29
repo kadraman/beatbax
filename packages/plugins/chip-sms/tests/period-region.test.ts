@@ -7,6 +7,7 @@ import {
   NOISE_RATE_DIVIDERS,
   SMS_CLOCK_NTSC as NTSC_CLOCK,
 } from '../src/periodTables.js';
+import smsPlugin from '../src/index.js';
 
 describe('sms period region configuration', () => {
   afterEach(() => {
@@ -29,6 +30,11 @@ describe('sms period region configuration', () => {
     setSmsClockRegion('ntcs');
     expect(getSmsClockRegion()).toBe('ntsc');
     expect(periodToFreq(100)).toBeCloseTo(SMS_CLOCK_NTSC / (32 * 100), 8);
+  });
+
+  it('plugin configureForSong switches to pal', () => {
+    smsPlugin.configureForSong!({ chip: 'sms', chipRegion: 'pal' });
+    expect(getSmsClockRegion()).toBe('pal');
   });
 });
 

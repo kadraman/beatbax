@@ -696,6 +696,44 @@ register('trem', (ctx: any, nodes: any[], params: any[], start: number, dur: num
   }
 });
 
+function estimateScheduledGainAtTime(gainParam: any, time: number): number | null {
+  const schedule = gainParam?.__beatbaxGainSchedule;
+  if (!schedule || typeof schedule.start !== 'number' || typeof schedule.dur !== 'number') {
+    return null;
+  }
+
+  const start = schedule.start;
+  const dur = Math.max(0, schedule.dur);
+  const attack = Math.max(0, Number(schedule.attack) || 0);
+  const release = Math.max(0, Number(schedule.release) || 0);
+  const initialGain = Math.max(0, Number(schedule.initialGain) || 0);
+  const finalGain = Math.max(0, Number(schedule.finalGain) || 0);
+  const constantGain = Math.max(0, Number(schedule.constantGain) || 0);
+  const end = start + dur;
+  const attackEnd = start + Math.min(attack, dur / 2);
+  const releaseStart = start + Math.max(attack, dur - release);
+
+  if (time <= start) return 0;
+  if (attack > 0 && time < attackEnd) {
+    return initialGain * ((time - start) / attack);
+  }
+  if (time >= end) return 0;
+  if (release > 0 && time >= releaseStart) {
+    const releaseProgress = Math.max(0, Math.min(1, (time - releaseStart) / release));
+    return finalGain * (1 - releaseProgress);
+  }
+
+  const curve = schedule.curve;
+  if (curve && typeof curve.length === 'number' && curve.length > 0 && releaseStart > attackEnd) {
+    const progress = Math.max(0, Math.min(1, (time - attackEnd) / (releaseStart - attackEnd)));
+    const idx = Math.min(curve.length - 1, Math.max(0, Math.floor(progress * curve.length)));
+    const value = Number(curve[idx]);
+    return Number.isFinite(value) ? Math.max(0, value) : initialGain;
+  }
+
+  return constantGain;
+}
+
 // Note Cut effect: cuts/gates a note after N ticks
 // Parameters:
 //  - params[0]: ticks (required, number of ticks after which to cut the note)
@@ -729,10 +767,15 @@ register('cut', (ctx: any, nodes: any[], params: any[], start: number, dur: numb
     if (!node) continue;
     if (node.gain && typeof node.gain.setValueAtTime === 'function') {
       try {
-        // Get current gain value or use default
+        // Get current gain value or use default. Some AudioParam implementations
+        // expose `.value` as the intrinsic default rather than the currently
+        // scheduled value; prefer metadata from plugin gain schedulers when present.
         let currentGain: number;
         try {
-          if (typeof node.gain.getValueAtTime === 'function') {
+          const estimatedGain = estimateScheduledGainAtTime(node.gain, cutTime);
+          if (estimatedGain !== null) {
+            currentGain = estimatedGain;
+          } else if (typeof node.gain.getValueAtTime === 'function') {
             currentGain = node.gain.getValueAtTime(cutTime - 0.001) || 1.0;
           } else {
             currentGain = node.gain.value || 1.0;

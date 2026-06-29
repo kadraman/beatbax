@@ -20,9 +20,14 @@ describe('instrument-meta', () => {
     expect(meta.properties.noise_frames).toBeDefined();
   });
 
+  test('gameboy metadata includes UGE display-note override', () => {
+    const meta = getChipInstrumentMeta('gameboy');
+    expect(meta.properties.uge_note?.detail).toContain('hUGETracker');
+  });
+
   test('ALL_INST_PROPERTY_NAMES includes AY-specific fields', () => {
     expect(ALL_INST_PROPERTY_NAMES).toEqual(
-      expect.arrayContaining(['env_bass', 'env_shape', 'tone_mix', 'noise_frames']),
+      expect.arrayContaining(['env_bass', 'env_shape', 'tone_mix', 'noise_frames', 'uge_note']),
     );
   });
 

@@ -25,6 +25,7 @@ import { smsCoordinator } from './scheduler.js';
 import {
   parseMacro, makeMacroState, getMacroValue, advanceMacro,
   buildVolEnvGainCurve,
+  scheduleSmsGain,
   type ParsedMacro, type MacroState,
 } from './macros.js';
 
@@ -423,28 +424,16 @@ export class SMSNoiseBackend implements ChipChannelBackend {
     const volEnvM = parseMacro(inst.vol_env);
     if (volEnvM) {
       const curve = buildVolEnvGainCurve(volEnvM, SMS_MIX_GAIN.noise, dur);
-      try {
-        gainNode.gain.setValueCurveAtTime(curve, start, Math.max(0.001, dur));
-      } catch (_) {
-        if (curve.length > 0) {
-          try { gainNode.gain.setValueAtTime(curve[0], start); } catch (_) {}
-        }
-      }
+      scheduleSmsGain(gainNode.gain, { start, dur, curve });
     } else if (inst.vol !== undefined) {
       const vol = Math.max(0, Math.min(15, Number(inst.vol)));
       const att = vol;
       const gainVal = SMS_MIX_GAIN.noise * (1.0 - (att / 15));
-      try { gainNode.gain.setValueAtTime(gainVal, start); } catch (_) {}
+      scheduleSmsGain(gainNode.gain, { start, dur, constantGain: gainVal });
     } else {
       const gainVal = SMS_MIX_GAIN.noise * (1.0 - (this.attenuation / 15));
-      try { gainNode.gain.setValueAtTime(gainVal, start); } catch (_) {}
+      scheduleSmsGain(gainNode.gain, { start, dur, constantGain: gainVal });
     }
-
-    // Fade out
-    try {
-      gainNode.gain.setValueAtTime(0.0001, start + dur);
-      gainNode.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
-    } catch (_) {}
 
     source.connect(gainNode);
     gainNode.connect(destination || (ctx as any).destination);
