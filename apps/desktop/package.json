@@ -18,7 +18,7 @@
   "type": "module",
   "scripts": {
     "clean": "rimraf out dist test-results playwright-report",
-    "prepare-local": "node ../../scripts/link-local-engine.cjs && npm -w @beatbax/app-core run build",
+    "prepare-local": "npm -w @beatbax/engine run build && node ../../scripts/link-local-engine.cjs && npm -w @beatbax/plugin-chip-sms run build && npm -w @beatbax/plugin-chip-spectrum-128 run build && npm -w @beatbax/plugin-exporter-famitracker run build && npm -w @beatbax/plugin-exporter-vgm run build && npm -w @beatbax/app-core run build",
     "lint": "eslint --cache .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",

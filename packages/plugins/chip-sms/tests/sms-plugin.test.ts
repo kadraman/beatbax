@@ -673,7 +673,7 @@ describe('Tone volume semantics', () => {
       null,
       mockCtx.destination
     );
-    const loudGainCall = lastGainNode.gain.setValueAtTime.mock.calls[0][0];
+    const loudGainCall = lastGainNode.gain.linearRampToValueAtTime.mock.calls[0][0];
 
     channel.createPlaybackNodes(
       mockCtx,
@@ -684,10 +684,111 @@ describe('Tone volume semantics', () => {
       null,
       mockCtx.destination
     );
-    const muteGainCall = lastGainNode.gain.setValueAtTime.mock.calls[0][0];
+    const muteGainCall = lastGainNode.gain.linearRampToValueAtTime.mock.calls[0][0];
 
     expect(loudGainCall).toBeGreaterThan(muteGainCall);
     expect(muteGainCall).toBe(0);
+  });
+});
+
+describe('SMS WebAudio de-click gain scheduling', () => {
+  const makeAudioParam = () => ({
+    setValueAtTime: jest.fn(),
+    linearRampToValueAtTime: jest.fn(),
+    setValueCurveAtTime: jest.fn(),
+  });
+
+  it('ramps tone vol_env playback in from silence and out to silence', () => {
+    const { createToneChannel } = require('../src/tone.js');
+
+    let lastGainNode: any = null;
+    const mockCtx = {
+      sampleRate: 44100,
+      destination: {},
+      createOscillator: () => ({
+        type: 'square',
+        frequency: makeAudioParam(),
+        connect: jest.fn(),
+        start: jest.fn(),
+        stop: jest.fn(),
+      }),
+      createGain: () => {
+        lastGainNode = {
+          gain: makeAudioParam(),
+          connect: jest.fn(),
+        };
+        return lastGainNode;
+      },
+    } as any;
+
+    const channel = createToneChannel(mockCtx, 'tone1', 0);
+    channel.createPlaybackNodes(
+      mockCtx,
+      440,
+      1,
+      0.1,
+      { name: 'lead', type: 'tone1', vol_env: [0, 3, 6, 15] },
+      null,
+      mockCtx.destination
+    );
+
+    const gain = lastGainNode.gain;
+    expect(gain.setValueAtTime.mock.calls[0]).toEqual([0, 1]);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][0]).toBeGreaterThan(0);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][1]).toBeGreaterThan(1);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][1]).toBeLessThan(1.01);
+    expect(gain.setValueCurveAtTime).toHaveBeenCalled();
+    const toneRampCalls = gain.linearRampToValueAtTime.mock.calls;
+    expect(toneRampCalls[toneRampCalls.length - 1]).toEqual([0, 1.1]);
+  });
+
+  it('ramps noise vol_env playback in from silence and out to silence', () => {
+    const { createNoiseChannel } = require('../src/noise.js');
+
+    let lastGainNode: any = null;
+    const mockCtx = {
+      sampleRate: 44100,
+      destination: {},
+      createBuffer: (_channels: number, length: number, _sampleRate: number) => ({
+        getChannelData: () => new Float32Array(length),
+      }),
+      createBufferSource: () => ({
+        buffer: null,
+        loop: false,
+        loopStart: 0,
+        loopEnd: 0,
+        connect: jest.fn(),
+        start: jest.fn(),
+        stop: jest.fn(),
+      }),
+      createGain: () => {
+        lastGainNode = {
+          gain: makeAudioParam(),
+          connect: jest.fn(),
+        };
+        return lastGainNode;
+      },
+    } as any;
+
+    const channel = createNoiseChannel(mockCtx);
+    channel.createPlaybackNodes(
+      mockCtx,
+      0,
+      2,
+      0.1,
+      { name: 'snare', type: 'noise', noise_mode: 'white', noise_rate: 1, vol_env: [3, 5, 8, 15] },
+      null,
+      mockCtx.destination
+    );
+
+    const gain = lastGainNode.gain;
+    expect(gain.setValueAtTime.mock.calls[0]).toEqual([0, 2]);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][0]).toBeGreaterThan(0);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][1]).toBeGreaterThan(2);
+    expect(gain.linearRampToValueAtTime.mock.calls[0][1]).toBeLessThan(2.01);
+    expect(gain.setValueCurveAtTime).toHaveBeenCalled();
+    const noiseRampCalls = gain.linearRampToValueAtTime.mock.calls;
+    expect(noiseRampCalls[noiseRampCalls.length - 1]).toEqual([0, 2.1]);
   });
 });
 
@@ -769,7 +870,7 @@ describe('Noise volume semantics', () => {
       null,
       mockCtx.destination
     );
-    const loudGainCall = lastGainNode.gain.setValueAtTime.mock.calls[0][0];
+    const loudGainCall = lastGainNode.gain.linearRampToValueAtTime.mock.calls[0][0];
 
     channel.createPlaybackNodes(
       mockCtx,
@@ -780,7 +881,7 @@ describe('Noise volume semantics', () => {
       null,
       mockCtx.destination
     );
-    const muteGainCall = lastGainNode.gain.setValueAtTime.mock.calls[0][0];
+    const muteGainCall = lastGainNode.gain.linearRampToValueAtTime.mock.calls[0][0];
 
     expect(loudGainCall).toBeGreaterThan(muteGainCall);
     expect(muteGainCall).toBe(0);

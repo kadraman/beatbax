@@ -210,6 +210,14 @@ describe('gameboyPlugin', () => {
     expect(errors).toHaveLength(0);
   });
 
+  test('validateInstrument accepts 32-nibble hUGETracker wave hex string', () => {
+    const errors = gameboyPlugin.validateInstrument({
+      type: 'wave',
+      wave: '0478ABBB986202467776420146777631',
+    });
+    expect(errors).toHaveLength(0);
+  });
+
   test('validateInstrument rejects unknown type', () => {
     const errors: ValidationError[] = gameboyPlugin.validateInstrument({ type: 'sid-voice' });
     expect(errors.length).toBeGreaterThan(0);
@@ -227,11 +235,26 @@ describe('gameboyPlugin', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  test('validateInstrument rejects malformed wave hex string', () => {
+    const errors = gameboyPlugin.validateInstrument({ type: 'wave', wave: '0478ABBB' });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].message).toContain('32-nibble hUGETracker hex string');
+  });
+
   test('wave channel renders non-zero audio', () => {
     const ctx = {} as BaseAudioContext;
     const backend = gameboyPlugin.createChannel(2, ctx);
     const wave = [0, 3, 6, 9, 12, 9, 6, 3, 0, 3, 6, 9, 12, 9, 6, 3];
     backend.noteOn(440, { type: 'wave', wave });
+    const buf = new Float32Array(512);
+    backend.render(buf, 44100);
+    expect(buf.some(s => s !== 0)).toBe(true);
+  });
+
+  test('wave channel renders non-zero audio from hUGETracker wave hex string', () => {
+    const ctx = {} as BaseAudioContext;
+    const backend = gameboyPlugin.createChannel(2, ctx);
+    backend.noteOn(440, { type: 'wave', wave: '0478ABBB986202467776420146777631' });
     const buf = new Float32Array(512);
     backend.render(buf, 44100);
     expect(buf.some(s => s !== 0)).toBe(true);

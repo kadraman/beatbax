@@ -28,6 +28,7 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       width: { values: ['7', '15'], detail: 'Noise width mode' },
       gm: { detail: 'MIDI program 0–127' },
       note: { detail: 'Default hit note e.g. C2' },
+      uge_note: { detail: 'UGE export note in hUGETracker notation, e.g. C-8' },
     },
   },
   nes: {
@@ -66,7 +67,6 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       tone_vol: { detail: 'Tone-path volume cap 0–15' },
       env_bass: { values: ['true', 'false'], detail: 'Buzz bass — envelope as oscillator' },
       env_shape: { detail: 'R13 shape 0–15 (env_bass only; 8=saw repeat, 10=double saw)' },
-      chipRegion: { values: ['spectrum-128', 'cpc'], detail: 'Platform AY clock preset' },
       note: { detail: 'Default hit note e.g. E7' },
       gm: { detail: 'MIDI program 0–127' },
     },
@@ -106,6 +106,7 @@ const GENERIC_PROPERTIES: Record<string, InstPropertyMeta> = {
   env: { detail: 'Envelope' },
   gm: { detail: 'MIDI program' },
   note: { detail: 'Default note' },
+  uge_note: { detail: 'UGE export note in hUGETracker notation' },
   vol: { detail: 'Volume 0–15' },
 };
 

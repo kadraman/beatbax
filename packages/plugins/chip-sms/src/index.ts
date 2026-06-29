@@ -46,12 +46,7 @@ const SMS_METER_DISPLAY_GAIN = {
   noise: 1 / SMS_MIX_GAIN.noise,
 } as const;
 
-type SmsChipPlugin = ChipPlugin & {
-  aliases?: readonly string[];
-  configureForSong(song: { chip?: string; chipRegion?: string }): void;
-};
-
-const smsPlugin: SmsChipPlugin = {
+const smsPlugin: ChipPlugin = {
   name: 'sms',
   aliases: ['gg', 'gamegear'],
   version,
@@ -82,7 +77,7 @@ const smsPlugin: SmsChipPlugin = {
     volSlide: smsVolSlideEffect,
   },
 
-  configureForSong(song: { chip?: string; chipRegion?: string }) {
+  configureForSong(song) {
     setSmsClockRegion(song?.chipRegion);
   },
 

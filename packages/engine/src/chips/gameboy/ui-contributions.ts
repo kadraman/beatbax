@@ -92,6 +92,7 @@ const hoverDocs: Record<string, string> = {
     '```\ninst <name> type=<type> [field=value …]\n```',
     '**Common fields (all chips):**',
     '- `note` — default note when instrument name is used as a hit token, e.g. `note=C2`',
+    '- `uge_note` — UGE export note in hUGETracker display notation, e.g. `uge_note=C-8`',
     '- `gm` — General MIDI program number for MIDI export (0–127)',
     '',
     '**Game Boy instrument types:**',
@@ -116,6 +117,12 @@ const hoverDocs: Record<string, string> = {
   ].join('\n\n'),
 
   noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad).',
+
+  uge_note: [
+    '**UGE note override** — sets the exact note displayed for named hits in hUGETracker exports.',
+    '```\ninst snare type=noise gb:width=7 env=12,down uge_note=C-7\ninst hat   type=noise gb:width=15 env=5,down uge_note=C-8\n```',
+    'Use hUGETracker display notation (`C-6`, `C-7`, `C#7`, `C-8`). This does not affect Game Boy noise playback; it only controls the UGE pattern note for named instrument hits.',
+  ].join('\n\n'),
 
   env: [
     '**Envelope** — controls how amplitude changes over the note\'s life.',
@@ -145,7 +152,7 @@ const hoverDocs: Record<string, string> = {
     '- `7` — **7-bit** LFSR: short repeating pattern → metallic, tonal noise (hi-hats, shakers)',
     '- `15` — **15-bit** LFSR: long random sequence → broad, full noise (snares, kicks, ambience)',
     '',
-    'Combine with `env=` level + period and an appropriate `note=` value to sculpt drum sounds.',
+    'Combine with `env=` level + period to sculpt drum sounds. For readable UGE exports of named noise hits, use `uge_note=C-7` style hUGETracker display notation.',
   ].join('\n\n'),
 
   sweep: [

@@ -72,11 +72,11 @@ describe('resolvePlatformRegionFromSong', () => {
     expect(resolvePlatformRegionFromSong({ chip: 'spectrum-128' })).toBe('spectrum-128');
   });
 
-  test('legacy chipRegion cpc on spectrum chip is honoured', () => {
-    expect(resolvePlatformRegionFromSong({ chip: 'spectrum-128', chipRegion: 'cpc' })).toBe('cpc');
+  test('chipRegion cpc on spectrum chip is ignored in favour of alias-only platform selection', () => {
+    expect(resolvePlatformRegionFromSong({ chip: 'spectrum-128', chipRegion: 'cpc' })).toBe('spectrum-128');
   });
 
-  test('chip alias takes precedence over chipRegion', () => {
+  test('chip alias selects cpc regardless of chipRegion', () => {
     expect(resolvePlatformRegionFromSong({ chip: 'cpc', chipRegion: 'spectrum-128' })).toBe('cpc');
   });
 });

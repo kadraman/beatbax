@@ -14,6 +14,7 @@ export type {
   ChipChannelBackend,
   ValidationError,
   SongValidationContext,
+  ChipSongContext,
   ChipUIContributions,
   ChipHelpSection,
   ChipHelpContext,

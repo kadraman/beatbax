@@ -320,10 +320,7 @@ export class Player {
     if (!isGameboy && !activePlugin) {
       throw new Error(`Unsupported chip: ${ast.chip ?? chip}. No plugin registered for this chip.`);
     }
-    const configureForSong = (activePlugin as any)?.configureForSong;
-    if (typeof configureForSong === 'function') {
-      configureForSong({ chip: ast.chip, chipRegion: (ast as any).chipRegion });
-    }
+    activePlugin?.configureForSong?.({ chip: ast.chip, chipRegion: ast.chipRegion });
 
     // Store chip info in context for effects to access (e.g., for chip-specific frame rates)
     (this.ctx as any)._chipType = chip;

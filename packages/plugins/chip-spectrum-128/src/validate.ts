@@ -71,14 +71,10 @@ export function validateSpectrumInstrument(inst: InstrumentNode): ValidationErro
 
   // ── chipRegion ───────────────────────────────────────────────────────────
   if (inst.chipRegion !== undefined) {
-    const validRegions = new Set(['spectrum-128', 'cpc']);
-    const region = String(inst.chipRegion).toLowerCase();
-    if (!validRegions.has(region)) {
-      errors.push({
-        field: 'chipRegion',
-        message: `chipRegion must be 'spectrum-128' or 'cpc'. Got '${inst.chipRegion}'`,
-      });
-    }
+    errors.push({
+      field: 'chipRegion',
+      message: 'chipRegion is not an instrument property for Spectrum/CPC songs. Use chip cpc or chip amstrad-cpc to select the CPC platform.',
+    });
   }
 
   // ── Reject NES/Game Boy specific fields ──────────────────────────────────

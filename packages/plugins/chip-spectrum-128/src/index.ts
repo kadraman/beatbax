@@ -131,8 +131,6 @@ function advanceTick(): void {
 // ── Plugin definition ─────────────────────────────────────────────────────────
 
 type SpectrumChipPlugin = ChipPlugin & {
-  aliases?: readonly string[];
-  configureForSong(song: { chip?: string; chipRegion?: string }): void;
   beginSongSession(): void;
   getCurrentSession(): InternalSongSession | null;
 };
@@ -155,7 +153,7 @@ const spectrumPlugin: SpectrumChipPlugin = {
     return validateSpectrumSong(ctx);
   },
 
-  configureForSong(song: { chip?: string; chipRegion?: string }) {
+  configureForSong(song) {
     setPlatformRegion(resolvePlatformRegionFromSong(song));
   },
 

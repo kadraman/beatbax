@@ -65,8 +65,8 @@ describe('spectrumPlugin metadata', () => {
     const aliasTitle = build!({ chip: 'amstrad-cpc' }).find((s) => s.id === 'instruments')?.title;
     expect(aliasTitle).toBe('Instruments (Amstrad CPC / AY-3-8912)');
 
-    const legacyTitle = build!({ chip: 'spectrum-128', chipRegion: 'cpc' }).find((s) => s.id === 'instruments')?.title;
-    expect(legacyTitle).toBe('Instruments (Amstrad CPC / AY-3-8912)');
+    const ignoredRegionTitle = build!({ chip: 'spectrum-128', chipRegion: 'cpc' }).find((s) => s.id === 'instruments')?.title;
+    expect(ignoredRegionTitle).toBe('Instruments (ZX Spectrum 128 / AY-3-8912)');
   });
 
   test('has newSongWizard with Spectrum and CPC variants', () => {
@@ -112,13 +112,14 @@ describe('spectrumPlugin.validateInstrument', () => {
     expect(errors[0].field).toBe('noise_rate');
   });
 
-  test('invalid chipRegion returns error', () => {
+  test('chipRegion instrument property returns guidance error', () => {
     const errors = spectrumPlugin.validateInstrument({
       type: 'tone1',
-      chipRegion: 'atari-st',
+      chipRegion: 'cpc',
     } as any);
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].field).toBe('chipRegion');
+    expect(errors[0].message).toContain('Use chip cpc or chip amstrad-cpc');
   });
 
   test('unsupported sweep field returns error', () => {
@@ -212,28 +213,28 @@ describe('spectrumPlugin.createChannel', () => {
 
 describe('spectrumPlugin.configureForSong', () => {
   test('sets spectrum-128 region by default', () => {
-    spectrumPlugin.configureForSong({ chip: 'spectrum-128' });
+    spectrumPlugin.configureForSong!({ chip: 'spectrum-128' });
     // Verify via getPlatformProfile
     const { getPlatformProfile } = require('../src/platform-profiles.js');
     expect(getPlatformProfile().ayClockHz).toBe(1_773_400);
   });
 
   test('sets cpc region when chip is cpc alias', () => {
-    spectrumPlugin.configureForSong({ chip: 'cpc' });
+    spectrumPlugin.configureForSong!({ chip: 'cpc' });
     const { getPlatformProfile } = require('../src/platform-profiles.js');
     expect(getPlatformProfile().ayClockHz).toBe(1_000_000);
   });
 
   test('sets cpc region when chip is amstrad-cpc alias', () => {
-    spectrumPlugin.configureForSong({ chip: 'amstrad-cpc' });
+    spectrumPlugin.configureForSong!({ chip: 'amstrad-cpc' });
     const { getPlatformProfile } = require('../src/platform-profiles.js');
     expect(getPlatformProfile().ayClockHz).toBe(1_000_000);
   });
 
-  test('sets cpc region when chipRegion is cpc (legacy)', () => {
-    spectrumPlugin.configureForSong({ chip: 'spectrum-128', chipRegion: 'cpc' });
+  test('keeps spectrum-128 region when chipRegion is cpc', () => {
+    spectrumPlugin.configureForSong!({ chip: 'spectrum-128', chipRegion: 'cpc' });
     const { getPlatformProfile } = require('../src/platform-profiles.js');
-    expect(getPlatformProfile().ayClockHz).toBe(1_000_000);
+    expect(getPlatformProfile().ayClockHz).toBe(1_773_400);
   });
 });
 

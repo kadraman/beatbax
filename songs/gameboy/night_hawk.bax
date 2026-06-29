@@ -65,9 +65,9 @@ inst chord_sus    type=pulse2 duty=75    env={"level":9,"direction":"down","peri
 
 inst bass_wave    type=wave   wave=[0,1,2,3,5,7,9,11,12,13,14,15,15,15,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0]
 
-inst kick         type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} note=C5
-inst snare        type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  note=C6
-inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  note=C7
+inst kick         type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} uge_note=C-6
+inst snare        type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
+inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
 
 # =============================================================================
 # Effect presets
