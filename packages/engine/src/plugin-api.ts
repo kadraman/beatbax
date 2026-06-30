@@ -21,7 +21,13 @@ export type {
 // ─── Plugin system ────────────────────────────────────────────────────────────
 export type { ChipPlugin, ChipChannelBackend, ValidationError, SongValidationContext, ChipSongContext, ChipNewSongWizard } from './chips/types.js';
 export { ChipRegistry, chipRegistry, gameboyPlugin, getSongValidationIssues } from './chips/index.js';
-export type { ExporterPlugin, ExportOptions, ExporterUIContribution } from './export/types.js';
+export type { ExporterPlugin, ExportOptions, ExportPayload, ExporterUIContribution } from './export/types.js';
+export {
+  isExportPayload,
+  normalizeExporterResult,
+  type ExporterReturnValue,
+  type NormalizedExportPayload,
+} from './export/payload.js';
 export { ExporterRegistry, exporterRegistry } from './export/registry.js';
 export { BeatBaxEngine } from './engine.js';
 export { resolveSong, resolveSongAsync } from './song/index.js';

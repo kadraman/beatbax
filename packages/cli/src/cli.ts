@@ -5,6 +5,7 @@ import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
 import { configureLogging } from '@beatbax/engine/util/logger';
 import { readFileSync, statSync, existsSync, writeFileSync } from 'fs';
+import { writeExportPayload } from '@beatbax/engine/export';
 import { resolve as resolvePath, basename, dirname, relative, extname } from 'path';
 import { mkdirSync } from 'fs';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
@@ -542,18 +543,10 @@ program
       },
     });
 
-    if (payload !== undefined) {
-      if (typeof payload === 'string') {
-        writeFileSync(outPath, payload, 'utf8');
-      } else if (payload instanceof Uint8Array) {
-        writeFileSync(outPath, Buffer.from(payload));
-      } else if (payload instanceof ArrayBuffer) {
-        writeFileSync(outPath, Buffer.from(payload));
-      } else {
-        console.error(`Exporter '${requestedFormat}' returned unsupported payload type.`);
-        process.exitCode = 2;
-        return;
-      }
+    if (payload !== undefined && !writeExportPayload(outPath, payload)) {
+      console.error(`Exporter '${requestedFormat}' returned unsupported payload type.`);
+      process.exitCode = 2;
+      return;
     }
 
     if (!existsSync(outPath)) {

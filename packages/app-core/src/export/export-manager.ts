@@ -7,7 +7,7 @@ import { resolveSong } from '@beatbax/engine/song';
 import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { buildUGE, writeWAV } from '@beatbax/engine/export';
+import { normalizeExporterResult, writeWAV } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
 
 import type { EventBus } from '../utils/event-bus.js';
@@ -121,7 +121,7 @@ export class ExportManager {
           result = await this.exportMIDI(resolved, baseFilename);
           break;
         case 'uge':
-          result = await this.exportUGE(resolved, baseFilename, (msg) => warnings.push(msg));
+          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
           break;
         case 'wav':
           warnings.push(...collectPcmWavExportWarnings(resolved));
@@ -219,24 +219,6 @@ export class ExportManager {
   }
 
   /**
-   * Export as UGE (hUGETracker v6 format)
-   */
-  private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'uge');
-    const ugeData = buildUGE(resolved as any, { onWarn });
-
-    const savedFilename = await downloadBinary(ugeData, filename, MIME_TYPES.uge);
-    if (!savedFilename) return { success: false, format: 'uge', filename, cancelled: true };
-
-    return {
-      success: true,
-      format: 'uge',
-      filename: savedFilename,
-      size: ugeData.byteLength,
-    };
-  }
-
-  /**
    * Export as WAV using the same PCM renderer as the CLI (parity with headless export).
    */
   private async exportWAV(
@@ -277,6 +259,9 @@ export class ExportManager {
     };
   }
 
+  /**
+   * Export via a payload-returning exporter plugin (UGE, VGM, FamiTracker text, etc.).
+   */
   private async exportViaPlugin(
     resolved: any,
     baseFilename: string,
@@ -286,7 +271,6 @@ export class ExportManager {
     const plugin = exporterRegistry.get(format);
     if (!plugin) throw new Error(`Unknown export format: ${format}`);
 
-    // Validate with plugin's validate() if available
     if (typeof plugin.validate === 'function') {
       const errors = plugin.validate(resolved);
       if (Array.isArray(errors) && errors.length > 0) {
@@ -294,39 +278,40 @@ export class ExportManager {
       }
     }
 
-    // Resolve the chip plugin so sample assets can be loaded (e.g. NES DMC samples)
     const chipId = String(resolved?.chip ?? '').toLowerCase();
     const chipPlugin = chipId ? chipRegistry.get(chipId) : undefined;
 
     const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
     const filename = ensureExtension(baseFilename, ext);
-    const data = await plugin.export(resolved, {
-      outputPath: filename,
+    const result = await plugin.export(resolved, {
       resolveSampleAsset: typeof chipPlugin?.resolveSampleAsset === 'function'
         ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
         : undefined,
       onWarn,
     });
 
-    if (typeof data === 'string') {
-      const savedFilename = await downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
-      if (!savedFilename) return { success: false, format, filename, cancelled: true };
-      return { success: true, format, filename: savedFilename, size: data.length };
+    const payload = normalizeExporterResult(result);
+    if (!payload) {
+      throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
     }
 
-    if (data instanceof Uint8Array) {
-      const savedFilename = await downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      if (!savedFilename) return { success: false, format, filename, cancelled: true };
-      return { success: true, format, filename: savedFilename, size: data.byteLength };
-    }
+    const downloadName = payload.filename ? ensureExtension(payload.filename, ext) : filename;
+    const mimeType = payload.mimeType || plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
+    const savedFilename = typeof payload.data === 'string'
+      ? await downloadText(payload.data, downloadName, mimeType)
+      : await downloadBinary(payload.data, downloadName, mimeType);
+    if (!savedFilename) return { success: false, format, filename: downloadName, cancelled: true };
 
-    if (data instanceof ArrayBuffer) {
-      const savedFilename = await downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      if (!savedFilename) return { success: false, format, filename, cancelled: true };
-      return { success: true, format, filename: savedFilename, size: data.byteLength };
-    }
+    const size = typeof payload.data === 'string'
+      ? payload.data.length
+      : payload.data.byteLength;
 
-    throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
+    return {
+      success: true,
+      format,
+      filename: savedFilename,
+      size,
+    };
   }
 
   /**

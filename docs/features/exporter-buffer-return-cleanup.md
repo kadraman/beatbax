@@ -1,6 +1,6 @@
 ---
 title: "Exporter Buffer Return Cleanup"
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-06-28
 issue: ""
@@ -246,9 +246,9 @@ Consumers using the current CLI/path-writing API do not need to change. New UI a
 
 ### Phase 2 - Exporter Contract Cleanup
 
-- [ ] Document payload-returning exporter behavior in `ExporterPlugin`.
-- [ ] Confirm CLI writes returned payloads for all plugin exporters.
-- [ ] Add tests for plugin exporters that return `string`, `Uint8Array`, and `ArrayBuffer`.
+- [x] Document payload-returning exporter behavior in `ExporterPlugin`.
+- [x] Confirm CLI writes returned payloads for all plugin exporters.
+- [x] Add tests for plugin exporters that return `string`, `Uint8Array`, and `ArrayBuffer`.
 
 ### Phase 3 - Built-In Exporter Cleanup
 

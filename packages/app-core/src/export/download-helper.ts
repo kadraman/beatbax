@@ -10,6 +10,7 @@ interface DesktopSaveFileOptions {
   title?: string;
   defaultPath?: string;
   showDialog?: boolean;
+  extension?: string;
 }
 
 interface DesktopDownloadApi {
@@ -78,14 +79,17 @@ export function getExtension(filename: string): string {
 }
 
 /**
- * Ensure filename has the given extension
+ * Ensure filename has the given extension, replacing any existing extension.
  */
 export function ensureExtension(filename: string, ext: string): string {
   const cleanExt = ext.replace(/^\./, '').toLowerCase();
-  if (!filename.toLowerCase().endsWith(`.${cleanExt}`)) {
-    return `${filename}.${cleanExt}`;
+  const lastDot = filename.lastIndexOf('.');
+  const currentExt = lastDot > 0 ? filename.slice(lastDot + 1).toLowerCase() : '';
+  if (currentExt === cleanExt) {
+    return filename;
   }
-  return filename;
+  const stem = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+  return `${stem}.${cleanExt}`;
 }
 
 /**
@@ -120,6 +124,7 @@ export async function triggerDownload(blob: Blob, filename: string): Promise<str
         title: `Export ${filename}`,
         defaultPath: filename,
         showDialog: true,
+        extension: getExtension(filename) || undefined,
       },
       bytes,
     );

@@ -4,7 +4,14 @@ export { buildUGE, exportUGE } from './ugeWriter.js';
 export { exportWAV, writeWAV, exportWAVFromSong, quantizeFloatSampleToInt16 } from './wavWriter.js';
 export { readWAV } from './wavReader.js';
 export type { ReadWAVResult } from './wavReader.js';
-export type { ExportOptions, ExporterPlugin, ExporterUIContribution } from './types.js';
+export type { ExportOptions, ExportPayload, ExporterPlugin, ExporterUIContribution } from './types.js';
+export {
+  isExportPayload,
+  normalizeExporterResult,
+  type ExporterReturnValue,
+  type NormalizedExportPayload,
+} from './payload.js';
+export { writeExportPayload } from './writeExportPayload.js';
 export { ExporterRegistry, exporterRegistry } from './registry.js';
 export {
   NOTE_SEMITONES,

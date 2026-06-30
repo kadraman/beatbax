@@ -1,4 +1,5 @@
 import type { ExporterPlugin } from '@beatbax/engine/export';
+import { ugeExporterPlugin } from '@beatbax/engine/export';
 import { chipRegistry } from '@beatbax/engine/chips';
 
 const BUILTIN_BROWSER_EXPORTERS: ExporterPlugin[] = [
@@ -25,15 +26,14 @@ const BUILTIN_BROWSER_EXPORTERS: ExporterPlugin[] = [
     },
   },
   {
-    id: 'uge',
-    label: 'hUGETracker UGE',
-    version: '1.0.0',
-    extension: 'uge',
-    mimeType: 'application/octet-stream',
-    supportedChips: ['gameboy', 'gb', 'dmg'],
-    async export() {
-      throw new Error('UGE export is handled by web-ui ExportManager');
-    },
+    id: ugeExporterPlugin.id,
+    label: ugeExporterPlugin.label,
+    version: ugeExporterPlugin.version,
+    extension: ugeExporterPlugin.extension,
+    mimeType: ugeExporterPlugin.mimeType,
+    supportedChips: ugeExporterPlugin.supportedChips,
+    export: ugeExporterPlugin.export.bind(ugeExporterPlugin),
+    validate: ugeExporterPlugin.validate?.bind(ugeExporterPlugin),
   },
   {
     id: 'wav',

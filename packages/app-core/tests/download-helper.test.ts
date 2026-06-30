@@ -95,6 +95,11 @@ describe('ensureExtension', () => {
   it('handles extension with leading dot', () => {
     expect(ensureExtension('my_track', '.mid')).toBe('my_track.mid');
   });
+
+  it('replaces an existing extension when exporting to a new format', () => {
+    expect(ensureExtension('green_zone.bax', 'vgm')).toBe('green_zone.vgm');
+    expect(ensureExtension('song.mid', 'wav')).toBe('song.wav');
+  });
 });
 
 // ─── createBlob ──────────────────────────────────────────────────────────────
@@ -173,7 +178,7 @@ describe('downloadBinary', () => {
     const result = await downloadBinary(new Uint8Array([1, 2, 3]), 'data.bin');
 
     expect(saveFile).toHaveBeenCalledWith(
-      { title: 'Export data.bin', defaultPath: 'data.bin', showDialog: true },
+      { title: 'Export data.bin', defaultPath: 'data.bin', showDialog: true, extension: 'bin' },
       new Uint8Array([1, 2, 3]),
     );
     expect(result).toBe('C:\\Exports\\data.bin');
