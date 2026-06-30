@@ -93,7 +93,9 @@ export default defineConfig({
 });
 ```
 
-Engine exporters that call `writeFileSync` are wired to the `browser-fs` capture shim at build time only; the browser bundle does not load Node built-ins.
+Engine code that still statically imports `fs` is aliased at build time. **UI exporters do not use a write-capture shim** — they call `ExporterPlugin.export()` without `outputPath` and save returned payloads. `apps/web-ui/src/utils/browser-fs.ts` is a minimal stub that throws if `writeFileSync` is called; prefer payload-returning exporters for browser-safe behavior.
+
+See [Export architecture](../exports/export-architecture.md).
 
 **Webpack**: Automatically respects the `browser` condition in exports.
 

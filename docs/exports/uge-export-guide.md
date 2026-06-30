@@ -25,10 +25,13 @@ channel 2 => inst bass pat bassline
 
 ### 2. Export to UGE
 
-From the web or desktop app, use the toolbar/menu export option:
+From **BeatBax Desktop**, use the toolbar or menu:
 
-- **Export as hUGETracker UGE** downloads or saves a `.uge` file for valid Game Boy songs.
-- Export warnings, such as flat-note conversion warnings, are shown in the UI diagnostics/output panels.
+- **Export as hUGETracker UGE** saves a `.uge` file for valid Game Boy songs.
+- Export warnings (for example flat-note conversion) appear in the Problems and Output panels.
+- The Output panel opens after a successful save.
+
+> Web-lite (`apps/web-ui`) does not include an export menu. Use the desktop app or CLI below.
 
 Using the CLI:
 
@@ -156,19 +159,22 @@ npm run cli -- export uge mysong.bax mysong.uge
 
 ### Programmatic Export
 
-Use the TypeScript API:
+Use the TypeScript API. For in-memory bytes (tools, tests, custom hosts), call `buildUGE`. For CLI-style file output, use `exportUGE`:
 
 ```typescript
-import { exportUGE } from 'beatbax/export';
-import { parse } from 'beatbax/parser';
-import { resolveSong } from 'beatbax/song';
+import { buildUGE, exportUGE } from '@beatbax/engine/export';
+import { parse } from '@beatbax/engine/parser';
+import { resolveSong } from '@beatbax/engine/song';
 import { readFileSync } from 'fs';
 
 const src = readFileSync('mysong.bax', 'utf8');
 const ast = parse(src);
 const song = resolveSong(ast);
 
-// Basic export
+// In-memory payload (UI download/save, tests, custom tooling)
+const bytes = buildUGE(song);
+
+// Write to disk (CLI / Node)
 await exportUGE(song, 'mysong.uge');
 
 // Export with verbose output
@@ -179,24 +185,9 @@ await exportUGE(song, 'mysong.uge', { debug: true });
 
 // Export with strict GB mode (reject numeric panning)
 await exportUGE(song, 'mysong.uge', { strictGb: true });
-
-console.log('✓ Exported UGE file');
 ```
 
-```typescript
-import { exportUGE } from 'packages/engine/src/export/ugeWriter';
-import { parse } from 'packages/engine/src/parser';
-import { resolveSong } from 'packages/engine/src/song/resolver';
-import { readFileSync } from 'fs';
-
-const source = readFileSync('mysong.bax', 'utf-8');
-const ast = parse(source);
-const song = resolveSong(ast);
-
-await exportUGE(song, 'output.uge');
-```
-
-## Validation
+See [Export architecture](./export-architecture.md) for JSON, MIDI, and WAV builders.
 
 ## Effects Mapping
 
@@ -344,6 +335,8 @@ node scripts/auto_calibrate_vib.mjs songs/features/effect_demo.bax tmp/auto_cal 
 
 See `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/audio/pcmRenderer.ts` for implementation details.
 
+## Validation
+
 Validate exported UGE files with the official hUGETracker tools:
 
 ### Using uge2source.exe
@@ -454,6 +447,8 @@ channel 4 => inst kick pat drums
 - [hUGETracker Official Site](https://github.com/SuperDisk/hUGETracker)
 - [UGE v6 Format Specification](../formats/uge-v6-spec.md)
 - [BeatBax Tutorial](../TUTORIAL.md)
+- [UGE Writer Implementation](./uge-writer.md)
+- [Export architecture](./export-architecture.md)
 - [Implementation Details](../DEVNOTES-UGE-IMPLEMENTATION.md)
 
 ## Support

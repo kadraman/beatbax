@@ -245,6 +245,7 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
 
 ## See Also
 
+- [Export architecture](./export-architecture.md) - Payload builders and UI/CLI export flow
 - [UGE Export Guide](./uge-export-guide.md) - User guide for exporting to UGE format
 - [UGE Reader](./uge-reader.md) - UGE file parsing and import
 - [UGE v6 Spec](./uge-v6-spec.md) - Complete binary format specification

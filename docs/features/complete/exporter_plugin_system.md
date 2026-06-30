@@ -47,7 +47,7 @@ The previous async `resolveExporterPlugins()` hook was removed from `ChipPlugin`
 
 **Backward compatibility:**
 
-- All raw export functions (`exportJSON`, `exportMIDI`, `exportUGE`, `exportWAV`, `exportWAVFromSong`) remain exported unchanged — no existing call sites break.
+- All raw export functions (`exportJSON`, `exportMIDI`, `exportUGE`, `exportWAV`, `exportWAVFromSong`) and payload builders (`buildJSON`, `buildMIDI`, `buildUGE`, `buildWAV`, `buildWAVFromSong`) remain exported from `@beatbax/engine/export`.
 - The CLI continues to accept `json`, `midi`, `uge`, `wav` as format arguments — names are identical, now backed by the registry.
 - `ChipPlugin.exportToNative()` is marked `@deprecated` in JSDoc but not removed; new exporters use `ExporterPlugin` instead.
 
@@ -100,6 +100,16 @@ All spec items are implemented. 9 of 10 items are fully complete; item 9 is stru
 | 10 | `@beatbax/plugin-chip-nes` declares `exporterPlugins` | ✅ Complete |
 
 ## Post-Implementation Change Log
+
+### 2026-06-30 — Payload-first exporter contract (Phases 1–3)
+
+Built-in exporters (JSON, MIDI, UGE, WAV) now follow a payload-first contract:
+
+- **Builders:** `buildJSON`, `buildMIDI`, `buildUGE`, `buildWAV`, `buildWAVFromSong` return downloadable data without writing files.
+- **Plugins:** `ExporterPlugin.export(song)` returns payloads when `outputPath` is omitted; CLI passes `outputPath` or uses `writeExportPayload()`.
+- **UI:** `@beatbax/app-core` `ExportManager` routes all formats through `exportViaPlugin()` — no per-format special cases or `fs` capture shims.
+
+See [Export architecture](../../exports/export-architecture.md) and [Exporter buffer return cleanup](../exporter-buffer-return-cleanup.md).
 
 ### 2026-05-15 — Async exporter hook removed
 

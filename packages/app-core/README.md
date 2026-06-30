@@ -16,7 +16,7 @@
 - **App bootstrap** — `createAppContext()` wires event bus, stores, playback, export, and parse pipeline
 - **Client profiles** — `web-lite` vs `desktop-full` capability matrix
 
-Each app provides its own file I/O shim (`browser-fs.ts` or `electron-fs.ts`) via Vite `fs` alias; app-core calls `fs.writeFileSync` for exports without knowing the runtime.
+Each app may provide a Vite `fs` alias stub for legacy engine imports. **UI exports do not use filesystem capture** — `ExportManager` calls `ExporterPlugin.export()` without `outputPath` and downloads or saves returned payloads (`download-helper.ts`). Desktop uses native save dialogs; web-lite does not expose export UI (use CLI or desktop).
 
 ## Client profiles
 
@@ -57,6 +57,7 @@ npm -w @beatbax/app-core run test    # Jest unit tests
 
 ## Related docs
 
+- [Export architecture](../../docs/exports/export-architecture.md) — payload builders and UI/CLI flow
 - [Desktop-first client split](../../docs/features/complete/desktop-first-client-split.md) — master plan
 - [Electron desktop client](../../docs/features/complete/electron-desktop-client.md) — IPC and packaging
 - [apps/web-ui README](../../apps/web-ui/README.md) — web-lite browser client
