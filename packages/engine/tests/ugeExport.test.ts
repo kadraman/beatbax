@@ -1,14 +1,68 @@
-import exportUGE, { exportUGE as exportUGENamed } from '../src/export/ugeWriter';
+import exportUGE, { buildUGE, exportUGE as exportUGENamed } from '../src/export/ugeWriter';
+import { ugeExporterPlugin } from '../src/export/plugins/uge.plugin';
 import { parse } from '../src/parser/index';
 import { resolveSong } from '../src/song/resolver';
 import { readUGEFile } from '../src/import/uge/uge.reader';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 describe('UGE export', () => {
   test('exportUGE default export exists', () => {
     expect(typeof exportUGE).toBe('function');
+  });
+
+  test('buildUGE returns a binary payload without writing a file', () => {
+    const src = `
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+    const song = resolveSong(parse(src) as any);
+
+    const bytes = buildUGE(song);
+
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.byteLength).toBeGreaterThan(0);
+  });
+
+  test('uge exporter plugin returns bytes when no outputPath is provided', async () => {
+    const src = `
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+    const song = resolveSong(parse(src) as any);
+
+    const bytes = await ugeExporterPlugin.export(song);
+
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect((bytes as Uint8Array).byteLength).toBeGreaterThan(0);
+  });
+
+  test('buildUGE output matches exportUGE file output', async () => {
+    const file = join(tmpdir(), 'test_build_uge_parity.uge');
+    const src = `
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+    const song = resolveSong(parse(src) as any);
+
+    try {
+      const bytes = buildUGE(song);
+      await exportUGENamed(song, file, { debug: false });
+
+      expect(readFileSync(file)).toEqual(Buffer.from(bytes));
+    } finally {
+      if (existsSync(file)) unlinkSync(file);
+    }
   });
 });
 

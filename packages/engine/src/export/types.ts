@@ -1,6 +1,20 @@
 import { SongModel } from '../song/songModel.js';
 
+/**
+ * Structured exporter return value. Preferred future shape for `ExporterPlugin.export()`.
+ * Raw `string`, `Uint8Array`, and `ArrayBuffer` returns remain supported during migration.
+ */
+export interface ExportPayload {
+  data: string | Uint8Array | ArrayBuffer;
+  filename?: string;
+  mimeType?: string;
+}
+
 export interface ExportOptions {
+  /**
+   * Target filesystem path for Node.js / CLI adapters.
+   * UI callers should omit this and consume the returned payload instead.
+   */
   outputPath?: string;
   sourcePath?: string;
   duration?: number;
@@ -22,6 +36,17 @@ export interface ExporterUIContribution {
   toolbarIcon?: string;
 }
 
+/**
+ * BeatBax exporter plugin contract.
+ *
+ * Payload-first behavior:
+ * - When `options.outputPath` is omitted, `export()` should return downloadable data
+ *   (`ExportPayload`, `string`, `Uint8Array`, or `ArrayBuffer`).
+ * - When `options.outputPath` is provided, CLI/Node adapters may either write the file
+ *   directly or return a payload for the caller to persist.
+ * - Returning `void`/`undefined` is valid only when the exporter already wrote to
+ *   `options.outputPath`.
+ */
 export interface ExporterPlugin {
   id: string;
   label: string;
@@ -29,7 +54,16 @@ export interface ExporterPlugin {
   extension: string;
   mimeType: string;
   supportedChips: string[];
-  export(song: SongModel, options?: ExportOptions): Promise<Uint8Array | ArrayBuffer | string | void> | Uint8Array | ArrayBuffer | string | void;
+  export(
+    song: SongModel,
+    options?: ExportOptions,
+  ):
+    | Promise<ExportPayload | Uint8Array | ArrayBuffer | string | void>
+    | ExportPayload
+    | Uint8Array
+    | ArrayBuffer
+    | string
+    | void;
   validate?(song: SongModel): string[];
   uiContributions?: ExporterUIContribution;
 }

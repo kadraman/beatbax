@@ -6,6 +6,44 @@ import { createLogger } from '@beatbax/engine/util/logger';
 
 const log = createLogger('ui:download');
 
+interface DesktopSaveFileOptions {
+  title?: string;
+  defaultPath?: string;
+  showDialog?: boolean;
+  extension?: string;
+}
+
+interface DesktopDownloadApi {
+  saveFile(options: DesktopSaveFileOptions, data: Uint8Array): Promise<string | null>;
+}
+
+function getDesktopDownloadApi(): DesktopDownloadApi | null {
+  const maybeWindow = typeof window !== 'undefined' ? window as typeof window & { electronAPI?: Partial<DesktopDownloadApi> } : undefined;
+  return typeof maybeWindow?.electronAPI?.saveFile === 'function'
+    ? maybeWindow.electronAPI as DesktopDownloadApi
+    : null;
+}
+
+async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read export data.'));
+    reader.onload = () => {
+      const result = reader.result;
+      if (result instanceof ArrayBuffer) {
+        resolve(new Uint8Array(result));
+      } else {
+        reject(new Error('Failed to read export data as bytes.'));
+      }
+    };
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
 /**
  * MIME types for supported export formats
  */
@@ -41,14 +79,17 @@ export function getExtension(filename: string): string {
 }
 
 /**
- * Ensure filename has the given extension
+ * Ensure filename has the given extension, replacing any existing extension.
  */
 export function ensureExtension(filename: string, ext: string): string {
   const cleanExt = ext.replace(/^\./, '').toLowerCase();
-  if (!filename.toLowerCase().endsWith(`.${cleanExt}`)) {
-    return `${filename}.${cleanExt}`;
+  const lastDot = filename.lastIndexOf('.');
+  const currentExt = lastDot > 0 ? filename.slice(lastDot + 1).toLowerCase() : '';
+  if (currentExt === cleanExt) {
+    return filename;
   }
-  return filename;
+  const stem = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+  return `${stem}.${cleanExt}`;
 }
 
 /**
@@ -72,9 +113,29 @@ export function createBlob(
 }
 
 /**
- * Trigger a browser file download
+ * Trigger a browser file download, or await the native desktop save dialog when present.
  */
-export function triggerDownload(blob: Blob, filename: string): void {
+export async function triggerDownload(blob: Blob, filename: string): Promise<string | null> {
+  const desktopApi = getDesktopDownloadApi();
+  if (desktopApi) {
+    const bytes = await blobToUint8Array(blob);
+    const savedPath = await desktopApi.saveFile(
+      {
+        title: `Export ${filename}`,
+        defaultPath: filename,
+        showDialog: true,
+        extension: getExtension(filename) || undefined,
+      },
+      bytes,
+    );
+    if (savedPath) {
+      log.debug('Desktop save completed:', savedPath, `(${blob.size} bytes, ${blob.type})`);
+    } else {
+      log.debug('Desktop save cancelled:', filename);
+    }
+    return savedPath;
+  }
+
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -85,6 +146,7 @@ export function triggerDownload(blob: Blob, filename: string): void {
   try {
     anchor.click();
     log.debug('Download triggered:', filename, `(${blob.size} bytes, ${blob.type})`);
+    return filename;
   } finally {
     // Clean up after a short delay to allow the download to start
     setTimeout(() => {
@@ -101,9 +163,9 @@ export function downloadText(
   content: string,
   filename: string,
   mimeType = 'text/plain'
-): void {
+): Promise<string | null> {
   const blob = createBlob(content, mimeType);
-  triggerDownload(blob, filename);
+  return triggerDownload(blob, filename);
 }
 
 /**
@@ -113,9 +175,9 @@ export function downloadBinary(
   data: ArrayBuffer | Uint8Array,
   filename: string,
   mimeType = 'application/octet-stream'
-): void {
+): Promise<string | null> {
   const blob = createBlob(data, mimeType);
-  triggerDownload(blob, filename);
+  return triggerDownload(blob, filename);
 }
 
 /**

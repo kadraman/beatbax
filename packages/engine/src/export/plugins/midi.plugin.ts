@@ -1,4 +1,4 @@
-import { exportMIDI } from '../midiExport.js';
+import { buildMIDI, exportMIDI } from '../midiExport.js';
 import type { ExporterPlugin } from '../types.js';
 
 export const midiExporterPlugin: ExporterPlugin = {
@@ -10,7 +10,11 @@ export const midiExporterPlugin: ExporterPlugin = {
   supportedChips: ['*'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'midi' requires an outputPath (Node.js/CLI mode)`);
+      return buildMIDI(
+        song,
+        { duration: options.duration, channels: options.channels },
+        { debug: options.debug, verbose: options.verbose },
+      );
     }
     await exportMIDI(
       song,

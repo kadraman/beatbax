@@ -12,6 +12,7 @@ export interface ExportHandlerDeps {
   problemsPanel: DesktopOutputPanelHandle;
   outputPanel: DesktopOutputPanelHandle;
   showProblems: () => void;
+  showOutput: () => void;
 }
 
 export async function handleDesktopExport(
@@ -52,6 +53,7 @@ export async function handleDesktopExport(
       timestamp: new Date(),
       source: 'export',
     });
+    deps.showOutput();
     if (result.warnings?.length) {
       for (const warning of result.warnings) {
         deps.problemsPanel.addMessage({
@@ -63,6 +65,8 @@ export async function handleDesktopExport(
       }
       deps.showProblems();
     }
+  } else if (result.cancelled) {
+    return;
   } else {
     deps.problemsPanel.addMessage({
       type: 'error',

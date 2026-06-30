@@ -146,6 +146,28 @@ describe('persistFile', () => {
     expect(readFileSync(target, 'utf8')).toBe('chip gameboy\n');
     expect(dialog.showSaveDialog).not.toHaveBeenCalled();
   });
+
+  it('uses export-specific filters when an extension is provided', async () => {
+    const target = path.join(tempDir, 'green_zone.vgm');
+    dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: target });
+
+    await persistFile(
+      {} as never,
+      { defaultPath: target, showDialog: true, extension: 'vgm', title: 'Export green_zone.vgm' },
+      Buffer.from([0x56, 0x67, 0x6d]),
+    );
+
+    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        defaultPath: target,
+        filters: [
+          { name: 'VGM files', extensions: ['vgm'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      }),
+    );
+  });
 });
 
 describe('desktop sync file reads', () => {

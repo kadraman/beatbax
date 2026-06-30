@@ -93,6 +93,11 @@ export function writeWAV(samples: Float32Array, opts: WavOptions): Buffer {
   return Buffer.concat([header, pcmData]);
 }
 
+/** Browser-safe WAV payload builder (returns Uint8Array). */
+export function buildWAV(samples: Float32Array, opts: WavOptions): Uint8Array {
+  return new Uint8Array(writeWAV(samples, opts));
+}
+
 export async function exportWAV(samples: Float32Array, outputPath: string, opts: WavOptions, metaOpts?: { debug?: boolean; verbose?: boolean }): Promise<void> {
   const { writeFileSync } = await import('fs');
   const verbose = metaOpts && metaOpts.verbose === true;
@@ -114,16 +119,26 @@ export async function exportWAV(samples: Float32Array, outputPath: string, opts:
  */
 export async function exportWAVFromSong(song: SongModel, outputPath: string, options: RenderOptions & Partial<WavOptions> = {}, metaOpts?: { debug?: boolean; verbose?: boolean }) {
   const verbose = metaOpts && metaOpts.verbose === true;
+  if (verbose) {
+    log.info(`Exporting to WAV (PCM audio): ${outputPath}`);
+  }
+  const wavBytes = await buildWAVFromSong(song, options, metaOpts);
+  const { writeFileSync } = await import('fs');
+  writeFileSync(outputPath, wavBytes);
+}
+
+/**
+ * Render a song model to PCM and return WAV bytes (no filesystem write).
+ */
+export async function buildWAVFromSong(song: SongModel, options: RenderOptions & Partial<WavOptions> = {}, metaOpts?: { debug?: boolean; verbose?: boolean }): Promise<Uint8Array> {
+  const verbose = metaOpts && metaOpts.verbose === true;
   const sampleRate = options.sampleRate || 44100;
 
   if (verbose) {
-    log.info(`Exporting to WAV (PCM audio): ${outputPath}`);
+    log.info('Building WAV (PCM audio)');
     log.info('  Rendering audio...');
   }
 
-  // Pre-load plugin samples (e.g. local: / remote DMC files) before rendering.
-  // Without this, async sample loads (local: paths) never resolve during the
-  // synchronous PCM render loop, leaving those notes silent.
   const { chipRegistry } = await import('../chips/registry.js');
   const chipType = chipRegistry.resolve(((song as any).chip || 'gameboy').toLowerCase());
   if (chipType !== 'gameboy') {
@@ -136,12 +151,11 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
   const samples = renderSongToPCM(song, {
     ...options,
     sampleRate,
-    channels: 2, // Always stereo for now to match browser
+    channels: 2,
     bpm: options.bpm ?? song.bpm,
   });
 
   if (metaOpts && metaOpts.debug) {
-    // Compute simple left/right energy for first 10000 frames to sanity-check panning
     const frames = Math.min(10000, Math.floor(samples.length / 2));
     let left = 0, right = 0;
     for (let i = 0; i < frames; i++) {
@@ -154,9 +168,18 @@ export async function exportWAVFromSong(song: SongModel, outputPath: string, opt
     }
   }
 
-  await exportWAV(samples, outputPath, {
+  const wavBytes = buildWAV(samples, {
     sampleRate,
     bitDepth: options.bitDepth || 16,
-    channels: 2
-  }, metaOpts);
+    channels: 2,
+  });
+
+  if (verbose) {
+    const durationSec = (samples.length / 2 / sampleRate).toFixed(2);
+    const sizeKB = (wavBytes.byteLength / 1024).toFixed(2);
+    log.info(`Build complete: ${wavBytes.byteLength.toLocaleString()} bytes (${sizeKB} KB)`);
+    log.info(`  Duration: ${durationSec}s @ ${sampleRate}Hz, ${options.bitDepth || 16}-bit, 2ch`);
+  }
+
+  return wavBytes;
 }

@@ -47,6 +47,7 @@ export interface BeatBaxEvents {
   // Export events
   'export:started': { format: string };
   'export:success': { format: string; filename: string };
+  'export:cancelled': { format: string; filename: string };
   'export:error': { format: string; error: Error };
 
   // UI events

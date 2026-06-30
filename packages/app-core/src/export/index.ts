@@ -14,4 +14,3 @@ export {
   ExportHistory,
   MIME_TYPES,
 } from './download-helper.js';
-export { buildMIDI } from './midi-builder.js';
