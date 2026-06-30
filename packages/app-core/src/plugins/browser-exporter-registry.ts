@@ -1,51 +1,30 @@
 import type { ExporterPlugin } from '@beatbax/engine/export';
-import { ugeExporterPlugin } from '@beatbax/engine/export';
+import {
+  jsonExporterPlugin,
+  midiExporterPlugin,
+  ugeExporterPlugin,
+  wavExporterPlugin,
+} from '@beatbax/engine/export';
 import { chipRegistry } from '@beatbax/engine/chips';
 
+function bindEnginePlugin(plugin: ExporterPlugin): ExporterPlugin {
+  return {
+    id: plugin.id,
+    label: plugin.label,
+    version: plugin.version,
+    extension: plugin.extension,
+    mimeType: plugin.mimeType,
+    supportedChips: plugin.supportedChips,
+    export: plugin.export.bind(plugin),
+    validate: plugin.validate?.bind(plugin),
+  };
+}
+
 const BUILTIN_BROWSER_EXPORTERS: ExporterPlugin[] = [
-  {
-    id: 'json',
-    label: 'JSON (ISM)',
-    version: '1.0.0',
-    extension: 'json',
-    mimeType: 'application/json',
-    supportedChips: ['*'],
-    async export() {
-      throw new Error('JSON export is handled by web-ui ExportManager');
-    },
-  },
-  {
-    id: 'midi',
-    label: 'MIDI (SMF)',
-    version: '1.0.0',
-    extension: 'mid',
-    mimeType: 'audio/midi',
-    supportedChips: ['*'],
-    async export() {
-      throw new Error('MIDI export is handled by web-ui ExportManager');
-    },
-  },
-  {
-    id: ugeExporterPlugin.id,
-    label: ugeExporterPlugin.label,
-    version: ugeExporterPlugin.version,
-    extension: ugeExporterPlugin.extension,
-    mimeType: ugeExporterPlugin.mimeType,
-    supportedChips: ugeExporterPlugin.supportedChips,
-    export: ugeExporterPlugin.export.bind(ugeExporterPlugin),
-    validate: ugeExporterPlugin.validate?.bind(ugeExporterPlugin),
-  },
-  {
-    id: 'wav',
-    label: 'WAV',
-    version: '1.0.0',
-    extension: 'wav',
-    mimeType: 'audio/wav',
-    supportedChips: ['*'],
-    async export() {
-      throw new Error('WAV export is handled by web-ui ExportManager');
-    },
-  },
+  bindEnginePlugin(jsonExporterPlugin),
+  bindEnginePlugin(midiExporterPlugin),
+  bindEnginePlugin(ugeExporterPlugin),
+  bindEnginePlugin(wavExporterPlugin),
 ];
 
 function normalizeChipName(chip: string): string {

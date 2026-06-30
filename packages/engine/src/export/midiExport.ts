@@ -1,10 +1,8 @@
 /*
  * Minimal but functional MIDI exporter.
- * - Accepts a resolved SongModel (as produced by `resolveSong`) and writes
+ * - Accepts a resolved SongModel (as produced by `resolveSong`) and returns
  *   a Type-1 SMF with one MIDI track per channel (up to 16 channels).
- * - If called with a single string path, writes a small empty MIDI file.
  */
-import { writeFileSync } from 'fs';
 import { noteNameToMidi } from '../audio/playback.js';
 import { createLogger } from '../util/logger.js';
 
@@ -68,41 +66,18 @@ function pushMetaText(data: number[], delta: number, text: string) {
 	for (const byte of txt) data.push(byte);
 }
 
-/** Export a resolved song model to MIDI. */
-export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean; verbose?: boolean }) {
-	let outPath = maybePath as string | undefined;
+/** Build a resolved song model as a Standard MIDI File (Type 1). */
+export function buildMIDI(song: any, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean; verbose?: boolean }): Uint8Array {
 	const verbose = opts && opts.verbose === true;
-
-	// If caller passed just a path string, write an empty MIDI file
-	if (typeof songOrPath === 'string' && !maybePath) {
-		outPath = songOrPath.endsWith('.mid') ? songOrPath : `${songOrPath}.mid`;
-		// simple empty type-1 MIDI with one empty track
-		const header = Buffer.alloc(14);
-		header.write('MThd', 0, 4, 'ascii');
-		header.writeUInt32BE(6, 4);
-		header.writeUInt16BE(1, 8); // format 1
-		header.writeUInt16BE(1, 10); // 1 track
-		header.writeUInt16BE(480, 12); // ticks per quarter
-		const track = writeChunk('MTrk', [0x00, 0xff, 0x2f, 0x00]);
-		writeFileSync(outPath, Buffer.concat([header, track]));
-		if (opts && opts.debug) log.debug('Wrote empty MIDI to', outPath);
-		return;
-	}
-
-	const song = songOrPath;
-	if (!outPath) outPath = 'song.mid';
-
-	if (verbose) {
-		log.info(`Exporting to MIDI (Standard MIDI File): ${outPath}`);
-	}
+	const songModel = song;
 
 	// Basic SMF parameters
 	const ticksPerQuarter = 480; // PPQ
 	const ticksPerToken = Math.floor(ticksPerQuarter / 4); // assume token = 16th note
-	const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
+	const bpm = (songModel && typeof songModel.bpm === 'number') ? songModel.bpm : 128;
 
 	// Build header: format 1, N tracks = channels.length (clamped to 16)
-	const allChannels = Array.isArray(song.channels) ? song.channels : [];
+	const allChannels = Array.isArray(songModel.channels) ? songModel.channels : [];
 	const channels = options.channels
 		? allChannels.filter((ch: any) => options.channels!.includes(ch.id))
 		: allChannels;
@@ -388,12 +363,45 @@ export async function exportMIDI(songOrPath: any, maybePath?: string, options: {
 		if (options.duration) {
 			log.info(`    - Duration: ${options.duration}s`);
 		}
+		const sizeKB = (out.length / 1024).toFixed(2);
+		log.info(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB)`);
 	}
 
+	return new Uint8Array(out);
+}
+
+/** Export a resolved song model to MIDI. */
+export async function exportMIDI(songOrPath: any, maybePath?: string, options: { duration?: number, channels?: number[] } = {}, opts?: { debug?: boolean; verbose?: boolean }) {
+	let outPath = maybePath as string | undefined;
+	const verbose = opts && opts.verbose === true;
+
+	if (typeof songOrPath === 'string' && !maybePath) {
+		outPath = songOrPath.endsWith('.mid') ? songOrPath : `${songOrPath}.mid`;
+		const header = Buffer.alloc(14);
+		header.write('MThd', 0, 4, 'ascii');
+		header.writeUInt32BE(6, 4);
+		header.writeUInt16BE(1, 8);
+		header.writeUInt16BE(1, 10);
+		header.writeUInt16BE(480, 12);
+		const track = writeChunk('MTrk', [0x00, 0xff, 0x2f, 0x00]);
+		const { writeFileSync } = await import('fs');
+		writeFileSync(outPath, Buffer.concat([header, track]));
+		if (opts && opts.debug) log.debug('Wrote empty MIDI to', outPath);
+		return;
+	}
+
+	if (!outPath) outPath = 'song.mid';
+
+	if (verbose) {
+		log.info(`Exporting to MIDI (Standard MIDI File): ${outPath}`);
+	}
+
+	const out = buildMIDI(songOrPath, options, opts);
+	const { writeFileSync } = await import('fs');
 	writeFileSync(outPath, out);
 
 	if (verbose) {
-		const sizeKB = (out.length / 1024).toFixed(2);
-		log.info(`Export complete: ${out.length.toLocaleString()} bytes (${sizeKB} KB) written`);
+		const sizeKB = (out.byteLength / 1024).toFixed(2);
+		log.info(`Export complete: ${out.byteLength.toLocaleString()} bytes (${sizeKB} KB) written`);
 	}
 }

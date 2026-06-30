@@ -1,7 +1,3 @@
-jest.mock('@beatbax/engine', () => ({
-  renderSongToPCM: jest.fn(),
-}));
-
 jest.mock('@beatbax/engine/export', () => ({
   normalizeExporterResult: (result: unknown) => {
     if (result === undefined || result === null) return null;
@@ -16,7 +12,6 @@ jest.mock('@beatbax/engine/export', () => ({
     }
     return null;
   },
-  writeWAV: jest.fn(),
 }));
 
 const mockUgeExport = jest.fn(async (_song: unknown, _options?: unknown) => new Uint8Array([0x55, 0x47, 0x45]));
@@ -38,10 +33,6 @@ jest.mock('../src/plugins/browser-exporter-registry.js', () => ({
       return undefined;
     },
   },
-}));
-
-jest.mock('../src/export/midi-builder', () => ({
-  buildMIDI: jest.fn(() => new Uint8Array([0x4d, 0x54, 0x68, 0x64])),
 }));
 
 import { ExportManager } from '../src/export/export-manager';

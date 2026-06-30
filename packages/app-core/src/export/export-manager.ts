@@ -1,18 +1,16 @@
 /**
- * ExportManager - Handles JSON/MIDI/UGE/WAV exports for browser
+ * ExportManager - Handles song exports for browser and desktop clients.
  */
 
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
-import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { normalizeExporterResult, writeWAV } from '@beatbax/engine/export';
+import { normalizeExporterResult } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
 
 import type { EventBus } from '../utils/event-bus.js';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store.js';
-import { buildMIDI } from './midi-builder.js';
 import { validateForExport } from './export-validator.js';
 import { collectPcmWavExportWarnings } from './pcm-export-warnings.js';
 import {
@@ -111,29 +109,16 @@ export class ExportManager {
         },
       });
 
-      // Perform the export
-      let result: ExportResult;
-      switch (format) {
-        case 'json':
-          result = await this.exportJSON(resolved, baseFilename);
-          break;
-        case 'midi':
-          result = await this.exportMIDI(resolved, baseFilename);
-          break;
-        case 'uge':
-          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
-          break;
-        case 'wav':
-          warnings.push(...collectPcmWavExportWarnings(resolved));
-          result = await this.exportWAV(source, resolved, baseFilename);
-          break;
-        case 'famitracker':
-          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
-          break;
-        default:
-          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
-          break;
+      if (format === 'wav') {
+        warnings.push(...collectPcmWavExportWarnings(resolved));
       }
+
+      const result = await this.exportViaPlugin(
+        resolved,
+        baseFilename,
+        format,
+        (msg) => warnings.push(msg),
+      );
 
       result.warnings = warnings;
 
@@ -183,84 +168,7 @@ export class ExportManager {
   }
 
   /**
-   * Export as JSON (ISM format)
-   */
-  private async exportJSON(resolved: any, baseFilename: string): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'json');
-    const json = JSON.stringify(resolved, null, 2);
-
-    const savedFilename = await downloadText(json, filename, MIME_TYPES.json);
-    if (!savedFilename) return { success: false, format: 'json', filename, cancelled: true };
-
-    return {
-      success: true,
-      format: 'json',
-      filename: savedFilename,
-      size: json.length,
-    };
-  }
-
-  /**
-   * Export as MIDI (Standard MIDI File, Type 1)
-   */
-  private async exportMIDI(resolved: any, baseFilename: string): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'mid');
-    const midiData = buildMIDI(resolved);
-
-    const savedFilename = await downloadBinary(midiData, filename, MIME_TYPES.mid);
-    if (!savedFilename) return { success: false, format: 'midi', filename, cancelled: true };
-
-    return {
-      success: true,
-      format: 'midi',
-      filename: savedFilename,
-      size: midiData.byteLength,
-    };
-  }
-
-  /**
-   * Export as WAV using the same PCM renderer as the CLI (parity with headless export).
-   */
-  private async exportWAV(
-    _source: string,
-    resolved: any,
-    baseFilename: string
-  ): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'wav');
-
-    const channels = Array.isArray(resolved.channels) ? resolved.channels : [];
-    const hasEvents = channels.some((ch: any) => Array.isArray(ch?.events) && ch.events.length > 0);
-    if (!hasEvents) {
-      throw new Error('Song has no audio events to export.');
-    }
-
-    const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
-    const chipId = String(resolved?.chip ?? '').toLowerCase();
-    const chipPlugin = chipId ? chipRegistry.get(chipRegistry.resolve(chipId)) : undefined;
-    if (chipPlugin?.preloadForPCM && resolved.insts) {
-      await chipPlugin.preloadForPCM(resolved.insts as Record<string, any>);
-    }
-
-    const samples = renderSongToPCM(resolved, {
-      sampleRate,
-      channels: 2,
-      bpm: typeof resolved.bpm === 'number' ? resolved.bpm : undefined,
-    });
-
-    const wavBuffer = writeWAV(samples, { sampleRate, bitDepth: 16, channels: 2 });
-    const savedFilename = await downloadBinary(new Uint8Array(wavBuffer), filename, MIME_TYPES.wav);
-    if (!savedFilename) return { success: false, format: 'wav', filename, cancelled: true };
-
-    return {
-      success: true,
-      format: 'wav',
-      filename: savedFilename,
-      size: wavBuffer.byteLength,
-    };
-  }
-
-  /**
-   * Export via a payload-returning exporter plugin (UGE, VGM, FamiTracker text, etc.).
+   * Export via a payload-returning exporter plugin.
    */
   private async exportViaPlugin(
     resolved: any,
@@ -288,6 +196,9 @@ export class ExportManager {
         ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
         : undefined,
       onWarn,
+      sampleRate: format === 'wav'
+        ? parseInt(settingAudioSampleRate.get(), 10) || 44100
+        : undefined,
     });
 
     const payload = normalizeExporterResult(result);
@@ -321,4 +232,3 @@ export class ExportManager {
     return this.history.getAll();
   }
 }
-
