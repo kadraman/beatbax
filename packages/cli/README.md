@@ -11,7 +11,7 @@ BeatBax CLI provides command-line tools for working with BeatBax chiptune files:
 
 - Play `.bax` songs
 - Verify syntax
-- Export to JSON, MIDI, and UGE (hUGETracker) formats
+- Export to JSON, MIDI, WAV, and UGE (hUGETracker) formats
 - Convert WAV files to raw NES DMC samples
 - Inspect UGE files
 
@@ -61,6 +61,12 @@ beatbax export json song.bax output.json
 beatbax export midi song.bax output.mid
 ```
 
+**WAV (PCM audio):**
+```bash
+beatbax export wav song.bax output.wav
+beatbax export wav song.bax output.wav --duration 30
+```
+
 **UGE (hUGETracker v6):**
 ```bash
 beatbax export uge song.bax output.uge
@@ -70,7 +76,23 @@ Export options:
 
 - `--verbose` - Show detailed progress
 - `--debug` - Show diagnostic information
-- `--strict-gb` - Reject non-GB-compatible features
+- `--strict-gb` - Reject non-GB-compatible features (UGE)
+- `--duration` - Limit export length in seconds (MIDI, WAV)
+
+### Programmatic payload builders
+
+CLI commands call exporter plugins with `outputPath`. For scripts and tools, use engine payload builders directly (no filesystem write):
+
+```ts
+import { buildJSON, buildMIDI, buildUGE, buildWAVFromSong } from '@beatbax/engine/export';
+
+const json = buildJSON(song);
+const midi = buildMIDI(song);
+const uge = buildUGE(song);
+const wav = await buildWAVFromSong(song, { sampleRate: 44100 });
+```
+
+See [Export architecture](../../docs/exports/export-architecture.md).
 
 ### Inspect UGE Files
 

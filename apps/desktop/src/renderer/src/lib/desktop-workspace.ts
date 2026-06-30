@@ -376,6 +376,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       problemsPanel,
       outputPanel,
       showProblems: () => bottomTabs.show('problems'),
+      showOutput: () => bottomTabs.show('output'),
     });
   };
 

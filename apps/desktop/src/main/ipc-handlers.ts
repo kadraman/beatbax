@@ -16,6 +16,17 @@ const TEXT_FILE_FILTERS = [
   { name: 'All Files', extensions: ['*'] },
 ];
 
+function saveDialogFilters(options: DesktopSaveFileOptions) {
+  const extension = options.extension?.replace(/^\./, '').trim();
+  if (extension) {
+    return [
+      { name: `${extension.toUpperCase()} files`, extensions: [extension] },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  }
+  return TEXT_FILE_FILTERS;
+}
+
 interface SecureAIKeyFile {
   version: 1;
   encryptedApiKey: string;
@@ -388,7 +399,7 @@ async function persistFile(
     const result = await dialog.showSaveDialog(browserWindow, {
       title: options.title ?? 'Save BeatBax Song',
       defaultPath: destination || undefined,
-      filters: TEXT_FILE_FILTERS,
+      filters: saveDialogFilters(options),
     });
 
     if (result.canceled || !result.filePath) {

@@ -25,6 +25,7 @@ module.exports = {
     '^monaco-editor$': '<rootDir>/tests/__mocks__/monaco-editor.ts',
     '^@beatbax/engine/parser$': '<rootDir>/tests/__mocks__/engine-parser.ts',
     '^@beatbax/engine/chips$': '<rootDir>/tests/__mocks__/engine-chips.ts',
+    '^@beatbax/engine/export$': '<rootDir>/tests/__mocks__/engine-export.ts',
     '^@beatbax/engine/song$': '<rootDir>/tests/__mocks__/engine-song.ts',
     '^@beatbax/engine/audio/playback$': '<rootDir>/tests/__mocks__/engine-playback.ts',
   },

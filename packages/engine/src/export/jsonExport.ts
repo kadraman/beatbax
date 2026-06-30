@@ -1,10 +1,7 @@
 /*
  * Minimal JSON export for BeatBax song model.
- * Currently a placeholder that writes a validated JSON file.
  */
-import { writeFileSync } from 'fs';
 import { resolveSong } from '../song/resolver.js';
-import { SongModel } from '../song/songModel.js';
 import { error } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
 
@@ -67,60 +64,14 @@ function validateSongModel(song: any) {
 	if (errors.length > 0) throw new Error('Song validation failed:\n' + errors.map(e => ` - ${e}`).join('\n'));
 }
 
-/**
- * Export a resolved song model to JSON. Backward-compatible overload: if
- * called with a single string, write a small metadata JSON file.
- */
-export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { debug?: boolean; verbose?: boolean }) {
-	let song = songOrPath;
-	let outPath = maybePath;
-	const verbose = opts && opts.verbose === true;
+function rethrowExportBuildError(err: unknown): never {
+	const message = err instanceof Error ? err.message : String(err);
+	error('export', 'Validation error: ' + message);
+	throw err;
+}
 
-	if (typeof songOrPath === 'string' && !maybePath) {
-		// legacy call: exportJSON(filePath)
-		const dummy = { exportedAt: new Date().toISOString(), source: songOrPath };
-		outPath = songOrPath.endsWith('.json') ? songOrPath : `${songOrPath}.json`;
-		writeFileSync(outPath, JSON.stringify(dummy, null, 2), 'utf8');
-		if (opts && opts.debug) log.debug('Wrote JSON to', outPath);
-		return;
-	}
-
-	if (!outPath) outPath = 'song.json';
-	else if (!outPath.toLowerCase().endsWith('.json')) outPath = `${outPath}.json`;
-
-	if (verbose) {
-		log.info(`Exporting to JSON (ISM format): ${outPath}`);
-	}
-
-	// If caller passed an AST (pats + seqs + insts + channels), resolve into ISM
-	try {
-		// Heuristic: Check if this is an AST (needs resolution) or already-resolved SongModel
-		// AST channels will have pat as string or array of strings
-		// SongModel channels will have pat as array of event objects (or events array populated)
-		let isAST = false;
-		if (song && typeof song === 'object' && song.pats && song.insts && song.seqs &&
-			Array.isArray(song.channels) && song.channels.length > 0) {
-			const firstCh = song.channels[0];
-			if (typeof firstCh.pat === 'string') {
-				isAST = true;
-			} else if (Array.isArray(firstCh.pat) && firstCh.pat.length > 0 && typeof firstCh.pat[0] === 'string') {
-				isAST = true;
-			}
-		}
-
-		if (isAST) {
-			// resolve into SongModel
-			song = resolveSong(song);
-		}
-		validateSongModel(song);
-	} catch (err: any) {
-		error('export', 'Validation error: ' + (err && (err as any).message ? (err as any).message : String(err)));
-		throw err;
-	}
-
-	// Prepare a shallow-cloned song to append human-friendly effect metadata
+function attachEffectMetadata(song: any) {
 	const clonedSong = JSON.parse(JSON.stringify(song));
-	// For each note event, attach `effectMeta` array with parsed parameter names for known effects
 	for (const ch of (clonedSong.channels || [])) {
 		if (!Array.isArray(ch.events)) continue;
 		for (const ev of ch.events) {
@@ -139,25 +90,31 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 					const duration = (Array.isArray(fx.params) && fx.params.length > 1) ? Number(fx.params[1]) : undefined;
 					ev.effectMeta.push({ type: 'port', speed: Number.isFinite(speed) ? speed : undefined, duration: Number.isFinite(duration) ? duration : undefined });
 				} else {
-					// Generic passthrough for unknown effects
 					ev.effectMeta.push({ type: fx.type, params: fx.params });
 				}
 			}
 		}
 	}
+	return clonedSong;
+}
 
-	// Write normalized JSON with metadata
+/**
+ * Build normalized ISM JSON for a resolved song model.
+ */
+export function buildJSON(song: any, opts?: { debug?: boolean; verbose?: boolean }): string {
+	validateSongModel(song);
+	const clonedSong = attachEffectMetadata(song);
 	const outObj = {
 		exportedAt: new Date().toISOString(),
 		version: 1,
 		song: clonedSong,
 	};
 
-	if (opts && opts.debug) {
+	if (opts?.debug) {
 		log.debug(`JSON: version ${outObj.version}, ${song.channels.length} channels`);
 	}
 
-	if (verbose) {
+	if (opts?.verbose) {
 		log.info(`  Song structure:`);
 		log.info(`    - Channels: ${song.channels.length}`);
 		log.info(`    - Patterns: ${Object.keys(song.pats || {}).length}`);
@@ -165,7 +122,63 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		if (song.bpm) log.info(`    - Tempo: ${song.bpm} BPM`);
 	}
 
-	writeFileSync(outPath, JSON.stringify(outObj, null, 2), 'utf8');
+	return JSON.stringify(outObj, null, 2);
+}
+
+function isUnresolvedAst(song: any): boolean {
+	if (!song || typeof song !== 'object' || !song.pats || !song.insts || !song.seqs ||
+		!Array.isArray(song.channels) || song.channels.length === 0) {
+		return false;
+	}
+	const firstCh = song.channels[0];
+	if (typeof firstCh.pat === 'string') return true;
+	if (Array.isArray(firstCh.pat) && firstCh.pat.length > 0 && typeof firstCh.pat[0] === 'string') return true;
+	return false;
+}
+
+/**
+ * Export a resolved song model to JSON. Backward-compatible overload: if
+ * called with a single string, write a small metadata JSON file.
+ */
+export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { debug?: boolean; verbose?: boolean }) {
+	let song = songOrPath;
+	let outPath = maybePath;
+	const verbose = opts && opts.verbose === true;
+
+	if (typeof songOrPath === 'string' && !maybePath) {
+		// legacy call: exportJSON(filePath)
+		const dummy = { exportedAt: new Date().toISOString(), source: songOrPath };
+		outPath = songOrPath.endsWith('.json') ? songOrPath : `${songOrPath}.json`;
+		const { writeFileSync } = await import('fs');
+		writeFileSync(outPath, JSON.stringify(dummy, null, 2), 'utf8');
+		if (opts && opts.debug) log.debug('Wrote JSON to', outPath);
+		return;
+	}
+
+	if (!outPath) outPath = 'song.json';
+	else if (!outPath.toLowerCase().endsWith('.json')) outPath = `${outPath}.json`;
+
+	if (verbose) {
+		log.info(`Exporting to JSON (ISM format): ${outPath}`);
+	}
+
+	// If caller passed an AST (pats + seqs + insts + channels), resolve into ISM
+	try {
+		if (isUnresolvedAst(song)) {
+			song = resolveSong(song);
+		}
+	} catch (err: unknown) {
+		rethrowExportBuildError(err);
+	}
+
+	let json: string;
+	try {
+		json = buildJSON(song, opts);
+	} catch (err: unknown) {
+		rethrowExportBuildError(err);
+	}
+	const { writeFileSync } = await import('fs');
+	writeFileSync(outPath, json, 'utf8');
 
 	if (verbose) {
 		const { statSync } = await import('fs');

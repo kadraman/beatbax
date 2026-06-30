@@ -56,6 +56,18 @@ function filterBenignConsoleErrors(lines: string[]): string[] {
   );
 }
 
+/** Auto-approve desktop export saves so Playwright does not block on native dialogs. */
+async function mockDesktopSaveFileAutoApprove(
+  electronApp: Awaited<ReturnType<typeof electron.launch>>,
+) {
+  await electronApp.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('desktop:save-file');
+    ipcMain.handle('desktop:save-file', async (_event, options: { defaultPath?: string }) => {
+      return options?.defaultPath?.trim() || 'export.dat';
+    });
+  });
+}
+
 test('loads a .bax file passed on startup', async () => {
   test.setTimeout(60_000);
   const sampleContent = readFileSync(sampleSongPath, 'utf8');
@@ -82,11 +94,12 @@ test('loads a .bax file passed on startup', async () => {
 test('exports JSON without runtime errors', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp();
+  await mockDesktopSaveFileAutoApprove(electronApp);
 
   await page.locator('[data-format="json"]').click();
   await page.locator('.output-tab[data-tab="output"], button:has-text("Output")').first().click();
 
-  await expect(page.getByText(/Exported .*\.json/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/(Exported|Successfully exported).*\.json/i).first()).toBeVisible({ timeout: 20_000 });
 
   expect(filterBenignConsoleErrors(consoleErrors)).toEqual([]);
 

@@ -1384,6 +1384,7 @@ async function handleExport(format: ExportFormat) {
   const result = await exportManager.export(source, format, { filename: loadedFilename });
   if (result.success) {
     opLog(outputPanel, `✓ Exported ${result.filename} (${result.size ?? 0} bytes)`, 'export');
+    bottomTabs.show('output');
     if (result.warnings?.length) {
       result.warnings.forEach(w => opWarn(problemsPanel, w, 'export'));
       bottomTabs.show('problems');
