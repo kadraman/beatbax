@@ -1,10 +1,11 @@
 ---
-title: "Exporter Buffer Return Cleanup"
+title: Exporter Buffer Return Cleanup
 status: complete
-authors: ["kadraman"]
-created: 2026-06-28
-completed: 2026-06-30
-issue: ""
+authors:
+  - kadraman
+created: 2026-06-28T00:00:00.000Z
+completed: 2026-06-30T00:00:00.000Z
+issue: https://github.com/kadraman/beatbax/issues/152
 ---
 
 ## Summary
@@ -222,3 +223,4 @@ UI JSON export now uses the engine ISM wrapper (`{ version, exportedAt, song }`)
 - `packages/app-core/src/plugins/browser-exporter-registry.ts`
 - `apps/web-ui/src/utils/browser-fs.ts`
 - `apps/desktop/src/renderer/src/electron-fs.ts`
+

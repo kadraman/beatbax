@@ -1,8 +1,9 @@
 import { parse } from '../src/parser/index';
 import { resolveSong } from '../src/song/resolver';
-import { buildJSON } from '../src/export/jsonExport';
+import { buildJSON, exportJSON } from '../src/export/jsonExport';
 import { buildMIDI } from '../src/export/midiExport';
 import { buildWAV } from '../src/export/wavWriter';
+import * as diag from '../src/util/diag';
 import {
   jsonExporterPlugin,
   midiExporterPlugin,
@@ -94,5 +95,22 @@ channel 1 => inst lead pat p
   test('wavExporterPlugin validate rejects empty songs', () => {
     const errors = wavExporterPlugin.validate?.({ channels: [{ id: 1, events: [] }] } as any);
     expect(errors).toEqual(['Song has no audio events to export.']);
+  });
+});
+
+describe('exportJSON diagnostics', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('logs export diag error before rethrowing buildJSON validation failures', async () => {
+    const errorSpy = jest.spyOn(diag, 'error').mockImplementation(() => {});
+
+    await expect(exportJSON({ channels: [] }, 'out.json')).rejects.toThrow(/Song validation failed/);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'export',
+      expect.stringMatching(/^Validation error: Song validation failed:/),
+    );
   });
 });

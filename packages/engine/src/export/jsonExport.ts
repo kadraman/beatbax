@@ -64,6 +64,12 @@ function validateSongModel(song: any) {
 	if (errors.length > 0) throw new Error('Song validation failed:\n' + errors.map(e => ` - ${e}`).join('\n'));
 }
 
+function rethrowExportBuildError(err: unknown): never {
+	const message = err instanceof Error ? err.message : String(err);
+	error('export', 'Validation error: ' + message);
+	throw err;
+}
+
 function attachEffectMetadata(song: any) {
 	const clonedSong = JSON.parse(JSON.stringify(song));
 	for (const ch of (clonedSong.channels || [])) {
@@ -161,12 +167,16 @@ export async function exportJSON(songOrPath: any, maybePath?: string, opts?: { d
 		if (isUnresolvedAst(song)) {
 			song = resolveSong(song);
 		}
-	} catch (err: any) {
-		error('export', 'Validation error: ' + (err && (err as any).message ? (err as any).message : String(err)));
-		throw err;
+	} catch (err: unknown) {
+		rethrowExportBuildError(err);
 	}
 
-	const json = buildJSON(song, opts);
+	let json: string;
+	try {
+		json = buildJSON(song, opts);
+	} catch (err: unknown) {
+		rethrowExportBuildError(err);
+	}
 	const { writeFileSync } = await import('fs');
 	writeFileSync(outPath, json, 'utf8');
 
