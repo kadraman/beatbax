@@ -31,6 +31,8 @@ channel 4 => inst snare pat drums
 
 ### 2. Export to WAV
 
+From **BeatBax Desktop**, use the toolbar or menu **Export as WAV**. The file is saved through the native dialog using your audio sample-rate setting.
+
 Using the CLI:
 
 ```bash
@@ -416,6 +418,7 @@ ffprobe -hide_banner browser.wav
 
 ## Resources
 
+- [Export architecture](./export-architecture.md)
 - [PCM Renderer Source](../packages/engine/src/audio/pcmRenderer.ts)
 - [Node Audio Player Source](../packages/cli/src/nodeAudioPlayer.ts)
 - [DEVNOTES - CLI Audio Implementation](../DEVNOTES.md#cli-audio-playback-implementation)

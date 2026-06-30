@@ -7,6 +7,8 @@ export interface DesktopSaveFileOptions {
   title?: string;
   defaultPath?: string;
   showDialog?: boolean;
+  /** Preferred file extension for export save dialogs (without leading dot). */
+  extension?: string;
 }
 
 export interface DesktopFilePayload {

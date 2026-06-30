@@ -1,4 +1,4 @@
-import { exportUGE } from '../ugeWriter.js';
+import { buildUGE, exportUGE } from '../ugeWriter.js';
 import type { ExporterPlugin } from '../types.js';
 
 export const ugeExporterPlugin: ExporterPlugin = {
@@ -10,12 +10,18 @@ export const ugeExporterPlugin: ExporterPlugin = {
   supportedChips: ['gameboy', 'gb', 'dmg'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'uge' requires an outputPath (Node.js/CLI mode)`);
+      return buildUGE(song, {
+        debug: options.debug,
+        verbose: options.verbose,
+        strictGb: Boolean(options.strictGb),
+        onWarn: options.onWarn,
+      });
     }
     await exportUGE(song, options.outputPath, {
       debug: options.debug,
       verbose: options.verbose,
       strictGb: Boolean(options.strictGb),
+      onWarn: options.onWarn,
     });
   },
 };

@@ -1,4 +1,4 @@
-import { exportJSON } from '../jsonExport.js';
+import { buildJSON, exportJSON } from '../jsonExport.js';
 import type { ExporterPlugin } from '../types.js';
 
 export const jsonExporterPlugin: ExporterPlugin = {
@@ -10,7 +10,7 @@ export const jsonExporterPlugin: ExporterPlugin = {
   supportedChips: ['*'],
   async export(song, options = {}) {
     if (!options.outputPath) {
-      throw new Error(`Exporter 'json' requires an outputPath (Node.js/CLI mode)`);
+      return buildJSON(song, { debug: options.debug, verbose: options.verbose });
     }
     await exportJSON(song, options.outputPath, { debug: options.debug, verbose: options.verbose });
   },

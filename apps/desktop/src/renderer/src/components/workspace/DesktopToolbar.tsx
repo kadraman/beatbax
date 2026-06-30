@@ -138,6 +138,7 @@ function DesktopToolbar({
     const cleanups = [
       eventBus.on('export:started', ({ format }) => setStatus(`Exporting ${format?.toUpperCase() ?? ''}...`, 'info')),
       eventBus.on('export:success', ({ filename, format }) => setStatus(`Exported ${filename ?? format}`, 'success')),
+      eventBus.on('export:cancelled', ({ format }) => setStatus(`${format?.toUpperCase() ?? 'Export'} export cancelled`, 'info')),
       eventBus.on('export:error', ({ error }) => setStatus(`Export failed: ${error?.message ?? 'Unknown error'}`, 'error')),
     ];
     return () => {

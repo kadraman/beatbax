@@ -1,19 +1,16 @@
 /**
- * ExportManager - Handles JSON/MIDI/UGE/WAV exports for browser
+ * ExportManager - Handles song exports for browser and desktop clients.
  */
 
 import { parse } from '@beatbax/engine/parser';
 import { resolveSong } from '@beatbax/engine/song';
-import { renderSongToPCM } from '@beatbax/engine';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
-import { exportUGE, writeWAV } from '@beatbax/engine/export';
+import { normalizeExporterResult } from '@beatbax/engine/export';
 import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
-import { getCapturedWrite, clearCapturedWrite } from '../io/write-capture.js';
 
 import type { EventBus } from '../utils/event-bus.js';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store.js';
-import { buildMIDI } from './midi-builder.js';
 import { validateForExport } from './export-validator.js';
 import { collectPcmWavExportWarnings } from './pcm-export-warnings.js';
 import {
@@ -53,6 +50,7 @@ export interface ExportResult {
   size?: number;
   error?: Error;
   warnings?: string[];
+  cancelled?: boolean;
 }
 
 /**
@@ -111,31 +109,27 @@ export class ExportManager {
         },
       });
 
-      // Perform the export
-      let result: ExportResult;
-      switch (format) {
-        case 'json':
-          result = await this.exportJSON(resolved, baseFilename);
-          break;
-        case 'midi':
-          result = await this.exportMIDI(resolved, baseFilename);
-          break;
-        case 'uge':
-          result = await this.exportUGE(resolved, baseFilename, (msg) => warnings.push(msg));
-          break;
-        case 'wav':
-          warnings.push(...collectPcmWavExportWarnings(resolved));
-          result = await this.exportWAV(source, resolved, baseFilename);
-          break;
-        case 'famitracker':
-          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
-          break;
-        default:
-          result = await this.exportViaPlugin(resolved, baseFilename, format, (msg) => warnings.push(msg));
-          break;
+      if (format === 'wav') {
+        warnings.push(...collectPcmWavExportWarnings(resolved));
       }
 
+      const result = await this.exportViaPlugin(
+        resolved,
+        baseFilename,
+        format,
+        (msg) => warnings.push(msg),
+      );
+
       result.warnings = warnings;
+
+      if (!result.success) {
+        if (result.cancelled) {
+          this.eventBus.emit('export:cancelled', { format, filename: result.filename });
+          exportStatus.set('idle');
+          log.debug(`Export cancelled: ${format}`);
+        }
+        return result;
+      }
 
       // Record in history
       this.history.add({
@@ -174,118 +168,8 @@ export class ExportManager {
   }
 
   /**
-   * Export as JSON (ISM format)
+   * Export via a payload-returning exporter plugin.
    */
-  private async exportJSON(resolved: any, baseFilename: string): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'json');
-    const json = JSON.stringify(resolved, null, 2);
-
-    downloadText(json, filename, MIME_TYPES.json);
-
-    return {
-      success: true,
-      format: 'json',
-      filename,
-      size: json.length,
-    };
-  }
-
-  /**
-   * Export as MIDI (Standard MIDI File, Type 1)
-   */
-  private async exportMIDI(resolved: any, baseFilename: string): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'mid');
-    const midiData = buildMIDI(resolved);
-
-    downloadBinary(midiData, filename, MIME_TYPES.mid);
-
-    return {
-      success: true,
-      format: 'midi',
-      filename,
-      size: midiData.byteLength,
-    };
-  }
-
-  /**
-   * Export as UGE (hUGETracker v6 format)
-   * Uses the engine's exportUGE function via a browser-safe fs mock
-   */
-  private async exportUGE(resolved: any, baseFilename: string, onWarn?: (msg: string) => void): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'uge');
-
-    // exportUGE uses writeFileSync; Vite aliases fs to browser-fs at build time.
-    try {
-      clearCapturedWrite();
-      await exportUGE(resolved as any, filename, { onWarn });
-
-      // Retrieve captured data
-      const captured = getCapturedWrite();
-      if (captured && captured.data.length > 0) {
-        downloadBinary(captured.data, filename, MIME_TYPES.uge);
-        clearCapturedWrite();
-        return {
-          success: true,
-          format: 'uge',
-          filename,
-          size: captured.data.length,
-        };
-      } else {
-        throw new Error('UGE export produced no data. The fs mock may not be configured.');
-      }
-    } catch (err: any) {
-      // If engine UGE export fails in browser (fs not mocked correctly), provide fallback message
-      if (err.message?.includes('writeFileSync is not a function') ||
-          err.message?.includes('writeFileSync') ||
-          err.message?.includes('fs')) {
-        throw new Error(
-          'UGE export requires the CLI in this environment. Run: npm run cli -- export uge song.bax song.uge'
-        );
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Export as WAV using the same PCM renderer as the CLI (parity with headless export).
-   */
-  private async exportWAV(
-    _source: string,
-    resolved: any,
-    baseFilename: string
-  ): Promise<ExportResult> {
-    const filename = ensureExtension(baseFilename, 'wav');
-
-    const channels = Array.isArray(resolved.channels) ? resolved.channels : [];
-    const hasEvents = channels.some((ch: any) => Array.isArray(ch?.events) && ch.events.length > 0);
-    if (!hasEvents) {
-      throw new Error('Song has no audio events to export.');
-    }
-
-    const sampleRate = parseInt(settingAudioSampleRate.get(), 10) || 44100;
-    const chipId = String(resolved?.chip ?? '').toLowerCase();
-    const chipPlugin = chipId ? chipRegistry.get(chipRegistry.resolve(chipId)) : undefined;
-    if (chipPlugin?.preloadForPCM && resolved.insts) {
-      await chipPlugin.preloadForPCM(resolved.insts as Record<string, any>);
-    }
-
-    const samples = renderSongToPCM(resolved, {
-      sampleRate,
-      channels: 2,
-      bpm: typeof resolved.bpm === 'number' ? resolved.bpm : undefined,
-    });
-
-    const wavBuffer = writeWAV(samples, { sampleRate, bitDepth: 16, channels: 2 });
-    downloadBinary(new Uint8Array(wavBuffer), filename, MIME_TYPES.wav);
-
-    return {
-      success: true,
-      format: 'wav',
-      filename,
-      size: wavBuffer.byteLength,
-    };
-  }
-
   private async exportViaPlugin(
     resolved: any,
     baseFilename: string,
@@ -295,7 +179,6 @@ export class ExportManager {
     const plugin = exporterRegistry.get(format);
     if (!plugin) throw new Error(`Unknown export format: ${format}`);
 
-    // Validate with plugin's validate() if available
     if (typeof plugin.validate === 'function') {
       const errors = plugin.validate(resolved);
       if (Array.isArray(errors) && errors.length > 0) {
@@ -303,36 +186,43 @@ export class ExportManager {
       }
     }
 
-    // Resolve the chip plugin so sample assets can be loaded (e.g. NES DMC samples)
     const chipId = String(resolved?.chip ?? '').toLowerCase();
     const chipPlugin = chipId ? chipRegistry.get(chipId) : undefined;
 
     const ext = plugin.extension.replace(/^\./, '') || this.extensionForFormat(format);
     const filename = ensureExtension(baseFilename, ext);
-    const data = await plugin.export(resolved, {
-      outputPath: filename,
+    const result = await plugin.export(resolved, {
       resolveSampleAsset: typeof chipPlugin?.resolveSampleAsset === 'function'
         ? (ref: string) => chipPlugin.resolveSampleAsset!(ref)
         : undefined,
       onWarn,
+      sampleRate: format === 'wav'
+        ? parseInt(settingAudioSampleRate.get(), 10) || 44100
+        : undefined,
     });
 
-    if (typeof data === 'string') {
-      downloadText(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'text/plain');
-      return { success: true, format, filename, size: data.length };
+    const payload = normalizeExporterResult(result);
+    if (!payload) {
+      throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
     }
 
-    if (data instanceof Uint8Array) {
-      downloadBinary(data, filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format, filename, size: data.byteLength };
-    }
+    const downloadName = payload.filename ? ensureExtension(payload.filename, ext) : filename;
+    const mimeType = payload.mimeType || plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
+    const savedFilename = typeof payload.data === 'string'
+      ? await downloadText(payload.data, downloadName, mimeType)
+      : await downloadBinary(payload.data, downloadName, mimeType);
+    if (!savedFilename) return { success: false, format, filename: downloadName, cancelled: true };
 
-    if (data instanceof ArrayBuffer) {
-      downloadBinary(new Uint8Array(data), filename, plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream');
-      return { success: true, format, filename, size: data.byteLength };
-    }
+    const size = typeof payload.data === 'string'
+      ? payload.data.length
+      : payload.data.byteLength;
 
-    throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
+    return {
+      success: true,
+      format,
+      filename: savedFilename,
+      size,
+    };
   }
 
   /**
@@ -342,4 +232,3 @@ export class ExportManager {
     return this.history.getAll();
   }
 }
-
