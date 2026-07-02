@@ -8,6 +8,17 @@ import type { ChipChannelBackend } from '../chips/types.js';
 import { arpCycleOffsets } from '../util/arpOffsets.js';
 import { applyInlineRenderEffects } from './inlineMacroEffects.js';
 import { peakLimitForPlayback, PLAYBACK_PEAK_CEILING } from './playbackLimiter.js';
+import {
+  createGbMonophonicNoiseState,
+  mixGbMonophonicNoise,
+  resolveGbNoiseDurationSamples,
+  type GbMonophonicNoiseState,
+} from '../chips/gameboy/gbLength.js';
+import {
+  resolveNoisePlayback,
+  type GbNoisePreviewMode,
+  type NoiseNoteContext,
+} from '../chips/gameboy/noiseNoteTable.js';
 
 // How many GB period-register units correspond to one tracker vibrato depth unit (y).
 // hUGE appears to treat the tracker `y` as raw register offset units; tune this
@@ -100,6 +111,8 @@ export interface RenderOptions {
   vibDepthScale?: number;
   regPerTrackerBaseFactor?: number;
   regPerTrackerUnit?: number;
+  /** Game Boy noise: uge (hUGEDriver table) or legacy (fixed divisor/shift). */
+  gbNoisePreviewMode?: GbNoisePreviewMode;
 }
 
 /**
@@ -237,6 +250,7 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
   const vibDepthScale = typeof opts.vibDepthScale === 'number' ? opts.vibDepthScale : EXPORTER_VIB_DEPTH_SCALE;
   const regPerTrackerBaseFactor = typeof opts.regPerTrackerBaseFactor === 'number' ? opts.regPerTrackerBaseFactor : RENDER_REG_PER_TRACKER_BASE_FACTOR;
   const regPerTrackerUnit = typeof opts.regPerTrackerUnit === 'number' ? opts.regPerTrackerUnit : RENDER_REG_PER_TRACKER_UNIT;
+  const gbNoisePreviewMode: GbNoisePreviewMode = opts.gbNoisePreviewMode ?? 'uge';
 
   // Create per-channel plugin backends for non-GameBoy chips.
   // The registry must have been populated via chipRegistry.register() before
@@ -269,7 +283,8 @@ export function renderSongToPCM(song: SongModel, opts: RenderOptions = {}): Floa
         vibDepthScale,
         regPerTrackerBaseFactor,
         regPerTrackerUnit,
-        pluginBackend
+        pluginBackend,
+        gbNoisePreviewMode,
       );
     }
   }
@@ -314,11 +329,15 @@ function renderChannel(
   vibDepthScale: number,
   regPerTrackerBaseFactor: number,
   regPerTrackerUnit: number,
-  pluginBackend: ChipChannelBackend | null = null
+  pluginBackend: ChipChannelBackend | null = null,
+  gbNoisePreviewMode: GbNoisePreviewMode = 'uge',
 ) {
   let currentInstName: string | undefined = ch.defaultInstrument;
   let tempInstName: string | undefined = undefined;
   let tempRemaining = 0;
+  const gbNoiseVoice = isGameBoy
+    ? createGbMonophonicNoiseState(Math.ceil(buffer.length / Math.max(1, channels)))
+    : undefined;
 
   for (let i = 0; i < ch.events.length; i++) {
     const ev = ch.events[i];
@@ -372,7 +391,7 @@ function renderChannel(
     }
 
     if (ev.type === 'note') {
-      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
+      renderNoteEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, chipType, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend, gbNoisePreviewMode, gbNoiseVoice);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -384,7 +403,7 @@ function renderChannel(
       }
     } else if (ev.type === 'named') {
       // Named instrument token (like drum hits)
-      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend);
+      renderNamedEvent(ev, inst, buffer, startSample, durationSamples, sampleRate, channels, tickSeconds, isGameBoy, vibDepthScale, regPerTrackerBaseFactor, regPerTrackerUnit, ch.id, pluginBackend, gbNoisePreviewMode, gbNoiseVoice);
 
       if (tempRemaining > 0) {
         tempRemaining--;
@@ -462,11 +481,10 @@ function renderNoteEvent(
   regPerTrackerBaseFactor: number,
   regPerTrackerUnit: number,
   channelId: number,
-  pluginBackend: ChipChannelBackend | null = null
+  pluginBackend: ChipChannelBackend | null = null,
+  gbNoisePreviewMode: GbNoisePreviewMode = 'uge',
+  gbNoiseVoice?: GbMonophonicNoiseState,
 ) {
-  try {
-    // removed debug logging
-  } catch (e) {}
   const token = ev.token;
   const m = token.match(/^([A-G][#B]?)(-?\d+)$/i);
   if (!m) return;
@@ -534,7 +552,7 @@ function renderNoteEvent(
       ev.legato || false
     );
   } else if (inst.type && inst.type.toLowerCase().includes('noise')) {
-    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
+    renderGbNoiseHit(gbNoiseVoice, buffer, startSample, durationSamples, inst, sampleRate, channels, gains, gbNoisePreviewMode, { patternNote: token });
   }
 }
 
@@ -563,7 +581,9 @@ function renderNamedEvent(
   regPerTrackerBaseFactor?: number,
   regPerTrackerUnit?: number,
   channelId?: number,
-  pluginBackend: ChipChannelBackend | null = null
+  pluginBackend: ChipChannelBackend | null = null,
+  gbNoisePreviewMode: GbNoisePreviewMode = 'uge',
+  gbNoiseVoice?: GbMonophonicNoiseState,
 ) {
   // ── Plugin chip delegation ──────────────────────────────────────────────────
   if (!isGameBoy && pluginBackend) {
@@ -590,7 +610,9 @@ function renderNamedEvent(
     // Determine pan gains for stereo rendering
     const panSpec = resolveEventPan(ev, inst);
     const gains = panToGains(panSpec);
-    renderNoise(buffer, startSample, durationSamples, inst, sampleRate, channels, gains);
+    renderGbNoiseHit(gbNoiseVoice, buffer, startSample, durationSamples, inst, sampleRate, channels, gains, gbNoisePreviewMode, {
+      defaultNote: ev.defaultNote,
+    });
     return;
   }
 
@@ -1493,6 +1515,38 @@ function renderWave(
  * @param sampleRate The sample rate.
  * @param channels Number of audio channels.
  */
+function renderGbNoiseHit(
+  gbNoiseVoice: GbMonophonicNoiseState | undefined,
+  buffer: Float32Array,
+  startSample: number,
+  durationSamples: number,
+  inst: InstrumentNode,
+  sampleRate: number,
+  channels: number,
+  gains: { left: number; right: number },
+  previewMode: GbNoisePreviewMode,
+  noteContext?: NoiseNoteContext,
+) {
+  if (gbNoiseVoice) {
+    mixGbMonophonicNoise(
+      gbNoiseVoice,
+      buffer,
+      startSample,
+      durationSamples,
+      sampleRate,
+      channels,
+      gains,
+      (scratch, start, len) => {
+        renderNoise(scratch, start, len, inst, sampleRate, 1, { left: 1, right: 1 }, previewMode, noteContext);
+      },
+      inst as Record<string, unknown>,
+    );
+    return;
+  }
+  const effectiveSamples = resolveGbNoiseDurationSamples(durationSamples, sampleRate, inst as Record<string, unknown>);
+  renderNoise(buffer, startSample, effectiveSamples, inst, sampleRate, channels, gains, previewMode, noteContext);
+}
+
 function renderNoise(
   buffer: Float32Array,
   start: number,
@@ -1500,21 +1554,15 @@ function renderNoise(
   inst: InstrumentNode,
   sampleRate: number,
   channels: number,
-  gains: { left: number; right: number } = { left: 1, right: 1 }
+  gains: { left: number; right: number } = { left: 1, right: 1 },
+  previewMode: GbNoisePreviewMode = 'uge',
+  noteContext?: NoiseNoteContext,
 ) {
   const envelope = parsePulseEnvelope(inst.env);
 
   const durSec = duration / sampleRate;
 
-  // Game Boy noise parameters - support both plain and gb: prefixed properties
-  const width = inst.width ? Number(inst.width) : (inst['gb:width'] ? Number(inst['gb:width']) : 15);
-  const divisor = inst.divisor ? Number(inst.divisor) : (inst['gb:divisor'] ? Number(inst['gb:divisor']) : 3);
-  const shift = inst.shift ? Number(inst.shift) : (inst['gb:shift'] ? Number(inst['gb:shift']) : 4);
-  const GB_CLOCK = 4194304;
-
-  // Calculate LFSR frequency (matches browser implementation)
-  const div = Math.max(1, Number.isFinite(divisor) ? divisor : 3);
-  const lfsrHz = GB_CLOCK / (div * Math.pow(2, (shift || 0) + 1));
+  const { lfsrHz, width } = resolveNoisePlayback(inst as Record<string, unknown>, noteContext, previewMode);
 
   let phase = 0;
   let lfsr = 1;

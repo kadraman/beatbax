@@ -56,6 +56,8 @@ export const StorageKey = {
   AUDIO_BUFFER_FRAMES: 'audio.bufferFrames',
   /** Default loop playback (boolean). */
   PLAYBACK_LOOP: 'playback.loop',
+  /** Game Boy noise preview mode ('uge' | 'legacy'). */
+  GB_NOISE_PREVIEW_MODE: 'playback.gbNoisePreviewMode',
   /** Master output volume for the transport knob (0-100). */
   MASTER_VOLUME: 'transport.masterVolume',
   /** Last export format used. */

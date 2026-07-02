@@ -24,6 +24,9 @@ export const playbackDuration = atom<number>(0);
 /** Whether live-play mode is active. */
 export const playbackLiveMode = atom<boolean>(false);
 
+/** True when Game Boy UGE-compatible noise preview is active. */
+export const playbackGbUgePreviewActive = atom<boolean>(false);
+
 /** Formatted playback time string, e.g. "1:23". */
 export const playbackTimeLabel = atom<string>('0:00');
 

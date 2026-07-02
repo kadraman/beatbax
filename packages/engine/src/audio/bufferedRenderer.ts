@@ -1,6 +1,13 @@
 import { playPulse as playPulseImpl } from '../chips/gameboy/pulse.js';
 import { playWavetable as playWavetableImpl } from '../chips/gameboy/wave.js';
-import { playNoise as playNoiseImpl } from '../chips/gameboy/noise.js';
+import { playNoise as playNoiseImpl, type GbNoisePreviewMode, type NoiseNoteContext } from '../chips/gameboy/noise.js';
+import {
+  createGbMonophonicNoiseState,
+  resolveGbNoiseDurationSamples,
+  type GbMonophonicNoiseState,
+} from '../chips/gameboy/gbLength.js';
+import { resolveNoisePlayback } from '../chips/gameboy/noiseNoteTable.js';
+import { parseEnvelope } from '../chips/gameboy/pulse.js';
 import type TickScheduler from '../scheduler/tickScheduler.js';
 
 type RenderEvent = {
@@ -18,6 +25,10 @@ export class BufferedRenderer {
   private pendingRenders: Set<number> = new Set();
   private scheduledNodes: Array<{ src: any; gain: any; segStart: number; chId?: number }> = [];
   private maxPreRenderSegments?: number;
+  private gbNoisePreviewMode: GbNoisePreviewMode = 'uge';
+  private noiseNoteContext?: NoiseNoteContext;
+  /** Per-segment monophonic CH4 scratch buffers keyed by `${segStart}:${chId}`. */
+  private segmentNoiseVoice = new Map<string, GbMonophonicNoiseState>();
 
   private applyEffectsToNodes(ctx: any, nodes: any[], pan: any, effects: any[] | undefined, start: number, dur: number) {
     // Apply inline effect array first
@@ -71,9 +82,10 @@ export class BufferedRenderer {
     }
   }
 
-  constructor(ctx: BaseAudioContext, scheduler: TickScheduler, opts: { segmentDuration?: number; lookahead?: number; maxPreRenderSegments?: number } = {}) {
+  constructor(ctx: BaseAudioContext, scheduler: TickScheduler, opts: { segmentDuration?: number; lookahead?: number; maxPreRenderSegments?: number; gbNoisePreviewMode?: GbNoisePreviewMode } = {}) {
     this.ctx = ctx;
     this.scheduler = scheduler;
+    this.gbNoisePreviewMode = opts.gbNoisePreviewMode ?? 'uge';
     // Allow overriding segment duration via options or environment for debugging/exports
     const envSegRaw = typeof process !== 'undefined' && (process.env && process.env.BEATBAX_SEGMENT_DUR) ? process.env.BEATBAX_SEGMENT_DUR : undefined;
     const envSeg = typeof envSegRaw !== 'undefined' ? Number(envSegRaw) : undefined;
@@ -121,8 +133,22 @@ export class BufferedRenderer {
     const length = Math.ceil(renderDur * sampleRate);
     const offline = new (globalThis as any).OfflineAudioContext(1, length, sampleRate) as OfflineAudioContext;
 
-    for (const ev of events) {
+    for (const ev of events.sort((a, b) => a.localStart - b.localStart)) {
       try { ev.renderFn(offline); } catch (e) {}
+    }
+
+    const segPrefix = `${segStart}:`;
+    for (const [key, voice] of this.segmentNoiseVoice.entries()) {
+      if (!key.startsWith(segPrefix)) continue;
+      try {
+        const mono = offline.createBuffer(1, voice.scratch.length, sampleRate);
+        mono.getChannelData(0).set(voice.scratch);
+        const src = offline.createBufferSource();
+        src.buffer = mono;
+        src.connect(offline.destination);
+        src.start(0);
+      } catch (_) {}
+      this.segmentNoiseVoice.delete(key);
     }
 
     try {
@@ -141,6 +167,21 @@ export class BufferedRenderer {
       for (const ev of events) { try { ev.renderFn(undefined as any); } catch (_) {} }
     }
     this.segments.delete(segStart);
+  }
+
+  stopActiveVoice(chId: number, atTime: number) {
+    const keep: typeof this.scheduledNodes = [];
+    const renderEnd = (segStart: number) => segStart + this.segmentDur + 0.05;
+    for (const n of this.scheduledNodes) {
+      if (n.chId === chId && renderEnd(n.segStart) > atTime) {
+        try { if (n.src?.stop) n.src.stop(); } catch (_) {}
+        try { if (n.src?.disconnect) n.src.disconnect(); } catch (_) {}
+        try { if (n.gain?.disconnect) n.gain.disconnect(); } catch (_) {}
+      } else {
+        keep.push(n);
+      }
+    }
+    this.scheduledNodes = keep;
   }
 
   stop(chId?: number) {
@@ -217,22 +258,110 @@ export class BufferedRenderer {
     return enq;
   }
 
-  enqueueNoise(absTime: number, dur: number, inst: any, chId?: number, pan?: any, effects?: any[]) {
+  setGbNoisePreviewMode(mode: GbNoisePreviewMode): void {
+    this.gbNoisePreviewMode = mode;
+  }
+
+  enqueueNoise(absTime: number, dur: number, inst: any, chId?: number, pan?: any, effects?: any[], noteContext?: NoiseNoteContext) {
+    const previewMode = this.gbNoisePreviewMode;
+    const noteCtx = noteContext ?? this.noiseNoteContext;
+    const segStart = this.segmentKeyForTime(absTime);
+    const voiceKey = typeof chId === 'number' ? `${segStart}:${chId}` : undefined;
+
+    this.scheduler.schedule(absTime, () => {
+      if (typeof chId === 'number') this.stopActiveVoice(chId, absTime);
+    });
+
     const enq = this.enqueueEvent(absTime, dur, (offlineCtx) => {
-      const local = absTime - (this.segmentKeyForTime(absTime));
+      const local = absTime - segStart;
+      const sr = offlineCtx.sampleRate;
+      const segSamples = Math.ceil((this.segmentDur + 0.05) * sr);
+      const localStartSample = Math.floor(local * sr);
+      const durSamples = Math.max(1, Math.floor(dur * sr));
+
+      if (voiceKey) {
+        let voice = this.segmentNoiseVoice.get(voiceKey);
+        if (!voice) {
+          voice = createGbMonophonicNoiseState(segSamples);
+          this.segmentNoiseVoice.set(voiceKey, voice);
+        }
+        const effectiveSamples = resolveGbNoiseDurationSamples(durSamples, sr, inst ?? {});
+        if (localStartSample < voice.voiceEndSample) {
+          voice.scratch.fill(0, localStartSample, Math.min(voice.voiceEndSample, voice.scratch.length));
+        }
+        synthesizeNoiseIntoBuffer(voice.scratch, localStartSample, effectiveSamples, inst, sr, noteCtx, previewMode);
+        voice.voiceEndSample = localStartSample + effectiveSamples;
+        return;
+      }
+
       try {
-        const nodes = playNoiseImpl(offlineCtx as any, local, dur, inst) || [];
+        const nodes = playNoiseImpl(offlineCtx as any, local, dur, inst, undefined, undefined, undefined, noteCtx, previewMode) || [];
         try { this.applyEffectsToNodes(offlineCtx as any, nodes, pan, effects, local, dur); } catch (e) {}
       } catch (e) {}
     }, chId);
     if (!enq) {
       this.scheduler.schedule(absTime, () => { try {
-        const nodes = playNoiseImpl(this.ctx as any, absTime, dur, inst) || [];
+        const nodes = playNoiseImpl(this.ctx as any, absTime, dur, inst, undefined, undefined, undefined, noteCtx, previewMode) || [];
         try { this.applyEffectsToNodes(this.ctx as any, nodes, pan, effects, absTime, dur); } catch (e) {}
       } catch (_) {} });
     }
     return enq;
   }
+}
+
+/** PCM-only noise synthesis for buffered segment mixing (no WebAudio nodes). */
+function synthesizeNoiseIntoBuffer(
+  buffer: Float32Array,
+  start: number,
+  duration: number,
+  inst: any,
+  sampleRate: number,
+  noteContext?: NoiseNoteContext,
+  previewMode: GbNoisePreviewMode = 'uge',
+) {
+  const { lfsrHz, width } = resolveNoisePlayback(inst ?? {}, noteContext, previewMode);
+  const envelope = parseEnvelope(inst?.env);
+  let phase = 0;
+  let lfsr = 1;
+  const is7bit = width === 7;
+
+  function stepLFSR(state: number): number {
+    const bit = ((state >> 0) ^ (state >> 1)) & 1;
+    state = (state >> 1) | (bit << 14);
+    if (is7bit) {
+      const low7 = ((state >> 8) & 0x7F) >>> 0;
+      const newLow7 = ((low7 >> 1) | ((low7 & 1) << 6)) & 0x7F;
+      state = (state & ~(0x7F << 8)) | (newLow7 << 8);
+    }
+    return state >>> 0;
+  }
+
+  for (let i = 0; i < duration; i++) {
+    const t = i / sampleRate;
+    phase += lfsrHz / sampleRate;
+    const ticks = Math.floor(phase);
+    if (ticks > 0) {
+      for (let tick = 0; tick < ticks; tick++) lfsr = stepLFSR(lfsr);
+      phase -= ticks;
+    }
+    const noise = (lfsr & 1) ? 1.0 : -1.0;
+    const envVal = gbEnvelopeValueAt(t, envelope);
+    const idx = start + i;
+    if (idx < buffer.length) buffer[idx] += noise * envVal * 0.5;
+  }
+}
+
+function gbEnvelopeValueAt(t: number, envObj: ReturnType<typeof parseEnvelope>): number {
+  if (!envObj || envObj.mode !== 'gb') return 1;
+  const initial = envObj.initial ?? 15;
+  const period = envObj.period ?? 0;
+  if (!period) return Math.max(0, Math.min(1, initial / 15));
+  const stepDuration = period * (1 / 64);
+  const currentStep = Math.floor(t / stepDuration);
+  const volume = envObj.direction === 'up'
+    ? Math.min(15, initial + currentStep)
+    : Math.max(0, initial - currentStep);
+  return Math.max(0, Math.min(1, volume / 15));
 }
 
 export default BufferedRenderer;

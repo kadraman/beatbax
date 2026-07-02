@@ -2,10 +2,11 @@
 #
 # `uge_note` lets noise instruments declare the exact note that should appear
 # in hUGETracker after UGE export. Use hUGETracker display notation such as
-# C-6, C-7, or C-8. This is separate from Game Boy playback: the noise sound
-# is still controlled by width, envelope, divisor, shift, and length.
+# C-6, C-7, or C-8. Playback pitch follows the same hUGEDriver note table as
+# export; `gb:width`, envelope, and `length=` shape the timbre and duration.
 #
-# Use this when named percussion hits should be easy to read in hUGETracker.
+# Tuning below matches gb_percussion_demo (typical hUGETracker kit), not a
+# synthetic C-6/C-7/C-8 ladder.
 
 chip gameboy
 bpm 128
@@ -18,11 +19,11 @@ song tags "gameboy,instrument,demo,uge,noise"
 inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":3,"format":"gb"} gm=39
 inst lead type=pulse1 duty=50 env={"level":8,"direction":"down","period":2,"format":"gb"} gm=81
 
-# Noise instruments use explicit hUGETracker display notation for UGE rows.
-# These named hits will export as C-6, C-7, and C-8 respectively.
-inst kick  type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6
-inst snare type=noise gb:width=7  env={"level":10,"direction":"down","period":2,"format":"gb"} length=16 uge_note=C-7
-inst hat   type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"}  length=8  uge_note=C-8
+# Noise: 7-bit for kick/snare (metallic), 15-bit for hat (white noise).
+# uge_note values match gb_percussion_demo note= mapping (C5→C-6, C6→C-7).
+inst kick  type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 gb:uge_note=C-6
+inst snare type=noise gb:width=7  env={"level":10,"direction":"down","period":2,"format":"gb"} length=16 gb:uge_note=C-6
+inst hat   type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"}  length=8  gb:uge_note=C-7
 
 pat bass_a = C3 . C3 . G2 . A#2 .
 pat bass_b = C3 . C3 . F2 . G2 .
@@ -33,8 +34,8 @@ pat lead_b = G5 . F5 . E5 . D5 .
 pat drums_a = kick hat snare hat kick hat snare hat
 pat drums_b = kick hat snare hat kick kick snare hat
 
-channel 1 => inst lead seq lead_a lead_b lead_a lead_b
-channel 2 => inst bass seq bass_a bass_b bass_a bass_b
+#channel 1 => inst lead seq lead_a lead_b lead_a lead_b
+#channel 2 => inst bass seq bass_a bass_b bass_a bass_b
 channel 4 => inst kick seq drums_a drums_b drums_a drums_b
 
 play

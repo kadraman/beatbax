@@ -95,6 +95,7 @@ import { MenuBar } from './ui/menu-bar';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { ThemeManager } from './ui/theme-manager';
 import { TransportBar } from './ui/transport-bar';
+import { playbackGbUgePreviewActive } from '@beatbax/app-core/stores/playback.store';
 import { PatternGrid } from './ui/pattern-grid';
 import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
@@ -828,6 +829,9 @@ eventBus.on('playback:started', () => {
 // ─── TransportBar + TransportControls ────────────────────────────────────────
 const transportBar = new TransportBar({ container: layoutHost });
 if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
+playbackGbUgePreviewActive.subscribe((active) => {
+  try { transportBar.setUgePreviewActive(active); } catch (_) {}
+});
 
 // ─── Pattern Grid (sequence overview, sits below TransportBar) ───────────────
 let patternGrid: PatternGrid | null = null;

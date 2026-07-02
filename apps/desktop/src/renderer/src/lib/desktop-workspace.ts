@@ -4,6 +4,7 @@ import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
+import { playbackGbUgePreviewActive } from '@beatbax/app-core/stores/playback.store';
 import { settingDefaultBpm, settingSongArtist } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
@@ -157,6 +158,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   const transportBar = createDesktopTransportBar(layoutHost);
   if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
+  playbackGbUgePreviewActive.subscribe((active) => {
+    try { transportBar.setUgePreviewActive(active); } catch (_) {}
+  });
   suppressChromeTabFocus(transportBar.el);
 
   let patternGrid: DesktopPatternGridHandle | null = null;

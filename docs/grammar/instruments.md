@@ -129,12 +129,12 @@ Implementation note
 The noise channel (`type=noise`) uses a linear-feedback shift register to produce percussion and sound effects.
 
 ### Modes & parameters
-- `width=7` (7-bit) — metallic, high-frequency noise (hi-hats, shakers)
-- `width=15` (15-bit) — broader, fuller noise (snares, ambience)
-- `divisor` and `shift` control the LFSR update rate: higher `shift` → lower pitched noise. Use combinations to sculpt brightness/time.
+- `width=7` (7-bit) — short-period LFSR, metallic/tonal noise (snares, toms, rim shots)
+- `width=15` (15-bit) — long-period white noise (hi-hats, cymbals, shakers)
+- `length=N` — when set, caps note duration at N/256 seconds (Game Boy length counter)
 
 ### Percussion & envelopes
-- Short, high-initial envelopes with width=7 are great for hi-hats; longer envelopes with width=15 produce snares and toms.
+- Short envelopes with `width=15` suit hi-hats; `width=7` with medium decay suits snares and toms.
 
 ---
 

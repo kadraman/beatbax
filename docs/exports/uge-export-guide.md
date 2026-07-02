@@ -138,7 +138,7 @@ inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 pat drums = kick hat snare hat
 ```
 
-`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C#7`, `C-8`) and only affects UGE export. Game Boy noise playback is still controlled by the noise parameters, not by musical pitch. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax note notation, so `note=C6` displays as `C-7` in hUGETracker.
+`gb:uge_note=` (alias `uge_note=`) uses hUGETracker display notation directly (`C-6`, `C-7`, `C#7`, `C-8`). With **UGE preview mode** (default), BeatBax playback derives the same NR43 noise clock from this note as UGE export. If omitted, legacy `note=` values are converted through BeatBax note notation, so `note=C6` displays as `C-7` in hUGETracker.
 
 ### Pattern Structure
 - Each pattern can contain up to 64 rows
@@ -283,7 +283,7 @@ UGE export output:
 
 ### Noise Channel Note Mapping
 
-The Game Boy noise channel doesn't use traditional musical pitches. Noise sound is controlled by LFSR width, divisor, shift, envelope, and length. hUGETracker still displays a note in the noise pattern row, so BeatBax supports `uge_note=` for named noise hits:
+The Game Boy noise channel doesn't use traditional musical pitches. In hUGETracker, the pattern-row note selects the NR43 LFSR clock; BeatBax mirrors this via `gb:uge_note=` plus `gb:width`, `env`, and `length`:
 
 - `uge_note=C-6` writes UGE note index 36.
 - `uge_note=C-7` writes UGE note index 48.
@@ -313,7 +313,7 @@ pat drums = kick . snare . hat hat kick snare
 channel 4 => inst kick pat drums
 ```
 
-**Important:** `uge_note=` applies during UGE export only. BeatBax playback uses the instrument's noise parameters, and MIDI export maps noise hits to percussion according to its own rules.
+**Important:** With UGE preview mode (Settings → Playback), BeatBax playback uses the same note-index → NR43 mapping as UGE export. Legacy preview mode retains pre-parity fixed-clock behavior. MIDI export maps noise hits to percussion according to its own rules.
 
 ### Vibrato (vib) mapping
 

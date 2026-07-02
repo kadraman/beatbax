@@ -34,6 +34,7 @@ export interface DesktopTransportBarHandle {
   resetPosition: () => void;
   setVol: (pct: number) => void;
   flashBeatLed: () => void;
+  setUgePreviewActive: (active: boolean) => void;
 }
 
 function DesktopTransportBar(): React.JSX.Element {
@@ -46,6 +47,7 @@ function DesktopTransportBar(): React.JSX.Element {
         <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">BAR:BT</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000:0</span><span className="bb-transport__lcd-value" data-lcd="bar-beat">001:1</span></div></div>
         <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">STEP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000/000</span><span className="bb-transport__lcd-value" data-lcd="step">001/001</span></div></div>
         <div className="bb-transport__lcd bb-transport__lcd--pri-2" data-lcd-wrap="loop"><span className="bb-transport__lcd-label">LOOP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000</span><span className="bb-transport__lcd-value" data-lcd="loop">0FF</span></div></div>
+        <div className="bb-transport__lcd bb-transport__lcd--pri-2" data-lcd-wrap="uge-preview" hidden><span className="bb-transport__lcd-label">UGE</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">---</span><span className="bb-transport__lcd-value" data-lcd="uge-preview">---</span></div></div>
       </div>
 
       <div className="bb-transport__separator bb-transport__separator--pri-3" />
@@ -96,6 +98,8 @@ export function createDesktopTransportBar(container: HTMLElement): DesktopTransp
   const stepEl = required<HTMLElement>(host, '[data-lcd="step"]');
   const loopEl = required<HTMLElement>(host, '[data-lcd="loop"]');
   const loopLcd = required<HTMLElement>(host, '[data-lcd-wrap="loop"]');
+  const ugeEl = required<HTMLElement>(host, '[data-lcd="uge-preview"]');
+  const ugeLcd = required<HTMLElement>(host, '[data-lcd-wrap="uge-preview"]');
   const volEl = required<HTMLElement>(host, '[data-lcd="vol"]');
   const beatLed = required<HTMLElement>(host, '.bb-transport__beat-led');
   const volKnobHost = required<HTMLElement>(host, '[data-volume-knob-host]');
@@ -163,6 +167,11 @@ export function createDesktopTransportBar(container: HTMLElement): DesktopTransp
       beatLed.classList.remove('bb-transport__beat-led--flash');
       void beatLed.offsetWidth;
       beatLed.classList.add('bb-transport__beat-led--flash');
+    },
+    setUgePreviewActive: (active) => {
+      ugeLcd.hidden = !active;
+      ugeLcd.classList.toggle('bb-transport__lcd--active', active);
+      ugeEl.textContent = active ? '0N ' : '---';
     },
   };
 }

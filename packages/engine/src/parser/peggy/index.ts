@@ -1021,7 +1021,7 @@ export function parseWithPeggy(source: string): ParseResult {
     pulse1: new Set(['duty', 'sweep', 'width']),
     pulse2: new Set(['duty', 'width']),
     wave:   new Set(['wave']),
-    noise:  new Set(['width', 'divisor', 'shift', 'lfsr']),
+    noise:  new Set(['width', 'lfsr', 'uge_note', 'noise']),
   };
   if (chipIsKnown) for (const [instName, instDef] of Object.entries(insts)) {
     const p = instDef as any;

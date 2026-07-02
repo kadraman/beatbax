@@ -5,7 +5,7 @@
 type AST = any;
 import { playPulse as playPulseImpl, parseEnvelope as pulseParseEnvelope } from '../chips/gameboy/pulse.js';
 import { playWavetable as playWavetableImpl, parseWaveTable } from '../chips/gameboy/wave.js';
-import { playNoise as playNoiseImpl } from '../chips/gameboy/noise.js';
+import { playNoise as playNoiseImpl, type GbNoisePreviewMode, type NoiseNoteContext } from '../chips/gameboy/noise.js';
 import { noteNameToMidi, midiToFreq } from '../chips/gameboy/apu.js';
 import TickScheduler from '../scheduler/tickScheduler.js';
 import { error } from '../util/diag.js';
@@ -139,8 +139,17 @@ function playWavetable(ctx: any, freq: number, table: number[], start: number, d
   return playWavetableImpl(ctx, freq, table, start, dur, inst, scheduler, destination);
 }
 
-function playNoise(ctx: any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
-  return playNoiseImpl(ctx, start, dur, inst, scheduler, destination);
+function playNoise(
+  ctx: any,
+  start: number,
+  dur: number,
+  inst: any,
+  scheduler?: any,
+  destination?: AudioNode,
+  noteContext?: NoiseNoteContext,
+  previewMode?: GbNoisePreviewMode,
+) {
+  return playNoiseImpl(ctx, start, dur, inst, scheduler, destination, undefined, noteContext, previewMode);
 }
 
 export class Player {
@@ -193,6 +202,7 @@ export class Player {
   // Per-channel last note frequency used to seed portamento on notes that use
   // port without the previous note also using port.
   private _lastNoteFreqByChannel: Map<number, number> = new Map();
+  private _gbNoisePreviewMode: GbNoisePreviewMode = 'uge';
 
   /** Check localStorage for debug flag (browser only) */
   private static isDebugEnabled(): boolean {
@@ -211,6 +221,7 @@ export class Player {
     analyserSmoothing?: number;
     uiUpdateHz?: number;
     emittedSampleCount?: number;
+    gbNoisePreviewMode?: GbNoisePreviewMode;
   } = {}) {
     if (!ctx) {
       const Ctor = (typeof window !== 'undefined' && (window as any).AudioContext) ? (window as any).AudioContext : (globalThis as any).AudioContext;
@@ -223,6 +234,7 @@ export class Player {
     }
     this.scheduler = createScheduler(this.ctx) as TickScheduler;
     this._debugLog = Player.isDebugEnabled(); // Initialize debug flag from localStorage
+    this._gbNoisePreviewMode = opts.gbNoisePreviewMode ?? 'uge';
     if (opts.enablePerChannelAnalyser) {
       this._enableAnalyser = true;
       if (opts.analyserFftSize) this._analyserFftSize = opts.analyserFftSize;
@@ -231,8 +243,26 @@ export class Player {
       if (opts.emittedSampleCount) this._emittedSampleCount = opts.emittedSampleCount;
     }
     if (opts.buffered) {
-      (this as any)._buffered = new BufferedRenderer(this.ctx, this.scheduler as any, { segmentDuration: opts.segmentDuration, lookahead: opts.bufferedLookahead, maxPreRenderSegments: opts.maxPreRenderSegments });
+      (this as any)._buffered = new BufferedRenderer(this.ctx, this.scheduler as any, {
+        segmentDuration: opts.segmentDuration,
+        lookahead: opts.bufferedLookahead,
+        maxPreRenderSegments: opts.maxPreRenderSegments,
+        gbNoisePreviewMode: this._gbNoisePreviewMode,
+      });
     }
+  }
+
+  /** Game Boy noise preview: `uge` uses hUGEDriver note table; `legacy` uses pre-parity defaults. */
+  setGbNoisePreviewMode(mode: GbNoisePreviewMode): void {
+    this._gbNoisePreviewMode = mode;
+    const buffered = (this as any)._buffered as any;
+    if (buffered && typeof buffered.setGbNoisePreviewMode === 'function') {
+      buffered.setGbNoisePreviewMode(mode);
+    }
+  }
+
+  get gbNoisePreviewMode(): GbNoisePreviewMode {
+    return this._gbNoisePreviewMode;
   }
 
   /**
@@ -710,7 +740,8 @@ export class Player {
             return;
           }
           if (this._debugLog) log.debug(`Playing ch${chId} noise (named inst) at ${time.toFixed(2)}s`);
-          const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this._getChannelDest(chId));
+          this._stopActiveChannelVoice(chId, time);
+          const nodes = playNoise(this.ctx, time, dur, alt, this.scheduler, this._getChannelDest(chId), undefined, this._gbNoisePreviewMode);
           const endTime0 = time + dur + 0.1;
           for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime0 });
         });
@@ -907,7 +938,8 @@ export class Player {
               return;
             }
             if (this._debugLog) log.debug(`Playing ch${chId} noise at ${time.toFixed(2)}s`);
-            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId));
+            this._stopActiveChannelVoice(chId, time);
+            const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId), { patternNote: tokenStr }, this._gbNoisePreviewMode);
             this.tryApplyEffects(this.ctx, nodes, token && token.effects ? token.effects : [], time, dur, chId, tickSeconds);
             // Apply panning first, before echo/retrigger, so panner is inserted before echo routing
             this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
@@ -932,7 +964,8 @@ export class Player {
           }
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId));
+          this._stopActiveChannelVoice(chId, time);
+          const nodes = playNoise(this.ctx, time, dur, inst, this.scheduler, this._getChannelDest(chId), undefined, this._gbNoisePreviewMode);
           this.tryApplyPan(this.ctx, nodes, panVal, this._getChannelDest(chId));
           const endTime4 = time + dur + 0.1;
           for (const n of nodes) this.activeNodes.push({ node: n, chId, endTime: endTime4 });
@@ -1076,7 +1109,8 @@ export class Player {
         this.scheduler.schedule(capturedTime, () => {
           if (this.solo !== null && this.solo !== chId) return;
           if (this.muted.has(chId)) return;
-          const retrigNodes = playNoise(this.ctx, capturedTime, retrigDur, capturedInst, this.scheduler, this._getChannelDest(chId));
+          this._stopActiveChannelVoice(chId, capturedTime);
+          const retrigNodes = playNoise(this.ctx, capturedTime, retrigDur, capturedInst, this.scheduler, this._getChannelDest(chId), undefined, this._gbNoisePreviewMode);
           const effectsWithoutRetrig = (capturedToken && capturedToken.effects ? capturedToken.effects : []).filter((fx: any) => {
             const fxType = fx && fx.type ? fx.type : fx;
             return fxType !== 'retrig';
@@ -1653,11 +1687,23 @@ export class Player {
   }
 
   stopChannel(chId: number) {
-    const keep: Array<{ node: any; chId: number }> = [];
+    this._stopActiveChannelVoice(chId);
+    try {
+      const buffered = (this as any)._buffered as any;
+      if (buffered && typeof buffered.stop === 'function') {
+        buffered.stop(chId);
+      }
+    } catch (e) {}
+  }
+
+  /** Stop CH4 (or any channel) voices still sounding at `atTime` — hardware retrigger behaviour. */
+  private _stopActiveChannelVoice(chId: number, atTime?: number) {
+    const cutAfter = atTime ?? this.ctx.currentTime;
+    const keep: Array<{ node: any; chId: number; endTime?: number }> = [];
     for (const entry of this.activeNodes) {
-      if (entry.chId === chId) {
-        try { if (entry.node && typeof entry.node.stop === 'function') entry.node.stop(); } catch (e) {}
-        try { if (entry.node && typeof entry.node.disconnect === 'function') entry.node.disconnect(); } catch (e) {}
+      if (entry.chId === chId && (!entry.endTime || entry.endTime > cutAfter)) {
+        try { if (entry.node?.stop) entry.node.stop(); } catch (_) {}
+        try { if (entry.node?.disconnect) entry.node.disconnect(); } catch (_) {}
       } else {
         keep.push(entry);
       }
@@ -1665,10 +1711,10 @@ export class Player {
     this.activeNodes = keep;
     try {
       const buffered = (this as any)._buffered as any;
-      if (buffered && typeof buffered.stop === 'function') {
-        buffered.stop(chId);
+      if (buffered && typeof buffered.stopActiveVoice === 'function') {
+        buffered.stopActiveVoice(chId, cutAfter);
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 }
 

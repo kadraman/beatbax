@@ -10,7 +10,7 @@ import { buildImportResolverOptions } from '../import/import-resolver-options.js
 import { channelStates, setChannelMuted, setChannelSoloed } from '../stores/channel.store.js';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { storage, StorageKey } from '../utils/local-storage.js';
-import { settingAudioSampleRate } from '../stores/settings.store.js';
+import { settingAudioSampleRate, settingGbNoisePreviewMode } from '../stores/settings.store.js';
 import {
   playbackStatus,
   playbackBpm,
@@ -18,6 +18,7 @@ import {
   playbackDuration,
   playbackTimeLabel,
   playbackError,
+  playbackGbUgePreviewActive,
 } from '../stores/playback.store.js';
 import {
   parseStatus,
@@ -125,6 +126,34 @@ export class PlaybackManager {
         }
       }
     });
+
+    settingGbNoisePreviewMode.subscribe((mode) => {
+      this._applyGbNoisePreviewMode(mode);
+    });
+  }
+
+  private _applyGbNoisePreviewMode(mode: 'uge' | 'legacy'): void {
+    if (this.player) {
+      try { this.player.setGbNoisePreviewMode(mode); } catch (_) {}
+    }
+    this._syncGbUgePreviewBadge();
+  }
+
+  /** Update Game Boy noise preview mode (UGE table vs legacy defaults). */
+  setGbNoisePreviewMode(mode: 'uge' | 'legacy'): void {
+    settingGbNoisePreviewMode.set(mode);
+    this._applyGbNoisePreviewMode(mode);
+  }
+
+  getGbNoisePreviewMode(): 'uge' | 'legacy' {
+    return settingGbNoisePreviewMode.get();
+  }
+
+  private _syncGbUgePreviewBadge(chip?: string): void {
+    const chipName = chip ?? parsedChip.get();
+    playbackGbUgePreviewActive.set(
+      chipName === 'gameboy' && settingGbNoisePreviewMode.get() === 'uge',
+    );
   }
 
   /**
@@ -323,6 +352,7 @@ export class PlaybackManager {
       parseStatus.set('success');
       parsedBpm.set((resolved as any).bpm || 120);
       parsedChip.set((resolved as any).chip || 'gameboy');
+      this._syncGbUgePreviewBadge((resolved as any).chip || 'gameboy');
       playbackBpm.set((resolved as any).bpm || 120);
 
       // Create player if needed
@@ -333,7 +363,7 @@ export class PlaybackManager {
           : (globalThis as any).AudioContext;
         if (!Ctor) throw new Error('No AudioContext constructor found.');
         const audioCtx = new Ctor({ sampleRate });
-        this.player = new Player(audioCtx);
+        this.player = new Player(audioCtx, { gbNoisePreviewMode: settingGbNoisePreviewMode.get() });
         // If the user adjusted master volume before playback started, apply it now
         if (this._pendingMasterVolume !== null) {
           try { this.player.setMasterVolume(this._pendingMasterVolume); } catch (e) { /* ignore */ }

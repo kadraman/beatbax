@@ -11,6 +11,7 @@ import { InstrumentNode } from '../../parser/ast.js';
 import { gameboyUIContributions } from './ui-contributions.js';
 import { version } from '../../version.js';
 import { gbSongWizard } from './songWizard.js';
+import { resolveNoisePlayback, type GbNoisePreviewMode } from './noiseNoteTable.js';
 
 // ─── Per-channel PCM backends ─────────────────────────────────────────────────
 
@@ -27,8 +28,11 @@ class GBChannelBackend implements ChipChannelBackend {
   private currentInst: InstrumentNode | null = null;
   private active: boolean = false;
 
-  constructor(channelIndex: number) {
+  private gbNoisePreviewMode: GbNoisePreviewMode = 'uge';
+
+  constructor(channelIndex: number, gbNoisePreviewMode: GbNoisePreviewMode = 'uge') {
     this.channelIndex = channelIndex;
+    this.gbNoisePreviewMode = gbNoisePreviewMode;
   }
 
   reset(): void {
@@ -103,13 +107,14 @@ class GBChannelBackend implements ChipChannelBackend {
 
   private _renderNoise(buffer: Float32Array, sampleRate: number): void {
     const inst = this.currentInst!;
-    const divisor = inst.divisor ? Number(inst.divisor) : 3;
-    const shift = inst.shift ? Number(inst.shift) : 4;
-    const GB_CLOCK = 4194304;
-    const div = Math.max(1, divisor);
-    const lfsrHz = GB_CLOCK / (div * Math.pow(2, (shift || 0) + 1));
+    const { lfsrHz, width } = resolveNoisePlayback(
+      inst as Record<string, unknown>,
+      undefined,
+      this.gbNoisePreviewMode,
+    );
     let phase = 0;
     let lfsr = 1;
+    const is7bit = width === 7;
     const len = buffer.length;
     for (let i = 0; i < len; i++) {
       phase += lfsrHz / sampleRate;
@@ -118,6 +123,11 @@ class GBChannelBackend implements ChipChannelBackend {
         for (let t = 0; t < ticks; t++) {
           const bit = ((lfsr >> 0) ^ (lfsr >> 1)) & 1;
           lfsr = ((lfsr >> 1) | (bit << 14)) >>> 0;
+          if (is7bit) {
+            const low7 = ((lfsr >> 8) & 0x7F) >>> 0;
+            const newLow7 = ((low7 >> 1) | ((low7 & 1) << 6)) & 0x7F;
+            lfsr = (lfsr & ~(0x7F << 8)) | (newLow7 << 8);
+          }
         }
         phase -= ticks;
       }
@@ -158,7 +168,23 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
       field: 'type',
       message: `Unknown Game Boy instrument type '${inst.type}'. Valid types: ${[...VALID_GB_TYPES].join(', ')}`
     });
-    return errors; // No point checking other fields if type is unknown
+    return errors;
+  }
+
+  const commonProps = new Set(['type', 'volume', 'vol', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan', 'gb:pan']);
+  const typeProps: Record<string, Set<string>> = {
+    pulse1: new Set(['duty', 'sweep', 'width', 'gb:width']),
+    pulse2: new Set(['duty', 'width', 'gb:width']),
+    wave: new Set(['wave']),
+    noise: new Set(['width', 'gb:width', 'lfsr', 'uge_note', 'gb:uge_note', 'noise']),
+  };
+  const allowed = new Set([...commonProps, ...(typeProps[type] ?? [])]);
+  for (const key of Object.keys(inst)) {
+    if (key === '__loc') continue;
+    const bare = key.includes(':') ? key.split(':').pop()!.toLowerCase() : key.toLowerCase();
+    if (!allowed.has(bare) && !allowed.has(key.toLowerCase())) {
+      errors.push({ field: key, message: `unknown property '${key}'` });
+    }
   }
 
   if (type.includes('pulse')) {

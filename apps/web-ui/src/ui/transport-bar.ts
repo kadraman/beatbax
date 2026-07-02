@@ -49,12 +49,16 @@ export class TransportBar {
     const barBeatLcd = this._mkLcd('BAR:BT', '001:1', '000:0');
     const stepLcd    = this._mkLcd('STEP',   '001/001', '000/000');
     const loopLcd    = this._mkLcd('LOOP',   '0FF',   '000');
+    const ugeLcd     = this._mkLcd('UGE',    '---',   '---');
 
     // Priority classes drive the responsive hide cascade
     barBeatLcd.lcd.classList.add('bb-transport__lcd--pri-1');
     stepLcd.lcd.classList.add('bb-transport__lcd--pri-1');
     timeLcd.lcd.classList.add('bb-transport__lcd--pri-4');
     loopLcd.lcd.classList.add('bb-transport__lcd--pri-2');
+    ugeLcd.lcd.classList.add('bb-transport__lcd--pri-2');
+    ugeLcd.lcd.style.display = 'none';
+    ugeLcd.lcd.dataset.lcdWrap = 'uge-preview';
 
     // ── Beat indicator LED ───────────────────────────────────────────────
     const beatLed = document.createElement('span');
@@ -65,7 +69,7 @@ export class TransportBar {
 
     infoWrap.append(
       bpmLcd.lcd, timeLcd.lcd, barBeatLcd.lcd,
-      stepLcd.lcd, loopLcd.lcd
+      stepLcd.lcd, loopLcd.lcd, ugeLcd.lcd
     );
     this.el.appendChild(infoWrap);
 
@@ -156,6 +160,8 @@ export class TransportBar {
     this._stepEl    = stepLcd.value;
     this._loopEl    = loopLcd.value;
     this._loopLcd   = loopLcd.lcd;
+    this._ugeEl     = ugeLcd.value;
+    this._ugeLcd    = ugeLcd.lcd;
     this._volEl     = volLcd.value;
     this._beatLed   = beatLed;
   }
@@ -209,6 +215,8 @@ export class TransportBar {
   private _stepEl?:    HTMLElement;
   private _loopEl?:    HTMLElement;
   private _loopLcd?:   HTMLElement;
+  private _ugeLcd?:    HTMLElement;
+  private _ugeEl?:     HTMLElement;
   private _volEl?:     HTMLElement;
   private _beatLed?:   HTMLElement;
 
@@ -242,6 +250,15 @@ export class TransportBar {
       const t = String(Math.max(1, total)).padStart(3, '0');
       this._stepEl.textContent = `${s}/${t}`;
     }
+  }
+
+  /** Show or hide UGE preview badge (Game Boy noise parity mode). */
+  setUgePreviewActive(active: boolean): void {
+    if (this._ugeLcd) {
+      this._ugeLcd.style.display = active ? '' : 'none';
+      this._ugeLcd.classList.toggle('bb-transport__lcd--active', active);
+    }
+    if (this._ugeEl) this._ugeEl.textContent = active ? '0N ' : '---';
   }
 
   /** Toggle the LOOP LCD and css active class. */

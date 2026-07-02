@@ -2,6 +2,7 @@ import {
   settingAudioBufferFrames,
   settingAudioSampleRate,
   settingDefaultLoop,
+  settingGbNoisePreviewMode,
 } from '@beatbax/app-core/stores/settings.store';
 import { useStoreValue } from '../../hooks/useStoreValue';
 import { NoteText, SectionHeading, SelectField, ToggleRow } from './form';
@@ -10,6 +11,7 @@ export function PlaybackSettingsSection(): React.JSX.Element {
   const sampleRate = useStoreValue(settingAudioSampleRate);
   const defaultLoop = useStoreValue(settingDefaultLoop);
   const bufferFrames = useStoreValue(settingAudioBufferFrames);
+  const gbNoisePreviewMode = useStoreValue(settingGbNoisePreviewMode);
 
   return (
     <div className="bb-settings-section">
@@ -38,6 +40,17 @@ export function PlaybackSettingsSection(): React.JSX.Element {
       <NoteText>When on, the loop button on the transport bar is pre-activated on every page load.</NoteText>
 
       <SelectField
+        label="Game Boy noise preview"
+        onChange={(value) => settingGbNoisePreviewMode.set(value as 'uge' | 'legacy')}
+        options={[
+          { value: 'uge', label: 'UGE / hUGEDriver (matches export, default)' },
+          { value: 'legacy', label: 'Legacy (pre-parity fixed clock)' },
+        ]}
+        value={gbNoisePreviewMode}
+      />
+      <NoteText>UGE mode derives noise pitch from gb:uge_note (or note=) via the hUGEDriver note table. A UGE badge appears on the transport bar for Game Boy songs.</NoteText>
+
+      <SelectField
         label="Buffer size (offline render)"
         onChange={(value) => settingAudioBufferFrames.set(value as '1024' | '2048' | '4096' | '8192')}
         options={[
@@ -56,6 +69,7 @@ export function PlaybackSettingsSection(): React.JSX.Element {
 export function resetPlaybackDefaults(): void {
   settingAudioSampleRate.set('44100');
   settingDefaultLoop.set(false);
+  settingGbNoisePreviewMode.set('uge');
   settingAudioBufferFrames.set('4096');
   (window as any).__beatbax_setLoop?.(false);
 }

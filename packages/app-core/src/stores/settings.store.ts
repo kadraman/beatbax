@@ -88,6 +88,11 @@ export const settingAudioSampleRate = stringAtom<'44100' | '48000' | '96000'>(
 
 export const settingDefaultLoop = boolAtom(StorageKey.PLAYBACK_LOOP, false);
 
+export const settingGbNoisePreviewMode = stringAtom<'uge' | 'legacy'>(
+  StorageKey.GB_NOISE_PREVIEW_MODE,
+  'uge',
+);
+
 export const settingAudioBufferFrames = stringAtom<'1024' | '2048' | '4096' | '8192'>(
   StorageKey.AUDIO_BUFFER_FRAMES,
   '4096',
@@ -177,6 +182,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
     StorageKey.AUDIO_SAMPLE_RATE,
     StorageKey.PLAYBACK_LOOP,
     StorageKey.AUDIO_BUFFER_FRAMES,
+    StorageKey.GB_NOISE_PREVIEW_MODE,
   ],
   features: [
     StorageKey.AI_ASSISTANT,

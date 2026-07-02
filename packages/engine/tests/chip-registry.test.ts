@@ -263,7 +263,7 @@ describe('gameboyPlugin', () => {
   test('noise channel renders non-zero audio', () => {
     const ctx = {} as BaseAudioContext;
     const backend = gameboyPlugin.createChannel(3, ctx);
-    backend.noteOn(0, { type: 'noise', divisor: '3', shift: '4' });
+    backend.noteOn(0, { type: 'noise', uge_note: 'C-7', 'gb:width': 7 });
     const buf = new Float32Array(512);
     backend.render(buf, 44100);
     expect(buf.some(s => s !== 0)).toBe(true);

@@ -6,6 +6,7 @@ import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   settingAudioSampleRate,
   settingDefaultLoop, settingAudioBufferFrames,
+  settingGbNoisePreviewMode,
 } from '@beatbax/app-core/stores/settings.store';
 import { sectionHeading, toggle, selectField, noteText } from './general';
 
@@ -37,6 +38,17 @@ export function buildPlaybackSection(): HTMLElement {
   el.appendChild(noteText('When on, the loop button on the transport bar is pre-activated on every page load.'));
 
   el.appendChild(selectField(
+    'Game Boy noise preview',
+    [
+      { value: 'uge', label: 'UGE / hUGEDriver (matches export, default)' },
+      { value: 'legacy', label: 'Legacy (pre-parity fixed clock)' },
+    ],
+    settingGbNoisePreviewMode.get(),
+    (v) => settingGbNoisePreviewMode.set(v as 'uge' | 'legacy'),
+  ));
+  el.appendChild(noteText('UGE mode derives noise pitch from gb:uge_note (or note=) via the hUGEDriver note table. A UGE badge appears on the transport bar for Game Boy songs.'));
+
+  el.appendChild(selectField(
     'Buffer size (offline render)',
     [
       { value: '1024', label: '1 024 frames' },
@@ -55,6 +67,7 @@ export function buildPlaybackSection(): HTMLElement {
 export function resetPlaybackDefaults(): void {
   settingAudioSampleRate.set('44100');
   settingDefaultLoop.set(false);
+  settingGbNoisePreviewMode.set('uge');
   settingAudioBufferFrames.set('4096');
   // Sync loop button to off when resetting
   (window as any).__beatbax_setLoop?.(false);
