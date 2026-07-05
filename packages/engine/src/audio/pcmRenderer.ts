@@ -1,6 +1,7 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope } from '../chips/gameboy/pulse.js';
+import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
@@ -369,6 +370,9 @@ function renderChannel(
       }
       const extendedDur = (nextIdx - i) * tickSeconds;
       if (extendedDur > dur) durationSamples = Math.floor(extendedDur * sampleRate);
+    } else if (isGameBoy && inst.type && inst.type.toLowerCase().includes('noise')) {
+      const playDur = resolveNoisePlayDurationSec(inst as Record<string, unknown>, dur);
+      if (playDur > dur) durationSamples = Math.floor(playDur * sampleRate);
     }
 
     if (ev.type === 'note') {
@@ -431,7 +435,10 @@ function panToGains(panSpec: any): { left: number; right: number } {
   }
   // Ensure p is numeric
   if (p === null) p = 0;
-  // Equal-power panning
+  // hUGETracker stereo export uses dual-mono for center (full level on L+R).
+  // Equal-power center (√2/2 per channel) is ~3 dB quieter and mismatches hUGE WAVs.
+  if (p === 0) return { left: 1, right: 1 };
+  // Equal-power panning for hard L/R and in-between positions
   const angle = ((p + 1) / 2) * (Math.PI / 2);
   const left = Math.cos(angle);
   const right = Math.sin(angle);
@@ -1506,31 +1513,15 @@ function renderNoise(
 
   const durSec = duration / sampleRate;
 
-  // Game Boy noise parameters - support both plain and gb: prefixed properties
-  const width = inst.width ? Number(inst.width) : (inst['gb:width'] ? Number(inst['gb:width']) : 15);
-  const divisor = inst.divisor ? Number(inst.divisor) : (inst['gb:divisor'] ? Number(inst['gb:divisor']) : 3);
-  const shift = inst.shift ? Number(inst.shift) : (inst['gb:shift'] ? Number(inst['gb:shift']) : 4);
+  const width = resolveNoiseWidth(inst as Record<string, unknown>);
+  const width7 = width === 7;
+  const { shift, divisor } = resolveNoiseClock(inst as Record<string, unknown>);
   const GB_CLOCK = 4194304;
 
-  // Calculate LFSR frequency (matches browser implementation)
-  const div = Math.max(1, Number.isFinite(divisor) ? divisor : 3);
-  const lfsrHz = GB_CLOCK / (div * Math.pow(2, (shift || 0) + 1));
+  const lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
 
   let phase = 0;
-  let lfsr = 1;
-  const is7bit = width === 7;
-
-  // LFSR step function (matches browser)
-  function stepLFSR(state: number): number {
-    const bit = ((state >> 0) ^ (state >> 1)) & 1;
-    state = (state >> 1) | (bit << 14);
-    if (is7bit) {
-      const low7 = ((state >> 8) & 0x7F) >>> 0;
-      const newLow7 = ((low7 >> 1) | ((low7 & 1) << 6)) & 0x7F;
-      state = (state & ~(0x7F << 8)) | (newLow7 << 8);
-    }
-    return state >>> 0;
-  }
+  let lfsr = triggerGameBoyLfsr(width7);
 
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
@@ -1540,14 +1531,14 @@ function renderNoise(
     const ticks = Math.floor(phase);
     if (ticks > 0) {
       for (let tick = 0; tick < ticks; tick++) {
-        lfsr = stepLFSR(lfsr);
+        lfsr = stepGameBoyLfsr(lfsr, width7);
       }
       phase -= ticks;
     }
 
-    const noise = (lfsr & 1) ? 1.0 : -1.0;
+    const noise = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
     const envVal = getEnvelopeValue(t, envelope, durSec);
-    const sample = noise * envVal; // 1:1 with pulse (matches Game Boy hardware mix)
+    const sample = noise * envVal;
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
