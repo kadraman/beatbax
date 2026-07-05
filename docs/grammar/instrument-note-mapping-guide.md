@@ -62,11 +62,11 @@ pat drums = snare . snare .  # Clean and readable
 
 1. **For Pulse/Wave instruments with `note=`:** The specified note is played when you use the instrument name as a token.
 
-2. **For Noise instruments with `note=`:** The note value is stored for legacy UGE export compatibility, but playback uses the noise parameters (width, divisor, shift) to generate the sound. Noise channels don't use traditional pitch.
+2. **For Noise instruments with legacy `note=`:** Used for UGE export conversion when `uge_note=` is absent. Does **not** set the playback LFSR clock.
 
-3. **For Noise instruments with `uge_note=`:** UGE export uses the exact hUGETracker display note you write, such as `C-7` or `C-8`. This is preferred for Game Boy noise percussion because it avoids the BeatBax-to-hUGETracker octave offset in author-facing files.
+3. **For Noise instruments with `uge_note=`:** Sets the hUGETracker display note on UGE export **and** the NR43 LFSR clock during BeatBax playback (WebAudio and CLI/WAV). This is the **recommended** approach for Game Boy noise percussion.
 
-4. **Without `note=` or `uge_note=` parameter:** Defaults to C5 (index 24) for backward compatibility in exports.
+4. **Without `note=` or `uge_note=` on noise:** UGE export defaults to C5 (index 24); playback uses default NR43 clock values.
 
 5. **Explicit note overrides:** You can still use explicit note syntax to override:
    ```
@@ -76,18 +76,21 @@ pat drums = snare . snare .  # Clean and readable
 
 ## Important: Noise Channel Behavior
 
-**The Game Boy noise channel does not use traditional musical pitch.** When you specify `note=C6` or `uge_note=C-7` for a noise instrument:
+**The Game Boy noise channel does not use traditional musical pitch**, but the **`uge_note=` label selects the LFSR clock rate** (same mapping hUGEDriver uses via `get_note_poly`).
 
-- The note value is saved and used when exporting to UGE format.
-- The note value does not affect the sound during playback.
-- The actual noise sound is controlled by `gb:width`, `divisor`, and `shift` parameters.
+When you specify `uge_note=C-7` for a noise instrument:
+
+- **Playback (WebAudio + CLI/WAV):** NR43 shift/divisor are derived from `uge_note`; timbre/decay come from `gb:width`, `env`, and `length`.
+- **UGE export:** Named hits write that note to the noise pattern row (e.g. `C-7`).
+
+Legacy `note=C6` without `uge_note=` still converts for UGE export (`C-7` in hUGETracker) but **does not** set the playback clock.
 
 Example:
 ```
 inst snare type=noise gb:width=7 env=13,down uge_note=C-7
 
-# During playback: Renders white noise with width=7
-# During UGE export: Saved as C-7 in hUGETracker file
+# Playback: 7-bit LFSR at the C-7 clock rate, envelope from env=
+# UGE export: pattern row shows C-7
 pat drums = snare . . .
 ```
 
@@ -118,6 +121,10 @@ For Game Boy percussion using `uge_note=`:
 
 For pulse and wave instruments, continue using normal BeatBax notes and `uge_transpose` when needed.
 
+## UGE tempo alignment
+
+BeatBax uses your written `bpm` for playback; UGE export rounds to integer ticks per row (`round(896 / bpm)`). For **exact timing** between BeatBax and hUGETracker, use BPM values where **896 ÷ bpm is an integer** — commonly **128**, **112**, **224**, **64**, or **56**. See [uge-export-guide.md](../exports/uge-export-guide.md#tempo-and-bpm-alignment).
+
 ## Limitations
 
 **Sharp notes (`#`) in `note=` values:** Due to parser limitations, sharp symbols (`#`) in note values are currently treated as comments. Use flat equivalents or natural notes:
@@ -128,6 +135,6 @@ For pulse and wave instruments, continue using normal BeatBax notes and `uge_tra
 ## See Also
 
 - [instruments.md](instruments.md) — Full instrument reference
-- [uge-export-guide.md](uge-export-guide.md) — UGE export documentation
-- [percussion_demo.bax](../songs/percussion_demo.bax) — Complete percussion examples
-- [features/instrument-note-mapping-spec.md](features/instrument-note-mapping-spec.md) — Technical specification
+- [uge-export-guide.md](../exports/uge-export-guide.md) — UGE export and BPM alignment
+- [songs/gameboy/instruments/gb_percussion_demo.bax](../../songs/gameboy/instruments/gb_percussion_demo.bax) — Pulse + noise kit with `uge_note=`
+- [songs/gameboy/instruments/gb_uge_note_demo.bax](../../songs/gameboy/instruments/gb_uge_note_demo.bax) — Noise parity reference

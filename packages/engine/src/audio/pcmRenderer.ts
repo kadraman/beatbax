@@ -1,6 +1,6 @@
 import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
-import { parseSweep, parseEnvelope as parsePulseEnvelope } from '../chips/gameboy/pulse.js';
+import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
@@ -1082,6 +1082,8 @@ function renderPulse(
       }
       sample = sample * volSlideGain;
     }
+
+    sample *= PULSE_OUTPUT_GAIN;
 
     const bufferIdx = (start + i) * channels;
     if (bufferIdx < buffer.length) {
