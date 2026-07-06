@@ -18,7 +18,7 @@ bpm 120
 ## Instruments
 inst lead type=pulse1 duty=50 env=15,flat pan=L
 inst bass type=pulse2 duty=25 env=12,flat pan=R
-inst perc type=noise env=12,down
+inst perc type=noise env=12,down uge_note=C-8
 
 ## Define reusable cut presets
 effect shortcut = cut:2    # Cut after 2 ticks (very short)

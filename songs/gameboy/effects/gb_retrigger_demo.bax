@@ -18,8 +18,8 @@ bpm 120
 ## Instruments
 inst lead  type=pulse1 duty=50 env=15,down
 inst bass  type=pulse2 duty=25 env=12,down
-inst kick  type=noise  env=12,down
-inst snare type=noise  env=10,down
+inst kick  type=noise  env=12,down uge_note=C-6
+inst snare type=noise  env=10,down uge_note=C-7
 
 ## Basic retrigger - simple stuttering effect
 ## Retrigger every 2 ticks (creates rapid-fire effect)

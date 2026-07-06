@@ -47,10 +47,10 @@ inst w_bell_complex type=wave wave=[15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1
 inst w_snare_attack type=wave wave=[8,5,2,8,13,9,5,8,11,6,1,8,14,11,7,8,9,7,4,8,12,9,6,8,10,7,3,9,15,8,0,4] volume=100 gm=121
 inst w_snare_tail   type=wave wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0] volume=25 gm=120
 
-# Noise support for hybrid percussion
-inst n_kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} note=C5
-inst n_snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} note=C6
-inst n_click  type=noise env={"level":6,"direction":"down","period":1,"format":"gb"} note=C7
+# Noise support for hybrid percussion (uge_note = hUGETracker pattern row; drives export + playback clock)
+inst n_kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} uge_note=C-6
+inst n_snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} uge_note=C-7
+inst n_click  type=noise env={"level":6,"direction":"down","period":1,"format":"gb"} uge_note=C-8
 
 # =============================================================================
 # EFFECT PRESETS
