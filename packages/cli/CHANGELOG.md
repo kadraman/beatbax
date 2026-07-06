@@ -1,5 +1,17 @@
 # @beatbax/cli
 
+## 0.4.11
+
+### Patch Changes
+
+- 542a091: Use engine `writeExportPayload()` when exporter plugins return payloads from the generic `export` command.
+  - Replace inline `writeFileSync` payload handling with the shared `writeExportPayload()` adapter for `string`, `Uint8Array`, and `ArrayBuffer` returns.
+  - Preserve existing CLI `beatbax export <format> ...` behavior and error handling for unsupported payload types.
+
+- Updated dependencies [7ef507c]
+- Updated dependencies [542a091]
+  - @beatbax/engine@0.21.0
+
 ## 0.4.10
 
 ### Patch Changes
