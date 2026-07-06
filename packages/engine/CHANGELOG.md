@@ -1,5 +1,27 @@
 # @beatbax/engine
 
+## 0.21.0
+
+### Minor Changes
+
+- 7ef507c: Game Boy hUGETracker noise playback parity via `uge_note` and calibrated PCM/WebAudio output levels.
+  - Add `noiseNote.ts` with hUGEDriver-compatible helpers: `hugeTrackerNoteToIndex`, `getNotePoly`, `resolveNoiseClock`, bipolar LFSR sampling, and `NOISE_OUTPUT_GAIN` (0.25).
+  - Derive noise NR43 LFSR clock from `uge_note` during BeatBax playback (WebAudio and CLI/WAV), not only on UGE export; optional explicit `divisor`/`shift` still override for tests.
+  - Wire shared noise clock and gain into `pcmRenderer.ts`, `noise.ts`, and `plugin.ts`; use dual-mono center pan in PCM export to match hUGETracker stereo WAV levels.
+  - Add `PULSE_OUTPUT_GAIN` (0.5) in `pulse.ts` and apply in `renderPulse` / `playPulse` so pulse kicks align with hUGE mix levels in full-kit renders.
+  - Share `hugeTrackerNoteToIndex` with `ugeWriter.ts` for consistent `uge_note` parsing on export.
+  - Update Game Boy editor hover docs for `uge_note` playback behavior.
+  - Add regression tests: `gameboy/noiseNote.test.ts`, `gbUgeNoteDemo.test.ts`, `gbPercussionDemo.test.ts` (including hUGE reference WAV parity checks), and `gameboy/pulseGain.test.ts`.
+
+- 542a091: Payload-first export architecture for built-in formats (JSON, MIDI, UGE, WAV).
+  - Add payload builders: `buildUGE`, `buildJSON`, `buildMIDI`, `buildWAV`, and `buildWAVFromSong` for in-memory export without filesystem side effects.
+  - Add `ExportPayload` type plus `normalizeExporterResult()`, `isExportPayload()`, and `writeExportPayload()` helpers for CLI and UI adapters.
+  - Document payload-first `ExporterPlugin` behavior: return `string`, `Uint8Array`, `ArrayBuffer`, or `ExportPayload` when `outputPath` is omitted; keep path-writing wrappers (`exportJSON`, `exportMIDI`, `exportUGE`, `exportWAVFromSong`) for Node/CLI workflows.
+  - Update built-in `json`, `midi`, `uge`, and `wav` exporter plugins to return downloadable payloads when called without `outputPath`.
+  - Refactor `exportJSON`, `exportMIDI`, and `exportUGE` file writers to use dynamic `fs` imports where appropriate; `exportWAVFromSong` delegates rendering to `buildWAVFromSong`.
+  - Export new symbols from `@beatbax/engine/export` and `plugin-api.ts`.
+  - Add regression tests in `export-payload.test.ts`, `export-builders.test.ts`, and extended `ugeExport.test.ts`.
+
 ## 0.20.2
 
 ### Patch Changes
