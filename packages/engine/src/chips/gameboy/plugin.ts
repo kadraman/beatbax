@@ -9,6 +9,7 @@
 import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
 import { gameboyUIContributions } from './ui-contributions.js';
+import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from './noiseNote.js';
 import { version } from '../../version.js';
 import { gbSongWizard } from './songWizard.js';
 
@@ -103,25 +104,21 @@ class GBChannelBackend implements ChipChannelBackend {
 
   private _renderNoise(buffer: Float32Array, sampleRate: number): void {
     const inst = this.currentInst!;
-    const divisor = inst.divisor ? Number(inst.divisor) : 3;
-    const shift = inst.shift ? Number(inst.shift) : 4;
+    const { shift, divisor } = resolveNoiseClock(inst as unknown as Record<string, unknown>);
     const GB_CLOCK = 4194304;
-    const div = Math.max(1, divisor);
-    const lfsrHz = GB_CLOCK / (div * Math.pow(2, (shift || 0) + 1));
+    const lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+    const width7 = resolveNoiseWidth(inst as unknown as Record<string, unknown>) === 7;
     let phase = 0;
-    let lfsr = 1;
+    let lfsr = triggerGameBoyLfsr(width7);
     const len = buffer.length;
     for (let i = 0; i < len; i++) {
       phase += lfsrHz / sampleRate;
       const ticks = Math.floor(phase);
       if (ticks > 0) {
-        for (let t = 0; t < ticks; t++) {
-          const bit = ((lfsr >> 0) ^ (lfsr >> 1)) & 1;
-          lfsr = ((lfsr >> 1) | (bit << 14)) >>> 0;
-        }
+        for (let t = 0; t < ticks; t++) lfsr = stepGameBoyLfsr(lfsr, width7);
         phase -= ticks;
       }
-      buffer[i] += (lfsr & 1) ? 0.3 : -0.3;
+      buffer[i] += gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
     }
   }
 }

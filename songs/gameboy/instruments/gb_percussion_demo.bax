@@ -1,176 +1,66 @@
-## gb_percussion_demo.bax
-## Demonstration of Game Boy percussion using pulse channel for kicks and noise channel for snares, hi-hats, and toms.
-##
-## This file showcases proper percussion techniques following hUGETracker conventions:
-## - Kick drums on pulse channels (low pitch + fast envelope)
-## - Snares on noise channel (7-bit mode, octaves 4-5) for an explosive sound
-## - Hi-hats on noise channel (15-bit mode, octaves 6-7) for a more traditional percussive sound
-##
-## NOTE MAPPING FOR UGE EXPORT:
-## - BeatBax uses standard MIDI octave numbering (C4 = middle C)
-## - hUGETracker displays notes one octave higher (C4 in BeatBax = C-5 in hUGETracker)
-## - Common percussion ranges:
-##   - C2 in BeatBax → C-3 in hUGETracker (kicks)
-##   - C5 in BeatBax → C-6 in hUGETracker (low toms)
-##   - C6 in BeatBax → C-7 in hUGETracker (snares, hi-hats - TYPICAL)
-##   - C7 in BeatBax → C-8 in hUGETracker (high cymbals)
-
-song name "Percussion Demo"
-song artist "kadraman"
-song description """Demonstration of Game Boy percussion using pulse channel for kicks and noise channel for snares, hi-hats, and toms. Shows percussion best practices for UGE export."""
-song tags "percussion,drums,hugetracker"
+# Game Boy percussion demo — pulse kicks + noise snares, hi-hats, and toms.
+#
+# Pulse kicks use `note=` for pitch. Noise percussion uses `uge_note=` in hUGETracker
+# display notation (C-6, C-7, D-7, …). That note controls UGE pattern rows on export
+# and the NR43 LFSR clock during BeatBax playback. Width, envelope, and length shape
+# timbre and decay.
+#
+# Export CLI WAV:
+#   npm run cli -- export wav songs/gameboy/instruments/gb_percussion_demo.bax songs/gameboy/instruments/gb_percussion_demo_from_cli.wav
 
 chip gameboy
 bpm 140
 stepsPerBar 4
+song name "Percussion Demo"
+song artist "kadraman"
+song description "Game Boy percussion: pulse kicks and noise snares, hi-hats, and toms with uge_note parity."
+song tags "percussion,drums,hugetracker,gameboy"
 
-# =============================================================================
-# KICK DRUM INSTRUMENTS (Pulse Channel)
-# =============================================================================
-# Kicks work best on pulse channels with low pitch and fast attack
-# Note: period=0 means NO decay, period=1 is fastest decay
-# length parameter controls hardware length counter (0-64, in 1/256th second frames)
-# KEY DIFFERENCES for distinct kicks:
-#   - Pitch: Higher = punchier/tighter, Lower = deeper/boomy
-#   - Duty: 12.5% = thin/sharp, 25% = balanced, 50-75% = fat/boomy
-#   - Envelope period: 0 = instant, 1-3 = decay, 7 = sustain
-#   - Length: shorter = tighter, longer = sustained
-inst kick_punch  type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":3,"format":"gb"} length=8 gm=35 note=C2   # Punchy kick (very high, thin, medium decay - "beep kick")
-inst kick_deep   type=pulse1 duty=75   env={"level":15,"direction":"down","period":7,"format":"gb"} length=48 gm=36 note=C2  # Deep kick (bass rumble, very fat duty, long sustain - "808 boom")
-inst kick_soft   type=pulse1 duty=25   env={"level":8,"direction":"down","period":0,"format":"gb"} length=6 gm=35 note=C2   # Softer kick (quiet, instant click - "tap kick")
+# Pulse kicks — low pitch + fast envelope; `note=` sets playback pitch for named tokens.
+inst kick_punch type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":3,"format":"gb"} length=8  gm=35 note=C2  # Punchy, thin
+inst kick_deep  type=pulse1 duty=75   env={"level":15,"direction":"down","period":7,"format":"gb"} length=48 gm=36 note=C2  # Deep, sustained
+inst kick_soft  type=pulse1 duty=25   env={"level":8,"direction":"down","period":0,"format":"gb"} length=6  gm=35 note=C2  # Soft tap
 
-# =============================================================================
-# NOISE CHANNEL INSTRUMENTS
-# =============================================================================
-# Noise channel uses LFSR (Linear Feedback Shift Register) for pseudo-random noise
-# Notes in hUGETracker are "brightness labels", not harmonic pitches
-# They map to NR43 register values (shift + divider combinations)
-# Use gb:width=7 for metallic/tonal, gb:width=15 for pure white noise
-#
-# NEW: note= parameter specifies default pitch when instrument name is used as a token
-# This is especially useful for percussion programming where different sounds need different pitches
+# Noise snares (7-bit) — uge_note selects LFSR clock rate.
+inst snare_tight type=noise gb:width=7  env={"level":13,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6
+inst snare_loose type=noise gb:width=7  env={"level":12,"direction":"down","period":4,"format":"gb"} length=32 uge_note=C-6
+inst snare_rim   type=noise gb:width=7  env={"level":8,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-6
 
-# Snare drums (7-bit mode with length control) - typically C5 (exports as C-6 in hUGETracker)
-inst snare_tight type=noise gb:width=7 env={"level":13,"direction":"down","period":1,"format":"gb"} length=16 note=C5   # Tight snare
-inst snare_loose type=noise gb:width=7 env={"level":12,"direction":"down","period":4,"format":"gb"} length=32 note=C5   # Loose snare
-inst snare_rim   type=noise gb:width=7 env={"level":8,"direction":"down","period":1,"format":"gb"} length=8 note=C5     # Rim shot
+# Hi-hats (15-bit white noise).
+inst hihat_closed type=noise gb:width=15 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-7
+inst hihat_open   type=noise gb:width=15 env={"level":7,"direction":"down","period":3,"format":"gb"} length=32 uge_note=D-7
+inst hihat_pedal  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=12 uge_note=C-7
 
-# Hi-hats (15-bit mode with length control) - C6-E6 range (exports as C-7 to E-7 in hUGETracker)
-inst hihat_closed type=noise gb:width=15 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8 note=C6   # Closed hi-hat
-inst hihat_open   type=noise gb:width=15 env={"level":7,"direction":"down","period":3,"format":"gb"} length=32 note=D6  # Open hi-hat
-inst hihat_pedal  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=12 note=C6  # Pedal hi-hat
+# Toms (7-bit metallic noise) — ascending uge_note for pitch sweep.
+inst tom_low  type=noise gb:width=7 env={"level":14,"direction":"down","period":5,"format":"gb"} length=48 uge_note=C-6
+inst tom_mid  type=noise gb:width=7 env={"level":13,"direction":"down","period":4,"format":"gb"} length=40 uge_note=D-6
+inst tom_high type=noise gb:width=7 env={"level":12,"direction":"down","period":3,"format":"gb"} length=32 uge_note=E-6
 
-# Toms (7-bit mode with length control) - C5-G5 range (exports as C-6 to G-6 in hUGETracker)
-inst tom_low  type=noise gb:width=7 env={"level":14,"direction":"down","period":5,"format":"gb"} length=48 note=C5  # Low tom
-inst tom_mid  type=noise gb:width=7 env={"level":13,"direction":"down","period":4,"format":"gb"} length=40 note=D5  # Mid tom
-inst tom_high type=noise gb:width=7 env={"level":12,"direction":"down","period":3,"format":"gb"} length=32 note=E5  # High tom
+# Cymbals and effects (15-bit).
+inst crash_cymbal type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64 uge_note=F-7
+inst ride_cymbal  type=noise gb:width=15 env={"level":9,"direction":"down","period":5,"format":"gb"} length=48 uge_note=E-7
+inst shaker       type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4  uge_note=D-7
 
-# Cymbals and effects (with appropriate length) - F6-G6 range (exports as F-7 to G-7 in hUGETracker)
-inst crash_cymbal type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64 note=F6  # Crash
-inst ride_cymbal  type=noise gb:width=15 env={"level":9,"direction":"down","period":5,"format":"gb"} length=48 note=E6   # Ride
-inst shaker       type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4 note=D6    # Shaker
+# Named instrument tokens use each instrument's default note (note= on pulse, uge_note on noise).
+pat kick_four_pat    = kick_punch . . . kick_punch . . . kick_punch . . . kick_punch . . .
+pat kick_basic_pat   = kick_punch kick_deep . kick_deep . kick_punch kick_deep .
+pat kick_synth_pat   = kick_punch . . kick_deep . . kick_soft .
 
-# =============================================================================
-# PATTERNS - Various drum patterns
-# =============================================================================
-# NEW FEATURE: Use instrument names directly as tokens!
-# When you use an instrument name like 'snare' or 'hihat_closed',
-# the note= parameter from that instrument definition is used automatically.
-# No need to write explicit notes like C7 for every hit!
+pat snare_backbeat_pat = . . . . snare_tight . . . . . . . snare_tight . . .
+pat snare_rolls_pat    = (. . . . snare_tight snare_tight snare_tight snare_rim)*2
 
-# Basic kick patterns (instrument names automatically map to note=C2)
-pat kick_four_pat    = kick_punch . . . kick_punch . . . kick_punch . . . kick_punch . . .  # Four on the floor
-pat kick_basic_pat   = kick_punch kick_deep . kick_deep .  kick_punch kick_deep .           # Mixed kicks
-pat kick_synth_pat   = kick_punch . . kick_deep . . kick_soft .                             # Synth pattern
+pat hh_eighths_pat    = hihat_pedal * 8
+pat hh_sixteenths_pat = hihat_closed * 16
+pat hh_open_close_pat = (hihat_closed . hihat_open .)*3 hihat_closed .
 
-# Snare patterns (automatically use note=C6 from inst definitions)
-pat snare_backbeat_pat = . . . . snare_tight . . . . . . . snare_tight . . .        # Classic backbeat
-pat snare_rolls_pat    = (. . . . snare_tight snare_tight snare_tight snare_rim)*2  # Snare rolls with rim shot accent
+pat tom_fill_pat = tom_low tom_low tom_mid tom_mid tom_high tom_high tom_high .
 
-# Hi-hat patterns (automatically use note=C6 for closed, note=D6 for open)
-pat hh_eighths_pat    = hihat_pedal * 8                                              # Straight eighths
-pat hh_sixteenths_pat = hihat_closed * 16                                            # 16th notes
-pat hh_open_close_pat = (hihat_closed . hihat_open .)*3 hihat_closed .               # Alternating
-
-# Tom patterns (automatically use note=C5-E5 range)
-pat tom_fill_pat = tom_low tom_low tom_mid tom_mid tom_high tom_high tom_high .     # Classic tom fill
-
-# =============================================================================
-# SEQUENCES
-# =============================================================================
-
-# Kick demonstrations
-seq kick_demo_seq = kick_four_pat kick_basic_pat kick_synth_pat kick_four_pat kick_four_pat
-
-# Snare demonstrations
+seq kick_demo_seq  = kick_four_pat kick_basic_pat kick_synth_pat kick_four_pat kick_four_pat
 seq snare_demo_seq = snare_backbeat_pat snare_rolls_pat snare_backbeat_pat snare_rolls_pat
 seq snare_rolls_seq = snare_rolls_pat:inst(snare_rim)
+seq hh_demo_seq    = hh_eighths_pat hh_sixteenths_pat hh_open_close_pat hh_eighths_pat
 
-# Hi-hat demonstrations
-seq hh_demo_seq = hh_eighths_pat hh_sixteenths_pat hh_open_close_pat hh_eighths_pat #hh_finish
+channel 1 => inst kick_punch  seq kick_demo_seq kick_demo_seq
+channel 4 => inst snare_tight seq snare_demo_seq hh_demo_seq snare_rolls_seq
 
-# =============================================================================
-# CHANNEL ASSIGNMENTS
-# =============================================================================
-# Channel 1: Kick drums (pulse channel for punchy low-frequency kicks)
-# Channel 4: All other percussion (noise channel)
-
-channel 1 => inst kick_punch    seq kick_demo_seq kick_demo_seq
-channel 4 => inst snare_tight   seq snare_demo_seq hh_demo_seq snare_rolls_seq
-
-# =============================================================================
-# PLAYBACK DIRECTIVE
-# =============================================================================
-# Add `play auto repeat` to request the web UI to auto-start this song when
-# loaded and to loop it. Note: browsers may still require a user gesture to
-# actually resume audio due to autoplay policies; the web UI shows an enable
-# audio prompt when necessary.
 play auto repeat
-
-# =============================================================================
-# USAGE NOTES
-# =============================================================================
-#
-# Game Boy Percussion Best Practices:
-#
-# KICK DRUMS (Pulse Channel recommended):
-#   - Use pulse channels (pulse1 or pulse2)
-#   - duty=12.5 or 25 for tight punch
-#   - env={"level":15,"direction":"down","period":0,"format":"gb"} or gb:15,down,1 (fast attack, instant/short decay)
-#   - Play at C3-C4 for deep bass frequencies (C3 is hUGETracker minimum)
-#   - Why pulse? Better control over pitch and more "kick-like" sound
-#
-# NOISE CHANNEL MODES:
-#   - gb:width=7  (7-bit LFSR): Metallic, tonal character (snares, toms).
-#     In .UGE export, this adds an offset of 72 to the note index.
-#     hUGETracker displays these with a '^' symbol (e.g., C-^).
-#   - gb:width=15 (15-bit LFSR): Pure white noise (hi-hats, cymbals, shakers).
-#
-# NOISE CHANNEL OCTAVE LABELING (IMPORTANT):
-#   hUGETracker uses HIGH octave numbers (C-6, C-7) for noise channel.
-#   These are NOT musical octaves - just UI labels for noise clock rates!
-#   - C-6 in hUGETracker ≈ what other trackers call C-3 or C-4
-#   - The usable noise range happens to be mapped to octaves 5-7 in hUGETracker
-#   - Use C6 for snares, hi-hats, and most percussion
-#   - Experiment to find what sounds good - octave numbers are arbitrary!
-#
-# 7-BIT MODE (METALLIC NOISE) & UGE EXPORT:
-#   - When gb:width=7 is used, the exporter shifts the note range into the
-#     "metallic" region of the hUGETracker note table (indices 72-127).
-#   - This is why you see 'C-^' instead of 'C-3' in hUGETracker. The '^'
-#     indicates the 7-bit hardware flag is active.
-#   - If a note sounds "wrong" or too high, lower the octave in your .bax file.
-#     For example, C6:inst(snare_tight) is not valid syntax; instead use:
-#     inst(snare_tight, 1) C6  (Temporary override for 1 note)
-#     or just: snare_tight     (Defaults to C3, which exports as C-^ in UGE)
-#
-# ENVELOPE TIPS:
-#   - period=0: Instant attack, constant volume (tight sounds)
-#   - period=1-2: Fast decay (kicks, snares, closed hi-hats)
-#   - period=3-5: Medium decay (open hi-hats, toms)
-#   - period=6-7: Long decay (cymbals, sustained noise effects)
-#
-# MIXING:
-#   - Keep hi-hats quiet (volume 4-7) to avoid overwhelming other sounds
-#   - Snares medium-loud (volume 12-13) for backbeat presence
-#   - Kicks loud (volume 15) for solid low-end punch

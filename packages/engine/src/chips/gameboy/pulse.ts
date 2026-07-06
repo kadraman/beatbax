@@ -1,5 +1,12 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 
+/**
+ * Pulse PCM/WebAudio output scale tuned against hUGETracker WAV export.
+ * Without this, square-wave peaks (~±1 × envelope) sit ~1.5× above hUGE mix levels
+ * when compared to gb_percussion_demo_from_hugetracker.wav (kick hits).
+ */
+export const PULSE_OUTPUT_GAIN = 0.5;
+
 function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
   const size = 4096;
   const real = new Float32Array(size);
@@ -167,17 +174,17 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
   if (env && env.mode === 'gb') {
-    const initialVol = (env.initial ?? 15) / 15;
+    const initialVol = ((env.initial ?? 15) / 15) * PULSE_OUTPUT_GAIN;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
     if (env.period && env.period > 0) {
       const maxSteps = Math.max(1, Math.floor(dur / stepPeriod));
       const vals: number[] = [];
       let cur = env.initial ?? 15;
-      vals.push(cur / 15);
+      vals.push((cur / 15) * PULSE_OUTPUT_GAIN);
       for (let s = 1; s <= maxSteps; s++) {
         if (env.direction === 'up') cur = Math.min(15, cur + 1);
         else cur = Math.max(0, cur - 1);
-        vals.push(cur / 15);
+        vals.push((cur / 15) * PULSE_OUTPUT_GAIN);
         if (cur === 0 || cur === 15) break;
       }
       const curve = new Float32Array(vals);
@@ -232,8 +239,8 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     }
   } else {
     g.setValueAtTime(0.0001, start);
-    g.exponentialRampToValueAtTime(env.attackLevel || 1.0, start + (env.attack || 0.001));
-    g.setTargetAtTime(env.sustainLevel ?? 0.5, start + (env.attack || 0.001), env.decay || 0.1);
+    g.exponentialRampToValueAtTime((env.attackLevel || 1.0) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001));
+    g.setTargetAtTime((env.sustainLevel ?? 0.5) * PULSE_OUTPUT_GAIN, start + (env.attack || 0.001), env.decay || 0.1);
     g.setTargetAtTime(0.0001, start + dur - (env.release || 0.02), env.release || 0.02);
   }
 

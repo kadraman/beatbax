@@ -17,6 +17,7 @@
 
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
+import { hugeTrackerNoteToIndex } from '../chips/gameboy/noiseNote.js';
 import { warn } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
 import { normalizeArpOffsets } from '../util/arpOffsets.js';
@@ -877,26 +878,6 @@ function noteNameToMidiNote(
     return ugeIndex;
 }
 
-/**
- * Convert hUGETracker display notation (e.g. "C-7", "C#7") to a UGE note index.
- *
- * This intentionally accepts tracker notation rather than BeatBax note notation
- * so noise instruments can declare their UGE export row directly via `uge_note`.
- */
-function hugeTrackerNoteToIndex(noteName: string): number {
-    const normalized = String(noteName ?? '').trim().toUpperCase();
-    const match = normalized.match(/^([A-G](?:#|-))([3-9])$/);
-    if (!match) return EMPTY_NOTE;
-
-    const noteNames = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
-    const noteIndex = noteNames.indexOf(match[1]);
-    if (noteIndex === -1) return EMPTY_NOTE;
-
-    const octave = parseInt(match[2], 10);
-    const ugeIndex = (octave - 3) * 12 + noteIndex;
-    if (ugeIndex < 0 || ugeIndex > 72) return EMPTY_NOTE;
-    return ugeIndex;
-}
 
 /**
  * Map beatbax instrument to Game Boy instrument index
