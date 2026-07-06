@@ -24,7 +24,7 @@ inst lead_out type=pulse1 duty=50 env=12,flat   # For fade-outs
 
 inst bass type=pulse2 duty=25 env=5,flat   # Start at 80% - good range for slides
 inst pad  type=wave   wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=50  # Start at 50% - room for swells
-inst perc type=noise  env=8,down            # Start at 53% - moderate percussion
+inst perc type=noise  env=8,down uge_note=C-8            # Start at 53% - moderate percussion
 
 ## Named volume slide presets
 effect fadeIn  = volSlide:+5
