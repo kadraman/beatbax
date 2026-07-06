@@ -129,12 +129,14 @@ Implementation note
 The noise channel (`type=noise`) uses a linear-feedback shift register to produce percussion and sound effects.
 
 ### Modes & parameters
-- `width=7` (7-bit) — metallic, high-frequency noise (hi-hats, shakers)
-- `width=15` (15-bit) — broader, fuller noise (snares, ambience)
-- `divisor` and `shift` control the LFSR update rate: higher `shift` → lower pitched noise. Use combinations to sculpt brightness/time.
+- `width=7` (7-bit) — metallic, tonal noise (snares, hi-hats with tight character)
+- `width=15` (15-bit) — broader white noise (hi-hats, cymbals, ambience)
+- **`uge_note=`** — hUGETracker display note (e.g. `C-7`); sets UGE pattern rows **and** NR43 LFSR clock during BeatBax playback (preferred for named percussion hits)
+- `divisor` and `shift` — optional low-level NR43 overrides (tests/tuning); normally derived from `uge_note`
 
 ### Percussion & envelopes
-- Short, high-initial envelopes with width=7 are great for hi-hats; longer envelopes with width=15 produce snares and toms.
+- Short, high-initial envelopes with width=15 are typical for hi-hats; width=7 with medium decay suits snares and toms.
+- Use `uge_note=` on named noise instruments — see [instrument-note-mapping-guide.md](instrument-note-mapping-guide.md).
 
 ---
 
@@ -155,13 +157,13 @@ pat drums = kick . snare . kick . hihat_cl .  # Uses default notes automatically
 ### Behavior
 
 1. **Pulse/Wave instruments:** The specified note is the actual pitch played when using the instrument name as a token
-2. **Noise instruments:** The note value is stored for legacy UGE export compatibility (noise doesn't use traditional pitch during playback)
+2. **Noise instruments (legacy `note=`):** Converted for UGE export when `uge_note=` is absent; does **not** set playback clock — use `uge_note=` instead
 3. **Override per-note:** You can still use explicit notes: `inst(snare) D6` overrides the default
-4. **No `note=` specified:** Defaults to C5 for backward compatibility in exports
+4. **No `note=` or `uge_note=` on noise:** UGE export defaults to C5 (index 24); playback uses default NR43 clock (`divisor=3`, `shift=4`)
 
 ## UGE Note Parameter (`uge_note=`)
 
-Game Boy noise instruments can specify the exact hUGETracker display note used for named hits during UGE export:
+Game Boy **noise** instruments should use `uge_note=` for named hits. It sets the hUGETracker pattern note on UGE export **and** the NR43 LFSR clock during BeatBax playback (WebAudio and CLI/WAV):
 
 ```
 inst kick  type=noise gb:width=7  env=14,down uge_note=C-6
@@ -171,7 +173,9 @@ inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 pat drums = kick hat snare hat
 ```
 
-`uge_note=` is only used by UGE export. It does not affect Game Boy noise playback, where `gb:width`, `divisor`, `shift`, `env`, and `length` control the sound. If both `uge_note=` and `note=` are present, UGE export uses `uge_note=` for named hits.
+`uge_note=` is the primary author control for noise brightness (clock rate). **`gb:width`**, **`env`**, and **`length`** shape timbre and decay. Optional explicit **`divisor`** / **`shift`** override `uge_note` for tests only. If both `uge_note=` and legacy `note=` are present, UGE export uses `uge_note=` for named hits.
+
+Pulse and wave instruments continue to use `note=` for pitch; they do not use `uge_note=`.
 
 ### Recommended Values
 
@@ -190,13 +194,17 @@ Legacy `note=` values still work, but hUGETracker displays them one octave highe
 
 See [instrument-note-mapping-guide.md](instrument-note-mapping-guide.md) for complete usage examples.
 
+## UGE tempo alignment
+
+When exporting to hUGETracker, BeatBax maps `bpm` to integer ticks per row (`round(896 / bpm)`). For **identical row timing** between BeatBax playback and hUGE, use BPM values where **896 ÷ bpm is a whole number** — commonly **128**, **112**, **224**, **64**, or **56**. See [uge-export-guide.md](../exports/uge-export-guide.md#tempo-and-bpm-alignment).
+
 ## Cheat-sheet (at-a-glance)
 
 | Instrument | Key params | Typical defaults |
 |---|---:|:---|
 | Pulse 1 / 2 | `duty`, `env`, `sweep` (Pulse 1 only) | duty 50, env=gb:15,down,1 |
 | Wave | `wave=[32]` (or `[16]` shorthand), `volume=` | 32 nibbles 0..15, volume default `100` |
-| Noise | `width`, `divisor`, `shift`, `env` | width=15, divisor=3, shift=4 |
+| Noise | `width`, `uge_note`, `env`, `length` | width=15, uge_note=C-7, env=gb:15,down,1 |
 
 ## Tests & examples
 - See `songs/instrument_demo.bax` and the added tutorial example for quick demos.

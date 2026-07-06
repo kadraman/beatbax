@@ -175,7 +175,7 @@ Recommended validation:
 If an instrument has both `uge_note=` and `subpat=`, the subpattern should define the exported subpattern rows. `uge_note=` can remain useful as:
 
 - The default pattern-row note when subpattern export is unavailable.
-- A display/default note for preview or fallback.
+- The NR43 LFSR clock source during BeatBax playback when no explicit subpattern playback exists.
 - The first subpattern note if the subpattern omits note values.
 
 Recommended warning:

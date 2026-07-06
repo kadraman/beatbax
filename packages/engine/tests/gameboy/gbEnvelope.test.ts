@@ -1,4 +1,4 @@
-import { parseEnvelope, playPulse } from '../../src/chips/gameboy/pulse';
+import { parseEnvelope, playPulse, PULSE_OUTPUT_GAIN } from '../../src/chips/gameboy/pulse';
 import { playNoise } from '../../src/chips/gameboy/noise';
 import { GB_CLOCK } from '../../src/chips/gameboy/periodTables';
 
@@ -118,7 +118,7 @@ describe('GB-style envelope parsing and scheduling', () => {
     const { ctx, gainParam } = makePulseCtx();
     playPulse(ctx, 440, 0.5, 0, 0.25, { env: '8,flat' });
 
-    expect(gainParam.setValueAtTime).toHaveBeenCalledWith(8 / 15, 0);
+    expect(gainParam.setValueAtTime).toHaveBeenCalledWith((8 / 15) * PULSE_OUTPUT_GAIN, 0);
     expect(gainParam.exponentialRampToValueAtTime).not.toHaveBeenCalled();
   });
 

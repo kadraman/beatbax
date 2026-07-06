@@ -52,15 +52,17 @@ Where `<note>` is:
 - For legacy noise channel UGE export: typically `C5`-`C6` (exports as C-6 to C-7 in hUGETracker)
 - For pulse channels: typically `C2`-`C4` for bass/kicks
 
-Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, `C#7`, or `C-8`.
+Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, or `C-8`. For sharps, quote the value: `uge_note="C#7"` (`#` starts a `.bax` comment when unquoted).
 
 **Important:** hUGETracker displays legacy BeatBax `note=` values one octave higher than BeatBax's MIDI notation. For example, `note=C6` in BeatBax exports as C-7 in hUGETracker. `uge_note=C-7` bypasses that conversion and writes C-7 directly.
 
 ## Behavior
 
-1. **With explicit note:** `inst snare C5` → uses C5 (overrides instrument default)
-2. **Named token only:** `snare` → uses instrument's `uge_note=` value for UGE export when present; otherwise uses `note=`
-3. **No `note=` or `uge_note=` parameter:** Falls back to C5 (index 24) for backward compatibility
+1. **With explicit note:** `inst(snare) C5` → uses C5 (overrides instrument default)
+2. **Named token with `uge_note=` (noise):** `snare` → UGE row note from `uge_note=`; playback NR43 clock from `uge_note=` via `resolveNoiseClock()`
+3. **Named token with legacy `note=` only (noise):** UGE export converts `note=`; playback uses default NR43 clock unless `divisor`/`shift` set
+4. **Named token with `note=` (pulse/wave):** Uses `note=` as playback pitch
+5. **No `note=` or `uge_note=` on noise:** UGE export falls back to C5 (index 24); playback uses default noise clock
 
 ## Examples
 
@@ -68,7 +70,7 @@ Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, `C#
 
 ```
 chip gameboy
-bpm 140
+bpm 128
 
 # Define percussion with specific pitches
 inst kick_deep  type=pulse1 duty=12.5 env=15,down,1 note=C2
@@ -88,6 +90,8 @@ seq drums = kick_pat snare_pat hh_pat
 channel 1 => seq drums:inst(kick_deep)
 channel 4 => seq drums:inst(snare)
 ```
+
+Use **128 BPM** (or another value where 896 ÷ bpm is an integer) for exact BeatBax ↔ hUGE tempo alignment — see [uge-export-guide.md](../../exports/uge-export-guide.md#tempo-and-bpm-alignment).
 
 ### Override Default Note
 
