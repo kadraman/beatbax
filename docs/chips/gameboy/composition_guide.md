@@ -166,7 +166,7 @@ A 50% duty square wave has harmonic content at odd multiples of the fundamental 
 
 **The kick illusion:** True kick drums have a pitched component (100–200 Hz) that descends rapidly. CH4 cannot produce true pitch. The "kick illusion" uses a very low LFSR frequency with a slow-decay envelope to create a low-frequency thump that the brain accepts as kick-like in context.
 
-**UGE export note labels:** Game Boy noise playback is shaped by LFSR parameters rather than musical pitch, but hUGETracker still shows a note value in the noise pattern row. Use `uge_note=` on named noise instruments to choose that display value directly:
+**UGE noise notes and tempo:** Game Boy noise playback is shaped by LFSR parameters rather than musical pitch, but hUGETracker still shows a note in the noise pattern row. Use **`uge_note=`** on named noise instruments — it controls **both** the UGE pattern note and the NR43 LFSR clock during BeatBax playback:
 
 ```
 inst kick  type=noise gb:width=7  env=14,down uge_note=C-6
@@ -174,7 +174,9 @@ inst snare type=noise gb:width=7  env=10,down uge_note=C-7
 inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 ```
 
-This keeps BeatBax files aligned with what you will see after exporting to UGE.
+Reference songs: [gb_uge_note_demo.bax](../../songs/gameboy/instruments/gb_uge_note_demo.bax), [gb_percussion_demo.bax](../../songs/gameboy/instruments/gb_percussion_demo.bax).
+
+**BPM for hUGE parity:** UGE export stores integer ticks per row (`round(896 / bpm)`). For identical row timing between BeatBax preview/WAV and hUGETracker, use BPM where **896 ÷ bpm is a whole number** — **128 BPM** is the usual choice (7 ticks/row). Approximate tempos like **140 BPM** export as ~**149.3 BPM** in hUGE (6 ticks/row), which is often fine for authoring. See [uge-export-guide.md](../../exports/uge-export-guide.md#tempo-and-bpm-alignment).
 
 ---
 

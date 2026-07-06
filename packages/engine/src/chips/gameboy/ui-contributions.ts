@@ -92,7 +92,7 @@ const hoverDocs: Record<string, string> = {
     '```\ninst <name> type=<type> [field=value …]\n```',
     '**Common fields (all chips):**',
     '- `note` — default note when instrument name is used as a hit token, e.g. `note=C2`',
-    '- `uge_note` — UGE export note in hUGETracker display notation, e.g. `uge_note=C-8`',
+    '- `uge_note` — hUGETracker display note for Game Boy **noise** hits, e.g. `uge_note=C-7`; sets UGE pattern row **and** playback LFSR clock',
     '- `gm` — General MIDI program number for MIDI export (0–127)',
     '',
     '**Game Boy instrument types:**',
@@ -119,9 +119,9 @@ const hoverDocs: Record<string, string> = {
   noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad).',
 
   uge_note: [
-    '**UGE note override** — sets the exact note displayed for named hits in hUGETracker exports.',
+    '**UGE noise note** — hUGETracker display notation for named **noise** hits.',
     '```\ninst snare type=noise gb:width=7 env=12,down uge_note=C-7\ninst hat   type=noise gb:width=15 env=5,down uge_note=C-8\n```',
-    'Use hUGETracker display notation (`C-6`, `C-7`, `C#7`, `C-8`). This does not affect Game Boy noise playback; it only controls the UGE pattern note for named instrument hits.',
+    'Use `C-6`, `C-7`, `C-8`, etc. Sharps must be quoted: `uge_note="C#7"` (`#` starts a `.bax` comment). Controls **UGE export** (pattern row) **and** **playback** (NR43 LFSR clock). Pulse/wave instruments use `note=` for pitch instead.',
   ].join('\n\n'),
 
   env: [

@@ -138,7 +138,50 @@ inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 pat drums = kick hat snare hat
 ```
 
-`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C#7`, `C-8`) and only affects UGE export. Game Boy noise playback is still controlled by the noise parameters, not by musical pitch. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax note notation, so `note=C6` displays as `C-7` in hUGETracker.
+`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C-8`). It controls **both** UGE export (pattern-row note) **and** BeatBax Game Boy noise playback (NR43 LFSR clock via hUGEDriver-compatible `get_note_poly` mapping). Timbre and decay still come from `gb:width`, `env`, and `length`. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax notation for export only, and playback falls back to default noise clock values unless explicit `divisor`/`shift` are set.
+
+**Sharp notes:** `#` starts a comment in `.bax` files, so unquoted values like `uge_note=C#7` parse as `uge_note=C` with the rest discarded. Quote sharps: `uge_note="C#7"` (or use hUGE natural spellings such as `C-7` / `D-7` when they match the tracker row you want).
+
+### Tempo and BPM alignment
+
+BeatBax playback and CLI WAV export use the **`bpm` value in your `.bax` file** directly (row duration = `(60 / bpm) / 4` seconds).
+
+UGE export converts BPM to hUGETracker **ticks per row** using integer rounding:
+
+```
+ticksPerRow = round(896 / bpm)
+effective BPM in hUGE ≈ 896 / ticksPerRow
+```
+
+Because ticks per row must be a whole number, **many BPM values do not transfer exactly**. For example, `bpm 140` exports as **6 ticks/row**, and hUGETracker displays **~149.3 BPM** — the same song plays slightly faster in hUGE than in BeatBax preview/WAV.
+
+#### Recommended BPM values (exact match)
+
+For **identical timing** between BeatBax playback, CLI WAV export, and hUGETracker after UGE export, use a BPM where **896 ÷ bpm is an integer** (equivalently: `bpm = 896 ÷ ticksPerRow`):
+
+| `bpm` in `.bax` | UGE ticks/row | hUGE effective BPM |
+|---:|---:|---:|
+| 224 | 4 | 224 |
+| 128 | 7 | 128 |
+| 112 | 8 | 112 |
+| 64 | 14 | 64 |
+| 56 | 16 | 56 |
+
+**128 BPM** (7 ticks/row) is the default in many Game Boy demos and parity fixtures — it is a good choice when comparing BeatBax renders to hUGETracker WAV exports.
+
+#### Approximate tempos
+
+If you write a BPM that does not divide 896 evenly, hUGE uses the **nearest** tick count. Common examples:
+
+| `bpm` in `.bax` | Exported ticks/row | hUGE shows ~ |
+|---:|---:|---:|
+| 140 | 6 | 149.3 |
+| 120 | 7 | 128.0 |
+| 150 | 6 | 149.3 |
+
+This is usually acceptable for authoring; for tight A/B timing tests against hUGE WAVs, prefer an exact-match BPM from the table above.
+
+See also [gameboy-noise-uge-playback-parity.md](../features/gameboy-noise-uge-playback-parity.md) for level-calibration notes.
 
 ### Pattern Structure
 - Each pattern can contain up to 64 rows
@@ -288,7 +331,7 @@ The Game Boy noise channel doesn't use traditional musical pitches. Noise sound 
 - `uge_note=C-6` writes UGE note index 36.
 - `uge_note=C-7` writes UGE note index 48.
 - `uge_note=C-8` writes UGE note index 60.
-- `uge_note=C#7` writes the sharp hUGETracker display note directly.
+- `uge_note="C#7"` writes a sharp hUGETracker display note (must be quoted — `#` starts a `.bax` comment).
 
 If `uge_note=` is omitted, legacy `note=` values are converted from BeatBax note notation:
 
@@ -313,7 +356,7 @@ pat drums = kick . snare . hat hat kick snare
 channel 4 => inst kick pat drums
 ```
 
-**Important:** `uge_note=` applies during UGE export only. BeatBax playback uses the instrument's noise parameters, and MIDI export maps noise hits to percussion according to its own rules.
+**Important:** `uge_note=` drives the noise LFSR clock during BeatBax playback (WebAudio and CLI/WAV) **and** the pattern note written to UGE. Prefer `uge_note=` over legacy `note=` on noise instruments. Use `uge_transpose` for melodic pulse/wave pitch offsets. MIDI export maps noise hits to percussion separately.
 
 ### Vibrato (vib) mapping
 

@@ -1,40 +1,34 @@
-# Game Boy hUGETracker noise-note export demo
+# Game Boy hUGETracker noise-note parity reference
 #
-# `uge_note` lets noise instruments declare the exact note that should appear
-# in hUGETracker after UGE export. Use hUGETracker display notation such as
-# C-6, C-7, or C-8. This is separate from Game Boy playback: the noise sound
-# is still controlled by width, envelope, divisor, shift, and length.
+# Full-kit reference for BeatBax ↔ hUGETracker noise playback parity.
+# Named hits use `uge_note` in hUGETracker display notation (C-6, C-7, C-8, D-8).
+# That note controls the UGE pattern row on export and the NR43 LFSR clock during
+# BeatBax playback (via hUGEDriver-compatible get_note_poly mapping).
+# Width, envelope, and length shape timbre and decay.
 #
-# Use this when named percussion hits should be easy to read in hUGETracker.
+# Reference WAVs for manual comparison:
+#   gb_uge_note_demo_from_hugetracker.wav — hUGETracker render of exported UGE
+#   gb_uge_note_demo_from_cli.wav         — BeatBax CLI WAV export
+#
+# Export CLI WAV:
+#   npm run cli -- export wav songs/gameboy/instruments/gb_uge_note_demo.bax songs/gameboy/instruments/gb_uge_note_demo_from_cli.wav
 
 chip gameboy
 bpm 128
 song name "Game Boy UGE Note Demo"
 song artist "The BeatBax Team"
-song description "Demonstrates uge_note for Game Boy noise instruments using hUGETracker display notation."
-song tags "gameboy,instrument,demo,uge,noise"
+song description "Parity reference: uge_note drives hUGETracker rows and BeatBax noise playback clock."
+song tags "gameboy,instrument,demo,uge,noise,parity"
 
-# Pulse channels use normal BeatBax notes for playback and UGE export.
-inst bass type=pulse2 duty=25 env={"level":9,"direction":"down","period":3,"format":"gb"} gm=39
-inst lead type=pulse1 duty=50 env={"level":8,"direction":"down","period":2,"format":"gb"} gm=81
+# uge_note sets the hUGETracker pattern note for each named hit.
+inst kick       type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6
+inst snare      type=noise gb:width=15 env={"level":10,"direction":"down","period":2,"format":"gb"} length=16 uge_note=C-7
+inst open_hat   type=noise gb:width=15 env={"level":4,"direction":"down","period":3,"format":"gb"} length=32 uge_note=D-8
+inst closed_hat type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-8
 
-# Noise instruments use explicit hUGETracker display notation for UGE rows.
-# These named hits will export as C-6, C-7, and C-8 respectively.
-inst kick  type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6
-inst snare type=noise gb:width=7  env={"level":10,"direction":"down","period":2,"format":"gb"} length=16 uge_note=C-7
-inst hat   type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"}  length=8  uge_note=C-8
+pat drums_a = kick closed_hat closed_hat open_hat kick closed_hat closed_hat open_hat
+pat drums_b = kick closed_hat snare closed_hat kick kick closed_hat snare
 
-pat bass_a = C3 . C3 . G2 . A#2 .
-pat bass_b = C3 . C3 . F2 . G2 .
-
-pat lead_a = C5 . E5 . G5 . C6 .
-pat lead_b = G5 . F5 . E5 . D5 .
-
-pat drums_a = kick hat snare hat kick hat snare hat
-pat drums_b = kick hat snare hat kick kick snare hat
-
-channel 1 => inst lead seq lead_a lead_b lead_a lead_b
-channel 2 => inst bass seq bass_a bass_b bass_a bass_b
 channel 4 => inst kick seq drums_a drums_b drums_a drums_b
 
 play

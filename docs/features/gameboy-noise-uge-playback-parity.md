@@ -1,6 +1,6 @@
 ---
 title: Game Boy Noise UGE Playback Parity
-status: proposed
+status: complete
 authors:
   - kadraman
 created: 2026-06-29T00:00:00.000Z
@@ -9,197 +9,203 @@ issue: https://github.com/kadraman/beatbax/issues/149
 
 ## Summary
 
-Improve Game Boy noise-channel playback so BeatBax web/desktop preview sounds closer to exported hUGETracker/UGE playback.
+BeatBax Game Boy **noise playback** (WebAudio and CLI/WAV) now matches hUGETracker exports when instruments use **`uge_note=`**. The same hUGEDriver `get_note_poly` mapping drives the NR43 LFSR clock in preview and in the tracker after UGE export.
 
-The immediate goal is to reduce the gap between local playback and hUGETracker for noise percussion such as kicks, snares, hats, crashes, and toms. The broader goal is to make BeatBax's Game Boy noise model consistently hardware-oriented across preview, export, docs, and song examples.
+Reference fixtures:
+
+| Song | Purpose |
+|---|---|
+| [gb_uge_note_demo.bax](../../songs/gameboy/instruments/gb_uge_note_demo.bax) | Minimal noise-only kit (128 BPM) |
+| [gb_percussion_demo.bax](../../songs/gameboy/instruments/gb_percussion_demo.bax) | Pulse kicks + noise drums (`uge_note=` on all noise hits) |
+
+Optional paired WAVs (`*_from_cli.wav`, `*_from_hugetracker.wav`) in the same directories support manual A/B checks.
 
 ---
 
 ## Problem Statement
 
-Game Boy noise percussion can sound noticeably different between:
+Game Boy noise percussion sounded wrong in BeatBax because playback **ignored `uge_note=`** and used hardcoded NR43 defaults (`divisor=3`, `shift=4`) for every hit. UGE export could show the correct pattern note, but preview/WAV did not use the same clock.
 
-- BeatBax web/desktop playback.
-- Exported hUGETracker UGE files.
-- Real hUGEDriver/Game Boy playback.
-
-This is especially confusing now that BeatBax supports `uge_note=` for named noise hits. `uge_note=` makes the tracker row display explicit, but it does not necessarily make local playback use the same noise clock/width behavior as hUGETracker.
-
-Current pain points:
-
-- Authors may tune a snare/hat in BeatBax preview, export to UGE, and hear a different brightness or transient character.
-- Noise instruments often specify envelope and `uge_note`, but not explicit hardware clock parameters.
-- Web/desktop playback may interpret noise parameters differently from the UGE/hardware model.
-- There is no "export preview" mode that lets users hear the hUGE-compatible approximation before exporting.
+Authors set **`uge_note=`** (e.g. `C-6`, `C-7`, `C-8`) — the note hUGETracker shows in the pattern row. hUGEDriver derives NR43 shift/divisor from that index via `get_note_poly`. **`divisor` and `shift` are not author-facing tracker fields** (optional low-level overrides only).
 
 ---
 
 ## Goals
 
-1. Make Game Boy noise playback use hardware-style NR43 concepts where possible.
-2. Keep `uge_note=` as the explicit UGE row/display note for named noise hits.
-3. Provide an option for BeatBax preview to use UGE/hUGEDriver-style noise mapping.
-4. Update docs and examples so noise instruments include explicit hardware-ish parameters.
-5. Add tests that compare BeatBax noise parameter mapping with UGE export behavior.
+| Goal | Status |
+|---|---|
+| Derive noise LFSR clock from `uge_note` via `get_note_poly` | Done |
+| Keep `uge_note=` as UGE pattern-row note for named hits | Done |
+| Match timbre/decay via `gb:width`, `env`, `length` | Done |
+| Calibrate output levels vs hUGE WAV (noise + pulse mix) | Done |
+| Tests + reference songs | Done |
 
 ---
 
 ## Non-Goals
 
-- Perfect hardware emulation in the first implementation.
-- Replacing hUGETracker as the source of truth for tracker playback.
-- Making every existing song sound identical after export without small authoring changes.
-- Supporting arbitrary custom hUGEDriver forks with different noise behavior.
+- Realistic kick timbre on the noise channel alone (use pulse or subpatterns).
+- Perfect bit-exact LFSR emulation on every sample.
+- Replacing hUGETracker as source of truth.
+- BeatBax playback adopting hUGE integer ticks/row for non-exact BPM values (see [Tempo alignment](#tempo-alignment-beatbax-vs-huge)).
 
 ---
 
-## Proposed Solution
+## Solution
 
-### Hardware-Oriented Noise Model
+### Author-facing controls
 
-Represent Game Boy noise in terms close to NR43:
+| What authors write | What hUGETracker shows | What drives playback |
+|---|---|---|
+| `uge_note=C-6` | Pattern note `C-6` | `get_note_poly(36)` → NR43 shift/divisor |
+| `gb:width=7` | Instrument 7-bit mode | LFSR width (NR43 bit 3) |
+| `env=…` | Instrument envelope | NR42-style volume sweep |
+| `length=…` | Instrument length | NR41 length counter (playback duration) |
 
-- `gb:width` / `width`: LFSR width mode (`7` or `15`).
-- `divisor`: clock divisor code.
-- `shift`: clock shift.
-- `env`: NR42-style volume envelope.
-- `length`: optional duration/length behavior.
-- `uge_note`: hUGETracker display/frequency-row hint for UGE export.
+Optional explicit `divisor` / `shift` on an instrument override `uge_note` (tests and low-level tuning only).
 
-For local playback, derive the LFSR clock from the same `divisor` and `shift` values that UGE/hUGEDriver will use.
+**Use `uge_note=` on all named Game Boy noise hits.** Legacy `note=` without `uge_note=` still converts for UGE export but does **not** set the playback clock.
 
-### UGE Preview Mode
+### Implementation
 
-Add a preview mode that favors hUGE-compatible behavior:
+Shared module: [`packages/engine/src/chips/gameboy/noiseNote.ts`](../../packages/engine/src/chips/gameboy/noiseNote.ts)
+
+| Symbol | Role |
+|---|---|
+| `hugeTrackerNoteToIndex()` | Parse `C-6` / `C#7` display notation (use `uge_note="C#7"` in `.bax`) |
+| `getNotePoly()` | Port of hUGEDriver `get_note_poly` |
+| `resolveNoiseClock()` | Priority: explicit divisor/shift → `uge_note` → defaults |
+| `noiseClockToLfsrHz()` | LFSR step rate from NR43 shift/divisor |
+| `stepGameBoyLfsr()` / `triggerGameBoyLfsr()` | SameBoy-compatible 7/15-bit LFSR |
+| `gameBoyNoiseSample()` | Bipolar LFSR bit (matches hUGE WAV audibility) |
+| `resolveNoiseHardwareLengthSec()` | NR41 `(64 - length) / 256` seconds |
+| `NOISE_OUTPUT_GAIN` (0.25) | Noise PCM/WebAudio level vs hUGE |
+
+Wired into:
+
+- [`noise.ts`](../../packages/engine/src/chips/gameboy/noise.ts) — WebAudio noise
+- [`pcmRenderer.ts`](../../packages/engine/src/audio/pcmRenderer.ts) — CLI/WAV (noise + pulse)
+- [`pulse.ts`](../../packages/engine/src/chips/gameboy/pulse.ts) — WebAudio pulse + `PULSE_OUTPUT_GAIN` (0.5)
+- [`plugin.ts`](../../packages/engine/src/chips/gameboy/plugin.ts) — chip-plugin noise path uses shared clock/gain
+- [`ugeWriter.ts`](../../packages/engine/src/export/ugeWriter.ts) — shared `hugeTrackerNoteToIndex` for export
+
+**Mix calibration** (playback and export):
+
+| Channel | Constant | Notes |
+|---|---|---|
+| Noise | `NOISE_OUTPUT_GAIN` = 0.25 | Bipolar LFSR sample scale |
+| Pulse | `PULSE_OUTPUT_GAIN` = 0.5 | Square-wave level vs hUGE full-kit WAV |
+| Center pan (PCM) | dual-mono L+R | Avoids ~3 dB quiet vs hUGE equal-power center |
+
+Gain constants apply in **WebAudio and CLI/WAV**, not export-only.
+
+---
+
+## Tempo alignment (BeatBax vs hUGE)
+
+BeatBax playback uses the written `bpm`. UGE export stores `ticksPerRow = round(896 / bpm)`; hUGE effective BPM ≈ `896 / ticksPerRow`.
+
+**Exact-match BPM** (identical row timing): **224**, **128**, **112**, **64**, **56**, and any value where **896 ÷ bpm** is an integer. **`gb_uge_note_demo.bax` uses 128 BPM** (7 ticks/row).
+
+**Approximate:** `bpm 140` → 6 ticks/row → hUGE ~**149.3 BPM** (~7% faster). Acceptable for authoring; use an exact-match BPM for tight WAV timing comparisons.
+
+See [uge-export-guide.md](../../exports/uge-export-guide.md#tempo-and-bpm-alignment).
+
+---
+
+## Reference song
+
+[`gb_uge_note_demo.bax`](../../songs/gameboy/instruments/gb_uge_note_demo.bax) (128 BPM, noise channel only):
 
 ```bax
-chip gameboy
-
-inst snare type=noise gb:width=7 divisor=3 shift=4 env=10,down,2 uge_note=C-7
-inst hat   type=noise gb:width=15 divisor=1 shift=2 env=4,down,1 uge_note=C-8
+inst kick       type=noise gb:width=7  env=14,down,1 length=16 uge_note=C-6
+inst snare      type=noise gb:width=15 env=10,down,2 length=16 uge_note=C-7
+inst open_hat   type=noise gb:width=15 env=4,down,3  length=32 uge_note=D-8
+inst closed_hat type=noise gb:width=15 env=4,down,1  length=8  uge_note=C-8
 ```
 
-Potential UI options:
+First pattern row notes (UGE indices / display): **C-6, C-8, C-8, D-8** → `[36, 60, 60, 62]`.
 
-- `Preview Mode: BeatBax`
-- `Preview Mode: UGE / hUGEDriver`
+Derived NR43 clocks (`resolveNoiseClock`):
 
-Potential language option:
+| Instrument | uge_note | shift | divisor | nr43 |
+|---|---:|---:|---:|---:|
+| kick | C-6 | 5 | 7 | 0x5f |
+| snare | C-7 | 2 | 7 | 0x27 |
+| closed_hat | C-8 | 0 | 3 | 0x03 |
+| open_hat | D-8 | 0 | 1 | 0x01 |
 
-```bax
-song preview "uge"
+Manual WAV export:
+
+```bash
+npm run engine:build
+npm run cli -- export wav songs/gameboy/instruments/gb_uge_note_demo.bax songs/gameboy/instruments/gb_uge_note_demo_from_cli.wav
 ```
 
-This should be considered optional; a UI-level preference may be enough for the first version.
+Compare with `gb_uge_note_demo_from_hugetracker.wav` from the same directory.
 
 ---
 
-## Authoring Guidance
+## Parity results (verified)
 
-Short-term guidance before full parity work lands:
+| Area | Result |
+|---|---|
+| Noise `uge_note` → NR43 clock | Unit + integration tests pass |
+| Noise peak levels (isolated hits) | ~0.9–1.0× vs hUGE reference WAV |
+| Snare/kick (full kit, `gb_percussion_demo`) | Median peak ratio ~1.0–1.1 after `PULSE_OUTPUT_GAIN` |
+| Legacy `note=` without `uge_note=` | Export only for clock; playback uses defaults — **avoid for new songs** |
 
-- Prefer explicit `gb:width`, `divisor`, and `shift` on noise instruments.
-- Use `uge_note=` to document the hUGETracker row display.
-- Avoid relying on `uge_note=` alone to define the local playback timbre.
-- Keep noise instrument recipes in examples simple and hardware-like.
+Known acceptable gaps:
 
-Example:
+- Row timing differs when Bax BPM is not an exact 896 ÷ integer match (see tempo section).
+- Minor envelope step phasing on long open-hat decays vs hUGE (negligible at typical tempos).
+- `GBChannelBackend` in `plugin.ts` (integration-test stub) uses a simplified pulse renderer without full envelope/gain stack — not the main player path.
 
-```bax
-inst kick  type=noise gb:width=7  divisor=7 shift=6 env=14,down,1 uge_note=C-6
-inst snare type=noise gb:width=7  divisor=3 shift=4 env=10,down,2 uge_note=C-7
-inst hat   type=noise gb:width=15 divisor=1 shift=2 env=4,down,1  uge_note=C-8
+---
+
+## Test plan
+
+| Test | Coverage |
+|---|---|
+| [`gameboy/noiseNote.test.ts`](../../packages/engine/tests/gameboy/noiseNote.test.ts) | Note index, `getNotePoly`, clock resolve, LFSR, gain |
+| [`gameboy/pulseGain.test.ts`](../../packages/engine/tests/gameboy/pulseGain.test.ts) | `PULSE_OUTPUT_GAIN` constant |
+| [`gbUgeNoteDemo.test.ts`](../../packages/engine/tests/gbUgeNoteDemo.test.ts) | Reference bax UGE export + audible PCM |
+| [`gbPercussionDemo.test.ts`](../../packages/engine/tests/gbPercussionDemo.test.ts) | `uge_note` kit + optional hUGE WAV level parity |
+
+Run:
+
+```bash
+cd packages/engine && npm test -- --testPathPattern="noiseNote|pulseGain|gbUge|gbPercussion"
 ```
 
 ---
 
-## Implementation Plan
+## Remaining work
 
-### Phase 1 - Audit Current Behavior
+Nothing blocking parity for typical authoring workflows. Optional follow-ups:
 
-Deliverables:
-
-- Document how `packages/engine/src/chips/gameboy/noise.ts` maps `width`, `divisor`, `shift`, `env`, and note/default-note values.
-- Document how `packages/engine/src/export/ugeWriter.ts` maps noise instruments and pattern notes.
-- Identify where `uge_note`, `note`, `divisor`, and `shift` currently diverge between preview and export.
-
-Acceptance criteria:
-
-- A short technical note or test fixture explains one kick/snare/hat example from BeatBax source to UGE rows.
-
-### Phase 2 - Explicit Hardware Parameter Parity
-
-Deliverables:
-
-- Ensure local playback and UGE export agree on `gb:width`, `divisor`, `shift`, and envelope interpretation.
-- Add tests for representative noise instruments:
-  - kick,
-  - snare,
-  - closed hat,
-  - open hat/tom.
-- Update docs to recommend explicit hardware parameters.
-
-Acceptance criteria:
-
-- Given the same instrument definition, local playback and UGE export use the same derived LFSR width/clock inputs.
-
-### Phase 3 - UGE Preview Mode
-
-Deliverables:
-
-- Add a preview flag in app-core/playback that selects hUGE-compatible noise behavior.
-- Expose the flag in web/desktop settings or song preview controls.
-- Consider showing a small "UGE preview mode active" badge near export controls.
-
-Acceptance criteria:
-
-- Users can switch preview mode and hear noise percussion closer to exported UGE.
-- Default playback behavior remains backwards-compatible unless the user opts in.
-
-### Phase 4 - Song And Docs Cleanup
-
-Deliverables:
-
-- Update Game Boy example songs to use explicit noise recipes.
-- Add a dedicated instrument demo comparing `BeatBax preview` and `UGE preview` expectations.
-- Update `docs/grammar/instruments.md`, `docs/exports/uge-export-guide.md`, and Game Boy composition docs.
-
-Acceptance criteria:
-
-- New Game Boy noise examples document both audible parameters and UGE display notes.
+| Item | Priority | Notes |
+|---|---|---|
+| Instrument subpatterns | Separate feature | See [gameboy-uge-instrument-subpatterns.md](gameboy-uge-instrument-subpatterns.md) |
+| NR41 length step phasing vs hUGE | Low | Audible mainly at fast tempos / long decays |
+| Align Bax playback to UGE ticks/row for all BPM | Low / non-goal | Would change preview timing away from written BPM |
+| Simplified `GBChannelBackend` pulse path | Low | Test stub only; main paths use `playPulse` / `renderPulse` |
 
 ---
 
-## Test Plan
+## Documentation
 
-- Unit tests for noise parameter parsing and mapping.
-- UGE export tests for named noise hits with `uge_note=`.
-- Playback smoke tests that render representative noise instruments and assert non-silent, stable output.
-- Golden metadata tests for derived noise settings, avoiding fragile raw audio waveform comparisons where possible.
-- Manual comparison:
-  - Play in web/desktop with UGE preview mode.
-  - Export UGE.
-  - Open in hUGETracker.
-  - Compare kick/snare/hat brightness and rhythm.
+- [instruments.md](../grammar/instruments.md) — `uge_note=` reference
+- [instrument-note-mapping-guide.md](../grammar/instrument-note-mapping-guide.md) — named-hit workflow
+- [uge-export-guide.md](../exports/uge-export-guide.md) — export + BPM table
+- [composition_guide.md](../chips/gameboy/composition_guide.md) — authoring tips
 
 ---
 
-## Risks And Tradeoffs
+## Open questions (resolved)
 
-- A more hUGE-compatible preview may change how existing songs sound locally.
-- Hardware-accurate noise can be harder for users to reason about than simple abstract noise controls.
-- Real hUGETracker/hUGEDriver behavior may still differ depending on driver version or playback environment.
-- Audio golden tests can be brittle; prefer testing derived hardware parameters where possible.
-
----
-
-## Open Questions
-
-1. Should UGE-compatible noise preview be the default for `chip gameboy`, or an opt-in mode?  
-- should be default
-2. Should `uge_note=` ever influence local playback directly, or should playback only use explicit hardware noise parameters?  
-- explicit noise parameters first
-3. Do we need a dedicated `noise_note` or `gb:noise_note` field separate from `uge_note`?
-4. Should the UI show a warning when a noise instrument has `uge_note=` but no explicit `divisor` / `shift`?
-5. Should existing Game Boy songs be migrated in one pass, or only new examples and touched songs?
-
+1. UGE-compatible noise preview default for `chip gameboy`? **Yes — via `uge_note` derivation.**
+2. Should `uge_note` influence playback? **Yes — primary NR43 clock source when set.**
+3. Separate `noise_note` field? **No — `uge_note` is sufficient.**
+4. Warn when `uge_note` set but no explicit divisor/shift? **No — overrides are optional only.**
+5. Pulse level parity for mixed pulse+noise songs? **Yes — `PULSE_OUTPUT_GAIN` in WebAudio and PCM.**
