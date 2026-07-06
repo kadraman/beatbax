@@ -84,6 +84,26 @@ function readOptionalNumber(inst: Record<string, unknown>, ...keys: string[]): n
   return undefined;
 }
 
+/** Clamp NR43 clock field to hardware range (bits 6–4 shift, bits 2–0 divisor code). */
+function clampNr43ClockField(n: number): number {
+  return Math.max(0, Math.min(7, Math.floor(n)));
+}
+
+function noiseClockFromShiftDivisor(
+  shift: number,
+  divisor: number,
+  width: number,
+): NoiseClockParams {
+  const shiftCode = clampNr43ClockField(shift);
+  const divisorCode = clampNr43ClockField(divisor);
+  const baseNr43 = (shiftCode << 4) | divisorCode;
+  return {
+    shift: shiftCode,
+    divisor: divisorCode,
+    nr43: applyNoiseWidthToNr43(baseNr43, width),
+  };
+}
+
 /**
  * Resolve noise LFSR clock parameters for playback.
  *
@@ -97,11 +117,12 @@ export function resolveNoiseClock(inst: Record<string, unknown> | null | undefin
   const explicitShift = inst ? readOptionalNumber(inst, 'shift', 'gb:shift') : undefined;
 
   if (explicitDivisor !== undefined || explicitShift !== undefined) {
-    const divisor = Math.max(1, explicitDivisor ?? DEFAULT_NOISE_DIVISOR);
-    const shift = explicitShift ?? DEFAULT_NOISE_SHIFT;
     const width = resolveNoiseWidth(inst);
-    const baseNr43 = ((shift & 0x7) << 4) | (divisor & 0x7);
-    return { shift, divisor, nr43: applyNoiseWidthToNr43(baseNr43, width) };
+    return noiseClockFromShiftDivisor(
+      explicitShift ?? DEFAULT_NOISE_SHIFT,
+      explicitDivisor ?? DEFAULT_NOISE_DIVISOR,
+      width,
+    );
   }
 
   const ugeNote = inst?.uge_note;
@@ -116,12 +137,7 @@ export function resolveNoiseClock(inst: Record<string, unknown> | null | undefin
   }
 
   const width = resolveNoiseWidth(inst);
-  const baseNr43 = ((DEFAULT_NOISE_SHIFT & 0x7) << 4) | (DEFAULT_NOISE_DIVISOR & 0x7);
-  return {
-    shift: DEFAULT_NOISE_SHIFT,
-    divisor: DEFAULT_NOISE_DIVISOR,
-    nr43: applyNoiseWidthToNr43(baseNr43, width),
-  };
+  return noiseClockFromShiftDivisor(DEFAULT_NOISE_SHIFT, DEFAULT_NOISE_DIVISOR, width);
 }
 
 /** Map NR43 divisor code (bits 2–0) to Pan Docs ratio r (524288 Hz base). Code 0 → 0.5. */

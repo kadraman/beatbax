@@ -127,10 +127,11 @@ BeatBax uses your written `bpm` for playback; UGE export rounds to integer ticks
 
 ## Limitations
 
-**Sharp notes (`#`) in `note=` values:** Due to parser limitations, sharp symbols (`#`) in note values are currently treated as comments. Use flat equivalents or natural notes:
-- ❌ `note=C#7` (treated as comment)
-- ✅ `note=Db7` (works correctly)
-- ✅ `note=D7` (works correctly)
+**Sharp notes (`#`) in `note=` and `uge_note=` values:** `#` starts a comment in `.bax` files. Unquoted sharps are truncated or ignored:
+
+- ❌ `note=C#7` or `uge_note=C#7` (parsed as `C` only)
+- ✅ `uge_note="C#7"` (quoted sharp for hUGETracker display notation)
+- ✅ `note=Db7` (flat equivalent for legacy `note=` on pulse/wave)
 
 ## See Also
 

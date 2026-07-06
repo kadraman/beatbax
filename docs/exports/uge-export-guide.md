@@ -138,7 +138,9 @@ inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 pat drums = kick hat snare hat
 ```
 
-`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C#7`, `C-8`). It controls **both** UGE export (pattern-row note) **and** BeatBax Game Boy noise playback (NR43 LFSR clock via hUGEDriver-compatible `get_note_poly` mapping). Timbre and decay still come from `gb:width`, `env`, and `length`. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax notation for export only, and playback falls back to default noise clock values unless explicit `divisor`/`shift` are set.
+`uge_note=` uses hUGETracker display notation directly (`C-6`, `C-7`, `C-8`). It controls **both** UGE export (pattern-row note) **and** BeatBax Game Boy noise playback (NR43 LFSR clock via hUGEDriver-compatible `get_note_poly` mapping). Timbre and decay still come from `gb:width`, `env`, and `length`. If `uge_note=` is omitted, legacy `note=` values are converted through BeatBax notation for export only, and playback falls back to default noise clock values unless explicit `divisor`/`shift` are set.
+
+**Sharp notes:** `#` starts a comment in `.bax` files, so unquoted values like `uge_note=C#7` parse as `uge_note=C` with the rest discarded. Quote sharps: `uge_note="C#7"` (or use hUGE natural spellings such as `C-7` / `D-7` when they match the tracker row you want).
 
 ### Tempo and BPM alignment
 
@@ -329,7 +331,7 @@ The Game Boy noise channel doesn't use traditional musical pitches. Noise sound 
 - `uge_note=C-6` writes UGE note index 36.
 - `uge_note=C-7` writes UGE note index 48.
 - `uge_note=C-8` writes UGE note index 60.
-- `uge_note=C#7` writes the sharp hUGETracker display note directly.
+- `uge_note="C#7"` writes a sharp hUGETracker display note (must be quoted — `#` starts a `.bax` comment).
 
 If `uge_note=` is omitted, legacy `note=` values are converted from BeatBax note notation:
 

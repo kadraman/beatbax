@@ -52,7 +52,7 @@ Where `<note>` is:
 - For legacy noise channel UGE export: typically `C5`-`C6` (exports as C-6 to C-7 in hUGETracker)
 - For pulse channels: typically `C2`-`C4` for bass/kicks
 
-Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, `C#7`, or `C-8`.
+Where `<tracker-note>` is hUGETracker display notation such as `C-6`, `C-7`, or `C-8`. For sharps, quote the value: `uge_note="C#7"` (`#` starts a `.bax` comment when unquoted).
 
 **Important:** hUGETracker displays legacy BeatBax `note=` values one octave higher than BeatBax's MIDI notation. For example, `note=C6` in BeatBax exports as C-7 in hUGETracker. `uge_note=C-7` bypasses that conversion and writes C-7 directly.
 

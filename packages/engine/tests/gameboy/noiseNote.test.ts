@@ -51,8 +51,18 @@ describe('hUGETracker noise note mapping', () => {
 
   test('explicit divisor/shift override uge_note', () => {
     const clock = resolveNoiseClock({ uge_note: 'C-8', divisor: 1, shift: 2, width: 15 });
-    expect(clock.shift).toBe(2);
-    expect(clock.divisor).toBe(1);
+    expect(clock).toEqual({ shift: 2, divisor: 1, nr43: 0x21 });
+  });
+
+  test('explicit override allows NR43 divisor code 0', () => {
+    const clock = resolveNoiseClock({ divisor: 0, shift: 0, width: 15 });
+    expect(clock).toEqual({ shift: 0, divisor: 0, nr43: 0x00 });
+    expect(noiseClockToLfsrHz(clock.shift, clock.divisor)).toBeCloseTo(4194304 / 0.5, 1);
+  });
+
+  test('explicit shift/divisor clamp to 0–7 and match nr43 bits', () => {
+    const clock = resolveNoiseClock({ divisor: 99, shift: -3, width: 7 });
+    expect(clock).toEqual({ shift: 0, divisor: 7, nr43: 0x0f });
   });
 
   test('reference demo clocks differ in LFSR rate', () => {

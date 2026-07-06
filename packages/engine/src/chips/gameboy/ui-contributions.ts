@@ -121,7 +121,7 @@ const hoverDocs: Record<string, string> = {
   uge_note: [
     '**UGE noise note** — hUGETracker display notation for named **noise** hits.',
     '```\ninst snare type=noise gb:width=7 env=12,down uge_note=C-7\ninst hat   type=noise gb:width=15 env=5,down uge_note=C-8\n```',
-    'Use `C-6`, `C-7`, `C#7`, `C-8`, etc. Controls **UGE export** (pattern row) **and** **playback** (NR43 LFSR clock). Pulse/wave instruments use `note=` for pitch instead.',
+    'Use `C-6`, `C-7`, `C-8`, etc. Sharps must be quoted: `uge_note="C#7"` (`#` starts a `.bax` comment). Controls **UGE export** (pattern row) **and** **playback** (NR43 LFSR clock). Pulse/wave instruments use `note=` for pitch instead.',
   ].join('\n\n'),
 
   env: [

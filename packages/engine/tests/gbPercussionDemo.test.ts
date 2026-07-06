@@ -30,8 +30,10 @@ function noisePatternRows(uge: ReturnType<typeof parseUGE>, count = 8) {
 
 function peakInWindow(samples: Float32Array, sampleRate: number, bpm: number, row: number): number {
   const tick = 60 / bpm / 4;
-  const i0 = Math.floor(row * tick * sampleRate);
-  const i1 = Math.floor((row + tick * 0.9) * sampleRate);
+  const t0 = row * tick;
+  const t1 = t0 + tick * 0.9;
+  const i0 = Math.floor(t0 * sampleRate);
+  const i1 = Math.floor(t1 * sampleRate);
   let peak = 0;
   for (let i = i0; i < i1 && i < samples.length; i++) {
     peak = Math.max(peak, Math.abs(samples[i]));

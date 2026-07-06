@@ -72,7 +72,7 @@ Shared module: [`packages/engine/src/chips/gameboy/noiseNote.ts`](../../packages
 
 | Symbol | Role |
 |---|---|
-| `hugeTrackerNoteToIndex()` | Parse `C-6` / `C#7` display notation |
+| `hugeTrackerNoteToIndex()` | Parse `C-6` / `C#7` display notation (use `uge_note="C#7"` in `.bax`) |
 | `getNotePoly()` | Port of hUGEDriver `get_note_poly` |
 | `resolveNoiseClock()` | Priority: explicit divisor/shift → `uge_note` → defaults |
 | `noiseClockToLfsrHz()` | LFSR step rate from NR43 shift/divisor |
