@@ -11,6 +11,7 @@ export const IPC_CHANNELS = {
   AI_SET_API_KEY: 'desktop:ai-set-api-key',
   AI_CLEAR_API_KEY: 'desktop:ai-clear-api-key',
   AI_VALIDATE_API_KEY: 'desktop:ai-validate-api-key',
+  AI_LIST_MODELS: 'desktop:ai-list-models',
   AI_CHAT_COMPLETION: 'desktop:ai-chat-completion',
   GET_VERSION: 'desktop:get-version',
   MENU_ACTION: 'desktop:menu-action',

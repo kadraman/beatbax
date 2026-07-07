@@ -71,11 +71,17 @@ Expected behavior:
 
 - Uses valid pattern syntax such as `pat melody_var = ...`.
 - Uses valid vibrato syntax such as `C5<vib:3,5>` or `effect leadVib = vib:3,5` plus `C5<leadVib>`.
+- Does **not** use a named effect like `<leadVib>` unless `effect leadVib = ...` is also defined in the song.
 - Updates `seq lead_seq = ...` to reference the new variation.
 - Keeps `channel 1 => inst leadA seq ...` valid.
 - Keeps `play auto repeat`.
 - Does not introduce `seq ...` blocks with indented `note`, `length`, or `effect vibrato` lines.
 - Does not emit comma-separated `play melody_pat, ...` directives.
+
+Context / validation checks:
+
+- Copilot context includes `[EFFECT GUIDANCE]` (built-in inline effects) and `[DEFINED NAMES]` (instruments/effects defined in the current song, plus any undefined effect references detected).
+- If the model emits `<leadVib>` without a definition, the parser warns: `effect 'leadVib' is not defined and will be ignored` (editor squiggle + `[DIAGNOSTICS]` in the next Copilot turn).
 
 Failure examples to catch:
 
@@ -258,11 +264,58 @@ Expected behavior:
 - CoPilot reports a timeout in plain language.
 - Loading state is cleared.
 
+### 14. Curated Model Selection
+
+Starting file: desktop app, Settings → AI, OpenAI preset with valid key.
+
+Steps:
+
+1. Open Settings → AI and confirm the **Model** dropdown lists curated OpenAI models.
+2. Select `gpt-5.5` (or another curated entry) and close Settings.
+3. Open Copilot and confirm the footer shows the selected model name.
+
+Expected behavior:
+
+- Provider preset change resets endpoint and default model for that provider.
+- Curated model choice persists across app restart.
+- Copilot footer model label matches the stored model.
+
+### 15. Custom Model ID
+
+Steps:
+
+1. In Settings → AI (OpenAI preset), choose **Custom...** in the Model dropdown.
+2. Enter a model ID not in the curated list (e.g. a newly released model).
+3. Restart the app and reopen Settings → AI.
+
+Expected behavior:
+
+- **Custom...** is selected and the custom model ID field shows the saved value.
+- CoPilot requests use the custom model ID.
+- Switching back to a curated model from the dropdown replaces the stored model.
+
+### 16. Live Model Fetch
+
+Setup: desktop app, Settings → AI.
+
+Steps:
+
+1. With the OpenAI preset and a valid key, click **Refresh** next to the Model dropdown.
+2. Switch to the Ollama or LM Studio preset (local endpoint running) and click **Refresh**.
+3. Enter an invalid endpoint and click **Refresh**.
+
+Expected behavior:
+
+- Remote providers merge live `/models` results with curated entries (curated first, deduped), filtering out non-chat models (embeddings, audio, image, etc.).
+- Local providers list the models actually installed/loaded on the machine, with no API key required.
+- Failures (invalid endpoint, rejected key, no response) show a readable status note and leave the current selection intact.
+- The list auto-loads once per endpoint when a key or local endpoint is present, without a raw provider error being shown.
+
 ---
 
 ## Settings And State Scenarios
 
-### 14. API Key Save And Clear
+### 17. API Key Save And Clear
 
 Expected behavior:
 
@@ -272,7 +325,7 @@ Expected behavior:
 - `Clear key` empties the visible field and secure storage.
 - CoPilot immediately reflects that no key is set.
 
-### 15. Startup Restore
+### 18. Startup Restore
 
 Expected behavior:
 
@@ -282,7 +335,7 @@ Expected behavior:
   - Help remains active if last active.
   - CoPilot is active only if last active.
 
-### 16. Prompt Input History
+### 19. Prompt Input History
 
 Expected behavior:
 
@@ -329,5 +382,6 @@ For AI output itself, prefer deterministic tests around prompt/context construct
 - If parsing fails, show a warning and offer `Ask CoPilot to repair`.
 - Prefer patch-style edits or structured edit plans over full-song rewrites for small changes.
 - Add a "Validate response" step that displays syntax diagnostics before applying.
+- Warn when inline effects reference undefined named presets (parser diagnostic + Copilot `[DEFINED NAMES]` / `[EFFECT GUIDANCE]` context). *(Implemented: parser warning + desktop Copilot context sections.)*
 - Include a compact grammar reference from the parser/docs in CoPilot context instead of hand-maintained prompt text.
-- Add provider-specific model presets and warnings for models that perform poorly at code editing.
+- Add provider-specific model presets and warnings for models that perform poorly at code editing. *(Implemented: curated per-provider model dropdown, live `/models` fetch with Refresh, and Custom... free-text in desktop Settings → AI.)*
