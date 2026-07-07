@@ -4,7 +4,7 @@
 ##
 ## This is an original demonstration song — it does not reproduce any copyrighted material.
 ## Illustrates common BeatBax language features mapped to all four Game Boy channels:
-## Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
+##   Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
 ##
 ## Structure (8 bars):
 ##   Bars 1–4 : Theme A (×2)   — melody + bass + arpeggio + percussion
@@ -40,7 +40,7 @@ bpm 128
 #      `env={"level":12,"direction":"down","period":1,"format":"gb"}`
 #      Example: this sets initial volume=12 (0-15), direction `down`, period=1.
 #      For backwards compatibility the legacy CSV form `env=12,down,1` is still accepted and will be normalized by the parser.
-#  - `wave`: an explicit 32-entry wavetable for `wave` type (4-bit values)
+#  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
 #
 # The instruments below are chosen to show different channel roles.
 # You may optionally annotate instruments with a General MIDI program number
@@ -49,9 +49,9 @@ bpm 128
 inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81   # Bright pulse lead, slightly wider duty (GM 81)
 inst leadB type=pulse2 duty=30 env={"level":7,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
 inst wave1 type=wave  wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82  # Wavetable arpeggio voice (GM 82)
-inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}            # Snare-like noise for backbeat
-inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}             # Short hi-hat hits (faster, lower env)
-inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"}            # Generic percussion/noise channel
+inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} uge_note=C-7  # Snare-like noise for backbeat
+inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8  # Short hi-hat hits (faster, lower env)
+inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"gb"} uge_note=C-7  # Generic percussion/noise channel
 
 # =============================================================================
 # PATTERNS
@@ -67,7 +67,7 @@ inst perc  type=noise  env={"level":10,"direction":"down","period":1,"format":"g
 pat melody_pat      = (C5 C5 G5 G5 A5 A5 G5 .) (F5 F5 E5 E5 D5 D5 C5 .)
 
 # Alternative, sparser lead pattern for variation (16 tokens total).
-pat melody_alt_pat  = (C5 . C5 . G5 . G5 E5) * 2
+pat melody_alt_pat  = (C5 . E5 . G5 . A5 .) (G5 . E5 . D5 . C5 .)
 
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
@@ -107,10 +107,10 @@ pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 # lets you modify/loop them separately in the tracker or live UI.
 
 # Lead sequence (primary melody)
-seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat
+seq lead_seq = melody_pat melody_pat melody_pat
 
 # Bass sequence (low-end walking bass)
-seq bass_seq = bass_pat bass_pat bass_pat bass_pat
+seq bass_seq = bass_pat bass_pat bass_pat
 
 # Wave sequence (wavetable arpeggios)
 seq wave_seq = arp_pat arp_pat arp_pat

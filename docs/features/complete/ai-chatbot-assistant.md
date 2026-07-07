@@ -30,12 +30,18 @@ Local privacy is preserved for users who point the endpoint at **Ollama** or **L
 
 ### Supported Providers (built-in presets)
 
-| Preset label | Endpoint | Default model |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| Groq (free, fast) | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
-| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` |
-| LM Studio (local) | `http://localhost:1234/v1` | `local-model` |
+Copilot is available in the **desktop app only** (`desktop-full` profile). The hosted web build does not expose Copilot.
+
+| Preset label | Endpoint | Default model | Curated models (dropdown) |
+|---|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3` |
+| Groq (free, fast) | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` |
+| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` | Free-text (installed model name) |
+| LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text (loaded model name) |
+
+Curated model IDs are verified against each provider's catalog as of July 2026. They change over time — use **Custom...** for any newer model ID.
+
+Settings → AI shows a **Model** dropdown combining curated options with models fetched **live** from the provider's `/models` endpoint, plus **Custom...** for any model ID. A **Refresh** button reloads the list on demand; the list is also loaded automatically when an endpoint has usable credentials (an API key, or any local endpoint). This means local providers (Ollama, LM Studio) show your actually-installed models, and remote providers surface newly released models without waiting for a curated-list update. Fetching goes through the desktop main process to avoid browser CORS restrictions.
 
 Any OpenAI-compatible endpoint can also be entered manually. Connection settings (endpoint URL, API key, model ID) are persisted to `localStorage` under key `bb-ai-settings`.
 
@@ -68,14 +74,25 @@ You are BeatBax Copilot, an assistant for the BeatBax live-coding chiptune langu
 
 <EDIT_SYSTEM_SUFFIX or ASK_SYSTEM_SUFFIX — see below>
 
+[EFFECT GUIDANCE]
+Built-in inline effects (use as NOTE<type:args> with no preset): pan, vib, port, arp, ...
+Common examples: vibrato C5<vib:3,5>, arpeggio C5<arp:0,4,7>, portamento C5<port:16>.
+Named presets: define effect myVib = vib:3,5 once, then use C5<myVib> on any note.
+
+[DEFINED NAMES]
+Instruments defined in this song: leadA, leadB, ...
+Effects defined in this song: (none) | leadVib, ...
+Undefined effect references in this song (will be ignored): leadVib — add an effect definition or switch to a built-in form.
+
 [EDITOR CONTENT]
 ```bax
-<current Monaco model value, truncated to 3000 characters if longer>
+<current Monaco model value; not truncated in Edit mode; Ask mode respects maxContextChars>
 ```
 
 [DIAGNOSTICS]
   error   line 5, col 3: Unknown instrument 'fuzz'
   warning line 9, col 1: Channel 3 has no instrument assigned
+  warning line 72, col 20: Pattern 'melody_var': effect 'leadVib' is not defined and will be ignored
   — or —
   No current errors or warnings.
 ```
@@ -438,7 +455,9 @@ A chunk manager would score and rank all retrieved chunks, then greedily add the
 
 - Confirm "Insert at cursor" inserts generated `pat` at cursor position
 - Confirm diagnostics appear verbatim in assembled context
-- Test with OpenAI `gpt-4o-mini` and Groq `llama-3.3-70b-versatile`
+- Test with OpenAI `gpt-5.4-mini` (default) and Groq `openai/gpt-oss-120b` (default)
+- Switch curated models in Settings → AI and confirm the Copilot footer label updates
+- Choose **Custom...** and enter an arbitrary model ID; confirm it persists across restart
 - Test with local Ollama (no API key path)
 - Verify abort/cancel stops the fetch
 

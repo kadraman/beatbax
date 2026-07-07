@@ -2428,6 +2428,16 @@ code {
 .bb-ai-key-status {
   padding-left: 130px;
 }
+.bb-ai-model-row {
+  flex-wrap: nowrap;
+}
+.bb-ai-model-row .bb-settings-select {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+.bb-ai-model-row .bb-settings-btn-secondary {
+  flex: 0 0 auto;
+}
 
 /* Note text */
 .bb-settings-note { font-size: 12px; color: #777; margin: 0; line-height: 1.6; }
@@ -4562,6 +4572,42 @@ code {
 .bb-chat-action-btn--primary { background: #16825d; }
 .bb-chat-action-btn--primary:hover { background: #1a9c70; }
 .bb-chat-markdown { line-height: 1.6; }
+.bb-chat-markdown p { margin: 0 0 8px; }
+.bb-chat-markdown p:last-child { margin-bottom: 0; }
+.bb-chat-markdown h1,
+.bb-chat-markdown h2,
+.bb-chat-markdown h3,
+.bb-chat-markdown h4,
+.bb-chat-markdown h5,
+.bb-chat-markdown h6 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.bb-chat-markdown h1 { font-size: 1.25em; }
+.bb-chat-markdown h2 { font-size: 1.15em; }
+.bb-chat-markdown h3 { font-size: 1.05em; }
+.bb-chat-markdown h4,
+.bb-chat-markdown h5,
+.bb-chat-markdown h6 { font-size: 1em; }
+.bb-chat-markdown :first-child { margin-top: 0; }
+.bb-chat-markdown strong { font-weight: 600; }
+.bb-chat-markdown ul,
+.bb-chat-markdown ol { margin: 4px 0 8px; padding-left: 20px; }
+.bb-chat-markdown li { margin: 2px 0; }
+.bb-chat-markdown li > ul,
+.bb-chat-markdown li > ol { margin: 2px 0; }
+.bb-chat-apply-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.bb-chat-apply-edit-hint {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+}
 
 /* ─── Chat Panel — Light mode overrides ──────────────────────────────────── */
 [data-theme=light] .bb-chat-code-block { background: #f6f8fa; }
@@ -6335,6 +6381,42 @@ code {
 .bb-chat-action-btn--primary { background: #16825d; }
 .bb-chat-action-btn--primary:hover { background: #1a9c70; }
 .bb-chat-markdown { line-height: 1.6; }
+.bb-chat-markdown p { margin: 0 0 8px; }
+.bb-chat-markdown p:last-child { margin-bottom: 0; }
+.bb-chat-markdown h1,
+.bb-chat-markdown h2,
+.bb-chat-markdown h3,
+.bb-chat-markdown h4,
+.bb-chat-markdown h5,
+.bb-chat-markdown h6 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.bb-chat-markdown h1 { font-size: 1.25em; }
+.bb-chat-markdown h2 { font-size: 1.15em; }
+.bb-chat-markdown h3 { font-size: 1.05em; }
+.bb-chat-markdown h4,
+.bb-chat-markdown h5,
+.bb-chat-markdown h6 { font-size: 1em; }
+.bb-chat-markdown :first-child { margin-top: 0; }
+.bb-chat-markdown strong { font-weight: 600; }
+.bb-chat-markdown ul,
+.bb-chat-markdown ol { margin: 4px 0 8px; padding-left: 20px; }
+.bb-chat-markdown li { margin: 2px 0; }
+.bb-chat-markdown li > ul,
+.bb-chat-markdown li > ol { margin: 2px 0; }
+.bb-chat-apply-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.bb-chat-apply-edit-hint {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+}
 
 /* ─── Chat Panel — Light mode overrides ──────────────────────────────────── */
 [data-theme=light] .bb-chat-code-block { background: #f6f8fa; }
@@ -6447,4 +6529,95 @@ code {
 
 [data-theme="light"] .bb-web-lite-header__social-link:hover {
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* Copilot: compact confirmation shown when an edit-mode reply is applied. */
+.bb-chat-applied {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-left: 3px solid #4ec94e;
+  background: rgba(78, 201, 78, 0.08);
+  border-radius: 4px;
+}
+.bb-chat-applied-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4ec94e;
+}
+.bb-chat-applied-hint {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+}
+.bb-chat-notice {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+.bb-chat-notice-text {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted, #888);
+  background: var(--button-hover-bg, rgba(255, 255, 255, 0.05));
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+.bb-chat-applied-summary {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-color, #d4d4d4);
+}
+.bb-chat-applied-summary li {
+  margin: 1px 0;
+}
+.bb-chat-applied-summary code {
+  font-size: 11px;
+}
+.bb-chat-applied-details {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.bb-chat-applied-details > summary {
+  cursor: pointer;
+  color: var(--text-muted, #888);
+  user-select: none;
+}
+.bb-chat-applied-details[open] > summary {
+  margin-bottom: 6px;
+}
+
+/* Copilot change banner: navigate between distinct edit points. */
+.bb-ai-banner-nav {
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 1;
+  background: #37373d;
+  color: #d4d4d4;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.bb-ai-banner-nav:hover {
+  background: #4a4a52;
+}
+.bb-ai-banner-counter {
+  font-size: 11px;
+  color: var(--text-muted, #a0a0a0);
+  min-width: 26px;
+  text-align: center;
+}
+[data-theme=light] .bb-ai-banner-nav {
+  background: #f0f0f0;
+  color: #333;
+  border-color: #ccc;
+}
+[data-theme=light] .bb-ai-banner-nav:hover {
+  background: #e2e2e2;
+}
+.bb-chat-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }

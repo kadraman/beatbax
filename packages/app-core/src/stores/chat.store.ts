@@ -13,6 +13,7 @@
  */
 
 import { atom, map } from 'nanostores';
+import { getDefaultAIModel } from './ai-models.js';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -31,6 +32,34 @@ export interface ChatMessage {
   content: string;
   /** ISO timestamp */
   timestamp: string;
+  /**
+   * Friendly text shown in the UI instead of `content`. `content` is still the
+   * text sent to the model (e.g. a verbose "apply this snippet" instruction),
+   * while `display` keeps the transcript readable.
+   */
+  display?: string;
+  /** Assistant edit-mode reply whose song was applied to the editor. */
+  applied?: boolean;
+  /** Number of changed lines when the reply was applied. */
+  changedLines?: number;
+  /**
+   * Human-readable bullet summary of the structural edits applied to the song
+   * (e.g. "Added pattern `melody_var`"). Shown in the applied confirmation.
+   */
+  changeSummary?: string[];
+  /**
+   * UI-only informational notice (e.g. "Switched to Edit mode"). Rendered as a
+   * centered muted line and excluded from the context sent to the model.
+   */
+  system?: boolean;
+}
+
+export interface ChatMessageMeta {
+  display?: string;
+  applied?: boolean;
+  changedLines?: number;
+  changeSummary?: string[];
+  system?: boolean;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -51,8 +80,8 @@ function loadSettings(): AISettings {
   const defaults: AISettings = {
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
-    model: 'gpt-4o-mini',
-    maxContextChars: 3000,
+    model: getDefaultAIModel(),
+    maxContextChars: 12000,
   };
   // Scrub any legacy key written by older versions of the app before the
   // no-persist-apiKey policy was introduced.
@@ -147,19 +176,43 @@ chatPromptHistory.subscribe((history) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Append a message to the history. */
-export function pushChatMessage(role: 'user' | 'assistant', content: string): void {
+export function pushChatMessage(
+  role: 'user' | 'assistant',
+  content: string,
+  meta?: ChatMessageMeta,
+): void {
   const history = chatHistory.get();
-  const message: ChatMessage = { role, content, timestamp: new Date().toISOString() };
+  const message: ChatMessage = { role, content, timestamp: new Date().toISOString(), ...meta };
   chatHistory.set([...history, message].slice(-MAX_HISTORY));
   if (role === 'assistant') {
     chatUnreadCount.set(chatUnreadCount.get() + 1);
   }
 }
 
+/**
+ * Append a UI-only informational notice (e.g. "Switched to Edit mode"). Does not
+ * count as unread and is excluded from the model context by the panel.
+ */
+export function pushChatNotice(content: string): void {
+  const history = chatHistory.get();
+  const message: ChatMessage = {
+    role: 'assistant',
+    content,
+    timestamp: new Date().toISOString(),
+    system: true,
+  };
+  chatHistory.set([...history, message].slice(-MAX_HISTORY));
+}
+
 /** Clear all chat history. */
 export function clearChatHistory(): void {
   chatHistory.set([]);
   chatUnreadCount.set(0);
+}
+
+/** Clear the submitted-prompt recall history. */
+export function clearChatPromptHistory(): void {
+  chatPromptHistory.set([]);
 }
 
 /** Record a submitted user prompt for input recall. */

@@ -972,14 +972,14 @@ Enabling or disabling a feature takes effect immediately — no reload needed.
 
 ## BeatBax Copilot (AI Assistant)
 
-BeatBax Copilot is a built-in AI chat assistant in the Web UI. It understands the full BeatBax language and can write songs, answer questions, and help debug errors — powered by any OpenAI-compatible REST API.
+BeatBax Copilot is a built-in AI chat assistant in the **desktop app**. It understands the full BeatBax language and can write songs, answer questions, and help debug errors — powered by any OpenAI-compatible REST API. The hosted web UI does not include Copilot.
 
 ### Enabling the assistant
 
-1. Open the Web UI at [app.beatbax.com](https://app.beatbax.com) (or run `npm run web-ui:dev` locally).
-2. Press `Ctrl+,` (or **View → Settings…**) to open **Settings**, then go to the **Features** tab and enable **AI Copilot**.
+1. Run the BeatBax desktop app.
+2. Open **Settings** (`Ctrl+,`) and go to the **Features** tab. Enable **AI Copilot** if it is off.
 3. Switch to the **AI** tab in Settings to configure your provider (endpoint, API key, model).
-4. Close Settings. Go to **View → AI Assistant** (or click the robot icon in the toolbar) to open the Copilot panel.
+4. Open the **Copilot** tab in the right pane (or use **View → AI Assistant** / `Alt+Shift+I`).
 
 You can also jump directly to the AI settings tab at any time by clicking the ⚙ gear icon in the Copilot panel header.
 
@@ -987,14 +987,16 @@ You can also jump directly to the AI settings tab at any time by clicking the �
 
 Choose a built-in preset or enter a custom endpoint:
 
-| Preset | Endpoint | Default model |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` |
-| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` |
-| LM Studio (local) | `http://localhost:1234/v1` | `local-model` |
+| Preset | Endpoint | Default model | Model selection |
+|---|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | Dropdown: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3`, or **Custom...** |
+| Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | Dropdown: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, or **Custom...** |
+| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` | Free-text model ID |
+| LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text model ID |
 
-Enter your API key if required (Ollama and LM Studio run without one). Endpoint and model settings are persisted across page reloads. In the desktop app, API keys are stored using Electron's secure credential storage; in the web app, API keys are kept in memory for the current session. To clear the saved desktop key go to **Settings → AI → Clear key**.
+Curated model IDs reflect each provider's catalog as of July 2026. The **Model** dropdown also loads the provider's live model list (click **Refresh**, or it auto-loads when a key/local endpoint is set), and **Custom...** accepts any model ID. Local providers (Ollama, LM Studio) list your installed models.
+
+Enter your API key if required (Ollama and LM Studio run without one). Endpoint and model settings are persisted across restarts. API keys are stored using Electron's secure credential storage. To clear the saved key go to **Settings → AI → Clear key**.
 
 ### Edit mode vs Ask mode
 

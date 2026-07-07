@@ -1174,10 +1174,55 @@ export function parseWithPeggy(source: string): ParseResult {
   // always contain '(' or '<', so a plain identifier with neither is the risky case.
   const isCallOrEffect = (v: string) => v.includes('(') || v.includes('<');
   if (patternEvents) {
+    // Built-in inline effect names (generic handlers in effects/index.ts plus the
+    // baked macro effects). Kept here to avoid importing audio code into the
+    // parser; compared case-insensitively. Update if new effects are registered.
+    const BUILTIN_EFFECT_NAMES = new Set<string>([
+      'pan', 'vib', 'port', 'arp', 'pitch_env', 'volslide', 'trem',
+      'cut', 'retrig', 'bend', 'sweep', 'echo',
+      'vol_env', 'arp_env', 'noise_rate_env',
+    ]);
+    // Effects contributed by the active chip plugin (e.g. NES-specific effects).
+    const chipEffectNames = new Set<string>();
+    const pluginEffects = (activePlugin as any)?.effects;
+    if (pluginEffects) for (const k of Object.keys(pluginEffects)) chipEffectNames.add(k.toLowerCase());
+
+    // A named inline effect `NOTE<name>` only works if `name` is a defined
+    // `effect name = ...` preset, a built-in, or a chip effect. Parametric
+    // forms like `<vib:3,5>` carry their own args and reference a built-in type.
+    const effectHeadIsKnown = (body: string): boolean => {
+      const head = (body.split(':')[0] || '').trim();
+      if (!head) return true; // empty `<>` handled elsewhere
+      if (Object.prototype.hasOwnProperty.call(effects, head)) return true; // defined preset
+      const lower = head.toLowerCase();
+      return BUILTIN_EFFECT_NAMES.has(lower) || chipEffectNames.has(lower);
+    };
+    const validateEffectBodies = (patName: string, bodies: string[] | undefined, loc: any): void => {
+      if (!bodies || bodies.length === 0) return;
+      // Skip when the chip is unknown (rules fall back to Game Boy and could
+      // misfire) or when imports may supply the definition.
+      if (!chipIsKnown || imports.length > 0) return;
+      for (const body of bodies) {
+        if (effectHeadIsKnown(body)) continue;
+        const head = (body.split(':')[0] || '').trim();
+        diag('warning', 'parser', `Pattern '${patName}': effect '${head}' is not defined and will be ignored — add an 'effect ${head} = ...' definition, or use a built-in inline effect such as <vib:3,5>.`, loc);
+      }
+    };
+
     for (const [patName, events] of Object.entries(patternEvents)) {
       for (const ev of events) {
-        if (!ev || ev.kind !== 'token') continue;
+        if (!ev) continue;
+        // Validate inline effects on note events, e.g. `C5<leadVib>`.
+        if (ev.kind === 'note' && (ev as any).effects) {
+          validateEffectBodies(patName, (ev as any).effects as string[], ev.loc);
+        }
+        if (ev.kind !== 'token') continue;
         const val = ev.value;
+        // Validate inline effects embedded in an identifier token, e.g. `snare<foo>`.
+        if (val && val.includes('<')) {
+          const bodies = [...val.matchAll(/<([^>]*)>/g)].map((mm) => mm[1]);
+          validateEffectBodies(patName, bodies, ev.loc);
+        }
         if (!val || isCallOrEffect(val)) continue;
         // It's a plain identifier — valid if it's a note, rest char, or a known name
         if (NOTE_RE.test(val)) continue;
