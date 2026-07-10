@@ -40,8 +40,21 @@ export interface ChatMessage {
   display?: string;
   /** Assistant edit-mode reply whose song was applied to the editor. */
   applied?: boolean;
-  /** Number of changed lines when the reply was applied. */
+  /**
+   * User decision after an edit was applied. `pending` while the editor review
+   * banner is active; `kept` / `discarded` after Keep or Discard.
+   */
+  applyOutcome?: 'pending' | 'kept' | 'discarded';
+  /** Edit-mode reply rejected before apply due to parse/validation errors. */
+  applyBlocked?: boolean;
+  /** Number of changed lines when the reply was applied (added + removed). */
   changedLines?: number;
+  /** Lines added or modified in the new file. */
+  linesAdded?: number;
+  /** Lines removed from the previous file. */
+  linesRemoved?: number;
+  /** Lines modified in place (replacement at the same position). */
+  linesModified?: number;
   /**
    * Human-readable bullet summary of the structural edits applied to the song
    * (e.g. "Added pattern `melody_var`"). Shown in the applied confirmation.
@@ -57,7 +70,12 @@ export interface ChatMessage {
 export interface ChatMessageMeta {
   display?: string;
   applied?: boolean;
+  applyOutcome?: 'pending' | 'kept' | 'discarded';
+  applyBlocked?: boolean;
   changedLines?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
+  linesModified?: number;
   changeSummary?: string[];
   system?: boolean;
 }
@@ -226,6 +244,28 @@ export function recordChatPrompt(prompt: string): void {
 /** Mark all messages as read. */
 export function markChatRead(): void {
   chatUnreadCount.set(0);
+}
+
+/**
+ * Update the most recent applied assistant message awaiting review (Keep/Discard).
+ * Returns true if a pending applied message was found and updated.
+ */
+export function markLastPendingAppliedEdit(outcome: 'kept' | 'discarded'): boolean {
+  const history = chatHistory.get();
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    if (
+      message.role === 'assistant'
+      && message.applied
+      && message.applyOutcome === 'pending'
+    ) {
+      const updated = [...history];
+      updated[i] = { ...message, applyOutcome: outcome };
+      chatHistory.set(updated);
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Update AI settings (partial update supported). */

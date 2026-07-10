@@ -3,7 +3,7 @@
 ## Key: C major | Tempo: 128 BPM | Style: Demonstration, tutorial
 ##
 ## This is an original demonstration song — it does not reproduce any copyrighted material.
-## Illustrates common BeatBax language features mapped to all four Game Boy channels:
+## Illustrates common BeatBax language features mapped to all four Game Boy-like channels:
 ##   Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
 ##
 ## Structure (8 bars):
@@ -110,7 +110,7 @@ pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 seq lead_seq = melody_pat melody_pat melody_pat
 
 # Bass sequence (low-end walking bass)
-seq bass_seq = bass_pat bass_pat bass_pat
+seq bass_seq = bass_pat
 
 # Wave sequence (wavetable arpeggios)
 seq wave_seq = arp_pat arp_pat arp_pat

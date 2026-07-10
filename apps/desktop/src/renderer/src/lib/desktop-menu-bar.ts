@@ -4,7 +4,7 @@ import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EditorViewPrefsHandlers } from './editor-view-prefs';
 import { scheduleCommentsFoldPreference } from './editor-view-prefs';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
-import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
+import { settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
 import type { AboutModalController, ShortcutsModalController } from '../components/shell/modals';
@@ -15,6 +15,7 @@ import type { DesktopCopilotHandle } from './desktop-copilot';
 import { blurChromeFocus, suppressChromeTabFocus } from './desktop-focus';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
+import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
 
 function readPanelVis(key: string, defaultVal = true): boolean {
   const raw = storage.get(key);
@@ -29,6 +30,7 @@ export interface SetupDesktopMenuBarOptions {
   getEditor: () => BeatBaxEditor | null;
   getSource: () => string;
   toolbar: DesktopToolbarHandle;
+  transportBar: DesktopTransportBarHandle;
   bottomTabs: BottomTabsController;
   rightTabs: RightTabsController;
   settingsModal: DesktopSettingsModalHandle;
@@ -57,6 +59,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     getEditor,
     getSource,
     toolbar,
+    transportBar,
     bottomTabs,
     settingsModal,
     shortcutsModal,
@@ -129,6 +132,8 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onToggleWrapText: () => viewPrefsHandlers.onToggleWrapText(),
     onToggleFoldAll: () => viewPrefsHandlers.onToggleFoldAll(),
     onToggleAI: () => copilot?.toggle() ?? false,
+    getToolbarVisible: () => toolbar.isVisible(),
+    getTransportVisible: () => transportBar.isVisible(),
   });
 
   menuBar.setWrapTextChecked(settingWordWrap.get());
@@ -137,8 +142,8 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
   const unsubFold = settingFoldComments.subscribe((folded) => menuBar.setFoldAllChecked(folded));
 
   menuBar.seedPanelVisible({
-    toolbar: readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
-    'transport-bar': readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
+    toolbar: settingShowToolbar.get(),
+    'transport-bar': settingShowTransportBar.get(),
     'channel-mixer': isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
       && readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
     'pattern-grid': isFeatureEnabled(FeatureFlag.PATTERN_GRID)

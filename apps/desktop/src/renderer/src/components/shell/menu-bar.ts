@@ -96,6 +96,10 @@ export interface MenuBarOptions {
   onToggleFoldAll?: () => void;
   /** Toggle the AI Copilot chat panel. */
   onToggleAI?: () => boolean | void;
+  /** Live toolbar visibility (for View menu toggles). */
+  getToolbarVisible?: () => boolean;
+  /** Live transport bar visibility (for View menu toggles). */
+  getTransportVisible?: () => boolean;
   /** Open the Settings panel (Ctrl+,). */
   onShowSettings?: () => void;
   /** Open the About modal (desktop). */
@@ -193,6 +197,23 @@ function isPanelFeatureEnabled(panel: string): boolean {
   return !flag || isFeatureEnabled(flag);
 }
 
+/** Checked state for View menu panel toggles (live for toolbar/transport). */
+function panelToggleChecked(
+  panel: string,
+  panelVisible: Map<string, boolean>,
+  getToolbarVisible?: () => boolean,
+  getTransportVisible?: () => boolean,
+): boolean {
+  if (!isPanelFeatureEnabled(panel)) return false;
+  if (panel === 'toolbar') {
+    return getToolbarVisible?.() ?? (panelVisible.get(panel) ?? false);
+  }
+  if (panel === 'transport-bar') {
+    return getTransportVisible?.() ?? (panelVisible.get(panel) ?? false);
+  }
+  return panelVisible.get(panel) ?? false;
+}
+
 export class MenuBar {
   private el!: HTMLElement;
   private songNameEl!: HTMLElement;
@@ -279,8 +300,12 @@ export class MenuBar {
 
   /** True when a panel is both feature-eligible and marked visible. */
   private isPanelEffectivelyVisible(panel: string): boolean {
-    if (!isPanelFeatureEnabled(panel)) return false;
-    return this.panelVisible.get(panel) ?? false;
+    return panelToggleChecked(
+      panel,
+      this.panelVisible,
+      this.opts.getToolbarVisible,
+      this.opts.getTransportVisible,
+    );
   }
 
   /** Enable or disable a menu item at runtime by its id. */
@@ -604,8 +629,18 @@ export class MenuBar {
   }
 
   /** Toggle a named panel and emit panel:toggled with the new visibility state. */
+  private resolvePanelVisible(panel: string): boolean {
+    if (panel === 'toolbar') {
+      return this.opts.getToolbarVisible?.() ?? (this.panelVisible.get(panel) ?? false);
+    }
+    if (panel === 'transport-bar') {
+      return this.opts.getTransportVisible?.() ?? (this.panelVisible.get(panel) ?? false);
+    }
+    return this.panelVisible.get(panel) ?? false;
+  }
+
   private emitPanelToggle(panel: string): void {
-    const next = !(this.panelVisible.get(panel) ?? false);
+    const next = !this.resolvePanelVisible(panel);
     this.panelVisible.set(panel, next);
     const menuId = PANEL_CHECK_IDS[panel];
     if (menuId) this.setItemChecked(menuId, this.isPanelEffectivelyVisible(panel));
