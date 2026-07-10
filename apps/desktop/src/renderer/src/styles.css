@@ -38,10 +38,31 @@ code {
 
 .desktop-shell {
   display: grid;
+  grid-template-columns: 1fr;
   grid-template-rows: auto auto 1fr auto;
   min-height: 100vh;
   background: var(--bb-app-bg, #1e1e1e);
   color: var(--bb-fg, #d4d4d4);
+}
+
+.desktop-shell > .desktop-title-bar {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.desktop-shell > #bb-toolbar-host {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.desktop-shell > .desktop-workspace-host {
+  grid-row: 3;
+  grid-column: 1;
+}
+
+.desktop-shell > .desktop-status-bar-host {
+  grid-row: 4;
+  grid-column: 1;
 }
 
 /* ─── Custom title bar (frameless window chrome) ─────────────────────────── */
@@ -203,6 +224,14 @@ code {
 
 #bb-toolbar-host {
   flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#bb-toolbar-host.bb-toolbar-host--hidden {
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 #bb-toolbar-host .bb-toolbar__btn:focus,
@@ -4492,7 +4521,9 @@ code {
 .bb-chat-mode-btn--active { background: var(--bb-accent-btn); color: #fff; border-color: var(--bb-accent-btn); }
 .bb-chat-mode-btn--active:hover { background: var(--bb-accent-btn-h); }
 .bb-changed-line-added   { background: rgba(78,201,78,0.15) !important; border-left: 3px solid #4ec94e !important; }
+.bb-changed-line-modified { background: rgba(220,220,170,0.14) !important; border-left: 3px solid #dcdcaa !important; }
 .bb-changed-line-removed { background: rgba(220,80,80,0.12) !important; border-left: 3px solid #f48771 !important; }
+.bb-changed-line-removed-hint { color: #f48771 !important; font-style: italic; opacity: 0.95; }
 .bb-ai-change-banner { position: absolute; top: 8px; right: 18px; z-index: 50; display: flex; align-items: center; gap: 6px; background: #252526; border: 1px solid #3c3c3c; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-family: 'Segoe UI', sans-serif; color: #d4d4d4; box-shadow: 0 2px 8px rgba(0,0,0,0.4); pointer-events: all; }
 .bb-ai-change-banner-dot { color: #4ec94e; font-size: 10px; }
 .bb-ai-banner-keep { padding: 3px 10px; font-size: 11px; background: #16825d; color: #fff; border: none; border-radius: 3px; cursor: pointer; }
@@ -6301,7 +6332,9 @@ code {
 .bb-chat-mode-btn--active { background: var(--bb-accent-btn); color: #fff; border-color: var(--bb-accent-btn); }
 .bb-chat-mode-btn--active:hover { background: var(--bb-accent-btn-h); }
 .bb-changed-line-added   { background: rgba(78,201,78,0.15) !important; border-left: 3px solid #4ec94e !important; }
+.bb-changed-line-modified { background: rgba(220,220,170,0.14) !important; border-left: 3px solid #dcdcaa !important; }
 .bb-changed-line-removed { background: rgba(220,80,80,0.12) !important; border-left: 3px solid #f48771 !important; }
+.bb-changed-line-removed-hint { color: #f48771 !important; font-style: italic; opacity: 0.95; }
 .bb-ai-change-banner { position: absolute; top: 8px; right: 18px; z-index: 50; display: flex; align-items: center; gap: 6px; background: #252526; border: 1px solid #3c3c3c; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-family: 'Segoe UI', sans-serif; color: #d4d4d4; box-shadow: 0 2px 8px rgba(0,0,0,0.4); pointer-events: all; }
 .bb-ai-change-banner-dot { color: #4ec94e; font-size: 10px; }
 .bb-ai-banner-keep { padding: 3px 10px; font-size: 11px; background: #16825d; color: #fff; border: none; border-radius: 3px; cursor: pointer; }
@@ -6545,6 +6578,20 @@ code {
   font-size: 12px;
   font-weight: 600;
   color: #4ec94e;
+}
+.bb-chat-applied--blocked {
+  border-left-color: #e0a040;
+  background: rgba(224, 160, 64, 0.1);
+}
+.bb-chat-applied-badge--blocked {
+  color: #e0a040;
+}
+.bb-chat-applied--discarded {
+  border-left-color: #f48771;
+  background: rgba(244, 135, 113, 0.08);
+}
+.bb-chat-applied-badge--discarded {
+  color: #f48771;
 }
 .bb-chat-applied-hint {
   font-size: 11px;

@@ -514,14 +514,36 @@ function enhanceParseError(error: any, source: string): Error {
     const firstWord = lineStart.split(/\s+/)[0];
     const foundChar = error.found;
 
+    const validKeywords = [
+      'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
+      'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song',
+    ];
+
+    // Unknown top-level keywords outrank bar-separator hints on the same line
+    // (e.g. removed `arrange main = lead | bass` should report 'arrange', not '|').
+    if (
+      firstWord
+      && !validKeywords.includes(firstWord)
+      && !/^[A-Z]/.test(firstWord)
+      && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord)
+    ) {
+      message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
+      error.message = message;
+      return error;
+    }
+
+    // Common AI hallucination: bar separators with '|' (tracker-style) in pat/seq.
+    if (
+      foundChar === '|'
+      || (lineStart.includes('|') && /^(pat|seq)\b/i.test(lineStart))
+    ) {
+      message = "Bar separator '|' is not valid in BeatBax. Pattern and sequence tokens are whitespace-separated only — e.g. `pat bass = (C2 E2 G2) * 2 (F2 A2 C3) * 2`, not `(C2 E2) * 2 | (F2 A2) * 2`.";
+      error.message = message;
+      return error;
+    }
+
     // Check if error is at end of line (found carriage return/newline) - likely unknown keyword
     if (!foundChar || foundChar === '\r' || foundChar === '\n') {
-      // List of valid keywords
-      const validKeywords = [
-        'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-        'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song'
-      ];
-
       if (firstWord && !validKeywords.includes(firstWord) && !/^[A-Z]/.test(firstWord)) {
         message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
         error.message = message;
@@ -760,6 +782,8 @@ function parseRecoveryError(stmt: ErrorStmt): ParseError {
     message = suggestion
       ? `Unknown keyword '${firstWord}'. Did you mean '${suggestion}'?`
       : `Unknown keyword '${firstWord}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+  } else if (raw.includes('|') || /^\|/.test(raw)) {
+    message = "Bar separator '|' is not valid in BeatBax. Pattern and sequence tokens are whitespace-separated only — e.g. `pat bass = (C2 E2 G2) * 2 (F2 A2 C3) * 2`, not `(C2 E2) * 2 | (F2 A2) * 2`.";
   } else if (/^channel\b/i.test(raw) && !raw.includes('=>')) {
     message = `Channel statement is missing '=>'. Expected: channel <n> => ...`;
   } else if (/^inst\b/i.test(raw) && /=\s*$/.test(raw)) {

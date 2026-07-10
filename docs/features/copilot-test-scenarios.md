@@ -1,9 +1,9 @@
 ---
 title: "CoPilot Test Scenarios"
-status: proposed
+status: active
 authors: ["kadraman"]
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-07-10
 related:
   - docs/features/complete/ai-chatbot-assistant.md
   - docs/features/desktop-client-enhancements.md
@@ -14,6 +14,43 @@ related:
 This document defines repeatable scenarios for refining BeatBax CoPilot in the desktop client. The goal is to improve correctness, reliability, and user trust by exercising common authoring workflows against known songs and checking both the AI output and the surrounding UI behavior.
 
 CoPilot should be treated as a code-editing feature, not a generic chatbot. In edit mode, every accepted response must preserve valid BeatBax syntax, respect the current song structure, and avoid inventing language constructs.
+
+---
+
+## Verification Status
+
+Track manual passes and automation separately. Update this table when a scenario is re-tested after significant Copilot or UI changes.
+
+| Status | Meaning |
+| ------ | ------- |
+| **Manual pass** | Exercised end-to-end in the desktop app by a human tester |
+| **Not tested** | Not yet manually verified against current behavior |
+| **Automated** | Covered by a unit or e2e test (may still need periodic manual spot-checks) |
+
+| # | Scenario | Status | Verified by | Date | Notes |
+| - | -------- | ------ | ----------- | ---- | ----- |
+| 1 | Melody variation with vibrato | Manual pass | kadraman | 2026-07-10 | |
+| 2 | Bass variation | Manual pass | kadraman | 2026-07-10 | |
+| 3 | Drum fill | Manual pass | kadraman | 2026-07-10 | |
+| 4 | Wavetable arpeggio variation | Manual pass | kadraman | 2026-07-10 | |
+| 5 | Small targeted edit | Manual pass | kadraman | 2026-07-10 | |
+| 6 | Repair existing parse error | Manual pass | kadraman | 2026-07-10 | Re-check banner/summary wording after line-diff updates |
+| 7 | Repair CoPilot's previous bad edit | Manual pass | kadraman | 2026-07-10 | |
+| 8 | Explain current song (Ask) | Manual pass | kadraman | 2026-07-10 | |
+| 9 | Explain valid syntax (Ask) | Manual pass | kadraman | 2026-07-10 | Re-check `:N` duration examples in Ask replies |
+| 10 | Valid key, successful request | Manual pass | kadraman | 2026-07-10 | |
+| 11 | Invalid key | Manual pass | kadraman | 2026-07-10 | |
+| 12 | Valid key, no quota | Not tested | — | — | |
+| 13 | Network timeout | Not tested | — | — | |
+| 14 | Curated model selection | Not tested | — | — | |
+| 15 | Custom model ID | Not tested | — | — | |
+| 16 | Live model fetch | Not tested | — | — | |
+| 17 | API key save and clear | Not tested | — | — | |
+| 18 | Startup restore | Not tested | — | — | Toolbar/parse startup fixes landed after initial pass window |
+| 19 | Prompt input history | Not tested | — | — | |
+| 20 | Edit review (Keep / Discard) | Not tested | — | — | Implemented after scenarios 1–11; needs first manual pass |
+
+**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (syntax reference, durations, truncation rules). Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
 ---
 
@@ -38,13 +75,13 @@ Before each scenario:
 2. Verify the song parses with no diagnostics.
 3. Enable AI Assistant.
 4. Use a known provider configuration:
-   - OpenAI with a valid key and quota.
-   - OpenAI with a valid key but no quota.
-   - Invalid key.
-   - Local OpenAI-compatible endpoint if available.
+  - OpenAI with a valid key and quota.
+  - OpenAI with a valid key but no quota.
+  - Invalid key.
+  - Local OpenAI-compatible endpoint if available.
 5. Set CoPilot mode intentionally:
-   - `Ask` for explanations.
-   - `Edit` for code changes.
+  - `Ask` for explanations.
+  - `Edit` for code changes.
 
 After each edit-mode response:
 
@@ -101,15 +138,35 @@ play melody_pat, melody_var, bass_pat
 Prompt:
 
 ```text
-Make the bass more active while keeping the same chord movement and Game Boy style.
+Make the bass pattern more active while keeping the same chord movement and Game Boy style.
 ```
 
 Expected behavior:
 
 - Modifies or adds a `pat bass_* = ...` pattern.
-- Keeps bass notes in a sensible low range.
+- Keeps bass notes in a sensible low range (typically C2–G3).
 - Preserves `channel 2` as `inst leadB` and any existing `:oct(-1)` transform unless explicitly changing the arrangement.
+- Updates `seq bass_seq = ...` to reference the new pattern alongside existing ones — does not replace the whole sequence with a single pattern name only.
 - Does not move bass material onto the melody channel.
+- Does **not** use bar separators `|` or commas between pattern tokens — tokens are whitespace-separated only.
+
+Failure examples to catch:
+
+```bax
+pat bass_var = (C2 E2 G2 C3) * 2 | (F2 A2 C3 F3) * 2
+```
+
+```bax
+seq bass_seq = bass_var
+channel 2 => inst leadB seq bass_seq
+```
+
+(Second example is also wrong if it drops `:oct(-1)` and existing `bass_pat` references from the sample song.)
+
+Context / validation checks:
+
+- Copilot context forbids `|` bar separators in patterns (see `[BEATBAX SYNTAX REFERENCE]`).
+- If the model returns invalid syntax, Edit mode validates with the parser before apply. Copilot automatically retries up to 2 times with the parse errors, then shows `⚠ Not applied — song has parse errors` if still invalid.
 
 ### 3. Drum Fill
 
@@ -178,6 +235,9 @@ Expected behavior:
 - Removes invalid commas from pattern tokens.
 - Does not add new musical material.
 - Returns a valid full song in edit mode.
+- Applied confirmation shows what was fixed, e.g. `Fixed N editor error(s): …` and `Removed pattern \`bad\` — \`pat bad = C5, D5, E5\``.
+- Editor banner reports removals separately (e.g. `AI: 3 removed lines`); deleted lines are highlighted at their anchor with inline `− …` hints, and ↑/↓ navigates between removal anchors as well as added lines.
+- In-place fixes (e.g. removing commas on one line) show as `AI: 1 line changed` with a yellow highlight and inline `was: − …` hint — not `1 added, 1 removed`.
 
 ### 7. Repair CoPilot's Previous Bad Edit
 
@@ -344,20 +404,31 @@ Expected behavior:
 - `Down` cycles forward and eventually restores the current draft.
 - Multiline input still supports normal arrow navigation inside text.
 
+### 20. Edit Review (Keep / Discard)
+
+After an edit-mode apply with line highlights, the editor banner offers **Keep** and **Discard**:
+
+- **Keep** updates the applied Copilot message to `✓ Kept in editor` (summary unchanged).
+- **Discard** updates it to `↩ Discarded`, labels the summary as reverted changes, and restores the pre-edit song.
+- Edits with no line diff skip the banner and show `✓ Kept in editor` immediately.
+- Ctrl+Z does not update the Copilot transcript automatically.
+
 ---
 
 ## Output Quality Checks
 
 For each edit-mode response, assess:
 
-| Check | Pass Criteria |
-|-------|---------------|
-| Syntax | Editor diagnostics are clean after applying the code. |
-| Scope | Only requested musical areas changed. |
-| Structure | Metadata, instruments, patterns, sequences, channels, and play directive remain coherent. |
-| Style | Formatting remains readable and close to the existing song. |
-| Musical intent | The change plausibly satisfies the prompt. |
-| Recovery | If a prior edit failed, CoPilot can repair the error without compounding it. |
+
+| Check          | Pass Criteria                                                                             |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| Syntax         | Editor diagnostics are clean after applying the code.                                     |
+| Scope          | Only requested musical areas changed.                                                     |
+| Structure      | Metadata, instruments, patterns, sequences, channels, and play directive remain coherent. |
+| Style          | Formatting remains readable and close to the existing song.                               |
+| Musical intent | The change plausibly satisfies the prompt.                                                |
+| Recovery       | If a prior edit failed, CoPilot can repair the error without compounding it.              |
+
 
 ---
 
@@ -370,7 +441,7 @@ Add focused e2e or unit coverage as scenarios stabilize:
 3. CoPilot prompt history Up/Down behavior.
 4. Startup restore with AI enabled and active tab set to Help/Visualizer/CoPilot.
 5. CoPilot error normalization for quota, invalid key, and timeout responses.
-6. Prompt assembly snapshot or unit test that verifies the syntax reference includes invalid-syntax warnings.
+6. Prompt assembly snapshot or unit test that verifies the syntax reference includes invalid-syntax warnings. *(Implemented: `apps/desktop/tests/copilot-context.test.ts`.)*
 
 For AI output itself, prefer deterministic tests around prompt/context construction and post-response validation rather than asserting a live model's exact text.
 
@@ -378,10 +449,11 @@ For AI output itself, prefer deterministic tests around prompt/context construct
 
 ## Future Hardening Ideas
 
-- Run returned edit-mode code through the BeatBax parser before enabling `Replace editor`.
+- Run returned edit-mode code through the BeatBax parser before enabling `Replace editor`. *(Implemented: Edit mode validates with `parseWithPeggy` before apply; blocked replies show parse errors in Copilot.)*
 - If parsing fails, show a warning and offer `Ask CoPilot to repair`.
 - Prefer patch-style edits or structured edit plans over full-song rewrites for small changes.
 - Add a "Validate response" step that displays syntax diagnostics before applying.
 - Warn when inline effects reference undefined named presets (parser diagnostic + Copilot `[DEFINED NAMES]` / `[EFFECT GUIDANCE]` context). *(Implemented: parser warning + desktop Copilot context sections.)*
 - Include a compact grammar reference from the parser/docs in CoPilot context instead of hand-maintained prompt text.
 - Add provider-specific model presets and warnings for models that perform poorly at code editing. *(Implemented: curated per-provider model dropdown, live `/models` fetch with Refresh, and Custom... free-text in desktop Settings → AI.)*
+

@@ -11,7 +11,11 @@ module.exports = {
         allowSyntheticDefaultImports: true,
         allowJs: true,
         module: 'commonjs',
-        jsx: 'react-jsx'
+        jsx: 'react-jsx',
+        baseUrl: '.',
+        paths: {
+          '@beatbax/app-core/*': ['../../packages/app-core/src/*'],
+        },
       }
     }]
   },

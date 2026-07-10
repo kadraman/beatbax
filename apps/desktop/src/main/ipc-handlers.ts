@@ -382,7 +382,24 @@ function isOpenAIEndpoint(endpoint: string): boolean {
   }
 }
 
+/** AbortController for the in-flight AI chat request (if any). */
+let activeAIChatAbort: AbortController | null = null;
+let aiChatUserCancelled = false;
+
+function cancelAIChatCompletion(): void {
+  if (!activeAIChatAbort) return;
+  aiChatUserCancelled = true;
+  activeAIChatAbort.abort();
+}
+
 async function createAIChatCompletion(request: unknown): Promise<string> {
+  // A new request supersedes any still-running one.
+  if (activeAIChatAbort) {
+    aiChatUserCancelled = true;
+    activeAIChatAbort.abort();
+  }
+  aiChatUserCancelled = false;
+
   const payload = sanitizeAIChatRequest(request);
   const url = endpointChatCompletionsURL(payload.endpoint);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -407,6 +424,7 @@ async function createAIChatCompletion(request: unknown): Promise<string> {
     if (includeTemperature) body.temperature = payload.temperature;
 
     const controller = new AbortController();
+    activeAIChatAbort = controller;
     const timeout = setTimeout(() => controller.abort(), 60_000);
     try {
       const response = await fetch(url, {
@@ -444,11 +462,13 @@ async function createAIChatCompletion(request: unknown): Promise<string> {
       throw new Error(formatProviderError(response.status, text));
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
+        if (aiChatUserCancelled) throw new Error('AI request cancelled.');
         throw new Error('AI request timed out.');
       }
       throw error;
     } finally {
       clearTimeout(timeout);
+      if (activeAIChatAbort === controller) activeAIChatAbort = null;
     }
   }
 
@@ -579,6 +599,10 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
 
   ipcMain.handle(IPC_CHANNELS.AI_CHAT_COMPLETION, async (_event, request: unknown) =>
     createAIChatCompletion(request));
+
+  ipcMain.handle(IPC_CHANNELS.AI_CANCEL_CHAT_COMPLETION, async () => {
+    cancelAIChatCompletion();
+  });
 
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();

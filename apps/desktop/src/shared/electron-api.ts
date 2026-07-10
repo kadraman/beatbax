@@ -80,6 +80,7 @@ export interface ElectronAPI {
   validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPIKeyValidationResult>;
   listAIModels(endpoint: string, apiKey: string): Promise<AIModelListResult>;
   createAIChatCompletion(request: AIChatCompletionRequest): Promise<string>;
+  cancelAIChatCompletion(): Promise<void>;
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;

@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   AI_VALIDATE_API_KEY: 'desktop:ai-validate-api-key',
   AI_LIST_MODELS: 'desktop:ai-list-models',
   AI_CHAT_COMPLETION: 'desktop:ai-chat-completion',
+  AI_CANCEL_CHAT_COMPLETION: 'desktop:ai-cancel-chat-completion',
   GET_VERSION: 'desktop:get-version',
   MENU_ACTION: 'desktop:menu-action',
   FILE_OPENED: 'desktop:file-opened',

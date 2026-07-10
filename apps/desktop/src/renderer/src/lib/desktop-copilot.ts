@@ -7,7 +7,8 @@ import {
   setFeatureEnabled,
 } from '@beatbax/app-core/utils/feature-flags';
 import type { RightTabsController } from '../components/shell/tabs';
-import { createDesktopCopilotPanel, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
+import { markLastPendingAppliedEdit } from '@beatbax/app-core/stores/chat.store';
+import { createDesktopCopilotPanel, countAIChangeDiff, formatAIChangeBanner, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
 
 interface PendingAIChange {
   previousContent: string;
@@ -70,6 +71,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     }
     pendingAIChange.banner.remove();
     pendingAIChange = null;
+    markLastPendingAppliedEdit(restore ? 'discarded' : 'kept');
   }
 
   function getChatPanel(): DesktopCopilotPanelHandle {
@@ -122,19 +124,74 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
             wrapper?.focus();
           }
         },
-        onHighlightChanges: (addedLineNums, previousContent) => {
+        onHighlightChanges: (diff, previousContent) => {
           const monacoEditor = getEditor()?.editor;
-          if (!monacoEditor || addedLineNums.length === 0) return;
+          const { total: changeCount } = countAIChangeDiff(diff);
+          if (!monacoEditor || changeCount === 0) return;
           clearPendingAIChange(false);
-          const decorations = addedLineNums.map((lineNum) => ({
-            range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
-            options: {
-              isWholeLine: true,
-              className: 'bb-changed-line-added',
-              overviewRulerColor: '#4ec94e',
-              overviewRulerLane: 4,
-            },
-          }));
+
+          const decorations: Array<{
+            range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+            options: Record<string, unknown>;
+          }> = [];
+
+          for (const lineNum of diff.added) {
+            decorations.push({
+              range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
+              options: {
+                isWholeLine: true,
+                className: 'bb-changed-line-added',
+                overviewRulerColor: '#4ec94e',
+                overviewRulerLane: 4,
+              },
+            });
+          }
+
+          for (const block of diff.modified) {
+            const wasHint = block.removed
+              .map((row) => `was: − ${row.text.trim() || '(empty line)'}`)
+              .join('   ');
+            for (const lineNum of block.newLines) {
+              decorations.push({
+                range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
+                options: {
+                  isWholeLine: true,
+                  className: 'bb-changed-line-modified',
+                  after: lineNum === block.line ? {
+                    content: `  ${wasHint}`,
+                    inlineClassName: 'bb-changed-line-removed-hint',
+                  } : undefined,
+                  overviewRulerColor: '#dcdcaa',
+                  overviewRulerLane: 4,
+                },
+              });
+            }
+          }
+
+          for (const anchor of diff.removed) {
+            const hint = anchor.removed
+              .map((row) => `− ${row.text.trim() || '(empty line)'}`)
+              .join('   ');
+            decorations.push({
+              range: {
+                startLineNumber: anchor.line,
+                startColumn: 1,
+                endLineNumber: anchor.line,
+                endColumn: 1,
+              },
+              options: {
+                isWholeLine: true,
+                className: 'bb-changed-line-removed',
+                after: {
+                  content: `  ${hint}`,
+                  inlineClassName: 'bb-changed-line-removed-hint',
+                },
+                overviewRulerColor: '#f48771',
+                overviewRulerLane: 4,
+              },
+            });
+          }
+
           const ids = monacoEditor.deltaDecorations([], decorations);
           const editorDom = monacoEditor.getDomNode();
           if (!editorDom) return;
@@ -144,15 +201,16 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           dot.className = 'bb-ai-change-banner-dot';
           dot.textContent = '⬤';
           const label = document.createElement('span');
-          label.textContent = `AI: ${addedLineNums.length} changed line${addedLineNums.length !== 1 ? 's' : ''}`;
+          label.textContent = formatAIChangeBanner(diff);
 
-          // Group contiguous changed lines into regions so the user can jump
-          // between distinct edit points (like VS Code diff navigation).
-          const sorted = [...addedLineNums].sort((a, b) => a - b);
-          const regions: number[] = [];
-          for (let k = 0; k < sorted.length; k++) {
-            if (k === 0 || sorted[k] !== sorted[k - 1] + 1) regions.push(sorted[k]);
+          const regionLines = new Set<number>();
+          const sortedAdded = [...diff.added].sort((a, b) => a - b);
+          for (let k = 0; k < sortedAdded.length; k++) {
+            if (k === 0 || sortedAdded[k] !== sortedAdded[k - 1] + 1) regionLines.add(sortedAdded[k]);
           }
+          for (const block of diff.modified) regionLines.add(block.line);
+          for (const anchor of diff.removed) regionLines.add(anchor.line);
+          const regions = [...regionLines].sort((a, b) => a - b);
           let currentRegion = -1;
 
           const counter = document.createElement('span');
@@ -193,7 +251,6 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           discardBtn.addEventListener('click', () => clearPendingAIChange(true));
 
           banner.append(dot, label);
-          // Only show navigation when there is more than one distinct edit point.
           if (regions.length > 1) {
             updateCounter();
             banner.append(prevBtn, nextBtn, counter);
@@ -201,7 +258,6 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           banner.append(keepBtn, discardBtn);
           editorDom.appendChild(banner);
           pendingAIChange = { previousContent, decorationIds: ids, banner };
-          // Jump to the first change so the user starts at an edit point.
           if (regions.length > 0) goToRegion(1);
         },
         onOpenSettings: () => {

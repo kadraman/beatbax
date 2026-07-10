@@ -52,6 +52,7 @@ export default function App(): React.JSX.Element {
   const getEditor = useCallback(() => editorRef.current, []);
   const pendingEditorContentRef = useRef<string | null>(null);
   const pendingAutoPlayRef = useRef<PendingAutoPlay | null>(null);
+  const lastParsedAstRef = useRef<unknown>(null);
 
   const syncDocumentStatus = useCallback((doc: OpenDocument) => {
     workspaceRef.current?.statusBar?.setDocumentInfo({
@@ -60,6 +61,11 @@ export default function App(): React.JSX.Element {
     });
   }, []);
 
+  const documentStateRef = useRef(documentState);
+  documentStateRef.current = documentState;
+  const syncDocumentStatusRef = useRef(syncDocumentStatus);
+  syncDocumentStatusRef.current = syncDocumentStatus;
+
   const runParse = useCallback((content: string) => {
     workspaceRef.current?.runParse(content);
   }, []);
@@ -67,6 +73,44 @@ export default function App(): React.JSX.Element {
   const requestAutoPlayAfterParse = useCallback((content: string) => {
     pendingAutoPlayRef.current = { content };
   }, []);
+
+  const tryPendingAutoPlay = useCallback((ast?: unknown) => {
+    const pending = pendingAutoPlayRef.current;
+    if (!pending) return;
+
+    const currentContent = editorRef.current?.getValue() ?? editorContent.get();
+    if (currentContent !== pending.content) return;
+
+    const parsedAst = ast ?? lastParsedAstRef.current;
+    if (!parsedAst || !hasPlayAuto(parsedAst)) {
+      if (ast !== undefined) pendingAutoPlayRef.current = null;
+      return;
+    }
+
+    pendingAutoPlayRef.current = null;
+    window.setTimeout(() => {
+      const workspace = workspaceRef.current;
+      if (!workspace) return;
+      if ((editorRef.current?.getValue() ?? editorContent.get()) !== pending.content) return;
+      if (!workspace.transportBar.playButton.disabled) {
+        workspace.transportBar.playButton.click();
+      }
+    }, 0);
+  }, []);
+
+  const scheduleInitialParse = useCallback(() => {
+    if (pendingEditorContentRef.current) return;
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+
+    const content = editorRef.current?.getValue() ?? (editorContent.get() || initialContent);
+    if (!content.trim()) return;
+
+    editorContent.set(content);
+    requestAutoPlayAfterParse(content);
+    workspace.runParse(content);
+    syncDocumentStatusRef.current(documentStateRef.current);
+  }, [initialContent, requestAutoPlayAfterParse]);
 
   const stopPlayback = useCallback(() => {
     appContext.playbackManager.stop();
@@ -81,7 +125,8 @@ export default function App(): React.JSX.Element {
       editorContent.set(content);
       runParse(content);
     }
-  }, [runParse]);
+    tryPendingAutoPlay();
+  }, [runParse, tryPendingAutoPlay]);
 
   const loadDocument = useCallback((name: string, content: string, filePath: string | null) => {
     stopPlayback();
@@ -156,7 +201,8 @@ export default function App(): React.JSX.Element {
     workspaceRef.current = handle;
     syncDocumentStatusRef.current(documentStateRef.current);
     void handle.refreshRecentFiles();
-  }, []);
+    scheduleInitialParse();
+  }, [scheduleInitialParse]);
 
   const handleNew = useCallback(() => {
     stopPlayback();
@@ -196,10 +242,6 @@ export default function App(): React.JSX.Element {
   handleMenuActionRef.current = handleMenuAction;
   const decodePayloadRef = useRef(decodePayload);
   decodePayloadRef.current = decodePayload;
-  const documentStateRef = useRef(documentState);
-  documentStateRef.current = documentState;
-  const syncDocumentStatusRef = useRef(syncDocumentStatus);
-  syncDocumentStatusRef.current = syncDocumentStatus;
 
   useEffect(() => {
     if (!window.electronAPI) {
@@ -215,31 +257,13 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (pendingEditorContentRef.current) return;
-    requestAutoPlayAfterParse(initialContent);
-    runParse(initialContent);
-    syncDocumentStatusRef.current(documentStateRef.current);
-  }, [initialContent, requestAutoPlayAfterParse, runParse]);
+    scheduleInitialParse();
+  }, [scheduleInitialParse]);
 
   useEffect(() => {
     const unsubParseSuccess = appContext.eventBus.on('parse:success', ({ ast }) => {
-      const pending = pendingAutoPlayRef.current;
-      if (!pending) return;
-
-      const currentContent = editorRef.current?.getValue() ?? editorContent.get();
-      if (currentContent !== pending.content) return;
-
-      pendingAutoPlayRef.current = null;
-      if (!hasPlayAuto(ast)) return;
-
-      window.setTimeout(() => {
-        const workspace = workspaceRef.current;
-        if (!workspace) return;
-        if ((editorRef.current?.getValue() ?? editorContent.get()) !== pending.content) return;
-        if (!workspace.transportBar.playButton.disabled) {
-          workspace.transportBar.playButton.click();
-        }
-      }, 0);
+      lastParsedAstRef.current = ast;
+      tryPendingAutoPlay(ast);
     });
 
     const clearPendingAutoPlay = () => {
@@ -251,7 +275,7 @@ export default function App(): React.JSX.Element {
       unsubParseSuccess();
       unsubParseError();
     };
-  }, [appContext.eventBus]);
+  }, [appContext.eventBus, tryPendingAutoPlay]);
 
   useEffect(() => {
     syncDocumentStatus(documentState);
