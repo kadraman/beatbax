@@ -65,6 +65,8 @@ export interface ChatMessage {
    * centered muted line and excluded from the context sent to the model.
    */
   system?: boolean;
+  /** Mode active when this message was sent/received — drives per-message actions. */
+  replyMode?: ChatMode;
 }
 
 export interface ChatMessageMeta {
@@ -78,6 +80,7 @@ export interface ChatMessageMeta {
   linesModified?: number;
   changeSummary?: string[];
   system?: boolean;
+  replyMode?: ChatMode;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────

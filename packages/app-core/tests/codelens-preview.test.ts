@@ -51,7 +51,7 @@ describe('CodeLens Preview provider', () => {
     expect(beforeResult).toEqual({ lenses: [], dispose: expect.any(Function) });
 
     // Emit parse:success to enable lenses
-    eventBus.emit('parse:success', { ast: {} });
+    eventBus.emit('parse:success', { ast: {}, valid: true });
 
     const model = {
       getLineCount: () => 4,
@@ -72,6 +72,10 @@ describe('CodeLens Preview provider', () => {
 
     // Expect inst preview notes for 'lead' (at least one note button)
     expect(ids.some((id: string) => id.startsWith('bb-inst-lead-'))).toBe(true);
+
+    eventBus.emit('parse:success', { ast: {}, valid: false });
+    const afterInvalid = capturedProvider.provideCodeLenses(model);
+    expect(afterInvalid.lenses).toEqual([]);
   });
 
   it('resolves step-entry audition instrument from a pat line via channel usage', () => {
