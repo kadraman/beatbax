@@ -56,6 +56,8 @@ export interface BeatBaxEditor {
   getCursorPosition: () => { line: number; column: number };
   /** Set cursor position */
   setCursorPosition: (line: number, column: number) => void;
+  /** Cancel a pending debounced editor:changed from executeEdits/setValue (tooling edits). */
+  cancelPendingChangeNotification: () => void;
 }
 
 /**
@@ -188,6 +190,13 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
     setCursorPosition: (line: number, column: number) => {
       editor.setPosition({ lineNumber: line, column });
       editor.revealPositionInCenter({ lineNumber: line, column });
+    },
+
+    cancelPendingChangeNotification: () => {
+      if (autoSaveTimeout !== null) {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = null;
+      }
     },
   };
 

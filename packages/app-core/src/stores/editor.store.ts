@@ -42,6 +42,11 @@ export const editorContent = atom<string>('');
 /** Whether the content has unsaved changes. */
 export const editorDirty = atom<boolean>(false);
 
+/** Disk save feedback for the status bar (desktop auto-save and manual save). */
+export type DocumentSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+export const documentSaveState = atom<DocumentSaveState>('idle');
+
 /** Filename of the currently open document (empty string = untitled). */
 export const editorFilename = atom<string>('');
 

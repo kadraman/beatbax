@@ -16,6 +16,7 @@ import './styles.css';
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core/app/create-app-context';
+import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 
@@ -704,13 +705,14 @@ eventBus.on('parse:success', ({ ast, sourceBpm: evtSourceBpm }) => {
 });
 
 // Update pattern grid on each successful parse
-eventBus.on('parse:success', ({ ast, song }: any) => {
+eventBus.on('parse:success', ({ ast, song, valid }: any) => {
   try {
     // Ensure the channel store has entries for every channel in this song
     // so mute/solo work for all channels (e.g. NES channel 5 DMC).
     if (ast?.channels?.length) {
       ensureChannels((ast.channels as any[]).map((c: any) => c.id as number));
     }
+    if (!isParseSuccessValid({ valid })) return;
     if (song) patternGrid?.setSong(song, ast);
   } catch (_e) {}
 });
@@ -1450,12 +1452,12 @@ settingFoldComments.subscribe((folded) => menuBar?.setFoldAllChecked(folded));
 }
 
 // Keep the menu bar song name in sync with the parsed metadata.name directive.
-eventBus.on('parse:success', ({ ast }: any) => {
+eventBus.on('parse:success', ({ ast, valid }: any) => {
   const metaName = (ast as any)?.metadata?.name;
   menuBar?.setSongName(metaName || (loadedFilename === 'song' ? 'untitled' : loadedFilename));
   toolbar?.setChip((ast as any)?.chip || 'gameboy');
   menuBar?.setChip((ast as any)?.chip || 'gameboy');
-  if (capabilities.export) toolbar?.setExportEnabled(true);
+  if (capabilities.export && isParseSuccessValid({ valid })) toolbar?.setExportEnabled(true);
 });
 
 eventBus.on('parse:error', () => {

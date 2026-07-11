@@ -901,7 +901,10 @@ export function setupCodeLensPreview(
   _stopTrigger = () => stopPreview();
 
   // ── EventBus subscriptions ────────────────────────────────────────────────
-  const unsubParseSuccess = eventBus.on('parse:success', () => { hasValidParse = true;  notifyChange(); });
+  const unsubParseSuccess = eventBus.on('parse:success', (payload) => {
+    hasValidParse = payload.valid !== false;
+    notifyChange();
+  });
   const unsubParseError = eventBus.on('parse:error',   () => { hasValidParse = false; stopPreview(); });
   const unsubPlaybackStarted = eventBus.on('playback:started', () => stopPreview());
 

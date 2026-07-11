@@ -70,6 +70,14 @@ describe('tryMergeSnippetIntoSong', () => {
     const snippet = 'pat drums_pat = (snare . . .)\npat bass_pat = C3';
     expect(tryMergeSnippetIntoSong(sampleSong, snippet)).toBeNull();
   });
+
+  it('merges a single inst line into sample.bax', () => {
+    const snippet = 'inst leadA type=pulse2 duty=50 env=12,down';
+    const merged = tryMergeSnippetIntoSong(sampleSong, snippet);
+    expect(merged).not.toBeNull();
+    expect(merged).toContain(snippet.trim());
+    expect(merged).not.toContain('type=pulse1');
+  });
 });
 
 describe('buildIncompleteSongRepairPrompt', () => {

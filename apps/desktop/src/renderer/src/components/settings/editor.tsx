@@ -106,7 +106,7 @@ export function EditorSettingsSection(): React.JSX.Element {
       <ToggleRow checked={autoSave} label="Auto-save" onChange={(value) => settingAutoSave.set(value)} />
       <NoteText>
         {hasElectronAPI
-          ? 'When enabled, saves the open file to disk shortly after each edit (requires a saved file path).'
+          ? 'When enabled, saves the open file to disk after each successful parse with no errors (requires a saved file path).'
           : 'When enabled, the editor auto-saves content to local storage 500 ms after each keystroke. Changes to this setting take effect after a page reload.'}
       </NoteText>
 

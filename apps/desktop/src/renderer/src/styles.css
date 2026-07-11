@@ -1209,16 +1209,31 @@ code {
   text-overflow: ellipsis;
 }
 
-.status-document-dirty {
+.status-document-save {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
-  color: var(--warning-color-light, #ffd666);
   opacity: 0.95;
 }
 
-.status-document-dirty[hidden] {
+.status-document-save[hidden] {
   display: none;
+}
+
+.status-document-save--modified {
+  color: var(--warning-color-light, #ffd666);
+}
+
+.status-document-save--saving {
+  color: var(--text-muted, #9da5b4);
+}
+
+.status-document-save--saved {
+  color: var(--success-color-light, #95d475);
+}
+
+.status-document-save--error {
+  color: var(--error-color-light, #ffc1c1);
 }
 
 .status-diagnostics {
@@ -1573,6 +1588,12 @@ code {
 
 .problems-quick-fix-item.is-preferred {
   font-weight: 600;
+}
+
+.problems-context-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color, #454545);
 }
 
 .output-loc {
@@ -4558,6 +4579,7 @@ code {
 .bb-chat-code-block pre { margin: 0; padding: 8px 10px; overflow-x: auto; }
 .bb-chat-code { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; color: #d4d4d4; white-space: pre; }
 .bb-chat-code-actions { display: flex; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--border-color, #3c3c3c); background: var(--header-bg, #252526); }
+.bb-chat-ask-actions { display: flex; gap: 6px; margin-top: 8px; }
 .bb-chat-action-btn { padding: 3px 8px; font-size: 11px; background: var(--bb-accent-btn); color: #fff; border: none; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
 .bb-chat-action-btn:hover { background: var(--bb-accent-btn-h); }
 .bb-chat-applied-badge { justify-content: flex-start; }
@@ -6370,6 +6392,7 @@ code {
 .bb-chat-code-block pre { margin: 0; padding: 8px 10px; overflow-x: auto; }
 .bb-chat-code { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; color: #d4d4d4; white-space: pre; }
 .bb-chat-code-actions { display: flex; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--border-color, #3c3c3c); background: var(--header-bg, #252526); }
+.bb-chat-ask-actions { display: flex; gap: 6px; margin-top: 8px; }
 .bb-chat-action-btn { padding: 3px 8px; font-size: 11px; background: var(--bb-accent-btn); color: #fff; border: none; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
 .bb-chat-action-btn:hover { background: var(--bb-accent-btn-h); }
 .bb-chat-applied-badge { justify-content: flex-start; }

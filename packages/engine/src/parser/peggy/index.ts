@@ -33,6 +33,7 @@ import { warn } from '../../util/diag.js';
 import { applyModsToTokens } from '../../expand/refExpander.js';
 import { splitTopLevel } from '../../expand/splitTopLevel.js';
 import { createLogger } from '../../util/logger.js';
+import { parseEffectsInline } from '../../song/effectsInline.js';
 import { normalizeScaleDirective, normalizeLock, validateScaleLocks } from '../scale-awareness.js';
 
 const log = createLogger('parser');
@@ -1217,12 +1218,18 @@ export function parseWithPeggy(source: string): ParseResult {
     // A named inline effect `NOTE<name>` only works if `name` is a defined
     // `effect name = ...` preset, a built-in, or a chip effect. Parametric
     // forms like `<vib:3,5>` carry their own args and reference a built-in type.
-    const effectHeadIsKnown = (body: string): boolean => {
-      const head = (body.split(':')[0] || '').trim();
-      if (!head) return true; // empty `<>` handled elsewhere
-      if (Object.prototype.hasOwnProperty.call(effects, head)) return true; // defined preset
-      const lower = head.toLowerCase();
+    const isEffectTypeKnown = (type: string): boolean => {
+      if (!type) return true;
+      if (Object.prototype.hasOwnProperty.call(effects, type)) return true;
+      const lower = type.toLowerCase();
       return BUILTIN_EFFECT_NAMES.has(lower) || chipEffectNames.has(lower);
+    };
+    const unknownEffectTypes = (body: string): string[] => {
+      if (!body || !body.trim()) return [];
+      const parsed = parseEffectsInline(body);
+      return parsed.effects
+        .map((e) => e.type)
+        .filter((type) => !isEffectTypeKnown(type));
     };
     const validateEffectBodies = (patName: string, bodies: string[] | undefined, loc: any): void => {
       if (!bodies || bodies.length === 0) return;
@@ -1230,9 +1237,9 @@ export function parseWithPeggy(source: string): ParseResult {
       // misfire) or when imports may supply the definition.
       if (!chipIsKnown || imports.length > 0) return;
       for (const body of bodies) {
-        if (effectHeadIsKnown(body)) continue;
-        const head = (body.split(':')[0] || '').trim();
-        diag('warning', 'parser', `Pattern '${patName}': effect '${head}' is not defined and will be ignored — add an 'effect ${head} = ...' definition, or use a built-in inline effect such as <vib:3,5>.`, loc);
+        for (const head of unknownEffectTypes(body)) {
+          diag('warning', 'parser', `Pattern '${patName}': effect '${head}' is not defined and will be ignored — add an 'effect ${head} = ...' definition, or use a built-in inline effect such as <vib:3,5>.`, loc);
+        }
       }
     };
 

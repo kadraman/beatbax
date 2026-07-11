@@ -6,7 +6,9 @@ import {
   applyQuickFixSuggestion,
   getQuickFixesForProblem,
 } from '@beatbax/app-core/editor/code-actions';
+import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
+import { copyTextToClipboard, formatProblemClipboardText } from '../../lib/copilot-error-prompt';
 
 export interface DesktopOutputMessage {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -26,6 +28,8 @@ export interface DesktopOutputPanelHandle {
 interface DesktopOutputPanelOptions {
   singleTab: 'problems' | 'output';
   getTextModel?: () => monaco.editor.ITextModel | null;
+  /** Desktop Copilot is available on this client (menu still respects AI feature flag). */
+  copilotActions?: boolean;
 }
 
 interface DesktopOutputPanelProps extends DesktopOutputPanelOptions {
@@ -54,53 +58,110 @@ function getIcon(type: DesktopOutputMessage['type']): string {
   }
 }
 
-function useQuickFixMenu(): {
-  closeQuickFixMenu: () => void;
-  showQuickFixMenu: (
+function useProblemContextMenu(): {
+  closeContextMenu: () => void;
+  showProblemContextMenu: (
     event: MouseEvent,
-    model: monaco.editor.ITextModel,
-    fixes: ReturnType<typeof getQuickFixesForProblem>,
-    line: number,
-    column: number,
-    eventBus: EventBus,
+    options: {
+      message: DesktopOutputMessage;
+      eventBus: EventBus;
+      getTextModel?: () => monaco.editor.ITextModel | null;
+      copilotActions: boolean;
+    },
   ) => void;
 } {
-  const quickFixMenuRef = useRef<QuickFixMenuState>({ menu: null, dismiss: null });
+  const menuRef = useRef<QuickFixMenuState>({ menu: null, dismiss: null });
 
-  const closeQuickFixMenu = useCallback(() => {
-    quickFixMenuRef.current.dismiss?.();
-    quickFixMenuRef.current.menu?.remove();
-    quickFixMenuRef.current = { menu: null, dismiss: null };
+  const closeContextMenu = useCallback(() => {
+    menuRef.current.dismiss?.();
+    menuRef.current.menu?.remove();
+    menuRef.current = { menu: null, dismiss: null };
   }, []);
 
-  const showQuickFixMenu = useCallback((
-    event: MouseEvent,
-    model: monaco.editor.ITextModel,
-    fixes: ReturnType<typeof getQuickFixesForProblem>,
-    line: number,
-    column: number,
-    eventBus: EventBus,
+  const appendMenuItem = (
+    menu: HTMLElement,
+    label: string,
+    onClick: () => void,
+    preferred = false,
   ) => {
-    closeQuickFixMenu();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `problems-quick-fix-item${preferred ? ' is-preferred' : ''}`;
+    btn.textContent = label;
+    btn.setAttribute('role', 'menuitem');
+    btn.addEventListener('click', () => {
+      onClick();
+      closeContextMenu();
+    });
+    menu.appendChild(btn);
+  };
+
+  const appendSeparator = (menu: HTMLElement) => {
+    const sep = document.createElement('div');
+    sep.className = 'problems-context-menu-sep';
+    sep.setAttribute('role', 'separator');
+    menu.appendChild(sep);
+  };
+
+  const showProblemContextMenu = useCallback((
+    event: MouseEvent,
+    options: {
+      message: DesktopOutputMessage;
+      eventBus: EventBus;
+      getTextModel?: () => monaco.editor.ITextModel | null;
+      copilotActions: boolean;
+    },
+  ) => {
+    const { message, eventBus, getTextModel, copilotActions } = options;
+    const line = message.loc?.start?.line ?? 0;
+    const column = message.loc?.start?.column ?? 1;
+    const canNavigate = line > 0;
+    const model = getTextModel?.();
+    const fixes = model
+      ? getQuickFixesForProblem(
+        model,
+        message.message,
+        canNavigate ? { start: { line, column } } : undefined,
+      )
+      : [];
+
+    closeContextMenu();
+    event.preventDefault();
 
     const menu = document.createElement('div');
     menu.className = 'problems-quick-fix-menu';
     menu.setAttribute('role', 'menu');
 
     for (const fix of fixes) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `problems-quick-fix-item${fix.isPreferred ? ' is-preferred' : ''}`;
-      btn.textContent = fix.title;
-      btn.setAttribute('role', 'menuitem');
-      btn.addEventListener('click', () => {
-        if (line > 0) {
-          eventBus.emit('navigate:to', { line, column });
-        }
+      appendMenuItem(menu, fix.title, () => {
+        if (!model) return;
+        if (line > 0) eventBus.emit('navigate:to', { line, column });
         applyQuickFixSuggestion(model, fix);
-        closeQuickFixMenu();
+      }, fix.isPreferred);
+    }
+
+    const clipboardText = formatProblemClipboardText(message.message, {
+      source: message.source,
+      line,
+      column,
+    });
+
+    if (fixes.length > 0) appendSeparator(menu);
+
+    appendMenuItem(menu, 'Copy message', () => {
+      void copyTextToClipboard(clipboardText);
+    });
+
+    if (copilotActions) {
+      appendMenuItem(menu, 'Ask Copilot about this error', () => {
+        eventBus.emit('copilot:ask-about-error', {
+          message: message.message,
+          source: message.source,
+          line: canNavigate ? line : undefined,
+          column: canNavigate ? column : undefined,
+          autoSubmit: true,
+        });
       });
-      menu.appendChild(btn);
     }
 
     document.body.appendChild(menu);
@@ -121,7 +182,7 @@ function useQuickFixMenu(): {
       menu.style.top = `${top}px`;
     }
 
-    const onDismiss = () => closeQuickFixMenu();
+    const onDismiss = () => closeContextMenu();
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onDismiss();
     };
@@ -131,7 +192,7 @@ function useQuickFixMenu(): {
       document.addEventListener('keydown', onKeyDown, { once: true });
     }, 0);
 
-    quickFixMenuRef.current = {
+    menuRef.current = {
       menu,
       dismiss: () => {
         document.removeEventListener('click', onDismiss);
@@ -139,46 +200,45 @@ function useQuickFixMenu(): {
         document.removeEventListener('keydown', onKeyDown);
       },
     };
-  }, [closeQuickFixMenu]);
+  }, [closeContextMenu]);
 
-  useEffect(() => closeQuickFixMenu, [closeQuickFixMenu]);
+  useEffect(() => closeContextMenu, [closeContextMenu]);
 
-  return { closeQuickFixMenu, showQuickFixMenu };
+  return { closeContextMenu, showProblemContextMenu };
 }
 
 function ProblemMessage({
+  copilotActions,
   eventBus,
   getTextModel,
   message,
-  showQuickFixMenu,
+  showProblemContextMenu,
 }: {
+  copilotActions: boolean;
   eventBus: EventBus;
   getTextModel?: () => monaco.editor.ITextModel | null;
   message: DesktopOutputMessage;
-  showQuickFixMenu: ReturnType<typeof useQuickFixMenu>['showQuickFixMenu'];
+  showProblemContextMenu: ReturnType<typeof useProblemContextMenu>['showProblemContextMenu'];
 }): ReactNode {
   const line = message.loc?.start?.line ?? 0;
   const column = message.loc?.start?.column ?? 1;
   const canNavigate = line > 0;
   const source = message.source ? `[${message.source}]` : '';
+  const contextHint = copilotActions
+    ? 'Right-click to copy or ask Copilot'
+    : 'Right-click for quick fixes or to copy';
 
   const handleNavigate = () => {
     if (canNavigate) eventBus.emit('navigate:to', { line, column });
   };
 
   const handleContextMenu = (event: MouseEvent) => {
-    const model = getTextModel?.();
-    if (!model) return;
-
-    const fixes = getQuickFixesForProblem(
-      model,
-      message.message,
-      canNavigate ? { start: { line, column } } : undefined,
-    );
-    if (fixes.length === 0) return;
-
-    event.preventDefault();
-    showQuickFixMenu(event, model, fixes, line, column, eventBus);
+    showProblemContextMenu(event, {
+      message,
+      eventBus,
+      getTextModel,
+      copilotActions,
+    });
   };
 
   return (
@@ -190,7 +250,7 @@ function ProblemMessage({
       onClick={handleNavigate}
       onContextMenu={handleContextMenu}
       style={{ cursor: 'pointer' }}
-      title={canNavigate ? 'Click to jump. Right-click for quick fixes' : 'Right-click for quick fixes when available'}
+      title={canNavigate ? `Click to jump. ${contextHint}` : contextHint}
     >
       <div className="output-message-main">
         <span className="output-icon">{getIcon(message.type)}</span>
@@ -224,6 +284,7 @@ function OutputMessage({ message }: { message: DesktopOutputMessage }): ReactNod
 }
 
 function DesktopOutputPanel({
+  copilotActions = false,
   eventBus,
   getTextModel,
   panelRef,
@@ -232,9 +293,23 @@ function DesktopOutputPanel({
   const messagesRef = useRef<DesktopOutputMessage[]>([]);
   const outputMessagesRef = useRef<HTMLDivElement | null>(null);
   const [, setRenderVersion] = useState(0);
-  const { closeQuickFixMenu, showQuickFixMenu } = useQuickFixMenu();
+  const { closeContextMenu, showProblemContextMenu } = useProblemContextMenu();
+  const [copilotMenuEnabled, setCopilotMenuEnabled] = useState(
+    () => copilotActions && isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+  );
   const wantsProblems = singleTab !== 'output';
   const wantsOutput = singleTab !== 'problems';
+
+  useEffect(() => {
+    if (!copilotActions) {
+      setCopilotMenuEnabled(false);
+      return undefined;
+    }
+    setCopilotMenuEnabled(isFeatureEnabled(FeatureFlag.AI_ASSISTANT));
+    return eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
+      if (flag === FeatureFlag.AI_ASSISTANT) setCopilotMenuEnabled(enabled);
+    });
+  }, [copilotActions, eventBus]);
 
   const rerender = useCallback(() => {
     setRenderVersion((version) => version + 1);
@@ -259,9 +334,9 @@ function DesktopOutputPanel({
 
   useImperativeHandle(panelRef, () => ({
     addMessage,
-    dismissQuickFixMenu: closeQuickFixMenu,
-    dispose: closeQuickFixMenu,
-  }), [addMessage, closeQuickFixMenu]);
+    dismissQuickFixMenu: closeContextMenu,
+    dispose: closeContextMenu,
+  }), [addMessage, closeContextMenu]);
 
   useEffect(() => {
     const cleanups: Array<() => void> = [];
@@ -320,10 +395,10 @@ function DesktopOutputPanel({
         eventBus.on('parse:success', () => {
           clearMessagesBySource('parser', 'error');
         }),
-        eventBus.on('parse:started', closeQuickFixMenu),
-        eventBus.on('validation:errors', closeQuickFixMenu),
-        eventBus.on('validation:warnings', closeQuickFixMenu),
-        eventBus.on('navigate:to', closeQuickFixMenu),
+        eventBus.on('parse:started', closeContextMenu),
+        eventBus.on('validation:errors', closeContextMenu),
+        eventBus.on('validation:warnings', closeContextMenu),
+        eventBus.on('navigate:to', closeContextMenu),
       );
     }
 
@@ -399,13 +474,13 @@ function DesktopOutputPanel({
     }
 
     return () => {
-      closeQuickFixMenu();
+      closeContextMenu();
       for (const cleanup of cleanups) cleanup();
     };
   }, [
     addMessage,
     clearMessagesBySource,
-    closeQuickFixMenu,
+    closeContextMenu,
     eventBus,
     rerender,
     wantsOutput,
@@ -438,10 +513,11 @@ function DesktopOutputPanel({
                   {problems.map((message, index) => (
                     <ProblemMessage
                       key={`${message.source ?? 'problem'}-${message.message}-${index}`}
+                      copilotActions={copilotMenuEnabled}
                       eventBus={eventBus}
                       getTextModel={getTextModel}
                       message={message}
-                      showQuickFixMenu={showQuickFixMenu}
+                      showProblemContextMenu={showProblemContextMenu}
                     />
                   ))}
                 </div>
@@ -478,6 +554,7 @@ export function createDesktopOutputPanel(
   flushSync(() => {
     root?.render(
       <DesktopOutputPanel
+        copilotActions={options.copilotActions}
         eventBus={eventBus}
         getTextModel={options.getTextModel}
         panelRef={(handle) => {
