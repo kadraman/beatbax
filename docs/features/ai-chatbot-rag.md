@@ -1,20 +1,21 @@
 ---
-title: "Web UI: AI Chatbot RAG (Retrieval-Augmented Generation)"
+title: "BeatBax Copilot RAG (Retrieval-Augmented Generation)"
 status: proposed
 authors: ["kadraman"]
 created: 2026-03-29
+updated: 2026-07-11
 issue: "https://github.com/kadraman/beatbax/issues/66"
 ---
 
 ## Summary
 
-Enhance the BeatBax Copilot chat assistant with a client-side Retrieval-Augmented Generation (RAG) layer that injects relevant documentation chunks and example songs into every inference call. The static language reference in the current system prompt covers the core syntax but can miss edge cases, advanced effect usage, and idiomatic patterns found in real songs. RAG closes that gap without increasing the base context size for simple queries.
+Enhance **BeatBax Copilot** (desktop app) with a client-side Retrieval-Augmented Generation (RAG) layer that injects relevant documentation chunks and example songs into every inference call. The static language reference in `copilot-context.ts` covers core syntax but can miss edge cases, advanced effect usage, and idiomatic patterns found in real songs. RAG closes that gap without increasing the base context size for simple queries.
 
 ---
 
 ## Problem Statement
 
-The current system prompt for BeatBax Copilot includes a hardcoded language reference (`buildLanguageRef()`). This works well for common tasks but has several limitations:
+The current system prompt for BeatBax Copilot includes a hardcoded language reference (`buildLanguageRef()` in `apps/desktop/src/renderer/src/lib/copilot-context.ts`). This works well for common tasks but has several limitations:
 
 - The reference is a static snapshot — it does not update automatically when new features are added to the language.
 - It cannot include full song examples (too large to always include).
@@ -29,7 +30,7 @@ A RAG layer addresses all of these by retrieving the most relevant documentation
 
 ### Summary
 
-A **pre-built static index** (Option A from the `ai-chatbot-assistant.md` analysis) is the recommended approach for v1. At build time, a script reads all documentation and example songs, splits them into overlapping chunks, and optionally generates embeddings with a small ONNX embedding model. The index is serialised to a JSON file bundled as a static asset. At query time, the user's message is compared against the index and the top-K highest-scoring chunks are injected into `assembleContext()` under a `[RELEVANT EXAMPLES]` block.
+A **pre-built static index** (Option A from the `ai-chatbot-assistant.md` analysis) is the recommended approach for v1. At build time, a script reads all documentation and example songs, splits them into overlapping chunks, and optionally generates embeddings with a small ONNX embedding model. The index is bundled as a static asset in the desktop app. At query time, the user's message is compared against the index and the top-K highest-scoring chunks are injected into `assembleContext()` under a `[RELEVANT EXAMPLES]` block.
 
 A simpler keyword/BM25 fallback (Option B) is implemented first — it requires no model download and handles the majority of queries well. Embedding-based retrieval can be layered on top later.
 
@@ -80,15 +81,15 @@ The total injected RAG content must stay within the available context window:
 | Component | Approximate tokens |
 |---|---|
 | System prompt (language ref + mode suffix) | ~1500 |
-| Editor content (capped at 3000 chars) | ~750 |
+| Editor content | Full song in Edit mode; up to 12K chars (~3000 tokens) in Ask mode |
 | Conversation history (last 10 messages) | ~500 |
-| **Available for RAG** | **~4000–5000** |
+| **Available for RAG** | **Varies by mode and song size** |
 
 A `ChunkBudgetManager` greedily adds chunks in ranked order until the budget (configurable, default 3500 tokens) is exhausted. Lower-scoring chunks are silently dropped.
 
 ### Injection Format
 
-Retrieved chunks are injected between the language reference and the editor content in `assembleContext()`:
+Retrieved chunks are injected between the language reference and the editor content in `assembleContext()` (`copilot-context.ts`):
 
 ```
 You are BeatBax Copilot…
@@ -110,7 +111,7 @@ Each chunk is labelled with its source path and section so the model can cite it
 
 ### Settings Toggle
 
-A checkbox in the chat panel's settings form enables or disables RAG injection. Disabled by default until the index has loaded; automatically enabled once loading completes. The toggle state is persisted to `localStorage` under `bb-ai-rag-enabled`.
+A checkbox in **Settings → AI** enables or disables RAG injection. Disabled by default until the index has loaded; automatically enabled once loading completes. The toggle state would be persisted under `beatbax:ai.ragEnabled` (proposed key in `packages/app-core/src/utils/local-storage.ts`).
 
 ---
 
@@ -124,10 +125,10 @@ A checkbox in the chat panel's settings form enables or disables RAG injection. 
 - Splits `.bax` files by `# section` comment lines or whole-file if short.
 - Computes BM25 keyword list per chunk.
 - Optionally generates embeddings via `@xenova/transformers` (gated by `--embed` CLI flag).
-- Outputs `apps/web-ui/public/rag-index.json`.
-- Runs as part of `npm run build` (added to `prebuild` script in `apps/web-ui/package.json`).
+- Outputs a bundled static index (e.g. under `apps/desktop/` assets).
+- Runs as part of desktop build (or shared prebuild script).
 
-### 2. Client-side retriever — `apps/web-ui/src/utils/rag-retriever.ts`
+### 2. Client-side retriever — `apps/desktop/src/renderer/src/lib/rag-retriever.ts` (or shared in app-core)
 
 ```typescript
 export interface RagChunk { /* see schema above */ }
@@ -137,33 +138,33 @@ export interface RetrieveOptions {
   useEmbedding?: boolean;
 }
 export class RagRetriever {
-  async load(): Promise<void>;           // fetch + parse rag-index.json lazily
+  async load(): Promise<void>;           // load bundled rag-index.json lazily
   retrieve(query: string, opts?: RetrieveOptions): RagChunk[];
   isLoaded(): boolean;
 }
 ```
 
-- Lazy-loads `rag-index.json` on first call to `retrieve()`.
+- Lazy-loads the index on first call to `retrieve()`.
 - Implements BM25 scoring internally; embedding scoring via optional ONNX pipeline.
 - Applies `ChunkBudgetManager` to trim results to the token budget.
 - Exported as a singleton (`export const ragRetriever = new RagRetriever()`).
 
-### 3. Integration into `assembleContext()` — `apps/web-ui/src/panels/chat-panel.ts`
+### 3. Integration into `assembleContext()` — `apps/desktop/src/renderer/src/lib/copilot-context.ts`
 
 - Import `ragRetriever` singleton.
 - In `assembleContext()`, if RAG is enabled and `ragRetriever.isLoaded()`, call `ragRetriever.retrieve(userText, { budget: RAG_TOKEN_BUDGET })`.
 - Format retrieved chunks into the `[RELEVANT EXAMPLES]` block.
 - Fall back gracefully (skip block) if the index is not loaded or retrieval returns empty.
-- Start background loading of the index when the chat panel is first shown.
+- Start background loading of the index when the Copilot panel is first shown (`DesktopCopilotPanel.tsx`).
 
-### 4. Settings UI update — `apps/web-ui/src/panels/chat-panel.ts`
+### 4. Settings UI update — `apps/desktop/src/renderer/src/components/settings/ai.tsx`
 
-- Add "Enable RAG context" checkbox to the settings panel.
-- Show a loading indicator ("Loading knowledge base…") while `rag-index.json` is being fetched.
+- Add "Enable RAG context" checkbox to Settings → AI.
+- Show a loading indicator ("Loading knowledge base…") while the index is being loaded.
 - Show chunk count and index size in settings for transparency.
-- Persist toggle to `localStorage` under `bb-ai-rag-enabled`.
+- Persist toggle to `beatbax:ai.ragEnabled`.
 
-### 5. Web UI package dependency update — `apps/web-ui/package.json`
+### 5. Optional dependency
 
 - Add `@xenova/transformers` as an optional dependency (only needed for embedding-based retrieval).
 - Gate embedding generation behind `useEmbedding: true` option — keyword BM25 has no new dependencies.
@@ -172,15 +173,15 @@ export class RagRetriever {
 
 ## Testing Strategy
 
-### Unit Tests — `apps/web-ui/tests/rag-retriever.test.ts`
+### Unit Tests — `apps/desktop/tests/rag-retriever.test.ts` (proposed)
 
 - `RagRetriever` initialises with empty index; `isLoaded()` returns `false`.
-- `load()` fetches and parses a mock `rag-index.json`.
+- `load()` parses a mock index file.
 - BM25 keyword scoring: query "vibrato" returns chunk containing "vib" before unrelated chunks.
 - Token budget management: chunks are dropped when budget is exceeded.
 - `retrieve()` returns empty array before `load()` completes (graceful fallback).
 
-### Unit Tests — `apps/web-ui/tests/chat-panel-rag.test.ts`
+### Unit Tests — extend `apps/desktop/tests/copilot-context.test.ts`
 
 - `assembleContext()` with RAG enabled includes `[RELEVANT EXAMPLES]` block.
 - `assembleContext()` with RAG disabled omits `[RELEVANT EXAMPLES]` block.
@@ -193,7 +194,9 @@ export class RagRetriever {
 
 ### Manual Tests
 
-- Enable RAG and ask "how do I write a drum pattern with kicks and snares?" — verify graveyard_shift.bax excerpt appears in the prompt (visible via browser DevTools Network tab).
+See [copilot-test-scenarios.md](../copilot-test-scenarios.md) for general Copilot QA. RAG-specific checks:
+
+- Enable RAG and ask "how do I write a drum pattern with kicks and snares?" — verify a graveyard_shift.bax excerpt appears in the assembled prompt (via dev logging or temporary debug UI).
 - Ask about `vib` effect — verify instruments.md vibrato section is retrieved.
 - Verify disabling RAG removes the `[RELEVANT EXAMPLES]` block from the prompt.
 - Test with a large song in the editor to confirm token budget is respected.
@@ -207,24 +210,24 @@ export class RagRetriever {
   - [ ] Markdown chunking by heading
   - [ ] `.bax` file chunking by section comment
   - [ ] BM25 keyword extraction
-  - [ ] Output `rag-index.json`
-- [ ] Add indexer to `prebuild` script in `apps/web-ui/package.json`
-- [ ] Implement `apps/web-ui/src/utils/rag-retriever.ts`
+  - [ ] Output bundled index JSON
+- [ ] Add indexer to desktop or root build script
+- [ ] Implement retriever under desktop / app-core
   - [ ] Lazy index loading
   - [ ] BM25 retrieval
   - [ ] `ChunkBudgetManager` token trimming
   - [ ] Singleton export
-- [ ] Integrate RAG into `assembleContext()` in `chat-panel.ts`
+- [ ] Integrate RAG into `assembleContext()` in `copilot-context.ts`
   - [ ] `[RELEVANT EXAMPLES]` block injection
   - [ ] Graceful fallback when index not loaded
-  - [ ] Background index pre-load on panel show
-- [ ] Add RAG settings toggle to chat panel settings UI
+  - [ ] Background index pre-load on Copilot panel show
+- [ ] Add RAG settings toggle to Settings → AI
   - [ ] "Enable RAG context" checkbox
-  - [ ] Loading indicator while index fetches
-  - [ ] Persist toggle to `localStorage`
-- [ ] Add `bb-ai-rag-enabled` to `StorageKey` enum in `local-storage.ts`
-- [ ] Write `apps/web-ui/tests/rag-retriever.test.ts`
-- [ ] Write `apps/web-ui/tests/chat-panel-rag.test.ts`
+  - [ ] Loading indicator while index loads
+  - [ ] Persist toggle to `beatbax:ai.ragEnabled`
+- [ ] Add `AI_RAG_ENABLED` (or similar) to `StorageKey` in `local-storage.ts`
+- [ ] Write `apps/desktop/tests/rag-retriever.test.ts`
+- [ ] Extend `copilot-context.test.ts` for RAG injection
 - [ ] Choose and document embedding approach (ONNX vs keyword-only BM25)
 - [ ] (Phase 2) Implement embedding-based retrieval with `@xenova/transformers`
 - [ ] (Phase 2) Add `--embed` flag to build-time indexer
@@ -247,21 +250,24 @@ export class RagRetriever {
 ## Open Questions
 
 - Should the RAG index be committed to the repository or generated at build time only (`.gitignore`d)?
-  - Recommendation: generate at build time, add `apps/web-ui/public/rag-index.json` to `.gitignore`. CI regenerates it.
+  - Recommendation: generate at build time, add index path to `.gitignore`. CI regenerates it.
 - Should embedding generation be part of the default CI build?
   - Recommendation: No for v1. BM25 requires no model download and is fast. Embeddings are an optional Phase 2 step.
 - What is the right chunk overlap to balance coherence vs index size?
   - Starting point: 64-token overlap, benchmark against 0 and 128.
-- Should the index be versioned (hash in filename) to bust CDN caches on rebuild?
+- Should the index be versioned (hash in filename) to bust caches on rebuild?
   - Recommendation: Yes — use a content hash suffix: `rag-index.<hash>.json`.
 
 ---
 
 ## References
 
-- [AI Chatbot Assistant spec](./ai-chatbot-assistant.md) — parent feature document; RAG section describes original motivation
+- [AI Chatbot Assistant spec](./complete/ai-chatbot-assistant.md) — parent feature document; RAG section describes original motivation
+- [Local Ollama guide](./copilot-local-ollama.md)
+- [CoPilot test scenarios](../copilot-test-scenarios.md)
 - [BM25 algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) — term-frequency/IDF scoring
 - [all-MiniLM-L6-v2 via @xenova/transformers](https://huggingface.co/Xenova/all-MiniLM-L6-v2) — client-side ONNX embedding model
-- [Transformers.js docs](https://huggingface.co/docs/transformers.js) — ONNX inference in the browser
-- [Chat panel implementation](../../apps/web-ui/src/panels/chat-panel.ts)
-- [StorageKey registry](../../apps/web-ui/src/utils/local-storage.ts)
+- [Transformers.js docs](https://huggingface.co/docs/transformers.js) — ONNX inference in the browser/Electron renderer
+- [copilot-context.ts](../../apps/desktop/src/renderer/src/lib/copilot-context.ts)
+- [DesktopCopilotPanel.tsx](../../apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx)
+- [StorageKey registry](../../packages/app-core/src/utils/local-storage.ts)

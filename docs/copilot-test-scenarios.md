@@ -3,7 +3,7 @@ title: "CoPilot Test Scenarios"
 status: active
 authors: ["kadraman"]
 created: 2026-06-21
-updated: 2026-07-10
+updated: 2026-07-11
 related:
   - docs/features/complete/ai-chatbot-assistant.md
   - docs/features/copilot-local-ollama.md
@@ -41,15 +41,18 @@ Track manual passes and automation separately. Update this table when a scenario
 | 9 | Explain valid syntax (Ask) | Manual pass | kadraman | 2026-07-10 | |
 | 10 | Valid key, successful request | Manual pass | kadraman | 2026-07-10 | |
 | 11 | Invalid key | Manual pass | kadraman | 2026-07-10 | |
-| 12 | Valid key, no quota | Not tested | — | — | |
-| 13 | Network timeout | Not tested | — | — | |
+| 12 | Valid key, no quota | Not tested | — | — | Schedule retest after error-normalization changes |
+| 13 | Network timeout | Not tested | — | — | Schedule retest (cloud + local; see #23) |
 | 14 | Curated model selection | Manual pass | kadraman | 2026-07-10 | |
-| 15 | Custom model ID | Not tested | — | — | |
+| 15 | Custom model ID | Not tested | — | — | Schedule retest after model dropdown changes |
 | 16 | Live model fetch | Manual pass | kadraman | 2026-07-10 | |
 | 17 | API key save and clear | Manual pass | kadraman | 2026-07-10 | |
 | 18 | Startup restore | Manual pass | kadraman | 2026-07-10 | |
-| 19 | Prompt input history |Manual pass | kadraman | 2026-07-10 | |
-| 20 | Edit review (Keep / Discard) |Manual pass | kadraman | 2026-07-10 | |
+| 19 | Prompt input history | Manual pass | kadraman | 2026-07-10 | |
+| 20 | Edit review (Keep / Discard) | Manual pass | kadraman | 2026-07-10 | |
+| 21 | Ollama Edit with adequate context | Not tested | — | — | Requires Ollama + `qwen2.5-coder:7b`, `num_ctx` ≥ 16k |
+| 22 | Ollama snippet blocked | Not tested | — | — | Low `num_ctx` or tiny model |
+| 23 | Local request timeout / warm-up | Not tested | — | — | First request after Ollama restart |
 
 **Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (syntax reference, durations, truncation rules). Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
@@ -83,6 +86,16 @@ Before each scenario:
 5. Set CoPilot mode intentionally:
   - `Ask` for explanations.
   - `Edit` for code changes.
+
+### Local Ollama baseline
+
+When testing local inference (scenarios 21–23), use this setup in addition to the steps above:
+
+1. Install [Ollama](https://ollama.com/) and run `ollama serve`.
+2. Pull the recommended model: `ollama pull qwen2.5-coder:7b`.
+3. Set context length to at least **16384** (see [copilot-local-ollama.md](features/copilot-local-ollama.md)).
+4. In BeatBax: **Settings → AI** → **Ollama (local)** → endpoint `http://localhost:11434/v1` → model `qwen2.5-coder:7b` (use **Refresh** to list installed models). No API key.
+5. Expect the **first request after restarting Ollama** to take 1–3 minutes (model load). BeatBax waits up to **5 minutes** per local request.
 
 After each edit-mode response:
 
@@ -414,6 +427,60 @@ After an edit-mode apply with line highlights, the editor banner offers **Keep**
 - **Discard** updates it to `↩ Discarded`, labels the summary as reverted changes, and restores the pre-edit song.
 - Edits with no line diff skip the banner and show `✓ Kept in editor` immediately.
 - Ctrl+Z does not update the Copilot transcript automatically.
+
+---
+
+## Local Ollama Scenarios
+
+### 21. Ollama Edit With Adequate Context
+
+Starting file: `songs/sample.bax`  
+Baseline: [Local Ollama baseline](#local-ollama-baseline) with `num_ctx` ≥ 16384.
+
+Prompt (Edit mode):
+
+```text
+Add a short vibrato variation to the melody pattern similar to melody_pat.
+```
+
+Expected behavior:
+
+- Copilot completes within the 5-minute local timeout (may be slow on first request after Ollama restart).
+- Returns a **full song** in a ` ```bax ``` ` block or is blocked with a clear incomplete/parse message — editor is never left with a snippet-only wipe.
+- Applied song parses with no diagnostics.
+
+### 22. Ollama Snippet Blocked
+
+Starting file: `songs/sample.bax`  
+Baseline: Ollama with **`num_ctx` 8192 or lower**, or a tiny model (`<7B`).
+
+Prompt (Edit mode):
+
+```text
+Change one note in melody_pat to use vibrato.
+```
+
+Expected behavior:
+
+- If the model returns only a partial snippet (missing `play`, `channel`, or most definitions), Copilot **does not apply** it.
+- Status shows an incomplete-song or blocked message; editor content matches the pre-request song.
+- Optional: up to 2 incomplete-song repair attempts before giving up.
+
+### 23. Local Request Timeout / Warm-Up
+
+Baseline: Local Ollama endpoint; stop and restart `ollama serve` immediately before the test.
+
+Steps:
+
+1. Open Copilot in Edit or Ask mode with a short prompt.
+2. Observe loading state during the first request (often 1–3 minutes for 7B + 16k context).
+3. If the request exceeds 5 minutes, confirm a friendly timeout message (extends cloud scenario #13 for localhost).
+
+Expected behavior:
+
+- Loading spinner and disabled input while waiting.
+- No raw IPC or JSON errors in the Copilot thread.
+- Retry after warm-up succeeds on a reasonable prompt.
 
 ---
 

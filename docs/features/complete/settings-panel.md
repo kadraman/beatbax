@@ -122,7 +122,7 @@ This section is the primary surface for enabling optional capabilities. Each ent
 
 | Feature | Description | Default | Flag key | Badge |
 |---|---|---|---|---|
-| **AI Copilot** | Built-in AI assistant (requires your own API key). | `off` | `beatbax:feature.aiAssistant` | Beta |
+| **AI Copilot** | Built-in AI assistant (cloud BYOK; local Ollama/LM Studio optional). | `off` | `beatbax:feature.aiAssistant` | Beta |
 | **Per-channel waveforms** | Real-time waveform display in the channel mixer (uses WebAudio AnalyserNode — adds CPU overhead). | `off` | `beatbax:feature.perChannelAnalyser` | Experimental |
 | **DAW channel mixer** | Horizontal channel strip with VU meters docked at the bottom of the editor. | `off` | `beatbax:feature.dawMixer` | Planned |
 | **Pattern grid** | Visual step-sequencer grid overlay for patterns. | `off` | `beatbax:feature.patternGrid` | Planned |
@@ -132,18 +132,20 @@ When a feature is disabled its UI entry point (menu item, tab, panel) is hidden.
 
 ### AI Copilot
 
-Only visible (and navigable from sidebar) when the **AI Copilot** feature flag is enabled. Contains the existing provider configuration UI currently inside the Copilot panel, lifted here so it is easier to find:
+Only visible when the **AI Copilot** feature flag is enabled. In the **desktop app**, provider configuration lives in **Settings → AI** (React modal, `apps/desktop/src/renderer/src/components/settings/ai.tsx`). The ⚙ gear icon in the Copilot panel header opens this tab directly. The hosted web-lite client does not expose Copilot; `apps/web-ui/src/panels/settings-sections/ai.ts` is a partial settings surface only when the feature flag is enabled there.
 
 | Setting | Type | Description |
 |---|---|---|
-| Provider preset | Select | OpenAI / Groq / Ollama / LM Studio / Custom |
+| Provider preset | Select | OpenAI / Groq / Ollama (local) / LM Studio (local) / Custom |
 | API endpoint | URL input | Base URL for the OpenAI-compatible API |
-| API key | Password input | Stored in `localStorage` — shown redacted; "Clear" button available |
-| Model | Text input | Model name to pass in requests |
-| Interaction mode | Radio | Edit mode / Ask mode |
-| Max context chars | Number | Max song characters sent per request (default 3000) |
+| API key | Password input | **Desktop:** OS secure credential store via Electron IPC — not in `localStorage`. Optional for local Ollama/LM Studio. Validate and Clear key buttons. |
+| Model | Dropdown + Refresh + Custom | Curated models for OpenAI/Groq; live `/models` list for all providers; **Custom...** for any model ID |
+| Interaction mode | Radio | Edit mode / Ask mode (`beatbax:ai.mode`) |
+| Ask mode context limit | Preset select | 4K / 8K / 12K (default) / 16K / 32K characters — **Ask mode only**; Edit mode always sends the full editor content |
 
-Note that the API key is stored in `localStorage` in plain text and **persisted across sessions** so you do not need to re-enter it on every page load. A persistent warning in this section reminds the user not to enter a high-spend production key. A "Clear key" button wipes the stored value immediately. The key is validated to contain only printable ASCII characters before being sent in an `Authorization` header.
+API keys are validated for printable ASCII before any network request. A persistent warning reminds users not to enter high-spend production keys on shared machines.
+
+See also: [ai-chatbot-assistant.md](./ai-chatbot-assistant.md), [copilot-local-ollama.md](../copilot-local-ollama.md), [copilot-test-scenarios.md](../../copilot-test-scenarios.md).
 
 ### Advanced
 
@@ -186,6 +188,8 @@ An `eventBus` event `'feature-flag:changed'` (payload `{ flag: string, enabled: 
 ---
 
 ## Implementation plan
+
+> **Note (2026-07):** Settings UI is implemented in the **desktop** React shell (`DesktopSettingsModal`, `components/settings/*.tsx`). The web-ui paths below describe the original web-lite modal; desktop is the source of truth for AI Copilot settings (model dropdown, Refresh, secure API key).
 
 ### New files
 

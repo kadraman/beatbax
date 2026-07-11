@@ -48,7 +48,7 @@ export const AI_PROVIDERS: Record<AIProviderKey, AIProviderConfig> = {
   ollama: {
     label: 'Ollama (local)',
     endpoint: 'http://localhost:11434/v1',
-    defaultModel: 'llama3.2',
+    defaultModel: 'qwen2.5-coder:7b',
     models: [],
   },
   lmstudio: {

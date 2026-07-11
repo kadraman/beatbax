@@ -37,6 +37,7 @@ This document records automated and manual validation for the first desktop GitH
 | Session restore (`LAST_DOCUMENT_PATH`) | Pass | Implemented; manual spot-check in dev |
 | File → Open Recent | Pass | Native menu + `app.addRecentDocument` wired |
 | Full IDE panels (mixer, grid, copilot, settings) | Pass | Bridge-mounted web-ui panels load in desktop shell |
+| Copilot smoke (panel, Settings → AI Refresh, Ask prompt) | Pass | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) scenarios 8, 16, 18 |
 | Export JSON via toolbar | Pass | E2e verified |
 | `.bax` startup from argv | Pass | E2e verified with `songs/sample.bax` |
 
