@@ -67,7 +67,7 @@ describe('web-lite profile', () => {
     const right = buildRightTabs(rightPane, layout);
     expect(right.tabButtons.channels).toBeDefined();
     expect(right.tabButtons.help).toBeDefined();
-    expect(right.tabButtons.ai).toBeUndefined();
+    expect(Object.keys(right.tabButtons)).toEqual(['channels', 'help']);
   });
 
   it('toolbar renders Save and Verify without export group', () => {

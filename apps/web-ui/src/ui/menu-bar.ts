@@ -621,6 +621,27 @@ export class MenuBar {
   }
 
   private viewItems(): MenuItemDef[] {
+    const caps = getCurrentCapabilities();
+    const aiItems: MenuItemDef[] = caps.copilot ? [
+      { type: 'separator' },
+      {
+        type: 'item',
+        label: 'AI Assistant',
+        id: 'ai-assistant',
+        checkable: true,
+        shortcut: 'Alt+Shift+I',
+        disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+        action: () => {
+          const visible = this.opts.onToggleAI?.();
+          const checked = typeof visible === 'boolean'
+            ? visible
+            : isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
+          this.panelVisible.set('ai-assistant', checked);
+          this.setItemChecked('ai-assistant', checked);
+        },
+      },
+    ] : [];
+
     return [
       {
         type: 'item',
@@ -688,23 +709,7 @@ export class MenuBar {
         disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
       },
-      { type: 'separator' },
-      {
-        type: 'item',
-        label: 'AI Assistant',
-        id: 'ai-assistant',
-        checkable: true,
-        shortcut: 'Alt+Shift+I',
-        disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
-        action: () => {
-          const visible = this.opts.onToggleAI?.();
-          const checked = typeof visible === 'boolean'
-            ? visible
-            : isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
-          this.panelVisible.set('ai-assistant', checked);
-          this.setItemChecked('ai-assistant', checked);
-        },
-      },
+      ...aiItems,
       { type: 'separator' },
       {
         type: 'item',

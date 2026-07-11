@@ -96,7 +96,7 @@ async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok:
   }
 }
 
-/** Preset definitions — must stay in sync with ChatPanel PRESETS. */
+/** Preset definitions — must stay in sync with desktop Copilot presets. */
 const PRESETS: Record<string, { endpoint: string; model: string }> = {
   openai:   { endpoint: 'https://api.openai.com/v1',         model: 'gpt-4o-mini' },
   groq:     { endpoint: 'https://api.groq.com/openai/v1',    model: 'openai/gpt-oss-120b' },

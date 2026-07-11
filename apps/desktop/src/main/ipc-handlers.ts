@@ -37,6 +37,12 @@ interface AIAPIKeyValidationResult {
   message: string;
 }
 
+interface AIModelListResult {
+  ok: boolean;
+  models: string[];
+  message?: string;
+}
+
 interface AIChatCompletionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -278,6 +284,47 @@ async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPI
   }
 }
 
+async function listAIModels(endpoint: string, apiKey: string): Promise<AIModelListResult> {
+  const trimmedEndpoint = typeof endpoint === 'string' ? endpoint.trim() : '';
+  const trimmedKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!trimmedEndpoint) return { ok: false, models: [], message: 'Enter an API endpoint before loading models.' };
+
+  let url: string;
+  try {
+    url = endpointModelsURL(trimmedEndpoint);
+  } catch (error) {
+    return { ok: false, models: [], message: `Invalid endpoint: ${(error as Error).message}` };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const headers: Record<string, string> = {};
+    if (trimmedKey) headers.Authorization = `Bearer ${trimmedKey}`;
+    const response = await fetch(url, { headers, signal: controller.signal });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, models: [], message: 'The provider rejected the API key.' };
+      }
+      return { ok: false, models: [], message: `Could not load models: provider returned HTTP ${response.status}.` };
+    }
+    const data = await response.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+    const models = Array.isArray(data?.data)
+      ? data.data
+          .map((entry) => (typeof entry?.id === 'string' ? entry.id : ''))
+          .filter((id): id is string => id.length > 0)
+      : [];
+    return { ok: true, models };
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      return { ok: false, models: [], message: 'Could not load models: provider did not respond.' };
+    }
+    return { ok: false, models: [], message: `Could not load models: ${(error as Error).message || 'request failed'}.` };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function sanitizeAIChatRequest(request: unknown): AIChatCompletionRequest {
   const value = request as Partial<AIChatCompletionRequest> | null;
   if (!value || typeof value !== 'object') throw new Error('Invalid AI request.');
@@ -327,41 +374,128 @@ function formatProviderError(status: number, body: string): string {
   return `The AI provider returned HTTP ${status}.${suffix}`;
 }
 
+function isOpenAIEndpoint(endpoint: string): boolean {
+  try {
+    return new URL(endpoint).host.toLowerCase().endsWith('openai.com');
+  } catch {
+    return false;
+  }
+}
+
+function isLocalAiEndpoint(endpoint: string): boolean {
+  const trimmed = endpoint.trim();
+  if (!trimmed) return false;
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+/** Local models (16k ctx + full-song Edit) often need several minutes on first load. */
+const AI_CHAT_TIMEOUT_LOCAL_MS = 5 * 60_000;
+const AI_CHAT_TIMEOUT_REMOTE_MS = 60_000;
+const AI_CHAT_TIMEOUT_REMOTE_EDIT_MS = 120_000;
+
+function aiChatTimeoutMs(endpoint: string, maxTokens: number): number {
+  if (isLocalAiEndpoint(endpoint)) return AI_CHAT_TIMEOUT_LOCAL_MS;
+  if (maxTokens > 2048) return AI_CHAT_TIMEOUT_REMOTE_EDIT_MS;
+  return AI_CHAT_TIMEOUT_REMOTE_MS;
+}
+
+/** AbortController for the in-flight AI chat request (if any). */
+let activeAIChatAbort: AbortController | null = null;
+let aiChatUserCancelled = false;
+
+function cancelAIChatCompletion(): void {
+  if (!activeAIChatAbort) return;
+  aiChatUserCancelled = true;
+  activeAIChatAbort.abort();
+}
+
 async function createAIChatCompletion(request: unknown): Promise<string> {
+  // A new request supersedes any still-running one.
+  if (activeAIChatAbort) {
+    aiChatUserCancelled = true;
+    activeAIChatAbort.abort();
+  }
+  aiChatUserCancelled = false;
+
   const payload = sanitizeAIChatRequest(request);
   const url = endpointChatCompletionsURL(payload.endpoint);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (payload.apiKey) headers.Authorization = `Bearer ${payload.apiKey}`;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: payload.model,
-        messages: payload.messages,
-        temperature: payload.temperature,
-        max_tokens: payload.maxTokens,
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
+  // Newer OpenAI models (GPT-5 / o-series) require `max_completion_tokens`
+  // and reject a non-default `temperature`. Older models and most local
+  // providers use `max_tokens`. Start with the endpoint's likely dialect and
+  // adapt on parameter-related 400 responses.
+  let tokenParam: 'max_tokens' | 'max_completion_tokens' =
+    isOpenAIEndpoint(payload.endpoint) ? 'max_completion_tokens' : 'max_tokens';
+  let includeTemperature = true;
+
+  const MAX_ATTEMPTS = 4;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const body: Record<string, unknown> = {
+      model: payload.model,
+      messages: payload.messages,
+      stream: false,
+      [tokenParam]: payload.maxTokens,
+    };
+    if (includeTemperature) body.temperature = payload.temperature;
+
+    const controller = new AbortController();
+    activeAIChatAbort = controller;
+    const timeoutMs = aiChatTimeoutMs(payload.endpoint, payload.maxTokens ?? 1024);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data?.choices?.[0]?.message?.content ?? '(no response)';
+      }
+
       const text = await response.text().catch(() => '');
+      if (response.status === 400 && attempt < MAX_ATTEMPTS - 1) {
+        const lower = text.toLowerCase();
+        let adapted = false;
+        if (tokenParam === 'max_tokens' && lower.includes('max_completion_tokens')) {
+          tokenParam = 'max_completion_tokens';
+          adapted = true;
+        } else if (
+          tokenParam === 'max_completion_tokens'
+          && lower.includes('max_completion_tokens')
+          && (lower.includes('unsupported') || lower.includes('not supported') || lower.includes('unrecognized'))
+        ) {
+          tokenParam = 'max_tokens';
+          adapted = true;
+        }
+        if (includeTemperature && lower.includes('temperature')) {
+          includeTemperature = false;
+          adapted = true;
+        }
+        if (adapted) continue;
+      }
       throw new Error(formatProviderError(response.status, text));
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        if (aiChatUserCancelled) throw new Error('AI request cancelled.');
+        throw new Error('AI request timed out.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      if (activeAIChatAbort === controller) activeAIChatAbort = null;
     }
-    const data = await response.json();
-    return data?.choices?.[0]?.message?.content ?? '(no response)';
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') {
-      throw new Error('AI request timed out.');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw new Error('The AI provider rejected the request parameters.');
 }
 
 export async function addRecentFileEntry(recentFilesPath: string, filePath: string): Promise<string[]> {
@@ -483,8 +617,15 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   ipcMain.handle(IPC_CHANNELS.AI_VALIDATE_API_KEY, async (_event, endpoint: string, apiKey: string) =>
     validateAIAPIKey(endpoint, apiKey));
 
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_MODELS, async (_event, endpoint: string, apiKey: string) =>
+    listAIModels(endpoint, apiKey));
+
   ipcMain.handle(IPC_CHANNELS.AI_CHAT_COMPLETION, async (_event, request: unknown) =>
     createAIChatCompletion(request));
+
+  ipcMain.handle(IPC_CHANNELS.AI_CANCEL_CHAT_COMPLETION, async () => {
+    cancelAIChatCompletion();
+  });
 
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.returnValue = app.getVersion();

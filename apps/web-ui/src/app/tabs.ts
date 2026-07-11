@@ -238,16 +238,15 @@ export function buildBottomTabs(
   };
 }
 
-// ─── Right Tabs (Visualizer | Help | Copilot) ────────────────────────────────
+// ─── Right Tabs (Visualizer | Help) ──────────────────────────────────────────
 
-export type RightTabId = 'channels' | 'help' | 'ai';
+export type RightTabId = 'channels' | 'help';
 
 const RIGHT_TAB_LABELS: Record<RightTabId, string> = {
   channels: 'Visualizer',
   help:     'Help',
-  ai:       'Copilot',
 };
-const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help', 'ai'];
+const RIGHT_TAB_ORDER: RightTabId[]  = ['channels', 'help'];
 
 export interface RightTabsController {
   readonly tabContents:     Record<RightTabId, HTMLElement>;
@@ -278,7 +277,6 @@ export function buildRightTabs(
   const caps = getCurrentCapabilities();
   const rightTabOrder: RightTabId[] = RIGHT_TAB_ORDER.filter(t => {
         if (t === 'channels') return caps.songVisualizer;
-        if (t === 'ai') return caps.copilot;
         if (t === 'help') return caps.helpPanel;
         return true;
       });
@@ -296,7 +294,6 @@ export function buildRightTabs(
   const tabOpen: Record<RightTabId, boolean> = {
     channels: caps.songVisualizer,
     help: caps.helpPanel,
-    ai: caps.copilot,
   };
   const tabButtons:  Partial<Record<RightTabId, HTMLButtonElement>> = {};
   const tabContents: Partial<Record<RightTabId, HTMLElement>>       = {};

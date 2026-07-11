@@ -13,8 +13,7 @@ export type PanelMenuId =
   | 'toolbar'
   | 'transport-bar'
   | 'channel-mixer'
-  | 'pattern-grid'
-  | 'ai-assistant';
+  | 'pattern-grid';
 
 export type PanelMenuGroup = 'bottom' | 'side' | 'window';
 
@@ -39,7 +38,6 @@ export interface PanelMenuState {
   transportVisible: boolean;
   channelMixerVisible: boolean;
   patternGridVisible: boolean;
-  aiOpen: boolean;
 }
 
 export const PANEL_MENU_GROUP_LABELS: Record<PanelMenuGroup, string> = {
@@ -95,17 +93,6 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       shortcut: 'Shift+F1',
       checked: state.helpOpen && state.rightPaneVisible,
       disabled: false,
-    });
-  }
-
-  if (caps.copilot) {
-    entries.push({
-      id: 'ai-assistant',
-      label: 'Copilot',
-      group: 'side',
-      shortcut: 'Alt+Shift+I',
-      checked: state.aiOpen && state.rightPaneVisible,
-      disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
     });
   }
 

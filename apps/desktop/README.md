@@ -31,7 +31,7 @@ The desktop renderer owns the desktop-full shell and React panel implementations
 - **Settings modal** — Ctrl+,
 - **Export** — JSON/MIDI/UGE/WAV via native menu and toolbar
 - **Status bar** — cursor position, parse status, chip/BPM, panels menu, diagnostics counts
-- **AI Copilot** — right-tab ChatPanel (enable in Settings → Features → AI Assistant)
+- **AI Copilot** — right-tab panel (enable in Settings → Features → AI Assistant). Local **Ollama** setup: [copilot-local-ollama.md](../../docs/features/copilot-local-ollama.md)
 - **New Song Wizard** — toolbar New / File → New; first-run onboarding
 - **Advanced editor** — Monaco diagnostics, code lens previews, glyph margin, command palette (Ctrl+Shift+P)
 - **Transport extras** — loop, live, rewind, BPM nudge, master volume

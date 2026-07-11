@@ -27,6 +27,7 @@ export interface DesktopToolbarHandle {
 
 export interface DesktopToolbarOptions {
   eventBus: EventBus;
+  initialVisible?: boolean;
   onBeforeOpenFile?: () => void;
   onLoad: (filename: string, content: string) => void;
   onOpen?: () => void | Promise<void>;
@@ -73,6 +74,7 @@ function resolveUiChipId(chip: string): string {
 
 function DesktopToolbar({
   eventBus,
+  initialVisible = true,
   onBeforeOpenFile,
   onExport,
   onLoad,
@@ -87,7 +89,7 @@ function DesktopToolbar({
   onVerify,
   toolbarRef,
 }: DesktopToolbarProps): React.JSX.Element {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(initialVisible);
   const [activeChip, setActiveChip] = useState('gameboy');
   const [exportEnabled, setExportEnabled] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -273,11 +275,20 @@ function DesktopToolbar({
 export function createDesktopToolbar(container: HTMLElement, options: DesktopToolbarOptions): DesktopToolbarHandle {
   const handleRef = { current: null as DesktopToolbarHandle | null };
   let root: Root | null = createRoot(container);
+  let visible = options.initialVisible ?? true;
+
+  const setHostCollapsed = (nextVisible: boolean): void => {
+    visible = nextVisible;
+    container.classList.toggle('bb-toolbar-host--hidden', !nextVisible);
+  };
+
+  setHostCollapsed(visible);
 
   flushSync(() => {
     root?.render(
       <DesktopToolbar
         {...options}
+        initialVisible={visible}
         toolbarRef={(handle) => {
           handleRef.current = handle;
         }}
@@ -290,10 +301,24 @@ export function createDesktopToolbar(container: HTMLElement, options: DesktopToo
   };
 
   return {
-    show: () => call((handle) => handle.show()),
-    hide: () => call((handle) => handle.hide()),
-    toggle: () => call((handle) => handle.toggle()),
-    isVisible: () => handleRef.current?.isVisible() ?? true,
+    show: () => {
+      setHostCollapsed(true);
+      call((handle) => handle.show());
+    },
+    hide: () => {
+      call((handle) => handle.hide());
+      setHostCollapsed(false);
+    },
+    toggle: () => {
+      if (visible) {
+        call((handle) => handle.hide());
+        setHostCollapsed(false);
+      } else {
+        setHostCollapsed(true);
+        call((handle) => handle.show());
+      }
+    },
+    isVisible: () => visible,
     dispose: () => {
       handleRef.current?.dispose();
       if (root) {

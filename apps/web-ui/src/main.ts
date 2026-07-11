@@ -100,7 +100,6 @@ import { HelpPanel } from './panels/help-panel';
 import { SongVisualizer } from './panels/song-visualizer';
 import { ChannelMixer } from './panels/channel-mixer';
 import { MidiStepEntryController } from './input/midi-step-entry-controller';
-import { ChatPanel } from './panels/chat-panel';
 import { downloadText, sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { openFilePicker } from '@beatbax/app-core/import/file-loader';
 import { loadFromQueryParams } from '@beatbax/app-core/import/remote-loader';
@@ -316,7 +315,6 @@ const panelMenuBridge = {
       transportVisible: true,
       channelMixerVisible: false,
       patternGridVisible: patternGridContainer.style.display !== 'none',
-      aiOpen: rightTabs.tabOpen.ai ?? false,
     };
   },
   toggle(_id: PanelMenuId): void { /* assigned after toolbar init */ },
@@ -477,191 +475,7 @@ if (capabilities.helpPanel) {
     }), appContainer);
 }
 
-// ─── ChatPanel — AI Copilot tab (desktop-full) ───────────────────────────────
-if (capabilities.copilot) {
-// The AI tab container is always present in the DOM; the ChatPanel itself is
-// only created when the feature flag is first enabled (lazy instantiation).
-const aiContainer = document.createElement('div');
-aiContainer.style.cssText = 'flex: 1 1 0; overflow: hidden; display: flex; flex-direction: column;';
-rightTabs.tabContents['ai']!.appendChild(aiContainer);
-
-// Initially hide the AI tab button — shown only when feature flag is on.
-const aiTabBtn = rightTabs.tabButtons['ai'];
-if (aiTabBtn) aiTabBtn.classList.add('bb-right-tab--hidden');
-
-let chatPanel: ChatPanel | null = null;
-
-// ─── Pending AI change state ────────────────────────────────────────────────
-interface PendingAIChange {
-  previousContent: string;
-  decorationIds: string[];
-  banner: HTMLElement;
-}
-let pendingAIChange: PendingAIChange | null = null;
-
-function clearPendingAIChange(restore = false): void {
-  if (!pendingAIChange) return;
-  const monacoEditor = editor?.editor;
-  if (monacoEditor) {
-    monacoEditor.deltaDecorations(pendingAIChange.decorationIds, []);
-    if (restore) {
-      const model = monacoEditor.getModel();
-      if (model) {
-        monacoEditor.executeEdits('chat-undo', [{ range: model.getFullModelRange(), text: pendingAIChange.previousContent, forceMoveMarkers: true }]);
-        monacoEditor.focus();
-      }
-    }
-  }
-  pendingAIChange.banner.remove();
-  pendingAIChange = null;
-}
-
-// Module-level cache of last-seen diagnostics (populated by validation events).
-let lastDiagnostics: Diagnostic[] = [];
-
-/** Map a raw validation entry to a Diagnostic. */
-function toDiagnostic(entry: any, severity: 'error' | 'warning'): Diagnostic {
-  return {
-    message: entry.message,
-    severity,
-    startLine: entry.loc?.start?.line ?? 1,
-    startColumn: entry.loc?.start?.column ?? 1,
-  };
-}
-
-function getChatPanel(): ChatPanel {
-  if (!chatPanel) {
-    chatPanel = new ChatPanel({
-      container: aiContainer,
-      eventBus,
-      getEditorContent: () => (editor?.getValue?.() as string) || '',
-      getDiagnostics: () => lastDiagnostics,
-      onInsertSnippet: (text) => {
-        const monacoEditor = editor?.editor;
-        if (!monacoEditor) return;
-        const pos = monacoEditor.getPosition();
-        if (!pos) return;
-        monacoEditor.executeEdits('chat-panel', [{
-          identifier: { major: 1, minor: 1 },
-          range: { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column },
-          text,
-          forceMoveMarkers: true,
-        }]);
-        monacoEditor.focus();
-      },
-      onReplaceSelection: (text) => {
-        const monacoEditor = editor?.editor;
-        if (!monacoEditor) return;
-        const sel = monacoEditor.getSelection();
-        if (!sel) return;
-        monacoEditor.executeEdits('chat-panel', [{
-          identifier: { major: 1, minor: 1 },
-          range: sel,
-          text,
-          forceMoveMarkers: true,
-        }]);
-        monacoEditor.focus();
-      },
-      onReplaceEditor: (text) => {
-        const monacoEditor = editor?.editor;
-        if (!monacoEditor) return;
-        const model = monacoEditor.getModel();
-        if (!model) return;
-        const fullRange = model.getFullModelRange();
-        monacoEditor.executeEdits('chat-panel', [{
-          identifier: { major: 1, minor: 1 },
-          range: fullRange,
-          text,
-          forceMoveMarkers: true,
-        }]);
-        monacoEditor.focus();
-      },
-      onHighlightChanges: (addedLineNums, previousContent) => {
-        const monacoEditor = editor?.editor;
-        if (!monacoEditor || addedLineNums.length === 0) return;
-        // Clear any existing pending change
-        clearPendingAIChange(false);
-        // Green decorations on every added/changed line
-        const decorations = addedLineNums.map(lineNum => ({
-          range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
-          options: {
-            isWholeLine: true,
-            className: 'bb-changed-line-added',
-            overviewRulerColor: '#4ec94e',
-            overviewRulerLane: 4,
-          },
-        }));
-        const ids = monacoEditor.deltaDecorations([], decorations);
-        // Create Keep / Discard banner inside the editor container
-        const editorDom = monacoEditor.getDomNode() as HTMLElement | null;
-        if (!editorDom) return;
-        const banner = document.createElement('div');
-        banner.className = 'bb-ai-change-banner';
-        const dot = document.createElement('span');
-        dot.className = 'bb-ai-change-banner-dot';
-        dot.textContent = '⬤';
-        const label = document.createElement('span');
-        label.textContent = `AI: ${addedLineNums.length} changed line${addedLineNums.length !== 1 ? 's' : ''}`;
-        const keepBtn = document.createElement('button');
-        keepBtn.className = 'bb-ai-banner-keep';
-        keepBtn.textContent = '✓ Keep';
-        keepBtn.addEventListener('click', () => clearPendingAIChange(false));
-        const discardBtn = document.createElement('button');
-        discardBtn.className = 'bb-ai-banner-discard';
-        discardBtn.textContent = '✗ Discard';
-        discardBtn.addEventListener('click', () => clearPendingAIChange(true));
-        banner.append(dot, label, keepBtn, discardBtn);
-        editorDom.appendChild(banner);
-        pendingAIChange = { previousContent, decorationIds: ids, banner };
-      },
-    });
-  }
-  return chatPanel;
-}
-
-// Keep lastDiagnostics in sync with validation events.
-eventBus.on('validation:errors', ({ errors }) => {
-  lastDiagnostics = [
-    ...lastDiagnostics.filter(d => d.severity !== 'error'),
-    ...errors.map((e: any) => toDiagnostic(e, 'error')),
-  ];
-});
-eventBus.on('validation:warnings', ({ warnings }) => {
-  lastDiagnostics = [
-    ...lastDiagnostics.filter(d => d.severity !== 'warning'),
-    ...warnings.map((w: any) => toDiagnostic(w, 'warning')),
-  ];
-});
-
-/** Toggle the AI chat panel on/off. Creates it on first use. */
-function toggleAIAssistant(): void {
-  const wasEnabled = isFeatureEnabled(FeatureFlag.AI_ASSISTANT);
-  const nowEnabled = !wasEnabled;
-  setFeatureEnabled(FeatureFlag.AI_ASSISTANT, nowEnabled);
-
-  if (nowEnabled) {
-    // Show the tab button and switch to it
-    aiTabBtn?.classList.remove('bb-right-tab--hidden');
-    rightTabs.tabOpen['ai'] = true;
-    getChatPanel().show(); // ensure panel is created and visible
-    rightTabs.show('ai');
-  } else {
-    getChatPanel().hide();
-    rightTabs.close('ai');
-    aiTabBtn?.classList.add('bb-right-tab--hidden');
-    rightTabs.tabOpen['ai'] = false;
-  }
-}
-
-// Initialise AI tab visibility on page load (in case flag is already set).
-if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
-  aiTabBtn?.classList.remove('bb-right-tab--hidden');
-  rightTabs.tabOpen['ai'] = true;
-  getChatPanel().show();
-}
-} // capabilities.copilot
-
-// Restore the last active tab now that all tabs (including AI) are initialised.
+// Restore the last active tab now that all tabs are initialised.
 rightTabs.restorePersistedTab();
 // Show the Song Visualizer tab only when its feature flag is enabled (desktop-full).
 const songVisualizerEnabled = capabilities.export
@@ -678,20 +492,8 @@ if (capabilities.songVisualizer && !songVisualizerEnabled) {
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
 // is toggled from the Settings panel (no page reload needed for most flags).
 eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
-  if (flag === FeatureFlag.AI_ASSISTANT) {
-    if (enabled) {
-      aiTabBtn?.classList.remove('bb-right-tab--hidden');
-      rightTabs.tabOpen['ai'] = true;
-      getChatPanel().show();
-      rightTabs.show('ai');
-    } else {
-      getChatPanel().hide();
-      rightTabs.close('ai');
-      aiTabBtn?.classList.add('bb-right-tab--hidden');
-      rightTabs.tabOpen['ai'] = false;
-    }
-    // Refresh Settings modal sidebar so the AI section appears/disappears.
-    if (capabilities.settingsPanel) settingsModal.refresh();
+  if (flag === FeatureFlag.AI_ASSISTANT && capabilities.settingsPanel) {
+    settingsModal.refresh();
   }
   if (flag === FeatureFlag.CHANNEL_MIXER) {
     // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
@@ -751,9 +553,6 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
   }
   if (panel === 'shortcuts') {
     if (visible) shortcutsModal.open();
-  }
-  if (panel === 'ai-assistant') {
-    toggleAIAssistant();
   }
   if (panel === 'toolbar') {
     try {
@@ -1618,7 +1417,6 @@ menuBar = new MenuBar({
   onToggleTheme: () => themeManager.toggle(),
   onToggleWrapText: () => toggleWordWrap(),
   onToggleFoldAll: () => toggleFoldAllComments(),
-  onToggleAI: () => toggleAIAssistant(),
 });
 } // capabilities.export
 
@@ -1681,7 +1479,6 @@ menuBar.seedPanelVisible({
     && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
   'song-visualizer':   isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
     && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
-  'ai-assistant':      isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
 });
 }
 // Apply initial pattern-grid visibility
@@ -1760,7 +1557,6 @@ panelMenuBridge.getState = (): PanelMenuState => ({
   transportVisible: transportBar?.isVisible?.() ?? true,
   channelMixerVisible: channelMixer?.isVisible?.() ?? false,
   patternGridVisible: patternGridContainer.style.display !== 'none',
-  aiOpen: rightTabs.tabOpen.ai ?? false,
 });
 
 panelMenuBridge.toggle = (id: PanelMenuId): void => {
@@ -1777,9 +1573,6 @@ panelMenuBridge.toggle = (id: PanelMenuId): void => {
       break;
     case 'help':
       eventBus.emit('panel:toggled', { panel: 'help', visible: !(s.helpOpen && s.rightPaneVisible) });
-      break;
-    case 'ai-assistant':
-      eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !(s.aiOpen && s.rightPaneVisible) });
       break;
     case 'toolbar':
       eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !s.toolbarVisible });
@@ -1904,12 +1697,6 @@ monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcut
 // Ctrl+, → Settings modal (standard VS Code convention; overrides Monaco's default).
 if (capabilities.settingsPanel) {
   monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Comma, () => { settingsModal.open(); });
-}
-if (capabilities.copilot) {
-  // Alt+Shift+I → Show AI/Copilot tab (I for Intelligence/AI; no browser conflict).
-  monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, () => {
-    if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant();
-  });
 }
 // Alt+Shift+V → Verify syntax (no browser conflict).
 monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify(); });
@@ -2058,11 +1845,6 @@ ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboar
 if (capabilities.settingsPanel) {
   ks.register({ key: ',', ctrlKey: true, description: 'Open Settings', allowInInput: true,
     action: () => settingsModal.open() });
-}
-if (capabilities.copilot) {
-  // Alt+Shift+I → Show AI/Copilot tab (or enable it if the feature flag is off).
-  ks.register({ key: 'i', altKey: true, shiftKey: true, description: 'Show AI Copilot tab', allowInInput: true,
-    action: () => { if (rightTabs.tabOpen['ai']) rightTabs.show('ai'); else toggleAIAssistant(); } });
 }
 // Alt+Shift+V → Verify syntax.
 ks.register({ key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', allowInInput: true,

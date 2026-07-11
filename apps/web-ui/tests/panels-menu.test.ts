@@ -20,7 +20,6 @@ describe('panels-menu', () => {
     transportVisible: true,
     channelMixerVisible: false,
     patternGridVisible: false,
-    aiOpen: false,
   };
 
   it('includes web-lite bottom and side panels', () => {
