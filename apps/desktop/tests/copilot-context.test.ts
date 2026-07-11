@@ -2,7 +2,7 @@
 
 import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 import type { AISettings } from '@beatbax/app-core/stores/chat.store';
-import { buildCopilotContext } from '../src/renderer/src/lib/copilot-context';
+import { buildCopilotContext, buildSongStructureSummary } from '../src/renderer/src/lib/copilot-context';
 
 const defaultSettings: AISettings = {
   endpoint: 'https://api.openai.com/v1',
@@ -78,6 +78,44 @@ describe('buildCopilotContext', () => {
 
     expect(context).toContain('...[truncated]');
     expect(context).not.toContain(longSong);
+  });
+
+  it('ask mode tells the model to cite existing code inline, not dump fenced song copies', () => {
+    const context = buildCopilotContext(
+      defaultSettings,
+      'ask',
+      () => sampleSong,
+      () => [],
+    );
+
+    expect(context).toContain('ASK mode');
+    expect(context).toContain('[SONG STRUCTURE]');
+    expect(context).toContain('Patterns (2): melody_pat, mystery');
+    expect(context).toContain('Cite at most ONE short inline line');
+    expect(context).toContain('Do NOT add sections titled "Example Code"');
+    expect(context).not.toContain('Valid edit example');
+    expect(context).not.toContain('melody_var_vib');
+  });
+
+  it('edit mode keeps the full syntax edit example', () => {
+    const context = buildCopilotContext(
+      defaultSettings,
+      'edit',
+      () => sampleSong,
+      () => [],
+    );
+
+    expect(context).toContain('Valid edit example');
+    expect(context).toContain('melody_var_vib');
+    expect(context).not.toContain('[SONG STRUCTURE]');
+  });
+
+  it('buildSongStructureSummary lists patterns, sequences, and channels', () => {
+    const summary = buildSongStructureSummary(sampleSong);
+    expect(summary).toContain('Patterns (2): melody_pat, mystery');
+    expect(summary).toContain('lead_seq → melody_pat');
+    expect(summary).toContain('channel 1 → inst leadA seq lead_seq');
+    expect(summary).toContain('Playback: play auto repeat');
   });
 
   it('includes formatted diagnostics', () => {

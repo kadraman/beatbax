@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 export interface SelectOption {
   value: string;
   label: string;
+  description?: string;
 }
 
 export function SectionHeading({ children }: { children: ReactNode }): React.JSX.Element {
@@ -62,15 +63,23 @@ export function RadioGroup({
       <legend className="bb-settings-label">{label}</legend>
       <div className="bb-settings-radio-group">
         {options.map((option) => (
-          <label className="bb-settings-radio-label" key={option.value}>
-            <input
-              checked={option.value === value}
-              name={name}
-              onChange={() => onChange(option.value)}
-              type="radio"
-              value={option.value}
-            />
-            {option.label}
+          <label
+            className={`bb-settings-radio-label${option.description ? ' bb-settings-radio-label--stacked' : ''}`}
+            key={option.value}
+          >
+            <span className="bb-settings-radio-label-main">
+              <input
+                checked={option.value === value}
+                name={name}
+                onChange={() => onChange(option.value)}
+                type="radio"
+                value={option.value}
+              />
+              {option.label}
+            </span>
+            {option.description ? (
+              <span className="bb-settings-radio-desc">{option.description}</span>
+            ) : null}
           </label>
         ))}
       </div>
@@ -205,6 +214,62 @@ export function RangeField({
           value={value}
         />
         <span className="bb-settings-range-value">{value}{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+export function PresetRangeField({
+  description,
+  id,
+  label,
+  onChange,
+  presets,
+  value,
+}: {
+  description?: ReactNode;
+  id?: string;
+  label: string;
+  onChange: (value: number) => void;
+  presets: ReadonlyArray<{ value: number; label: string }>;
+  value: number;
+}): React.JSX.Element {
+  const fieldId = id ?? `bb-preset-range-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  const index = presets.findIndex((preset) => preset.value === value);
+  const safeIndex = index >= 0 ? index : 0;
+  const current = presets[safeIndex] ?? presets[0];
+
+  return (
+    <div className="bb-settings-preset-range">
+      <label className="bb-settings-label" htmlFor={fieldId}>{label}</label>
+      {description ? <p className="bb-settings-note bb-settings-preset-desc">{description}</p> : null}
+      <div className="bb-settings-preset-slider-wrap">
+        <div className="bb-settings-preset-slider-top">
+          <input
+            className="bb-settings-range"
+            id={fieldId}
+            max={Math.max(0, presets.length - 1)}
+            min={0}
+            onChange={(event) => {
+              const next = presets[Number(event.currentTarget.value)];
+              if (next) onChange(next.value);
+            }}
+            step={1}
+            type="range"
+            value={safeIndex}
+          />
+          <span
+            className="bb-settings-range-value"
+            title={`${current.value.toLocaleString()} characters`}
+          >
+            {current.label}
+          </span>
+        </div>
+        <div aria-hidden="true" className="bb-settings-preset-ticks">
+          {presets.map((preset) => (
+            <span className="bb-settings-preset-tick" key={preset.value}>{preset.label}</span>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -11,8 +11,10 @@ import {
   mergeModelLists,
   type AIProviderKey,
 } from '@beatbax/app-core/stores/ai-models';
+import { AI_CONTEXT_CHAR_PRESETS } from '@beatbax/app-core/stores/chat.store';
+import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import { useStoreValue } from '../../hooks/useStoreValue';
-import { NoteText, NumberField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
+import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
 
 interface AIModelListResult {
   ok: boolean;
@@ -280,10 +282,6 @@ function APIKeyField({ endpoint }: { endpoint: string }): React.JSX.Element {
   );
 }
 
-function isLocalEndpoint(endpoint: string): boolean {
-  return endpoint.includes('localhost') || endpoint.includes('127.0.0.1');
-}
-
 function ModelField({
   endpoint,
   model,
@@ -312,7 +310,7 @@ function ModelField({
       return;
     }
     const apiKey = chatSettings.get().apiKey ?? '';
-    if (!isLocalEndpoint(trimmedEndpoint) && !apiKey.trim()) {
+    if (!isLocalAiEndpoint(trimmedEndpoint) && !apiKey.trim()) {
       if (!silent) setStatus('Set an API key to load available models.');
       return;
     }
@@ -348,7 +346,7 @@ function ModelField({
     const trimmedEndpoint = endpoint.trim();
     if (!trimmedEndpoint || loadedEndpointRef.current === trimmedEndpoint) return;
     const apiKey = chatSettings.get().apiKey ?? '';
-    if (!isLocalEndpoint(trimmedEndpoint) && !apiKey.trim()) return;
+    if (!isLocalAiEndpoint(trimmedEndpoint) && !apiKey.trim()) return;
     void loadModels(true);
   }, [endpoint, loadModels]);
 
@@ -459,18 +457,19 @@ export function AISettingsSection(): React.JSX.Element {
         ]}
         value={mode}
       />
-      <NumberField
+      <PresetRangeField
         id="bb-ai-max-ctx"
-        label="Max editor characters sent to AI"
-        max={32000}
-        min={100}
+        label="Ask mode context limit"
         onChange={(value) => {
           saveChatSettings({ maxContextChars: value });
           updateChatSettings({ maxContextChars: value });
         }}
+        presets={AI_CONTEXT_CHAR_PRESETS}
         value={settings.maxContextChars}
       />
-      <NoteText>Larger values give the AI more of your song but may increase latency and token cost.</NoteText>
+      <NoteText>
+        Ask mode only — longer songs are truncated past this limit. Edit mode always sends the full song and uses more tokens.
+      </NoteText>
     </div>
   );
 }

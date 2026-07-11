@@ -25,7 +25,8 @@ const forbidden = [
   { label: 'bare fs import', re: /from\s+["']fs["']/ },
   { label: 'bare path import', re: /from\s+["']path["']/ },
   // Literal URL paths only (not @beatbax/engine package specifiers)
-  { label: '/engine/ URL', re: /["'`]\/engine\// },
+  { label: 'bare /engine/ URL', re: /["'`]\/engine\// },
+  { label: 'BeatBax Copilot UI', re: /BeatBax Copilot/ },
 ];
 
 function shouldCheck(file) {

@@ -382,6 +382,28 @@ function isOpenAIEndpoint(endpoint: string): boolean {
   }
 }
 
+function isLocalAiEndpoint(endpoint: string): boolean {
+  const trimmed = endpoint.trim();
+  if (!trimmed) return false;
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+/** Local models (16k ctx + full-song Edit) often need several minutes on first load. */
+const AI_CHAT_TIMEOUT_LOCAL_MS = 5 * 60_000;
+const AI_CHAT_TIMEOUT_REMOTE_MS = 60_000;
+const AI_CHAT_TIMEOUT_REMOTE_EDIT_MS = 120_000;
+
+function aiChatTimeoutMs(endpoint: string, maxTokens: number): number {
+  if (isLocalAiEndpoint(endpoint)) return AI_CHAT_TIMEOUT_LOCAL_MS;
+  if (maxTokens > 2048) return AI_CHAT_TIMEOUT_REMOTE_EDIT_MS;
+  return AI_CHAT_TIMEOUT_REMOTE_MS;
+}
+
 /** AbortController for the in-flight AI chat request (if any). */
 let activeAIChatAbort: AbortController | null = null;
 let aiChatUserCancelled = false;
@@ -425,7 +447,8 @@ async function createAIChatCompletion(request: unknown): Promise<string> {
 
     const controller = new AbortController();
     activeAIChatAbort = controller;
-    const timeout = setTimeout(() => controller.abort(), 60_000);
+    const timeoutMs = aiChatTimeoutMs(payload.endpoint, payload.maxTokens ?? 1024);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         method: 'POST',
