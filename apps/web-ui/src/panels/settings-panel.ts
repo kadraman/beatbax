@@ -15,6 +15,7 @@
  */
 
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import { storage } from '@beatbax/app-core/utils/local-storage';
 import { SECTION_KEYS } from '@beatbax/app-core/stores/settings.store';
 
@@ -50,7 +51,7 @@ const SECTIONS: SectionDef[] = [
     id: 'ai', label: 'AI Copilot', icon: '✦',
     build: buildAISection,
     reset: resetAIDefaults,
-    visible: () => isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+    visible: () => getCurrentCapabilities().copilot && isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
   },
   { id: 'advanced', label: 'Advanced', icon: '⋮',  build: buildAdvancedSection, reset: resetAdvancedDefaults },
 ];

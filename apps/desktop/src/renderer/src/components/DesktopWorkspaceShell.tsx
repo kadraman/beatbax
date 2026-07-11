@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
@@ -43,6 +43,17 @@ export function DesktopWorkspaceShell({
 }: DesktopWorkspaceShellProps): React.JSX.Element {
   const workspaceRef = useRef<DesktopWorkspaceHandle | null>(null);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
+  const [shellHostsReady, setShellHostsReady] = useState(false);
+
+  useLayoutEffect(() => {
+    const ready = Boolean(
+      menuBarHostRef.current
+      && toolbarHostRef.current
+      && workspaceHostRef.current
+      && statusBarHostRef.current,
+    );
+    if (ready) setShellHostsReady(true);
+  });
 
   // Keep latest callbacks without re-mounting the vanilla DOM workspace.
   const actionsRef = useRef({
@@ -63,6 +74,8 @@ export function DesktopWorkspaceShell({
   };
 
   useEffect(() => {
+    if (!shellHostsReady) return;
+
     const menuBarHost = menuBarHostRef.current;
     const toolbarHost = toolbarHostRef.current;
     const workspaceHost = workspaceHostRef.current;
@@ -101,9 +114,9 @@ export function DesktopWorkspaceShell({
       workspaceHost.innerHTML = '';
       statusBarHost.innerHTML = '';
     };
-  // Mount once — document/file callbacks are read from actionsRef.
+  // Mount once shell host refs are attached — document/file callbacks use actionsRef.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appContext, parseHooks, getEditor]);
+  }, [appContext, parseHooks, getEditor, shellHostsReady]);
 
   return (
     <EditorPane

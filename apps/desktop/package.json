@@ -18,7 +18,8 @@
   "type": "module",
   "scripts": {
     "clean": "rimraf out dist test-results playwright-report",
-    "prepare-local": "npm -w @beatbax/engine run build && node ../../scripts/link-local-engine.cjs && npm -w @beatbax/plugin-chip-sms run build && npm -w @beatbax/plugin-chip-spectrum-128 run build && npm -w @beatbax/plugin-exporter-famitracker run build && npm -w @beatbax/plugin-exporter-vgm run build && npm -w @beatbax/app-core run build",
+    "bundle-songs": "node scripts/prepare-bundle-songs.cjs",
+    "prepare-local": "npm -w @beatbax/engine run build && node ../../scripts/link-local-engine.cjs && npm -w @beatbax/plugin-chip-sms run build && npm -w @beatbax/plugin-chip-spectrum-128 run build && npm -w @beatbax/plugin-exporter-famitracker run build && npm -w @beatbax/plugin-exporter-vgm run build && npm -w @beatbax/app-core run build && npm run bundle-songs",
     "lint": "eslint --cache .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
@@ -26,7 +27,7 @@
     "dev": "npm run prepare-local && node ../../node_modules/electron-vite/bin/electron-vite.js dev",
     "start": "node ../../node_modules/electron-vite/bin/electron-vite.js preview",
     "build": "npm run prepare-local && npm run typecheck && node ../../node_modules/electron-vite/bin/electron-vite.js build",
-    "dist": "npm run build && node scripts/generate-install-docs.cjs && node scripts/prepare-bundle-songs.cjs && node ../../node_modules/electron-builder/cli.js --publish never",
+    "dist": "npm run build && node scripts/generate-install-docs.cjs && node ../../node_modules/electron-builder/cli.js --publish never",
     "test": "jest --config ./jest.config.cjs --runInBand",
     "test:e2e": "npm run build && playwright test --config ./playwright.config.ts",
     "postinstall": "electron-builder install-app-deps"

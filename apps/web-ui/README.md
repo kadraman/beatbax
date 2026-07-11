@@ -53,7 +53,7 @@ npm -w @beatbax/web-ui run test
 - **File I/O** — `src/utils/browser-fs.ts` (minimal Vite `fs` alias stub; UI exports use payload-returning plugins, not `writeFileSync` capture)
 - **Profile** — `vite.config.ts` sets `__CLIENT_PROFILE__: '"web-lite"'`
 
-Desktop reuses many panel implementations via Vite `@web-ui` aliases in its React shell; web-ui does not import desktop code.
+Desktop reuses some panel implementations via Vite `@web-ui` aliases in its React shell; Copilot lives only in `apps/desktop` (`DesktopCopilotPanel`).
 
 ## Related docs
 

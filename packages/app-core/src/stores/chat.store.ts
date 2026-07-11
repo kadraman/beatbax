@@ -13,6 +13,7 @@
  */
 
 import { atom, map } from 'nanostores';
+import { getDefaultAIModel } from './ai-models.js';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -31,18 +32,89 @@ export interface ChatMessage {
   content: string;
   /** ISO timestamp */
   timestamp: string;
+  /**
+   * Friendly text shown in the UI instead of `content`. `content` is still the
+   * text sent to the model (e.g. a verbose "apply this snippet" instruction),
+   * while `display` keeps the transcript readable.
+   */
+  display?: string;
+  /** Assistant edit-mode reply whose song was applied to the editor. */
+  applied?: boolean;
+  /**
+   * User decision after an edit was applied. `pending` while the editor review
+   * banner is active; `kept` / `discarded` after Keep or Discard.
+   */
+  applyOutcome?: 'pending' | 'kept' | 'discarded';
+  /** Edit-mode reply rejected before apply due to parse/validation errors. */
+  applyBlocked?: boolean;
+  /** Number of changed lines when the reply was applied (added + removed). */
+  changedLines?: number;
+  /** Lines added or modified in the new file. */
+  linesAdded?: number;
+  /** Lines removed from the previous file. */
+  linesRemoved?: number;
+  /** Lines modified in place (replacement at the same position). */
+  linesModified?: number;
+  /**
+   * Human-readable bullet summary of the structural edits applied to the song
+   * (e.g. "Added pattern `melody_var`"). Shown in the applied confirmation.
+   */
+  changeSummary?: string[];
+  /**
+   * UI-only informational notice (e.g. "Switched to Edit mode"). Rendered as a
+   * centered muted line and excluded from the context sent to the model.
+   */
+  system?: boolean;
+}
+
+export interface ChatMessageMeta {
+  display?: string;
+  applied?: boolean;
+  applyOutcome?: 'pending' | 'kept' | 'discarded';
+  applyBlocked?: boolean;
+  changedLines?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
+  linesModified?: number;
+  changeSummary?: string[];
+  system?: boolean;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_HISTORY = 50;
 const MAX_PROMPT_HISTORY = 50;
-const MIN_CONTEXT_CHARS = 100;
-const MAX_CONTEXT_CHARS = 32000;
+
+/** Discrete Ask-mode context sizes shown in AI settings (aligned with common model context tiers). */
+export const AI_CONTEXT_CHAR_PRESETS = [
+  { value: 4096, label: '4K' },
+  { value: 8192, label: '8K' },
+  { value: 12000, label: '12K' },
+  { value: 16384, label: '16K' },
+  { value: 24576, label: '24K' },
+  { value: 32768, label: '32K' },
+] as const;
+
+const CONTEXT_PRESET_VALUES = AI_CONTEXT_CHAR_PRESETS.map((preset) => preset.value);
+const MIN_CONTEXT_CHARS = CONTEXT_PRESET_VALUES[0];
+const MAX_CONTEXT_CHARS = CONTEXT_PRESET_VALUES[CONTEXT_PRESET_VALUES.length - 1];
+
+export function snapContextChars(value: number): number {
+  let best = CONTEXT_PRESET_VALUES[0];
+  let bestDistance = Math.abs(value - best);
+  for (const preset of CONTEXT_PRESET_VALUES) {
+    const distance = Math.abs(value - preset);
+    if (distance < bestDistance) {
+      best = preset;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
 
 function clampContextChars(value: unknown, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.min(MAX_CONTEXT_CHARS, Math.max(MIN_CONTEXT_CHARS, Math.round(value)));
+  if (typeof value !== 'number' || !Number.isFinite(value)) return snapContextChars(fallback);
+  return snapContextChars(Math.min(MAX_CONTEXT_CHARS, Math.max(MIN_CONTEXT_CHARS, Math.round(value))));
 }
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────
@@ -51,8 +123,8 @@ function loadSettings(): AISettings {
   const defaults: AISettings = {
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
-    model: 'gpt-4o-mini',
-    maxContextChars: 3000,
+    model: getDefaultAIModel(),
+    maxContextChars: 12000,
   };
   // Scrub any legacy key written by older versions of the app before the
   // no-persist-apiKey policy was introduced.
@@ -147,19 +219,43 @@ chatPromptHistory.subscribe((history) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Append a message to the history. */
-export function pushChatMessage(role: 'user' | 'assistant', content: string): void {
+export function pushChatMessage(
+  role: 'user' | 'assistant',
+  content: string,
+  meta?: ChatMessageMeta,
+): void {
   const history = chatHistory.get();
-  const message: ChatMessage = { role, content, timestamp: new Date().toISOString() };
+  const message: ChatMessage = { role, content, timestamp: new Date().toISOString(), ...meta };
   chatHistory.set([...history, message].slice(-MAX_HISTORY));
   if (role === 'assistant') {
     chatUnreadCount.set(chatUnreadCount.get() + 1);
   }
 }
 
+/**
+ * Append a UI-only informational notice (e.g. "Switched to Edit mode"). Does not
+ * count as unread and is excluded from the model context by the panel.
+ */
+export function pushChatNotice(content: string): void {
+  const history = chatHistory.get();
+  const message: ChatMessage = {
+    role: 'assistant',
+    content,
+    timestamp: new Date().toISOString(),
+    system: true,
+  };
+  chatHistory.set([...history, message].slice(-MAX_HISTORY));
+}
+
 /** Clear all chat history. */
 export function clearChatHistory(): void {
   chatHistory.set([]);
   chatUnreadCount.set(0);
+}
+
+/** Clear the submitted-prompt recall history. */
+export function clearChatPromptHistory(): void {
+  chatPromptHistory.set([]);
 }
 
 /** Record a submitted user prompt for input recall. */
@@ -173,6 +269,28 @@ export function recordChatPrompt(prompt: string): void {
 /** Mark all messages as read. */
 export function markChatRead(): void {
   chatUnreadCount.set(0);
+}
+
+/**
+ * Update the most recent applied assistant message awaiting review (Keep/Discard).
+ * Returns true if a pending applied message was found and updated.
+ */
+export function markLastPendingAppliedEdit(outcome: 'kept' | 'discarded'): boolean {
+  const history = chatHistory.get();
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    if (
+      message.role === 'assistant'
+      && message.applied
+      && message.applyOutcome === 'pending'
+    ) {
+      const updated = [...history];
+      updated[i] = { ...message, applyOutcome: outcome };
+      chatHistory.set(updated);
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Update AI settings (partial update supported). */

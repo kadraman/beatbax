@@ -7,7 +7,8 @@ import {
   setFeatureEnabled,
 } from '@beatbax/app-core/utils/feature-flags';
 import type { RightTabsController } from '../components/shell/tabs';
-import { createDesktopCopilotPanel, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
+import { markLastPendingAppliedEdit } from '@beatbax/app-core/stores/chat.store';
+import { createDesktopCopilotPanel, countAIChangeDiff, formatAIChangeBanner, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
 
 interface PendingAIChange {
   previousContent: string;
@@ -70,6 +71,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     }
     pendingAIChange.banner.remove();
     pendingAIChange = null;
+    markLastPendingAppliedEdit(restore ? 'discarded' : 'kept');
   }
 
   function getChatPanel(): DesktopCopilotPanelHandle {
@@ -103,22 +105,93 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           monacoEditor.focus();
         },
         onReplaceEditor: (text) => {
-          getEditor()?.setValue(text);
-          getEditor()?.focus();
+          const wrapper = getEditor();
+          const monacoEditor = wrapper?.editor;
+          const model = monacoEditor?.getModel();
+          // Replace via executeEdits (not setValue) so the change is a single
+          // undoable operation — setValue() wipes Monaco's undo stack.
+          if (monacoEditor && model) {
+            monacoEditor.pushUndoStop();
+            monacoEditor.executeEdits('chat-panel-replace', [{
+              range: model.getFullModelRange(),
+              text,
+              forceMoveMarkers: true,
+            }]);
+            monacoEditor.pushUndoStop();
+            monacoEditor.focus();
+          } else {
+            wrapper?.setValue(text);
+            wrapper?.focus();
+          }
         },
-        onHighlightChanges: (addedLineNums, previousContent) => {
+        onHighlightChanges: (diff, previousContent) => {
           const monacoEditor = getEditor()?.editor;
-          if (!monacoEditor || addedLineNums.length === 0) return;
+          const { total: changeCount } = countAIChangeDiff(diff);
+          if (!monacoEditor || changeCount === 0) return;
           clearPendingAIChange(false);
-          const decorations = addedLineNums.map((lineNum) => ({
-            range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
-            options: {
-              isWholeLine: true,
-              className: 'bb-changed-line-added',
-              overviewRulerColor: '#4ec94e',
-              overviewRulerLane: 4,
-            },
-          }));
+
+          const decorations: Array<{
+            range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+            options: Record<string, unknown>;
+          }> = [];
+
+          for (const lineNum of diff.added) {
+            decorations.push({
+              range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
+              options: {
+                isWholeLine: true,
+                className: 'bb-changed-line-added',
+                overviewRulerColor: '#4ec94e',
+                overviewRulerLane: 4,
+              },
+            });
+          }
+
+          for (const block of diff.modified) {
+            const wasHint = block.removed
+              .map((row) => `was: − ${row.text.trim() || '(empty line)'}`)
+              .join('   ');
+            for (const lineNum of block.newLines) {
+              decorations.push({
+                range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
+                options: {
+                  isWholeLine: true,
+                  className: 'bb-changed-line-modified',
+                  after: lineNum === block.line ? {
+                    content: `  ${wasHint}`,
+                    inlineClassName: 'bb-changed-line-removed-hint',
+                  } : undefined,
+                  overviewRulerColor: '#dcdcaa',
+                  overviewRulerLane: 4,
+                },
+              });
+            }
+          }
+
+          for (const anchor of diff.removed) {
+            const hint = anchor.removed
+              .map((row) => `− ${row.text.trim() || '(empty line)'}`)
+              .join('   ');
+            decorations.push({
+              range: {
+                startLineNumber: anchor.line,
+                startColumn: 1,
+                endLineNumber: anchor.line,
+                endColumn: 1,
+              },
+              options: {
+                isWholeLine: true,
+                className: 'bb-changed-line-removed',
+                after: {
+                  content: `  ${hint}`,
+                  inlineClassName: 'bb-changed-line-removed-hint',
+                },
+                overviewRulerColor: '#f48771',
+                overviewRulerLane: 4,
+              },
+            });
+          }
+
           const ids = monacoEditor.deltaDecorations([], decorations);
           const editorDom = monacoEditor.getDomNode();
           if (!editorDom) return;
@@ -128,7 +201,46 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           dot.className = 'bb-ai-change-banner-dot';
           dot.textContent = '⬤';
           const label = document.createElement('span');
-          label.textContent = `AI: ${addedLineNums.length} changed line${addedLineNums.length !== 1 ? 's' : ''}`;
+          label.textContent = formatAIChangeBanner(diff);
+
+          const regionLines = new Set<number>();
+          const sortedAdded = [...diff.added].sort((a, b) => a - b);
+          for (let k = 0; k < sortedAdded.length; k++) {
+            if (k === 0 || sortedAdded[k] !== sortedAdded[k - 1] + 1) regionLines.add(sortedAdded[k]);
+          }
+          for (const block of diff.modified) regionLines.add(block.line);
+          for (const anchor of diff.removed) regionLines.add(anchor.line);
+          const regions = [...regionLines].sort((a, b) => a - b);
+          let currentRegion = -1;
+
+          const counter = document.createElement('span');
+          counter.className = 'bb-ai-banner-counter';
+          const updateCounter = (): void => {
+            const pos = currentRegion < 0 ? 1 : currentRegion + 1;
+            counter.textContent = `${pos}/${regions.length}`;
+          };
+
+          const goToRegion = (step: number): void => {
+            if (regions.length === 0) return;
+            currentRegion = (currentRegion + step + regions.length) % regions.length;
+            const line = regions[currentRegion];
+            monacoEditor.revealLineInCenter(line);
+            monacoEditor.setPosition({ lineNumber: line, column: 1 });
+            monacoEditor.focus();
+            updateCounter();
+          };
+
+          const prevBtn = document.createElement('button');
+          prevBtn.className = 'bb-ai-banner-nav';
+          prevBtn.textContent = '↑';
+          prevBtn.title = 'Previous change';
+          prevBtn.addEventListener('click', () => goToRegion(-1));
+          const nextBtn = document.createElement('button');
+          nextBtn.className = 'bb-ai-banner-nav';
+          nextBtn.textContent = '↓';
+          nextBtn.title = 'Next change';
+          nextBtn.addEventListener('click', () => goToRegion(1));
+
           const keepBtn = document.createElement('button');
           keepBtn.className = 'bb-ai-banner-keep';
           keepBtn.textContent = '✓ Keep';
@@ -137,9 +249,16 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           discardBtn.className = 'bb-ai-banner-discard';
           discardBtn.textContent = '✗ Discard';
           discardBtn.addEventListener('click', () => clearPendingAIChange(true));
-          banner.append(dot, label, keepBtn, discardBtn);
+
+          banner.append(dot, label);
+          if (regions.length > 1) {
+            updateCounter();
+            banner.append(prevBtn, nextBtn, counter);
+          }
+          banner.append(keepBtn, discardBtn);
           editorDom.appendChild(banner);
           pendingAIChange = { previousContent, decorationIds: ids, banner };
+          if (regions.length > 0) goToRegion(1);
         },
         onOpenSettings: () => {
           onSettingsRefresh?.();

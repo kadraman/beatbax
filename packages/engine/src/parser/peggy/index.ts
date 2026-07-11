@@ -497,6 +497,23 @@ const parsePlay = (args: string): PlayNode => {
   };
 };
 
+const VALID_KEYWORDS = [
+  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
+  'song', 'import', 'inst', 'effect', 'pat', 'seq',
+  'channel', 'play', 'export',
+];
+
+function isValidTopLevelKeyword(word: string): boolean {
+  const lower = word.toLowerCase();
+  return VALID_KEYWORDS.some((kw) => kw.toLowerCase() === lower);
+}
+
+function unknownKeywordMessage(word: string, suggestion?: string | null): string {
+  return suggestion
+    ? `Unknown keyword '${word}'. Did you mean '${suggestion}'?`
+    : `Unknown keyword '${word}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+}
+
 /**
  * Enhance Peggy parse error messages for common cases
  */
@@ -514,16 +531,33 @@ function enhanceParseError(error: any, source: string): Error {
     const firstWord = lineStart.split(/\s+/)[0];
     const foundChar = error.found;
 
+    // Unknown top-level keywords outrank bar-separator hints on the same line
+    // (e.g. removed `arrange main = lead | bass` should report 'arrange', not '|').
+    if (
+      firstWord
+      && !isValidTopLevelKeyword(firstWord)
+      && !/^[A-Z]/.test(firstWord)
+      && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord)
+    ) {
+      message = unknownKeywordMessage(firstWord);
+      error.message = message;
+      return error;
+    }
+
+    // Common AI hallucination: bar separators with '|' (tracker-style) in pat/seq.
+    if (
+      foundChar === '|'
+      || (lineStart.includes('|') && /^(pat|seq)\b/i.test(lineStart))
+    ) {
+      message = "Bar separator '|' is not valid in BeatBax. Pattern and sequence tokens are whitespace-separated only — e.g. `pat bass = (C2 E2 G2) * 2 (F2 A2 C3) * 2`, not `(C2 E2) * 2 | (F2 A2) * 2`.";
+      error.message = message;
+      return error;
+    }
+
     // Check if error is at end of line (found carriage return/newline) - likely unknown keyword
     if (!foundChar || foundChar === '\r' || foundChar === '\n') {
-      // List of valid keywords
-      const validKeywords = [
-        'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-        'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song'
-      ];
-
-      if (firstWord && !validKeywords.includes(firstWord) && !/^[A-Z]/.test(firstWord)) {
-        message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
+      if (firstWord && !isValidTopLevelKeyword(firstWord) && !/^[A-Z]/.test(firstWord)) {
+        message = unknownKeywordMessage(firstWord);
         error.message = message;
       }
     }
@@ -531,12 +565,6 @@ function enhanceParseError(error: any, source: string): Error {
 
   return error;
 }
-
-const VALID_KEYWORDS = [
-  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-  'song', 'import', 'inst', 'effect', 'pat', 'seq',
-  'channel', 'play', 'export',
-];
 
 function toSourceLocation(loc: any): SourceLocation | undefined {
   if (!loc?.start) return undefined;
@@ -752,14 +780,13 @@ function validateUnknownSequenceTransforms(
 function parseRecoveryError(stmt: ErrorStmt): ParseError {
   const raw = String(stmt.raw ?? '').trim();
   const firstWord = raw.split(/\s+/)[0] ?? '';
-  const firstWordLower = firstWord.toLowerCase();
   let message = `Invalid statement syntax: '${raw || '<empty>'}'.`;
 
-  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !VALID_KEYWORDS.some(kw => kw.toLowerCase() === firstWordLower)) {
+  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !isValidTopLevelKeyword(firstWord)) {
     const suggestion = suggestKeyword(firstWord);
-    message = suggestion
-      ? `Unknown keyword '${firstWord}'. Did you mean '${suggestion}'?`
-      : `Unknown keyword '${firstWord}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+    message = unknownKeywordMessage(firstWord, suggestion);
+  } else if (raw.includes('|') || /^\|/.test(raw)) {
+    message = "Bar separator '|' is not valid in BeatBax. Pattern and sequence tokens are whitespace-separated only — e.g. `pat bass = (C2 E2 G2) * 2 (F2 A2 C3) * 2`, not `(C2 E2) * 2 | (F2 A2) * 2`.";
   } else if (/^channel\b/i.test(raw) && !raw.includes('=>')) {
     message = `Channel statement is missing '=>'. Expected: channel <n> => ...`;
   } else if (/^inst\b/i.test(raw) && /=\s*$/.test(raw)) {
@@ -1174,10 +1201,55 @@ export function parseWithPeggy(source: string): ParseResult {
   // always contain '(' or '<', so a plain identifier with neither is the risky case.
   const isCallOrEffect = (v: string) => v.includes('(') || v.includes('<');
   if (patternEvents) {
+    // Built-in inline effect names (generic handlers in effects/index.ts plus the
+    // baked macro effects). Kept here to avoid importing audio code into the
+    // parser; compared case-insensitively. Update if new effects are registered.
+    const BUILTIN_EFFECT_NAMES = new Set<string>([
+      'pan', 'vib', 'port', 'arp', 'pitch_env', 'volslide', 'trem',
+      'cut', 'retrig', 'bend', 'sweep', 'echo',
+      'vol_env', 'arp_env', 'noise_rate_env',
+    ]);
+    // Effects contributed by the active chip plugin (e.g. NES-specific effects).
+    const chipEffectNames = new Set<string>();
+    const pluginEffects = (activePlugin as any)?.effects;
+    if (pluginEffects) for (const k of Object.keys(pluginEffects)) chipEffectNames.add(k.toLowerCase());
+
+    // A named inline effect `NOTE<name>` only works if `name` is a defined
+    // `effect name = ...` preset, a built-in, or a chip effect. Parametric
+    // forms like `<vib:3,5>` carry their own args and reference a built-in type.
+    const effectHeadIsKnown = (body: string): boolean => {
+      const head = (body.split(':')[0] || '').trim();
+      if (!head) return true; // empty `<>` handled elsewhere
+      if (Object.prototype.hasOwnProperty.call(effects, head)) return true; // defined preset
+      const lower = head.toLowerCase();
+      return BUILTIN_EFFECT_NAMES.has(lower) || chipEffectNames.has(lower);
+    };
+    const validateEffectBodies = (patName: string, bodies: string[] | undefined, loc: any): void => {
+      if (!bodies || bodies.length === 0) return;
+      // Skip when the chip is unknown (rules fall back to Game Boy and could
+      // misfire) or when imports may supply the definition.
+      if (!chipIsKnown || imports.length > 0) return;
+      for (const body of bodies) {
+        if (effectHeadIsKnown(body)) continue;
+        const head = (body.split(':')[0] || '').trim();
+        diag('warning', 'parser', `Pattern '${patName}': effect '${head}' is not defined and will be ignored — add an 'effect ${head} = ...' definition, or use a built-in inline effect such as <vib:3,5>.`, loc);
+      }
+    };
+
     for (const [patName, events] of Object.entries(patternEvents)) {
       for (const ev of events) {
-        if (!ev || ev.kind !== 'token') continue;
+        if (!ev) continue;
+        // Validate inline effects on note events, e.g. `C5<leadVib>`.
+        if (ev.kind === 'note' && (ev as any).effects) {
+          validateEffectBodies(patName, (ev as any).effects as string[], ev.loc);
+        }
+        if (ev.kind !== 'token') continue;
         const val = ev.value;
+        // Validate inline effects embedded in an identifier token, e.g. `snare<foo>`.
+        if (val && val.includes('<')) {
+          const bodies = [...val.matchAll(/<([^>]*)>/g)].map((mm) => mm[1]);
+          validateEffectBodies(patName, bodies, ev.loc);
+        }
         if (!val || isCallOrEffect(val)) continue;
         // It's a plain identifier — valid if it's a note, rest char, or a known name
         if (NOTE_RE.test(val)) continue;
