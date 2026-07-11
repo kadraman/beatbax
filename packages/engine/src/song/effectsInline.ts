@@ -20,9 +20,10 @@ export function parseEffectParams(paramsStr: string | undefined): Array<string |
   }
   parts.push(current.trim());
 
-  return parts
-    .filter(s => s !== '')
-    .map(s => (isNaN(Number(s)) ? s : Number(s)));
+  return parts.map((s) => {
+    if (s === '') return '';
+    return isNaN(Number(s)) ? s : Number(s);
+  });
 }
 
 export function parseEffectsInline(str: string) {

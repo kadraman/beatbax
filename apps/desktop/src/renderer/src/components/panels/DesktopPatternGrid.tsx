@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type Ref,
+  type RefCallback,
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
@@ -38,7 +38,7 @@ interface PatternGridRow {
 }
 
 interface DesktopPatternGridProps {
-  gridRef: Ref<DesktopPatternGridHandle>;
+  gridRef: RefCallback<DesktopPatternGridHandle>;
   onNavigate?: (patName: string) => void;
 }
 
@@ -511,12 +511,15 @@ export function createDesktopPatternGrid(
     pendingCalls.length = 0;
   };
 
+  const assignGridRef = (handle: DesktopPatternGridHandle | null): void => {
+    handleRef.current = handle;
+    if (handle === null) return;
+    flushPending(handle);
+  };
+
   root.render(
     <DesktopPatternGrid
-      gridRef={(handle) => {
-        handleRef.current = handle;
-        flushPending(handle);
-      }}
+      gridRef={assignGridRef}
       onNavigate={options.onNavigate}
     />,
   );
