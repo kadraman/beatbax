@@ -27,25 +27,24 @@ High level
   - `packages/engine/src/export/` — JSON, MIDI, and UGE exporters with validation.
   - `packages/engine/src/import/` — UGE reader for importing hUGETracker v1-v6 files with helper functions.
   - `apps/web-ui/` — web-lite browser client (`__CLIENT_PROFILE__ = "web-lite"`).
-  - `apps/desktop/` — desktop-full Electron client; bridges web-ui panels for full IDE features.
+  - `apps/desktop/` — desktop-full Electron client; native Copilot panel, settings, IPC for AI.
   - `packages/app-core/` — shared client logic consumed by web-ui and desktop.
-  - `apps/web-ui/src/panels/chat-panel.ts` — BeatBax Copilot (desktop-full only; panel code lives in web-ui, mounted by desktop).
+  - `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx` — BeatBax Copilot UI (desktop-full only).
 
 ## BeatBax Copilot — implementation notes
 
-Desktop-only (gated by `desktop-full` profile). Module: `apps/web-ui/src/panels/chat-panel.ts`
-- All API calls go from the renderer to the user-configured endpoint (no proxy server).
-- **Chip detection**: `detectChip(source)` extracts the `chip` directive from editor content; aliases `gb` and `dmg` are normalised to `gameboy`. Defaults to `gameboy` when absent.
-- **Prompt assembly** (`assembleContext()`): system prompt = language reference + mode suffix + `[EDITOR CONTENT]` (capped 3000 chars) + `[DIAGNOSTICS]`. Last 10 conversation messages are prepended to the user turn.
-- **Self-correction loop** (Edit mode): after generation, `validateBax()` is called; if errors are found the error list is fed back as a correction request. The loop runs up to 4 times. On the final failed attempt `baxCode` is set to `null` and nothing is applied. Correction exchanges are not shown in the conversation history.
-- **`validateBax()` extended checks** (beyond `resolveSong()`):
-  1. Channel `inst` references (most common AI mistake).
-  2. Pattern inline `inst` and `temp-inst` nodes (structured `patternEvents` form).
-  3. Pattern inline `inst` tokens (string form in `ast.pats`).
-  4. Sequence `inst(name)` transforms.
-- **Settings persistence**: endpoint URL, model, max context, mode, and history are stored under `beatbax:ai.*` in `localStorage`. API keys are not stored there; desktop stores them via Electron `safeStorage`, while web keeps them in memory for the current session.
-- **Security**: AI responses rendered via `marked` + `DOMPurify.sanitize()` to prevent XSS. Generated code is validated but never `eval`-ed.
-- See `docs/features/complete/ai-chatbot-assistant.md` for the full feature spec, RAG roadmap, and testing strategy.
+Desktop-only (gated by `FeatureFlag.AI_ASSISTANT` / `desktop-full` profile). Primary modules: `DesktopCopilotPanel.tsx`, `copilot-context.ts`, `copilot-apply-guard.ts`, Settings → AI (`components/settings/ai.tsx`).
+
+- Chat requests route through **Electron main-process IPC** (`createAIChatCompletion` in `ipc-handlers.ts`) — no BeatBax proxy server; avoids CORS.
+- **Chip detection**: `detectChip(source)` in `copilot-context.ts`; aliases `gb` / `dmg` → `gameboy`.
+- **Prompt assembly** (`assembleContext()`): language reference + mode suffix + `[EDITOR CONTENT]` (full song in Edit mode; Ask mode respects `maxContextChars`, default 12K) + `[DIAGNOSTICS]`. Last 10 conversation messages prepended to the user turn.
+- **Self-correction** (Edit mode): up to **2** parse-repair attempts; up to **2** incomplete-song repair attempts; apply guard blocks snippet-only replies. Correction exchanges are not shown in the conversation history.
+- **`validateBax()` extended checks** (beyond `resolveSong()`): channel `inst` references, pattern inline/temp `inst`, sequence `:inst(name)` transforms.
+- **Persistence**: endpoint, model, `maxContextChars`, mode, history under `beatbax:ai.*`. API keys in OS secure credential store (desktop); session-only in web-ui settings if enabled.
+- **Local Ollama**: no API key; 5-minute request timeout; see [copilot-local-ollama.md](docs/features/copilot-local-ollama.md).
+- **QA**: repeatable manual scenarios in [copilot-test-scenarios.md](docs/copilot-test-scenarios.md).
+- **Security**: `marked` + `DOMPurify.sanitize()`; generated code validated, never `eval`-ed.
+- See [ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) for architecture, RAG roadmap, and tests.
 
 ## CLI WAV → NES DMC conversion
 

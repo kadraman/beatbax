@@ -47,7 +47,7 @@ This is not a replacement for creativity, but it can help with construction, edi
 - **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows, converting samples and more
 - **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing the funadmentals of your song
 
-> *BeatBax Copilot (desktop only) requires your own API key from any OpenAI-compatible provider (including local LLM). Your API key is stored locally in the app only.
+> *BeatBax Copilot (desktop only) uses your own OpenAI-compatible provider for cloud models (BYOK). Local Ollama or LM Studio need no API key. Cloud API keys are stored in the OS secure credential store on your machine only.
 
 ## Grammar
 
@@ -222,7 +222,7 @@ WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts
 ## Desktop
 
 BeatBax Desktop ships the full IDE: native menus and file I/O, export, Copilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform 
-installers. See [apps/desktop/README.md](apps/desktop/README.md) for more details.
+installers. See [apps/desktop/README.md](apps/desktop/README.md) for more details. For **local Copilot** with Ollama (no API key, on-device inference), see [docs/features/copilot-local-ollama.md](docs/features/copilot-local-ollama.md).
 
 Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
 
