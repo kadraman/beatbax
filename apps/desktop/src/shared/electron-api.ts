@@ -44,6 +44,13 @@ export interface AIAPIKeyValidationResult {
   message: string;
 }
 
+export interface AIModelListResult {
+  ok: boolean;
+  /** Raw model IDs returned by the provider's /models endpoint. */
+  models: string[];
+  message?: string;
+}
+
 export interface AIChatCompletionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -71,7 +78,9 @@ export interface ElectronAPI {
   setAIAPIKey(apiKey: string): Promise<void>;
   clearAIAPIKey(): Promise<void>;
   validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPIKeyValidationResult>;
+  listAIModels(endpoint: string, apiKey: string): Promise<AIModelListResult>;
   createAIChatCompletion(request: AIChatCompletionRequest): Promise<string>;
+  cancelAIChatCompletion(): Promise<void>;
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;
   getVersion(): string;

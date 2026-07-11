@@ -26,7 +26,6 @@ describe('StatusBar panels menu', () => {
         transportVisible: true,
         channelMixerVisible: false,
         patternGridVisible: false,
-        aiOpen: false,
       }),
       onPanelMenuToggle: jest.fn(),
       onShowProblems: jest.fn(),
@@ -61,7 +60,6 @@ describe('StatusBar panels menu', () => {
       transportVisible: true,
       channelMixerVisible: false,
       patternGridVisible: false,
-      aiOpen: false,
     };
 
     new StatusBar({
@@ -94,7 +92,6 @@ describe('StatusBar panels menu', () => {
       transportVisible: true,
       channelMixerVisible: false,
       patternGridVisible: false,
-      aiOpen: false,
     };
 
     new StatusBar({

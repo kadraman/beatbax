@@ -35,7 +35,7 @@ import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
 import { setupFullIdeFeatures, type TransportDisplayState } from './full-ide-setup';
 import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from './editor-view-prefs';
-import { settingFoldComments, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
+import { settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
@@ -156,7 +156,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   }
 
   const transportBar = createDesktopTransportBar(layoutHost);
-  if (!readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR)) transportBar.hide();
+  if (!settingShowTransportBar.get()) transportBar.hide();
   suppressChromeTabFocus(transportBar.el);
 
   let patternGrid: DesktopPatternGridHandle | null = null;
@@ -425,6 +425,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   };
 
   const toolbar = createDesktopToolbar(toolbarHost, {
+    initialVisible: settingShowToolbar.get(),
     eventBus,
     onBeforeOpenFile: () => playbackManager.stop(),
     onLoad: (filename, content) => options.onLoadDocument(filename, content),
@@ -446,7 +447,6 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   );
   (window as unknown as Record<string, unknown>).__beatbax_toolbar = toolbar;
 
-  if (!readPanelVis(StorageKey.PANEL_VIS_TOOLBAR)) toolbar.hide();
   toolbarRef.current = toolbar;
   syncEditorViewPrefsToToolbar(toolbar);
   if (settingFoldComments.get()) {
@@ -484,6 +484,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       getEditor,
       getSource,
       toolbar,
+      transportBar,
       bottomTabs,
       rightTabs,
       settingsModal,
@@ -506,6 +507,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     if (menuSetup) {
       menuBar = menuSetup.menuBar;
       disposeMenuBar = menuSetup.dispose;
+      menuBar.seedPanelVisible({
+        toolbar: settingShowToolbar.get(),
+        'transport-bar': settingShowTransportBar.get(),
+      });
+      menuBar.refreshPanelToggleChecks();
       void refreshRecentFiles();
     }
   }
@@ -677,8 +683,16 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
         channelMixer?.[visible ? 'show' : 'hide']?.();
       }
-      if (panel === 'toolbar') toolbar[visible ? 'show' : 'hide']?.();
-      if (panel === 'transport-bar') transportBar[visible ? 'show' : 'hide']?.();
+      if (panel === 'toolbar') {
+        toolbar[visible ? 'show' : 'hide']?.();
+        settingShowToolbar.set(visible);
+        menuBar?.seedPanelVisible({ toolbar: visible });
+      }
+      if (panel === 'transport-bar') {
+        transportBar[visible ? 'show' : 'hide']?.();
+        settingShowTransportBar.set(visible);
+        menuBar?.seedPanelVisible({ 'transport-bar': visible });
+      }
       if (panel === 'pattern-grid') {
         patternGridContainer.style.display = visible ? '' : 'none';
         storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(visible));

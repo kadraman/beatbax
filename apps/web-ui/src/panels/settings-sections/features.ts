@@ -12,6 +12,7 @@ import {
   settingFeatureHotReload,
   settingFeatureSongVisualizer,
 } from '@beatbax/app-core/stores/settings.store';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import { sectionHeading, noteText } from './general';
 
 interface FeatureEntry {
@@ -87,11 +88,16 @@ export function buildFeaturesSection(): HTMLElement {
 
   el.appendChild(sectionHeading('Optional capabilities'));
 
+  const features = FEATURES.filter((feat) => {
+    if (feat.flag === FeatureFlag.AI_ASSISTANT) return getCurrentCapabilities().copilot;
+    return true;
+  });
+
   // Collect all nanostores unsubscribe functions so we can tear them down
   // when this section is removed from the DOM (e.g. on "Reset to defaults").
   const unsubs: Array<() => void> = [];
 
-  for (const feat of FEATURES) {
+  for (const feat of features) {
     const row = document.createElement('div');
     row.className = 'bb-settings-feature-row';
 

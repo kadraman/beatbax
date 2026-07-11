@@ -1,8 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { chatMode, chatSettings, updateChatSettings } from '@beatbax/app-core/stores/chat.store';
+import {
+  AI_PROVIDER_OPTIONS,
+  AI_PROVIDERS,
+  CUSTOM_MODEL_VALUE,
+  filterChatModels,
+  getModelsForProvider,
+  getProviderByEndpoint,
+  mergeModelLists,
+  type AIProviderKey,
+} from '@beatbax/app-core/stores/ai-models';
+import { AI_CONTEXT_CHAR_PRESETS } from '@beatbax/app-core/stores/chat.store';
+import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import { useStoreValue } from '../../hooks/useStoreValue';
-import { NoteText, NumberField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
+import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
+
+interface AIModelListResult {
+  ok: boolean;
+  models: string[];
+  message?: string;
+}
 
 interface ChatSettingsPatch {
   endpoint?: string;
@@ -15,23 +33,8 @@ interface SecureAIKeyStore {
   getAIAPIKey: () => Promise<string>;
   setAIAPIKey: (apiKey: string) => Promise<void>;
   validateAIAPIKey?: (endpoint: string, apiKey: string) => Promise<{ ok: boolean; message: string }>;
+  listAIModels?: (endpoint: string, apiKey: string) => Promise<AIModelListResult>;
 }
-
-const PRESETS: Record<string, { endpoint: string; model: string }> = {
-  openai: { endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-  groq: { endpoint: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-120b' },
-  ollama: { endpoint: 'http://localhost:11434/v1', model: 'llama3.2' },
-  lmstudio: { endpoint: 'http://localhost:1234/v1', model: 'local-model' },
-  custom: { endpoint: '', model: '' },
-};
-
-const PRESET_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'groq', label: 'Groq' },
-  { value: 'ollama', label: 'Ollama (local)' },
-  { value: 'lmstudio', label: 'LM Studio (local)' },
-  { value: 'custom', label: 'Custom' },
-];
 
 function desktopSecureAIKeyStore(): SecureAIKeyStore | null {
   const api = (window as any).electronAPI;
@@ -92,11 +95,46 @@ async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok:
   }
 }
 
-function detectPreset(endpoint: string): string {
-  for (const [key, preset] of Object.entries(PRESETS)) {
-    if (key !== 'custom' && endpoint === preset.endpoint) return key;
+async function fetchModelList(endpoint: string, apiKey: string): Promise<AIModelListResult> {
+  const desktopLister = desktopSecureAIKeyStore()?.listAIModels;
+  if (typeof desktopLister === 'function') {
+    return desktopLister(endpoint, apiKey);
   }
-  return endpoint ? 'custom' : 'openai';
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8_000);
+  try {
+    let url: string;
+    try {
+      url = endpointModelsURL(endpoint);
+    } catch (error) {
+      return { ok: false, models: [], message: `Invalid endpoint: ${(error as Error).message}` };
+    }
+
+    const headers: Record<string, string> = {};
+    if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
+    const response = await fetch(url, { headers, signal: controller.signal });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, models: [], message: 'The provider rejected the API key.' };
+      }
+      return { ok: false, models: [], message: `Could not load models: provider returned HTTP ${response.status}.` };
+    }
+    const data = await response.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+    const models = Array.isArray(data?.data)
+      ? data.data
+          .map((entry) => (typeof entry?.id === 'string' ? entry.id : ''))
+          .filter((id): id is string => id.length > 0)
+      : [];
+    return { ok: true, models };
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      return { ok: false, models: [], message: 'Could not load models: provider did not respond.' };
+    }
+    return { ok: false, models: [], message: `Could not load models: ${(error as Error).message || 'request failed'}.` };
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function saveChatSettings(patch: ChatSettingsPatch): void {
@@ -244,10 +282,136 @@ function APIKeyField({ endpoint }: { endpoint: string }): React.JSX.Element {
   );
 }
 
+function ModelField({
+  endpoint,
+  model,
+  providerKey,
+}: {
+  endpoint: string;
+  model: string;
+  providerKey: AIProviderKey;
+}): React.JSX.Element {
+  const curated = getModelsForProvider(providerKey);
+  const [fetched, setFetched] = useState<string[]>([]);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [forceCustom, setForceCustom] = useState(false);
+  const loadedEndpointRef = useRef('');
+
+  const persistModel = (value: string): void => {
+    saveChatSettings({ model: value });
+    updateChatSettings({ model: value });
+  };
+
+  const loadModels = useCallback(async (silent: boolean): Promise<void> => {
+    const trimmedEndpoint = endpoint.trim();
+    if (!trimmedEndpoint) {
+      if (!silent) setStatus('Enter an API endpoint before loading models.');
+      return;
+    }
+    const apiKey = chatSettings.get().apiKey ?? '';
+    if (!isLocalAiEndpoint(trimmedEndpoint) && !apiKey.trim()) {
+      if (!silent) setStatus('Set an API key to load available models.');
+      return;
+    }
+    setBusy(true);
+    setStatus('Loading models...');
+    try {
+      const result = await fetchModelList(trimmedEndpoint, apiKey);
+      if (result.ok) {
+        const chatModels = filterChatModels(result.models);
+        setFetched(chatModels);
+        loadedEndpointRef.current = trimmedEndpoint;
+        setStatus(chatModels.length
+          ? `Loaded ${chatModels.length} models from the provider.`
+          : 'Provider returned no chat-capable models.');
+      } else {
+        setStatus(result.message ?? 'Could not load models.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [endpoint]);
+
+  // Reset fetched state when the provider preset changes.
+  useEffect(() => {
+    setForceCustom(false);
+    setFetched([]);
+    setStatus('');
+    loadedEndpointRef.current = '';
+  }, [providerKey]);
+
+  // Auto-load once per endpoint when credentials are available.
+  useEffect(() => {
+    const trimmedEndpoint = endpoint.trim();
+    if (!trimmedEndpoint || loadedEndpointRef.current === trimmedEndpoint) return;
+    const apiKey = chatSettings.get().apiKey ?? '';
+    if (!isLocalAiEndpoint(trimmedEndpoint) && !apiKey.trim()) return;
+    void loadModels(true);
+  }, [endpoint, loadModels]);
+
+  const available = mergeModelLists(curated, fetched);
+  const selectValue = forceCustom || !available.includes(model)
+    ? CUSTOM_MODEL_VALUE
+    : model;
+  const showCustomInput = selectValue === CUSTOM_MODEL_VALUE;
+  const options = [
+    ...available.map((entry) => ({ value: entry, label: entry })),
+    { value: CUSTOM_MODEL_VALUE, label: 'Custom...' },
+  ];
+
+  return (
+    <>
+      <div className="bb-settings-row bb-ai-model-row">
+        <label className="bb-settings-label" htmlFor="bb-ai-model-select">Model</label>
+        <select
+          className="bb-settings-select"
+          id="bb-ai-model-select"
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            if (value === CUSTOM_MODEL_VALUE) {
+              setForceCustom(true);
+              return;
+            }
+            setForceCustom(false);
+            persistModel(value);
+          }}
+          value={selectValue}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <button
+          className="bb-settings-btn-secondary"
+          disabled={busy}
+          onClick={() => { void loadModels(false); }}
+          onMouseDown={(event) => event.preventDefault()}
+          type="button"
+        >
+          {busy ? 'Loading...' : 'Refresh'}
+        </button>
+      </div>
+      {showCustomInput ? (
+        <TextField
+          id="bb-ai-model"
+          label="Custom model ID"
+          onChange={(value) => {
+            setForceCustom(true);
+            persistModel(value);
+          }}
+          value={model}
+        />
+      ) : null}
+      {status ? <NoteText>{status}</NoteText> : null}
+    </>
+  );
+}
+
 export function AISettingsSection(): React.JSX.Element {
   const settings = useStoreValue(chatSettings);
   const mode = useStoreValue(chatMode);
-  const preset = detectPreset(settings.endpoint);
+  const providerKey = getProviderByEndpoint(settings.endpoint);
 
   return (
     <div className="bb-settings-section">
@@ -261,13 +425,13 @@ export function AISettingsSection(): React.JSX.Element {
         id="bb-ai-preset"
         label="Provider preset"
         onChange={(value) => {
-          const selected = PRESETS[value];
+          const selected = AI_PROVIDERS[value as AIProviderKey];
           if (!selected || value === 'custom') return;
-          saveChatSettings({ endpoint: selected.endpoint, model: selected.model });
-          updateChatSettings({ endpoint: selected.endpoint, model: selected.model });
+          saveChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel });
+          updateChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel });
         }}
-        options={PRESET_OPTIONS}
-        value={preset}
+        options={AI_PROVIDER_OPTIONS}
+        value={providerKey}
       />
       <TextField
         id="bb-ai-endpoint"
@@ -280,15 +444,7 @@ export function AISettingsSection(): React.JSX.Element {
         value={settings.endpoint}
       />
       <APIKeyField endpoint={settings.endpoint} />
-      <TextField
-        id="bb-ai-model"
-        label="Model"
-        onChange={(value) => {
-          saveChatSettings({ model: value });
-          updateChatSettings({ model: value });
-        }}
-        value={settings.model}
-      />
+      <ModelField endpoint={settings.endpoint} model={settings.model} providerKey={providerKey} />
 
       <SectionHeading>Behaviour</SectionHeading>
       <RadioGroup
@@ -301,18 +457,19 @@ export function AISettingsSection(): React.JSX.Element {
         ]}
         value={mode}
       />
-      <NumberField
+      <PresetRangeField
         id="bb-ai-max-ctx"
-        label="Max editor characters sent to AI"
-        max={32000}
-        min={100}
+        label="Ask mode context limit"
         onChange={(value) => {
           saveChatSettings({ maxContextChars: value });
           updateChatSettings({ maxContextChars: value });
         }}
+        presets={AI_CONTEXT_CHAR_PRESETS}
         value={settings.maxContextChars}
       />
-      <NoteText>Larger values give the AI more of your song but may increase latency and token cost.</NoteText>
+      <NoteText>
+        Ask mode only — longer songs are truncated past this limit. Edit mode always sends the full song and uses more tokens.
+      </NoteText>
     </div>
   );
 }
@@ -321,8 +478,8 @@ export function resetAIDefaults(): void {
   storage.remove(StorageKey.CHAT_SETTINGS);
   chatMode.set('ask');
   updateChatSettings({
-    endpoint: PRESETS.openai.endpoint,
-    model: PRESETS.openai.model,
-    maxContextChars: 3000,
+    endpoint: AI_PROVIDERS.openai.endpoint,
+    model: AI_PROVIDERS.openai.defaultModel,
+    maxContextChars: 12000,
   });
 }
