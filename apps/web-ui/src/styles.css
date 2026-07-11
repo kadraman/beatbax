@@ -1146,6 +1146,12 @@
   font-weight: 600;
 }
 
+.problems-context-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color, #454545);
+}
+
 .output-loc {
   flex-shrink: 0;
   font-size: 11px;

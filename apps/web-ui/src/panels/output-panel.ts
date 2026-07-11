@@ -435,8 +435,8 @@ export class OutputPanel {
     const navAttrs = line > 0 ? `data-nav-line="${line}" data-nav-col="${col}"` : '';
     const title =
       line > 0
-        ? 'Click to jump · Right-click for quick fixes'
-        : 'Right-click for quick fixes when available';
+        ? 'Click to jump · Right-click for quick fixes or to copy'
+        : 'Right-click for quick fixes or to copy';
 
     return `
       <div class="output-message output-${msg.type}" ${navAttrs} data-problem-message="${this.escapeAttr(msg.message)}" style="cursor:pointer" title="${this.escapeAttr(title)}">
@@ -508,13 +508,10 @@ export class OutputPanel {
   }
 
   private wireProblemQuickFixes(): void {
-    if (!this.getTextModel || this.singleTab === 'output') return;
+    if (this.singleTab === 'output') return;
 
     this.container.querySelectorAll<HTMLElement>('.output-message.output-error, .output-message.output-warning').forEach((el) => {
       el.addEventListener('contextmenu', (event) => {
-        const model = this.getTextModel?.();
-        if (!model) return;
-
         const message = el.getAttribute('data-problem-message') ?? '';
         const line = parseInt(el.getAttribute('data-nav-line') ?? '0', 10);
         const column = parseInt(el.getAttribute('data-nav-col') ?? '1', 10);
@@ -523,43 +520,83 @@ export class OutputPanel {
             ? { start: { line, column } }
             : undefined;
 
-        const fixes = getQuickFixesForProblem(model, message, loc);
-        if (fixes.length === 0) return;
+        const model = this.getTextModel?.() ?? null;
+        const fixes = model ? getQuickFixesForProblem(model, message, loc) : [];
 
         event.preventDefault();
-        this.showQuickFixMenu(event, model, fixes, line, column);
+        this.showProblemContextMenu(event, { message, fixes, model, line, column });
       });
     });
   }
 
-  private showQuickFixMenu(
+  private async copyProblemText(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+  }
+
+  private showProblemContextMenu(
     event: MouseEvent,
-    model: monaco.editor.ITextModel,
-    fixes: ReturnType<typeof getQuickFixesForProblem>,
-    line: number,
-    column: number,
+    options: {
+      message: string;
+      fixes: ReturnType<typeof getQuickFixesForProblem>;
+      model: monaco.editor.ITextModel | null;
+      line: number;
+      column: number;
+    },
   ): void {
+    const { message, fixes, model, line, column } = options;
     this.closeQuickFixMenu();
 
     const menu = document.createElement('div');
     menu.className = 'problems-quick-fix-menu';
     menu.setAttribute('role', 'menu');
 
-    for (const fix of fixes) {
+    const appendItem = (label: string, onClick: () => void, preferred = false) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'problems-quick-fix-item' + (fix.isPreferred ? ' is-preferred' : '');
-      btn.textContent = fix.title;
+      btn.className = 'problems-quick-fix-item' + (preferred ? ' is-preferred' : '');
+      btn.textContent = label;
       btn.setAttribute('role', 'menuitem');
       btn.addEventListener('click', () => {
+        onClick();
+        this.closeQuickFixMenu();
+      });
+      menu.appendChild(btn);
+    };
+
+    const appendSeparator = () => {
+      const sep = document.createElement('div');
+      sep.className = 'problems-context-menu-sep';
+      sep.setAttribute('role', 'separator');
+      menu.appendChild(sep);
+    };
+
+    for (const fix of fixes) {
+      appendItem(fix.title, () => {
+        if (!model) return;
         if (line > 0) {
           this.eventBus.emit('navigate:to', { line, column });
         }
         applyQuickFixSuggestion(model, fix);
-        this.closeQuickFixMenu();
-      });
-      menu.appendChild(btn);
+      }, fix.isPreferred);
     }
+
+    if (fixes.length > 0) appendSeparator();
+
+    const locSuffix = line > 0 ? ` (line ${line}, col ${column})` : '';
+    appendItem('Copy message', () => {
+      void this.copyProblemText(`${message}${locSuffix}`);
+    });
 
     document.body.appendChild(menu);
     this.quickFixMenu = menu;

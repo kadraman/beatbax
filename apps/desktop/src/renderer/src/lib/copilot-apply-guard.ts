@@ -156,23 +156,39 @@ function escapeRegex(value: string): string {
 export function tryMergeSnippetIntoSong(previous: string, candidate: string): string | null {
   const defLines = candidate.split('\n')
     .map((raw) => raw.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('//') && /^(pat|seq)\s+[A-Za-z_]\w*\s*=/.test(line));
+    .filter((line) => {
+      if (!line || line.startsWith('//')) return false;
+      return /^(pat|seq)\s+[A-Za-z_]\w*\s*=/.test(line) || /^inst\s+[A-Za-z_]\w*\b/.test(line);
+    });
   if (defLines.length !== 1) return null;
 
   const defLine = defLines[0];
   const patMatch = defLine.match(/^pat\s+([A-Za-z_]\w*)\s*=/);
   const seqMatch = defLine.match(/^seq\s+([A-Za-z_]\w*)\s*=/);
-  const name = patMatch?.[1] ?? seqMatch?.[1];
-  const kind = patMatch ? 'pat' : 'seq';
-  if (!name) return null;
+  const instMatch = defLine.match(/^inst\s+([A-Za-z_]\w*)\b/);
 
-  const lineRe = new RegExp(`^(\\s*)${kind}\\s+${escapeRegex(name)}\\s*=.*$`, 'm');
-  if (!lineRe.test(previous)) return null;
+  if (patMatch || seqMatch) {
+    const name = patMatch?.[1] ?? seqMatch?.[1];
+    const kind = patMatch ? 'pat' : 'seq';
+    if (!name) return null;
 
-  return previous.replace(lineRe, (_match, indent: string) => {
-    const body = defLine.replace(/^\s*(pat|seq)\s+/, '');
-    return `${indent ?? ''}${kind} ${body}`;
-  });
+    const lineRe = new RegExp(`^(\\s*)${kind}\\s+${escapeRegex(name)}\\s*=.*$`, 'm');
+    if (!lineRe.test(previous)) return null;
+
+    return previous.replace(lineRe, (_match, indent: string) => {
+      const body = defLine.replace(/^\s*(pat|seq)\s+/, '');
+      return `${indent ?? ''}${kind} ${body}`;
+    });
+  }
+
+  if (instMatch) {
+    const name = instMatch[1];
+    const lineRe = new RegExp(`^(\\s*)inst\\s+${escapeRegex(name)}\\b.*$`, 'm');
+    if (!lineRe.test(previous)) return null;
+    return previous.replace(lineRe, (_match, indent: string) => `${indent ?? ''}${defLine}`);
+  }
+
+  return null;
 }
 
 /** Follow-up prompt when the model returned a snippet instead of the full song. */

@@ -140,15 +140,17 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
 
       publishValidation();
 
+      const valid = errors.length === 0;
+      parseStatus.set(valid ? 'success' : 'error');
+      parsedBpm.set((ast as any).bpm || 120);
+      parsedChip.set((ast as any).chip || 'gameboy');
       eventBus.emit('parse:success', {
         ast,
         resolvedAst,
         song,
         sourceBpm: (ast as any).bpm ?? 120,
+        valid,
       });
-      parseStatus.set('success');
-      parsedBpm.set((ast as any).bpm || 120);
-      parsedChip.set((ast as any).chip || 'gameboy');
     } catch (err: any) {
       eventBus.emit('parse:error', { error: err, message: err.message ?? String(err) });
       parseStatus.set('error');

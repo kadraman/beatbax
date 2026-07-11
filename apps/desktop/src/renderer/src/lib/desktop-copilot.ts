@@ -8,7 +8,8 @@ import {
 } from '@beatbax/app-core/utils/feature-flags';
 import type { RightTabsController } from '../components/shell/tabs';
 import { markLastPendingAppliedEdit } from '@beatbax/app-core/stores/chat.store';
-import { createDesktopCopilotPanel, countAIChangeDiff, formatAIChangeBanner, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
+import { createDesktopCopilotPanel, countAIChangeDiff, formatAIChangeBanner, type CopilotAskAboutErrorOptions, type DesktopCopilotPanelHandle } from '../components/panels/DesktopCopilotPanel';
+import { notifyEditorContentChanged } from './copilot-editor-sync';
 
 interface PendingAIChange {
   previousContent: string;
@@ -21,6 +22,7 @@ export interface DesktopCopilotOptions {
   eventBus: EventBus;
   getEditor: () => BeatBaxEditor | null;
   getDiagnostics: () => Diagnostic[];
+  runParse: (content: string) => void;
   onSettingsRefresh?: () => void;
   onOpenSettings?: () => void;
 }
@@ -30,11 +32,12 @@ export interface DesktopCopilotHandle {
   hide: () => void;
   toggle: () => boolean;
   isVisible: () => boolean;
+  askAboutError: (options: CopilotAskAboutErrorOptions) => void;
   dispose: () => void;
 }
 
 export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopilotHandle | null {
-  const { rightTabs, eventBus, getEditor, getDiagnostics, onSettingsRefresh, onOpenSettings } = options;
+  const { rightTabs, eventBus, getEditor, getDiagnostics, runParse, onSettingsRefresh, onOpenSettings } = options;
   const aiContainer = document.createElement('div');
   aiContainer.style.cssText = 'flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;';
   rightTabs.tabContents.ai!.appendChild(aiContainer);
@@ -52,6 +55,13 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
       && !aiTabBtn?.classList.contains('bb-right-tab--hidden');
   }
 
+  function syncEditorAfterChange(): void {
+    const wrapper = getEditor();
+    wrapper?.cancelPendingChangeNotification();
+    const content = wrapper?.getValue() ?? '';
+    notifyEditorContentChanged(content, eventBus, runParse);
+  }
+
   function clearPendingAIChange(restore = false): void {
     if (!pendingAIChange) return;
     const monacoEditor = getEditor()?.editor;
@@ -66,12 +76,14 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
             forceMoveMarkers: true,
           }]);
           monacoEditor.focus();
+          syncEditorAfterChange();
         }
       }
     }
     pendingAIChange.banner.remove();
     pendingAIChange = null;
     markLastPendingAppliedEdit(restore ? 'discarded' : 'kept');
+    if (!restore) syncEditorAfterChange();
   }
 
   function getChatPanel(): DesktopCopilotPanelHandle {
@@ -95,6 +107,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
             forceMoveMarkers: true,
           }]);
           monacoEditor.focus();
+          syncEditorAfterChange();
         },
         onReplaceSelection: (text) => {
           const monacoEditor = getEditor()?.editor;
@@ -103,6 +116,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
           if (!sel) return;
           monacoEditor.executeEdits('chat-panel', [{ range: sel, text, forceMoveMarkers: true }]);
           monacoEditor.focus();
+          syncEditorAfterChange();
         },
         onReplaceEditor: (text) => {
           const wrapper = getEditor();
@@ -123,6 +137,7 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
             wrapper?.setValue(text);
             wrapper?.focus();
           }
+          syncEditorAfterChange();
         },
         onHighlightChanges: (diff, previousContent) => {
           const monacoEditor = getEditor()?.editor;
@@ -269,6 +284,14 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     return chatPanel;
   }
 
+  function askAboutError(options: CopilotAskAboutErrorOptions): void {
+    if (!isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
+      setFeatureEnabled(FeatureFlag.AI_ASSISTANT, true);
+    }
+    showCopilot({ activate: true });
+    getChatPanel().askAboutError(options);
+  }
+
   function showCopilot(options: { activate?: boolean } = {}): void {
     const { activate = true } = options;
     visible = true;
@@ -323,6 +346,10 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     }
   });
 
+  const unsubAsk = eventBus.on('copilot:ask-about-error', (payload) => {
+    askAboutError(payload);
+  });
+
   window.addEventListener('keydown', (event) => {
     const isIKey = event.key.toLowerCase() === 'i' || event.code === 'KeyI';
     if (!isIKey || !event.altKey || !event.shiftKey || event.metaKey) return;
@@ -337,11 +364,13 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
     hide: hideCopilot,
     toggle,
     isVisible: isCopilotOpen,
+    askAboutError,
     dispose: () => {
       shortcutAbortController.abort();
       clearPendingAIChange(false);
       unsubFeature();
       unsubPanel();
+      unsubAsk();
       chatPanel?.dispose();
       chatPanel = null;
     },

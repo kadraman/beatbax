@@ -6,7 +6,9 @@
  */
 
 import { playbackStatus, playbackTimeLabel, playbackError } from '@beatbax/app-core/stores/playback.store';
-import { editorDirty, parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '@beatbax/app-core/stores/editor.store';
+import { editorDirty, documentSaveState, parseStatus, parsedBpm, parsedChip, validationErrors, validationWarnings } from '@beatbax/app-core/stores/editor.store';
+import type { DocumentSaveState } from '@beatbax/app-core/stores/editor.store';
+import { resolveDocumentSaveLabel } from '../../lib/document-save-label';
 import { exportStatus, exportFormat } from '@beatbax/app-core/stores/ui.store';
 import { icon } from '../../utils/icons';
 import {
@@ -79,6 +81,7 @@ export class StatusBar {
   private documentName = 'untitled.bax';
   private documentPath: string | null = null;
   private documentDirty = false;
+  private saveState: DocumentSaveState = 'idle';
   private storeUnsubs: Array<() => void> = [];
   private info: StatusInfo = {
     line: 1,
@@ -231,8 +234,8 @@ export class StatusBar {
       this.documentNameEl = document.createElement('span');
       this.documentNameEl.className = 'status-document-name';
       this.documentDirtyEl = document.createElement('span');
-      this.documentDirtyEl.className = 'status-document-dirty';
-      this.documentDirtyEl.textContent = 'Modified';
+      this.documentDirtyEl.className = 'status-document-save';
+      this.documentDirtyEl.setAttribute('aria-live', 'polite');
 
       const leftZone = document.createElement('div');
       leftZone.className = 'status-bar-zone status-bar-zone--left';
@@ -348,9 +351,14 @@ export class StatusBar {
   private setupStoreSubscriptions(): void {
     if (this.showDocumentInfo) {
       this.documentDirty = editorDirty.get();
+      this.saveState = documentSaveState.get();
       this.storeUnsubs.push(
         editorDirty.listen((dirty) => {
           this.documentDirty = dirty;
+          this.renderDocumentInfo();
+        }),
+        documentSaveState.listen((state) => {
+          this.saveState = state;
           this.renderDocumentInfo();
         }),
       );
@@ -433,10 +441,16 @@ export class StatusBar {
     if (!this.documentNameEl || !this.documentDirtyEl) return;
     this.documentNameEl.textContent = this.documentName;
     const pathHint = this.documentPath ?? 'Unsaved draft';
-    this.documentNameEl.title = this.documentDirty
+    const dirtyForTitle = this.documentDirty || this.saveState === 'saving';
+    this.documentNameEl.title = dirtyForTitle
       ? `${pathHint} (modified)`
       : pathHint;
-    this.documentDirtyEl.hidden = !this.documentDirty;
+
+    const indicator = resolveDocumentSaveLabel(this.saveState, this.documentDirty);
+    this.documentDirtyEl.textContent = indicator.label;
+    this.documentDirtyEl.hidden = !indicator.visible;
+    this.documentDirtyEl.className = `status-document-save status-document-save--${indicator.variant}`;
+    this.documentDirtyEl.dataset.state = indicator.variant;
   }
 
   private render(): void {

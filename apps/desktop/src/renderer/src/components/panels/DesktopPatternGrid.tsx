@@ -6,9 +6,8 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type Ref,
+  type RefCallback,
 } from 'react';
-import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import {
   channelStates,
@@ -39,7 +38,7 @@ interface PatternGridRow {
 }
 
 interface DesktopPatternGridProps {
-  gridRef: Ref<DesktopPatternGridHandle>;
+  gridRef: RefCallback<DesktopPatternGridHandle>;
   onNavigate?: (patName: string) => void;
 }
 
@@ -347,15 +346,13 @@ function DesktopPatternGrid({ gridRef, onNavigate }: DesktopPatternGridProps): R
   useImperativeHandle(gridRef, () => ({
     setSong: (song, ast) => {
       const next = buildRows(song, ast);
-      flushSync(() => {
-        setRows(next.rows);
-        setPats(next.pats);
-        setPatternDurations(next.patternDurations);
-        setGlobalEventTotal(next.globalEventTotal);
-        setPositions({});
-        setGlobalPct(null);
-        setPaused(false);
-      });
+      setRows(next.rows);
+      setPats(next.pats);
+      setPatternDurations(next.patternDurations);
+      setGlobalEventTotal(next.globalEventTotal);
+      setPositions({});
+      setGlobalPct(null);
+      setPaused(false);
     },
     setPosition: (channelId, progress) => {
       const pct = Math.min(99.5, Math.max(0, progress * 100));
@@ -506,21 +503,30 @@ export function createDesktopPatternGrid(
   options: { onNavigate?: (patName: string) => void } = {},
 ): DesktopPatternGridHandle {
   const handleRef = { current: null as DesktopPatternGridHandle | null };
+  const pendingCalls: Array<(handle: DesktopPatternGridHandle) => void> = [];
   let root: Root | null = createRoot(container);
 
-  flushSync(() => {
-    root?.render(
-      <DesktopPatternGrid
-        gridRef={(handle) => {
-          handleRef.current = handle;
-        }}
-        onNavigate={options.onNavigate}
-      />,
-    );
-  });
+  const flushPending = (handle: DesktopPatternGridHandle) => {
+    for (const fn of pendingCalls) fn(handle);
+    pendingCalls.length = 0;
+  };
+
+  const assignGridRef = (handle: DesktopPatternGridHandle | null): void => {
+    handleRef.current = handle;
+    if (handle === null) return;
+    flushPending(handle);
+  };
+
+  root.render(
+    <DesktopPatternGrid
+      gridRef={assignGridRef}
+      onNavigate={options.onNavigate}
+    />,
+  );
 
   const call = (fn: (handle: DesktopPatternGridHandle) => void) => {
     if (handleRef.current) fn(handleRef.current);
+    else pendingCalls.push(fn);
   };
 
   return {

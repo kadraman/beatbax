@@ -47,4 +47,29 @@ describe('parser: undefined inline effect detection', () => {
     const warnings = (ast.diagnostics ?? []).filter(d => d.level === 'warning');
     expect(warnings.some(w => w.message.includes('is not defined'))).toBe(false);
   });
+
+  test('no warning when chaining a defined preset with pan', () => {
+    const src = `${base}
+      effect exprVib = vib:3,5,sine,4
+      effect deepVib = vib:5,3,sine,6
+      pat melody = C6<exprVib,pan:R> A5<deepVib,pan:L>
+      channel 1 => inst lead pat melody
+    `;
+    const ast = parse(src);
+    const warnings = (ast.diagnostics ?? []).filter(d => d.level === 'warning');
+    expect(warnings.some(w => w.message.includes('exprVib,pan'))).toBe(false);
+    expect(warnings.some(w => w.message.includes('deepVib,pan'))).toBe(false);
+    expect(warnings.some(w => w.message.includes('is not defined'))).toBe(false);
+  });
+
+  test('warns for undefined preset chained with pan', () => {
+    const src = `${base}
+      pat melody = C6<missingFx,pan:R>
+      channel 1 => inst lead pat melody
+    `;
+    const ast = parse(src);
+    const warnings = (ast.diagnostics ?? []).filter(d => d.level === 'warning');
+    expect(warnings.some(w => w.message.includes("effect 'missingFx' is not defined"))).toBe(true);
+    expect(warnings.some(w => w.message.includes('missingFx,pan'))).toBe(false);
+  });
 });

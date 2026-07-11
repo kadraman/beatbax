@@ -16,11 +16,11 @@ const log = createLogger('ui:event-bus');
 export interface BeatBaxEvents {
   // Editor events
   'editor:changed': { content: string };
-  'editor:saved': { filename: string };
+  'editor:saved': { filename: string; auto?: boolean };
 
   // Parse events
   'parse:started': void;
-  'parse:success': { ast: any; resolvedAst?: any; song?: any; sourceBpm?: number };
+  'parse:success': { ast: any; resolvedAst?: any; song?: any; sourceBpm?: number; valid?: boolean };
   'parse:error': { error: Error; message: string };
 
   // Playback events
@@ -75,6 +75,15 @@ export interface BeatBaxEvents {
 
   // Editor navigation (emitted by Problems panel when user clicks a diagnostic row)
   'navigate:to': { line: number; column: number };
+
+  /** Open Copilot in Ask mode with a prefilled prompt about a problem message. */
+  'copilot:ask-about-error': {
+    message: string;
+    source?: string;
+    line?: number;
+    column?: number;
+    autoSubmit?: boolean;
+  };
 
   /**
    * Emitted by command-palette when >MAX_CHANNELS seqs are merged into fewer

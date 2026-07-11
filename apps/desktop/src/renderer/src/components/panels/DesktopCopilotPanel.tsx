@@ -23,6 +23,8 @@ import {
   type ChatMode,
 } from '@beatbax/app-core/stores/chat.store';
 import { buildCopilotContext } from '../../lib/copilot-context';
+import { buildMinimalEditFixPrompt } from '../../lib/copilot-edit-fix-prompt';
+import { formatCopilotErrorPrompt } from '../../lib/copilot-error-prompt';
 import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
 import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import {
@@ -44,10 +46,20 @@ interface DesktopCopilotPanelProps {
   onOpenSettings: () => void;
 }
 
+export interface CopilotAskAboutErrorOptions {
+  message: string;
+  source?: string;
+  line?: number;
+  column?: number;
+  /** When true, send the prefilled Ask prompt immediately (Problems panel). */
+  autoSubmit?: boolean;
+}
+
 export interface DesktopCopilotPanelHandle {
   show: () => void;
   hide: () => void;
   dispose: () => void;
+  askAboutError: (options: CopilotAskAboutErrorOptions) => void;
 }
 
 export type { AIChangeDiff } from '../../lib/line-change-diff';
@@ -314,12 +326,14 @@ async function readDesktopAIAPIKey(): Promise<string | null> {
 function ChatMessageView({
   message,
   mode,
+  onFixInEditMode,
   onInsertSnippet,
   onReplaceSelection,
   onReplaceEditor,
 }: {
   message: ChatMessage;
   mode: ChatMode;
+  onFixInEditMode: (snippet?: string, assistantContext?: string) => void;
   onInsertSnippet: (text: string) => void;
   onReplaceSelection: (text: string) => void;
   onReplaceEditor: (text: string) => void;
@@ -341,17 +355,22 @@ function ChatMessageView({
     );
   }
 
+  const bodyParts = splitBaxBlocks(message.content);
+  const hasCodeBlocks = bodyParts.some((part) => part.type === 'code');
+  const actionMode = message.replyMode
+    ?? (message.applied || message.applyBlocked ? 'edit' : 'ask');
+
   const body = (
     <div className="bb-chat-markdown">
-      {splitBaxBlocks(message.content).map((part, index) => {
+      {bodyParts.map((part, index) => {
           if (part.type === 'text') {
             return <div dangerouslySetInnerHTML={{ __html: safeMarkdown(part.value) }} key={`text-${index}`} />;
           }
-          const showSnippetActions = mode === 'edit';
+          const showEditActions = actionMode === 'edit';
           return (
-            <div className={`bb-chat-code-block${mode === 'ask' ? ' bb-chat-code-block--reference' : ''}`} key={`code-${index}`}>
+            <div className={`bb-chat-code-block${actionMode === 'ask' ? ' bb-chat-code-block--reference' : ''}`} key={`code-${index}`}>
               <pre><code className="bb-chat-code">{part.value}</code></pre>
-              {showSnippetActions ? (
+              {showEditActions ? (
                 <div className="bb-chat-code-actions">
                   <button className="bb-chat-action-btn bb-chat-action-btn--primary" onClick={() => onReplaceEditor(part.value)} type="button">
                     ↺ Replace editor
@@ -363,7 +382,17 @@ function ChatMessageView({
                     Replace selection
                   </button>
                 </div>
-              ) : null}
+              ) : (
+                <div className="bb-chat-code-actions bb-chat-code-actions--ask">
+                  <button
+                    className="bb-chat-action-btn bb-chat-action-btn--primary"
+                    onClick={() => onFixInEditMode(part.value, message.content)}
+                    type="button"
+                  >
+                    Apply fix in Edit mode
+                  </button>
+                </div>
+              )}
             </div>
           );
       })}
@@ -477,6 +506,17 @@ function ChatMessageView({
     <div className="bb-chat-msg bb-chat-msg--assistant">
       <span className="bb-chat-msg-label">Copilot</span>
       {body}
+      {actionMode === 'ask' && !hasCodeBlocks ? (
+        <div className="bb-chat-ask-actions">
+          <button
+            className="bb-chat-action-btn bb-chat-action-btn--primary"
+            onClick={() => onFixInEditMode(undefined, message.content)}
+            type="button"
+          >
+            Fix in Edit mode
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -506,6 +546,13 @@ function DesktopCopilotPanel({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const promptHistoryIndexRef = useRef<number | null>(null);
   const promptDraftRef = useRef('');
+  const setInputRef = useRef(setInput);
+  const submitPromptRef = useRef<(
+    text: string,
+    activeMode: ChatMode,
+    displayText?: string,
+  ) => Promise<void>>(async () => {});
+  setInputRef.current = setInput;
 
   useEffect(() => {
     return () => {
@@ -558,6 +605,29 @@ function DesktopCopilotPanel({
     },
     hide: () => flushSync(() => setVisible(false)),
     dispose: () => abortRef.current?.abort(),
+    askAboutError: ({ message, source, line, column, autoSubmit }) => {
+      chatMode.set('ask');
+      const prompt = formatCopilotErrorPrompt(message, { source, line, column });
+      promptHistoryIndexRef.current = null;
+      promptDraftRef.current = '';
+      setInputRef.current('');
+      window.requestAnimationFrame(() => {
+        setInputRef.current(prompt);
+        const textarea = inputRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = prompt.length;
+          textarea.selectionEnd = prompt.length;
+        }
+        if (autoSubmit) {
+          if (chatLoading.get()) {
+            pushChatNotice('Copilot is still busy — wait for the current reply.');
+            return;
+          }
+          void submitPromptRef.current(prompt, 'ask');
+        }
+      });
+    },
   }), []);
 
   const generate = useCallback(async (
@@ -646,7 +716,7 @@ function DesktopCopilotPanel({
     activeMode: ChatMode,
     displayText?: string,
   ): Promise<void> => {
-    if (!text || loading) return;
+    if (!text || chatLoading.get()) return;
     if (!settings.endpoint) {
       setStatus('⚠ No endpoint configured. Click the settings icon to set one.');
       return;
@@ -661,7 +731,9 @@ function DesktopCopilotPanel({
     // Only record real typed prompts for arrow-up recall — not the verbose
     // machine-generated "apply this snippet" instructions.
     if (!displayText) recordChatPrompt(text);
-    pushChatMessage('user', text, displayText ? { display: displayText } : undefined);
+    pushChatMessage('user', text, displayText
+      ? { display: displayText, replyMode: activeMode }
+      : { replyMode: activeMode });
     cancelledRef.current = false;
     const requestGen = ++requestGenRef.current;
     chatLoading.set(true);
@@ -693,6 +765,7 @@ function DesktopCopilotPanel({
               setStatus('⚠ Copilot could not produce valid BeatBax after retries — editor not changed.');
               pushChatMessage('assistant', response, {
                 applyBlocked: true,
+                replyMode: activeMode,
                 changeSummary: validation.errors.slice(0, 8).map((e) => `Parse error: ${e}`),
               });
               return;
@@ -711,7 +784,7 @@ function DesktopCopilotPanel({
             const repaired = extractBaxCode(response);
             if (repaired === null) {
               setStatus('⚠ Repair attempt did not return a song — editor not changed.');
-              pushChatMessage('assistant', response);
+              pushChatMessage('assistant', response, { replyMode: activeMode });
               return;
             }
             baxCode = repaired;
@@ -741,6 +814,7 @@ function DesktopCopilotPanel({
               setStatus('⚠ Copilot returned an incomplete song — editor not changed.');
               pushChatMessage('assistant', response, {
                 applyBlocked: true,
+                replyMode: activeMode,
                 changeSummary: [completeness.reason ?? 'Response was incomplete.'],
               });
               return;
@@ -764,7 +838,7 @@ function DesktopCopilotPanel({
             const expanded = extractBaxCode(response);
             if (expanded === null) {
               setStatus('⚠ Repair attempt did not return a song — editor not changed.');
-              pushChatMessage('assistant', response);
+              pushChatMessage('assistant', response, { replyMode: activeMode });
               return;
             }
             baxCode = expanded;
@@ -807,6 +881,7 @@ function DesktopCopilotPanel({
         'assistant',
         response,
         applied ? {
+          replyMode: activeMode,
           applied: true,
           applyOutcome: reviewPending ? 'pending' : 'kept',
           changedLines,
@@ -814,7 +889,7 @@ function DesktopCopilotPanel({
           linesRemoved,
           linesModified,
           changeSummary,
-        } : undefined,
+        } : { replyMode: activeMode },
       );
     } catch (error) {
       if (requestGen !== requestGenRef.current || cancelledRef.current) return;
@@ -822,7 +897,7 @@ function DesktopCopilotPanel({
       if ((error as Error).name === 'AbortError' || /cancelled/i.test(message)) {
         pushChatNotice('Request cancelled.');
       } else {
-        pushChatMessage('assistant', `⚠ ${message}`);
+        pushChatMessage('assistant', `⚠ ${message}`, { replyMode: activeMode });
       }
     } finally {
       if (requestGen === requestGenRef.current) {
@@ -831,6 +906,39 @@ function DesktopCopilotPanel({
       }
     }
   }, [generate, getEditorContent, loading, onHighlightChanges, onReplaceEditor, settings]);
+
+  submitPromptRef.current = submitPrompt;
+
+  const applyFixInEditMode = useCallback(async (snippet?: string, assistantContext?: string) => {
+    if (loading) {
+      pushChatNotice('Copilot is still busy — wait for the current reply.');
+      return;
+    }
+    const previous = getEditorContent();
+    if (snippet?.trim()) {
+      const merged = tryMergeSnippetIntoSong(previous, snippet);
+      if (merged) {
+        const validation = validateBaxSource(merged);
+        if (validation.ok) {
+          if (merged === previous) {
+            pushChatNotice('That fix is already applied in the editor.');
+            return;
+          }
+          onReplaceEditor(merged);
+          pushChatNotice('Applied fix to the editor.');
+          return;
+        }
+      }
+    }
+    chatMode.set('edit');
+    pushChatNotice('Switched to Edit mode — applying fix…');
+    const prompt = buildMinimalEditFixPrompt(snippet, assistantContext);
+    await submitPromptRef.current(
+      prompt,
+      'edit',
+      snippet?.trim() ? 'Apply suggested fix' : 'Apply fix from explanation',
+    );
+  }, [getEditorContent, loading, onReplaceEditor]);
 
   const cancelRequest = useCallback((): void => {
     if (!loading) return;
@@ -943,6 +1051,7 @@ function DesktopCopilotPanel({
               key={`${message.timestamp}-${message.role}`}
               message={message}
               mode={mode}
+              onFixInEditMode={applyFixInEditMode}
               onInsertSnippet={onInsertSnippet}
               onReplaceEditor={onReplaceEditor}
               onReplaceSelection={onReplaceSelection}
@@ -1041,6 +1150,7 @@ export function createDesktopCopilotPanel(
   return {
     show: () => call((handle) => handle.show()),
     hide: () => call((handle) => handle.hide()),
+    askAboutError: (options) => call((handle) => handle.askAboutError(options)),
     dispose: () => {
       handleRef.current?.dispose();
       if (root) {
