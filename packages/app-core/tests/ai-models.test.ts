@@ -17,6 +17,10 @@ describe('ai-models', () => {
     expect(AI_PROVIDERS.openai.models).toContain('gpt-5.4-mini');
   });
 
+  it('defaults Ollama to the recommended code model', () => {
+    expect(AI_PROVIDERS.ollama.defaultModel).toBe('qwen2.5-coder:7b');
+  });
+
   it('maps known endpoints to provider keys', () => {
     expect(getProviderByEndpoint('https://api.openai.com/v1')).toBe('openai');
     expect(getProviderByEndpoint('https://api.groq.com/openai/v1')).toBe('groq');

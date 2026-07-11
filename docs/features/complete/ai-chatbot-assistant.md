@@ -1,5 +1,5 @@
 ---
-title: "Web UI: AI Chatbot Assistant (BeatBax Copilot)"
+title: "BeatBax Copilot (AI Chatbot Assistant)"
 status: implemented
 authors: ["kadraman"]
 created: 2026-03-21
@@ -9,7 +9,7 @@ issue: "https://github.com/kadraman/beatbax/issues/61"
 
 ## Summary
 
-An AI chat assistant in the BeatBax Web UI that helps users write, edit, and debug `.bax` song scripts. The assistant uses any **OpenAI-compatible REST API endpoint** (OpenAI, Groq, Mistral, Ollama, LM Studio, llama.cpp, etc.) — no on-device model required. It understands the full BeatBax language syntax, has access to the current editor content and active parse/validation errors, and can automatically apply generated code back into the editor with self-correction retry on parse failures.
+An AI chat assistant (**BeatBax Copilot**, desktop app) that helps users write, edit, and debug `.bax` song scripts. The assistant uses any **OpenAI-compatible REST API endpoint** (OpenAI, Groq, Mistral, Ollama, LM Studio, llama.cpp, etc.) — no on-device model required. It understands the full BeatBax language syntax, has access to the current editor content and active parse/validation errors, and can automatically apply generated code back into the editor with self-correction retry on parse failures.
 
 ---
 
@@ -43,7 +43,24 @@ Curated model IDs are verified against each provider's catalog as of July 2026. 
 
 Settings → AI shows a **Model** dropdown combining curated options with models fetched **live** from the provider's `/models` endpoint, plus **Custom...** for any model ID. A **Refresh** button reloads the list on demand; the list is also loaded automatically when an endpoint has usable credentials (an API key, or any local endpoint). This means local providers (Ollama, LM Studio) show your actually-installed models, and remote providers surface newly released models without waiting for a curated-list update. Fetching goes through the desktop main process to avoid browser CORS restrictions.
 
-Any OpenAI-compatible endpoint can also be entered manually. Connection settings (endpoint URL, API key, model ID) are persisted to `localStorage` under key `bb-ai-settings`.
+Any OpenAI-compatible endpoint can also be entered manually. Provider presets and default models are defined in `packages/app-core/src/stores/ai-models.ts` (shared by desktop and web settings UI).
+
+### Persistence
+
+Copilot connection and chat state use `@beatbax/app-core` (`chat.store.ts`) with the namespaced `BeatBaxStorage` wrapper (`beatbax:` prefix on all keys):
+
+| Storage key | Contents |
+|---|---|
+| `beatbax:ai.settings` | JSON: `endpoint`, `model`, `maxContextChars` — **API key is not stored here** |
+| `beatbax:ai.mode` | Interaction mode: `edit` or `ask` |
+| `beatbax:ai.chatHistory` | Persisted conversation (capped) |
+| `beatbax:ai.promptHistory` | Submitted-prompt recall list |
+
+On startup, legacy `bb-ai-settings` in `localStorage` is **removed** if present (older builds stored endpoint, model, and API key together under that key).
+
+**API keys (desktop):** stored in the OS user’s **Electron secure credential store** via main-process IPC (`getAIAPIKey` / `setAIAPIKey`). The renderer keeps a session copy in the `chatSettings` store for outbound requests only.
+
+**API keys (web UI settings panel):** when the optional AI settings section is shown in the browser build, keys are kept **in memory for the session** and are not written to `beatbax:ai.settings` or `localStorage`.
 
 ### Local Ollama (recommended models and context)
 
@@ -65,12 +82,12 @@ The BeatBax language has a non-trivial surface area: instruments, patterns, sequ
 
 ### Chat Panel
 
-A **Chat Panel** is a collapsible right-side panel alongside the Channel Mixer. It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
+A **Copilot panel** in the desktop app’s right-side stack (alongside Channel Mixer, Pattern Grid, etc.). It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
 
-- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block that is automatically applied to the editor. Self-correction runs up to 4 times if the generated code has parse errors.
+- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block that is automatically applied to the editor. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard.
 - **Ask mode** — the AI answers questions and can include code snippets, but does not auto-apply anything.
 
-The mode toggle is persisted to `localStorage` key `bb-ai-mode`.
+The mode toggle is persisted under `beatbax:ai.mode` (`chatMode` in app-core).
 
 ### Context Injection
 
@@ -191,34 +208,21 @@ Instructs the AI to answer and explain, wrap samples in ` ```bax ``` `, and not 
 
 ## Self-Correction Loop
 
-In Edit mode, after the AI generates a response, the panel validates the extracted `.bax` code using the engine's `parse()` and `resolveSong()` functions. If errors are found, it feeds the error messages back to the AI and asks it to correct them — up to **4 attempts**:
+In Edit mode, after the AI generates a response, the panel validates the extracted `.bax` code using `parseWithPeggy()` and extended `validateBax()` checks. Two repair paths run before apply:
+
+1. **Parse repair** — if the code has parse errors, error messages are fed back to the model (up to **2** attempts, `MAX_PARSE_REPAIR_ATTEMPTS`).
+2. **Incomplete-song repair** — if the apply guard detects a snippet-only reply (missing `play`, `channel`, or most of the file), the model is asked for the full song (up to **2** attempts, `MAX_INCOMPLETE_REPAIR_ATTEMPTS`). A snippet-merge fallback may expand partial replies when possible.
 
 ```typescript
-const MAX_SELF_CORRECTION_ATTEMPTS = 4;
+const MAX_PARSE_REPAIR_ATTEMPTS = 2;
+const MAX_INCOMPLETE_REPAIR_ATTEMPTS = 2;
 
-for (let attempt = 0; attempt < MAX_SELF_CORRECTION_ATTEMPTS; attempt++) {
-  const errs = this.validateBax(baxCode);
-  if (errs === null) break;
-  // On the final attempt, give up rather than apply invalid code.
-  if (attempt === MAX_SELF_CORRECTION_ATTEMPTS - 1) {
-    baxCode = null;
-    break;
-  }
-  // show status: ⚠ Parse errors — self-correcting (N/4)…
-  appendMessages = [
-    ...appendMessages,
-    { role: 'assistant', content: response },
-    { role: 'user', content:
-        `The BeatBax code you generated has parse errors. Fix them and output the
-         corrected complete song in a \`\`\`bax block.\n\nParse errors:\n${errs}` },
-  ];
-  response = await generate(text, appendMessages);
-  baxCode = extractBaxCode(response);
-}
-// baxCode is non-null only if a validated (error-free) candidate was found.
+// Parse repair: validate with parseWithPeggy + validateBax; retry with error list in user turn.
+// Incomplete repair: assessEditApplyGuard(); retry with buildIncompleteSongRepairPrompt().
+// Retry exchanges do not pollute the visible conversation history.
 ```
 
-Retry exchanges do **not** pollute the visible conversation history.
+If all repair attempts fail, the editor is left unchanged and Copilot shows a clear status message.
 
 ### `validateBax(code)` — Extended Validation
 
@@ -273,30 +277,29 @@ export class ChatPanel {
 
 ## API Call Implementation
 
-The panel calls the configured endpoint's `/chat/completions` endpoint directly from the browser:
+The renderer sends chat requests through the **Electron main process** (`createAIChatCompletion` IPC in `ipc-handlers.ts`) to avoid browser CORS limits and to apply provider-specific timeouts:
+
+| Endpoint type | Timeout |
+|---|---|
+| Local (Ollama, LM Studio) | 5 minutes |
+| Remote, Edit mode (`maxTokens` > 2048) | 2 minutes |
+| Remote, Ask mode | 1 minute |
+
+Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI).
 
 ```typescript
-const url = `${this.settings.endpoint}/chat/completions`;
-const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-if (this.settings.apiKey) {
-  headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
-}
-
-const res = await fetch(url, {
-  method: 'POST',
-  headers,
-  body: JSON.stringify({
-    model: this.settings.model,
-    messages,          // system + history (last 10) + user + optional correction turns
-    temperature: 0.7,
-    max_tokens: 1024,
-    stream: false,
-  }),
-  signal: this.abortController.signal,
+// Renderer (DesktopCopilotPanel.tsx)
+const maxTokens = activeMode === 'edit' ? 8192 : 2048;
+const response = await window.electronAPI.createAIChatCompletion({
+  endpoint: settings.endpoint,
+  apiKey: settings.apiKey,
+  model: settings.model,
+  messages,
+  maxTokens,
 });
-```
 
-The API key is only included if non-empty (Ollama/LM Studio don't require one). Requests can be cancelled via the abort controller (stop button in the UI).
+// Main process routes to `${endpoint}/chat/completions` with appropriate timeout.
+```
 
 ---
 
@@ -304,22 +307,26 @@ The API key is only included if non-empty (Ollama/LM Studio don't require one). 
 
 | File | Status | Notes |
 |---|---|---|
-| `apps/web-ui/src/panels/chat-panel.ts` | ✅ Complete | Full UI, API integration, context assembly, self-correction |
-| `apps/web-ui/src/utils/feature-flags.ts` | ✅ Complete | URL param + localStorage feature flag helpers |
-| `apps/web-ui/src/utils/local-storage.ts` | ✅ Updated | `AI_ASSISTANT` storage key added; `WEBLLM_MODEL` removed (WebLLM approach abandoned) |
-| `apps/web-ui/src/ui/menu-bar.ts` | ✅ Updated | `View → AI Assistant` toggle added |
-| `apps/web-ui/src/main.ts` | ✅ Updated | `ChatPanel` instantiated and wired |
+| `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx` | ✅ Complete | Copilot UI, apply guard, self-correction, snippet merge |
+| `apps/desktop/src/renderer/src/lib/copilot-context.ts` | ✅ Complete | System prompt assembly (Edit / Ask) |
+| `apps/desktop/src/renderer/src/lib/copilot-apply-guard.ts` | ✅ Complete | Blocks incomplete Edit-mode replies |
+| `apps/desktop/src/renderer/src/components/settings/ai.tsx` | ✅ Complete | Settings → AI (provider, model, mode, context limit) |
+| `apps/desktop/src/main/ipc-handlers.ts` | ✅ Complete | Chat completions, secure API key, model list |
+| `packages/app-core/src/stores/chat.store.ts` | ✅ Complete | Settings, history, mode persistence (`beatbax:ai.*`) |
+| `packages/app-core/src/stores/ai-models.ts` | ✅ Complete | Shared provider presets and curated models |
+| `apps/web-ui/src/panels/settings-sections/ai.ts` | ✅ Partial | Settings UI only when AI feature flag enabled; no Copilot panel |
 
-No engine changes were required. `parse()` and `resolveSong()` from `@beatbax/engine` are imported directly by `chat-panel.ts` for validation.
+No engine changes are required for Copilot. Desktop validates generated `.bax` via `@beatbax/engine` `parseWithPeggy()` before apply.
 
 ---
 
 ## UX Notes
 
-- **Settings panel** — a ⚙ gear icon opens an inline settings form where the user can choose a preset provider or enter a custom endpoint, API key, and model ID. Settings are saved on change.
-- **Edit / Ask mode toggle** — a toggle button in the panel header switches modes; persisted to localStorage.
+- **Settings** — the ⚙ gear icon in the Copilot panel header opens the desktop **Settings** modal directly on the **AI** tab (provider preset, endpoint, API key, model dropdown with **Refresh** and **Custom...**, interaction mode, Ask-mode context limit). Settings are saved on change.
+- **Edit / Ask mode toggle** — in Settings → AI and the Copilot panel header; persisted under `beatbax:ai.mode`.
 - **Auto-apply with diff highlighting** — in Edit mode, the returned code is applied directly to the editor. Changed lines are highlighted briefly. For fresh song creation (empty editor), highlights are skipped.
-- **Undo** — auto-applied changes can be undone via the standard editor undo (Ctrl+Z).
+- **Keep / Discard review** — after an Edit apply with line highlights, a banner offers **Keep** and **Discard**. Discard restores the pre-edit song; Ctrl+Z does not update the Copilot transcript automatically.
+- **Undo** — auto-applied changes can also be undone via the standard editor undo (Ctrl+Z).
 - **Loading state** — while the model is generating, the send button shows a spinner and the input is disabled. A stop button cancels the request.
 - **Clear conversation** — a "Clear" button resets the message history.
 - **Markdown rendering** — assistant responses are rendered as HTML via `marked` + sanitised with `DOMPurify` to prevent XSS.
@@ -328,8 +335,9 @@ No engine changes were required. `parse()` and `resolveSong()` from `@beatbax/en
 
 ## Security Considerations
 
-- **API key storage** — the API key is stored in `localStorage` (plaintext). This is acceptable for a local dev tool but users should be informed not to use production keys with high spend limits.
-- **CORS** — the browser's fetch will be subject to CORS policy on the chosen endpoint. OpenAI and Groq allow browser requests; Ollama/LM Studio may require CORS headers to be enabled server-side.
+- **API key storage (desktop)** — keys are stored in the Electron secure credential store for the current OS user, not in `localStorage`. Users should still avoid high-spend production keys on shared machines.
+- **API key storage (web UI settings)** — if the AI settings section is enabled in the browser build, keys exist only in memory for that session.
+- **CORS** — desktop Copilot routes chat requests through the Electron main process, avoiding browser CORS limits. The hosted web UI does not expose Copilot; a standalone browser client would still be subject to endpoint CORS policy.
 - **Generated code safety** — AI-generated `.bax` code is validated by `validateBax()` before being applied. It is treated as text, not executed as JavaScript.
 - **Markdown sanitisation** — all AI response HTML is passed through `DOMPurify.sanitize()` before being set as `innerHTML`, preventing XSS from a malicious or jailbroken model response.
 - **No server side** — the panel talks directly to the user-configured endpoint. BeatBax itself operates no proxy or logging server.
@@ -356,7 +364,7 @@ The retrieval corpus would be built from:
 
 ### Embedding and Retrieval Strategy
 
-Since BeatBax Copilot runs in the browser with no server backend, RAG must be entirely client-side. Two approaches are viable:
+Since BeatBax Copilot runs in the **desktop app** with no BeatBax server backend, RAG must be entirely client-side (bundled index in the Electron app or loaded from static assets). API calls already route through the main process; embedding inference would run in the renderer or a dedicated worker. Two approaches are viable:
 
 **Option A: Pre-built static index (recommended for v1)**
 
@@ -397,12 +405,12 @@ Retrieved content is labelled with its source file so the model can cite it if n
 
 ### Chunk Management and Token Budget
 
-The total context injected by RAG must fit within the model's context window minus reserved space for the response. With `max_tokens: 1024` and a typical 8K context window:
+The total context injected by RAG must fit within the model's context window minus reserved space for the response. With Edit mode sending the **full song** and Ask mode defaulting to **12K** characters (`maxContextChars`):
 
 - System prompt (language ref + mode suffix): ~1500 tokens
-- Editor content (capped at 3000 chars): ~750 tokens
+- Editor content: full song in Edit mode; up to 12K chars (~3000 tokens) in Ask mode
 - Conversation history (10 messages): ~500 tokens
-- **Available for RAG chunks**: ~4000–5000 tokens (~3000–4000 chars)
+- **Available for RAG chunks**: varies by mode and song size; budget manager drops lower-scoring chunks first
 
 A chunk manager would score and rank all retrieved chunks, then greedily add them to the context until the budget is exhausted. Lower-scoring chunks are silently dropped.
 
@@ -412,29 +420,29 @@ A chunk manager would score and rank all retrieved chunks, then greedily add the
    - Reads `docs/**/*.md` and `songs/**/*.bax`
    - Splits into overlapping ~512-token chunks with file + section metadata
    - Optionally generates embeddings if the ONNX backend is available
-   - Outputs `apps/web-ui/public/rag-index.json`
+   - Outputs a bundled static index (e.g. under `apps/desktop/` assets)
 
-2. **Client-side retriever** (`apps/web-ui/src/utils/rag-retriever.ts`):
-   - Loads `rag-index.json` lazily on first query
+2. **Client-side retriever** (`apps/desktop/src/renderer/src/lib/rag-retriever.ts` or shared in app-core):
+   - Loads the index lazily on first query
    - Implements keyword match and/or cosine similarity scoring
    - Returns top-K chunks with score and source metadata
    - Exposes `retrieve(query: string, budget: number): RagChunk[]`
 
-3. **Integration into `assembleContext()`**:
+3. **Integration into `assembleContext()`** (`copilot-context.ts`):
    - Call `ragRetriever.retrieve(userText, RAG_TOKEN_BUDGET)` before building the prompt
    - Inject results in `[RELEVANT EXAMPLES]` block
    - Fall back gracefully if the index is not loaded (first call, slow network)
 
-4. **Settings toggle** — a checkbox in the chat panel settings to enable/disable RAG injection (useful for debugging prompt quality with/without retrieval).
+4. **Settings toggle** — a checkbox in Settings → AI to enable/disable RAG injection (useful for debugging prompt quality with/without retrieval). Persist under `beatbax:ai.ragEnabled` (proposed).
 
 ### RAG Checklist (not yet implemented)
 
 - [ ] Design chunk schema: `{ id, source, section, text, tokens, embedding? }`
 - [ ] Write `scripts/build-rag-index.mjs` indexer
 - [ ] Choose embedding approach: ONNX `all-MiniLM-L6-v2` vs keyword-only BM25
-- [ ] Implement `apps/web-ui/src/utils/rag-retriever.ts`
-- [ ] Integrate retrieval into `assembleContext()` in `chat-panel.ts`
-- [ ] Add RAG enable/disable toggle to settings panel
+- [ ] Implement retriever under desktop / app-core (not web-ui `chat-panel.ts`)
+- [ ] Integrate retrieval into `assembleContext()` in `copilot-context.ts`
+- [ ] Add RAG enable/disable toggle to Settings → AI
 - [ ] Measure prompt token counts before and after with real songs
 - [ ] Evaluate generation quality improvement with 3–5 representative queries
 
@@ -444,30 +452,22 @@ A chunk manager would score and rank all retrieved chunks, then greedily add the
 
 ### Implemented
 
-- `chat-panel.test.ts`
-  - Panel renders correctly; root element appended to container
-  - `assembleContext()` produces correct system prompt shape with `[SYSTEM]`, `[EDITOR CONTENT]`, and `[DIAGNOSTICS]` sections
-  - Editor content truncated to ≤ 3000 characters; `[truncated]` marker appended
-  - Diagnostics formatted as `line N, col N: message`; empty list shows "No current errors or warnings."
-  - Insert/replace callbacks invoked with extracted code block text
-  - `splitContent()` splits plain text, single `\`\`\`bax` blocks, and multiple blocks into typed segments
-  - Self-correction loop: invalid code is not applied when all retry attempts are exhausted (`baxCode` set to `null`)
-
-- `feature-flags.test.ts`
-  - `isFeatureEnabled` returns `false` by default
-  - `setFeatureEnabled(true)` persists; subsequent call returns `true`
-  - URL param `?ai=1` enables regardless of storage; `?ai=0` disables
-  - Only `?ai=1` and `?ai=0` are recognised; other values (e.g. `?ai=false`, `?ai=`) fall through to localStorage
+- `apps/desktop/tests/copilot-context.test.ts` — system prompt shape, Ask/Edit truncation, song structure summary
+- `apps/desktop/tests/copilot-apply-guard.test.ts` — incomplete Edit-mode reply blocking and snippet merge
+- `apps/desktop/tests/e2e/desktop-integration.spec.ts` — Copilot settings and pattern grid (when feature flags enabled)
 
 ### Manual Tests
+
+See **[CoPilot test scenarios](../../copilot-test-scenarios.md)** for the full repeatable QA playbook (syntax edits, repair loops, provider errors, settings, local Ollama).
 
 - Confirm "Insert at cursor" inserts generated `pat` at cursor position
 - Confirm diagnostics appear verbatim in assembled context
 - Test with OpenAI `gpt-5.4-mini` (default) and Groq `openai/gpt-oss-120b` (default)
 - Switch curated models in Settings → AI and confirm the Copilot footer label updates
 - Choose **Custom...** and enter an arbitrary model ID; confirm it persists across restart
-- Test with local Ollama (no API key path)
-- Verify abort/cancel stops the fetch
+- Test with local Ollama (`qwen2.5-coder:7b`, `num_ctx` ≥ 16k; no API key)
+- Verify abort/cancel stops the in-flight request
+- Verify Keep / Discard banner after Edit applies
 
 ---
 
@@ -481,7 +481,9 @@ A chunk manager would score and rank all retrieved chunks, then greedily add the
 - [marked — Markdown renderer](https://marked.js.org/)
 - [DOMPurify — HTML sanitiser](https://github.com/cure53/DOMPurify)
 - [all-MiniLM-L6-v2 ONNX embedding model](https://huggingface.co/Xenova/all-MiniLM-L6-v2)
-- [Existing HelpPanel implementation](../../apps/web-ui/src/panels/help-panel.ts)
-- [chat-panel.ts implementation](../../apps/web-ui/src/panels/chat-panel.ts)
-- [DiagnosticsManager](../../apps/web-ui/src/editor/diagnostics.ts)
-- [StorageKey registry](../../apps/web-ui/src/utils/local-storage.ts)
+- [CoPilot test scenarios](../../copilot-test-scenarios.md)
+- [Local Ollama guide](../copilot-local-ollama.md)
+- [Desktop Copilot panel](../../apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx)
+- [copilot-context.ts](../../apps/desktop/src/renderer/src/lib/copilot-context.ts)
+- [chat.store.ts](../../packages/app-core/src/stores/chat.store.ts)
+- [StorageKey registry](../../packages/app-core/src/utils/local-storage.ts)

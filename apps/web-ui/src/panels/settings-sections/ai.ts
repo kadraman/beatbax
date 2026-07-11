@@ -7,6 +7,13 @@
  */
 
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import {
+  AI_PROVIDERS,
+  AI_PROVIDER_OPTIONS,
+  getDefaultAIModel,
+  getProviderByEndpoint,
+  type AIProviderKey,
+} from '@beatbax/app-core/stores/ai-models';
 import { updateChatSettings, chatMode, chatSettings } from '@beatbax/app-core/stores/chat.store';
 import { sectionHeading, radioGroup, noteText } from './general';
 
@@ -96,23 +103,6 @@ async function validateAIAPIKey(endpoint: string, apiKey: string): Promise<{ ok:
   }
 }
 
-/** Preset definitions — must stay in sync with desktop Copilot presets. */
-const PRESETS: Record<string, { endpoint: string; model: string }> = {
-  openai:   { endpoint: 'https://api.openai.com/v1',         model: 'gpt-4o-mini' },
-  groq:     { endpoint: 'https://api.groq.com/openai/v1',    model: 'openai/gpt-oss-120b' },
-  ollama:   { endpoint: 'http://localhost:11434/v1',          model: 'llama3.2' },
-  lmstudio: { endpoint: 'http://localhost:1234/v1',           model: 'local-model' },
-  custom:   { endpoint: '', model: '' },
-};
-
-/** Derive the preset key from a stored endpoint, falling back to 'custom'. */
-function detectPreset(endpoint: string): string {
-  for (const [key, p] of Object.entries(PRESETS)) {
-    if (key !== 'custom' && endpoint === p.endpoint) return key;
-  }
-  return endpoint ? 'custom' : 'openai';
-}
-
 export function buildAISection(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'bb-settings-section';
@@ -129,7 +119,7 @@ export function buildAISection(): HTMLElement {
 
   // ── Provider preset select ────────────────────────────────────────────────
   const cfg = loadChatSettings();
-  const currentPreset = detectPreset(cfg.endpoint ?? '');
+  const currentPreset = getProviderByEndpoint(cfg.endpoint ?? '');
 
   const presetRow = document.createElement('div');
   presetRow.className = 'bb-settings-row';
@@ -140,15 +130,11 @@ export function buildAISection(): HTMLElement {
   const presetSelect = document.createElement('select');
   presetSelect.id = 'bb-ai-preset';
   presetSelect.className = 'bb-settings-select';
-  for (const [key, p] of Object.entries(PRESETS)) {
+  for (const option of AI_PROVIDER_OPTIONS) {
     const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = key === 'openai' ? 'OpenAI'
-      : key === 'groq'     ? 'Groq'
-      : key === 'ollama'   ? 'Ollama (local)'
-      : key === 'lmstudio' ? 'LM Studio (local)'
-      : 'Custom';
-    if (key === currentPreset) opt.selected = true;
+    opt.value = option.value;
+    opt.textContent = option.label;
+    if (option.value === currentPreset) opt.selected = true;
     presetSelect.appendChild(opt);
   }
   presetRow.append(presetLabel, presetSelect);
@@ -165,12 +151,12 @@ export function buildAISection(): HTMLElement {
   endpointInput.type = 'url';
   endpointInput.id = 'bb-ai-endpoint';
   endpointInput.className = 'bb-settings-text';
-  endpointInput.value = cfg.endpoint ?? PRESETS.openai.endpoint;
+  endpointInput.value = cfg.endpoint ?? AI_PROVIDERS.openai.endpoint;
   endpointInput.addEventListener('change', () => {
     saveChatSettings({ endpoint: endpointInput.value });
     updateChatSettings({ endpoint: endpointInput.value });
     // Update preset select to reflect custom entry
-    presetSelect.value = detectPreset(endpointInput.value);
+    presetSelect.value = getProviderByEndpoint(endpointInput.value);
   });
   endpointRow.append(endpointLabel, endpointInput);
   el.appendChild(endpointRow);
@@ -189,7 +175,7 @@ export function buildAISection(): HTMLElement {
   modelInput.type = 'text';
   modelInput.id = 'bb-ai-model';
   modelInput.className = 'bb-settings-text';
-  modelInput.value = cfg.model ?? PRESETS.openai.model;
+  modelInput.value = cfg.model ?? getDefaultAIModel();
   modelInput.addEventListener('change', () => {
     saveChatSettings({ model: modelInput.value });
     updateChatSettings({ model: modelInput.value });
@@ -199,12 +185,13 @@ export function buildAISection(): HTMLElement {
 
   // ── Wire preset → endpoint + model ───────────────────────────────────────
   presetSelect.addEventListener('change', () => {
-    const p = PRESETS[presetSelect.value];
-    if (!p || presetSelect.value === 'custom') return; // custom: leave inputs as-is
-    endpointInput.value = p.endpoint;
-    modelInput.value    = p.model;
-    saveChatSettings({ endpoint: p.endpoint, model: p.model });
-    updateChatSettings({ endpoint: p.endpoint, model: p.model });
+    const key = presetSelect.value as AIProviderKey;
+    const config = AI_PROVIDERS[key];
+    if (!config || key === 'custom') return; // custom: leave inputs as-is
+    endpointInput.value = config.endpoint;
+    modelInput.value = config.defaultModel;
+    saveChatSettings({ endpoint: config.endpoint, model: config.defaultModel });
+    updateChatSettings({ endpoint: config.endpoint, model: config.defaultModel });
   });
 
   el.appendChild(sectionHeading('Behaviour'));
@@ -428,4 +415,9 @@ function apiKeyRow(getEndpoint: () => string): HTMLElement {
 export function resetAIDefaults(): void {
   storage.remove(StorageKey.CHAT_SETTINGS);
   chatMode.set('ask');
+  updateChatSettings({
+    endpoint: AI_PROVIDERS.openai.endpoint,
+    model: getDefaultAIModel(),
+    maxContextChars: 12000,
+  });
 }

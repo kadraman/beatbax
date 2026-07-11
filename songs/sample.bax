@@ -40,7 +40,7 @@ bpm 128
 #      `env={"level":12,"direction":"down","period":1,"format":"gb"}`
 #      Example: this sets initial volume=12 (0-15), direction `down`, period=1.
 #      For backwards compatibility the legacy CSV form `env=12,down,1` is still accepted and will be normalized by the parser.
-#  - `wave`: an explicit 16-entry wavetable for `wave` type (4-bit values)
+#  - `wave`: wavetable for `wave` type — 32 four-bit samples (0–15), matching Game Boy Wave RAM (16-sample tables are also accepted)
 #
 # The instruments below are chosen to show different channel roles.
 # You may optionally annotate instruments with a General MIDI program number
@@ -115,8 +115,8 @@ pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 # Each channel consumes its own sequence. This keeps parts independent and
 # lets you modify/loop them separately in the tracker or live UI.
 
-# Lead sequence (primary melody)
-seq lead_seq = melody_pat melody_pat melody_pat
+# Lead sequence (primary melody with alternate phrase and fill)
+seq lead_seq = melody_pat melody_alt_pat fill_pat melody_pat
 
 # Bass sequence (low-end walking bass)
 seq bass_seq = bass_pat:oct(-1) bass_pat bass_var bass_pat:oct(-1) bass_pat bass_var bass_var

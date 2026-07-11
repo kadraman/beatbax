@@ -24,7 +24,7 @@ BeatBax is a complete live-coding language for retro console chiptunes with dete
 
 - inst definitions: define instruments and their params.
   - Example: `inst leadA type=pulse1 duty=60 env=gb:12,down,1 gm=81`
-  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (16-entry wavetable), `sweep` (frequency sweep)
+  - Fields: `type` (pulse1|pulse2|wave|noise), `duty` (pulse duty %), `env` (envelope), `wave` (32 four-bit samples matching Game Boy Wave RAM; 16-sample tables also accepted), `sweep` (frequency sweep)
   - `sweep` (Pulse 1 only): `time,direction,shift`
     - `time`: 0-7 (0=off, 7=slowest)
     - `direction`: `up` (pitch up) or `down` (pitch down)
@@ -965,7 +965,7 @@ The **Features** tab controls which optional capabilities are active:
 |---|---|---|
 | **Pattern Grid** | Experimental | Visual step-sequencer overlay for patterns |
 | **Hot Reload** | Experimental | Auto-replays on every editor change (800 ms debounce); state survives page reloads |
-| **AI Copilot** | Beta | Requires an API key — configure in the **AI** tab |
+| **AI Copilot** | Beta | Requires provider setup (API key for cloud; optional for local Ollama/LM Studio) — configure in the **AI** tab |
 | **DAW Mixer** | Planned | Horizontal channel strip with VU meters (not yet interactive) |
 
 Enabling or disabling a feature takes effect immediately — no reload needed.
@@ -991,10 +991,12 @@ Choose a built-in preset or enter a custom endpoint:
 |---|---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | Dropdown: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3`, or **Custom...** |
 | Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | Dropdown: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, or **Custom...** |
-| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` | Free-text model ID |
-| LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text model ID |
+| Ollama (local) | `http://localhost:11434/v1` | `qwen2.5-coder:7b` | Dropdown from installed models (**Refresh**) or **Custom...** |
+| LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Dropdown from loaded models (**Refresh**) or **Custom...** |
 
-Curated model IDs reflect each provider's catalog as of July 2026. The **Model** dropdown also loads the provider's live model list (click **Refresh**, or it auto-loads when a key/local endpoint is set), and **Custom...** accepts any model ID. Local providers (Ollama, LM Studio) list your installed models.
+Curated model IDs reflect each provider's catalog as of July 2026. The **Model** dropdown also loads the provider's live model list (click **Refresh**, or it auto-loads when a key/local endpoint is set), and **Custom...** accepts any model ID. Local providers (Ollama, LM Studio) list your actually-installed models.
+
+For Ollama, pull the recommended model (`ollama pull qwen2.5-coder:7b`) and set `num_ctx` to at least **16384** for Edit mode on full songs — see [docs/features/copilot-local-ollama.md](docs/features/copilot-local-ollama.md).
 
 Enter your API key if required (Ollama and LM Studio run without one). Endpoint and model settings are persisted across restarts. API keys are stored using Electron's secure credential storage. To clear the saved key go to **Settings → AI → Clear key**.
 
@@ -1002,8 +1004,16 @@ Enter your API key if required (Ollama and LM Studio run without one). Endpoint 
 
 Toggle the mode in the panel header:
 
-- **Edit mode** — the assistant outputs a complete updated song in a ` ```bax ``` ` block that is applied directly to the editor. If the generated code has parse errors the assistant self-corrects up to 4 times before giving up. Applied changes can be undone with `Ctrl+Z`.
+- **Edit mode** — the assistant outputs a complete updated song in a ` ```bax ``` ` block that is applied directly to the editor. If the generated code has parse errors, Copilot self-corrects up to **2** times. If the reply is an incomplete snippet (missing `play`, `channel`, or most of the file), it retries up to **2** additional times or blocks apply entirely. Applied changes can be undone with `Ctrl+Z`.
 - **Ask mode** — the assistant answers questions and can include code snippets, but does not modify the editor. Use this for learning syntax, understanding effects, or exploring ideas.
+
+### Edit review (Keep / Discard)
+
+After an Edit-mode apply that changes lines, the editor shows a banner with **Keep** and **Discard**:
+
+- **Keep** confirms the applied song.
+- **Discard** restores the pre-edit content and updates the Copilot transcript accordingly.
+- Edits with no line diff skip the banner.
 
 ### Example prompts
 
@@ -1026,7 +1036,7 @@ what does inst(snare, 2) mean?
 
 On every request the assistant receives:
 
-- The complete current editor content (truncated to 3000 characters for large songs).
+- The current editor content — **full song in Edit mode**; truncated to the configured Ask-mode limit in Ask mode (default **12,000** characters; presets 4K–32K in Settings → AI).
 - All current diagnostics (errors and warnings shown as red/yellow squiggles in the editor).
 - The last 10 messages of the conversation for multi-turn context.
 
@@ -1038,7 +1048,7 @@ On every request the assistant receives:
 - All assistant responses are sanitised with DOMPurify before rendering to prevent XSS.
 - Users who point the endpoint at a local Ollama or LM Studio instance keep all data on-device.
 
-See [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) for full architecture details, the self-correction loop, and the RAG enhancement roadmap.
+See [docs/features/complete/ai-chatbot-assistant.md](docs/features/complete/ai-chatbot-assistant.md) for architecture details; [docs/features/copilot-local-ollama.md](docs/features/copilot-local-ollama.md) for local Ollama setup; [docs/copilot-test-scenarios.md](docs/copilot-test-scenarios.md) for repeatable QA scenarios.
 
 ## Troubleshooting
 - If audio is silent in your browser, verify your browser supports WebAudio and that the demo did not throttle audio (autoplay policies may require a user gesture).
