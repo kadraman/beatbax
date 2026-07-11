@@ -1,4 +1,5 @@
 import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
+import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
@@ -191,6 +192,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const problemsPanel = createDesktopOutputPanel(problemsContainer, eventBus, {
     singleTab: 'problems',
     getTextModel: () => getEditor()?.editor.getModel() ?? null,
+    copilotActions: capabilities.copilot,
   });
   const outputPanel = createDesktopOutputPanel(outputLogsContainer, eventBus, { singleTab: 'output' });
 
@@ -322,22 +324,6 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     });
   }
 
-  let copilot: DesktopCopilotHandle | null = null;
-  if (capabilities.copilot) {
-    copilot = setupDesktopCopilot({
-      rightTabs,
-      eventBus,
-      getEditor,
-      getDiagnostics: () => editorSetup?.getLastDiagnostics() ?? [],
-      onSettingsRefresh: () => settingsModal.refresh(),
-      onOpenSettings: () => settingsModal.open('ai'),
-    });
-  }
-
-  const themeManager = new ThemeManager({ eventBus });
-  themeManager.init();
-  (window as unknown as Record<string, unknown>).__beatbax_themeManager = themeManager;
-
   const getSource = () => getEditor()?.getValue() ?? '';
   let parseTimeout: number | null = null;
   let verifyPending = false;
@@ -347,6 +333,23 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       void appContext.emitParse(content);
     }, 180);
   };
+
+  let copilot: DesktopCopilotHandle | null = null;
+  if (capabilities.copilot) {
+    copilot = setupDesktopCopilot({
+      rightTabs,
+      eventBus,
+      getEditor,
+      getDiagnostics: () => editorSetup?.getLastDiagnostics() ?? [],
+      runParse,
+      onSettingsRefresh: () => settingsModal.refresh(),
+      onOpenSettings: () => settingsModal.open('ai'),
+    });
+  }
+
+  const themeManager = new ThemeManager({ eventBus });
+  themeManager.init();
+  (window as unknown as Record<string, unknown>).__beatbax_themeManager = themeManager;
 
   const runVerify = () => {
     const source = getSource();
@@ -590,14 +593,29 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   });
 
   cleanups.push(
-    eventBus.on('parse:success', ({ ast, song }: { ast?: unknown; song?: unknown }) => {
+    eventBus.on('parse:success', ({ ast, song, valid }: { ast?: unknown; song?: unknown; valid?: boolean }) => {
       try {
         const channels = (ast as { channels?: Array<{ id: number }> })?.channels;
         if (channels?.length) ensureChannels(channels.map((c) => c.id));
-        if (song && patternGrid) patternGrid.setSong(song, ast);
         toolbar.setChip((ast as { chip?: string })?.chip || 'gameboy');
-        toolbar.setExportEnabled(true);
         menuBar?.setChip((ast as { chip?: string })?.chip || 'gameboy');
+        if (!isParseSuccessValid({ valid })) {
+          toolbar.setExportEnabled(false);
+          if (verifyPending) {
+            verifyPending = false;
+            problemsPanel.addMessage({
+              type: 'error',
+              message: 'Verification failed: song has validation errors',
+              source: 'verify',
+              timestamp: new Date(),
+            });
+            toolbar.setStatus('Verification failed', 'error');
+            bottomTabs.show('problems');
+          }
+          return;
+        }
+        if (song && patternGrid) patternGrid.setSong(song, ast);
+        toolbar.setExportEnabled(true);
         if (verifyPending) {
           verifyPending = false;
           outputPanel.addMessage({
@@ -625,15 +643,17 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         bottomTabs.show('problems');
       }
     }),
-    eventBus.on('editor:saved', ({ filename }) => {
-      outputPanel.addMessage({
-        type: 'success',
-        message: `Saved ${filename}`,
-        source: 'file',
-        timestamp: new Date(),
-      });
-      toolbar.setStatus(`Saved ${filename}`, 'success');
-      bottomTabs.show('output');
+    eventBus.on('editor:saved', ({ filename, auto }) => {
+      if (!auto) {
+        outputPanel.addMessage({
+          type: 'success',
+          message: `Saved ${filename}`,
+          source: 'file',
+          timestamp: new Date(),
+        });
+        bottomTabs.show('output');
+      }
+      toolbar.setStatus(auto ? 'Auto-saved' : `Saved ${filename}`, 'success');
     }),
     eventBus.on('theme:changed', ({ theme }: { theme: 'dark' | 'light' }) => {
       toolbar.setThemeIcon(theme);

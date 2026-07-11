@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core';
+import { createAppContext, type ParsePipelineHooks, isParseSuccessValid } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
-import { editorContent, editorDirty } from '@beatbax/app-core/stores/editor.store';
+import { editorContent, editorDirty, documentSaveState } from '@beatbax/app-core/stores/editor.store';
 import { settingAutoSave, settingDefaultBpm } from '@beatbax/app-core/stores/settings.store';
 import type { MenuAction } from '../../shared/electron-api';
 import { DesktopWorkspaceShell, mapMenuActionToExport } from './components/DesktopWorkspaceShell';
@@ -9,6 +9,7 @@ import { DesktopTitleBar } from './components/DesktopTitleBar';
 import { useStoreValue } from './hooks/useStoreValue';
 import { getInitialContent } from './lib/bootstrap';
 import { autoSaveDocumentToDisk, saveDocumentToDisk } from './lib/desktop-document-save';
+import { canAutoSaveToDisk } from './lib/auto-save-policy';
 import { persistDocumentSession, readPersistedDocument } from './lib/desktop-session';
 import type { DesktopWorkspaceHandle } from './lib/desktop-workspace';
 
@@ -135,6 +136,7 @@ export default function App(): React.JSX.Element {
     setDocumentState(nextDoc);
     persistDocumentSession(filePath, name);
     syncDocumentStatus(nextDoc);
+    documentSaveState.set('idle');
     appContext.eventBus.emit('song:loaded', { filename: name, content });
 
     if (editorRef.current) {
@@ -166,6 +168,7 @@ export default function App(): React.JSX.Element {
     const api = window.electronAPI;
     if (!api) return;
     const content = editorRef.current?.getValue() ?? editorContent.get();
+    documentSaveState.set('saving');
     try {
       const savedPath = await saveDocumentToDisk(api, content, documentStateRef.current, saveAs);
       if (savedPath) {
@@ -175,11 +178,18 @@ export default function App(): React.JSX.Element {
         persistDocumentSession(savedPath, name);
         editorDirty.set(false);
         syncDocumentStatus(nextDoc);
+        documentSaveState.set('saved');
+        window.setTimeout(() => {
+          if (documentSaveState.get() === 'saved') documentSaveState.set('idle');
+        }, 2000);
         appContext.eventBus.emit('editor:saved', { filename: name });
         void workspaceRef.current?.refreshRecentFiles();
+      } else {
+        documentSaveState.set('idle');
       }
     } catch (error) {
       console.error('Save failed', error);
+      documentSaveState.set('error');
     }
   }, [appContext.eventBus, syncDocumentStatus]);
 
@@ -261,8 +271,9 @@ export default function App(): React.JSX.Element {
   }, [scheduleInitialParse]);
 
   useEffect(() => {
-    const unsubParseSuccess = appContext.eventBus.on('parse:success', ({ ast }) => {
+    const unsubParseSuccess = appContext.eventBus.on('parse:success', ({ ast, valid }) => {
       lastParsedAstRef.current = ast;
+      if (!isParseSuccessValid({ valid })) return;
       tryPendingAutoPlay(ast);
     });
 
@@ -286,23 +297,62 @@ export default function App(): React.JSX.Element {
     if (!api) return;
 
     let queuedSave: Promise<void> = Promise.resolve();
+    let savedResetTimer: number | null = null;
 
-    const unsub = appContext.eventBus.on('editor:changed', ({ content }) => {
+    const clearSavedResetTimer = () => {
+      if (savedResetTimer !== null) {
+        window.clearTimeout(savedResetTimer);
+        savedResetTimer = null;
+      }
+    };
+
+    const scheduleSavedReset = () => {
+      clearSavedResetTimer();
+      savedResetTimer = window.setTimeout(() => {
+        savedResetTimer = null;
+        if (documentSaveState.get() === 'saved') documentSaveState.set('idle');
+      }, 2000);
+    };
+
+    const unsub = appContext.eventBus.on('parse:success', (payload) => {
       if (!settingAutoSave.get()) return;
+      if (!editorDirty.get()) return;
+      if (!canAutoSaveToDisk(payload)) return;
       const filePath = documentStateRef.current.path;
       if (!filePath) return;
 
+      const content = editorRef.current?.getValue() ?? editorContent.get();
+
       queuedSave = queuedSave
         .then(async () => {
-          const saved = await autoSaveDocumentToDisk(api, content, filePath);
-          if (saved) editorDirty.set(false);
+          documentSaveState.set('saving');
+          try {
+            const saved = await autoSaveDocumentToDisk(api, content, filePath);
+            if (saved) {
+              editorDirty.set(false);
+              editorRef.current?.cancelPendingChangeNotification?.();
+              documentSaveState.set('saved');
+              scheduleSavedReset();
+              const name = filePath.split(/[/\\]/).pop() ?? 'untitled.bax';
+              appContext.eventBus.emit('editor:saved', { filename: name, auto: true });
+            } else {
+              documentSaveState.set('idle');
+            }
+          } catch (error) {
+            console.error('Auto-save failed', error);
+            documentSaveState.set('error');
+          }
         })
         .catch((error) => {
           console.error('Auto-save failed', error);
+          documentSaveState.set('error');
         });
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      clearSavedResetTimer();
+    };
   }, [appContext.eventBus]);
 
   if (bootstrapError) {
