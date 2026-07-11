@@ -6,6 +6,7 @@ created: 2026-06-21
 updated: 2026-07-10
 related:
   - docs/features/complete/ai-chatbot-assistant.md
+  - docs/features/copilot-local-ollama.md
   - docs/features/desktop-client-enhancements.md
 ---
 
@@ -34,21 +35,21 @@ Track manual passes and automation separately. Update this table when a scenario
 | 3 | Drum fill | Manual pass | kadraman | 2026-07-10 | |
 | 4 | Wavetable arpeggio variation | Manual pass | kadraman | 2026-07-10 | |
 | 5 | Small targeted edit | Manual pass | kadraman | 2026-07-10 | |
-| 6 | Repair existing parse error | Manual pass | kadraman | 2026-07-10 | Re-check banner/summary wording after line-diff updates |
+| 6 | Repair existing parse error | Manual pass | kadraman | 2026-07-10 | |
 | 7 | Repair CoPilot's previous bad edit | Manual pass | kadraman | 2026-07-10 | |
 | 8 | Explain current song (Ask) | Manual pass | kadraman | 2026-07-10 | |
-| 9 | Explain valid syntax (Ask) | Manual pass | kadraman | 2026-07-10 | Re-check `:N` duration examples in Ask replies |
+| 9 | Explain valid syntax (Ask) | Manual pass | kadraman | 2026-07-10 | |
 | 10 | Valid key, successful request | Manual pass | kadraman | 2026-07-10 | |
 | 11 | Invalid key | Manual pass | kadraman | 2026-07-10 | |
 | 12 | Valid key, no quota | Not tested | — | — | |
 | 13 | Network timeout | Not tested | — | — | |
-| 14 | Curated model selection | Not tested | — | — | |
+| 14 | Curated model selection | Manual pass | kadraman | 2026-07-10 | |
 | 15 | Custom model ID | Not tested | — | — | |
-| 16 | Live model fetch | Not tested | — | — | |
-| 17 | API key save and clear | Not tested | — | — | |
-| 18 | Startup restore | Not tested | — | — | Toolbar/parse startup fixes landed after initial pass window |
-| 19 | Prompt input history | Not tested | — | — | |
-| 20 | Edit review (Keep / Discard) | Not tested | — | — | Implemented after scenarios 1–11; needs first manual pass |
+| 16 | Live model fetch | Manual pass | kadraman | 2026-07-10 | |
+| 17 | API key save and clear | Manual pass | kadraman | 2026-07-10 | |
+| 18 | Startup restore | Manual pass | kadraman | 2026-07-10 | |
+| 19 | Prompt input history |Manual pass | kadraman | 2026-07-10 | |
+| 20 | Edit review (Keep / Discard) |Manual pass | kadraman | 2026-07-10 | |
 
 **Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (syntax reference, durations, truncation rules). Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
@@ -166,7 +167,8 @@ channel 2 => inst leadB seq bass_seq
 Context / validation checks:
 
 - Copilot context forbids `|` bar separators in patterns (see `[BEATBAX SYNTAX REFERENCE]`).
-- If the model returns invalid syntax, Edit mode validates with the parser before apply. Copilot automatically retries up to 2 times with the parse errors, then shows `⚠ Not applied — song has parse errors` if still invalid.
+- If the model returns invalid syntax, Edit mode validates with the parser before apply. Copilot automatically retries up to 2 times with the parse errors, then shows `⚠ Not applied — editor unchanged` if still invalid.
+- If the model returns only a snippet (missing `play`, `channel`, or most of the file), apply is blocked the same way — the editor is not replaced.
 
 ### 3. Drum Fill
 
@@ -442,6 +444,7 @@ Add focused e2e or unit coverage as scenarios stabilize:
 4. Startup restore with AI enabled and active tab set to Help/Visualizer/CoPilot.
 5. CoPilot error normalization for quota, invalid key, and timeout responses.
 6. Prompt assembly snapshot or unit test that verifies the syntax reference includes invalid-syntax warnings. *(Implemented: `apps/desktop/tests/copilot-context.test.ts`.)*
+7. Edit-mode completeness guard rejects partial snippets before apply. *(Implemented: `apps/desktop/tests/copilot-apply-guard.test.ts`.)*
 
 For AI output itself, prefer deterministic tests around prompt/context construction and post-response validation rather than asserting a live model's exact text.
 
@@ -450,6 +453,7 @@ For AI output itself, prefer deterministic tests around prompt/context construct
 ## Future Hardening Ideas
 
 - Run returned edit-mode code through the BeatBax parser before enabling `Replace editor`. *(Implemented: Edit mode validates with `parseWithPeggy` before apply; blocked replies show parse errors in Copilot.)*
+- Reject incomplete edit responses that would replace a full song with a short snippet (missing `play`, `channel`, or most definitions). *(Implemented: `assessEditApplyGuard` in desktop Copilot.)*
 - If parsing fails, show a warning and offer `Ask CoPilot to repair`.
 - Prefer patch-style edits or structured edit plans over full-song rewrites for small changes.
 - Add a "Validate response" step that displays syntax diagnostics before applying.

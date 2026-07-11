@@ -7,8 +7,8 @@
 ##   Pulse1, Pulse2, Wave, and Noise. Read each section below for field-level details.
 ##
 ## Structure (8 bars):
-##   Bars 1–4 : Theme A (×2)   — melody + bass + arpeggio + percussion
-##   Bars 5–8 : Theme A (×2)   — same sequences looped (demonstration repeat)
+##   Bars 1-4 : Theme A (x2)   — melody + bass + arpeggio + percussion
+##   Bars 5-8 : Theme A (x2)   — same sequences looped (demonstration repeat)
 ##
 ## Channels:
 ##   Ch1 (Pulse1): Melody — twinkle-style motif with fill phrases (leadA, 60% duty)
@@ -46,8 +46,8 @@ bpm 128
 # You may optionally annotate instruments with a General MIDI program number
 # using `gm=<0-127>`. The exporter will use this value for Program Change
 # messages when exporting MIDI. Example: `inst leadA ... gm=81` (Lead 1).
-inst leadA type=pulse1 duty=60 env={"level":12,"direction":"down","period":1,"format":"gb"} gm=81   # Bright pulse lead, slightly wider duty (GM 81)
-inst leadB type=pulse2 duty=30 env={"level":7,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with oct(-1) needs +24 (2 octaves) for UGE (GM 34)
+inst leadA type=pulse1 duty=60 env={"level":8,"direction":"down","period":1,"format":"gb"} gm=81   # Softer pulse lead
+inst leadB type=pulse2 duty=30 env={"level":15,"direction":"down","period":1,"format":"gb"} gm=34   # Bass with stronger envelope for audibility
 inst wave1 type=wave  wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] gm=82  # Wavetable arpeggio voice (GM 82)
 inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} uge_note=C-7  # Snare-like noise for backbeat
 inst hihat type=noise  env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8  # Short hi-hat hits (faster, lower env)
@@ -72,6 +72,9 @@ pat melody_alt_pat  = (C5 . E5 . G5 . A5 .) (G5 . E5 . D5 . C5 .)
 # Simple bass pattern that follows the root movement of the melody (16 tokens).
 pat bass_pat      = C3 C3 G2 G2 A2 A2 G2 . C3 C3 G2 G2 A2 A2 G2 .
 
+# More active bass variation while keeping the same chord movement.
+pat bass_var = (C2 E2 G2 C3) * 2 (F2 A2 C3 F3) * 2 (G2 B2 D3 G3) * 2 (C2 E2 G2 C3) * 2
+
 # Wavetable arpeggio pattern to add harmonic color under the melody (16 tokens).
 pat arp_pat      = (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5) (C4 E4 G4 C5)
 
@@ -80,6 +83,12 @@ pat drums_pat      = (snare . . .) (snare . . .) (snare . . .) (snare . hihat .)
 
 # Short melodic fill used between phrases (16 tokens).
 pat fill_pat      = (C5 E5 G5 C6) * 4
+
+# Added small drum fill at the end of the second phrase.
+pat drum_fill = snare hihat snare snare hihat .
+
+# Added small drum fill at the end of the song.
+pat drums_fill_end = snare hihat snare . hihat snare snare snare
 
 # =============================================================================
 # SHORTHAND EXAMPLES
@@ -110,18 +119,18 @@ pat drums_alt_pat     = (snare . . .)*2 perc . . . . . . .
 seq lead_seq = melody_pat melody_pat melody_pat
 
 # Bass sequence (low-end walking bass)
-seq bass_seq = bass_pat
+seq bass_seq = bass_pat:oct(-1) bass_pat bass_var bass_pat:oct(-1) bass_pat bass_var bass_var
 
 # Wave sequence (wavetable arpeggios)
-seq wave_seq = arp_pat arp_pat arp_pat
+seq wave_seq = arp_pat*5
 
 # Drums/percussion sequence
-seq drums_seq = drums_pat drums_alt_pat drums_pat drums_alt_pat
+seq drums_seq = drums_pat drum_fill drums_pat drums_alt_pat*2 drums_fill_end
 
 # Map channels to their separate sequences.
 channel 1 => inst leadA seq lead_seq lead_seq
-channel 2 => inst leadB seq bass_seq:oct(-1) bass_seq:oct(-1)
-channel 3 => inst wave1 seq wave_seq:oct(-1) wave_seq:oct(-1) arp_pat arp_pat
+channel 2 => inst leadB seq bass_seq
+channel 3 => inst wave1 seq wave_seq
 channel 4 => inst perc  seq drums_seq drums_seq
 
 # =============================================================================

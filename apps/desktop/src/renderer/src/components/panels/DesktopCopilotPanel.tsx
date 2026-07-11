@@ -23,6 +23,14 @@ import {
   type ChatMode,
 } from '@beatbax/app-core/stores/chat.store';
 import { buildCopilotContext } from '../../lib/copilot-context';
+import { assessEditApplyGuard, buildIncompleteSongRepairPrompt, tryMergeSnippetIntoSong } from '../../lib/copilot-apply-guard';
+import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
+import {
+  computeLineChangeDiff,
+  countAIChangeDiff,
+  formatAIChangeBanner,
+  type AIChangeDiff,
+} from '../../lib/line-change-diff';
 import { icon } from '../../utils/icons';
 
 interface DesktopCopilotPanelProps {
@@ -42,62 +50,13 @@ export interface DesktopCopilotPanelHandle {
   dispose: () => void;
 }
 
-/** Line-level diff between previous and applied song content. */
-export interface AIChangeDiff {
-  /** 1-based lines in the new file that were purely added (not replacements). */
-  added: number[];
-  /**
-   * Pure deletions anchored to a line in the new file (the line after the gap).
-   * The removed text is from the previous file.
-   */
-  removed: Array<{
-    line: number;
-    removed: Array<{ oldLine: number; text: string }>;
-  }>;
-  /**
-   * In-place line replacements: old text removed and new text inserted at the
-   * same position (e.g. fixing commas on one pattern line).
-   */
-  modified: Array<{
-    line: number;
-    removed: Array<{ oldLine: number; text: string }>;
-    newLines: number[];
-  }>;
-}
-
-/** User-facing line counts for banners and chat badges. */
-export function countAIChangeDiff(diff: AIChangeDiff): {
-  added: number;
-  removed: number;
-  modified: number;
-  total: number;
-} {
-  const added = diff.added.length;
-  const removed = diff.removed.reduce((n, a) => n + a.removed.length, 0);
-  const modified = diff.modified.length;
-  return { added, removed, modified, total: added + removed + modified };
-}
-
-export function formatAIChangeBanner(diff: AIChangeDiff): string {
-  const { added, removed, modified } = countAIChangeDiff(diff);
-  const parts: string[] = [];
-  if (modified > 0) parts.push(`${modified} changed`);
-  if (added > 0) parts.push(`${added} added`);
-  if (removed > 0) parts.push(`${removed} removed`);
-  if (parts.length === 0) return 'AI: no line changes';
-  if (parts.length === 1) {
-    if (modified > 0) return `AI: ${modified} line${modified !== 1 ? 's' : ''} changed`;
-    if (added > 0) return `AI: ${added} line${added !== 1 ? 's' : ''} added`;
-    return `AI: ${removed} line${removed !== 1 ? 's' : ''} removed`;
-  }
-  return `AI: ${parts.join(', ')}`;
-}
+export type { AIChangeDiff } from '../../lib/line-change-diff';
+export { countAIChangeDiff, formatAIChangeBanner } from '../../lib/line-change-diff';
 
 interface SummarizeContext {
   userPrompt?: string;
   diagnosticsBefore?: Diagnostic[];
 }
-
 
 function safeMarkdown(content: string): string {
   return DOMPurify.sanitize(marked.parse(content, { breaks: true, gfm: true }) as string, {
@@ -117,26 +76,9 @@ function safeMarkdownInline(content: string): string {
   });
 }
 
-/**
- * Builds an explicit Edit-mode prompt from a single snippet the user chose to
- * apply, so the model gets a concrete instruction (and the original intent)
- * rather than the vague original question.
- */
-function buildApplyPrompt(userPrompt: string | undefined, snippet: string): string {
-  const intro = userPrompt?.trim() ? `Original request: ${userPrompt.trim()}\n\n` : '';
-  return `${intro}Apply this specific suggestion to the song now. Integrate the following BeatBax into the existing arrangement and return the full updated song:\n\n\`\`\`bax\n${snippet}\n\`\`\``;
-}
-
-/** First non-empty line of a snippet, for a short friendly transcript label. */
-function snippetLabel(snippet: string): string {
-  const line = snippet.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? 'change';
-  const clipped = line.length > 48 ? `${line.slice(0, 48)}…` : line;
-  return `Apply: ${clipped}`;
-}
-
 function splitBaxBlocks(content: string): Array<{ type: 'text' | 'code'; value: string }> {
   const result: Array<{ type: 'text' | 'code'; value: string }> = [];
-  const pattern = /```bax\s*\n([\s\S]*?)```/g;
+  const pattern = /```[ \t]*bax[ \t]*\r?\n([\s\S]*?)```/gi;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(content)) !== null) {
@@ -179,83 +121,6 @@ function extractBaxCode(content: string): string | null {
   // lost to output truncation).
   if (looksLikeBeatBaxSong(content)) return normalizeBax(content);
   return null;
-}
-
-/**
- * LCS line diff between two song versions. Returns added/changed lines in the
- * new file plus deletion anchors (removed lines no longer exist in the editor).
- */
-function diffLineChanges(previous: string, next: string): AIChangeDiff {
-  const oldLines = previous.split('\n');
-  const newLines = next.split('\n');
-  const n = oldLines.length;
-  const m = newLines.length;
-
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = oldLines[i] === newLines[j]
-        ? dp[i + 1][j + 1] + 1
-        : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-
-  const added: number[] = [];
-  const removed: AIChangeDiff['removed'] = [];
-  let i = 0;
-  let j = 0;
-
-  while (i < n || j < m) {
-    if (i < n && j < m && oldLines[i] === newLines[j]) {
-      i++;
-      j++;
-      continue;
-    }
-    if (i < n && (j >= m || dp[i + 1][j] >= dp[i][j + 1])) {
-      const batch: Array<{ oldLine: number; text: string }> = [];
-      while (i < n && (j >= m || (oldLines[i] !== newLines[j] && dp[i + 1][j] >= dp[i][j + 1]))) {
-        batch.push({ oldLine: i + 1, text: oldLines[i] });
-        i++;
-      }
-      const anchor = j < m ? j + 1 : Math.max(1, m);
-      if (batch.length > 0) removed.push({ line: anchor, removed: batch });
-    } else if (j < m) {
-      added.push(j + 1);
-      j++;
-    } else {
-      i++;
-    }
-  }
-
-  return collapseModifications({ added, removed, modified: [] }, next);
-}
-
-/**
- * Pair removals with additions at the same anchor so in-place edits read as
- * "changed" rather than "1 added, 1 removed".
- */
-function collapseModifications(raw: AIChangeDiff, _next: string): AIChangeDiff {
-  const addedSet = new Set(raw.added);
-  const modified: AIChangeDiff['modified'] = [];
-  const pureRemoved: AIChangeDiff['removed'] = [];
-
-  for (const anchor of raw.removed) {
-    const start = anchor.line;
-    const newLineNums: number[] = [];
-    let line = start;
-    while (addedSet.has(line)) {
-      newLineNums.push(line);
-      addedSet.delete(line);
-      line++;
-    }
-    if (newLineNums.length > 0) {
-      modified.push({ line: start, removed: anchor.removed, newLines: newLineNums });
-    } else {
-      pureRemoved.push(anchor);
-    }
-  }
-
-  return { added: [...addedSet], removed: pureRemoved, modified };
 }
 
 function clipSnippet(text: string, max = 56): string {
@@ -329,6 +194,8 @@ function validateBaxSource(source: string): { ok: boolean; errors: string[] } {
 
 /** Max automatic repair attempts when Edit-mode output fails parse validation. */
 const MAX_PARSE_REPAIR_ATTEMPTS = 2;
+/** Max retries when the model returns a snippet instead of the full song. */
+const MAX_INCOMPLETE_REPAIR_ATTEMPTS = 2;
 
 function buildRepairPrompt(errors: string[], brokenSong: string): string {
   const errorList = errors.map((e) => `- ${e}`).join('\n');
@@ -447,18 +314,12 @@ async function readDesktopAIAPIKey(): Promise<string | null> {
 function ChatMessageView({
   message,
   mode,
-  loading,
-  userPrompt,
-  onApplyInEditMode,
   onInsertSnippet,
   onReplaceSelection,
   onReplaceEditor,
 }: {
   message: ChatMessage;
   mode: ChatMode;
-  loading: boolean;
-  userPrompt?: string;
-  onApplyInEditMode: (prompt: string, displayText: string) => void;
   onInsertSnippet: (text: string) => void;
   onReplaceSelection: (text: string) => void;
   onReplaceEditor: (text: string) => void;
@@ -486,39 +347,23 @@ function ChatMessageView({
           if (part.type === 'text') {
             return <div dangerouslySetInnerHTML={{ __html: safeMarkdown(part.value) }} key={`text-${index}`} />;
           }
+          const showSnippetActions = mode === 'edit';
           return (
-            <div className="bb-chat-code-block" key={`code-${index}`}>
+            <div className={`bb-chat-code-block${mode === 'ask' ? ' bb-chat-code-block--reference' : ''}`} key={`code-${index}`}>
               <pre><code className="bb-chat-code">{part.value}</code></pre>
-              <div className="bb-chat-code-actions">
-                {mode === 'ask' ? (
-                  <>
-                    <button
-                      className="bb-chat-action-btn bb-chat-action-btn--primary"
-                      disabled={loading}
-                      onClick={() => onApplyInEditMode(buildApplyPrompt(userPrompt, part.value), snippetLabel(part.value))}
-                      title="Switch to Edit mode and apply this snippet to the song"
-                      type="button"
-                    >
-                      ⤴ Apply in Edit mode
-                    </button>
-                    <button className="bb-chat-action-btn" onClick={() => void navigator.clipboard?.writeText(part.value)} type="button">
-                      ⧉ Copy
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button className="bb-chat-action-btn bb-chat-action-btn--primary" onClick={() => onReplaceEditor(part.value)} type="button">
-                      ↺ Replace editor
-                    </button>
-                    <button className="bb-chat-action-btn" onClick={() => onInsertSnippet(part.value)} type="button">
-                      Insert at cursor
-                    </button>
-                    <button className="bb-chat-action-btn" onClick={() => onReplaceSelection(part.value)} type="button">
-                      Replace selection
-                    </button>
-                  </>
-                )}
-              </div>
+              {showSnippetActions ? (
+                <div className="bb-chat-code-actions">
+                  <button className="bb-chat-action-btn bb-chat-action-btn--primary" onClick={() => onReplaceEditor(part.value)} type="button">
+                    ↺ Replace editor
+                  </button>
+                  <button className="bb-chat-action-btn" onClick={() => onInsertSnippet(part.value)} type="button">
+                    Insert at cursor
+                  </button>
+                  <button className="bb-chat-action-btn" onClick={() => onReplaceSelection(part.value)} type="button">
+                    Replace selection
+                  </button>
+                </div>
+              ) : null}
             </div>
           );
       })}
@@ -531,7 +376,7 @@ function ChatMessageView({
       <div className="bb-chat-msg bb-chat-msg--assistant">
         <span className="bb-chat-msg-label">Copilot</span>
         <div className="bb-chat-applied bb-chat-applied--blocked">
-          <span className="bb-chat-applied-badge bb-chat-applied-badge--blocked">⚠ Not applied — song has parse errors</span>
+          <span className="bb-chat-applied-badge bb-chat-applied-badge--blocked">⚠ Not applied — editor unchanged</span>
           {summary.length > 0 ? (
             <ul className="bb-chat-applied-summary">
               {summary.map((item, index) => (
@@ -539,7 +384,7 @@ function ChatMessageView({
               ))}
             </ul>
           ) : null}
-          <span className="bb-chat-applied-hint">The editor was left unchanged. Ask Copilot to fix the errors, or edit manually.</span>
+          <span className="bb-chat-applied-hint">Fix the issue above and try again, or edit manually.</span>
         </div>
         <details className="bb-chat-applied-details">
           <summary>View returned song</summary>
@@ -698,7 +543,7 @@ function DesktopCopilotPanel({
   }, [history, loading]);
 
   useEffect(() => {
-    const isLocal = settings.endpoint.includes('localhost') || settings.endpoint.includes('127.0.0.1');
+    const isLocal = isLocalAiEndpoint(settings.endpoint);
     setStatus(!isLocal && !settings.apiKey ? '⚠ No API key set. Click ⚙ to open AI Settings.' : '');
   }, [settings]);
 
@@ -829,7 +674,9 @@ function DesktopCopilotPanel({
       let linesRemoved: number | undefined;
       let linesModified: number | undefined;
       let changeSummary: string[] = [];
-      let repairAttempts = 0;
+      let parseRepairAttempts = 0;
+      let incompleteRepairAttempts = 0;
+      let mergedSnippet = false;
       let lineDiff: AIChangeDiff | undefined;
       let reviewPending = false;
 
@@ -842,7 +689,7 @@ function DesktopCopilotPanel({
             const validation = validateBaxSource(baxCode);
             if (validation.ok) break;
 
-            if (repairAttempts >= MAX_PARSE_REPAIR_ATTEMPTS) {
+            if (parseRepairAttempts >= MAX_PARSE_REPAIR_ATTEMPTS) {
               setStatus('⚠ Copilot could not produce valid BeatBax after retries — editor not changed.');
               pushChatMessage('assistant', response, {
                 applyBlocked: true,
@@ -851,9 +698,9 @@ function DesktopCopilotPanel({
               return;
             }
 
-            repairAttempts += 1;
+            parseRepairAttempts += 1;
             pushChatNotice(
-              `Parse errors detected — asking Copilot to fix (${repairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`,
+              `Parse errors detected — asking Copilot to fix (${parseRepairAttempts}/${MAX_PARSE_REPAIR_ATTEMPTS})…`,
             );
             const repairPrompt = buildRepairPrompt(validation.errors, baxCode);
             response = await generate(text, effectiveSettings, activeMode, [
@@ -870,10 +717,62 @@ function DesktopCopilotPanel({
             baxCode = repaired;
           }
 
-          const diagnosticsBefore = getDiagnostics();
           const previous = getEditorContent();
+          const trySnippetMerge = (): boolean => {
+            if (baxCode === null) return false;
+            const merged = tryMergeSnippetIntoSong(previous, baxCode);
+            if (!merged) return false;
+            const mergedValidation = validateBaxSource(merged);
+            const mergedGuard = assessEditApplyGuard(previous, merged);
+            if (!mergedValidation.ok || !mergedGuard.ok) return false;
+            baxCode = merged;
+            mergedSnippet = true;
+            return true;
+          };
+
+          for (;;) {
+            if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+            const completeness = assessEditApplyGuard(previous, baxCode);
+            if (completeness.ok) break;
+
+            if (trySnippetMerge()) break;
+
+            if (incompleteRepairAttempts >= MAX_INCOMPLETE_REPAIR_ATTEMPTS) {
+              setStatus('⚠ Copilot returned an incomplete song — editor not changed.');
+              pushChatMessage('assistant', response, {
+                applyBlocked: true,
+                changeSummary: [completeness.reason ?? 'Response was incomplete.'],
+              });
+              return;
+            }
+
+            incompleteRepairAttempts += 1;
+            pushChatNotice(
+              `Incomplete reply — asking for full song (${incompleteRepairAttempts}/${MAX_INCOMPLETE_REPAIR_ATTEMPTS})…`,
+            );
+            const incompletePrompt = buildIncompleteSongRepairPrompt(
+              text,
+              previous,
+              baxCode,
+              completeness.reason ?? 'Response was incomplete.',
+            );
+            response = await generate(text, effectiveSettings, activeMode, [
+              { role: 'assistant', content: response },
+              { role: 'user', content: incompletePrompt },
+            ]);
+            if (requestGen !== requestGenRef.current || cancelledRef.current) return;
+            const expanded = extractBaxCode(response);
+            if (expanded === null) {
+              setStatus('⚠ Repair attempt did not return a song — editor not changed.');
+              pushChatMessage('assistant', response);
+              return;
+            }
+            baxCode = expanded;
+          }
+
+          const diagnosticsBefore = getDiagnostics();
           onReplaceEditor(baxCode);
-          lineDiff = diffLineChanges(previous, baxCode);
+          lineDiff = computeLineChangeDiff(previous, baxCode);
           const diffCounts = countAIChangeDiff(lineDiff);
           reviewPending = diffCounts.total > 0 && Boolean(previous.trim());
           if (reviewPending) onHighlightChanges(lineDiff, previous);
@@ -887,10 +786,18 @@ function DesktopCopilotPanel({
             userPrompt: text,
             diagnosticsBefore,
           });
-          if (repairAttempts > 0) {
+          if (parseRepairAttempts > 0) {
             changeSummary.unshift(
-              `Fixed ${repairAttempts} parse error${repairAttempts === 1 ? '' : 's'} automatically on retry`,
+              `Fixed ${parseRepairAttempts} parse error${parseRepairAttempts === 1 ? '' : 's'} automatically on retry`,
             );
+          }
+          if (incompleteRepairAttempts > 0 && !mergedSnippet) {
+            changeSummary.unshift(
+              `Expanded snippet to full song on retry (${incompleteRepairAttempts} attempt${incompleteRepairAttempts === 1 ? '' : 's'})`,
+            );
+          }
+          if (mergedSnippet) {
+            changeSummary.unshift('Applied a single-line pattern/sequence update into your song (model returned a snippet).');
           }
         } else {
           setStatus('⚠ Copilot did not return an applicable song, so the editor was not changed. Try again.');
@@ -945,12 +852,6 @@ function DesktopCopilotPanel({
     await submitPrompt(text, mode);
   }, [input, loading, mode, submitPrompt]);
 
-  const applyInEditMode = useCallback((prompt: string, displayText: string): void => {
-    if (loading) return;
-    chatMode.set('edit');
-    pushChatNotice('Switched to Edit mode — applying your selected suggestion…');
-    void submitPrompt(prompt, 'edit', displayText);
-  }, [loading, submitPrompt]);
 
   const modelLabel = useMemo(() => settings.model || 'model not set', [settings.model]);
 
@@ -1037,25 +938,16 @@ function DesktopCopilotPanel({
       <div className="bb-chat-status" style={{ display: status ? 'block' : 'none' }}>{status}</div>
 
       <div className="bb-chat-messages" ref={messagesRef}>
-        {history.map((message, index) => {
-          const previous = index > 0 ? history[index - 1] : undefined;
-          const userPrompt = message.role === 'assistant' && previous?.role === 'user'
-            ? previous.content
-            : undefined;
-          return (
+        {history.map((message, index) => (
             <ChatMessageView
               key={`${message.timestamp}-${message.role}`}
-              loading={loading}
               message={message}
               mode={mode}
-              onApplyInEditMode={applyInEditMode}
               onInsertSnippet={onInsertSnippet}
               onReplaceEditor={onReplaceEditor}
               onReplaceSelection={onReplaceSelection}
-              userPrompt={userPrompt}
             />
-          );
-        })}
+        ))}
         {loading ? (
           <div className="bb-chat-typing">
             <span className="bb-chat-typing-dot" />

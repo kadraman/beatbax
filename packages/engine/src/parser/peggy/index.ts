@@ -497,6 +497,23 @@ const parsePlay = (args: string): PlayNode => {
   };
 };
 
+const VALID_KEYWORDS = [
+  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
+  'song', 'import', 'inst', 'effect', 'pat', 'seq',
+  'channel', 'play', 'export',
+];
+
+function isValidTopLevelKeyword(word: string): boolean {
+  const lower = word.toLowerCase();
+  return VALID_KEYWORDS.some((kw) => kw.toLowerCase() === lower);
+}
+
+function unknownKeywordMessage(word: string, suggestion?: string | null): string {
+  return suggestion
+    ? `Unknown keyword '${word}'. Did you mean '${suggestion}'?`
+    : `Unknown keyword '${word}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+}
+
 /**
  * Enhance Peggy parse error messages for common cases
  */
@@ -514,20 +531,15 @@ function enhanceParseError(error: any, source: string): Error {
     const firstWord = lineStart.split(/\s+/)[0];
     const foundChar = error.found;
 
-    const validKeywords = [
-      'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-      'inst', 'pat', 'seq', 'channel', 'play', 'export', 'import', 'song',
-    ];
-
     // Unknown top-level keywords outrank bar-separator hints on the same line
     // (e.g. removed `arrange main = lead | bass` should report 'arrange', not '|').
     if (
       firstWord
-      && !validKeywords.includes(firstWord)
+      && !isValidTopLevelKeyword(firstWord)
       && !/^[A-Z]/.test(firstWord)
       && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord)
     ) {
-      message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
+      message = unknownKeywordMessage(firstWord);
       error.message = message;
       return error;
     }
@@ -544,8 +556,8 @@ function enhanceParseError(error: any, source: string): Error {
 
     // Check if error is at end of line (found carriage return/newline) - likely unknown keyword
     if (!foundChar || foundChar === '\r' || foundChar === '\n') {
-      if (firstWord && !validKeywords.includes(firstWord) && !/^[A-Z]/.test(firstWord)) {
-        message = `Unknown keyword '${firstWord}'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, inst, pat, seq, channel, play, export, import, song`;
+      if (firstWord && !isValidTopLevelKeyword(firstWord) && !/^[A-Z]/.test(firstWord)) {
+        message = unknownKeywordMessage(firstWord);
         error.message = message;
       }
     }
@@ -553,12 +565,6 @@ function enhanceParseError(error: any, source: string): Error {
 
   return error;
 }
-
-const VALID_KEYWORDS = [
-  'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-  'song', 'import', 'inst', 'effect', 'pat', 'seq',
-  'channel', 'play', 'export',
-];
 
 function toSourceLocation(loc: any): SourceLocation | undefined {
   if (!loc?.start) return undefined;
@@ -774,14 +780,11 @@ function validateUnknownSequenceTransforms(
 function parseRecoveryError(stmt: ErrorStmt): ParseError {
   const raw = String(stmt.raw ?? '').trim();
   const firstWord = raw.split(/\s+/)[0] ?? '';
-  const firstWordLower = firstWord.toLowerCase();
   let message = `Invalid statement syntax: '${raw || '<empty>'}'.`;
 
-  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !VALID_KEYWORDS.some(kw => kw.toLowerCase() === firstWordLower)) {
+  if (firstWord && /^[A-Za-z_][A-Za-z0-9_-]*$/.test(firstWord) && !isValidTopLevelKeyword(firstWord)) {
     const suggestion = suggestKeyword(firstWord);
-    message = suggestion
-      ? `Unknown keyword '${firstWord}'. Did you mean '${suggestion}'?`
-      : `Unknown keyword '${firstWord}'. Valid keywords: ${VALID_KEYWORDS.join(', ')}.`;
+    message = unknownKeywordMessage(firstWord, suggestion);
   } else if (raw.includes('|') || /^\|/.test(raw)) {
     message = "Bar separator '|' is not valid in BeatBax. Pattern and sequence tokens are whitespace-separated only — e.g. `pat bass = (C2 E2 G2) * 2 (F2 A2 C3) * 2`, not `(C2 E2) * 2 | (F2 A2) * 2`.";
   } else if (/^channel\b/i.test(raw) && !raw.includes('=>')) {

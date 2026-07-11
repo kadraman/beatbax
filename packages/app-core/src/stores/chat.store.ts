@@ -84,12 +84,37 @@ export interface ChatMessageMeta {
 
 const MAX_HISTORY = 50;
 const MAX_PROMPT_HISTORY = 50;
-const MIN_CONTEXT_CHARS = 100;
-const MAX_CONTEXT_CHARS = 32000;
+
+/** Discrete Ask-mode context sizes shown in AI settings (aligned with common model context tiers). */
+export const AI_CONTEXT_CHAR_PRESETS = [
+  { value: 4096, label: '4K' },
+  { value: 8192, label: '8K' },
+  { value: 12000, label: '12K' },
+  { value: 16384, label: '16K' },
+  { value: 24576, label: '24K' },
+  { value: 32768, label: '32K' },
+] as const;
+
+const CONTEXT_PRESET_VALUES = AI_CONTEXT_CHAR_PRESETS.map((preset) => preset.value);
+const MIN_CONTEXT_CHARS = CONTEXT_PRESET_VALUES[0];
+const MAX_CONTEXT_CHARS = CONTEXT_PRESET_VALUES[CONTEXT_PRESET_VALUES.length - 1];
+
+export function snapContextChars(value: number): number {
+  let best = CONTEXT_PRESET_VALUES[0];
+  let bestDistance = Math.abs(value - best);
+  for (const preset of CONTEXT_PRESET_VALUES) {
+    const distance = Math.abs(value - preset);
+    if (distance < bestDistance) {
+      best = preset;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
 
 function clampContextChars(value: unknown, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.min(MAX_CONTEXT_CHARS, Math.max(MIN_CONTEXT_CHARS, Math.round(value)));
+  if (typeof value !== 'number' || !Number.isFinite(value)) return snapContextChars(fallback);
+  return snapContextChars(Math.min(MAX_CONTEXT_CHARS, Math.max(MIN_CONTEXT_CHARS, Math.round(value))));
 }
 
 // ─── Loaders ──────────────────────────────────────────────────────────────────

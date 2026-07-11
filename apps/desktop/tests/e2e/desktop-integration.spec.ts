@@ -203,19 +203,21 @@ test('transport loop and live controls are wired', async () => {
 
 test('pattern grid renders desktop React UI and navigates to patterns', async () => {
   test.setTimeout(60_000);
-  const { electronApp, page, consoleErrors } = await launchDesktopApp();
+  const { electronApp, page, consoleErrors } = await launchDesktopApp([sampleSongPath]);
 
   await page.evaluate(() => {
     localStorage.setItem('beatbax:feature.patternGrid', 'true');
     localStorage.setItem('beatbax:panel.pattern-grid', 'true');
   });
   await page.reload();
-  await expect(page.locator('.status-document-name')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.status-document-name')).toHaveText('sample.bax', { timeout: 15_000 });
 
   await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.bb-pgrid__row')).toHaveCount(4);
   await expect(page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first()).toBeVisible();
-  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(8);
+  // sample.bax channel 2: bass_seq:oct(-1) bass_seq:oct(-1) → two bass_pat blocks
+  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(2);
+  // channel 3: wave_seq ×2 (3 arp_pat each) + arp_pat ×2
   await expect(page.locator('.bb-pgrid__row').nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(8);
 
   const muteButton = page.getByRole('button', { name: 'Mute channel 1' });

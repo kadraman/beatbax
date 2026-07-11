@@ -3,7 +3,7 @@ title: "Web UI: AI Chatbot Assistant (BeatBax Copilot)"
 status: implemented
 authors: ["kadraman"]
 created: 2026-03-21
-updated: 2026-03-29
+updated: 2026-07-11
 issue: "https://github.com/kadraman/beatbax/issues/61"
 ---
 
@@ -36,7 +36,7 @@ Copilot is available in the **desktop app only** (`desktop-full` profile). The h
 |---|---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `o3` |
 | Groq (free, fast) | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` |
-| Ollama (local) | `http://localhost:11434/v1` | `llama3.2` | Free-text (installed model name) |
+| Ollama (local) | `http://localhost:11434/v1` | `qwen2.5-coder:7b` | Free-text (installed model name); see [Local Ollama guide](../copilot-local-ollama.md) |
 | LM Studio (local) | `http://localhost:1234/v1` | `local-model` | Free-text (loaded model name) |
 
 Curated model IDs are verified against each provider's catalog as of July 2026. They change over time — use **Custom...** for any newer model ID.
@@ -44,6 +44,14 @@ Curated model IDs are verified against each provider's catalog as of July 2026. 
 Settings → AI shows a **Model** dropdown combining curated options with models fetched **live** from the provider's `/models` endpoint, plus **Custom...** for any model ID. A **Refresh** button reloads the list on demand; the list is also loaded automatically when an endpoint has usable credentials (an API key, or any local endpoint). This means local providers (Ollama, LM Studio) show your actually-installed models, and remote providers surface newly released models without waiting for a curated-list update. Fetching goes through the desktop main process to avoid browser CORS restrictions.
 
 Any OpenAI-compatible endpoint can also be entered manually. Connection settings (endpoint URL, API key, model ID) are persisted to `localStorage` under key `bb-ai-settings`.
+
+### Local Ollama (recommended models and context)
+
+For fully local inference, see **[Copilot — Local models (Ollama)](../copilot-local-ollama.md)**. Summary:
+
+- **Model:** `qwen2.5-coder:7b` (primary on 8 GB GPUs); `qwen2.5-coder:14b` if VRAM allows.
+- **Context:** set Ollama `num_ctx` to **16384** minimum for `songs/sample.bax`; **32768** for long sessions or larger files. Default **8192** is often too small and causes snippet-only replies.
+- **Edit mode guard:** incomplete responses (missing `play`, `channel`, or most of the file) are **not applied** — the editor stays unchanged and Copilot shows a blocked message.
 
 ---
 
