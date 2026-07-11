@@ -215,10 +215,11 @@ test('pattern grid renders desktop React UI and navigates to patterns', async ()
   await expect(page.locator('.bb-pgrid')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.bb-pgrid__row')).toHaveCount(4);
   await expect(page.locator('.bb-pgrid__block[title="lead_seq › melody_pat"]').first()).toBeVisible();
-  // sample.bax channel 2: bass_seq:oct(-1) bass_seq:oct(-1) → two bass_pat blocks
-  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(2);
-  // channel 3: wave_seq ×2 (3 arp_pat each) + arp_pat ×2
-  await expect(page.locator('.bb-pgrid__row').nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(8);
+  // sample.bax channel 2: bass_seq → four bass_pat + three bass_var blocks
+  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_pat"]')).toHaveCount(4);
+  await expect(page.locator('.bb-pgrid__row').nth(1).locator('.bb-pgrid__block[data-label="bass_var"]')).toHaveCount(3);
+  // channel 3: wave_seq = arp_pat*5
+  await expect(page.locator('.bb-pgrid__row').nth(2).locator('.bb-pgrid__block[data-label="arp_pat"]')).toHaveCount(5);
 
   const muteButton = page.getByRole('button', { name: 'Mute channel 1' });
   await muteButton.click();
