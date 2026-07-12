@@ -2,6 +2,7 @@ import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
+import { loadRemote } from '@beatbax/app-core/import/remote-loader';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
@@ -31,6 +32,8 @@ import { setupDesktopCopilot, type DesktopCopilotHandle } from './desktop-copilo
 import { setupDesktopEditor, type DesktopEditorSetupHandle } from './desktop-editor-setup';
 import { handleDesktopExport } from './export-handler';
 import { setupDesktopMenuBar } from './desktop-menu-bar';
+import type { MenuAction } from '../../../shared/electron-api';
+import type { NativeMenuCheckState } from '../../../shared/native-menu-checks';
 import type { MenuBar } from '../components/shell/menu-bar';
 import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
@@ -92,6 +95,7 @@ export interface DesktopWorkspaceHandle {
   focusEditor: () => void;
   refreshEditorViewPrefs: () => void;
   refreshRecentFiles: () => Promise<void>;
+  dispatchMenuAction: (action: MenuAction) => void;
   dispose: () => void;
 }
 
@@ -217,6 +221,47 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       eventBus.emit('panel:toggled', { panel: 'problems', visible: true });
     },
   };
+
+  let macMenuRefreshTimer: number | null = null;
+
+  const requestMacMenuRefresh = (): void => {
+    if (window.electronAPI?.getPlatform() !== 'darwin') return;
+    if (macMenuRefreshTimer !== null) return;
+    macMenuRefreshTimer = window.setTimeout(() => {
+      macMenuRefreshTimer = null;
+      window.electronAPI?.refreshNativeMenu();
+    }, 0);
+  };
+
+  const getNativeMenuCheckState = (): NativeMenuCheckState => {
+    const state = panelMenuBridge.getState();
+    return {
+      'view:toggle-output': { checked: state.outputOpen && state.outputPaneVisible },
+      'view:toggle-problems': { checked: state.problemsOpen && state.outputPaneVisible },
+      'view:toggle-toolbar': { checked: state.toolbarVisible },
+      'view:toggle-transport-bar': { checked: state.transportVisible },
+      'view:toggle-channel-mixer': {
+        checked: state.channelMixerVisible,
+        enabled: isFeatureEnabled(FeatureFlag.CHANNEL_MIXER),
+      },
+      'view:toggle-song-visualizer': {
+        checked: state.channelsOpen && state.rightPaneVisible,
+        enabled: isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
+      },
+      'view:toggle-pattern-grid': {
+        checked: state.patternGridVisible,
+        enabled: isFeatureEnabled(FeatureFlag.PATTERN_GRID),
+      },
+      'view:toggle-ai-assistant': {
+        checked: state.aiOpen && state.rightPaneVisible,
+        enabled: isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
+      },
+      'view:toggle-wrap-text': { checked: settingWordWrap.get() },
+      'view:toggle-fold-all': { checked: settingFoldComments.get() },
+    };
+  };
+
+  (window as unknown as Record<string, unknown>).__beatbax_getNativeMenuCheckState = getNativeMenuCheckState;
 
   const toolbarRef: { current: DesktopToolbarHandle | null } = { current: null };
   const channelMixerRef: { current: DesktopChannelMixerHandle | null } = { current: null };
@@ -459,9 +504,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     settingWordWrap.subscribe((wrap) => {
       getEditor()?.editor.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
       toolbar.setWrapActive(wrap);
+      requestMacMenuRefresh();
     }),
     settingFoldComments.subscribe((folded) => {
       toolbar.setFoldCommentsActive(folded);
+      requestMacMenuRefresh();
     }),
   );
   suppressChromeTabFocus(toolbarHost);
@@ -480,7 +527,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     })));
   };
 
-  if (menuBarHost) {
+  const useInWindowMenuBar = window.electronAPI?.getPlatform() !== 'darwin';
+
+  if (menuBarHost && useInWindowMenuBar) {
     const menuSetup = setupDesktopMenuBar({
       container: menuBarHost,
       appContext,
@@ -718,6 +767,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(visible));
       }
       statusBar?.refreshPanelsMenu();
+      requestMacMenuRefresh();
     }),
     eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
       if (flag === FeatureFlag.CHANNEL_MIXER) {
@@ -848,7 +898,101 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     layout.dispose();
     layoutHost.remove();
     if (parseTimeout !== null) window.clearTimeout(parseTimeout);
+    if (macMenuRefreshTimer !== null) window.clearTimeout(macMenuRefreshTimer);
+    delete (window as unknown as Record<string, unknown>).__beatbax_getNativeMenuCheckState;
     for (const unsub of cleanups) unsub();
+  };
+
+  const exampleCache = new Map<string, string>();
+
+  const dispatchMenuAction = (action: MenuAction): void => {
+    const monacoInst = () => getEditor()?.editor ?? null;
+    const panelActionMap: Record<string, PanelMenuId> = {
+      'view:toggle-output': 'output',
+      'view:toggle-problems': 'problems',
+      'view:toggle-toolbar': 'toolbar',
+      'view:toggle-transport-bar': 'transport-bar',
+      'view:toggle-channel-mixer': 'channel-mixer',
+      'view:toggle-song-visualizer': 'song-visualizer',
+      'view:toggle-pattern-grid': 'pattern-grid',
+      'view:toggle-ai-assistant': 'ai-assistant',
+    };
+
+    if (action in panelActionMap) {
+      panelMenuBridge.toggle(panelActionMap[action]);
+      requestMacMenuRefresh();
+      return;
+    }
+
+    if (action.startsWith('file:load-example:')) {
+      const path = action.slice('file:load-example:'.length);
+      const label = path.split('/').pop() ?? 'example.bax';
+      playbackManager.stop();
+      const cached = exampleCache.get(path);
+      if (cached !== undefined) {
+        options.onLoadDocument(label, cached);
+        runParse(cached);
+        return;
+      }
+      void loadRemote(path).then((result) => {
+        const filename = label || result.filename;
+        exampleCache.set(path, result.content);
+        options.onLoadDocument(filename, result.content);
+        runParse(result.content);
+      }).catch((error) => {
+        console.error('Failed to load example song', error);
+      });
+      return;
+    }
+
+    switch (action) {
+      case 'edit:find':
+        monacoInst()?.trigger('menu', 'actions.find', null);
+        break;
+      case 'edit:replace':
+        monacoInst()?.trigger('menu', 'editor.action.startFindReplaceAction', null);
+        break;
+      case 'view:command-palette':
+        monacoInst()?.focus();
+        monacoInst()?.trigger('', 'editor.action.quickCommand', null);
+        break;
+      case 'view:toggle-wrap-text':
+        viewPrefsHandlers?.onToggleWrapText();
+        break;
+      case 'view:toggle-fold-all':
+        viewPrefsHandlers?.onToggleFoldAll();
+        break;
+      case 'view:zoom-in': {
+        const cur = (monacoInst()?.getOption(52) as number) || 14;
+        monacoInst()?.updateOptions({ fontSize: Math.min(cur + 2, 32) });
+        break;
+      }
+      case 'view:zoom-out': {
+        const cur = (monacoInst()?.getOption(52) as number) || 14;
+        monacoInst()?.updateOptions({ fontSize: Math.max(cur - 2, 8) });
+        break;
+      }
+      case 'view:zoom-reset':
+        monacoInst()?.updateOptions({ fontSize: 14 });
+        break;
+      case 'view:toggle-theme':
+        themeManager.toggle();
+        break;
+      case 'view:settings':
+        settingsModal.open();
+        break;
+      case 'help:shortcuts':
+        shortcutsModal.open();
+        break;
+      case 'help:about':
+        aboutModal.open();
+        break;
+      default:
+        break;
+    }
+    if (action.startsWith('view:')) {
+      requestMacMenuRefresh();
+    }
   };
 
   return {
@@ -877,6 +1021,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     },
     refreshEditorViewPrefs,
     refreshRecentFiles,
+    dispatchMenuAction,
     dispose,
   };
 }

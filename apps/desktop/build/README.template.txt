@@ -45,9 +45,16 @@ INSTALLING
     "Run anyway". The installer is built by the project's public CI workflow.
 
   macOS (.dmg or .zip)
-    If Gatekeeper says the app cannot be opened, right-click BeatBax in
-    Applications and choose Open, then confirm. Alternatively, open System
-    Settings -> Privacy & Security and allow the app when prompted.
+    Signed and notarized builds open normally when GitHub Actions secrets
+    (MACOS_CERTIFICATE, MAC_NOTARIZE_ID, etc.) are configured. Unsigned builds
+    may show "cannot be opened" or "is damaged" after download.
+
+    First launch workaround: right-click BeatBax in Applications and choose
+    Open, then confirm. Alternatively, open System Settings -> Privacy &
+    Security and allow the app when prompted.
+
+    If the browser quarantined the download, remove the quarantine attribute:
+      xattr -dr com.apple.quarantine /Applications/BeatBax.app
 
   Linux (.AppImage or .deb)
     For AppImage: make the file executable (chmod +x) if needed, then run it.
