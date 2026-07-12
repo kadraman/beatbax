@@ -29,11 +29,31 @@ export type MenuAction =
   | 'playback:play'
   | 'playback:pause'
   | 'playback:stop'
+  | 'edit:find'
+  | 'edit:replace'
+  | 'view:command-palette'
+  | 'view:toggle-output'
+  | 'view:toggle-problems'
+  | 'view:toggle-toolbar'
+  | 'view:toggle-transport-bar'
+  | 'view:toggle-channel-mixer'
+  | 'view:toggle-song-visualizer'
+  | 'view:toggle-pattern-grid'
+  | 'view:toggle-ai-assistant'
+  | 'view:toggle-wrap-text'
+  | 'view:toggle-fold-all'
+  | 'view:zoom-in'
+  | 'view:zoom-out'
+  | 'view:zoom-reset'
+  | 'view:toggle-theme'
+  | 'view:settings'
   | 'view:reload'
   | 'view:toggle-devtools'
   | 'help:docs'
   | 'help:repo'
-  | 'help:about';
+  | 'help:shortcuts'
+  | 'help:about'
+  | `file:load-example:${string}`;
 
 export interface DesktopWindowState {
   maximized: boolean;
@@ -93,4 +113,5 @@ export interface ElectronAPI {
   onWindowStateChanged(callback: (state: DesktopWindowState) => void): () => void;
   onMenuAction(callback: (action: MenuAction) => void): () => void;
   onFileOpened(callback: (payload: DesktopFilePayload) => void): () => void;
+  refreshNativeMenu(): void;
 }

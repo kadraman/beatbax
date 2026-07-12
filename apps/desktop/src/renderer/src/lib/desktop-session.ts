@@ -10,6 +10,13 @@ function basename(filePath: string): string {
   return parts[parts.length - 1] || filePath;
 }
 
+/** Clear persisted desktop document metadata and editor content. */
+export function clearPersistedDocumentSession(): void {
+  storage.remove(StorageKey.LAST_DOCUMENT_PATH);
+  storage.remove(StorageKey.LOADED_FILENAME);
+  storage.remove(StorageKey.EDITOR_CONTENT);
+}
+
 /** Persist the last known on-disk document location for session restore. */
 export function persistDocumentSession(path: string | null, name: string): void {
   storage.set(StorageKey.LOADED_FILENAME, name);

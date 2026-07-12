@@ -81,8 +81,45 @@ jobs:
       - name: Build shared packages
         run: npm run build-all
 
+      - name: Setup codesign certificate
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "MACOS_CERTIFICATE not configured; building unsigned macOS artifacts"
+            exit 0
+          fi
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" build.keychain
+
       - name: Build installers
+        env:
+          APPLE_ID: ${{ secrets.MAC_NOTARIZE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.MAC_NOTARIZE_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.MAC_NOTARIZE_TEAM }}
         run: npm run desktop:dist
+
+      - name: Verify macOS code signature
+        if: runner.os == 'macOS'
+        run: |
+          APP_PATH=$(find apps/desktop/dist -maxdepth 2 -name 'BeatBax.app' -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "BeatBax.app not found; skipping signature verification"
+            exit 0
+          fi
+          codesign -dv --verbose=4 "$APP_PATH" || true
+          if codesign -dv "$APP_PATH" 2>&1 | grep -q 'Signature=adhoc'; then
+            echo "Unsigned (adhoc) macOS build — configure MACOS_CERTIFICATE secrets for distribution"
+            exit 0
+          fi
+          spctl -a -vv -t install "$APP_PATH"
 
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
