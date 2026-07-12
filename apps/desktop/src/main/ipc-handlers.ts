@@ -83,9 +83,19 @@ function toFileBuffer(data: unknown): Buffer {
 const RECENT_FILES_LIMIT = 10;
 
 export interface DesktopIpcHandlersOptions {
-  window: BrowserWindow;
+  getWindow: () => BrowserWindow | null;
   recentFilesPath: string;
   onRecentFilesChanged?: () => void;
+}
+
+let desktopIpcHandlersRegistered = false;
+
+function requireMainWindow(getWindow: () => BrowserWindow | null): BrowserWindow {
+  const window = getWindow();
+  if (!window || window.isDestroyed()) {
+    throw new Error('No BeatBax window is open.');
+  }
+  return window;
 }
 
 function assertAbsoluteFilePath(targetPath: string): string {
@@ -555,10 +565,13 @@ export async function openRecentFile(_window: BrowserWindow, filePath: string): 
 }
 
 export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): void {
-  const { window, recentFilesPath, onRecentFilesChanged } = options;
+  if (desktopIpcHandlersRegistered) return;
+  desktopIpcHandlersRegistered = true;
+
+  const { getWindow, recentFilesPath, onRecentFilesChanged } = options;
 
   ipcMain.handle(IPC_CHANNELS.OPEN_FILE, async (_event: IpcMainInvokeEvent, request?: DesktopOpenFileOptions) => {
-    const payload = await chooseOpenFile(window, request);
+    const payload = await chooseOpenFile(requireMainWindow(getWindow), request);
     if (payload?.path) {
       await addRecentFileEntry(recentFilesPath, payload.path);
       onRecentFilesChanged?.();
@@ -567,7 +580,7 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   });
 
   ipcMain.handle(IPC_CHANNELS.SAVE_FILE, async (_event, request: DesktopSaveFileOptions, data: Uint8Array) => {
-    const savedPath = await persistFile(window, request, data);
+    const savedPath = await persistFile(requireMainWindow(getWindow), request, data);
     if (savedPath) {
       await addRecentFileEntry(recentFilesPath, savedPath);
       onRecentFilesChanged?.();
@@ -644,6 +657,9 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   });
 
   ipcMain.on(IPC_CHANNELS.OPEN_RECENT_FILE, (_event, filePath: string) => {
+    const window = getWindow();
+    if (!window || window.isDestroyed()) return;
+
     openRecentFile(window, filePath)
       .then(async (payload) => {
         await addRecentFileEntry(recentFilesPath, payload.path);
@@ -662,25 +678,30 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
-    window.minimize();
+    getWindow()?.minimize();
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE, () => {
+    const window = getWindow();
+    if (!window || window.isDestroyed()) return;
     if (window.isMaximized()) window.unmaximize();
     else window.maximize();
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => {
-    window.close();
+    getWindow()?.close();
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEVTOOLS, () => {
-    window.webContents.toggleDevTools();
+    getWindow()?.webContents.toggleDevTools();
   });
 
-  ipcMain.handle(IPC_CHANNELS.WINDOW_QUERY_STATE, () => ({
-    maximized: window.isMaximized(),
-  }));
+  ipcMain.handle(IPC_CHANNELS.WINDOW_QUERY_STATE, () => {
+    const window = getWindow();
+    return {
+      maximized: window ? !window.isDestroyed() && window.isMaximized() : false,
+    };
+  });
 }
 
 export function attachWindowStateEvents(window: BrowserWindow): () => void {

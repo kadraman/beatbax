@@ -175,3 +175,4 @@ songs/**/*.json
 t.cmd
 README.bax
 media/drawings/prompt.txt
+.DS_Store

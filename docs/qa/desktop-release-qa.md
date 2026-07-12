@@ -48,12 +48,14 @@ macOS and Linux installers are produced by the `desktop-build.yaml` package matr
 | Area | macOS | Linux |
 |------|-------|-------|
 | Installer artifact | `.dmg` + `.zip` via CI | `.AppImage` + `.deb` via CI |
-| `.bax` file association | Configured in `electron-builder.yml` | Configured |
-| Code signing / notarization | Not configured (`notarize: false`) | N/A |
+| System menu (no in-window duplicate on macOS) | Native menu via `menu.ts` | Custom title-bar menu |
+| Dock name/icon in dev | `app.setName('BeatBax')` + `dock.setIcon` | N/A |
+| Code signing / notarization | GB Studio-style CI (`MACOS_CERTIFICATE`, `MAC_NOTARIZE_*`); unsigned when secrets absent | N/A |
+| `.bax` file association icon | `file-bax.icns` via electron-builder | Configured |
 
 ## Known limitations (non-blocking for v0.1.0)
 
-- Installers are **unsigned** — Windows SmartScreen and macOS Gatekeeper will warn until code-signing certificates are configured.
+- Installers are **unsigned** when signing secrets are not configured — Windows SmartScreen and macOS Gatekeeper will warn until `MACOS_CERTIFICATE` and `MAC_NOTARIZE_*` GitHub secrets are set (GB Studio-style keychain import + `@electron/notarize` hook).
 - Visualizer and Channel Mixer use **bridge-mounted** web-ui panels (native React rewrite is Phase 5).
 - `electron-updater` auto-update is not yet integrated.
 

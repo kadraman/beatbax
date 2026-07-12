@@ -7,10 +7,11 @@ import type { MenuAction } from '../../shared/electron-api';
 import { DesktopWorkspaceShell, mapMenuActionToExport } from './components/DesktopWorkspaceShell';
 import { DesktopTitleBar } from './components/DesktopTitleBar';
 import { useStoreValue } from './hooks/useStoreValue';
-import { getInitialContent } from './lib/bootstrap';
+import { getInitialContent, getStarterSong } from './lib/bootstrap';
 import { autoSaveDocumentToDisk, saveDocumentToDisk } from './lib/desktop-document-save';
 import { canAutoSaveToDisk } from './lib/auto-save-policy';
-import { persistDocumentSession, readPersistedDocument } from './lib/desktop-session';
+import { clearPersistedDocumentSession, persistDocumentSession, readPersistedDocument } from './lib/desktop-session';
+import { readStartupMenuAction, shouldRestorePersistedSession } from './lib/desktop-startup';
 import type { DesktopWorkspaceHandle } from './lib/desktop-workspace';
 
 interface OpenDocument {
@@ -44,16 +45,25 @@ export default function App(): React.JSX.Element {
   const toolbarHostRef = useRef<HTMLDivElement | null>(null);
   const workspaceHostRef = useRef<HTMLDivElement | null>(null);
   const statusBarHostRef = useRef<HTMLDivElement | null>(null);
-  const [documentState, setDocumentState] = useState<OpenDocument>(() => readPersistedDocument());
+  const startupMenuActionRef = useRef(readStartupMenuAction());
+  const restorePersistedSession = shouldRestorePersistedSession(startupMenuActionRef.current);
+  const [documentState, setDocumentState] = useState<OpenDocument>(() => (
+    restorePersistedSession
+      ? readPersistedDocument()
+      : { path: null, name: 'untitled.bax' }
+  ));
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   const defaultBpm = useStoreValue(settingDefaultBpm);
-  const initialContent = useMemo(() => getInitialContent(defaultBpm), [defaultBpm]);
+  const initialContent = useMemo(() => (
+    restorePersistedSession ? getInitialContent(defaultBpm) : getStarterSong(defaultBpm)
+  ), [defaultBpm, restorePersistedSession]);
 
   const getEditor = useCallback(() => editorRef.current, []);
   const pendingEditorContentRef = useRef<string | null>(null);
   const pendingAutoPlayRef = useRef<PendingAutoPlay | null>(null);
   const lastParsedAstRef = useRef<unknown>(null);
+  const handleMenuActionRef = useRef<(action: MenuAction) => void>(() => {});
 
   const syncDocumentStatus = useCallback((doc: OpenDocument) => {
     workspaceRef.current?.statusBar?.setDocumentInfo({
@@ -211,6 +221,17 @@ export default function App(): React.JSX.Element {
     workspaceRef.current = handle;
     syncDocumentStatusRef.current(documentStateRef.current);
     void handle.refreshRecentFiles();
+
+    const startupMenuAction = startupMenuActionRef.current;
+    if (startupMenuAction) {
+      if (startupMenuAction === 'file:new') {
+        clearPersistedDocumentSession();
+      }
+      handleMenuActionRef.current(startupMenuAction);
+      startupMenuActionRef.current = null;
+      return;
+    }
+
     scheduleInitialParse();
   }, [scheduleInitialParse]);
 
@@ -237,10 +258,14 @@ export default function App(): React.JSX.Element {
       case 'view:toggle-devtools':
         window.electronAPI.toggleDevTools();
         break;
-      case 'help:about':
-        workspaceRef.current?.aboutModal.open();
-        break;
       default: {
+        if (action.startsWith('file:load-example:')
+          || action.startsWith('edit:')
+          || action.startsWith('view:')
+          || action.startsWith('help:')) {
+          workspaceRef.current?.dispatchMenuAction(action);
+          break;
+        }
         const exportFormat = mapMenuActionToExport(action);
         if (exportFormat) void workspaceRef.current?.handleExport(exportFormat);
         break;
@@ -248,7 +273,6 @@ export default function App(): React.JSX.Element {
     }
   }, [handleNew, handleOpen, handleSave]);
 
-  const handleMenuActionRef = useRef(handleMenuAction);
   handleMenuActionRef.current = handleMenuAction;
   const decodePayloadRef = useRef(decodePayload);
   decodePayloadRef.current = decodePayload;
@@ -267,6 +291,7 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    if (startupMenuActionRef.current) return;
     scheduleInitialParse();
   }, [scheduleInitialParse]);
 

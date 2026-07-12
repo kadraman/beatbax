@@ -77,6 +77,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on(IPC_CHANNELS.FILE_OPENED, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.FILE_OPENED, listener);
   },
+  refreshNativeMenu: () => {
+    ipcRenderer.send(IPC_CHANNELS.MENU_REFRESH_REQUEST);
+  },
 };
 
 if (process.contextIsolated) {
