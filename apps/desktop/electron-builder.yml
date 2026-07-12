@@ -30,6 +30,7 @@ fileAssociations:
     name: BeatBax Song
     description: BeatBax song file
     role: Editor
+    icon: build/file-bax.icns
 win:
   icon: build/icon.ico
   executableName: BeatBax
@@ -37,11 +38,18 @@ win:
     - nsis
     - portable
 mac:
+  icon: build/icon.icns
   target:
     - dmg
     - zip
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  extendInfo:
+    CFBundleDisplayName: BeatBax
   notarize: false
+afterSign: scripts/notarize.cjs
 linux:
   category: AudioVideo
   executableName: BeatBax

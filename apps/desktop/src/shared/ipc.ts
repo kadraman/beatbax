@@ -26,4 +26,5 @@ export const IPC_CHANNELS = {
   WINDOW_QUERY_STATE: 'desktop:window-query-state',
   WINDOW_STATE_CHANGED: 'desktop:window-state-changed',
   WINDOW_TOGGLE_DEVTOOLS: 'desktop:window-toggle-devtools',
+  MENU_REFRESH_REQUEST: 'desktop:menu-refresh-request',
 } as const;
