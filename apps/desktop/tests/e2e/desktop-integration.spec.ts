@@ -564,3 +564,17 @@ test('saves edits back to an opened .bax file', async () => {
   await electronApp.close();
   rmSync(tempDir, { recursive: true, force: true });
 });
+
+test('uses platform-appropriate menu chrome', async () => {
+  const { electronApp, page } = await launchDesktopApp();
+  const platform = await page.evaluate(() => (window as unknown as { electronAPI: { getPlatform(): string } }).electronAPI.getPlatform());
+  const inWindowMenuCount = await page.locator('.desktop-title-bar__menu-host .bb-menu-bar').count();
+
+  if (platform === 'darwin') {
+    expect(inWindowMenuCount).toBe(0);
+  } else {
+    expect(inWindowMenuCount).toBe(1);
+  }
+
+  await electronApp.close();
+});

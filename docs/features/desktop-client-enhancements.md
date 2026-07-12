@@ -253,8 +253,8 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 - [ ] Configure Azure Artifact Signing account/certificate profile for Windows Authenticode signing
 - [ ] Obtain Apple Developer ID + notarization credentials
-- [ ] Configure signing in `electron-builder.yml` and CI secrets
-- [ ] Enable macOS notarization (`notarize: true`)
+- [x] Configure signing in `electron-builder.yml` and CI secrets (GB Studio-style keychain + `afterSign` notarize hook; requires GitHub secrets)
+- [x] Enable macOS notarization (custom `scripts/notarize.cjs` hook; skips when secrets absent)
 - [ ] Integrate `electron-updater` with GitHub Releases
 - [ ] Add Check for Updates menu item and renderer update prompt
 
@@ -288,7 +288,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [ ] macOS interactive QA sign-off
 - [ ] Linux interactive QA sign-off
 - [ ] `.bax` double-click verification (Windows + macOS)
-- [ ] Playwright: native menu + multi-format export tests
+- [x] Playwright: platform-appropriate menu chrome (native menu on darwin)
 
 ---
 

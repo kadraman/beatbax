@@ -1,40 +1,113 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, nativeImage, shell, ipcMain } from 'electron';
 import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { addRecentFileEntry, attachWindowStateEvents, clearRecentFileEntries, registerDesktopIpcHandlers, openRecentFile, readRecentFiles } from './ipc-handlers';
 import { installAppMenu } from './menu';
+import type { AppMenuHandlers } from './menu';
+import { readNativeMenuCheckState } from './menu-check-state';
 import { resolvePreloadPath } from './resolve-preload';
 import { IPC_CHANNELS } from '../shared/ipc';
+import type { MenuAction } from '../shared/electron-api';
 
 let mainWindow: BrowserWindow | null = null;
+let windowCreation: Promise<void> | null = null;
+let pendingStartupMenuAction: MenuAction | null = null;
 let pendingOpenPaths: string[] = [];
 let detachWindowStateEvents: (() => void) | null = null;
 
 const isMac = process.platform === 'darwin';
+const APP_DISPLAY_NAME = 'BeatBax';
+const DEV_ICON_PATH = join(__dirname, '../../resources/icon.png');
+
+if (is.dev) {
+  app.setName(APP_DISPLAY_NAME);
+}
 
 const recentFilesPath = join(app.getPath('userData'), 'recent-files.json');
 
-async function refreshMenu(): Promise<void> {
-  if (!mainWindow) return;
-  installAppMenu(mainWindow, await readRecentFiles(recentFilesPath), (filePath) => {
+function getMainWindow(): BrowserWindow | null {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  return mainWindow;
+}
+
+async function ensureMainWindow(): Promise<BrowserWindow | null> {
+  if (getMainWindow()) return mainWindow;
+  if (!windowCreation) {
+    windowCreation = createWindow().finally(() => {
+      windowCreation = null;
+    });
+  }
+  await windowCreation;
+  return getMainWindow();
+}
+
+function dispatchMenuAction(action: MenuAction): void {
+  void (async () => {
+    try {
+      const recreating = !getMainWindow();
+      if (recreating) {
+        pendingStartupMenuAction = action;
+      }
+      const window = await ensureMainWindow();
+      if (!window) {
+        pendingStartupMenuAction = null;
+        return;
+      }
+      if (recreating) return;
+      window.webContents.send(IPC_CHANNELS.MENU_ACTION, action);
+    } catch (error) {
+      pendingStartupMenuAction = null;
+      console.error('Failed to dispatch menu action', action, error);
+    }
+  })();
+}
+
+const menuHandlers: AppMenuHandlers = {
+  getWindow: getMainWindow,
+  onMenuAction: dispatchMenuAction,
+  onOpenRecent: (filePath) => {
     void sendOpenedFile(filePath);
-  }, () => {
+  },
+  onClearRecent: () => {
     void clearRecentFileEntries(recentFilesPath).then(refreshMenu);
-  });
+  },
+};
+
+function configureMacDevDockIcon(): void {
+  if (!is.dev || !isMac || !app.dock) return;
+  const candidates = [DEV_ICON_PATH, icon];
+  for (const candidate of candidates) {
+    if (!candidate || !existsSync(candidate)) continue;
+    const dockIcon = nativeImage.createFromPath(candidate);
+    if (!dockIcon.isEmpty()) {
+      app.dock.setIcon(dockIcon);
+      return;
+    }
+  }
+}
+
+async function refreshMenu(): Promise<void> {
+  const window = getMainWindow();
+  const menuChecks = isMac && window
+    ? await readNativeMenuCheckState(window)
+    : undefined;
+  installAppMenu(await readRecentFiles(recentFilesPath), menuHandlers, menuChecks);
 }
 
 async function sendOpenedFile(filePath: string): Promise<void> {
-  if (!mainWindow) {
+  const window = getMainWindow();
+  if (!window) {
     pendingOpenPaths.push(filePath);
+    await ensureMainWindow();
     return;
   }
 
   try {
-    const payload = await openRecentFile(mainWindow, filePath);
+    const payload = await openRecentFile(window, filePath);
     await addRecentFileEntry(recentFilesPath, payload.path);
-    mainWindow.webContents.send(IPC_CHANNELS.FILE_OPENED, payload);
+    window.webContents.send(IPC_CHANNELS.FILE_OPENED, payload);
     await refreshMenu();
   } catch (error) {
     console.error('Failed to open desktop file', error);
@@ -42,7 +115,7 @@ async function sendOpenedFile(filePath: string): Promise<void> {
 }
 
 async function flushPendingOpenPaths(): Promise<void> {
-  if (!mainWindow) return;
+  if (!getMainWindow()) return;
   const queuedPaths = [...pendingOpenPaths];
   pendingOpenPaths = [];
   for (const filePath of queuedPaths) {
@@ -62,6 +135,8 @@ function queueStartupSongPaths(): void {
 
 async function createWindow(): Promise<void> {
   const preloadPath = resolvePreloadPath(__dirname);
+  const startupMenuAction = pendingStartupMenuAction;
+  pendingStartupMenuAction = null;
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -100,6 +175,7 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.on('ready-to-show', () => {
+    configureMacDevDockIcon();
     mainWindow?.show();
   });
 
@@ -114,28 +190,21 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
-  ipcMain.removeAllListeners(IPC_CHANNELS.FILE_OPENED_REQUEST);
-  ipcMain.on(IPC_CHANNELS.FILE_OPENED_REQUEST, (_event, filePath: string) => {
-    void sendOpenedFile(filePath);
-  });
-
-  registerDesktopIpcHandlers({
-    window: mainWindow,
-    recentFilesPath,
-    onRecentFilesChanged: () => {
-      void refreshMenu();
-    },
-  });
-
-  await refreshMenu();
-
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+    const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL);
+    if (startupMenuAction) {
+      rendererUrl.searchParams.set('desktopAction', startupMenuAction);
+    }
+    await mainWindow.loadURL(rendererUrl.toString());
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    await mainWindow.loadFile(
+      join(__dirname, '../renderer/index.html'),
+      startupMenuAction ? { query: { desktopAction: startupMenuAction } } : undefined,
+    );
   }
 
+  await refreshMenu();
   await flushPendingOpenPaths();
 }
 
@@ -144,6 +213,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(async () => {
+  configureMacDevDockIcon();
   electronApp.setAppUserModelId('com.beatbax.desktop');
 
   if (process.defaultApp) {
@@ -159,12 +229,32 @@ app.whenReady().then(async () => {
   });
 
   queueStartupSongPaths();
+
+  registerDesktopIpcHandlers({
+    getWindow: getMainWindow,
+    recentFilesPath,
+    onRecentFilesChanged: () => {
+      void refreshMenu();
+    },
+  });
+
+  ipcMain.on(IPC_CHANNELS.FILE_OPENED_REQUEST, (_event, filePath: string) => {
+    void sendOpenedFile(filePath);
+  });
+
+  ipcMain.on(IPC_CHANNELS.MENU_REFRESH_REQUEST, () => {
+    void refreshMenu();
+  });
+
   await createWindow();
 
   app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createWindow();
-    }
+    configureMacDevDockIcon();
+    const window = await ensureMainWindow();
+    if (!window) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
   });
 });
 
@@ -179,10 +269,12 @@ app.on('second-instance', (_event, argv) => {
     void sendOpenedFile(openedPath);
   }
 
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  }
+  void (async () => {
+    const window = await ensureMainWindow();
+    if (!window) return;
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  })();
 });
 
 app.on('window-all-closed', () => {
