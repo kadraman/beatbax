@@ -34,5 +34,5 @@ export const DEFAULT_NATIVE_MENU_CHECK_STATE: NativeMenuCheckState = {
 };
 
 export function isNativeMenuCheckAction(action: MenuAction): action is NativeMenuCheckAction {
-  return action in DEFAULT_NATIVE_MENU_CHECK_STATE;
+  return Object.prototype.hasOwnProperty.call(DEFAULT_NATIVE_MENU_CHECK_STATE, action);
 }

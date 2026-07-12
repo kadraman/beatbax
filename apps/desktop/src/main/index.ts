@@ -89,8 +89,9 @@ function configureMacDevDockIcon(): void {
 }
 
 async function refreshMenu(): Promise<void> {
-  const menuChecks = isMac && getMainWindow()
-    ? await readNativeMenuCheckState(getMainWindow()!)
+  const window = getMainWindow();
+  const menuChecks = isMac && window
+    ? await readNativeMenuCheckState(window)
     : undefined;
   installAppMenu(await readRecentFiles(recentFilesPath), menuHandlers, menuChecks);
 }

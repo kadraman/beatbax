@@ -108,17 +108,19 @@ jobs:
 
       - name: Verify macOS code signature
         if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
         run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "MACOS_CERTIFICATE not configured; skipping macOS signature verification"
+            exit 0
+          fi
           APP_PATH=$(find apps/desktop/dist -maxdepth 2 -name 'BeatBax.app' -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "BeatBax.app not found; skipping signature verification"
             exit 0
           fi
-          codesign -dv --verbose=4 "$APP_PATH" || true
-          if codesign -dv "$APP_PATH" 2>&1 | grep -q 'Signature=adhoc'; then
-            echo "Unsigned (adhoc) macOS build — configure MACOS_CERTIFICATE secrets for distribution"
-            exit 0
-          fi
+          codesign -dv --verbose=4 "$APP_PATH"
           spctl -a -vv -t install "$APP_PATH"
 
       - name: Upload desktop artifacts
