@@ -176,7 +176,7 @@ editor = createEditor({
   value: getInitialContent(settingDefaultBpm.get()),
   theme: 'beatbax-dark',
   language: 'beatbax',
-  autoSaveDelay: storage.getJSON<boolean>(StorageKey.AUTO_SAVE, true) !== false ? 500 : 0,
+  autoSaveDelay: 0,
   emitChangedEvents: true,
 });
 

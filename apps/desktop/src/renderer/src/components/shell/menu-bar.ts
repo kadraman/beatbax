@@ -56,6 +56,8 @@ export interface MenuBarOptions {
   onSave?: () => void;
   /** Download the current document with a user-chosen name (Ctrl+Shift+S). */
   onSaveAs?: () => void;
+  /** Toggle auto-save to disk (desktop). */
+  onToggleAutoSave?: () => void;
   /**
    * Called when an example or recent file is selected from the menu.
    * @param filename  Suggested filename for the editor tab title.
@@ -336,6 +338,10 @@ export class MenuBar {
     this.setItemChecked('fold-all', checked);
   }
 
+  setAutoSaveChecked(checked: boolean): void {
+    this.setItemChecked('auto-save', checked);
+  }
+
   triggerNew(): void { this.opts.onNew?.(); }
   triggerOpen(): void { this.opts.onOpen?.(); }
   triggerSave(): void { this.opts.onSave?.(); }
@@ -561,6 +567,13 @@ export class MenuBar {
         label: 'Save As…',
         shortcut: 'Ctrl+Shift+S',
         action: () => this.opts.onSaveAs?.(),
+      },
+      {
+        type: 'item',
+        label: 'Auto Save',
+        id: 'auto-save',
+        checkable: true,
+        action: () => this.opts.onToggleAutoSave?.(),
       },
       { type: 'separator' },
       {

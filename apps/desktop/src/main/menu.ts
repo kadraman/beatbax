@@ -52,6 +52,7 @@ function buildRecentSubmenu(
 function buildFileMenu(
   handlers: AppMenuHandlers,
   recentFiles: string[],
+  menuChecks: NativeMenuCheckState,
 ): MenuItemConstructorOptions {
   const submenu: MenuItemConstructorOptions[] = [
     { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction(handlers, 'file:new') },
@@ -63,6 +64,12 @@ function buildFileMenu(
     { type: 'separator' },
     { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction(handlers, 'file:save') },
     { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenuAction(handlers, 'file:save-as') },
+    {
+      label: 'Auto Save',
+      type: 'checkbox',
+      checked: menuChecks['file:toggle-auto-save'].checked,
+      click: () => sendMenuAction(handlers, 'file:toggle-auto-save'),
+    },
     { type: 'separator' },
     {
       label: 'Export',
@@ -259,7 +266,7 @@ export function createMenuTemplate(
   handlers: AppMenuHandlers,
   menuChecks: NativeMenuCheckState = DEFAULT_NATIVE_MENU_CHECK_STATE,
 ): MenuItemConstructorOptions[] {
-  const fileMenu = buildFileMenu(handlers, recentFiles);
+  const fileMenu = buildFileMenu(handlers, recentFiles, menuChecks);
 
   if (isMac) {
     return [

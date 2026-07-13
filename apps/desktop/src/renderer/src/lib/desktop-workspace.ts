@@ -39,7 +39,7 @@ import { registerDesktopShortcuts } from './register-shortcuts';
 import { setupDesktopMonacoShortcuts } from './setup-desktop-monaco-shortcuts';
 import { setupFullIdeFeatures, type TransportDisplayState } from './full-ide-setup';
 import { createEditorViewPrefsHandlers, syncEditorViewPrefsToToolbar, scheduleCommentsFoldPreference } from './editor-view-prefs';
-import { settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
+import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { blurChromeFocus, focusWorkspaceEditor, suppressChromeTabFocus } from './desktop-focus';
 import { createDesktopOutputPanel, type DesktopOutputPanelHandle } from '../components/panels/OutputPanels';
 import { createDesktopHelpPanel, type DesktopHelpPanelHandle } from '../components/panels/HelpPanel';
@@ -236,6 +236,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   const getNativeMenuCheckState = (): NativeMenuCheckState => {
     const state = panelMenuBridge.getState();
     return {
+      'file:toggle-auto-save': { checked: settingAutoSave.get() },
       'view:toggle-output': { checked: state.outputOpen && state.outputPaneVisible },
       'view:toggle-problems': { checked: state.problemsOpen && state.outputPaneVisible },
       'view:toggle-toolbar': { checked: state.toolbarVisible },
@@ -500,6 +501,10 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
   if (settingFoldComments.get()) {
     scheduleCommentsFoldPreference(getEditor()?.editor ?? null, toolbar);
   }
+
+  let menuBar: MenuBar | null = null;
+  let disposeMenuBar: (() => void) | null = null;
+
   cleanups.push(
     settingWordWrap.subscribe((wrap) => {
       getEditor()?.editor.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
@@ -510,12 +515,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       toolbar.setFoldCommentsActive(folded);
       requestMacMenuRefresh();
     }),
+    settingAutoSave.subscribe(() => {
+      menuBar?.setAutoSaveChecked(settingAutoSave.get());
+      requestMacMenuRefresh();
+    }),
   );
   suppressChromeTabFocus(toolbarHost);
   blurChromeFocus();
-
-  let menuBar: MenuBar | null = null;
-  let disposeMenuBar: (() => void) | null = null;
 
   const refreshRecentFiles = async (): Promise<void> => {
     if (!menuBar || !window.electronAPI) return;
@@ -946,6 +952,11 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     }
 
     switch (action) {
+      case 'file:toggle-auto-save':
+        settingAutoSave.set(!settingAutoSave.get());
+        menuBar?.setAutoSaveChecked(settingAutoSave.get());
+        requestMacMenuRefresh();
+        break;
       case 'edit:find':
         monacoInst()?.trigger('menu', 'actions.find', null);
         break;

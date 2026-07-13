@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createEditor, configureMonaco, registerBeatBaxLanguage, registerNoteEditCommands } from '@beatbax/app-core/editor';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
-import { settingAutoSave } from '@beatbax/app-core/stores/settings.store';
+import { getEffectiveAutoSaveDelay, settingAutoSave, settingAutoSaveDelay } from '@beatbax/app-core/stores/settings.store';
 
 interface EditorPaneProps {
   host: HTMLElement | null;
@@ -34,15 +34,23 @@ export function EditorPane({ host, initialValue, onReady }: EditorPaneProps): Re
         value: initialValue,
         theme: 'beatbax-dark',
         language: 'beatbax',
-        autoSaveDelay: settingAutoSave.get() ? 500 : 0,
+        autoSaveDelay: getEffectiveAutoSaveDelay(),
         emitChangedEvents: true,
       });
 
       registerNoteEditCommands(editor.editor);
       onReadyRef.current(editor);
+
+      const applyAutoSaveDelay = (): void => {
+        editor.setAutoSaveDelay(getEffectiveAutoSaveDelay());
+      };
+      const unsubAutoSave = settingAutoSave.subscribe(applyAutoSaveDelay);
+      const unsubAutoSaveDelay = settingAutoSaveDelay.subscribe(applyAutoSaveDelay);
       setEditorError(null);
 
       return () => {
+        unsubAutoSave();
+        unsubAutoSaveDelay();
         editor.dispose();
       };
     } catch (error) {

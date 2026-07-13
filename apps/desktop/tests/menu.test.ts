@@ -3,6 +3,7 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { createMenuTemplate, type AppMenuHandlers } from '../src/main/menu';
 import type { MenuAction } from '../src/shared/electron-api';
+import { DEFAULT_NATIVE_MENU_CHECK_STATE } from '../src/shared/native-menu-checks';
 
 function findTopLevelMenu(template: MenuItemConstructorOptions[], label: string): MenuItemConstructorOptions {
   const item = template.find((entry) => entry.label === label);
@@ -91,6 +92,21 @@ describe('desktop native menu', () => {
     expect(mockWindow.webContents.send).not.toHaveBeenCalled();
   });
 
+  it('includes Auto Save as a checkbox in the File menu', () => {
+    const template = createMenuTemplate([], handlers(), {
+      ...DEFAULT_NATIVE_MENU_CHECK_STATE,
+      'file:toggle-auto-save': { checked: false },
+    });
+    const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
+    const autoSave = fileMenu.find((item) => item.label === 'Auto Save')!;
+
+    expect(autoSave.type).toBe('checkbox');
+    expect(autoSave.checked).toBe(false);
+
+    autoSave.click?.({} as any, mockWindow, {} as any);
+    expect(onMenuAction).toHaveBeenCalledWith('file:toggle-auto-save');
+  });
+
   it('includes a clear action in Open Recent', () => {
     const onClearRecent = jest.fn();
     const template = createMenuTemplate(
@@ -142,6 +158,7 @@ describe('desktop native menu', () => {
     if (!isMac) return;
 
     const template = createMenuTemplate([], handlers(), {
+      ...DEFAULT_NATIVE_MENU_CHECK_STATE,
       'view:toggle-output': { checked: false },
       'view:toggle-problems': { checked: true },
       'view:toggle-toolbar': { checked: true },

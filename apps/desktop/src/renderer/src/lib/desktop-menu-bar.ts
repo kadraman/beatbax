@@ -4,7 +4,7 @@ import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EditorViewPrefsHandlers } from './editor-view-prefs';
 import { scheduleCommentsFoldPreference } from './editor-view-prefs';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
-import { settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
+import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
 import type { AboutModalController, ShortcutsModalController } from '../components/shell/modals';
@@ -131,6 +131,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onToggleTheme: () => themeManager.toggle(),
     onToggleWrapText: () => viewPrefsHandlers.onToggleWrapText(),
     onToggleFoldAll: () => viewPrefsHandlers.onToggleFoldAll(),
+    onToggleAutoSave: () => settingAutoSave.set(!settingAutoSave.get()),
     onToggleAI: () => copilot?.toggle() ?? false,
     getToolbarVisible: () => toolbar.isVisible(),
     getTransportVisible: () => transportBar.isVisible(),
@@ -138,8 +139,10 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
 
   menuBar.setWrapTextChecked(settingWordWrap.get());
   menuBar.setFoldAllChecked(settingFoldComments.get());
+  menuBar.setAutoSaveChecked(settingAutoSave.get());
   const unsubWrap = settingWordWrap.subscribe((wrap) => menuBar.setWrapTextChecked(wrap));
   const unsubFold = settingFoldComments.subscribe((folded) => menuBar.setFoldAllChecked(folded));
+  const unsubAutoSave = settingAutoSave.subscribe((enabled) => menuBar.setAutoSaveChecked(enabled));
 
   menuBar.seedPanelVisible({
     toolbar: settingShowToolbar.get(),
@@ -165,6 +168,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     dispose: () => {
       unsubWrap();
       unsubFold();
+      unsubAutoSave();
       menuBar.dispose();
     },
   };

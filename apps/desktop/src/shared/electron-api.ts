@@ -22,6 +22,7 @@ export type MenuAction =
   | 'file:open'
   | 'file:save'
   | 'file:save-as'
+  | 'file:toggle-auto-save'
   | 'file:export-json'
   | 'file:export-midi'
   | 'file:export-uge'
