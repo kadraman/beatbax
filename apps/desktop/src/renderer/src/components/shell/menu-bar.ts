@@ -16,13 +16,22 @@ import { icon } from '../../utils/icons';
 import { appAssetUrl } from '../../utils/app-asset-url';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
-import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { getCurrentCapabilities, getClientProfile } from '@beatbax/app-core/client-profile';
+import {
+  detectShortcutPlatform,
+  formatCommandShortcut,
+  primaryModifierLabel,
+  type ShortcutCommandId,
+} from '@beatbax/app-core/shortcuts';
 import { resolveUiChipId } from '../../utils/chip-resolve';
 import type { LoadingOverlay } from './loading-overlay';
 
 const log = createLogger('ui:menu-bar');
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+const shortcutPlatform = detectShortcutPlatform();
+const shortcutProfile = getClientProfile();
+const mod = primaryModifierLabel(shortcutPlatform);
+const menuShortcut = (id: ShortcutCommandId) => formatCommandShortcut(id, shortcutProfile, shortcutPlatform);
 
 const RECENT_STORAGE_KEY = 'beatbax:menu.recentFiles';
 const MAX_RECENT = 8;
@@ -539,14 +548,13 @@ export class MenuBar {
       {
         type: 'item',
         label: 'New',
-        // Ctrl+N is reserved by browsers (opens a new window) and cannot be
-        // intercepted — access New via the menu or toolbar instead.
+        shortcut: menuShortcut('file.new'),
         action: () => this.opts.onNew?.(),
       },
       {
         type: 'item',
         label: 'Open…',
-        shortcut: 'Ctrl+O',
+        shortcut: menuShortcut('file.open'),
         action: () => this.opts.onOpen?.(),
       },
       { type: 'separator' },
@@ -559,13 +567,13 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Save',
-        shortcut: 'Ctrl+S',
+        shortcut: menuShortcut('file.save'),
         action: () => this.opts.onSave?.(),
       },
       {
         type: 'item',
         label: 'Save As…',
-        shortcut: 'Ctrl+Shift+S',
+        shortcut: menuShortcut('file.saveAs'),
         action: () => this.opts.onSaveAs?.(),
       },
       {
@@ -590,52 +598,52 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Undo',
-        shortcut: 'Ctrl+Z',
+        shortcut: menuShortcut('edit.undo'),
         action: () => this.opts.onUndo?.(),
       },
       {
         type: 'item',
         label: 'Redo',
-        shortcut: 'Ctrl+Y',
+        shortcut: menuShortcut('edit.redo'),
         action: () => this.opts.onRedo?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Cut',
-        shortcut: 'Ctrl+X',
+        shortcut: `${mod}+X`,
         action: () => this.opts.onCut?.(),
       },
       {
         type: 'item',
         label: 'Copy',
-        shortcut: 'Ctrl+C',
+        shortcut: `${mod}+C`,
         action: () => this.opts.onCopy?.(),
       },
       {
         type: 'item',
         label: 'Paste',
-        shortcut: 'Ctrl+V',
+        shortcut: `${mod}+V`,
         action: () => this.opts.onPaste?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Find',
-        shortcut: 'Ctrl+F',
+        shortcut: `${mod}+F`,
         action: () => this.opts.onFind?.(),
       },
       {
         type: 'item',
         label: 'Replace',
-        shortcut: 'Ctrl+H',
+        shortcut: `${mod}+H`,
         action: () => this.opts.onReplace?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Select All',
-        shortcut: 'Ctrl+A',
+        shortcut: `${mod}+A`,
         action: () => this.opts.onSelectAll?.(),
       },
     ];
@@ -673,7 +681,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Command Palette…',
-        shortcut: 'Ctrl+Shift+P',
+        shortcut: menuShortcut('tools.openCommandPalette'),
         action: () => this.opts.onOpenCommandPalette?.(),
       },
       { type: 'separator' },
@@ -682,7 +690,7 @@ export class MenuBar {
         label: 'Output',
         id: 'output-toggle',
         checkable: true,
-        shortcut: 'Ctrl+`',
+        shortcut: menuShortcut('view.showOutput'),
         action: () => this.emitPanelToggle('output'),
       },
       {
@@ -690,7 +698,7 @@ export class MenuBar {
         label: 'Problems',
         id: 'problems-toggle',
         checkable: true,
-        shortcut: 'Alt+Shift+P',
+        shortcut: menuShortcut('view.showProblems'),
         action: () => this.emitPanelToggle('problems'),
       },
       {
@@ -698,7 +706,7 @@ export class MenuBar {
         label: 'Toolbar',
         id: 'toolbar-toggle',
         checkable: true,
-        shortcut: 'Ctrl+Shift+B',
+        shortcut: menuShortcut('view.toggleToolbar'),
         action: () => this.emitPanelToggle('toolbar'),
       },
       {
@@ -706,7 +714,7 @@ export class MenuBar {
         label: 'Transport Bar',
         id: 'transport-bar-toggle',
         checkable: true,
-        shortcut: 'Ctrl+Shift+R',
+        shortcut: menuShortcut('view.toggleTransportBar'),
         action: () => this.emitPanelToggle('transport-bar'),
       },
       {
@@ -714,7 +722,7 @@ export class MenuBar {
         label: 'Channel Mixer',
         id: 'channel-mixer-toggle',
         checkable: true,
-        shortcut: 'Ctrl+Shift+M',
+        shortcut: menuShortcut('view.toggleChannelMixer'),
         disabled: !isFeatureEnabled(FeatureFlag.CHANNEL_MIXER),
         action: () => this.emitPanelToggle('channel-mixer'),
       },
@@ -723,7 +731,7 @@ export class MenuBar {
         label: 'Song Visualizer',
         id: 'song-visualizer-toggle',
         checkable: true,
-        shortcut: 'Ctrl+Shift+V',
+        shortcut: menuShortcut('view.showSongVisualizer'),
         disabled: !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
         action: () => this.emitPanelToggle('song-visualizer'),
       },
@@ -732,7 +740,7 @@ export class MenuBar {
         label: 'Pattern Grid',
         id: 'pattern-grid-toggle',
         checkable: true,
-        shortcut: 'Ctrl+Shift+G',
+        shortcut: menuShortcut('view.togglePatternGrid'),
         disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
         action: () => this.emitPanelToggle('pattern-grid'),
       },
@@ -742,7 +750,7 @@ export class MenuBar {
         label: 'AI Assistant',
         id: 'ai-assistant',
         checkable: true,
-        shortcut: 'Alt+Shift+I',
+        shortcut: menuShortcut('tools.toggleCopilot'),
         disabled: !isFeatureEnabled(FeatureFlag.AI_ASSISTANT),
         action: () => {
           const visible = this.opts.onToggleAI?.();
@@ -772,33 +780,33 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Zoom In',
-        shortcut: 'Ctrl++',
+        shortcut: `${mod}++`,
         action: () => this.opts.onZoomIn?.(),
       },
       {
         type: 'item',
         label: 'Zoom Out',
-        shortcut: 'Ctrl+-',
+        shortcut: `${mod}+-`,
         action: () => this.opts.onZoomOut?.(),
       },
       {
         type: 'item',
         label: 'Reset Zoom',
-        shortcut: 'Ctrl+0',
+        shortcut: `${mod}+0`,
         action: () => this.opts.onZoomReset?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Theme (Dark / Light)',
-        shortcut: 'Ctrl+Shift+L',
+        shortcut: menuShortcut('view.toggleTheme'),
         action: () => this.opts.onToggleTheme?.(),
       },
       { type: 'separator' },
       {
         type: 'item',
         label: 'Settings…',
-        shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+,`,
+        shortcut: menuShortcut('tools.openSettings'),
         action: () => this.opts.onShowSettings?.(),
       },
     ];
@@ -814,7 +822,7 @@ export class MenuBar {
       {
         type: 'item',
         label: 'Keyboard Shortcuts…',
-        shortcut: 'Alt+Shift+K',
+        shortcut: menuShortcut('help.showShortcuts'),
         action: () => this.opts.onShowShortcuts?.(),
       },
       {
@@ -822,7 +830,7 @@ export class MenuBar {
         label: 'Help Panel…',
         id: 'help-panel-toggle',
         checkable: true,
-        shortcut: 'Shift+F1',
+        shortcut: menuShortcut('help.showHelp'),
         action: () => this.emitPanelToggle('help'),
       },
     ];

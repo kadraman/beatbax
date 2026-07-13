@@ -866,6 +866,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     monacoShortcutsDispose = setupDesktopMonacoShortcuts({
       editor: editor.editor,
       transportBar,
+      toolbar: toolbarRef.current!,
       rightTabs,
       bottomTabs,
       shortcutsModal,

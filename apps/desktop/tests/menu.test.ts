@@ -179,4 +179,18 @@ describe('desktop native menu', () => {
     expect(wrapText.type).toBe('checkbox');
     expect(wrapText.checked).toBe(true);
   });
+
+  it('uses catalog accelerators for desktop panel toggles on macOS', () => {
+    if (!isMac) return;
+
+    const template = createMenuTemplate([], handlers());
+    const viewMenu = findTopLevelMenu(template, 'View').submenu as MenuItemConstructorOptions[];
+    const toolbar = viewMenu.find((item) => item.label === 'Toolbar')!;
+    const transport = viewMenu.find((item) => item.label === 'Transport Bar')!;
+    const patternGrid = viewMenu.find((item) => item.label === 'Pattern Grid')!;
+
+    expect(toolbar.accelerator).toBe('CmdOrCtrl+Shift+B');
+    expect(transport.accelerator).toBe('CmdOrCtrl+Shift+R');
+    expect(patternGrid.accelerator).toBe('CmdOrCtrl+Shift+G');
+  });
 });

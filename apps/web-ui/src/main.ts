@@ -16,6 +16,9 @@ import './styles.css';
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core/app/create-app-context';
+import { getClientProfile } from '@beatbax/app-core/client-profile';
+import { registerCatalogShortcuts } from '@beatbax/app-core/shortcuts';
+import { registerMonacoShortcuts } from '@beatbax/app-core/shortcuts/monaco';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
@@ -90,7 +93,7 @@ import { Toolbar } from './ui/toolbar';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { DragDropHandler } from '@beatbax/app-core/import/drag-drop-handler';
 
-import { KeyCode, KeyMod } from 'monaco-editor';
+import { KeyCode } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { LoadingOverlay } from './ui/loading-overlay';
@@ -1684,51 +1687,25 @@ const dragDrop = new DragDropHandler(document.body, {
 const monacoInst = editor.editor;
 const toggleTheme = () => themeManager.toggle();
 
-// F5/F8 only in desktop-full — in the browser they reload the page when the editor is unfocused.
-if (capabilities.nativeMenu) {
-  monacoInst.addCommand(KeyCode.F5, () => { transportBar.playButton.click(); });
-  monacoInst.addCommand(KeyCode.F8, () => { transportBar.stopButton.click(); });
-}
-// Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.applyButton.click(); });
-// Shift+F1 → Switch to Help tab (F1 alone is Monaco's own Command Palette — leave that alone)
-monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { rightTabs.show('help'); });
-// Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
-// Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcutsModal.open(); });
-// Ctrl+, → Settings modal (standard VS Code convention; overrides Monaco's default).
-if (capabilities.settingsPanel) {
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Comma, () => { settingsModal.open(); });
-}
-// Alt+Shift+V → Verify syntax (no browser conflict).
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify(); });
-// Ctrl+Shift+L → Theme toggle.
-// Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
-// here via addCommand overrides that default while Monaco has focus.
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { toggleTheme(); });
-// Ctrl+Shift+V → Switch to Song Visualizer tab (Monaco captures this key when focused).
-if (capabilities.songVisualizer) {
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
-    rightTabs.show('channels');
-  });
-}
-if (capabilities.channelMixer) {
-  // Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
+registerMonacoShortcuts(monacoInst, getClientProfile(), [
+  { commandId: 'transport.play', handler: () => { transportBar.playButton.click(); }, requiresCapability: 'nativeMenu' },
+  { commandId: 'transport.stop', handler: () => { transportBar.stopButton.click(); }, requiresCapability: 'nativeMenu' },
+  { commandId: 'transport.apply', handler: () => { transportBar.applyButton.click(); } },
+  { commandId: 'help.showHelp', handler: () => { rightTabs.show('help'); } },
+  { commandId: 'help.showShortcuts', handler: () => { shortcutsModal.open(); } },
+  { commandId: 'tools.openSettings', handler: () => { settingsModal.open(); }, requiresCapability: 'settingsPanel' },
+  { commandId: 'tools.verifySyntax', handler: () => { doVerify(); } },
+  { commandId: 'view.toggleTheme', handler: () => { toggleTheme(); } },
+  { commandId: 'view.showSongVisualizer', handler: () => { rightTabs.show('channels'); }, requiresCapability: 'songVisualizer' },
+  { commandId: 'view.toggleChannelMixer', handler: () => {
     if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
     const vis = channelMixer?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
-  });
-}
-if (capabilities.advancedEditor) {
-  // Ctrl+Alt+P → Monaco Command Palette.
-  // NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
-  // not fire on all systems. F1 is the primary reliable shortcut. A global
-  // fallback is also registered via ks (see below) which focuses Monaco first.
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
+  }, requiresCapability: 'channelMixer' },
+  { commandId: 'tools.openCommandPalette', handler: () => {
     monacoInst.trigger('', 'editor.action.quickCommand', null);
-  });
-}
+  }, requiresCapability: 'advancedEditor' },
+], capabilities);
 // Escape: close the Help overlay if it is open, and allow Monaco to handle
 // its own Escape uses (close find widget, suggestions, rename dialog, etc.).
 // Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
@@ -1742,125 +1719,58 @@ monacoInst.onKeyDown((e: IKeyboardEvent) => {
 
 // ─── Central keyboard shortcut registrations ────────────────────────────────
 // All app-wide shortcuts live here so HelpPanel can list them dynamically.
+registerCatalogShortcuts({
+  shortcuts: ks,
+  profile: getClientProfile(),
+  capabilities,
+  handlers: {
+    'transport.play': () => transportBar.playButton.click(),
+    'transport.stop': () => transportBar.stopButton.click(),
+    'transport.apply': () => transportBar.applyButton.click(),
 
-// Transport
-// F5/F8 are desktop-only transport shortcuts (browser page refresh when unfocused).
-// Space is intentionally not a shortcut because BeatBax is editor-first and users
-// need to type spaces without playback side effects.
-if (capabilities.nativeMenu) {
-  ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
-    action: () => transportBar.playButton.click(),
-  });
-  ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
-    action: () => transportBar.stopButton.click(),
-  });
-}
-// Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
-// addCommand above handles the in-editor case.
-ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,
-  action: () => transportBar.applyButton.click(),
-});
+    'file.open': () => {
+      if (capabilities.nativeMenu) menuBar?.triggerOpen();
+      else openSongFromDisk();
+    },
+    'file.save': () => {
+      if (capabilities.nativeMenu) menuBar?.triggerSave();
+      else downloadCurrentBax();
+    },
+    'file.saveAs': () => menuBar?.triggerSaveAs(),
 
-// File
-// Note: Ctrl+N is reserved by browsers (new window) and cannot be intercepted —
-// use File → New from the menu bar instead (desktop-full only).
-if (capabilities.nativeMenu) {
-  ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
-    action: () => menuBar?.triggerOpen() });
-  ks.register({ key: 's', ctrlKey: true, description: 'Save', allowInInput: true,
-    action: () => menuBar?.triggerSave() });
-  ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
-    action: () => menuBar?.triggerSaveAs() });
-} else {
-  ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
-    action: () => openSongFromDisk() });
-  ks.register({ key: 's', ctrlKey: true, description: 'Save (download .bax)', allowInInput: true,
-    action: () => downloadCurrentBax() });
-}
+    'edit.undo': () => monacoInst.trigger('menu', 'undo', null),
+    'edit.redo': () => monacoInst.trigger('menu', 'redo', null),
 
-// Edit
-// Ctrl+Z / Ctrl+Y: Monaco handles these natively when the editor is focused.
-// These entries let them work via the global handler when focus is elsewhere.
-ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
-  action: () => monacoInst.trigger('menu', 'undo', null) });
-ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
-  action: () => monacoInst.trigger('menu', 'redo', null) });
-// Note transposition — handled by Monaco addCommand inside registerNoteEditCommands.
-// These entries exist solely for help-panel display; allowInInput: false ensures the
-// global handler never fires while the editor (textarea) is focused.
-ks.register({ key: '.', altKey: true,              description: 'Note: semitone up (editor)',  allowInInput: false, action: () => {} });
-ks.register({ key: ',', altKey: true,              description: 'Note: semitone down (editor)', allowInInput: false, action: () => {} });
-ks.register({ key: '.', altKey: true, shiftKey: true, description: 'Note: octave up (editor)',    allowInInput: false, action: () => {} });
-ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave down (editor)',  allowInInput: false, action: () => {} });
-
-// View — marked allowInInput: true so they work while the editor is focused
-// (Monaco doesn't intercept any of these key combinations).
-//
-// All panel toggles use Alt+Shift+<key> for consistency and to avoid
-// browser-reserved shortcuts (Ctrl+Shift+R = hard refresh, Ctrl+Shift+B =
-// bookmarks, Ctrl+Shift+H = history, Ctrl+Shift+Y = reading list/pocket).
-// Ctrl+` is the exception (VS Code-style output/terminal toggle; no conflict).
-ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
-  action: () => toggleTheme() });
-ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowInInput: true,
-  action: () => bottomTabs.show('output'),
-});
-ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
-  action: () => bottomTabs.show('problems'),
-});
-if (capabilities.songVisualizer) {
-  ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
-    action: () => rightTabs.show('channels'),
-  });
-}
-if (capabilities.channelMixer) {
-  ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
-    action: () => {
+    'view.toggleTheme': () => toggleTheme(),
+    'view.showOutput': () => bottomTabs.show('output'),
+    'view.showProblems': () => bottomTabs.show('problems'),
+    'view.showSongVisualizer': () => rightTabs.show('channels'),
+    'view.toggleChannelMixer': () => {
       if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
       const vis = channelMixer?.isVisible?.() ?? false;
       eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
     },
-  });
-}
-ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
-  action: () => {
-    const vis = toolbar?.isVisible?.() ?? false;
-    eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+    'view.toggleToolbar': () => {
+      const vis = toolbar?.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+    },
+    'view.toggleTransportBar': () => {
+      const vis = transportBar?.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
+    },
+
+    'help.showHelp': () => rightTabs.show('help'),
+    'help.showHelpAlt': () => rightTabs.show('help'),
+    'help.showShortcuts': () => shortcutsModal.open(),
+
+    'tools.openSettings': () => settingsModal.open(),
+    'tools.verifySyntax': () => doVerify(),
+    'tools.openCommandPalette': () => {
+      monacoInst.focus();
+      setTimeout(() => monacoInst.trigger('', 'editor.action.quickCommand', null), 50);
+    },
   },
 });
-ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
-  action: () => {
-    const vis = transportBar?.isVisible?.() ?? false;
-    eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
-  },
-});
-
-// Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
-ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => rightTabs.show('help') });
-ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => rightTabs.show('help') });
-// Alt+Shift+K → open the Keyboard Shortcuts modal.
-ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
-  action: () => shortcutsModal.open() });
-// Ctrl+, → open the Settings modal (keyboard-only in web-lite; no menu entry).
-if (capabilities.settingsPanel) {
-  ks.register({ key: ',', ctrlKey: true, description: 'Open Settings', allowInInput: true,
-    action: () => settingsModal.open() });
-}
-// Alt+Shift+V → Verify syntax.
-ks.register({ key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', allowInInput: true,
-  action: () => doVerify() });
-
-if (capabilities.advancedEditor) {
-  // Ctrl+Alt+P → Command Palette (global fallback: works even when Monaco is not focused).
-  // Monaco's own addCommand version only fires when Monaco already has focus; this
-  // registration also covers the case where focus is elsewhere by focusing Monaco first.
-  // Note: on European AltGr keyboards Ctrl+Alt may be intercepted by the OS — use F1 instead.
-  ks.register({ key: 'p', ctrlKey: true, altKey: true, description: 'Open Command Palette', allowInInput: true,
-    action: () => { monacoInst.focus(); setTimeout(() => monacoInst.trigger('', 'editor.action.quickCommand', null), 50); },
-  });
-}
 
 ks.mount();
 

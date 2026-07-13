@@ -1,11 +1,9 @@
 /// <reference path="./test-types.d.ts" />
 
-import {
-  DESKTOP_SHORTCUT_DESCRIPTORS,
-  registerDesktopShortcutDescriptors,
-  type DesktopShortcutHandlers,
-} from '../src/renderer/src/lib/desktop-shortcut-descriptors';
+import { registerDesktopShortcuts } from '../src/renderer/src/lib/register-shortcuts';
 import { KeyboardShortcuts, shortcutId } from '../src/renderer/src/utils/keyboard-shortcuts';
+import { SHORTCUT_CATALOG } from '@beatbax/app-core/shortcuts';
+import { resolveProfileBinding } from '@beatbax/app-core/shortcuts';
 
 describe('desktop keyboard shortcuts', () => {
   afterEach(() => {
@@ -121,10 +119,30 @@ describe('desktop keyboard shortcuts', () => {
     shortcuts.dispose();
   });
 
-  it('defines descriptors for the shortcuts listed in the desktop Help panel', () => {
-    const ids = new Set(DESKTOP_SHORTCUT_DESCRIPTORS.map((descriptor) => shortcutId(descriptor)));
+  it('defines desktop catalog bindings for shortcuts listed in Help', () => {
+    const ids = SHORTCUT_CATALOG
+      .filter((entry) => entry.profiles.includes('desktop-full'))
+      .flatMap((entry) => {
+        const binding = resolveProfileBinding(entry.binding, 'desktop-full');
+        const keys = [shortcutId({
+          key: binding.key,
+          ctrlKey: binding.ctrl,
+          altKey: binding.alt,
+          shiftKey: binding.shift,
+        })];
+        if (entry.alternateBinding) {
+          const alt = resolveProfileBinding(entry.alternateBinding, 'desktop-full');
+          keys.push(shortcutId({
+            key: alt.key,
+            ctrlKey: alt.ctrl,
+            altKey: alt.alt,
+            shiftKey: alt.shift,
+          }));
+        }
+        return keys;
+      });
 
-    expect(Array.from(ids)).toEqual(expect.arrayContaining([
+    expect(ids).toEqual(expect.arrayContaining([
       'f5',
       'f8',
       'ctrl+enter',
@@ -134,26 +152,41 @@ describe('desktop keyboard shortcuts', () => {
       'shift+f1',
       'alt+v',
       'ctrl+shift+p',
+      'ctrl+shift+b',
+      'ctrl+shift+r',
+      'ctrl+shift+g',
     ]));
   });
 
-  it('registers the shortcuts listed in the desktop Help panel with handlers', () => {
+  it('registers desktop catalog shortcuts with handlers', () => {
     const shortcuts = new KeyboardShortcuts();
     const openShortcuts = jest.fn();
     const verifySyntax = jest.fn();
-    const handlers: DesktopShortcutHandlers = {
-      'transport.play': jest.fn(),
-      'transport.stop': jest.fn(),
-      'transport.apply': jest.fn(),
-      'file.save': jest.fn(),
-      'file.open': jest.fn(),
-      'help.showShortcuts': openShortcuts,
-      'help.showHelp': jest.fn(),
-      'tools.verifySyntax': verifySyntax,
-      'tools.openCommandPalette': jest.fn(),
-    };
+    const emit = jest.fn();
 
-    registerDesktopShortcutDescriptors(shortcuts, handlers);
+    registerDesktopShortcuts({
+      ks: shortcuts,
+      eventBus: { emit } as any,
+      getEditor: () => null,
+      transportBar: {
+        playButton: { click: jest.fn() },
+        stopButton: { click: jest.fn() },
+        applyButton: { click: jest.fn() },
+        isVisible: () => true,
+      } as any,
+      toolbar: { isVisible: () => true } as any,
+      bottomTabs: { show: jest.fn() } as any,
+      rightTabs: { show: jest.fn(), tabOpen: { ai: false }, activeTab: 'channels' } as any,
+      settingsModal: { open: jest.fn() } as any,
+      shortcutsModal: { open: openShortcuts } as any,
+      onVerify: verifySyntax,
+      onNew: jest.fn(),
+      onOpen: jest.fn(),
+      onSave: jest.fn(),
+      themeManager: { toggle: jest.fn() } as any,
+      channelMixer: null,
+      copilot: null,
+    });
 
     const ids = shortcuts.list().map((descriptor) => shortcutId(descriptor));
     expect(ids).toEqual(expect.arrayContaining([
@@ -166,6 +199,8 @@ describe('desktop keyboard shortcuts', () => {
       'shift+f1',
       'alt+v',
       'ctrl+shift+p',
+      'ctrl+shift+b',
+      'ctrl+shift+r',
     ]));
 
     shortcuts.mount(window);
@@ -186,6 +221,15 @@ describe('desktop keyboard shortcuts', () => {
     }));
 
     expect(verifySyntax).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'B',
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+    expect(emit).toHaveBeenCalledWith('panel:toggled', { panel: 'toolbar', visible: false });
     shortcuts.dispose();
   });
 });

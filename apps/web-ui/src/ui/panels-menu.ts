@@ -2,7 +2,12 @@
  * Panel visibility menu — shared definitions for the status-bar Panels dropdown.
  */
 
-import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { getClientProfile, getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import {
+  detectShortcutPlatform,
+  formatCommandShortcut,
+  type ShortcutCommandId,
+} from '@beatbax/app-core/shortcuts';
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 
 export type PanelMenuId =
@@ -48,6 +53,10 @@ export const PANEL_MENU_GROUP_LABELS: Record<PanelMenuGroup, string> = {
 
 export const PANEL_MENU_GROUP_ORDER: PanelMenuGroup[] = ['bottom', 'side', 'window'];
 
+function panelShortcut(id: ShortcutCommandId): string {
+  return formatCommandShortcut(id, getClientProfile(), detectShortcutPlatform());
+}
+
 export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
   const caps = getCurrentCapabilities();
   const entries: PanelMenuEntry[] = [];
@@ -57,7 +66,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'output',
       label: 'Output',
       group: 'bottom',
-      shortcut: 'Ctrl+`',
+      shortcut: panelShortcut('view.showOutput'),
       checked: state.outputOpen && state.outputPaneVisible,
       disabled: false,
     });
@@ -68,7 +77,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'problems',
       label: 'Problems',
       group: 'bottom',
-      shortcut: 'Alt+Shift+P',
+      shortcut: panelShortcut('view.showProblems'),
       checked: state.problemsOpen && state.outputPaneVisible,
       disabled: false,
     });
@@ -79,7 +88,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'song-visualizer',
       label: 'Visualizer',
       group: 'side',
-      shortcut: 'Ctrl+Shift+V',
+      shortcut: panelShortcut('view.showSongVisualizer'),
       checked: state.channelsOpen && state.rightPaneVisible,
       disabled: caps.export ? !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER) : false,
     });
@@ -90,7 +99,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'help',
       label: 'Help',
       group: 'side',
-      shortcut: 'Shift+F1',
+      shortcut: panelShortcut('help.showHelp'),
       checked: state.helpOpen && state.rightPaneVisible,
       disabled: false,
     });
@@ -101,7 +110,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'toolbar',
       label: 'Toolbar',
       group: 'window',
-      shortcut: 'Alt+Shift+B',
+      shortcut: panelShortcut('view.toggleToolbar'),
       checked: state.toolbarVisible,
       disabled: false,
     },
@@ -109,7 +118,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'transport-bar',
       label: 'Transport bar',
       group: 'window',
-      shortcut: 'Alt+Shift+R',
+      shortcut: panelShortcut('view.toggleTransportBar'),
       checked: state.transportVisible,
       disabled: false,
     },
@@ -120,7 +129,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'channel-mixer',
       label: 'Channel mixer',
       group: 'window',
-      shortcut: 'Ctrl+Shift+M',
+      shortcut: panelShortcut('view.toggleChannelMixer'),
       checked: state.channelMixerVisible,
       disabled: !isFeatureEnabled(FeatureFlag.CHANNEL_MIXER),
     });
@@ -131,7 +140,7 @@ export function buildPanelMenuEntries(state: PanelMenuState): PanelMenuEntry[] {
       id: 'pattern-grid',
       label: 'Pattern grid',
       group: 'window',
-      shortcut: 'Ctrl+Shift+G',
+      shortcut: panelShortcut('view.togglePatternGrid'),
       checked: state.patternGridVisible,
       disabled: !isFeatureEnabled(FeatureFlag.PATTERN_GRID),
     });
