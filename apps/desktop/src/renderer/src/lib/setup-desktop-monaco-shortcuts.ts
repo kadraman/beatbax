@@ -73,7 +73,9 @@ export function setupDesktopMonacoShortcuts(options: SetupDesktopMonacoShortcuts
     { commandId: 'tools.openSettings', handler: () => { settingsModal.open(); }, requiresCapability: 'settingsPanel' },
     { commandId: 'tools.verifySyntax', handler: () => { onVerify(); } },
     { commandId: 'view.toggleTheme', handler: () => { themeManager.toggle(); } },
-    { commandId: 'view.showSongVisualizer', handler: () => { rightTabs.show('channels'); }, requiresCapability: 'songVisualizer' },
+    { commandId: 'view.showSongVisualizer', handler: () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    }, requiresCapability: 'songVisualizer' },
     { commandId: 'tools.openCommandPalette', handler: () => {
       editor.trigger('', 'editor.action.quickCommand', null);
     }, requiresCapability: 'advancedEditor' },

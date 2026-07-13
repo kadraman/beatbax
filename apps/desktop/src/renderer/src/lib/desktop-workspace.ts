@@ -6,9 +6,12 @@ import { loadRemote } from '@beatbax/app-core/import/remote-loader';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
-import { settingDefaultBpm, settingSongArtist } from '@beatbax/app-core/stores/settings.store';
+import { settingDefaultBpm, settingSongArtist, settingShowSongVisualizer, settingShowChannelMixer, settingShowPatternGrid } from '@beatbax/app-core/stores/settings.store';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
+import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
+import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { buildBottomTabs, buildRightTabs } from '../components/shell/tabs';
 import {
@@ -166,9 +169,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   let patternGrid: DesktopPatternGridHandle | null = null;
   if (capabilities.patternGrid) {
-    if (!readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
-      patternGridContainer.style.display = 'none';
-    }
+    const showGrid = shouldShowPatternGrid(capabilities);
+    patternGridContainer.style.display = showGrid ? '' : 'none';
+    settingShowPatternGrid.set(showGrid);
     patternGrid = createDesktopPatternGrid(patternGridContainer, { onNavigate: (patName: string) => {
       const monacoEditor = getEditor()?.editor;
       const source = getEditor()?.getValue() ?? '';
@@ -321,6 +324,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       playbackManager,
     });
     channelMixerRef.current = channelMixer;
+    settingShowChannelMixer.set(shouldShowChannelMixer(capabilities));
   }
 
   const helpContainer = document.createElement('div');
@@ -752,11 +756,13 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       if (panel === 'song-visualizer' || panel === 'channels') {
         if (visible && capabilities.export && !isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) return;
         visible ? rightTabs.show('channels') : rightTabs.close('channels');
+        settingShowSongVisualizer.set(visible);
       }
       if (panel === 'help') visible ? rightTabs.show('help') : rightTabs.close('help');
       if (panel === 'channel-mixer') {
         if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
         channelMixer?.[visible ? 'show' : 'hide']?.();
+        settingShowChannelMixer.set(visible);
       }
       if (panel === 'toolbar') {
         toolbar[visible ? 'show' : 'hide']?.();
@@ -769,22 +775,25 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         menuBar?.seedPanelVisible({ 'transport-bar': visible });
       }
       if (panel === 'pattern-grid') {
+        if (visible && !isFeatureEnabled(FeatureFlag.PATTERN_GRID)) return;
         patternGridContainer.style.display = visible ? '' : 'none';
-        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(visible));
+        settingShowPatternGrid.set(visible);
       }
       statusBar?.refreshPanelsMenu();
       requestMacMenuRefresh();
     }),
     eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
       if (flag === FeatureFlag.CHANNEL_MIXER) {
+        settingShowChannelMixer.set(enabled);
         eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
       }
       if (flag === FeatureFlag.PATTERN_GRID) {
-        patternGridContainer.style.display = enabled ? '' : 'none';
-        storage.set(StorageKey.PANEL_VIS_PATTERN_GRID, String(enabled));
+        settingShowPatternGrid.set(enabled);
+        eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: enabled });
       }
       if (flag === FeatureFlag.SONG_VISUALIZER) {
-        enabled ? rightTabs.show('channels') : rightTabs.close('channels');
+        settingShowSongVisualizer.set(enabled);
+        eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: enabled });
       }
       if (flag === FeatureFlag.AI_ASSISTANT && capabilities.settingsPanel) {
         settingsModal.refresh();
@@ -829,6 +838,12 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
 
   rightTabs.restorePersistedTab();
   const restoredRightTab = rightTabs.activeTab;
+  if (capabilities.songVisualizer) {
+    const showLegacy = shouldShowLegacySongVisualizerTab(capabilities);
+    if (showLegacy) rightTabs.show('channels');
+    else rightTabs.close('channels');
+    settingShowSongVisualizer.set(showLegacy);
+  }
   if (isFeatureEnabled(FeatureFlag.AI_ASSISTANT)) {
     window.setTimeout(() => {
       copilot?.show({ activate: restoredRightTab === 'ai' });
@@ -836,12 +851,9 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       statusBar?.refreshPanelsMenu();
     }, 0);
   }
-  if (!isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)) {
-    rightTabs.close('channels');
-  }
   menuBar?.seedPanelVisible({
     help: rightTabs.tabOpen.help,
-    'song-visualizer': rightTabs.tabOpen.channels,
+    'song-visualizer': rightTabs.tabOpen.channels && isFeatureEnabled(FeatureFlag.SONG_VISUALIZER),
     'ai-assistant': copilot?.isVisible() ?? false,
   });
 

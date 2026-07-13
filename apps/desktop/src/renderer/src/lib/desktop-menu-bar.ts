@@ -1,4 +1,5 @@
 import type { AppContext } from '@beatbax/app-core';
+import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import type { EditorViewPrefsHandlers } from './editor-view-prefs';
@@ -6,6 +7,9 @@ import { scheduleCommentsFoldPreference } from './editor-view-prefs';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { settingAutoSave, settingFoldComments, settingShowToolbar, settingShowTransportBar, settingWordWrap } from '@beatbax/app-core/stores/settings.store';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
+import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
+import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
 import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
 import type { AboutModalController, ShortcutsModalController } from '../components/shell/modals';
 import { LoadingOverlay } from '../components/shell/loading-overlay';
@@ -147,12 +151,9 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
   menuBar.seedPanelVisible({
     toolbar: settingShowToolbar.get(),
     'transport-bar': settingShowTransportBar.get(),
-    'channel-mixer': isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
-      && readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
-    'pattern-grid': isFeatureEnabled(FeatureFlag.PATTERN_GRID)
-      && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
-    'song-visualizer': isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-      && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
+    'channel-mixer': shouldShowChannelMixer(getCurrentCapabilities()),
+    'pattern-grid': shouldShowPatternGrid(getCurrentCapabilities()),
+    'song-visualizer': shouldShowLegacySongVisualizerTab(getCurrentCapabilities()),
     'ai-assistant': copilot?.isVisible() ?? false,
     output: bottomTabs.tabOpen.output ?? false,
     problems: bottomTabs.tabOpen.problems ?? true,

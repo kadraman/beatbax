@@ -64,7 +64,9 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     'view.toggleTheme': () => themeManager.toggle(),
     'view.showOutput': () => bottomTabs.show('output'),
     'view.showProblems': () => bottomTabs.show('problems'),
-    'view.showSongVisualizer': () => rightTabs.show('channels'),
+    'view.showSongVisualizer': () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    },
     'view.toggleChannelMixer': () => {
       if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
       const vis = channelMixer?.isVisible?.() ?? false;

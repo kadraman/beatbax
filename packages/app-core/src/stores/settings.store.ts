@@ -103,7 +103,7 @@ export const settingAudioBufferFrames = stringAtom<'1024' | '2048' | '4096' | '8
 
 export const settingFeatureAI              = boolAtom(StorageKey.AI_ASSISTANT,              false);
 export const settingFeaturePerChannelAnalyser = boolAtom(StorageKey.FEATURE_PER_CHANNEL_ANALYSER, false);
-export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL_MIXER,      false);
+export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL_MIXER,      true);
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
 export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);

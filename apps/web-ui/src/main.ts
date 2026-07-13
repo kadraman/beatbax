@@ -28,7 +28,6 @@ const appContext = createAppContext({ parseHooks });
 appContext.initializePlugins();
 const { eventBus, capabilities } = appContext;
 if (!capabilities.export && capabilities.channelMixer) {
-  setFeatureEnabled(FeatureFlag.CHANNEL_MIXER, true);
   if (storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE) === undefined) {
     storage.set(StorageKey.CHANNEL_MIXER_DOCK_MODE, 'inline');
   }
@@ -115,6 +114,9 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
+import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
+import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
 import { BeatBaxStorage } from '@beatbax/app-core/utils/local-storage';
 
 const log = createLogger('ui:main');
@@ -420,6 +422,7 @@ if (capabilities.channelMixer) {
     }),
     mixerHostContainer,
   );
+  settingShowChannelMixer.set(shouldShowChannelMixer(capabilities));
 }
 
 // ─── HelpPanel — embedded in the help tab (desktop-full) ───────────────────
@@ -479,18 +482,18 @@ if (capabilities.helpPanel) {
     }), appContainer);
 }
 
-// Restore the last active tab now that all tabs are initialised.
+// Restore the last active tab now that all tabs are initialised, then align the
+// legacy Visualizer tab with feature flags (Channel Mixer supersedes it).
 rightTabs.restorePersistedTab();
-// Show the Song Visualizer tab only when its feature flag is enabled (desktop-full).
-const songVisualizerEnabled = capabilities.export
-  ? isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-  : capabilities.songVisualizer;
-if (capabilities.songVisualizer && !songVisualizerEnabled) {
-  rightTabs.close('channels');
+if (capabilities.songVisualizer) {
+  const showLegacy = shouldShowLegacySongVisualizerTab(capabilities);
+  if (showLegacy) rightTabs.show('channels');
+  else rightTabs.close('channels');
+  settingShowSongVisualizer.set(showLegacy);
 }
 (window as any).__beatbax_toggleSongVisualizer = (enabled: boolean) => {
   if (!capabilities.songVisualizer) return;
-  enabled ? rightTabs.show('channels') : rightTabs.close('channels');
+  eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: enabled });
 };
 
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
@@ -500,23 +503,12 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     settingsModal.refresh();
   }
   if (flag === FeatureFlag.CHANNEL_MIXER) {
-    // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
-    // and update the legacy right-pane mixer accordingly.
-    // Route show/hide through panel:toggled so the MenuBar panelVisible map and
-    // settingShowChannelMixer atom are updated by the single canonical handler.
-    try {
-      eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
-      if (enabled) {
-        // Hide legacy right-pane visualizer when the new mixer is enabled.
-        if (capabilities.songVisualizer) rightTabs.close('channels');
-      } else {
-        // Show legacy right-pane visualizer when the new mixer is disabled.
-        if (capabilities.songVisualizer) rightTabs.show('channels');
-      }
-    } catch (_e) { /* ignore */ }
+    settingShowChannelMixer.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
-    (window as any).__beatbax_togglePatternGrid?.(enabled);
+    settingShowPatternGrid.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: enabled });
   }
   if (flag === FeatureFlag.PER_CHANNEL_ANALYSER) {
     playbackManager.setPerChannelAnalyser(enabled);
@@ -525,7 +517,8 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     _applyLiveMode(enabled);
   }
   if (flag === FeatureFlag.SONG_VISUALIZER) {
-    (window as any).__beatbax_toggleSongVisualizer?.(enabled);
+    settingShowSongVisualizer.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: enabled });
   }
 });
 
@@ -571,6 +564,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'pattern-grid') {
+    if (visible && !isFeatureEnabled(FeatureFlag.PATTERN_GRID)) return;
     patternGridContainer.style.display = visible ? '' : 'none';
     settingShowPatternGrid.set(visible);
   }
@@ -606,24 +600,14 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
-  patternGridContainer.style.display = visible ? '' : 'none';
-  settingShowPatternGrid.set(visible);
+  eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible });
 };
 // Called by Features settings when the Channel Mixer feature flag is toggled.
 // Routes through panel:toggled so the MenuBar panelVisible map, the
 // settingShowChannelMixer atom, and any other panel:toggled listeners all
 // stay in sync — same as the View menu and keyboard shortcut paths.
 (window as any).__beatbax_toggleChannelMixer = (enabled: boolean) => {
-  try {
-    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
-    // Legacy tab is a feature-flag side-effect, not a visibility concern,
-    // so it stays here rather than inside the panel:toggled handler.
-    if (enabled) {
-      if (capabilities.songVisualizer) rightTabs.close('channels');
-    } else {
-      if (capabilities.songVisualizer) rightTabs.show('channels');
-    }
-  } catch (_e) { /* ignore */ }
+  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
 };
 
 // Transport bar UI will be created by TransportBar
@@ -637,6 +621,9 @@ let patternGrid: PatternGrid | null = null;
 if (capabilities.patternGrid) {
   patternGrid = new PatternGrid();
   patternGridContainer.appendChild(patternGrid.el);
+  const showGrid = shouldShowPatternGrid(capabilities);
+  patternGridContainer.style.display = showGrid ? '' : 'none';
+  settingShowPatternGrid.set(showGrid);
 }
 
 // ── Runtime state for transport extras ───────────────────────────────────────
@@ -1478,17 +1465,10 @@ if (menuBar) {
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'channel-mixer':     isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
-    && readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
-  'pattern-grid':      isFeatureEnabled(FeatureFlag.PATTERN_GRID)
-    && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
-  'song-visualizer':   isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-    && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
+  'channel-mixer':     shouldShowChannelMixer(capabilities),
+  'pattern-grid':      shouldShowPatternGrid(capabilities),
+  'song-visualizer':   shouldShowLegacySongVisualizerTab(capabilities),
 });
-}
-// Apply initial pattern-grid visibility
-if (capabilities.patternGrid && !readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
-  patternGridContainer.style.display = 'none';
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
@@ -1696,7 +1676,9 @@ registerMonacoShortcuts(monacoInst, getClientProfile(), [
   { commandId: 'tools.openSettings', handler: () => { settingsModal.open(); }, requiresCapability: 'settingsPanel' },
   { commandId: 'tools.verifySyntax', handler: () => { doVerify(); } },
   { commandId: 'view.toggleTheme', handler: () => { toggleTheme(); } },
-  { commandId: 'view.showSongVisualizer', handler: () => { rightTabs.show('channels'); }, requiresCapability: 'songVisualizer' },
+    { commandId: 'view.showSongVisualizer', handler: () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    }, requiresCapability: 'songVisualizer' },
   { commandId: 'view.toggleChannelMixer', handler: () => {
     if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
     const vis = channelMixer?.isVisible?.() ?? false;
@@ -1744,7 +1726,9 @@ registerCatalogShortcuts({
     'view.toggleTheme': () => toggleTheme(),
     'view.showOutput': () => bottomTabs.show('output'),
     'view.showProblems': () => bottomTabs.show('problems'),
-    'view.showSongVisualizer': () => rightTabs.show('channels'),
+    'view.showSongVisualizer': () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    },
     'view.toggleChannelMixer': () => {
       if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
       const vis = channelMixer?.isVisible?.() ?? false;
