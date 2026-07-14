@@ -490,7 +490,8 @@ if (capabilities.helpPanel) {
 rightTabs.restorePersistedTab();
 if (capabilities.songVisualizer) {
   const showLegacy = shouldShowLegacySongVisualizerTab(capabilities);
-  if (showLegacy) rightTabs.show('channels');
+  // Ensure the Visualizer tab is available without stealing the restored active tab.
+  if (showLegacy) rightTabs.ensureOpen('channels');
   else rightTabs.close('channels');
   settingShowSongVisualizer.set(showLegacy);
 }
