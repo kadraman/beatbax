@@ -7,6 +7,7 @@
 jest.mock('../src/utils/local-storage', () => ({
   StorageKey: {
     AI_ASSISTANT: 'feature.aiAssistant',
+    FEATURE_CHANNEL_MIXER: 'feature.channelMixer',
   },
   storage: {
     get: (key: string) => {
@@ -45,6 +46,10 @@ describe('isFeatureEnabled — defaults', () => {
 
   it('returns false for an unknown flag by default', () => {
     expect(isFeatureEnabled('feature.unknown')).toBe(false);
+  });
+
+  it('returns true for CHANNEL_MIXER by default', () => {
+    expect(isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)).toBe(true);
   });
 });
 

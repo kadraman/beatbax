@@ -3,7 +3,7 @@
  */
 
 import {
-  settingAutoSave, settingWordWrap, settingFoldComments, settingCodeLens,
+  settingWordWrap, settingFoldComments, settingCodeLens,
   settingBeatDecorations, settingDefaultBpm, settingSongArtist, settingFontSize,
   settingMidiInputEnabled, settingMidiInputDevice, settingMidiStepLength,
   settingMidiEmitDurations, settingMidiEntryMode, settingMidiAutoAdvance,
@@ -17,15 +17,6 @@ export function buildEditorSection(): HTMLElement {
   el.className = 'bb-settings-section';
 
   el.appendChild(sectionHeading('Editor preferences'));
-
-  el.appendChild(toggle('Auto-save', settingAutoSave.get(), (v) => {
-    settingAutoSave.set(v);
-  }));
-  el.appendChild(noteText(
-    (window as unknown as { electronAPI?: unknown }).electronAPI
-      ? 'When enabled, saves the open file to disk shortly after each edit (requires a saved file path).'
-      : 'When enabled, the editor auto-saves content to local storage 500 ms after each keystroke. Changes to this setting take effect after a page reload.',
-  ));
 
   el.appendChild(toggle('Word wrap', settingWordWrap.get(), (v) => {
     settingWordWrap.set(v);
@@ -212,7 +203,6 @@ export function buildEditorSection(): HTMLElement {
 }
 
 export function resetEditorDefaults(): void {
-  settingAutoSave.set(true);
   settingWordWrap.set(false);
   settingFoldComments.set(false);
   settingCodeLens.set(true);

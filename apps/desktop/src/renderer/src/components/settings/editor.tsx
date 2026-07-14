@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiStepEntryService } from '@beatbax/app-core/input/midi-step-entry';
 import {
   settingAutoSave,
+  settingAutoSaveDelay,
   settingBeatDecorations,
   settingCodeLens,
   settingDefaultBpm,
@@ -39,6 +40,7 @@ function midiController(): any {
 
 export function EditorSettingsSection(): React.JSX.Element {
   const autoSave = useStoreValue(settingAutoSave);
+  const autoSaveDelay = useStoreValue(settingAutoSaveDelay);
   const wordWrap = useStoreValue(settingWordWrap);
   const codeLens = useStoreValue(settingCodeLens);
   const beatDecorations = useStoreValue(settingBeatDecorations);
@@ -98,16 +100,23 @@ export function EditorSettingsSection(): React.JSX.Element {
     }
   }, [midiEnabled, refreshDevices]);
 
-  const hasElectronAPI = Boolean((window as unknown as { electronAPI?: unknown }).electronAPI);
-
   return (
     <div className="bb-settings-section">
       <SectionHeading>Editor preferences</SectionHeading>
       <ToggleRow checked={autoSave} label="Auto-save" onChange={(value) => settingAutoSave.set(value)} />
       <NoteText>
-        {hasElectronAPI
-          ? 'When enabled, saves the open file to disk after each successful parse with no errors (requires a saved file path).'
-          : 'When enabled, the editor auto-saves content to local storage 500 ms after each keystroke. Changes to this setting take effect after a page reload.'}
+        When enabled, saves the open file to disk after each successful parse with no errors (requires a saved file path).
+      </NoteText>
+      <NumberField
+        disabled={!autoSave}
+        label="Auto-save delay (ms)"
+        max={5000}
+        min={100}
+        onChange={(value) => settingAutoSaveDelay.set(value)}
+        value={autoSaveDelay}
+      />
+      <NoteText>
+        Debounce interval before edits trigger a parse and potential disk save. Only applies when auto-save is enabled.
       </NoteText>
 
       <ToggleRow
@@ -304,6 +313,7 @@ export function EditorSettingsSection(): React.JSX.Element {
 
 export function resetEditorDefaults(): void {
   settingAutoSave.set(true);
+  settingAutoSaveDelay.set(1000);
   settingWordWrap.set(false);
   settingFoldComments.set(false);
   settingCodeLens.set(true);

@@ -180,7 +180,7 @@ test('transport loop and live controls are wired', async () => {
   const loopButton = page.getByRole('button', { name: /Toggle loop playback/i });
   const liveButton = page.getByRole('button', { name: /Toggle live-play mode/i });
   const rewindButton = page.getByRole('button', { name: /Rewind to start/i });
-  const volumeKnob = page.getByRole('slider', { name: 'Master volume' });
+  const volumeKnob = page.locator('.bb-transport__vol-knob');
 
   await expect(loopButton).toBeVisible();
   await expect(liveButton).toBeVisible();

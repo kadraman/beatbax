@@ -16,6 +16,9 @@ import './styles.css';
 // This runs before any parse/playback calls so the chipRegistry is fully
 // populated when the parser validates `chip` directives.
 import { createAppContext, type ParsePipelineHooks } from '@beatbax/app-core/app/create-app-context';
+import { getClientProfile } from '@beatbax/app-core/client-profile';
+import { registerCatalogShortcuts } from '@beatbax/app-core/shortcuts';
+import { registerMonacoShortcuts } from '@beatbax/app-core/shortcuts/monaco';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
@@ -25,7 +28,6 @@ const appContext = createAppContext({ parseHooks });
 appContext.initializePlugins();
 const { eventBus, capabilities } = appContext;
 if (!capabilities.export && capabilities.channelMixer) {
-  setFeatureEnabled(FeatureFlag.CHANNEL_MIXER, true);
   if (storage.get(StorageKey.CHANNEL_MIXER_DOCK_MODE) === undefined) {
     storage.set(StorageKey.CHANNEL_MIXER_DOCK_MODE, 'inline');
   }
@@ -90,7 +92,7 @@ import { Toolbar } from './ui/toolbar';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { DragDropHandler } from '@beatbax/app-core/import/drag-drop-handler';
 
-import { KeyCode, KeyMod } from 'monaco-editor';
+import { KeyCode } from 'monaco-editor';
 import type { IKeyboardEvent } from 'monaco-editor';
 import { MenuBar } from './ui/menu-bar';
 import { LoadingOverlay } from './ui/loading-overlay';
@@ -112,6 +114,9 @@ import {
 } from './utils/error-boundary';
 import { LoadingSpinner } from './utils/loading-spinner';
 import { FeatureFlag, isFeatureEnabled, setFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
+import { shouldShowLegacySongVisualizerTab } from '@beatbax/app-core/utils/song-visualizer-panel';
+import { shouldShowChannelMixer } from '@beatbax/app-core/utils/channel-mixer-panel';
+import { shouldShowPatternGrid } from '@beatbax/app-core/utils/pattern-grid-panel';
 import { BeatBaxStorage } from '@beatbax/app-core/utils/local-storage';
 
 const log = createLogger('ui:main');
@@ -176,7 +181,10 @@ editor = createEditor({
   value: getInitialContent(settingDefaultBpm.get()),
   theme: 'beatbax-dark',
   language: 'beatbax',
-  autoSaveDelay: storage.getJSON<boolean>(StorageKey.AUTO_SAVE, true) !== false ? 500 : 0,
+  // Web has no disk auto-save, but this delay still batches editorContent /
+  // localStorage draft writes and editor:changed emissions (parse/live have
+  // their own timers). 0 would sync-write localStorage on every keystroke.
+  autoSaveDelay: 500,
   emitChangedEvents: true,
 });
 
@@ -417,6 +425,7 @@ if (capabilities.channelMixer) {
     }),
     mixerHostContainer,
   );
+  settingShowChannelMixer.set(shouldShowChannelMixer(capabilities));
 }
 
 // ─── HelpPanel — embedded in the help tab (desktop-full) ───────────────────
@@ -476,18 +485,19 @@ if (capabilities.helpPanel) {
     }), appContainer);
 }
 
-// Restore the last active tab now that all tabs are initialised.
+// Restore the last active tab now that all tabs are initialised, then align the
+// legacy Visualizer tab with feature flags (Channel Mixer supersedes it).
 rightTabs.restorePersistedTab();
-// Show the Song Visualizer tab only when its feature flag is enabled (desktop-full).
-const songVisualizerEnabled = capabilities.export
-  ? isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-  : capabilities.songVisualizer;
-if (capabilities.songVisualizer && !songVisualizerEnabled) {
-  rightTabs.close('channels');
+if (capabilities.songVisualizer) {
+  const showLegacy = shouldShowLegacySongVisualizerTab(capabilities);
+  // Ensure the Visualizer tab is available without stealing the restored active tab.
+  if (showLegacy) rightTabs.ensureOpen('channels');
+  else rightTabs.close('channels');
+  settingShowSongVisualizer.set(showLegacy);
 }
 (window as any).__beatbax_toggleSongVisualizer = (enabled: boolean) => {
   if (!capabilities.songVisualizer) return;
-  enabled ? rightTabs.show('channels') : rightTabs.close('channels');
+  eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: enabled });
 };
 
 // Subscribe to feature-flag:changed so the UI reacts immediately when a flag
@@ -497,23 +507,12 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     settingsModal.refresh();
   }
   if (flag === FeatureFlag.CHANNEL_MIXER) {
-    // When the Channel Mixer feature is toggled, show/hide the horizontal mixer
-    // and update the legacy right-pane mixer accordingly.
-    // Route show/hide through panel:toggled so the MenuBar panelVisible map and
-    // settingShowChannelMixer atom are updated by the single canonical handler.
-    try {
-      eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
-      if (enabled) {
-        // Hide legacy right-pane visualizer when the new mixer is enabled.
-        if (capabilities.songVisualizer) rightTabs.close('channels');
-      } else {
-        // Show legacy right-pane visualizer when the new mixer is disabled.
-        if (capabilities.songVisualizer) rightTabs.show('channels');
-      }
-    } catch (_e) { /* ignore */ }
+    settingShowChannelMixer.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
   }
   if (flag === FeatureFlag.PATTERN_GRID) {
-    (window as any).__beatbax_togglePatternGrid?.(enabled);
+    settingShowPatternGrid.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: enabled });
   }
   if (flag === FeatureFlag.PER_CHANNEL_ANALYSER) {
     playbackManager.setPerChannelAnalyser(enabled);
@@ -522,7 +521,8 @@ eventBus.on('feature-flag:changed', ({ flag, enabled }) => {
     _applyLiveMode(enabled);
   }
   if (flag === FeatureFlag.SONG_VISUALIZER) {
-    (window as any).__beatbax_toggleSongVisualizer?.(enabled);
+    settingShowSongVisualizer.set(enabled);
+    eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: enabled });
   }
 });
 
@@ -568,6 +568,7 @@ eventBus.on('panel:toggled', ({ panel, visible }) => {
     } catch (_e) { /* ignore */ }
   }
   if (panel === 'pattern-grid') {
+    if (visible && !isFeatureEnabled(FeatureFlag.PATTERN_GRID)) return;
     patternGridContainer.style.display = visible ? '' : 'none';
     settingShowPatternGrid.set(visible);
   }
@@ -603,24 +604,14 @@ eventBus.on('playback:started', () => {
 (window as any).__beatbax_helpPanel = helpPanel;
 (window as any).__beatbax_settingsModal = settingsModal;
 (window as any).__beatbax_togglePatternGrid = (visible: boolean) => {
-  patternGridContainer.style.display = visible ? '' : 'none';
-  settingShowPatternGrid.set(visible);
+  eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible });
 };
 // Called by Features settings when the Channel Mixer feature flag is toggled.
 // Routes through panel:toggled so the MenuBar panelVisible map, the
 // settingShowChannelMixer atom, and any other panel:toggled listeners all
 // stay in sync — same as the View menu and keyboard shortcut paths.
 (window as any).__beatbax_toggleChannelMixer = (enabled: boolean) => {
-  try {
-    eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
-    // Legacy tab is a feature-flag side-effect, not a visibility concern,
-    // so it stays here rather than inside the panel:toggled handler.
-    if (enabled) {
-      if (capabilities.songVisualizer) rightTabs.close('channels');
-    } else {
-      if (capabilities.songVisualizer) rightTabs.show('channels');
-    }
-  } catch (_e) { /* ignore */ }
+  eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: enabled });
 };
 
 // Transport bar UI will be created by TransportBar
@@ -634,6 +625,9 @@ let patternGrid: PatternGrid | null = null;
 if (capabilities.patternGrid) {
   patternGrid = new PatternGrid();
   patternGridContainer.appendChild(patternGrid.el);
+  const showGrid = shouldShowPatternGrid(capabilities);
+  patternGridContainer.style.display = showGrid ? '' : 'none';
+  settingShowPatternGrid.set(showGrid);
 }
 
 // ── Runtime state for transport extras ───────────────────────────────────────
@@ -1475,17 +1469,10 @@ if (menuBar) {
 menuBar.seedPanelVisible({
   toolbar:             readPanelVis(StorageKey.PANEL_VIS_TOOLBAR),
   'transport-bar':     readPanelVis(StorageKey.PANEL_VIS_TRANSPORT_BAR),
-  'channel-mixer':     isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)
-    && readPanelVis(StorageKey.PANEL_VIS_CHANNEL_MIXER),
-  'pattern-grid':      isFeatureEnabled(FeatureFlag.PATTERN_GRID)
-    && readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false),
-  'song-visualizer':   isFeatureEnabled(FeatureFlag.SONG_VISUALIZER)
-    && readPanelVis(StorageKey.PANEL_VIS_SONG_VISUALIZER, false),
+  'channel-mixer':     shouldShowChannelMixer(capabilities),
+  'pattern-grid':      shouldShowPatternGrid(capabilities),
+  'song-visualizer':   shouldShowLegacySongVisualizerTab(capabilities),
 });
-}
-// Apply initial pattern-grid visibility
-if (capabilities.patternGrid && !readPanelVis(StorageKey.PANEL_VIS_PATTERN_GRID, false)) {
-  patternGridContainer.style.display = 'none';
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
@@ -1684,51 +1671,27 @@ const dragDrop = new DragDropHandler(document.body, {
 const monacoInst = editor.editor;
 const toggleTheme = () => themeManager.toggle();
 
-// F5/F8 only in desktop-full — in the browser they reload the page when the editor is unfocused.
-if (capabilities.nativeMenu) {
-  monacoInst.addCommand(KeyCode.F5, () => { transportBar.playButton.click(); });
-  monacoInst.addCommand(KeyCode.F8, () => { transportBar.stopButton.click(); });
-}
-// Ctrl+Enter → Apply & Play (overrides Monaco's built-in "Insert Line Below")
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => { transportBar.applyButton.click(); });
-// Shift+F1 → Switch to Help tab (F1 alone is Monaco's own Command Palette — leave that alone)
-monacoInst.addCommand(KeyMod.Shift | KeyCode.F1, () => { rightTabs.show('help'); });
-// Ctrl+Shift+/ is Monaco's "Toggle Block Comment" so Ctrl+? cannot be used.
-// Alt+Shift+K (K for Keyboard shortcuts) is free in all browsers and Monaco.
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyK, () => { shortcutsModal.open(); });
-// Ctrl+, → Settings modal (standard VS Code convention; overrides Monaco's default).
-if (capabilities.settingsPanel) {
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyCode.Comma, () => { settingsModal.open(); });
-}
-// Alt+Shift+V → Verify syntax (no browser conflict).
-monacoInst.addCommand(KeyMod.Alt | KeyMod.Shift | KeyCode.KeyV, () => { doVerify(); });
-// Ctrl+Shift+L → Theme toggle.
-// Monaco binds Ctrl+Shift+L to "Select All Occurrences" by default; registering
-// here via addCommand overrides that default while Monaco has focus.
-monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL, () => { toggleTheme(); });
-// Ctrl+Shift+V → Switch to Song Visualizer tab (Monaco captures this key when focused).
-if (capabilities.songVisualizer) {
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV, () => {
-    rightTabs.show('channels');
-  });
-}
-if (capabilities.channelMixer) {
-  // Ctrl+Shift+M → Toggle bottom DAW mixer strip (Monaco captures this key when focused).
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM, () => {
+registerMonacoShortcuts(monacoInst, getClientProfile(), [
+  { commandId: 'transport.play', handler: () => { transportBar.playButton.click(); }, requiresCapability: 'nativeMenu' },
+  { commandId: 'transport.stop', handler: () => { transportBar.stopButton.click(); }, requiresCapability: 'nativeMenu' },
+  { commandId: 'transport.apply', handler: () => { transportBar.applyButton.click(); } },
+  { commandId: 'help.showHelp', handler: () => { rightTabs.show('help'); } },
+  { commandId: 'help.showShortcuts', handler: () => { shortcutsModal.open(); } },
+  { commandId: 'tools.openSettings', handler: () => { settingsModal.open(); }, requiresCapability: 'settingsPanel' },
+  { commandId: 'tools.verifySyntax', handler: () => { doVerify(); } },
+  { commandId: 'view.toggleTheme', handler: () => { toggleTheme(); } },
+    { commandId: 'view.showSongVisualizer', handler: () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    }, requiresCapability: 'songVisualizer' },
+  { commandId: 'view.toggleChannelMixer', handler: () => {
     if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
     const vis = channelMixer?.isVisible?.() ?? false;
     eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
-  });
-}
-if (capabilities.advancedEditor) {
-  // Ctrl+Alt+P → Monaco Command Palette.
-  // NOTE: on Windows ‘Ctrl+Alt’ equals AltGr on European keyboards so this may
-  // not fire on all systems. F1 is the primary reliable shortcut. A global
-  // fallback is also registered via ks (see below) which focuses Monaco first.
-  monacoInst.addCommand(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP, () => {
+  }, requiresCapability: 'channelMixer' },
+  { commandId: 'tools.openCommandPalette', handler: () => {
     monacoInst.trigger('', 'editor.action.quickCommand', null);
-  });
-}
+  }, requiresCapability: 'advancedEditor' },
+], capabilities);
 // Escape: close the Help overlay if it is open, and allow Monaco to handle
 // its own Escape uses (close find widget, suggestions, rename dialog, etc.).
 // Playback stop via Escape is NOT done from inside Monaco — use F8 instead.
@@ -1742,125 +1705,60 @@ monacoInst.onKeyDown((e: IKeyboardEvent) => {
 
 // ─── Central keyboard shortcut registrations ────────────────────────────────
 // All app-wide shortcuts live here so HelpPanel can list them dynamically.
+registerCatalogShortcuts({
+  shortcuts: ks,
+  profile: getClientProfile(),
+  capabilities,
+  handlers: {
+    'transport.play': () => transportBar.playButton.click(),
+    'transport.stop': () => transportBar.stopButton.click(),
+    'transport.apply': () => transportBar.applyButton.click(),
 
-// Transport
-// F5/F8 are desktop-only transport shortcuts (browser page refresh when unfocused).
-// Space is intentionally not a shortcut because BeatBax is editor-first and users
-// need to type spaces without playback side effects.
-if (capabilities.nativeMenu) {
-  ks.register({ key: 'F5', description: 'Play / re-play', allowInInput: false,
-    action: () => transportBar.playButton.click(),
-  });
-  ks.register({ key: 'F8', description: 'Stop playback', allowInInput: false,
-    action: () => transportBar.stopButton.click(),
-  });
-}
-// Ctrl+Enter global handler fires when Monaco is NOT focused; the Monaco
-// addCommand above handles the in-editor case.
-ks.register({ key: 'Enter', ctrlKey: true, description: 'Apply & re-play', allowInInput: false,
-  action: () => transportBar.applyButton.click(),
-});
+    'file.open': () => {
+      if (capabilities.nativeMenu) menuBar?.triggerOpen();
+      else openSongFromDisk();
+    },
+    'file.save': () => {
+      if (capabilities.nativeMenu) menuBar?.triggerSave();
+      else downloadCurrentBax();
+    },
+    'file.saveAs': () => menuBar?.triggerSaveAs(),
 
-// File
-// Note: Ctrl+N is reserved by browsers (new window) and cannot be intercepted —
-// use File → New from the menu bar instead (desktop-full only).
-if (capabilities.nativeMenu) {
-  ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
-    action: () => menuBar?.triggerOpen() });
-  ks.register({ key: 's', ctrlKey: true, description: 'Save', allowInInput: true,
-    action: () => menuBar?.triggerSave() });
-  ks.register({ key: 's', ctrlKey: true, shiftKey: true, description: 'Save as…', allowInInput: true,
-    action: () => menuBar?.triggerSaveAs() });
-} else {
-  ks.register({ key: 'o', ctrlKey: true, description: 'Open file…', allowInInput: true,
-    action: () => openSongFromDisk() });
-  ks.register({ key: 's', ctrlKey: true, description: 'Save (download .bax)', allowInInput: true,
-    action: () => downloadCurrentBax() });
-}
+    'edit.undo': () => monacoInst.trigger('menu', 'undo', null),
+    'edit.redo': () => monacoInst.trigger('menu', 'redo', null),
 
-// Edit
-// Ctrl+Z / Ctrl+Y: Monaco handles these natively when the editor is focused.
-// These entries let them work via the global handler when focus is elsewhere.
-ks.register({ key: 'z', ctrlKey: true, description: 'Undo', allowInInput: false,
-  action: () => monacoInst.trigger('menu', 'undo', null) });
-ks.register({ key: 'y', ctrlKey: true, description: 'Redo', allowInInput: false,
-  action: () => monacoInst.trigger('menu', 'redo', null) });
-// Note transposition — handled by Monaco addCommand inside registerNoteEditCommands.
-// These entries exist solely for help-panel display; allowInInput: false ensures the
-// global handler never fires while the editor (textarea) is focused.
-ks.register({ key: '.', altKey: true,              description: 'Note: semitone up (editor)',  allowInInput: false, action: () => {} });
-ks.register({ key: ',', altKey: true,              description: 'Note: semitone down (editor)', allowInInput: false, action: () => {} });
-ks.register({ key: '.', altKey: true, shiftKey: true, description: 'Note: octave up (editor)',    allowInInput: false, action: () => {} });
-ks.register({ key: ',', altKey: true, shiftKey: true, description: 'Note: octave down (editor)',  allowInInput: false, action: () => {} });
-
-// View — marked allowInInput: true so they work while the editor is focused
-// (Monaco doesn't intercept any of these key combinations).
-//
-// All panel toggles use Alt+Shift+<key> for consistency and to avoid
-// browser-reserved shortcuts (Ctrl+Shift+R = hard refresh, Ctrl+Shift+B =
-// bookmarks, Ctrl+Shift+H = history, Ctrl+Shift+Y = reading list/pocket).
-// Ctrl+` is the exception (VS Code-style output/terminal toggle; no conflict).
-ks.register({ key: 'l', altKey: true, shiftKey: true, description: 'Theme (Dark / Light)', allowInInput: true,
-  action: () => toggleTheme() });
-ks.register({ key: '`', ctrlKey: true, description: 'Show Output panel', allowInInput: true,
-  action: () => bottomTabs.show('output'),
-});
-ks.register({ key: 'p', altKey: true, shiftKey: true, description: 'Show Problems panel', allowInInput: true,
-  action: () => bottomTabs.show('problems'),
-});
-if (capabilities.songVisualizer) {
-  ks.register({ key: 'v', ctrlKey: true, shiftKey: true, description: 'Show Song Visualizer', allowInInput: true,
-    action: () => rightTabs.show('channels'),
-  });
-}
-if (capabilities.channelMixer) {
-  ks.register({ key: 'm', ctrlKey: true, shiftKey: true, description: 'Toggle Channel Mixer', allowInInput: true,
-    action: () => {
+    'view.toggleTheme': () => toggleTheme(),
+    'view.showOutput': () => bottomTabs.show('output'),
+    'view.showProblems': () => bottomTabs.show('problems'),
+    'view.showSongVisualizer': () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    },
+    'view.toggleChannelMixer': () => {
       if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
       const vis = channelMixer?.isVisible?.() ?? false;
       eventBus.emit('panel:toggled', { panel: 'channel-mixer', visible: !vis });
     },
-  });
-}
-ks.register({ key: 'b', altKey: true, shiftKey: true, description: 'Toggle Toolbar', allowInInput: true,
-  action: () => {
-    const vis = toolbar?.isVisible?.() ?? false;
-    eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+    'view.toggleToolbar': () => {
+      const vis = toolbar?.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'toolbar', visible: !vis });
+    },
+    'view.toggleTransportBar': () => {
+      const vis = transportBar?.isVisible?.() ?? false;
+      eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
+    },
+
+    'help.showHelp': () => rightTabs.show('help'),
+    'help.showHelpAlt': () => rightTabs.show('help'),
+    'help.showShortcuts': () => shortcutsModal.open(),
+
+    'tools.openSettings': () => settingsModal.open(),
+    'tools.verifySyntax': () => doVerify(),
+    'tools.openCommandPalette': () => {
+      monacoInst.focus();
+      setTimeout(() => monacoInst.trigger('', 'editor.action.quickCommand', null), 50);
+    },
   },
 });
-ks.register({ key: 'r', altKey: true, shiftKey: true, description: 'Toggle Transport Bar', allowInInput: true,
-  action: () => {
-    const vis = transportBar?.isVisible?.() ?? false;
-    eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
-  },
-});
-
-// Help — Shift+F1 is safe (F1 alone opens Monaco's own Command Palette).
-ks.register({ key: 'F1', shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => rightTabs.show('help') });
-ks.register({ key: 'h', altKey: true, shiftKey: true, description: 'Show Help tab', allowInInput: true,
-  action: () => rightTabs.show('help') });
-// Alt+Shift+K → open the Keyboard Shortcuts modal.
-ks.register({ key: 'k', altKey: true, shiftKey: true, description: 'Show Keyboard Shortcuts', allowInInput: true,
-  action: () => shortcutsModal.open() });
-// Ctrl+, → open the Settings modal (keyboard-only in web-lite; no menu entry).
-if (capabilities.settingsPanel) {
-  ks.register({ key: ',', ctrlKey: true, description: 'Open Settings', allowInInput: true,
-    action: () => settingsModal.open() });
-}
-// Alt+Shift+V → Verify syntax.
-ks.register({ key: 'v', altKey: true, shiftKey: true, description: 'Verify syntax', allowInInput: true,
-  action: () => doVerify() });
-
-if (capabilities.advancedEditor) {
-  // Ctrl+Alt+P → Command Palette (global fallback: works even when Monaco is not focused).
-  // Monaco's own addCommand version only fires when Monaco already has focus; this
-  // registration also covers the case where focus is elsewhere by focusing Monaco first.
-  // Note: on European AltGr keyboards Ctrl+Alt may be intercepted by the OS — use F1 instead.
-  ks.register({ key: 'p', ctrlKey: true, altKey: true, description: 'Open Command Palette', allowInInput: true,
-    action: () => { monacoInst.focus(); setTimeout(() => monacoInst.trigger('', 'editor.action.quickCommand', null), 50); },
-  });
-}
 
 ks.mount();
 

@@ -11,7 +11,12 @@ import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../utils/icons';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { resolveUiChipId } from '../utils/chip-resolve';
-import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { getCurrentCapabilities, getClientProfile } from '@beatbax/app-core/client-profile';
+import {
+  detectShortcutPlatform,
+  formatCommandShortcut,
+  type ShortcutCommandId,
+} from '@beatbax/app-core/shortcuts';
 
 /** Fallback toolbar icon per built-in exporter id. */
 const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
@@ -23,6 +28,9 @@ const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
 };
 
 const log = createLogger('ui:toolbar');
+
+const toolbarShortcut = (id: ShortcutCommandId) =>
+  formatCommandShortcut(id, getClientProfile(), detectShortcutPlatform());
 
 export interface ToolbarOptions {
   /** Container element to render the toolbar into */
@@ -89,13 +97,13 @@ export class Toolbar {
 
     this.el.innerHTML = `
       <div class="bb-toolbar__group bb-toolbar__group--file">
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" title="New song (Ctrl+N)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" title="New song (${toolbarShortcut('file.new')})">
           ${icon('document-plus', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">New</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" title="Save .bax file (Ctrl+S)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" title="Save .bax file (${toolbarShortcut('file.save')})">
           ${icon('document-check', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Save</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (Ctrl+O)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" title="Open .bax file (${toolbarShortcut('file.open')})">
           ${icon('folder-open', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Open</span>
         </button>
         ${caps.exampleMenu ? `
@@ -112,10 +120,10 @@ export class Toolbar {
       <div class="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true"></div>
 
       <div class="bb-toolbar__group bb-toolbar__group--edit">
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" title="Undo (Ctrl+Z)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" title="Undo (${toolbarShortcut('edit.undo')})">
           ${icon('arrow-uturn-left', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Undo</span>
         </button>
-        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (Ctrl+Y)">
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" title="Redo (${toolbarShortcut('edit.redo')})">
           ${icon('arrow-uturn-right', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Redo</span>
         </button>
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-wrap" title="Toggle word wrap">${icon('arrow-path', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Wrap</span></button>

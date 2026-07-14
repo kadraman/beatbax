@@ -24,6 +24,11 @@ export const FeatureFlag = {
   SONG_VISUALIZER:        StorageKey.FEATURE_SONG_VISUALIZER,
 } as const;
 
+/** Flags that default to enabled when no value is stored in localStorage. */
+const DEFAULT_ENABLED = new Set<string>([
+  FeatureFlag.CHANNEL_MIXER,
+]);
+
 // ─── URL-param overrides ──────────────────────────────────────────────────────
 
 /** Map from storage-key to URL param name. */
@@ -60,13 +65,14 @@ function getUrlOverride(flag: string): boolean | undefined {
  * Priority (highest → lowest):
  *  1. URL query parameter (`?ai=1` / `?ai=0`)
  *  2. localStorage value (`"true"` / `"false"`)
- *  3. Default: `false`
+ *  3. Default: `true` for flags in DEFAULT_ENABLED, otherwise `false`
  */
 export function isFeatureEnabled(flag: string): boolean {
   const urlOverride = getUrlOverride(flag);
   if (urlOverride !== undefined) return urlOverride;
   const stored = storage.get(flag);
-  return stored === 'true';
+  if (stored !== undefined) return stored === 'true';
+  return DEFAULT_ENABLED.has(flag);
 }
 
 /**

@@ -85,6 +85,5 @@ const electronAPI: ElectronAPI = {
 if (process.contextIsolated) {
   contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 } else {
-  // @ts-expect-error preload fallback for non-isolated contexts
   window.electronAPI = electronAPI;
 }

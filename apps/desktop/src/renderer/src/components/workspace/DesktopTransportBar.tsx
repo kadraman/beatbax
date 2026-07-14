@@ -1,5 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { getClientProfile } from '@beatbax/app-core/client-profile';
+import { detectShortcutPlatform, formatCommandShortcut } from '@beatbax/app-core/shortcuts';
 import { RotaryKnob } from './rotary-knob';
+
+const applyShortcut = formatCommandShortcut(
+  'transport.apply',
+  getClientProfile(),
+  detectShortcutPlatform(),
+);
 
 export interface DesktopVolumeKnobHandle {
   el: HTMLElement;
@@ -62,7 +70,7 @@ function DesktopTransportBar(): React.JSX.Element {
       <button aria-label="Play current song (F5 in desktop)" className="bb-transport__btn bb-transport__btn--play" data-button="play" title="Play current song (F5 in desktop)" type="button">▶ Play</button>
       <button aria-label="Pause playback" className="bb-transport__btn bb-transport__btn--pause bb-transport__btn--pri-5" data-button="pause" title="Pause playback" type="button">⏸ Pause</button>
       <button aria-label="Stop playback (F8 in desktop)" className="bb-transport__btn bb-transport__btn--stop" data-button="stop" title="Stop playback (F8 in desktop)" type="button">⏹ Stop</button>
-      <button aria-label="Apply & re-play (Ctrl+Enter)" className="bb-transport__btn bb-transport__btn--apply bb-transport__btn--pri-5" data-button="apply" title="Apply & re-play (Ctrl+Enter)" type="button">↻ Apply</button>
+      <button aria-label={`Apply & re-play (${applyShortcut})`} className="bb-transport__btn bb-transport__btn--apply bb-transport__btn--pri-5" data-button="apply" title={`Apply & re-play (${applyShortcut})`} type="button">↻ Apply</button>
       <button aria-label="Toggle live-play mode" className="bb-transport__btn bb-transport__btn--live bb-live-btn bb-transport__btn--pri-5" data-button="live" title="Toggle live-play mode" type="button">⚡ Live</button>
       <button aria-label="Toggle loop playback" className="bb-transport__btn bb-transport__btn--loop bb-loop-btn bb-transport__btn--pri-2" data-button="loop" title="Toggle loop playback" type="button">⟳ Loop</button>
       <button aria-label="Arm recording (coming soon)" className="bb-transport__btn bb-transport__btn--record" data-button="record" disabled title="Arm recording (coming soon)" type="button">● Rec</button>

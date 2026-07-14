@@ -119,6 +119,7 @@ export function SelectField({
 }
 
 export function NumberField({
+  disabled,
   id,
   label,
   max,
@@ -126,6 +127,7 @@ export function NumberField({
   onChange,
   value,
 }: {
+  disabled?: boolean;
   id?: string;
   label: string;
   max: number;
@@ -135,10 +137,11 @@ export function NumberField({
 }): React.JSX.Element {
   const fieldId = id ?? `bb-num-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
-    <div className="bb-settings-row">
+    <div className="bb-settings-row" style={disabled ? { opacity: 0.5 } : undefined}>
       <label className="bb-settings-label" htmlFor={fieldId}>{label}</label>
       <input
         className="bb-settings-number"
+        disabled={disabled}
         id={fieldId}
         max={max}
         min={min}

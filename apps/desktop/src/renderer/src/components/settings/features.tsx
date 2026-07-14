@@ -122,7 +122,7 @@ export function FeaturesSettingsSection(): React.JSX.Element {
 export function resetFeaturesDefaults(): void {
   settingFeatureAI.set(false);
   settingFeaturePerChannelAnalyser.set(false);
-  settingFeatureChannelMixer.set(false);
+  settingFeatureChannelMixer.set(true);
   settingFeaturePatternGrid.set(false);
   settingFeatureHotReload.set(false);
   settingFeatureSongVisualizer.set(false);
