@@ -30,7 +30,6 @@ import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import {
   computeLineChangeDiff,
   countAIChangeDiff,
-  formatAIChangeBanner,
   type AIChangeDiff,
 } from '../../lib/line-change-diff';
 import { icon } from '../../utils/icons';
@@ -325,7 +324,7 @@ async function readDesktopAIAPIKey(): Promise<string | null> {
 
 function ChatMessageView({
   message,
-  mode,
+  mode: _mode,
   onFixInEditMode,
   onInsertSnippet,
   onReplaceSelection,
@@ -1046,7 +1045,7 @@ function DesktopCopilotPanel({
       <div className="bb-chat-status" style={{ display: status ? 'block' : 'none' }}>{status}</div>
 
       <div className="bb-chat-messages" ref={messagesRef}>
-        {history.map((message, index) => (
+        {history.map((message) => (
             <ChatMessageView
               key={`${message.timestamp}-${message.role}`}
               message={message}

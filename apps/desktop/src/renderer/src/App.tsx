@@ -246,6 +246,9 @@ export default function App(): React.JSX.Element {
       case 'file:open': void handleOpen(); break;
       case 'file:save': void handleSave(false); break;
       case 'file:save-as': void handleSave(true); break;
+      case 'file:toggle-auto-save':
+        workspaceRef.current?.dispatchMenuAction(action);
+        break;
       case 'playback:play':
         workspaceRef.current?.transportBar.playButton.click();
         break;

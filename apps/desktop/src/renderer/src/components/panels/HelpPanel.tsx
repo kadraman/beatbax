@@ -13,6 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ShortcutDescriptor } from '../../utils/keyboard-shortcuts';
+import { bindingToKeyArray, detectShortcutPlatform } from '@beatbax/app-core/shortcuts';
 
 export interface DesktopHelpPanelHandle {
   show: () => void;
@@ -194,26 +195,12 @@ const HELP_SECTIONS: Section[] = [
 ];
 
 function descriptorToKeys(descriptor: ShortcutDescriptor): string[] {
-  const keys: string[] = [];
-  if (descriptor.ctrlKey) keys.push('Ctrl');
-  if (descriptor.altKey) keys.push('Alt');
-  if (descriptor.shiftKey) keys.push('Shift');
-
-  const raw = descriptor.key;
-  const lower = raw.toLowerCase();
-  const display = raw === ' '
-    ? 'Space'
-    : lower === 'escape'
-      ? 'Esc'
-      : lower === 'f1'
-        ? 'F1'
-        : lower === 'enter'
-          ? 'Enter'
-          : raw.length === 1
-            ? raw.toUpperCase()
-            : raw;
-  keys.push(display);
-  return keys;
+  return bindingToKeyArray({
+    key: descriptor.key,
+    ctrl: descriptor.ctrlKey,
+    alt: descriptor.altKey,
+    shift: descriptor.shiftKey,
+  }, detectShortcutPlatform());
 }
 
 function isSection(value: unknown): value is Section {

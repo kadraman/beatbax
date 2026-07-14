@@ -1,16 +1,19 @@
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
+import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
+import { registerCatalogShortcuts, type ShortcutHandlers } from '@beatbax/app-core/shortcuts';
 import type { BottomTabsController, RightTabsController } from '../components/shell/tabs';
 import type { ShortcutsModalController } from '../components/shell/modals';
 import type { ThemeManager } from './theme-manager';
 import { KeyboardShortcuts } from '../utils/keyboard-shortcuts';
-import { registerDesktopShortcutDescriptors, type DesktopShortcutHandlers } from './desktop-shortcut-descriptors';
 import type { DesktopCopilotHandle } from './desktop-copilot';
 import type { DesktopSettingsModalHandle } from '../components/panels/DesktopSettingsModal';
 import type { DesktopChannelMixerHandle } from '../components/panels/DesktopChannelMixer';
 import type { DesktopToolbarHandle } from '../components/workspace/DesktopToolbar';
 import type { DesktopTransportBarHandle } from '../components/workspace/DesktopTransportBar';
+
+export type { ShortcutHandlers as DesktopShortcutHandlers };
 
 export interface RegisterDesktopShortcutsOptions {
   ks: KeyboardShortcuts;
@@ -45,7 +48,7 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
 
   const monacoInst = () => getEditor()?.editor;
 
-  const handlers: DesktopShortcutHandlers = {
+  const handlers: ShortcutHandlers = {
     'transport.play': () => transportBar.playButton.click(),
     'transport.stop': () => transportBar.stopButton.click(),
     'transport.apply': () => transportBar.applyButton.click(),
@@ -58,18 +61,12 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     'edit.undo': () => monacoInst()?.trigger('menu', 'undo', null),
     'edit.redo': () => monacoInst()?.trigger('menu', 'redo', null),
 
-    // Monaco handles these while the editor is focused; these entries keep
-    // the desktop-owned shortcut list complete for Help/Shortcuts.
-    'editor.noteSemitoneUp': () => {},
-    'editor.noteSemitoneDown': () => {},
-    'editor.noteOctaveUp': () => {},
-    'editor.noteOctaveDown': () => {},
-
     'view.toggleTheme': () => themeManager.toggle(),
-    'view.toggleThemeAlt': () => themeManager.toggle(),
     'view.showOutput': () => bottomTabs.show('output'),
     'view.showProblems': () => bottomTabs.show('problems'),
-    'view.showSongVisualizer': () => rightTabs.show('channels'),
+    'view.showSongVisualizer': () => {
+      eventBus.emit('panel:toggled', { panel: 'song-visualizer', visible: true });
+    },
     'view.toggleChannelMixer': () => {
       if (!isFeatureEnabled(FeatureFlag.CHANNEL_MIXER)) return;
       const vis = channelMixer?.isVisible?.() ?? false;
@@ -82,6 +79,12 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
     'view.toggleTransportBar': () => {
       const vis = transportBar.isVisible?.() ?? false;
       eventBus.emit('panel:toggled', { panel: 'transport-bar', visible: !vis });
+    },
+    'view.togglePatternGrid': () => {
+      if (!isFeatureEnabled(FeatureFlag.PATTERN_GRID)) return;
+      const raw = storage.get(StorageKey.PANEL_VIS_PATTERN_GRID);
+      const vis = raw === 'true';
+      eventBus.emit('panel:toggled', { panel: 'pattern-grid', visible: !vis });
     },
 
     'help.showHelp': () => rightTabs.show('help'),
@@ -96,12 +99,30 @@ export function registerDesktopShortcuts(opts: RegisterDesktopShortcutsOptions):
       ed.focus();
       window.setTimeout(() => ed.trigger('', 'editor.action.quickCommand', null), 50);
     },
+    'tools.toggleCopilot': () => {
+      const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
+      eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
+    },
   };
 
-  handlers['tools.toggleCopilot'] = () => {
-    const aiActive = rightTabs.tabOpen.ai && rightTabs.activeTab === 'ai';
-    eventBus.emit('panel:toggled', { panel: 'ai-assistant', visible: !aiActive });
-  };
-
-  registerDesktopShortcutDescriptors(ks, handlers);
+  registerCatalogShortcuts({
+    shortcuts: ks,
+    profile: 'desktop-full',
+    capabilities: {
+      export: true,
+      copilot: true,
+      channelMixer: true,
+      songVisualizer: true,
+      patternGrid: true,
+      advancedEditor: true,
+      midiStepEntry: true,
+      helpPanel: true,
+      problemsPanel: true,
+      outputPanel: true,
+      settingsPanel: true,
+      nativeMenu: true,
+      exampleMenu: false,
+    },
+    handlers,
+  });
 }

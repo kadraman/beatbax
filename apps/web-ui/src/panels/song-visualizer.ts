@@ -386,6 +386,8 @@ export class SongVisualizer {
   private activeBgEffect: BgEffect | null = null;
   private bgRafId: number | null = null;
   private performanceMode = false;
+  private chromeHideTimer: ReturnType<typeof setTimeout> | null = null;
+  private chromePinned = false;
 
   constructor(options: SongVisualizerOptions) {
     this.container = options.container;
@@ -433,6 +435,41 @@ export class SongVisualizer {
     return document.fullscreenElement !== null;
   }
 
+  private clearChromeHideTimer(): void {
+    if (this.chromeHideTimer !== null) {
+      clearTimeout(this.chromeHideTimer);
+      this.chromeHideTimer = null;
+    }
+  }
+
+  private setChromeHidden(hidden: boolean): void {
+    const root = document.getElementById('bb-viz-root');
+    if (!root || !this.performanceMode) return;
+    root.classList.toggle('bb-viz--chrome-hidden', hidden);
+  }
+
+  private revealChrome(): void {
+    if (!this.performanceMode) return;
+    this.setChromeHidden(false);
+    this.clearChromeHideTimer();
+    if (this.chromePinned) return;
+    this.chromeHideTimer = setTimeout(() => {
+      this.chromeHideTimer = null;
+      if (this.performanceMode && !this.chromePinned) this.setChromeHidden(true);
+    }, 2200);
+  }
+
+  private pinChrome(): void {
+    this.chromePinned = true;
+    this.clearChromeHideTimer();
+    this.setChromeHidden(false);
+  }
+
+  private unpinChrome(): void {
+    this.chromePinned = false;
+    this.revealChrome();
+  }
+
   render(): void {
     this.stopBgLoop();
     this.container.innerHTML = '';
@@ -446,11 +483,21 @@ export class SongVisualizer {
       'bb-viz--layout-horizontal',
     ].filter(Boolean).join(' ');
     root.id = 'bb-viz-root';
+    if (this.isPerformanceMode) root.tabIndex = -1;
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', 'Song Visualizer');
 
     const toolbar = document.createElement('div');
     toolbar.className = 'bb-viz__toolbar';
+    if (this.isPerformanceMode) {
+      toolbar.addEventListener('pointerenter', () => this.pinChrome());
+      toolbar.addEventListener('pointerleave', () => this.unpinChrome());
+      toolbar.addEventListener('focusin', () => this.pinChrome());
+      toolbar.addEventListener('focusout', (event) => {
+        const next = (event as FocusEvent).relatedTarget as Node | null;
+        if (!toolbar.contains(next)) this.unpinChrome();
+      });
+    }
 
     const unmuteBtn = document.createElement('button');
     unmuteBtn.type = 'button';
@@ -576,6 +623,13 @@ export class SongVisualizer {
     this.container.appendChild(root);
     this.syncCanvasResolution();
     this.refreshBgEffect();
+    if (this.isPerformanceMode) {
+      requestAnimationFrame(() => root.focus());
+      this.revealChrome();
+    } else {
+      this.chromePinned = false;
+      this.clearChromeHideTimer();
+    }
   }
 
   private applyRightPaneConstraints(): void {
@@ -707,6 +761,15 @@ export class SongVisualizer {
     this.applySoloStyle(soloBtn, isSoloed);
     soloBtn.addEventListener('click', () => toggleChannelSoloed(ch.id));
 
+    if (this.isPerformanceMode) {
+      for (const btn of [muteBtn, soloBtn]) {
+        btn.addEventListener('pointerenter', () => this.pinChrome());
+        btn.addEventListener('pointerleave', () => this.unpinChrome());
+        btn.addEventListener('focus', () => this.pinChrome());
+        btn.addEventListener('blur', () => this.unpinChrome());
+      }
+    }
+
     ctrlRow.appendChild(muteBtn);
     ctrlRow.appendChild(soloBtn);
 
@@ -782,12 +845,23 @@ export class SongVisualizer {
     window.addEventListener('keydown', onKeyDown);
     this.unsubscribers.push(() => window.removeEventListener('keydown', onKeyDown));
 
+    const onPointerMove = (event: PointerEvent) => {
+      if (!this.performanceMode) return;
+      const root = document.getElementById('bb-viz-root');
+      if (!root?.contains(event.target as Node)) return;
+      this.revealChrome();
+    };
+    document.addEventListener('pointermove', onPointerMove);
+    this.unsubscribers.push(() => document.removeEventListener('pointermove', onPointerMove));
+
     const onFullscreenChange = () => {
       if (this.performanceMode) {
         this.updatePerformanceButton();
+        const root = document.getElementById('bb-viz-root');
         // Double rAF: first lets the browser apply fullscreen layout,
         // second ensures paint + reflow are complete before syncing canvas sizes
         requestAnimationFrame(() => {
+          root?.focus();
           requestAnimationFrame(() => {
             this.syncCanvasResolution();
             this.refreshBgEffect();
@@ -1113,6 +1187,8 @@ export class SongVisualizer {
 
   dispose(): void {
     this.performanceMode = false;
+    this.chromePinned = false;
+    this.clearChromeHideTimer();
     this.applyRightPaneConstraints();
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];

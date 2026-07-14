@@ -4046,8 +4046,40 @@ code {
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+  outline: none;
 }
-.bb-viz--fullscreen .bb-viz__toolbar { opacity: 0.92; flex-shrink: 0; position: relative; z-index: 2; }
+.bb-viz--fullscreen .bb-viz__toolbar {
+  opacity: 0.92;
+  flex-shrink: 0;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  pointer-events: auto;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden {
+  cursor: none;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__toolbar {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-viz--fullscreen .bb-cp__btn,
+.bb-viz--fullscreen .bb-viz__btn {
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-cp__btn,
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__btn {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-viz--fullscreen .bb-viz__toolbar-btn svg {
+  pointer-events: none;
+}
 /* Keep disabled toolbar buttons visible in fullscreen */
 .bb-viz--fullscreen .bb-viz__toolbar-btn:disabled { opacity: 0.45; }
 .bb-viz--fullscreen .bb-viz__channels {
@@ -4059,6 +4091,8 @@ code {
   grid-auto-rows: minmax(110px, 1fr);
   overflow: hidden;
   align-content: stretch;
+  position: relative;
+  z-index: 1;
 }
 .bb-viz--fullscreen .bb-viz__card {
   min-height: 110px;
@@ -5868,8 +5902,40 @@ code {
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+  outline: none;
 }
-.bb-viz--fullscreen .bb-viz__toolbar { opacity: 0.92; flex-shrink: 0; position: relative; z-index: 2; }
+.bb-viz--fullscreen .bb-viz__toolbar {
+  opacity: 0.92;
+  flex-shrink: 0;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  pointer-events: auto;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden {
+  cursor: none;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__toolbar {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-viz--fullscreen .bb-cp__btn,
+.bb-viz--fullscreen .bb-viz__btn {
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-cp__btn,
+.bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__btn {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.bb-viz--fullscreen .bb-viz__toolbar-btn svg {
+  pointer-events: none;
+}
 /* Keep disabled toolbar buttons visible in fullscreen */
 .bb-viz--fullscreen .bb-viz__toolbar-btn:disabled { opacity: 0.45; }
 .bb-viz--fullscreen .bb-viz__channels {
@@ -5881,6 +5947,8 @@ code {
   grid-auto-rows: minmax(110px, 1fr);
   overflow: hidden;
   align-content: stretch;
+  position: relative;
+  z-index: 1;
 }
 .bb-viz--fullscreen .bb-viz__card {
   min-height: 110px;

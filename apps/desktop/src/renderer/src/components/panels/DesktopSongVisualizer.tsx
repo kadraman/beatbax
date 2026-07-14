@@ -6,8 +6,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
   type Ref,
 } from 'react';
 import { flushSync } from 'react-dom';
@@ -322,6 +320,7 @@ function DesktopSongVisualizer({
   const [analyserEnabled, setAnalyserEnabled] = useState(settingFeaturePerChannelAnalyser.get());
   const [performanceMode, setPerformanceMode] = useState(false);
   const [fullscreenActive, setFullscreenActive] = useState(document.fullscreenElement !== null);
+  const [chromeVisible, setChromeVisible] = useState(true);
   const [bgEffectId, setBgEffectId] = useState<BgEffectId>(() => validBgEffect(storage.get(StorageKey.VIZ_BG_EFFECT, 'none') ?? null));
   const [bgImageData, setBgImageData] = useState(() => storage.get(StorageKey.VIZ_BG_IMAGE, '') ?? '');
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -329,6 +328,8 @@ function DesktopSongVisualizer({
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const activeBgEffectRef = useRef<BgEffect | null>(null);
   const bgRafRef = useRef<number | null>(null);
+  const chromeHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chromePinnedRef = useRef(false);
   const levelTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const channelWaveformsRef = useRef<Map<number, Float32Array>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
@@ -348,6 +349,34 @@ function DesktopSongVisualizer({
     activeBgEffectRef.current?.dispose();
     activeBgEffectRef.current = null;
   }, []);
+
+  const clearChromeHideTimer = useCallback(() => {
+    if (chromeHideTimerRef.current !== null) {
+      clearTimeout(chromeHideTimerRef.current);
+      chromeHideTimerRef.current = null;
+    }
+  }, []);
+
+  const revealChrome = useCallback(() => {
+    setChromeVisible(true);
+    clearChromeHideTimer();
+    if (chromePinnedRef.current) return;
+    chromeHideTimerRef.current = setTimeout(() => {
+      chromeHideTimerRef.current = null;
+      if (!chromePinnedRef.current) setChromeVisible(false);
+    }, 2200);
+  }, [clearChromeHideTimer]);
+
+  const pinChrome = useCallback(() => {
+    chromePinnedRef.current = true;
+    clearChromeHideTimer();
+    setChromeVisible(true);
+  }, [clearChromeHideTimer]);
+
+  const unpinChrome = useCallback(() => {
+    chromePinnedRef.current = false;
+    revealChrome();
+  }, [revealChrome]);
 
   const drawAnalyserWaveform = useCallback((channelId: number, samples: Float32Array) => {
     const canvas = canvasRefs.current.get(channelId);
@@ -447,24 +476,6 @@ function DesktopSongVisualizer({
     });
   }, [syncChannelInfoFromStore]);
 
-  const activateOnPointerDown = useCallback((
-    event: ReactPointerEvent<HTMLButtonElement>,
-    action: () => void,
-  ) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  }, []);
-
-  const activateOnKeyboardClick = useCallback((
-    event: ReactMouseEvent<HTMLButtonElement>,
-    action: () => void,
-  ) => {
-    if (event.detail !== 0) return;
-    action();
-  }, []);
-
   const resetAllChannels = useCallback(() => {
     setPositions({});
     clearLevels();
@@ -483,12 +494,14 @@ function DesktopSongVisualizer({
 
   useImperativeHandle(visualizerRef, () => ({
     dispose: () => {
+      chromePinnedRef.current = false;
+      clearChromeHideTimer();
       setPerformanceMode(false);
       stopBgLoop();
       clearLevels();
       document.body.classList.remove('bb-viz-wide-mode');
     },
-  }), [clearLevels, stopBgLoop]);
+  }), [clearChromeHideTimer, clearLevels, stopBgLoop]);
 
   useEffect(() => {
     const cleanups = [
@@ -543,8 +556,32 @@ function DesktopSongVisualizer({
   }, [activeChip, analyserEnabled, drawAnalyserWaveform, drawSyntheticPulse, eventBus, playbackManager, refreshSettings, resetAllChannels]);
 
   useEffect(() => {
+    if (!performanceMode) {
+      chromePinnedRef.current = false;
+      clearChromeHideTimer();
+      setChromeVisible(true);
+      return undefined;
+    }
+    revealChrome();
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const onPointerMove = () => revealChrome();
+    root.addEventListener('pointermove', onPointerMove);
+    return () => {
+      root.removeEventListener('pointermove', onPointerMove);
+      clearChromeHideTimer();
+    };
+  }, [clearChromeHideTimer, performanceMode, revealChrome]);
+
+  useEffect(() => {
     document.body.classList.toggle('bb-viz-wide-mode', performanceMode);
     return () => document.body.classList.remove('bb-viz-wide-mode');
+  }, [performanceMode]);
+
+  useEffect(() => {
+    if (!performanceMode) return undefined;
+    const id = requestAnimationFrame(() => rootRef.current?.focus());
+    return () => cancelAnimationFrame(id);
   }, [performanceMode]);
 
   useEffect(() => {
@@ -569,7 +606,12 @@ function DesktopSongVisualizer({
     };
     const onFullscreenChange = () => {
       setFullscreenActive(document.fullscreenElement !== null);
-      if (performanceMode) requestAnimationFrame(() => requestAnimationFrame(syncCanvasResolution));
+      if (performanceMode) {
+        requestAnimationFrame(() => {
+          rootRef.current?.focus();
+          requestAnimationFrame(syncCanvasResolution);
+        });
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -654,19 +696,28 @@ function DesktopSongVisualizer({
   return (
     <div
       aria-label="Song Visualizer"
-      className={`bb-viz${performanceMode ? ' bb-viz--fullscreen' : ''} bb-viz--layout-horizontal`}
+      className={`bb-viz${performanceMode ? ' bb-viz--fullscreen' : ''}${performanceMode && !chromeVisible ? ' bb-viz--chrome-hidden' : ''} bb-viz--layout-horizontal`}
       id="bb-viz-root"
       ref={rootRef}
       role="region"
+      tabIndex={performanceMode ? -1 : undefined}
     >
-      <div className="bb-viz__toolbar">
+      <div
+        className="bb-viz__toolbar"
+        onFocusCapture={performanceMode ? pinChrome : undefined}
+        onBlurCapture={performanceMode ? (event) => {
+          const next = event.relatedTarget as Node | null;
+          if (!event.currentTarget.contains(next)) unpinChrome();
+        } : undefined}
+        onPointerEnter={performanceMode ? pinChrome : undefined}
+        onPointerLeave={performanceMode ? unpinChrome : undefined}
+      >
         <button
           className="bb-viz__toolbar-btn"
           disabled={!Object.values(channelInfo).some((state) => state.muted)}
           dangerouslySetInnerHTML={{ __html: icon('speaker-wave') }}
           id="bb-viz-unmute-all"
-          onClick={(event) => activateOnKeyboardClick(event, () => runChannelStateAction(unmuteAll))}
-          onPointerDown={(event) => activateOnPointerDown(event, () => runChannelStateAction(unmuteAll))}
+          onClick={() => runChannelStateAction(unmuteAll)}
           title="Unmute all channels"
           type="button"
         />
@@ -675,8 +726,7 @@ function DesktopSongVisualizer({
           disabled={!Object.values(channelInfo).some((state) => state.soloed)}
           dangerouslySetInnerHTML={{ __html: icon('eye') }}
           id="bb-viz-clear-solo"
-          onClick={(event) => activateOnKeyboardClick(event, () => runChannelStateAction(clearAllSolo))}
-          onPointerDown={(event) => activateOnPointerDown(event, () => runChannelStateAction(clearAllSolo))}
+          onClick={() => runChannelStateAction(clearAllSolo)}
           title="Clear solo"
           type="button"
         />
@@ -687,8 +737,7 @@ function DesktopSongVisualizer({
               className="bb-viz__toolbar-btn bb-viz__performance-transport-btn"
               dangerouslySetInnerHTML={{ __html: icon('play') }}
               disabled={!onPlay}
-              onClick={(event) => activateOnKeyboardClick(event, () => onPlay?.())}
-              onPointerDown={(event) => activateOnPointerDown(event, () => onPlay?.())}
+              onClick={() => onPlay?.()}
               title="Play current song"
               type="button"
             />
@@ -697,8 +746,7 @@ function DesktopSongVisualizer({
               className="bb-viz__toolbar-btn bb-viz__performance-transport-btn"
               dangerouslySetInnerHTML={{ __html: icon('stop') }}
               disabled={!onStop && !playbackManager}
-              onClick={(event) => activateOnKeyboardClick(event, () => (onStop ? onStop() : playbackManager?.stop()))}
-              onPointerDown={(event) => activateOnPointerDown(event, () => (onStop ? onStop() : playbackManager?.stop()))}
+              onClick={() => (onStop ? onStop() : playbackManager?.stop())}
               title="Stop playback"
               type="button"
             />
@@ -709,7 +757,7 @@ function DesktopSongVisualizer({
           className="bb-viz__toolbar-btn bb-viz__toolbar-btn--performance"
           dangerouslySetInnerHTML={{ __html: icon(performanceIcon) }}
           id="bb-viz-fullscreen"
-          onClick={(event) => activateOnKeyboardClick(event, () => {
+          onClick={() => {
             if (!performanceMode) {
               flushSync(() => setPerformanceMode(true));
               return;
@@ -719,18 +767,7 @@ function DesktopSongVisualizer({
               return;
             }
             void rootRef.current?.requestFullscreen?.().catch(() => undefined);
-          })}
-          onPointerDown={(event) => activateOnPointerDown(event, () => {
-            if (!performanceMode) {
-              flushSync(() => setPerformanceMode(true));
-              return;
-            }
-            if (document.fullscreenElement) {
-              void document.exitFullscreen?.().catch(() => undefined);
-              return;
-            }
-            void rootRef.current?.requestFullscreen?.().catch(() => undefined);
-          })}
+          }}
           title={performanceTitle}
           type="button"
         />
@@ -740,14 +777,10 @@ function DesktopSongVisualizer({
             className="bb-viz__toolbar-btn bb-viz__toolbar-btn--exit-performance"
             dangerouslySetInnerHTML={{ __html: icon('x-mark') }}
             id="bb-viz-exit"
-            onClick={(event) => activateOnKeyboardClick(event, () => {
+            onClick={() => {
               flushSync(() => setPerformanceMode(false));
               if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
-            })}
-            onPointerDown={(event) => activateOnPointerDown(event, () => {
-              flushSync(() => setPerformanceMode(false));
-              if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
-            })}
+            }}
             title="Exit performance mode"
             type="button"
           />
@@ -799,8 +832,11 @@ function DesktopSongVisualizer({
                       aria-pressed={muted}
                       className={`bb-cp__btn bb-cp__btn--mute${muted ? ' bb-cp__btn--active' : ''}`}
                       id={`bb-viz-mute-${ch.id}`}
-                      onClick={(event) => activateOnKeyboardClick(event, () => runChannelStateAction(() => toggleChannelMuted(ch.id)))}
-                      onPointerDown={(event) => activateOnPointerDown(event, () => runChannelStateAction(() => toggleChannelMuted(ch.id)))}
+                      onBlur={performanceMode ? unpinChrome : undefined}
+                      onClick={() => runChannelStateAction(() => toggleChannelMuted(ch.id))}
+                      onFocus={performanceMode ? pinChrome : undefined}
+                      onPointerEnter={performanceMode ? pinChrome : undefined}
+                      onPointerLeave={performanceMode ? unpinChrome : undefined}
                       title={muted ? 'Unmute channel' : 'Mute channel'}
                       type="button"
                     >
@@ -810,8 +846,11 @@ function DesktopSongVisualizer({
                       aria-pressed={soloed}
                       className={`bb-cp__btn bb-cp__btn--solo${soloed ? ' bb-cp__btn--active' : ''}`}
                       id={`bb-viz-solo-${ch.id}`}
-                      onClick={(event) => activateOnKeyboardClick(event, () => runChannelStateAction(() => toggleChannelSoloed(ch.id)))}
-                      onPointerDown={(event) => activateOnPointerDown(event, () => runChannelStateAction(() => toggleChannelSoloed(ch.id)))}
+                      onBlur={performanceMode ? unpinChrome : undefined}
+                      onClick={() => runChannelStateAction(() => toggleChannelSoloed(ch.id))}
+                      onFocus={performanceMode ? pinChrome : undefined}
+                      onPointerEnter={performanceMode ? pinChrome : undefined}
+                      onPointerLeave={performanceMode ? unpinChrome : undefined}
                       title={soloed ? 'Remove solo' : 'Solo this channel'}
                       type="button"
                     >

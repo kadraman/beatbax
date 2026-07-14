@@ -47,7 +47,6 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
 
   let chatPanel: DesktopCopilotPanelHandle | null = null;
   let pendingAIChange: PendingAIChange | null = null;
-  let visible = false;
   const shortcutAbortController = new AbortController();
 
   function isCopilotOpen(): boolean {
@@ -294,7 +293,6 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
 
   function showCopilot(options: { activate?: boolean } = {}): void {
     const { activate = true } = options;
-    visible = true;
     aiTabBtn?.classList.remove('bb-right-tab--hidden');
     rightTabs.tabOpen.ai = true;
     if (activate) {
@@ -304,7 +302,6 @@ export function setupDesktopCopilot(options: DesktopCopilotOptions): DesktopCopi
   }
 
   function hideCopilot(): void {
-    visible = false;
     getChatPanel().hide();
     rightTabs.close('ai');
     aiTabBtn?.classList.add('bb-right-tab--hidden');

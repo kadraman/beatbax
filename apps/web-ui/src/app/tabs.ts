@@ -258,6 +258,11 @@ export interface RightTabsController {
   readonly savedInitialTab: RightTabId | null;
   /** Open and activate a tab; shows the right pane if collapsed. */
   show(tab: RightTabId): void;
+  /**
+   * Make a tab available without switching away from the current active tab.
+   * Activates it only when the pane has no active tab.
+   */
+  ensureOpen(tab: RightTabId): void;
   /** Close a tab; switches to neighbour or collapses the pane. */
   close(tab: RightTabId): void;
   /** Activate an already-open tab without toggling pane visibility. */
@@ -319,6 +324,14 @@ export function buildRightTabs(
     tabButtons[tab]?.classList.remove('bb-right-tab--hidden');
     layout.setRightPaneVisible(true);
     switchTab(tab);
+  };
+
+  const ensureOpen = (tab: RightTabId): void => {
+    if (!rightTabOrder.includes(tab)) return;
+    tabOpen[tab] = true;
+    tabButtons[tab]?.classList.remove('bb-right-tab--hidden');
+    layout.setRightPaneVisible(true);
+    if (activeTab === null) switchTab(tab);
   };
 
   const close = (tab: RightTabId): void => {
@@ -441,6 +454,7 @@ export function buildRightTabs(
     get activeTab()       { return activeTab; },
     savedInitialTab,
     show,
+    ensureOpen,
     close,
     switch:              switchTab,
     restorePersistedTab,

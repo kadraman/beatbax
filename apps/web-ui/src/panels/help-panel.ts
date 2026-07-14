@@ -12,6 +12,7 @@
 
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ShortcutDescriptor } from '../utils/keyboard-shortcuts';
+import { bindingToKeyArray, detectShortcutPlatform } from '@beatbax/app-core/shortcuts';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { icon } from '../utils/icons';
 
@@ -485,22 +486,13 @@ export class HelpPanel {
     return this.buildSections();
   }
 
-  /** Convert a ShortcutDescriptor to a human-readable key array like ['Ctrl', 'S'] */
   private descriptorToKeys(d: ShortcutDescriptor): string[] {
-    const keys: string[] = [];
-    if (d.ctrlKey) keys.push('Ctrl');
-    if (d.altKey) keys.push('Alt');
-    if (d.shiftKey) keys.push('Shift');
-    // Capitalise single-letter keys; handle 'space' → 'Space', 'escape' → 'Esc', etc.
-    const raw = d.key;
-    const display = raw === ' ' ? 'Space'
-      : raw.toLowerCase() === 'escape' ? 'Esc'
-      : raw.toLowerCase() === 'f1' ? 'F1'
-      : raw.toLowerCase() === 'enter' ? 'Enter'
-      : raw.length === 1 ? raw.toUpperCase()
-      : raw;
-    keys.push(display);
-    return keys;
+    return bindingToKeyArray({
+      key: d.key,
+      ctrl: d.ctrlKey,
+      alt: d.altKey,
+      shift: d.shiftKey,
+    }, detectShortcutPlatform());
   }
 
   private renderBody(body: HTMLElement): void {

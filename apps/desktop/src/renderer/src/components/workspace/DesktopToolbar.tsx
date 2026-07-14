@@ -3,10 +3,18 @@ import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
-import { getCurrentCapabilities } from '@beatbax/app-core/client-profile';
+import { getCurrentCapabilities, getClientProfile } from '@beatbax/app-core/client-profile';
+import {
+  detectShortcutPlatform,
+  formatCommandShortcut,
+  type ShortcutCommandId,
+} from '@beatbax/app-core/shortcuts';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { icon } from '../../utils/icons';
+
+const toolbarShortcut = (id: ShortcutCommandId) =>
+  formatCommandShortcut(id, getClientProfile(), detectShortcutPlatform());
 
 export type DesktopToolbarStyle = 'icons+labels' | 'icons';
 
@@ -166,15 +174,15 @@ function DesktopToolbar({
   return (
     <div className="bb-toolbar" data-style={toolbarStyle} style={{ display: visible ? undefined : 'none' }}>
       <div className="bb-toolbar__group bb-toolbar__group--file">
-        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" onClick={onNew} title="New song (Ctrl+N)" type="button">
+        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-new" id="tb-new" onClick={onNew} title={`New song (${toolbarShortcut('file.new')})`} type="button">
           <ToolbarIcon name="document-plus" />
           <span className="bb-toolbar__btn-label">New</span>
         </button>
-        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" onClick={onSave} title="Save .bax file (Ctrl+S)" type="button">
+        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-save" id="tb-save" onClick={onSave} title={`Save .bax file (${toolbarShortcut('file.save')})`} type="button">
           <ToolbarIcon name="document-check" />
           <span className="bb-toolbar__btn-label">Save</span>
         </button>
-        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" onClick={openFile} title="Open .bax file (Ctrl+O)" type="button">
+        <button className="bb-toolbar__btn bb-toolbar__btn--icon bb-toolbar__item--pri-open" id="tb-open" onClick={openFile} title={`Open .bax file (${toolbarShortcut('file.open')})`} type="button">
           <ToolbarIcon name="folder-open" />
           <span className="bb-toolbar__btn-label">Open</span>
         </button>
@@ -183,11 +191,11 @@ function DesktopToolbar({
       <div className="bb-toolbar__separator bb-toolbar__sep--edit" aria-hidden="true" />
 
       <div className="bb-toolbar__group bb-toolbar__group--edit">
-        <button className="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" onClick={onUndo} title="Undo (Ctrl+Z)" type="button">
+        <button className="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-undo" onClick={onUndo} title={`Undo (${toolbarShortcut('edit.undo')})`} type="button">
           <ToolbarIcon name="arrow-uturn-left" />
           <span className="bb-toolbar__btn-label">Undo</span>
         </button>
-        <button className="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" onClick={onRedo} title="Redo (Ctrl+Y)" type="button">
+        <button className="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-redo" onClick={onRedo} title={`Redo (${toolbarShortcut('edit.redo')})`} type="button">
           <ToolbarIcon name="arrow-uturn-right" />
           <span className="bb-toolbar__btn-label">Redo</span>
         </button>

@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -157,7 +156,7 @@ function volumeEnabledForChannel(activeChip: string, channelId: number): boolean
   return plugin.supportsPerChannelVolume ?? false;
 }
 
-function volumeDisabledTitle(activeChip: string, channelId: number): string {
+function volumeDisabledTitle(activeChip: string, _channelId: number): string {
   const plugin = chipRegistry.get(activeChip);
   const chipSupports = plugin?.supportsPerChannelVolume ?? false;
   if (chipSupports) return 'This channel has fixed amplitude - no runtime volume available';
