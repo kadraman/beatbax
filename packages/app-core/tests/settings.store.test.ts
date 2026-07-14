@@ -23,8 +23,9 @@ describe('getEffectiveAutoSaveDelay', () => {
     expect(getEffectiveAutoSaveDelay()).toBe(750);
   });
 
-  it('defaults to 1000 ms when no delay is stored', () => {
+  it('returns the live delay value when auto-save is enabled', () => {
     settingAutoSave.set(true);
+    // beforeEach sets settingAutoSaveDelay to 1000
     expect(getEffectiveAutoSaveDelay()).toBe(1000);
   });
 });

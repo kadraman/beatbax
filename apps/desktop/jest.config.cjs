@@ -14,7 +14,11 @@ module.exports = {
         jsx: 'react-jsx',
         baseUrl: '.',
         paths: {
+          // Keep in sync with moduleNameMapper so ts-jest typecheck can resolve
+          // app-core sources pulled in outside the desktop package root.
           '@beatbax/app-core/*': ['../../packages/app-core/src/*'],
+          '@beatbax/engine/util/logger': ['tests/__mocks__/logger.ts'],
+          '@beatbax/engine/*': ['../../packages/engine/src/*'],
         },
       }
     }]

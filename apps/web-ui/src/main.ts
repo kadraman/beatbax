@@ -181,7 +181,10 @@ editor = createEditor({
   value: getInitialContent(settingDefaultBpm.get()),
   theme: 'beatbax-dark',
   language: 'beatbax',
-  autoSaveDelay: 0,
+  // Web has no disk auto-save, but this delay still batches editorContent /
+  // localStorage draft writes and editor:changed emissions (parse/live have
+  // their own timers). 0 would sync-write localStorage on every keystroke.
+  autoSaveDelay: 500,
   emitChangedEvents: true,
 });
 
