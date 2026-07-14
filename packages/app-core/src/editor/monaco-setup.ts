@@ -58,6 +58,8 @@ export interface BeatBaxEditor {
   setCursorPosition: (line: number, column: number) => void;
   /** Cancel a pending debounced editor:changed from executeEdits/setValue (tooling edits). */
   cancelPendingChangeNotification: () => void;
+  /** Update debounce delay in ms (0 = emit changes immediately). */
+  setAutoSaveDelay: (delayMs: number) => void;
 }
 
 /**
@@ -105,30 +107,33 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
     },
   });
 
-  // Auto-save support with debounced emission, or immediate emission if no auto-save
+  // Debounced or immediate editor:changed emission (delay adjustable at runtime).
+  let currentDelay = autoSaveDelay;
   let autoSaveTimeout: number | null = null;
-  if (emitChangedEvents) {
-    if (autoSaveDelay > 0) {
-      editor.onDidChangeModelContent(() => {
-        if (autoSaveTimeout !== null) {
-          clearTimeout(autoSaveTimeout);
-        }
-        autoSaveTimeout = window.setTimeout(() => {
-          const val = editor.getValue();
-          editorContent.set(val);
-          editorDirty.set(true);
-          eventBus.emit('editor:changed', { content: val });
-        }, autoSaveDelay);
-      });
+
+  const emitChange = (): void => {
+    const val = editor.getValue();
+    editorContent.set(val);
+    editorDirty.set(true);
+    eventBus.emit('editor:changed', { content: val });
+  };
+
+  const scheduleChangeEmit = (): void => {
+    if (currentDelay > 0) {
+      if (autoSaveTimeout !== null) {
+        clearTimeout(autoSaveTimeout);
+      }
+      autoSaveTimeout = window.setTimeout(() => {
+        autoSaveTimeout = null;
+        emitChange();
+      }, currentDelay);
     } else {
-      // Emit change events immediately (without debounce) when auto-save is disabled
-      editor.onDidChangeModelContent(() => {
-        const val = editor.getValue();
-        editorContent.set(val);
-        editorDirty.set(true);
-        eventBus.emit('editor:changed', { content: val });
-      });
+      emitChange();
     }
+  };
+
+  if (emitChangedEvents) {
+    editor.onDidChangeModelContent(() => scheduleChangeEmit());
   }
 
   // Handle window resize
@@ -197,6 +202,14 @@ export function createEditor(options: EditorOptions): BeatBaxEditor {
         clearTimeout(autoSaveTimeout);
         autoSaveTimeout = null;
       }
+    },
+
+    setAutoSaveDelay: (delayMs: number) => {
+      if (autoSaveTimeout !== null) {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = null;
+      }
+      currentDelay = delayMs;
     },
   };
 

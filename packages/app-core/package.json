@@ -26,7 +26,10 @@
     "./input/*": "./dist/input/*.js",
     "./app/*": "./dist/app/*.js",
     "./io/*": "./dist/io/*.js",
-    "./client-profile": "./dist/client-profile.js"
+    "./client-profile": "./dist/client-profile.js",
+    "./shortcuts": "./dist/shortcuts/index.js",
+    "./shortcuts/monaco": "./dist/shortcuts/monaco.js",
+    "./shortcuts/*": "./dist/shortcuts/*.js"
   },
   "scripts": {
     "clean": "rimraf dist",

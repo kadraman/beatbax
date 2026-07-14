@@ -80,7 +80,7 @@ export function createLayout(config: LayoutConfig): LayoutManager {
   const {
     container,
     editorSize = 70, // 70% for editor by default
-    outputSize = 30, // 30% for output by default
+    outputSize: _outputSize = 30, // 30% for output by default
     minSize = 100,
     persist = true,
     storageKey = DEFAULT_STORAGE_KEY,

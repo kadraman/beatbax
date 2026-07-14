@@ -71,7 +71,13 @@ export const settingVizBgImage         = stringAtom<string>(StorageKey.VIZ_BG_IM
 // ─── Editor ───────────────────────────────────────────────────────────────────
 
 export const settingAutoSave        = boolAtom(StorageKey.AUTO_SAVE,         true);
+export const settingAutoSaveDelay   = numberAtom(StorageKey.AUTO_SAVE_DELAY, 1000);
 export const settingWordWrap        = boolAtom(StorageKey.WORD_WRAP,         false);
+
+/** Editor debounce delay when auto-save is enabled; 0 when disabled. */
+export function getEffectiveAutoSaveDelay(): number {
+  return settingAutoSave.get() ? settingAutoSaveDelay.get() : 0;
+}
 export const settingFoldComments    = boolAtom(StorageKey.FOLD_COMMENTS,     false);
 export const settingCodeLens        = boolAtom(StorageKey.CODELENS,          true);
 export const settingBeatDecorations = boolAtom(StorageKey.BEAT_DECORATIONS,  true);
@@ -97,7 +103,7 @@ export const settingAudioBufferFrames = stringAtom<'1024' | '2048' | '4096' | '8
 
 export const settingFeatureAI              = boolAtom(StorageKey.AI_ASSISTANT,              false);
 export const settingFeaturePerChannelAnalyser = boolAtom(StorageKey.FEATURE_PER_CHANNEL_ANALYSER, false);
-export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL_MIXER,      false);
+export const settingFeatureChannelMixer    = boolAtom(StorageKey.FEATURE_CHANNEL_MIXER,      true);
 export const settingFeaturePatternGrid     = boolAtom(StorageKey.FEATURE_PATTERN_GRID,      false);
 export const settingFeatureHotReload       = boolAtom(StorageKey.FEATURE_HOT_RELOAD,        false);
 export const settingFeatureSongVisualizer  = boolAtom(StorageKey.FEATURE_SONG_VISUALIZER,   false);
@@ -156,6 +162,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
   ],
   editor: [
     StorageKey.AUTO_SAVE,
+    StorageKey.AUTO_SAVE_DELAY,
     StorageKey.WORD_WRAP,
     StorageKey.FOLD_COMMENTS,
     StorageKey.CODELENS,

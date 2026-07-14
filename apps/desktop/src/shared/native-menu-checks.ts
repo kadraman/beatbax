@@ -2,6 +2,7 @@ import type { MenuAction } from './electron-api';
 
 /** Checkable View menu actions shown in the macOS native menu. */
 export type NativeMenuCheckAction =
+  | 'file:toggle-auto-save'
   | 'view:toggle-output'
   | 'view:toggle-problems'
   | 'view:toggle-toolbar'
@@ -21,6 +22,7 @@ export interface NativeMenuToggleState {
 export type NativeMenuCheckState = Record<NativeMenuCheckAction, NativeMenuToggleState>;
 
 export const DEFAULT_NATIVE_MENU_CHECK_STATE: NativeMenuCheckState = {
+  'file:toggle-auto-save': { checked: true },
   'view:toggle-output': { checked: false },
   'view:toggle-problems': { checked: true },
   'view:toggle-toolbar': { checked: true },

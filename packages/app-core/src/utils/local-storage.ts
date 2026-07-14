@@ -38,6 +38,8 @@ export const StorageKey = {
   SONG_ARTIST: 'editor.songArtist',
   /** Auto-save enabled flag (boolean). */
   AUTO_SAVE: 'editor.autoSave',
+  /** Auto-save debounce delay in milliseconds (desktop). */
+  AUTO_SAVE_DELAY: 'editor.autoSaveDelay',
   /** Word wrap enabled flag (boolean). */
   WORD_WRAP: 'editor.wordWrap',
   /** Fold all block comments enabled flag (boolean). */

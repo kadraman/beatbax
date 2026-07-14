@@ -22,6 +22,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(@beatbax|nanostores)/)',
   ],
+  resolver: '<rootDir>/../../scripts/jest-resolver.cjs',
   moduleNameMapper: {
     '^@beatbax/app-core(.*)$': '<rootDir>/../../packages/app-core/src$1',
     '^@beatbax/engine/util/logger$': '<rootDir>/tests/__mocks__/logger.ts',

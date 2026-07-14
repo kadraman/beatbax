@@ -191,6 +191,27 @@ describe('KeyboardShortcuts — metaKey as Ctrl', () => {
   });
 });
 
+describe('KeyboardShortcuts — AltGr tolerance', () => {
+  let ks: KeyboardShortcuts;
+
+  beforeEach(() => { ks = new KeyboardShortcuts(); ks.mount(); });
+  afterEach(() => { ks.dispose(); });
+
+  it('fires alt shortcuts when ctrl is also reported by the layout', () => {
+    const action = jest.fn();
+    ks.register({
+      key: 'v',
+      altKey: true,
+      shiftKey: true,
+      description: 'Verify syntax',
+      allowInInput: true,
+      action,
+    });
+    keydown('v', { ctrlKey: true, altKey: true, shiftKey: true });
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ─── dispose ─────────────────────────────────────────────────────────────────
 
 describe('KeyboardShortcuts — dispose', () => {

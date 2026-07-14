@@ -9,7 +9,6 @@ const WEB_LITE_EXCLUDED = [
   'f5',
   'f8',
   'ctrl+shift+s',
-  'ctrl+shift+m',
   'ctrl+alt+p',
   'alt+shift+i',
   'ctrl+,',
