@@ -484,6 +484,19 @@ describe('NES DMC channel', () => {
 // ─── DMC sample resolution ────────────────────────────────────────────────────
 
 describe('NES DMC sample resolution', () => {
+  const originalWindow = (globalThis as any).window;
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    if (originalWindow === undefined) {
+      delete (globalThis as any).window;
+    } else {
+      (globalThis as any).window = originalWindow;
+    }
+    globalThis.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
   test('@nes/kick resolves from bundled library', async () => {
     const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
     const samples = await resolveDMCSample('@nes/kick');
@@ -527,6 +540,39 @@ describe('NES DMC sample resolution', () => {
   test('unsupported scheme throws', async () => {
     const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
     await expect(resolveDMCSample('ftp://example.com/sample.dmc')).rejects.toThrow('unsupported');
+  });
+
+  test('desktop bridge resolves remote DMC samples without renderer fetch', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+    (globalThis as any).window = {
+      electronAPI: {
+        fetchRemoteAsset: jest.fn(async () => new Uint8Array([0xff])),
+      },
+    };
+
+    const samples = await resolveDMCSample('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc');
+
+    expect(samples).toBeInstanceOf(Float32Array);
+    expect(samples.length).toBe(8);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('desktop bridge resolves raw remote DMC sample bytes', async () => {
+    const { resolveRawDMCSample } = await import('../../src/chips/nes/dmc.js');
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+    (globalThis as any).window = {
+      electronAPI: {
+        fetchRemoteAsset: jest.fn(async () => new Uint8Array([0xaa, 0x55])),
+      },
+    };
+
+    const raw = await resolveRawDMCSample('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc');
+
+    expect(Array.from(new Uint8Array(raw))).toEqual([0xaa, 0x55]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

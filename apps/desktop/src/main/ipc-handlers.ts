@@ -7,6 +7,7 @@ import { IPC_CHANNELS } from '../shared/ipc';
 import type {
   DesktopFilePayload,
   DesktopOpenFileOptions,
+  DesktopRemoteAssetRequest,
   DesktopSaveFileOptions,
 } from '../shared/electron-api';
 import { resolveBundledSongsDir } from './path-utils';
@@ -15,6 +16,105 @@ const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
   { name: 'All Files', extensions: ['*'] },
 ];
+
+const REMOTE_ASSET_DEFAULT_TIMEOUT_MS = 10000;
+const REMOTE_ASSET_DEFAULT_MAX_BYTES = 1024 * 1024;
+const REMOTE_ASSET_MAX_REDIRECTS = 5;
+const REMOTE_ASSET_ALLOWLIST = new Set<string>([
+  'raw.githubusercontent.com',
+]);
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+export function isRemoteAssetHostAllowed(hostname: string): boolean {
+  return REMOTE_ASSET_ALLOWLIST.has(String(hostname || '').trim().toLowerCase());
+}
+
+export function assertRemoteAssetUrl(rawUrl: string): URL {
+  if (typeof rawUrl !== 'string' || rawUrl.trim().length === 0) {
+    throw new Error('Remote asset URL must be a non-empty string.');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('Remote asset URL is invalid.');
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Only https:// remote assets are allowed in Desktop.');
+  }
+  if (!isRemoteAssetHostAllowed(parsed.hostname)) {
+    throw new Error(`Remote asset host '${parsed.hostname}' is not in the Desktop allowlist.`);
+  }
+
+  return parsed;
+}
+
+function resolveRemoteRedirectLocation(currentUrl: URL, location: string | null): URL {
+  if (!location) {
+    throw new Error('Remote asset redirect is missing a Location header.');
+  }
+  return assertRemoteAssetUrl(new URL(location, currentUrl).toString());
+}
+
+export async function fetchRemoteAssetBytes(request: DesktopRemoteAssetRequest): Promise<Uint8Array> {
+  let targetUrl = assertRemoteAssetUrl(request?.url);
+  const timeoutMs = clampNumber(request?.timeoutMs, 1000, 30000, REMOTE_ASSET_DEFAULT_TIMEOUT_MS);
+  const maxBytes = clampNumber(request?.maxBytes, 1024, 8 * 1024 * 1024, REMOTE_ASSET_DEFAULT_MAX_BYTES);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    for (let redirectCount = 0; redirectCount <= REMOTE_ASSET_MAX_REDIRECTS; redirectCount++) {
+      const response = await fetch(targetUrl.toString(), {
+        signal: controller.signal,
+        redirect: 'manual',
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        if (redirectCount === REMOTE_ASSET_MAX_REDIRECTS) {
+          throw new Error(`Remote asset redirect limit exceeded (${REMOTE_ASSET_MAX_REDIRECTS}).`);
+        }
+        targetUrl = resolveRemoteRedirectLocation(targetUrl, response.headers.get('location'));
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Remote asset fetch failed (${response.status} ${response.statusText}).`);
+      }
+
+      const contentLengthHeader = response.headers.get('content-length');
+      if (contentLengthHeader) {
+        const contentLength = Number(contentLengthHeader);
+        if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+          throw new Error(`Remote asset exceeds max size (${maxBytes} bytes).`);
+        }
+      }
+
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if (bytes.byteLength > maxBytes) {
+        throw new Error(`Remote asset exceeds max size (${maxBytes} bytes).`);
+      }
+      return bytes;
+    }
+
+    throw new Error('Remote asset fetch reached an unexpected redirect state.');
+  } catch (error) {
+    if ((error as { name?: string })?.name === 'AbortError') {
+      throw new Error(`Remote asset fetch timed out after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function saveDialogFilters(options: DesktopSaveFileOptions) {
   const extension = options.extension?.replace(/^\./, '').trim();
@@ -586,6 +686,10 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       onRecentFilesChanged?.();
     }
     return savedPath;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.FETCH_REMOTE_ASSET, async (_event, request: DesktopRemoteAssetRequest) => {
+    return fetchRemoteAssetBytes(request);
   });
 
   ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (_event, targetPath: string, data: unknown) => {
