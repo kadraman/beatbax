@@ -129,6 +129,12 @@ export async function assertRemoteAssetUrl(rawUrl: string): Promise<URL> {
   if (parsed.protocol !== 'https:') {
     throw new Error('Only https:// remote assets are allowed in Desktop.')
   }
+  if (parsed.username || parsed.password) {
+    throw new Error('Remote asset URL must not include credentials.')
+  }
+  if (parsed.port) {
+    throw new Error('Remote asset URL must not include an explicit port.')
+  }
   if (!(await isRemoteAssetHostAllowed(parsed.hostname))) {
     throw new Error(`Remote asset host '${parsed.hostname}' is not in the Desktop allowlist.`)
   }

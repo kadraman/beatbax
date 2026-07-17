@@ -210,7 +210,7 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
     return decodeDMC(bytes);
   }
 
-  if (ref.startsWith('github:') || ref.startsWith('https://') || ref.startsWith('http://')) {
+  if (ref.startsWith('github:') || ref.startsWith('https://')) {
     const url = resolveGitHubUrl(ref);
     const bytes = await fetchRemoteBytes(url);
     return decodeDMC(bytes);

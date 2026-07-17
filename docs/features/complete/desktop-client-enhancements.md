@@ -1,13 +1,13 @@
 ---
 title: "Desktop Client Enhancements (Phase 5)"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-06-13
-updated: 2026-07-17
+complete: 2026-07-17
 related:
   - docs/features/complete/desktop-first-client-split.md
   - docs/features/complete/electron-desktop-client.md
-   - docs/features/desktop-dmc-main-process-ipc.md
+  - docs/features/desktop-dmc-main-process-ipc.md
 ---
 
 ## Summary

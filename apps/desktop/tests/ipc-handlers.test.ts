@@ -229,6 +229,18 @@ describe('remote asset URL policy', () => {
       "Remote asset host 'example.com' is not in the Desktop allowlist.",
     );
   });
+
+  it('rejects URLs with credentials', async () => {
+    await expect(assertRemoteAssetUrl('https://user:pass@raw.githubusercontent.com/foo/bar.dmc')).rejects.toThrow(
+      'Remote asset URL must not include credentials.',
+    );
+  });
+
+  it('rejects URLs with explicit ports', async () => {
+    await expect(assertRemoteAssetUrl('https://raw.githubusercontent.com:8443/foo/bar.dmc')).rejects.toThrow(
+      'Remote asset URL must not include an explicit port.',
+    );
+  });
 });
 
 describe('remote asset allowlist persistence', () => {

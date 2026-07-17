@@ -542,6 +542,11 @@ describe('NES DMC sample resolution', () => {
     await expect(resolveDMCSample('ftp://example.com/sample.dmc')).rejects.toThrow('unsupported');
   });
 
+  test('http remote scheme is rejected', async () => {
+    const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
+    await expect(resolveDMCSample('http://example.com/sample.dmc')).rejects.toThrow('unsupported');
+  });
+
   test('desktop bridge resolves remote DMC samples without renderer fetch', async () => {
     const { resolveDMCSample } = await import('../../src/chips/nes/dmc.js');
     const fetchSpy = jest.fn();
