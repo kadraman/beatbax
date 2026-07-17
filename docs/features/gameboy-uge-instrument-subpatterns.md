@@ -1,20 +1,31 @@
 ---
-title: Game Boy UGE Instrument Subpatterns
+title: "Game Boy Instrument Programs → UGE Subpatterns"
 status: proposed
 authors:
   - kadraman
 created: 2026-06-29T00:00:00.000Z
+updated: 2026-07-17T00:00:00.000Z
 related:
-  - docs/features/gameboy-noise-uge-playback-parity.md
+  - docs/features/complete/gameboy-instrument-macros-policy.md
+  - docs/features/complete/gameboy-noise-uge-playback-parity.md
+  - docs/features/hugetracker-uge-converter.md
   - docs/features/song-timing-pattern-grid-inspector.md
 issue: https://github.com/kadraman/beatbax/issues/150
 ---
 
 ## Summary
 
-Add BeatBax grammar and export support for Game Boy instrument subpatterns, focusing first on hUGETracker-compatible noise/percussion subpatterns.
+Give Game Boy instruments short **tick-time motion** (pitch drops, volume shapes, duty/timbre steps) that:
 
-hUGETracker instruments can contain a short internal pattern that plays when the instrument is triggered. This is especially useful for drums: one `kick` hit can perform a tiny pitch/noise/volume shape instead of being a single static noise event. Supporting this in BeatBax would make exported Game Boy drums closer to idiomatic hUGETracker songs and improve kick/snare/hat quality.
+1. Authors write with the existing BeatBax **macro** fields (`pitch_env`, `vol_env`, and later `duty_env` / `arp_env`)
+2. Compile once into a shared **tick program** (instrument program IR)
+3. Drive **both** BeatBax preview/WAV playback **and** hUGETracker UGE instrument **subpattern** rows from that same IR
+
+This revisits [`gameboy-instrument-macros-policy.md`](complete/gameboy-instrument-macros-policy.md) under its approved criterion: a formally specified, test-covered compile-time lowering model.
+
+Native `subpat` syntax (hUGE-shaped offset / jump / effect rows) is a **later phase** for UGE import fidelity and power-user effects that macros cannot express. It is not the v1 authoring surface.
+
+hUGETracker reference: [Subpatterns](https://superdisk.github.io/hUGETracker/hUGETracker/subpatterns.html).
 
 ---
 
@@ -26,288 +37,314 @@ Current BeatBax Game Boy noise instruments are mostly single-trigger definitions
 inst kick type=noise gb:width=7 env=14,down,1 uge_note=C-6
 ```
 
-This works, but it cannot express the short internal motion common in hUGETracker percussion instruments, such as:
+This cannot express the short internal motion common in hUGETracker percussion:
 
-- Kick drops that step through several noise pitches.
-- Snares that combine a bright transient with a lower tail.
-- Hats that use a short stepped volume/noise shape.
-- Toms or explosions that change noise frequency over a few ticks.
+- Kick drops that step through several noise pitches
+- Snares with a bright transient then a lower tail
+- Hats with stepped volume shapes
+- Pulse “plucks” (start up an octave, then settle)
 
-Without subpatterns, BeatBax exports can sound flatter than hand-authored hUGETracker instruments.
+hUGETracker solves this with **instrument subpatterns**: mini tick scripts attached to an instrument (offset | jump | effect), not with FamiTracker-style macro arrays.
+
+BeatBax already has portable macro syntax on NES/SMS/Spectrum. Game Boy currently **rejects** those fields by policy, because enabling them without a shared lowerer would make preview and UGE export diverge.
+
+---
+
+## Design Decision
+
+| Layer | Choice |
+|-------|--------|
+| **v1 authoring** | Existing macros: `pitch_env`, `vol_env` (noise first; `duty_env` / `arp_env` next) |
+| **Canonical IR** | Tick program: ordered per-tick actions (offset, optional effect, jump/halt) |
+| **Preview + WAV** | Interpret the tick program (do **not** reuse NES-style macro advance separately) |
+| **UGE export** | Serialize the same tick program into instrument subpattern rows |
+| **Later authoring** | Optional native `subpat` for raw hUGE effects / round-trip import |
+
+**Do not** invent BeatBax-only per-row props such as `{ width, divisor, shift }` inside a fake absolute-note `subpat`. Noise clock comes from base `uge_note` + per-tick **offsets**; LFSR width stays instrument-level (`gb:width`) or maps via hUGE effect `9xx` when needed.
 
 ---
 
 ## Goals
 
-1. Add author-friendly syntax for reusable instrument subpatterns.
-2. Export subpatterns into hUGETracker UGE instrument subpattern rows.
-3. Start with Game Boy `type=noise`, while leaving room for duty/wave subpatterns later.
-4. Keep normal song `pat` semantics separate from instrument-internal subpatterns.
-5. Provide clear fallback behavior for playback before full subpattern preview support exists.
+1. Enable Game Boy `pitch_env` / `vol_env` (and documented follow-ons) with deterministic UGE lowering.
+2. Define one `lowerGameBoyInstrumentProgram(inst) → TickProgram` used by playback and export.
+3. Start with `type=noise` drums; leave room for duty/wave.
+4. Keep song `pat` length unchanged — programs run inside the instrument on note-on.
+5. Match hUGE subpattern semantics closely enough that exported drums behave in hUGETracker.
+6. Defer full hUGE effect surface and native `subpat` grammar until macros cover the common cases.
 
 ---
 
 ## Non-Goals
 
 - Full tracker editing in BeatBax.
-- Supporting every hUGETracker subpattern feature in the first implementation.
-- Replacing normal song patterns with subpatterns.
-- Implementing subpatterns for non-Game Boy chips initially.
-- Perfect local playback parity in phase 1.
+- Supporting every hUGE subpattern effect in v1.
+- Replacing NES/SMS `*_env` with hUGE-shaped syntax.
+- Making hUGE `subpat` the universal cross-chip instrument model.
+- Export-only macros with a “preview may differ” escape hatch as the long-term design.
+- Perfect bit-exact LFSR / click parity with hUGEDriver in phase 1 (aim for close, testable behavior).
 
 ---
 
-## Proposed Grammar
+## hUGE Subpattern Model (target semantics)
 
-### Recommended Initial Syntax
+Each UGE instrument can enable a 64-row subpattern. Rows are **not** absolute notes:
 
-Use a dedicated `subpat` declaration and reference it from an instrument:
+| Column | Meaning |
+|--------|---------|
+| **Offset** | Semitone offset from the **base note** that triggered the instrument |
+| **Jump** | Optional jump to a row (loop / halt). Default: loop to start. Self-jump = freeze |
+| **Effect** | One tracker effect for **that tick only** |
 
-```bax
-subpat kick_drop =
-  C-6:1
-  B-5:1
-  A-5:1
-  G-5:1
+Key rules ([manual](https://superdisk.github.io/hUGETracker/hUGETracker/subpatterns.html)):
 
-inst kick type=noise gb:width=7 env=14,down,1 subpat=kick_drop
-```
+- One row = one tick (not a BeatBax pattern step).
+- Subpatterns auto-loop unless jump/halt prevents it (forgetting halt causes volume/pitch crackle on long notes).
+- Subpattern effects override conflicting main-grid effects.
+- Usable effects include `0,1,2,4,5,6,8,9,A,C,F`. Not usable: `3,7,B,D,E` (use jump / `C00` instead).
+- Effect `9xx` changes pulse duty, wave RAM index, or noise LFSR width.
+- Effect `Cxy` sets volume (and can retrigger / click — prefer short one-shots for drums).
 
-This keeps instrument subpatterns distinct from timeline `pat` blocks.
-
-### Per-Step Parameter Syntax
-
-For better drums, subpattern steps should eventually allow local parameter overrides:
-
-```bax
-subpat kick_drop =
-  C-6:1 { width=7  divisor=7 shift=5 vol=15 }
-  B-5:1 { width=7  divisor=7 shift=6 vol=12 }
-  A-5:1 { width=15 divisor=3 shift=6 vol=8  }
-  G-5:1 { width=15 divisor=3 shift=7 vol=4  }
-
-inst kick type=noise subpat=kick_drop
-```
-
-Alternative compact form:
-
-```bax
-subpat kick_drop = [
-  C-6 {width=7 divisor=7 shift=5 vol=15},
-  B-5 {width=7 divisor=7 shift=6 vol=12},
-  A-5 {width=15 divisor=3 shift=6 vol=8},
-  G-5 {width=15 divisor=3 shift=7 vol=4}
-]
-```
-
-### Instrument-Embedded Syntax
-
-This is shorter, but less reusable:
-
-```bax
-inst kick type=noise gb:width=7 env=14,down,1 subpat=[
-  C-6:1
-  B-5:1
-  A-5:1
-  G-5:1
-]
-```
-
-Recommendation: defer embedded syntax until named `subpat` blocks are proven.
+UGE v6 already stores 64 subpattern cells per instrument (`note | unused | jump | effectCode | effectParam`). BeatBax writes empty disabled rows today; this feature fills them from the tick program.
 
 ---
 
-## Example Drum Kit
+## Proposed Authoring (v1 — macros)
+
+Reuse existing macro syntax. Base pitch for noise remains `uge_note=`:
 
 ```bax
 chip gameboy
 bpm 140
 
-subpat kick_drop =
-  C-6:1 { width=7  divisor=7 shift=5 vol=15 }
-  B-5:1 { width=7  divisor=7 shift=6 vol=12 }
-  A-5:1 { width=15 divisor=3 shift=6 vol=8  }
-  G-5:1 { width=15 divisor=3 shift=7 vol=4  }
+inst kick type=noise gb:width=7 env=14,down,1 uge_note=C-6 \
+  pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
 
-subpat snare_snap =
-  C-7:1 { width=7  divisor=3 shift=4 vol=12 }
-  C-7:1 { width=15 divisor=2 shift=4 vol=8  }
-  C-6:1 { width=15 divisor=3 shift=5 vol=4  }
+inst snare type=noise gb:width=7 env=10,down,2 uge_note=C-7 \
+  pitch_env=[0,7,0] vol_env=[12,8,4]
 
-subpat hat_tick =
-  C-8:1 { width=15 divisor=1 shift=2 vol=5 }
-  C-8:1 { width=15 divisor=1 shift=3 vol=2 }
-
-inst kick  type=noise subpat=kick_drop
-inst snare type=noise subpat=snare_snap
-inst hat   type=noise subpat=hat_tick
+inst hat type=noise gb:width=15 env=4,down,1 uge_note=C-8 \
+  vol_env=[5,2]
 
 pat drums = kick hat snare hat
 channel 4 => inst kick pat drums
 ```
 
+### Macro → tick program (normative sketch)
+
+| Source | Tick program |
+|--------|----------------|
+| `pitch_env=[…]` | Per-tick `offset` (semitones relative to base note) |
+| `vol_env=[…]` | Per-tick set-volume effect (`Cxy`) |
+| `duty_env=[…]` (later, pulse) | Per-tick timbre (`9xx`) |
+| `arp_env=[…]` (later) | Offsets; prefer `pitch_env` when not looping a chord shape |
+| `\|N` loop point | Jump back to row N |
+| No loop (one-shot) | **Halt** (self-jump) on the last authored row so hUGE does not restart |
+
+### Merge rules (must be specified and tested)
+
+Macros are parallel lanes; a subpattern is one timeline. v1 rules:
+
+1. Zip lanes to `max(lengths)`.
+2. Missing pitch → hold last offset (or `0` before first pitch value).
+3. Missing volume → omit volume effect that tick (or hold last — pick one, test it).
+4. If volume and duty would both need the effect column on the same tick, **volume wins** in v1; emit a diagnostic for the dropped duty step.
+5. More than 64 ticks after expansion → export/playback error.
+6. Empty program (no macros) → `subpatternEnabled=false`, empty rows as today.
+
+### Interaction with hardware `env=`
+
+- Instrument `env=` remains the UGE instrument envelope fields.
+- `vol_env` lowers to subpattern `Cxy` steps and takes precedence for the stepped shape during the program.
+- Document that combining long hardware envelopes with aggressive `Cxy` can click; drum kits should keep envelopes short or rely on `vol_env` + halt.
+
+### Interaction with `uge_note`
+
+- Pattern / named-hit base note still comes from `uge_note=` (and noise playback parity via `get_note_poly`).
+- Tick offsets are applied relative to that base.
+- Do not treat macro values as absolute `C-6` / `B-5` note names.
+
 ---
 
-## Semantics
+## Shared Tick Program (architecture constraint)
 
-### Triggering
-
-When a named instrument token is used in a normal song pattern:
-
-```bax
-pat drums = kick . snare .
-```
-
-The instrument's subpattern is triggered at that row. The subpattern plays internally inside the instrument; it does not expand the song timeline or change the length of `pat drums`.
-
-### Length
-
-Subpattern length should be limited to hUGETracker's supported instrument subpattern rows. If UGE stores 64 rows per instrument, BeatBax can accept up to 64 subpattern steps/rows, but examples should keep drums short.
-
-Recommended validation:
-
-- Empty subpattern: warning or error.
-- More than 64 rows: error for UGE export.
-- Non-1-step durations: either expand to rows or reject in phase 1.
-
-### Interaction With `uge_note`
-
-If an instrument has both `uge_note=` and `subpat=`, the subpattern should define the exported subpattern rows. `uge_note=` can remain useful as:
-
-- The default pattern-row note when subpattern export is unavailable.
-- The NR43 LFSR clock source during BeatBax playback when no explicit subpattern playback exists.
-- The first subpattern note if the subpattern omits note values.
-
-Recommended warning:
+This is **not** a separate product feature. It is required implementation for this feature:
 
 ```text
-Instrument 'kick' has both uge_note and subpat; UGE export will use subpat rows for the instrument body.
+inst macros (and later native subpat)
+        │
+        ▼
+lowerGameBoyInstrumentProgram(inst)   ← single function
+        │
+        ▼
+TickProgram  (offsets, effects, jumps/halt)
+        ├── playTickProgram(...)      → WebAudio / PCM / WAV
+        └── writeUgeSubpattern(...)   → .uge instrument rows
 ```
 
-### Playback Fallback
+### Hard rules
 
-Phase 1 can export subpatterns to UGE and use a simple local fallback:
+1. Preview must **not** call the NES-style per-chip macro advance path as a second source of truth.
+2. Export must **not** invent a separate ad-hoc mapping from arrays to rows.
+3. Golden tests assert the same `TickProgram` for a fixture instrument feeds both paths.
+4. If something cannot lower, **error or warn** — do not play full macros in the IDE while exporting a flat instrument.
 
-- Trigger the instrument's first subpattern row during web/desktop playback.
-- Show a warning that full subpattern playback is not yet supported.
+### Suggested IR (sketch)
 
-Later phases should make local playback run the subpattern internally for preview parity.
+```ts
+interface TickProgram {
+  enabled: boolean;
+  rows: TickRow[]; // max 64 when targeting UGE
+}
+
+interface TickRow {
+  offset: number;          // semitones; 0 = base note
+  effect?: { code: number; param: number }; // hUGE effect, or null
+  jump?: number;           // absolute row index; omit if none
+  halt?: boolean;          // encode as self-jump
+}
+```
+
+Offset encoding into UGE `rowNote` must be confirmed against fixture `.uge` files (hUGE UI uses C6 as `+0` reference when entering offsets).
+
+---
+
+## Later Phase — Native `subpat` (optional)
+
+For UGE import and effects macros cannot express (`1xx`/`2xx` portamento, pan, routines, etc.):
+
+```bax
+subpat kick_drop =
+  +0  vol:15
+  -2  vol:12
+  -4  vol:8
+  -6  vol:4
+  halt
+
+inst kick type=noise gb:width=7 uge_note=C-6 subpat=kick_drop
+```
+
+Rules when both macros and `subpat=` are present: **`subpat` wins**; warn that macros on that instrument are ignored for the program.
+
+Raw escape hatch for round-trip:
+
+```bax
+subpat fancy =
+  +3  fx:1,20
+  +0  fx:C,0F
+  jump:2
+```
+
+Native `subpat` also lowers into the **same** `TickProgram` IR.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1 - UGE Export Only
+### Phase 0 — Tick program + lowerer
 
 Deliverables:
 
-- Parser support for named `subpat` declarations.
-- AST/song model support for subpatterns.
-- Validation for subpattern references on Game Boy noise instruments.
-- UGE writer support for writing noise instrument subpattern rows.
-- Docs and one `songs/gameboy/instruments` demo.
+- `TickProgram` types and `lowerGameBoyInstrumentProgram`.
+- Documented merge / halt / loop rules.
+- Unit tests for lowering fixtures (drums, looped arp-like pitch, uneven lane lengths).
+- Fix UGE reader to **parse** v6 subpattern bodies (today it skips them) so export round-trips can be asserted.
 
-Acceptance criteria:
+Acceptance:
 
-- A BeatBax `subpat kick_drop` exports into the UGE noise instrument subpattern.
-- Normal song pattern length remains unchanged.
-- hUGETracker opens the exported file and plays the subpatterned drum instrument.
+- Pure function: same instrument props → identical `TickProgram` every time.
 
-### Phase 2 - Local Playback Preview
+### Phase 1 — Enable GB macros + UGE export
 
 Deliverables:
 
-- WebAudio/PCM playback executes subpattern rows when an instrument is triggered.
-- Playback uses the same note/width/divisor/shift/volume semantics planned by the Game Boy noise parity feature.
-- Add a preview warning or badge if playback falls back.
+- Allow `pitch_env` / `vol_env` on `chip gameboy` (noise first) with validation.
+- Update macros policy status to point here as the approved revisit.
+- UGE writer: `subpatternEnabled=true` + write 64 rows from `TickProgram`.
+- Reject or warn on unsupported combinations.
+- Demo song under `songs/gameboy/instruments/`.
 
-Acceptance criteria:
+Acceptance:
 
-- A subpatterned kick audibly changes over its short internal rows in web/desktop playback.
-- Exported UGE and local preview are closer than the single-hit fallback.
+- Exported `.uge` opens in hUGETracker; noise drums show enabled subpatterns and audible pitch/volume motion.
+- Song pattern lengths unchanged.
 
-### Phase 3 - UI / Pattern Grid Integration
+### Phase 2 — Preview / WAV from the same IR
 
 Deliverables:
 
-- Hover/completion docs for `subpat`.
-- Pattern Grid Inspector shows subpattern presence on named hits.
-- Instrument details panel displays subpattern rows.
-- Diagnostics for long/invalid subpatterns.
+- Game Boy WebAudio and PCM paths execute `TickProgram` on instrument trigger.
+- Tick timing aligned with hUGE tick semantics as closely as practical; document remaining gaps.
+- No separate NES macro player for GB instruments that have a program.
 
-Acceptance criteria:
+Acceptance:
 
-- Users can see which hits trigger subpatterns without opening the exported UGE file.
+- Preview and exported UGE are recognizably the same gesture for fixture kits.
+- Regression tests for program playback (offsets + volume steps + halt).
+
+### Phase 3 — Duty/wave + richer macros
+
+Deliverables:
+
+- `duty_env` → `9xx` on pulse; wave timbre where representable.
+- `arp_env` lowering where it does not fight `pitch_env`.
+- Diagnostics for effect-column collisions.
+
+### Phase 4 — Native `subpat` + UI
+
+Deliverables:
+
+- Parser/AST for `subpat` / `halt` / `vol:` / `fx:` / `jump:`.
+- Completions, hover, inspector surfacing “has instrument program”.
+- Importer path ([`hugetracker-uge-converter.md`](hugetracker-uge-converter.md)) emits `subpat` or macros as appropriate.
 
 ---
 
-## Parser And AST Sketch
+## Policy Impact
 
-Potential AST node:
+This feature **satisfies** revisit criterion 2 of [`gameboy-instrument-macros-policy.md`](complete/gameboy-instrument-macros-policy.md):
 
-```ts
-interface SubPatternNode {
-  nodeType: 'SubPattern';
-  name: string;
-  rows: SubPatternRowNode[];
-  loc?: SourceLocation;
-}
+> A formally specified compile-time lowering model is introduced with deterministic, test-covered semantics.
 
-interface SubPatternRowNode {
-  note?: string;
-  duration?: number;
-  props?: Record<string, string | number | boolean>;
-  loc?: SourceLocation;
-}
-```
-
-Song model:
-
-```ts
-interface SongModel {
-  subpatterns?: Record<string, SubPattern>;
-}
-
-interface InstrumentNode {
-  subpat?: string;
-}
-```
+Until Phase 1 lands, Game Boy `*_env` fields remain rejected. After Phase 1, macros are allowed **only** through this lowering path.
 
 ---
 
-## Export Mapping
+## Cross-chip note
 
-For UGE v6, instrument records already include subpattern rows. BeatBax should map:
+`*_env` remains the portable authoring idiom where chips already support it (NES, SMS, Spectrum). Game Boy consumes the same syntax but lowers to UGE subpatterns instead of FamiTracker/VGM macro tables.
 
-- `note` / `uge_note` -> UGE note index.
-- `vol` -> subpattern volume/effect if supported by UGE row format.
-- `width`, `divisor`, `shift` -> either instrument-level noise settings or encoded per-row effects if hUGE supports them.
-- Unsupported per-row properties -> warnings.
-
-Open technical detail: confirm exactly which hUGETracker instrument subpattern row fields affect noise frequency/volume and how they are represented in UGE v6.
+Do **not** force hUGE-shaped `subpat` onto other chips. A future shared engine IR is optional; this feature only requires a **Game Boy** tick program shared by preview and UGE export.
 
 ---
 
 ## Test Plan
 
-- Parser tests for named `subpat` declarations.
-- Resolver tests for instrument `subpat` references.
-- Validation tests:
-  - missing subpattern reference,
-  - too many rows,
-  - unsupported property.
-- UGE export tests that read the `.uge` back and verify subpattern rows are present.
-- Example song export smoke test.
-- Later: playback tests for subpattern-triggered noise variation.
+- Lowerer unit tests: zip/pad, halt encoding, loop jumps, >64 error, empty → disabled.
+- UGE export: write → read back subpattern rows (requires reader fix).
+- Golden fixtures: kick/snare/hat kits vs expected offsets + `Cxy` params.
+- Playback tests: program advances offsets/volumes; halt does not restart.
+- Validation: GB macros rejected until flag/path enabled; after enable, unknown macro combos warn.
+- Manual: open exported `.uge` in hUGETracker and audition drums.
 
 ---
 
 ## Risks And Open Questions
 
-1. How much of hUGETracker's subpattern behavior is encoded in UGE v6 and how much is tracker/runtime interpretation?
-2. Can per-row noise `width/divisor/shift` be represented directly, or do we need to approximate using notes/effects?
-3. Should `subpat` be Game Boy-only grammar, or generic grammar with chip-specific validation?
-4. Should subpattern durations support `:2`, `:4`, etc., or only one row per item initially?
-5. How should subpatterns interact with normal effects like `arp`, `vib`, `port`, and `cut`?
-6. Should `subpat` definitions be reusable across instruments with different base parameters?
+1. Exact UGE `rowNote` packing for signed offsets (C6 = `+0` in the tracker UI).
+2. Best `env=` vs `vol_env` authoring guidance to avoid clicks.
+3. Tick rate alignment between BeatBax GB backend and hUGEDriver when BPM/tempo modes differ.
+4. Whether inline macros (`pitch_env:[…]` on a note) are in scope for GB v1 (recommend **instrument-level only** first).
+5. How aggressively to support `arp_env` vs telling authors to use `pitch_env` for drums.
+6. Priority when pattern-level `arp`/`vib`/`port` conflict with an active instrument program (hUGE: subpattern wins per tick).
 
+---
+
+## References
+
+- [hUGETracker Subpatterns](https://superdisk.github.io/hUGETracker/hUGETracker/subpatterns.html)
+- [hUGETracker Effect reference](https://superdisk.github.io/hUGETracker/hUGETracker/effect-reference.html)
+- [UGE v6 format](https://superdisk.github.io/hUGETracker/hUGETracker/uge-format.html)
+- [`docs/formats/uge-v6-spec.md`](../formats/uge-v6-spec.md)
+- [`docs/features/complete/gameboy-instrument-macros-policy.md`](complete/gameboy-instrument-macros-policy.md)
+- [`docs/features/complete/gameboy-noise-uge-playback-parity.md`](complete/gameboy-noise-uge-playback-parity.md)
