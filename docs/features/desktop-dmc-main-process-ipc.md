@@ -1,9 +1,9 @@
 ---
 title: "Desktop DMC Remote Sample Loading via Main-Process IPC"
-status: proposed
+status: in-progress
 authors: ["kadraman"]
 created: 2026-07-15
-updated: 2026-07-15
+updated: 2026-07-17
 related:
   - docs/features/complete/electron-desktop-client.md
   - docs/features/desktop-client-enhancements.md
@@ -16,6 +16,29 @@ issue: ""
 Move NES DMC remote sample loading in Desktop from renderer-side network fetch to Electron main-process IPC.
 
 This fixes desktop playback failures caused by strict renderer CSP and preserves sandbox security boundaries while keeping engine behavior deterministic across Desktop, Web UI, and CLI.
+
+---
+
+## Implementation Progress
+
+### Completed
+
+- Added desktop IPC channel and API surface for remote asset fetching.
+- Added main-process remote asset fetch with security policy enforcement:
+  - https-only URLs
+  - allowlist host checks
+  - redirect validation per hop
+  - timeout and payload limits
+  - early Content-Length size rejection
+- Added engine DMC resolver support for desktop `window.electronAPI.fetchRemoteAsset` path while preserving web/Node behavior.
+- Added user-configurable allowlist management through Desktop Settings -> Advanced.
+- Added allowlist persistence in desktop user data and strict host normalization/validation.
+- Added unit and integration coverage for host policy and allowlist behavior.
+
+### Remaining
+
+- Optional CSP tightening follow-up once all renderer network requirements are audited.
+- Additional broad e2e coverage for full DMC playback scenarios beyond targeted fetch/allowlist integration checks.
 
 ---
 
@@ -82,43 +105,50 @@ Baseline:
 - Built-in default allowlist in desktop main process.
 - Start with required hosts for existing DMC usage.
 
-Optional enhancement:
+Implemented enhancement:
 
-- Advanced user-configurable host allowlist extension with strict validation.
+- Advanced user-configurable host allowlist extension with strict validation (hostnames only, no wildcard/path/scheme).
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: IPC Contract
+### Phase 1: IPC Contract (completed)
 
 - Add remote asset IPC channel constants.
 - Add typed request/response contracts to desktop shared API.
 - Keep contract generic for reuse beyond DMC.
 
-### Phase 2: Main-Process Fetch Service
+### Phase 2: Main-Process Fetch Service (completed)
 
 - Implement fetch service module under desktop main process.
 - Add URL parsing and policy checks.
 - Add timeout, payload-size guard, and redirect guard.
 - Register ipcMain handler in desktop IPC registration.
 
-### Phase 3: Preload Bridge
+### Phase 3: Preload Bridge (completed)
 
 - Add typed invoke wrapper in preload.
 - Expose method in window.electronAPI.
 - Keep contextIsolation and sandbox compatibility unchanged.
 
-### Phase 4: Engine DMC Integration
+### Phase 4: Engine DMC Integration (completed)
 
 - Update NES DMC resolver to prefer desktop IPC path when available.
 - Preserve existing web fetch path and node local path behavior.
 - Keep local sample browser restrictions unchanged.
 
-### Phase 5: CSP Review
+### Phase 5: CSP Review (pending)
 
 - After migration, tighten desktop renderer CSP connect policy to least required scope.
 - Avoid broad connect-src where not needed.
+
+### Phase 6: User-Configurable Allowlist (completed)
+
+- Added desktop API methods to read/write user allowlist.
+- Persisted user allowlist in desktop userData.
+- Added Advanced settings UI to edit/reset hosts.
+- Merged persisted user allowlist with built-in defaults at runtime.
 
 ---
 
@@ -129,7 +159,10 @@ Optional enhancement:
 - apps/desktop/src/preload/index.ts
 - apps/desktop/src/main/ipc-handlers.ts
 - apps/desktop/src/renderer/index.html
+- apps/desktop/src/renderer/src/components/settings/advanced.tsx
 - packages/engine/src/chips/nes/dmc.ts
+- apps/desktop/tests/ipc-handlers.test.ts
+- apps/desktop/tests/e2e/desktop-integration.spec.ts
 
 ---
 
@@ -144,6 +177,8 @@ Desktop main-process tests:
 3. Rejects non-HTTPS schemes.
 4. Enforces timeout.
 5. Enforces max payload size.
+6. Enforces redirect host validation and redirect limit.
+7. Validates and persists user-configurable allowlist hosts.
 
 Engine tests:
 
@@ -152,9 +187,16 @@ Engine tests:
 
 ### Integration Tests
 
-1. Desktop playback of songs/nes/iron_keep.bax loads remote DMC samples without failed-to-fetch.
-2. Disallowed remote host yields policy-blocked diagnostic and silent DMC channel only.
-3. Packaged desktop build matches dev behavior.
+Completed targeted integration:
+
+1. Desktop renderer -> preload -> main-process bridge fetch behavior validated.
+2. Disallowed host is blocked by policy.
+3. Adding a host through allowlist settings enables fetch for that host.
+
+Planned additional integration:
+
+1. Full DMC playback scenario assertion using remote sample refs (allowed and blocked host variants).
+2. Packaged desktop build parity check for allowlist behavior.
 
 ---
 
@@ -166,10 +208,16 @@ Engine tests:
 4. Web and CLI behavior remains unchanged.
 5. Security guardrails are covered by automated tests.
 
+Current status against criteria:
+
+- Criteria 1, 3, and 5 are satisfied by implemented code and automated tests.
+- Criteria 4 remains satisfied (web/CLI behavior preserved in engine tests).
+- Criteria 2 is partially satisfied: targeted integration and policy flow are validated; broader packaged playback verification remains pending.
+
 ---
 
 ## Open Questions
 
-1. Should the built-in allowlist include only raw.githubusercontent.com initially, or additional trusted hosts?
-2. Should blocked-host diagnostics include remediation text with settings path when configurable allowlist ships?
-3. Should the IPC remote fetch contract be reused immediately for other remote assets, or only DMC in first scope?
+1. Should the built-in allowlist include only raw.githubusercontent.com initially, or additional trusted hosts by default?
+2. Should blocked-host diagnostics include direct remediation guidance in output/status UI (for example, Settings -> Advanced -> Remote host allowlist)?
+3. Should this IPC remote fetch contract be generalized for other remote asset consumers beyond DMC in a follow-up feature?

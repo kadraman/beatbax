@@ -20,20 +20,93 @@ const TEXT_FILE_FILTERS = [
 const REMOTE_ASSET_DEFAULT_TIMEOUT_MS = 10000;
 const REMOTE_ASSET_DEFAULT_MAX_BYTES = 1024 * 1024;
 const REMOTE_ASSET_MAX_REDIRECTS = 5;
-const REMOTE_ASSET_ALLOWLIST = new Set<string>([
+const REMOTE_ASSET_DEFAULT_ALLOWLIST = new Set<string>([
   'raw.githubusercontent.com',
 ]);
+
+interface DesktopRemoteAssetSettingsFile {
+  version: 1;
+  remoteAssetAllowlist: string[];
+}
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(value)));
 }
 
-export function isRemoteAssetHostAllowed(hostname: string): boolean {
-  return REMOTE_ASSET_ALLOWLIST.has(String(hostname || '').trim().toLowerCase());
+export function normalizeRemoteAssetHost(rawHost: string): string {
+  const trimmed = String(rawHost || '').trim().toLowerCase();
+  if (!trimmed) {
+    throw new Error('Allowlist entries must not be empty.');
+  }
+  if (trimmed.includes('://') || /[/?#]/.test(trimmed)) {
+    throw new Error(`Allowlist entry '${rawHost}' must be a hostname only.`);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(`https://${trimmed}`);
+  } catch {
+    throw new Error(`Allowlist entry '${rawHost}' is not a valid hostname.`);
+  }
+
+  if (parsed.hostname !== trimmed || parsed.username || parsed.password || parsed.port) {
+    throw new Error(`Allowlist entry '${rawHost}' must be a bare hostname with no port or credentials.`);
+  }
+  if (trimmed.includes('*')) {
+    throw new Error(`Allowlist entry '${rawHost}' must not use wildcards.`);
+  }
+
+  return trimmed;
 }
 
-export function assertRemoteAssetUrl(rawUrl: string): URL {
+function normalizeRemoteAssetAllowlist(hosts: Iterable<string>): string[] {
+  const normalized = new Set<string>();
+  for (const host of hosts) {
+    normalized.add(normalizeRemoteAssetHost(host));
+  }
+  return Array.from(normalized).sort();
+}
+
+function desktopRemoteAssetSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'desktop-remote-assets.json');
+}
+
+export async function readDesktopRemoteAssetAllowlist(): Promise<string[]> {
+  try {
+    const raw = await fs.readFile(desktopRemoteAssetSettingsPath(), 'utf8');
+    const parsed = JSON.parse(raw) as Partial<DesktopRemoteAssetSettingsFile>;
+    if (parsed.version !== 1 || !Array.isArray(parsed.remoteAssetAllowlist)) return [];
+    return normalizeRemoteAssetAllowlist(parsed.remoteAssetAllowlist.filter((value): value is string => typeof value === 'string'));
+  } catch {
+    return [];
+  }
+}
+
+export async function writeDesktopRemoteAssetAllowlist(hosts: string[]): Promise<string[]> {
+  const normalized = normalizeRemoteAssetAllowlist(hosts);
+  const payload: DesktopRemoteAssetSettingsFile = {
+    version: 1,
+    remoteAssetAllowlist: normalized,
+  };
+  await fs.mkdir(path.dirname(desktopRemoteAssetSettingsPath()), { recursive: true });
+  await fs.writeFile(desktopRemoteAssetSettingsPath(), JSON.stringify(payload, null, 2), 'utf8');
+  return normalized;
+}
+
+async function getEffectiveRemoteAssetAllowlist(): Promise<Set<string>> {
+  const effective = new Set<string>(REMOTE_ASSET_DEFAULT_ALLOWLIST);
+  for (const host of await readDesktopRemoteAssetAllowlist()) {
+    effective.add(host);
+  }
+  return effective;
+}
+
+export async function isRemoteAssetHostAllowed(hostname: string): Promise<boolean> {
+  return (await getEffectiveRemoteAssetAllowlist()).has(String(hostname || '').trim().toLowerCase());
+}
+
+export async function assertRemoteAssetUrl(rawUrl: string): Promise<URL> {
   if (typeof rawUrl !== 'string' || rawUrl.trim().length === 0) {
     throw new Error('Remote asset URL must be a non-empty string.');
   }
@@ -48,14 +121,14 @@ export function assertRemoteAssetUrl(rawUrl: string): URL {
   if (parsed.protocol !== 'https:') {
     throw new Error('Only https:// remote assets are allowed in Desktop.');
   }
-  if (!isRemoteAssetHostAllowed(parsed.hostname)) {
+  if (!(await isRemoteAssetHostAllowed(parsed.hostname))) {
     throw new Error(`Remote asset host '${parsed.hostname}' is not in the Desktop allowlist.`);
   }
 
   return parsed;
 }
 
-function resolveRemoteRedirectLocation(currentUrl: URL, location: string | null): URL {
+async function resolveRemoteRedirectLocation(currentUrl: URL, location: string | null): Promise<URL> {
   if (!location) {
     throw new Error('Remote asset redirect is missing a Location header.');
   }
@@ -63,7 +136,7 @@ function resolveRemoteRedirectLocation(currentUrl: URL, location: string | null)
 }
 
 export async function fetchRemoteAssetBytes(request: DesktopRemoteAssetRequest): Promise<Uint8Array> {
-  let targetUrl = assertRemoteAssetUrl(request?.url);
+  let targetUrl = await assertRemoteAssetUrl(request?.url);
   const timeoutMs = clampNumber(request?.timeoutMs, 1000, 30000, REMOTE_ASSET_DEFAULT_TIMEOUT_MS);
   const maxBytes = clampNumber(request?.maxBytes, 1024, 8 * 1024 * 1024, REMOTE_ASSET_DEFAULT_MAX_BYTES);
 
@@ -81,7 +154,7 @@ export async function fetchRemoteAssetBytes(request: DesktopRemoteAssetRequest):
         if (redirectCount === REMOTE_ASSET_MAX_REDIRECTS) {
           throw new Error(`Remote asset redirect limit exceeded (${REMOTE_ASSET_MAX_REDIRECTS}).`);
         }
-        targetUrl = resolveRemoteRedirectLocation(targetUrl, response.headers.get('location'));
+        targetUrl = await resolveRemoteRedirectLocation(targetUrl, response.headers.get('location'));
         continue;
       }
 
@@ -690,6 +763,14 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
 
   ipcMain.handle(IPC_CHANNELS.FETCH_REMOTE_ASSET, async (_event, request: DesktopRemoteAssetRequest) => {
     return fetchRemoteAssetBytes(request);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.GET_REMOTE_ASSET_ALLOWLIST, async () => {
+    return readDesktopRemoteAssetAllowlist();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SET_REMOTE_ASSET_ALLOWLIST, async (_event, hosts: string[]) => {
+    return writeDesktopRemoteAssetAllowlist(Array.isArray(hosts) ? hosts : []);
   });
 
   ipcMain.on(IPC_CHANNELS.WRITE_FILE_SYNC, (_event, targetPath: string, data: unknown) => {

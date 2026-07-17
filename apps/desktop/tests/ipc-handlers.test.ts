@@ -12,9 +12,12 @@ import {
   fetchRemoteAssetBytes,
   isRemoteAssetHostAllowed,
   mergeRecentFiles,
+  normalizeRemoteAssetHost,
   persistFile,
+  readDesktopRemoteAssetAllowlist,
   readFileSyncSafe,
   toFileBuffer,
+  writeDesktopRemoteAssetAllowlist,
 } from '../src/main/ipc-handlers';
 
 jest.mock('electron', () => ({
@@ -25,12 +28,13 @@ jest.mock('electron', () => ({
   app: {
     addRecentDocument: jest.fn(),
     clearRecentDocuments: jest.fn(),
+    getPath: jest.fn(() => os.tmpdir()),
   },
 }));
 
 const { dialog, app } = jest.requireMock<{
   dialog: { showSaveDialog: jest.Mock };
-  app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock };
+  app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock; getPath: jest.Mock };
 }>('electron');
 
 describe('ipc handlers path validation', () => {
@@ -201,29 +205,68 @@ describe('desktop sync file reads', () => {
 });
 
 describe('remote asset URL policy', () => {
-  it('allows the default GitHub raw host', () => {
-    expect(isRemoteAssetHostAllowed('raw.githubusercontent.com')).toBe(true);
+  it('allows the default GitHub raw host', async () => {
+    await expect(isRemoteAssetHostAllowed('raw.githubusercontent.com')).resolves.toBe(true);
   });
 
-  it('rejects hosts outside the allowlist', () => {
-    expect(isRemoteAssetHostAllowed('example.com')).toBe(false);
+  it('rejects hosts outside the allowlist', async () => {
+    await expect(isRemoteAssetHostAllowed('example.com')).resolves.toBe(false);
   });
 
-  it('accepts valid https URL on allowed host', () => {
-    const parsed = assertRemoteAssetUrl('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc');
+  it('accepts valid https URL on allowed host', async () => {
+    const parsed = await assertRemoteAssetUrl('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc');
     expect(parsed.hostname).toBe('raw.githubusercontent.com');
   });
 
-  it('rejects non-https URLs', () => {
-    expect(() => assertRemoteAssetUrl('http://raw.githubusercontent.com/foo/bar')).toThrow(
+  it('rejects non-https URLs', async () => {
+    await expect(assertRemoteAssetUrl('http://raw.githubusercontent.com/foo/bar')).rejects.toThrow(
       'Only https:// remote assets are allowed in Desktop.',
     );
   });
 
-  it('rejects disallowed hosts', () => {
-    expect(() => assertRemoteAssetUrl('https://example.com/sample.dmc')).toThrow(
+  it('rejects disallowed hosts', async () => {
+    await expect(assertRemoteAssetUrl('https://example.com/sample.dmc')).rejects.toThrow(
       "Remote asset host 'example.com' is not in the Desktop allowlist.",
     );
+  });
+});
+
+describe('remote asset allowlist persistence', () => {
+  let tempDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-allowlist-'));
+    app.getPath.mockImplementation((name: string) => {
+      if (name === 'userData') return tempDir;
+      return os.tmpdir();
+    });
+  });
+
+  afterEach(() => {
+    app.getPath.mockImplementation(() => os.tmpdir());
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('normalizes hostnames to lowercase bare hosts', () => {
+    expect(normalizeRemoteAssetHost(' Raw.GitHubusercontent.com ')).toBe('raw.githubusercontent.com');
+  });
+
+  it('rejects invalid host entries', () => {
+    expect(() => normalizeRemoteAssetHost('https://raw.githubusercontent.com')).toThrow('must be a hostname only');
+    expect(() => normalizeRemoteAssetHost('example.com/path')).toThrow('must be a hostname only');
+    expect(() => normalizeRemoteAssetHost('*.example.com')).toThrow('must not use wildcards');
+  });
+
+  it('writes and reads a normalized allowlist', async () => {
+    const saved = await writeDesktopRemoteAssetAllowlist([
+      'Raw.GitHubusercontent.com',
+      'cdn.example.org',
+      'cdn.example.org',
+    ]);
+    expect(saved).toEqual(['cdn.example.org', 'raw.githubusercontent.com']);
+
+    const loaded = await readDesktopRemoteAssetAllowlist();
+    expect(loaded).toEqual(['cdn.example.org', 'raw.githubusercontent.com']);
   });
 });
 
