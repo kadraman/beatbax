@@ -16,6 +16,16 @@ import { DMC_RATE_TABLE, getDmcRateTable, NES_CLOCK } from './periodTables.js';
 import { NES_MIX_GAIN } from './mixer.js';
 import { BUNDLED_SAMPLES } from './dmcSamples.js';
 
+interface DesktopRemoteAssetRequest {
+  url: string;
+  timeoutMs?: number;
+  maxBytes?: number;
+}
+
+interface DesktopElectronApi {
+  fetchRemoteAsset?: (request: DesktopRemoteAssetRequest) => Promise<unknown>;
+}
+
 // ─── GitHub URL resolution ─────────────────────────────────────────────────────
 
 /**
@@ -64,6 +74,39 @@ function decodeLocalSamplePath(ref: string): string {
   } catch (_) {
     return rawPath;
   }
+}
+
+function getDesktopElectronApi(): DesktopElectronApi | null {
+  const maybeWindow = (globalThis as any)?.window;
+  if (!maybeWindow || typeof maybeWindow !== 'object') return null;
+  const api = maybeWindow.electronAPI;
+  if (!api || typeof api !== 'object') return null;
+  return api as DesktopElectronApi;
+}
+
+function toByteArray(data: unknown): Uint8Array {
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (Array.isArray(data)) return new Uint8Array(data);
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    if (record.type === 'Buffer' && Array.isArray(record.data)) {
+      return new Uint8Array(record.data as number[]);
+    }
+  }
+  throw new Error('NES DMC: invalid remote asset payload received from desktop bridge.');
+}
+
+async function fetchRemoteBytes(url: string): Promise<Uint8Array> {
+  const desktopApi = getDesktopElectronApi();
+  if (desktopApi?.fetchRemoteAsset) {
+    const payload = await desktopApi.fetchRemoteAsset({ url });
+    return toByteArray(payload);
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`NES DMC: failed to fetch remote sample '${url}': HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 // ─── DMC decoding ─────────────────────────────────────────────────────────────
@@ -118,9 +161,8 @@ export async function resolveRawDMCSample(ref: string): Promise<ArrayBuffer> {
 
   if (ref.startsWith('github:') || ref.startsWith('https://')) {
     const url = resolveGitHubUrl(ref);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}' (resolved: ${url}): HTTP ${res.status}`);
-    return res.arrayBuffer();
+    const bytes = await fetchRemoteBytes(url);
+    return new Uint8Array(bytes).buffer;
   }
 
   if (ref.startsWith('local:')) {
@@ -168,12 +210,10 @@ export async function resolveDMCSample(ref: string): Promise<Float32Array> {
     return decodeDMC(bytes);
   }
 
-  if (ref.startsWith('github:') || ref.startsWith('https://') || ref.startsWith('http://')) {
+  if (ref.startsWith('github:') || ref.startsWith('https://')) {
     const url = resolveGitHubUrl(ref);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`NES DMC: failed to fetch '${ref}' (resolved: ${url}): HTTP ${res.status}`);
-    const buf = await res.arrayBuffer();
-    return decodeDMC(new Uint8Array(buf));
+    const bytes = await fetchRemoteBytes(url);
+    return decodeDMC(bytes);
   }
 
   if (ref.startsWith('local:')) {
