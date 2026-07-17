@@ -65,6 +65,8 @@ export interface MenuBarOptions {
   onSave?: () => void;
   /** Download the current document with a user-chosen name (Ctrl+Shift+S). */
   onSaveAs?: () => void;
+  /** Exit the desktop application (non-macOS). */
+  onExit?: () => void;
   /** Toggle auto-save to disk (desktop). */
   onToggleAutoSave?: () => void;
   /**
@@ -167,6 +169,11 @@ function clearRecentFiles(): void {
 
 function isWindowsDesktop(): boolean {
   return typeof window !== 'undefined' && window.electronAPI?.getPlatform?.() === 'win32';
+}
+
+function shouldShowDesktopExitItem(): boolean {
+  if (typeof window === 'undefined' || !window.electronAPI?.getPlatform) return false;
+  return window.electronAPI.getPlatform() !== 'darwin';
 }
 
 function recentFileKey(file: RecentFile): string {
@@ -544,7 +551,7 @@ export class MenuBar {
   // ─── Menu structures ─────────────────────────────────────────────────────────
 
   private fileItems(): MenuItemDef[] {
-    return [
+    const items: MenuItemDef[] = [
       {
         type: 'item',
         label: 'New',
@@ -591,6 +598,19 @@ export class MenuBar {
         lazyChildren: () => this.recentFileItems(),
       },
     ];
+
+    if (shouldShowDesktopExitItem()) {
+      items.push(
+        { type: 'separator' },
+        {
+          type: 'item',
+          label: 'Exit',
+          action: () => this.opts.onExit?.(),
+        },
+      );
+    }
+
+    return items;
   }
 
   private editItems(): MenuItemDef[] {

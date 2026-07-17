@@ -108,6 +108,7 @@ export function setupDesktopMenuBar(options: SetupDesktopMenuBarOptions): {
     onBeforeExampleLoad: () => playbackManager.stop(),
     onSave: () => { void onSave(false); },
     onSaveAs: () => { void onSave(true); },
+    onExit: () => window.electronAPI?.closeWindow(),
     onLoadFile: (filename, content) => {
       playbackManager.stop();
       onLoadDocument(filename, content);

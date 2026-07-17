@@ -17,6 +17,12 @@ export interface DesktopFilePayload {
   data: Uint8Array;
 }
 
+export interface DesktopRemoteAssetRequest {
+  url: string;
+  timeoutMs?: number;
+  maxBytes?: number;
+}
+
 export type MenuAction =
   | 'file:new'
   | 'file:open'
@@ -89,6 +95,9 @@ export interface AIChatCompletionRequest {
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
   saveFile(options: DesktopSaveFileOptions, data: Uint8Array): Promise<string | null>;
+  fetchRemoteAsset(request: DesktopRemoteAssetRequest): Promise<Uint8Array>;
+  getRemoteAssetAllowlist(): Promise<string[]>;
+  setRemoteAssetAllowlist(hosts: string[]): Promise<string[]>;
   writeFileSync(targetPath: string, data: Uint8Array): void;
   readFileSync(targetPath: string, encoding?: string): string;
   existsSync(targetPath: string): boolean;
