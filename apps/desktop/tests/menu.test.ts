@@ -142,6 +142,17 @@ describe('desktop native menu', () => {
     expect(helpItems.map((item) => item.label)).toContain('About BeatBax');
   });
 
+  it('shows Exit in File menu on non-macOS', () => {
+    if (isMac) return;
+
+    const template = createMenuTemplate([], handlers());
+    const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
+    const exitItem = fileMenu.find((item) => item.label === 'Exit');
+
+    expect(exitItem).toBeTruthy();
+    expect(exitItem?.role).toBe('quit');
+  });
+
   it('includes macOS app menu with settings and examples when on darwin', () => {
     if (!isMac) return;
 

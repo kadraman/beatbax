@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   DesktopFilePayload,
   DesktopOpenFileOptions,
+  DesktopRemoteAssetRequest,
   DesktopSaveFileOptions,
   DesktopWindowState,
   ElectronAPI,
@@ -12,6 +13,9 @@ import { IPC_CHANNELS } from '../shared/ipc';
 const electronAPI: ElectronAPI = {
   openFile: (options?: DesktopOpenFileOptions) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, options),
   saveFile: (options: DesktopSaveFileOptions, data: Uint8Array) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_FILE, options, data),
+  fetchRemoteAsset: (request: DesktopRemoteAssetRequest) => ipcRenderer.invoke(IPC_CHANNELS.FETCH_REMOTE_ASSET, request),
+  getRemoteAssetAllowlist: () => ipcRenderer.invoke(IPC_CHANNELS.GET_REMOTE_ASSET_ALLOWLIST),
+  setRemoteAssetAllowlist: (hosts: string[]) => ipcRenderer.invoke(IPC_CHANNELS.SET_REMOTE_ASSET_ALLOWLIST, hosts),
   writeFileSync: (targetPath: string, data: Uint8Array) => {
     ipcRenderer.send(IPC_CHANNELS.WRITE_FILE_SYNC, targetPath, data);
   },

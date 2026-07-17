@@ -1,6 +1,9 @@
 export const IPC_CHANNELS = {
   OPEN_FILE: 'desktop:open-file',
   SAVE_FILE: 'desktop:save-file',
+  FETCH_REMOTE_ASSET: 'desktop:fetch-remote-asset',
+  GET_REMOTE_ASSET_ALLOWLIST: 'desktop:get-remote-asset-allowlist',
+  SET_REMOTE_ASSET_ALLOWLIST: 'desktop:set-remote-asset-allowlist',
   WRITE_FILE_SYNC: 'desktop:write-file-sync',
   READ_FILE_SYNC: 'desktop:read-file-sync',
   EXISTS_SYNC: 'desktop:exists-sync',

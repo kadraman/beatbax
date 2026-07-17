@@ -1,12 +1,13 @@
 ---
 title: "Desktop Client Enhancements (Phase 5)"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-06-13
-updated: 2026-06-27
+complete: 2026-07-17
 related:
   - docs/features/complete/desktop-first-client-split.md
   - docs/features/complete/electron-desktop-client.md
+  - docs/features/desktop-dmc-main-process-ipc.md
 ---
 
 ## Summary
@@ -25,8 +26,8 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 | Distribution hardening | ⬜ | Code signing, notarization, auto-update |
 | Native React UI | ✅ | Phase 5b native React migrations and desktop bridge cleanup complete |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
-| Export / audio polish | ⬜ | Native WAV path in Electron |
-| Test / QA expansion | ⬜ | macOS/Linux manual sign-off, broader e2e |
+| Export / audio polish | 🟨 | Desktop DMC remote sample loading moved to main-process IPC with allowlist policy; native WAV path still pending |
+| Test / QA expansion | 🟨 | Added targeted desktop integration coverage for remote-asset allowlist behavior; macOS/Linux manual sign-off and broader e2e still pending |
 
 ---
 
@@ -142,6 +143,19 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 |-------------|-------------|
 | **Native WAV export** | Use Electron's native `OfflineAudioContext` instead of `standardized-audio-context` polyfill for desktop WAV renders |
 | **Export progress UI** | Long renders (WAV) show progress in Output panel with cancel support |
+
+#### 4a. Desktop DMC remote asset hardening (in progress)
+
+The Desktop DMC sample pipeline now routes remote sample fetches through Electron main-process IPC instead of renderer fetch.
+
+Implemented:
+
+- Main-process remote asset policy (`https` only, allowlist enforcement, redirect checks, timeout/size limits).
+- Desktop settings support for user-configurable remote host allowlist.
+- Engine NES DMC desktop bridge support via `window.electronAPI.fetchRemoteAsset`.
+- Unit and targeted e2e coverage for allowlist behavior.
+
+Tracking document: [`docs/features/desktop-dmc-main-process-ipc.md`](./desktop-dmc-main-process-ipc.md)
 
 ### 5. Test and QA expansion (ongoing)
 

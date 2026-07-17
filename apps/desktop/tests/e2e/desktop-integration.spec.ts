@@ -201,6 +201,92 @@ test('transport loop and live controls are wired', async () => {
   await electronApp.close();
 });
 
+test('remote asset allowlist settings gate desktop fetch bridge', async () => {
+  test.setTimeout(60_000);
+  const { electronApp, page } = await launchDesktopApp();
+
+  await electronApp.evaluate(() => {
+    const state = globalThis as unknown as {
+      __beatbaxFetchUrls?: string[];
+      fetch?: (input: string | URL) => Promise<{
+        status: number;
+        ok: boolean;
+        statusText: string;
+        headers: { get: (name: string) => string | null };
+        arrayBuffer: () => Promise<ArrayBuffer>;
+      }>;
+    };
+    state.__beatbaxFetchUrls = [];
+    state.fetch = async (input: string | URL) => {
+      state.__beatbaxFetchUrls?.push(String(input));
+      return {
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: { get: () => null },
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      };
+    };
+  });
+
+  try {
+    const result = await page.evaluate(async () => {
+      const api = (window as unknown as {
+        electronAPI: {
+          setRemoteAssetAllowlist: (hosts: string[]) => Promise<string[]>;
+          fetchRemoteAsset: (request: { url: string }) => Promise<Uint8Array>;
+        };
+      }).electronAPI;
+
+      await api.setRemoteAssetAllowlist([]);
+
+      const allowedDefault = Array.from(await api.fetchRemoteAsset({
+        url: 'https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc',
+      }));
+
+      let blockedMessage = '';
+      try {
+        await api.fetchRemoteAsset({ url: 'https://example.com/sample.dmc' });
+      } catch (error) {
+        blockedMessage = (error as Error).message || String(error);
+      }
+
+      const userAllowlist = await api.setRemoteAssetAllowlist(['example.com']);
+      const allowedAfterUserHost = Array.from(await api.fetchRemoteAsset({
+        url: 'https://example.com/sample.dmc',
+      }));
+
+      return {
+        allowedDefault,
+        blockedMessage,
+        userAllowlist,
+        allowedAfterUserHost,
+      };
+    });
+
+    expect(result.allowedDefault).toEqual([1, 2, 3]);
+    expect(result.blockedMessage).toContain("Remote asset host 'example.com' is not in the Desktop allowlist.");
+    expect(result.userAllowlist).toContain('example.com');
+    expect(result.allowedAfterUserHost).toEqual([1, 2, 3]);
+
+    const fetchUrls = await electronApp.evaluate(() => {
+      return ((globalThis as unknown as { __beatbaxFetchUrls?: string[] }).__beatbaxFetchUrls ?? []).slice();
+    });
+    expect(fetchUrls).toEqual([
+      'https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc',
+      'https://example.com/sample.dmc',
+    ]);
+  } finally {
+    await page.evaluate(async () => {
+      const api = (window as unknown as {
+        electronAPI: { setRemoteAssetAllowlist: (hosts: string[]) => Promise<string[]> };
+      }).electronAPI;
+      await api.setRemoteAssetAllowlist([]);
+    });
+    await electronApp.close();
+  }
+});
+
 test('pattern grid renders desktop React UI and navigates to patterns', async () => {
   test.setTimeout(60_000);
   const { electronApp, page, consoleErrors } = await launchDesktopApp([sampleSongPath]);
@@ -574,6 +660,8 @@ test('uses platform-appropriate menu chrome', async () => {
     expect(inWindowMenuCount).toBe(0);
   } else {
     expect(inWindowMenuCount).toBe(1);
+    await page.locator('[data-menu-id="file"] .bb-menu__trigger').click();
+    await expect(page.locator('#bb-menu-file .bb-menu__item-label')).toContainText(['Exit']);
   }
 
   await electronApp.close();

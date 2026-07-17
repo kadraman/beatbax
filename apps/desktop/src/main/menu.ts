@@ -96,7 +96,7 @@ function buildFileMenu(
   } else {
     submenu.push(
       { type: 'separator' },
-      { role: 'quit' },
+      { label: 'Exit', role: 'quit' },
     );
   }
 

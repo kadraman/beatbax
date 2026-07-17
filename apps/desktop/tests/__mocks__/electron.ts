@@ -22,3 +22,15 @@ export const ipcMain = {
   on: jest.fn(),
   removeAllListeners: jest.fn(),
 };
+
+export const ipcRenderer = {
+  invoke: jest.fn(),
+  send: jest.fn(),
+  sendSync: jest.fn(),
+  on: jest.fn(),
+  removeListener: jest.fn(),
+};
+
+export const contextBridge = {
+  exposeInMainWorld: jest.fn(),
+};

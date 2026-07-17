@@ -5,13 +5,19 @@ import path from 'node:path';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import {
   assertAbsoluteFilePath,
+  assertRemoteAssetUrl,
   addRecentFileEntry,
   clearRecentFileEntries,
   existsSyncSafe,
+  fetchRemoteAssetBytes,
+  isRemoteAssetHostAllowed,
   mergeRecentFiles,
+  normalizeRemoteAssetHost,
   persistFile,
+  readDesktopRemoteAssetAllowlist,
   readFileSyncSafe,
   toFileBuffer,
+  writeDesktopRemoteAssetAllowlist,
 } from '../src/main/ipc-handlers';
 
 jest.mock('electron', () => ({
@@ -22,12 +28,13 @@ jest.mock('electron', () => ({
   app: {
     addRecentDocument: jest.fn(),
     clearRecentDocuments: jest.fn(),
+    getPath: jest.fn(() => os.tmpdir()),
   },
 }));
 
 const { dialog, app } = jest.requireMock<{
   dialog: { showSaveDialog: jest.Mock };
-  app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock };
+  app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock; getPath: jest.Mock };
 }>('electron');
 
 describe('ipc handlers path validation', () => {
@@ -194,5 +201,147 @@ describe('desktop sync file reads', () => {
 
     expect(existsSyncSafe(path.join(tempDir, 'missing.ins'))).toBe(false);
     expect(existsSyncSafe(target)).toBe(true);
+  });
+});
+
+describe('remote asset URL policy', () => {
+  it('allows the default GitHub raw host', async () => {
+    await expect(isRemoteAssetHostAllowed('raw.githubusercontent.com')).resolves.toBe(true);
+  });
+
+  it('rejects hosts outside the allowlist', async () => {
+    await expect(isRemoteAssetHostAllowed('example.com')).resolves.toBe(false);
+  });
+
+  it('accepts valid https URL on allowed host', async () => {
+    const parsed = await assertRemoteAssetUrl('https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc');
+    expect(parsed.hostname).toBe('raw.githubusercontent.com');
+  });
+
+  it('rejects non-https URLs', async () => {
+    await expect(assertRemoteAssetUrl('http://raw.githubusercontent.com/foo/bar')).rejects.toThrow(
+      'Only https:// remote assets are allowed in Desktop.',
+    );
+  });
+
+  it('rejects disallowed hosts', async () => {
+    await expect(assertRemoteAssetUrl('https://example.com/sample.dmc')).rejects.toThrow(
+      "Remote asset host 'example.com' is not in the Desktop allowlist.",
+    );
+  });
+
+  it('rejects URLs with credentials', async () => {
+    await expect(assertRemoteAssetUrl('https://user:pass@raw.githubusercontent.com/foo/bar.dmc')).rejects.toThrow(
+      'Remote asset URL must not include credentials.',
+    );
+  });
+
+  it('rejects URLs with explicit ports', async () => {
+    await expect(assertRemoteAssetUrl('https://raw.githubusercontent.com:8443/foo/bar.dmc')).rejects.toThrow(
+      'Remote asset URL must not include an explicit port.',
+    );
+  });
+});
+
+describe('remote asset allowlist persistence', () => {
+  let tempDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-allowlist-'));
+    app.getPath.mockImplementation((name: string) => {
+      if (name === 'userData') return tempDir;
+      return os.tmpdir();
+    });
+  });
+
+  afterEach(() => {
+    app.getPath.mockImplementation(() => os.tmpdir());
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('normalizes hostnames to lowercase bare hosts', () => {
+    expect(normalizeRemoteAssetHost(' Raw.GitHubusercontent.com ')).toBe('raw.githubusercontent.com');
+  });
+
+  it('rejects invalid host entries', () => {
+    expect(() => normalizeRemoteAssetHost('https://raw.githubusercontent.com')).toThrow('must be a hostname only');
+    expect(() => normalizeRemoteAssetHost('example.com/path')).toThrow('must be a hostname only');
+    expect(() => normalizeRemoteAssetHost('*.example.com')).toThrow('must not use wildcards');
+  });
+
+  it('writes and reads a normalized allowlist', async () => {
+    const saved = await writeDesktopRemoteAssetAllowlist([
+      'Raw.GitHubusercontent.com',
+      'cdn.example.org',
+      'cdn.example.org',
+    ]);
+    expect(saved).toEqual(['cdn.example.org', 'raw.githubusercontent.com']);
+
+    const loaded = await readDesktopRemoteAssetAllowlist();
+    expect(loaded).toEqual(['cdn.example.org', 'raw.githubusercontent.com']);
+  });
+});
+
+describe('remote asset fetch policy', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('follows redirects only when each hop stays on the allowlist', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        ok: false,
+        statusText: 'Found',
+        headers: { get: (name: string) => name.toLowerCase() === 'location' ? '/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc' : null },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: { get: () => null },
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      }) as typeof global.fetch;
+
+    const bytes = await fetchRemoteAssetBytes({
+      url: 'https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc',
+    });
+
+    expect(Array.from(bytes)).toEqual([1, 2, 3]);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('blocks redirects to hosts outside the allowlist', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 302,
+      ok: false,
+      statusText: 'Found',
+      headers: { get: (name: string) => name.toLowerCase() === 'location' ? 'https://example.com/sample.dmc' : null },
+    }) as typeof global.fetch;
+
+    await expect(fetchRemoteAssetBytes({
+      url: 'https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc',
+    })).rejects.toThrow("Remote asset host 'example.com' is not in the Desktop allowlist.");
+  });
+
+  it('rejects oversized responses from content-length before reading the body', async () => {
+    const arrayBufferSpy = jest.fn(async () => new Uint8Array([1, 2, 3]).buffer);
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      statusText: 'OK',
+      headers: { get: (name: string) => name.toLowerCase() === 'content-length' ? '4097' : null },
+      arrayBuffer: arrayBufferSpy,
+    }) as typeof global.fetch;
+
+    await expect(fetchRemoteAssetBytes({
+      url: 'https://raw.githubusercontent.com/kadraman/beatbax/main/songs/nes/samples/ik_snare.dmc',
+      maxBytes: 4096,
+    })).rejects.toThrow('Remote asset exceeds max size (4096 bytes).');
+
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
   });
 });

@@ -3946,6 +3946,23 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.bb-settings-remote-assets-wrap {
+  width: 100%;
+  gap: 6px;
+}
+
+.bb-settings-remote-assets-text {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  line-height: 1.4;
+}
+
+.bb-settings-remote-assets-wrap .bb-ai-key-actions {
+  width: 100%;
+}
 .bb-viz__pattern {
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   font-size: 10px;
