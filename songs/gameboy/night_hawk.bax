@@ -63,11 +63,11 @@ inst lead_warm    type=pulse1 duty=75    env={"level":12,"direction":"down","per
 inst chord        type=pulse2 duty=25    env={"level":9,"direction":"down","period":4,"format":"gb"}  gm=80
 inst chord_sus    type=pulse2 duty=75    env={"level":9,"direction":"down","period":5,"format":"gb"}  gm=80
 
-inst bass_wave    type=wave   wave=[0,1,2,3,5,7,9,11,12,13,14,15,15,15,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0]
+inst bass_wave    type=wave volume=50  wave=[0,1,2,3,5,7,9,11,12,13,14,15,15,15,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0]
 
-inst kick         type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} uge_note=C-6
-inst snare        type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
-inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
+inst kick         type=noise  env={"level":13,"direction":"down","period":1,"format":"gb"} uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare        type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
+inst hat          type=noise  env={"level":3,"direction":"down","period":1,"format":"gb"}  uge_note=C-8 vol_env=[5,2]
 
 # =============================================================================
 # Effect presets

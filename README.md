@@ -38,6 +38,7 @@ This is not a replacement for creativity, but it can help with construction, edi
 
 - **Simple text-based grammar** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
 - **Authentic retro sound** — Chip specific implementation, e.g.: 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
+- **Game Boy instrument programs** — `pitch_env` / `vol_env` / `duty_env` / `arp_env` and native `subpat` lower to a shared tick program for preview and hUGETracker instrument subpatterns (see [docs/features/gameboy-uge-instrument-subpatterns.md](docs/features/gameboy-uge-instrument-subpatterns.md))
 - **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
 - **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
 - **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.

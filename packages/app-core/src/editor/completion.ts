@@ -548,6 +548,11 @@ const DEFINITION_SNIPPETS_COMMON = [
   { label: 'pat', detail: 'Define pattern', insertText: 'pat ${1:name} = ${2:C4 E4 G4 C5}' },
   { label: 'seq', detail: 'Define sequence', insertText: 'seq ${1:name} = ${2:pattern1 pattern2}' },
   { label: 'effect', detail: 'Define named effect preset', insertText: 'effect ${1:name} = ${2:vib:3,6}' },
+  {
+    label: 'subpat',
+    detail: 'Game Boy instrument subpattern (hUGE-style tick rows)',
+    insertText: 'subpat ${1:name} = ${2:.} ${3:-10} jump:${4:2} ${5:-31} halt',
+  },
   { label: 'channel', detail: 'Define channel mapping', insertText: 'channel ${1:1} => inst ${2:lead} seq ${3:main} lock=${4:scale}' },
   { label: 'import', detail: 'Import instruments from file', insertText: 'import "${1:local:lib/instruments.ins}"' },
 ];

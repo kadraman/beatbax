@@ -1,10 +1,29 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 import { parseEnvelope } from './pulse.js';
 
+/**
+ * Map wave instrument `volume=` / `vol=` (0 | 25 | 50 | 100) to a linear gain.
+ * Matches NR32 output-level semantics and the PCM renderer.
+ */
+export function resolveWaveVolumeMultiplier(inst: { volume?: unknown; vol?: unknown } | null | undefined): number {
+  let volRaw: unknown = inst?.volume !== undefined ? inst.volume : inst?.vol;
+  if (volRaw === undefined || volRaw === null) return 1.0;
+  let volNum = 100;
+  if (typeof volRaw === 'string') {
+    const s = volRaw.trim();
+    volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
+  } else if (typeof volRaw === 'number') {
+    volNum = volRaw;
+  }
+  const map: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
+  return map[volNum] ?? 1.0;
+}
+
 export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: number[], start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
   // Normalize: guard against empty/missing table — default to silence (all zeros, 32 samples = GB wave RAM size)
   const safeTable: number[] = (table && table.length > 0) ? table : new Array(32).fill(0);
   const cycleLen = safeTable.length;
+  const volMul = resolveWaveVolumeMultiplier(inst);
 
   // Use the native audio context sample rate so the playback rate stays near 1.0.
   // At native rate we can implement zero-order hold (ZOH) upsampling — each 4-bit
@@ -55,18 +74,19 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
+  // NR32 output level (volume=0/25/50/100) scales WebAudio gain to match PCM/UGE.
+  const baseGain = 0.6 * volMul;
   if (env && env.mode === 'gb') {
-    const initialVol = (env.initial ?? 15) / 15;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
     if (env.period && env.period > 0) {
       const maxSteps = Math.max(1, Math.floor(dur / stepPeriod));
       const vals: number[] = [];
       let cur = env.initial ?? 15;
-      vals.push((cur / 15) * 0.9);
+      vals.push((cur / 15) * 0.9 * volMul);
       for (let s = 1; s <= maxSteps; s++) {
         if (env.direction === 'up') cur = Math.min(15, cur + 1);
         else cur = Math.max(0, cur - 1);
-        vals.push((cur / 15) * 0.9);
+        vals.push((cur / 15) * 0.9 * volMul);
         if (cur === 0 || cur === 15) break;
       }
       const curve = new Float32Array(vals);
@@ -101,11 +121,11 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
         }
       }
     } else {
-      g.setValueAtTime(0.6, start);
+      g.setValueAtTime(baseGain, start);
       g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
     }
   } else {
-    g.setValueAtTime(0.6, start);
+    g.setValueAtTime(baseGain, start);
     g.setTargetAtTime(0.0001, start + dur - 0.02, 0.02);
   }
 
@@ -143,4 +163,4 @@ export function parseWaveTable(raw: any): number[] {
   return new Array(GB_WAVE_LEN).fill(0);
 }
 
-export default { playWavetable, parseWaveTable };
+export default { playWavetable, parseWaveTable, resolveWaveVolumeMultiplier };

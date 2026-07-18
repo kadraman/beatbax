@@ -234,8 +234,7 @@ function parseDutyInstrument(reader: BinaryReader, version: number, idx: number)
     } else {
         // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
         subpatternEnabled = reader.readBool(`duty[${idx}].subpatternEnabled`);
-        // Always skip 64 rows × 17 bytes = 1088 bytes (they're always written)
-        reader.skip(64 * 17);
+        rows = parseSubPatternRows(reader, version, `duty[${idx}]`);
     }
 
     return {
@@ -289,8 +288,7 @@ function parseWaveInstrument(reader: BinaryReader, version: number, idx: number)
     } else {
         // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
         subpatternEnabled = reader.readBool(`wave[${idx}].subpatternEnabled`);
-        // Always skip 64 rows × 17 bytes = 1088 bytes (they're always written)
-        reader.skip(64 * 17);
+        rows = parseSubPatternRows(reader, version, `wave[${idx}]`);
     }
 
     return {
@@ -339,8 +337,7 @@ function parseNoiseInstrument(reader: BinaryReader, version: number, idx: number
     } else {
         // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
         subpatternEnabled = reader.readBool(`noise[${idx}].subpatternEnabled`);
-        // Always skip 64 rows × 17 bytes = 1088 bytes (they're always written)
-        reader.skip(64 * 17);
+        rows = parseSubPatternRows(reader, version, `noise[${idx}]`);
     }
 
     return {

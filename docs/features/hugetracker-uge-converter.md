@@ -35,7 +35,7 @@ This limits migration and round-trip workflows:
 - hUGETracker instrument subpatterns, wavetables, and pattern/order data cannot be converted into readable `.bax`.
 - BeatBax UGE export improvements cannot be validated through round-trip import/export tests.
 
-Subpattern support is especially important: many hUGETracker percussion instruments rely on instrument subpatterns. Without BeatBax subpattern grammar, imported drums would either lose detail or need to be expanded awkwardly into song timeline patterns.
+Subpattern emission is especially important: BeatBax already authors and exports instrument programs via macros / `subpat` ([`gameboy-uge-instrument-subpatterns.md`](gameboy-uge-instrument-subpatterns.md)). The converter must emit that grammar so imported drums keep their character instead of expanding into song-timeline patterns.
 
 ---
 
@@ -43,7 +43,7 @@ Subpattern support is especially important: many hUGETracker percussion instrume
 
 1. Convert UGE files into mechanically correct `.bax` source.
 2. Preserve instruments, wavetables, patterns, orders, effects, and metadata where possible.
-3. Preserve hUGETracker instrument subpatterns once BeatBax supports `subpat`.
+3. Preserve hUGETracker instrument subpatterns as BeatBax `subpat` (or equivalent macros).
 4. Emit warnings/comments for unsupported or lossy mappings.
 5. Provide both a programmatic conversion API and CLI entry point.
 6. Leave room for a later UI import workflow.
@@ -229,31 +229,25 @@ Unsupported or ambiguous effects should become comments near the pattern:
 
 ---
 
-## Subpattern Dependency
+## Subpattern Emission
 
-High-quality import depends on BeatBax subpattern support:
+BeatBax already supports native `subpat` and macro lowering for preview + UGE export. Import should emit the same authoring surface:
 
-- hUGETracker drums often store their character inside instrument subpatterns.
-- Without `subpat`, imported drums either lose detail or must expand subpattern rows into the song timeline, which changes authoring semantics.
-- The importer should initially detect subpatterns and preserve them as comments if grammar support is not ready.
-
-Fallback before `subpat` exists:
+- Prefer `subpat` declarations for arbitrary rows (empty ticks, mid jumps, raw `fx:`).
+- Optionally emit `pitch_env` / `vol_env` / `duty_env` when a subpattern is a simple one-shot zip of those lanes.
+- Fallback: comment the raw UGE rows if a row cannot be represented cleanly.
 
 ```bax
-# TODO: UGE instrument 'kick' had a 4-row subpattern:
-#   C-6
-#   B-5
-#   A-5
-#   G-5
-inst kick type=noise uge_note=C-6
+subpat kick_sub =
+  +0 vol:15
+  -2 vol:12
+  -4 vol:8
+  -6 vol:0
+  halt
+inst kick type=noise uge_note=C-6 subpat=kick_sub
 ```
 
-Once `subpat` exists:
-
-```bax
-subpat kick_sub = C-6 B-5 A-5 G-5
-inst kick type=noise subpat=kick_sub
-```
+See [`gameboy-uge-instrument-subpatterns.md`](gameboy-uge-instrument-subpatterns.md) for offset/`halt`/`jump:` conventions (C-6 = +0; jumps are 1-based).
 
 ---
 
@@ -279,7 +273,7 @@ Acceptance criteria:
 Deliverables:
 
 - Detect instrument subpatterns from UGE.
-- Emit `subpat` declarations when BeatBax grammar supports them.
+- Emit `subpat` declarations (grammar already shipped).
 - Preserve unsupported subpattern details as comments if needed.
 
 Acceptance criteria:
@@ -335,7 +329,7 @@ Acceptance criteria:
 - Some UGE effects or subpattern behaviors may not map cleanly.
 - Tempo conversion may be approximate depending on UGE timer settings.
 - Channel-specific instrument assumptions may be ambiguous when instruments are reused across channels.
-- Full playback parity depends on Game Boy noise/subpattern preview improvements.
+- Preview/WAV already run instrument programs; remaining gaps are import emission and edge-case parity.
 
 ---
 

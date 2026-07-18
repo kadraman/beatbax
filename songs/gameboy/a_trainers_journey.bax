@@ -70,9 +70,9 @@ inst poke_sus   type=pulse2 duty=75    env={"level":9,"direction":"down","period
 
 inst poke_bass  type=wave   wave=[9,9,10,12,12,13,14,14,13,12,11,9,8,5,3,4,4,5,6,6,7,7,7,6,6,5,3,4,4,4,5,6]
 
-inst kick       type=noise  env={"level":6,"direction":"down","period":1,"format":"gb"}  uge_note=C-7
-inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7
-inst hat        type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
+inst kick       type=noise  env={"level":6,"direction":"down","period":1,"format":"gb"}  uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[8,6,4,2]
+inst snare      type=noise  env={"level":9,"direction":"down","period":2,"format":"gb"}  uge_note=C-7 pitch_env=[0,7,0] vol_env=[10,7,4]
+inst hat        type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"}  uge_note=C-8 vol_env=[4,1]
 
 # =============================================================================
 # Effect presets

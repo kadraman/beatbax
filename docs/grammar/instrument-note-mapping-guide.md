@@ -139,3 +139,6 @@ BeatBax uses your written `bpm` for playback; UGE export rounds to integer ticks
 - [uge-export-guide.md](../exports/uge-export-guide.md) — UGE export and BPM alignment
 - [songs/gameboy/instruments/gb_percussion_demo.bax](../../songs/gameboy/instruments/gb_percussion_demo.bax) — Pulse + noise kit with `uge_note=`
 - [songs/gameboy/instruments/gb_uge_note_demo.bax](../../songs/gameboy/instruments/gb_uge_note_demo.bax) — Noise parity reference
+- [songs/gameboy/instruments/gb_subpattern_macro_demo.bax](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax) — `pitch_env` / `vol_env` / `duty_env` / `arp_env` / native `subpat` → UGE subpatterns
+
+For instrument programs (macros and `subpat`), see [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md). Prefer `uge_note=C-6` as the kick base; large negative subpattern offsets from a high base are not a reliable pitch drop (noise note table is non-monotonic).

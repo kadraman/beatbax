@@ -183,7 +183,7 @@ seq t = b:wobble
 
 hUGETracker supports limited effects per row. Map BeatBax effects to UGE effect columns where possible:
 
-For Game Boy scope, instrument macro fields such as `arp_env`/`vol_env`/`pitch_env`/`duty_env` are intentionally unsupported. See `docs/features/complete/gameboy-instrument-macros-policy.md`.
+Game Boy instrument programs (`pitch_env` / `vol_env` / `duty_env` / `arp_env` / native `subpat`) lower to hUGETracker **instrument subpatterns** (not pattern-row effects). Preview/WAV and UGE export share one tick program — see [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md) and [`gameboy-instrument-macros-policy.md`](gameboy-instrument-macros-policy.md).
 
 | BeatBax | UGE Effect | Notes |
 |---------|------------|-------|
