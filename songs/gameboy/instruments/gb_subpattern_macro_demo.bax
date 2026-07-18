@@ -1,7 +1,13 @@
-# Game Boy instrument programs (macros → UGE subpatterns)
+# Game Boy instrument programs (macros / subpat → UGE subpatterns)
 #
-# pitch_env / vol_env lower into a shared tick program used by BeatBax preview
-# and hUGETracker instrument subpatterns on UGE export.
+# pitch_env / vol_env / duty_env / arp_env and native `subpat` lower into a
+# shared tick program used by BeatBax preview and hUGETracker instrument
+# subpatterns on UGE export.
+#
+# Sections play one technique at a time (others rest) so each program is audible:
+#   bars 1–2  noise drums (pitch_env / vol_env / subpat)
+#   bars 3–4  pulse1 duty_env wah
+#   bars 5–6  pulse2 arp_env triad
 #
 # Export UGE:
 #   npm run cli -- export uge songs/gameboy/instruments/gb_subpattern_macro_demo.bax tmp/gb_subpattern_macro_demo.uge
@@ -13,16 +19,51 @@ chip gameboy
 bpm 128
 song name "Game Boy Subpattern Macro Demo"
 song artist "The BeatBax Team"
-song description "Noise drums using pitch_env and vol_env macros lowered to hUGETracker instrument subpatterns."
-song tags "gameboy,instrument,demo,uge,noise,subpattern,macro"
+song description "Sequential demos of GB instrument programs: noise macros/subpat, pulse duty_env, pulse arp_env."
+song tags "gameboy,instrument,demo,uge,noise,pulse,subpattern,macro"
 
+# Macro-authored kick/snare/hat
 inst kick type=noise gb:width=7 env=14,down,1 length=16 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
 inst snare type=noise gb:width=7 env=10,down,2 length=16 uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
 inst hat type=noise gb:width=15 env=4,down,1 length=8 uge_note=C-8 vol_env=[5,2]
 
-pat drums_a = kick hat snare hat kick hat snare hat
-pat drums_b = kick kick snare hat kick hat snare hat
+# Native subpat: empty first row + mid-program jump into a decaying kick body.
+# Use uge_note=C-6 (same ballpark as `kick`). Large negative offsets from a high
+# base like F-7 are NOT a pitch drop — the GB noise note table is non-monotonic,
+# so F-7/-31 jumps back up into a thin metallic ping.
+subpat kick_huge =
+  .
+  +0 vol:15
+  -2 vol:12 jump:5
+  -4 vol:10
+  -4 vol:8
+  -6 vol:4
+  -6 vol:0
+  halt
 
-channel 4 => inst kick seq drums_a drums_b drums_a drums_b
+inst kick_huge type=noise gb:width=7 env=14,down,1 length=16 uge_note=C-6 subpat=kick_huge
+
+# Pulse: duty_env → UGE 9xx (0=12.5%, 1=25%, 2=50%, 3=75%)
+# Looping 50% ↔ 12.5% "wah" on held notes
+inst wah type=pulse1 duty=50 env=12,flat duty_env=[2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]
+
+# Pulse: arp_env → offset column when pitch_env is absent (looped major triad)
+inst arp type=pulse2 duty=25 env=10,flat arp_env=[0,4,7|0]
+
+# 8-step bars
+pat rest8 = . . . . . . . .
+pat drums_a = kick hat snare hat kick hat snare hat
+pat drums_b = kick kick snare hat kick_huge hat snare hat
+pat wah_bar = C5:8
+pat arp_bar = C5:8
+
+# One section at a time — inactive channels rest
+seq drums = drums_a drums_b rest8 rest8 rest8 rest8
+seq wah = rest8 rest8 wah_bar wah_bar:transpose(-2) rest8 rest8
+seq arp = rest8 rest8 rest8 rest8 arp_bar arp_bar:transpose(+2)
+
+channel 1 => inst wah seq wah
+channel 2 => inst arp seq arp
+channel 4 => inst kick seq drums
 
 play

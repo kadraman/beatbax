@@ -1,5 +1,6 @@
 import {
   encodeTickProgramToUgeRows,
+  HUGE_EFFECT_CHANGE_TIMBRE,
   HUGE_EFFECT_SET_VOLUME,
   HUGE_SUBPAT_OFFSET_ZERO_NOTE,
   lowerGameBoyInstrumentProgram,
@@ -97,14 +98,60 @@ describe('lowerGameBoyInstrumentProgram', () => {
     expect(prog.errors.some((e) => e.includes('65 ticks'))).toBe(true);
   });
 
-  test('duty_env / arp_env warn but do not block', () => {
+  test('duty_env lowers to 9xx; vol_env wins on collision', () => {
     const prog = lowerGameBoyInstrumentProgram({
-      pitch_env: [0, -1],
       duty_env: [2, 1],
-      arp_env: [0, 4, 7],
     });
     expect(prog.enabled).toBe(true);
-    expect(prog.warnings.length).toBeGreaterThanOrEqual(2);
+    expect(prog.rows[0].effect?.code).toBe(HUGE_EFFECT_CHANGE_TIMBRE);
+    expect(prog.rows[0].effect?.param).toBe((2 & 0x3) << 6);
+
+    const collide = lowerGameBoyInstrumentProgram({
+      pitch_env: [0, -1],
+      duty_env: [2, 1],
+      vol_env: [15, 8],
+      arp_env: [0, 4, 7],
+    });
+    expect(collide.enabled).toBe(true);
+    expect(collide.warnings.some((w) => w.includes('arp_env'))).toBe(true);
+    expect(collide.warnings.some((w) => w.includes('vol_env wins'))).toBe(true);
+    expect(collide.rows[0].effect?.code).toBe(HUGE_EFFECT_SET_VOLUME);
+  });
+
+  test('arp_env used when pitch_env absent', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      arp_env: [0, 4, 7],
+    });
+    expect(prog.rows.map((r) => r.offset)).toEqual([0, 4, 7, 7]);
+    expect(prog.rows[3].halt).toBe(true);
+  });
+
+  test('native subpat: empty row, mid jump, bare halt', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      subpatRows: [
+        { empty: true },
+        { offset: -10, jump: 3 },
+        { offset: -31 },
+        { offset: -31 },
+        { offset: -31 },
+        { halt: true },
+      ],
+    });
+    expect(prog.enabled).toBe(true);
+    expect(prog.rows.map((r) => r.offset)).toEqual([null, -10, -31, -31, -31]);
+    expect(prog.rows[1].jump).toBe(3);
+    expect(prog.rows[4].halt).toBe(true);
+  });
+
+  test('subpatRows wins over macros (warning)', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      pitch_env: [0, -2],
+      subpatRows: [{ offset: 0, vol: 15 }, { halt: true }],
+    });
+    expect(prog.rows).toHaveLength(1);
+    expect(prog.rows[0].effect?.param).toBe(15);
+    expect(prog.rows[0].halt).toBe(true);
+    expect(prog.warnings.some((w) => w.includes('ignored'))).toBe(true);
   });
 });
 

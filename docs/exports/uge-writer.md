@@ -35,6 +35,7 @@ Note on Wave instrument volume storage
    - `writeWaveInstrument()`: Type 1, wavetable index and volume
    - `writeNoiseInstrument()`: Type 2, LFSR-based noise with envelope
    - **Critical**: Each instrument ALWAYS writes 64 subpattern rows (1088 bytes) regardless of SubpatternEnabled flag
+   - BeatBax fills those rows from `lowerGameBoyInstrumentProgram` (macros / `subpat`) when a program is present — see [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md)
 
 3. **Conversion Functions**:
    - `noteNameToMidiNote()`: Convert note names (C3, C#4, etc.) to MIDI note numbers.

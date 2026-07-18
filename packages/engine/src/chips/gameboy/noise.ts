@@ -31,7 +31,7 @@ function fillNoiseBuffer(
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
 
-  let currentOffset = 0;
+  let currentOffset: number | null = 0;
   let { shift, divisor } = program?.enabled
     ? resolveNoiseClockWithOffset(inst, 0)
     : resolveNoiseClock(inst);

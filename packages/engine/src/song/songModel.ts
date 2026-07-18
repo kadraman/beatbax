@@ -72,6 +72,8 @@ export interface SongModel {
   volume?: number;
   metadata?: SongMetadata;
   play?: any;
+  /** Named Game Boy instrument subpatterns from `subpat` declarations. */
+  subpatterns?: Record<string, import('../parser/ast.js').SubPatternDef>;
 }
 
 export interface SongMetadata {

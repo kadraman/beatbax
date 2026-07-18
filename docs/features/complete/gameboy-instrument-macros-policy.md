@@ -3,24 +3,30 @@ title: Game Boy Instrument Macros Policy
 status: complete
 authors: ["kadraman"]
 created: 2026-05-14
-updated: 2026-07-17
+updated: 2026-07-18
 related:
   - docs/features/gameboy-uge-instrument-subpatterns.md
 ---
 
 ## Summary
 
-BeatBax now supports Game Boy `pitch_env` and `vol_env` through a shared tick-program lowerer that drives both preview/WAV and hUGETracker UGE instrument subpatterns. See [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md).
+BeatBax supports Game Boy instrument programs through a shared tick-program lowerer that drives both preview/WAV and hUGETracker UGE instrument subpatterns. See [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md).
 
-`duty_env` and `arp_env` are still not lowered on Game Boy (v1). For song-level expression, continue to use pattern/inline effects and sequence transforms.
+Supported authoring surfaces: `pitch_env`, `vol_env`, `duty_env`, `arp_env`, and native `subpat` (empty rows, mid jumps, raw `fx:`).
 
 ## Decision
 
-### Current (Phase 1+ landed)
+### Current (Phases 0–4 landed)
 
-For `chip gameboy`, instrument-level `pitch_env` and `vol_env` are **supported** via the shared tick-program lowerer in [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md). Preview/WAV and UGE subpattern export both consume `lowerGameBoyInstrumentProgram`.
+For `chip gameboy`, instrument-level macros and `subpat=` are **supported** via the shared tick-program lowerer in [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md). Preview/WAV and UGE subpattern export both consume `lowerGameBoyInstrumentProgram`.
 
-`duty_env` and `arp_env` remain out of scope for v1 (warned at export; not lowered).
+| Field | Lowering |
+|-------|----------|
+| `pitch_env` | Offset column |
+| `vol_env` | Effect `Cxy` (wins over `duty_env` on the same tick) |
+| `duty_env` | Effect `9xx` |
+| `arp_env` | Offset column when `pitch_env` is absent |
+| `subpat=` | Native rows win over macros |
 
 ### Approved revisit
 
@@ -28,9 +34,7 @@ Criterion 2 below is **approved** via [`gameboy-uge-instrument-subpatterns.md`](
 
 - Authors may use existing `*_env` macro syntax on Game Boy once a single `lowerGameBoyInstrumentProgram` produces a tick program.
 - **Both** BeatBax preview/WAV and UGE subpattern export must consume that same tick program.
-- Native `subpat` syntax is optional later for import/power users; it must lower into the same IR.
-
-When Phase 1 of that feature is marked complete, update this policy’s “Current” section to “Superseded for fields covered by the lowering feature” and list the enabled macros explicitly (`pitch_env`, `vol_env`, …).
+- Native `subpat` lowers into the same IR (UGE import → `subpat` emission is the remaining follow-up).
 
 ## Rationale (original)
 
@@ -57,18 +61,12 @@ When Phase 1 of that feature is marked complete, update this policy’s “Curre
 
 ## Recommended Game Boy Authoring Pattern
 
-**Until the lowering feature ships:**
-
-- Express modulation at note/pattern/sequence level.
-- Prefer named `effect` presets for reuse.
-- Keep exported behavior aligned with UGE-supported semantics.
-- Use `uge_note=` for noise pitched hits ([noise playback parity](gameboy-noise-uge-playback-parity.md)).
-
-**After Phase 1 of the instrument-program feature:**
-
-- Prefer `pitch_env` / `vol_env` on instruments for drums and plucks.
-- Keep `uge_note=` as the base note; macros supply relative tick offsets and volume steps.
-- Always rely on one-shot halt encoding so subpatterns do not auto-restart.
+- Prefer `pitch_env` / `vol_env` on instruments for drums and plucks; use `duty_env` / `arp_env` when needed.
+- Use native `subpat` for empty first rows, mid-program jumps, or raw hUGE effects.
+- Keep `uge_note=` as the noise base note; programs supply relative tick offsets and effects.
+- Rely on one-shot halt encoding (or explicit `halt` / `jump:`) so subpatterns do not auto-restart.
+- Keep pattern/inline effects (`arp`, `vib`, `port`, …) for song-level expression.
+- Demo: [`gb_subpattern_macro_demo.bax`](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax).
 
 ## Revisit Criteria
 

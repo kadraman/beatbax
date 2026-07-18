@@ -138,6 +138,31 @@ The noise channel (`type=noise`) uses a linear-feedback shift register to produc
 - Short, high-initial envelopes with width=15 are typical for hi-hats; width=7 with medium decay suits snares and toms.
 - Use `uge_note=` on named noise instruments — see [instrument-note-mapping-guide.md](instrument-note-mapping-guide.md).
 
+### Instrument programs (macros / `subpat`)
+
+Game Boy instruments may define a **tick program** that runs on note-on (~60 Hz). The same program drives BeatBax preview/WAV and hUGETracker instrument **subpatterns** on UGE export.
+
+```bax
+# Macros
+inst kick type=noise gb:width=7 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst wah  type=pulse1 duty=50 env=12,flat duty_env=[2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]
+
+# Native subpattern (empty row + mid jump); wins over macros on this inst
+subpat body = . +0 vol:15 -2 vol:12 jump:5 -4 vol:8 -6 vol:0 halt
+inst kick2 type=noise gb:width=7 uge_note=C-6 subpat=body
+```
+
+| Field | Role |
+|-------|------|
+| `pitch_env` / `arp_env` | Semitone offsets (`arp_env` only if `pitch_env` absent) |
+| `vol_env` | Volumes 0–15 → hUGE `Cxy` (wins over `duty_env` on the same tick) |
+| `duty_env` | Duty indices 0–3 → hUGE `9xx` (pulse) |
+| `subpat=` | Named `subpat` declaration (`subpat` wins over macros) |
+
+One-shot macros (no `|loop`) append a silence/halt row so the subpattern does not restart. Prefer `uge_note=C-6` for kicks; do not rely on large negative offsets from a high base (noise note table is non-monotonic).
+
+See [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md) and the demo [`gb_subpattern_macro_demo.bax`](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax).
+
 ---
 
 ## Default Note Parameter (`note=`)

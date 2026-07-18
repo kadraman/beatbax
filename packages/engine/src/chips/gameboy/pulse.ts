@@ -1,11 +1,21 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
+import {
+  applyTickOffsetToFreq,
+  lowerGameBoyInstrumentProgram,
+  tickRowAtTime,
+  tickRowDutyFraction,
+  tickRowVolume,
+  type TickProgram,
+} from './instrumentProgram.js';
 
 /**
  * Pulse PCM/WebAudio output scale tuned against hUGETracker WAV export.
- * Without this, square-wave peaks (~±1 × envelope) sit ~1.5× above hUGE mix levels
- * when compared to gb_percussion_demo_from_hugetracker.wav (kick hits).
+ *
+ * Calibrated so held pulse notes (e.g. env=12,flat → peak ≈ 12/15 × gain) match
+ * hUGETracker on `gb_subpattern_macro_demo` (~0.20). Raw ±1 squares without this
+ * scale sit ~2× above the DMG/hUGE mix on sustained tones.
  */
-export const PULSE_OUTPUT_GAIN = 0.5;
+export const PULSE_OUTPUT_GAIN = 0.25;
 
 function createPulsePeriodicWave(ctx: BaseAudioContext, duty = 0.5) {
   const size = 4096;
@@ -145,7 +155,140 @@ function applySweep(
   }
 }
 
+/**
+ * Render a pulse into a buffer while advancing a Game Boy tick program
+ * (arp_env / pitch_env offsets, duty_env → 9xx, vol_env → Cxy).
+ */
+export function fillPulseBufferFromProgram(
+  data: Float32Array,
+  sr: number,
+  baseFreq: number,
+  initialDuty: number,
+  program: TickProgram,
+  useProgramVolume: boolean,
+): void {
+  let phase = 0;
+  let duty = Math.max(0.01, Math.min(0.99, initialDuty));
+  let currentOffset: number | null = 0;
+  let lastTick = -1;
+  let volScale = 1;
+  let effFreq = applyTickOffsetToFreq(baseFreq, 0);
+
+  const r0 = tickRowAtTime(program, 0);
+  if (r0) {
+    const d0 = tickRowDutyFraction(r0);
+    if (d0 !== null) duty = d0;
+    currentOffset = r0.offset === undefined ? 0 : r0.offset;
+    effFreq = applyTickOffsetToFreq(baseFreq, currentOffset);
+    if (useProgramVolume) {
+      const v0 = tickRowVolume(r0);
+      if (v0 !== null) volScale = v0 / 15;
+    }
+  }
+
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sr;
+    const tick = Math.floor(t * 60);
+    if (tick !== lastTick) {
+      lastTick = tick;
+      const row = tickRowAtTime(program, t);
+      if (row) {
+        const d = tickRowDutyFraction(row);
+        if (d !== null) duty = d;
+        const off = row.offset === undefined ? null : row.offset;
+        if (off !== currentOffset) {
+          currentOffset = off;
+          effFreq = applyTickOffsetToFreq(baseFreq, currentOffset);
+        }
+        if (useProgramVolume) {
+          const v = tickRowVolume(row);
+          if (v !== null) volScale = v / 15;
+        }
+      }
+    }
+
+    let sample = 0;
+    if (effFreq > 0 && effFreq < sr / 2) {
+      phase += effFreq / sr;
+      phase -= Math.floor(phase);
+      sample = phase < duty ? 1.0 : -1.0;
+    }
+    data[i] = sample * (useProgramVolume ? volScale : 1) * PULSE_OUTPUT_GAIN;
+  }
+}
+
 export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
+  const program = lowerGameBoyInstrumentProgram(inst ?? {});
+  const useProgram = program.enabled;
+  const useProgramVolume = useProgram && program.rows.some((r) => tickRowVolume(r) !== null);
+
+  // Tick programs need per-frame duty/pitch — OscillatorNode PeriodicWave can't
+  // automate duty, so bake into a buffer (same approach as noise programs).
+  if (useProgram) {
+    const sr = ctx.sampleRate;
+    const len = Math.max(1, Math.ceil(dur * sr));
+    const buf = ctx.createBuffer(1, len, sr);
+    const data = buf.getChannelData(0);
+    let aligned = freq;
+    try {
+      aligned = freqFromRegister(registerFromFreq(freq));
+    } catch (_) {}
+    fillPulseBufferFromProgram(data, sr, aligned, duty, program, useProgramVolume);
+
+    const src = (ctx as any).createBufferSource();
+    src.buffer = buf;
+    (src as any).__basePlaybackRate = 1;
+    (src as any)._baseFreq = aligned;
+    const gain = (ctx as any).createGain();
+    src.connect(gain);
+    gain.connect(destination || (ctx as any).destination);
+
+    const g = gain.gain;
+    if (useProgramVolume) {
+      g.setValueAtTime(1.0, start);
+      g.setValueAtTime(1.0, start + dur);
+      g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+    } else {
+      const env = parseEnvelope(inst && inst.env);
+      if (env && env.mode === 'gb') {
+        const initialVol = (env.initial ?? 15) / 15;
+        const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);
+        if (env.period && env.period > 0) {
+          const maxSteps = Math.max(1, Math.floor(dur / stepPeriod));
+          const vals: number[] = [];
+          let cur = env.initial ?? 15;
+          vals.push(cur / 15);
+          for (let s = 1; s <= maxSteps; s++) {
+            if (env.direction === 'up') cur = Math.min(15, cur + 1);
+            else cur = Math.max(0, cur - 1);
+            vals.push(cur / 15);
+            if (cur === 0 || cur === 15) break;
+          }
+          const curve = new Float32Array(vals);
+          const curveDuration = Math.max(0.001, (vals.length - 1) * stepPeriod);
+          try { (g as any).setValueCurveAtTime(curve, start, curveDuration); } catch (_) {
+            try { g.setValueAtTime(vals[0], start); } catch (_) {}
+          }
+          g.setValueAtTime(vals[vals.length - 1], start + dur);
+          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+        } else {
+          const hold = Math.max(0.0001, initialVol);
+          g.setValueAtTime(hold, start);
+          g.setValueAtTime(hold, start + dur);
+          g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+        }
+      } else {
+        g.setValueAtTime(1.0, start);
+        g.setValueAtTime(1.0, start + dur);
+        g.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      }
+    }
+
+    try { src.start(start); } catch (_) { try { src.start(); } catch (_) {} }
+    try { src.stop(start + dur + 0.02); } catch (_) {}
+    return [src, gain];
+  }
+
   const osc = (ctx as any).createOscillator();
   const gain = (ctx as any).createGain();
   const pw = createPulsePeriodicWave(ctx, duty);

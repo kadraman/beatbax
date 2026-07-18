@@ -3,9 +3,11 @@ import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
 import {
+  applyTickOffsetToFreq,
   lowerGameBoyInstrumentProgram,
   resolveNoiseClockWithOffset,
   tickRowAtTime,
+  tickRowDutyFraction,
   tickRowVolume,
 } from '../chips/gameboy/instrumentProgram.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
@@ -878,10 +880,51 @@ function renderPulse(
     }
   }
 
+  // Game Boy instrument tick program (arp_env / duty_env / pitch_env / vol_env / subpat)
+  const instRec = inst as Record<string, unknown>;
+  const gbProgram = (isGameBoy || chipType === 'gameboy')
+    ? lowerGameBoyInstrumentProgram(instRec)
+    : null;
+  const useGbProgram = !!(gbProgram && gbProgram.enabled);
+  const useGbProgramVolume = useGbProgram && gbProgram!.rows.some((r) => tickRowVolume(r) !== null);
+  let programDuty = duty;
+  let programOffset: number | null = 0;
+  let programVolScale = 1;
+  let lastProgramTick = -1;
+  if (useGbProgram) {
+    const r0 = tickRowAtTime(gbProgram!, 0);
+    if (r0) {
+      const d0 = tickRowDutyFraction(r0);
+      if (d0 !== null) programDuty = d0;
+      programOffset = r0.offset === undefined ? 0 : r0.offset;
+      if (useGbProgramVolume) {
+        const v0 = tickRowVolume(r0);
+        if (v0 !== null) programVolScale = v0 / 15;
+      }
+    }
+  }
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
 
     // normal rendering loop
+
+    if (useGbProgram) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastProgramTick) {
+        lastProgramTick = tick;
+        const row = tickRowAtTime(gbProgram!, t);
+        if (row) {
+          const d = tickRowDutyFraction(row);
+          if (d !== null) programDuty = d;
+          programOffset = row.offset === undefined ? null : row.offset;
+          if (useGbProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) programVolScale = v / 15;
+          }
+        }
+      }
+    }
 
     // Apply sweep
     const sweepInterval = Math.floor(sweepIntervalSamples);
@@ -902,7 +945,9 @@ function renderPulse(
     // step-based vibrato: on discrete tracker ticks, add/subtract the depth
     // nibble (converted to register units) to the period register. Otherwise
     // fall back to the smoother, phase-LFO approach used historically.
-    let effFreq = currentFreq;
+    let effFreq = useGbProgram
+      ? applyTickOffsetToFreq(currentFreq, programOffset)
+      : currentFreq;
 
     // Apply portamento if enabled
     if (portSpeed > 0 && typeof channelId === 'number') {
@@ -997,6 +1042,7 @@ function renderPulse(
 
     // Simple, efficient band-limited pulse wave synthesis using naive square wave
     // with single-pole low-pass filter to reduce aliasing
+    const activeDuty = useGbProgram ? programDuty : duty;
     let sample = 0;
     if (effFreq > 0 && effFreq < sampleRate / 2) {
       // Advance phase accumulator
@@ -1004,11 +1050,14 @@ function renderPulse(
       phase = phase % 1.0; // Keep phase in [0, 1)
 
       // Generate square wave based on duty cycle
-      sample = (phase < duty) ? 1.0 : -1.0;
+      sample = (phase < activeDuty) ? 1.0 : -1.0;
     }
 
-    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally)
-    const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
+    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally).
+    // When vol_env drives the tick program, volume is baked via programVolScale.
+    const envVal = useGbProgramVolume
+      ? programVolScale
+      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec));
     sample = sample * envVal;
 
     // Apply note cut if enabled (fade out quickly after cut time)
@@ -1529,7 +1578,7 @@ function renderNoise(
   const program = lowerGameBoyInstrumentProgram(instRec);
   const useProgramVolume = program.enabled && program.rows.some((r) => tickRowVolume(r) !== null);
 
-  let currentOffset = 0;
+  let currentOffset: number | null = 0;
   let { shift, divisor } = program.enabled
     ? resolveNoiseClockWithOffset(instRec, 0)
     : resolveNoiseClock(instRec);

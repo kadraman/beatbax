@@ -85,7 +85,7 @@ Wired into:
 
 - [`noise.ts`](../../packages/engine/src/chips/gameboy/noise.ts) — WebAudio noise
 - [`pcmRenderer.ts`](../../packages/engine/src/audio/pcmRenderer.ts) — CLI/WAV (noise + pulse)
-- [`pulse.ts`](../../packages/engine/src/chips/gameboy/pulse.ts) — WebAudio pulse + `PULSE_OUTPUT_GAIN` (0.5)
+- [`pulse.ts`](../../packages/engine/src/chips/gameboy/pulse.ts) — WebAudio pulse + `PULSE_OUTPUT_GAIN` (0.25)
 - [`plugin.ts`](../../packages/engine/src/chips/gameboy/plugin.ts) — chip-plugin noise path uses shared clock/gain
 - [`ugeWriter.ts`](../../packages/engine/src/export/ugeWriter.ts) — shared `hugeTrackerNoteToIndex` for export
 
@@ -93,9 +93,11 @@ Wired into:
 
 | Channel | Constant | Notes |
 |---|---|---|
-| Noise | `NOISE_OUTPUT_GAIN` = 0.25 | Bipolar LFSR sample scale |
-| Pulse | `PULSE_OUTPUT_GAIN` = 0.5 | Square-wave level vs hUGE full-kit WAV |
+| Noise | `NOISE_OUTPUT_GAIN` = 0.25 | Bipolar LFSR sample scale (~kick peak parity) |
+| Pulse | `PULSE_OUTPUT_GAIN` = 0.25 | Held-tone parity vs hUGE (`env=12,flat` → ~0.20 peak) |
 | Center pan (PCM) | dual-mono L+R | Avoids ~3 dB quiet vs hUGE equal-power center |
+
+Retuned pulse from 0.5 → 0.25 using `gb_subpattern_macro_demo` BeatBax WAV vs hUGETracker WAV (drums already matched; sustained pulse was ~2× hot).
 
 Gain constants apply in **WebAudio and CLI/WAV**, not export-only.
 
@@ -152,7 +154,8 @@ Compare with `gb_uge_note_demo_from_hugetracker.wav` from the same directory.
 |---|---|
 | Noise `uge_note` → NR43 clock | Unit + integration tests pass |
 | Noise peak levels (isolated hits) | ~0.9–1.0× vs hUGE reference WAV |
-| Snare/kick (full kit, `gb_percussion_demo`) | Median peak ratio ~1.0–1.1 after `PULSE_OUTPUT_GAIN` |
+| Snare/kick (full kit, `gb_percussion_demo`) | Median peak ratio ~1.0–1.1 after pulse/noise gains |
+| Sustained pulse (`gb_subpattern_macro_demo`) | Peak/RMS within ~1 dB of hUGETracker WAV after `PULSE_OUTPUT_GAIN` 0.25 |
 | Legacy `note=` without `uge_note=` | Export only for clock; playback uses defaults — **avoid for new songs** |
 
 Known acceptable gaps:

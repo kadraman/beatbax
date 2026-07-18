@@ -358,6 +358,19 @@ channel 4 => inst kick pat drums
 
 **Important:** `uge_note=` drives the noise LFSR clock during BeatBax playback (WebAudio and CLI/WAV) **and** the pattern note written to UGE. Prefer `uge_note=` over legacy `note=` on noise instruments. Use `uge_transpose` for melodic pulse/wave pitch offsets. MIDI export maps noise hits to percussion separately.
 
+### Instrument subpatterns (macros / `subpat`)
+
+BeatBax lowers Game Boy instrument programs into hUGETracker **instrument subpatterns** (64 rows per instrument):
+
+| BeatBax | UGE subpattern |
+|---------|----------------|
+| `pitch_env` / `arp_env` | Offset column (relative to `uge_note` / note) |
+| `vol_env` | Effect `Cxy` |
+| `duty_env` | Effect `9xx` |
+| `subpat name = …` + `inst … subpat=name` | Native offset / jump / effect rows |
+
+Preview and UGE export share one tick program (`lowerGameBoyInstrumentProgram`). One-shot macros halt so they do not auto-loop. See [gameboy-uge-instrument-subpatterns.md](../features/gameboy-uge-instrument-subpatterns.md) and demo [`gb_subpattern_macro_demo.bax`](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax).
+
 ### Vibrato (vib) mapping
 
 When exporting BeatBax songs for Game Boy, the BeatBax `vib` effect is conservatively mapped into hUGETracker's compact `4xy` vibrato effect so the exported `.uge` behaves sensibly in tracker/driver toolchains.

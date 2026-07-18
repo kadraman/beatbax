@@ -184,15 +184,29 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
     }
   }
 
-  // Instrument programs (macros → UGE subpatterns). See instrumentProgram.ts.
-  if (inst.pitch_env !== undefined && inst.pitch_env !== null && inst.pitch_env !== '') {
-    if (!parseMacro(inst.pitch_env)) {
-      errors.push({ field: 'pitch_env', message: `pitch_env must be a macro array, e.g. [0,-2,-4] or [0,4,7|0]` });
+  // Instrument programs (macros / subpat → UGE subpatterns). See instrumentProgram.ts.
+  const macroFields: Array<{ field: 'pitch_env' | 'vol_env' | 'duty_env' | 'arp_env'; example: string }> = [
+    { field: 'pitch_env', example: '[0,-2,-4] or [0,4,7|0]' },
+    { field: 'vol_env', example: '[15,12,8,4] or [15,12|0]' },
+    { field: 'duty_env', example: '[2,1,0] or [0,1,2,3|0]' },
+    { field: 'arp_env', example: '[0,4,7] or [0,4,7|0]' },
+  ];
+  for (const { field, example } of macroFields) {
+    const v = (inst as Record<string, unknown>)[field];
+    if (v !== undefined && v !== null && v !== '') {
+      if (!parseMacro(v)) {
+        errors.push({ field, message: `${field} must be a macro array, e.g. ${example}` });
+      }
     }
   }
-  if (inst.vol_env !== undefined && inst.vol_env !== null && inst.vol_env !== '') {
-    if (!parseMacro(inst.vol_env)) {
-      errors.push({ field: 'vol_env', message: `vol_env must be a macro array, e.g. [15,12,8,4] or [15,12|0]` });
+
+  if ((inst as { subpat?: unknown }).subpat !== undefined && (inst as { subpat?: unknown }).subpat !== null && (inst as { subpat?: unknown }).subpat !== '') {
+    const rows = (inst as { subpatRows?: unknown[] }).subpatRows;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      errors.push({
+        field: 'subpat',
+        message: `subpat='${String((inst as { subpat?: unknown }).subpat)}' was not resolved (define \`subpat ${String((inst as { subpat?: unknown }).subpat)} = …\` first)`,
+      });
     }
   }
 
@@ -200,7 +214,11 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
     name: (inst as { name?: string }).name,
   });
   for (const msg of program.errors) {
-    const field = msg.includes('vol_env') ? 'vol_env' : 'pitch_env';
+    let field = 'pitch_env';
+    if (msg.includes('subpat')) field = 'subpat';
+    else if (msg.includes('vol_env')) field = 'vol_env';
+    else if (msg.includes('duty_env')) field = 'duty_env';
+    else if (msg.includes('arp_env')) field = 'arp_env';
     errors.push({ field, message: msg });
   }
 
