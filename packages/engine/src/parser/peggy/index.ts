@@ -19,6 +19,8 @@ import {
   ScaleLock,
   SourceLocation,
   SongMetadata,
+  SubPatternDef,
+  SubPatternRow,
 } from '../ast.js';
 import {
   RawSeqItem,
@@ -141,6 +143,20 @@ interface SongMetaStmt extends BaseStmt { nodeType: 'SongMetaStmt'; key: string;
 interface ImportStmt extends BaseStmt { nodeType: 'ImportStmt'; source: string }
 interface InstStmt extends BaseStmt { nodeType: 'InstStmt'; name: string; rhs: string }
 interface EffectStmt extends BaseStmt { nodeType: 'EffectStmt'; name: string; rhs?: string }
+interface SubPatRowAst {
+  empty?: boolean;
+  offset?: number | null;
+  vol?: number;
+  jump?: number;
+  halt?: boolean;
+  fx?: { code: number; param: number };
+  timbre?: number;
+}
+interface SubPatStmt extends BaseStmt {
+  nodeType: 'SubPatStmt';
+  name: string;
+  rows: SubPatRowAst[];
+}
 interface PatStmt extends BaseStmt { nodeType: 'PatStmt'; name: string; rhsEvents?: PatternEvent[]; rhsTokens?: string[]; rhs?: string }
 interface SeqStmt extends BaseStmt { nodeType: 'SeqStmt'; name: string; rhsItems?: RawSeqItem[]; rhsTokens?: string[]; rhs?: string }
 interface ChannelStmt extends BaseStmt { nodeType: 'ChannelStmt'; channel: number; rhs: string }
@@ -160,6 +176,7 @@ type Statement =
   | ImportStmt
   | InstStmt
   | EffectStmt
+  | SubPatStmt
   | PatStmt
   | SeqStmt
   | ChannelStmt
@@ -500,7 +517,7 @@ const parsePlay = (args: string): PlayNode => {
 
 const VALID_KEYWORDS = [
   'chip', 'bpm', 'volume', 'time', 'stepsPerBar', 'ticksPerStep', 'scale',
-  'song', 'import', 'inst', 'effect', 'pat', 'seq',
+  'song', 'import', 'inst', 'effect', 'subpat', 'pat', 'seq',
   'channel', 'play', 'export',
 ];
 
@@ -828,6 +845,7 @@ export function parseWithPeggy(source: string): ParseResult {
   const insts: InstMap = {};
   const seqs: SeqMap = {};
   const effects: Record<string, string> = {};
+  const subpatterns: Record<string, SubPatternDef> = {};
   const channels: ChannelNode[] = [];
   const metadata: SongMetadata = {};
   const imports: { source: string; loc?: SourceLocation }[] = [];
@@ -935,6 +953,36 @@ export function parseWithPeggy(source: string): ParseResult {
         if (rhs) effects[stmt.name] = rhs;
         break;
       }
+      case 'SubPatStmt': {
+        const sp = stmt as SubPatStmt;
+        if (subpatterns[sp.name]) {
+          diagnostics.push({
+            level: 'warning',
+            component: 'parser',
+            message: `subpat '${sp.name}' redefined; using the later definition.`,
+            loc: sp.loc,
+          });
+        }
+        const rows: SubPatternRow[] = (sp.rows || []).map((r) => ({
+          empty: r.empty,
+          offset: r.offset,
+          vol: r.vol,
+          jump: r.jump,
+          halt: r.halt,
+          fx: r.fx,
+          timbre: r.timbre,
+        }));
+        if (rows.length === 0) {
+          diagnostics.push({
+            level: 'error',
+            component: 'parser',
+            message: `subpat '${sp.name}' has no rows.`,
+            loc: sp.loc,
+          });
+        }
+        subpatterns[sp.name] = { name: sp.name, rows, loc: sp.loc };
+        break;
+      }
       case 'PatStmt': {
         const { name, tokens } = expandPatternSpec(stmt.name, (stmt as any).rhs, (stmt as any).rhsTokens, stmt.rhsEvents, stmt.loc);
         if (patternEvents && stmt.rhsEvents && stmt.rhsEvents.length > 0) {
@@ -1035,6 +1083,27 @@ export function parseWithPeggy(source: string): ParseResult {
     }
   }
 
+  // Resolve inst `subpat=` onto `subpatRows` before plugin validation / lowering.
+  for (const [instName, instDef] of Object.entries(insts)) {
+    const p = instDef as any;
+    const ref = p.subpat;
+    if (ref === undefined || ref === null || ref === '') continue;
+    const name = String(ref).trim();
+    if (!name) continue;
+    const def = subpatterns[name];
+    if (!def) {
+      diag(
+        'error',
+        'parser',
+        `Instrument '${instName}': subpat='${name}' is not defined.`,
+        p.__loc,
+      );
+      continue;
+    }
+    p.subpat = name;
+    p.subpatRows = def.rows.map((r) => ({ ...r }));
+  }
+
   // Instrument type and property validation.
   // When the song targets a registered chip plugin, delegate to its validateInstrument()
   // so the plugin can accept its own types (e.g. 'triangle', 'dmc' for NES) and
@@ -1044,7 +1113,10 @@ export function parseWithPeggy(source: string): ParseResult {
   const activePlugin = chipIsKnown && chipName ? chipRegistry.get(requestedChip) : undefined;
 
   const VALID_INST_TYPES = ['pulse1', 'pulse2', 'wave', 'noise'];
-  const INST_COMMON_PROPS = new Set(['type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan']);
+  const INST_COMMON_PROPS = new Set([
+    'type', 'volume', 'length', 'gm', 'note', 'env', 'envelope', 'speed', 'pan',
+    'pitch_env', 'vol_env', 'duty_env', 'arp_env', 'subpat', 'uge_note',
+  ]);
   const INST_TYPE_PROPS: Record<string, Set<string>> = {
     pulse1: new Set(['duty', 'sweep', 'width']),
     pulse2: new Set(['duty', 'width']),
@@ -1312,6 +1384,7 @@ export function parseWithPeggy(source: string): ParseResult {
   if (scaleDirective) ast.scale = scaleDirective;
   if (diagnostics.length > 0) ast.diagnostics = diagnostics;
   if (Object.keys(effects).length) (ast as any).effects = effects;
+  if (Object.keys(subpatterns).length) ast.subpatterns = subpatterns;
   if (imports.length > 0) ast.imports = imports;
   if (includeStructured) {
     if (patternEvents) ast.patternEvents = patternEvents;

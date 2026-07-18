@@ -12,8 +12,9 @@ The BeatBax engine is a deterministic, tick-accurate audio engine for creating c
 - **Pulse 1 & 2** - Square wave channels with duty cycle and envelope control
 - **Wave** - Custom wavetable playback (16×4-bit samples)
 - **Noise** - LFSR-based noise generation with envelope
+- **Instrument programs** - `pitch_env` / `vol_env` / `duty_env` / `arp_env` and native `subpat` lower to a shared tick program for preview/WAV and hUGETracker instrument subpatterns on UGE export
 
-Additional chipsets will be added in the future.
+Additional chipsets (NES, SMS, Spectrum AY, …) are available via chip plugins.
 
 ## Installation
 

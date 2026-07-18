@@ -78,7 +78,29 @@ export interface InstrumentNode {
   duty_env?: string | number[];
   arp_env?: string | number[];
   pitch_env?: string | number[];
+  /** Named `subpat` reference (Game Boy instrument programs). */
+  subpat?: string;
+  /** Resolved native subpat rows (filled by parser when `subpat=` is set). */
+  subpatRows?: SubPatternRow[];
   [key: string]: any;
+}
+
+/** One row of a native `subpat` declaration (hUGE-style instrument program). */
+export interface SubPatternRow {
+  empty?: boolean;
+  offset?: number | null;
+  vol?: number;
+  jump?: number;
+  halt?: boolean;
+  fx?: { code: number; param: number };
+  timbre?: number;
+  loc?: SourceLocation;
+}
+
+export interface SubPatternDef {
+  name: string;
+  rows: SubPatternRow[];
+  loc?: SourceLocation;
 }
 
 export interface EnvelopeAST {
@@ -175,6 +197,8 @@ export interface AST {
   insts: InstMap;
   seqs: SeqMap;
   effects?: Record<string, string>;
+  /** Named Game Boy instrument subpatterns (`subpat name = …`). */
+  subpatterns?: Record<string, SubPatternDef>;
   patternEvents?: PatternEventMap;
   sequenceItems?: SequenceItemMap;
   channels: ChannelNode[];

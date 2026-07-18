@@ -1,9 +1,12 @@
-## Game Boy Duty-Cycle Modulation (DCM) dmeo
+## Game Boy Duty-Cycle Modulation (DCM) demo
 ## Timbre modulation — switching pulse-width during playback to animate tone colour
 ##
-## Technique: define multiple inst with different duty values, then switch inline with
-##            `inst <name>` inside a pat definition.  Pitch and volume stay the same —
-##            only the waveform shape (duty) changes, altering the timbre.
+## Technique A (sections 1–5): define multiple inst with different duty values, then
+##   switch inline with `inst <name>` inside a pat. Pitch/volume stay the same —
+##   only the waveform shape (duty) changes. Best for per-note / phrase DCM.
+##
+## Technique B (section 6): `duty_env` on one instrument — within-note wah at ~60 Hz
+##   (hUGE 9xx subpattern). Best for held notes; preview + UGE share one tick program.
 ##
 ## Game Boy duty values:
 ##   12.5%  — thin, nasal, cutting (the "closed wah")
@@ -15,11 +18,12 @@
 ##   1. Per-note   : each note uses a different duty → timbre shifts on every step
 ##   2. Mid-phrase : thin on approach notes, bright on peak, warm on resolution
 ##   3. Rhythmic   : alternating duty per bar (slow) or per note (fast) for "wah-wah"
+##   4. duty_env   : looping 50% ↔ 12.5% on a held note (instrument program)
 ##
 ## Export support:
 ##   JSON  : yes — full fidelity (inst changes preserved as events)
 ##   MIDI  : yes — GM program change on each inst switch
-##   UGE   : yes — each duty maps to a separate instrument slot
+##   UGE   : yes — each duty maps to a separate instrument slot; duty_env → subpattern 9xx
 ##   Audio : yes — WebAudio PeriodicWave rebuilt per note; PCM renderer uses phase-correct duty
 
 chip gameboy
@@ -31,6 +35,9 @@ inst thin    type=pulse1 duty=12.5 env={"level":14,"direction":"down","period":3
 inst hollow  type=pulse1 duty=25   env={"level":13,"direction":"down","period":3,"format":"gb"}
 inst bright  type=pulse1 duty=50   env={"level":13,"direction":"down","period":4,"format":"gb"}
 inst warm    type=pulse1 duty=75   env={"level":11,"direction":"down","period":4,"format":"gb"}
+
+## Within-note wah — duty_env indices 0–3 → 12.5% / 25% / 50% / 75% (UGE 9xx)
+inst wah_env type=pulse1 duty=50 env=12,flat duty_env=[2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0|0]
 
 ## Channel 2 (pulse2) — neutral chord support + wah-wah demonstration
 inst harm      type=pulse2 duty=25   env={"level":9,"direction":"down","period":5,"format":"gb"}
@@ -85,14 +92,20 @@ pat wah_fast = inst wah_open C4:2 inst wah_close C4:2 inst wah_open E4:2 inst wa
 pat melody_dcm = inst thin C5:4 inst bright E5:4 inst warm G5:4 inst bright C5:4
 pat harm_mel   = inst harm C4:4 E4:4 G4:4 E4:4
 
+## ── Section 6: duty_env within-note wah ───────────────────────────────────────
+## Contrast with sections 3–4: one instrument, held notes, timbre steps inside the note.
+pat env_wah_a = inst wah_env C5:16
+pat env_wah_b = inst wah_env E5:8 G5:8
+pat harm_env  = inst harm C4:4 E4:4 G4:4 E4:4
+
 ## ── Bass ostinato ─────────────────────────────────────────────────────────────
 pat bass_line = C3:4 G2:4 C3:4 G2:4  ## 16 steps; C–G rocking bass
 
-## ── Sequences (all 10 × 16 = 160 steps) ─────────────────────────────────────
+## ── Sequences (all 12 × 16 = 192 steps) ─────────────────────────────────────
 ## Each position in harm_seq accompanies the matching position in lead_seq.
-seq lead_seq = ref_pat per_note per_note_rev climb_dcm rapid_dcm wah_open_lead wah_close_lead wah_fast_lead melody_dcm melody_dcm
-seq harm_seq = harm_ref harm_pn harm_pn harm_cl harm_rp wah_a wah_b wah_fast harm_mel harm_mel
-seq bass_seq = bass_line*10
+seq lead_seq = ref_pat per_note per_note_rev climb_dcm rapid_dcm wah_open_lead wah_close_lead wah_fast_lead melody_dcm melody_dcm env_wah_a env_wah_b
+seq harm_seq = harm_ref harm_pn harm_pn harm_cl harm_rp wah_a wah_b wah_fast harm_mel harm_mel harm_env harm_env
+seq bass_seq = bass_line*12
 
 ## ── Channels ──────────────────────────────────────────────────────────────────
 channel 1 => inst bright seq lead_seq

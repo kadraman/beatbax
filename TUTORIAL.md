@@ -33,7 +33,17 @@ BeatBax is a complete live-coding language for retro console chiptunes with dete
     - Note: Pitch `up` increases the frequency register, while `down` decreases it, following Game Boy hardware behavior.
   - `gm` (optional): General MIDI program number (0-127). When present the MIDI
     exporter emits a Program Change for the corresponding track using this value.
-  - Game Boy scope note: instrument macro fields such as `arp_env`, `vol_env`, `pitch_env`, and `duty_env` are intentionally unsupported. Use pattern/inline effects instead. See `docs/features/complete/gameboy-instrument-macros-policy.md`.
+  - **Game Boy instrument programs** (macros / native `subpat`): short tick-time motion that
+    drives BeatBax preview **and** hUGETracker instrument subpatterns on UGE export.
+    See `docs/features/gameboy-uge-instrument-subpatterns.md`.
+    - Macros: `pitch_env=[…]`, `vol_env=[…]`, `duty_env=[…]` (pulse → `9xx`), `arp_env=[…]`
+      (offsets when `pitch_env` is absent). One frame ≈ 1/60 s. One-shots halt so they do not loop.
+    - Native rows: `subpat name = . +0 vol:15 -2 jump:3 … halt` then `inst … subpat=name`.
+      `subpat=` wins over macros on that instrument.
+    - Noise base pitch still uses `uge_note=` (e.g. `C-6` for kicks). Prefer that over large
+      negative offsets from a high base — the GB noise note table is non-monotonic.
+    - Demo: `songs/gameboy/instruments/gb_subpattern_macro_demo.bax`.
+    - Pattern/inline effects (`arp`, `vib`, `port`, …) remain available for song-level expression.
 
 - effect presets: define reusable named effect RHS strings that can be applied
   inline or as a sequence/pattern modifier. Syntax: `effect name = vib:4,8,sine,4` or `effect arpMinor = arp:3,7`.
@@ -852,7 +862,7 @@ npm run cli -- export midi songs\sample.bax output.mid
 ```powershell
 npm run cli -- export uge songs\sample.bax output.uge
 ```
-*Note: UGE files use a fixed 64-row pattern grid. BeatBax automatically splits longer sequences into multiple 64-row patterns and synchronizes the order list across all 4 channels. For best results, keep your pattern definitions to multiples of 16 or 64 tokens.*
+*Note: UGE files use a fixed 64-row pattern grid. BeatBax automatically splits longer sequences into multiple 64-row patterns and synchronizes the order list across all 4 channels. For best results, keep your pattern definitions to multiples of 16 or 64 tokens. Instrument programs (`pitch_env` / `vol_env` / `duty_env` / `arp_env` / `subpat`) export as hUGETracker instrument subpatterns — see `songs/gameboy/instruments/gb_subpattern_macro_demo.bax`.*
 
 **WAV** (Offline PCM rendering):
 ```powershell

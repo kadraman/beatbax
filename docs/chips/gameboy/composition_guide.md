@@ -176,6 +176,15 @@ inst hat   type=noise gb:width=15 env=4,down  uge_note=C-8
 
 Reference songs: [gb_uge_note_demo.bax](../../songs/gameboy/instruments/gb_uge_note_demo.bax), [gb_percussion_demo.bax](../../songs/gameboy/instruments/gb_percussion_demo.bax).
 
+**Instrument programs (macros / `subpat`):** Short tick-time pitch, volume, and duty motion on instruments lowers to a shared program for BeatBax preview **and** hUGETracker instrument subpatterns on UGE export:
+
+```
+inst kick type=noise gb:width=7 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst wah  type=pulse1 duty=50 env=12,flat duty_env=[2,2,2,2,0,0,0,0|0]
+```
+
+Prefer `uge_note=C-6` as the kick base; large negative subpattern offsets from a high base are not a reliable pitch drop (noise note table is non-monotonic). Demo: [gb_subpattern_macro_demo.bax](../../songs/gameboy/instruments/gb_subpattern_macro_demo.bax). Full authoring: [gameboy-uge-instrument-subpatterns.md](../../features/gameboy-uge-instrument-subpatterns.md).
+
 **BPM for hUGE parity:** UGE export stores integer ticks per row (`round(896 / bpm)`). For identical row timing between BeatBax preview/WAV and hUGETracker, use BPM where **896 ÷ bpm is a whole number** — **128 BPM** is the usual choice (7 ticks/row). Approximate tempos like **140 BPM** export as ~**149.3 BPM** in hUGE (6 ticks/row), which is often fine for authoring. See [uge-export-guide.md](../../exports/uge-export-guide.md#tempo-and-bpm-alignment).
 
 ---
