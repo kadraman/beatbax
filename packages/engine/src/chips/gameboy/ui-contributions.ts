@@ -27,7 +27,10 @@ INSTRUMENTS  (inst <name> <fields>)
   Extended GB envelope: env=gb:<vol>,<dir>,<period> (pulse/noise only; not wave)
   sweep effect is only valid on channel 1 (pulse1).
   For percussion, define NAMED noise instruments (e.g. kick, snare, hihat) with
-  different envelopes to distinguish timbres. You can have multiple noise instruments.`.trim();
+  different envelopes to distinguish timbres. You can have multiple noise instruments.
+  Optional macros (lowered to hUGETracker instrument subpatterns):
+    pitch_env=[0,-2,-4,-6]   vol_env=[15,12,8,4]
+  Base noise pitch still uses uge_note=C-6 style notes.`.trim();
 
 const copilotSystemPrompt = `
 ${HARDWARE_GAMEBOY}
@@ -100,8 +103,10 @@ const hoverDocs: Record<string, string> = {
     '- `type=pulse2` — `duty`, `env`; no hardware sweep',
     '- `type=wave` — `wave` (32 × 0–15 array, 16 × 0–15 array, or 32-nibble hex string), `volume` (`0`·`25`·`50`·`100`); no envelope',
     '- `type=noise` — `env`, `width` (`7` = metallic/tonal · `15` = full/broad)',
+    '- `pitch_env` / `vol_env` — instrument macros lowered to hUGETracker subpatterns (preview + UGE export share one tick program)',
     '',
     'Example: `inst lead type=pulse1 duty=50 env=gb:12,down,1`',
+    'Drum example: `inst kick type=noise gb:width=7 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]`',
   ].join('\n\n'),
 
   pulse1: 'Game Boy Pulse 1 channel — square wave with duty control, envelope, and hardware frequency sweep (NR10–NR14)',
@@ -116,7 +121,19 @@ const hoverDocs: Record<string, string> = {
     '- Use `volume=` (`0` · `25` · `50` · `100`) to set the hardware output-level selector.',
   ].join('\n\n'),
 
-  noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad).',
+  noise: 'Game Boy Noise channel — LFSR-based noise generator with envelope (NR41–NR44). Use `width=7` (metallic) or `width=15` (full/broad). Optional `pitch_env` / `vol_env` macros become UGE instrument subpatterns.',
+
+  pitch_env: [
+    '**Pitch macro** — per-tick semitone offsets relative to the instrument base note (`uge_note` for noise).',
+    '```\npitch_env=[0,-2,-4,-6]     # one-shot drop (halts so it does not loop)\npitch_env=[0,4,7|0]        # looped arpeggio-style offsets\n```',
+    'Lowered into the hUGETracker instrument subpattern offset column. Preview and UGE export use the same tick program.',
+  ].join('\n\n'),
+
+  vol_env: [
+    '**Volume macro** — per-tick volumes 0–15, lowered to hUGE `Cxy` subpattern effects.',
+    '```\nvol_env=[15,12,8,4]        # one-shot decay\nvol_env=[15,12,8|2]        # loop from index 2\n```',
+    'Takes precedence over hardware `env=` for the stepped shape while the program runs. Prefer short one-shots for drums.',
+  ].join('\n\n'),
 
   uge_note: [
     '**UGE noise note** — hUGETracker display notation for named **noise** hits.',

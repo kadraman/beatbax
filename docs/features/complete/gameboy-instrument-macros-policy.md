@@ -10,19 +10,17 @@ related:
 
 ## Summary
 
-BeatBax historically did not support Game Boy instrument macro fields such as `arp_env`, `vol_env`, `pitch_env`, or `duty_env` in the Game Boy chip model.
+BeatBax now supports Game Boy `pitch_env` and `vol_env` through a shared tick-program lowerer that drives both preview/WAV and hUGETracker UGE instrument subpatterns. See [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md).
 
-That restriction remains in force **until** the approved lowering feature lands. The revisit path is specified in [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md) (macros → shared tick program → UGE subpatterns + preview).
-
-Until that feature’s Phase 1 ships, for Game Boy authoring use pattern/inline effects and sequence transforms that already map to current runtime behavior and UGE export semantics.
+`duty_env` and `arp_env` are still not lowered on Game Boy (v1). For song-level expression, continue to use pattern/inline effects and sequence transforms.
 
 ## Decision
 
-### Current (until lowering ships)
+### Current (Phase 1+ landed)
 
-For `chip gameboy`, instrument-level macro fields remain **out of scope** in parser validation and runtime.
+For `chip gameboy`, instrument-level `pitch_env` and `vol_env` are **supported** via the shared tick-program lowerer in [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md). Preview/WAV and UGE subpattern export both consume `lowerGameBoyInstrumentProgram`.
 
-This was an explicit product and architecture decision, not an implementation gap.
+`duty_env` and `arp_env` remain out of scope for v1 (warned at export; not lowered).
 
 ### Approved revisit
 
@@ -80,4 +78,4 @@ Reconsider / extend Game Boy macros only when at least one of the following is a
 2. ~~A formally specified compile-time lowering model is introduced with deterministic, test-covered semantics.~~ **Approved** — see [`gameboy-uge-instrument-subpatterns.md`](../gameboy-uge-instrument-subpatterns.md).
 3. Product direction shifts away from UGE-first Game Boy compatibility.
 
-Until Phase 1 of that feature lands, Game Boy macro fields remain intentionally unsupported in the product.
+`pitch_env` / `vol_env` are supported through the instrument-program feature. Extend further macros only via that same lowering path.

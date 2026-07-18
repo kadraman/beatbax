@@ -8,7 +8,9 @@
  */
 import { ChipPlugin, ChipChannelBackend, ValidationError } from '../types.js';
 import { InstrumentNode } from '../../parser/ast.js';
+import { parseMacro } from '../../util/music.js';
 import { gameboyUIContributions } from './ui-contributions.js';
+import { lowerGameBoyInstrumentProgram } from './instrumentProgram.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from './noiseNote.js';
 import { version } from '../../version.js';
 import { gbSongWizard } from './songWizard.js';
@@ -180,6 +182,26 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
         errors.push({ field: 'wave', message: `wave array must have 16 or 32 samples, got ${table.length}` });
       }
     }
+  }
+
+  // Instrument programs (macros → UGE subpatterns). See instrumentProgram.ts.
+  if (inst.pitch_env !== undefined && inst.pitch_env !== null && inst.pitch_env !== '') {
+    if (!parseMacro(inst.pitch_env)) {
+      errors.push({ field: 'pitch_env', message: `pitch_env must be a macro array, e.g. [0,-2,-4] or [0,4,7|0]` });
+    }
+  }
+  if (inst.vol_env !== undefined && inst.vol_env !== null && inst.vol_env !== '') {
+    if (!parseMacro(inst.vol_env)) {
+      errors.push({ field: 'vol_env', message: `vol_env must be a macro array, e.g. [15,12,8,4] or [15,12|0]` });
+    }
+  }
+
+  const program = lowerGameBoyInstrumentProgram(inst as Record<string, unknown>, {
+    name: (inst as { name?: string }).name,
+  });
+  for (const msg of program.errors) {
+    const field = msg.includes('vol_env') ? 'vol_env' : 'pitch_env';
+    errors.push({ field, message: msg });
   }
 
   return errors;

@@ -1,6 +1,6 @@
 ---
 title: "Game Boy Instrument Programs → UGE Subpatterns"
-status: proposed
+status: in-progress
 authors:
   - kadraman
 created: 2026-06-29T00:00:00.000Z
@@ -117,14 +117,9 @@ Reuse existing macro syntax. Base pitch for noise remains `uge_note=`:
 chip gameboy
 bpm 140
 
-inst kick type=noise gb:width=7 env=14,down,1 uge_note=C-6 \
-  pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
-
-inst snare type=noise gb:width=7 env=10,down,2 uge_note=C-7 \
-  pitch_env=[0,7,0] vol_env=[12,8,4]
-
-inst hat type=noise gb:width=15 env=4,down,1 uge_note=C-8 \
-  vol_env=[5,2]
+inst kick type=noise gb:width=7 env=14,down,1 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare type=noise gb:width=7 env=10,down,2 uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
+inst hat type=noise gb:width=15 env=4,down,1 uge_note=C-8 vol_env=[5,2]
 
 pat drums = kick hat snare hat
 channel 4 => inst kick pat drums
@@ -241,41 +236,41 @@ Native `subpat` also lowers into the **same** `TickProgram` IR.
 
 ## Implementation Plan
 
-### Phase 0 — Tick program + lowerer
+### Phase 0 — Tick program + lowerer ✅
 
 Deliverables:
 
-- `TickProgram` types and `lowerGameBoyInstrumentProgram`.
-- Documented merge / halt / loop rules.
-- Unit tests for lowering fixtures (drums, looped arp-like pitch, uneven lane lengths).
-- Fix UGE reader to **parse** v6 subpattern bodies (today it skips them) so export round-trips can be asserted.
+- [x] `TickProgram` types and `lowerGameBoyInstrumentProgram` (`chips/gameboy/instrumentProgram.ts`).
+- [x] Documented merge / halt / loop rules.
+- [x] Unit tests for lowering fixtures (`tests/gameboy/instrumentProgram.test.ts`).
+- [x] Fix UGE reader to **parse** v6 subpattern bodies so export round-trips can be asserted.
 
 Acceptance:
 
 - Pure function: same instrument props → identical `TickProgram` every time.
 
-### Phase 1 — Enable GB macros + UGE export
+### Phase 1 — Enable GB macros + UGE export ✅
 
 Deliverables:
 
-- Allow `pitch_env` / `vol_env` on `chip gameboy` (noise first) with validation.
-- Update macros policy status to point here as the approved revisit.
-- UGE writer: `subpatternEnabled=true` + write 64 rows from `TickProgram`.
-- Reject or warn on unsupported combinations.
-- Demo song under `songs/gameboy/instruments/`.
+- [x] Allow `pitch_env` / `vol_env` on `chip gameboy` with validation.
+- [x] Update macros policy status to point here as the approved revisit.
+- [x] UGE writer: `subpatternEnabled=true` + write 64 rows from `TickProgram`.
+- [x] Warn on unsupported `duty_env` / `arp_env`; error if program expands past 64 ticks.
+- [x] Demo song: `songs/gameboy/instruments/gb_subpattern_macro_demo.bax`.
 
 Acceptance:
 
 - Exported `.uge` opens in hUGETracker; noise drums show enabled subpatterns and audible pitch/volume motion.
 - Song pattern lengths unchanged.
 
-### Phase 2 — Preview / WAV from the same IR
+### Phase 2 — Preview / WAV from the same IR ✅
 
 Deliverables:
 
-- Game Boy WebAudio and PCM paths execute `TickProgram` on instrument trigger.
-- Tick timing aligned with hUGE tick semantics as closely as practical; document remaining gaps.
-- No separate NES macro player for GB instruments that have a program.
+- [x] Game Boy WebAudio (`noise.ts`) and PCM (`pcmRenderer.ts`) execute `TickProgram` on instrument trigger.
+- [x] Tick timing ≈ 60 Hz (hUGE frame tick); remaining BPM/tempo gaps documented as open questions.
+- [x] No separate NES macro player for GB instruments that have a program.
 
 Acceptance:
 

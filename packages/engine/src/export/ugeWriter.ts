@@ -18,6 +18,11 @@
 import { SongModel, ChannelEvent, NoteEvent } from '../song/songModel.js';
 import { parseEnvelope, parseSweep } from '../chips/gameboy/pulse.js';
 import { hugeTrackerNoteToIndex } from '../chips/gameboy/noiseNote.js';
+import {
+    encodeTickProgramToUgeRows,
+    lowerGameBoyInstrumentProgram,
+    type UgeSubpatternCell,
+} from '../chips/gameboy/instrumentProgram.js';
 import { warn } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
 import { normalizeArpOffsets } from '../util/arpOffsets.js';
@@ -645,11 +650,17 @@ class UGEWriter {
 
     /**
      * Write instrument subpattern cell: 17 bytes
-     * Note(u32) + Instrument(u32) + Volume(u32) + EffectCode(u32) + EffectParams(u8)
-     * (Same as TCellV2)
+     * Note(u32) + Unused(u32) + Jump(u32) + EffectCode(u32) + EffectParams(u8)
+     *
+     * Layout matches pattern TCellV2 byte size, but the middle fields are
+     * unused + jump (not instrument + volume).
      */
-    writeInstrumentSubpatternCell(note: number, instrument: number, volume: number, effectCode: number, effectParam: number): void {
-        this.writePatternCell(note, instrument, effectCode, effectParam, volume);
+    writeInstrumentSubpatternCell(note: number, unused: number, jump: number, effectCode: number, effectParam: number): void {
+        this.writeU32(note);
+        this.writeU32(unused);
+        this.writeU32(jump);
+        this.writeU32(effectCode);
+        this.writeU8(effectParam);
     }
 
     /**
@@ -664,6 +675,25 @@ class UGEWriter {
      */
     writeEmptyInstrumentCell(): void {
         this.writeInstrumentSubpatternCell(EMPTY_NOTE, 0, 0, 0, 0);
+    }
+
+    /** Write subpatternEnabled flag + exactly 64 cells. */
+    writeInstrumentSubpattern(enabled: boolean, cells?: UgeSubpatternCell[]): void {
+        this.writeBool(enabled);
+        for (let row = 0; row < PATTERN_ROWS; row++) {
+            const cell = cells?.[row];
+            if (cell) {
+                this.writeInstrumentSubpatternCell(
+                    cell.note,
+                    cell.unused,
+                    cell.jump,
+                    cell.effectCode,
+                    cell.effectParam,
+                );
+            } else {
+                this.writeEmptyInstrumentCell();
+            }
+        }
     }
 
     toBuffer(): Buffer {
@@ -687,6 +717,7 @@ function writeDutyInstrument(
     freqSweepTime: number = 0,
     freqSweepDir: number = 0, // 0=up, 1=down
     freqSweepShift: number = 0,
+    subpattern?: { enabled: boolean; cells: UgeSubpatternCell[] },
 ): void {
     w.writeU32(InstrumentType.DUTY);
     w.writeShortString(name);
@@ -703,11 +734,7 @@ function writeDutyInstrument(
     w.writeU32(0); // unused_b
     w.writeU32(0); // counter_step (TStepWidth) - MISSING in previous version
 
-    // Subpattern: ALWAYS write 64 rows (part of TInstrumentV3 structure)
-    w.writeBool(false); // subpattern_enabled (set to false by default)
-    for (let row = 0; row < PATTERN_ROWS; row++) {
-        w.writeEmptyInstrumentCell();
-    }
+    w.writeInstrumentSubpattern(!!subpattern?.enabled, subpattern?.cells);
 }
 
 /**
@@ -738,6 +765,7 @@ function writeWaveInstrument(
     volume: number = 3, // 0=mute, 1=100%, 2=50%, 3=25%
     lengthEnabled: boolean = false,
     length: number = 0,
+    subpattern?: { enabled: boolean; cells: UgeSubpatternCell[] },
 ): void {
     w.writeU32(InstrumentType.WAVE);
     w.writeShortString(name);
@@ -757,11 +785,7 @@ function writeWaveInstrument(
     w.writeU32(waveIndex); // wave_index
     w.writeU32(0); // counter_step (TStepWidth) - MISSING in previous version
 
-    // Subpattern: ALWAYS write 64 rows
-    w.writeBool(false); // subpattern_enabled (set to false by default)
-    for (let row = 0; row < PATTERN_ROWS; row++) {
-        w.writeEmptyInstrumentCell();
-    }
+    w.writeInstrumentSubpattern(!!subpattern?.enabled, subpattern?.cells);
 }
 
 /**
@@ -777,6 +801,7 @@ function writeNoiseInstrument(
     noiseMode: number = 0, // 0=15-bit, 1=7-bit
     lengthEnabled: boolean = true,
     length: number = 8, // Short length for percussion
+    subpattern?: { enabled: boolean; cells: UgeSubpatternCell[] },
 ): void {
     w.writeU32(InstrumentType.NOISE);
     w.writeShortString(name);
@@ -793,11 +818,20 @@ function writeNoiseInstrument(
     w.writeU32(0); // unused_f
     w.writeU32(noiseMode); // noise_mode: 0=15-bit, 1=7-bit
 
-    // Subpattern: ALWAYS write 64 rows
-    w.writeBool(false); // subpattern_enabled (set to false by default)
-    for (let row = 0; row < PATTERN_ROWS; row++) {
-        w.writeEmptyInstrumentCell();
-    }
+    w.writeInstrumentSubpattern(!!subpattern?.enabled, subpattern?.cells);
+}
+
+/** Lower instrument macros to UGE subpattern payload (shared with preview IR). */
+function subpatternFromInstrument(inst: Record<string, unknown> | null | undefined, name: string): {
+    enabled: boolean;
+    cells: UgeSubpatternCell[];
+} | undefined {
+    if (!inst) return undefined;
+    const program = lowerGameBoyInstrumentProgram(inst, { name });
+    for (const wmsg of program.warnings) warn('uge', wmsg);
+    for (const emsg of program.errors) warn('uge', emsg);
+    if (!program.enabled || program.errors.length > 0) return undefined;
+    return { enabled: true, cells: encodeTickProgramToUgeRows(program) };
 }
 
 /**
@@ -1579,7 +1613,8 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             const freqSweepDir = sweep ? (sweep.direction === 'up' ? 0 : 1) : 0;
             const freqSweepShift = sweep ? sweep.shift : 0;
 
-            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length, freqSweepTime, freqSweepDir, freqSweepShift);
+            const subpattern = subpatternFromInstrument(inst, name);
+            writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length, freqSweepTime, freqSweepDir, freqSweepShift, subpattern);
         } else {
             writeDutyInstrument(w, `DUTY_${i}`, 2, 15, 1, 0);
         }
@@ -1595,7 +1630,8 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             const lengthEnabled = inst.length ? true : false;
             const ugeVolume = mapWaveVolumeToUGE(inst.volume ?? inst.vol ?? 100);
             if (opts && opts.debug) log.debug(`Wave instrument '${name}' -> volume (beatbax)=${inst.volume ?? inst.vol ?? 'undefined'} ugeValue=${ugeVolume}`);
-            writeWaveInstrument(w, name, i, ugeVolume, lengthEnabled, length);
+            const subpattern = subpatternFromInstrument(inst, name);
+            writeWaveInstrument(w, name, i, ugeVolume, lengthEnabled, length, subpattern);
         } else {
             // Default placeholder: use default 100% mapping
             writeWaveInstrument(w, `WAVE_${i}`, 0, mapWaveVolumeToUGE(100));
@@ -1620,12 +1656,14 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
                     sweepChange = env.period ?? 0;
                 }
             }
-            // width parameter: 7=7-bit mode, 15=15-bit mode (default)
-            const width = inst.width ? Number(inst.width) : 15;
+            // width / gb:width: 7=7-bit mode, 15=15-bit mode (default)
+            const widthRaw = inst.width ?? inst['gb:width'];
+            const width = widthRaw !== undefined && widthRaw !== null && widthRaw !== '' ? Number(widthRaw) : 15;
             const noiseMode = width === 7 ? 1 : 0; // 0=15-bit, 1=7-bit
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
-            writeNoiseInstrument(w, name, initialVol, sweepDir, sweepChange, noiseMode, lengthEnabled, length);
+            const subpattern = subpatternFromInstrument(inst, name);
+            writeNoiseInstrument(w, name, initialVol, sweepDir, sweepChange, noiseMode, lengthEnabled, length, subpattern);
         } else {
             writeNoiseInstrument(w, `NOISE_${i}`);
         }

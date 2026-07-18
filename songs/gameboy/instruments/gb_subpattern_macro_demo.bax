@@ -1,0 +1,28 @@
+# Game Boy instrument programs (macros → UGE subpatterns)
+#
+# pitch_env / vol_env lower into a shared tick program used by BeatBax preview
+# and hUGETracker instrument subpatterns on UGE export.
+#
+# Export UGE:
+#   npm run cli -- export uge songs/gameboy/instruments/gb_subpattern_macro_demo.bax tmp/gb_subpattern_macro_demo.uge
+#
+# Export WAV:
+#   npm run cli -- export wav songs/gameboy/instruments/gb_subpattern_macro_demo.bax tmp/gb_subpattern_macro_demo.wav
+
+chip gameboy
+bpm 128
+song name "Game Boy Subpattern Macro Demo"
+song artist "The BeatBax Team"
+song description "Noise drums using pitch_env and vol_env macros lowered to hUGETracker instrument subpatterns."
+song tags "gameboy,instrument,demo,uge,noise,subpattern,macro"
+
+inst kick type=noise gb:width=7 env=14,down,1 length=16 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare type=noise gb:width=7 env=10,down,2 length=16 uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
+inst hat type=noise gb:width=15 env=4,down,1 length=8 uge_note=C-8 vol_env=[5,2]
+
+pat drums_a = kick hat snare hat kick hat snare hat
+pat drums_b = kick kick snare hat kick hat snare hat
+
+channel 4 => inst kick seq drums_a drums_b drums_a drums_b
+
+play

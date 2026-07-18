@@ -26,6 +26,8 @@ export const CHIP_INSTRUMENT_META: Record<string, ChipInstrumentMeta> = {
       sweep: { detail: 'Hardware sweep (pulse1)' },
       volume: { values: ['0', '25', '50', '100'], detail: 'Wave channel volume' },
       width: { values: ['7', '15'], detail: 'Noise width mode' },
+      pitch_env: { detail: 'Pitch macro → UGE subpattern offsets, e.g. [0,-2,-4,-6]' },
+      vol_env: { detail: 'Volume macro → UGE subpattern Cxy, e.g. [15,12,8,4]' },
       gm: { detail: 'MIDI program 0–127' },
       note: { detail: 'Default hit note e.g. C2' },
       uge_note: { detail: 'UGE export note in hUGETracker notation, e.g. C-8' },

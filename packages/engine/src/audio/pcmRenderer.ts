@@ -2,6 +2,12 @@ import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
+import {
+  lowerGameBoyInstrumentProgram,
+  resolveNoiseClockWithOffset,
+  tickRowAtTime,
+  tickRowVolume,
+} from '../chips/gameboy/instrumentProgram.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
@@ -1514,19 +1520,47 @@ function renderNoise(
   const envelope = parsePulseEnvelope(inst.env);
 
   const durSec = duration / sampleRate;
+  const instRec = inst as Record<string, unknown>;
 
-  const width = resolveNoiseWidth(inst as Record<string, unknown>);
+  const width = resolveNoiseWidth(instRec);
   const width7 = width === 7;
-  const { shift, divisor } = resolveNoiseClock(inst as Record<string, unknown>);
   const GB_CLOCK = 4194304;
 
-  const lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+  const program = lowerGameBoyInstrumentProgram(instRec);
+  const useProgramVolume = program.enabled && program.rows.some((r) => tickRowVolume(r) !== null);
+
+  let currentOffset = 0;
+  let { shift, divisor } = program.enabled
+    ? resolveNoiseClockWithOffset(instRec, 0)
+    : resolveNoiseClock(instRec);
+  let lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+  let lastTick = -1;
+  let volScale = 1;
 
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
 
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
+
+    if (program.enabled) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastTick) {
+        lastTick = tick;
+        const row = tickRowAtTime(program, t);
+        if (row) {
+          if (row.offset !== currentOffset) {
+            currentOffset = row.offset;
+            ({ shift, divisor } = resolveNoiseClockWithOffset(instRec, currentOffset));
+            lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+          }
+          if (useProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) volScale = v / 15;
+          }
+        }
+      }
+    }
 
     // Update LFSR at proper frequency
     phase += lfsrHz / sampleRate;
@@ -1539,7 +1573,7 @@ function renderNoise(
     }
 
     const noise = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
-    const envVal = getEnvelopeValue(t, envelope, durSec);
+    const envVal = useProgramVolume ? volScale : getEnvelopeValue(t, envelope, durSec);
     const sample = noise * envVal;
 
     const bufferIdx = (start + i) * channels;
