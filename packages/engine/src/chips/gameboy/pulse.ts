@@ -1,8 +1,8 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 import {
   applyTickOffsetToFreq,
+  createTickProgramCursor,
   lowerGameBoyInstrumentProgram,
-  tickRowAtTime,
   tickRowDutyFraction,
   tickRowVolume,
   type TickProgram,
@@ -173,8 +173,9 @@ export function fillPulseBufferFromProgram(
   let lastTick = -1;
   let volScale = 1;
   let effFreq = applyTickOffsetToFreq(baseFreq, 0);
+  const cursor = createTickProgramCursor(program);
 
-  const r0 = tickRowAtTime(program, 0);
+  const r0 = cursor.rowAt(0);
   if (r0) {
     const d0 = tickRowDutyFraction(r0);
     if (d0 !== null) duty = d0;
@@ -191,7 +192,7 @@ export function fillPulseBufferFromProgram(
     const tick = Math.floor(t * 60);
     if (tick !== lastTick) {
       lastTick = tick;
-      const row = tickRowAtTime(program, t);
+      const row = cursor.rowAt(tick);
       if (row) {
         const d = tickRowDutyFraction(row);
         if (d !== null) duty = d;

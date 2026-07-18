@@ -1,8 +1,56 @@
 import { parse } from '../src/parser/index';
 import { mapWaveVolumeToUGE } from '../src/export/ugeWriter';
 import { renderSongToPCM } from '../src/audio/pcmRenderer';
+import { playWavetable, resolveWaveVolumeMultiplier } from '../src/chips/gameboy/wave';
 
 describe('Wave Channel Volume', () => {
+    test('resolveWaveVolumeMultiplier maps NR32 levels', () => {
+        expect(resolveWaveVolumeMultiplier({ volume: 100 })).toBe(1);
+        expect(resolveWaveVolumeMultiplier({ volume: 50 })).toBe(0.5);
+        expect(resolveWaveVolumeMultiplier({ volume: 25 })).toBe(0.25);
+        expect(resolveWaveVolumeMultiplier({ volume: 0 })).toBe(0);
+        expect(resolveWaveVolumeMultiplier({ vol: '50%' })).toBe(0.5);
+        expect(resolveWaveVolumeMultiplier({})).toBe(1);
+    });
+
+    test('playWavetable scales WebAudio gain by volume=', () => {
+        const gainParam = {
+            setValueAtTime: jest.fn(),
+            setTargetAtTime: jest.fn(),
+            linearRampToValueAtTime: jest.fn(),
+            setValueCurveAtTime: jest.fn(),
+            value: 1,
+        };
+        const ctx: any = {
+            sampleRate: 44100,
+            destination: {},
+            createBuffer: jest.fn((_ch: number, len: number) => ({
+                getChannelData: jest.fn(() => new Float32Array(len)),
+            })),
+            createBufferSource: jest.fn(() => ({
+                buffer: null,
+                loop: false,
+                playbackRate: { value: 1 },
+                connect: jest.fn(),
+                start: jest.fn(),
+                stop: jest.fn(),
+            })),
+            createGain: jest.fn(() => ({
+                gain: gainParam,
+                connect: jest.fn(),
+            })),
+        };
+        const table = [0, 8, 15, 8];
+        playWavetable(ctx, 261.63, table, 0, 0.2, { type: 'wave', volume: 100 });
+        const gain100 = gainParam.setValueAtTime.mock.calls[0][0] as number;
+        gainParam.setValueAtTime.mockClear();
+        playWavetable(ctx, 261.63, table, 0, 0.2, { type: 'wave', volume: 25 });
+        const gain25 = gainParam.setValueAtTime.mock.calls[0][0] as number;
+        expect(gain100).toBeCloseTo(0.6, 5);
+        expect(gain25).toBeCloseTo(0.6 * 0.25, 5);
+        expect(gain25 / gain100).toBeCloseTo(0.25, 5);
+    });
+
     test('parses volume parameter correctly and defaults', () => {
         const ast = parse(`
       inst w1 type=wave wave=[0,8,15,8] volume=100

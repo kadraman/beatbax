@@ -4,12 +4,13 @@ import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } fr
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
 import {
   applyTickOffsetToFreq,
+  createTickProgramCursor,
   lowerGameBoyInstrumentProgram,
   resolveNoiseClockWithOffset,
-  tickRowAtTime,
   tickRowDutyFraction,
   tickRowVolume,
 } from '../chips/gameboy/instrumentProgram.js';
+import { resolveWaveVolumeMultiplier } from '../chips/gameboy/wave.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
@@ -891,8 +892,9 @@ function renderPulse(
   let programOffset: number | null = 0;
   let programVolScale = 1;
   let lastProgramTick = -1;
-  if (useGbProgram) {
-    const r0 = tickRowAtTime(gbProgram!, 0);
+  const gbCursor = useGbProgram ? createTickProgramCursor(gbProgram!) : null;
+  if (gbCursor) {
+    const r0 = gbCursor.rowAt(0);
     if (r0) {
       const d0 = tickRowDutyFraction(r0);
       if (d0 !== null) programDuty = d0;
@@ -909,11 +911,11 @@ function renderPulse(
 
     // normal rendering loop
 
-    if (useGbProgram) {
+    if (gbCursor) {
       const tick = Math.floor(t * 60);
       if (tick !== lastProgramTick) {
         lastProgramTick = tick;
-        const row = tickRowAtTime(gbProgram!, t);
+        const row = gbCursor.rowAt(tick);
         if (row) {
           const d = tickRowDutyFraction(row);
           if (d !== null) programDuty = d;
@@ -1206,17 +1208,8 @@ function renderWave(
   // AC-coupling mean: computed once, used in the sample loop below.
   const waveMean = waveTable.reduce((a: number, b: number) => a + b, 0) / waveTable.length;
 
-  // Resolve volume multiplier
-  let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
-  let volNum = 100;
-  if (typeof volRaw === 'string') {
-    const s = volRaw.trim();
-    volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
-  } else if (typeof volRaw === 'number') {
-    volNum = volRaw;
-  }
-  const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
-  const volMul = volMulMap[volNum] ?? 1.0;
+  // Resolve volume multiplier (NR32 output level — same helper as WebAudio playWavetable)
+  const volMul = resolveWaveVolumeMultiplier(inst as { volume?: unknown; vol?: unknown });
 
   // Vibrato params
   let vibDepth = 0;
@@ -1585,6 +1578,7 @@ function renderNoise(
   let lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
   let lastTick = -1;
   let volScale = 1;
+  const cursor = program.enabled ? createTickProgramCursor(program) : null;
 
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
@@ -1592,11 +1586,11 @@ function renderNoise(
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
 
-    if (program.enabled) {
+    if (cursor) {
       const tick = Math.floor(t * 60);
       if (tick !== lastTick) {
         lastTick = tick;
-        const row = tickRowAtTime(program, t);
+        const row = cursor.rowAt(tick);
         if (row) {
           if (row.offset !== currentOffset) {
             currentOffset = row.offset;

@@ -118,6 +118,15 @@ export function tickRowDutyFraction(row: TickRow | null | undefined): number | n
   return dutyIndexToFraction(timbreParamToDutyIndex(row.effect.param));
 }
 
+/**
+ * Clamp a semitone offset to the range representable in a UGE subpattern note
+ * column (indices 0–72, with C-6 = +0 → effective offsets −36…+36).
+ * Keeps preview/WAV and UGE export on the same offset after packing.
+ */
+export function clampTickOffset(offset: number): number {
+  return clampInt(HUGE_SUBPAT_OFFSET_ZERO_NOTE + offset, 0, 72) - HUGE_SUBPAT_OFFSET_ZERO_NOTE;
+}
+
 /** Apply a tick-program semitone offset to a base frequency. `null` = no change. */
 export function applyTickOffsetToFreq(
   baseFreq: number,
@@ -127,7 +136,9 @@ export function applyTickOffsetToFreq(
   if (offset === null || offset === undefined || !Number.isFinite(offset) || offset === 0) {
     return baseFreq;
   }
-  return baseFreq * Math.pow(2, offset / 12);
+  const clamped = clampTickOffset(offset);
+  if (clamped === 0) return baseFreq;
+  return baseFreq * Math.pow(2, clamped / 12);
 }
 
 /**
@@ -136,7 +147,7 @@ export function applyTickOffsetToFreq(
  */
 export function offsetToUgeNote(offset: number | null | undefined): number {
   if (offset === null || offset === undefined || !Number.isFinite(offset)) return UGE_EMPTY_NOTE;
-  return clampInt(HUGE_SUBPAT_OFFSET_ZERO_NOTE + offset, 0, 72);
+  return HUGE_SUBPAT_OFFSET_ZERO_NOTE + clampTickOffset(offset);
 }
 
 /**
@@ -164,6 +175,30 @@ function appendSilenceHalt(rows: TickRow[], lastOffset: number | null, label: st
     effect: { code: HUGE_EFFECT_SET_VOLUME, param: 0 },
     halt: true,
   });
+}
+
+/**
+ * Clamp 1-based jump targets to `1..rows.length` (same range preview uses).
+ * Emits a warning when a jump is out of range.
+ */
+function clampProgramJumpTargets(
+  rows: TickRow[],
+  label: string,
+  warnings: string[],
+): void {
+  const maxJump = rows.length;
+  if (maxJump <= 0) return;
+  for (let i = 0; i < rows.length; i++) {
+    const jump = rows[i].jump;
+    if (jump === undefined || jump <= 0) continue;
+    const clamped = clampInt(jump, 1, maxJump);
+    if (jump < 1 || jump > maxJump) {
+      warnings.push(
+        `${label}: subpat row ${i}: jump:${jump} out of range 1–${maxJump}; clamped to ${clamped}.`,
+      );
+    }
+    rows[i].jump = clamped;
+  }
 }
 
 /**
@@ -264,6 +299,11 @@ export function lowerNativeSubPattern(
     appendSilenceHalt(rows, holdOffset, label, errors);
     if (errors.length) return { enabled: false, rows: [], errors, warnings };
   }
+
+  // After final row count is known (incl. silence halt), clamp jumps for
+  // preview/UGE parity — tickRowAtTime also clamps, but UGE would otherwise
+  // store the raw out-of-range target.
+  clampProgramJumpTargets(rows, label, warnings);
 
   return { enabled: rows.length > 0, rows, errors, warnings };
 }
@@ -409,6 +449,8 @@ export function lowerGameBoyInstrumentProgram(
     if (errors.length) return { enabled: false, rows: [], errors, warnings };
   }
 
+  clampProgramJumpTargets(rows, label, warnings);
+
   return { enabled: rows.length > 0, rows, errors, warnings };
 }
 
@@ -416,6 +458,10 @@ export function lowerGameBoyInstrumentProgram(
  * Expand a TickProgram to exactly 64 UGE subpattern cells.
  */
 export function encodeTickProgramToUgeRows(program: TickProgram): UgeSubpatternCell[] {
+  const maxJump = Math.max(
+    1,
+    Math.min(program.enabled ? program.rows.length : 0, MAX_UGE_SUBPATTERN_ROWS),
+  );
   const cells: UgeSubpatternCell[] = [];
   for (let i = 0; i < MAX_UGE_SUBPATTERN_ROWS; i++) {
     const row = program.enabled ? program.rows[i] : undefined;
@@ -434,7 +480,7 @@ export function encodeTickProgramToUgeRows(program: TickProgram): UgeSubpatternC
     if (row.halt) {
       jump = i + 1; // self-jump, 1-based
     } else if (row.jump !== undefined && row.jump > 0) {
-      jump = row.jump;
+      jump = clampInt(row.jump, 1, maxJump);
     }
 
     cells.push({
@@ -463,7 +509,10 @@ export function resolveNoiseClockWithOffset(
     if (idx !== UGE_EMPTY_NOTE) baseIndex = idx;
   }
 
-  const off = offsetSemitones === null || offsetSemitones === undefined ? 0 : offsetSemitones;
+  const off =
+    offsetSemitones === null || offsetSemitones === undefined || !Number.isFinite(offsetSemitones)
+      ? 0
+      : clampTickOffset(offsetSemitones);
   const noteIndex = clampInt(baseIndex + off, 0, 72);
   const poly = getNotePoly(noteIndex);
   const { shift, divisor } = nr43ToShiftDivisor(poly);
@@ -472,27 +521,54 @@ export function resolveNoiseClockWithOffset(
 }
 
 /**
- * Resolve the active TickRow at time `t` seconds after note-on.
- * Honors halt (freeze) and jump loops.
+ * Compact timeline for O(1) tick lookup: a finite prefix, then either a
+ * halt freeze or a repeating cycle (length ≤ program rows, so ≤ 64).
  */
-export function tickRowAtTime(program: TickProgram, tSec: number): TickRow | null {
-  if (!program.enabled || program.rows.length === 0) return null;
+export interface TickProgramTimeline {
+  prefix: TickRow[];
+  /** When set, ticks ≥ prefix.length return this row (halt). */
+  freeze?: TickRow;
+  /** When set (no freeze), ticks ≥ prefix.length index into this cycle. */
+  cycle?: TickRow[];
+}
+
+const tickProgramTimelineCache = new WeakMap<TickProgram, TickProgramTimeline>();
+
+/**
+ * Expand halt/jump control flow once into a prefix + freeze/cycle.
+ * Build cost is O(rows); lookup via {@link rowFromTickProgramTimeline} is O(1).
+ */
+export function buildTickProgramTimeline(program: TickProgram): TickProgramTimeline {
+  if (!program.enabled || program.rows.length === 0) {
+    return { prefix: [] };
+  }
 
   const n = program.rows.length;
-  let idx = Math.floor(tSec / HUGE_TICK_SEC);
-  if (idx < 0) idx = 0;
-
+  const emitted: TickRow[] = [];
+  const firstTickAtRow = new Map<number, number>();
   let rowIndex = 0;
-  let ticks = 0;
-  const maxSteps = idx + 1;
-  while (ticks < maxSteps) {
-    const row = program.rows[rowIndex];
-    if (!row) return program.rows[program.rows.length - 1] ?? null;
 
-    if (ticks === idx) return row;
+  // At most one visit per row index before a cycle; +1 guard for wrap.
+  for (let guard = 0; guard <= n; guard++) {
+    if (firstTickAtRow.has(rowIndex)) {
+      const cycleStart = firstTickAtRow.get(rowIndex)!;
+      return {
+        prefix: emitted.slice(0, cycleStart),
+        cycle: emitted.slice(cycleStart),
+      };
+    }
+
+    const row = program.rows[rowIndex];
+    if (!row) {
+      const last = emitted[emitted.length - 1] ?? program.rows[n - 1];
+      return last ? { prefix: emitted, freeze: last } : { prefix: [] };
+    }
+
+    firstTickAtRow.set(rowIndex, emitted.length);
+    emitted.push(row);
 
     if (row.halt) {
-      return row;
+      return { prefix: emitted, freeze: row };
     }
 
     if (row.jump !== undefined && row.jump > 0) {
@@ -502,10 +578,75 @@ export function tickRowAtTime(program: TickProgram, tSec: number): TickRow | nul
     } else {
       rowIndex++;
     }
-    ticks++;
   }
 
-  return program.rows[rowIndex] ?? null;
+  const last = emitted[emitted.length - 1];
+  return last ? { prefix: emitted, freeze: last } : { prefix: [] };
+}
+
+export function rowFromTickProgramTimeline(
+  timeline: TickProgramTimeline,
+  tick: number,
+): TickRow | null {
+  let idx = tick;
+  if (idx < 0) idx = 0;
+  if (idx < timeline.prefix.length) return timeline.prefix[idx] ?? null;
+  if (timeline.freeze) return timeline.freeze;
+  const cycle = timeline.cycle;
+  if (cycle && cycle.length > 0) {
+    return cycle[(idx - timeline.prefix.length) % cycle.length] ?? null;
+  }
+  return timeline.prefix[timeline.prefix.length - 1] ?? null;
+}
+
+function getTickProgramTimeline(program: TickProgram): TickProgramTimeline {
+  let timeline = tickProgramTimelineCache.get(program);
+  if (!timeline) {
+    timeline = buildTickProgramTimeline(program);
+    tickProgramTimelineCache.set(program, timeline);
+  }
+  return timeline;
+}
+
+/**
+ * Stateful interpreter: advance one tick at a time (O(1) per call after
+ * the shared timeline is built). Useful for PCM/WebAudio sample loops.
+ */
+export interface TickProgramCursor {
+  /** Last absolute tick returned by {@link TickProgramCursor.advance}; -1 before first. */
+  readonly tick: number;
+  /** Advance to the next tick and return its row. */
+  advance(): TickRow | null;
+  /** Absolute tick lookup (O(1)). Does not move the cursor. */
+  rowAt(tick: number): TickRow | null;
+}
+
+export function createTickProgramCursor(program: TickProgram): TickProgramCursor {
+  const timeline = getTickProgramTimeline(program);
+  let tick = -1;
+  return {
+    get tick() {
+      return tick;
+    },
+    advance() {
+      tick += 1;
+      return rowFromTickProgramTimeline(timeline, tick);
+    },
+    rowAt(absTick: number) {
+      return rowFromTickProgramTimeline(timeline, absTick);
+    },
+  };
+}
+
+/**
+ * Resolve the active TickRow at time `t` seconds after note-on.
+ * Honors halt (freeze) and jump loops. O(1) after a one-time O(rows) expand.
+ */
+export function tickRowAtTime(program: TickProgram, tSec: number): TickRow | null {
+  if (!program.enabled || program.rows.length === 0) return null;
+  let idx = Math.floor(tSec / HUGE_TICK_SEC);
+  if (idx < 0) idx = 0;
+  return rowFromTickProgramTimeline(getTickProgramTimeline(program), idx);
 }
 
 /**

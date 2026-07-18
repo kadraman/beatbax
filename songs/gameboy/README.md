@@ -24,11 +24,11 @@ npm run cli -- export wav songs/gameboy/instruments/gb_subpattern_macro_demo.bax
 |------|---------|
 | `gb_instrument_demo.bax` | Pulse / wave / noise basics |
 | `gb_uge_note_demo.bax` | `uge_note=` → NR43 + UGE pattern note |
-| `gb_percussion_demo.bax` | Named drum kit with `uge_note=` |
+| `gb_percussion_demo.bax` | Named drum kit with `uge_note=` + `pitch_env` / `vol_env` / `subpat` |
 | `gb_subpattern_macro_demo.bax` | `pitch_env` / `vol_env` / `duty_env` / `arp_env` / native `subpat` → UGE subpatterns |
 | `gb_sweep_demo.bax` | Pulse 1 hardware sweep |
 | `gb_wave_scan_demo.bax` | Wave channel tables |
-| `gb_dcm_demo.bax` | Duty-cycle modulation techniques |
+| `gb_dcm_demo.bax` | Duty-cycle modulation (`inst` switches + `duty_env` within-note wah) |
 
 ## Docs
 

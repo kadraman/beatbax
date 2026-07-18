@@ -60,19 +60,19 @@ inst warm_lead   type=pulse1 duty=75   env={"level":11,"direction":"down","perio
 # Pulse2 — harmony; two timbres for structural contrast:
 #   chord_stab  — 25%    crisp, staccato minor-arp chord stabs
 #   atmo_pad    — 75%    wide-duty atmospheric sustained bridge pad
-inst chord_stab  type=pulse2 duty=25   env={"level":9,"direction":"down","period":2,"format":"gb"}  gm=80
-inst atmo_pad    type=pulse2 duty=75   env={"level":8,"direction":"down","period":6,"format":"gb"}  gm=80
+inst chord_stab  type=pulse2 duty=25   env={"level":12,"direction":"down","period":2,"format":"gb"}  gm=80
+inst atmo_pad    type=pulse2 duty=75   env={"level":10,"direction":"down","period":6,"format":"gb"}  gm=80
 
 # Wave — bass (32 × 4-bit samples, values 0–15):
 #   thriller_bass — plucked asymmetric waveform; rapid 4-sample rise to peak,
 #                   then 20-step gradual decay, then 8 silent samples
 #                   Simulates a plucked electric bass guitar attack + sustain
-inst thriller_bass type=wave wave=[0,8,14,15,15,14,12,10,9,8,7,6,5,4,3,3,2,2,2,1,1,1,1,0,0,0,0,0,0,0,0,0]
+inst thriller_bass type=wave volume=50 wave=[0,8,14,15,15,14,12,10,9,8,7,6,5,4,3,3,2,2,2,1,1,1,1,0,0,0,0,0,0,0,0,0]
 
 # Noise — percussion
-inst kick   type=noise env={"level":14,"direction":"down","period":1,"format":"gb"} uge_note=C-6
-inst snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} uge_note=C-7
-inst hat    type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8
+inst kick   type=noise env={"level":8,"direction":"down","period":1,"format":"gb"} uge_note=C-7 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare  type=noise env={"level":10,"direction":"down","period":2,"format":"gb"} uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
+inst hat    type=noise env={"level":5,"direction":"down","period":1,"format":"gb"}  uge_note=C-8 vol_env=[5,2]
 
 # =============================================================================
 # Effect presets

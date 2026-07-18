@@ -2,9 +2,9 @@
 import { parseEnvelope } from './pulse.js';
 import { GB_CLOCK } from './periodTables.js';
 import {
+  createTickProgramCursor,
   lowerGameBoyInstrumentProgram,
   resolveNoiseClockWithOffset,
-  tickRowAtTime,
   tickRowVolume,
   type TickProgram,
 } from './instrumentProgram.js';
@@ -38,15 +38,16 @@ function fillNoiseBuffer(
   let lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
   let lastTick = -1;
   let volScale = 1;
+  const cursor = program?.enabled ? createTickProgramCursor(program) : null;
 
   for (let i = 0; i < data.length; i++) {
     const t = i / sr;
 
-    if (program?.enabled) {
+    if (cursor) {
       const tick = Math.floor(t * 60);
       if (tick !== lastTick) {
         lastTick = tick;
-        const row = tickRowAtTime(program, t);
+        const row = cursor.rowAt(tick);
         if (row) {
           if (row.offset !== currentOffset) {
             currentOffset = row.offset;

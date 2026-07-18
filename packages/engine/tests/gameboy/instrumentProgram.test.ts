@@ -1,8 +1,13 @@
 import {
+  applyTickOffsetToFreq,
+  buildTickProgramTimeline,
+  clampTickOffset,
+  createTickProgramCursor,
   encodeTickProgramToUgeRows,
   HUGE_EFFECT_CHANGE_TIMBRE,
   HUGE_EFFECT_SET_VOLUME,
   HUGE_SUBPAT_OFFSET_ZERO_NOTE,
+  HUGE_TICK_SEC,
   lowerGameBoyInstrumentProgram,
   offsetToUgeNote,
   tickRowAtTime,
@@ -143,6 +148,41 @@ describe('lowerGameBoyInstrumentProgram', () => {
     expect(prog.rows[4].halt).toBe(true);
   });
 
+  test('native subpat: out-of-range jump clamped with warning', () => {
+    const prog = lowerGameBoyInstrumentProgram(
+      {
+        subpatRows: [
+          { offset: 0, vol: 15 },
+          { offset: -2, vol: 12, jump: 99 },
+          { offset: -4, vol: 8 },
+          { halt: true }, // bare halt merges onto previous row → 3 rows
+        ],
+      },
+      { name: 'kick' },
+    );
+    expect(prog.rows).toHaveLength(3);
+    expect(prog.rows[1].jump).toBe(3); // 1-based max = row count
+    expect(prog.warnings.some((w) => w.includes('jump:99') && w.includes('clamped to 3'))).toBe(
+      true,
+    );
+    const cells = encodeTickProgramToUgeRows(prog);
+    expect(cells[1].jump).toBe(3);
+  });
+
+  test('native subpat: jump past author rows is valid after silence-halt append', () => {
+    // 3 author rows, no halt → silence halt becomes row 4; jump:4 stays.
+    const prog = lowerGameBoyInstrumentProgram({
+      subpatRows: [
+        { offset: 0, vol: 15 },
+        { offset: -2, vol: 12, jump: 4 },
+        { offset: -4, vol: 8 },
+      ],
+    });
+    expect(prog.rows).toHaveLength(4);
+    expect(prog.rows[1].jump).toBe(4);
+    expect(prog.warnings.some((w) => w.includes('jump:'))).toBe(false);
+  });
+
   test('subpatRows wins over macros (warning)', () => {
     const prog = lowerGameBoyInstrumentProgram({
       pitch_env: [0, -2],
@@ -198,6 +238,26 @@ describe('offset note packing', () => {
     expect(ugeNoteToOffset(24)).toBe(-12);
     expect(ugeNoteToOffset(UGE_EMPTY_NOTE)).toBeNull();
   });
+
+  test('offsets clamp to UGE note range 0–72 (±36 from C-6)', () => {
+    expect(clampTickOffset(50)).toBe(36);
+    expect(clampTickOffset(-50)).toBe(-36);
+    expect(offsetToUgeNote(50)).toBe(72);
+    expect(offsetToUgeNote(-50)).toBe(0);
+    expect(ugeNoteToOffset(offsetToUgeNote(50))).toBe(36);
+    expect(ugeNoteToOffset(offsetToUgeNote(-50))).toBe(-36);
+  });
+
+  test('applyTickOffsetToFreq uses the same clamp as UGE packing', () => {
+    const base = 440;
+    expect(applyTickOffsetToFreq(base, 12)).toBeCloseTo(base * 2, 5);
+    expect(applyTickOffsetToFreq(base, 50)).toBeCloseTo(base * Math.pow(2, 36 / 12), 5);
+    expect(applyTickOffsetToFreq(base, -50)).toBeCloseTo(base * Math.pow(2, -36 / 12), 5);
+    expect(applyTickOffsetToFreq(base, 50)).toBeCloseTo(
+      applyTickOffsetToFreq(base, ugeNoteToOffset(offsetToUgeNote(50))),
+      5,
+    );
+  });
 });
 
 describe('tickRowAtTime', () => {
@@ -214,5 +274,48 @@ describe('tickRowAtTime', () => {
     // Silence halt row, then freeze there
     expect(tickRowVolume(tickRowAtTime(prog, 3 / 60))).toBe(0);
     expect(tickRowVolume(tickRowAtTime(prog, 1))).toBe(0);
+  });
+
+  test('halt freeze stays O(1)-stable for long held notes', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      pitch_env: [0, -2],
+      vol_env: [15, 8],
+    });
+    const tl = buildTickProgramTimeline(prog);
+    expect(tl.freeze).toBeDefined();
+    expect(tl.cycle).toBeUndefined();
+    // ~60s held note — must match halt row without re-simulating thousands of steps
+    expect(tickRowVolume(tickRowAtTime(prog, 3600 * HUGE_TICK_SEC))).toBe(0);
+    expect(tickRowAtTime(prog, 3600 * HUGE_TICK_SEC)?.offset).toBe(
+      tickRowAtTime(prog, 2 * HUGE_TICK_SEC)?.offset,
+    );
+  });
+
+  test('looping arp_env timeline cycles without growing', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      arp_env: '[0,4,7|0]',
+    });
+    const tl = buildTickProgramTimeline(prog);
+    expect(tl.freeze).toBeUndefined();
+    expect(tl.cycle?.map((r) => r.offset)).toEqual([0, 4, 7]);
+    expect(tickRowAtTime(prog, 0)?.offset).toBe(0);
+    expect(tickRowAtTime(prog, 1 * HUGE_TICK_SEC)?.offset).toBe(4);
+    expect(tickRowAtTime(prog, 2 * HUGE_TICK_SEC)?.offset).toBe(7);
+    expect(tickRowAtTime(prog, 3 * HUGE_TICK_SEC)?.offset).toBe(0);
+    expect(tickRowAtTime(prog, 100 * HUGE_TICK_SEC)?.offset).toBe(
+      tickRowAtTime(prog, (100 % 3) * HUGE_TICK_SEC)?.offset,
+    );
+  });
+
+  test('createTickProgramCursor advances sequentially', () => {
+    const prog = lowerGameBoyInstrumentProgram({
+      pitch_env: [0, -2, -4],
+    });
+    const cursor = createTickProgramCursor(prog);
+    expect(cursor.advance()?.offset).toBe(0);
+    expect(cursor.tick).toBe(0);
+    expect(cursor.advance()?.offset).toBe(-2);
+    expect(cursor.rowAt(0)?.offset).toBe(0);
+    expect(cursor.tick).toBe(1);
   });
 });
