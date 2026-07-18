@@ -63,6 +63,7 @@ Statement
   / ImportStmt
   / InstStmt
   / EffectStmt
+  / SubPatStmt
   / PatStmt
   / SeqStmt
   / PatShorthandStmt
@@ -160,6 +161,59 @@ InstStmt
 EffectStmt
   = $("effect" !IdentChar) __ name:Identifier _ "=" _ rhs:RestOfLine {
       return { nodeType: "EffectStmt", name, rhs, loc: loc(location()) };
+    }
+
+// Instrument subpattern (hUGE-style tick rows). Rows may be space/comma
+// separated on one line, or placed on following lines.
+SubPatStmt
+  = $("subpat" !IdentChar) __ name:Identifier _ "=" WS0 (Comment? Newline _)* rows:SubPatRowList {
+      return { nodeType: "SubPatStmt", name, rows, loc: loc(location()) };
+    }
+
+SubPatRowList
+  = head:SubPatRow tail:(SubPatRowSep SubPatRow)* {
+      return [head, ...tail.map(t => t[1])];
+    }
+
+SubPatRowSep
+  = WS0 "," WS0
+  / (Comment? Newline _)+
+  / WS1 _
+
+SubPatRow
+  = "halt" !IdentChar {
+      return { empty: false, halt: true };
+    }
+  / "." {
+      return { empty: true };
+    }
+  / offset:SignedOffset props:SubPatProp* {
+      const row = { empty: false, offset };
+      for (const p of props) Object.assign(row, p);
+      return row;
+    }
+  / props:SubPatProp+ {
+      const row = { empty: false, offset: null };
+      for (const p of props) Object.assign(row, p);
+      return row;
+    }
+
+SignedOffset
+  = s:$([+\-][0-9]+) { return parseInt(s, 10); }
+  / n:Int { return n; }
+
+SubPatProp
+  = WS0 "vol:" n:Int { return { vol: n }; }
+  / WS0 "jump:" n:Int { return { jump: n }; }
+  / WS0 "timbre:" n:Int { return { timbre: n }; }
+  / WS0 "halt" !IdentChar { return { halt: true }; }
+  / WS0 "fx:" code:FxNum "," param:FxNum { return { fx: { code, param } }; }
+
+FxNum
+  = s:$([0-9A-Fa-f]+) {
+      // Prefer hex when letters present or length > 1 with leading style like 0F
+      if (/[A-Fa-f]/.test(s)) return parseInt(s, 16);
+      return parseInt(s, 10);
     }
 
 PatStmt
@@ -418,6 +472,7 @@ ReservedWord
   / $("ticksPerStep" !IdentChar)
   / $("song" !IdentChar)
   / $("inst" !IdentChar)
+  / $("subpat" !IdentChar)
   / $("pat" !IdentChar)
   / $("seq" !IdentChar)
   / $("channel" !IdentChar)

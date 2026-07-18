@@ -48,20 +48,21 @@ describe('gb_percussion_demo.bax', () => {
 
   test('noise instruments derive NR43 clocks from uge_note', () => {
     const song = loadDemoSong();
+    // snare_tight uge_note=C-7; hats C-8 / D-8; tom_high E-6
     expect(resolveNoiseClock(song.insts.snare_tight as any)).toEqual({
-      shift: 5,
+      shift: 2,
       divisor: 7,
-      nr43: 0x5f,
+      nr43: 0x2f,
     });
     expect(resolveNoiseClock(song.insts.hihat_closed as any)).toEqual({
-      shift: 2,
-      divisor: 7,
-      nr43: 0x27,
+      shift: 0,
+      divisor: 3,
+      nr43: 0x03,
     });
     expect(resolveNoiseClock(song.insts.hihat_open as any)).toEqual({
-      shift: 2,
-      divisor: 5,
-      nr43: 0x25,
+      shift: 0,
+      divisor: 1,
+      nr43: 0x01,
     });
     expect(resolveNoiseClock(song.insts.tom_high as any)).toEqual({
       shift: 4,
@@ -75,15 +76,15 @@ describe('gb_percussion_demo.bax', () => {
     const uge = parseUGE(Buffer.from(buildUGE(song)));
     const rows = noisePatternRows(uge, 8);
 
-    // snare_backbeat_pat: snares on rows 4 and 12 of first pattern — first 8 rows are rests then snare at row 4
-    expect(rows[4]?.note).toBe(36); // C-6 snare_tight
+    // snare_backbeat_pat: snare on row 4 of first noise pattern
+    expect(rows[4]?.note).toBe(48); // C-7 snare_tight
     expect(rows[4]?.instrument).toBeGreaterThan(0);
 
     const hhPatternIndex = uge.orders.noise[1];
     const hhPattern = uge.patterns.find((p) => p.index === hhPatternIndex);
     expect(hhPattern).toBeDefined();
     const hhRows = hhPattern!.rows.slice(0, 8);
-    expect(hhRows.map((r) => r.note)).toEqual([48, 48, 48, 48, 48, 48, 48, 48]); // hihat_pedal C-7
+    expect(hhRows.map((r) => r.note)).toEqual([60, 60, 60, 60, 60, 60, 60, 60]); // hihat_pedal C-8
   });
 
   test('PCM render produces audible snare and hi-hat hits', () => {

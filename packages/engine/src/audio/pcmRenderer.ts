@@ -2,6 +2,15 @@ import { SongModel, NoteEvent } from '../song/songModel.js';
 import { midiToFreq, noteNameToMidi } from '../chips/gameboy/apu.js';
 import { parseSweep, parseEnvelope as parsePulseEnvelope, PULSE_OUTPUT_GAIN } from '../chips/gameboy/pulse.js';
 import { noiseClockToLfsrHz, resolveNoiseClock, resolveNoisePlayDurationSec, resolveNoiseWidth, gameBoyNoiseSample, NOISE_OUTPUT_GAIN, stepGameBoyLfsr, triggerGameBoyLfsr } from '../chips/gameboy/noiseNote.js';
+import {
+  applyTickOffsetToFreq,
+  createTickProgramCursor,
+  lowerGameBoyInstrumentProgram,
+  resolveNoiseClockWithOffset,
+  tickRowDutyFraction,
+  tickRowVolume,
+} from '../chips/gameboy/instrumentProgram.js';
+import { resolveWaveVolumeMultiplier } from '../chips/gameboy/wave.js';
 import { registerFromFreq, freqFromRegister } from '../chips/gameboy/periodTables.js';
 import { InstMap, InstrumentNode } from '../parser/ast.js';
 import { chipRegistry } from '../chips/registry.js';
@@ -872,10 +881,52 @@ function renderPulse(
     }
   }
 
+  // Game Boy instrument tick program (arp_env / duty_env / pitch_env / vol_env / subpat)
+  const instRec = inst as Record<string, unknown>;
+  const gbProgram = (isGameBoy || chipType === 'gameboy')
+    ? lowerGameBoyInstrumentProgram(instRec)
+    : null;
+  const useGbProgram = !!(gbProgram && gbProgram.enabled);
+  const useGbProgramVolume = useGbProgram && gbProgram!.rows.some((r) => tickRowVolume(r) !== null);
+  let programDuty = duty;
+  let programOffset: number | null = 0;
+  let programVolScale = 1;
+  let lastProgramTick = -1;
+  const gbCursor = useGbProgram ? createTickProgramCursor(gbProgram!) : null;
+  if (gbCursor) {
+    const r0 = gbCursor.rowAt(0);
+    if (r0) {
+      const d0 = tickRowDutyFraction(r0);
+      if (d0 !== null) programDuty = d0;
+      programOffset = r0.offset === undefined ? 0 : r0.offset;
+      if (useGbProgramVolume) {
+        const v0 = tickRowVolume(r0);
+        if (v0 !== null) programVolScale = v0 / 15;
+      }
+    }
+  }
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
 
     // normal rendering loop
+
+    if (gbCursor) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastProgramTick) {
+        lastProgramTick = tick;
+        const row = gbCursor.rowAt(tick);
+        if (row) {
+          const d = tickRowDutyFraction(row);
+          if (d !== null) programDuty = d;
+          programOffset = row.offset === undefined ? null : row.offset;
+          if (useGbProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) programVolScale = v / 15;
+          }
+        }
+      }
+    }
 
     // Apply sweep
     const sweepInterval = Math.floor(sweepIntervalSamples);
@@ -896,7 +947,9 @@ function renderPulse(
     // step-based vibrato: on discrete tracker ticks, add/subtract the depth
     // nibble (converted to register units) to the period register. Otherwise
     // fall back to the smoother, phase-LFO approach used historically.
-    let effFreq = currentFreq;
+    let effFreq = useGbProgram
+      ? applyTickOffsetToFreq(currentFreq, programOffset)
+      : currentFreq;
 
     // Apply portamento if enabled
     if (portSpeed > 0 && typeof channelId === 'number') {
@@ -991,6 +1044,7 @@ function renderPulse(
 
     // Simple, efficient band-limited pulse wave synthesis using naive square wave
     // with single-pole low-pass filter to reduce aliasing
+    const activeDuty = useGbProgram ? programDuty : duty;
     let sample = 0;
     if (effFreq > 0 && effFreq < sampleRate / 2) {
       // Advance phase accumulator
@@ -998,11 +1052,14 @@ function renderPulse(
       phase = phase % 1.0; // Keep phase in [0, 1)
 
       // Generate square wave based on duty cycle
-      sample = (phase < duty) ? 1.0 : -1.0;
+      sample = (phase < activeDuty) ? 1.0 : -1.0;
     }
 
-    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally)
-    const envVal = (envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec);
+    // Apply envelope (sustain at previous level for legato notes, otherwise compute normally).
+    // When vol_env drives the tick program, volume is baked via programVolScale.
+    const envVal = useGbProgramVolume
+      ? programVolScale
+      : ((envelopeSustainValue !== undefined) ? envelopeSustainValue : getEnvelopeValue(t, envelope, durSec));
     sample = sample * envVal;
 
     // Apply note cut if enabled (fade out quickly after cut time)
@@ -1151,17 +1208,8 @@ function renderWave(
   // AC-coupling mean: computed once, used in the sample loop below.
   const waveMean = waveTable.reduce((a: number, b: number) => a + b, 0) / waveTable.length;
 
-  // Resolve volume multiplier
-  let volRaw: any = inst.volume !== undefined ? inst.volume : (inst.vol !== undefined ? inst.vol : 100);
-  let volNum = 100;
-  if (typeof volRaw === 'string') {
-    const s = volRaw.trim();
-    volNum = s.endsWith('%') ? parseInt(s.slice(0, -1), 10) : parseInt(s, 10);
-  } else if (typeof volRaw === 'number') {
-    volNum = volRaw;
-  }
-  const volMulMap: Record<number, number> = { 0: 0, 25: 0.25, 50: 0.5, 100: 1.0 };
-  const volMul = volMulMap[volNum] ?? 1.0;
+  // Resolve volume multiplier (NR32 output level — same helper as WebAudio playWavetable)
+  const volMul = resolveWaveVolumeMultiplier(inst as { volume?: unknown; vol?: unknown });
 
   // Vibrato params
   let vibDepth = 0;
@@ -1514,19 +1562,48 @@ function renderNoise(
   const envelope = parsePulseEnvelope(inst.env);
 
   const durSec = duration / sampleRate;
+  const instRec = inst as Record<string, unknown>;
 
-  const width = resolveNoiseWidth(inst as Record<string, unknown>);
+  const width = resolveNoiseWidth(instRec);
   const width7 = width === 7;
-  const { shift, divisor } = resolveNoiseClock(inst as Record<string, unknown>);
   const GB_CLOCK = 4194304;
 
-  const lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+  const program = lowerGameBoyInstrumentProgram(instRec);
+  const useProgramVolume = program.enabled && program.rows.some((r) => tickRowVolume(r) !== null);
+
+  let currentOffset: number | null = 0;
+  let { shift, divisor } = program.enabled
+    ? resolveNoiseClockWithOffset(instRec, 0)
+    : resolveNoiseClock(instRec);
+  let lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+  let lastTick = -1;
+  let volScale = 1;
+  const cursor = program.enabled ? createTickProgramCursor(program) : null;
 
   let phase = 0;
   let lfsr = triggerGameBoyLfsr(width7);
 
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
+
+    if (cursor) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastTick) {
+        lastTick = tick;
+        const row = cursor.rowAt(tick);
+        if (row) {
+          if (row.offset !== currentOffset) {
+            currentOffset = row.offset;
+            ({ shift, divisor } = resolveNoiseClockWithOffset(instRec, currentOffset));
+            lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+          }
+          if (useProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) volScale = v / 15;
+          }
+        }
+      }
+    }
 
     // Update LFSR at proper frequency
     phase += lfsrHz / sampleRate;
@@ -1539,7 +1616,7 @@ function renderNoise(
     }
 
     const noise = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
-    const envVal = getEnvelopeValue(t, envelope, durSec);
+    const envVal = useProgramVolume ? volScale : getEnvelopeValue(t, envelope, durSec);
     const sample = noise * envVal;
 
     const bufferIdx = (start + i) * channels;

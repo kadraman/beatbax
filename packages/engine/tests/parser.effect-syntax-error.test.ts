@@ -38,7 +38,7 @@ describe('parser: effect line syntax errors', () => {
     expect(result.hasErrors).toBe(true);
     expect(result.errors[0]?.message).toMatch(/Unknown keyword 'not-a-keyword'/);
     expect(result.errors[0]?.message).toBe(
-      "Unknown keyword 'not-a-keyword'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, song, import, inst, effect, pat, seq, channel, play, export.",
+      "Unknown keyword 'not-a-keyword'. Valid keywords: chip, bpm, volume, time, stepsPerBar, ticksPerStep, scale, song, import, inst, effect, subpat, pat, seq, channel, play, export.",
     );
   });
 });

@@ -2,6 +2,13 @@
 import { parseEnvelope } from './pulse.js';
 import { GB_CLOCK } from './periodTables.js';
 import {
+  createTickProgramCursor,
+  lowerGameBoyInstrumentProgram,
+  resolveNoiseClockWithOffset,
+  tickRowVolume,
+  type TickProgram,
+} from './instrumentProgram.js';
+import {
   gameBoyNoiseSample,
   NOISE_OUTPUT_GAIN,
   noiseClockToLfsrHz,
@@ -12,6 +19,59 @@ import {
   triggerGameBoyLfsr,
 } from './noiseNote.js';
 
+function fillNoiseBuffer(
+  data: Float32Array,
+  sr: number,
+  inst: Record<string, unknown>,
+  program: TickProgram | null,
+  useProgramVolume: boolean,
+): void {
+  const width = resolveNoiseWidth(inst);
+  const width7 = width === 7;
+  let phase = 0;
+  let lfsr = triggerGameBoyLfsr(width7);
+
+  let currentOffset: number | null = 0;
+  let { shift, divisor } = program?.enabled
+    ? resolveNoiseClockWithOffset(inst, 0)
+    : resolveNoiseClock(inst);
+  let lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+  let lastTick = -1;
+  let volScale = 1;
+  const cursor = program?.enabled ? createTickProgramCursor(program) : null;
+
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sr;
+
+    if (cursor) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastTick) {
+        lastTick = tick;
+        const row = cursor.rowAt(tick);
+        if (row) {
+          if (row.offset !== currentOffset) {
+            currentOffset = row.offset;
+            ({ shift, divisor } = resolveNoiseClockWithOffset(inst, currentOffset));
+            lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
+          }
+          if (useProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) volScale = v / 15;
+          }
+        }
+      }
+    }
+
+    phase += lfsrHz / sr;
+    const ticks = Math.floor(phase);
+    if (ticks > 0) {
+      for (let step = 0; step < ticks; step++) lfsr = stepGameBoyLfsr(lfsr, width7);
+      phase -= ticks;
+    }
+    data[i] = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN * (useProgramVolume ? volScale : 1);
+  }
+}
+
 export function playNoise(ctx: BaseAudioContext | any, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode, skipEnvelope?: boolean) {
   const sr = ctx.sampleRate;
   const playDur = resolveNoisePlayDurationSec(inst ?? {}, dur);
@@ -19,22 +79,9 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
   const buf = ctx.createBuffer(1, len, sr);
   const data = buf.getChannelData(0);
 
-  const width = resolveNoiseWidth(inst);
-  const width7 = width === 7;
-  const { shift, divisor } = resolveNoiseClock(inst ?? {});
-  const lfsrHz = noiseClockToLfsrHz(shift, divisor, GB_CLOCK);
-  let phase = 0;
-  let lfsr = triggerGameBoyLfsr(width7);
-
-  for (let i = 0; i < len; i++) {
-    phase += lfsrHz / sr;
-    const ticks = Math.floor(phase);
-    if (ticks > 0) {
-      for (let t = 0; t < ticks; t++) lfsr = stepGameBoyLfsr(lfsr, width7);
-      phase -= ticks;
-    }
-    data[i] = gameBoyNoiseSample(lfsr) * NOISE_OUTPUT_GAIN;
-  }
+  const program = lowerGameBoyInstrumentProgram(inst ?? {});
+  const useProgramVolume = program.enabled && program.rows.some((r) => tickRowVolume(r) !== null);
+  fillNoiseBuffer(data, sr, inst ?? {}, program.enabled ? program : null, useProgramVolume);
 
   const src = ctx.createBufferSource();
   src.buffer = buf;
@@ -44,9 +91,11 @@ export function playNoise(ctx: BaseAudioContext | any, start: number, dur: numbe
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;
-  // Skip envelope automation if skipEnvelope flag is set (e.g., when volume effects are present)
-  if (skipEnvelope) {
+  // When vol_env drives the program, volume is baked into the buffer — hold unity gain.
+  if (useProgramVolume || skipEnvelope) {
     g.setValueAtTime(1.0, start);
+    g.setValueAtTime(1.0, start + playDur);
+    g.linearRampToValueAtTime(0.0001, start + playDur + 0.005);
   } else if (env && env.mode === 'gb') {
     const initialVol = (env.initial ?? 15) / 15;
     const stepPeriod = (env.period ?? 1) * (65536 / GB_CLOCK);

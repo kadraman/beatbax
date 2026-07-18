@@ -672,6 +672,7 @@ export function registerBeatBaxLanguage(): void {
       'time',
       'ticksPerStep',
       'inst',
+      'subpat',
       'pat',
       'seq',
       'channel',
@@ -781,7 +782,7 @@ export function registerBeatBaxLanguage(): void {
         [/\b(warn|error|off)\b/, 'constant.language'],
 
         // Definitions - use state to capture definition names
-        [/\b(inst|pat|seq|effect)\b/, { token: 'keyword', next: '@definitionName' }],
+        [/\b(inst|subpat|pat|seq|effect)\b/, { token: 'keyword', next: '@definitionName' }],
         [/\bimport\b/, { token: 'keyword', next: '@importStatement' }],
         [/\bchannel\b/, { token: 'keyword', next: '@channelNum' }],
         [/\bfrom\b/, 'keyword'],
@@ -1103,6 +1104,12 @@ export function registerBeatBaxLanguage(): void {
         ticksPerStep:
           '*(deprecated, no effect)* Ignored by the engine. Use `stepsPerBar` for bar grouping. Example: `ticksPerStep 16`',
         inst: 'Declares a named instrument. Syntax: `inst <name> type=<channel-type> [...]`. Hover over type values or fields for chip-specific documentation.',
+        subpat: [
+          '**Instrument subpattern** — hUGE-style tick rows for Game Boy instruments (offsets, jumps, effects).',
+          '```\nsubpat kick_body = . +0 vol:15 -2 vol:12 -4 vol:8 -6 vol:0 halt\ninst kick type=noise gb:width=7 uge_note=C-6 subpat=kick_body\n```',
+          'Row tokens: `.` (empty), signed offsets (`+0`, `-2`), `vol:`, `jump:`, `timbre:`, `fx:`, `halt`.',
+          'When `subpat=` is set on an instrument, it wins over `pitch_env` / `vol_env` / `duty_env` / `arp_env`.',
+        ].join('\n\n'),
         pat: 'Defines a pattern. Example: `pat melody = C4 E4 G4 C5`',
         seq: [
           '**Sequence definition** — an ordered list of pattern references, each optionally with transforms.',

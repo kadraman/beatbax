@@ -1,9 +1,11 @@
-# Game Boy percussion demo — pulse kicks + noise snares, hi-hats, and toms.
+# Game Boy percussion demo — pulse kicks + noise kit with instrument programs.
 #
 # Pulse kicks use `note=` for pitch. Noise percussion uses `uge_note=` in hUGETracker
-# display notation (C-6, C-7, D-7, …). That note controls UGE pattern rows on export
-# and the NR43 LFSR clock during BeatBax playback. Width, envelope, and length shape
-# timbre and decay.
+# display notation (C-6, C-7, D-7, …). Short `pitch_env` / `vol_env` (and one native
+# `subpat`) lower to hUGETracker instrument subpatterns for preview + UGE export.
+#
+# Prefer uge_note=C-6 as the kick base; large negative offsets from a high base are
+# not a reliable pitch drop (noise note table is non-monotonic).
 #
 # Export CLI WAV:
 #   npm run cli -- export wav songs/gameboy/instruments/gb_percussion_demo.bax songs/gameboy/instruments/gb_percussion_demo_from_cli.wav
@@ -13,38 +15,57 @@ bpm 140
 stepsPerBar 4
 song name "Percussion Demo"
 song artist "kadraman"
-song description "Game Boy percussion: pulse kicks and noise snares, hi-hats, and toms with uge_note parity."
-song tags "percussion,drums,hugetracker,gameboy"
+song description "Game Boy percussion: pulse kicks, noise kit with pitch_env/vol_env/subpat, snares, hi-hats, and toms."
+song tags "percussion,drums,hugetracker,gameboy,subpattern,macro"
 
-# Pulse kicks — low pitch + fast envelope; `note=` sets playback pitch for named tokens.
-inst kick_punch type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":3,"format":"gb"} length=8  gm=35 note=C2  # Punchy, thin
-inst kick_deep  type=pulse1 duty=75   env={"level":15,"direction":"down","period":7,"format":"gb"} length=48 gm=36 note=C2  # Deep, sustained
-inst kick_soft  type=pulse1 duty=25   env={"level":8,"direction":"down","period":0,"format":"gb"} length=6  gm=35 note=C2  # Soft tap
+# Pulse kicks — low pitch + fast envelope + short pitch drop on attack.
+inst kick_punch type=pulse1 duty=12.5 env={"level":15,"direction":"down","period":3,"format":"gb"} length=8  gm=35 note=C2 pitch_env=[0,-1,-2,-3]
+inst kick_deep  type=pulse1 duty=75   env={"level":15,"direction":"down","period":7,"format":"gb"} length=48 gm=36 note=C2 pitch_env=[0,-2,-4,-6,-8]
+inst kick_soft  type=pulse1 duty=25   env={"level":8,"direction":"down","period":0,"format":"gb"} length=6  gm=35 note=C2 pitch_env=[0,-1,-2]
 
-# Noise snares (7-bit) — uge_note selects LFSR clock rate.
-inst snare_tight type=noise gb:width=7  env={"level":13,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6
-inst snare_loose type=noise gb:width=7  env={"level":12,"direction":"down","period":4,"format":"gb"} length=32 uge_note=C-6
-inst snare_rim   type=noise gb:width=7  env={"level":8,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-6
+# Noise kick — macros (shared tick program → UGE subpattern).
+inst kick_noise type=noise gb:width=7 env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+
+# Native subpat: empty first row + mid jump into a decaying kick body.
+subpat kick_body =
+  .
+  +0 vol:15
+  -2 vol:12 jump:5
+  -4 vol:10
+  -4 vol:8
+  -6 vol:4
+  -6 vol:0
+  halt
+
+inst kick_huge type=noise gb:width=7 env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6 subpat=kick_body
+
+# Noise snares (7-bit) — pitch pop + stepped volume.
+inst snare_tight type=noise gb:width=7  env={"level":13,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-7 pitch_env=[0,7,0] vol_env=[13,10,6,2]
+inst snare_loose type=noise gb:width=7  env={"level":12,"direction":"down","period":4,"format":"gb"} length=32 uge_note=C-7 pitch_env=[0,5,0] vol_env=[12,10,8,6,4]
+inst snare_rim   type=noise gb:width=7  env={"level":8,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-7 vol_env=[8,4,0]
 
 # Hi-hats (15-bit white noise).
-inst hihat_closed type=noise gb:width=15 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-7
-inst hihat_open   type=noise gb:width=15 env={"level":7,"direction":"down","period":3,"format":"gb"} length=32 uge_note=D-7
-inst hihat_pedal  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=12 uge_note=C-7
+inst hihat_closed type=noise gb:width=15 env={"level":6,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-8 vol_env=[6,2]
+inst hihat_open   type=noise gb:width=15 env={"level":7,"direction":"down","period":3,"format":"gb"} length=32 uge_note=D-8 vol_env=[7,5,3,1]
+inst hihat_pedal  type=noise gb:width=15 env={"level":5,"direction":"down","period":1,"format":"gb"} length=12 uge_note=C-8 vol_env=[5,2]
 
-# Toms (7-bit metallic noise) — ascending uge_note for pitch sweep.
-inst tom_low  type=noise gb:width=7 env={"level":14,"direction":"down","period":5,"format":"gb"} length=48 uge_note=C-6
-inst tom_mid  type=noise gb:width=7 env={"level":13,"direction":"down","period":4,"format":"gb"} length=40 uge_note=D-6
-inst tom_high type=noise gb:width=7 env={"level":12,"direction":"down","period":3,"format":"gb"} length=32 uge_note=E-6
+# Toms (7-bit) — ascending uge_note for register + short fall on each hit.
+inst tom_low  type=noise gb:width=7 env={"level":14,"direction":"down","period":5,"format":"gb"} length=48 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[14,12,10,8,4]
+inst tom_mid  type=noise gb:width=7 env={"level":13,"direction":"down","period":4,"format":"gb"} length=40 uge_note=D-6 pitch_env=[0,-2,-4] vol_env=[13,10,7,3]
+inst tom_high type=noise gb:width=7 env={"level":12,"direction":"down","period":3,"format":"gb"} length=32 uge_note=E-6 pitch_env=[0,-2,-3] vol_env=[12,8,4]
 
 # Cymbals and effects (15-bit).
-inst crash_cymbal type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64 uge_note=F-7
-inst ride_cymbal  type=noise gb:width=15 env={"level":9,"direction":"down","period":5,"format":"gb"} length=48 uge_note=E-7
-inst shaker       type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4  uge_note=D-7
+inst crash_cymbal type=noise gb:width=15 env={"level":15,"direction":"down","period":6,"format":"gb"} length=64 uge_note=F-7 vol_env=[15,12,10,8,6,4,2]
+inst ride_cymbal  type=noise gb:width=15 env={"level":9,"direction":"down","period":5,"format":"gb"} length=48 uge_note=E-7 vol_env=[9,7,5,3]
+inst shaker       type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=4  uge_note=D-7 vol_env=[4,1]
 
 # Named instrument tokens use each instrument's default note (note= on pulse, uge_note on noise).
 pat kick_four_pat    = kick_punch . . . kick_punch . . . kick_punch . . . kick_punch . . .
 pat kick_basic_pat   = kick_punch kick_deep . kick_deep . kick_punch kick_deep .
 pat kick_synth_pat   = kick_punch . . kick_deep . . kick_soft .
+
+# Noise kick / subpat showcase (channel 4).
+pat noise_kick_pat   = kick_noise . . . kick_huge . . . kick_noise . kick_noise . kick_huge . . .
 
 pat snare_backbeat_pat = . . . . snare_tight . . . . . . . snare_tight . . .
 pat snare_rolls_pat    = (. . . . snare_tight snare_tight snare_tight snare_rim)*2
@@ -54,13 +75,15 @@ pat hh_sixteenths_pat = hihat_closed * 16
 pat hh_open_close_pat = (hihat_closed . hihat_open .)*3 hihat_closed .
 
 pat tom_fill_pat = tom_low tom_low tom_mid tom_mid tom_high tom_high tom_high .
+pat cymbal_pat   = crash_cymbal . . . ride_cymbal . shaker shaker crash_cymbal . . . . . . .
 
 seq kick_demo_seq  = kick_four_pat kick_basic_pat kick_synth_pat kick_four_pat kick_four_pat
 seq snare_demo_seq = snare_backbeat_pat snare_rolls_pat snare_backbeat_pat snare_rolls_pat
 seq snare_rolls_seq = snare_rolls_pat:inst(snare_rim)
 seq hh_demo_seq    = hh_eighths_pat hh_sixteenths_pat hh_open_close_pat hh_eighths_pat
+seq noise_kit_seq  = noise_kick_pat tom_fill_pat cymbal_pat noise_kick_pat
 
 channel 1 => inst kick_punch  seq kick_demo_seq kick_demo_seq
-channel 4 => inst snare_tight seq snare_demo_seq hh_demo_seq snare_rolls_seq
+channel 4 => inst snare_tight seq snare_demo_seq hh_demo_seq snare_rolls_seq noise_kit_seq
 
 play auto repeat
