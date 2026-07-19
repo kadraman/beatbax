@@ -9,9 +9,10 @@ import {
   type Ref,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { PlaybackManager, PlaybackPosition } from '@beatbax/app-core/playback/playback-manager';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import {
   channelStates,
   clearAllSolo,
@@ -767,7 +768,7 @@ export function createDesktopChannelMixer(options: DesktopChannelMixerOptions): 
     if (!host) {
       host = document.createElement('div');
       host.className = 'bb-channel-mixer-react-host';
-      root = createRoot(host);
+      root = mountReactRoot(host);
       flushSync(() => {
         root?.render(
           <DesktopChannelMixer
@@ -798,10 +799,8 @@ export function createDesktopChannelMixer(options: DesktopChannelMixerOptions): 
     },
     destroy: () => {
       handleRef.current?.destroy();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      if (host) unmountReactRoot(host, root);
+      root = null;
       host?.remove();
       host = null;
     },

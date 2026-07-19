@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import DOMPurify from 'dompurify';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import { marked } from 'marked';
 import { parseWithPeggy } from '@beatbax/engine/parser';
 import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
@@ -1129,7 +1130,7 @@ export function createDesktopCopilotPanel(
   props: Omit<DesktopCopilotPanelProps, 'panelRef'>,
 ): DesktopCopilotPanelHandle {
   const handleRef = { current: null as DesktopCopilotPanelHandle | null };
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
 
   flushSync(() => {
     root?.render(
@@ -1152,10 +1153,8 @@ export function createDesktopCopilotPanel(
     askAboutError: (options) => call((handle) => handle.askAboutError(options)),
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
   };
 }

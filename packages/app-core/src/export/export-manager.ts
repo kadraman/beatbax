@@ -25,6 +25,17 @@ import { settingAudioSampleRate } from '../stores/settings.store.js';
 
 const log = createLogger('ui:export-manager');
 
+/** Strip a short file extension (e.g. `.bax`) from a sanitized basename. */
+function stemFromFilename(name: string): string {
+  const cleaned = sanitizeFilename(name.trim());
+  const lastDot = cleaned.lastIndexOf('.');
+  if (lastDot > 0 && cleaned.length - lastDot <= 5) {
+    const stem = cleaned.slice(0, lastDot);
+    return stem || cleaned;
+  }
+  return cleaned || 'song';
+}
+
 /**
  * Available export formats — open string so plugin-provided IDs are accepted.
  */
@@ -71,7 +82,10 @@ export class ExportManager {
   ): Promise<ExportResult> {
     const validate = options.validate !== false;
     const warnings: string[] = [];
-    let baseFilename = options.filename ?? 'song';
+    // Document stem is available before parse; metadata may refine it after.
+    let baseFilename = options.filename?.trim()
+      ? stemFromFilename(options.filename)
+      : 'song';
 
     log.debug(`Export started: format=${format}`);
     this.eventBus.emit('export:started', { format });
@@ -81,9 +95,13 @@ export class ExportManager {
     try {
       // Parse source
       const ast = parse(source);
-      const metadataName = String((ast as any)?.metadata?.name ?? '').trim();
-      if (metadataName) {
-        baseFilename = sanitizeFilename(metadataName.toLowerCase());
+      // Prefer the open document stem (e.g. ay_synth_channels.bax → ay_synth_channels)
+      // so export names match the file on disk. Fall back to song metadata when untitled.
+      if (!options.filename?.trim()) {
+        const metadataName = String((ast as any)?.metadata?.name ?? '').trim();
+        if (metadataName) {
+          baseFilename = sanitizeFilename(metadataName.toLowerCase());
+        }
       }
 
       // Validate if requested
@@ -206,7 +224,9 @@ export class ExportManager {
       throw new Error(`Exporter '${plugin.id}' did not return downloadable data in browser mode.`);
     }
 
-    const downloadName = payload.filename ? ensureExtension(payload.filename, ext) : filename;
+    // ExportManager owns the download name (document stem / metadata). Ignore
+    // payload.filename so plugins cannot override with a differently cased title.
+    const downloadName = filename;
     const mimeType = payload.mimeType || plugin.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
     const savedFilename = typeof payload.data === 'string'
       ? await downloadText(payload.data, downloadName, mimeType)

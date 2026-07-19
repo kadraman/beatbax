@@ -1,6 +1,6 @@
 ---
 title: "Spectrum-128 / Amstrad CPC Arkos Exporter"
-status: proposed
+status: in-progress
 authors: ["kadraman", "GitHub Copilot"]
 created: 2026-06-04
 issue: "https://github.com/kadraman/beatbax/issues/130"
@@ -58,17 +58,24 @@ play
 Example CLI intent (final command shape may differ):
 
 ```bash
-beatbax export arkos songs/spectrum-128/instruments/ay_macro_arp_pitch.bax --out build/arkos/
+# Full song (.aks) — same as desktop export
+beatbax export arkos songs/spectrum-128/instruments/ay_macro_arp_pitch.bax
+
+# Instrument bank only (.aki) — optional CLI extract for reuse in Arkos
+beatbax export arkos songs/spectrum-128/instruments/ay_macro_arp_pitch.bax --instruments
 ```
 
 ### Example Usage
 
-Expected outputs for a successful export:
+Default song export (CLI and desktop):
 
-- `songname.aks`
-- `songname.aki`
+- `songname.aks` — full song; instruments are embedded
 
-Both files should be deterministic for identical song content and exporter options.
+Optional instrument-bank export (CLI `--instruments`):
+
+- `songname.aki` — instruments-only extract for import/reuse in Arkos Tracker
+
+Outputs should be deterministic for identical song content and exporter options.
 
 ## Implementation Plan
 
@@ -144,14 +151,16 @@ No migration required for existing songs. This is additive exporter functionalit
 
 ## Implementation Checklist
 
-- [ ] Create `@beatbax/plugin-exporter-arkos` package
-- [ ] Define v1 representable subset and diagnostics contract
-- [ ] Implement intermediate lowering pipeline
-- [ ] Implement `.AKS` serializer
-- [ ] Implement `.AKI` serializer
-- [ ] Wire CLI export format registration
-- [ ] Add unit and integration tests with deterministic snapshots
-- [ ] Document supported subset and known limitations
+- [x] Create `@beatbax/plugin-exporter-arkos` package
+- [x] Define v1 representable subset and diagnostics contract
+- [x] Implement intermediate lowering pipeline
+- [x] Implement `.AKS` serializer
+- [x] Implement `.AKI` serializer
+- [x] Wire CLI export format registration
+- [x] Add unit and integration tests with deterministic snapshots
+- [x] Document supported subset and known limitations
+- [ ] Validate sample `.aks` files open cleanly in Arkos Tracker 3
+- [ ] Optional: Web UI export panel smoke-test
 
 ## Future Enhancements
 

@@ -82,9 +82,15 @@ export function DesktopWorkspaceShell({
     const statusBarHost = statusBarHostRef.current;
     if (!toolbarHost || !workspaceHost || !statusBarHost || !menuBarHost) return;
 
+    // If a previous workspace survived a skipped cleanup (common under Vite HMR),
+    // dispose it before mounting again. Do NOT wipe React-root hosts with
+    // innerHTML — that orphans nested createRoot trees and causes removeChild errors.
+    workspaceRef.current?.dispose();
+    workspaceRef.current = null;
+
+    // Imperative-only hosts (menu / status) can be cleared; toolbar + workspace
+    // host React roots and must be torn down via dispose()/unmount only.
     menuBarHost.innerHTML = '';
-    toolbarHost.innerHTML = '';
-    workspaceHost.innerHTML = '';
     statusBarHost.innerHTML = '';
 
     const handle = createDesktopWorkspace({
@@ -109,9 +115,8 @@ export function DesktopWorkspaceShell({
       handle.dispose();
       workspaceRef.current = null;
       setEditorHost(null);
-      toolbarHost.innerHTML = '';
+      // Imperative hosts only — React roots already unmounted in dispose().
       menuBarHost.innerHTML = '';
-      workspaceHost.innerHTML = '';
       statusBarHost.innerHTML = '';
     };
   // Mount once shell host refs are attached — document/file callbacks use actionsRef.

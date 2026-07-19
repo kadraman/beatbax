@@ -364,6 +364,11 @@ program
   .option('-b, --bit-depth <depth>', 'Bit depth for WAV export (16, 24, 32)', '16')
   .option('--normalize', 'Normalize audio peak to 0.95 (WAV only)', false)
   .option('--strict-gb', 'Fail export when numeric pan values are present (strict Game Boy compatibility)', false)
+  .option(
+    '--instruments',
+    'Arkos only: export instrument bank (.aki) instead of the full song (.aks)',
+    false,
+  )
   .action(async (format, file, output, options) => {
     // No format given — list all available export formats and exit
     if (!format) {
@@ -466,9 +471,21 @@ program
       return;
     }
 
+    const instrumentBank =
+      requestedFormat === 'arkos' && Boolean((options as { instruments?: boolean }).instruments);
+    if ((options as { instruments?: boolean }).instruments && requestedFormat !== 'arkos') {
+      console.error(`Error: --instruments is only supported with 'export arkos'.`);
+      process.exitCode = 2;
+      return;
+    }
+
     // If no output path provided, generate one based on input filename and format
     if (!outPath) {
-      outPath = file.replace(/\.[^/.]+$/, "") + `.${formatOutputExtension(exporter)}`;
+      const ext = instrumentBank ? 'aki' : formatOutputExtension(exporter);
+      outPath = file.replace(/\.[^/.]+$/, '') + `.${ext}`;
+    } else if (instrumentBank && !/\.aki$/i.test(outPath)) {
+      // Keep an explicit directory/stem, but ensure the instrument-bank extension.
+      outPath = outPath.replace(/\.(aks|aki)$/i, '') + '.aki';
     }
 
     const channels = options.channels
@@ -530,6 +547,7 @@ program
       bitDepth: bitDepth as 16 | 24 | 32,
       normalize: options.normalize === true,
       strictGb: Boolean((options as any).strictGb),
+      instrumentBank,
       sampleRate: globalOpts.sampleRate ? parseInt(globalOpts.sampleRate, 10) : 44100,
       debug: globalOpts && globalOpts.debug === true,
       verbose: globalOpts && globalOpts.verbose === true,
@@ -584,8 +602,13 @@ program
         debugInfo = ` [DEBUG: v1]`;
       }
     }
-    console.log(`[OK] Exported ${exporter.label} file: ${outPath} (${stats.size} bytes)${debugInfo}`);
-    console.log(`Note: The file extension is ${exporter.extension}`);
+    const exportKind = instrumentBank
+      ? `${exporter.label} instrument bank`
+      : `${exporter.label} file`;
+    console.log(`[OK] Exported ${exportKind}: ${outPath} (${stats.size} bytes)${debugInfo}`);
+    if (!instrumentBank) {
+      console.log(`Note: The file extension is ${exporter.extension}`);
+    }
   });
 
 program
