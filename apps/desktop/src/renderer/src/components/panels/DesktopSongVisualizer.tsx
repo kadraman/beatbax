@@ -9,9 +9,10 @@ import {
   type Ref,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { PlaybackManager, PlaybackPosition } from '@beatbax/app-core/playback/playback-manager';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import {
   channelStates,
   clearAllSolo,
@@ -895,7 +896,7 @@ export function createDesktopSongVisualizer(
   options: DesktopSongVisualizerOptions,
 ): DesktopSongVisualizerHandle {
   const handleRef = { current: null as DesktopSongVisualizerHandle | null };
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
 
   flushSync(() => {
     root?.render(
@@ -911,10 +912,8 @@ export function createDesktopSongVisualizer(
   return {
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
   };
 }

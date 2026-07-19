@@ -2,6 +2,7 @@ import type { ExporterPlugin } from '@beatbax/engine/export';
 import { chipRegistry } from '@beatbax/engine/chips';
 import famitrackerExporterPlugins from '@beatbax/plugin-exporter-famitracker';
 import vgmExporterPlugin from '@beatbax/plugin-exporter-vgm';
+import arkosExporterPlugin from '@beatbax/plugin-exporter-arkos';
 import { storage, StorageKey } from '../utils/local-storage.js';
 import { getEnabledPluginIds } from './registry-config.js';
 import { exporterRegistry } from './browser-exporter-registry.js';
@@ -38,6 +39,15 @@ export const OPTIONAL_EXPORTER_PLUGINS: ExporterPluginEntry[] = [
     badge: 'Experimental' as const,
     plugin: vgmExporterPlugin,
     dependsOnChipPlugins: ['sms'],
+  },
+  {
+    id: arkosExporterPlugin.id,
+    label: arkosExporterPlugin.label,
+    description:
+      'Arkos Tracker 3 export (.aks / .aki) - chips: spectrum-128, cpc / amstrad-cpc.',
+    badge: 'Experimental' as const,
+    plugin: arkosExporterPlugin,
+    dependsOnChipPlugins: ['spectrum-128'],
   },
 ];
 
