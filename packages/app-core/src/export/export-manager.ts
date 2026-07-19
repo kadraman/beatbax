@@ -25,15 +25,11 @@ import { settingAudioSampleRate } from '../stores/settings.store.js';
 
 const log = createLogger('ui:export-manager');
 
-/** Strip a short file extension (e.g. `.bax`) from a sanitized basename. */
-function stemFromFilename(name: string): string {
-  const cleaned = sanitizeFilename(name.trim());
-  const lastDot = cleaned.lastIndexOf('.');
-  if (lastDot > 0 && cleaned.length - lastDot <= 5) {
-    const stem = cleaned.slice(0, lastDot);
-    return stem || cleaned;
-  }
-  return cleaned || 'song';
+/** Sanitize an open-document name for export; keep the original extension so
+ *  `ensureExtension()` can replace `.bax` (including multi-dot names like
+ *  `my.song.bax` → `my.song.uge`). */
+function sanitizeDocumentFilename(name: string): string {
+  return sanitizeFilename(name.trim()) || 'song';
 }
 
 /**
@@ -45,7 +41,7 @@ export type ExportFormat = string;
  * Export options
  */
 export interface ExportOptions {
-  /** Base filename (without extension) */
+  /** Open document filename (e.g. `my.song.bax`); extension is replaced on export */
   filename?: string;
   /** Whether to validate before exporting */
   validate?: boolean;
@@ -82,9 +78,9 @@ export class ExportManager {
   ): Promise<ExportResult> {
     const validate = options.validate !== false;
     const warnings: string[] = [];
-    // Document stem is available before parse; metadata may refine it after.
+    // Document name is available before parse; metadata may refine it after.
     let baseFilename = options.filename?.trim()
-      ? stemFromFilename(options.filename)
+      ? sanitizeDocumentFilename(options.filename)
       : 'song';
 
     log.debug(`Export started: format=${format}`);
@@ -95,7 +91,7 @@ export class ExportManager {
     try {
       // Parse source
       const ast = parse(source);
-      // Prefer the open document stem (e.g. ay_synth_channels.bax → ay_synth_channels)
+      // Prefer the open document name (e.g. ay_synth_channels.bax → ay_synth_channels.uge)
       // so export names match the file on disk. Fall back to song metadata when untitled.
       if (!options.filename?.trim()) {
         const metadataName = String((ast as any)?.metadata?.name ?? '').trim();

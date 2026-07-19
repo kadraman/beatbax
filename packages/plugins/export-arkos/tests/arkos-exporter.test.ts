@@ -104,6 +104,51 @@ describe('arkos exporter', () => {
     expect(errors.some((e) => e.includes('inline effects'))).toBe(true);
   });
 
+  test('validate rejects named events without usable defaultNote', () => {
+    const song = makeBasicSong({
+      insts: {
+        kick: { type: 'tone1', vol: 12 },
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'kick',
+          events: [
+            { type: 'named', token: 'kick', instrument: 'kick', sourcePattern: 'riff_a' },
+          ],
+        },
+      ],
+    });
+    const errors = validateArkosExport(song);
+    expect(errors.some((e) => e.includes('defaultNote') && e.includes('kick'))).toBe(
+      true,
+    );
+  });
+
+  test('validate accepts named events with defaultNote', () => {
+    const song = makeBasicSong({
+      insts: {
+        kick: { type: 'tone1', vol: 12, note: 'C2' },
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'named',
+              token: 'kick',
+              instrument: 'kick',
+              defaultNote: 'C2',
+              sourcePattern: 'riff_a',
+            },
+          ],
+        },
+      ],
+    });
+    expect(validateArkosExport(song)).toEqual([]);
+  });
+
   test('lower + serialize produces deterministic AT3 XML', () => {
     const song = makeBasicSong();
     const a = serializeAks(lowerToArkos(song));
@@ -227,5 +272,39 @@ describe('arkos exporter', () => {
     expect(tone1!.isLooping).toBe(true);
     expect(tone1!.loopStartIndex).toBe(0);
     expect(tone1!.endIndex).toBe(0);
+  });
+
+  test('named events use defaultNote, not instrument-name token', () => {
+    const song = makeBasicSong({
+      insts: {
+        kick: { type: 'tone1', vol: 12, note: 'C2' },
+      },
+      channels: [
+        {
+          id: 1,
+          defaultInstrument: 'kick',
+          events: [
+            {
+              type: 'named',
+              token: 'kick',
+              instrument: 'kick',
+              defaultNote: 'C2',
+              sourcePattern: 'riff_a',
+            },
+            { type: 'rest', sourcePattern: 'riff_a' },
+            { type: 'rest', sourcePattern: 'riff_a' },
+            { type: 'rest', sourcePattern: 'riff_a' },
+          ],
+        },
+      ],
+    });
+    const xml = serializeAks(lowerToArkos(song));
+    // C2 → Arkos note 24; must not silently become rest (255) from token "kick"
+    expect(xml).toContain('<note>24</note>');
+    expect(xml).toContain('<name>kick</name>');
+    const model = lowerToArkos(song);
+    const cell = model.subsongs[0].tracks[0].cells.find((c) => c.note !== 255);
+    expect(cell?.note).toBe(24);
+    expect(cell?.instrument).toBe(1); // Empty=0, kick=1
   });
 });

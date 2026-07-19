@@ -1,3 +1,4 @@
+import { noteToArkos } from './arkos-notes.js';
 import {
   ARKOS_SUPPORTED_CHIPS,
   type SongLike,
@@ -51,6 +52,12 @@ function collectInstrumentErrors(
   return errors;
 }
 
+function namedEventPitch(ev: ChannelEventLike): string | null {
+  const pitch = String(ev.defaultNote ?? '').trim();
+  if (!pitch) return null;
+  return noteToArkos(pitch) === null ? null : pitch;
+}
+
 function collectEventErrors(channelId: number, events: ChannelEventLike[]): string[] {
   const errors: string[] = [];
   for (let i = 0; i < events.length; i++) {
@@ -64,6 +71,16 @@ function collectEventErrors(channelId: number, events: ChannelEventLike[]): stri
       // One diagnostic per channel is enough once we hit effects.
       break;
     }
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    if (ev.type !== 'named') continue;
+    if (namedEventPitch(ev)) continue;
+    const name = ev.token || ev.instrument || '(unnamed)';
+    errors.push(
+      `Channel ${channelId} event ${i}: named instrument "${name}" has no usable defaultNote (Arkos export v1 requires inst note=… / defaultNote so the event is not dropped as a rest).`,
+    );
   }
   return errors;
 }

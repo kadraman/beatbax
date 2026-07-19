@@ -57,7 +57,12 @@ function buildCell(
   }
 
   if (event.type === 'note' || event.type === 'named') {
-    const token = event.token || event.defaultNote;
+    // Named events store the instrument name in `token` (e.g. "kick");
+    // the playable pitch is `defaultNote` from the instrument definition.
+    const token =
+      event.type === 'named'
+        ? event.defaultNote || event.token
+        : event.token || event.defaultNote;
     if (!token) {
       return {
         index: rowIndex,
