@@ -35,6 +35,7 @@ bower_components
 .lock-wscript
 
 # Compiled binary addons (https://nodejs.org/api/addons.html)
+build/
 build/Release
 
 # Dependency directories
@@ -169,6 +170,8 @@ songs/**/*.mid
 songs/**/*.txt
 songs/**/*.vgm
 songs/**/*.json
+songs/**/*.aks
+songs/**/*.aki
 
 # generate GitHub Issues
 .github/ISSUES

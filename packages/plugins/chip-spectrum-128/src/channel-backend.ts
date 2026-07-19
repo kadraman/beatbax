@@ -36,10 +36,16 @@ import {
   stepAyNoiseLfsr,
 } from './ay-noise.js';
 import { parseBaxBool, parseBaxNumber } from './bax-values.js';
+import {
+  amplitudeToGain,
+  ayDacNormalized,
+  AY_CHANNEL_PEAK,
+  clampAyAmplitude,
+} from './ay-volume.js';
 
 /** AY volume scale: BeatBax vol 15 = loudest → AY amplitude 15. */
 function volToAmplitude(vol: number): number {
-  return Math.max(0, Math.min(15, Math.round(vol)));
+  return clampAyAmplitude(vol);
 }
 
 /** Resolve R7 mixer routing from instrument fields. */
@@ -89,11 +95,6 @@ export function isToneMixActive(
   frameIndex: number
 ): boolean {
   return isMixActiveForFrames(toneMix, toneFrames, frameIndex);
-}
-
-/** Peak linear gain (0–1) from AY amplitude 0–15. */
-function amplitudeToGain(amplitude: number): number {
-  return Math.max(0, amplitude / 15) * 0.3;
 }
 
 /** Progress 0–1 for volSlide across a note (stepped when `steps` is set). */
@@ -210,7 +211,7 @@ export function renderAyBuzzBassSamples(
   },
 ): { phase: number } {
   let phase = opts.phase ?? 0;
-  const peakGain = opts.peakGain ?? 0.3;
+  const peakGain = opts.peakGain ?? AY_CHANNEL_PEAK;
   const chipClocksPerSample = getPlatformProfile().ayClockHz / sampleRate;
 
   for (let i = 0; i < buffer.length; i++) {
@@ -220,7 +221,8 @@ export function renderAyBuzzBassSamples(
       chipClocksPerSample,
       opts.envelopePeriod,
     );
-    const gain = (envLevel / 15) * peakGain * AY_BUZZ_BASS_LOUDNESS_COMPENSATION;
+    // Envelope steps use the same DAC curve as fixed `vol` (not linear /15).
+    const gain = ayDacNormalized(envLevel) * peakGain * AY_BUZZ_BASS_LOUDNESS_COMPENSATION;
     const toneHigh = phase < 0.5;
     // Sawtooth AM on the high half-cycle — classic AY buzz (gritty, not tremolo).
     if (toneHigh && gain > 0) {

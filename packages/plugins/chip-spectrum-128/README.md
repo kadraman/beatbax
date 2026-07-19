@@ -79,11 +79,23 @@ chip cpc
 
 Aliases `cpc` and `amstrad-cpc` use the same `@beatbax/plugin-chip-spectrum-128` plugin with the 1 MHz clock preset. Note content and macros are identical across profiles.
 
+## Preview loudness (volume curve)
+
+BeatBax preview maps AY `vol` / R8–R10 through a **logarithmic DAC table** (hardware-accurate step relationships), then scales so three channels at `vol=15` target ~**0.85** peak — the same full-mix headroom as NES and SMS.
+
+| Concern | Behaviour |
+|---------|-----------|
+| Step shape | AY DAC (e.g. `vol=10` ≪ linear `10/15` of max) |
+| Overall level | Peak-normalised for cross-chip comfort in the app |
+| vs Arkos Tracker | Relative `vol` steps should match; absolute WAV LUFS may still differ |
+
+Constants: `AY_DAC_LEVELS`, `AY_TARGET_PEAK`, `AY_CHANNEL_PEAK`, `amplitudeToGain()` in `src/ay-volume.ts`.
+
 ## Instrument Fields
 
 | Field | Type | Range | Description |
 |-------|------|-------|-------------|
-| `vol` | number | 0–15 | Fixed amplitude (0=silent, 15=loudest) |
+| `vol` | number | 0–15 | Fixed amplitude (AY log DAC; 0=silent, 15=loudest) |
 | `vol_env` | array/string | `[0-15,...\|loopIdx]` | Hardware envelope program (global R11–R13) |
 | `arp_env` | array/string | semitone offsets | Arpeggio macro |
 | `pitch_env` | array/string | semitone offsets | Pitch bend macro |

@@ -1,4 +1,4 @@
-import spectrumPlugin, { SPECTRUM_TYPES } from '../src/index.js';
+import spectrumPlugin, { AY_CHANNEL_PEAK, SPECTRUM_TYPES } from '../src/index.js';
 
 // Minimal mock AudioContext for tests
 class MockAudioContext {
@@ -34,6 +34,10 @@ describe('spectrumPlugin metadata', () => {
 
   test('has 3 channels', () => {
     expect(spectrumPlugin.channels).toBe(3);
+  });
+
+  test('meter display gain compensates AY channel peak', () => {
+    expect(spectrumPlugin.getMeterDisplayGain?.(0)).toBeCloseTo(1 / AY_CHANNEL_PEAK, 6);
   });
 
   test('version is defined', () => {

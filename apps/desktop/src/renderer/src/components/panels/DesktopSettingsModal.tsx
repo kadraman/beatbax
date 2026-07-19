@@ -1,9 +1,10 @@
 import { useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type Ref } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { settingFeatureAI } from '@beatbax/app-core/stores/settings.store';
 import { useStoreValue } from '../../hooks/useStoreValue';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 import { GeneralSettingsSection, resetGeneralDefaults } from '../settings/general';
 import { EditorSettingsSection, resetEditorDefaults } from '../settings/editor';
 import { PlaybackSettingsSection, resetPlaybackDefaults } from '../settings/playback';
@@ -192,7 +193,7 @@ export function createDesktopSettingsModal(options?: DesktopSettingsModalOptions
   const host = document.createElement('div');
   document.body.appendChild(host);
   const handleRef = { current: null as DesktopSettingsModalHandle | null };
-  let root: Root | null = createRoot(host);
+  let root: Root | null = mountReactRoot(host);
 
   flushSync(() => {
     root?.render(
@@ -215,10 +216,8 @@ export function createDesktopSettingsModal(options?: DesktopSettingsModalOptions
     refresh: () => call((handle) => handle.refresh()),
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(host, root);
+      root = null;
       host.remove();
     },
   };

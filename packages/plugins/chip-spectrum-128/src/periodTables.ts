@@ -76,8 +76,9 @@ export function resolveEnvShape(inst: InstrumentNode): number {
 }
 
 /**
- * PCM preview gain boost for env_bass. Sawtooth AM (0–15) averages well below a
- * steady square at the same `vol`; this restores comparable loudness to vol-matched tones.
+ * PCM preview gain boost for env_bass. Sawtooth AM through the AY DAC averages
+ * well below a steady square at the same `vol`; this restores comparable
+ * loudness to vol-matched tones.
  */
 export const AY_BUZZ_BASS_LOUDNESS_COMPENSATION = 2.5;
 

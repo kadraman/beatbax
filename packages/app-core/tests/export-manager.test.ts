@@ -54,6 +54,52 @@ describe('ExportManager', () => {
     delete (window as typeof window & { electronAPI?: unknown }).electronAPI;
   });
 
+  test('prefers open document stem over song metadata for download name', async () => {
+    const { clickSpy } = setupDownloadMocks();
+    const manager = new ExportManager(new EventBus());
+    const source = `
+chip gameboy
+bpm 120
+song name "AY Synth Channels"
+
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+
+    const result = await manager.export(source, 'uge', {
+      filename: 'ay_synth_channels.bax',
+      validate: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.filename).toBe('ay_synth_channels.uge');
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves multi-dot document stems when replacing extension', async () => {
+    setupDownloadMocks();
+    const manager = new ExportManager(new EventBus());
+    const source = `
+chip gameboy
+bpm 120
+
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+
+    const result = await manager.export(source, 'uge', {
+      filename: 'my.song.bax',
+      validate: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.filename).toBe('my.song.uge');
+  });
+
   test('exports UGE via exporter plugin without CLI fallback', async () => {
     const { clickSpy, createObjectURL } = setupDownloadMocks();
     const manager = new ExportManager(new EventBus());

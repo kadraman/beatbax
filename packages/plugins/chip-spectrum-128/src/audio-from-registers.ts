@@ -10,11 +10,9 @@
  */
 import { AyChipSimulator } from './ay-chip.js';
 import { ayNoiseBit } from './ay-noise.js';
+import { amplitudeToGain } from './ay-volume.js';
 import { AY_BUZZ_BASS_LOUDNESS_COMPENSATION } from './periodTables.js';
 import type { RegisterLogEntry } from './register-log.js';
-
-/** Mix gain for a single AY channel (3 channels summed). */
-const CHANNEL_GAIN = 0.28;
 
 /**
  * Render PCM audio from a register log entry sequence.
@@ -72,10 +70,13 @@ export function renderFromRegisterLog(
         const envMode = (ampReg & 0x10) !== 0;
         const fixedAmp = ampReg & 0x0f;
         const envLevel = ch === 0 ? levels.levelA : ch === 1 ? levels.levelB : levels.levelC;
-        const amp = envMode
-          ? Math.min(15, Math.round(envLevel * AY_BUZZ_BASS_LOUDNESS_COMPENSATION))
-          : fixedAmp;
-        if (amp === 0) continue;
+        const amp = envMode ? envLevel : fixedAmp;
+        if (amp <= 0) continue;
+
+        // DAC curve + shared peak target; env_bass path gets loudness compensation.
+        let gain = amplitudeToGain(amp);
+        if (envMode) gain *= AY_BUZZ_BASS_LOUDNESS_COMPENSATION;
+        if (gain <= 0) continue;
 
         const toneOff  = (mixer >> ch) & 1;
         const noiseOff = (mixer >> (ch + 3)) & 1;
@@ -89,10 +90,10 @@ export function renderFromRegisterLog(
           phase[ch] += phaseInc;
           if (phase[ch] >= 2) phase[ch] -= 2;
           const squareOut = phase[ch] < 1 ? 1.0 : -1.0;
-          sample += squareOut * (amp / 15) * CHANNEL_GAIN;
+          sample += squareOut * gain;
         } else if (!noiseOff) {
           const noiseSign = ayNoiseBit(chip.getNoiseLfsr()) ? 1 : -1;
-          sample += noiseSign * (amp / 15) * CHANNEL_GAIN;
+          sample += noiseSign * gain;
         }
       }
 

@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type RefCallback,
 } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import {
   channelStates,
   isChannelAudible,
@@ -17,6 +17,7 @@ import {
   type ChannelInfo,
 } from '@beatbax/app-core/stores/channel.store';
 import { getChannelColor } from '@beatbax/ui-tokens/channel-meta';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 interface Segment {
   patName: string;
@@ -504,7 +505,7 @@ export function createDesktopPatternGrid(
 ): DesktopPatternGridHandle {
   const handleRef = { current: null as DesktopPatternGridHandle | null };
   const pendingCalls: Array<(handle: DesktopPatternGridHandle) => void> = [];
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
 
   const flushPending = (handle: DesktopPatternGridHandle) => {
     for (const fn of pendingCalls) fn(handle);
@@ -538,10 +539,8 @@ export function createDesktopPatternGrid(
     clearPositions: () => call((handle) => handle.clearPositions()),
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
   };
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
 import { getCurrentCapabilities, getClientProfile } from '@beatbax/app-core/client-profile';
@@ -12,6 +12,7 @@ import {
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { icon } from '../../utils/icons';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 const toolbarShortcut = (id: ShortcutCommandId) =>
   formatCommandShortcut(id, getClientProfile(), detectShortcutPlatform());
@@ -68,6 +69,7 @@ const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
   wav: 'speaker-wave',
   uge: 'cpu-chip',
   vgm: 'cpu-chip',
+  arkos: 'document-text',
 };
 
 const ICON_CLASS = 'w-4 h-4 inline-block align-text-bottom';
@@ -282,7 +284,7 @@ function DesktopToolbar({
 
 export function createDesktopToolbar(container: HTMLElement, options: DesktopToolbarOptions): DesktopToolbarHandle {
   const handleRef = { current: null as DesktopToolbarHandle | null };
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
   let visible = options.initialVisible ?? true;
 
   const setHostCollapsed = (nextVisible: boolean): void => {
@@ -329,10 +331,8 @@ export function createDesktopToolbar(container: HTMLElement, options: DesktopToo
     isVisible: () => visible,
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
     setChip: (chip) => call((handle) => handle.setChip(chip)),
     setExportEnabled: (enabled) => call((handle) => handle.setExportEnabled(enabled)),

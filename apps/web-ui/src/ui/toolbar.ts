@@ -25,6 +25,7 @@ const EXPORTER_DEFAULT_ICONS: Record<string, string> = {
   wav:  'speaker-wave',
   uge:  'cpu-chip',
   vgm:  'cpu-chip',
+  arkos: 'document-text',
 };
 
 const log = createLogger('ui:toolbar');
