@@ -44,6 +44,7 @@ import { validateSong as validateSpectrumSong } from './validate-song.js';
 import { spectrumUIContributions } from './ui-contributions.js';
 import { spectrumSongWizard } from './songWizard.js';
 import type { RegisterIntent } from './register-intent.js';
+import { AY_CHANNEL_PEAK } from './ay-volume.js';
 
 // ── Song session ─────────────────────────────────────────────────────────────
 
@@ -180,6 +181,11 @@ const spectrumPlugin: SpectrumChipPlugin = {
     currentSession.backends.push(backend);
     return backend;
   },
+
+  /** Inverse of per-channel peak so meters read near full scale at vol=15. */
+  getMeterDisplayGain(_channelIndex: number): number {
+    return 1 / AY_CHANNEL_PEAK;
+  },
 };
 
 export default spectrumPlugin;
@@ -214,4 +220,12 @@ export { RegisterArbitrator } from './register-arbitrator.js';
 export { RegisterLog } from './register-log.js';
 export { AyChannelBackend } from './channel-backend.js';
 export { renderFromRegisterLog } from './audio-from-registers.js';
+export {
+  AY_DAC_LEVELS,
+  AY_TARGET_PEAK,
+  AY_CHANNEL_PEAK,
+  amplitudeToGain,
+  ayDacNormalized,
+  clampAyAmplitude,
+} from './ay-volume.js';
 export { advanceTick };

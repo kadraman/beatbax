@@ -29,6 +29,12 @@ export interface ExportOptions {
   resolveSampleAsset?: (ref: string) => Promise<ArrayBuffer>;
   /** Optional warning sink used by exporters to surface non-fatal export diagnostics to callers. */
   onWarn?: (message: string) => void;
+  /**
+   * Arkos exporter: when true, export the instrument bank (`.aki`) instead of the
+   * full song (`.aks`). Default song export does not write a companion bank —
+   * instruments are already embedded in the `.aks`.
+   */
+  instrumentBank?: boolean;
 }
 
 export interface ExporterUIContribution {

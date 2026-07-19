@@ -32,7 +32,7 @@ INSTRUMENTS  (inst <name> type=<type> [field=value ...])
 
   type=tone1 | type=tone2 | type=tone3  (channels 1, 2, 3)
     Fixed 50% duty square wave — NO hardware duty control.
-    vol        — Fixed amplitude, 0 (silent) – 15 (loudest).
+    vol        — Fixed amplitude, 0–15 (AY log DAC; peak-normalised in BeatBax preview).
     vol_env    — HARDWARE envelope program on R11–R13.
                  ⚠ GLOBAL: only ONE vol_env may be active at a time across all channels.
                  For per-channel volume shaping use BeatBax volSlide effect instead.
@@ -99,7 +99,7 @@ const hoverDocs: Record<string, string> = {
     '- `type=tone1` / `type=tone2` / `type=tone3` — square wave channels A/B/C (fixed 50% duty)',
     '',
     '**Common fields:**',
-    '- `vol` — fixed amplitude 0 (silent) to 15 (loudest)',
+    '- `vol` — fixed amplitude 0–15 (AY log DAC steps; peak-normalised in preview)',
     '- `vol_env` — **hardware** envelope on R11–R13 (global; one at a time)',
     '- `arp_env` / `pitch_env` — **software** macros (per channel, 60 Hz)',
     '- `tone` / `tone_mix` — R7 mixer routing (tone on/off, noise blend)',
@@ -112,6 +112,11 @@ const hoverDocs: Record<string, string> = {
 
   vol: [
     '**vol** — Fixed channel amplitude (0–15).',
+    '',
+    'Steps follow the real AY logarithmic DAC (not linear). `vol=10` is much quieter',
+    'relative to `vol=15` than a linear `10/15` scale. Preview peak loudness is still',
+    'normalised so full Spectrum mixes sit near Game Boy / NES / SMS levels in BeatBax;',
+    'absolute loudness may differ from Arkos Tracker WAV exports.',
     '',
     'Use when you do not need envelope shaping. For drum decay without touching',
     'the shared hardware envelope, combine fixed `vol` with `volSlide` on pattern notes.',

@@ -7,8 +7,19 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 (globalThis as typeof globalThis & { Buffer: typeof Buffer }).Buffer = Buffer;
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+const root = createRoot(rootEl);
+root.render(
   <ErrorBoundary>
     <App />
   </ErrorBoundary>,
 );
+
+// Dispose the app root on Vite HMR so nested createRoot hosts are not orphaned.
+import.meta.hot?.dispose(() => {
+  try {
+    root.unmount();
+  } catch {
+    // Host may already have been replaced during a full reload.
+  }
+});

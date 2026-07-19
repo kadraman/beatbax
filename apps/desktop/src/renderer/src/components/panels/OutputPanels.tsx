@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type MouseEvent, type ReactNode, type Ref } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import type * as monaco from 'monaco-editor';
 import {
   applyQuickFixSuggestion,
@@ -9,6 +9,7 @@ import {
 import { FeatureFlag, isFeatureEnabled } from '@beatbax/app-core/utils/feature-flags';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { copyTextToClipboard, formatProblemClipboardText } from '../../lib/copilot-error-prompt';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 export interface DesktopOutputMessage {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -549,7 +550,7 @@ export function createDesktopOutputPanel(
   options: DesktopOutputPanelOptions,
 ): DesktopOutputPanelHandle {
   const handleRef = { current: null as DesktopOutputPanelHandle | null };
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
 
   flushSync(() => {
     root?.render(
@@ -577,10 +578,8 @@ export function createDesktopOutputPanel(
     dismissQuickFixMenu: () => getHandle().dismissQuickFixMenu(),
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
   };
 }

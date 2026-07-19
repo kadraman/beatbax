@@ -10,6 +10,7 @@
     "packages/plugins/chip-spectrum-128",
     "packages/plugins/export-famitracker",
     "packages/plugins/export-vgm",
+    "packages/plugins/export-arkos",
     "apps/*"
   ],
   "scripts": {
@@ -32,6 +33,8 @@
     "famitracker-exporter:test": "npm -w @beatbax/plugin-exporter-famitracker test",
     "vgm-exporter:build": "npm -w @beatbax/plugin-exporter-vgm run build",
     "vgm-exporter:test": "npm -w @beatbax/plugin-exporter-vgm test",
+    "arkos-exporter:build": "npm -w @beatbax/plugin-exporter-arkos run build",
+    "arkos-exporter:test": "npm -w @beatbax/plugin-exporter-arkos test",
     "web-ui:build": "npm -w @beatbax/web-ui run build",
     "web-ui:test": "npm -w @beatbax/web-ui test",
     "web-ui:dev": "npm -w @beatbax/web-ui run dev",

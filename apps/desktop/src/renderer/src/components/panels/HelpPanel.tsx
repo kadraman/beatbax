@@ -9,11 +9,12 @@ import {
   type Ref,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import type { ShortcutDescriptor } from '../../utils/keyboard-shortcuts';
 import { bindingToKeyArray, detectShortcutPlatform } from '@beatbax/app-core/shortcuts';
+import { mountReactRoot, unmountReactRoot } from '../../utils/react-root';
 
 export interface DesktopHelpPanelHandle {
   show: () => void;
@@ -583,7 +584,7 @@ export function createDesktopHelpPanel(
   options: DesktopHelpPanelOptions,
 ): DesktopHelpPanelHandle {
   const handleRef = { current: null as DesktopHelpPanelHandle | null };
-  let root: Root | null = createRoot(container);
+  let root: Root | null = mountReactRoot(container);
 
   container.style.display = 'flex';
   container.style.flexDirection = 'column';
@@ -620,10 +621,8 @@ export function createDesktopHelpPanel(
     refresh: () => callWhenReady((handle) => handle.refresh()),
     dispose: () => {
       handleRef.current?.dispose();
-      if (root) {
-        root.unmount();
-        root = null;
-      }
+      unmountReactRoot(container, root);
+      root = null;
     },
   };
 }

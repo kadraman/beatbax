@@ -27,7 +27,8 @@
     { "path": "./packages/cli" },
     { "path": "./packages/app-core" },
     { "path": "./apps/web-ui" },
-    { "path": "./packages/plugins/export-vgm" }
+    { "path": "./packages/plugins/export-vgm" },
+    { "path": "./packages/plugins/export-arkos" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist"]
