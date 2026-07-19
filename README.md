@@ -14,45 +14,51 @@
 
 # BeatBax
 
-**BeatBax** is a live coding language and creative toolchain for making chiptune music in the style of classic 8/16 bit computers and game consoles. 
-Instead of using a Tracker or DAW to develop your songs, you write your songs using a simple, but powerful grammar that describe your instruments, 
-melodies, basslines, and beats - and BeatBax brings them to life with authentic retro sounds. 
+**BeatBax** is a live coding language and creative toolchain for making chiptune music in the style of classic 8-bit and 16-bit computers and game consoles.
+Instead of using a Tracker or DAW, you write songs in a simple but powerful text grammar — instruments, melodies, basslines, and beats — and BeatBax plays them back with hardware-faithful chip sound.
 
-**BeatBax** currently supports Nintendo Game Boy (DMG-01) APU and Nintendo Entertainment System (NES) Ricoh 2A03 APU as built-in sound chips. 
-Additional sound chip backends can be added as plugins (see [ROADMAP](ROADMAP.md) for further details of currently implemented and future sound chips).
+Songs declare a target chip (`chip gameboy`, `chip nes`, `chip sms`, …). The same grammar drives editing, live playback, WAV/MIDI export, and chip-specific tracker or register formats where available.
+
+**Supported chips today:**
+
+| Chip | Directive | Voices (overview) | Notable exports |
+|------|-----------|-------------------|-----------------|
+| Game Boy (DMG-01) | `chip gameboy` | 2× pulse, wave, noise | hUGETracker `.uge`, WAV, MIDI |
+| NES (Ricoh 2A03) | `chip nes` | 2× pulse, triangle, noise, DMC | FamiTracker text, WAV, MIDI |
+| Sega Master System / Game Gear (SN76489) | `chip sms` / `chip gg` | 3× tone, noise | VGM, WAV |
+| ZX Spectrum 128 / Amstrad CPC (AY) | `chip spectrum-128` / `chip cpc` | 3× tone (+ noise/envelope) | WAV (+ format work ongoing) |
+
+More backends are planned — see [ROADMAP.md](ROADMAP.md).
 
 <p align="center">
-  <img src="./media/desktop-screenshot-1.png" alt="Alt text" width="600"/>
+  <img src="./media/desktop-screenshot-1.png" alt="BeatBax Desktop" width="600"/>
   <br/>
   <em>BeatBax Desktop</em>
 </p>
 
-One of the main aims in creating **BeatBax** was to aid in the creation of songs for Homebrew games. So where possible, BeatBax songs can be exported into
-Tracker formats that game libraries can consume. For example [hUGETracker](https://nickfa.ro/wiki/HUGETracker) (UGE) format for the Game Boy, or [FamiTracker](http://famitracker.com/) (Txt) 
-for the NES. Standard output formats are also supported including WAV, MIDI and in some cases VGM - with additional chip specific output formats on the ([ROADMAP](ROADMAP.md).
+One goal of BeatBax is **homebrew-friendly export**: where possible, songs can be written out to tracker or driver formats games can consume (for example [hUGETracker](https://nickfa.ro/wiki/HUGETracker) `.uge` for Game Boy, [FamiTracker](http://famitracker.com/) text for NES, VGM for PSG targets). Common formats such as **WAV** and **MIDI** are available across chips; chip-specific formats are listed on the [ROADMAP](ROADMAP.md).
 
-Creating chiptunes is rewarding but can be hard and time-consuming. The **BeatBax Desktop** app includes **BeatBax Copilot*** — an AI assistant (BYOK) to help you write and edit songs. 
-This is not a replacement for creativity, but it can help with construction, editing, and implementation of typical chiptunes practices to get the most out of the BeatBax grammar.
+Creating chiptunes is rewarding but can be hard and time-consuming. **BeatBax Desktop** also includes **BeatBax Copilot*** — an AI assistant (with BYOK model) to help you write and edit songs. It is not a replacement for creativity, but it can help with construction, editing, and typical chiptune techniques in the BeatBax grammar.
 
 ## Features
 
-- **Simple text-based grammar** — create instruments, write melodies, basslines, and beats (in `.bax` files) using a simple but powerful BeatBax grammar.
-- **Authentic retro sound** — Chip specific implementation, e.g.: 4-channel Game Boy DMG-01 emulation (pulse, wave, noise) and 5-channel NES Ricoh 2A03 emulation (pulse, triangle, noise, DMC) with hardware-accurate envelopes, duty cycles, and software macros
-- **Game Boy instrument programs** — `pitch_env` / `vol_env` / `duty_env` / `arp_env` and native `subpat` lower to a shared tick program for preview and hUGETracker instrument subpatterns (see [docs/features/gameboy-uge-instrument-subpatterns.md](docs/features/gameboy-uge-instrument-subpatterns.md))
-- **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, sweep, volume slide, tremolo, pan, echo, note cut, and retrigger
-- **Reusable instrument libraries** — share instruments across songs via `.ins` files; import locally or directly from GitHub
-- **Export formats** — MIDI, WAV, ISM JSON supported for all chips and one (or more) export format for each chip, e.g.hUGETracker v6 (`.uge`) for GameBoy, FamiTracker Text for NES.
-- **Desktop IDE** — Electron + React client with native file dialogs, recent files, export, BeatBax Copilot, and the full IDE feature set
-- **Web-lite browser client** — simplified try-in-browser editor/playback experience for quick demos and lightweight edits
-- **BeatBax Copilot*** — AI assistant in the desktop app (BYOK)
-- **CLI tool** — `play`, `verify`, `export`, and `inspect` for scripted and headless workflows, converting samples and more
-- **Extensible architecture** — additional chip backends (C64 SID, Genesis YM2612) can be added as plugins without changing the funadmentals of your song
+- **Simple text-based grammar** — author instruments, patterns, sequences, and channel arrangements in `.bax` files
+- **Multi-chip playback** — Game Boy, NES, SMS/Game Gear, and Spectrum/CPC AY backends with chip-accurate voices, envelopes, and software macros
+- **Instrument macros** — pitch, volume, duty/timbre, and arp envelopes (plus chip-specific extras such as Game Boy `subpat` for hUGETracker)
+- **Built-in effects** — vibrato, arpeggio, portamento, pitch bend, volume slide, tremolo, pan, note cut, retrigger, echo, and chip-specific effects (e.g. pulse sweep)
+- **Reusable instrument libraries** — share instruments via `.ins` files; import locally or from GitHub / the web
+- **Export formats** — WAV and MIDI for supported chips; chip-specific exports (UGE, FamiTracker, VGM, …) via plugins
+- **Desktop IDE** — Electron + React client with native file I/O, export, Copilot, channel mixer, pattern grid, and Monaco editor
+- **Web-lite browser client** — try-in-browser editor and playback for demos and light edits
+- **BeatBax Copilot*** — AI assistant in the desktop app (BYOK / local Ollama)
+- **CLI** — `play`, `verify`, `export`, `inspect`, sample conversion, and headless workflows
+- **Extensible architecture** — additional chip backends and exporters as plugins without changing the core song grammar
 
 > *BeatBax Copilot (desktop only) uses your own OpenAI-compatible provider for cloud models (BYOK). Local Ollama or LM Studio need no API key. Cloud API keys are stored in the OS secure credential store on your machine only.
 
 ## Grammar
 
-A `.bax` song defines instruments, effects, patterns, sequences, and a channel arrangement.
+A `.bax` song picks a chip, then defines instruments, effects, patterns, sequences, and a channel arrangement. The example below is a **Game Boy** song; for NES, SMS, AY, and other targets see [TUTORIAL.md](TUTORIAL.md) and [`songs/`](songs/).
 
 ```bash
 song name "An example song"
@@ -63,13 +69,13 @@ bpm 128
 # Import a shared instrument library (local or remote)
 import "github:kadraman/beatbax-instruments/main/melodic.ins"
 
-# Instruments
+# Instruments (types and fields depend on the active chip)
 inst lead  type=pulse1 duty=50  env={"level":12,"direction":"down","period":1,"format":"gb"}
 inst bass  type=pulse2 duty=25  env={"level":10,"direction":"down","period":1,"format":"gb"}
 inst wave1 type=wave   wave=[0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2,0,2,3,5,6,8,9,11,12,11,9,8,6,5,3,2]
 inst snare type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"}
 
-# Named effect presets
+# Named effect presets (portable across chips unless noted)
 effect wobble   = vib:8,4       # Vibrato: depth 8, rate 4
 effect fadeIn   = volSlide:+5   # Volume fade-in
 effect arpMajor = arp:4,7       # Major chord arpeggio (root + major 3rd + 5th)
@@ -94,74 +100,127 @@ channel 4 => inst snare seq drums_seq
 play auto repeat
 ```
 
-Please see the [TUTORIAL](TUTORIAL.md) for more details on how to use the BeatBax grammar.
-
----
+See the [TUTORIAL](TUTORIAL.md) for chip-by-chip walkthroughs.
 
 ## Instruments
 
-TBD
+Instruments are declared with `inst <name> …` and assigned to channels. **`type=` and properties are chip-specific** — a Game Boy `type=wave` instrument is not the same as an NES `type=triangle` or SMS `type=tone1`.
 
----
+| Concept | Examples | Notes |
+|---------|----------|-------|
+| Chip directive | `chip gameboy`, `chip nes`, `chip sms` | Selects the voice model and valid instrument types |
+| Instrument type | `pulse1`, `noise`, `triangle`, `dmc`, `tone1`, … | Depends on the chip |
+| Envelopes / volume | `env=…`, `vol=…`, `vol_env=[…]` | Hardware and/or software macros per chip |
+| Timbre | `duty=…`, `wave=[…]`, `noise_mode=…` | Pulse width, wavetables, noise modes, … |
+| Soft macros | `pitch_env=`, `arp_env=`, `duty_env=` | Shared macro style where the chip supports them |
+| Defaults / export hints | `note=`, `uge_note=`, `gm=` | Percussion mapping, GM program, tracker export hints |
+
+Reusable libraries: `import "…/*.ins"` (local or remote). Chip walkthroughs: [TUTORIAL.md](TUTORIAL.md). Game Boy field reference: [docs/grammar/instruments.md](docs/grammar/instruments.md). Examples: [`songs/`](songs/).
+
+### Example: Game Boy types
+
+| Type | Syntax | Role | Notes |
+|------|--------|------|-------|
+| Pulse 1 | `type=pulse1` | Lead / melody | Duty + optional hardware **sweep** |
+| Pulse 2 | `type=pulse2` | Harmony / bass | Duty (no hardware sweep) |
+| Wave | `type=wave` | Pads / bass / wavetable | 32-nibble Wave RAM via `wave=` |
+| Noise | `type=noise` | Drums / FX | LFSR noise; `gb:width=` / `uge_note=` for percussion |
+
+```bax
+inst lead  type=pulse1 duty=50 env=gb:12,down,1
+inst bass  type=pulse2 duty=25 env=gb:10,down,1
+inst pad   type=wave   wave=[0,2,4,6,8,10,12,14,15,14,12,10,8,6,4,2] volume=100
+inst snare type=noise  gb:width=7 env=gb:12,down,1 uge_note=C-7
+```
 
 ## Effects
 
-BeatBax songs can make use of built-in instrument and
+Most effects work as **note modifiers** (`C4<vib:8,4>`) or named `effect` presets. Availability can vary by chip and export target (live/WebAudio vs tracker formats).
 
 | Effect | Syntax | Description |
 |--------|--------|-------------|
-| Pan | `pan:L\|C\|R` or `gb:pan:-1.0…1.0` | Stereo panning |
+| Pan | `pan:L\|C\|R` (chip variants e.g. `gb:pan:…`, `gg:pan:…`) | Stereo / hard pan |
 | Vibrato | `vib:<depth>,<rate>[,<wave>[,<dur>[,<delay>]]]` | Pitch LFO |
-| Portamento | `port:<speed>` | Smooth pitch glide from previous note |
+| Portamento | `port:<speed>` or `port:<note>,<speed>` | Pitch glide |
 | Pitch bend | `bend:<semitones>[,<curve>[,<delay>[,<time>]]]` | Musical pitch bend |
-| Sweep | `sweep:<time>,<dir>,<shift>` | GB hardware NR10 frequency sweep |
-| Arpeggio | `arp:<offset1>,<offset2>[,…]` | Rapid note cycling to simulate chords |
+| Sweep | `sweep:<time>,<dir>,<shift>` | Hardware pulse sweep (where supported) |
+| Arpeggio | `arp:<offset1>,<offset2>[,…]` | Rapid interval cycling |
 | Volume slide | `volSlide:<±amount>` | Per-tick volume automation |
 | Tremolo | `trem:<depth>,<rate>[,<wave>]` | Amplitude LFO |
 | Note cut | `cut:<ticks>` | Gate note after N ticks |
-| Retrigger | `retrig:<rate>[,<vol>]` | Rhythmic note restart (WebAudio only) |
-| Echo | `echo:<delay>,<feedback>` | Feedback delay (WebAudio only) |
+| Retrigger | `retrig:<rate>[,<vol>]` | Rhythmic note restart (live/WebAudio) |
+| Echo | `echo:<delay>,<feedback>` | Feedback delay (live/WebAudio) |
 
-Annotated examples for effect are in chip specific directories [songs/features/**](songs/features/).
+Annotated examples live under [songs/features/](songs/features/).
 
-**Export compatibility:**
+**Export compatibility (typical):**
 
-| Effect | JSON | MIDI | UGE | FamiTracker Text | WAV |
-|--------|------|------|-----|-------------------|-----|
-| pan, vib, port, arp, volSlide, cut | ✓ | ✓ | ✓ | ✓ | ✓ |
-| bend | ✓ | ✓ | Approx. (3xx portamento) | 3xx portamento | ✓ |
-| sweep | ✓ | ✓ | Instrument-level only | Instrument-level only | ✓ |
-| trem | ✓ | ✓ | Metadata only | Metadata only | ✓ |
-| retrig, echo | ✓ | ✓ | — | — | — |
-
----
+| Effect | JSON | MIDI | Chip trackers / VGM | WAV |
+|--------|------|------|---------------------|-----|
+| pan, vib, port, arp, volSlide, cut | ✓ | ✓ | ✓ (where mapped) | ✓ |
+| bend | ✓ | ✓ | Approx. / mapped | ✓ |
+| sweep | ✓ | ✓ | Instrument-level / chip-specific | ✓ |
+| trem | ✓ | ✓ | Metadata or mapped | ✓ |
+| retrig, echo | ✓ | ✓ | — | — |
 
 ## CLI
 
-> **Windows note:** npm has limitations passing flag arguments through `npm run`. Use `node bin/beatbax` or the `bin\beatbax` wrapper directly.
+The BeatBax CLI (`@beatbax/cli`) can **verify**, **play**, **export**, **inspect**, and convert samples from the terminal.
+
+### Install from npm
+
+```powershell
+# One-off
+npx @beatbax/cli --help
+
+# Or install globally (exposes the `beatbax` command)
+npm install -g @beatbax/cli
+beatbax --help
+```
+
+Optional better headless audio quality:
+
+```powershell
+npm install -g --save-optional speaker
+```
+
+> **Windows note:** npm has limitations passing some flag arguments through `npm run`. Prefer the global `beatbax` command, `npx @beatbax/cli`, or `node bin/beatbax` / `bin\beatbax` from a clone.
+
+### Run from source
+
+Clone the repo, then `npm install` and `npm run build-all` (see [Development](#development)). From the repo root:
+
+```powershell
+node bin/beatbax --help
+# or: npm run cli:dev
+```
+
+To expose a local build as `beatbax` on your PATH, use `npm link` after `build-all` (also under [Development](#development)).
 
 ### Commands
 
+Examples below use `beatbax` (npm global / `npm link`). From a clone without linking, substitute `node bin/beatbax`.
+
 ```powershell
 # Validate a song file
-node bin/beatbax verify songs/sample.bax
+beatbax verify songs/sample.bax
 
 # Play (headless by default in Node.js)
-node bin/beatbax play songs/sample.bax
-node bin/beatbax play songs/sample.bax --browser   # open Web UI instead
+beatbax play songs/sample.bax
+beatbax play songs/sample.bax --browser   # open Web UI instead
 
-# Export
-node bin/beatbax export json songs/sample.bax output.json
-node bin/beatbax export midi songs/sample.bax output.mid
-node bin/beatbax export uge  songs/sample.bax output.uge
-node bin/beatbax export wav  songs/sample.bax output.wav
+# Export (formats depend on chip / installed plugins)
+beatbax export json songs/sample.bax output.json
+beatbax export midi songs/sample.bax output.mid
+beatbax export uge  songs/sample.bax output.uge
+beatbax export wav  songs/sample.bax output.wav
 
 # Convert a WAV into a raw NES DMC sample
-node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst
 
 # Inspect a .bax or .uge file
-node bin/beatbax inspect songs/sample.bax
-node bin/beatbax inspect output.uge --json
+beatbax inspect songs/sample.bax
+beatbax inspect output.uge --json
 ```
 
 ### Play options
@@ -177,7 +236,7 @@ node bin/beatbax inspect output.uge --json
 ### Export options
 
 | Flag | Applies to | Description |
-|------|-----------|-------------|
+|------|------------|-------------|
 | `--out <path>` | all | Output file path |
 | `--duration <seconds>` | midi, wav | Override auto-calculated duration |
 | `--channels <list>` | midi, wav | Export only listed channels (e.g. `1,3`) |
@@ -187,7 +246,7 @@ node bin/beatbax inspect output.uge --json
 `convert wav2dmc` turns a 16-bit mono/stereo PCM WAV into a raw NES `.dmc` sample for `type=dmc` instruments:
 
 ```powershell
-node bin/beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
+beatbax convert wav2dmc samples/wav/low_kick.wav --dmc-rate 15 --emit-inst --play
 ```
 
 The output is a headerless DMC byte stream. Playback settings live on the BeatBax instrument, so the converter prints the matching line when you pass `--emit-inst`:
@@ -216,41 +275,47 @@ Useful controls:
 
 ### WAV export
 
-WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) with no WebAudio dependency. It implements all four Game Boy channels (duty, envelope, wavetable, LFSR noise) and outputs stereo 44100 Hz 16-bit PCM. See [docs/exports/wav-export-guide.md](docs/exports/wav-export-guide.md).
-
----
+WAV export uses a direct PCM renderer (`packages/engine/src/audio/pcmRenderer.ts`) with no WebAudio dependency. It renders the active chip’s voices to stereo 16-bit PCM (sample rate from settings / CLI defaults) for offline export and headless playback. See [docs/exports/wav-export-guide.md](docs/exports/wav-export-guide.md).
 
 ## Desktop
 
-BeatBax Desktop ships the full IDE: native menus and file I/O, export, Copilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform 
+BeatBax Desktop ships the full IDE: native menus and file I/O, export, Copilot, channel mixer, pattern grid, advanced Monaco editor, and cross-platform
 installers. See [apps/desktop/README.md](apps/desktop/README.md) for more details. For **local Copilot** with Ollama (no API key, on-device inference), see [docs/features/copilot-local-ollama.md](docs/features/copilot-local-ollama.md).
 
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
+### Download
+
+Grab prebuilt installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*` — Windows, macOS, and Linux).
 
 **Installers are not code-signed yet.** Windows SmartScreen and macOS Gatekeeper may warn on first install or launch. See `README.txt` in the install folder (next to the BeatBax application) for platform-specific steps.
 
-Start the development server:
+### Run from source
+
+Clone the repo, then `npm install` and `npm run build-all` (see [Development](#development)). Start the desktop app with:
 
 ```powershell
 npm run desktop:dev
 ```
 
+Other scripts: `desktop:build`, `desktop:test`, `desktop:dist` — see [apps/desktop/README.md](apps/desktop/README.md).
+
 ## Web UI
 
-The browser app is the **web-lite** profile: a lighter try-in-browser surface for editing, validation, and playback. 
-Export, CoPilot, mixer, and other IDE features require the desktop app. See [apps/web-ui/README.md](apps/web-ui/README.md) more details.
+The browser app is the **web-lite** profile: a lighter try-in-browser surface for editing, validation, and playback.
+Export, Copilot, mixer, and other IDE features require the desktop app. See [apps/web-ui/README.md](apps/web-ui/README.md) for more details.
 
-Try the latest version of the web-ui at [app.beatbax.com](https://app.beatbax.com).
+### Try online
 
-Start the development server:
+Open the latest deployed build at [app.beatbax.com](https://app.beatbax.com) — no install required. Save downloads a `.bax` file; it does not write to an arbitrary disk path.
+
+### Run from source
+
+Clone the repo, then `npm install` and `npm run build-all` (see [Development](#development)). Start the Vite dev server with:
 
 ```powershell
 npm run web-ui:dev
 ```
 
-Then browse to: [http://localhost:5173](http://localhost:5173)
-
----
+Then open [http://localhost:5173](http://localhost:5173). Engine rebuild / cache tips are under [Development](#development).
 
 ## Project layout
 
@@ -263,29 +328,27 @@ beatbax/
 ├── packages/
 │   ├── engine/                # Live-coding language and runtime
 │   ├── app-core/              # Shared client logic (web-lite + desktop-full)
-│   ├── cli/                   # Command-line interface
+│   ├── cli/                   # Command-line interface (@beatbax/cli)
+│   ├── ui-tokens/             # Shared UI tokens (channel colours, etc.)
 │   └── plugins/
 │       ├── chip-sms           # Sega Master System / Game Gear SN76489
 │       ├── chip-spectrum-128  # ZX Spectrum 128 / Amstrad CPC AY-3-8912
 │       ├── export-famitracker # FamiTracker text exporter
 │       ├── export-vgm         # VGM exporter
-│       └── ...
+│       └── export-arkos       # Arkos Tracker exporter
 │
 ├── bin/
 │   └── beatbax                # CLI entry point (Node shebang wrapper)
 │
-├── songs/                     # Example .bax files
+├── songs/                     # Example .bax files (per chip + features)
+├── samples/                   # Sample WAVs / DMC assets used by songs and tools
 ├── docs/                      # Documentation
-├── schema/
-│   └── ast.schema.json        # JSON Schema for the BeatBax AST
-│
-├── tests/                     # Root-level integration tests
+├── schema/                    # JSON Schema (e.g. AST)
 ├── scripts/                   # Build and tooling scripts
+├── tests/                     # Root-level integration tests
 ├── examples/                  # Standalone code examples
 └── media/                     # Logo and promotional assets
 ```
-
----
 
 ## Documentation index
 
@@ -293,26 +356,35 @@ beatbax/
 |-------|----------|
 | Tutorial | [TUTORIAL.md](TUTORIAL.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
-| Releasing (npm + desktop) | [docs/releasing.md](docs/releasing.md) |
 | Desktop app | [apps/desktop/README.md](apps/desktop/README.md) |
 | Web-lite client | [apps/web-ui/README.md](apps/web-ui/README.md) |
 | Dev notes | [DEVNOTES.md](DEVNOTES.md) |
 | Contributing guide | [CONTRIBUTING.md](CONTRIBUTING.md) |
-
----
+| Releasing (npm + desktop) | [docs/releasing.md](docs/releasing.md) |
 
 ## Development
 
-To build the BeatBax engine and all plugins, carry out the following:
+For local development from a clone (shared by CLI, Desktop, and Web UI):
 
 ```powershell
+git clone https://github.com/kadraman/beatbax.git
+cd beatbax
 npm install
 npm run clean-all
 npm run build-all
 npm test
 ```
 
-Then you can run the development Desktop UI or Web-UI as described above.
+Then start the tool you need:
+
+```powershell
+npm run desktop:dev          # Desktop IDE
+npm run web-ui:dev           # Web-lite at http://localhost:5173
+node bin/beatbax --help      # CLI from the checkout
+# or: npm run cli:dev
+```
+
+Published / hosted entry points (no clone) stay in the sections above: npm for the CLI, GitHub Releases for Desktop, [app.beatbax.com](https://app.beatbax.com) for Web.
 
 ### Workspace scripts
 
@@ -362,8 +434,6 @@ npm run build-all
 npm link
 beatbax --help
 ```
-
----
 
 ## Contributing
 
