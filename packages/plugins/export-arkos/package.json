@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/plugin-exporter-arkos",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Arkos Tracker 3 exporter plugin for BeatBax (.aks / .aki) — Spectrum-128 / Amstrad CPC.",
   "private": false,
   "type": "module",

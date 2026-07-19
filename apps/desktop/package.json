@@ -40,7 +40,7 @@
     "@beatbax/engine": "*",
     "@beatbax/ui-tokens": "*",
     "@beatbax/plugin-chip-sms": "^0.3.3",
-    "@beatbax/plugin-chip-spectrum-128": "^0.2.2",
+    "@beatbax/plugin-chip-spectrum-128": "^0.2.3",
     "@beatbax/plugin-exporter-famitracker": "^0.2.3",
     "@beatbax/plugin-exporter-vgm": "^0.1.4",
     "@electron-toolkit/preload": "^3.0.2",
