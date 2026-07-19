@@ -41,10 +41,10 @@
   "dependencies": {
     "@beatbax/engine": "*",
     "@beatbax/plugin-chip-sms": "^0.3.3",
-    "@beatbax/plugin-chip-spectrum-128": "^0.2.2",
+    "@beatbax/plugin-chip-spectrum-128": "^0.2.3",
     "@beatbax/plugin-exporter-famitracker": "^0.2.3",
     "@beatbax/plugin-exporter-vgm": "^0.1.4",
-    "@beatbax/plugin-exporter-arkos": "^0.1.0",
+    "@beatbax/plugin-exporter-arkos": "^0.2.0",
     "nanostores": "^1.2.0"
   },
   "devDependencies": {
