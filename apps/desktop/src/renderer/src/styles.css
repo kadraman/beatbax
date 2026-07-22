@@ -4103,25 +4103,23 @@ code {
   right: 12px;
   z-index: 3;
   pointer-events: auto;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden {
   cursor: none;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__toolbar {
+  /* Opacity-only — keep hit-testing so hover/click work without leave/re-enter */
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 .bb-viz--fullscreen .bb-cp__btn,
 .bb-viz--fullscreen .bb-viz__btn {
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-cp__btn,
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__btn {
+  /* Opacity-only — keep hit-testing so hover/click work without leave/re-enter */
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 .bb-viz--fullscreen .bb-viz__toolbar-btn svg {
   pointer-events: none;
@@ -4164,6 +4162,8 @@ code {
   height: 100%;
 }
 .bb-viz--fullscreen .bb-viz__left-col {
+  position: relative;
+  z-index: 2;
   min-height: 0;
   justify-content: center;
 }
@@ -4182,6 +4182,7 @@ code {
   border: none !important;
   box-shadow: none !important;
   z-index: 0;
+  pointer-events: none; /* decorative — never steal mute/solo/toolbar hits */
 }
 .bb-viz--fullscreen .bb-viz__inst,
 .bb-viz--fullscreen .bb-viz__pattern {
@@ -5959,25 +5960,23 @@ code {
   right: 12px;
   z-index: 3;
   pointer-events: auto;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden {
   cursor: none;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__toolbar {
+  /* Opacity-only — keep hit-testing so hover/click work without leave/re-enter */
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 .bb-viz--fullscreen .bb-cp__btn,
 .bb-viz--fullscreen .bb-viz__btn {
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-cp__btn,
 .bb-viz--fullscreen.bb-viz--chrome-hidden .bb-viz__btn {
+  /* Opacity-only — keep hit-testing so hover/click work without leave/re-enter */
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 .bb-viz--fullscreen .bb-viz__toolbar-btn svg {
   pointer-events: none;
@@ -6020,6 +6019,8 @@ code {
   height: 100%;
 }
 .bb-viz--fullscreen .bb-viz__left-col {
+  position: relative;
+  z-index: 2;
   min-height: 0;
   justify-content: center;
 }
@@ -6038,6 +6039,7 @@ code {
   border: none !important;
   box-shadow: none !important;
   z-index: 0;
+  pointer-events: none; /* decorative — never steal mute/solo/toolbar hits */
 }
 .bb-viz--fullscreen .bb-viz__inst,
 .bb-viz--fullscreen .bb-viz__pattern {
