@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { getClientProfile } from '@beatbax/app-core/client-profile';
+import { attachTransportBarFit } from '@beatbax/app-core/playback/transport-bar-fit';
 import { detectShortcutPlatform, formatCommandShortcut } from '@beatbax/app-core/shortcuts';
 import { RotaryKnob } from './rotary-knob';
 
@@ -47,33 +48,35 @@ export interface DesktopTransportBarHandle {
 function DesktopTransportBar(): React.JSX.Element {
   return (
     <div className="bb-transport" id="bb-transport-bar">
-      <div className="bb-transport__info">
-        <span aria-hidden="true" className="bb-transport__beat-led" title="Beat indicator" />
-        <div className="bb-transport__lcd"><span className="bb-transport__lcd-label">BPM</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000</span><span className="bb-transport__lcd-value" data-lcd="bpm">120</span></div></div>
-        <div className="bb-transport__lcd bb-transport__lcd--pri-4"><span className="bb-transport__lcd-label">TIME</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">00:00</span><span className="bb-transport__lcd-value" data-lcd="time">00:00</span></div></div>
-        <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">BAR:BT</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000:0</span><span className="bb-transport__lcd-value" data-lcd="bar-beat">001:1</span></div></div>
-        <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">STEP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000/000</span><span className="bb-transport__lcd-value" data-lcd="step">001/001</span></div></div>
-        <div className="bb-transport__lcd bb-transport__lcd--pri-2" data-lcd-wrap="loop"><span className="bb-transport__lcd-label">LOOP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000</span><span className="bb-transport__lcd-value" data-lcd="loop">0FF</span></div></div>
-      </div>
-
-      <div className="bb-transport__separator bb-transport__separator--pri-3" />
-      <div className="bb-transport__nudge-wrap bb-transport__nudge-wrap--pri-3">
-        <span className="bb-transport__nudge-label">BPM</span>
-        <div className="bb-transport__nudge-row">
-          <button aria-label="BPM -1" className="bb-transport__nudge-btn" data-button="bpm-down" title="BPM -1" type="button">«</button>
-          <button aria-label="BPM +1" className="bb-transport__nudge-btn" data-button="bpm-up" title="BPM +1" type="button">»</button>
+      <div className="bb-transport__main">
+        <div className="bb-transport__info">
+          <span aria-hidden="true" className="bb-transport__beat-led" title="Beat indicator" />
+          <div className="bb-transport__lcd"><span className="bb-transport__lcd-label">BPM</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000</span><span className="bb-transport__lcd-value" data-lcd="bpm">120</span></div></div>
+          <div className="bb-transport__lcd bb-transport__lcd--pri-4"><span className="bb-transport__lcd-label">TIME</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">00:00</span><span className="bb-transport__lcd-value" data-lcd="time">00:00</span></div></div>
+          <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">BAR:BT</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000:0</span><span className="bb-transport__lcd-value" data-lcd="bar-beat">001:1</span></div></div>
+          <div className="bb-transport__lcd bb-transport__lcd--pri-1"><span className="bb-transport__lcd-label">STEP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000/000</span><span className="bb-transport__lcd-value" data-lcd="step">001/001</span></div></div>
+          <div className="bb-transport__lcd bb-transport__lcd--pri-2" data-lcd-wrap="loop"><span className="bb-transport__lcd-label">LOOP</span><div className="bb-transport__lcd-screen"><span className="bb-transport__lcd-ghost">000</span><span className="bb-transport__lcd-value" data-lcd="loop">0FF</span></div></div>
         </div>
-      </div>
 
-      <div className="bb-transport__separator" />
-      <button aria-label="Rewind to start" className="bb-transport__btn bb-transport__btn--rewind bb-transport__btn--pri-4" data-button="rewind" title="Rewind to start" type="button">⏮</button>
-      <button aria-label="Play current song (F5 in desktop)" className="bb-transport__btn bb-transport__btn--play" data-button="play" title="Play current song (F5 in desktop)" type="button">▶ Play</button>
-      <button aria-label="Pause playback" className="bb-transport__btn bb-transport__btn--pause bb-transport__btn--pri-5" data-button="pause" title="Pause playback" type="button">⏸ Pause</button>
-      <button aria-label="Stop playback (F8 in desktop)" className="bb-transport__btn bb-transport__btn--stop" data-button="stop" title="Stop playback (F8 in desktop)" type="button">⏹ Stop</button>
-      <button aria-label={`Apply & re-play (${applyShortcut})`} className="bb-transport__btn bb-transport__btn--apply bb-transport__btn--pri-5" data-button="apply" title={`Apply & re-play (${applyShortcut})`} type="button">↻ Apply</button>
-      <button aria-label="Toggle live-play mode" className="bb-transport__btn bb-transport__btn--live bb-live-btn bb-transport__btn--pri-5" data-button="live" title="Toggle live-play mode" type="button">⚡ Live</button>
-      <button aria-label="Toggle loop playback" className="bb-transport__btn bb-transport__btn--loop bb-loop-btn bb-transport__btn--pri-2" data-button="loop" title="Toggle loop playback" type="button">⟳ Loop</button>
-      <button aria-label="Arm recording (coming soon)" className="bb-transport__btn bb-transport__btn--record" data-button="record" disabled title="Arm recording (coming soon)" type="button">● Rec</button>
+        <div className="bb-transport__separator bb-transport__separator--pri-3" />
+        <div className="bb-transport__nudge-wrap bb-transport__nudge-wrap--pri-3">
+          <span className="bb-transport__nudge-label">BPM</span>
+          <div className="bb-transport__nudge-row">
+            <button aria-label="BPM -1" className="bb-transport__nudge-btn" data-button="bpm-down" title="BPM -1" type="button">«</button>
+            <button aria-label="BPM +1" className="bb-transport__nudge-btn" data-button="bpm-up" title="BPM +1" type="button">»</button>
+          </div>
+        </div>
+
+        <div className="bb-transport__separator" />
+        <button aria-label="Rewind to start" className="bb-transport__btn bb-transport__btn--rewind bb-transport__btn--pri-4" data-button="rewind" title="Rewind to start" type="button">⏮</button>
+        <button aria-label="Play current song (F5 in desktop)" className="bb-transport__btn bb-transport__btn--play" data-button="play" title="Play current song (F5 in desktop)" type="button">▶ Play</button>
+        <button aria-label="Pause playback" className="bb-transport__btn bb-transport__btn--pause bb-transport__btn--pri-5" data-button="pause" title="Pause playback" type="button">⏸ Pause</button>
+        <button aria-label="Stop playback (F8 in desktop)" className="bb-transport__btn bb-transport__btn--stop" data-button="stop" title="Stop playback (F8 in desktop)" type="button">⏹ Stop</button>
+        <button aria-label={`Apply & re-play (${applyShortcut})`} className="bb-transport__btn bb-transport__btn--apply bb-transport__btn--pri-5" data-button="apply" title={`Apply & re-play (${applyShortcut})`} type="button">↻ Apply</button>
+        <button aria-label="Toggle live-play mode" className="bb-transport__btn bb-transport__btn--live bb-live-btn bb-transport__btn--pri-5" data-button="live" title="Toggle live-play mode" type="button">⚡ Live</button>
+        <button aria-label="Toggle loop playback" className="bb-transport__btn bb-transport__btn--loop bb-loop-btn bb-transport__btn--pri-2" data-button="loop" title="Toggle loop playback" type="button">⟳ Loop</button>
+        <button aria-label="Arm recording (coming soon)" className="bb-transport__btn bb-transport__btn--record" data-button="record" disabled title="Arm recording (coming soon)" type="button">● Rec</button>
+      </div>
 
       <div className="bb-transport__separator bb-transport__separator--post-record" />
       <div className="bb-transport__vol-group">
@@ -117,6 +120,8 @@ export function createDesktopTransportBar(container: HTMLElement): DesktopTransp
     volKnob.setValue(volume);
   };
 
+  const detachFit = attachTransportBarFit(el);
+
   return {
     el,
     playButton: required<HTMLButtonElement>(host, '[data-button="play"]'),
@@ -136,6 +141,7 @@ export function createDesktopTransportBar(container: HTMLElement): DesktopTransp
       redraw: () => volKnob.redraw(),
     },
     dispose: () => {
+      detachFit();
       host.remove();
     },
     show: () => { el.style.display = ''; },

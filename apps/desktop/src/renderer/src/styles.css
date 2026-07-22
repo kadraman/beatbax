@@ -638,21 +638,28 @@ code {
   flex-shrink: 0;
   /*
    * Safari / iOS fix: without min-width: 0 a flex item in a column container
-   * keeps min-width: max-content, which prevents overflow-x: auto from
-   * establishing a proper scroll container — children visually escape the bar.
+   * keeps min-width: max-content, which prevents children from shrinking and
+   * lets the volume tray escape the bar.
    */
   min-width: 0;
-  /*
-   * overflow-x: auto keeps iOS WebKit from letting children escape the bar,
-   * but a visible scrollbar must never appear — suppress it on all engines.
-   */
+  /* Volume is pinned outside the scrollable main cluster — clip, don't scroll the bar. */
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+/* Scrollable control cluster — shrinks; volume tray stays pinned to the right */
+.bb-transport__main {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
-  scrollbar-width: none;              /* Firefox */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
-/* Chrome / Safari / iOS — hide the scrollbar track entirely */
-.bb-transport::-webkit-scrollbar { display: none; }
+.bb-transport__main::-webkit-scrollbar { display: none; }
 
 /* ── Rack ears (::before = left, ::after = right) ────────────────────────── */
 /* No background set here — the parent's stripes + gradient show through.
@@ -981,21 +988,45 @@ code {
  *  Priority classes control which controls disappear first at narrower widths.
  *  Lower pri number = higher priority (hidden first at lowest BPs).
  *
- *  pri-1  → BAR:BT, STEP LCDs             hidden at ≤ 1440 px (default desktop width)
- *  pri-2  → LOOP LCD; ⟳ Loop                     hidden at < 1150 px
- *  pri-3  → BPM nudge (+ sep)                     hidden at < 1024 px (desktop min keeps nudge)
- *  pri-4  → TIME LCD, ⏮ Rewind                     hidden at <  720 px
- *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply,            hidden at <  550 px
- *            vol knob; VOL LCD hidden at < 550 px
+ *  Two mechanisms work together:
+ *    1. Viewport @media rules — coarse first-paint fallback
+ *    2. data-fit-level (0–5) from attachTransportBarFit() — exact fit to the
+ *       bar's live width (handles 1470px laptops, zoom, font metrics, etc.)
  *
- *  ● Rec and the volume cluster stay visible down to the desktop minimum
- *  (1024 px). A separator sits between Rec and the volume tray.
+ *  Volume tray is pinned outside `.bb-transport__main` so it stays on-screen
+ *  while the main cluster collapses.
+ *
+ *  pri-1  → BAR:BT, STEP LCDs             hidden at ≤ 1440 px / fit ≥ 1
+ *  pri-2  → LOOP LCD; ⟳ Loop                     hidden at < 1150 px / fit ≥ 2
+ *  pri-3  → BPM nudge (+ sep)                     hidden at < 1024 px / fit ≥ 3
+ *  pri-4  → TIME LCD, ⏮ Rewind                     hidden at <  720 px / fit ≥ 4
+ *  pri-5  → ⏸ Pause, ⚡ Live, ↻ Apply,            hidden at <  550 px / fit ≥ 5
+ *            vol knob; VOL LCD
  *
  *  Only ▶ Play and ⏹ Stop are always visible.
- *  overflow-x: auto (set on the base rule) is the final safety net; the
- *  min-width: 0 + overflow-y: hidden combo on .bb-transport makes it work
- *  correctly in Safari / iOS WebKit.
  * ───────────────────────────────────────────────────────────────────────── */
+
+/* Live fit levels from ResizeObserver (cumulative: level N hides pri-1..pri-N) */
+.bb-transport:is([data-fit-level="1"], [data-fit-level="2"], [data-fit-level="3"], [data-fit-level="4"], [data-fit-level="5"]) .bb-transport__lcd--pri-1 {
+  display: none;
+}
+.bb-transport:is([data-fit-level="2"], [data-fit-level="3"], [data-fit-level="4"], [data-fit-level="5"]) .bb-transport__lcd--pri-2,
+.bb-transport:is([data-fit-level="2"], [data-fit-level="3"], [data-fit-level="4"], [data-fit-level="5"]) .bb-transport__btn--pri-2 {
+  display: none;
+}
+.bb-transport:is([data-fit-level="3"], [data-fit-level="4"], [data-fit-level="5"]) .bb-transport__nudge-wrap.bb-transport__nudge-wrap--pri-3,
+.bb-transport:is([data-fit-level="3"], [data-fit-level="4"], [data-fit-level="5"]) .bb-transport__separator--pri-3 {
+  display: none;
+}
+.bb-transport:is([data-fit-level="4"], [data-fit-level="5"]) .bb-transport__lcd--pri-4,
+.bb-transport:is([data-fit-level="4"], [data-fit-level="5"]) .bb-transport__btn--pri-4 {
+  display: none;
+}
+.bb-transport[data-fit-level="5"] .bb-transport__btn--pri-5,
+.bb-transport[data-fit-level="5"] .bb-transport__vol-group,
+.bb-transport[data-fit-level="5"] .bb-transport__separator--post-record {
+  display: none;
+}
 
 /* 1440 px — hide BAR:BT and STEP LCDs (keeps the default desktop window comfortable) */
 @media (max-width: 1440px) {
@@ -1026,12 +1057,11 @@ code {
   .bb-transport__btn--pri-4 { display: none; }
 }
 
-/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply, vol knob, and VOL LCD */
+/* 550 px — hide ⏸ Pause, ⚡ Live, ↻ Apply, and the volume tray */
 @media (max-width: 549px) {
   .bb-transport__btn--pri-5,
-  .bb-transport__vol-knob,
-  .bb-transport__lcd--vol,
-  .bb-transport__separator--vol-lcd { display: none; }
+  .bb-transport__vol-group,
+  .bb-transport__separator--post-record { display: none; }
   /* Tighten spacing so BPM LCD + Play + Stop still fit comfortably */
   .bb-transport { gap: 4px; padding: 6px 8px; }
 }
@@ -3150,13 +3180,12 @@ code {
   display: flex;
   gap: 2px;
 }
-/* Recessed tray for the master-volume knob + numeric readout */
+/* Recessed tray for the master-volume knob + numeric readout — pinned right */
 .bb-transport__vol-group {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
   padding: 5px 8px;
   border-radius: 5px;
   background: rgba(0, 0, 0, 0.28);
