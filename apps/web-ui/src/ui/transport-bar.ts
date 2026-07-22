@@ -1,3 +1,4 @@
+import { attachTransportBarFit } from '@beatbax/app-core/playback/transport-bar-fit';
 import { RotaryKnob } from './rotary-knob.js';
 
 /**
@@ -6,6 +7,9 @@ import { RotaryKnob } from './rotary-knob.js';
  * LCD readouts: BPM, TIME, BAR:BT, STEP, LOOP, VOL
  * Buttons: ⏮ Rew, ▶ Play, ⏸ Pause, ⏹ Stop, ↻ Apply, ⚡ Live, ⟳ Loop, ● Rec
  * Nudge controls: BPM «/»; VOL via rotary knob
+ *
+ * Layout: controls live in `.bb-transport__main`; the volume tray is pinned
+ * outside that cluster so it stays visible while lower-priority controls hide.
  */
 
 export interface TransportBarOptions {
@@ -35,10 +39,15 @@ export class TransportBar {
   // ── Volume rotary knob ───────────────────────────────────────────────────
   public volKnob: RotaryKnob;
 
+  private _detachFit: (() => void) | null = null;
+
   constructor(private opts: TransportBarOptions) {
     this.el = document.createElement('div');
     this.el.id = 'bb-transport-bar';
     this.el.className = 'bb-transport';
+
+    const main = document.createElement('div');
+    main.className = 'bb-transport__main';
 
     // ── LCD readout cluster ─────────────────────────────────────────────
     const infoWrap = document.createElement('div');
@@ -67,12 +76,12 @@ export class TransportBar {
       bpmLcd.lcd, timeLcd.lcd, barBeatLcd.lcd,
       stepLcd.lcd, loopLcd.lcd
     );
-    this.el.appendChild(infoWrap);
+    main.appendChild(infoWrap);
 
     // ── BPM nudge («/») ─────────────────────────────────────────────────
     const bpmNudgeSep = this._mkSep();
     bpmNudgeSep.classList.add('bb-transport__separator--pri-3');
-    this.el.appendChild(bpmNudgeSep);
+    main.appendChild(bpmNudgeSep);
     const mkNudge = (label: string, title: string) => {
       const b = document.createElement('button');
       b.textContent = label;
@@ -92,10 +101,10 @@ export class TransportBar {
     const bpmNudge = document.createElement('div');
     bpmNudge.className = 'bb-transport__nudge-wrap bb-transport__nudge-wrap--pri-3';
     bpmNudge.append(bpmNudgeLabel, bpmNudgeRow);
-    this.el.appendChild(bpmNudge);
+    main.appendChild(bpmNudge);
 
     // ── Transport buttons ───────────────────────────────────────────────
-    this.el.appendChild(this._mkSep());
+    main.appendChild(this._mkSep());
     const mkBtn = (label: string, title = '', variant = '') => {
       const b = document.createElement('button');
       b.textContent = label;
@@ -122,18 +131,19 @@ export class TransportBar {
     this.liveButton.classList.add('bb-transport__btn--pri-5');
     this.applyButton.classList.add('bb-transport__btn--pri-5');
 
-    this.el.append(
+    main.append(
       this.rewindButton, this.playButton, this.pauseButton, this.stopButton,
       this.applyButton, this.liveButton, this.loopButton, this.recordButton
     );
+    this.el.appendChild(main);
 
     const volPreSep = this._mkSep();
     volPreSep.classList.add('bb-transport__separator--post-record');
     this.el.appendChild(volPreSep);
 
-    // ── Master volume — knob + LCD in a recessed tray matching the info bay ─
-    // The knob stays visible (hides only at the pri-5 breakpoint, ≤549 px)
-    // so users retain volume control even when the numeric LCD is hidden.
+    // ── Master volume — knob + LCD pinned outside the main control cluster ─
+    // Stays visible while lower-priority controls collapse; hides only at
+    // fit-level / breakpoint 5 (very narrow widths).
     const volGroup = document.createElement('div');
     volGroup.className = 'bb-transport__vol-group';
     this.volKnob = new RotaryKnob(28);
@@ -158,6 +168,8 @@ export class TransportBar {
     this._loopLcd   = loopLcd.lcd;
     this._volEl     = volLcd.value;
     this._beatLed   = beatLed;
+
+    this._detachFit = attachTransportBarFit(this.el);
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
