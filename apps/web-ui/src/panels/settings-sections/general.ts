@@ -40,6 +40,7 @@ export function buildGeneralSection(): HTMLElement {
         (window as any).__beatbax_themeManager?.setTheme(v as 'dark' | 'light');
       }
     },
+    settingTheme.subscribe,
   ));
 
   el.appendChild(noteText('System follows your OS preference (Settings → Appearance on Windows/macOS). Changes automatically when your OS switches between light and dark mode.'));
@@ -378,6 +379,8 @@ export function radioGroup(
   options: Array<{ value: string; label: string }>,
   initial: string,
   onChange: (v: string) => void,
+  /** Optional nanostores-compatible subscribe fn to keep radios in sync with an external store. */
+  externalSubscribe?: (listener: (v: string) => void) => () => void,
 ): HTMLElement {
   const fieldset = document.createElement('fieldset');
   fieldset.className = 'bb-settings-fieldset';
@@ -390,6 +393,7 @@ export function radioGroup(
   const group = document.createElement('div');
   group.className = 'bb-settings-radio-group';
 
+  const inputs: HTMLInputElement[] = [];
   for (const opt of options) {
     const lbl = document.createElement('label');
     lbl.className = 'bb-settings-radio-label';
@@ -400,9 +404,27 @@ export function radioGroup(
     input.value = opt.value;
     input.checked = opt.value === initial;
     input.addEventListener('change', () => { if (input.checked) onChange(opt.value); });
+    inputs.push(input);
 
     lbl.append(input, document.createTextNode(' ' + opt.label));
     group.appendChild(lbl);
+  }
+
+  if (externalSubscribe) {
+    let first = true;
+    const unsub = externalSubscribe((v) => {
+      if (first) { first = false; return; }
+      for (const input of inputs) {
+        input.checked = input.value === v;
+      }
+    });
+    const observer = new MutationObserver(() => {
+      if (!fieldset.isConnected) {
+        unsub();
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   fieldset.appendChild(group);

@@ -13,6 +13,7 @@ import * as monaco from 'monaco-editor';
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
 import { BeatBaxSettings, storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import { createLogger } from '@beatbax/engine/util/logger';
+import { settingTheme } from '@beatbax/app-core/stores/settings.store';
 import { activeTheme } from '@beatbax/app-core/stores/theme.store';
 
 const log = createLogger('ui:theme-manager');
@@ -122,6 +123,7 @@ export class ThemeManager {
    */
   followSystem(): void {
     storage.remove(StorageKey.THEME);
+    settingTheme.set('system');
     this.applyTheme(this.detectSystemTheme(), /* persist */ false);
   }
 
@@ -172,6 +174,8 @@ export class ThemeManager {
     // 4. Persist to localStorage (only on explicit user choice)
     if (persist) {
       BeatBaxSettings.setTheme(theme);
+      // Keep Settings → Theme radio in sync with toolbar / shortcut toggles.
+      settingTheme.set(theme);
     }
 
     // 5. Write to nanostores theme store so other components can subscribe
