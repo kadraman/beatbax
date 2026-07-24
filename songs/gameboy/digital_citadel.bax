@@ -38,7 +38,7 @@
 ##   port  : smooth portamento slides chaining the 16th-note rush run (slide)
 ##   DCM   : thin 12.5% hollow attack → bright 50% punchy body → warm 75% resolution
 ##
-## Play: node bin/beatbax play songs/digital_citadel.bax
+## Play: node bin/beatbax play songs/gameboy/digital_citadel.bax
 
 song name "Digital Citadel"
 song artist "The BeatBax Team"

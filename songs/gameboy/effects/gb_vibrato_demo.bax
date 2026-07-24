@@ -1,6 +1,6 @@
 ## Game Boy Vibrato (vib) effect demo
 ## Frequency modulation (pitch LFO) — periodically wobbles pitch for an expressive, wavering tone
-## Play: node bin/beatbax play songs/effects/vibrato.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_vibrato_demo.bax
 ##
 ## Syntax: vib:<depth>,<rate>[,<waveform>[,<duration>[,<delayRows>]]]
 ##   - depth     : modulation depth, 0–15 (maps to hUGETracker nibble; higher = wider wobble)
@@ -18,7 +18,7 @@
 ##   Audio : yes — WebAudio frequency LFO and PCM renderer
 
 chip gameboy
-bpm 140
+bpm 149
 
 ## Instruments
 inst lead  type=pulse1 duty=75 env=10,up

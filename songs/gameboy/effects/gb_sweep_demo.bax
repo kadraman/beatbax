@@ -1,6 +1,6 @@
 ## Game Boy Pitch Sweep (sweep) effect demo
 ## Hardware-accurate Game Boy NR10 frequency sweep — pitch rises or falls automatically at a set rate
-## Play: node bin/beatbax play songs/effects/gameboy/gb_sweep_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_sweep_demo.bax
 ##
 ## Syntax: sweep:<time>,<direction>,<shift>
 ##   - time      : sweep period in 1/128 Hz units, 0–7 (0 = disabled)
@@ -19,7 +19,7 @@
 ##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
-bpm 120
+bpm 128
 
 ## Instruments with sweep for authentic GB sound
 

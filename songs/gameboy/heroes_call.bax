@@ -1,6 +1,6 @@
 ## heroes_call.bax
 ## Original heroic title theme in the spirit of classic 8-bit fantasy RPG adventure music.
-## Key: D major | Tempo: 108 BPM | Style: Heroic, mystical, triumphant
+## Key: D major | Tempo: 112 BPM | Style: Heroic, mystical, triumphant
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
 ## It captures the *atmosphere* of a classic fantasy title screen: a bold ascending fanfare,
@@ -31,15 +31,15 @@
 ##   port : smooth legato slides on ascending portamento runs (slide, slowSlide)
 ##   DCM  : duty-cycle modulation on the coda (hero_thin → hero_bright → hero_warm)
 ##
-## Play: node bin/beatbax play songs/heroes_call.bax
+## Play: node bin/beatbax play songs/gameboy/heroes_call.bax
 
 song name "Heroes Call"
 song artist "The BeatBax Team"
-song description """An original heroic title theme in D major, evoking the grandeur and mystique of classic 8-bit fantasy RPG adventure games. Opens with a bold ascending fanfare, develops into a flowing lyrical hero theme with arpeggiated harmony, visits a mysterious minor-tinged bridge with deep vibrato, then returns triumphant with shimmer embellishments before a grand duty-cycle modulated finale. Demonstrates vibrato, arpeggio, portamento, and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song description """An original heroic title theme in D major, evoking the grandeur and mystique of classic 8-bit fantasy RPG adventure games. Opens with a bold ascending fanfare, develops into a flowing lyrical hero theme with arpeggiated harmony, visits a mysterious minor-tinged bridge with deep tremolo, then returns triumphant with shimmer embellishments before a grand duty-cycle modulated finale. Demonstrates tremolo, arpeggio, portamento, and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,adventure,rpg,fanfare,heroic,demo"
 
 chip gameboy
-bpm 108
+bpm 112
 
 # =============================================================================
 # Instruments
@@ -106,7 +106,7 @@ pat fan_b      = D6:4 C#6:2 B5:2 A5<heroVib>:4 D5<heroVib>:4
 # 16 steps: 2+2+2+2+2+2+2+2
 pat theme_a    = F#5:2 E5:2 D5:2 E5:2 F#5:2 A5:2 G5:2 F#5:2
 
-# theme_b: soaring answer phrase — climbs to D6 with heroic vibrato on the peak
+# theme_b: soaring answer phrase — climbs to D6 with heroic tremolo on the peak
 # The defining "hero moment" of the theme.
 # 16 steps: 2+2+4+2+2+4
 pat theme_b    = A5:2 B5:2 D6<heroVib>:4 A5:2 G5:2 F#5<heroVib>:4
@@ -116,7 +116,7 @@ pat theme_b    = A5:2 B5:2 D6<heroVib>:4 A5:2 G5:2 F#5<heroVib>:4
 # 16 steps: 4+2+2+4+4
 pat theme_c    = E5<heroVib>:4 D5:2 C#5:2 D5<heroVib>:4 . . . .
 
-# bridge_a: mysterious bridge — B minor colouring, slow deep vibrato throughout
+# bridge_a: mysterious bridge — B minor colouring, slow deep tremolo throughout
 # Descends in long glowing steps: B5 → A5 → G5 → F#5
 # 16 steps: 4+4+4+4
 pat bridge_a   = B5<deepVib>:4 A5<deepVib>:4 G5<deepVib>:4 F#5<deepVib>:4

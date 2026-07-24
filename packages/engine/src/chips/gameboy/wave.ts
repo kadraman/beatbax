@@ -1,5 +1,12 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 import { parseEnvelope } from './pulse.js';
+import {
+  applyTickOffsetToFreq,
+  createTickProgramCursor,
+  HUGE_TICK_SEC,
+  lowerGameBoyInstrumentProgram,
+  tickRowVolume,
+} from './instrumentProgram.js';
 
 /**
  * Map wave instrument `volume=` / `vol=` (0 | 25 | 50 | 100) to a linear gain.
@@ -62,15 +69,57 @@ export function playWavetable(ctx: BaseAudioContext | any, freq: number, table: 
   src.buffer = buf;
   src.loop = true;
   // playbackRate ≈ 1.0 — minimal WebAudio interpolation.
-  src.playbackRate.value = (alignedFreq * bufLen) / nativeSampleRate;
+  const basePlaybackRate = (alignedFreq * bufLen) / nativeSampleRate;
+  src.playbackRate.value = basePlaybackRate;
   // Attach metadata so effect handlers (e.g. portamento) can derive playbackRate
   // from a target frequency: playbackRate(f) = (f / __freq) * __basePlaybackRate
   (src as any).__freq = alignedFreq;
-  (src as any).__basePlaybackRate = src.playbackRate.value;
+  (src as any).__basePlaybackRate = basePlaybackRate;
 
   const gain = ctx.createGain();
   src.connect(gain);
   gain.connect(destination || ctx.destination);
+
+  const program = lowerGameBoyInstrumentProgram(inst ?? {});
+  const useProgram = program.enabled;
+  const useProgramVolume = useProgram && program.rows.some((r) => tickRowVolume(r) !== null);
+
+  // Schedule tick-program pitch (and optional volume) automation at ~60 Hz.
+  if (useProgram) {
+    const cursor = createTickProgramCursor(program);
+    const maxTicks = Math.max(1, Math.ceil(dur / HUGE_TICK_SEC) + 1);
+    let lastOffset: number | null | undefined = undefined;
+    let lastVol: number | null = null;
+    for (let tick = 0; tick < maxTicks; tick++) {
+      const row = cursor.rowAt(tick);
+      if (!row) continue;
+      const t = start + tick * HUGE_TICK_SEC;
+      if (t > start + dur) break;
+      const off = row.offset === undefined ? null : row.offset;
+      if (off !== lastOffset) {
+        lastOffset = off;
+        const effFreq = applyTickOffsetToFreq(alignedFreq, off);
+        const rate = (effFreq * bufLen) / nativeSampleRate;
+        try { src.playbackRate.setValueAtTime(rate, t); } catch (_) {}
+      }
+      if (useProgramVolume) {
+        const v = tickRowVolume(row);
+        if (v !== null && v !== lastVol) {
+          lastVol = v;
+          try { gain.gain.setValueAtTime((v / 15) * 0.9 * volMul, t); } catch (_) {}
+        }
+      }
+    }
+    if (useProgramVolume) {
+      try {
+        gain.gain.setValueAtTime(gain.gain.value, start + dur);
+        gain.gain.linearRampToValueAtTime(0.0001, start + dur + 0.005);
+      } catch (_) {}
+      try { src.start(start); } catch (e) { try { src.start(); } catch (_) {} }
+      try { src.stop(start + dur + 0.02); } catch (e) {}
+      return [src, gain];
+    }
+  }
 
   const env = parseEnvelope(inst && inst.env);
   const g = gain.gain;

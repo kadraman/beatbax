@@ -1,6 +1,6 @@
 ## Game Boy Arpeggio (arp) effect demo
 ## Rapidly cycles through note offsets to simulate chords and create melodic patterns
-## Play: node bin/beatbax play songs/effects/gameboy/gb_arpeggio_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_arpeggio_demo.bax
 ##
 ## Syntax: arp:<offset1>,<offset2>[,<offset3>,...]
 ##   - offset1  : semitone offset for step 2 (required)
@@ -15,7 +15,7 @@
 ##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
-bpm 140
+bpm 149
 
 ## Instruments
 inst lead  type=pulse1 duty=75 env=10,up

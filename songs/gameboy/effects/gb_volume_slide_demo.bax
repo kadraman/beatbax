@@ -1,6 +1,6 @@
 ## Game Boy Volume Slide (volSlide) effect demo
 ## Smoothly fades volume up or down over a note — creates swells, fade-ins, and fade-outs
-## Play: node bin/beatbax play songs/effects/gameboy/gb_volume_slide_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_volume_slide_demo.bax
 ##
 ## Syntax: volSlide:<delta>[,<steps>]
 ##   - delta : volume change per tick — positive (+) for fade-in, negative (-) for fade-out (required)
@@ -13,18 +13,18 @@
 ##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
-bpm 120
+bpm 128
 
 ## Instruments
-## Note: Using moderate initial volumes (env=10 for lead, volume=50 for pad)
+## Note: Using moderate initial volumes (env=8 for lead, volume=50 for pad)
 ## to allow headroom for volume slides in both directions (+/- deltas)
 inst lead     type=pulse1 duty=50 env=8,flat    # For normal play
 inst lead_in  type=pulse1 duty=50 env=4,flat    # For fade-ins
 inst lead_out type=pulse1 duty=50 env=12,flat   # For fade-outs
 
-inst bass type=pulse2 duty=25 env=5,flat   # Start at 80% - good range for slides
+inst bass type=pulse2 duty=25 env=5,flat   # Start at env=5 (~33%) - room for upward slides
 inst pad  type=wave   wave=[8,9,10,12,13,14,14,15,15,15,14,14,13,12,10,9,8,6,5,3,2,1,1,0,0,0,1,1,2,3,5,6] volume=50  # Start at 50% - room for swells
-inst perc type=noise  env=8,down uge_note=C-8            # Start at 53% - moderate percussion
+inst perc type=noise  env=8,down uge_note=C-8            # Start at env=8 - moderate percussion
 
 ## Named volume slide presets
 effect fadeIn  = volSlide:+5

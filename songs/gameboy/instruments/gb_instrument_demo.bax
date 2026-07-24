@@ -9,16 +9,16 @@ song description """Comprehensive demonstration of Game Boy instrument types and
 song tags "instruments,example,imported"
 
 chip gameboy
-bpm 120
+bpm 128
 stepsPerBar 4
 
 # =============================================================================
 # PULSE CHANNEL INSTRUMENTS (Channels 1 & 2)
 # =============================================================================
 # Pulse channels support duty cycles: 12.5%, 25%, 50%, 75%
-# Envelope format: env=gb:<initial_volume>,<up|down>,<period>
-#   - initial_volume: 0-15 (0=silent, 15=max)
-#   - direction: up or down
+# Envelope: env=<level>,<up|down|flat>[,period] or env={"level":N,"direction":"...","period":N,"format":"gb"}
+#   - level / initial_volume: 0-15 (0=silent, 15=max)
+#   - direction: up, down, or flat
 #   - period: 0-7 (0=no change, 1-7=speed of envelope)
 
 # Duty cycle demonstrations - same envelope, different duties
@@ -76,7 +76,7 @@ inst wave_noise_like type=wave wave=[8,5,2,8,13,9,5,8,11,6,1,8,14,11,7,8,9,7,4,8
 # =============================================================================
 # NOISE CHANNEL INSTRUMENTS (Channel 4)
 # =============================================================================
-# See percussion_demo.bax
+# See gb_percussion_demo.bax
 
 # =============================================================================
 # PATTERNS - Demonstrating each instrument type
@@ -129,7 +129,7 @@ seq bass_demo_seq = bass_line_pat:inst(bass_punch) bass_line2_pat:inst(bass_sub)
 # Channel 1: Duty cycle demo → Envelope demo
 # Channel 2: Bass line accompaniment
 # Channel 3: Wave instrument demonstrations
-# Channel 4: See percussion_demo.bax
+# Channel 4: See gb_percussion_demo.bax
 
 channel 1 => inst lead_bright  seq duty_showcase_seq env_showcase_seq
 channel 2 => inst bass_punch   seq bass_demo_seq bass_demo_seq bass_demo_seq
@@ -160,10 +160,11 @@ play auto repeat
 # 6. Wave channel is great for bass, pads, and unique timbres
 # 7. Kick drums work best on pulse channels (low pitch + fast envelope)
 # 8. Noise channel: use width=7 (metallic) or width=15 (hissy white noise)
-# 9. Noise "notes" are brightness labels, not harmonic pitches:
-#    - Hi-hats: C6-E7 (width=15)
-#    - Snares: D4-D5 (width=7, sweet spots: D4, F4, A#4, D5)
-#    - Toms: C3-B4 (width=7)
+# 9. Prefer uge_note= for noise kit pitch (hUGE display note + NR43 clock):
+#    - Kicks: uge_note=C-6 (width=7) + pitch_env/vol_env
+#    - Snares: uge_note=C-7 (width=7)
+#    - Hats: uge_note=C-8 or D-8 (width=15)
+#    See gb_percussion_demo.bax and gb_uge_note_demo.bax
 # 10. Envelope period=0 creates constant volume (no decay)
 # 11. Mix different waveforms in wave channel for varied textures
 # 12. Use gm= numbers to improve MIDI export mapping (optional)

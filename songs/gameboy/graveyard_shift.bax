@@ -1,6 +1,6 @@
 ## graveyard_shift.bax
 ## Original dark-funk horror chiptune — in the spirit of classic horror movie soundtracks.
-## Key: B minor | Tempo: 118 BPM | Style: Eerie, funky, dramatic
+## Key: B minor | Tempo: 112 BPM | Style: Eerie, funky, dramatic
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
 ## It captures the atmosphere of a foggy midnight cemetery: a hollow 12.5%-duty lead hook
@@ -35,15 +35,15 @@
 ##          dom7Arp (4,7,10) on F#7 harmonic-minor dominant
 ##   port : slide (port:8) — legato connection on bass and melody runs
 ##
-## Play: node bin/beatbax play songs/graveyard_shift.bax
+## Play: node bin/beatbax play songs/gameboy/graveyard_shift.bax
 
 song name "Graveyard Shift"
 song artist "The BeatBax Team"
-song description """An original dark-funk chiptune in B minor at 118 BPM. A hollow 12.5%-duty lead hook weaves through a walking plucked-bass wave channel and a hard-swinging mid-tempo funk groove to evoke a foggy midnight cemetery. The bridge strips everything back to sparse percussion and deep triangle vibrato before a blistering chromatic 16th-note ascent drives into a duty-cycle-modulated reprise. Closes with a shimmer wail descent and a lone eerie tonic hold. Demonstrates duty-cycle modulation, vib/trem effects, minor-key arpeggio harmony, and plucked wavetable bass across all four Game Boy channels without reproducing any copyrighted material."""
+song description """An original dark-funk chiptune in B minor at 112 BPM. A hollow 12.5%-duty lead hook weaves through a walking plucked-bass wave channel and a hard-swinging mid-tempo funk groove to evoke a foggy midnight cemetery. The bridge strips everything back to sparse percussion and deep triangle vibrato before a blistering chromatic 16th-note ascent drives into a duty-cycle-modulated reprise. Closes with a shimmer wail descent and a lone eerie tonic hold. Demonstrates duty-cycle modulation, vib/trem effects, minor-key arpeggio harmony, and plucked wavetable bass across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,dark,horror,funk,demo"
 
 chip gameboy
-bpm 118
+bpm 112
 
 # =============================================================================
 # Instruments

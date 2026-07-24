@@ -1348,9 +1348,49 @@ function renderWave(
     }
   }
 
+  // Game Boy instrument tick program (pitch_env / vol_env / subpat) — same IR as UGE export
+  const instRec = inst as Record<string, unknown>;
+  const gbProgram = (isGameBoy)
+    ? lowerGameBoyInstrumentProgram(instRec)
+    : null;
+  const useGbProgram = !!(gbProgram && gbProgram.enabled);
+  const useGbProgramVolume = useGbProgram && gbProgram!.rows.some((r) => tickRowVolume(r) !== null);
+  let programOffset: number | null = 0;
+  let programVolScale = 1;
+  let lastProgramTick = -1;
+  const gbCursor = useGbProgram ? createTickProgramCursor(gbProgram!) : null;
+  if (gbCursor) {
+    const r0 = gbCursor.rowAt(0);
+    if (r0) {
+      programOffset = r0.offset === undefined ? 0 : r0.offset;
+      if (useGbProgramVolume) {
+        const v0 = tickRowVolume(r0);
+        if (v0 !== null) programVolScale = v0 / 15;
+      }
+    }
+  }
+
   for (let i = 0; i < duration; i++) {
     const t = i / sampleRate;
-    let effFreq = freq;
+
+    if (gbCursor) {
+      const tick = Math.floor(t * 60);
+      if (tick !== lastProgramTick) {
+        lastProgramTick = tick;
+        const row = gbCursor.rowAt(tick);
+        if (row) {
+          programOffset = row.offset === undefined ? null : row.offset;
+          if (useGbProgramVolume) {
+            const v = tickRowVolume(row);
+            if (v !== null) programVolScale = v / 15;
+          }
+        }
+      }
+    }
+
+    let effFreq = useGbProgram
+      ? applyTickOffsetToFreq(freq, programOffset)
+      : freq;
 
     // Apply portamento if enabled
     if (portSpeed > 0 && typeof channelId === 'number') {
@@ -1363,7 +1403,10 @@ function renderWave(
       if (portDur > 0 && t <= portDur && Math.abs(freq - lastFreq) > 1) {
         const progress = Math.min(1, t / portDur);
         const easedProgress = progress * progress * (3 - 2 * progress); // smoothstep
-        effFreq = lastFreq + (freq - lastFreq) * easedProgress;
+        const portBase = useGbProgram
+          ? applyTickOffsetToFreq(freq, programOffset)
+          : freq;
+        effFreq = lastFreq + (portBase - lastFreq) * easedProgress;
       }
     }
 
@@ -1462,7 +1505,7 @@ function renderWave(
     const v = (waveTable[i0] - waveMean) / 15.0;
     // Use sustained volume for legato notes, otherwise use instrument volume
     const effectiveVolMul = (volumeSustainValue !== undefined) ? volumeSustainValue : volMul;
-    let sample = v * effectiveVolMul;
+    let sample = v * effectiveVolMul * (useGbProgramVolume ? programVolScale : 1);
 
     // Apply tremolo if enabled (amplitude modulation)
     if (tremDepth > 0 && tremRate > 0) {
