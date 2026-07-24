@@ -1,6 +1,6 @@
 ## a_trainers_journey.bax
 ## Original Game Boy chiptune in the spirit of classic handheld JRPG title themes.
-## Key: C major (bridge borrows from A minor) | Tempo: 120 BPM | Style: Bright, bouncy, adventurous
+## Key: C major (bridge borrows from A minor) | Tempo: 128 BPM | Style: Bright, bouncy, adventurous
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
 ## It captures the *atmosphere* of classic 8-bit handheld JRPG title music: a staccato
@@ -31,15 +31,15 @@
 ##   port : smooth 16th-note ascending glide run (slide)
 ##   DCM  : thin (12.5%) → bright (50%) → warm (75%) on the duty-cycle modulated reprise
 ##
-## Play: node bin/beatbax play songs/a_trainers_journey.bax
+## Play: node bin/beatbax play songs/gameboy/a_trainers_journey.bax
 
 song name "A Trainer's Journey"
 song artist "The BeatBax Team"
-song description """An original handheld JRPG title theme in C major at 120 BPM. Opens with a bold ascending C-major fanfare call and answer, builds into a punchy staccato arpeggio-hook main theme with classic I–IV–V–vi harmony, lifts into a soaring secondary phrase with wide melodic leaps, descends into a mysterious A-minor bridge with slow deep vibrato, then rockets back with a duty-cycle-modulated reprise and closes in a shimmering tonic fade. Demonstrates vibrato, arpeggio, portamento, tremolo and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song description """An original handheld JRPG title theme in C major at 128 BPM. Opens with a bold ascending C-major fanfare call and answer, builds into a punchy staccato arpeggio-hook main theme with classic I–IV–V–vi harmony, lifts into a soaring secondary phrase with wide melodic leaps, descends into a mysterious A-minor bridge with slow deep vibrato, then rockets back with a duty-cycle-modulated reprise and closes in a shimmering tonic fade. Demonstrates vibrato, arpeggio, portamento, tremolo and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,rpg,adventure,bright,nostalgic,chiptune,demo"
 
 chip gameboy
-bpm 120
+bpm 128
 
 # =============================================================================
 # Instruments
@@ -50,9 +50,9 @@ bpm 120
 #   poke_thin  12.5%  hollow, nasal — run notes and DCM ascending approach
 #   poke_warm   75%   warm, rounded — DCM resolution peaks and coda sustain
 #
-# Pulse2 — harmony: two duty variants
-#   poke_harm   25%   crisp, bright staccato arpeggios     (A and B sections)
-#   poke_sus    75%   wide, atmospheric sustained arps     (mysterious bridge)
+# Pulse2 — harmony: two envelope variants (both 75% duty)
+#   poke_harm   75%   soft, wide staccato arpeggios     (A and B sections)
+#   poke_sus    75%   wider, atmospheric sustained arps  (mysterious bridge)
 #
 # Wave — poke_bass: 32-sample custom bass waveform.
 #   Mid-amplitude rounded shape (values 3–14, centred around 7–9) with a gentle

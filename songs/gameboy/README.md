@@ -18,6 +18,18 @@ npm run cli -- export uge songs/gameboy/instruments/gb_subpattern_macro_demo.bax
 npm run cli -- export wav songs/gameboy/instruments/gb_subpattern_macro_demo.bax tmp/demo.wav
 ```
 
+## UGE tempo alignment
+
+hUGETracker stores integer ticks per row (`round(896 / bpm)`). Prefer BPM values that divide 896 evenly so BeatBax preview and UGE export match:
+
+| `bpm` | UGE ticks/row | Notes |
+|------:|-------------:|-------|
+| 128 | 7 | Default for most demos and several full songs |
+| 112 | 8 | `heroes_call`, `graveyard_shift` |
+| 149 | 6 | `grassland_dash`, percussion / faster effect demos |
+
+Demos and most arrangements use these exact-match tempos. A few full songs still use approximate BPMs (`crypt_of_fallen_kings` 160, `digital_citadel` 168, `gb_wave_scan_demo` 156) where the Bax groove matters more than export parity — see [UGE export guide — Tempo and BPM alignment](../../docs/exports/uge-export-guide.md#tempo-and-bpm-alignment).
+
 ## Instrument demos
 
 | File | Purpose |
@@ -32,7 +44,7 @@ npm run cli -- export wav songs/gameboy/instruments/gb_subpattern_macro_demo.bax
 
 ## Docs
 
-- [Instrument programs → UGE subpatterns](../../docs/features/gameboy-uge-instrument-subpatterns.md)
+- [Instrument programs → UGE subpatterns](../../docs/features/complete/gameboy-uge-instrument-subpatterns.md)
 - [Composition guide](../../docs/chips/gameboy/composition_guide.md)
 - [UGE export guide](../../docs/exports/uge-export-guide.md)
 - [Instrument note mapping](../../docs/grammar/instrument-note-mapping-guide.md)

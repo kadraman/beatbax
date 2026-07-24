@@ -1,6 +1,6 @@
 ## Game Boy Portamento (port) effect demo
 ## Slides pitch from the previous note to the current — creates smooth legato glides
-## Play: node bin/beatbax play songs/effects/gameboy/gb_portamento_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_portamento_demo.bax
 ##
 ## Syntax: port:<speed>
 ##   - speed : portamento speed in ticks (higher = slower slide)
@@ -14,7 +14,7 @@
 ##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
-bpm 140
+bpm 149
 
 ## Instruments
 #inst lead1  type=pulse1 duty=75 env=10,up

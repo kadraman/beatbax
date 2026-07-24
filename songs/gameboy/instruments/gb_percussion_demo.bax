@@ -11,7 +11,7 @@
 #   npm run cli -- export wav songs/gameboy/instruments/gb_percussion_demo.bax songs/gameboy/instruments/gb_percussion_demo_from_cli.wav
 
 chip gameboy
-bpm 140
+bpm 149
 stepsPerBar 4
 song name "Percussion Demo"
 song artist "kadraman"
