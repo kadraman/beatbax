@@ -7,14 +7,14 @@
 ## fast descending harmonic-minor runs, driving percussion, and arpeggio-based harmony
 ## that simulate full chords across just two tonal channels.
 ##
-## Structure (20 bars):
+## Structure (28 bars):
 ##   Bars  1– 4 : Dark intro         (Am arpeggios + bass pedal; rising then falling melodic hint)
 ##   Bars  5– 8 : Main hook "A"      (bold 4th-leap + harmonic-minor descent run, ×2)
 ##   Bars  9–12 : B section          (higher register, tighter tension, ×2)
-##   Bars 13–14 : Bridge             (held notes with deep vibrato, atmospheric descent)
-##   Bars 15–18 : Return to A        (hook returns with vibrato flourishes, ×2)
-##   Bars 19–20 : Climax             (blazing ascending run + triumphant peak chord)
-##   Bars 21–22 : Finale hook        (closing phrase — loop-ready)
+##   Bars 13–16 : Bridge             (held notes with deep vibrato, atmospheric descent)
+##   Bars 17–20 : Return to A        (hook returns with vibrato flourishes, ×2)
+##   Bars 21–24 : Climax             (blazing ascending run + triumphant peak chord)
+##   Bars 25–28 : Finale hook        (closing phrase — loop-ready)
 ##
 ## Channels:
 ##   Ch1 (Pulse1): Main melody — bold octave leaps, fast harmonic-minor runs,
@@ -31,7 +31,7 @@
 ##   arp  : minor triad cycling on Am/Dm harmony; major triad on F/G; dom7 on E7
 ##   port : snappy slides between scalar run notes; legato bass walks
 ##
-## Play: node bin/beatbax play songs/crypt_of_fallen_kings.bax
+## Play: node bin/beatbax play songs/gameboy/crypt_of_fallen_kings.bax
 
 song name "Crypt of the Fallen Kings"
 song artist "The BeatBax Team"
@@ -125,7 +125,7 @@ pat mel_b_hi2   = E5<pan:L> F5<pan:R> G5<pan:L> A5<pan:R> C6<pan:L> E6<fastVib,p
 # 16 steps: 4+4+4+4
 pat mel_bridge_a = A5<deepVib,pan:L>:4 G5<deepVib,pan:R>:4 F5<deepVib,pan:L>:4 E5<deepVib,pan:R>:4
 
-# mel_bridge_b: bridge continuation — resolvies downward to the tonic under deep vibrato.
+# mel_bridge_b: bridge continuation — resolves downward to the tonic under deep vibrato.
 # Closes out the descent to A4 — maximum tension before the return erupts.
 # 16 steps: 4+4+4+4
 pat mel_bridge_b = D5<deepVib,pan:L>:4 C5<deepVib,pan:R>:4 B4<deepVib,pan:L>:4 A4<deepVib,pan:R>:4
@@ -267,10 +267,10 @@ pat drums_climax = kick hat hat snare kick hat hat snare kick hat hat snare kick
 #   Bars  1– 4 : Dark intro         (arp + bass pedal; ascending/descending Am hints)
 #   Bars  5– 8 : Main hook A        (mel_a + mel_a2 × 2, driving groove begins)
 #   Bars  9–12 : B section          (mel_b_hi + mel_b_hi2 × 2, climax tension)
-#   Bars 13–14 : Bridge             (mel_bridge_a + mel_bridge_b, sparse percussion)
-#   Bars 15–18 : Return to A        (mel_a_vib + mel_a2 × 2, triumphant vibrato)
-#   Bars 19–20 : Climax             (mel_run + mel_finale, blazing ascending + peak)
-#   Bars 21–22 : Finale hook        (mel_a + mel_a2, loop-ready close)
+#   Bars 13–16 : Bridge             (mel_bridge_a + mel_bridge_b, sparse percussion)
+#   Bars 17–20 : Return to A        (mel_a_vib + mel_a2 × 2, triumphant vibrato)
+#   Bars 21–24 : Climax             (mel_run + mel_finale, blazing ascending + peak)
+#   Bars 25–28 : Finale hook        (mel_a + mel_a2, loop-ready close)
 
 # --- Section 1: Dark intro (Bars 1–4) ---
 seq intro_mel  = mel_intro mel_intro mel_intro2 mel_intro2

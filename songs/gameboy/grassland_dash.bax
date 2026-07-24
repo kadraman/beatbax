@@ -1,6 +1,6 @@
 ## grassland_dash.bax
 ## Original platformer theme — in the spirit of classic 8-bit adventure games.
-## Key: G major | Tempo: 140 BPM | Style: Bouncy, energetic
+## Key: G major | Tempo: 149 BPM | Style: Bouncy, energetic
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
 ## A buoyant G-major theme built on bouncy 16th-note phrases, lyrical portamento runs, and a
@@ -17,7 +17,7 @@
 ##   Ch1 (Pulse1): Melody — buoyant hook, portamento run, vibrato bridge, shimmer coda
 ##   Ch2 (Pulse2): Harmony — arpeggiated chord voicings and portamento counter-line
 ##   Ch3 (Wave  ): Bass + kick time-share — wavekick on every beat, bass on off-beats
-##   Ch4 (Noise ): Percussion — snare + hi-hat groove (kick moved to wave channel)
+##   Ch4 (Noise ): Percussion — snare + hi-hat groove; noise kick on build/turnaround anchors
 ##
 ## Effects demonstrated:
 ##   arp  : rapid chord cycling on held notes (majorArp, minorArp, domArp)
@@ -25,7 +25,7 @@
 ##   bend : upward pitch riser into the bridge, downward dive at phrase end (riser, dive)
 ##   vib  : light pitch wobble on bridge's sustained notes; shimmer on final cadence (wobble, shimmer)
 ##
-## Play: node bin/beatbax play songs/grassland_dash.bax
+## Play: node bin/beatbax play songs/gameboy/grassland_dash.bax
 
 song name "Grassland Dash"
 song artist "The BeatBax Team"
@@ -33,27 +33,29 @@ song description """An original upbeat platformer theme in G major. Inspired by 
 song tags "original,platformer,demo,effects"
 
 chip gameboy
-bpm 140
+bpm 149
 
 # =============================================================================
 # Instruments
 # =============================================================================
 #
 # melody   — Pulse1:  bright, snappy duty-50 pulse. Carries the main theme.
-# harmony  — Pulse2:  narrower duty, softer. Arpeggiated chord fill and counter-melody.
-# bass     — Wave:    smooth triangle-style wavetable. Low walking bass line.
-# wavekick — Wave:    kick drum waveform; time-shares ch3 with the bass on every beat.
-# snare    — Noise:   mid-range crack on beats 2 and 4.
-# hat      — Noise:   very short, quiet hi-hat fills on up-beats.
+# harmony  — Pulse2:  duty-50, softer env. Arpeggiated chord fill and counter-melody.
+# bass1/2  — Wave:    triangle / organ-ish wavetables. Walking bass on off-beats.
+# wavekick — Wave:    short pluck accent on downbeats; time-shares ch3 with the bass.
+#                     (No pitch_env — a falling kick fights the walking bass on the same channel.)
+# kick     — Noise:   C-6 + pitch_env/vol_env; used in drums_anchor when wave is busy.
+# snare    — Noise:   mid-range crack on beats 2 and 4 (7-bit).
+# hat      — Noise:   very short, quiet hi-hat fills on up-beats (15-bit).
 
 inst melody  type=pulse1 duty=50  env={"level":15,"direction":"down","period":1,"format":"gb"} gm=80
-inst harmony type=pulse2 duty=25  env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
-inst bass1    type=wave volume=25  wave=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]
-inst bass2   type=wave volume=25  wave=[7,7,7,5,0,0,0,0,0,0,0,0,0,0,0,0,15,15,15,14,14,14,14,14,14,12,2,2,1,7,7,6]
-inst kick     type=noise  env={"level":12,"direction":"down","period":1,"format":"gb"} uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
-inst snare    type=noise  env={"level":8,"direction":"down","period":2,"format":"gb"} uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
-inst hat      type=noise  env={"level":4,"direction":"down","period":1,"format":"gb"} uge_note=C-8 vol_env=[5,2]
-inst wavekick type=wave volume=50  wave=[15,15,14,12,9,6,4,2,1,0,0,0,0,0,0,0] note=C2 env={"level":15,"direction":"down","period":1,"format":"gb"}
+inst harmony type=pulse2 duty=50  env={"level":8,"direction":"down","period":3,"format":"gb"}  gm=80
+inst bass1    type=wave volume=50  wave=[8,9,10,11,12,13,14,15,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,6,7]
+inst bass2   type=wave volume=50  wave=[7,7,7,5,0,0,0,0,0,0,0,0,0,0,0,0,15,15,15,14,14,14,14,14,14,12,2,2,1,7,7,6]
+inst kick     type=noise gb:width=7  env={"level":14,"direction":"down","period":1,"format":"gb"} length=16 uge_note=C-6 pitch_env=[0,-2,-4,-6] vol_env=[15,12,8,4]
+inst snare    type=noise gb:width=7  env={"level":10,"direction":"down","period":2,"format":"gb"} length=16 uge_note=C-7 pitch_env=[0,7,0] vol_env=[12,8,4]
+inst hat      type=noise gb:width=15 env={"level":4,"direction":"down","period":1,"format":"gb"} length=8  uge_note=C-8 vol_env=[5,2]
+inst wavekick type=wave volume=50  wave=[12,10,8,5,3,1,0,0,0,0,0,0,0,0,0,0] note=C2
 
 # =============================================================================
 # Effect presets
@@ -128,7 +130,7 @@ pat harm_riser  = G3<majorArp>:16
 # Fills and arpeggio patterns keep the bass clean — no kick there.
 pat bass_a      = wavekick . D3 . wavekick . B2 . wavekick . D3 G3 wavekick . B2 .
 pat bass_b      = wavekick . G3 . wavekick . C3 . wavekick . A3 . wavekick . D3 .
-pat bass_arp    = inst bass1 G3:4 C4:4 D4:4 G3:4
+pat bass_arp    = inst bass1 G2:4 C3:4 D3:4 G2:4
 pat bass_fill   = inst bass1 G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
 
 # =============================================================================

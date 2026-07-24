@@ -1,6 +1,6 @@
 ## Game Boy Tremolo (trem) effect demo
 ## Amplitude modulation (volume LFO) — rhythmically varies volume for a quivering shimmer effect
-## Play: node bin/beatbax play songs/effects/gameboy/gb_tremolo_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_tremolo_demo.bax
 ##
 ## Syntax: trem:<depth>,<rate>[,<waveform>[,<duration>[,<delayRows>]]]
 ##   - depth     : modulation depth, 0–15 (higher = more pronounced volume variation)
@@ -12,11 +12,11 @@
 ## Export support:
 ##   JSON  : yes — full fidelity
 ##   MIDI  : approximated — encoded as CC7 volume automation
-##   UGE   : no  — hUGETracker effect 7 is note delay, not tremolo; effect is silently dropped
+##   UGE   : no  — not playable in hUGETracker (exported as metadata comment only; 7xx is note delay)
 ##   Audio : yes — WebAudio gain LFO and PCM renderer
 
 chip gameboy
-bpm 120
+bpm 128
 
 ## Instruments
 inst lead type=pulse1 duty=50 env=12,flat

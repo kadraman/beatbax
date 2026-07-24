@@ -27,7 +27,7 @@ inst lead type=pulse1 env=15,up duty=75
 #    to skip a parameter (e.g. `vib:3,6,,4`).
 
 # `vib` (vibrato) parameters
-#  Syntax: `vib:depth,rate[,shape][,durationRows]`
+#  Syntax: `vib:depth,rate[,shape][,durationRows[,delayRows]]`
 #   - `depth` (required when present): numeric amount of pitch modulation
 #     (higher = stronger vibrato). Typical small integers (e.g. 1–7) are common.
 #   - `rate` (optional): numeric speed of vibrato (units are engine-specific;
@@ -39,10 +39,12 @@ inst lead type=pulse1 env=15,up duty=75
 #     the vibrato should explicitly last. If omitted the vibrato continues for
 #     the full note (or until a sustain/stop). The resolver converts this to
 #     seconds using the current `bpm` and the engine's tick resolution.
+#   - `delayRows` (optional, positional 5th param): rows to wait before vibrato starts.
 #  Examples:
 #   - `C4<vib:3,5>`        => depth=3, rate=5, default shape, full-note duration
 #   - `C4<vib:3,6,,4>`     => depth=3, rate=6, default shape, duration=4 rows
 #   - `C4<vib:4>`          => depth=4 only (rate/shape unspecified)
+#   - `C4<vib:3,5,sine,4,1>` => depth=3, rate=5, sine, 4 rows, 1-row delay
 #
 # Notes on implementation/exports:
 #  - The parser preserves positional empty parameters so `vib:3,6,,4` keeps

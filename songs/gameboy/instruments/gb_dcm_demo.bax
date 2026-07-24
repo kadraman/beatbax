@@ -27,7 +27,7 @@
 ##   Audio : yes — WebAudio PeriodicWave rebuilt per note; PCM renderer uses phase-correct duty
 
 chip gameboy
-bpm 120
+bpm 128
 
 ## ── Instruments ──────────────────────────────────────────────────────────────
 ## Channel 1 (pulse1) — four duty variants

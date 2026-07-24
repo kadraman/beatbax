@@ -1,6 +1,6 @@
 ## Game Boy Pitch Bend (bend) effect demo
 ## Smoothly slides pitch by a given number of semitones with configurable curve and onset delay
-## Play: node bin/beatbax play songs/effects/gameboy/gb_pitchbend_demo.bax
+## Play: node bin/beatbax play songs/gameboy/effects/gb_pitchbend_demo.bax
 ##
 ## Syntax: bend:<semitones>[,<curve>[,<delay>[,<time>]]]
 ##   - semitones : target pitch offset in semitones (+up, -down)
@@ -16,7 +16,7 @@
 ##   Audio : yes — WebAudio and PCM renderer
 
 chip gameboy
-bpm 120
+bpm 128
 
 ## Instruments for pitch bend demo
 inst lead type=pulse1 duty=50 env=12,flat

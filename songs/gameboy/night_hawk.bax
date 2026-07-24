@@ -1,6 +1,6 @@
 ## night_hawk.bax
 ## Original action theme in the spirit of 80s television helicopter action themes.
-## Key: E minor | Tempo: 132 BPM | Style: Driving, heroic, cinematic action
+## Key: E minor | Tempo: 128 BPM | Style: Driving, heroic, cinematic action
 ##
 ## This is an entirely original composition. It does not reproduce any copyrighted material.
 ## It captures the *atmosphere* of classic 80s action-TV title music: staccato synth punches,
@@ -29,7 +29,7 @@
 ##   port : smooth 16th-note ascending glide run (slide)
 ##   DCM  : thin (12.5%) → bright (50%) → warm (75%) on the duty-cycle modulated reprise
 ##
-## Play: node bin/beatbax play songs/night_hawk.bax
+## Play: node bin/beatbax play songs/gameboy/night_hawk.bax
 
 song name "Night Hawk"
 song artist "The BeatBax Team"
@@ -37,7 +37,7 @@ song description """An original action theme in E minor, inspired by the heroic 
 song tags "original,action,80s,heroic,driving,chiptune,demo"
 
 chip gameboy
-bpm 132
+bpm 128
 
 # =============================================================================
 # Instruments

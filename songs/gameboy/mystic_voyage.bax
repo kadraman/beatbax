@@ -1,6 +1,6 @@
 ## mystic_voyage.bax
 ## Original adventure theme — in the spirit of classic portable-RPG exploration.
-## Key: G major | Tempo: 124 BPM | Style: Pastoral, soaring, adventurous
+## Key: G major | Tempo: 128 BPM | Style: Pastoral, soaring, adventurous
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
 ## Opens with a soaring octave-arch melody (G5 → G6 → A5) and a lyrical response phrase.
@@ -28,7 +28,7 @@
 ##   port : ascending legato build into bridge (slide); slow portamento bass walks (slowSlide)
 ##   DCM  : thin (12.5%) → warm (75%) → full (50%) duty switching on the Pulse1 reprise
 ##
-## Play: node bin/beatbax play songs/mystic_voyage.bax
+## Play: node bin/beatbax play songs/gameboy/mystic_voyage.bax
 
 song name "Mystic Voyage"
 song artist "The BeatBax Team"
@@ -36,7 +36,7 @@ song description """An original adventure theme in G major. Opens with a soaring
 song tags "original,adventure,exploration,effects,demo"
 
 chip gameboy
-bpm 124
+bpm 128
 
 # =============================================================================
 # Instruments
