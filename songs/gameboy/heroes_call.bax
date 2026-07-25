@@ -359,4 +359,4 @@ channel 2 => inst chord_bright seq fanfare_harm theme_harm bridge_harm run_harm 
 channel 3 => inst deep_bass    seq fanfare_bass theme_bass bridge_bass run_bass shimmer_bass reprise_bass flourish_bass coda_bass outro_bass
 channel 4 => inst kick         seq fanfare_perc theme_perc bridge_perc run_perc shimmer_perc reprise_perc flourish_perc coda_perc outro_perc
 
-play auto repeat
+play auto

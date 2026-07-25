@@ -22,7 +22,7 @@
 ##   Ch1 (Pulse1): Melody — staccato hook, soaring B lines, shimmer on reprise
 ##   Ch2 (Pulse2): Harmony — major/minor/dom7 arpeggios, wide-duty atmospheric bridge
 ##   Ch3 (Wave  ): Bass — 32-sample triangle wave, driving power roots and passing tones
-##   Ch4 (Noise ): Percussion — sparse intro, bouncy action groove, energetic fills
+##   Ch4 (Noise ): Percussion — snare-backbeat groove with sparing kicks, sparse bridge, fills
 ##
 ## Effects demonstrated:
 ##   vib  : gentle melodic wobble on held melody peaks (drift); slow deep bridge (deepDrift)
@@ -174,8 +174,8 @@ pat coda_peak   = C6<sparkle>:4 E6<sparkle>:2 C6:2 A5:2 G5:2 E5:2 C5:2
 
 # coda_fade: warm tonic hold — C5 held with gentle drift, then silence.
 # The title-screen logo holds; the tone blooms warmly and fades to stillness.
-# 16 steps: 8 + 8 rests
-pat coda_fade   = inst poke_warm C5<drift>:8 . . . . . . .
+# 16 steps: 8 + 8 rests (was 7 rests / 15 steps — one short, drifted the lead)
+pat coda_fade   = inst poke_warm C5<drift>:8 . . . . . . . .
 
 # =============================================================================
 # Harmony patterns  (Channel 2 — Pulse2)
@@ -271,38 +271,45 @@ pat bass_coda   = C2:8 G2:4 C2:4
 #
 # Light, clean percussion in the style of classic handheld JRPG soundtracks —
 # not heavy or modern; bubbly, rhythmically precise, forward-moving.
+#
+# GB noise kicks are weak and boomy, so kicks are used sparingly — normally just
+# beat 1, with a second kick only where the section needs a push.  The groove is
+# carried by a snare backbeat and off-8th hats instead.
+#
+# 16 steps per bar = 4 beats × 4 sub-steps (1 e & a | 2 e & a | 3 e & a | 4 e & a):
+#   beat 1 = step 1, beat 2 = step 5, beat 3 = step 9, beat 4 = step 13
+# Snare lands on steps 5 and 13 so the backbeat locks to the melody's phrasing.
 
-# drums_intro: sparse fanfare pulse — four lone kicks across the bar, no hats.
+# drums_intro: sparse fanfare pulse — kick on 1 & 3 only, no hats.
 # Appropriate for the ceremonial opening before the full groove kicks in.
 # 16 steps
-pat drums_intro  = kick . . . kick . . . kick . . . kick . . .
+pat drums_intro  = kick . . . . . . . kick . . . . . . .
 
-# drums_bounce: clean main groove — kick on 1+3, snare on 2+4, hat on off-beats.
+# drums_bounce: clean main groove — kick on 1, snare on the 2+4 backbeat, hats on up-beats.
 # The backbone rhythm: precisely timed, cheerful, perfect for JRPG adventuring.
 # 16 steps
-pat drums_bounce = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+pat drums_bounce = kick . hat . snare . hat . . . hat . snare . hat .
 
-# drums_alt: syncopated variation — double kick before beat 3 for forward push.
+# drums_alt: syncopated variation — adds a beat-3 kick and a ghost snare before beat 4.
 # Used every other bar of Theme A to add rhythmic movement without overwhelming.
 # 16 steps
-pat drums_alt    = kick . snare hat kick kick snare hat kick . snare hat kick hat snare hat
+pat drums_alt    = kick . hat . snare . hat . kick . hat snare snare . hat .
 
-# drums_bridge: very sparse ghost pattern — wide open space for bridge melody to breathe.
-# Just a few key anchor points; the silence is as important as the hits here.
+# drums_bridge: very sparse ghost pattern — one kick and a bare backbeat.
+# Wide open space for the bridge melody to breathe.
 # 16 steps
-pat drums_bridge = kick . . hat . . snare . kick . . . . . . .
+pat drums_bridge = kick . . . snare . hat . . . . . snare . . .
 
-# drums_run: driving 16th groove with final double-kick — maximum energy for the run bar.
-# Every step filled with kick/hat/snare density, building excitement into the reprise.
+# drums_run: driving groove — kick on 1+3, denser hats into the reprise (no kick spam).
 # 16 steps
-pat drums_run    = kick hat snare hat kick hat snare hat kick hat snare hat kick hat kick snare
+pat drums_run    = kick . hat . snare . hat . kick . hat . snare hat snare .
 
-# drums_fill: climax fill — double kick before snare, snare on the final step.
+# drums_fill: climax fill — kick on 1+3, snare roll closing the bar.
 # Used to peak the energy at the end of Theme A Reprise and B Reprise sections.
 # 16 steps
-pat drums_fill   = kick hat snare hat kick kick snare hat kick hat snare hat kick hat snare kick
+pat drums_fill   = kick . hat . snare . hat snare kick . hat snare snare snare snare snare
 
-# drums_coda: slow closing fade — four quiet hits then long silence.
+# drums_coda: slow closing fade — a single kick and backbeat snare, then silence.
 # Gives the coda room to settle without a full stop.
 # 16 steps
 pat drums_coda   = kick . . . snare . . . . . . . . . . .
@@ -375,4 +382,4 @@ channel 2 => inst poke_harm seq intro_harm theme_harm soar_harm bridge_harm run_
 channel 3 => inst poke_bass seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass bsoar_bass coda_bass
 channel 4 => inst kick      seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc bsoar_perc coda_perc
 
-play auto repeat
+play auto

@@ -20,7 +20,7 @@
 ##   Ch1 (Pulse1): Melody — bold punchy riff, soaring lines, shimmer on reprise
 ##   Ch2 (Pulse2): Harmony — minor/major arpeggios, wide-duty atmospheric bridge chords
 ##   Ch3 (Wave  ): Bass — driving power-fifth pedal, descending chromatic bridge walk
-##   Ch4 (Noise ): Percussion — sparse intro, full action groove, heavy double-kick drive
+##   Ch4 (Noise ): Percussion — sparse intro, snare-backbeat action groove with sparing kicks
 ##
 ## Effects demonstrated:
 ##   vib  : gentle heroic wobble on held melody peaks (heroVib); slow deep bridge (deepVib)
@@ -144,8 +144,8 @@ pat riff_b_dcm = inst lead_thin F#5:2 G5:2 A5:2 B5:2 inst lead_warm E5:4 inst le
 pat coda_high = E6<shimmer>:4 B5<shimmer>:2 G5:2 E5:4 B4:4
 
 # coda_end: warm tonic fade — long held E5 with heroVib, then silence
-# 16 steps: 8 + 8 rests
-pat coda_end  = inst lead_warm E5<heroVib>:8 . . . . . . .
+# 16 steps: 8 + 8 rests (was 7 rests / 15 steps — one short, drifted the lead)
+pat coda_end  = inst lead_warm E5<heroVib>:8 . . . . . . . .
 
 # =============================================================================
 # Harmony patterns  (Channel 2 — Pulse2)
@@ -234,30 +234,38 @@ pat bass_coda = E2:8 B2:4 E2:4
 # =============================================================================
 # Drum patterns  (Channel 4 — Noise)
 # =============================================================================
+#
+# GB noise kicks are weak and boomy, so kicks are used sparingly — normally just
+# beat 1, with a second kick only where the section needs a push.  The drive comes
+# from the snare backbeat and off-8th hats instead.
+#
+# 16 steps per bar = 4 beats × 4 sub-steps (1 e & a | 2 e & a | 3 e & a | 4 e & a):
+#   beat 1 = step 1, beat 2 = step 5, beat 3 = step 9, beat 4 = step 13
+# Snare lands on steps 5 and 13 so the backbeat locks to the melody's phrasing.
 
-# drums_intro: sparse tension build — sparse kick beats only, 4 beats of 4
+# drums_intro: sparse tension build — lone kicks on beats 1 and 3 only
 # 16 steps
-pat drums_intro  = kick . . . kick . . . kick . . . kick . . .
+pat drums_intro  = kick . . . . . . . kick . . . . . . .
 
-# drums_drive: full action groove — kick on 1+3, snare on 2+4, steady hi-hat 8ths
+# drums_drive: full action groove — kick on 1, snare on the 2+4 backbeat, off-8th hats
 # 16 steps
-pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+pat drums_drive  = kick . hat . snare . hat . . . hat . snare . hat .
 
-# drums_heavy: double-kick action drive — extra kick before beat 3 for hard push
+# drums_heavy: harder action drive — adds a kick pickup into beat 3; backbeat intact
 # 16 steps
-pat drums_heavy  = kick kick snare hat kick kick snare hat kick kick snare hat kick kick snare hat
+pat drums_heavy  = kick . hat . snare . hat kick kick . hat . snare . hat .
 
-# drums_bridge: sparse atmospheric bridge groove — wide space for melody to breathe
+# drums_bridge: sparse atmospheric bridge groove — one kick, wide space for the melody
 # 16 steps
-pat drums_bridge = kick . . hat snare . . . kick . . hat snare . . .
+pat drums_bridge = kick . . hat snare . . . . . . hat snare . . .
 
-# drums_fill: climax fill — extra snares on the final two 16ths, maximum energy
+# drums_fill: climax fill — kick on 1+3 with a snare roll closing the bar
 # 16 steps
-pat drums_fill   = kick hat snare hat kick kick snare hat kick hat kick snare kick hat snare kick
+pat drums_fill   = kick . hat . snare . hat snare kick . hat snare snare snare snare snare
 
-# drums_coda: closing pattern — four quiet beats then fade to silence
+# drums_coda: closing pattern — a single kick and backbeat snare, then fade to silence
 # 16 steps
-pat drums_coda   = kick . . . snare . . . kick . . . . . . .
+pat drums_coda   = kick . . . snare . . . . . . . . . . .
 
 # =============================================================================
 # Sequences  (grouped by song section — all four channels per section)
@@ -320,4 +328,4 @@ channel 2 => inst chord       seq intro_harm theme_harm soar_harm bridge_harm ru
 channel 3 => inst bass_wave   seq intro_bass theme_bass soar_bass bridge_bass run_bass reprise_bass coda_bass
 channel 4 => inst kick        seq intro_perc theme_perc soar_perc bridge_perc run_perc reprise_perc coda_perc
 
-play auto repeat
+play auto

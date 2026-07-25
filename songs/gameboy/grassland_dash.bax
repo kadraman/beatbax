@@ -7,16 +7,16 @@
 ## vibrato-laden bridge; the wave channel time-shares a plucked-kick waveform with the bass
 ## to free the noise channel for snare and hi-hat colour.
 ##
-## Structure (12 bars):
+## Structure (13 bars):
 ##   Bars  1– 4 : Theme A (×2)   — main phrase + answer in G major
 ##   Bars  5– 6 : Build          — ascending portamento run + vibrato bridge phrase
-##   Bars  7– 8 : Turnaround     — pitch-riser, arpeggiated fill, shimmer dive
-##   Bars  9–12 : A reprise (×2) — theme returns to close
+##   Bars  7– 9 : Turnaround     — pitch-riser, arpeggiated fill, shimmer dive
+##   Bars 10–13 : A reprise (×2) — theme returns to close
 ##
 ## Channels:
 ##   Ch1 (Pulse1): Melody — buoyant hook, portamento run, vibrato bridge, shimmer coda
 ##   Ch2 (Pulse2): Harmony — arpeggiated chord voicings and portamento counter-line
-##   Ch3 (Wave  ): Bass + kick time-share — wavekick on every beat, bass on off-beats
+##   Ch3 (Wave  ): Bass + kick time-share — wavekick on beats 1+3, bass on off-beats
 ##   Ch4 (Noise ): Percussion — snare + hi-hat groove; noise kick on build/turnaround anchors
 ##
 ## Effects demonstrated:
@@ -42,8 +42,9 @@ bpm 149
 # melody   — Pulse1:  bright, snappy duty-50 pulse. Carries the main theme.
 # harmony  — Pulse2:  duty-50, softer env. Arpeggiated chord fill and counter-melody.
 # bass1/2  — Wave:    triangle / organ-ish wavetables. Walking bass on off-beats.
-# wavekick — Wave:    short pluck accent on downbeats; time-shares ch3 with the bass.
+# wavekick — Wave:    short pluck accent on beats 1+3; time-shares ch3 with the bass.
 #                     (No pitch_env — a falling kick fights the walking bass on the same channel.)
+#                     Kept off beats 2+4 so it doesn't stack on the noise snare.
 # kick     — Noise:   C-6 + pitch_env/vol_env; used in drums_anchor when wave is busy.
 # snare    — Noise:   mid-range crack on beats 2 and 4 (7-bit).
 # hat      — Noise:   very short, quiet hi-hat fills on up-beats (15-bit).
@@ -125,11 +126,12 @@ pat harm_riser  = G3<majorArp>:16
 # BASS PATTERNS (Wave)
 # =============================================================================
 #
-# Walking bass in G major. On every beat the wave channel briefly plays the
-# wavekick waveform (time-sharing); the bass resumes on off-beat steps.
+# Walking bass in G major. Wavekick accents beats 1 and 3 only — beats 2 and 4
+# are left clear for the noise snare so the two don't stack and smear the groove.
 # Fills and arpeggio patterns keep the bass clean — no kick there.
-pat bass_a      = wavekick . D3 . wavekick . B2 . wavekick . D3 G3 wavekick . B2 .
-pat bass_b      = wavekick . G3 . wavekick . C3 . wavekick . A3 . wavekick . D3 .
+# 16 steps: 1 e & a | 2 e & a | 3 e & a | 4 e & a
+pat bass_a      = wavekick . D3 . . . B2 . wavekick . D3 G3 . . B2 .
+pat bass_b      = wavekick . G3 . . . C3 . wavekick . A3 . . . D3 .
 pat bass_arp    = inst bass1 G2:4 C3:4 D3:4 G2:4
 pat bass_fill   = inst bass1 G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:2 D3<slowSlide>:2 G3<slowSlide>:2 D3<slowSlide>:2 G2:2
 
@@ -137,14 +139,19 @@ pat bass_fill   = inst bass1 G2:2 A2<slowSlide>:2 B2<slowSlide>:2 C3<slowSlide>:
 # DRUM PATTERNS (Noise)
 # =============================================================================
 #
-# drums_a: hats on off-beat 8ths, snare on beats 2 and 4.
-pat drums_a     = . . hat . snare . hat . . . hat . snare . hat .
+# Snare locked to beats 2 and 4. Theme grooves use a single kick on beat 1 so the
+# downbeat stays clear under the dense melody 16ths; denser noise kicks only appear
+# in drums_anchor when the wave channel is busy with fills/arps.
+# 16 steps: 1 e & a | 2 e & a | 3 e & a | 4 e & a
 
-# drums_b: busier hats, but keep snare locked to beats 2 and 4.
-pat drums_b     = . hat hat . snare . hat . . hat hat . snare . hat .
+# drums_a: kick on 1, hats on off-beat 8ths, snare on beats 2 and 4.
+pat drums_a     = kick . hat . snare . hat . . . hat . snare . hat .
+
+# drums_b: busier hats, but keep snare locked to beats 2 and 4 (still one kick on 1).
+pat drums_b     = kick hat hat . snare . hat . . hat hat . snare . hat .
 
 # drums_anchor: used when the wave channel is busy with bass fills/arps, so
-# percussion keeps a clear downbeat without relying on wavekick.
+# percussion keeps clear downbeats (1+3) without relying on wavekick.
 pat drums_anchor = kick . hat . snare . hat . kick . hat . snare . hat .
 
 # =============================================================================
@@ -153,8 +160,8 @@ pat drums_anchor = kick . hat . snare . hat . kick . hat . snare . hat .
 #
 # Bars  1– 4 : Theme A (×2)   — main phrase + answer in G major
 # Bars  5– 6 : Build          — ascending portamento run + vibrato bridge phrase
-# Bars  7– 8 : Turnaround     — pitch-riser, arpeggiated fill, shimmer dive
-# Bars  9–12 : A reprise (×2) — theme returns to close
+# Bars  7– 9 : Turnaround     — pitch-riser, arpeggiated fill, shimmer dive
+# Bars 10–13 : A reprise (×2) — theme returns to close
 
 # --- Section 1: A section — main theme (Bars 1–4) ---
 seq theme_mel  = phrase_a phrase_b phrase_a phrase_b
@@ -189,4 +196,4 @@ channel 2 => inst harmony seq theme_harm build_harm turn_harm reprise_harm
 channel 3 => inst bass2   seq theme_bass build_bass turn_bass reprise_bass
 channel 4 => inst snare   seq theme_perc build_perc turn_perc reprise_perc
 
-play auto repeat
+play auto
