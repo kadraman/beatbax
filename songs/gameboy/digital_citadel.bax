@@ -7,7 +7,7 @@
 ## over ascending C-minor arpeggios, punchy staccato 16th-note hooks driven by power-fifth
 ## bass, a soaring Eb-major lift section, a tense chromatic bridge with deep vibrato, and a
 ## duty-cycle-modulated reprise that closes on a shimmering tonic resolution. The tempo (168
-## BPM), the relentless double-kick groove, and the constant 8th hi-hat pulse are all hallmarks
+## BPM), the punchy snare backbeat with sparing kicks, and the constant 8th hi-hat pulse are all hallmarks
 ## of the Game Boy action-platformer aesthetic pioneered by early Mega Man titles.
 ##
 ## Structure (17 bars):
@@ -26,8 +26,8 @@
 ##                 wide 75%-duty atmospheric chords (tension bridge)
 ##   Ch3 (Wave  ): Bass — sawtooth-style power-fifth chug; chromatic bridge walk;
 ##                 ascending 8th-note run into the reprise
-##   Ch4 (Noise ): Percussion — sparse fanfare build, full platform groove, double kicks,
-##                 sparse atmospheric bridge, climactic fill
+##   Ch4 (Noise ): Percussion — snare-backbeat platform groove with sparing kicks,
+##                 sparse fanfare build, atmospheric bridge, climactic snare-roll fill
 ##
 ## Effects demonstrated:
 ##   sweep : hardware NR10 downward pitch sweep on fanfare notes (mech_swept instrument)
@@ -250,26 +250,36 @@ pat bass_coda  = C2:8 G2:4 C2:4
 
 # =============================================================================
 # Drum patterns  (Channel 4 — Noise)
-# Hard-driving platform groove: kick-heavy, snappy snare, constant 8th hi-hats
-# =============================================================================
+# Snare-backbeat platform groove: snare locked to beats 2 & 4, 8th hi-hats for drive.
+# GB noise kicks are weak/boomy, so kicks are used sparingly — mostly beat 1 (with an
+# occasional beat-3 or pickup). Energy comes from the backbeat and hat density, not kicks.
+#
+# 16 steps per bar = 4 beats × 4 sub-steps (1 e & a | 2 e & a | 3 e & a | 4 e & a):
+#   beat 1 = step 1, beat 2 = step 5, beat 3 = step 9, beat 4 = step 13
 
-# drums_intro: sparse tension build — isolated kick hits, wide space for the fanfare
-pat drums_intro  = kick . . . kick . . . kick . . . kick . kick .
+# drums_intro: sparse tension build — kick on 1 & 3, backbeat snare, wide space for the fanfare
+# 16 steps
+pat drums_intro  = kick . . . snare . . . kick . . . snare . snare .
 
-# drums_drive: full platform groove — kick 1+3, snare 2+4, constant 8th hi-hats
-pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+# drums_drive: full platform groove — kick on 1 & 3, snare on the 2 & 4 backbeat, 8th hats
+# 16 steps
+pat drums_drive  = kick hat . hat snare hat . hat kick hat . hat snare hat . hat
 
-# drums_heavy: double-kick surge — extra kick before each beat for maximum drive
-pat drums_heavy  = kick kick snare hat kick kick snare hat kick kick snare hat kick kick snare hat
+# drums_heavy: harder drive — adds a single kick pickup into beat 3; backbeat snare intact
+# 16 steps
+pat drums_heavy  = kick hat . hat snare hat . kick kick hat . hat snare hat . hat
 
-# drums_bridge: sparse atmospheric — wide breathing space for the tension bridge melody
-pat drums_bridge = kick . . hat snare . . . kick . . hat snare . . .
+# drums_bridge: sparse atmospheric — one kick, backbeat snares, wide breathing space
+# 16 steps
+pat drums_bridge = kick . . hat snare . . . . . . . snare . . .
 
-# drums_fill: climactic fill — extra snares and rapid kick run at the peak energy point
-pat drums_fill   = kick hat snare hat kick kick snare hat kick hat kick hat snare snare kick kick
+# drums_fill: climactic fill — kick on 1 & 3, driving backbeat, snare roll to close the bar
+# 16 steps
+pat drums_fill   = kick hat snare hat snare hat . hat kick . snare snare snare snare snare snare
 
-# drums_coda: four-beat fade — last statement of groove pattern then descending silence
-pat drums_coda   = kick . . . snare . . . kick . . . . . . .
+# drums_coda: four-beat fade — a single kick and backbeat snare, then descending silence
+# 16 steps
+pat drums_coda   = kick . . . snare . . . . . . . . . . .
 
 # =============================================================================
 # Sequences  (grouped by song section — all four channels per section)
@@ -332,4 +342,4 @@ channel 2 => inst chip_arp    seq intro_harm theme_harm lift_harm bridge_harm ru
 channel 3 => inst iron_bass   seq intro_bass theme_bass lift_bass bridge_bass rush_bass reprise_bass coda_bass
 channel 4 => inst kick        seq intro_perc theme_perc lift_perc bridge_perc rush_perc reprise_perc coda_perc
 
-play auto repeat
+play auto
