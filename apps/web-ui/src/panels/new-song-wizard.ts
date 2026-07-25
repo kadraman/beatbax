@@ -1,4 +1,10 @@
-import type { ChipPlugin, ChipNewSongWizard, NewSongWizardTemplateOption } from '@beatbax/engine/chips';
+import type {
+  ChipPlugin,
+  ChipNewSongWizard,
+  NewSongWizardMetadata,
+  NewSongWizardTemplateOption,
+} from '@beatbax/engine/chips';
+import { icon } from '../utils/icons';
 
 export interface NewSongWizardChipOption {
   id: string;
@@ -20,6 +26,13 @@ interface NewSongWizardOptions {
   getDefaultBpm: () => number;
   getDefaultArtist: () => string;
   onCreate: (payload: NewSongWizardCreatePayload) => void;
+  /**
+   * Play a short starter-kit audition for the selected chip.
+   * Call `onEnded` when playback finishes (or fails) so the Preview button resets.
+   */
+  onPreview?: (source: string, handlers: { onEnded: () => void }) => void;
+  /** Stop any in-progress wizard preview playback. */
+  onStopPreview?: () => void;
 }
 
 export function claimNewSongWizardOnboarding(
@@ -151,6 +164,113 @@ function pickDefaultTemplate(
   return templates[0] ?? null;
 }
 
+function setPreviewButtonState(btn: HTMLButtonElement, playing: boolean): void {
+  const label = playing ? 'Stop' : 'Preview';
+  const iconName = playing ? 'stop' : 'speaker-wave';
+  btn.innerHTML = `${icon(iconName, 'bb-new-song-wizard__chip-preview-icon')}<span>${label}</span>`;
+  btn.setAttribute('aria-label', playing ? 'Stop chip audio preview' : 'Preview selected chip audio');
+}
+
+/** Render rich chip card content (XSS-safe DOM construction). Tips span full width under the hero. */
+function fillChipMeta(
+  summaryMeta: HTMLElement,
+  tipsEl: HTMLElement,
+  meta: NewSongWizardMetadata,
+  pluginStatus?: 'Stable' | 'Beta' | 'Experimental',
+): void {
+  summaryMeta.replaceChildren();
+  tipsEl.replaceChildren();
+  tipsEl.hidden = true;
+
+  const tagsRow = document.createElement('div');
+  tagsRow.className = 'bb-new-song-wizard__chip-tags';
+  const status = pluginStatus ?? 'Stable';
+  const statusBadge = document.createElement('span');
+  statusBadge.className = `bb-settings-badge bb-settings-badge--${status.toLowerCase()}`;
+  statusBadge.textContent = status;
+  tagsRow.appendChild(statusBadge);
+  const era = document.createElement('span');
+  era.className = 'bb-new-song-wizard__chip-tag bb-new-song-wizard__chip-tag--era';
+  era.textContent = meta.eraTag || meta.year;
+  tagsRow.appendChild(era);
+  for (const tag of meta.styleTags ?? []) {
+    const pill = document.createElement('span');
+    pill.className = 'bb-new-song-wizard__chip-tag';
+    pill.textContent = tag;
+    tagsRow.appendChild(pill);
+  }
+  summaryMeta.appendChild(tagsRow);
+
+  const platformDiv = document.createElement('div');
+  platformDiv.className = 'bb-new-song-wizard__chip-platform';
+  platformDiv.textContent = meta.platform;
+  summaryMeta.appendChild(platformDiv);
+
+  if (meta.blurb) {
+    const blurb = document.createElement('p');
+    blurb.className = 'bb-new-song-wizard__chip-blurb';
+    blurb.textContent = meta.blurb;
+    summaryMeta.appendChild(blurb);
+  }
+
+  if (meta.listeningNote) {
+    const note = document.createElement('p');
+    note.className = 'bb-new-song-wizard__chip-listening-note';
+    note.textContent = meta.listeningNote;
+    summaryMeta.appendChild(note);
+  }
+
+  if (meta.channels?.length) {
+    const list = document.createElement('ul');
+    list.className = 'bb-new-song-wizard__chip-channels';
+    for (const ch of meta.channels) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.className = 'bb-new-song-wizard__chip-channel-name';
+      name.textContent = ch.name;
+      const role = document.createElement('span');
+      role.className = 'bb-new-song-wizard__chip-channel-role';
+      role.textContent = ch.role;
+      li.append(name, role);
+      list.appendChild(li);
+    }
+    summaryMeta.appendChild(list);
+  } else {
+    const channelsDiv = document.createElement('div');
+    channelsDiv.className = 'bb-new-song-wizard__chip-channel-summary';
+    channelsDiv.textContent = meta.channelSummary;
+    summaryMeta.appendChild(channelsDiv);
+  }
+
+  if (meta.highlights?.length) {
+    tipsEl.hidden = false;
+    const heading = document.createElement('div');
+    heading.className = 'bb-new-song-wizard__chip-tips-title';
+    heading.textContent = 'Why it’s fun';
+    tipsEl.appendChild(heading);
+    const hl = document.createElement('ul');
+    hl.className = 'bb-new-song-wizard__chip-highlights';
+    for (const fact of meta.highlights) {
+      const li = document.createElement('li');
+      if (typeof fact === 'string') {
+        li.className = 'bb-new-song-wizard__chip-highlight bb-new-song-wizard__chip-highlight--plain';
+        li.textContent = fact;
+      } else {
+        li.className = 'bb-new-song-wizard__chip-highlight';
+        const title = document.createElement('strong');
+        title.className = 'bb-new-song-wizard__chip-highlight-title';
+        title.textContent = fact.title;
+        const detail = document.createElement('span');
+        detail.className = 'bb-new-song-wizard__chip-highlight-detail';
+        detail.textContent = fact.detail;
+        li.append(title, detail);
+      }
+      hl.appendChild(li);
+    }
+    tipsEl.appendChild(hl);
+  }
+}
+
 function buildSongSource(params: {
   chipName: string;
   bpm: number;
@@ -223,9 +343,6 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
   const chipField = document.createElement('div');
   chipField.className = 'bb-new-song-wizard__field';
-  const chipLabel = document.createElement('span');
-  chipLabel.className = 'bb-new-song-wizard__label';
-  chipLabel.textContent = 'Sound chip selector';
   const chipCarousel = document.createElement('div');
   chipCarousel.className = 'bb-new-song-wizard__chip-carousel';
   const chipPrevBtn = document.createElement('button');
@@ -235,17 +352,31 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   chipPrevBtn.textContent = '◀';
   const chipCard = document.createElement('div');
   chipCard.className = 'bb-new-song-wizard__chip-card';
+  const chipVisual = document.createElement('div');
+  chipVisual.className = 'bb-new-song-wizard__chip-visual';
   const summaryImage = document.createElement('img');
   summaryImage.className = 'bb-new-song-wizard__chip-image';
   summaryImage.alt = 'Selected chip platform';
+  const previewBtn = document.createElement('button');
+  previewBtn.type = 'button';
+  previewBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--secondary bb-new-song-wizard__chip-preview';
+  setPreviewButtonState(previewBtn, false);
+  previewBtn.hidden = !options.onPreview;
+  const tipsEl = document.createElement('div');
+  tipsEl.className = 'bb-new-song-wizard__chip-tips';
+  tipsEl.hidden = true;
+  chipVisual.append(summaryImage, previewBtn);
+  const chipInfo = document.createElement('div');
+  chipInfo.className = 'bb-new-song-wizard__chip-info';
   const chipName = document.createElement('div');
   chipName.className = 'bb-new-song-wizard__chip-name';
   const summaryMeta = document.createElement('div');
   summaryMeta.className = 'bb-new-song-wizard__chip-meta';
+  chipInfo.append(chipName, summaryMeta);
   const chipStatus = document.createElement('div');
   chipStatus.className = 'bb-new-song-wizard__chip-status';
   chipStatus.hidden = true;
-  chipCard.append(summaryImage, chipName, summaryMeta, chipStatus);
+  chipCard.append(chipVisual, chipInfo, tipsEl, chipStatus);
   const chipNextBtn = document.createElement('button');
   chipNextBtn.type = 'button';
   chipNextBtn.className = 'bb-new-song-wizard__chip-nav bb-new-song-wizard__chip-nav--next';
@@ -254,7 +385,13 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   chipCarousel.append(chipPrevBtn, chipCard, chipNextBtn);
   const chipPagination = document.createElement('div');
   chipPagination.className = 'bb-new-song-wizard__chip-pagination';
-  chipField.append(chipLabel, chipCarousel, chipPagination);
+  const chipHint = document.createElement('div');
+  chipHint.className = 'bb-new-song-wizard__chip-hint';
+  chipHint.textContent = '← → to switch chips';
+  chipField.append(chipCarousel, chipPagination, chipHint);
+
+  const detailsCol = document.createElement('div');
+  detailsCol.className = 'bb-new-song-wizard__details';
 
   const nameField = document.createElement('label');
   nameField.className = 'bb-new-song-wizard__field';
@@ -300,12 +437,9 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   tagsInput.placeholder = 'demo, upbeat';
   tagsField.appendChild(tagsInput);
 
-  const rowNameArtist = document.createElement('div');
-  rowNameArtist.className = 'bb-new-song-wizard__field-grid';
-  rowNameArtist.append(nameField, artistField);
-
-  const exampleOptionsField = document.createElement('div');
-  exampleOptionsField.className = 'bb-new-song-wizard__field bb-new-song-wizard__toggle-group';
+  const leftCol = document.createElement('div');
+  leftCol.className = 'bb-new-song-wizard__col';
+  leftCol.append(nameField, artistField, bpmField, tagsField);
 
   function createExampleToggle(label: string, ariaLabel: string): { row: HTMLLabelElement; input: HTMLInputElement } {
     const row = document.createElement('label');
@@ -324,32 +458,22 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   const instrumentsToggle = createExampleToggle('Create example instruments', 'Create example instruments');
   const effectsToggle = createExampleToggle('Create named effects', 'Create named effects');
   const structureToggle = createExampleToggle('Create example structure', 'Create example structure');
-  exampleOptionsField.append(instrumentsToggle.row, effectsToggle.row, structureToggle.row);
 
-  // Create a container for the BPM field to align it in the first column
-  const bpmRow = document.createElement('div');
-  bpmRow.className = 'bb-new-song-wizard__field-grid'; // Assuming this class supports two-column layout
-  bpmRow.appendChild(bpmField);
+  const starterTitle = document.createElement('div');
+  starterTitle.className = 'bb-new-song-wizard__summary-title';
+  starterTitle.textContent = 'Starter kit';
 
-  // Create a container for the example toggles to align them in the second column
-  const exampleTogglesRow = document.createElement('div');
-  exampleTogglesRow.className = 'bb-new-song-wizard__field-grid bb-new-song-wizard__toggle-group'; // Assuming this class supports two-column layout
-  exampleTogglesRow.append(
-    instrumentsToggle.row,
-    effectsToggle.row,
-    structureToggle.row
-  );
+  const exampleOptionsField = document.createElement('div');
+  exampleOptionsField.className = 'bb-new-song-wizard__field bb-new-song-wizard__toggle-group';
+  exampleOptionsField.append(starterTitle, instrumentsToggle.row, effectsToggle.row, structureToggle.row);
 
-  formCol.append(
-    errorBanner,
-    chipField,
-    rowNameArtist,
-    descField,
-    tagsField,
-    bpmRow, // Append the BPM container
-    exampleTogglesRow, // Append the toggles container
-  );
+  const rightCol = document.createElement('div');
+  rightCol.className = 'bb-new-song-wizard__col';
+  rightCol.append(descField, exampleOptionsField);
 
+  detailsCol.append(leftCol, rightCol);
+
+  formCol.append(errorBanner, chipField, detailsCol);
   body.append(formCol);
 
   const footer = document.createElement('div');
@@ -361,7 +485,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   const createBtn = document.createElement('button');
   createBtn.type = 'button';
   createBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--primary';
-  createBtn.textContent = 'Create Song';
+  createBtn.textContent = 'Create & open';
   footer.append(cancelBtn, createBtn);
 
   modalEl.append(header, body, footer);
@@ -370,6 +494,8 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   let chips: ResolvedWizardEntry[] = [];
   let selectedChipId = '';
   let bodyOverflowBeforeOpen = '';
+  let previewActive = false;
+  let clearPreviewEndedListener: (() => void) | null = null;
   const selectedExamples: Record<'instruments' | 'effects' | 'structure', NewSongWizardTemplateOption | null> = {
     instruments: null,
     effects: null,
@@ -393,18 +519,55 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     selectedChipId = chips[wrapped].id;
   }
 
+  function markPreviewIdle(): void {
+    previewActive = false;
+    clearPreviewEndedListener?.();
+    clearPreviewEndedListener = null;
+    setPreviewButtonState(previewBtn, false);
+  }
+
+  function stopPreview(): void {
+    if (!previewActive) return;
+    markPreviewIdle();
+    options.onStopPreview?.();
+  }
+
+  /** Starter-kit audition: always include default instruments/effects/structure. */
+  function buildPreviewSource(): string | null {
+    const selected = currentChip();
+    if (!selected || validateChipWizardContract(selected)) return null;
+    const bpmRaw = Number(bpmInput.value);
+    const bpm = Number.isFinite(bpmRaw) ? Math.min(300, Math.max(60, bpmRaw)) : 128;
+    return buildSongSource({
+      chipName: selected.chipDirective,
+      bpm,
+      songName: 'Chip preview',
+      artist: artistInput.value.trim(),
+      description: '',
+      tags: 'preview',
+      instrumentsContent: selectedExamples.instruments?.content ?? '',
+      effectsContent: selectedExamples.effects?.content ?? '',
+      structureContent: selectedExamples.structure?.content ?? '',
+    });
+  }
+
   function renderSelectedChip(): void {
+    stopPreview();
     const selected = currentChip();
     const issue = selected ? validateChipWizardContract(selected) : 'No enabled chip plugins found.';
     if (!selected || issue) {
       summaryImage.src = DEFAULT_FALLBACK_IMAGE;
       chipName.textContent = selected?.id ?? 'No chip selected';
       summaryMeta.textContent = issue ?? 'No chip selected.';
+      tipsEl.replaceChildren();
+      tipsEl.hidden = true;
       chipStatus.hidden = !issue;
       chipStatus.textContent = issue ?? '';
       errorBanner.hidden = false;
       errorBanner.textContent = issue ?? '';
       createBtn.disabled = true;
+      previewBtn.disabled = true;
+      setPreviewButtonState(previewBtn, false);
       selectedExamples.instruments = null;
       selectedExamples.effects = null;
       selectedExamples.structure = null;
@@ -419,21 +582,13 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
     errorBanner.hidden = true;
     createBtn.disabled = false;
+    previewBtn.disabled = !options.onPreview;
     chipStatus.hidden = true;
     chipStatus.textContent = '';
     const wizard = selected.wizard;
     summaryImage.src = normalizeImageSource(wizard.metadata.image);
     chipName.textContent = wizard.metadata.chipDisplayName;
-
-    // Build summaryMeta using DOM nodes to prevent XSS from untrusted plugin metadata
-    summaryMeta.textContent = '';
-    const platformDiv = document.createElement('div');
-    platformDiv.textContent = wizard.metadata.platform;
-    const yearDiv = document.createElement('div');
-    yearDiv.textContent = `Year: ${wizard.metadata.year}`;
-    const channelsDiv = document.createElement('div');
-    channelsDiv.textContent = `Channels: ${wizard.metadata.channelSummary}`;
-    summaryMeta.append(platformDiv, yearDiv, channelsDiv);
+    fillChipMeta(summaryMeta, tipsEl, wizard.metadata, selected.plugin.status);
 
     selectedExamples.instruments = pickDefaultTemplate(wizard.templates.instruments, wizard.templates.defaults?.instruments);
     selectedExamples.effects = pickDefaultTemplate(wizard.templates.effects, wizard.templates.defaults?.effects);
@@ -482,9 +637,34 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   }
 
   function close(): void {
+    stopPreview();
     backdrop.classList.remove('bb-new-song-wizard-backdrop--open');
     document.body.style.overflow = bodyOverflowBeforeOpen;
   }
+
+  previewBtn.addEventListener('click', () => {
+    if (previewActive) {
+      stopPreview();
+      return;
+    }
+    const source = buildPreviewSource();
+    if (!source || !options.onPreview) return;
+    previewActive = true;
+    setPreviewButtonState(previewBtn, true);
+    clearPreviewEndedListener?.();
+    let ended = false;
+    const onEnded = () => {
+      if (ended) return;
+      ended = true;
+      clearPreviewEndedListener = null;
+      if (!previewActive) return;
+      markPreviewIdle();
+    };
+    clearPreviewEndedListener = () => {
+      ended = true;
+    };
+    options.onPreview(source, { onEnded });
+  });
 
   createBtn.addEventListener('click', () => {
     const selected = currentChip();

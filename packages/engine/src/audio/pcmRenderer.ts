@@ -457,8 +457,11 @@ function panToGains(panSpec: any): { left: number; right: number } {
 function resolveEventPan(ev: NoteEvent, inst: InstrumentNode): any {
   if (ev && (ev as any).pan) return (ev as any).pan;
   if (inst) {
-    if ((inst as any)['gb:pan']) return (inst as any)['gb:pan'];
-    if ((inst as any)['pan'] !== undefined) return (inst as any)['pan'];
+    const i = inst as Record<string, unknown>;
+    if (i['gb:pan'] !== undefined) return i['gb:pan'];
+    if (i['gg:pan'] !== undefined) return i['gg:pan'];
+    if (i.gg_pan !== undefined) return i.gg_pan;
+    if (i.pan !== undefined) return i.pan;
   }
   return undefined;
 }

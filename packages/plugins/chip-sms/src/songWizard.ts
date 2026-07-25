@@ -20,6 +20,30 @@ export const smsSongWizard = {
       year: '1985',
       channelSummary: '3 tone, 1 noise',
       image: SMS_IMAGE_BASE64,
+      eraTag: '1985',
+      styleTags: ['PSG', '4-channel', 'square'],
+      blurb:
+        'Three bright squares and a snarling noise channel — colour comes from envelopes, layering, and tight writing.',
+      channels: [
+        { name: 'Tone1', role: 'lead' },
+        { name: 'Tone2', role: 'harmony' },
+        { name: 'Tone3', role: 'bass / drum clock' },
+        { name: 'Noise', role: 'drums & texture' },
+      ],
+      highlights: [
+        {
+          title: 'Write the dynamics',
+          detail: 'Volume is attenuation — envelopes turn flat squares into punches.',
+        },
+        {
+          title: 'Pitch the drums',
+          detail: 'Clock noise from Tone 3 for synced metallic hits.',
+        },
+        {
+          title: 'Rhythm is the synth',
+          detail: 'No duty or wavetable knobs — groove and layering paint the sound.',
+        },
+      ],
     },
     templates: {
       instruments: [
@@ -29,7 +53,7 @@ export const smsSongWizard = {
           content:
 `
 inst lead type=tone1 vol=0 gm=81
-inst arp  type=tone2 vol=0 vol_env=[0,2,4,6,8,10,12,14,15] gm=84
+inst arp  type=tone2 vol=0 vol_env=[0,0,0,2,4,7,10,13,15] gm=84
 inst bass type=tone3 vol=0 vol_env=[0,6,10,14,15] gm=39
 
 inst snare  type=noise noise_mode=white noise_rate=1 vol_env=[1,4,7,10,12,14,15] noise_rate_env=[0,0,1,1,2]
@@ -103,6 +127,30 @@ play
           year: '1985',
           channelSummary: '3 tone, 1 noise (mono)',
           image: SMS_IMAGE_BASE64,
+          eraTag: '1985',
+          styleTags: ['console', 'PSG', 'mono'],
+          blurb:
+            'Punchy mono action-game energy: three squares, one noise, and dynamics you write yourself.',
+          channels: [
+            { name: 'Tone1', role: 'lead' },
+            { name: 'Tone2', role: 'harmony' },
+            { name: 'Tone3', role: 'bass / drum clock' },
+            { name: 'Noise', role: 'drums & texture' },
+          ],
+          highlights: [
+            {
+              title: 'Envelopes are everything',
+              detail: 'Attenuation volume rewards careful fade and punch writing.',
+            },
+            {
+              title: 'Synced percussion',
+              detail: 'Let Tone 3 clock the noise for metallic, pitched drum hits.',
+            },
+            {
+              title: 'Keep it moving',
+              detail: 'Fixed squares — expression lives in rhythm and layering.',
+            },
+          ],
         },
         templates: {
           instruments: [
@@ -112,8 +160,9 @@ play
               content:
 `
 # SMS attenuation: 0 = loudest, 15 = mute
-inst lead   type=tone1  vol=0  vol_env=[0,3,6,9,12,15]
-inst harm   type=tone2  vol=1  vol_env=[1,4,7,10,13,15]
+# Lead holds steady so vib/port on long notes can be heard (no short vol_env kill)
+inst lead   type=tone1  vol=0
+inst harm   type=tone2  vol=1  vol_env=[1,1,1,2,3,5,8,11,13,15]
 inst bass   type=tone3  vol=0  vol_env=[0,4,9,14,15]
 
 inst kick   type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,7,12,15]
@@ -151,8 +200,8 @@ pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4
 pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)
 pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2
 pat arp_pat         = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4
-pat drums_pat       = (snare . . .) (snare . . .) (snare . . .)
-pat drums_alt_pat   = (snare . . .) * 2 (shaker hihat) * 8
+pat drums_pat       = (kick . hihat .) (snare . hihat .)
+pat drums_alt_pat   = (kick hihat snare hihat) * 2 (shaker hihat) * 4
 
 seq lead_seq        = melody_pat melody_alt_pat
 seq bass_seq        = bass_pat
@@ -186,6 +235,30 @@ play
           // Game Gear adds hardware stereo routing on top of the SMS PSG
           channelSummary: '3 tone, 1 noise (stereo)',
           image: GG_IMAGE_BASE64,
+          eraTag: '1990',
+          styleTags: ['portable', 'PSG', 'stereo'],
+          blurb:
+            'Same PSG heart as the Master System, plus stereo panning — place leads and hats across a handheld stage.',
+          channels: [
+            { name: 'Tone1', role: 'lead (right)' },
+            { name: 'Tone2', role: 'counter (left)' },
+            { name: 'Tone3', role: 'bass / drum clock' },
+            { name: 'Noise', role: 'stereo drums' },
+          ],
+          highlights: [
+            {
+              title: 'Hard L/R stage',
+              detail: 'gg:pan puts leads, counters, and hats on opposite speakers.',
+            },
+            {
+              title: 'Same PSG tricks',
+              detail: 'Envelopes, Tone-3 noise clock, and layering still rule.',
+            },
+            {
+              title: 'Pocket punch',
+              detail: 'Four voices, one handheld — write tight and it sings.',
+            },
+          ],
         },
         templates: {
           instruments: [
@@ -195,17 +268,16 @@ play
               content:
 `
 # Game Gear attenuation: 0 = loudest, 15 = mute
-# pan=R  — right channel only
-# pan=L  — left channel only
-# pan=C  — both channels (center)
-inst lead   type=tone1  vol=0  vol_env=[0,3,6,9,12,15]              pan=R
-inst harm   type=tone2  vol=2  vol_env=[2,5,8,11|11]                pan=L
-inst bass   type=tone3  vol=0  vol_env=[0,4,9,14,15]                pan=C
+# Lead holds steady so vib/port on long notes can be heard
+# gg:pan=R / L / C — hard stereo routing (hear it in Preview headphones)
+inst lead    type=tone1  vol=0                                   gg:pan=R
+inst counter type=tone2  vol=1  vol_env=[1,1,1,2,3,5,8,11,13,15] gg:pan=L
+inst bass    type=tone3  vol=0  vol_env=[0,4,9,14,15]            gg:pan=C
 
-inst kick   type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,7,12,15]            pan=C
-inst snare  type=noise  noise_mode=white     noise_rate=1  vol_env=[1,4,7,10,12,14,15]  noise_rate_env=[0,0,1,1,2]  pan=C
-inst hihat  type=noise  noise_mode=white     noise_rate=0  vol_env=[6,11,14,15]              pan=C
-inst shaker type=noise  noise_mode=periodic  noise_rate=1  vol_env=[4,8,12,15]               pan=C
+inst kick    type=noise  noise_mode=white     noise_rate=2  vol_env=[0,3,7,12,15]                         gg:pan=C
+inst snare   type=noise  noise_mode=white     noise_rate=1  vol_env=[1,4,7,10,12,14,15] noise_rate_env=[0,0,1,1,2]  gg:pan=R
+inst hihat   type=noise  noise_mode=white     noise_rate=0  vol_env=[6,11,14,15]                           gg:pan=L
+inst shaker  type=noise  noise_mode=periodic  noise_rate=1  vol_env=[4,8,12,15]                            gg:pan=L
 `,
             },
           ],
@@ -233,23 +305,26 @@ effect slide    = port:4            # snappy slide — scalar run articulation
               label: 'Sample structure (stereo)',
               content:
 `
-# Lead melody panned right, harmony left, bass and drums centered.
+# Stereo stage: lead hard-right, answering counter hard-left,
+# hats/shaker left, snare right, bass + kick centered.
 pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4
 pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)
-pat harm_pat        = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4
+# Counter-melody (left) — different contour so the L/R split is obvious
+pat counter_pat     = (. . E4 G4) (C5:2 A4:2) (. G4 E4 .) (C4:4) (E4 . C4 .) (G3:4)
+pat counter_alt_pat = (G4 . E4 .) (A4:2 G4:2) (E4 C4 . .)
 pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2
-pat drums_pat       = (snare . . .) (snare . . .) (snare . . .)
-pat drums_alt_pat   = (snare . . .) * 2 (shaker hihat) * 8
+pat drums_pat       = (kick hihat . snare) (kick hihat shaker snare)
+pat drums_alt_pat   = (kick hihat snare hihat) * 2 (shaker hihat) * 4
 
 seq lead_seq        = melody_pat melody_alt_pat
-seq harm_seq        = harm_pat * 2
+seq counter_seq     = counter_pat counter_alt_pat
 seq bass_seq        = bass_pat
 seq drums_seq       = drums_pat drums_alt_pat
 
-channel 1 => inst lead  seq lead_seq
-channel 2 => inst harm  seq harm_seq
-channel 3 => inst bass  seq bass_seq
-channel 4 => inst kick  seq drums_seq
+channel 1 => inst lead    seq lead_seq
+channel 2 => inst counter seq counter_seq
+channel 3 => inst bass    seq bass_seq
+channel 4 => inst kick    seq drums_seq
 
 play
 `

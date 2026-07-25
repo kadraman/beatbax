@@ -35,7 +35,6 @@ song tags "nes,capcom,classic,reference,ducktales"
 
 chip nes
 bpm 90
-ticksPerStep 16
 
 # =============================================================================
 # Instruments

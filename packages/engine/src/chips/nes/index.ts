@@ -20,6 +20,7 @@ export {
   nesMix,
   getNesGainWeights,
   NES_MIX_GAIN,
+  NES_LISTENING_GAIN,
 } from './mixer.js';
 export { validateNesInstrument } from './validate.js';
 export { decodeDMC, resolveDMCSample, resolveRawDMCSample, resolveGitHubUrl, preloadDMCSamples } from './dmc.js';
