@@ -19,7 +19,7 @@
 ##   Ch1 (Pulse1): Melody — soaring arch, vibrato bridge, duty-cycle-modulated reprise
 ##   Ch2 (Pulse2): Harmony — arpeggiated chord blocks (I–V, IV–V–vi–I), wide-duty bridge pads
 ##   Ch3 (Wave  ): Bass — sustained chord-tone counterpoint; portamento walks in bridge
-##   Ch4 (Noise ): Percussion — kick/snare/hat groove with sparse bridge and climax fill
+##   Ch4 (Noise ): Percussion — snare-backbeat groove with sparing kicks, sparse bridge, climax fill
 ##
 ## Effects demonstrated:
 ##   vib  : gentle wobble on held melody notes (wobble); slow deep bridge vibrato (deepVib)
@@ -214,23 +214,30 @@ pat wave_coda     = G2:4 D3:4 G3:4 G2:4
 #
 # Lighter and more varied than an all-16th-hat pattern.  The bridge uses a
 # sparse pattern to let the melody breathe.
-# =============================================================================
+#
+# GB noise kicks are weak and boomy, so kicks are used sparingly — normally just
+# beat 1, with a second kick only where the section needs a push.  The groove is
+# carried by a snare backbeat and off-8th hats instead.
+#
+# 16 steps per bar = 4 beats × 4 sub-steps (1 e & a | 2 e & a | 3 e & a | 4 e & a):
+#   beat 1 = step 1, beat 2 = step 5, beat 3 = step 9, beat 4 = step 13
+# Snare lands on steps 5 and 13 so the backbeat locks to the melody's phrasing.
 
-# drums_a: steady groove — kick on 1+3, snare on 2+4, hat on up-beats.
+# drums_a: steady groove — kick on 1, snare on the 2+4 backbeat, hats on the up-beats.
 # 16 steps
-pat drums_a       = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+pat drums_a       = kick . hat . snare . hat . . . hat . snare . hat .
 
-# drums_b: syncopated variation — double kick before beat 3 for forward momentum.
+# drums_b: syncopated variation — adds a beat-3 kick and a ghost snare before beat 4.
 # 16 steps
-pat drums_b       = kick . snare hat kick hat kick snare . hat snare hat kick . snare hat
+pat drums_b       = kick . hat . snare . hat . kick . hat snare snare . hat .
 
-# drums_sparse: bridge groove — very minimal, lets the melody breathe.
+# drums_sparse: bridge groove — very minimal, one kick and a bare backbeat.
 # 16 steps
-pat drums_sparse  = kick . . hat . . snare . kick . . hat . . snare .
+pat drums_sparse  = kick . . . snare . hat . . . . . snare . hat .
 
-# drums_fill: climax — extra kick and double snare on the final beat.
+# drums_fill: climax — beat 1+3 kicks with a snare roll closing the bar.
 # 16 steps
-pat drums_fill    = kick hat snare hat kick kick snare hat kick hat snare hat kick hat snare snare
+pat drums_fill    = kick . hat . snare . hat snare kick . hat snare snare snare snare snare
 
 # =============================================================================
 # Sequences  (grouped by song section — all four channels per section)
@@ -292,4 +299,4 @@ channel 2 => inst harm       seq intro_harm theme_harm bridge_harm fill_harm rep
 channel 3 => inst bass       seq intro_bass theme_bass bridge_bass fill_bass reprise_bass coda_bass
 channel 4 => inst kick       seq intro_perc theme_perc bridge_perc fill_perc reprise_perc coda_perc
 
-play auto repeat
+play auto

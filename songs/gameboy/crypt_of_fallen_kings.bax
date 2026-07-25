@@ -23,7 +23,7 @@
 ##                 duty switches for timbral contrast in the B section
 ##   Ch3 (Wave):   Driving bass — rounded asymmetric waveform, straight 8ths and
 ##                 galloping long-short-short patterns for forward propulsion
-##   Ch4 (Noise):  Percussion — kick/snare/hat groove with climax fills
+##   Ch4 (Noise):  Percussion — snare/hat-led groove (kicks used sparingly) with climax fills
 ##
 ## Effects demonstrated:
 ##   vib  : medium vibrato on melody peaks (exprVib); deep slow vibrato on bridge (deepVib);
@@ -35,7 +35,7 @@
 
 song name "Crypt of the Fallen Kings"
 song artist "The BeatBax Team"
-song description """An original dark-action theme in A harmonic minor at 160 BPM. Driving 16th-note energy, bold octave leaps, fast descending harmonic-minor scalar runs, and relentless percussion evoke locked castle corridors and undead hordes. The two pulse channels simulate full Am–F–G–Am and Am–Dm–E7–Am progressions via tight arpeggios, while a galloping wave-bass and snappy kick-snare-hat groove maintain constant forward momentum. Demonstrates vibrato, arpeggios, portamento and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
+song description """An original dark-action theme in A harmonic minor at 160 BPM. Driving 16th-note energy, bold octave leaps, fast descending harmonic-minor scalar runs, and relentless percussion evoke locked castle corridors and undead hordes. The two pulse channels simulate full Am–F–G–Am and Am–Dm–E7–Am progressions via tight arpeggios, while a galloping wave-bass and a snappy snare/hat groove (with sparing kicks) maintain constant forward momentum. Demonstrates vibrato, arpeggios, portamento and duty-cycle modulation across all four Game Boy channels without reproducing any copyrighted material."""
 song tags "original,dark,action,horror,platformer,demo"
 
 chip gameboy
@@ -112,8 +112,9 @@ pat mel_a2      = A4<pan:L> E5<pan:R> A5<pan:L> C6<pan:R> B5<pan:L> A5<pan:R> G5
 # mel_b_hi: B-section melody — higher register entry C5→C6 with syncopated accent.
 # Rapid descent from C6 through the harmonic minor. Vibrato on the peak C6
 # creates expressiveness amid the driving 16th-note energy.
-# 16 steps: 1+1+1+2+1+1+1+1+2+1+1+1+1
-pat mel_b_hi    = C5<pan:L> E5<pan:R> A5<pan:L> C6<exprVib,pan:R>:2 B5<pan:L> A5<pan:R> G5<pan:L> F5<pan:R> E5<pan:L>:2 D5<pan:R> C5<pan:L> B4<pan:R> .
+# 16 steps: 1+1+1+2+1+1+1+1+2+1+1+1 (=14, twelve notes) + 2 trailing rests
+# (was 15 steps — one short — which drifted the lead ahead of the drums from bar 9 on)
+pat mel_b_hi    = C5<pan:L> E5<pan:R> A5<pan:L> C6<exprVib,pan:R>:2 B5<pan:L> A5<pan:R> G5<pan:L> F5<pan:R> E5<pan:L>:2 D5<pan:R> C5<pan:L> B4<pan:R> . .
 
 # mel_b_hi2: B-section continuation — ascends even higher, peak at E6 with fast vib.
 # The most intense melodic bar: dramatic upper-register leap and shimmering peak.
@@ -229,35 +230,36 @@ pat bass_run    = A2:2 B2:2 C3:2 D3:2 E3:2 F3:2 G#3:2 A3:2
 # Drum patterns  (Channel 4 — Noise)
 # =============================================================================
 #
-# Tight, driving 8-bit percussion. Kick on beats 1 and 3, snare on 2 and 4.
-# Hi-hat fills maintain the relentless 16th-note forward energy.
+# Snare/hat-led 8-bit percussion. GB noise kicks are weak and boomy, so kicks
+# are used sparingly — a single downbeat punch (beats 1 and 3 only on the climax).
+# Snare carries the backbeat (2 and 4); hats keep the 16th-note forward energy.
 #
 # 16 steps per bar (4 beats × 4 sub-steps in 4/4):
 #   beat 1 = steps 1–4, beat 2 = steps 5–8, beat 3 = steps 9–12, beat 4 = steps 13–16
 
-# drums_intro: sparse — kick on beats 1 and 3, hats on upbeats. Dark and minimal.
+# drums_intro: sparse — one kick on beat 1, hats on the backbeats. Dark and minimal.
 # 16 steps
-pat drums_intro  = kick . . . hat . . . kick . . . hat . . .
+pat drums_intro  = kick . . . hat . . . . . . . hat . . .
 
-# drums_main: driving groove — kick on 1 and 3, snare on 2 and 4, 8th hats.
+# drums_main: driving groove — kick on 1 only, snare on 2 and 4, hats on off-8ths.
 # The backbone rhythm: relentless forward drive without clutter.
 # 16 steps
-pat drums_main   = kick hat . hat snare hat . hat kick hat . hat snare hat . hat
+pat drums_main   = kick . hat . snare . hat . . . hat . snare . hat .
 
-# drums_drive: intense 16th fill — kick-hat-snare-hat × 4 for maximum energy.
+# drums_drive: intense groove — kick on 1 only; energy from ghost snares + dense hats.
 # Used to heighten the intensity in the B-section and build sections.
 # 16 steps
-pat drums_drive  = kick hat snare hat kick hat snare hat kick hat snare hat kick hat snare hat
+pat drums_drive  = kick . hat snare snare . hat snare . . hat . snare . hat snare
 
-# drums_bridge: minimal eerie pattern — bare kicks, near-silence for the bridge.
+# drums_bridge: minimal eerie pattern — a single kick, near-silence for the bridge.
 # The sparse percussion lets the atmospheric deep-vibrato melody breathe.
 # 16 steps
-pat drums_bridge = kick . . . . . . . kick . . . hat . . .
+pat drums_bridge = kick . . . . . . . . . . . hat . . .
 
-# drums_climax: full-power fill — kick-hat-hat-snare × 4.
-# Maximum percussive density under the ascending climax run bar.
+# drums_climax: full-power snare fill — kicks only on beats 1 and 3, snare roll to close.
+# Maximum percussive density under the ascending climax run bar, without kick spam.
 # 16 steps
-pat drums_climax = kick hat hat snare kick hat hat snare kick hat hat snare kick hat hat snare
+pat drums_climax = kick . hat snare snare . hat snare kick . snare snare snare snare snare snare
 
 # =============================================================================
 # Sequences  (grouped by song section — all four channels per section)
@@ -320,4 +322,4 @@ channel 2 => inst arp   seq intro_harm hook_harm bsec_harm bridge_harm return_ha
 channel 3 => inst bass  seq intro_bass hook_bass bsec_bass bridge_bass return_bass climax_bass finale_bass
 channel 4 => inst kick  seq intro_perc hook_perc bsec_perc bridge_perc return_perc climax_perc finale_perc
 
-play auto repeat
+play auto
