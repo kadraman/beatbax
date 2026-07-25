@@ -43,7 +43,7 @@ export function buildPluginsSection(): HTMLElement {
       label: 'Game Boy DMG-01 APU',
       description: '4-channel APU — 2 pulse, wave, and noise. Enables `chip gameboy` in .bax scripts.',
       version: gameboyPlugin.version,
-      badge: 'Stable',
+      badge: gameboyPlugin.status ?? 'Stable',
     },
     {
       id: 'nes',
@@ -52,7 +52,7 @@ export function buildPluginsSection(): HTMLElement {
         'Nintendo Entertainment System / Famicom APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
         'Enables `chip nes` or `chip famicom` in .bax scripts.',
       version: nesPlugin.version,
-      badge: 'Beta',
+      badge: (nesPlugin.status as 'Stable' | 'Beta') ?? 'Beta',
     },
   ];
   for (const builtin of builtinChips) {

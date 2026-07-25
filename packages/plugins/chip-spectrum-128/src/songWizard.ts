@@ -14,8 +14,43 @@ export const AMSTRAD_CPC_IMAGE_BASE64 =
 
 // ── Shared starter templates ─────────────────────────────────────────────────
 
+const SPECTRUM_FX_PACK = `
+effect exprVib  = vib:3,5,sine,4    # medium vibrato — expressiveness on peaks
+effect deepVib  = vib:5,3,sine,6    # slow, deep vibrato — atmospheric bridge tension
+effect fastVib  = vib:2,8,sine,2    # fast shimmer — blazing climax and peak notes
+
+effect minorArp = arp:3,7           # minor triad  (Am, Dm: root + min3 + P5)
+effect majArp   = arp:4,7           # major triad  (F, G: root + maj3 + P5)
+effect dom7Arp  = arp:4,7,10        # dominant 7th (E7: root + maj3 + P5 + min7)
+
+effect slide    = port:4            # snappy slide — scalar run articulation
+`;
+
 const SPECTRUM_INSTRUMENTS = {
   instruments: [
+    {
+      id: 'starter-demo',
+      label: 'Starter demo',
+      content: [
+        '# AY volume: 15 = loudest, 0 = mute — keep headroom vs SMS/GB previews',
+        '# Shared noise_rate=4 on all drums avoids R6 conflicts when multiplexed',
+        'inst lead  type=tone1 vol=10',
+        'inst bass  type=tone3 vol=11',
+        'inst kick  type=tone2 vol=12 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[12,10,7,4,2,0]',
+        'inst snare type=tone2 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=3 note=E5 vol_env=[11,9,6,4,2,0]',
+        'inst hihat type=tone2 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]',
+      ].join('\n'),
+    },
+    {
+      id: 'buzz-bass-demo',
+      label: 'Lead + Buzz Bass',
+      content: [
+        '# env_bass uses the shared hardware envelope as an oscillator',
+        'inst lead type=tone1 vol=13',
+        'inst harm type=tone2 vol=10',
+        'inst bass type=tone3 vol=12 env_bass=true env_shape=10',
+      ].join('\n'),
+    },
     {
       id: 'lead-harmony-bass',
       label: 'Lead + Harmony + Bass',
@@ -23,26 +58,6 @@ const SPECTRUM_INSTRUMENTS = {
         'inst lead type=tone1 vol=12 arp_env=[0,4,7|0]',
         'inst harm type=tone2 vol=10',
         'inst bass type=tone3 vol=14',
-      ].join('\n'),
-    },
-    {
-      id: 'melody-drums',
-      label: 'Melody + Multiplexed Drums',
-      content: [
-        'inst lead  type=tone1 vol=13',
-        '# Same noise_rate for all percussion — stagger hits to avoid R6 conflict',
-        'inst kick  type=tone3 vol=15 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[15,12,9,6,3,0]',
-        'inst snare type=tone2 vol=15 tone=true tone_mix=true noise_rate=6 tone_frames=1 tone_vol=4 note=E5 vol_env=[15,12,9,6,4,2,0]',
-      ].join('\n'),
-    },
-    {
-      id: 'buzz-bass',
-      label: 'Lead + Harmony + Buzz Bass',
-      content: [
-        'inst lead type=tone1 vol=12 arp_env=[0,4,7|0]',
-        'inst harm type=tone2 vol=10',
-        '# env_bass uses hardware envelope as oscillator — do NOT add vol_env elsewhere',
-        'inst bass type=tone3 env_bass=true',
       ].join('\n'),
     },
     {
@@ -58,13 +73,18 @@ const SPECTRUM_INSTRUMENTS = {
   ],
   effects: [
     {
+      id: 'starter-fx',
+      label: 'Sample effects',
+      content: SPECTRUM_FX_PACK,
+    },
+    {
       id: 'none',
       label: 'No effects',
       content: '',
     },
     {
       id: 'arpeggio',
-      label: 'Arpeggio',
+      label: 'Arpeggio tips',
       content: [
         '# Add to your tone instrument:',
         '# arp_env=[0,4,7|0]   — major chord arpeggio (loops)',
@@ -72,28 +92,51 @@ const SPECTRUM_INSTRUMENTS = {
         '# arp_env=[0,4,7,12]  — major + octave (no loop)',
       ].join('\n'),
     },
-    {
-      id: 'pitch-bend',
-      label: 'Pitch Bend',
-      content: [
-        '# Add to your tone instrument:',
-        '# pitch_env=[0,-1,-2,-3,-2,-1,0]  — vibrato-style bend',
-        '# pitch_env=[0,2,4,2,0,-2,-4,-2|0] — wider vibrato loop',
-      ].join('\n'),
-    },
-    {
-      id: 'vol-slide',
-      label: 'Volume Fade (software)',
-      content: [
-        '# Software volume fade — works independently per channel:',
-        '# vol_env=[15,12,9,6,3,0]  — fast decay (hardware, GLOBAL)',
-        '',
-        '# For independent per-channel decay, use BeatBax volSlide effect',
-        '# instead of vol_env to avoid R11-R13 conflicts.',
-      ].join('\n'),
-    },
   ],
   structure: [
+    {
+      id: 'starter-structure',
+      label: 'Starter demo',
+      content: [
+        '# Same demo shape as Game Boy / NES: melody + bass + kit',
+        '# Channel 2 multiplexes the AY drum kit (kick / snare / hat)',
+        'pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4',
+        'pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)',
+        'pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2',
+        'pat drums_pat       = (kick . hihat .) (snare . hihat .)',
+        'pat drums_alt_pat   = (kick hihat snare hihat) * 2',
+        '',
+        'seq lead_seq  = melody_pat melody_alt_pat',
+        'seq bass_seq  = bass_pat',
+        'seq drums_seq = drums_pat drums_alt_pat',
+        '',
+        'channel 1 => inst lead seq lead_seq',
+        'channel 2 => inst kick seq drums_seq',
+        'channel 3 => inst bass seq bass_seq',
+        '',
+        'play',
+      ].join('\n'),
+    },
+    {
+      id: 'buzz-bass-structure',
+      label: 'Buzz bass groove',
+      content: [
+        '# Hats land on bass rest ticks so env_bass keeps R11-R13',
+        'pat melody = C5 E5 G5<fastVib>:4 C5 A4 G4 E4 .',
+        'pat harm   = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4',
+        'pat bass   = C3 _ C3 _ E2 _ F2 _ . . . . . . . .',
+        '',
+        'seq lead_seq = melody * 2',
+        'seq harm_seq = harm * 2',
+        'seq bass_seq = bass * 2',
+        '',
+        'channel 1 => inst lead seq lead_seq',
+        'channel 2 => inst harm seq harm_seq',
+        'channel 3 => inst bass seq bass_seq',
+        '',
+        'play',
+      ].join('\n'),
+    },
     {
       id: 'single-pattern',
       label: 'Single Pattern',
@@ -108,46 +151,11 @@ const SPECTRUM_INSTRUMENTS = {
         'play',
       ].join('\n'),
     },
-    {
-      id: 'verse-chorus',
-      label: 'Verse + Chorus',
-      content: [
-        'pat verse_a = C4 D4 E4 F4 G4 . . .',
-        'pat verse_b = C3 . . . G2 . . .',
-        'pat chorus_a = C5 E5 G5 C6 . . . .',
-        'pat chorus_b = C2 . . . C2 . . .',
-        '',
-        'seq verse  = verse_a verse_a',
-        'seq chorus = chorus_a chorus_a',
-        '',
-        'channel 1 => inst lead  seq verse seq chorus seq verse seq chorus',
-        'channel 2 => inst harm  seq verse seq chorus seq verse seq chorus',
-        'channel 3 => inst bass  seq verse seq chorus seq verse seq chorus',
-        '',
-        'play',
-      ].join('\n'),
-    },
-    {
-      id: 'drums-melody',
-      label: 'Drums + Melody',
-      content: [
-        'pat kick  = C2 . . . . . . .',
-        'pat snare = . . . D3 . . . .',
-        'pat hat   = . F4 . . F4 . . F4',
-        'pat melody = C4 E4 G4 C5 B4 G4 E4 .',
-        '',
-        'channel 1 => inst hat   pat hat',
-        'channel 2 => inst snare pat snare',
-        'channel 3 => inst kick  pat kick',
-        '',
-        'play',
-      ].join('\n'),
-    },
   ],
   defaults: {
-    instruments: 'lead-harmony-bass',
-    effects: 'none',
-    structure: 'single-pattern',
+    instruments: 'starter-demo',
+    effects: 'starter-fx',
+    structure: 'starter-structure',
   },
 };
 
@@ -160,6 +168,30 @@ export const spectrumSongWizard: ChipNewSongWizard = {
     year: '1985',
     channelSummary: '3 x Square Wave + Shared Noise + Shared Envelope',
     image: SPECTRUM_128K_IMAGE_BASE64,
+    eraTag: '1985',
+    styleTags: ['AY', '3-tone', 'shared envelope'],
+    blurb:
+      'Three tones, one shared noise, one shared envelope — arrangement is half the instrument, and buzz-bass is the signature move.',
+    channels: [
+      { name: 'Tone A', role: 'lead' },
+      { name: 'Tone B', role: 'harmony' },
+      { name: 'Tone C', role: 'bass / buzz' },
+      { name: 'Noise', role: 'shared drums' },
+    ],
+    highlights: [
+      {
+        title: 'Buzz-bass magic',
+        detail: 'Run the hardware envelope at audio rate for that AY growl.',
+      },
+      {
+        title: 'Share the kit',
+        detail: 'One noise setting for the whole chip — plan drums as phrases.',
+      },
+      {
+        title: 'Three-voice chess',
+        detail: 'Lead, harmony, and percussion trade places in clever multiplex.',
+      },
+    ],
   },
   templates: SPECTRUM_INSTRUMENTS,
   consoleVariants: [
@@ -171,6 +203,30 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         year: '1985',
         channelSummary: '3 x Square Wave (AY-3-8912, 1.7734 MHz)',
         image: SPECTRUM_128K_IMAGE_BASE64,
+        eraTag: '1985',
+        styleTags: ['AY', 'Spectrum', 'shared envelope'],
+        blurb:
+          'Classic UK home-computer AY: three squares that can buzz, swell, or chop — with noise and envelope shared across the chip.',
+        channels: [
+          { name: 'Tone A', role: 'lead' },
+          { name: 'Tone B', role: 'harmony' },
+          { name: 'Tone C', role: 'bass / buzz' },
+          { name: 'Noise', role: 'shared drums' },
+        ],
+        highlights: [
+          {
+            title: 'Hardware envelope soul',
+            detail: 'Swells, chops, and buzz-bass without per-frame software work.',
+          },
+          {
+            title: 'One noise for all',
+            detail: 'Shared drum colour — design the kit, then stick to the plan.',
+          },
+          {
+            title: 'Spectrum pitch',
+            detail: '1.77 MHz clock — the classic UK home-computer tuning.',
+          },
+        ],
       },
       templates: SPECTRUM_INSTRUMENTS,
     },
@@ -182,15 +238,39 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         year: '1984',
         channelSummary: '3 x Square Wave (AY-3-8912, 1.0 MHz)',
         image: AMSTRAD_CPC_IMAGE_BASE64,
+        eraTag: '1984',
+        styleTags: ['AY', 'CPC', '1 MHz'],
+        blurb:
+          'Same AY family as the Spectrum, clocked warmer at 1 MHz — buzz-bass and shared-noise discipline still apply.',
+        channels: [
+          { name: 'Tone A', role: 'lead' },
+          { name: 'Tone B', role: 'harmony' },
+          { name: 'Tone C', role: 'bass / buzz' },
+          { name: 'Noise', role: 'shared drums' },
+        ],
+        highlights: [
+          {
+            title: 'Warmer centre',
+            detail: '1 MHz clock shifts the pitch map vs Spectrum 128.',
+          },
+          {
+            title: 'Same AY craft',
+            detail: 'Shared noise and envelope — last writer still wins.',
+          },
+          {
+            title: 'Buzz + multiplex',
+            detail: 'Growling bass lines with percussion woven through the tones.',
+          },
+        ],
       },
       templates: {
         instruments: SPECTRUM_INSTRUMENTS.instruments,
         effects: SPECTRUM_INSTRUMENTS.effects,
         structure: SPECTRUM_INSTRUMENTS.structure,
         defaults: {
-          instruments: 'lead-harmony-bass',
-          effects: 'none',
-          structure: 'single-pattern',
+          instruments: 'starter-demo',
+          effects: 'starter-fx',
+          structure: 'starter-structure',
         },
       },
     },

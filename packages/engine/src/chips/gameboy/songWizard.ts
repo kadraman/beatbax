@@ -15,6 +15,30 @@ export const gbSongWizard = {
       year: '1989',
       channelSummary: '2 pulse, 1 wave, 1 noise',
       image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
+      eraTag: '1989',
+      styleTags: ['portable', '4-channel', 'wavetable'],
+      blurb:
+        'Pocket chiptune with a secret weapon: a wave channel you can draw yourself — plus twin pulses and a crunchy noise kit.',
+      channels: [
+        { name: 'Pulse1', role: 'lead + sweep' },
+        { name: 'Pulse2', role: 'harmony' },
+        { name: 'Wave', role: 'custom bass' },
+        { name: 'Noise', role: 'drums & FX' },
+      ],
+      highlights: [
+        {
+          title: 'Draw your own bass',
+          detail: 'Sculpt a 32-step wave into organs, bells, or muddy subs.',
+        },
+        {
+          title: 'Tiny volume ladder',
+          detail: 'Only four loudness steps — envelopes and duty flips do the drama.',
+        },
+        {
+          title: 'Pulse personality',
+          detail: 'Switch skinny and fat square waves mid-phrase for bite vs body.',
+        },
+      ],
     },
     // we could add more templates here, but this one is already pretty comprehensive and demonstrates a wide range of the plugin's capabilities
     templates: {

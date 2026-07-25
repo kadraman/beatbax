@@ -21,6 +21,8 @@ export type {
   ChipNewSongWizard,
   ChipConsoleVariant,
   NewSongWizardMetadata,
+  NewSongWizardChannelInfo,
+  NewSongWizardHighlight,
   NewSongWizardTemplates,
   NewSongWizardTemplateOption,
 } from './types.js';

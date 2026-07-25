@@ -14,6 +14,21 @@ function makeChip(id: string, overrides: Partial<ChipPlugin> = {}): ChipPlugin {
         platform: `${id} platform`,
         year: '1990',
         channelSummary: '1 channel',
+        blurb: id === 'nes' ? 'Classic five-channel APU with DPCM samples.' : undefined,
+        eraTag: '1990',
+        styleTags: id === 'nes' ? ['console', '5-channel'] : undefined,
+        channels: id === 'nes'
+          ? [
+              { name: 'Pulse1', role: 'lead' },
+              { name: 'Noise', role: 'drums' },
+            ]
+          : undefined,
+        highlights: id === 'nes'
+          ? [
+              { title: 'Duty-cycle swagger', detail: 'Skinny bites vs fat pads on the pulse leads.' },
+              { title: 'Drop in real hits', detail: 'DPCM sneaks sampled kicks into the mix.' },
+            ]
+          : undefined,
       },
       templates: {
         instruments: [{ id: `${id}-inst`, label: `${id} instruments`, content: `inst lead type=${id}` }],
@@ -68,6 +83,97 @@ describe('New Song Wizard', () => {
     expect(el.chipNextBtn().disabled).toBe(true);
     expect(el.artist().value).toBe('Default Artist');
     expect(el.bpm().value).toBe('142');
+    // Rich optional metadata renders when provided
+    expect(el.chipMeta().textContent).toContain('Classic five-channel APU');
+    expect(el.chipMeta().textContent).toContain('Pulse1');
+    expect(document.querySelector('.bb-new-song-wizard__chip-tips-title')?.textContent).toContain('Why');
+    expect(document.querySelector('.bb-new-song-wizard__chip-highlight-title')?.textContent).toBe('Duty-cycle swagger');
+    expect(document.querySelector('.bb-new-song-wizard__chip-tips')?.textContent).toContain('Drop in real hits');
+    expect(document.querySelector('.bb-new-song-wizard__chip-card > .bb-new-song-wizard__chip-tips')).toBeTruthy();
+    expect(document.querySelector('.bb-new-song-wizard__chip-visual .bb-new-song-wizard__chip-tips')).toBeNull();
+    expect(document.querySelector('.bb-new-song-wizard__chip-tag--era')?.textContent).toBe('1990');
+    expect(document.querySelector('.bb-settings-badge')?.textContent).toBe('Stable');
+    expect(document.querySelector('.bb-new-song-wizard__chip-hint')?.textContent).toContain('switch chips');
+    expect(document.body.textContent).not.toContain('Sound chip');
+    // Preview hidden unless onPreview is provided
+    expect(document.querySelector<HTMLButtonElement>('.bb-new-song-wizard__chip-preview')?.hidden).toBe(true);
+  });
+
+  it('previews starter-kit source and stops on toggle / chip change', () => {
+    const onPreview = jest.fn();
+    const onStopPreview = jest.fn();
+    const nes = makeChip('nes');
+    const sms = makeChip('sms');
+    const wizard = buildNewSongWizard({
+      getEnabledChips: () => [{ id: 'nes', plugin: nes }, { id: 'sms', plugin: sms }],
+      getDefaultBpm: () => 120,
+      getDefaultArtist: () => '',
+      onCreate: jest.fn(),
+      onPreview,
+      onStopPreview,
+    });
+    wizard.open();
+    const previewBtn = document.querySelector<HTMLButtonElement>('.bb-new-song-wizard__chip-preview')!;
+    expect(previewBtn.hidden).toBe(false);
+    expect(previewBtn.textContent).toContain('Preview');
+    expect(previewBtn.querySelector('svg')).toBeTruthy();
+
+    previewBtn.click();
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview.mock.calls[0][0]).toContain('chip nes');
+    expect(onPreview.mock.calls[0][0]).toContain('inst lead type=nes');
+    expect(typeof onPreview.mock.calls[0][1]?.onEnded).toBe('function');
+    expect(previewBtn.textContent).toContain('Stop');
+
+    // Natural end resets the button without an explicit Stop click
+    onPreview.mock.calls[0][1].onEnded();
+    expect(previewBtn.textContent).toContain('Preview');
+    expect(onStopPreview).not.toHaveBeenCalled();
+
+    previewBtn.click();
+    expect(onPreview).toHaveBeenCalledTimes(2);
+    expect(previewBtn.textContent).toContain('Stop');
+
+    previewBtn.click();
+    expect(onStopPreview).toHaveBeenCalledTimes(1);
+    expect(previewBtn.textContent).toContain('Preview');
+
+    previewBtn.click();
+    expect(onPreview).toHaveBeenCalledTimes(3);
+    document.querySelector<HTMLButtonElement>('.bb-new-song-wizard__chip-nav--next')!.click();
+    expect(onStopPreview).toHaveBeenCalledTimes(2);
+    expect(previewBtn.textContent).toContain('Preview');
+  });
+
+  it('falls back to channelSummary when rich metadata is absent', () => {
+    const plain = makeChip('sms', {
+      newSongWizard: {
+        metadata: {
+          chipDisplayName: 'SMS Chip',
+          platform: 'Sega Master System',
+          year: '1985',
+          channelSummary: '3 tone, 1 noise',
+        },
+        templates: {
+          instruments: [{ id: 'sms-i', label: 'SMS Inst', content: 'inst lead type=tone1' }],
+          effects: [{ id: 'sms-e', label: 'SMS FX', content: 'effect fx = volSlide:-5' }],
+          structure: [{ id: 'sms-s', label: 'SMS Struct', content: 'pat a = C4\nseq main = a\nchannel 1 => inst lead seq main\nplay' }],
+          defaults: { instruments: 'sms-i', effects: 'sms-e', structure: 'sms-s' },
+        },
+      },
+    });
+    const wizard = buildNewSongWizard({
+      getEnabledChips: () => [{ id: 'sms', plugin: plain }],
+      getDefaultBpm: () => 128,
+      getDefaultArtist: () => '',
+      onCreate: jest.fn(),
+    });
+    wizard.open();
+    const el = getWizardElements();
+    expect(el.chipMeta().textContent).toContain('Sega Master System');
+    expect(el.chipMeta().textContent).toContain('3 tone, 1 noise');
+    expect(el.chipMeta().querySelector('.bb-new-song-wizard__chip-channels')).toBeNull();
+    expect(el.chipMeta().querySelector('.bb-new-song-wizard__chip-blurb')).toBeNull();
   });
 
   it('updates chip summary and plugin-backed example content when chip changes', () => {

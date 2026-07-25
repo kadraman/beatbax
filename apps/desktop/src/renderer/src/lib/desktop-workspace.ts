@@ -442,6 +442,19 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
       }),
       getDefaultBpm: () => settingDefaultBpm.get(),
       getDefaultArtist: () => settingSongArtist.get(),
+      onPreview: (source, { onEnded }) => {
+        const unsub = eventBus.on('playback:stopped', () => {
+          unsub();
+          onEnded();
+        });
+        void playbackManager.play(source).catch(() => {
+          unsub();
+          onEnded();
+        });
+      },
+      onStopPreview: () => {
+        playbackManager.stop();
+      },
       onCreate: ({ source, songName }) => {
         playbackManager.stop();
         const stem = sanitizeFilename(songName.toLowerCase()) || 'song';
