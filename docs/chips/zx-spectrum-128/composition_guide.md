@@ -270,4 +270,6 @@ Use rendered WAV/OGG as preview artifacts, not as hardware-native outputs.
 | `songs/spectrum-128/instruments/ay_vol_env_conflict.bax` | Intentional R11–R13 conflict (verify warning) |
 | `songs/spectrum-128/effects/ay_effects_showcase.bax` | Supported inline effects (vib, port, bend, volSlide, trem, cut, etc.) |
 | `songs/spectrum-128/effects/ay_unsupported_effects_demo.bax` | Invalid / SMS-only effects (`noise_rate_env`, `sweep`, …) for `verify` |
-| `songs/spectrum-128/amstrad-cpc-demo.bax` | Same arrangement with `chip cpc` |
+| `songs/spectrum-128/spectral_phantoms.bax` | Full Spectrum 128 arrangement (buzz bass, arps, effects, kit) |
+| `songs/spectrum-128/steel_justice.bax` | Full Spectrum 128 action title arrangement |
+| `songs/spectrum-128/cave_run_theme.bax` | Full CPC arrangement (`chip cpc` clock) |

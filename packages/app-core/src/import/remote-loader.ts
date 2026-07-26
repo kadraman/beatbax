@@ -209,6 +209,7 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
       { label: 'kingdom_hall.bax',           path: '/songs/nes/kingdom_hall.bax' },
       { label: 'puffball_parade.bax',        path: '/songs/nes/puffball_parade.bax' },
       { label: 'shadow_temple.bax',          path: '/songs/nes/shadow_temple.bax' },
+      { label: 'silver_orbit.bax',           path: '/songs/nes/silver_orbit.bax' },
       { label: 'wily_fortress.bax',          path: '/songs/nes/wily_fortress.bax' },
     ],
   },
@@ -222,6 +223,19 @@ export const EXAMPLE_SONG_GROUPS: ExampleSongGroup[] = [
     group: 'Game Gear',
     songs: [
       { label: 'battle_field.bax',          path: '/songs/sms/battle_field.bax' },
+    ],
+  },
+  {
+    group: 'ZX Spectrum 128',
+    songs: [
+      { label: 'spectral_phantoms.bax', path: '/songs/spectrum-128/spectral_phantoms.bax' },
+      { label: 'steel_justice.bax',     path: '/songs/spectrum-128/steel_justice.bax' },
+    ],
+  },
+  {
+    group: 'Amstrad CPC',
+    songs: [
+      { label: 'cave_run_theme.bax', path: '/songs/spectrum-128/cave_run_theme.bax' },
     ],
   },
 ];

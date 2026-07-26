@@ -787,9 +787,12 @@ describe('NES mixer gain weights', () => {
     expect(pulseOutput).toBeGreaterThan(noiseOutput);
   });
 
-  test('total max output does not clip (< 1.0)', async () => {
-    const { nesMix } = await import('../../src/chips/nes/mixer.js');
+  test('total max output stays near listening headroom', async () => {
+    const { nesMix, NES_LISTENING_GAIN } = await import('../../src/chips/nes/mixer.js');
     const maxOut = nesMix(15, 15, 15, 15, 127);
-    expect(maxOut).toBeLessThan(1.0);
+    // Hardware mix ≈ 0.855; listening gain can push the theoretical sum over 1.0
+    // (player limiter / PCM peak-down soft-clip dense peaks).
+    expect(maxOut).toBeCloseTo(0.855 * NES_LISTENING_GAIN, 2);
+    expect(maxOut).toBeLessThan(2.0);
   });
 });

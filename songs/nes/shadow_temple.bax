@@ -3,7 +3,7 @@
 ## Key: D natural minor | Tempo: 90 BPM | Style: Eerie, lyrical, RPG dungeon/cave
 ##
 ## This is an entirely original composition — it does not reproduce any copyrighted material.
-## Written to exercise the same BeatBax NES plugin techniques as duck_tales.bax:
+## Written to exercise BeatBax NES plugin techniques:
 ##   vol_env arrays with loop-point |  note= on drum instruments  |  vigrated
 ##   effect presets (vib_slow/fast/soft)  |  note-split vib entry  |  inline inst
 ##   changes  |  inst(name,N) temporary overrides  |  portamento  |  silence filler
@@ -21,7 +21,7 @@
 ##   Ch3 (Triangle): Staccato 16th-note bass (root, 5th, octave patterns)
 ##   Ch4 (Noise)   : Drums — enter in last 4 rows of intro slot 4, then full loop
 ##
-## Timing (same model as duck_tales.bax):
+## Timing:
 ##   bpm=90: one scheduler step = one 8th-note row at 180 BPM.
 ##   stepsPerBar=16: one bar = 16 steps = 4 quarter-note beats at 90 BPM. ✓
 ##   Intro patterns: 15 steps each (15 rows × ~111 ms = ~1.67 s per pattern).
@@ -46,7 +46,7 @@ stepsPerBar 16
 ## ── Square 1 — Lead melody ────────────────────────────────────────────────────
 
 ## lead_intro : fade-in envelope during the intro solo — ramps 1→10 over 10 frames,
-##   then loops at frame 9 (holds at 10).  Mimics a FamiStudio ramp-up volume macro.
+##   then loops at frame 9 (holds at 10).
 ##   duty=75 (3=75% in 2A03 notation): rich, full-bodied tone for the lyrical melody.
 inst lead_intro  type=pulse1  duty=75  vol_env=[1,2,3,4,5,6,7,8,9,10|9]
 
@@ -97,7 +97,7 @@ inst drum_med   type=noise  noise_mode=normal  noise_period=7   vol_env=[10,10,1
 # =============================================================================
 # Effect Presets
 # =============================================================================
-## Vibrato preset naming and parameters mirror duck_tales.bax exactly so the
+## Vibrato preset naming keeps a small shared vocabulary across NES demos so the
 ## same engine code paths are exercised.  The delay parameter (last value) controls
 ## how many rows the note plays plain before vibrato engages.
 
@@ -130,7 +130,7 @@ pat silence = . . . . . . . . . . . . . . . .
 # Square 1 — Lead melody patterns
 # =============================================================================
 #
-# Timing convention (same as duck_tales.bax):
+# Timing convention:
 #   Each step = 1 scheduler row = 1 8th-note at 180 BPM.
 #   Duration suffix :N means the note lasts N rows.  No suffix = 1 row (staccato).
 #   "vib kicks in at row R" means the effect onset delay matches the row offset
@@ -229,7 +229,7 @@ pat sq1_mel5    = C3:4 . Bb2 A2 D3:4 . G3:2 A3:2
 pat sq1_mel6    = Bb3:3 C4 D4<vib_fast>:8 F4:2 E4:2
 
 # ── Melody7 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Ornamental run — mirror of duck_tales mel7 technique (many 1-step notes + rests).
+# Ornamental run.
 # Time=0   C4 → row 0; Time=10 D4 → row 1; Time=20 C4 → row 2
 # Time=30  A3 dur=19 → rows 3–4 (2 steps)
 # Time=50  F3 dur=39 → rows 5–8 (4 steps)
@@ -238,7 +238,7 @@ pat sq1_mel6    = Bb3:3 C4 D4<vib_fast>:8 F4:2 E4:2
 pat sq1_mel7    = C4 D4 C4 A3:2 F3:4 G3 A3 Bb3 G3 F3:3
 
 # ── Melody8 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Portamento sweep — same technique as duck_tales mel8.
+# Portamento sweep.
 # Time=0   A4 → row 0; Time=10–20: rest; Time=30 A4 → row 3
 # Time=40–50: rest; Time=60 A4 dur=19 → rows 6–7 (2 steps)
 # Time=80  A2 dur=79 → rows 8–15 (8 steps): portamento glide up 24 semitones to A4.
@@ -246,7 +246,7 @@ pat sq1_mel7    = C4 D4 C4 A3:2 F3:4 G3 A3 Bb3 G3 F3:3
 pat sq1_mel8    = A4 . . A4 . . A4:2 A2<port:24>:8
 
 # ── Bridge1 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Staccato double-tap technique (same structural pattern as duck_tales bridge1).
+# Staccato double-tap technique.
 # Time=0   D4 staccato × 2 → rows 0–1; rests rows 2–3
 # Time=40  F4 staccato × 2 → rows 4–5; rest row 6
 # Time=70  A3 dur=39 → rows 7–10 (4 steps)
@@ -255,7 +255,7 @@ pat sq1_mel8    = A4 . . A4 . . A4:2 A2<port:24>:8
 pat sq1_bridge1 = D4 D4 . . F4 F4 . A3:4 G3:2 A3 G3 F3
 
 # ── Bridge2 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Lyrical descent — mirrors duck_tales bridge2 structure.
+# Lyrical descent.
 # Time=0   C4 dur=19 → rows 0–1 (2 steps)
 # Time=20  Bb3 → row 2; Time=30 A3 → row 3; Time=40 rest; Time=50 G3 → row 5
 # Time=60  rest; Time=70 F3 dur=79 → rows 7–14 (8 steps); Time=150 rest → row 15
@@ -269,14 +269,14 @@ pat sq1_bridge2 = C4:2 Bb3 A3 . G3 . F3:8 .
 pat sq1_bridge3 = F4 F4 . . G4 G4 . A4:2 F4:2 E4:2 F4 A4 C5
 
 # ── Bridge4 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Sustained resolution — mirrors duck_tales bridge4 structure.
+# Sustained resolution.
 # C5 held from bridge3 (dur carries into rows 0–5 of this pattern = 6 steps)
 # Time=60  Bb4 dur=9 → row 6; Time=70 F4 dur=59 → rows 7–12 (6 steps)
 # Time=130 G4 → row 13; Time=140 A4 → row 14; Time=150 Bb4 → row 15
 pat sq1_bridge4 = C5:6 Bb4 F4:6 G4 A4 Bb4
 
 # ── Bridge5 (16 steps: rows 0–15) ────────────────────────────────────────────
-# Sustained C5 with late vibrato + dramatic low-register tail (mirrors duck_tales bridge5).
+# Sustained C5 with late vibrato + dramatic low-register tail.
 # C5 carried from bridge4; vib soft4 onset at row 4.
 # Time=120 E2 dur=19 → rows 12–13 (2 steps); Time=140 F2 dur=19 → rows 14–15
 pat sq1_bridge5 = C5<vib_soft4>:12 E2:2 F2:2
@@ -343,7 +343,7 @@ pat tri_bass5   = D4 D4 D4 D4 D4 D4 D4 D4 C4 C4 C4 C4 C4 C4 C4 C4
 pat tri_bass6   = Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 Bb3 A3 A3 A3 A3 A3 A3 A3 A3
 pat tri_bass7   = A3 A3 A3 A3 A3 A3 A3 A3 G3 G3 G3 G3 A3 A3 A3 A3
 
-# tri_bass8 — portamento-support pattern; mirrors duck_tales tri_bass8 mixed-duration layout.
+# tri_bass8.
 # D4 row 0; rests rows 1–2; A3 row 3; rests rows 4–5; D4:3 rows 6–8;
 # then D3 staccato × 7 for rows 9–15 (low sub-bass tail).
 pat tri_bass8   = D4 . . A3 . . D4:3 D3 D3 D3 D3 D3 D3 D3
@@ -364,7 +364,7 @@ pat tri_bbrid3  = F3 F3 F3 F3 F3 F3 F3 F3 . . . . F3:2 G3:2
 
 # drum_intro_p (15 steps) — sparse fill at the tail of the fifth intro slot.
 # Rows 0–10: silent (no drums during most of intro). Rows 11–14: four drum_intro hits.
-# This mirrors duck_tales' approach of drums only entering in the very last bars of
+# Drums only enter in the very last bars of
 # the intro, building anticipation before the full main loop begins.
 pat drum_intro_p = . . . . . . . . . . . drum_intro drum_intro drum_intro drum_intro
 
@@ -379,7 +379,7 @@ pat drum_intro_p = . . . . . . . . . . . drum_intro drum_intro drum_intro drum_i
 #   row  6: snare             — beat 4
 #   row  7: hi-hat
 #   (repeat rows 0–6 for rows 8–14)
-#   row 15: double snare (same as duck_tales loop_p double hit at end)
+#   row 15: double snare
 pat drum_loop_p = drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_hi drum_lo drum_hi drum_med drum_med
 
 # =============================================================================
@@ -436,4 +436,8 @@ channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge
 channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge
 channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

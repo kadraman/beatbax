@@ -33,7 +33,7 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
     description:
       'Sega Master System / Game Gear PSG - 3 tone channels + 1 noise channel. ' +
       'Enables `chip sms` in .bax scripts.',
-    badge: 'Beta',
+    badge: smsPlugin.status ?? 'Beta',
     plugin: smsPlugin,
   },
   {
@@ -42,7 +42,7 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
     description:
       'ZX Spectrum 128 and Amstrad CPC AY PSG — 3 tone channels + noise. ' +
       'Enables `chip spectrum-128` in .bax scripts.',
-    badge: 'Experimental',
+    badge: spectrumPlugin.status ?? 'Experimental',
     plugin: spectrumPlugin,
   },
   // Future plugins — add entries here as packages are published:

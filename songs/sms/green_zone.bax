@@ -214,4 +214,8 @@ channel 2 => inst stab   seq harm_main   # Tone2 — counter-melody (L)
 channel 3 => inst bass   seq bass_main   # Tone3 — chromatic walking bass (C)
 channel 4 => inst kick   seq drum_main   # Noise — kick / snare / hi-hat groove (C)
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto
