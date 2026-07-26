@@ -7,7 +7,7 @@
 
 import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '@beatbax/app-core/plugins/registry-config';
 import { sectionHeading, noteText } from './general';
-import { chipRegistry, gameboyPlugin, nesPlugin } from '@beatbax/engine/chips';
+import { chipRegistry, gameboyPlugin, nesPlugin, type ChipPlugin } from '@beatbax/engine/chips';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import {
   BUILTIN_EXPORTER_IDS,
@@ -37,7 +37,8 @@ export function buildPluginsSection(): HTMLElement {
 
   // ── Built-in chips (always on, no toggle) ──────────────────────────────────
   el.appendChild(builtinSubheading('Built-in'));
-  const builtinChips: Array<{ id: string; label: string; description: string; version: string; badge: 'Stable' | 'Beta' }> = [
+  type BuiltinChipBadge = NonNullable<ChipPlugin['status']>;
+  const builtinChips: Array<{ id: string; label: string; description: string; version: string; badge: BuiltinChipBadge }> = [
     {
       id: 'gameboy',
       label: 'Game Boy DMG-01 APU',
@@ -52,7 +53,7 @@ export function buildPluginsSection(): HTMLElement {
         'Nintendo Entertainment System / Famicom APU — 2 pulse channels, triangle, noise, and DMC sample playback. ' +
         'Enables `chip nes` or `chip famicom` in .bax scripts.',
       version: nesPlugin.version,
-      badge: (nesPlugin.status as 'Stable' | 'Beta') ?? 'Beta',
+      badge: nesPlugin.status ?? 'Beta',
     },
   ];
   for (const builtin of builtinChips) {

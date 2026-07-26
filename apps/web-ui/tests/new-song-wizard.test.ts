@@ -95,7 +95,19 @@ describe('New Song Wizard', () => {
     expect(document.querySelector('.bb-settings-badge')?.textContent).toBe('Stable');
     expect(document.querySelector('.bb-new-song-wizard__chip-hint')?.textContent).toContain('switch chips');
     expect(document.body.textContent).not.toContain('Sound chip');
-    // Preview hidden unless onPreview is provided
+    // Preview hidden unless both onPreview and onStopPreview are provided
+    expect(document.querySelector<HTMLButtonElement>('.bb-new-song-wizard__chip-preview')?.hidden).toBe(true);
+  });
+
+  it('hides Preview when only onPreview is wired', () => {
+    const wizard = buildNewSongWizard({
+      getEnabledChips: () => [{ id: 'nes', plugin: makeChip('nes') }],
+      getDefaultBpm: () => 120,
+      getDefaultArtist: () => '',
+      onCreate: jest.fn(),
+      onPreview: jest.fn(),
+    });
+    wizard.open();
     expect(document.querySelector<HTMLButtonElement>('.bb-new-song-wizard__chip-preview')?.hidden).toBe(true);
   });
 

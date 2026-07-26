@@ -29,6 +29,7 @@ interface NewSongWizardOptions {
   /**
    * Play a short starter-kit audition for the selected chip.
    * Call `onEnded` when playback finishes (or fails) so the Preview button resets.
+   * The Preview control is shown only when both `onPreview` and `onStopPreview` are set.
    */
   onPreview?: (source: string, handlers: { onEnded: () => void }) => void;
   /** Stop any in-progress wizard preview playback. */
@@ -169,6 +170,11 @@ function setPreviewButtonState(btn: HTMLButtonElement, playing: boolean): void {
   const iconName = playing ? 'stop' : 'speaker-wave';
   btn.innerHTML = `${icon(iconName, 'bb-new-song-wizard__chip-preview-icon')}<span>${label}</span>`;
   btn.setAttribute('aria-label', playing ? 'Stop chip audio preview' : 'Preview selected chip audio');
+}
+
+/** Preview/Stop only works when both start and stop handlers are wired. */
+function canPreviewAudio(options: NewSongWizardOptions): boolean {
+  return Boolean(options.onPreview && options.onStopPreview);
 }
 
 /** Render rich chip card content (XSS-safe DOM construction). Tips span full width under the hero. */
@@ -361,7 +367,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
   previewBtn.type = 'button';
   previewBtn.className = 'bb-new-song-wizard__btn bb-new-song-wizard__btn--secondary bb-new-song-wizard__chip-preview';
   setPreviewButtonState(previewBtn, false);
-  previewBtn.hidden = !options.onPreview;
+  previewBtn.hidden = !canPreviewAudio(options);
   const tipsEl = document.createElement('div');
   tipsEl.className = 'bb-new-song-wizard__chip-tips';
   tipsEl.hidden = true;
@@ -582,7 +588,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
 
     errorBanner.hidden = true;
     createBtn.disabled = false;
-    previewBtn.disabled = !options.onPreview;
+    previewBtn.disabled = !canPreviewAudio(options);
     chipStatus.hidden = true;
     chipStatus.textContent = '';
     const wizard = selected.wizard;
@@ -647,8 +653,11 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
       stopPreview();
       return;
     }
+    const onPreview = options.onPreview;
+    const onStopPreview = options.onStopPreview;
+    if (!onPreview || !onStopPreview) return;
     const source = buildPreviewSource();
-    if (!source || !options.onPreview) return;
+    if (!source) return;
     previewActive = true;
     setPreviewButtonState(previewBtn, true);
     clearPreviewEndedListener?.();
@@ -663,7 +672,7 @@ export function buildNewSongWizard(options: NewSongWizardOptions): NewSongWizard
     clearPreviewEndedListener = () => {
       ended = true;
     };
-    options.onPreview(source, { onEnded });
+    onPreview(source, { onEnded });
   });
 
   createBtn.addEventListener('click', () => {
