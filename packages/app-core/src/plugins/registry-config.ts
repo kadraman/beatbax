@@ -7,12 +7,16 @@
  *
  * Built-in chips (Game Boy, NES) are always provided by the engine.
  * This registry only handles optional chip plugins.
+ *
+ * Web-lite has no Settings panel, so every bundled optional chip is enabled
+ * there — otherwise example songs for Spectrum/CPC (and future chips) cannot play.
  */
 
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { ChipPlugin } from '@beatbax/engine/chips';
 import smsPlugin from '@beatbax/plugin-chip-sms';
 import spectrumPlugin from '@beatbax/plugin-chip-spectrum-128';
+import { getCurrentCapabilities } from '../client-profile.js';
 import { storage, StorageKey } from '../utils/local-storage.js';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
@@ -57,14 +61,20 @@ export const AVAILABLE_PLUGINS: PluginEntry[] = [
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
-const DEFAULT_ENABLED = ['sms'];
+/** Default enabled optional chips when Settings → Plugins is available. */
+export const DEFAULT_ENABLED_PLUGINS = ['sms', 'spectrum-128'];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Return the list of plugin IDs currently enabled in localStorage. */
 export function getEnabledPluginIds(): string[] {
+  // Web-lite ships example songs for optional chips but has no Settings UI to
+  // enable them — always register every bundled optional chip there.
+  if (!getCurrentCapabilities().settingsPanel) {
+    return AVAILABLE_PLUGINS.map((entry) => entry.id);
+  }
   const parsed = storage.getJSON<string[]>(StorageKey.ENABLED_PLUGINS);
-  return Array.isArray(parsed) ? parsed : DEFAULT_ENABLED;
+  return Array.isArray(parsed) ? parsed : [...DEFAULT_ENABLED_PLUGINS];
 }
 
 /** Persist a new set of enabled plugin IDs. Triggers a page reload. */
