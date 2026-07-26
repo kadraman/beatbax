@@ -725,7 +725,7 @@ export class Player {
     let tokenStr: string = typeof token === 'string' ? token : (token && token.token ? token.token : '');
     // compute pan if present: inline token pan takes precedence; inst pan as fallback
     // Game Boy: gb:pan / pan · Game Gear: gg:pan / gg_pan / pan
-    const panVal = (token && token.pan)
+    const panVal = (token && token.pan !== undefined)
       ? token.pan
       : (inst
           ? (inst['gb:pan'] ?? inst['gg:pan'] ?? inst.gg_pan ?? inst.pan)

@@ -455,7 +455,7 @@ function panToGains(panSpec: any): { left: number; right: number } {
 }
 
 function resolveEventPan(ev: NoteEvent, inst: InstrumentNode): any {
-  if (ev && (ev as any).pan) return (ev as any).pan;
+  if (ev && (ev as any).pan !== undefined) return (ev as any).pan;
   if (inst) {
     const i = inst as Record<string, unknown>;
     if (i['gb:pan'] !== undefined) return i['gb:pan'];
