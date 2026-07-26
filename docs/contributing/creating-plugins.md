@@ -43,6 +43,8 @@ import type { ChipPlugin } from '@beatbax/engine';
 const myPlugin: ChipPlugin = {
   name: 'my-chip',            // Used in `chip my-chip` directive
   version: '1.0.0',           // Semver (see Step 3 for the recommended pattern)
+  status: 'Stable',           // Optional maturity badge: 'Stable' | 'Beta' | 'Experimental'
+                              // (defaults to 'Stable'; shown in Settings and the New Song Wizard)
   channels: 4,                // Number of audio channels
 
   /**
@@ -84,6 +86,19 @@ const myPlugin: ChipPlugin = {
       platform: 'My Platform',
       year: '1989',
       channelSummary: '2 pulse, 1 noise',
+      // Optional richer card fields (all safe to omit):
+      eraTag: '1989',
+      styleTags: ['portable', '2-channel'],
+      blurb: 'A one or two sentence description of the chip\'s character.',
+      channels: [
+        { name: 'Pulse1', role: 'lead + sweep' },
+        { name: 'Noise', role: 'drums' },
+      ],
+      highlights: [
+        { title: 'Duty-cycle swagger', detail: 'Skinny bites vs fat pads on the pulse leads.' },
+      ],
+      // Shown under the blurb — e.g. quieter hardware mixes:
+      listeningNote: 'Hardware mix is quieter than SMS/GB — preview gain is boosted slightly.',
     },
     templates: {
       instruments: [{ id: 'my-inst', label: 'Sample instruments', content: 'inst lead type=pulse1 vol=10' }],
@@ -577,12 +592,20 @@ Plugins can provide an optional `newSongWizard` object on `ChipPlugin` to custom
 | `metadata.chipDisplayName` | Human-readable chip label shown in the modal |
 | `metadata.platform` | Platform subtitle (e.g. console name) |
 | `metadata.year` | Historical year badge |
-| `metadata.channelSummary` | Short channel layout summary |
+| `metadata.channelSummary` | Short channel layout summary (fallback when `channels` is absent) |
 | `metadata.image` | Optional Base64 image for chip card artwork |
+| `metadata.eraTag` | Optional compact era label (defaults to `year`) |
+| `metadata.styleTags` | Optional pills (e.g. `portable`, `4-channel`) |
+| `metadata.blurb` | Optional one/two-sentence character description |
+| `metadata.channels` | Optional structured `{ name, role }[]` channel breakdown |
+| `metadata.highlights` | Optional tips: strings or `{ title, detail }[]` shown under "Why it's fun" |
+| `metadata.listeningNote` | Optional short note under the blurb (e.g. quieter hardware mix) |
 | `templates.instruments` | Dropdown options for starter instrument blocks |
 | `templates.effects` | Dropdown options for starter effect blocks |
 | `templates.structure` | Dropdown options for starter pattern/seq/channel blocks |
 | `templates.defaults` | Optional default option ids selected on modal open |
+
+> The plugin's top-level `status` (`Stable` | `Beta` | `Experimental`) is also rendered as a badge on the chip card, matching the Settings → Plugins badge colors.
 
 Implementation guidance:
 
@@ -590,8 +613,9 @@ Implementation guidance:
 - Use stable ids (`<chip>-sample-instruments`) so defaults remain valid during refactors.
 - Keep comments educational and chip-specific; avoid generic placeholders once published.
 - Keep template snippets deterministic and parser-valid.
+- The `defaults` templates double as the audio previewed by the wizard's Preview button, so make them a pleasant, representative demo.
 
-See `packages/engine/src/chips/gameboy/songWizard.ts`, `packages/plugins/chip-nes/src/songWizard.ts`, and `packages/plugins/chip-sms/src/songWizard.ts` for reference implementations.
+See `packages/engine/src/chips/gameboy/songWizard.ts`, `packages/engine/src/chips/nes/songWizard.ts`, and `packages/plugins/chip-sms/src/songWizard.ts` for reference implementations.
 
 ---
 

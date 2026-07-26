@@ -1,0 +1,233 @@
+## silver_orbit.bax
+## Original NES exploratory / space-platformer chiptune — 4-channel 2A03 APU demonstration.
+## Key: E natural minor | Tempo: 96 BPM | Style: Bright, lyrical, weightless climb
+##
+## This is an entirely original composition — it does not reproduce any copyrighted material.
+## Written to exercise BeatBax NES plugin techniques:
+##   vol_env arrays with loop-points | note= on drum instruments | delayed vibrato presets
+##   note-split vib entry | inline inst changes | portamento | silence filler patterns
+##   15-step intro patterns | multi-seq channel routing
+##
+## Song Structure (19 pattern slots per channel):
+##   Slot 0       : Silence (Square 1 / Triangle / Noise; Square 2 starts immediately)
+##   Slots 1–5    : Intro — 5 × 15-step patterns: arpeggios + melody build-up
+##   Slots 6–13   : Main — 8 × 16-step patterns: full 4-channel arrangement
+##   Slots 14–18  : Bridge — 5 × 16-step patterns: open, floating contrast
+##
+## Channel mapping:
+##   Ch1 (Pulse 1) : Lead melody — ramped intro vol, then flat sustain with vibrato
+##   Ch2 (Pulse 2) : Fast 16th-note arpeggio counter-melody; bridge uses lead_lo + bleep swap
+##   Ch3 (Triangle): Sparse low bass — gated notes + rests (triangle has no volume)
+##   Ch4 (Noise)   : Drums — enter in last 4 rows of intro slot 4, then full loop
+##
+## Timing:
+##   bpm=96: one scheduler step ≈ one 8th-note row.
+##   Intro patterns: 15 steps each. Main/Bridge: 16 steps each.
+##
+## Play: node bin/beatbax play songs/nes/silver_orbit.bax
+
+song name "Silver Orbit"
+song artist "The BeatBax Team"
+song description """Original NES-style exploratory chiptune at 96 BPM in E natural minor. Demonstrates BeatBax NES techniques: vol_env loop-points, note-triggered drums, delayed vibrato presets, per-note vibrato splits, inline inst changes, portamento, 15-step intro patterns, silence fillers, and multi-sequence channel routing."""
+song tags "nes,exploratory,space,platformer,example,demo,original"
+
+chip nes
+bpm 96
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+## Pulse 1 — Lead
+## lead_intro: soft attack ramp that holds at the peak
+inst lead_intro  type=pulse1  duty=50   vol_env=[2,3,4,5,6,7,8,9,10,11|9]
+
+## lead: steady mid-volume for sustained lyrical lines
+inst lead        type=pulse1  duty=50   vol=11
+
+## lead_lo: quieter Pulse 2 harmony voice for bridge pads
+inst lead_lo     type=pulse2  duty=12   vol=6
+
+## Pulse 2 — Arpeggio / bleep textures
+inst bleep_intro type=pulse2  duty=25   vol_env=[8,8,8,8,8,8,6,1]
+
+inst bleep       type=pulse2  duty=50   vol_env=[8,8,7,5,5,4,3,1]
+
+## Triangle — Bass (no hardware volume; control presence with register + rests/gates)
+## Keep lines mostly in E2–E3 and leave air between notes so pulses stay on top.
+inst bass        type=triangle
+
+## Noise — Drums (note=C5 so instrument names work as pattern tokens)
+inst drum_hi     type=noise  noise_mode=normal  noise_period=2   vol_env=[6,2]           note=C5
+inst drum_intro  type=noise  noise_mode=normal  noise_period=8   vol_env=[9,7,4,2]       note=C5
+inst drum_lo     type=noise  noise_mode=normal  noise_period=11  vol_env=[10,7,4,2]      note=C5
+inst drum_med    type=noise  noise_mode=normal  noise_period=6   vol_env=[9,7,4,2]       note=C5
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+effect vib_slow   = vib:3,4,sine,0,4
+effect vib_slow3  = vib:3,4,sine,0,3
+effect vib_fast   = vib:4,5,sine,0,4
+effect vib_soft   = vib:2,4,sine,0,3
+effect vib_soft4  = vib:2,4,sine,0,4
+
+# =============================================================================
+# Square 1 — Lead melody
+# =============================================================================
+# Intro patterns: 15 steps. Main/Bridge: 16 steps.
+
+# Intro1 — rising open fifths that settle on B4
+pat sq1_intro1  = E4<vib_slow>:8 B4:3 G4:2 A4:2
+
+# Intro2 — neighbour-tone sigh then fall
+pat sq1_intro2  = A4:2 G4 B4:3 A4<vib_slow3>:5 G4:2 E4:2
+
+# Intro3 — octave leap answer
+pat sq1_intro3  = E5:5 B4:5 E5:5
+
+# Intro4 — held high tone with soft vib, brief turn
+pat sq1_intro4  = E5<vib_soft>:11 F#5:2 E5:2
+
+# Intro5 — soaring peak into the main groove
+pat sq1_intro5  = B5<vib:2,4,sine,0,7>:15
+
+# Melody1 — pick-up into E minor hook
+pat sq1_mel1    = . . . E4 G4 A4 B4:3 E5:2 D5:2 B4:2
+
+# Melody2 — long sustain with delayed vibrato
+pat sq1_mel2    = A4:2 B4 G4<vib_fast>:10 A4 G4
+
+# Melody3 — higher call, resolve down
+pat sq1_mel3    = E5:3 B4 B4<vib_fast>:10 A4
+
+# Melody4 — syncopated climb then held F#
+pat sq1_mel4    = G4:3 . A4 B4 D5<vib_fast>:9
+
+# Melody5 — low-register reply
+pat sq1_mel5    = E4:4 . D4 B3 E4:4 . G4:2 A4:2
+
+# Melody6 — rolling mid phrase
+pat sq1_mel6    = B4:2 A4 G4<vib_fast>:7 B4:2 A4:2 G4:2
+
+# Melody7 — ornamental 16ths into cadence
+pat sq1_mel7    = A4 B4 A4 G4:2 E4:3 D4 E4 G4 A4 B4:3
+
+# Melody8 — sparse hits then portamento sweep into the bridge
+pat sq1_mel8    = E4 . . G4 . . B4:2 E3<port:24>:8
+
+# Bridge1 — double-tap motif, open ending
+pat sq1_bridge1 = E4 E4 . . G4 G4 . A4:3 E4:2 G4 D4 B3
+
+# Bridge2 — stepwise climb to held C5
+pat sq1_bridge2 = D4:2 B3 D4 . E4 . G4:8 .
+
+# Bridge3 — wider intervals, lift toward B4
+pat sq1_bridge3 = E4 E4 . . G4 G4 . A4:2 E4:2 G4:2 A4 B4 D5
+
+# Bridge4 — sustained peak
+pat sq1_bridge4 = D5:5 B4 E5:6 E5 E5 E5
+
+# Bridge5 — vib sustain then low-register exit
+pat sq1_bridge5 = E5<vib_soft4>:11 B2:2 D3:3
+
+# =============================================================================
+# Square 2 — Arpeggio counter-melody
+# =============================================================================
+
+# BeepIntro (15): Em / Bm flavoured rising-falling arps
+pat sq2_beepin1 = E4 B4 E5 G5 B4 E5 G5 A5 B4 A5 G5 B4 G5 E5 B4
+
+# BeepLoop1 (16): main groove arps
+pat sq2_beeplo1 = E4 B4 E5 G5 B4 E5 G5 B4 A5 B4 A5 G5 B4 G5 E5 B4
+
+# BeepLoop2 (16): descending contrast colour
+pat sq2_beeplo2 = E5 G4 C5 F#5 A4 F#5 A5 G5 E5 B4 A4 G4 E4 B3 A3 G3
+
+# Bridge harmony pads + late arp sparkle
+pat sq2_brid1   = inst lead_lo G3 G3 . . A3 A3 . G3:2 . inst bleep_intro F#4 G4 D5 . F#5 G5
+
+pat sq2_brid2   = inst lead_lo A2:2 A2 A2 . A2 . C3:8 .
+
+pat sq2_brid3   = inst lead_lo A3 A3 . . F#3 F#3 . G3:2 G3:2 G3:2 G3 B3 D4
+
+pat sq2_brid4   = inst lead_lo D4:7 C4:6 C4 C4 D4
+
+# =============================================================================
+# Triangle — Bass
+# =============================================================================
+# No volume envelope on triangle: drop an octave and gate with rests so the
+# fixed amplitude does not swamp Pulse 1/2. Prefer E2–E3 over mid-register E4.
+
+pat tri_intro1  = E3:4 . B2:4 . E3:5
+pat tri_intro2  = D3:4 . A2:4 . D3:5
+pat tri_intro3  = C3:4 . G2:4 . C3:5
+pat tri_intro4  = B2:4 . F#2:4 . B2:5
+pat tri_intro5  = E3:2 . E3:2 . E3:2 . E3:2 . E3:3
+
+# Main: quarter-feel roots with air between hits
+pat tri_bass1   = E3:3 . B2:3 . D3:3 . A2:3 .
+pat tri_bass2   = C3:3 . G2:3 . B2:3 . F#2:3 .
+pat tri_bass3   = A2:3 . E2:3 . B2:3 . F#2:3 .
+pat tri_bass4   = E2:3 . E2:3 . E2:3 . B2:3 .
+pat tri_bass5   = E3:3 . B2:3 . D3:3 . A2:3 .
+pat tri_bass6   = C3:3 . G2:3 . B2:3 . F#2:3 .
+pat tri_bass7   = A2:3 . E2:3 . G2:3 . A2:3 .
+pat tri_bass8   = B2:2 . . D3:2 . . E3:3 E2:3 . .
+
+# Bridge: even more open
+pat tri_bbrid1  = A2:3 . D3:3 . G2:4 . G2:3 .
+pat tri_bbrid2  = A2:3 . A2:3 . B2:3 . B2:3 .
+pat tri_bbrid3  = B2:3 . B2:3 . . . . B2:2 D3:2
+
+# =============================================================================
+# Noise — Drums
+# =============================================================================
+
+# Sparse intro fill (last four rows of intro slot 4)
+pat drum_intro_p = . . . . . . . . . . . drum_intro . drum_intro .
+
+# Main groove: kick on 1, snare on 3, light hats — leave space for the melody
+pat drum_loop_p = drum_lo . . . drum_med . drum_hi . drum_lo . . . drum_med . . .
+
+# Bridge: half-time kick/snare, almost no hats
+pat drum_bridge_p = drum_lo . . . . . . . drum_med . . . . . . .
+
+# =============================================================================
+# Silent filler
+# =============================================================================
+pat silence = . . . . . . . . . . . . . . . .
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq sq1_intro  = silence sq1_intro1 sq1_intro2 sq1_intro3 sq1_intro4 sq1_intro5
+seq sq1_main   = sq1_mel1 sq1_mel2 sq1_mel3 sq1_mel4 sq1_mel5 sq1_mel6 sq1_mel7 sq1_mel8
+seq sq1_bridge = sq1_bridge1 sq1_bridge2 sq1_bridge3 sq1_bridge4 sq1_bridge5
+
+seq sq2_intro  = sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1 sq2_beepin1
+seq sq2_main   = sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo1 sq2_beeplo2
+seq sq2_bridge = sq2_brid1 sq2_brid2 sq2_brid3 sq2_brid4 sq2_beeplo1
+
+seq tri_intro  = silence tri_intro1 tri_intro2 tri_intro3 tri_intro4 tri_intro5
+seq tri_main   = tri_bass1 tri_bass2 tri_bass3 tri_bass4 tri_bass5 tri_bass6 tri_bass7 tri_bass8
+seq tri_bridge = tri_bbrid1 tri_bbrid2 tri_bbrid1 tri_bbrid2 tri_bbrid3
+
+seq drum_intro  = silence silence silence silence drum_intro_p
+seq drum_main   = drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p drum_loop_p
+seq drum_bridge = drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p drum_bridge_p
+
+# =============================================================================
+# Channels
+# =============================================================================
+channel 1 => inst lead_intro  seq sq1_intro  sq1_main  sq1_bridge
+channel 2 => inst bleep_intro seq sq2_intro  sq2_main  sq2_bridge
+channel 3 => inst bass        seq tri_intro  tri_main  tri_bridge
+channel 4 => inst drum_lo     seq drum_intro drum_main drum_bridge
+
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

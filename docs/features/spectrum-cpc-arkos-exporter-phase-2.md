@@ -140,7 +140,8 @@ None expected. Use existing resolved song / instrument fields.
   - `ay_buzz_bass.bax`
   - `ay_percussion_demo.bax`
   - `ay_all_macros.bax` (where jointly representable)
-  - `amstrad-cpc-demo.bax` / CPC profile songs
+  - `cave_run_theme.bax` / CPC profile songs
+  - `spectral_phantoms.bax` / `steel_justice.bax`
 - Optional WAV A/B: BeatBax vs Arkos export for pitch/envelope smoke checks
 
 

@@ -328,9 +328,14 @@ seq drum_main = silence silence silence beat_entry beat beat beat beat beat_b be
 # =============================================================================
 # Channels
 # =============================================================================
+
 channel 1 => inst lead  seq lead_main   # Tone1 — sweeping Am intro + punchy lead runs
 channel 2 => inst stab  seq harm_main   # Tone2 — staccato Am/F stabs + ending pad
 channel 3 => inst bass  seq bass_main   # Tone3 — quarter-note pedal + syncopated groove
 channel 4 => inst kick  seq drum_main   # Noise — 4-on-the-floor beat + fills
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

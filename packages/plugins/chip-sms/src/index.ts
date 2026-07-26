@@ -50,6 +50,7 @@ const smsPlugin: ChipPlugin = {
   name: 'sms',
   aliases: ['gg', 'gamegear'],
   version,
+  status: 'Beta',
   channels: 4,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15, isAttenuation: true }, // 0=loudest, 15=silent

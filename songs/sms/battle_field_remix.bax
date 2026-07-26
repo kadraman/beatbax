@@ -266,4 +266,8 @@ channel 2 => inst stab     seq harm_main   # Tone2 — staccato stabs / counter-
 channel 3 => inst bass     seq bass_main   # Tone3 — bouncy quarter-note bass (C)
 channel 4 => inst kick     seq drum_main   # Noise — kick / snare / hi-hat groove (C)
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

@@ -187,12 +187,48 @@ export interface NewSongWizardTemplateOption {
   description?: string;
 }
 
+/** A named channel role shown in the New Song Wizard chip card. */
+export interface NewSongWizardChannelInfo {
+  /** Short channel label (e.g. "Pulse1", "Noise"). */
+  name: string;
+  /** Typical musical role (e.g. "lead / sweep"). */
+  role: string;
+}
+
+/**
+ * A tip shown under the channel list on the chip card.
+ * Prefer `{ title, detail }` for scannable layout; plain strings still work.
+ */
+export type NewSongWizardHighlight =
+  | string
+  | {
+      /** Short hook (3–6 words). */
+      title: string;
+      /** One friendly sentence. */
+      detail: string;
+    };
+
 export interface NewSongWizardMetadata {
   chipDisplayName: string;
   platform: string;
   year: string;
   channelSummary: string;
   image?: string;
+  /** One or two sentences describing the chip's character. */
+  blurb?: string;
+  /** Per-channel breakdown for the chip card. */
+  channels?: NewSongWizardChannelInfo[];
+  /** Short tips (2–4) shown under the channel list. */
+  highlights?: NewSongWizardHighlight[];
+  /** Compact era label (defaults to `year` when omitted). */
+  eraTag?: string;
+  /** Style tags shown as pills (e.g. "portable", "4-channel"). */
+  styleTags?: string[];
+  /**
+   * Optional listening tip shown under the blurb (e.g. quieter hardware mix).
+   * Keep to one short sentence.
+   */
+  listeningNote?: string;
 }
 
 export interface NewSongWizardTemplates {
@@ -293,6 +329,12 @@ export interface ChipPlugin {
 
   /** Semver version string (e.g. `'1.0.0'`). */
   version: string;
+
+  /**
+   * Maturity badge for Settings and the New Song Wizard.
+   * Defaults to `'Stable'` when omitted.
+   */
+  status?: 'Stable' | 'Beta' | 'Experimental';
 
   /** Number of audio channels this chip exposes. */
   channels: number;

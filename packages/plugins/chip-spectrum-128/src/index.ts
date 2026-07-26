@@ -140,6 +140,7 @@ const spectrumPlugin: SpectrumChipPlugin = {
   name: 'spectrum-128',
   aliases: ['spectrum', 'ay', 'ay-3-8912', 'cpc', 'amstrad-cpc'],
   version,
+  status: 'Experimental',
   channels: 3,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },

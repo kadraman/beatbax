@@ -226,7 +226,7 @@ FamiTracker export stays via `@beatbax/plugin-exporter-famitracker` (CLI depende
 
 ### Manual smoke
 
-- Web UI: play [`songs/nes/example.bax`](../../songs/nes/example.bax), new-song wizard NES template
+- Web UI: play [`songs/nes/silver_orbit.bax`](../../songs/nes/silver_orbit.bax), new-song wizard NES template
 - CLI: `encode-dmc`, play `.dmc` sample
 - Settings: NES Web Audio mix mode persists
 

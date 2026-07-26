@@ -724,7 +724,12 @@ export class Player {
     // token may be a string like "C4" or an object with { type: 'note', token: 'C4', pan, effects }
     let tokenStr: string = typeof token === 'string' ? token : (token && token.token ? token.token : '');
     // compute pan if present: inline token pan takes precedence; inst pan as fallback
-    const panVal = (token && token.pan) ? token.pan : (inst && (inst['gb:pan'] || inst['pan']) ? inst['gb:pan'] || inst['pan'] : undefined);
+    // Game Boy: gb:pan / pan · Game Gear: gg:pan / gg_pan / pan
+    const panVal = (token && token.pan !== undefined)
+      ? token.pan
+      : (inst
+          ? (inst['gb:pan'] ?? inst['gg:pan'] ?? inst.gg_pan ?? inst.pan)
+          : undefined);
 
     const m = (typeof tokenStr === 'string' && tokenStr.match(/^([A-G][#B]?)(-?\d+)$/i)) || null;
     if (m) {

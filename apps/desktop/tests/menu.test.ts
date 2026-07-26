@@ -57,18 +57,18 @@ describe('desktop native menu', () => {
   });
 
   it('shows basename labels in Open Recent', () => {
-    const template = createMenuTemplate(['/home/runner/music/duck_tales.bax'], handlers());
+    const template = createMenuTemplate(['/home/runner/music/silver_orbit.bax'], handlers());
     const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
     const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
     const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
-    expect(recentItems[0].label).toBe('duck_tales.bax');
-    expect(recentItems[0].toolTip).toBe('/home/runner/music/duck_tales.bax');
+    expect(recentItems[0].label).toBe('silver_orbit.bax');
+    expect(recentItems[0].toolTip).toBe('/home/runner/music/silver_orbit.bax');
   });
 
   it('opens recent files via the provided callback', () => {
     const onOpenRecent = jest.fn();
     const template = createMenuTemplate(
-      ['/home/runner/music/duck_tales.bax'],
+      ['/home/runner/music/silver_orbit.bax'],
       { ...handlers(), onOpenRecent },
     );
     const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
@@ -77,7 +77,7 @@ describe('desktop native menu', () => {
 
     recentItems[0].click?.({} as any, mockWindow, {} as any);
 
-    expect(onOpenRecent).toHaveBeenCalledWith('/home/runner/music/duck_tales.bax');
+    expect(onOpenRecent).toHaveBeenCalledWith('/home/runner/music/silver_orbit.bax');
     expect(onMenuAction).not.toHaveBeenCalled();
   });
 
@@ -110,7 +110,7 @@ describe('desktop native menu', () => {
   it('includes a clear action in Open Recent', () => {
     const onClearRecent = jest.fn();
     const template = createMenuTemplate(
-      ['/home/runner/music/duck_tales.bax'],
+      ['/home/runner/music/silver_orbit.bax'],
       { ...handlers(), onClearRecent },
     );
     const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
@@ -126,7 +126,7 @@ describe('desktop native menu', () => {
   });
 
   it('disables the Open Recent clear action without a clear callback', () => {
-    const template = createMenuTemplate(['/home/runner/music/duck_tales.bax'], handlers());
+    const template = createMenuTemplate(['/home/runner/music/silver_orbit.bax'], handlers());
     const fileMenu = findTopLevelMenu(template, 'File').submenu as MenuItemConstructorOptions[];
     const openRecent = fileMenu.find((item) => item.label === 'Open Recent')!;
     const recentItems = openRecent.submenu as MenuItemConstructorOptions[];
