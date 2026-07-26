@@ -1,6 +1,7 @@
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import {
   AVAILABLE_PLUGINS,
+  DEFAULT_ENABLED_PLUGINS,
   getEnabledPluginIds,
   setPluginEnabled,
 } from '@beatbax/app-core/plugins/registry-config';
@@ -150,7 +151,7 @@ export function PluginsSettingsSection(): React.JSX.Element {
 }
 
 export function resetPluginsDefaults(): void {
-  storage.setJSON(StorageKey.ENABLED_PLUGINS, ['sms']);
+  storage.setJSON(StorageKey.ENABLED_PLUGINS, [...DEFAULT_ENABLED_PLUGINS]);
   storage.setJSON(StorageKey.ENABLED_EXPORTER_PLUGINS, OPTIONAL_EXPORTER_PLUGINS.map((entry) => entry.id));
   window.location.reload();
 }

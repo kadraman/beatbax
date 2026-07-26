@@ -5,7 +5,7 @@
  * reload so the chipRegistry is cleanly rebuilt (it has no unregister API).
  */
 
-import { AVAILABLE_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '@beatbax/app-core/plugins/registry-config';
+import { AVAILABLE_PLUGINS, DEFAULT_ENABLED_PLUGINS, getEnabledPluginIds, setPluginEnabled } from '@beatbax/app-core/plugins/registry-config';
 import { sectionHeading, noteText } from './general';
 import { chipRegistry, gameboyPlugin, nesPlugin, type ChipPlugin } from '@beatbax/engine/chips';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
@@ -246,7 +246,7 @@ function builtinSubheading(text: string): HTMLElement {
 }
 
 export function resetPluginsDefaults(): void {
-  storage.setJSON(StorageKey.ENABLED_PLUGINS, ['sms']);
+  storage.setJSON(StorageKey.ENABLED_PLUGINS, [...DEFAULT_ENABLED_PLUGINS]);
   storage.setJSON(StorageKey.ENABLED_EXPORTER_PLUGINS, OPTIONAL_EXPORTER_PLUGINS.map((entry) => entry.id));
   window.location.reload();
 }
