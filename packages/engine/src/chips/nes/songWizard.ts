@@ -16,7 +16,34 @@ export const nesSongWizard = {
       platform: 'Nintendo Entertainment System',
       year: '1983',
       channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
-      image: CHIP_FAMICOM_BASE64,
+      image: CHIP_NES_BASE64,
+      eraTag: '1983',
+      styleTags: ['console', '5-channel', 'DPCM'],
+      blurb:
+        'Five voices that shaped an era: twin pulse leads, an unshakeable triangle bass, noise‑driven drums, and a tiny sampler sneaking kicks and vocals into the mix.',
+      listeningNote:
+        'NES hardware mix is quieter than SMS/GB — preview gain is boosted slightly for listening.',
+      channels: [
+        { name: 'Pulse1', role: 'lead + sweep' },
+        { name: 'Pulse2', role: 'harmony' },
+        { name: 'Triangle', role: 'bass / arps' },
+        { name: 'Noise', role: 'hats' },
+        { name: 'DMC', role: 'sampled kicks & hits' },
+      ],
+      highlights: [
+        {
+          title: 'Duty-cycle swagger',
+          detail: 'Each pulse channel flips between lean and lush shapes, letting you reshape a riff\'s attitude on the fly.',
+        },
+        {
+          title: 'Bass that never fades',
+          detail: 'The triangle\'s fixed volume forces you to carve groove from pure rhythm, turning gating into an art form.',
+        },
+        {
+          title: 'Drop in real hits',
+          detail: 'DPCM adds gritty, low-bit samples that punch through the mix like tiny drum machines hiding in the chip.',
+        },
+      ],
     },
     templates: {
       instruments: [
@@ -25,13 +52,14 @@ export const nesSongWizard = {
           label: 'Sample instruments',
           content:
 `
-inst lead  type=pulse1 duty=25 vol=10 pitch_env=[2,1,0,0,0,0,0,0] gm=81
+inst lead  type=pulse1 duty=25 vol=15 pitch_env=[2,1,0,0,0,0,0,0] gm=81
 inst arp   type=pulse2 duty=50 vol_env=[15,15,14,12,10,8,7,6,6,5,5,4,4,3,3,2] gm=84
 inst bass  type=triangle linear=96 pitch_env=[1,0,0,0,0,0,0,0] gm=39
 
-inst snare  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare"
 inst hihat  type=noise noise_mode=normal noise_period=2 vol_env=[7,4,2,1] note=C5
-inst shaker type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/clap"
+inst kick   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/kick"
+inst snare  type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/snare"
+inst clap   type=dmc dmc_rate=15 dmc_loop=false dmc_sample="@nes/clap"
 `,
         },
       ],
@@ -63,20 +91,22 @@ pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4
 pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)
 pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2
 pat arp_pat         = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4
-pat snare_pat       = (snare . . .) (snare . . .) (snare . . .)
-pat hihat_pat       = (hihat . . .) * 4 (hihat hihat) * 8
+pat hihat_pat       = (hihat . hihat .) * 4 (hihat hihat) * 8
+# Sparse DMC: kick on downs, snare on 2/4 — one clap color hit in the alt bar
+pat dmc_pat         = ((kick . . .) (. . snare .)) * 3
+pat dmc_alt_pat     = (kick . . .) (. . snare .) (. clap . .)
 
 seq lead_seq        = melody_pat melody_alt_pat
 seq bass_seq        = bass_pat
 seq arp_seq         = arp_pat * 2
 seq hihat_seq       = hihat_pat
-seq snare_seq       = snare_pat
+seq dmc_seq         = dmc_pat dmc_alt_pat
 
 channel 1 => inst lead  seq lead_seq
 channel 2 => inst arp   seq arp_seq
 channel 3 => inst bass  seq bass_seq
 channel 4 => inst hihat seq hihat_seq
-channel 5 => inst snare seq snare_seq
+channel 5 => inst kick  seq dmc_seq
 
 play
 `

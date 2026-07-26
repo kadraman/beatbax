@@ -812,7 +812,7 @@ channel 4 => inst kick       seq noise_main    # Noise    — martial percussion
 channel 5 => inst kick_dmc   seq dmc_main      # DMC      — kick/snare reinforcement
 
 # =============================================================================
-# PLAYBACK
+# Playback
 # =============================================================================
 
-play auto repeat
+play auto

@@ -230,6 +230,7 @@ function validateGBInstrument(inst: InstrumentNode): ValidationError[] {
 export const gameboyPlugin: ChipPlugin = {
   name: 'gameboy',
   version,
+  status: 'Stable',
   channels: 4,
   supportsPerChannelVolume: false,
   instrumentVolumeRange: { min: 0, max: 15 },

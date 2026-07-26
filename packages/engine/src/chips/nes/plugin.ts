@@ -28,6 +28,7 @@ const nesPlugin: ChipPlugin = {
   name: 'nes',
   aliases: ['famicom'],
   version,
+  status: 'Beta',
   channels: 5,
   supportsPerChannelVolume: true,
   instrumentVolumeRange: { min: 0, max: 15 },

@@ -271,9 +271,14 @@ seq drum_main = beat beat beat beat beat_b beat_b beat_b beat_b beat_break beat_
 # =============================================================================
 # Channels
 # =============================================================================
+
 channel 1 => inst lead     seq lead_main   # Tone1 — arpeggiated lead melody
 channel 2 => inst stab     seq harm_main   # Tone2 — staccato stabs / counter-melody
 channel 3 => inst bass     seq bass_main   # Tone3 — driving quarter-note bass
 channel 4 => inst kick     seq drum_main   # Noise — kick / snare / hi-hat groove
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

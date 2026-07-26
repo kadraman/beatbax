@@ -9,19 +9,28 @@
  * The approximation formula is the standard NESDev reference:
  *   output = 0.00752 × (pulse1 + pulse2) + 0.00851 × tri + 0.00494 × noise + 0.00335 × dmc
  *
- * At full volume (all channels at maximum):
+ * At full volume (all channels at maximum) before listening gain:
  *   output ≈ 0.00752 × 30 + 0.00851 × 15 + 0.00494 × 15 + 0.00335 × 127 ≈ 0.855
  *
- * This keeps the master output below 1.0 without a separate normalization pass,
- * matching the perceived loudness of a real NES at approximately 85% of full scale.
+ * Web Audio routes each channel independently (unlike a combined `nesMix()` bus),
+ * so a single pulse peaks around ~0.11 — much quieter than SMS/GB (~0.22). A modest
+ * listening gain brings sparse arrangements closer without restoring the old ~8.9×
+ * unity-normalized WebAudio mode (which clipped dense 5-channel mixes). Dense peaks
+ * above 1.0 are soft-clipped by the player limiter / PCM peak-down.
  */
 
-/** Linear approximation gain weights for each NES channel group. */
+/**
+ * Extra loudness for listening parity with SMS/GB.
+ * Hardware-faithful weights alone sound thin when channels sum in parallel.
+ */
+export const NES_LISTENING_GAIN = 1.75;
+
+/** Linear approximation gain weights for each NES channel group (includes listening gain). */
 export const NES_MIX_GAIN = {
-  pulse:    0.00752,  // per pulse channel (applied twice for pulse1 + pulse2)
-  triangle: 0.00851,
-  noise:    0.00494,
-  dmc:      0.00335,
+  pulse:    0.00752 * NES_LISTENING_GAIN,  // per pulse channel (applied twice for pulse1 + pulse2)
+  triangle: 0.00851 * NES_LISTENING_GAIN,
+  noise:    0.00494 * NES_LISTENING_GAIN,
+  dmc:      0.00335 * NES_LISTENING_GAIN,
 } as const;
 
 /**
@@ -34,7 +43,7 @@ export const NES_MIX_GAIN = {
  *   - noise:          0–15
  *   - dmc:            0–127 (7-bit DAC)
  *
- * Returns a value in approximately [0, 0.855] for maximum inputs.
+ * Returns a value in approximately [0, 0.855 × NES_LISTENING_GAIN] for maximum inputs.
  */
 export function nesMix(
   p1: number,

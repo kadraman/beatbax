@@ -748,7 +748,7 @@ channel 4 => inst kick      seq noise_main    # Noise    — light platform groo
 channel 5 => inst kick_dmc  seq dmc_seq       # DMC      — bundled kick/snare reinforcement
 
 # =============================================================================
-# PLAYBACK
+# Playback
 # =============================================================================
 
-play auto repeat
+play auto

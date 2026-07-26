@@ -212,6 +212,7 @@ seq dmc_main  = dmc_a dmc_a dmc_a dmc_a dmc_b dmc_b dmc_b dmc_b dmc_a dmc_a dmc_
 # =============================================================================
 # Channels
 # =============================================================================
+
 channel 1 => inst lead     seq lead_main   # Pulse 1  — lead melody
 channel 2 => inst harm     seq harm_main   # Pulse 2  — harmony / stabs
 channel 3 => inst tri      seq bass_main   # Triangle — walking bass
@@ -221,4 +222,5 @@ channel 5 => inst kick_dmc seq dmc_main    # DMC      — kick/snare reinforceme
 # =============================================================================
 # Playback
 # =============================================================================
-play auto repeat
+
+play auto

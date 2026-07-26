@@ -7,11 +7,11 @@ import { basenameFromPath, resolveBundledSongsDir } from '../src/main/path-utils
 
 describe('basenameFromPath', () => {
   it('handles POSIX paths', () => {
-    expect(basenameFromPath('/home/runner/music/duck_tales.bax')).toBe('duck_tales.bax');
+    expect(basenameFromPath('/home/runner/music/silver_orbit.bax')).toBe('silver_orbit.bax');
   });
 
   it('handles Windows paths on any platform', () => {
-    expect(basenameFromPath('C:\\music\\duck_tales.bax')).toBe('duck_tales.bax');
+    expect(basenameFromPath('C:\\music\\silver_orbit.bax')).toBe('silver_orbit.bax');
   });
 });
 

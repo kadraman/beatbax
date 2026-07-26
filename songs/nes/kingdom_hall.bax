@@ -225,6 +225,7 @@ seq drum_main   = light_beat light_beat light_beat light_beat light_beat light_b
 # Channel 3 → Triangle (quarter-note walking bass, linear-counter pluck)
 # Channel 4 → Noise    (sparse RPG percussion groove)
 # (No channel 5 / DMC — early-era RPG style, 4-channel arrangement)
+
 channel 1 => inst melody  seq pulse1_main
 channel 2 => inst chord   seq pulse2_main
 channel 3 => inst bass    seq bass_main
@@ -233,4 +234,5 @@ channel 4 => inst kick    seq drum_main
 # =============================================================================
 # Playback
 # =============================================================================
-play auto repeat
+
+play auto

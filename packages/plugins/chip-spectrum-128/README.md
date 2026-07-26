@@ -130,7 +130,9 @@ See `songs/spectrum-128/` for example BeatBax songs:
 
 **Full arrangements**
 
-- `amstrad-cpc-demo.bax` — Same song with `chip cpc`
+- `spectral_phantoms.bax` — Spectrum 128 gothic action theme (buzz bass, dense arps)
+- `steel_justice.bax` — Spectrum 128 punchy action title (ostinato, kit)
+- `cave_run_theme.bax` — Amstrad CPC platformer theme (`chip cpc`)
 
 **Instrument demos** (`instruments/`)
 

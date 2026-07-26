@@ -45,7 +45,9 @@ For this scope, Spectrum 128 is the prioritized AY-compatible target, with Amstr
 
 Layout matches NES/SMS: full songs at the chip root, focused demos under `instruments/` and `effects/`.
 
-- **Amstrad CPC demo** (`amstrad-cpc-demo.bax`) — Same arrangement with `chip cpc`
+- **Spectral Phantoms** (`spectral_phantoms.bax`) — Full Spectrum 128 gothic action arrangement
+- **Steel Justice** (`steel_justice.bax`) — Full Spectrum 128 punchy action title
+- **Cave Run Theme** (`cave_run_theme.bax`) — Full CPC arrangement (`chip cpc`)
 
 **Instrument demos** (`instruments/`):
 
@@ -430,9 +432,10 @@ See **Architecture** above for `AySongSession`, register intents, and engine int
 1. `instruments/ay_macro_arp_pitch.bax` — polyphonic melody with `arp_env` / `pitch_env`
 2. `instruments/ay_percussion_demo.bax` — named drum kit, split + multiplexed layouts
 3. `effects/ay_effects_showcase.bax` — macro types; documents envelope + noise constraints
-4. `amstrad-cpc-demo.bax` — same song with `chip cpc`
+4. `cave_run_theme.bax` — full CPC arrangement with `chip cpc`
 5. Instrument demos: `ay_synth_channels`, `ay_noise_mixing`, `ay_buzz_bass`, `ay_all_macros`, `ay_noise_rate_conflict`, `ay_vol_env_conflict`
-6. `songs/spectrum-128/README.md` — index, play instructions, troubleshooting
+6. Full Spectrum arrangements: `spectral_phantoms.bax`, `steel_justice.bax`
+7. `songs/spectrum-128/README.md` — index, play instructions, troubleshooting
 
 **Gate:** All sample songs render; regression hashes match baseline.
 
@@ -475,7 +478,9 @@ When VGM/PT3 exporters land:
 | `instruments/ay_macro_arp_pitch.bax` | Polyphony, arp/pitch macros |
 | `instruments/ay_percussion_demo.bax` | Named drum kit, percussion recipes |
 | `effects/ay_effects_showcase.bax` | Macro interaction + documented HW limits |
-| `amstrad-cpc-demo.bax` | `chip cpc` clock scaling |
+| `cave_run_theme.bax` | `chip cpc` clock scaling |
+| `spectral_phantoms.bax` | Full Spectrum arrangement |
+| `steel_justice.bax` | Full Spectrum action title |
 | `instruments/ay_synth_channels.bax` | Minimal regression gate (register log SHA-256) |
 | `instruments/ay_vol_env_conflict.bax` | Diagnostic when two `vol_env` programs overlap |
 | `instruments/ay_noise_mixing.bax` | Independent R7 mixer bits, **same** R6 noise source |
@@ -513,29 +518,13 @@ Before merging each phase:
 
 ---
 
-### amstrad-cpc-demo.bax
+### cave_run_theme.bax
 
-**Purpose:** Platform-agnostic note content; region selects AY clock only.
+**Purpose:** Full Amstrad CPC arrangement; `chip cpc` selects the 1 MHz AY clock. See file in repo.
 
-```bax
-chip cpc
+### spectral_phantoms.bax / steel_justice.bax
 
-inst lead type=tone1 vol=12 arp_env=[0,2,4,7]
-inst bass type=tone2 vol=14
-inst pad  type=tone3 vol=10
-
-pat melody = C4 E4 G4 C5 B4 A4 G4 .
-pat bass   = C2 . . . G1 . . .
-
-seq main = melody melody melody melody
-seq bass = bass bass bass bass
-
-channel 1 => inst lead seq main
-channel 2 => inst bass seq bass
-channel 3 => inst pad  seq main:oct(-1)
-
-play
-```
+**Purpose:** Full ZX Spectrum 128 arrangements demonstrating buzz bass, macros, effects, and named percussion. See files in repo.
 
 ---
 

@@ -14,7 +14,31 @@ export const gbSongWizard = {
       platform: 'Nintendo Game Boy',
       year: '1989',
       channelSummary: '2 pulse, 1 wave, 1 noise',
-      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
+      image: CHIP_IMAGE_BASE64,
+      eraTag: '1989',
+      styleTags: ['portable', '4-channel', 'wavetable'],
+      blurb:
+        'A pocket synth with attitude: twin pulse voices, crunchy noise drums, and a tiny wave channel you can shape into your own signature sound.',
+      channels: [
+        { name: 'Pulse1', role: 'lead + sweep' },
+        { name: 'Pulse2', role: 'harmony' },
+        { name: 'Wave', role: 'custom bass' },
+        { name: 'Noise', role: 'drums & FX' },
+      ],
+      highlights: [
+        {
+          title: 'Envelope Acrobatics',
+          detail: 'Chunky volume steps turn simple notes into punchy plucks, swelling chords, and rhythmic motion.',
+        },
+        {
+          title: 'Duty-Cycle Mood Swings',
+          detail: 'Swapping pulse widths mid-phrase instantly shifts a melody from icy and thin to warm and bold.',
+        },
+        {
+          title: 'Lo-Fi Wave Sculpting',
+          detail: 'Drawing a tiny 32-sample waveform lets you craft everything from gritty bass growls to smooth, nostalgic pads.',
+        },
+      ],
     },
     // we could add more templates here, but this one is already pretty comprehensive and demonstrates a wide range of the plugin's capabilities
     templates: {
@@ -24,7 +48,7 @@ export const gbSongWizard = {
           label: 'Sample instruments',
           content:
 `
-inst lead type=pulse1 duty=60 env={"level":12,"direction":"flat","period":1,"format":"gb"} gm=81
+inst lead type=pulse1 duty=50 env={"level":12,"direction":"flat","period":1,"format":"gb"} gm=81
 inst arp  type=pulse2 duty=25 env={"level":9,"direction":"down","period":2,"format":"gb"} gm=84
 inst bass type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] gm=39
 
