@@ -1,0 +1,198 @@
+## steel_justice.bax
+## Original Spectrum AY action title in the spirit of late-80s Ocean/Jonathan Dunn
+## title music. Key: A minor (Andalusian Am–G–F–E) | Tempo: 128 BPM
+##
+## This is an entirely original composition. It does not reproduce any
+## copyrighted material.
+##
+## Musical design:
+##   The hook is a march figure — three repeated pushes on the chord root, a leap
+##   to the fifth, then a held peak. The figure is sequenced down the Andalusian
+##   cadence (Am - G - F - E), and the E bar uses G#5 (harmonic-minor leading
+##   tone) to pull back to A.
+##
+## Structure (18 bars) — early-break action-title form:
+##   Bars  1- 2 : Intro     — driving ostinato, gated lead stabs
+##   Bars  3- 6 : Theme A   — march hook sequenced Am G F E
+##   Bars  7- 8 : Break     — full multiplexed kit (hits early, Ocean-style)
+##   Bars  9-12 : Theme B   — sustained lyrical counter-melody
+##   Bars 13-16 : Theme A'  — octave-up punch with vib / sparkle peaks
+##   Bars 17-18 : Coda      — climb into descending cadence + crash
+##
+## Channels:
+##   Ch1 (tone1): Lead — gated march, soft lyrical, bright reprise
+##   Ch2 (tone2): Ostinato — relentless root/fifth 16ths; arps in the coda
+##   Ch3 (tone3): Buzz bass on beats 1+3, snare/kick multiplexed on 2+4
+##
+## Lead colour (no pitch_env — that detunes sustained notes):
+##   gate on march pushes, light punchVib on Theme A peaks, deeper deepVib on
+##   Theme B, sparkle on A' climaxes, gentle tail fades on phrase exits,
+##   slide+sparkle into the coda. One lead voice throughout.
+##
+## AY notes:
+##   All drums share noise_rate=4 so R6 never fights when multiplexed.
+##   Buzz bass sits at vol=8 so it underpins rather than swamps the mix.
+##
+## Play: npm run cli -- play songs/spectrum-128/steel_justice.bax
+
+song name "Steel Justice"
+song artist "The BeatBax Team"
+song description """An original ZX Spectrum AY action title in A minor inspired by late-80s Ocean title music: a march hook sequenced down an Andalusian cadence, a relentless root/fifth ostinato, buzz-bass pedals and a kit multiplexed onto the bass channel. Demonstrates instruments, arp macros, effects and named percussion without reproducing any copyrighted material."""
+song tags "original,spectrum-128,ay,action,demo,buzz-bass,ostinato"
+
+chip spectrum-128
+bpm 128
+stepsPerBar 16
+
+# =============================================================================
+# Instruments
+# =============================================================================
+#
+# One lead voice — colour comes from inline effects, not volume jumps.
+
+inst lead      type=tone1 vol=12
+
+inst ost       type=tone2 vol=8
+inst arp_min   type=tone2 vol=9 arp_env=[0,3,7|0]
+inst arp_maj   type=tone2 vol=9 arp_env=[0,4,7|0]
+
+# Buzz bass — hardware envelope sub-oscillator. vol sets buzz loudness directly.
+inst buzz      type=tone3 vol=8 env_bass=true env_shape=8
+
+# Kit — one shared noise_rate so multiplexed hits never fight over R6.
+inst kick  type=tone3 vol=13 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[13,10,7,4,2,0]
+inst snare type=tone3 vol=12 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=4 note=E5 vol_env=[12,10,7,5,3,1,0]
+inst hatc  type=tone3 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]
+inst hato  type=tone3 vol=8  tone_mix=true noise_rate=4 vol_env=[8,7,6,5,4,3,2,1,0]
+inst rim   type=tone3 vol=9  tone_mix=true noise_rate=4 vol_env=[9,5,2,0]
+inst crash type=tone3 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=2 tone_vol=4 note=E7 vol_env=[11,11,10,9,8,7,6,5,4,3,2,1,0]
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect punchVib = vib:3,4,sine,2       # Theme A — light wobble on held peaks
+effect deepVib  = vib:5,3,sine,4       # Theme B — slower, deeper lyric vibrato
+effect sparkle  = trem:5,6,sine        # amplitude shimmer on climaxes
+effect slide    = port:10              # portamento into the next pitch
+effect drop     = bend:-7,exp,0,1      # exponential fall on the final stab
+effect tail     = volSlide:-3,4        # gentle phrase-end dip (not a hard drop)
+effect fadeOut  = volSlide:-6,4        # coda exit — stronger than tail, still mild
+effect gate     = cut:1                # staccato chop
+
+# =============================================================================
+# Lead patterns (Ch1) — 16 steps = one 4/4 bar (each step is a 16th)
+# =============================================================================
+
+pat rest16 = . . . . . . . . . . . . . . . .
+
+# Intro stabs — gated for a clipped Ocean punch
+pat mel_in_a = A4<gate>:1 . A4<gate>:1 . A4<gate>:1 . . . A4<gate>:1 . A4<gate>:1 . E5:2 . .
+pat mel_in_b = A4<gate>:1 . A4<gate>:1 . C5<gate>:1 . E5:1 . A5:2 E5:2 C5:2 A4:2
+
+# Theme A — march hook: gated pushes, light vib on the peak, gentle tail on the exit.
+# Sequenced through the Andalusian cadence Am - G - F - E.
+pat mel_a_am = A4<gate>:2 A4<gate>:1 A4<gate>:1 C5:2 E5:2 A5<punchVib>:4 E5<tail>:4
+pat mel_a_g  = G4<gate>:2 G4<gate>:1 G4<gate>:1 D5:2 G5:2 B5<punchVib>:4 G5<tail>:4
+pat mel_a_f  = F4<gate>:2 F4<gate>:1 F4<gate>:1 C5:2 F5:2 A5<punchVib>:4 F5<tail>:4
+pat mel_a_e  = E4<gate>:2 E4<gate>:1 E4<gate>:1 B4:2 E5:2 G#5<punchVib>:4 E5<tail>:4
+
+# Theme A' — octave-up punch with sparkle / light vib on the peaks
+pat mel_p_am = A5:2 A5:1 A5:1 C6:2 E6:2 A5<sparkle>:4 E5<tail>:4
+pat mel_p_g  = G5:2 G5:1 G5:1 D6:2 G5:2 B5<sparkle>:4 G5<tail>:4
+pat mel_p_f  = F5:2 F5:1 F5:1 C6:2 A5:2 F5<punchVib>:4 C5<tail>:4
+pat mel_p_e  = E5:2 E5:1 E5:1 B5:2 G#5:2 E5<punchVib>:4 B4<tail>:4
+
+# Theme B — lyrical answer; deeper vibrato on the long landings
+pat mel_b_am = C6:4 B5:2 A5:2 E5:4 A5<deepVib>:4
+pat mel_b_g  = B5:4 A5:2 G5:2 D5:4 G5<deepVib>:4
+pat mel_b_f  = A5:4 G5:2 F5:2 C5:4 F5<tail>:4
+pat mel_b_e  = G#5:4 B5:4 E5<deepVib>:8
+
+# Coda — portamento climb then descent + bent final stab
+pat mel_cd_a = A4<slide>:2 C5:2 E5:2 A5:2 C6:2 E6:2 A6<sparkle>:4
+pat mel_cd_b = A5:2 G5:2 F5:2 E5:2 D5:2 C5:2 A4<drop>:2 A4<fadeOut>:2
+
+# =============================================================================
+# Ostinato patterns (Ch2) — alternating root/fifth 16ths, the engine of the track
+# =============================================================================
+
+pat ost_am = A3:1 E4:1 A3:1 E4:1 A3:1 E4:1 A3:1 E4:1 A3:1 E4:1 A3:1 E4:1 A3:1 E4:1 A3:1 E4:1
+pat ost_g  = G3:1 D4:1 G3:1 D4:1 G3:1 D4:1 G3:1 D4:1 G3:1 D4:1 G3:1 D4:1 G3:1 D4:1 G3:1 D4:1
+pat ost_f  = F3:1 C4:1 F3:1 C4:1 F3:1 C4:1 F3:1 C4:1 F3:1 C4:1 F3:1 C4:1 F3:1 C4:1 F3:1 C4:1
+pat ost_e  = E3:1 B3:1 E3:1 B3:1 E3:1 B3:1 E3:1 B3:1 E3:1 B3:1 E3:1 B3:1 E3:1 B3:1 E3:1 B3:1
+
+# Half-time ostinato for the sustained Theme B — leaves room for the melody
+pat ost_h_am = A3:2 E4:2 A3:2 E4:2 A3:2 E4:2 A3:2 E4:2
+pat ost_h_g  = G3:2 D4:2 G3:2 D4:2 G3:2 D4:2 G3:2 D4:2
+pat ost_h_f  = F3:2 C4:2 F3:2 C4:2 F3:2 C4:2 F3:2 C4:2
+pat ost_h_e  = E3:2 B3:2 E3:2 B3:2 E3:2 B3:2 E3:2 B3:2
+
+# Coda — arpeggiated climb pad, then sustained close
+pat ost_cd_a = inst arp_min A3:4 inst arp_maj F3:4 inst arp_min A3:4 inst arp_maj E3:4
+pat ost_cd_b = inst arp_min A3:8 inst arp_maj E3:8
+
+# =============================================================================
+# Bass / kit patterns (Ch3)
+# =============================================================================
+#
+# The classic three-channel compromise: buzz bass holds beats 1 and 3, the kit
+# borrows the channel on beats 2 and 4. Only one voice sounds per tick.
+
+pat bs_am = A1 _ _ _ snare . kick . A1 _ _ _ snare . kick .
+pat bs_g  = G1 _ _ _ snare . kick . G1 _ _ _ snare . kick .
+pat bs_f  = F1 _ _ _ snare . kick . F1 _ _ _ snare . kick .
+pat bs_e  = E1 _ _ _ snare . kick . E1 _ _ _ snare . kick .
+
+# Intro — bass alone, then the backbeat arrives
+pat bs_in_a = A1 _ _ _ _ _ _ _ A1 _ _ _ _ _ _ .
+pat bs_in_b = A1 _ _ _ snare . . . A1 _ _ _ snare . kick .
+
+# Break — full kit, no bass
+pat kit_grv = kick . hatc . snare . hatc . kick . hatc . snare . hatc .
+pat kit_fil = kick . snare . kick . snare . crash _ _ _ rim . hato .
+
+# Coda
+pat kit_cd  = kick . snare . kick . . . crash _ _ _ _ _ _ _
+
+# =============================================================================
+# Sequences (one per channel per section)
+# =============================================================================
+
+seq intro_mel = mel_in_a mel_in_b
+seq intro_ost = ost_am ost_am
+seq intro_bs  = bs_in_a bs_in_b
+
+seq themeA_mel = mel_a_am mel_a_g mel_a_f mel_a_e
+seq themeA_ost = ost_am ost_g ost_f ost_e
+seq themeA_bs  = bs_am bs_g bs_f bs_e
+
+seq break_mel = rest16 rest16
+seq break_ost = rest16 rest16
+seq break_bs  = kit_grv kit_fil
+
+seq themeB_mel = mel_b_am mel_b_g mel_b_f mel_b_e
+seq themeB_ost = ost_h_am ost_h_g ost_h_f ost_h_e
+seq themeB_bs  = bs_am bs_g bs_f bs_e
+
+seq themeP_mel = mel_p_am mel_p_g mel_p_f mel_p_e
+seq themeP_ost = ost_am ost_g ost_f ost_e
+seq themeP_bs  = bs_am bs_g bs_f bs_e
+
+seq coda_mel = mel_cd_a mel_cd_b
+seq coda_ost = ost_cd_a ost_cd_b
+seq coda_bs  = bs_am kit_cd
+
+# =============================================================================
+# Channels — form: Intro → A → Break → B → A' → Coda
+# =============================================================================
+
+channel 1 => inst lead seq intro_mel themeA_mel break_mel themeB_mel themeP_mel coda_mel
+channel 2 => inst ost  seq intro_ost themeA_ost break_ost themeB_ost themeP_ost coda_ost
+channel 3 => inst buzz seq intro_bs  themeA_bs  break_bs  themeB_bs  themeP_bs  coda_bs
+
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

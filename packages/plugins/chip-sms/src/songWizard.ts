@@ -130,7 +130,7 @@ play
           eraTag: '1985',
           styleTags: ['console', 'PSG', 'mono'],
           blurb:
-            'Punchy mono action-game energy: three squares, one noise, and dynamics you write yourself.',
+            'A three-pulse, one-noise groovebox that delivers bold square leads, chunky arps, and static-crackled drums with pure 8-bit swagger.',
           channels: [
             { name: 'Tone1', role: 'lead' },
             { name: 'Tone2', role: 'harmony' },
@@ -140,15 +140,15 @@ play
           highlights: [
             {
               title: 'Envelopes are everything',
-              detail: 'Attenuation volume rewards careful fade and punch writing.',
+              detail: 'With only attenuation volume to shape dynamics, every fade, stab, and punch becomes a deliberate part of the groove.',
             },
             {
               title: 'Synced percussion',
-              detail: 'Let Tone 3 clock the noise for metallic, pitched drum hits.',
+              detail: 'Clocking the noise with Tone 3 unlocks metallic, pitched drum hits that feel uniquely SN76489.',
             },
             {
               title: 'Keep it moving',
-              detail: 'Fixed squares — expression lives in rhythm and layering.',
+              detail: 'Fixed square waves mean expression comes from rhythm, motion, and clever layering rather than timbre changes.',
             },
           ],
         },
@@ -238,7 +238,7 @@ play
           eraTag: '1990',
           styleTags: ['portable', 'PSG', 'stereo'],
           blurb:
-            'Same PSG heart as the Master System, plus stereo panning — place leads and hats across a handheld stage.',
+            'A handheld twist on the Master System\'s synth: three bright pulse voices, a snappy noise channel, and stereo output that gives its 8-bit grooves extra space to shine.',
           channels: [
             { name: 'Tone1', role: 'lead (right)' },
             { name: 'Tone2', role: 'counter (left)' },
@@ -248,15 +248,15 @@ play
           highlights: [
             {
               title: 'Hard L/R stage',
-              detail: 'gg:pan puts leads, counters, and hats on opposite speakers.',
+              detail: 'The Game Gear’s stereo lets leads, counters, and hats split wide for instant motion and contrast.',
             },
             {
               title: 'Same PSG tricks',
-              detail: 'Envelopes, Tone-3 noise clock, and layering still rule.',
+              detail: 'All the classic Master System moves still apply: envelope shaping, Tone-3-clocked noise, and tight layering.',
             },
             {
               title: 'Pocket punch',
-              detail: 'Four voices, one handheld — write tight and it sings.',
+              detail: 'Four voices in a handheld demand lean writing, and when you keep it tight, it absolutely sings.',
             },
           ],
         },

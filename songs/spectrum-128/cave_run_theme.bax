@@ -1,0 +1,210 @@
+## cave_run_theme.bax
+## Original Amstrad CPC AY platformer theme. Key: C major | Tempo: 132 BPM
+## chip: cpc (1 MHz AY clock)
+##
+## This is an entirely original composition. It does not reproduce any
+## copyrighted material.
+##
+## Musical design:
+##   A singable, mostly stepwise tune with chromatic-free passing tones over a
+##   bright I-vi-IV-V loop (C - Am - F - G). The lift section moves to
+##   C - Am - Dm - G. Every arpeggio instrument matches the chord quality of the
+##   bar it plays under, so the harmony stays consonant.
+##
+## Structure (18 bars) — quiet-middle / no drum-break form:
+##   Bars  1- 2 : Intro      — bass and light kit, lead pickup
+##   Bars  3- 6 : Theme A    — main tune over C Am F G
+##   Bars  7- 8 : Quiet echo — soft lead call-and-response, sparse bass
+##   Bars  9-12 : Theme B    — lift over C Am Dm G
+##   Bars 13-14 : Bridge     — portamento climb, tremolo peak
+##   Bars 15-16 : Theme A tag — last two bars of the tune, decorated
+##   Bars 17-18 : Coda       — cadence back to C, crash
+##
+## Channels:
+##   Ch1 (tone1): Melody — soft echo, bounce vib, sparkle peaks
+##   Ch2 (tone2): Arpeggio harmony (major / minor instruments per chord)
+##   Ch3 (tone3): Buzz bass on beats 1+3, kit multiplexed on 2+4
+##
+## Lead colour (no pitch_env — that detunes sustained notes):
+##   bounceVib on Theme A, deeper deepVib on Theme B, gate on ornaments,
+##   gentle tail fades on phrase exits, slide+sparkle on the bridge.
+##   One lead voice throughout (no soft/bright volume jumps).
+##
+## AY notes:
+##   All drums share noise_rate=4 so R6 never fights when multiplexed.
+##   Buzz bass sits at vol=8 to stay under the tune.
+##
+## Play: npm run cli -- play songs/spectrum-128/cave_run_theme.bax
+
+song name "Cave Run Theme"
+song artist "The BeatBax Team"
+song description """An original Amstrad CPC AY platformer theme in C major: a bouncy stepwise tune over a bright I-vi-IV-V loop, chord-matched arpeggio harmony, buzz bass and a kit multiplexed onto the bass channel. Uses the CPC 1 MHz AY clock. Demonstrates instruments, arp macros, effects and named percussion without reproducing any copyrighted material."""
+song tags "original,amstrad-cpc,cpc,ay,platformer,demo,buzz-bass"
+
+chip cpc
+bpm 132
+stepsPerBar 16
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+inst lead      type=tone1 vol=12
+
+# One arpeggio instrument per chord quality — the pattern picks the right one.
+inst arp_maj   type=tone2 vol=9 arp_env=[0,4,7|0]
+inst arp_min   type=tone2 vol=9 arp_env=[0,3,7|0]
+inst pad       type=tone2 vol=8
+
+inst buzz      type=tone3 vol=8 env_bass=true env_shape=8
+
+inst kick  type=tone3 vol=13 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[13,10,7,4,2,0]
+inst snare type=tone3 vol=12 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=4 note=E5 vol_env=[12,10,7,5,3,1,0]
+inst hatc  type=tone3 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]
+inst hato  type=tone3 vol=8  tone_mix=true noise_rate=4 vol_env=[8,7,6,5,4,3,2,1,0]
+inst rim   type=tone3 vol=9  tone_mix=true noise_rate=4 vol_env=[9,5,2,0]
+inst crash type=tone3 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=2 tone_vol=4 note=E7 vol_env=[11,11,10,9,8,7,6,5,4,3,2,1,0]
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect bounceVib = vib:2,5,sine,1      # Theme A — light bounce on landings
+effect deepVib   = vib:5,3,sine,4      # Theme B — slower, deeper lyric vibrato
+effect softVib   = vib:3,4,sine,3      # intro / tag — mid depth
+effect sparkle   = trem:6,5,sine
+effect slideUp   = port:8
+effect drop      = bend:-4,exp,0,1
+effect tail      = volSlide:-3,4       # gentle phrase-end dip
+effect fade      = volSlide:-6,4       # quiet echo + coda exit
+effect gate      = cut:2
+
+# =============================================================================
+# Melody patterns (Ch1) — 16 steps = one 4/4 bar
+# =============================================================================
+
+pat rest16 = . . . . . . . . . . . . . . . .
+
+# Intro pickup — outlines C major without stating the tune yet
+pat mel_in_a = . . . . G4:2 C5:2 E5:2 G5:2 E5<bounceVib>:4
+pat mel_in_b = G5:2 E5:2 C5:2 D5:2 E5:4 G4<softVib>:4
+
+# Theme A — stepwise tune; gate on neighbour ornaments, light vib + gentle tail
+pat mel_a_c  = E5:2 D5<gate>:1 E5:1 G5:2 E5:2 C5<bounceVib>:4 D5<tail>:4
+pat mel_a_am = E5:2 D5<gate>:1 C5:1 A4:2 C5:2 E5<bounceVib>:4 D5<tail>:4
+pat mel_a_f  = F5:2 E5<gate>:1 F5:1 A5:2 F5:2 C5:4 A4<tail>:4
+pat mel_a_g  = D5:2 E5<gate>:1 F5:1 G5:2 D5:2 B4:4 G4<softVib>:4
+
+# Quiet echo — call-and-response with a soft fade (not a hard drop)
+pat mel_echo_a = G5:2 E5:2 C5:2 D5:2 E5:4 G4<fade>:4
+pat mel_echo_b = E5:2 . . C5:2 . . G4<fade>:4 . . . .
+
+# Theme B — the lift: sparkle on the high peak, deeper vib on landings
+pat mel_b_c  = G5:4 E5:2 G5:2 C6<sparkle>:4 G5<tail>:4
+pat mel_b_am = A5:4 G5:2 E5:2 A5:4 E5<deepVib>:4
+pat mel_b_dm = F5:4 E5:2 D5:2 A4:4 D5<tail>:4
+pat mel_b_g  = G5:2 F5:2 E5:2 D5:2 G4:4 B4<deepVib>:4
+
+# Bridge — portamento climb through C major to the top
+pat mel_br   = C5<slideUp>:2 E5:2 G5:2 C6:2 E6:2 G6:2 C7<sparkle>:4
+
+# Theme A tag — last two bars decorated (F and G of the loop)
+pat mel_tag_f = F5:2 E5:1 F5:1 A5:2 C6:2 A5<sparkle>:4 F5<tail>:4
+pat mel_tag_g = D5:2 E5:1 F5:1 G5:2 B5:2 G5:4 D5<bounceVib>:4
+
+# Coda — descent to the tonic
+pat mel_cd_a = C6:2 B5:2 A5:2 G5:2 F5:2 E5:2 D5:2 C5:2
+pat mel_cd_b = C5<bounceVib>:8 C5<drop>:4 C5<fade>:4
+
+# =============================================================================
+# Harmony patterns (Ch2) — arpeggio instrument matches each chord's quality
+# =============================================================================
+
+pat hrm_c  = inst arp_maj C4:4 C4:4 C4:4 C4:4
+pat hrm_am = inst arp_min A3:4 A3:4 A3:4 A3:4
+pat hrm_f  = inst arp_maj F3:4 F3:4 F3:4 F3:4
+pat hrm_g  = inst arp_maj G3:4 G3:4 G3:4 G3:4
+pat hrm_dm = inst arp_min D3:4 D3:4 D3:4 D3:4
+
+# Sustained pad voicings for the lift (no arpeggio churn under long melody notes)
+pat pad_c  = inst pad C4:8 G3:8
+pat pad_am = inst pad A3:8 E3:8
+pat pad_dm = inst pad D3:8 A3:8
+pat pad_g  = inst pad G3:8 D3:8
+
+# Quiet middle — sparse pads, no arpeggio churn
+pat hrm_quiet_a = inst pad G3:8 C4:8
+pat hrm_quiet_b = inst pad C4:8 . . . . . . . .
+
+# Bridge / coda / tag
+pat hrm_br = inst arp_maj C4:4 inst arp_min A3:4 inst arp_maj F3:4 inst arp_maj G3:4
+pat hrm_cd = inst arp_maj C4:8 C4:8
+
+# =============================================================================
+# Bass / kit patterns (Ch3)
+# =============================================================================
+#
+# Buzz bass holds beats 1 and 3; the kit borrows the channel on beats 2 and 4.
+
+pat bs_c  = C2 _ _ _ snare . hatc . C2 _ _ _ snare . hatc .
+pat bs_am = A1 _ _ _ snare . hatc . A1 _ _ _ snare . hatc .
+pat bs_f  = F1 _ _ _ snare . hatc . F1 _ _ _ snare . hatc .
+pat bs_g  = G1 _ _ _ snare . hatc . G1 _ _ _ snare . hatc .
+pat bs_dm = D2 _ _ _ snare . hatc . D2 _ _ _ snare . hatc .
+
+# Intro — bass alone, backbeat joins in bar 2
+pat bs_in_a = C2 _ _ _ _ _ _ _ G1 _ _ _ _ _ _ .
+pat bs_in_b = C2 _ _ _ snare . . . C2 _ _ _ snare . hatc .
+
+# Quiet middle — held roots, almost no kit
+pat bs_quiet_a = C2 _ _ _ _ _ _ _ G1 _ _ _ _ _ _ .
+pat bs_quiet_b = C2 _ _ _ . . . . . . . . . . . .
+
+# Coda kit only (no mid-song drum break in this arrangement)
+pat kit_cd  = kick . snare . kick . . . crash _ _ _ _ _ _ _
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq intro_mel = mel_in_a mel_in_b
+seq intro_hrm = hrm_c hrm_g
+seq intro_bs  = bs_in_a bs_in_b
+
+seq themeA_mel = mel_a_c mel_a_am mel_a_f mel_a_g
+seq themeA_hrm = hrm_c hrm_am hrm_f hrm_g
+seq themeA_bs  = bs_c bs_am bs_f bs_g
+
+seq quiet_mel = mel_echo_a mel_echo_b
+seq quiet_hrm = hrm_quiet_a hrm_quiet_b
+seq quiet_bs  = bs_quiet_a bs_quiet_b
+
+seq themeB_mel = mel_b_c mel_b_am mel_b_dm mel_b_g
+seq themeB_hrm = pad_c pad_am pad_dm pad_g
+seq themeB_bs  = bs_c bs_am bs_dm bs_g
+
+seq bridge_mel = mel_br mel_br
+seq bridge_hrm = hrm_br hrm_br
+seq bridge_bs  = bs_c bs_g
+
+seq tag_mel = mel_tag_f mel_tag_g
+seq tag_hrm = hrm_f hrm_g
+seq tag_bs  = bs_f bs_g
+
+seq coda_mel = mel_cd_a mel_cd_b
+seq coda_hrm = hrm_cd hrm_cd
+seq coda_bs  = bs_c kit_cd
+
+# =============================================================================
+# Channels — form: Intro → A → Quiet → B → Bridge → A-tag → Coda
+# =============================================================================
+
+channel 1 => inst lead    seq intro_mel themeA_mel quiet_mel themeB_mel bridge_mel tag_mel coda_mel
+channel 2 => inst arp_maj seq intro_hrm themeA_hrm quiet_hrm themeB_hrm bridge_hrm tag_hrm coda_hrm
+channel 3 => inst buzz    seq intro_bs  themeA_bs  quiet_bs  themeB_bs  bridge_bs  tag_bs  coda_bs
+
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

@@ -271,4 +271,8 @@ channel 3 => inst tri       seq bass_main
 channel 4 => inst kick_n    seq noise_main
 channel 5 => inst kick_dmc  seq dmc_main
 
-play
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

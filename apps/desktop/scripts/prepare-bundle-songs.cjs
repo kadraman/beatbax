@@ -7,7 +7,7 @@ const songsSrc = path.join(repoRoot, 'songs');
 const songsTarget = path.join(desktopRoot, 'build', 'songs');
 
 /** Chip folders whose top-level .bax files are complete example songs. */
-const EXAMPLE_CHIP_DIRS = ['gameboy', 'nes', 'sms'];
+const EXAMPLE_CHIP_DIRS = ['gameboy', 'nes', 'sms', 'spectrum-128'];
 
 function copyFile(src, dest) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });

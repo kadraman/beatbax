@@ -26,6 +26,13 @@ effect dom7Arp  = arp:4,7,10        # dominant 7th (E7: root + maj3 + P5 + min7)
 effect slide    = port:4            # snappy slide — scalar run articulation
 `;
 
+/** Drum kit for starter-structure; other packs omit it to avoid AY envelope conflicts. */
+const SPECTRUM_DRUM_KIT = [
+  'inst kick  type=tone2 vol=12 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[12,10,7,4,2,0]',
+  'inst snare type=tone2 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=3 note=E5 vol_env=[11,9,6,4,2,0]',
+  'inst hihat type=tone2 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]',
+].join('\n');
+
 const SPECTRUM_INSTRUMENTS = {
   instruments: [
     {
@@ -34,27 +41,29 @@ const SPECTRUM_INSTRUMENTS = {
       content: [
         '# AY volume: 15 = loudest, 0 = mute — keep headroom vs SMS/GB previews',
         '# Shared noise_rate=4 on all drums avoids R6 conflicts when multiplexed',
+        '# Includes harm so this pack also pairs with buzz-bass / single-pattern structures',
         'inst lead  type=tone1 vol=10',
+        'inst harm  type=tone2 vol=9',
         'inst bass  type=tone3 vol=11',
-        'inst kick  type=tone2 vol=12 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[12,10,7,4,2,0]',
-        'inst snare type=tone2 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=3 note=E5 vol_env=[11,9,6,4,2,0]',
-        'inst hihat type=tone2 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]',
+        SPECTRUM_DRUM_KIT,
       ].join('\n'),
     },
     {
       id: 'buzz-bass-demo',
       label: 'Lead + Buzz Bass',
       content: [
-        '# env_bass uses the shared hardware envelope as an oscillator',
+        '# env_bass uses the shared hardware envelope as an oscillator (env_shape=8 = classic buzz)',
+        '# Pair with "Buzz bass groove" or "Single Pattern" (not the drum starter structure)',
         'inst lead type=tone1 vol=13',
         'inst harm type=tone2 vol=10',
-        'inst bass type=tone3 vol=12 env_bass=true env_shape=10',
+        'inst bass type=tone3 vol=12 env_bass=true env_shape=8',
       ].join('\n'),
     },
     {
       id: 'lead-harmony-bass',
       label: 'Lead + Harmony + Bass',
       content: [
+        '# Pair with "Buzz bass groove" or "Single Pattern" (no drum kit in this pack)',
         'inst lead type=tone1 vol=12 arp_env=[0,4,7|0]',
         'inst harm type=tone2 vol=10',
         'inst bass type=tone3 vol=14',
@@ -62,9 +71,10 @@ const SPECTRUM_INSTRUMENTS = {
     },
     {
       id: 'envelope-lead',
-      label: 'Lead with Hardware Envelope',
+      label: 'Lead with volume envelope',
       content: [
-        '# ONE vol_env active at a time (global R11-R13)',
+        '# Software vol_env decays per hit — use env_bass for hardware R11–R13 buzz',
+        '# Pair with "Buzz bass groove" or "Single Pattern" (vol_env + drum kit fights R11–R13)',
         'inst lead type=tone1 vol_env=[15,12,9,6,3,0]',
         'inst harm type=tone2 vol=10',
         'inst bass type=tone3 vol=12',
@@ -96,10 +106,10 @@ const SPECTRUM_INSTRUMENTS = {
   structure: [
     {
       id: 'starter-structure',
-      label: 'Starter demo',
+      label: 'Starter demo (with drums)',
       content: [
-        '# Same demo shape as Game Boy / NES: melody + bass + kit',
-        '# Channel 2 multiplexes the AY drum kit (kick / snare / hat)',
+        '# Needs the Starter demo instrument pack (kick / snare / hihat)',
+        '# Channel 2 multiplexes the AY drum kit',
         'pat melody_pat      = (C5 C5 G5<fastVib>:4 G5 A5 G5<exprVib>:4) (C3:2 .) * 4',
         'pat melody_alt_pat  = (E5 E5 G5<fastVib>:4 F5 E5 C5<slide>:4)',
         'pat bass_pat        = (C3 . C3 . ) * 2 (C3 . . .) * 2  (G2 . . .) * 2',
@@ -121,6 +131,7 @@ const SPECTRUM_INSTRUMENTS = {
       id: 'buzz-bass-structure',
       label: 'Buzz bass groove',
       content: [
+        '# Works with any instrument pack that defines lead / harm / bass',
         '# Hats land on bass rest ticks so env_bass keeps R11-R13',
         'pat melody = C5 E5 G5<fastVib>:4 C5 A4 G4 E4 .',
         'pat harm   = C4<majArp>:4 E4<majArp>:4 G4<majArp>:4 C5<majArp>:4',
@@ -141,6 +152,7 @@ const SPECTRUM_INSTRUMENTS = {
       id: 'single-pattern',
       label: 'Single Pattern',
       content: [
+        '# Works with any instrument pack that defines lead / harm / bass',
         'pat melody = C4 E4 G4 C5 B4 G4 E4 .',
         'pat bass   = C2 . . . G1 . . .',
         '',
@@ -171,7 +183,7 @@ export const spectrumSongWizard: ChipNewSongWizard = {
     eraTag: '1985',
     styleTags: ['AY', '3-tone', 'shared envelope'],
     blurb:
-      'Three tones, one shared noise, one shared envelope — arrangement is half the instrument, and buzz-bass is the signature move.',
+      'A three-voice chiptune engine with bright square leads, buzzy basses, and envelope tricks that turn simple waves into expressive, signature AY timbres.',
     channels: [
       { name: 'Tone A', role: 'lead' },
       { name: 'Tone B', role: 'harmony' },
@@ -181,15 +193,15 @@ export const spectrumSongWizard: ChipNewSongWizard = {
     highlights: [
       {
         title: 'Buzz-bass magic',
-        detail: 'Run the hardware envelope at audio rate for that AY growl.',
+        detail: 'Driving the hardware envelope at audio rate gives the AY its signature growl and gritty low-end motion.',
       },
       {
         title: 'Share the kit',
-        detail: 'One noise setting for the whole chip — plan drums as phrases.',
+        detail: 'With one global noise setting, drums become planned phrases rather than isolated hits, shaping the whole groove.',
       },
       {
         title: 'Three-voice chess',
-        detail: 'Lead, harmony, and percussion trade places in clever multiplex.',
+        detail: 'Lead, harmony, and percussion constantly trade roles through clever multiplexing, turning limitations into arrangement strategy.',
       },
     ],
   },
@@ -206,7 +218,7 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         eraTag: '1985',
         styleTags: ['AY', 'Spectrum', 'shared envelope'],
         blurb:
-          'Classic UK home-computer AY: three squares that can buzz, swell, or chop — with noise and envelope shared across the chip.',
+          'Classic UK home-computer AY: three-voice chiptune engine with bright square leads, buzzy basses, and envelope tricks that turn simple waves into expressive, signature AY timbres.',
         channels: [
           { name: 'Tone A', role: 'lead' },
           { name: 'Tone B', role: 'harmony' },
@@ -215,16 +227,16 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         ],
         highlights: [
           {
-            title: 'Hardware envelope soul',
-            detail: 'Swells, chops, and buzz-bass without per-frame software work.',
+            title: 'Buzz-bass magic',
+            detail: 'Driving the hardware envelope at audio rate gives the AY its signature growl and gritty low-end motion.',
           },
           {
-            title: 'One noise for all',
-            detail: 'Shared drum colour — design the kit, then stick to the plan.',
+            title: 'Share the kit',
+            detail: 'With one global noise setting, drums become planned phrases rather than isolated hits, shaping the whole groove.',
           },
           {
-            title: 'Spectrum pitch',
-            detail: '1.77 MHz clock — the classic UK home-computer tuning.',
+            title: 'Three-voice chess',
+            detail: 'Lead, harmony, and percussion constantly trade roles through clever multiplexing, turning limitations into arrangement strategy.',
           },
         ],
       },
@@ -241,7 +253,7 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         eraTag: '1984',
         styleTags: ['AY', 'CPC', '1 MHz'],
         blurb:
-          'Same AY family as the Spectrum, clocked warmer at 1 MHz — buzz-bass and shared-noise discipline still apply.',
+          'A three-voice AY synth with bright leads, gritty envelope-driven bass, and a noise source that turns clever sequencing into full CPC-style grooves.',
         channels: [
           { name: 'Tone A', role: 'lead' },
           { name: 'Tone B', role: 'harmony' },
@@ -250,16 +262,16 @@ export const spectrumSongWizard: ChipNewSongWizard = {
         ],
         highlights: [
           {
-            title: 'Warmer centre',
-            detail: '1 MHz clock shifts the pitch map vs Spectrum 128.',
+            title: 'Envelope-powered tones',
+            detail: 'Long, sculpted hardware envelopes give CPC leads and basses their signature sweep and bite.',
           },
           {
-            title: 'Same AY craft',
-            detail: 'Shared noise and envelope — last writer still wins.',
+            title: 'Shared noise palette',
+            detail: 'One global noise source means percussion works best as arranged patterns, not isolated hits.',
           },
           {
-            title: 'Buzz + multiplex',
-            detail: 'Growling bass lines with percussion woven through the tones.',
+            title: 'Three-voice strategy',
+            detail: 'Melodies, harmonies, and drums constantly rotate roles, making smart multiplexing the heart of CPC composition.',
           },
         ],
       },

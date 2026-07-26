@@ -16,11 +16,11 @@ export const nesSongWizard = {
       platform: 'Nintendo Entertainment System',
       year: '1983',
       channelSummary: '2 pulse, 1 triangle, 1 noise, 1 DMC',
-      image: CHIP_FAMICOM_BASE64,
+      image: CHIP_NES_BASE64,
       eraTag: '1983',
       styleTags: ['console', '5-channel', 'DPCM'],
       blurb:
-        'Five voices that defined console music: twin pulse leads, a rock-solid triangle bass, noise drums, and a tiny sampler for kicks and voice.',
+        'Five voices that shaped an era: twin pulse leads, an unshakeable triangle bass, noise‑driven drums, and a tiny sampler sneaking kicks and vocals into the mix.',
       listeningNote:
         'NES hardware mix is quieter than SMS/GB — preview gain is boosted slightly for listening.',
       channels: [
@@ -33,15 +33,15 @@ export const nesSongWizard = {
       highlights: [
         {
           title: 'Duty-cycle swagger',
-          detail: 'Skinny 12.5% bites vs fat 50% pads — same channel, new character.',
+          detail: 'Each pulse channel flips between lean and lush shapes, letting you reshape a riff\'s attitude on the fly.',
         },
         {
           title: 'Bass that never fades',
-          detail: 'Triangle is on or off; rhythmic gating is how it grooves.',
+          detail: 'The triangle\'s fixed volume forces you to carve groove from pure rhythm, turning gating into an art form.',
         },
         {
           title: 'Drop in real hits',
-          detail: 'DPCM sneaks sampled kicks, snares, and claps into the chip mix.',
+          detail: 'DPCM adds gritty, low-bit samples that punch through the mix like tiny drum machines hiding in the chip.',
         },
       ],
     },

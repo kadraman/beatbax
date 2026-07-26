@@ -1,0 +1,210 @@
+## spectral_phantoms.bax
+## Original ZX Spectrum AY set-piece in the virtuosic late-80s Spectrum style.
+## Key: D minor (harmonic minor dominant) | Tempo: 140 BPM
+##
+## This is an entirely original composition. It does not reproduce any
+## copyrighted material.
+##
+## Musical design:
+##   Deliberately built from a different idiom to the Game Boy demos in this
+##   repo: instead of a punchy riff-and-hold hook, the material is driven by
+##   fast descending scalar runs and wide arpeggio sweeps over a gothic
+##   Dm - Bb - Gm - A loop. The A bar is a major dominant (C# leading tone),
+##   giving the harmonic-minor colour the style is known for.
+##
+## Structure (20 bars) — through-composed with mid-bridge climax:
+##   Bars  1- 2 : Intro      — buzz drone, run fragment
+##   Bars  3- 6 : Theme A    — descending runs over Dm Bb Gm A
+##   Bars  7- 8 : Bridge     — chromatic descent early (tension before the lyric)
+##   Bars  9-12 : Theme B    — sustained lyrical answer over pads
+##   Bars 13-14 : Run/break  — full-range scalar run into a kit break
+##   Bars 15-18 : Theme A'   — rising sweeps as the virtuosic climax
+##   Bars 19-20 : Coda       — ascending harmonic minor, shimmer landing
+##
+## Channels:
+##   Ch1 (tone1): Lead — runs, soft lyric, arp-coloured sweeps, deep vib bridge
+##   Ch2 (tone2): Arpeggio harmony (minor / major / diminished per chord)
+##   Ch3 (tone3): Buzz bass drone for half a bar, kit multiplexed after it
+##
+## Lead colour (no pitch_env — that detunes sustained notes):
+##   softVib on Theme A, deeper deepVib on Theme B + bridge, gate on runs,
+##   lead_arp on short rising 16ths, gentle tail fades on phrase exits,
+##   sparkle+drop coda. One lead volume throughout.
+##
+## AY notes:
+##   All drums share noise_rate=4 so R6 never fights when multiplexed.
+##   Buzz bass sits at vol=8 so the drone supports rather than swamps.
+##
+## Play: npm run cli -- play songs/spectrum-128/spectral_phantoms.bax
+
+song name "Spectral Phantoms"
+song artist "The BeatBax Team"
+song description """An original ZX Spectrum AY set-piece in D harmonic minor: fast descending scalar runs, wide arpeggio sweeps, chord-matched arpeggio harmony, a buzz-bass drone and a kit multiplexed onto the bass channel. Demonstrates instruments, macros, effects, named percussion and hardware envelope bass without reproducing any copyrighted material."""
+song tags "original,spectrum-128,ay,gothic,demo,buzz-bass,arpeggio"
+
+chip spectrum-128
+bpm 140
+stepsPerBar 16
+
+# =============================================================================
+# Instruments
+# =============================================================================
+
+inst lead     type=tone1 vol=12
+# Same volume as lead — arp_env colour on short 16ths only (rising sweeps)
+inst lead_arp type=tone1 vol=12 arp_env=[0,3,7|0]
+
+# One arpeggio instrument per chord quality — the pattern picks the right one.
+inst arp_min   type=tone2 vol=9 arp_env=[0,3,7|0]
+inst arp_maj   type=tone2 vol=9 arp_env=[0,4,7|0]
+inst arp_dim   type=tone2 vol=8 arp_env=[0,3,6|0]
+inst pad       type=tone2 vol=8
+
+inst buzz      type=tone3 vol=8 env_bass=true env_shape=8
+
+inst kick  type=tone3 vol=13 tone=true tone_mix=true noise_rate=4 noise_frames=3 note=C3 pitch_env=[+5,+2,0,-2,-4,-6] vol_env=[13,10,7,4,2,0]
+inst snare type=tone3 vol=12 tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=4 note=E5 vol_env=[12,10,7,5,3,1,0]
+inst hatc  type=tone3 vol=8  tone=true tone_mix=true noise_rate=4 tone_frames=1 tone_vol=2 note=E7 vol_env=[8,5,3,0]
+inst hato  type=tone3 vol=8  tone_mix=true noise_rate=4 vol_env=[8,7,6,5,4,3,2,1,0]
+inst rim   type=tone3 vol=9  tone_mix=true noise_rate=4 vol_env=[9,5,2,0]
+inst crash type=tone3 vol=11 tone=true tone_mix=true noise_rate=4 tone_frames=2 tone_vol=4 note=E7 vol_env=[11,11,10,9,8,7,6,5,4,3,2,1,0]
+
+# =============================================================================
+# Effect presets
+# =============================================================================
+
+effect softVib = vib:3,5,sine,2        # Theme A — light landing wobble
+effect deepVib = vib:5,3,sine,4        # Theme B + bridge — slower, deeper
+effect sparkle = trem:6,5,sine
+effect slideUp = port:8
+effect drop    = bend:-5,exp,0,1
+effect tail    = volSlide:-3,4         # gentle phrase-end dip
+effect fade    = volSlide:-6,4         # coda exit
+effect gate    = cut:2
+
+# =============================================================================
+# Lead patterns (Ch1) — 16 steps = one 4/4 bar
+# =============================================================================
+
+pat rest16 = . . . . . . . . . . . . . . . .
+
+# Intro — a fragment of the run, answered by a held fifth
+pat mel_in_a = . . . . D6<gate>:1 C6:1 Bb5:1 A5:1 G5:2 F5:2 D5:4
+pat mel_in_b = A5:2 F5:2 D5:4 A4<softVib>:8
+
+# Theme A — descending scalar runs; light vib on landings, gentle tail on exits
+pat mel_a_dm = D6:1 C6:1 Bb5:1 A5:1 G5:2 F5:2 D5:4 A5<softVib>:4
+pat mel_a_bb = F6:1 E6:1 D6:1 C6:1 Bb5:2 A5:2 F5:4 D5<softVib>:4
+pat mel_a_gm = G5:2 Bb5:2 D6:4 C6:2 Bb5:2 G5<tail>:4
+pat mel_a_a  = A5:2 C#6:2 E6:4 C#6:2 A5:2 E5<softVib>:4
+
+# Theme A' — rising sweeps: lead_arp on the 16ths, sparkle on the peak
+pat mel_p_dm = inst lead_arp A5:1 D6:1 F6:1 A6:1 inst lead F6:2 D6:2 A5<sparkle>:4 F5<tail>:4
+pat mel_p_bb = inst lead_arp Bb5:1 D6:1 F6:1 Bb6:1 inst lead F6:2 D6:2 Bb5<sparkle>:4 F5<tail>:4
+pat mel_p_gm = inst lead_arp G5:1 Bb5:1 D6:1 G6:1 inst lead D6:2 Bb5:2 G5:4 D5<tail>:4
+pat mel_p_a  = inst lead_arp A5:1 C#6:1 E6:1 A6:1 inst lead E6:2 C#6:2 A5<sparkle>:4 E5<tail>:4
+
+# Theme B — lyrical answer with deeper vibrato on landings
+pat mel_b_dm = D5:4 F5:2 A5:2 G5:4 F5<deepVib>:4
+pat mel_b_bb = F5:4 D5:2 Bb4:2 D5:4 F5<tail>:4
+pat mel_b_gm = G5:4 Bb5:2 D6:2 Bb5:4 G5<deepVib>:4
+pat mel_b_a  = C#6:4 A5:4 E5<deepVib>:8
+
+# Full-range descending run into the break
+pat mel_run = D6:1 C6:1 Bb5:1 A5:1 G5:1 F5:1 E5:1 D5:1 C5:1 Bb4:1 A4:1 G4:1 F4:1 E4:1 D4:2
+
+# Bridge — chromatic descent with deep vibrato throughout the held tones
+pat mel_br_a = D6<deepVib>:4 C#6:2 C6:2 Bb5<deepVib>:4 A5:4
+pat mel_br_b = A5:2 G5:2 F5<deepVib>:4 E5<deepVib>:4 A4<tail>:4
+
+# Coda — ascending harmonic minor to a shimmer landing
+pat mel_cd_a = D5:2 E5:2 F5:2 G5:2 A5:2 Bb5:2 C#6:2 D6:2
+pat mel_cd_b = D6<sparkle>:8 D5<drop>:4 D5<fade>:4
+
+# =============================================================================
+# Harmony patterns (Ch2) — arpeggio quality matches the chord of the bar
+# =============================================================================
+
+pat hrm_dm = inst arp_min D4:4 D4:4 D4:4 D4:4
+pat hrm_bb = inst arp_maj Bb3:4 Bb3:4 Bb3:4 Bb3:4
+pat hrm_gm = inst arp_min G3:4 G3:4 G3:4 G3:4
+pat hrm_a  = inst arp_maj A3:4 A3:4 A3:4 A3:4
+
+# Sustained pads under the long Theme B notes
+pat pad_dm = inst pad D4:8 A3:8
+pat pad_bb = inst pad Bb3:8 F3:8
+pat pad_gm = inst pad G3:8 D4:8
+pat pad_a  = inst pad A3:8 E3:8
+
+# Bridge — diminished colour for the chromatic descent
+pat hrm_br = inst arp_dim A3:8 inst arp_maj A3:8
+
+# Coda
+pat hrm_cd = inst arp_min D4:8 inst arp_maj A3:8
+
+# =============================================================================
+# Bass / kit patterns (Ch3)
+# =============================================================================
+#
+# Buzz bass drones for the first half of the bar; the kit borrows the channel
+# for the second half. Only one voice sounds per tick.
+
+pat bs_dm = D2 _ _ _ _ _ _ _ snare . kick . snare . hato .
+pat bs_bb = Bb1 _ _ _ _ _ _ _ snare . kick . snare . hato .
+pat bs_gm = G1 _ _ _ _ _ _ _ snare . kick . snare . hato .
+pat bs_a  = A1 _ _ _ _ _ _ _ snare . kick . snare . hato .
+
+# Intro — drone alone, kit creeps in
+pat bs_in_a = D2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ .
+pat bs_in_b = D2 _ _ _ _ _ _ _ snare . . . snare . kick .
+
+# Break — full kit, no bass
+pat kit_grv = kick . hatc . snare . hatc . kick . hatc . snare . hatc .
+pat kit_fil = kick . snare . kick . snare . crash _ _ _ rim . hato .
+pat kit_cd  = kick . snare . kick . . . crash _ _ _ _ _ _ _
+
+# =============================================================================
+# Sequences
+# =============================================================================
+
+seq intro_mel = mel_in_a mel_in_b
+seq intro_hrm = hrm_dm hrm_a
+seq intro_bs  = bs_in_a bs_in_b
+
+seq themeA_mel = mel_a_dm mel_a_bb mel_a_gm mel_a_a
+seq themeA_hrm = hrm_dm hrm_bb hrm_gm hrm_a
+seq themeA_bs  = bs_dm bs_bb bs_gm bs_a
+
+seq bridge_mel = mel_br_a mel_br_b
+seq bridge_hrm = hrm_br hrm_br
+seq bridge_bs  = bs_dm bs_a
+
+seq themeB_mel = mel_b_dm mel_b_bb mel_b_gm mel_b_a
+seq themeB_hrm = pad_dm pad_bb pad_gm pad_a
+seq themeB_bs  = bs_dm bs_bb bs_gm bs_a
+
+seq break_mel = mel_run rest16
+seq break_hrm = rest16 rest16
+seq break_bs  = kit_grv kit_fil
+
+seq themeP_mel = mel_p_dm mel_p_bb mel_p_gm mel_p_a
+seq themeP_hrm = hrm_dm hrm_bb hrm_gm hrm_a
+seq themeP_bs  = bs_dm bs_bb bs_gm bs_a
+
+seq coda_mel = mel_cd_a mel_cd_b
+seq coda_hrm = hrm_cd hrm_cd
+seq coda_bs  = bs_dm kit_cd
+
+# =============================================================================
+# Channels — form: Intro → A → Bridge → B → Break → A' climax → Coda
+# =============================================================================
+
+channel 1 => inst lead    seq intro_mel themeA_mel bridge_mel themeB_mel break_mel themeP_mel coda_mel
+channel 2 => inst arp_min seq intro_hrm themeA_hrm bridge_hrm themeB_hrm break_hrm themeP_hrm coda_hrm
+channel 3 => inst buzz    seq intro_bs  themeA_bs  bridge_bs  themeB_bs  break_bs  themeP_bs  coda_bs
+
+# =============================================================================
+# Playback
+# =============================================================================
+
+play auto

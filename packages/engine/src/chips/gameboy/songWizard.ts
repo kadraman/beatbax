@@ -14,11 +14,11 @@ export const gbSongWizard = {
       platform: 'Nintendo Game Boy',
       year: '1989',
       channelSummary: '2 pulse, 1 wave, 1 noise',
-      image: `data:image/png;base64,${CHIP_IMAGE_BASE64}`,
+      image: CHIP_IMAGE_BASE64,
       eraTag: '1989',
       styleTags: ['portable', '4-channel', 'wavetable'],
       blurb:
-        'Pocket chiptune with a secret weapon: a wave channel you can draw yourself — plus twin pulses and a crunchy noise kit.',
+        'A pocket synth with attitude: twin pulse voices, crunchy noise drums, and a tiny wave channel you can shape into your own signature sound.',
       channels: [
         { name: 'Pulse1', role: 'lead + sweep' },
         { name: 'Pulse2', role: 'harmony' },
@@ -27,16 +27,16 @@ export const gbSongWizard = {
       ],
       highlights: [
         {
-          title: 'Draw your own bass',
-          detail: 'Sculpt a 32-step wave into organs, bells, or muddy subs.',
+          title: 'Envelope Acrobatics',
+          detail: 'Chunky volume steps turn simple notes into punchy plucks, swelling chords, and rhythmic motion.',
         },
         {
-          title: 'Tiny volume ladder',
-          detail: 'Only four loudness steps — envelopes and duty flips do the drama.',
+          title: 'Duty-Cycle Mood Swings',
+          detail: 'Swapping pulse widths mid-phrase instantly shifts a melody from icy and thin to warm and bold.',
         },
         {
-          title: 'Pulse personality',
-          detail: 'Switch skinny and fat square waves mid-phrase for bite vs body.',
+          title: 'Lo-Fi Wave Sculpting',
+          detail: 'Drawing a tiny 32-sample waveform lets you craft everything from gritty bass growls to smooth, nostalgic pads.',
         },
       ],
     },
@@ -48,7 +48,7 @@ export const gbSongWizard = {
           label: 'Sample instruments',
           content:
 `
-inst lead type=pulse1 duty=60 env={"level":12,"direction":"flat","period":1,"format":"gb"} gm=81
+inst lead type=pulse1 duty=50 env={"level":12,"direction":"flat","period":1,"format":"gb"} gm=81
 inst arp  type=pulse2 duty=25 env={"level":9,"direction":"down","period":2,"format":"gb"} gm=84
 inst bass type=wave wave=[0,5,11,15,15,15,15,15,11,5,0,0,0,0,0,0,0,0,6,8,8,8,8,8,8,8,8,6,0,0,0,0] gm=39
 
