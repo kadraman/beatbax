@@ -55,9 +55,14 @@
 ##   Slots 12–15 : TRANSITION + — 4 × 16-step patterns.
 ##                 REPRISE        Slot 12: transition bar — ascending chromatic tension run
 ##                                Slot 13: silence + single-hit reset (structural breath)
-##                                Slots 14–15: Theme A Phrase A1 reprise (→ loop back)
+##                                Slots 14–15: Theme A Phrase A1 reprise
 ##
-## Total: 4 × 8-step + 12 × 16-step = 32 + 192 = 224 steps per channel.
+##   Slots 16–18 : OUTRO         — 3 × 16-step patterns.
+##                                Slot 16: continue Phrase A2 (mel_a3) — groove stays locked
+##                                Slot 17: half-time cadence to Am across all channels
+##                                Slot 18: held Am chord, faded to silence via env=
+##
+## Total: 4 × 8-step + 15 × 16-step = 32 + 240 = 272 steps per channel.
 ## (Each sequence must have the same total tick count for all 5 channels.)
 ##
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +103,7 @@
 
 song name "Battle Fanfare"
 song artist "The BeatBax Team"
-song description """Original NES-style RPG battle chiptune at 155 BPM in A minor, inspired by the heroic, urgent battle music aesthetic of late-1980s NES RPGs (Final Fantasy era). Entirely original composition; no copyrighted material reproduced. Full 5-channel 2A03 arrangement: fanfare opening with duty_env shimmer on Pulse 1 stabs; 25% duty staccato Pulse 1 lead with driving 16th-note battle theme; 50% duty Pulse 2 parallel-fourth harmony with arp_env chord cycling in the bridge; repeating Am ostinato on Triangle; martial vol_env noise percussion with ghost hits; bundled @nes/ DMC kick/snare reinforcement."""
+song description """Original NES-style RPG battle chiptune at 155 BPM in A minor, inspired by the heroic, urgent battle music aesthetic of late-1980s NES RPGs (Final Fantasy era). Entirely original composition; no copyrighted material reproduced. Full 5-channel 2A03 arrangement: fanfare opening with duty_env shimmer on Pulse 1 stabs; 25% duty staccato Pulse 1 lead with driving 16th-note battle theme; 50% duty Pulse 2 parallel-fourth harmony with arp_env chord cycling in the bridge; repeating Am ostinato on Triangle; martial vol_env noise percussion with ghost hits; bundled @nes/ DMC kick/snare reinforcement; three-bar outro that restates the hook, descends to Am, and fades the final chord to silence via hardware envelopes."""
 song tags "nes,rpg,battle,action,minor,urgent,fanfare,example,demo"
 
 chip nes
@@ -154,6 +159,12 @@ inst lead       type=pulse1  duty=25  vol=10  pitch_env=[2,1,0,0,0,0,0,0]
 #   No pitch_env: long sustained notes should not wobble on attack.
 inst lead_long  type=pulse1  duty=25  vol_env=[6,8,10,11,12,12,12,12,12,12,12,10,9,8,7,6|12]
 
+# lead_end — Closing tonic for the outro.
+#   Hardware env (not vol_env / volSlide): the NES PCM path only drives
+#   noteOn/applyEnvelope/render, so env=,down is what actually fades out.
+#   env_period=10 → one volume step every 11 frames ≈ 183 ms; from 11→0 ≈ 2 s.
+inst lead_end   type=pulse1  duty=25  env=11,down  env_period=10
+
 # ── Pulse 2 — Harmony ───────────────────────────────────────────────────────
 
 # harm — Main harmony voice; warm 50% duty for sustained chord intervals.
@@ -161,6 +172,10 @@ inst lead_long  type=pulse1  duty=25  vol_env=[6,8,10,11,12,12,12,12,12,12,12,10
 #   behind the lead. Flat sustain is essential for the half-note and quarter-note
 #   chord tones that fill bars in Theme A and Theme B.
 inst harm       type=pulse2  duty=12  vol=9
+
+# harm_end — Closing fifth under the final Am chord; slower fade than lead_end
+#   so the harmony rings a little longer as the lead disappears.
+inst harm_end   type=pulse2  duty=50  env=9,down   env_period=12
 
 # harm_arp — Bridge arpeggio voice; cycling Am/Dm triad via arp_env macro.
 #   arp_env=[0,3,7|0]:
@@ -732,7 +747,57 @@ pat dmc_trans   = kick_dmc . . . . . . . . . . . . . . .  # 1+15(rest) = 16 ✓
 pat dmc_pause   = . . . . . . . . . . . . . . kick_dmc .  # 14+1+1 = 16 ✓
 
 # =============================================================================
-# SEQUENCES — total 224 steps per channel
+# PATTERNS — OUTRO (16 steps each, slots 16–18)
+# =============================================================================
+#
+# After the Theme A Phrase A1 reprise (mel_a1/mel_a2), the outro continues the
+# form instead of restarting the hook (which felt out of sync against the groove):
+#   Slot 16 — Theme A Phrase A2 bar 1 (reuse mel_a3 / chd_a3 / tri_am / drums)
+#             so the 16th-note drive stays locked across all channels
+#   Slot 17 — half-time cadence to Am; melody, bass, and drums all move together
+#   Slot 18 — held Am chord; pulses fade via hardware env; triangle clears early
+
+# ── Outro Pulse 1 / 2 (slot 17–18; slot 16 reuses mel_a3 / chd_a3) ───────────
+
+# mel_out2 — Half-time descent landing on Am (all hits on even 8ths).
+#   step:  0–1   2–3   4–5   6–7   8–9  10–11  12–15
+#   note: [G5:2][F5:2][E5:2][D5:2][C5:2][B4:2] [ A4:4 ]
+pat mel_out2 = G5:2 F5:2 E5:2 D5:2 C5:2 B4:2 A4:4  # 6×2+4 = 16 ✓
+
+# mel_out3 — Final tonic; lead_end envelope fades to silence.
+pat mel_out3 = inst lead_end A4:14 . .  # 14+1+1 = 16 ✓
+
+# chd_out2 — Parallel fourths, same half-time grid as mel_out2.
+pat chd_out2 = D5:2 C5:2 B4:2 A4:2 G4:2 F#4:2 E4:4  # 6×2+4 = 16 ✓
+
+# chd_out3 — Open fifth under the final Am; slower fade than the lead.
+pat chd_out3 = inst harm_end E3:14 . .  # 14+1+1 = 16 ✓
+
+# ── Outro Triangle ───────────────────────────────────────────────────────────
+
+# tri_out2 — Same Am ostinato pitches, doubled durations (half-time with mel_out2).
+pat tri_out2 = A2:2 A2:2 E3:2 A2:2 G2:2 F2:2 E2:2 A2:2  # 8×2 = 16 ✓
+
+# tri_out3 — Short tonic assertion, then clear so the pulses can fade alone.
+pat tri_out3 = A2 A2 . . A2:2 . . . . . . . . . .  # 1+1+1+1+2+10 = 16 ✓
+
+# ── Outro Percussion / DMC ───────────────────────────────────────────────────
+
+# drum_out2 — Half-time backbeat locked to the quarter/8th cadence grid.
+#   kick on beats 1 & 3, snare on 2 & 4 — no ghosts/hats fighting the melody.
+pat drum_out2 = kick . . . snare . . . kick . . . snare . . .  # 16 ✓
+
+# drum_out3 — Single final smash on the downbeat, then silence.
+pat drum_out3 = crash . . . . . . . . . . . . . . .  # 1+15 = 16 ✓
+
+# dmc_out2 — Kick/snare on the same half-time grid as drum_out2.
+pat dmc_out2 = kick_dmc . . . snare_dmc . . . kick_dmc . . . snare_dmc . . .  # 16 ✓
+
+# dmc_out3 — Final kick under the crash.
+pat dmc_out3 = kick_dmc . . . . . . . . . . . . . . .  # 1+15 = 16 ✓
+
+# =============================================================================
+# SEQUENCES — total 272 steps per channel
 # =============================================================================
 #
 # Sequence composition:
@@ -740,66 +805,27 @@ pat dmc_pause   = . . . . . . . . . . . . . . kick_dmc .  # 14+1+1 = 16 ✓
 #   Slots  4– 7: Theme A     (4 × 16-step patterns = 64 steps)
 #   Slots  8–11: Theme B     (4 × 16-step patterns = 64 steps)
 #   Slots 12–15: Trans+Rep   (4 × 16-step patterns = 64 steps)
-#   Total: 32 + 64 + 64 + 64 = 224 steps ✓ (all 5 sequences must match)
+#   Slots 16–18: Outro       (3 × 16-step patterns = 48 steps)
+#   Total: 32 + 64 + 64 + 64 + 48 = 272 steps ✓ (all 5 sequences must match)
 #
-# Reprise (slots 14–15) reuses Theme A patterns mel_a1 and mel_a2 directly —
-# BeatBax pattern reuse is both space-efficient and ensures rhythmic consistency.
-#
-# The repeat directive loops the entire 224-step song back to slot 0 (fanfare),
-# producing the characteristic NES RPG battle loop: fanfare → battle → fanfare → …
+# Reprise (slots 14–15) = Theme A Phrase A1.
+# Outro slot 16 continues into Phrase A2 bar 1 (mel_a3) so the groove never
+# jumps; slots 17–18 then half-time resolve and fade.
 
 # ── Pulse 1 sequence ────────────────────────────────────────────────────────
-#   Fanfare:    lead_stab instrument on all four fanfare patterns.
-#   Theme A:    default `lead` (pitch_env rip) for rapid 16th-note runs.
-#   Theme B1-3: lead_long for the broader, lyrical phrases (quarter-note shapes).
-#   Theme B4:   lead (pitch_env rip) for the urgent Am return run.
-#   Transition: lead (rip) on the chromatic run; lead on the pause single note.
-#   Reprise:    lead (same as Theme A) for consistency into the loop.
-#
-seq pulse1_main = fan_p1_1:inst(lead_stab) fan_p1_2:inst(lead_stab) fan_p1_3:inst(lead_stab) fan_p1_4:inst(lead_stab) mel_a1 mel_a2 mel_a3 mel_a4 mel_b1:inst(lead_long) mel_b2:inst(lead_long) mel_b3:inst(lead_long) mel_b4 mel_trans mel_pause mel_a1 mel_a2
+seq pulse1_main = fan_p1_1:inst(lead_stab) fan_p1_2:inst(lead_stab) fan_p1_3:inst(lead_stab) fan_p1_4:inst(lead_stab) mel_a1 mel_a2 mel_a3 mel_a4 mel_b1:inst(lead_long) mel_b2:inst(lead_long) mel_b3:inst(lead_long) mel_b4 mel_trans mel_pause mel_a1 mel_a2 mel_a3 mel_out2:inst(lead_long) mel_out3
 
 # ── Pulse 2 sequence ────────────────────────────────────────────────────────
-#   Fanfare:    harm_stab (matching vol_env decay) for the power-fifth stabs.
-#   Theme A:    harm (flat vol, parallel fourths) for chord support.
-#   Theme B:    harm_arp (arp_env cycling chords) for the bridge texture.
-#   Transition: harm_arp (Am shimmer) under chromatic tension run.
-#   Pause:      silence16 (Pulse 2 rests during the dramatic pause).
-#   Reprise:    harm (parallel fourths, matching Theme A).
-#
-seq pulse2_main = fan_p2_1:inst(harm_stab) fan_p2_2:inst(harm_stab) fan_p2_3:inst(harm_stab) fan_p2_4:inst(harm_stab) chd_a1 chd_a2 chd_a3 chd_a4 chd_b1:inst(harm_arp) chd_b2:inst(harm_arp) chd_b3:inst(harm_arp) chd_b4:inst(harm_arp) chd_trans:inst(harm_arp) silence16 chd_a1 chd_a2
+seq pulse2_main = fan_p2_1:inst(harm_stab) fan_p2_2:inst(harm_stab) fan_p2_3:inst(harm_stab) fan_p2_4:inst(harm_stab) chd_a1 chd_a2 chd_a3 chd_a4 chd_b1:inst(harm_arp) chd_b2:inst(harm_arp) chd_b3:inst(harm_arp) chd_b4:inst(harm_arp) chd_trans:inst(harm_arp) silence16 chd_a1 chd_a2 chd_a3 chd_out2 chd_out3
 
 # ── Triangle sequence ────────────────────────────────────────────────────────
-#   Fanfare 1:   fan_tri_1 (single A2 stab).
-#   Fanfare 2–3: silence8 (floating, earth-free quality in the middle stabs).
-#   Fanfare 4:   fan_tri_4 (rising arpeggio bass mirrors Pulse 1/2 ascent).
-#   Theme A:     tri_am (Am ostinato, four repetitions).
-#   Theme B 1–2: tri_cm (C major ostinato for the C/F area of B1–B2).
-#   Theme B 3–4: tri_em (Em ostinato for the Em/Am return in B3–B4).
-#   Transition:  tri_trans (single A2 downbeat anchor).
-#   Pause:       tri_pause (matching A2 stab on step 14 with mel_pause).
-#   Reprise:     tri_am (Am ostinato, two bars back into the loop).
-#
-seq tri_main = fan_tri_1 silence8 silence8 fan_tri_4 tri_am tri_am tri_am tri_am tri_cm tri_cm tri_em tri_em tri_trans tri_pause tri_am tri_am
+seq tri_main = fan_tri_1 silence8 silence8 fan_tri_4 tri_am tri_am tri_am tri_am tri_cm tri_cm tri_em tri_em tri_trans tri_pause tri_am tri_am tri_am tri_out2 tri_out3
 
 # ── Noise sequence ───────────────────────────────────────────────────────────
-#   Fanfare:    fan_drum_1–4 (single crash on each stab downbeat).
-#   Theme A:    drum_battle × 4 bars.
-#   Theme B:    drum_battle × 4 bars (same groove; texture comes from Pulse 2 arp change).
-#   Transition: drum_trans (kick + constant ghost hits, sparse).
-#   Pause:      drum_pause (dramatic silence then smash hit).
-#   Reprise:    drum_battle × 2 bars.
-#
-seq noise_main = fan_drum_1 fan_drum_2 fan_drum_3 fan_drum_4 drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_trans drum_pause drum_battle drum_battle
+seq noise_main = fan_drum_1 fan_drum_2 fan_drum_3 fan_drum_4 drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_battle drum_trans drum_pause drum_battle drum_battle drum_battle drum_out2 drum_out3
 
 # ── DMC sequence ─────────────────────────────────────────────────────────────
-#   Fanfare:    fan_dmc_1 on stabs 1/2/3 (kick only); fan_dmc_4 on stab 4 (rapid kicks).
-#   Theme A:    dmc_battle × 4 bars.
-#   Theme B:    dmc_battle × 4 bars.
-#   Transition: dmc_trans (kick on beat 1 only).
-#   Pause:      dmc_pause (smash kick on step 14).
-#   Reprise:    dmc_battle × 2 bars.
-#
-seq dmc_main = fan_dmc_1 fan_dmc_1 fan_dmc_1 fan_dmc_4 dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_trans dmc_pause dmc_battle dmc_battle
+seq dmc_main = fan_dmc_1 fan_dmc_1 fan_dmc_1 fan_dmc_4 dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_battle dmc_trans dmc_pause dmc_battle dmc_battle dmc_battle dmc_out2 dmc_out3
 
 # =============================================================================
 # CHANNELS
