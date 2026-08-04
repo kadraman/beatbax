@@ -1034,6 +1034,7 @@ function DesktopCopilotPanel({
         <div className="bb-chat-title-row">
           <span className="bb-chat-title" dangerouslySetInnerHTML={{ __html: `${icon('sparkles', 'w-4 h-4 inline-block mr-1')}BeatBax Copilot` }} />
           <button
+            aria-label="Open AI settings"
             className="bb-chat-settings-btn"
             dangerouslySetInnerHTML={{ __html: icon('cog-6-tooth', 'w-4 h-4') }}
             onClick={onOpenSettings}

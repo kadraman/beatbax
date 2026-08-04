@@ -3269,6 +3269,7 @@
   display: inline-block;
   vertical-align: text-bottom;
   flex-shrink: 0;
+  pointer-events: none;
 }
 .bb-toolbar__btn svg.w-3,
 .bb-toolbar__btn svg.h-3 {
@@ -3475,6 +3476,7 @@
   height: 28px;
   flex-shrink: 0;
   position: relative;
+  z-index: 2;
   background-color: #2e2e2e;
   background-image:
     repeating-linear-gradient(
@@ -3534,11 +3536,12 @@
   cursor: pointer;
   flex-shrink: 0;
 }
-.bb-viz__toolbar-btn:hover:not(:disabled) { filter: brightness(1.3); color: #eee; }
+.bb-viz__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) { filter: brightness(1.3); color: #eee; }
 .bb-viz__toolbar-btn svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  pointer-events: none;
 }
 .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn {
   background: #2a2a2a;
@@ -3549,8 +3552,8 @@
   padding: 0;
   font-size: 10px;
 }
-.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not(:disabled),
-.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not(:disabled) {
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not([aria-disabled="true"]),
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not([aria-disabled="true"]) {
   color: var(--bb-accent, #c8a227);
   background:
     radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.16) 0%, transparent 70%),
@@ -3564,7 +3567,8 @@
   width: 14px;
   height: 14px;
 }
-.bb-viz__toolbar-btn:disabled {
+.bb-viz__toolbar-btn:disabled,
+.bb-viz__toolbar-btn[aria-disabled="true"] {
   opacity: 0.55;
   cursor: default;
   color: #565656;
@@ -3572,7 +3576,12 @@
   border-color: #303030;
   box-shadow: none;
 }
-.bb-viz__toolbar-btn:disabled svg {
+.bb-viz__toolbar-btn[aria-disabled="true"]:hover {
+  filter: none;
+  color: #565656;
+}
+.bb-viz__toolbar-btn:disabled svg,
+.bb-viz__toolbar-btn[aria-disabled="true"] svg {
   stroke-width: 1.75;
 }
 .bb-viz__toolbar-btn--performance { margin-left: auto; }
@@ -3834,7 +3843,8 @@
   pointer-events: none;
 }
 /* Keep disabled toolbar buttons visible in fullscreen */
-.bb-viz--fullscreen .bb-viz__toolbar-btn:disabled { opacity: 0.45; }
+.bb-viz--fullscreen .bb-viz__toolbar-btn:disabled,
+.bb-viz--fullscreen .bb-viz__toolbar-btn[aria-disabled="true"] { opacity: 0.45; }
 .bb-viz--fullscreen .bb-viz__channels {
   flex: 1;
   min-height: 0;
@@ -4031,19 +4041,21 @@
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn svg {
   stroke-width: 2;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled) {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   background: #f4f4f4;
   border-color: #888;
   color: #000;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled,
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn[aria-disabled="true"] {
   opacity: 0.58;
   color: #9a9a9a;
   background: #eeeeee;
   border-color: #d2d2d2;
   box-shadow: none;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg,
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn[aria-disabled="true"] svg {
   stroke-width: 1.75;
 }
 [data-theme="light"] .bb-viz .bb-cp__btn {
@@ -4208,6 +4220,7 @@
 .bb-cp__position { font-size: 11px; color: #666; font-family: 'DSEG7-Classic', 'Share Tech Mono', 'Consolas', monospace; letter-spacing: 0.05em; }
 .bb-cp__ctrl-row { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
 .bb-cp__btn {
+  position: relative;
   width: 18px; height: 18px; padding: 0; cursor: pointer;
   border: 1px solid;
   border-color: #5a5a5a #242424 #1a1a1a #5a5a5a;
@@ -4219,6 +4232,13 @@
     0 1px 3px rgba(0,0,0,0.50),
     inset 0 1px 0 rgba(255,255,255,0.10);
   transition: filter 0.08s, color 0.08s;
+}
+/* Electron/macOS native title tooltips are flaky unless hover hits the
+   titled element itself — cover the face so tooltips register reliably. */
+.bb-cp__btn[title]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 .bb-cp--full .bb-cp__btn { width: 22px; height: 22px; font-size: 11px; }
 .bb-cp--full .bb-cp__vol-wrap { min-width: 90px; }
@@ -4346,6 +4366,7 @@
   flex-shrink: 0;
 }
 .bb-chat-title svg { margin-right: 0.25rem; }
+.bb-chat-settings-btn svg { pointer-events: none; }
 .bb-chat-settings-btn { background: none; border: none; color: var(--text-muted, #888); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; line-height: 1; transition: color 0.1s, background 0.1s; }
 .bb-chat-settings-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
 .bb-chat-subtitle { font-size: 11px; color: var(--text-muted, #888); margin-top: 2px; }
@@ -4645,6 +4666,10 @@
   cursor: pointer;
   font-size: 10px;
   flex-shrink: 0;
+}
+
+.bb-channel-mixer__toolbar-btn svg {
+  pointer-events: none;
 }
 
 .bb-channel-mixer__toolbar-btn:hover { filter: brightness(1.3); color: #eee; }
@@ -5377,9 +5402,10 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  pointer-events: none;
 }
-.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not(:disabled),
-.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not(:disabled) {
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-unmute-all:not([aria-disabled="true"]),
+.bb-viz:not(.bb-viz--fullscreen) #bb-viz-clear-solo:not([aria-disabled="true"]) {
   color: var(--bb-accent, #c8a227);
   background:
     radial-gradient(ellipse at 50% 0%, rgba(200,162,39,0.16) 0%, transparent 70%),
@@ -5389,7 +5415,8 @@
     0 0 5px rgba(200,162,39,0.16),
     inset 0 1px 0 rgba(255,255,255,0.12);
 }
-.bb-viz__toolbar-btn:disabled {
+.bb-viz__toolbar-btn:disabled,
+.bb-viz__toolbar-btn[aria-disabled="true"] {
   opacity: 0.55;
   cursor: default;
   color: #565656;
@@ -5397,7 +5424,12 @@
   border-color: #303030;
   box-shadow: none;
 }
-.bb-viz__toolbar-btn:disabled svg {
+.bb-viz__toolbar-btn[aria-disabled="true"]:hover {
+  filter: none;
+  color: #565656;
+}
+.bb-viz__toolbar-btn:disabled svg,
+.bb-viz__toolbar-btn[aria-disabled="true"] svg {
   stroke-width: 1.75;
 }
 .bb-viz__toolbar-btn--performance { margin-left: auto; }
@@ -5651,7 +5683,8 @@
   pointer-events: none;
 }
 /* Keep disabled toolbar buttons visible in fullscreen */
-.bb-viz--fullscreen .bb-viz__toolbar-btn:disabled { opacity: 0.45; }
+.bb-viz--fullscreen .bb-viz__toolbar-btn:disabled,
+.bb-viz--fullscreen .bb-viz__toolbar-btn[aria-disabled="true"] { opacity: 0.45; }
 .bb-viz--fullscreen .bb-viz__channels {
   flex: 1;
   min-height: 0;
@@ -5839,19 +5872,21 @@
 [data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn svg {
   stroke-width: 2;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled) {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   background: #f4f4f4;
   border-color: #888;
   color: #000;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled,
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn[aria-disabled="true"] {
   opacity: 0.58;
   color: #9a9a9a;
   background: #eeeeee;
   border-color: #d2d2d2;
   box-shadow: none;
 }
-[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg {
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn:disabled svg,
+[data-theme="light"] .bb-viz:not(.bb-viz--fullscreen) .bb-viz__toolbar-btn[aria-disabled="true"] svg {
   stroke-width: 1.75;
 }
 [data-theme="light"] .bb-viz .bb-cp__btn {
@@ -6016,6 +6051,7 @@
 .bb-cp__position { font-size: 11px; color: #666; font-family: 'DSEG7-Classic', 'Share Tech Mono', 'Consolas', monospace; letter-spacing: 0.05em; }
 .bb-cp__ctrl-row { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
 .bb-cp__btn {
+  position: relative;
   width: 18px; height: 18px; padding: 0; cursor: pointer;
   border: 1px solid;
   border-color: #5a5a5a #242424 #1a1a1a #5a5a5a;
@@ -6027,6 +6063,13 @@
     0 1px 3px rgba(0,0,0,0.50),
     inset 0 1px 0 rgba(255,255,255,0.10);
   transition: filter 0.08s, color 0.08s;
+}
+/* Electron/macOS native title tooltips are flaky unless hover hits the
+   titled element itself — cover the face so tooltips register reliably. */
+.bb-cp__btn[title]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 .bb-cp--full .bb-cp__btn { width: 22px; height: 22px; font-size: 11px; }
 .bb-cp--full .bb-cp__vol-wrap { min-width: 90px; }
@@ -6154,6 +6197,7 @@
   flex-shrink: 0;
 }
 .bb-chat-title svg { margin-right: 0.25rem; }
+.bb-chat-settings-btn svg { pointer-events: none; }
 .bb-chat-settings-btn { background: none; border: none; color: var(--text-muted, #888); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; line-height: 1; transition: color 0.1s, background 0.1s; }
 .bb-chat-settings-btn:hover { color: var(--text-color, #d4d4d4); background: var(--button-hover-bg, #2a2d2e); }
 .bb-chat-subtitle { font-size: 11px; color: var(--text-muted, #888); margin-top: 2px; }
