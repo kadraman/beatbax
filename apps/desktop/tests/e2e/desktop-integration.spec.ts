@@ -553,21 +553,21 @@ test('view menu reflects open visualizer tab on startup', async () => {
   await expect(page.locator('#bb-viz-clear-solo')).toBeVisible();
   await page.locator('#bb-viz-mute-1').click();
   await expect(page.locator('#bb-viz-mute-1')).toHaveClass(/bb-cp__btn--active/);
-  await expect(page.locator('#bb-viz-unmute-all')).toBeEnabled();
-  await page.locator('#bb-viz-unmute-all svg').click();
+  await expect(page.locator('#bb-viz-unmute-all')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#bb-viz-unmute-all').click();
   await expect(page.locator('#bb-viz-mute-1')).not.toHaveClass(/bb-cp__btn--active/);
-  await expect(page.locator('#bb-viz-unmute-all')).toBeDisabled();
+  await expect(page.locator('#bb-viz-unmute-all')).toHaveAttribute('aria-disabled', 'true');
 
   await page.locator('#bb-viz-solo-2').click();
   await expect(page.locator('#bb-viz-solo-2')).toHaveClass(/bb-cp__btn--active/);
-  await expect(page.locator('#bb-viz-clear-solo')).toBeEnabled();
-  await page.locator('#bb-viz-clear-solo svg').click();
+  await expect(page.locator('#bb-viz-clear-solo')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#bb-viz-clear-solo').click();
   await expect(page.locator('#bb-viz-solo-2')).not.toHaveClass(/bb-cp__btn--active/);
-  await expect(page.locator('#bb-viz-clear-solo')).toBeDisabled();
+  await expect(page.locator('#bb-viz-clear-solo')).toHaveAttribute('aria-disabled', 'true');
 
-  await page.locator('#bb-viz-fullscreen svg').click();
+  await page.locator('#bb-viz-fullscreen').click();
   await expect(page.locator('#bb-viz-root')).toHaveClass(/bb-viz--fullscreen/);
-  await page.locator('#bb-viz-exit svg').click();
+  await page.locator('#bb-viz-exit').click();
   await expect(page.locator('#bb-viz-root')).not.toHaveClass(/bb-viz--fullscreen/);
 
   await electronApp.close();
@@ -596,14 +596,14 @@ test('channel mixer renders desktop React UI and toggles channel state', async (
   await page.locator('#bb-channel-mixer-mute-1').click();
   await expect(page.locator('#bb-channel-mixer-mute-1')).toHaveClass(/bb-cp__btn--active/);
   await expect(page.locator('#bb-channel-mixer-unmute-all')).not.toHaveAttribute('aria-disabled', 'true');
-  await page.locator('#bb-channel-mixer-unmute-all svg').click();
+  await page.locator('#bb-channel-mixer-unmute-all').click();
   await expect(page.locator('#bb-channel-mixer-mute-1')).not.toHaveClass(/bb-cp__btn--active/);
   await expect(page.locator('#bb-channel-mixer-unmute-all')).toHaveAttribute('aria-disabled', 'true');
 
   await page.locator('#bb-channel-mixer-solo-2').click();
   await expect(page.locator('#bb-channel-mixer-solo-2')).toHaveClass(/bb-cp__btn--active/);
   await expect(page.locator('#bb-channel-mixer-clear-solo')).not.toHaveAttribute('aria-disabled', 'true');
-  await page.locator('#bb-channel-mixer-clear-solo svg').click();
+  await page.locator('#bb-channel-mixer-clear-solo').click();
   await expect(page.locator('#bb-channel-mixer-solo-2')).not.toHaveClass(/bb-cp__btn--active/);
   await expect(page.locator('#bb-channel-mixer-clear-solo')).toHaveAttribute('aria-disabled', 'true');
 
@@ -615,7 +615,7 @@ test('channel mixer renders desktop React UI and toggles channel state', async (
   await expect(page.locator('[data-lcd="vol"]')).toContainText('25%');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('beatbax:transport.masterVolume'))).toBe('25');
 
-  await page.locator('#bb-channel-mixer-dock-mode svg').click();
+  await page.locator('#bb-channel-mixer-dock-mode').click();
   await expect(page.locator('#bb-channel-mixer')).toHaveClass(/bb-channel-mixer--inline/);
 
   await page.evaluate(() => {
