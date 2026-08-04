@@ -286,7 +286,7 @@ describe('New Song Wizard', () => {
     expect(backdrop.classList.contains('bb-new-song-wizard-backdrop--open')).toBe(false);
   });
 
-  it('quotes multi-word default artists with spaces in generated song source', () => {
+  it('quotes a multi-word default artist with spaces in generated song source', () => {
     const onCreate = jest.fn();
     const wizard = buildNewSongWizard({
       getEnabledChips: () => [{ id: 'nes', plugin: makeChip('nes') }],
