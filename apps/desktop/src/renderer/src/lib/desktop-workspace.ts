@@ -441,7 +441,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         return plugin ? [{ id, plugin }] : [];
       }),
       getDefaultBpm: () => settingDefaultBpm.get(),
-      getDefaultArtist: () => settingSongArtist.get(),
+      getDefaultArtist: () => settingSongArtist.get().trim(),
       onPreview: (source, { onEnded }) => {
         const unsub = eventBus.on('playback:stopped', () => {
           unsub();

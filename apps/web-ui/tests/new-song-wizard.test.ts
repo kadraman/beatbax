@@ -285,6 +285,26 @@ describe('New Song Wizard', () => {
     getWizardElements().cancelBtn().click();
     expect(backdrop.classList.contains('bb-new-song-wizard-backdrop--open')).toBe(false);
   });
+
+  it('quotes a multi-word default artist with spaces in generated song source', () => {
+    const onCreate = jest.fn();
+    const wizard = buildNewSongWizard({
+      getEnabledChips: () => [{ id: 'nes', plugin: makeChip('nes') }],
+      getDefaultBpm: () => 120,
+      getDefaultArtist: () => 'The BeatBax Team',
+      onCreate,
+    });
+    wizard.open();
+    const el = getWizardElements();
+    expect(el.artist().value).toBe('The BeatBax Team');
+    el.songName().value = 'Spaces Song';
+    const [, effectsToggle] = el.exampleToggles();
+    effectsToggle.checked = false;
+    el.createBtn().click();
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    const payload = onCreate.mock.calls[0][0];
+    expect(payload.source).toContain('song artist "The BeatBax Team"');
+  });
 });
 
 describe('claimNewSongWizardOnboarding', () => {
