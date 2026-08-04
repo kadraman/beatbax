@@ -507,11 +507,8 @@ export class SongVisualizer {
     unmuteBtn.setAttribute('aria-label', 'Unmute all channels');
     setAriaDisabled(unmuteBtn, !Object.values(channelStates.get()).some(s => s.muted));
     unmuteBtn.innerHTML = icon('speaker-wave');
-    unmuteBtn.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || unmuteBtn.dataset.ariaDisabled) return;
-      event.preventDefault();
-      event.stopPropagation();
-      unmuteAll();
+    bindToolbarPrimaryAction(unmuteBtn, unmuteAll, {
+      isEnabled: () => !unmuteBtn.dataset.ariaDisabled,
     });
 
     const clearSoloBtn = document.createElement('button');
@@ -522,11 +519,8 @@ export class SongVisualizer {
     clearSoloBtn.setAttribute('aria-label', 'Clear solo on all channels');
     setAriaDisabled(clearSoloBtn, !Object.values(channelStates.get()).some(s => s.soloed));
     clearSoloBtn.innerHTML = icon('eye');
-    clearSoloBtn.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || clearSoloBtn.dataset.ariaDisabled) return;
-      event.preventDefault();
-      event.stopPropagation();
-      clearAllSolo();
+    bindToolbarPrimaryAction(clearSoloBtn, clearAllSolo, {
+      isEnabled: () => !clearSoloBtn.dataset.ariaDisabled,
     });
 
     const performanceTransport = document.createElement('div');
@@ -564,10 +558,7 @@ export class SongVisualizer {
     performanceBtn.className = 'bb-viz__toolbar-btn bb-viz__toolbar-btn--performance';
     performanceBtn.id = 'bb-viz-fullscreen';
     this.updatePerformanceButton(performanceBtn);
-    performanceBtn.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
+    bindToolbarPrimaryAction(performanceBtn, () => {
       if (!this.performanceMode) {
         this.performanceMode = true;
         this.render();
@@ -593,10 +584,7 @@ export class SongVisualizer {
     exitPerformanceBtn.title = 'Exit performance mode';
     exitPerformanceBtn.setAttribute('aria-label', 'Exit performance mode');
     exitPerformanceBtn.innerHTML = icon('x-mark');
-    exitPerformanceBtn.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
+    bindToolbarPrimaryAction(exitPerformanceBtn, () => {
       this.performanceMode = false;
       const finishExit = () => this.render();
       if (document.fullscreenElement) {
@@ -1229,4 +1217,30 @@ function setAriaDisabled(btn: HTMLButtonElement, disabled: boolean): void {
     btn.removeAttribute('aria-disabled');
     delete btn.dataset.ariaDisabled;
   }
+}
+
+/**
+ * Run toolbar actions on pointerdown (avoids lost clicks when the button re-renders)
+ * and on keyboard-initiated clicks only (Enter/Space fire click with detail === 0,
+ * without a preceding pointer event).
+ */
+function bindToolbarPrimaryAction(
+  button: HTMLButtonElement,
+  action: () => void,
+  opts?: { isEnabled?: () => boolean },
+): void {
+  const run = (event: Event) => {
+    if (opts?.isEnabled && !opts.isEnabled()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  };
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    run(event);
+  });
+  button.addEventListener('click', (event) => {
+    if (event.detail !== 0) return;
+    run(event);
+  });
 }
