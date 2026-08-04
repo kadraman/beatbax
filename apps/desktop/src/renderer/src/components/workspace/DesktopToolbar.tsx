@@ -47,6 +47,7 @@ export interface DesktopToolbarOptions {
   onUndo?: () => void;
   onRedo?: () => void;
   onToggleTheme?: () => void;
+  onOpenSettings?: () => void;
   onToggleWrap?: (enabled: boolean) => void;
   onToggleFoldComments?: () => void;
 }
@@ -94,6 +95,7 @@ function DesktopToolbar({
   onSave,
   onToggleFoldComments,
   onToggleTheme,
+  onOpenSettings,
   onToggleWrap,
   onUndo,
   onVerify,
@@ -277,6 +279,19 @@ function DesktopToolbar({
           <ToolbarIcon name={theme === 'dark' ? 'sun' : 'moon'} />
           <span className="bb-toolbar__btn-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
+        {caps.settingsPanel ? (
+          <button
+            aria-label={`Settings (${toolbarShortcut('tools.openSettings')})`}
+            className="bb-toolbar__btn bb-toolbar__btn--icon"
+            id="tb-settings"
+            onClick={() => onOpenSettings?.()}
+            title={`Settings (${toolbarShortcut('tools.openSettings')})`}
+            type="button"
+          >
+            <ToolbarIcon name="cog-6-tooth" />
+            <span className="bb-toolbar__btn-label">Settings</span>
+          </button>
+        ) : null}
       </div>
     </div>
   );
