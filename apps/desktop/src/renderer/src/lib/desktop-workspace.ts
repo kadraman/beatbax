@@ -503,6 +503,7 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
     onUndo: () => getEditor()?.editor.trigger('toolbar', 'undo', null),
     onRedo: () => getEditor()?.editor.trigger('toolbar', 'redo', null),
     onToggleTheme: () => themeManager.toggle(),
+    onOpenSettings: () => settingsModal.open(),
     onToggleWrap: (wrap) => viewPrefsHandlers?.onToggleWrap(wrap),
     onToggleFoldComments: () => viewPrefsHandlers?.onToggleFoldComments(),
   });

@@ -504,18 +504,24 @@ export class SongVisualizer {
     unmuteBtn.className = 'bb-viz__toolbar-btn';
     unmuteBtn.id = 'bb-viz-unmute-all';
     unmuteBtn.title = 'Unmute all channels';
-    unmuteBtn.disabled = !Object.values(channelStates.get()).some(s => s.muted);
+    unmuteBtn.setAttribute('aria-label', 'Unmute all channels');
+    setAriaDisabled(unmuteBtn, !Object.values(channelStates.get()).some(s => s.muted));
     unmuteBtn.innerHTML = icon('speaker-wave');
-    unmuteBtn.addEventListener('click', () => unmuteAll());
+    bindToolbarPrimaryAction(unmuteBtn, unmuteAll, {
+      isEnabled: () => !unmuteBtn.dataset.ariaDisabled,
+    });
 
     const clearSoloBtn = document.createElement('button');
     clearSoloBtn.type = 'button';
     clearSoloBtn.className = 'bb-viz__toolbar-btn';
     clearSoloBtn.id = 'bb-viz-clear-solo';
     clearSoloBtn.title = 'Clear solo';
-    clearSoloBtn.disabled = !Object.values(channelStates.get()).some(s => s.soloed);
+    clearSoloBtn.setAttribute('aria-label', 'Clear solo on all channels');
+    setAriaDisabled(clearSoloBtn, !Object.values(channelStates.get()).some(s => s.soloed));
     clearSoloBtn.innerHTML = icon('eye');
-    clearSoloBtn.addEventListener('click', () => clearAllSolo());
+    bindToolbarPrimaryAction(clearSoloBtn, clearAllSolo, {
+      isEnabled: () => !clearSoloBtn.dataset.ariaDisabled,
+    });
 
     const performanceTransport = document.createElement('div');
     performanceTransport.className = 'bb-viz__performance-transport';
@@ -552,7 +558,7 @@ export class SongVisualizer {
     performanceBtn.className = 'bb-viz__toolbar-btn bb-viz__toolbar-btn--performance';
     performanceBtn.id = 'bb-viz-fullscreen';
     this.updatePerformanceButton(performanceBtn);
-    performanceBtn.addEventListener('click', () => {
+    bindToolbarPrimaryAction(performanceBtn, () => {
       if (!this.performanceMode) {
         this.performanceMode = true;
         this.render();
@@ -578,7 +584,7 @@ export class SongVisualizer {
     exitPerformanceBtn.title = 'Exit performance mode';
     exitPerformanceBtn.setAttribute('aria-label', 'Exit performance mode');
     exitPerformanceBtn.innerHTML = icon('x-mark');
-    exitPerformanceBtn.addEventListener('click', () => {
+    bindToolbarPrimaryAction(exitPerformanceBtn, () => {
       this.performanceMode = false;
       const finishExit = () => this.render();
       if (document.fullscreenElement) {
@@ -822,9 +828,9 @@ export class SongVisualizer {
         const anyMuted = Object.values(states).some(s => s.muted);
         const anySoloed = Object.values(states).some(s => s.soloed);
         const unmuteAllBtn = document.getElementById('bb-viz-unmute-all') as HTMLButtonElement | null;
-        if (unmuteAllBtn) unmuteAllBtn.disabled = !anyMuted;
+        if (unmuteAllBtn) setAriaDisabled(unmuteAllBtn, !anyMuted);
         const clearSoloAllBtn = document.getElementById('bb-viz-clear-solo') as HTMLButtonElement | null;
-        if (clearSoloAllBtn) clearSoloAllBtn.disabled = !anySoloed;
+        if (clearSoloAllBtn) setAriaDisabled(clearSoloAllBtn, !anySoloed);
         for (const [id, info] of Object.entries(states)) {
           const channelId = Number(id);
           const muteBtn = document.getElementById(`bb-viz-mute-${channelId}`) as HTMLButtonElement | null;
@@ -1037,13 +1043,15 @@ export class SongVisualizer {
   private applyMuteStyle(btn: HTMLButtonElement, muted: boolean): void {
     btn.textContent = 'M';
     btn.title = muted ? 'Unmute channel' : 'Mute channel';
+    btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-pressed', String(muted));
     btn.classList.toggle('bb-cp__btn--active', muted);
   }
 
   private applySoloStyle(btn: HTMLButtonElement, soloed: boolean): void {
     btn.textContent = 'S';
-    btn.title = soloed ? 'Remove solo' : 'Solo this channel';
+    btn.title = soloed ? 'Unsolo channel' : 'Solo channel';
+    btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-pressed', String(soloed));
     btn.classList.toggle('bb-cp__btn--active', soloed);
   }
@@ -1199,4 +1207,40 @@ export class SongVisualizer {
     const rightPane = document.getElementById('right-pane');
     if (rightPane) rightPane.style.minWidth = '';
   }
+}
+
+function setAriaDisabled(btn: HTMLButtonElement, disabled: boolean): void {
+  if (disabled) {
+    btn.setAttribute('aria-disabled', 'true');
+    btn.dataset.ariaDisabled = 'true';
+  } else {
+    btn.removeAttribute('aria-disabled');
+    delete btn.dataset.ariaDisabled;
+  }
+}
+
+/**
+ * Run toolbar actions on pointerdown (avoids lost clicks when the button re-renders)
+ * and on keyboard-initiated clicks only (Enter/Space fire click with detail === 0,
+ * without a preceding pointer event).
+ */
+function bindToolbarPrimaryAction(
+  button: HTMLButtonElement,
+  action: () => void,
+  opts?: { isEnabled?: () => boolean },
+): void {
+  const run = (event: Event) => {
+    if (opts?.isEnabled && !opts.isEnabled()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  };
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    run(event);
+  });
+  button.addEventListener('click', (event) => {
+    if (event.detail !== 0) return;
+    run(event);
+  });
 }

@@ -64,6 +64,8 @@ export interface ToolbarOptions {
   //onFormat?: () => void;
   /** Toggle dark/light theme. */
   onToggleTheme?: () => void;
+  /** Open the Settings panel. */
+  onOpenSettings?: () => void;
   /** Toggle word-wrap. Receives the new enabled state. */
   onToggleWrap?: (enabled: boolean) => void;
   /** Fold or unfold all comments. */
@@ -154,6 +156,11 @@ export class Toolbar {
         <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-theme" title="Switch to light theme">
           ${icon('sun', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Light</span>
         </button>
+        ${caps.settingsPanel ? `
+        <button class="bb-toolbar__btn bb-toolbar__btn--icon" id="tb-settings" title="Settings (${toolbarShortcut('tools.openSettings')})" aria-label="Settings (${toolbarShortcut('tools.openSettings')})">
+          ${icon('cog-6-tooth', 'w-4 h-4 inline-block align-text-bottom')} <span class="bb-toolbar__btn-label">Settings</span>
+        </button>
+        ` : ''}
       </div>
     `;
 
@@ -219,7 +226,7 @@ export class Toolbar {
   private attachEvents(): void {
         const { eventBus, onLoad, onExport, onVerify,
           onNew, onSave, onUndo, onRedo, /*onFormat,*/
-          onToggleTheme, onToggleWrap, onToggleFoldComments,
+          onToggleTheme, onOpenSettings, onToggleWrap, onToggleFoldComments,
           onOpenFileReadStart, onOpenFileReadEnd,
           onBeforeOpenFile, onBeforeExampleLoad } = this.options;
         const caps = getCurrentCapabilities();
@@ -409,6 +416,12 @@ export class Toolbar {
     this._themeToggleBtn = this.el.querySelector<HTMLButtonElement>('#tb-theme') ?? undefined;
     if (this._themeToggleBtn) {
       this._themeToggleBtn.addEventListener('click', () => onToggleTheme?.());
+    }
+
+    // Settings
+    const settingsBtn = this.el.querySelector<HTMLButtonElement>('#tb-settings');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => onOpenSettings?.());
     }
 
     // Fold/Unfold comments

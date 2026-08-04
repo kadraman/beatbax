@@ -1518,6 +1518,7 @@ toolbar = new Toolbar({
   onUndo:      () => editor.editor?.trigger('toolbar', 'undo', null),
   onRedo:      () => editor.editor?.trigger('toolbar', 'redo', null),
   onToggleTheme: () => themeManager.toggle(),
+  onOpenSettings: () => settingsModal.open(),
   onToggleWrap:  (wrap: boolean) => {
     settingWordWrap.set(wrap);
     editor.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
