@@ -149,7 +149,12 @@ export function EditorSettingsSection(): React.JSX.Element {
       <NoteText>Beat decorations tint note tokens inside pat blocks: downbeats are highlighted more strongly, upbeats more subtly, making the rhythmic structure visible while editing.</NoteText>
 
       <NumberField label="Default BPM" max={300} min={60} onChange={(value) => settingDefaultBpm.set(value)} value={defaultBpm} />
-      <TextField label="Default song artist" onChange={(value) => settingSongArtist.set(value.trim())} value={songArtist} />
+      <TextField
+        label="Default song artist"
+        onBlur={commitDefaultSongArtist}
+        onChange={applyDefaultSongArtistDraft}
+        value={songArtist}
+      />
       <NumberField
         label="Font size"
         max={24}
@@ -309,6 +314,20 @@ export function EditorSettingsSection(): React.JSX.Element {
       </div>
     </div>
   );
+}
+
+/**
+ * Persist Default song artist while the controlled text field is being edited.
+ * Must not trim: trimming on every keystroke strips trailing spaces and blocks
+ * multi-word names such as "The BeatBax Team".
+ */
+export function applyDefaultSongArtistDraft(value: string): void {
+  settingSongArtist.set(value);
+}
+
+/** Normalize leading/trailing whitespace when the Default song artist field blurs. */
+export function commitDefaultSongArtist(value: string): void {
+  settingSongArtist.set(value.trim());
 }
 
 export function resetEditorDefaults(): void {
