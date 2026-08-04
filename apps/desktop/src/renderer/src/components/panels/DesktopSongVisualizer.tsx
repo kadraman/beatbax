@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type Ref,
 } from 'react';
 import { flushSync } from 'react-dom';
@@ -477,6 +478,13 @@ function DesktopSongVisualizer({
     });
   }, [syncChannelInfoFromStore]);
 
+  const handleToolbarAction = useCallback((event: ReactPointerEvent<HTMLButtonElement>, disabled: boolean, action: () => void) => {
+    if (event.button !== 0 || disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  }, []);
+
   const resetAllChannels = useCallback(() => {
     setPositions({});
     clearLevels();
@@ -693,6 +701,8 @@ function DesktopSongVisualizer({
     : fullscreenActive
       ? 'arrows-pointing-in'
       : 'arrows-pointing-out';
+  const anyMuted = Object.values(channelInfo).some((state) => state.muted);
+  const anySoloed = Object.values(channelInfo).some((state) => state.soloed);
 
   return (
     <div
@@ -714,20 +724,24 @@ function DesktopSongVisualizer({
         onPointerLeave={performanceMode ? unpinChrome : undefined}
       >
         <button
+          aria-disabled={!anyMuted ? 'true' : undefined}
+          aria-label="Unmute all channels"
           className="bb-viz__toolbar-btn"
-          disabled={!Object.values(channelInfo).some((state) => state.muted)}
           dangerouslySetInnerHTML={{ __html: icon('speaker-wave') }}
+          data-aria-disabled={!anyMuted ? 'true' : undefined}
           id="bb-viz-unmute-all"
-          onClick={() => runChannelStateAction(unmuteAll)}
+          onPointerDown={(event) => handleToolbarAction(event, !anyMuted, () => runChannelStateAction(unmuteAll))}
           title="Unmute all channels"
           type="button"
         />
         <button
+          aria-disabled={!anySoloed ? 'true' : undefined}
+          aria-label="Clear solo on all channels"
           className="bb-viz__toolbar-btn"
-          disabled={!Object.values(channelInfo).some((state) => state.soloed)}
           dangerouslySetInnerHTML={{ __html: icon('eye') }}
+          data-aria-disabled={!anySoloed ? 'true' : undefined}
           id="bb-viz-clear-solo"
-          onClick={() => runChannelStateAction(clearAllSolo)}
+          onPointerDown={(event) => handleToolbarAction(event, !anySoloed, () => runChannelStateAction(clearAllSolo))}
           title="Clear solo"
           type="button"
         />
@@ -758,7 +772,7 @@ function DesktopSongVisualizer({
           className="bb-viz__toolbar-btn bb-viz__toolbar-btn--performance"
           dangerouslySetInnerHTML={{ __html: icon(performanceIcon) }}
           id="bb-viz-fullscreen"
-          onClick={() => {
+          onPointerDown={(event) => handleToolbarAction(event, false, () => {
             if (!performanceMode) {
               flushSync(() => setPerformanceMode(true));
               return;
@@ -768,7 +782,7 @@ function DesktopSongVisualizer({
               return;
             }
             void rootRef.current?.requestFullscreen?.().catch(() => undefined);
-          }}
+          })}
           title={performanceTitle}
           type="button"
         />
@@ -778,10 +792,10 @@ function DesktopSongVisualizer({
             className="bb-viz__toolbar-btn bb-viz__toolbar-btn--exit-performance"
             dangerouslySetInnerHTML={{ __html: icon('x-mark') }}
             id="bb-viz-exit"
-            onClick={() => {
+            onPointerDown={(event) => handleToolbarAction(event, false, () => {
               flushSync(() => setPerformanceMode(false));
               if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
-            }}
+            })}
             title="Exit performance mode"
             type="button"
           />
@@ -830,6 +844,7 @@ function DesktopSongVisualizer({
                   </div>
                   <div className="bb-viz__ctrl-row">
                     <button
+                      aria-label={muted ? 'Unmute channel' : 'Mute channel'}
                       aria-pressed={muted}
                       className={`bb-cp__btn bb-cp__btn--mute${muted ? ' bb-cp__btn--active' : ''}`}
                       id={`bb-viz-mute-${ch.id}`}
@@ -844,6 +859,7 @@ function DesktopSongVisualizer({
                       M
                     </button>
                     <button
+                      aria-label={soloed ? 'Unsolo channel' : 'Solo channel'}
                       aria-pressed={soloed}
                       className={`bb-cp__btn bb-cp__btn--solo${soloed ? ' bb-cp__btn--active' : ''}`}
                       id={`bb-viz-solo-${ch.id}`}
@@ -852,7 +868,7 @@ function DesktopSongVisualizer({
                       onFocus={performanceMode ? pinChrome : undefined}
                       onPointerEnter={performanceMode ? pinChrome : undefined}
                       onPointerLeave={performanceMode ? unpinChrome : undefined}
-                      title={soloed ? 'Remove solo' : 'Solo this channel'}
+                      title={soloed ? 'Unsolo channel' : 'Solo channel'}
                       type="button"
                     >
                       S
