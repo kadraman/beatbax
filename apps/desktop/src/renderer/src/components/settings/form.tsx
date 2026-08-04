@@ -160,12 +160,14 @@ export function TextField({
   id,
   inputType = 'text',
   label,
+  onBlur,
   onChange,
   value,
 }: {
   id?: string;
   inputType?: string;
   label: string;
+  onBlur?: (value: string) => void;
   onChange: (value: string) => void;
   value: string;
 }): React.JSX.Element {
@@ -176,6 +178,7 @@ export function TextField({
       <input
         className="bb-settings-text"
         id={fieldId}
+        onBlur={(event) => onBlur?.(event.currentTarget.value)}
         onChange={(event) => onChange(event.currentTarget.value)}
         type={inputType}
         value={value}
