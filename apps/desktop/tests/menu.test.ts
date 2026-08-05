@@ -142,6 +142,16 @@ describe('desktop native menu', () => {
     expect(helpItems.map((item) => item.label)).toContain('About BeatBax');
   });
 
+  it('includes BeatBax Docs and Tutorial links in Help menu', () => {
+    const template = createMenuTemplate([], handlers());
+    const helpMenu = findTopLevelMenu(template, 'Help');
+    const helpItems = helpMenu.submenu as MenuItemConstructorOptions[];
+    expect(helpItems.map((item) => item.label)).toEqual(
+      expect.arrayContaining(['BeatBax Docs', 'BeatBax Tutorial']),
+    );
+    expect(helpItems.map((item) => item.label)).not.toContain('GitHub Repository');
+  });
+
   it('shows Exit in File menu on non-macOS', () => {
     if (isMac) return;
 

@@ -109,7 +109,7 @@ No changes. Exporters operate on resolved song model / ISM and should be unaffec
 
 - If parsing behavior changes in subtle ways (e.g., stricter whitespace), update:
   - [docs/language/metadata-directives.md](docs/language/metadata-directives.md)
-  - [TUTORIAL.md](TUTORIAL.md)
+  - [Tutorial](https://beatbax.com/docs/tutorial/overview)
   - any examples that depended on legacy quirks
 
 ## Testing Strategy

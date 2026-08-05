@@ -36,7 +36,8 @@ const menuShortcut = (id: ShortcutCommandId) => formatCommandShortcut(id, shortc
 const RECENT_STORAGE_KEY = 'beatbax:menu.recentFiles';
 const MAX_RECENT = 8;
 const ABOUT_URL = 'https://github.com/kadraman/beatbax';
-const DOCS_URL = 'https://github.com/kadraman/beatbax/tree/main/docs';
+const DOCS_URL = 'https://beatbax.com/docs/intro';
+const TUTORIAL_URL = 'https://beatbax.com/docs/tutorial/overview';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -836,8 +837,13 @@ export class MenuBar {
     const items: MenuItemDef[] = [
       {
         type: 'item',
-        label: 'Documentation',
+        label: 'BeatBax Docs',
         action: () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer'),
+      },
+      {
+        type: 'item',
+        label: 'BeatBax Tutorial',
+        action: () => window.open(TUTORIAL_URL, '_blank', 'noopener,noreferrer'),
       },
       {
         type: 'item',

@@ -16,7 +16,7 @@ Add a new CLI feature to export a `.bax` (BeatBax script) or exported ISM JSON i
 - Use engine's buffered/offline renderer to produce deterministic PCM samples.
 - Provide a small, dependency-free WAV writer utility in the engine export module for Node usage.
 - Add integration tests to validate WAV header fields and a short smoke test of generated audio content.
-- Add documentation and example usage to `TUTORIAL.md`.
+- Add documentation and example usage to the [docs tutorial](https://beatbax.com/docs/tutorial/overview).
 
 **CLI UX**
 

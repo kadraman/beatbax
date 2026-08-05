@@ -254,7 +254,7 @@ Future enhancement: MIDI export could optionally emit a key signature meta-event
 ### Documentation Updates
 
 - Add `scale` and `lock` to `docs/language/metadata-directives.md`
-- Add a scale-awareness section to `TUTORIAL.md`
+- Add a scale-awareness section to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 - Update `docs/formats/ast-schema.md` to document the new `scale` and `lock` fields
 
 ---
@@ -360,7 +360,7 @@ Fully additive. Existing `.bax` files without `scale` or `lock` are unchanged in
 - [ ] Integration tests for validation pass
 - [ ] Update `docs/language/metadata-directives.md`
 - [ ] Update `docs/formats/ast-schema.md`
-- [ ] Add scale section to `TUTORIAL.md`
+- [ ] Add scale section to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 
 ---
 

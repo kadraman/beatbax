@@ -24,6 +24,7 @@ Same convention as `songs/nes/`, `songs/sms/`, and `songs/spectrum-128/`.
 | `heroes_call.bax` | D major, 112 | Heroic mystical anthem |
 | `mystic_voyage.bax` | G major, 128 | Pastoral soaring adventure |
 | `night_hawk.bax` | E minor, 128 | Driving cinematic action |
+| `tutorial_groove.bax` | C major, 140 | [Tutorial](https://beatbax.com/docs/tutorial/overview) walkthrough groove |
 
 Full songs are original compositions. They demonstrate pulse duty/envelopes/sweep, wave tables, noise kits, macros (`vol_env`, `pitch_env`, `duty_env`, `arp_env`, `subpat`), and UGE-oriented instrument fields such as `uge_note=`.
 

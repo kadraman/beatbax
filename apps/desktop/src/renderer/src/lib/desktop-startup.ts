@@ -37,7 +37,7 @@ function isMenuAction(value: string): value is MenuAction {
     'view:reload',
     'view:toggle-devtools',
     'help:docs',
-    'help:repo',
+    'help:tutorial',
     'help:shortcuts',
     'help:about',
   ].includes(value);

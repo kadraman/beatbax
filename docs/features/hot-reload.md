@@ -516,7 +516,7 @@ test('updates pattern without audio glitch', async () => {
 - [ ] Write unit tests for AST diffing
 - [ ] Write unit tests for hot reload manager
 - [ ] Write integration tests for glitch-free updates
-- [ ] Update TUTORIAL.md with live coding examples
+- [ ] Update the [docs tutorial](https://beatbax.com/docs/tutorial/overview) with live coding examples
 - [ ] Add keyboard shortcut for manual apply (Ctrl+Enter)
 - [ ] Document hot reload API in engine README
 
@@ -560,5 +560,5 @@ None. Hot reload is an opt-in enhancement to the existing live mode.
 ## See Also
 
 - [monorepo-refactoring.md](./monorepo-refactoring.md) - Web UI package structure
-- [TUTORIAL.md](../../TUTORIAL.md) - Live coding workflow examples
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) - Live coding workflow examples
 - [apps/web-ui](../../apps/web-ui/) - Current web UI implementation

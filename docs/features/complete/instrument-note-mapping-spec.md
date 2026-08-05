@@ -212,7 +212,7 @@ describe('instrument note mapping', () => {
 - [instruments.md](../instruments.md) — add `note=` parameter documentation
 - [uge-export-guide.md](../uge-export-guide.md) — document note mapping behavior
 - [instrument-note-mapping-guide.md](../instrument-note-mapping-guide.md) — user-facing guide
-- [TUTORIAL.md](../../TUTORIAL.md) — add percussion best practices
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) — add percussion best practices
 
 ## Related Issues
 

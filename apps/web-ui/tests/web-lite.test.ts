@@ -36,11 +36,23 @@ describe('web-lite profile', () => {
     const brandIcon = document.querySelector('.bb-web-lite-header__icon') as HTMLImageElement | null;
     expect(brandIcon?.getAttribute('src')).toBe(appAssetUrl('favicon.svg'));
     expect(document.querySelector('.bb-web-lite-header__logo')?.textContent).toBe('BeatBax');
-    expect(document.querySelector('.bb-web-lite-header__cta')).toBeNull();
+    const cta = document.querySelector('.bb-web-lite-header__cta');
+    expect(cta).not.toBeNull();
+    expect(cta?.getAttribute('href')).toBe('https://beatbax.com/download');
+    expect(cta?.textContent).toBe('Download BeatBax Desktop');
+    const docs = document.querySelector('.bb-web-lite-header__social-link[data-social="docs"]');
+    expect(docs).not.toBeNull();
+    expect(docs?.getAttribute('href')).toBe('https://beatbax.com/docs/intro');
     const github = document.querySelector('.bb-web-lite-header__social-link[data-social="github"]');
     expect(github).not.toBeNull();
     expect(github?.getAttribute('href')).toContain('github.com/kadraman/beatbax');
-    expect(document.querySelectorAll('.bb-web-lite-header__social-link')).toHaveLength(1);
+    const itch = document.querySelector('.bb-web-lite-header__social-link[data-social="itch"]');
+    expect(itch).not.toBeNull();
+    expect(itch?.getAttribute('href')).toBe('https://kadraman.itch.io/beatbax');
+    const patreon = document.querySelector('.bb-web-lite-header__social-link[data-social="patreon"]');
+    expect(patreon).not.toBeNull();
+    expect(patreon?.getAttribute('href')).toBe('https://www.patreon.com/kadraman');
+    expect(document.querySelectorAll('.bb-web-lite-header__social-link')).toHaveLength(4);
   });
 
   it('bottom tabs include Output in web-lite', () => {
