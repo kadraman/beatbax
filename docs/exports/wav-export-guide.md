@@ -422,7 +422,7 @@ ffprobe -hide_banner browser.wav
 - [PCM Renderer Source](../packages/engine/src/audio/pcmRenderer.ts)
 - [Node Audio Player Source](../packages/cli/src/nodeAudioPlayer.ts)
 - [DEVNOTES - CLI Audio Implementation](../DEVNOTES.md#cli-audio-playback-implementation)
-- [BeatBax Tutorial](../TUTORIAL.md)
+- [BeatBax Tutorial](https://beatbax.com/docs/tutorial/overview)
 - [Scheduler Documentation](scheduler.md)
 
 ## Support

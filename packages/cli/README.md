@@ -191,7 +191,7 @@ await exportFile('uge', 'song.bax', 'output.uge');
 
 - [GitHub Repository](https://github.com/kadraman/beatbax)
 - [Full Documentation](https://github.com/kadraman/beatbax/tree/main/docs)
-- [Tutorial](https://github.com/kadraman/beatbax/blob/main/TUTORIAL.md)
+- [Tutorial](https://beatbax.com/docs/tutorial/overview)
 - [Engine Library](https://www.npmjs.com/package/@beatbax/engine)
 
 ## License

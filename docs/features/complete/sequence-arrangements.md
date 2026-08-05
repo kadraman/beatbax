@@ -55,6 +55,6 @@ See `songs/features/sequence_demo.bax` for a working example.
 
 ## References
 
-- Tutorial: `TUTORIAL.md` (channel and extended `seq` syntax)
+- Tutorial: [docs tutorial](https://beatbax.com/docs/tutorial/overview) (channel and extended `seq` syntax)
 - Demo song: `songs/features/sequence_demo.bax`
 - Archived spec: [docs/features/archive/sequence-arrangements-spec.md](../archive/sequence-arrangements-spec.md)

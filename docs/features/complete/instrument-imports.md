@@ -123,7 +123,7 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
 ### Documentation Updates
 
 - Add usage docs and examples (this feature doc plus a short example in the
-  `songs/` directory). Update `TUTORIAL.md` and CLI help to mention import
+  `songs/` directory). Update the [docs tutorial](https://beatbax.com/docs/tutorial/overview) and CLI help to mention import
   search paths and strict-mode toggle.
 
 ## Testing Strategy
@@ -328,7 +328,7 @@ All tests pass. See `packages/engine/tests/` for implementation.
 - ✅ CLI integration (all commands support imports)
 - ✅ Browser playback import resolution
 - ✅ Add unit and integration tests (18 tests total)
-- ✅ Update `TUTORIAL.md`, `README.md`, and documentation
+- ✅ Update docs tutorial, `README.md`, and documentation
 
 ## References
 

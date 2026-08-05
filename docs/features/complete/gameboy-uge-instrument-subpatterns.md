@@ -236,5 +236,5 @@ Implementation: `packages/engine/src/chips/gameboy/instrumentProgram.ts`.
 - `[docs/features/complete/gameboy-instrument-macros-policy.md](complete/gameboy-instrument-macros-policy.md)`
 - `[docs/features/complete/gameboy-noise-uge-playback-parity.md](complete/gameboy-noise-uge-playback-parity.md)`
 - `[docs/grammar/instruments.md](../grammar/instruments.md)`
-- `[TUTORIAL.md](../../TUTORIAL.md)`
+- [Tutorial](https://beatbax.com/docs/tutorial/overview)
 
