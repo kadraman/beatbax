@@ -211,7 +211,7 @@ Generated .bax is handled by existing play/verify/export pipeline.
 
 ### Documentation Updates
 
-- Add CLI usage examples to README and/or TUTORIAL
+- Add CLI usage examples to README and/or the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 - Add mapping config schema reference
 - Add example importer config files for NES songs
 

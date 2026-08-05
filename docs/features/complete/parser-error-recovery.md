@@ -316,7 +316,7 @@ For CLI, maintain strict behavior:
 **Time Estimate**: 1 day
 
 1. Update parser documentation
-2. Add examples to TUTORIAL.md
+2. Add examples to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 3. Document error recovery behavior in README.md
 
 ## Testing Strategy
@@ -421,7 +421,7 @@ New `parseWithPeggy()` function provides enhanced behavior:
 - [ ] Update Output panel to show all syntax errors (not just semantic)
 - [ ] Add unit tests for multiple syntax errors (schema in spec above)
 - [ ] Test with real-world error scenarios
-- [ ] Add examples to TUTORIAL.md
+- [ ] Add examples to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 - [ ] Consider CLI `--continue-on-error` flag
 
 ## Future Enhancements

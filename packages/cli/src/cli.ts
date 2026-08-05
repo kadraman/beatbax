@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command, Argument } from 'commander';
 import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry, getSongValidationIssues } from '@beatbax/engine';
 import { playFile } from '@beatbax/engine/node';

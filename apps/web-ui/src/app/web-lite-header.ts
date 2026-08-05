@@ -1,11 +1,11 @@
 /**
- * Web-lite top bar: brand icon + text logo + optional social icon links.
+ * Web-lite top bar: brand + centered Desktop download CTA + docs/social icon links.
  */
 
 import { brandIcon } from '../utils/icons';
 import { appAssetUrl } from '../utils/app-asset-url';
 
-export type WebLiteSocialId = 'github' | 'x' | 'itch';
+export type WebLiteSocialId = 'docs' | 'github' | 'itch' | 'patreon' | 'x';
 
 export interface WebLiteSocialLink {
   id: WebLiteSocialId;
@@ -15,12 +15,14 @@ export interface WebLiteSocialLink {
   href?: string;
 }
 
-/** Social links shown in the web-lite header (right side). */
+export const WEB_LITE_DESKTOP_DOWNLOAD_URL = 'https://beatbax.com/download';
+
+/** Links shown in the web-lite header (right side). Docs first, then beatbax.com socials. */
 export const WEB_LITE_SOCIAL_LINKS: WebLiteSocialLink[] = [
+  { id: 'docs', label: 'BeatBax Docs', href: 'https://beatbax.com/docs/intro' },
   { id: 'github', label: 'GitHub', href: 'https://github.com/kadraman/beatbax' },
-  // Add href when available:
-  //{ id: 'x', label: 'X', href: 'https://x.com/...' },
-  // { id: 'itch', label: 'itch.io', href: 'https://....itch.io/...' },
+  { id: 'itch', label: 'itch.io', href: 'https://kadraman.itch.io/beatbax' },
+  { id: 'patreon', label: 'Patreon', href: 'https://www.patreon.com/kadraman' },
 ];
 
 /** Build the web-lite header bar element. */
@@ -44,9 +46,18 @@ export function buildWebLiteHeader(): HTMLElement {
   title.append(icon, logo);
   header.appendChild(title);
 
+  const cta = document.createElement('a');
+  cta.className = 'bb-web-lite-header__cta';
+  cta.href = WEB_LITE_DESKTOP_DOWNLOAD_URL;
+  cta.target = '_blank';
+  cta.rel = 'noopener noreferrer';
+  cta.textContent = 'Download BeatBax Desktop';
+  cta.title = 'Get the full BeatBax Desktop IDE';
+  header.appendChild(cta);
+
   const social = document.createElement('nav');
   social.className = 'bb-web-lite-header__social';
-  social.setAttribute('aria-label', 'Social links');
+  social.setAttribute('aria-label', 'BeatBax links');
 
   for (const link of WEB_LITE_SOCIAL_LINKS) {
     if (!link.href) continue;

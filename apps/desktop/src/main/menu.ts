@@ -206,14 +206,14 @@ function buildMacHelpMenu(handlers: AppMenuHandlers): MenuItemConstructorOptions
         label: 'BeatBax Docs',
         click: () => {
           sendMenuAction(handlers, 'help:docs');
-          void shell.openExternal('https://github.com/kadraman/beatbax#readme');
+          void shell.openExternal('https://beatbax.com/docs/intro');
         },
       },
       {
-        label: 'GitHub Repository',
+        label: 'BeatBax Tutorial',
         click: () => {
-          sendMenuAction(handlers, 'help:repo');
-          void shell.openExternal('https://github.com/kadraman/beatbax');
+          sendMenuAction(handlers, 'help:tutorial');
+          void shell.openExternal('https://beatbax.com/docs/tutorial/overview');
         },
       },
       { type: 'separator' },
@@ -232,14 +232,14 @@ function buildBasicHelpMenu(handlers: AppMenuHandlers): MenuItemConstructorOptio
         label: 'BeatBax Docs',
         click: () => {
           sendMenuAction(handlers, 'help:docs');
-          void shell.openExternal('https://github.com/kadraman/beatbax#readme');
+          void shell.openExternal('https://beatbax.com/docs/intro');
         },
       },
       {
-        label: 'GitHub Repository',
+        label: 'BeatBax Tutorial',
         click: () => {
-          sendMenuAction(handlers, 'help:repo');
-          void shell.openExternal('https://github.com/kadraman/beatbax');
+          sendMenuAction(handlers, 'help:tutorial');
+          void shell.openExternal('https://beatbax.com/docs/tutorial/overview');
         },
       },
       { type: 'separator' },

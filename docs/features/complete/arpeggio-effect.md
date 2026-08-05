@@ -131,7 +131,7 @@ node bin/beatbax export wav songs/effects/arpeggio.bax output.wav
 **Documentation**:
 - `docs/features/effects-system.md` - Full effects spec
 - `docs/exports/uge-export-guide.md` - UGE mapping details
-- `TUTORIAL.md` - Usage examples
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) - Usage examples
 
 **Tests**:
 - `songs/effects/arpeggio.bax` - Demo song

@@ -57,7 +57,7 @@ export type MenuAction =
   | 'view:reload'
   | 'view:toggle-devtools'
   | 'help:docs'
-  | 'help:repo'
+  | 'help:tutorial'
   | 'help:shortcuts'
   | 'help:about'
   | `file:load-example:${string}`;

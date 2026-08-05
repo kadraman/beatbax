@@ -360,7 +360,7 @@ test('UGE export preserves sweep', () => {
 - [x] Write unit tests for sweep parsing
 - [x] Write unit tests for sweep audio generation
 - [x] Write integration tests for UGE round-trip
-- [x] Update TUTORIAL.md with sweep examples
+- [x] Update docs tutorial with sweep examples
 - [x] Add sweep examples to demo songs
 - [x] Document sweep behavior in `docs/uge-v6-spec.md`
 

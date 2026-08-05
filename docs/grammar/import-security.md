@@ -316,7 +316,7 @@ Update all import statements in your `.bax` and `.ins` files by adding the `loca
 
 - [Remote Imports](features/remote-imports.md) - Using https:// and github: imports
 - [Instruments Guide](instruments.md) - How to define and organize instruments
-- [Tutorial](../TUTORIAL.md) - Basic usage and examples
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) - Basic usage and examples
 
 ## Path Traversal Guard — Validation Examples
 

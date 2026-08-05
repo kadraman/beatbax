@@ -433,7 +433,7 @@ Update `packages/engine/src/parser/ast.ts` and `schema/ast.schema.json`.
 
 ### Documentation Updates
 
-- `TUTORIAL.md` — song form workflow
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) — song form workflow
 - `docs/features/complete/sequence-arrangements.md` — cross-link “successor ergonomics”
 - New demo: `songs/features/song_composition_demo.bax`
 - Migrate one section of `crypt_of_fallen_kings.bax` as reference (optional, in implementation PR)

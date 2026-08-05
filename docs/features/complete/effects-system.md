@@ -1142,7 +1142,7 @@ pat A = C4<gb:pan:C> D4<gb:pan:R>
 - [x] Write unit tests for effect application
 - [x] Write integration tests (uge.vib.test.ts, uge.arp.test.ts, etc.)
 - [x] Add effects examples to demo songs (songs/effects/*.bax)
-- [ ] Document effects in TUTORIAL.md
+- [ ] Document effects in the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 - [ ] Create effects reference guide
 
 ---
@@ -1564,5 +1564,5 @@ npm -w node ./bin/beatbax --export uge songs/effects/vibrato.bax tmp/out.uge
 
 - [pulse-sweep-support.md](./pulse-sweep-support.md) - Hardware sweep effect
 - [hot-reload.md](./hot-reload.md) - Live editing with effects
-- [TUTORIAL.md](../../TUTORIAL.md) - Usage examples
+- [Tutorial](https://beatbax.com/docs/tutorial/overview) - Usage examples
 - [Tracker Effect Commands](https://github.com/milkytracker/MilkyTracker/wiki/Effect-Commands) - Reference

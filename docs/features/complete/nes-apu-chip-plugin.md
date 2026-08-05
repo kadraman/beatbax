@@ -869,7 +869,7 @@ play
 - [ ] Add NES section to `docs/language/instruments.md`
 - [ ] Update `docs/formats/ast-schema.md` with new NES instrument fields
 - [ ] Document NES effects support in `docs/language/effects.md` (which effects carry over from Game Boy, which are NES-specific, export support per format)
-- [ ] Add NES examples to `TUTORIAL.md`
+- [ ] Add NES examples to the [docs tutorial](https://beatbax.com/docs/tutorial/overview)
 - [ ] Update `ROADMAP.md` to mark NES plugin as in-progress → complete
 
 ---

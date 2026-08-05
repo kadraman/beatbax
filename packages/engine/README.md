@@ -180,7 +180,7 @@ import type { AST, Song, Pattern, Instrument } from '@beatbax/engine';
 
 - [GitHub Repository](https://github.com/kadraman/beatbax)
 - [Full Documentation](https://github.com/kadraman/beatbax/tree/main/docs)
-- [Tutorial](https://github.com/kadraman/beatbax/blob/main/TUTORIAL.md)
+- [Tutorial](https://beatbax.com/docs/tutorial/overview)
 - [CLI Tool](https://www.npmjs.com/package/@beatbax/cli)
 
 ## License
