@@ -60,7 +60,9 @@ INSTALLING
     For AppImage: make the file executable (chmod +x) if needed, then run it.
     For .deb: install with your package manager (e.g. sudo dpkg -i BeatBax-*.deb).
 
-  See RELEASE-NOTES.txt in this folder for changes in the version you installed.
+  See RELEASE-NOTES.txt alongside the installed app resources for changes in
+  the version you installed (macOS: BeatBax.app/Contents/Resources/;
+  Windows/Linux: the resources folder next to the app).
 
 
 COPYRIGHT AND LICENSE

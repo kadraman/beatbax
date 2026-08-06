@@ -3,7 +3,9 @@ productName: BeatBax
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   buildResources: build
-extraFiles:
+# Use extraResources (Contents/Resources on macOS) — NOT extraFiles into Contents/.
+# Loose files under Contents/ break Developer ID codesign ("code object is not signed at all").
+extraResources:
   - from: build/README.txt
     to: README.txt
   - from: build/RELEASE-NOTES.txt

@@ -26,6 +26,25 @@ describe('resolveBundledSongsDir', () => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
+  it('prefers process.resourcesPath/songs when packaged', () => {
+    const resourcesPath = path.join(tempDir, 'Resources');
+    const bundledDir = path.join(resourcesPath, 'songs');
+    mkdirSync(bundledDir, { recursive: true });
+    writeFileSync(path.join(bundledDir, 'sample.bax'), 'chip gameboy\n', 'utf8');
+
+    const previous = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = resourcesPath;
+    try {
+      expect(resolveBundledSongsDir(path.join(tempDir, 'main'), true)).toBe(bundledDir);
+    } finally {
+      if (previous === undefined) {
+        delete (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+      } else {
+        (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = previous;
+      }
+    }
+  });
+
   it('prefers build/songs next to the desktop package in dev', () => {
     const mainDir = path.join(tempDir, 'apps', 'desktop', 'out', 'main');
     const bundledDir = path.join(tempDir, 'apps', 'desktop', 'build', 'songs');
