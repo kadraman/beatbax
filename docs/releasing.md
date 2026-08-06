@@ -76,11 +76,21 @@ Only top-level installer files are attached to the release (not unpacked app dir
 
 To build installers on `main` without publishing a release:
 
-```powershell
-gh workflow run "Desktop: Build" --ref main
+1. Push the latest workflow to `main` (GitHub uses the workflow file from the branch you select).
+2. Actions → **Desktop: Build** → **Run workflow**.
+3. Leave **Build platform installers** checked.
+4. Optionally check **Skip unit/e2e validate** for a faster signing smoke test.
+5. Run on branch `main`.
+
+Or from the CLI:
+
+```bash
+gh workflow run "Desktop: Build" --ref main -f build_installers=true -f skip_validate=true
 ```
 
-This runs validate + package jobs only (no release job — release requires a `desktop-v*` tag).
+Expect three **Package desktop** jobs (ubuntu / windows / macos). The **Publish desktop release** job stays skipped unless the ref is a `desktop-v*` tag.
+
+Note: a normal **push to `main`** only runs **Validate** — it does **not** build installers. Use **Run workflow** (or a `desktop-v*` tag) to package/sign.
 
 ### Local build
 
