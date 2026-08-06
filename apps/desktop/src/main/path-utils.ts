@@ -12,7 +12,14 @@ export function resolveBundledSongsDir(mainDirname: string, isPackaged: boolean)
   const candidates: string[] = [];
 
   if (isPackaged) {
+    // electron-builder extraResources → Contents/Resources (macOS) or resources/ (win/linux)
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    if (resourcesPath) {
+      candidates.push(join(resourcesPath, 'songs'));
+    }
+    // Fallback: next to the executable (Windows/Linux layouts)
     candidates.push(join(dirname(process.execPath), 'songs'));
+    candidates.push(join(dirname(process.execPath), '..', 'songs'));
   }
 
   candidates.push(join(mainDirname, '..', '..', 'build', 'songs'));
