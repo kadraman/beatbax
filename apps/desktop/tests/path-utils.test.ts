@@ -32,16 +32,13 @@ describe('resolveBundledSongsDir', () => {
     mkdirSync(bundledDir, { recursive: true });
     writeFileSync(path.join(bundledDir, 'sample.bax'), 'chip gameboy\n', 'utf8');
 
-    const previous = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-    (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = resourcesPath;
+    const proc = process as NodeJS.Process & { resourcesPath?: string };
+    const previous = proc.resourcesPath;
+    proc.resourcesPath = resourcesPath;
     try {
       expect(resolveBundledSongsDir(path.join(tempDir, 'main'), true)).toBe(bundledDir);
     } finally {
-      if (previous === undefined) {
-        delete (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-      } else {
-        (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = previous;
-      }
+      proc.resourcesPath = previous;
     }
   });
 
