@@ -10,7 +10,7 @@ import type {
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions
 } from '../shared/electron-api'
-import { resolveBundledSongsDir } from './path-utils'
+import { resolveBundledSongFile, resolveBundledSongsDir } from './path-utils'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -749,20 +749,37 @@ export async function addRecentFileEntry(
   return recentFiles
 }
 
+function defaultOpenDialogPath(explicit?: string): string | undefined {
+  if (explicit?.trim()) return explicit
+  // macOS Open panels treat .app packages as opaque, so defaulting into
+  // Contents/Resources/songs only shows "Contents". Use Documents instead;
+  // bundled examples are opened via File → Examples.
+  if (process.platform === 'darwin' && app.isPackaged) {
+    return app.getPath('documents')
+  }
+  return resolveBundledSongsDir(__dirname, app.isPackaged) ?? undefined
+}
+
 async function chooseOpenFile(
   browserWindow: BrowserWindow,
   options?: DesktopOpenFileOptions
 ): Promise<DesktopFilePayload | null> {
-  const bundledSongsDir = resolveBundledSongsDir(__dirname, app.isPackaged)
   const result = await dialog.showOpenDialog(browserWindow, {
     title: options?.title ?? 'Open BeatBax Song',
-    defaultPath: options?.defaultPath ?? bundledSongsDir ?? undefined,
+    defaultPath: defaultOpenDialogPath(options?.defaultPath),
     properties: ['openFile'],
     filters: TEXT_FILE_FILTERS
   })
 
   const selectedPath = result.canceled ? null : result.filePaths[0]
   return selectedPath ? readFilePayload(selectedPath) : null
+}
+
+/** Load a bundled example by virtual path (`/songs/gameboy/foo.bax`). */
+async function openBundledExample(virtualPath: string): Promise<DesktopFilePayload | null> {
+  const absolutePath = resolveBundledSongFile(__dirname, app.isPackaged, virtualPath)
+  if (!absolutePath) return null
+  return readFilePayload(absolutePath)
 }
 
 async function persistFile(
@@ -815,6 +832,13 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
         onRecentFilesChanged?.()
       }
       return payload
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.OPEN_BUNDLED_EXAMPLE,
+    async (_event: IpcMainInvokeEvent, virtualPath: string) => {
+      return openBundledExample(typeof virtualPath === 'string' ? virtualPath : '')
     }
   )
 
@@ -980,4 +1004,4 @@ export function attachWindowStateEvents(window: BrowserWindow): () => void {
   }
 }
 
-export { assertAbsoluteFilePath, chooseOpenFile, persistFile, readRecentFiles, toFileBuffer }
+export { assertAbsoluteFilePath, chooseOpenFile, openBundledExample, persistFile, readRecentFiles, toFileBuffer }

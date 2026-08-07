@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { basenameFromPath, resolveBundledSongsDir } from '../src/main/path-utils';
+import { basenameFromPath, resolveBundledSongFile, resolveBundledSongsDir } from '../src/main/path-utils';
 
 describe('basenameFromPath', () => {
   it('handles POSIX paths', () => {
@@ -63,5 +63,38 @@ describe('resolveBundledSongsDir', () => {
   it('returns null when no bundled songs directory exists', () => {
     expect(resolveBundledSongsDir(path.join(tempDir, 'missing', 'main'), false)).toBeNull();
     expect(existsSync(path.join(tempDir, 'missing', 'main'))).toBe(false);
+  });
+});
+
+describe('resolveBundledSongFile', () => {
+  let tempDir = '';
+  let songsDir = '';
+  let mainDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-song-file-'));
+    mainDir = path.join(tempDir, 'apps', 'desktop', 'out', 'main');
+    songsDir = path.join(tempDir, 'apps', 'desktop', 'build', 'songs');
+    mkdirSync(path.join(songsDir, 'gameboy'), { recursive: true });
+    writeFileSync(path.join(songsDir, 'gameboy', 'a_trainers_journey.bax'), 'chip gameboy\n', 'utf8');
+  });
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('resolves /songs/... virtual paths under the bundled songs dir', () => {
+    const resolved = resolveBundledSongFile(mainDir, false, '/songs/gameboy/a_trainers_journey.bax');
+    expect(resolved).toBe(path.join(songsDir, 'gameboy', 'a_trainers_journey.bax'));
+  });
+
+  it('rejects path traversal', () => {
+    expect(resolveBundledSongFile(mainDir, false, '/songs/../secret.bax')).toBeNull();
+    expect(resolveBundledSongFile(mainDir, false, '/songs/gameboy/../../secret.bax')).toBeNull();
+  });
+
+  it('returns null for missing files and non-songs paths', () => {
+    expect(resolveBundledSongFile(mainDir, false, '/songs/gameboy/missing.bax')).toBeNull();
+    expect(resolveBundledSongFile(mainDir, false, '/tmp/evil.bax')).toBeNull();
   });
 });

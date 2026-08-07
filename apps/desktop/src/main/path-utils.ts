@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 /** Basename that handles both POSIX and Windows separators (recent files may come from any OS). */
 export function basenameFromPath(filePath: string): string {
@@ -30,4 +30,34 @@ export function resolveBundledSongsDir(mainDirname: string, isPackaged: boolean)
   }
 
   return null;
+}
+
+/**
+ * Resolve a virtual example path (`/songs/gameboy/foo.bax`) to an absolute file under the
+ * bundled songs directory. Returns null when missing or when the path escapes the songs root.
+ */
+export function resolveBundledSongFile(
+  mainDirname: string,
+  isPackaged: boolean,
+  virtualPath: string,
+): string | null {
+  const songsDir = resolveBundledSongsDir(mainDirname, isPackaged);
+  if (!songsDir) return null;
+
+  const trimmed = virtualPath.trim().replace(/\\/g, '/');
+  const match = trimmed.match(/^\/?songs\/(.+)$/);
+  if (!match) return null;
+
+  const relativePath = match[1];
+  if (!relativePath || relativePath.split('/').some((segment) => segment === '..' || segment === '')) {
+    return null;
+  }
+
+  const absolutePath = resolve(songsDir, ...relativePath.split('/'));
+  const rel = relative(resolve(songsDir), absolutePath);
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
+    return null;
+  }
+
+  return existsSync(absolutePath) ? absolutePath : null;
 }

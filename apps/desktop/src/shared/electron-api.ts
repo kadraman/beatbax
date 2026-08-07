@@ -94,6 +94,8 @@ export interface AIChatCompletionRequest {
 
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
+  /** Load a packaged example song by virtual path (`/songs/gameboy/foo.bax`). */
+  openBundledExample(virtualPath: string): Promise<DesktopFilePayload | null>;
   saveFile(options: DesktopSaveFileOptions, data: Uint8Array): Promise<string | null>;
   fetchRemoteAsset(request: DesktopRemoteAssetRequest): Promise<Uint8Array>;
   getRemoteAssetAllowlist(): Promise<string[]>;

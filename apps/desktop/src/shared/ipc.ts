@@ -1,5 +1,6 @@
 export const IPC_CHANNELS = {
   OPEN_FILE: 'desktop:open-file',
+  OPEN_BUNDLED_EXAMPLE: 'desktop:open-bundled-example',
   SAVE_FILE: 'desktop:save-file',
   FETCH_REMOTE_ASSET: 'desktop:fetch-remote-asset',
   GET_REMOTE_ASSET_ALLOWLIST: 'desktop:get-remote-asset-allowlist',
