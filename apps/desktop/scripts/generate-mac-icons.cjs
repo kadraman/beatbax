@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Generate macOS .icns files with all required icon sizes from a source PNG.
+ * Generate platform file-association / app icons from a source PNG.
  *
  * Usage: node scripts/generate-mac-icons.cjs [sourcePng]
  * Default source: build/icon.png
- * Outputs: build/icon.icns, build/file-bax.icns
+ * Outputs (macOS): build/icon.icns, build/file-bax.icns
+ * Outputs (all):   build/file-bax.ico (copy of build/icon.ico for Windows NSIS)
  */
 
 const { execSync } = require('node:child_process');
@@ -14,6 +15,8 @@ const { join, resolve } = require('node:path');
 const desktopRoot = resolve(__dirname, '..');
 const buildDir = join(desktopRoot, 'build');
 const sourcePng = resolve(process.argv[2] ?? join(buildDir, 'icon.png'));
+const iconIco = join(buildDir, 'icon.ico');
+const fileBaxIco = join(buildDir, 'file-bax.ico');
 
 const ICON_SIZES = [
   { name: 'icon_16x16.png', size: 16 },
@@ -48,13 +51,25 @@ function buildIcns(iconsetName, outputIcns) {
   console.log(`Wrote ${icnsPath}`);
 }
 
+function ensureFileAssociationIco() {
+  // electron-builder swaps fileAssociations.icon .icns → .ico on Windows.
+  if (!existsSync(iconIco)) {
+    console.warn(`generate-mac-icons: ${iconIco} missing; cannot create file-bax.ico`);
+    return;
+  }
+  copyFileSync(iconIco, fileBaxIco);
+  console.log(`Wrote ${fileBaxIco} (copy of icon.ico)`);
+}
+
 if (!existsSync(sourcePng)) {
   console.error(`Source PNG not found: ${sourcePng}`);
   process.exit(1);
 }
 
+ensureFileAssociationIco();
+
 if (process.platform !== 'darwin') {
-  console.warn('generate-mac-icons: sips/iconutil require macOS; skipping icon regeneration.');
+  console.warn('generate-mac-icons: sips/iconutil require macOS; skipping .icns regeneration.');
   process.exit(0);
 }
 
