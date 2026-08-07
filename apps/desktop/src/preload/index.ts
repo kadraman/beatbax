@@ -12,6 +12,8 @@ import { IPC_CHANNELS } from '../shared/ipc';
 
 const electronAPI: ElectronAPI = {
   openFile: (options?: DesktopOpenFileOptions) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, options),
+  openBundledExample: (virtualPath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.OPEN_BUNDLED_EXAMPLE, virtualPath),
   saveFile: (options: DesktopSaveFileOptions, data: Uint8Array) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_FILE, options, data),
   fetchRemoteAsset: (request: DesktopRemoteAssetRequest) => ipcRenderer.invoke(IPC_CHANNELS.FETCH_REMOTE_ASSET, request),
   getRemoteAssetAllowlist: () => ipcRenderer.invoke(IPC_CHANNELS.GET_REMOTE_ASSET_ALLOWLIST),

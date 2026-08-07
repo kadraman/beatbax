@@ -10,10 +10,11 @@
  */
 
 import type { EventBus } from '@beatbax/app-core/utils/event-bus';
-import { EXAMPLE_SONGS, EXAMPLE_SONG_GROUPS, loadRemote } from '@beatbax/app-core/import/remote-loader';
+import { EXAMPLE_SONG_GROUPS } from '@beatbax/app-core/import/remote-loader';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { icon } from '../../utils/icons';
 import { appAssetUrl } from '../../utils/app-asset-url';
+import { loadExampleSong } from '../../lib/load-example-song';
 import { isFeatureEnabled, FeatureFlag } from '@beatbax/app-core/utils/feature-flags';
 import { exporterRegistry } from '@beatbax/app-core/plugins/browser-exporter-registry';
 import { getCurrentCapabilities, getClientProfile } from '@beatbax/app-core/client-profile';
@@ -995,8 +996,8 @@ export class MenuBar {
 
     this.opts.loadingOverlay?.show();
     try {
-      const result = await loadRemote(path);
-      const filename = label || result.filename;
+      const result = await loadExampleSong(path, label);
+      const filename = result.filename || label || path.split('/').pop() || 'example.bax';
       this.exampleCache.set(path, result.content);
       this.opts.onLoadFile?.(filename, result.content);
       log.debug(`Loaded example: ${path}`);
