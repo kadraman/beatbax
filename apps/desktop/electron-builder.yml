@@ -32,7 +32,8 @@ fileAssociations:
     name: BeatBax Song
     description: BeatBax song file
     role: Editor
-    icon: build/file-bax.icns
+    # Extension omitted: electron-builder uses .icns on macOS and .ico on Windows.
+    icon: file-bax
 win:
   icon: build/icon.ico
   executableName: BeatBax
