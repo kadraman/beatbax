@@ -2,7 +2,7 @@ import type { AppContext, ParsePipelineHooks } from '@beatbax/app-core';
 import { isParseSuccessValid } from '@beatbax/app-core/parse/parse-validity';
 import { insertHelpSnippetBlock, type BeatBaxEditor } from '@beatbax/app-core/editor';
 import type { ExportFormat } from '@beatbax/app-core/export/export-manager';
-import { loadRemote } from '@beatbax/app-core/import/remote-loader';
+import { loadExampleSong } from './load-example-song';
 import { sanitizeFilename } from '@beatbax/app-core/export/download-helper';
 import { TransportControls } from '@beatbax/app-core/playback/transport-controls';
 import { ensureChannels } from '@beatbax/app-core/stores/channel.store';
@@ -968,8 +968,8 @@ export function createDesktopWorkspace(options: DesktopWorkspaceOptions): Deskto
         runParse(cached);
         return;
       }
-      void loadRemote(path).then((result) => {
-        const filename = label || result.filename;
+      void loadExampleSong(path, label).then((result) => {
+        const filename = result.filename || label;
         exampleCache.set(path, result.content);
         options.onLoadDocument(filename, result.content);
         runParse(result.content);
