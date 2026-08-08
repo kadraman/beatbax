@@ -181,3 +181,5 @@ media/drawings/prompt.txt
 .DS_Store
 
 passwords.txt
+*_creds.txt
+docs/keys/beatbax-release-private.asc
