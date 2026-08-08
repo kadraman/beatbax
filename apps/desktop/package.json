@@ -29,7 +29,7 @@
     "dev": "npm run prepare-local && node ../../node_modules/electron-vite/bin/electron-vite.js dev",
     "start": "node ../../node_modules/electron-vite/bin/electron-vite.js preview",
     "build": "npm run prepare-local && npm run typecheck && node ../../node_modules/electron-vite/bin/electron-vite.js build",
-    "dist": "npm run build && node scripts/generate-install-docs.cjs && node scripts/generate-mac-icons.cjs && node ../../node_modules/electron-builder/cli.js --publish never",
+    "dist": "npm run build && node scripts/generate-install-docs.cjs && node scripts/generate-mac-icons.cjs && node scripts/run-electron-builder.cjs --publish never",
     "generate-mac-icons": "node scripts/generate-mac-icons.cjs",
     "test": "jest --config ./jest.config.cjs --runInBand",
     "test:e2e": "npm run build && playwright test --config ./playwright.config.ts",

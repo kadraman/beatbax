@@ -31,7 +31,7 @@ This document records automated and manual validation for the first desktop GitH
 | Area | Result | Notes |
 |------|--------|-------|
 | App launches from `npm run desktop:dev` | Pass | Dev build verified during e2e run |
-| NSIS installer (`BeatBax-0.1.0-setup.exe`) | Pass | Built successfully; unsigned (SmartScreen warning expected) |
+| NSIS installer (`BeatBax-0.1.0-setup.exe`) | Pass | Built successfully; unsigned (SmartScreen warning expected — More info → Run anyway) |
 | Portable build (`BeatBax-0.1.0-win-x64.exe`) | Pass | Built successfully |
 | Native Open / Save / Save As | Pass | Covered by e2e save-in-place; dialogs exercised in dev |
 | Session restore (`LAST_DOCUMENT_PATH`) | Pass | Implemented; manual spot-check in dev |
@@ -50,7 +50,7 @@ macOS and Linux installers are produced by the `desktop-build.yaml` package matr
 | Installer artifact | `.dmg` + `.zip` via CI | `.AppImage` + `.deb` via CI |
 | System menu (no in-window duplicate on macOS) | Native menu via `menu.ts` | Custom title-bar menu |
 | Dock name/icon in dev | `app.setName('BeatBax')` + `dock.setIcon` | N/A |
-| Code signing / notarization | Release builds with secrets: Developer ID + notarized (`afterSign` / `notarize.cjs`). Local/`desktop:dist` without secrets remains unsigned | N/A |
+| Code signing / notarization | Release builds with secrets: Developer ID + notarized (`afterSign` / `notarize.cjs`). Local without secrets remains unsigned | No OS Gatekeeper. `SHA256SUMS` always; with GPG: `SHA256SUMS.asc`, `beatbax-release.asc`, `dpkg-sig`-signed `.deb` |
 | Example songs (File → Open) | Packaged apps copy to `~/Documents/BeatBax/Examples` on first launch | `resources/songs` next to the app |
 | `.bax` file association icon | `file-bax.icns` via electron-builder | Configured |
 
@@ -61,7 +61,8 @@ macOS and Linux installers are produced by the `desktop-build.yaml` package matr
 Current status:
 
 - **macOS** GitHub Release `.dmg`/`.zip` are Developer ID signed and notarized when CI secrets are present. Gatekeeper should not block those builds.
-- **Windows** installers remain unsigned until Authenticode is configured — SmartScreen may warn (see install `README.txt`).
+- **Windows** installers are intentionally unsigned. SmartScreen may warn — users click **More info → Run anyway** (see [desktop-windows-signing-setup.md](../desktop-windows-signing-setup.md)). Prefer downloads from [itch.io](https://kadraman.itch.io/beatbax), or [GitHub Releases](https://github.com/kadraman/beatbax/releases).
+- **Linux** has no OS-level installer gate; GitHub Releases include `SHA256SUMS`. With GPG secrets: signed `.deb` (`dpkg-sig`), `SHA256SUMS.asc`, and `beatbax-release.asc` — see [desktop-release-checksums.md](../desktop-release-checksums.md).
 - Visualizer and Channel Mixer use **bridge-mounted** web-ui panels (native React rewrite is Phase 5 — largely complete; see enhancements doc).
 - `electron-updater` auto-update is not yet integrated.
 
