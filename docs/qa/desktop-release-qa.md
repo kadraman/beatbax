@@ -50,13 +50,19 @@ macOS and Linux installers are produced by the `desktop-build.yaml` package matr
 | Installer artifact | `.dmg` + `.zip` via CI | `.AppImage` + `.deb` via CI |
 | System menu (no in-window duplicate on macOS) | Native menu via `menu.ts` | Custom title-bar menu |
 | Dock name/icon in dev | `app.setName('BeatBax')` + `dock.setIcon` | N/A |
-| Code signing / notarization | GB Studio-style CI (`MACOS_CERTIFICATE`, `MAC_NOTARIZE_*`); unsigned when secrets absent | N/A |
+| Code signing / notarization | Release builds with secrets: Developer ID + notarized (`afterSign` / `notarize.cjs`). Local/`desktop:dist` without secrets remains unsigned | N/A |
+| Example songs (File → Open) | Packaged apps copy to `~/Documents/BeatBax/Examples` on first launch | `resources/songs` next to the app |
 | `.bax` file association icon | `file-bax.icns` via electron-builder | Configured |
 
 ## Known limitations (non-blocking for v0.1.0)
 
-- Installers are **unsigned** when signing secrets are not configured — Windows SmartScreen and macOS Gatekeeper will warn until `MACOS_CERTIFICATE` and `MAC_NOTARIZE_*` GitHub secrets are set (GB Studio-style keychain import + `@electron/notarize` hook).
-- Visualizer and Channel Mixer use **bridge-mounted** web-ui panels (native React rewrite is Phase 5).
+> Historical note for the first release (`desktop-v0.1.0`): installers were often unsigned when Apple/Windows secrets were not yet configured.
+
+Current status:
+
+- **macOS** GitHub Release `.dmg`/`.zip` are Developer ID signed and notarized when CI secrets are present. Gatekeeper should not block those builds.
+- **Windows** installers remain unsigned until Authenticode is configured — SmartScreen may warn (see install `README.txt`).
+- Visualizer and Channel Mixer use **bridge-mounted** web-ui panels (native React rewrite is Phase 5 — largely complete; see enhancements doc).
 - `electron-updater` auto-update is not yet integrated.
 
 ## Sign-off

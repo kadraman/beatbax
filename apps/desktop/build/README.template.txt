@@ -36,25 +36,28 @@ INSTALLING
 
     {{RELEASES_URL}}
 
-  Installers are not code-signed yet. Your operating system may show a security
-  warning the first time you install or run BeatBax. The app is open source;
-  you can review the source at {{REPOSITORY}} if you wish.
+  macOS installers from GitHub Releases are Developer ID signed and notarized.
+  Windows installers are not Authenticode-signed yet, so SmartScreen may warn
+  on first install. The app is open source; you can review the source at
+  {{REPOSITORY}} if you wish.
 
   Windows (BeatBax-*-setup.exe or portable .exe)
     If SmartScreen shows "Windows protected your PC", click "More info", then
     "Run anyway". The installer is built by the project's public CI workflow.
 
   macOS (.dmg or .zip)
-    Signed and notarized builds open normally when GitHub Actions secrets
-    (MACOS_CERTIFICATE, MAC_NOTARIZE_ID, etc.) are configured. Unsigned builds
-    may show "cannot be opened" or "is damaged" after download.
+    Official release builds should open normally after you drag BeatBax to
+    Applications. Gatekeeper recognizes notarized apps.
 
-    First launch workaround: right-click BeatBax in Applications and choose
-    Open, then confirm. Alternatively, open System Settings -> Privacy &
-    Security and allow the app when prompted.
+    If you built locally without Apple signing secrets, or downloaded an
+    unsigned CI artifact, macOS may show "cannot be opened" or "is damaged".
+    Workarounds for those builds only:
 
-    If the browser quarantined the download, remove the quarantine attribute:
-      xattr -dr com.apple.quarantine /Applications/BeatBax.app
+      Right-click BeatBax in Applications and choose Open, then confirm.
+      Or allow the app under System Settings -> Privacy & Security.
+
+      If the browser quarantined the download:
+        xattr -dr com.apple.quarantine /Applications/BeatBax.app
 
   Linux (.AppImage or .deb)
     For AppImage: make the file executable (chmod +x) if needed, then run it.
