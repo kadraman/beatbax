@@ -1,5 +1,8 @@
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+
+/** Stamp file written into the macOS Documents examples copy after a successful sync. */
+export const MAC_EXAMPLES_VERSION_STAMP = '.beatbax-examples-version';
 
 /** Basename that handles both POSIX and Windows separators (recent files may come from any OS). */
 export function basenameFromPath(filePath: string): string {
@@ -60,4 +63,67 @@ export function resolveBundledSongFile(
   }
 
   return existsSync(absolutePath) ? absolutePath : null;
+}
+
+/** User-visible examples folder used on packaged macOS (NSOpenPanel cannot open inside .app). */
+export function resolveMacExampleSongsDir(documentsPath: string): string {
+  return join(documentsPath, 'BeatBax', 'Examples');
+}
+
+/**
+ * Directory File → Open should start in.
+ * Packaged macOS uses ~/Documents/BeatBax/Examples; other platforms use the bundled songs dir.
+ */
+export function resolveExampleSongsOpenDir(
+  mainDirname: string,
+  isPackaged: boolean,
+  options?: { platform?: NodeJS.Platform; documentsPath?: string },
+): string | null {
+  const platform = options?.platform ?? process.platform;
+  if (platform === 'darwin' && isPackaged && options?.documentsPath) {
+    return resolveMacExampleSongsDir(options.documentsPath);
+  }
+  return resolveBundledSongsDir(mainDirname, isPackaged);
+}
+
+/**
+ * Copy bundled example songs into the macOS Documents examples folder when missing
+ * or when the installed app version changed. Returns the examples dir on success, else null.
+ */
+export function ensureMacExampleSongsInDocuments(
+  bundledDir: string | null,
+  examplesDir: string,
+  appVersion: string,
+): string | null {
+  if (!bundledDir || !existsSync(bundledDir)) {
+    console.warn('[BeatBax] Bundled example songs not found; skipping Documents sync.');
+    return existsSync(examplesDir) ? examplesDir : null;
+  }
+
+  const stampPath = join(examplesDir, MAC_EXAMPLES_VERSION_STAMP);
+  let stampedVersion: string | null = null;
+  if (existsSync(stampPath)) {
+    try {
+      stampedVersion = readFileSync(stampPath, 'utf8').trim();
+    } catch {
+      stampedVersion = null;
+    }
+  }
+
+  if (existsSync(examplesDir) && stampedVersion === appVersion) {
+    return examplesDir;
+  }
+
+  try {
+    if (existsSync(examplesDir)) {
+      rmSync(examplesDir, { recursive: true, force: true });
+    }
+    mkdirSync(dirname(examplesDir), { recursive: true });
+    cpSync(bundledDir, examplesDir, { recursive: true });
+    writeFileSync(stampPath, `${appVersion}\n`, 'utf8');
+    return examplesDir;
+  } catch (error) {
+    console.error('[BeatBax] Failed to sync example songs to Documents:', error);
+    return existsSync(examplesDir) ? examplesDir : null;
+  }
 }

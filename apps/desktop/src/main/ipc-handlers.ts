@@ -10,7 +10,7 @@ import type {
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions
 } from '../shared/electron-api'
-import { resolveBundledSongFile, resolveBundledSongsDir } from './path-utils'
+import { resolveBundledSongFile, resolveExampleSongsOpenDir } from './path-utils'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -752,12 +752,13 @@ export async function addRecentFileEntry(
 function defaultOpenDialogPath(explicit?: string): string | undefined {
   if (explicit?.trim()) return explicit
   // macOS Open panels treat .app packages as opaque, so defaulting into
-  // Contents/Resources/songs only shows "Contents". Use Documents instead;
-  // bundled examples are opened via File → Examples.
-  if (process.platform === 'darwin' && app.isPackaged) {
-    return app.getPath('documents')
-  }
-  return resolveBundledSongsDir(__dirname, app.isPackaged) ?? undefined
+  // Contents/Resources/songs only shows "Contents". Use the Documents copy
+  // populated on packaged startup instead.
+  return (
+    resolveExampleSongsOpenDir(__dirname, app.isPackaged, {
+      documentsPath: app.getPath('documents'),
+    }) ?? undefined
+  )
 }
 
 async function chooseOpenFile(
