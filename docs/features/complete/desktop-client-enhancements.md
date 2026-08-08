@@ -18,12 +18,12 @@ Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-fir
 
 ## Implementation Progress
 
-**Last updated:** 2026-06-27
+**Last updated:** 2026-08-08
 **Overall status:** In progress.
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
-| Distribution hardening | ⬜ | Code signing, notarization, auto-update |
+| Distribution hardening | 🟨 | macOS Developer ID signing + notarization shipped in CI; Windows Authenticode and auto-update still open |
 | Native React UI | ✅ | Phase 5b native React migrations and desktop bridge cleanup complete |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
 | Export / audio polish | 🟨 | Desktop DMC remote sample loading moved to main-process IPC with allowlist policy; native WAV path still pending |
@@ -41,7 +41,7 @@ Phase 3 shipped a **thin React shell** (`App.tsx`, `DesktopWorkspaceShell`, `Edi
 
 ### Distribution friction
 
-Installers are **unsigned** (`notarize: false` in `electron-builder.yml`). Windows SmartScreen and macOS Gatekeeper warn users on first install. There is no **auto-update** channel; users must manually download new releases.
+**macOS** GitHub Release installers are Developer ID signed and notarized via CI (`MACOS_CERTIFICATE` keychain import + `afterSign` → `scripts/notarize.cjs`; `notarize: false` in `electron-builder.yml` is intentional — notarization is not electron-builder’s built-in `notarize: true`). **Windows** installers are still unsigned (SmartScreen may warn). There is no **auto-update** channel; users must manually download new releases.
 
 ### Incomplete test coverage
 
@@ -61,12 +61,12 @@ Work is grouped into five workstreams, roughly ordered by impact. Individual ite
 
 | Enhancement | Description |
 |-------------|-------------|
-| **Code signing** | Windows Authenticode via Azure Artifact Signing + macOS Developer ID signing in CI |
-| **macOS notarization** | Enable `notarize: true` in `electron-builder.yml` with Apple credentials in GitHub secrets |
+| **Code signing** | Windows Authenticode via Azure Artifact Signing (open). macOS Developer ID signing is configured in CI when secrets are present |
+| **macOS notarization** | Done via custom `afterSign` hook (`scripts/notarize.cjs`) when `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` are set — not `notarize: true` in electron-builder |
 | **Auto-update** | Integrate `electron-updater` with GitHub Releases (`desktop-v*` tags); surface update prompts in renderer |
 | **Release notes** | Curated release body template; link installers prominently in root README |
 
-**Key files:** `apps/desktop/electron-builder.yml`, `.github/workflows/desktop-build.yaml`, new `src/main/updater.ts`.
+**Key files:** `apps/desktop/electron-builder.yml`, `.github/workflows/desktop-build.yaml`, `apps/desktop/scripts/notarize.cjs`, new `src/main/updater.ts`.
 
 ### 2. Native React UI rewrites (medium priority)
 
@@ -172,13 +172,12 @@ Tracking document: [`docs/features/desktop-dmc-main-process-ipc.md`](./desktop-d
 
 ### Phase 5a — Distribution hardening
 
-1. Configure Azure Artifact Signing for Windows Authenticode signing and Apple Developer ID credentials for macOS.
-2. Add signing secrets to GitHub Actions; configure `electron-builder` signing fields, including Azure signing options for Windows.
-3. Enable macOS notarization in CI.
-4. Add `electron-updater` to main process; wire `checkForUpdates` on startup and manual Check for Updates menu item.
-5. Verify delta updates or full-installer fallback on all three platforms.
+1. ~~Configure Apple Developer ID credentials for macOS; wire CI keychain import + notarize hook.~~ **Done** for release builds with secrets.
+2. Configure Azure Artifact Signing for Windows Authenticode signing and add Windows signing secrets to GitHub Actions.
+3. Add `electron-updater` to main process; wire `checkForUpdates` on startup and manual Check for Updates menu item.
+4. Verify delta updates or full-installer fallback on all three platforms.
 
-**Deliverable:** Signed, notarized installers with in-app update notifications.
+**Deliverable:** Signed installers on all platforms with in-app update notifications. (macOS signed+notarized already; Windows + updater remaining.)
 
 ### Phase 5b — Native React panels (incremental)
 
@@ -244,7 +243,7 @@ Possible change in Phase 5d: desktop-specific WAV render path using native Web A
 
 - Playwright: native menu export actions (MIDI, UGE, WAV).
 - Playwright: multi-window open (when implemented).
-- Manual: signed installer install on Windows/macOS without SmartScreen/Gatekeeper block.
+- Manual: signed macOS installer installs without Gatekeeper block; Windows until Authenticode lands may still show SmartScreen.
 
 ### Manual QA
 
@@ -266,7 +265,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 ### 5a — Distribution
 
 - [ ] Configure Azure Artifact Signing account/certificate profile for Windows Authenticode signing
-- [ ] Obtain Apple Developer ID + notarization credentials
+- [x] Obtain Apple Developer ID + notarization credentials
 - [x] Configure signing in `electron-builder.yml` and CI secrets (GB Studio-style keychain + `afterSign` notarize hook; requires GitHub secrets)
 - [x] Enable macOS notarization (custom `scripts/notarize.cjs` hook; skips when secrets absent)
 - [ ] Integrate `electron-updater` with GitHub Releases
@@ -308,7 +307,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ## Open Questions
 
-1. **Code signing setup:** Is Azure Artifact Signing available for Windows CI, and are Apple Developer ID credentials available for macOS notarization? Self-signed certificates are not sufficient for public distribution.
+1. **Windows code signing:** Is Azure Artifact Signing (or equivalent Authenticode) available for Windows CI? macOS Developer ID + notarization is already configured for release builds.
 2. **Multi-window state model:** Shared `AppContext` singleton vs per-window isolated state?
 3. **UI tokens package:** Worth extracting now, or wait until more panels are React-native?
 4. **Auto-update channel:** Stable only, or beta channel for pre-releases?
@@ -318,8 +317,8 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ## References
 
-- [desktop-first-client-split.md](./complete/desktop-first-client-split.md) — completed Phases 1–4
-- [electron-desktop-client.md](./complete/electron-desktop-client.md) — Electron IPC and packaging reference
+- [desktop-first-client-split.md](./desktop-first-client-split.md) — completed Phases 1–4
+- [electron-desktop-client.md](./electron-desktop-client.md) — Electron IPC and packaging reference
 - [desktop-release-qa.md](../qa/desktop-release-qa.md) — v0.1.0 QA sign-off
 - [apps/desktop/README.md](../../apps/desktop/README.md) — current desktop scope
 - [apps/desktop/src/renderer/src/lib/desktop-workspace.ts](../../apps/desktop/src/renderer/src/lib/desktop-workspace.ts) — bridge orchestration
