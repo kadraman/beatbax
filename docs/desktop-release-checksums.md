@@ -12,19 +12,28 @@ Linux has no Gatekeeper/SmartScreen equivalent for direct GitHub downloads; chec
 
 ## 1. Checksums
 
-Download the installer(s) you want plus `SHA256SUMS` from the same release:
+Download the installer(s) you want plus `SHA256SUMS` from the same release.
+
+**Linux / GNU coreutils** — verify only the files you downloaded:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
-`--ignore-missing` verifies only the files you downloaded.
-
-On macOS without GNU coreutils:
+**macOS** (`shasum` has no `--ignore-missing`) — check the one installer you downloaded, for example:
 
 ```bash
-shasum -a 256 -c SHA256SUMS
+# Replace with the exact filename from the release:
+grep 'BeatBax-.*\.dmg$' SHA256SUMS | shasum -a 256 -c -
 ```
+
+Or hash the file and compare the digest to the matching line in `SHA256SUMS`:
+
+```bash
+shasum -a 256 BeatBax-<version>.dmg
+```
+
+Do **not** run `shasum -a 256 -c SHA256SUMS` against the full list unless you downloaded every file it names — missing entries are reported as failures.
 
 ## 2. Verify SHA256SUMS with GPG (when `SHA256SUMS.asc` is present)
 
@@ -42,10 +51,10 @@ Then:
 
 ```bash
 gpg --verify SHA256SUMS.asc SHA256SUMS
-sha256sum -c SHA256SUMS --ignore-missing
+# Then checksum as in section 1 (use --ignore-missing on GNU, or grep|shasum on macOS)
 ```
 
-A good result shows a valid signature from the BeatBax release key, then `OK` for each file you have.
+A good result shows a valid signature from the BeatBax release key, then `OK` for each file you verified.
 
 ## 3. Verify a signed `.deb` (when GPG was enabled for that release)
 
