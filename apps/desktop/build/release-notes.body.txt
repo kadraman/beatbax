@@ -7,5 +7,8 @@
     or browse resources/songs on Windows and Linux.
   - Assisted installer with per-user or system-wide install and custom folder.
   - macOS .dmg/.zip from GitHub Releases are Developer ID signed and notarized.
-  - Windows installers are not Authenticode-signed yet; SmartScreen may warn on
-    first install — see README.txt in the install folder for steps.
+  - Windows installers are not Authenticode-signed; SmartScreen may warn —
+    click More info, then Run anyway (see README.txt).
+  - GitHub Releases include SHA256SUMS for verifying downloads. When GPG is
+    configured, also SHA256SUMS.asc, beatbax-release.asc, and dpkg-sig-signed
+    .deb packages — see docs/desktop-release-checksums.md.
