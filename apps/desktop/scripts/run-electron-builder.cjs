@@ -24,8 +24,9 @@ function azureSigningConfigured() {
   );
 }
 
+/** YAML single-quoted scalar — keeps Windows backslashes literal (unlike double quotes). */
 function yamlString(value) {
-  return JSON.stringify(String(value));
+  return `'${String(value).replace(/'/g, "''")}'`;
 }
 
 const args = process.argv.slice(2);
