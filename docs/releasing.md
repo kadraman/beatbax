@@ -77,12 +77,18 @@ Only top-level installer files are attached to the release (not unpacked app dir
 | Platform | Release CI (with secrets) | Local `npm run desktop:dist` |
 |----------|---------------------------|------------------------------|
 | macOS | Developer ID signed + notarized (`MACOS_CERTIFICATE` / `MACOS_CERTIFICATE_PWD`, plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` for `scripts/notarize.cjs`) | Unsigned unless those env vars are set locally |
-| Windows | Not Authenticode-signed yet (SmartScreen may warn) | Unsigned |
-| Linux | N/A | N/A |
+| Windows | **Intentionally unsigned**. SmartScreen may warn — see [desktop-windows-signing-setup.md](desktop-windows-signing-setup.md) | Unsigned |
+| Linux | No OS Gatekeeper equivalent. Releases always publish `SHA256SUMS`. With GPG secrets: also `SHA256SUMS.asc`, `beatbax-release.asc`, and `dpkg-sig`-signed `.deb` packages | N/A |
 
-The package job verifies macOS artifacts with `codesign` / `spctl` when the certificate secret is present. Without secrets, CI still builds installers but skips signing and verification.
+**Optional Linux/integrity secrets:** `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, `GPG_KEY_ID` — detach-sign `SHA256SUMS`, sign `.deb` with `dpkg-sig`, and publish the public key. See [keys/README.md](keys/README.md).
+
+The package job verifies macOS artifacts with `codesign` / `spctl` when the certificate secret is present. Windows builds are not Authenticode-signed. Without Apple secrets, CI still builds installers but skips macOS signing and verification.
+
+Desktop release assets always include `SHA256SUMS`. When GPG secrets are configured, `.deb` packages are signed before hashing, then `SHA256SUMS.asc` and `beatbax-release.asc` are attached. Details: [desktop-release-checksums.md](desktop-release-checksums.md).
 
 Before tagging, update `apps/desktop/build/release-notes.body.txt` and ensure install templates reflect signing status. `generate-install-docs.cjs` runs during `desktop:dist` / the CI package job.
+
+Windows SmartScreen workaround for users: [desktop-windows-signing-setup.md](desktop-windows-signing-setup.md).
 
 ### Re-run packaging without a new tag
 
@@ -124,4 +130,7 @@ The browser client at [app.beatbax.com](https://app.beatbax.com) is deployed sep
 
 - [apps/desktop/README.md](../apps/desktop/README.md) — desktop dev and scope
 - [docs/qa/desktop-release-qa.md](qa/desktop-release-qa.md) — QA sign-off template
-- [docs/features/complete/desktop-client-enhancements.md](features/complete/desktop-client-enhancements.md) — post-MVP desktop work (Windows signing, auto-update)
+- [docs/features/complete/desktop-client-enhancements.md](features/complete/desktop-client-enhancements.md) — post-MVP desktop work (auto-update, etc.)
+- [docs/desktop-windows-signing-setup.md](desktop-windows-signing-setup.md) — Windows unsigned policy + SmartScreen workaround
+- [docs/desktop-release-checksums.md](desktop-release-checksums.md) — SHA256SUMS / GPG / `.deb` verify
+- [docs/keys/README.md](keys/README.md) — create and publish the release GPG public key
