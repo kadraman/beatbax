@@ -8,6 +8,11 @@ import { installAppMenu } from './menu';
 import type { AppMenuHandlers } from './menu';
 import { readNativeMenuCheckState } from './menu-check-state';
 import { resolvePreloadPath } from './resolve-preload';
+import {
+  ensureMacExampleSongsInDocuments,
+  resolveBundledSongsDir,
+  resolveMacExampleSongsDir,
+} from './path-utils';
 import { IPC_CHANNELS } from '../shared/ipc';
 import type { MenuAction } from '../shared/electron-api';
 
@@ -215,6 +220,16 @@ if (!app.requestSingleInstanceLock()) {
 app.whenReady().then(async () => {
   configureMacDevDockIcon();
   electronApp.setAppUserModelId('com.beatbax.desktop');
+
+  // Packaged macOS: copy examples to Documents so File → Open can open them
+  // (NSOpenPanel cannot navigate into BeatBax.app/Contents/Resources/songs).
+  if (isMac && app.isPackaged) {
+    ensureMacExampleSongsInDocuments(
+      resolveBundledSongsDir(__dirname, true),
+      resolveMacExampleSongsDir(app.getPath('documents')),
+      app.getVersion(),
+    );
+  }
 
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
