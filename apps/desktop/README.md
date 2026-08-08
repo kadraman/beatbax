@@ -2,7 +2,7 @@
 
 BeatBax Desktop is the Electron + React **desktop-full** client — the primary full-featured BeatBax IDE.
 
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
+Download installers from [itch.io](https://kadraman.itch.io/beatbax) (preferred) or [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
 
 ## Scripts
 
@@ -39,7 +39,7 @@ The desktop renderer owns the desktop-full shell and React panel implementations
 - **MIDI step entry** — record button (requires MIDI input enabled in Settings)
 - **Debug overlay** — Settings → Advanced → Show debug overlay
 
-Remaining post-MVP work (Windows Authenticode, auto-update, power features): [desktop-client-enhancements.md](../../docs/features/complete/desktop-client-enhancements.md). macOS Developer ID signing and notarization are already wired in CI for GitHub Release builds.
+Remaining post-MVP work (auto-update, power features): [desktop-client-enhancements.md](../../docs/features/complete/desktop-client-enhancements.md). macOS Developer ID signing and notarization are wired in CI when secrets are present. Windows installers remain unsigned — SmartScreen workaround: [desktop-windows-signing-setup.md](../../docs/desktop-windows-signing-setup.md).
 
 ## Releasing
 

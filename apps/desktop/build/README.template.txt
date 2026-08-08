@@ -31,19 +31,24 @@ SYSTEM REQUIREMENTS
 INSTALLING
 ----------
 
-  Desktop installers are published on GitHub Releases (tags desktop-v*).
-  Download the setup program for your platform from:
+  Desktop installers are available from itch.io (preferred) and GitHub Releases:
 
+    https://kadraman.itch.io/beatbax
     {{RELEASES_URL}}
 
-  macOS installers from GitHub Releases are Developer ID signed and notarized.
-  Windows installers are not Authenticode-signed yet, so SmartScreen may warn
-  on first install. The app is open source; you can review the source at
+  macOS installers are Developer ID signed and notarized.
+  Windows installers are not Authenticode-signed. SmartScreen may warn on
+  first run. The app is open source; you can review the source at
   {{REPOSITORY}} if you wish.
 
   Windows (BeatBax-*-setup.exe or portable .exe)
-    If SmartScreen shows "Windows protected your PC", click "More info", then
-    "Run anyway". The installer is built by the project's public CI workflow.
+    If SmartScreen shows "Windows protected your PC":
+
+      1. Click "More info"
+      2. Click "Run anyway"
+
+    Installers are built by the project's public CI workflow. Downloads from
+    GitHub Releases can also be checked against SHA256SUMS on that release.
 
   macOS (.dmg or .zip)
     Official release builds should open normally after you drag BeatBax to
@@ -62,6 +67,20 @@ INSTALLING
   Linux (.AppImage or .deb)
     For AppImage: make the file executable (chmod +x) if needed, then run it.
     For .deb: install with your package manager (e.g. sudo dpkg -i BeatBax-*.deb).
+
+    Linux has no Gatekeeper/SmartScreen equivalent for GitHub downloads.
+    Each desktop-v* GitHub Release includes SHA256SUMS for all platform
+    installers. When GPG signing is enabled for the release, also download
+    SHA256SUMS.asc and beatbax-release.asc:
+
+      gpg --import beatbax-release.asc
+      gpg --verify SHA256SUMS.asc SHA256SUMS
+      sha256sum -c SHA256SUMS --ignore-missing
+
+    Signed .deb packages can be checked with:
+
+      sudo apt-get install -y dpkg-sig
+      dpkg-sig --verify BeatBax-*-linux-amd64.deb
 
   See RELEASE-NOTES.txt alongside the installed app resources for changes in
   the version you installed (macOS: BeatBax.app/Contents/Resources/;
@@ -83,11 +102,13 @@ COPYRIGHT AND LICENSE
 UPDATES
 -------
 
-  New desktop releases are published on GitHub:
+  New desktop releases are published on itch.io and GitHub:
 
+    https://kadraman.itch.io/beatbax
     {{RELEASES_URL}}
 
-  Look for installers tagged desktop-v* (for example, desktop-v0.1.0).
+  Prefer itch.io for downloads. On GitHub, look for tags desktop-v*
+  (for example, desktop-v0.1.0).
   Download the setup program for your platform and run it to upgrade.
 
   When a newer version is available, install it over your existing
