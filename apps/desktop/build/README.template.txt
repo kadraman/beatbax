@@ -103,9 +103,15 @@ UPDATES
 EXAMPLE SONGS
 -------------
 
-  This installation includes complete example songs in the "songs" folder next
-  to the BeatBax application. Use File -> Open and browse to sound chip directory
-  (e.g. songs/gameboy) to open them.
+  macOS: On first launch, example songs are copied to:
+
+    ~/Documents/BeatBax/Examples
+
+  Use File -> Open (starts in that folder) or File -> Examples.
+
+  Windows / Linux: Example songs are in the "songs" folder next to the
+  BeatBax application (resources/songs). Use File -> Open and browse to a
+  sound chip directory (e.g. songs/gameboy) to open them.
 
 
 SUPPORT AND DOCUMENTATION
