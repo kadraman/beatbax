@@ -12,42 +12,47 @@ related:
 
 ## Summary
 
-Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-first client split shipped in v0.1.0. The full IDE is installable and feature-complete via bridge-mounted web-ui panels; this document tracks polish, distribution hardening, native React UI rewrites, and power-user features that were deferred from Phases 3–4.
+Post-MVP enhancements for BeatBax Desktop (`apps/desktop`) after the desktop-first client split shipped in **v0.1.0**.
+
+**Desktop v0.2.0** (2026-08-09) delivered the major Phase 5b outcome: a **native React desktop shell** (Settings, Copilot, Help, Output/Problems, toolbar/transport, channel mixer, song visualizer, pattern grid) with the web-UI compatibility bridge retired, plus distribution hardening already in use on GitHub Releases (macOS signing/notarization, `SHA256SUMS` / optional GPG).
+
+This document continues to track remaining polish: **auto-update**, desktop power features, export/audio polish, and broader cross-platform QA.
 
 ---
 
 ## Implementation Progress
 
-**Last updated:** 2026-08-08
-**Overall status:** In progress.
+**Last updated:** 2026-08-09  
+**Overall status:** In progress (5b complete in v0.2.0; remaining workstreams open).  
+**Latest desktop release:** [`desktop-v0.2.0`](https://github.com/kadraman/beatbax/releases/tag/desktop-v0.2.0)
 
 | Workstream | Status | Notes |
 |------------|--------|-------|
-| Distribution hardening | 🟨 | macOS signing+notarization shipped; Windows intentionally unsigned (SmartScreen workaround documented); auto-update still open |
-| Native React UI | ✅ | Phase 5b native React migrations and desktop bridge cleanup complete |
+| Distribution hardening | 🟨 | macOS signing+notarization shipped; Windows intentionally unsigned; `SHA256SUMS` (+ optional GPG) on releases; auto-update still open |
+| Native React UI | ✅ | Phase 5b complete — shipped in desktop **v0.2.0** |
 | Desktop power features | ⬜ | Tray, multi-window, file watcher |
-| Export / audio polish | 🟨 | Desktop DMC remote sample loading moved to main-process IPC with allowlist policy; native WAV path still pending |
-| Test / QA expansion | 🟨 | Added targeted desktop integration coverage for remote-asset allowlist behavior; macOS/Linux manual sign-off and broader e2e still pending |
+| Export / audio polish | 🟨 | Secure NES DMC remote sample loading shipped (main-process IPC); native WAV path still pending |
+| Test / QA expansion | 🟨 | Reusable release checklist in [desktop-release-qa.md](../qa/desktop-release-qa.md); macOS/Linux interactive QA and broader e2e still pending |
 
 ---
 
 ## Problem Statement
 
-Desktop v0.1.0 delivers the full BeatBax IDE, but several gaps remain:
+### Resolved in v0.2.0
 
-### Architecture debt
+**Architecture debt (bridge mounts):** v0.1.0 shipped a thin React shell that bridge-mounted most panels from `apps/web-ui`. Phase 5b replaced those panels with native React components and removed `@web-ui` bridge imports for migrated UI. Dual web-ui/desktop panel orchestration for the IDE surface is no longer the primary maintenance model.
 
-Phase 3 shipped a **thin React shell** (`App.tsx`, `DesktopWorkspaceShell`, `EditorPane`, `DesktopTitleBar`) that bridge-mounts most panels from `apps/web-ui` via Vite `@web-ui` aliases (`desktop-workspace.ts`). This works but creates **dual orchestration** — panel wiring changes may need updates in both web-ui and desktop.
+### Still open
 
-### Distribution friction
+#### Distribution friction
 
-**macOS** GitHub Release installers are Developer ID signed and notarized via CI (`MACOS_CERTIFICATE` keychain import + `afterSign` → `scripts/notarize.cjs`; `notarize: false` in `electron-builder.yml` is intentional — notarization is not electron-builder’s built-in `notarize: true`). **Windows** installers are intentionally unsigned (Azure Public Trust is unavailable to UK individual developers) — SmartScreen workaround in [desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md). Prefer user downloads from [itch.io](https://kadraman.itch.io/beatbax), then GitHub Releases. Release assets include `SHA256SUMS` (+ optional GPG). There is no **auto-update** channel; users must manually download new releases.
+**macOS** GitHub Release installers are Developer ID signed and notarized via CI (`MACOS_CERTIFICATE` keychain import + `afterSign` → `scripts/notarize.cjs`; `notarize: false` in `electron-builder.yml` is intentional — notarization is not electron-builder’s built-in `notarize: true`). **Windows** installers are intentionally unsigned (Azure Public Trust is unavailable to UK individual developers) — SmartScreen workaround in [desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md). Prefer user downloads from [itch.io](https://kadraman.itch.io/beatbax), then GitHub Releases. Release assets include `SHA256SUMS` (+ optional GPG). Embedded `.deb` `dpkg-sig` signing runs when that tool is available on the runner (not packaged on Ubuntu 24.04); checksum/GPG remain the primary integrity path. There is no **auto-update** channel; users must manually download new releases.
 
-### Incomplete test coverage
+#### Incomplete test coverage
 
-Automated e2e covers startup load, JSON export, playback, and save-in-place. Native menu actions, non-JSON exports, and interactive macOS/Linux QA are not fully signed off in [desktop-release-qa.md](../qa/desktop-release-qa.md).
+Automated e2e covers startup load, JSON export, playback, and save-in-place. Native menu actions, non-JSON exports, and interactive macOS/Linux QA are not fully signed off — use the blank checklist in [desktop-release-qa.md](../qa/desktop-release-qa.md) per release.
 
-### Missing power-user features
+#### Missing power-user features
 
 No system tray, global hotkey, multi-window editing, external file watcher, or offline CoPilot routing — all listed as future enhancements in the original Electron plan.
 
@@ -55,65 +60,49 @@ No system tray, global hotkey, multi-window editing, external file watcher, or o
 
 ## Proposed Solution
 
-Work is grouped into five workstreams, roughly ordered by impact. Individual items can ship independently.
+Work is grouped into five workstreams. **5b (native React UI) is complete** as of v0.2.0; remaining items can ship independently.
 
 ### 1. Distribution hardening (high priority)
 
 | Enhancement | Description |
 |-------------|-------------|
 | **Code signing** | macOS Developer ID signing is configured in CI when secrets are present. Windows remains unsigned (document SmartScreen **More info → Run anyway**). Releases publish `SHA256SUMS` (+ optional GPG) |
-| **macOS notarization** | Done via custom `afterSign` hook (`scripts/notarize.cjs`) when `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` are set — not `notarize: true` in electron-builder |
+| **macOS notarization** | Done via custom `afterSign` hook (`scripts/notarize.cjs`) when Apple secrets are set — not `notarize: true` in electron-builder |
 | **Auto-update** | Integrate `electron-updater` with GitHub Releases (`desktop-v*` tags); surface update prompts in renderer |
-| **Release notes** | Curated release body template; link installers prominently in root README |
+| **Release notes** | Curated `apps/desktop/build/release-notes.body.txt`; polished GitHub Release body after CI; site version in `beatbax.com` `site.ts` |
 
 **Key files:** `apps/desktop/electron-builder.yml`, `.github/workflows/desktop-build.yaml`, `apps/desktop/scripts/notarize.cjs`, new `src/main/updater.ts`.
 
-### 2. Native React UI rewrites (medium priority)
+### 2. Native React UI rewrites — **complete (v0.2.0)**
 
-Replace bridge-mounted web-ui DOM panels with native React components, reducing `@web-ui` coupling.
+Replaced bridge-mounted web-ui DOM panels with native React components and removed `@web-ui` coupling for the desktop IDE surface.
 
-| Current bridge mount | Target React component | Complexity |
-|----------------------|------------------------|------------|
-| `@web-ui/ui/toolbar` | `Toolbar.tsx` | Medium |
-| `@web-ui/ui/transport-bar` | `TransportBar.tsx` | Medium |
-| `@web-ui/ui/pattern-grid` | `DesktopPatternGrid.tsx` | High |
-| `@web-ui/panels/song-visualizer` | `DesktopSongVisualizer.tsx` | High (canvas) |
-| `@web-ui/panels/channel-mixer` | `DesktopChannelMixer.tsx` | High |
-| `@web-ui/panels/chat-panel` | `CopilotPanel.tsx` | Medium |
-| `@web-ui/panels/help-panel` | `HelpPanel.tsx` | Low |
-| `@web-ui/panels/output-panel` | `ProblemsPanel.tsx`, `OutputPanel.tsx` | Low |
-| `@web-ui/panels/settings-panel` | `SettingsModal.tsx` | Medium |
+| Former bridge mount | React component | Status |
+|---------------------|-----------------|--------|
+| `@web-ui/ui/toolbar` | `Toolbar.tsx` | ✅ |
+| `@web-ui/ui/transport-bar` | `TransportBar.tsx` | ✅ |
+| `@web-ui/ui/pattern-grid` | Pattern grid (desktop) | ✅ |
+| `@web-ui/panels/song-visualizer` | Song visualizer (desktop) | ✅ |
+| `@web-ui/panels/channel-mixer` | Channel mixer (desktop) | ✅ |
+| `@web-ui/panels/chat-panel` | `CopilotPanel.tsx` | ✅ |
+| `@web-ui/panels/help-panel` | `HelpPanel.tsx` | ✅ |
+| `@web-ui/panels/output-panel` | `ProblemsPanel` / `OutputPanel` | ✅ |
+| `@web-ui/panels/settings-panel` | `SettingsModal.tsx` | ✅ |
 
-**Suggested order while waiting for signing certificates:** Output/Problems → Help → Toolbar/Transport → Settings/Copilot → Pattern Grid → Visualizer/Mixer (canvas-heavy).
+Historical slice plan (5b-1 … 5b-6) is preserved below as an archive of how the migration was executed.
 
-#### Phase 5b target plan
+#### Phase 5b target plan (archive)
 
-Phase 5b should reduce bridge coupling incrementally without replacing the whole desktop shell at once. The current React desktop shell still delegates most UI assembly to `desktop-workspace.ts`, which constructs web-ui DOM classes and returns handles consumed by menu actions, shortcuts, playback setup, export handling, and editor diagnostics. The safest path is to introduce React-owned panel components with small compatibility handles, then remove the matching `@web-ui` imports one bridge at a time.
+Phase 5b reduced bridge coupling incrementally. Desktop glue historically lived in `desktop-workspace.ts` with web-ui DOM classes; each slice introduced React-owned panels with compatibility handles, then removed matching `@web-ui` imports.
 
-| Target slice | Goal | Bridge compatibility needed | Risk |
-|--------------|------|-----------------------------|------|
-| **5b-1 Output/Problems** | Replace `@web-ui/panels/output-panel` with React `ProblemsPanel` and `OutputPanel` bodies | Preserve `addMessage()`, `dismissQuickFixMenu()`, and Problems tab navigation hooks used by export/editor setup | Low |
-| **5b-2 Help** | Replace embedded Help and shortcuts Help usage with React `HelpPanel` | Preserve `refresh()`, shortcuts listing, snippet insertion, and replace-editor callbacks | Low-medium |
-| **5b-3 Toolbar/Transport** | Replace top toolbar and transport bar with React controls | Provide stable command/handle API for menu actions, shortcuts, `TransportControls`, BPM/loop/live state, volume knob, and playback LEDs | Medium-high |
-| **5b-4 Settings/Copilot** | Replace settings modal and CoPilot panel | Preserve settings refresh, feature flag toggles, editor replacement, diagnostics context, and AI change highlight flows | Medium |
-| **5b-5 Pattern Grid** | Replace pattern grid rendering and navigation | Preserve parse/playback position updates, mute/solo/channel state, and pattern-to-editor navigation | High |
-| **5b-6 Visualizer/Mixer** | Replace canvas-heavy visualizer and mixer | Preserve analyser/playback subscriptions, `channelStates`, responsive canvas lifecycle, fullscreen/body classes, and cleanup | High |
-
-**5b-1 acceptance criteria:**
-
-- `desktop-workspace.ts` no longer imports `@web-ui/panels/output-panel`.
-- Desktop Problems and Output tabs preserve current event-bus behavior for parse errors, validation errors/warnings, playback logs, and export logs.
-- Export handling and editor diagnostics still call a typed desktop panel handle instead of a web-ui class.
-- Quick-fix menu dismissal still works when leaving the Problems tab.
-- Desktop Playwright smoke for startup, playback, JSON export, and save-in-place remains green.
-
-**5b implementation rules:**
-
-- Keep existing `bb-*` CSS classes initially to avoid visual churn and defer `@web-ui/styles.css` removal until enough components are React-native.
-- Prefer typed compatibility handles over DOM button references for new React components. Existing DOM refs can stay temporarily where a slice has not migrated yet.
-- Unsubscribe event-bus and store subscriptions on React unmount; do not rely on DOM class disposal patterns.
-- Keep `channelStates` as the single source for Pattern Grid, Visualizer, and Mixer until those pieces migrate together or get a shared React-facing adapter.
-- Do not extract `packages/ui-tokens/` until at least Output/Problems, Help, and Toolbar have migrated and the repeated styling needs are clear.
+| Target slice | Goal | Status |
+|--------------|------|--------|
+| **5b-1 Output/Problems** | React Problems/Output panels | ✅ |
+| **5b-2 Help** | React Help panel | ✅ |
+| **5b-3 Toolbar/Transport** | React toolbar/transport | ✅ |
+| **5b-4 Settings/Copilot** | React settings + Copilot | ✅ |
+| **5b-5 Pattern Grid** | React pattern grid | ✅ |
+| **5b-6 Visualizer/Mixer** | React visualizer + mixer | ✅ |
 
 #### Keyboard shortcut ownership
 
@@ -123,9 +112,9 @@ Keyboard shortcut metadata should be split by responsibility rather than forced 
 - `apps/desktop` should own desktop keybindings, Electron/global shortcuts, Monaco-focused command registration, and command handlers.
 - `apps/web-ui` should own browser-safe web keybindings and omit or mark unsupported any shortcuts hijacked by the browser.
 
-This matters because some desktop shortcuts cannot be implemented reliably in a normal browser tab. Examples include common file/window shortcuts such as `Ctrl+N`, `Ctrl+O`, `Ctrl+W`, and other combinations reserved by the browser or OS. Treat the command concept as shared when useful, but keep concrete key combos and availability client-specific.
+Shared keyboard shortcuts across menus, toolbar, Help, and editor (including macOS labels) shipped as part of the v0.2.0 desktop polish.
 
-Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consistent styling between web-lite and desktop.
+Optional shared styling: `packages/ui-tokens/` (extracted).
 
 ### 3. Desktop power features (medium priority)
 
@@ -144,13 +133,14 @@ Optional: extract shared Tailwind tokens into `packages/ui-tokens/` for consiste
 | **Native WAV export** | Use Electron's native `OfflineAudioContext` instead of `standardized-audio-context` polyfill for desktop WAV renders |
 | **Export progress UI** | Long renders (WAV) show progress in Output panel with cancel support |
 
-#### 4a. Desktop DMC remote asset hardening (in progress)
+#### 4a. Desktop DMC remote asset hardening — **shipped**
 
-The Desktop DMC sample pipeline now routes remote sample fetches through Electron main-process IPC instead of renderer fetch.
+The Desktop DMC sample pipeline routes remote sample fetches through Electron main-process IPC instead of renderer fetch.
 
-Implemented:
+Implemented (desktop **v0.2.0** and related PRs):
 
-- Main-process remote asset policy (`https` only, allowlist enforcement, redirect checks, timeout/size limits).
+- Main-process remote asset policy (`https` only, allowlist enforcement, redirect checks, timeout/size limits; insecure URLs rejected).
+- Support for `https://`, `github:`, `local:`, `@nes/` style sample references.
 - Desktop settings support for user-configurable remote host allowlist.
 - Engine NES DMC desktop bridge support via `window.electronAPI.fetchRemoteAsset`.
 - Unit and targeted e2e coverage for allowlist behavior.
@@ -161,10 +151,10 @@ Tracking document: [`docs/features/desktop-dmc-main-process-ipc.md`](./desktop-d
 
 | Enhancement | Description |
 |-------------|-------------|
-| **macOS/Linux manual QA** | Interactive sign-off per [desktop-release-qa.md](../qa/desktop-release-qa.md) |
+| **Per-release checklist** | Fill [desktop-release-qa.md](../qa/desktop-release-qa.md) (reusable blank template) before each `desktop-v*` tag |
+| **macOS/Linux manual QA** | Interactive sign-off on non-primary platforms |
 | **`.bax` double-click** | Verify file association opens app on Windows and macOS |
-| **Playwright e2e** | Native menu actions; MIDI/UGE/WAV export smoke tests |
-| **Reduce dual orchestration** | As panels move to React, delete corresponding bridge code in `desktop-workspace.ts` |
+| **Playwright e2e** | Native menu actions; MIDI/UGE/WAV/Arkos export smoke tests |
 
 ---
 
@@ -177,27 +167,18 @@ Tracking document: [`docs/features/desktop-dmc-main-process-ipc.md`](./desktop-d
 3. Add `electron-updater` to main process; wire `checkForUpdates` on startup and manual Check for Updates menu item.
 4. Verify delta updates or full-installer fallback on all three platforms.
 
-**Deliverable:** Signed macOS installers + documented Windows SmartScreen workaround; in-app update notifications still open.
+**Deliverable:** Signed macOS installers + documented Windows SmartScreen workaround (**done**); in-app update notifications still open.
 
-### Phase 5b — Native React panels (incremental)
+### Phase 5b — Native React panels — **complete (v0.2.0)**
 
-1. Create `apps/desktop/src/renderer/src/components/panels/` and `apps/desktop/src/renderer/src/components/workspace/` for React-native panel bodies and compatibility handles.
-2. Implement **5b-1 Output/Problems** first:
-   - Add React `ProblemsPanel` and `OutputPanel` components.
-   - Expose a typed panel handle for `addMessage()`, `dismissQuickFixMenu()`, and any diagnostics/export hooks still needed by desktop glue.
-   - Replace `@web-ui/panels/output-panel` usage in `desktop-workspace.ts`, `desktop-editor-setup.ts`, and `export-handler.ts`.
-3. Implement **5b-2 Help**:
-   - Add React `HelpPanel` for the right pane and shortcuts modal.
-   - Preserve shortcuts listing, search, snippet insertion, and replace-editor callbacks.
-   - Remove `@web-ui/panels/help-panel` from migrated desktop paths.
-4. Implement **5b-3 Toolbar/Transport** only after the panel handle pattern is stable:
-   - Replace DOM button refs with an explicit desktop command/transport handle.
-   - Update menu actions, keyboard shortcuts, `TransportControls`, and full-IDE playback wiring to use that handle.
-5. Defer Visualizer and Mixer until lower-risk slices have shipped and bridge cleanup has proven safe.
-6. Add targeted desktop tests with each slice, preferring Playwright for user-visible behavior and small unit tests for handle logic.
-7. Remove `@web-ui` alias imports for migrated modules from `desktop-workspace.ts` and related desktop glue as each slice lands.
+Historical steps (all done):
 
-**Deliverable:** Desktop renderer no longer depends on `@web-ui` for migrated panels.
+1. Create desktop React panel/workspace components and compatibility handles.
+2. Migrate Output/Problems → Help → Toolbar/Transport → Settings/Copilot → Pattern Grid → Visualizer/Mixer.
+3. Remove `@web-ui` alias imports for migrated modules from desktop glue.
+4. Keep Playwright smoke green across slices.
+
+**Deliverable:** Desktop renderer no longer depends on `@web-ui` for IDE panels — **shipped in desktop-v0.2.0**.
 
 ### Phase 5c — Power features
 
@@ -220,14 +201,17 @@ None.
 
 Possible change in Phase 5d: desktop-specific WAV render path using native Web Audio (no polyfill). Engine export APIs remain unchanged; only the desktop `fs`/audio shim may differ.
 
+Also shipped alongside desktop polish (not Phase 5d): experimental Arkos Tracker 3 exporter, GB/UGE parity improvements, payload-first built-in exports — see the [`desktop-v0.2.0`](https://github.com/kadraman/beatbax/releases/tag/desktop-v0.2.0) release notes.
+
 ---
 
 ## Documentation Updates
 
-- This document (tracking Phase 5).
+- This document (tracking Phase 5; refreshed for **v0.2.0**).
 - `apps/desktop/README.md` — update as features ship.
+- `docs/releasing.md` / `docs/qa/desktop-release-qa.md` — desktop tag + reusable QA checklist.
+- `beatbax.com` `src/config/site.ts` — bump `latestDesktopVersion` / tag after each desktop release.
 - `ROADMAP.md` — link desktop enhancements.
-- Move resolved open questions out of parent docs (done in parent doc update 2026-06-13).
 
 ---
 
@@ -235,28 +219,29 @@ Possible change in Phase 5d: desktop-specific WAV render path using native Web A
 
 ### Unit tests
 
-- Updater module (mock `electron-updater`).
-- File watcher path validation.
-- New React panel components and compatibility handles (as migrated).
+- Updater module (mock `electron-updater`) — when 5a lands.
+- File watcher path validation — when 5c lands.
+- Desktop React panel components (as maintained).
 
 ### Integration tests
 
-- Playwright: native menu export actions (MIDI, UGE, WAV).
+- Playwright: native menu export actions (MIDI, UGE, WAV, Arkos).
 - Playwright: multi-window open (when implemented).
 - Manual: signed macOS installer installs without Gatekeeper block; Windows unsigned — SmartScreen **More info → Run anyway**.
 
 ### Manual QA
 
-- Full IDE smoke on macOS and Linux (deferred from v0.1.0 QA sign-off).
-- Auto-update flow: install v0.1.0, publish v0.1.1, verify in-app update.
+- Per-release: fill [desktop-release-qa.md](../qa/desktop-release-qa.md) on the primary platform before tagging.
+- Full IDE smoke on macOS and Linux (still often deferred to post-release spot checks).
+- Auto-update flow (when 5a lands): install previous desktop tag, publish next, verify in-app update.
 
 ---
 
 ## Migration Path
 
-All Phase 5 work is **additive** — no breaking changes to engine, CLI, or web-lite. Users on v0.1.0 can update via new installers or (once 5a ships) in-app auto-update.
+Phase 5 work remains **additive** for engine, CLI, and web-lite. Desktop users move between releases by downloading new installers from [itch.io](https://kadraman.itch.io/beatbax) or [GitHub Releases](https://github.com/kadraman/beatbax/releases) until auto-update ships.
 
-Bridge-mounted panels continue to work until each React rewrite lands; no big-bang migration required.
+The web-UI panel bridge migration is **complete** as of v0.2.0; remaining workstreams do not require a further UI big-bang.
 
 ---
 
@@ -270,7 +255,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [x] Document Windows unsigned policy + SmartScreen workaround ([desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md))
 - [x] Publish `SHA256SUMS` on desktop GitHub Releases
 - [x] GPG-detach-sign `SHA256SUMS` (+ publish `beatbax-release.asc`) when secrets are set
-- [x] GPG-sign `.deb` with `dpkg-sig` when secrets are set (before hashing)
+- [x] Attempt GPG-sign `.deb` with `dpkg-sig` when the tool is available on the runner (skipped on Ubuntu 24.04; checksum/GPG still published)
 - [ ] Integrate `electron-updater` with GitHub Releases
 - [ ] Add Check for Updates menu item and renderer update prompt
 - [ ] Revisit Windows Authenticode if eligibility improves (Azure org / US-Canada individual, Certum OSS cloud + CI, SignPath, etc.)
@@ -286,6 +271,7 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 - [x] 5b-6: Migrate Channel Mixer
 - [x] Optional: `packages/ui-tokens/` shared design tokens
 - [x] Remove `@web-ui` bridge imports for migrated panels
+- [x] Ship native React shell in **desktop-v0.2.0**
 
 ### 5c — Power features
 
@@ -297,13 +283,15 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ### 5d — Export / audio
 
+- [x] Secure NES DMC remote sample loading (main-process IPC)
 - [ ] Desktop WAV export without `standardized-audio-context` polyfill
 - [ ] Long-render progress + cancel UI
 
 ### 5e — Test / QA
 
-- [ ] macOS interactive QA sign-off
-- [ ] Linux interactive QA sign-off
+- [x] Convert [desktop-release-qa.md](../qa/desktop-release-qa.md) into a reusable per-release checklist
+- [ ] macOS interactive QA sign-off (per release / spot check)
+- [ ] Linux interactive QA sign-off (per release / spot check)
 - [ ] `.bax` double-click verification (Windows + macOS)
 - [x] Playwright: platform-appropriate menu chrome (native menu on darwin)
 
@@ -313,9 +301,8 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 1. **Windows code signing:** Deferred. Windows stays unsigned with documented SmartScreen workaround. Revisit Azure/Certum/SignPath if eligibility or CI fit improves — see [desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md).
 2. **Multi-window state model:** Shared `AppContext` singleton vs per-window isolated state?
-3. **UI tokens package:** Worth extracting now, or wait until more panels are React-native?
-4. **Auto-update channel:** Stable only, or beta channel for pre-releases?
-5. **Ollama integration:** In-scope for BeatBax, or defer to a separate CoPilot enhancement doc?
+3. **Auto-update channel:** Stable only, or beta channel for pre-releases?
+4. **Ollama integration:** In-scope for BeatBax, or defer to a separate CoPilot enhancement doc?
 
 ---
 
@@ -323,9 +310,10 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 - [desktop-first-client-split.md](./desktop-first-client-split.md) — completed Phases 1–4
 - [electron-desktop-client.md](./electron-desktop-client.md) — Electron IPC and packaging reference
-- [desktop-release-qa.md](../qa/desktop-release-qa.md) — v0.1.0 QA sign-off
+- [desktop-release-qa.md](../qa/desktop-release-qa.md) — reusable desktop release QA checklist
+- [docs/releasing.md](../../releasing.md) — desktop tag + CI publish runbook
 - [apps/desktop/README.md](../../apps/desktop/README.md) — current desktop scope
-- [apps/desktop/src/renderer/src/lib/desktop-workspace.ts](../../apps/desktop/src/renderer/src/lib/desktop-workspace.ts) — bridge orchestration
+- [desktop-v0.2.0 GitHub Release](https://github.com/kadraman/beatbax/releases/tag/desktop-v0.2.0)
 - [electron-updater documentation](https://www.electron.build/auto-update)
 - [electron-builder code signing](https://www.electron.build/code-signing)
 - [desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md) — Windows unsigned policy + SmartScreen workaround
@@ -334,6 +322,6 @@ Bridge-mounted panels continue to work until each React rewrite lands; no big-ba
 
 ## Additional Notes
 
-Estimated effort (rough): **~15–25 developer days** depending on code-signing setup friction and how many panels are rewritten before declaring bridge removal complete.
+Estimated remaining effort is dominated by **5a auto-update** and **5c power features**, not further UI bridge removal.
 
-Priority recommendation: resume **5a auto-update**. Windows Authenticode remains deferred; macOS signing is done. Native React panel work (5b) is complete.
+Priority recommendation: resume **5a auto-update**. Windows Authenticode remains deferred; macOS signing is done. Native React panel work (**5b**) is complete and shipped in **desktop-v0.2.0**.
