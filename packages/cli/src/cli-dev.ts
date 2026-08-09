@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import { playFile } from '@beatbax/engine/node';
+import { version as cliVersion } from './version.js';
 
 const program = new Command();
 
 program
   .name('beatbax-dev')
   .description('Development CLI for BeatBax')
-  .version('0.1.0');
+  .version(cliVersion);
 
 program
   .command('play')
