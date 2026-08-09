@@ -1,5 +1,11 @@
 # @beatbax/cli
 
+## 0.4.14
+
+### Patch Changes
+
+- 44dd279: Fix the global `beatbax` binary by emitting a Node shebang on `dist/cli.js`, so `npm install -g @beatbax/cli` installs an executable that runs under Node instead of the shell.
+
 ## 0.4.13
 
 ### Patch Changes

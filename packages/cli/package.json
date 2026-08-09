@@ -1,6 +1,6 @@
 {
   "name": "@beatbax/cli",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "description": "Command-line interface for BeatBax chiptune live-coding language.",
   "private": false,
   "type": "module",
