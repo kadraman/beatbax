@@ -1,14 +1,54 @@
-  - Initial BeatBax Desktop release.
-  - Supports built in sound chips (Game Boy and NES) as well as plugins (SMS/Game Gear).
-  - Includes interactive song editor, channel mixer, visualizer and pattern grid, WAV and Tracker exports.
-  - Also includes BeatBax Copilot (AI assistant, bring your own API key).
-  - Bundled example songs (Game Boy, NES, SMS). On macOS, File -> Open starts in
-    ~/Documents/BeatBax/Examples (copied on first launch); use File -> Examples
-    or browse resources/songs on Windows and Linux.
-  - Assisted installer with per-user or system-wide install and custom folder.
-  - macOS .dmg/.zip from GitHub Releases are Developer ID signed and notarized.
-  - Windows installers are not Authenticode-signed; SmartScreen may warn —
-    click More info, then Run anyway (see README.txt).
-  - GitHub Releases include SHA256SUMS for verifying downloads. When GPG is
-    configured, also SHA256SUMS.asc, beatbax-release.asc, and dpkg-sig-signed
-    .deb packages — see docs/desktop-release-checksums.md.
+BeatBax Desktop v0.2.0 — a much more native desktop IDE, stronger chip/export
+  parity, and signed macOS builds.
+
+  Features
+  - Native React desktop shell: settings, Copilot, Help, Output/Problems,
+    toolbar/transport, channel mixer, song visualizer, and pattern grid
+    (web-UI compatibility layer retired).
+  - Experimental Arkos Tracker 3 exporter for Spectrum/CPC (.aks / optional .aki).
+  - Game Boy instrument macros and native subpat programs, with shared
+    preview/WAV/UGE (hUGETracker) lowering.
+  - Secure NES DMC remote sample loading (https://, github:, local:, @nes/;
+    insecure URLs rejected).
+  - Autosave controls (toggle + debounce) and clearer document save-state feedback.
+  - New Song Wizard chip cards with richer metadata and audible chip previews;
+    Spectrum/CPC examples expanded.
+  - Shared keyboard shortcuts across menus, toolbar, Help, and editor
+    (including macOS labels).
+  - Settings toolbar shortcut; theme sync polish; performance-mode / visualizer
+    control reliability.
+
+  Chip and export improvements
+  - Game Boy noise/uge_note playback parity with hUGETracker (plus pulse/wave
+    mix and wave program playback fixes).
+  - Chip song profiles / configureForSong for clearer platform selection
+    (e.g. Spectrum vs CPC).
+  - Payload-first exports for built-in formats (JSON, MIDI, UGE, WAV) for more
+    reliable desktop downloads.
+  - Spectrum/CPC AY loudness curve closer to NES/SMS listening levels.
+
+  Copilot and editor
+  - Copilot usability pass: better context, error handling, and
+    ask-Copilot-about-this-problem flows.
+  - Default song artist setting accepts multi-word names (spaces).
+  - Plugin defaults/reset cleanup (SMS + Spectrum-128 enabled by default).
+
+  Installers, signing and examples
+  - macOS GitHub Release .dmg/.zip are Developer ID signed and notarized
+    (when CI secrets are set).
+  - Release checksums: SHA256SUMS; optional GPG (SHA256SUMS.asc,
+    beatbax-release.asc) and dpkg-sig for .deb.
+  - Bundled examples: macOS copies to ~/Documents/BeatBax/Examples on first
+    launch; File -> Examples / resources/songs on Windows and Linux.
+  - .bax file-association icons; updated installer README / release-note packaging.
+  - New and updated example songs (GB subpattern/UGE demos, NES silver_orbit,
+    Spectrum themes, and more).
+
+  Fixes
+  - Toolbar click/hover reliability (unmute/clear-solo/performance controls;
+    title-bar drag no longer steals hits).
+  - Various editor/effect parse fixes affecting desktop autosave and Copilot.
+
+  Note: Windows installers are still not Authenticode-signed; SmartScreen may
+  warn — use More info, then Run anyway (see README.txt). Verify downloads with
+  SHA256SUMS (and GPG when published).

@@ -1,71 +1,120 @@
-# BeatBax Desktop — Release QA Sign-off
+# BeatBax Desktop — Release QA Checklist
 
-**Version:** 0.1.0  
-**Date:** 2026-06-12  
-**Primary platform:** Windows 10 (build 26200)
+Reusable checklist for every `desktop-v*` GitHub Release. Keep this file blank in git; fill results locally or paste a completed copy into the release PR / issue when signing off.
 
-This document records automated and manual validation for the first desktop GitHub Release (`desktop-v0.1.0`).
+**Result values:** `Pass` | `Fail` | `Skip` | `_` (not run)
+
+## How to use
+
+1. Fill **Release under test**.
+2. Run **Automated validation** on the primary platform and confirm CI green on `main`.
+3. Complete **Manual validation** and **Installer / integrity** spot-checks.
+4. Note any deferred macOS/Linux interactive checks.
+5. Complete **Sign-off** before tagging (or immediately after a successful package dry-run).
+
+Canonical release steps: [docs/releasing.md](../releasing.md).
+
+## Release under test
+
+| Field | Value |
+|-------|-------|
+| Version | _(e.g. 0.2.0)_ |
+| Tag | _(e.g. desktop-v0.2.0)_ |
+| Date | |
+| Tester | |
+| Primary platform | _(e.g. Windows 10/11)_ |
 
 ## Automated validation
 
 | Check | Platform | Result | Notes |
 |-------|----------|--------|-------|
-| `npm run desktop:test` (24 unit tests) | Windows | Pass | IPC, menu, fs adapter, document save, preload path |
-| `npm run desktop:build` | Windows | Pass | Main, preload, renderer bundles |
-| Playwright e2e (6 specs) | Windows | Pass | Startup `.bax` load, JSON export, playback, transport controls, save-in-place |
-| `npm run desktop:dist` | Windows | Pass | NSIS installer + portable `.exe` produced |
-| Desktop CI validate job | Linux (ubuntu-latest) | Pass | Same unit + e2e suite via `desktop-build.yaml` on `main` |
-| Desktop CI package matrix | ubuntu / windows / macos | Pass | Triggered by `desktop-v*` tag (see release workflow) |
+| `npm run desktop:test` | Primary | | |
+| `npm run desktop:build` | Primary | | |
+| Playwright e2e (`npm run desktop:test` / CI e2e) | Primary | | |
+| `npm run desktop:dist` (optional local package) | Primary | | |
+| Desktop CI validate job | Linux (ubuntu-latest) | | Via `desktop-build.yaml` on `main` |
+| Desktop CI package matrix | ubuntu / windows / macos | | After `desktop-v*` tag (or manual workflow run) |
 
-### E2E coverage (Playwright)
+### E2E coverage reference (Playwright)
+
+Confirm these remain covered (or note gaps):
 
 - Editor shell renders (smoke)
 - `.bax` file passed on startup loads into Monaco
 - JSON export completes without console errors
 - Play/stop on starter song without console errors
 - Loop and live transport controls wired
-- Ctrl+S saves edits back to opened file on disk
+- Save (e.g. Ctrl/Cmd+S) writes edits back to the opened file
 
-## Manual validation (Windows)
+## Manual validation (primary platform)
 
 | Area | Result | Notes |
 |------|--------|-------|
-| App launches from `npm run desktop:dev` | Pass | Dev build verified during e2e run |
-| NSIS installer (`BeatBax-0.1.0-setup.exe`) | Pass | Built successfully; unsigned (SmartScreen warning expected — More info → Run anyway) |
-| Portable build (`BeatBax-0.1.0-win-x64.exe`) | Pass | Built successfully |
-| Native Open / Save / Save As | Pass | Covered by e2e save-in-place; dialogs exercised in dev |
-| Session restore (`LAST_DOCUMENT_PATH`) | Pass | Implemented; manual spot-check in dev |
-| File → Open Recent | Pass | Native menu + `app.addRecentDocument` wired |
-| Full IDE panels (mixer, grid, copilot, settings) | Pass | Bridge-mounted web-ui panels load in desktop shell |
-| Copilot smoke (panel, Settings → AI Refresh, Ask prompt) | Pass | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) scenarios 8, 16, 18 |
-| Export JSON via toolbar | Pass | E2e verified |
-| `.bax` startup from argv | Pass | E2e verified with `songs/sample.bax` |
+| App launches from `npm run desktop:dev` | | |
+| Installed / packaged app launches | | NSIS, portable, `.dmg`, AppImage, or `.deb` as applicable |
+| Native Open / Save / Save As | | |
+| Session restore (`LAST_DOCUMENT_PATH`) | | |
+| File → Open Recent | | |
+| IDE panels: Settings, Copilot, Help, Output/Problems | | Native React desktop shell |
+| IDE panels: channel mixer, song visualizer, pattern grid | | |
+| Autosave toggle / debounce and save-state feedback | | |
+| Toolbar / transport click and hover reliability | | Unmute, clear solo, performance mode, visualizer |
+| Shared keyboard shortcuts (menus, toolbar, Help, editor) | | Include macOS label check when on macOS |
+| Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) |
+| New Song Wizard (chip cards, metadata, audible preview) | | |
+| Export smoke: JSON and WAV | | |
+| Export smoke: UGE and/or Arkos (`.aks`/`.aki`) when relevant | | Skip if out of scope for this cut |
+| Example songs path | | macOS: `~/Documents/BeatBax/Examples`; Win/Linux: File → Examples / `resources/songs` |
+| `.bax` startup from argv / file association | | |
+| Theme sync / Settings toolbar shortcut | | |
 
-## Cross-platform notes
+## Installer / integrity spot-checks
 
-macOS and Linux installers are produced by the `desktop-build.yaml` package matrix on release tags. Interactive manual QA on those platforms is deferred to post-release spot checks; automated e2e runs on Linux in CI on every desktop workflow.
+Artifact names use `BeatBax-<version>-…` from `@beatbax/desktop` `package.json`.
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Windows: `BeatBax-<ver>-setup.exe` (NSIS) | | SmartScreen warning expected if unsigned |
+| Windows: `BeatBax-<ver>-win-x64.exe` (portable) | | |
+| macOS: `BeatBax-<ver>.dmg` and `BeatBax-<ver>-mac-arm64.zip` | | Expect Developer ID + notarized on GitHub Release CI when secrets present |
+| Linux: `BeatBax-<ver>.AppImage` and `BeatBax-<ver>-linux-amd64.deb` | | |
+| `SHA256SUMS` present on GitHub Release | | Always expected from current CI |
+| Optional GPG: `SHA256SUMS.asc`, `beatbax-release.asc` | | When GPG secrets configured |
+| Bundled `README.txt` / `RELEASE-NOTES.txt` look correct for this version | | Generated at package time |
+
+Verify downloads: [desktop-release-checksums.md](../desktop-release-checksums.md). Windows SmartScreen: [desktop-windows-signing-setup.md](../desktop-windows-signing-setup.md).
+
+## Cross-platform notes (reference)
+
+macOS and Linux installers come from the `desktop-build.yaml` package matrix on release tags. Interactive QA on non-primary platforms may be deferred to post-release spot checks; automated e2e runs on Linux in CI.
 
 | Area | macOS | Linux |
 |------|-------|-------|
 | Installer artifact | `.dmg` + `.zip` via CI | `.AppImage` + `.deb` via CI |
-| System menu (no in-window duplicate on macOS) | Native menu via `menu.ts` | Custom title-bar menu |
+| System menu | Native menu via `menu.ts` (no in-window duplicate) | Custom title-bar menu |
 | Dock name/icon in dev | `app.setName('BeatBax')` + `dock.setIcon` | N/A |
-| Code signing / notarization | Release builds with secrets: Developer ID + notarized (`afterSign` / `notarize.cjs`). Local without secrets remains unsigned | No OS Gatekeeper. `SHA256SUMS` always; with GPG: `SHA256SUMS.asc`, `beatbax-release.asc`, `dpkg-sig`-signed `.deb` |
+| Code signing / notarization | Release CI with secrets: Developer ID + notarized. Local without secrets: unsigned | No OS Gatekeeper. `SHA256SUMS` always; with GPG: signed `.deb`, `SHA256SUMS.asc`, `beatbax-release.asc` |
 | Example songs (File → Open) | Packaged apps copy to `~/Documents/BeatBax/Examples` on first launch | `resources/songs` next to the app |
 | `.bax` file association icon | `file-bax.icns` via electron-builder | Configured |
 
-## Known limitations (non-blocking for v0.1.0)
+## Standing known limitations
 
-> Historical note for the first release (`desktop-v0.1.0`): installers were often unsigned when Apple/Windows secrets were not yet configured.
+Update only when product policy changes:
 
-Current status:
-
-- **macOS** GitHub Release `.dmg`/`.zip` are Developer ID signed and notarized when CI secrets are present. Gatekeeper should not block those builds.
-- **Windows** installers are intentionally unsigned. SmartScreen may warn — users click **More info → Run anyway** (see [desktop-windows-signing-setup.md](../desktop-windows-signing-setup.md)). Prefer downloads from [itch.io](https://kadraman.itch.io/beatbax), or [GitHub Releases](https://github.com/kadraman/beatbax/releases).
-- **Linux** has no OS-level installer gate; GitHub Releases include `SHA256SUMS`. With GPG secrets: signed `.deb` (`dpkg-sig`), `SHA256SUMS.asc`, and `beatbax-release.asc` — see [desktop-release-checksums.md](../desktop-release-checksums.md).
-- Visualizer and Channel Mixer use **bridge-mounted** web-ui panels (native React rewrite is Phase 5 — largely complete; see enhancements doc).
-- `electron-updater` auto-update is not yet integrated.
+- **Windows** installers are intentionally unsigned. SmartScreen may warn — **More info → Run anyway**. Prefer [itch.io](https://kadraman.itch.io/beatbax) or [GitHub Releases](https://github.com/kadraman/beatbax/releases). See [desktop-windows-signing-setup.md](../desktop-windows-signing-setup.md).
+- **macOS** GitHub Release `.dmg`/`.zip` are Developer ID signed and notarized when CI secrets are present.
+- **Linux** has no OS-level installer gate; verify with `SHA256SUMS` (and GPG when published).
+- **Auto-update** (`electron-updater`) is not integrated — users re-download for each release.
+- Release packaging and tagging: [docs/releasing.md](../releasing.md).
 
 ## Sign-off
 
-Desktop v0.1.0 is cleared for GitHub Release based on passing automated test suites on Windows and Linux CI, successful Windows packaging, and manual verification of core IDE workflows on the primary development platform.
+| Field | Value |
+|-------|-------|
+| Cleared for tag | `desktop-v______` |
+| Signed off by | |
+| Date | |
+| Deferred checks | _(e.g. macOS/Linux interactive QA)_ |
+| Blockers | _(none / list)_ |
+
+Desktop `v______` is cleared for GitHub Release when automated suites pass, packaging succeeds for required platforms, and primary-platform manual checks above are Pass or explicitly Skip with rationale.
