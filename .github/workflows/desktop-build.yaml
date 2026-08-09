@@ -235,7 +235,15 @@ jobs:
           fi
 
           sudo apt-get update
-          sudo apt-get install -y dpkg-sig
+          # dpkg-sig is not packaged on Ubuntu 24.04 (noble). Prefer it when
+          # available; otherwise skip embedded .deb signatures and still publish
+          # SHA256SUMS + detach signature (primary integrity path).
+          DEB_SIGN_TOOL=""
+          if sudo apt-get install -y dpkg-sig; then
+            DEB_SIGN_TOOL="dpkg-sig"
+          else
+            echo "Warning: dpkg-sig unavailable on this runner; skipping embedded .deb signatures"
+          fi
 
           export GNUPGHOME="$(mktemp -d)"
           chmod 700 "$GNUPGHOME"
@@ -255,7 +263,7 @@ jobs:
           # 1) Sign .deb packages first (changes file hashes).
           shopt -s nullglob
           deb_files=(BeatBax-*.deb)
-          if [ ${#deb_files[@]} -gt 0 ]; then
+          if [ ${#deb_files[@]} -gt 0 ] && [ "$DEB_SIGN_TOOL" = "dpkg-sig" ]; then
             for deb in "${deb_files[@]}"; do
               if [ -n "${GPG_KEY_ID:-}" ]; then
                 dpkg-sig --sign builder -k "$GPG_KEY_ID" \
@@ -268,6 +276,8 @@ jobs:
               fi
               echo "Signed $deb with dpkg-sig"
             done
+          elif [ ${#deb_files[@]} -gt 0 ]; then
+            echo "Skipping embedded .deb signatures (dpkg-sig not installed)"
           else
             echo "No .deb artifacts to sign"
           fi
