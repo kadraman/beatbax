@@ -4,7 +4,7 @@ Each `desktop-v*` GitHub Release attaches installer files plus **`SHA256SUMS`**.
 
 When GitHub Actions secrets `GPG_PRIVATE_KEY` (and optionally `GPG_PASSPHRASE` / `GPG_KEY_ID`) are configured, the release job also:
 
-1. Signs `.deb` packages with **`dpkg-sig`** (GPG `builder` signature inside the package)
+1. Signs `.deb` packages with **`dpkg-sig`** when that tool is available on the runner (GPG `builder` signature inside the package). On Ubuntu 24.04 runners where `dpkg-sig` is not packaged, this step is skipped and integrity still relies on `SHA256SUMS` / `SHA256SUMS.asc`.
 2. Detach-signs **`SHA256SUMS.asc`**
 3. Uploads **`beatbax-release.asc`** (public key for that release)
 
@@ -56,16 +56,16 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 
 A good result shows a valid signature from the BeatBax release key, then `OK` for each file you verified.
 
-## 3. Verify a signed `.deb` (when GPG was enabled for that release)
+## 3. Verify a signed `.deb` (when GPG was enabled and `dpkg-sig` ran for that release)
 
 ```bash
-# Debian/Ubuntu:
+# Debian/Ubuntu (package may be unavailable on newer Ubuntu — use SHA256SUMS.asc instead):
 sudo apt-get install -y dpkg-sig
 gpg --import docs/keys/beatbax-release.asc   # or beatbax-release.asc from the release
 dpkg-sig --verify BeatBax-*-linux-amd64.deb
 ```
 
-You should see a valid `builder` signature. Then install as usual:
+When a `builder` signature is present you should see it as valid. Then install as usual:
 
 ```bash
 sudo dpkg -i BeatBax-*-linux-amd64.deb
