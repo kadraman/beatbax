@@ -11,6 +11,7 @@ import { resolve as resolvePath, basename, dirname, relative, extname } from 'pa
 import { mkdirSync } from 'fs';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
 import { resolveSongAsync, resolveImports } from '@beatbax/engine/song';
+import { version as cliVersion } from './version.js';
 
 const { getUGEDetailedJSON } = engineImports as any;
 
@@ -168,7 +169,7 @@ const program = new Command();
 program
   .name('beatbax')
   .description('Live-coding language for retro console chiptunes')
-  .version('0.1.0');
+  .version(cliVersion);
 
 // Global options
 program
