@@ -2,6 +2,13 @@
   - Supports built in sound chips (Game Boy and NES) as well as plugins (SMS/Game Gear).
   - Includes interactive song editor, channel mixer, visualizer and pattern grid, WAV and Tracker exports.
   - Also includes BeatBax Copilot (AI assistant, bring your own API key).
-  - Bundled example songs in the songs folder (Game Boy, NES, SMS).
+  - Bundled example songs (Game Boy, NES, SMS). On macOS, File -> Open starts in
+    ~/Documents/BeatBax/Examples (copied on first launch); use File -> Examples
+    or browse resources/songs on Windows and Linux.
   - Assisted installer with per-user or system-wide install and custom folder.
-  - Installers are not code-signed yet. Windows SmartScreen and macOS Gatekeeper may warn on first install; see README.txt in the install folder for steps.
+  - macOS .dmg/.zip from GitHub Releases are Developer ID signed and notarized.
+  - Windows installers are not Authenticode-signed; SmartScreen may warn —
+    click More info, then Run anyway (see README.txt).
+  - GitHub Releases include SHA256SUMS for verifying downloads. When GPG is
+    configured, also SHA256SUMS.asc, beatbax-release.asc, and dpkg-sig-signed
+    .deb packages — see docs/desktop-release-checksums.md.

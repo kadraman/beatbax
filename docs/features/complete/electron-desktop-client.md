@@ -319,7 +319,7 @@ See [desktop-first-client-split.md — Migration Path](./desktop-first-client-sp
 - [x] Manual QA on Windows, macOS, Linux — Windows primary + Linux CI e2e; macOS/Linux installers via release matrix ([desktop-release-qa.md](../qa/desktop-release-qa.md))
 - [x] First GitHub Release with installers (`desktop-v0.1.0`)
 
-Post-MVP items (auto-update, native React panels, code signing, etc.) are tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+Post-MVP items (auto-update, power features, etc.) are tracked in [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 ### Full initiative (master plan)
 
@@ -337,7 +337,7 @@ Moved to [desktop-client-enhancements.md](./desktop-client-enhancements.md).
 
 1. ~~**Code sharing strategy**~~: **Resolved** — use `packages/app-core/` (see [desktop-first-client-split.md](./desktop-first-client-split.md)).
 2. **WAV export:** should WAV export be reimplemented without the `standardized-audio-context` polyfill for the desktop client? → [desktop-client-enhancements.md](./desktop-client-enhancements.md).
-3. **Code signing:** required for macOS notarisation and Windows SmartScreen bypass. Are certificates available for CI/CD? → [desktop-client-enhancements.md](./desktop-client-enhancements.md).
+3. **Code signing:** macOS Developer ID + notarization is configured for GitHub Release CI. Windows installers remain unsigned (SmartScreen workaround documented) — see [desktop-windows-signing-setup.md](../../desktop-windows-signing-setup.md).
 4. ~~**Target platform priority**~~: **Resolved** — all three platforms ship in v0.1.0.
 
 ---

@@ -123,6 +123,13 @@ jobs:
           APPLE_ID: ${{ secrets.MAC_NOTARIZE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.MAC_NOTARIZE_PWD }}
           APPLE_TEAM_ID: ${{ secrets.MAC_NOTARIZE_TEAM }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER }}
         run: npm run desktop:dist
 
       - name: Verify macOS code signature
@@ -141,6 +148,43 @@ jobs:
           fi
           codesign -dv --verbose=4 "$APP_PATH"
           spctl -a -vv -t install "$APP_PATH"
+
+      - name: Verify Windows Authenticode signature
+        if: runner.os == 'Windows'
+        env:
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        shell: pwsh
+        run: |
+          $missing = @(
+            'AZURE_TENANT_ID',
+            'AZURE_CLIENT_ID',
+            'AZURE_CLIENT_SECRET',
+            'AZURE_TRUSTED_SIGNING_ENDPOINT',
+            'AZURE_TRUSTED_SIGNING_ACCOUNT',
+            'AZURE_TRUSTED_SIGNING_PROFILE',
+            'AZURE_TRUSTED_SIGNING_PUBLISHER'
+          ) | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
+          if ($missing.Count -gt 0) {
+            Write-Host "Azure Trusted Signing secrets not fully configured; skipping Authenticode verification"
+            exit 0
+          }
+          $exes = Get-ChildItem -Path "apps/desktop/dist" -Filter "BeatBax-*.exe" -File
+          if (-not $exes) {
+            throw "No BeatBax-*.exe artifacts found to verify"
+          }
+          foreach ($exe in $exes) {
+            $sig = Get-AuthenticodeSignature -FilePath $exe.FullName
+            Write-Host "$($exe.Name): Status=$($sig.Status); Signer=$($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') {
+              throw "Authenticode signature not Valid for $($exe.Name): $($sig.Status)"
+            }
+          }
 
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
@@ -167,14 +211,96 @@ jobs:
         with:
           path: release-artifacts
 
+      - name: Flatten artifacts, sign integrity, create SHA256SUMS
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-flat
+          find release-artifacts -type f \( \
+            -name 'BeatBax-*.exe' -o \
+            -name 'BeatBax-*.dmg' -o \
+            -name 'BeatBax-*.zip' -o \
+            -name 'BeatBax-*.AppImage' -o \
+            -name 'BeatBax-*.deb' \
+          \) -exec cp -n {} release-flat/ \;
+          cd release-flat
+
+          if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
+            echo "GPG_PRIVATE_KEY not configured; publishing unsigned SHA256SUMS only"
+            sha256sum BeatBax-* | tee SHA256SUMS
+            exit 0
+          fi
+
+          sudo apt-get update
+          sudo apt-get install -y dpkg-sig
+
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+          PASS_FILE=""
+          GPG_OPTS=(--batch --yes --pinentry-mode loopback)
+          GPG_OPTS_STR="--batch --yes --pinentry-mode loopback"
+          if [ -n "${GPG_PASSPHRASE:-}" ]; then
+            PASS_FILE="$(mktemp)"
+            printf '%s' "$GPG_PASSPHRASE" > "$PASS_FILE"
+            chmod 600 "$PASS_FILE"
+            GPG_OPTS+=(--passphrase-file "$PASS_FILE")
+            GPG_OPTS_STR="$GPG_OPTS_STR --passphrase-file $PASS_FILE"
+          fi
+
+          # 1) Sign .deb packages first (changes file hashes).
+          shopt -s nullglob
+          deb_files=(BeatBax-*.deb)
+          if [ ${#deb_files[@]} -gt 0 ]; then
+            for deb in "${deb_files[@]}"; do
+              if [ -n "${GPG_KEY_ID:-}" ]; then
+                dpkg-sig --sign builder -k "$GPG_KEY_ID" \
+                  --gpg-options "$GPG_OPTS_STR" \
+                  "$deb"
+              else
+                dpkg-sig --sign builder \
+                  --gpg-options "$GPG_OPTS_STR" \
+                  "$deb"
+              fi
+              echo "Signed $deb with dpkg-sig"
+            done
+          else
+            echo "No .deb artifacts to sign"
+          fi
+
+          # 2) Checksums include signed .deb files.
+          sha256sum BeatBax-* | tee SHA256SUMS
+
+          # 3) Detach-sign the checksum file.
+          if [ -n "${GPG_KEY_ID:-}" ]; then
+            gpg "${GPG_OPTS[@]}" --detach-sign --armor -u "$GPG_KEY_ID" -o SHA256SUMS.asc SHA256SUMS
+            gpg --armor --export "$GPG_KEY_ID" > beatbax-release.asc
+          else
+            gpg "${GPG_OPTS[@]}" --detach-sign --armor -o SHA256SUMS.asc SHA256SUMS
+            gpg --armor --export > beatbax-release.asc
+          fi
+          echo "Wrote SHA256SUMS.asc and beatbax-release.asc"
+
+          if [ -n "$PASS_FILE" ]; then
+            rm -f "$PASS_FILE"
+          fi
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/**/BeatBax-*.exe
-            release-artifacts/**/BeatBax-*.dmg
-            release-artifacts/**/BeatBax-*.zip
-            release-artifacts/**/BeatBax-*.AppImage
-            release-artifacts/**/BeatBax-*.deb
+            release-flat/BeatBax-*.exe
+            release-flat/BeatBax-*.dmg
+            release-flat/BeatBax-*.zip
+            release-flat/BeatBax-*.AppImage
+            release-flat/BeatBax-*.deb
+            release-flat/SHA256SUMS
+            release-flat/SHA256SUMS.asc
+            release-flat/beatbax-release.asc
           overwrite_assets: true
           generate_release_notes: true
+          fail_on_unmatched_files: false

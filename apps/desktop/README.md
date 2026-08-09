@@ -2,7 +2,7 @@
 
 BeatBax Desktop is the Electron + React **desktop-full** client — the primary full-featured BeatBax IDE.
 
-Download installers from [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
+Download installers from [itch.io](https://kadraman.itch.io/beatbax) (preferred) or [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
 
 ## Scripts
 
@@ -18,6 +18,7 @@ From the repository root:
 - The desktop renderer builds with `__CLIENT_PROFILE__ = "desktop-full"`.
 - `apps/desktop` consumes `@beatbax/app-core` directly for shared playback, parsing, and editor logic.
 - Native file dialogs, recent files, and file associations are handled in the Electron main process.
+- Packaged **macOS** apps copy example songs to `~/Documents/BeatBax/Examples` on first launch so File → Open can browse them (songs inside the `.app` bundle are not Finder-friendly). Windows/Linux use `resources/songs`.
 
 ## Current scope
 
@@ -38,7 +39,7 @@ The desktop renderer owns the desktop-full shell and React panel implementations
 - **MIDI step entry** — record button (requires MIDI input enabled in Settings)
 - **Debug overlay** — Settings → Advanced → Show debug overlay
 
-Post-MVP enhancements (native React panels, auto-update, code signing): [desktop-client-enhancements.md](../../docs/features/desktop-client-enhancements.md).
+Remaining post-MVP work (auto-update, power features): [desktop-client-enhancements.md](../../docs/features/complete/desktop-client-enhancements.md). macOS Developer ID signing and notarization are wired in CI when secrets are present. Windows installers remain unsigned — SmartScreen workaround: [desktop-windows-signing-setup.md](../../docs/desktop-windows-signing-setup.md).
 
 ## Releasing
 
