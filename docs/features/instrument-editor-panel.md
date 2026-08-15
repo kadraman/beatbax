@@ -3,7 +3,7 @@ title: "Instrument Editor Panel (Desktop)"
 status: proposed
 authors: ["kadraman"]
 created: 2026-08-15
-issue: ".github/ISSUES/instrument-editor-panel.md"
+issue: https://github.com/kadraman/beatbax/issues/169
 related:
   - docs/grammar/instruments.md
   - docs/features/virtual-piano-keyboard.md
@@ -32,11 +32,13 @@ v1 is **Desktop-only**. Web UI is a later follow-up.
 
 ---
 
+
+
 ## Problem Statement
 
 BeatBax already has a complete **text** instrument pipeline:
 
-- `inst` lines with chip-specific fields ([`docs/grammar/instruments.md`](../grammar/instruments.md), [`InstrumentNode`](../../packages/engine/src/parser/ast.ts))
+- `inst` lines with chip-specific fields (`[docs/grammar/instruments.md](../grammar/instruments.md)`, `[InstrumentNode](../../packages/engine/src/parser/ast.ts)`)
 - Macros as `[v0,v1,…|loopPoint]`
 - Game Boy wavetables as 32×4-bit nibbles (array or hUGE hex string)
 - Plugin validation (`validateInstrument`) and New Song Wizard instrument **blocks**
@@ -44,13 +46,17 @@ BeatBax already has a complete **text** instrument pipeline:
 
 What is missing is a graphical authoring surface. Users who think in waveforms and envelopes must type arrays by hand. That is slow, error-prone, and unlike hUGETracker, FamiTracker, or Furnace.
 
-Host-side instrument metadata is also **hardcoded** in [`CHIP_INSTRUMENT_META`](../../packages/app-core/src/editor/instrument-meta.ts) rather than owned by the chip plugin. New chips (SID, SNES) would otherwise require Desktop special-cases for every field.
+Host-side instrument metadata is also **hardcoded** in `[CHIP_INSTRUMENT_META](../../packages/app-core/src/editor/instrument-meta.ts)` rather than owned by the chip plugin. New chips (SID, SNES) would otherwise require Desktop special-cases for every field.
 
 A panel that is both visual **and** chip-plugin-driven keeps `.bax` as the source of truth while matching how musicians already edit instruments in trackers.
 
 ---
 
+
+
 ## Proposed Solution
+
+
 
 ### Summary
 
@@ -59,6 +65,8 @@ A panel that is both visual **and** chip-plugin-driven keeps `.bax` as the sourc
 3. Render generic widgets from the active chip’s schema: typed fields, waveform canvas, macro graphs.
 4. Round-trip edits to the matching `inst` line using parser `inst.__loc`.
 5. Preview through the existing `startInstNotePreview` path, driven by a mini keyboard and MIDI.
+
+
 
 ### Architecture: host UI + plugin schema
 
@@ -85,14 +93,18 @@ flowchart LR
   validate --> panel
 ```
 
-| Concern | Owner |
-|---|---|
-| Valid types, fields, ranges, macros, waveform config | Plugin `instrumentEditor` schema |
-| Validation errors | Plugin `validateInstrument` |
-| Starter / copy templates | Plugin presets + current song instruments |
-| Drawing canvas, macro graphs, keyboard, MIDI, source writeback | Desktop host |
-| Playback of the edited instrument | Existing engine preview path |
-| Custom React (SID combined-wave, SNES BRR picker, GB `subpat` row editor) | Phase 2 optional slots — not v1 |
+
+
+
+| Concern                                                                   | Owner                                     |
+| ------------------------------------------------------------------------- | ----------------------------------------- |
+| Valid types, fields, ranges, macros, waveform config                      | Plugin `instrumentEditor` schema          |
+| Validation errors                                                         | Plugin `validateInstrument`               |
+| Starter / copy templates                                                  | Plugin presets + current song instruments |
+| Drawing canvas, macro graphs, keyboard, MIDI, source writeback            | Desktop host                              |
+| Playback of the edited instrument                                         | Existing engine preview path              |
+| Custom React (SID combined-wave, SNES BRR picker, GB `subpat` row editor) | Phase 2 optional slots — not v1           |
+
 
 Reuse existing `validateInstrument`, `instrumentVolumeRange`, and `newSongWizard`. Do not duplicate validation in the UI.
 
@@ -100,7 +112,7 @@ Reuse existing `validateInstrument`, `instrumentVolumeRange`, and `newSongWizard
 
 ### Plugin contract
 
-Add optional `instrumentEditor?: ChipInstrumentEditor` on [`ChipPlugin`](../../packages/engine/src/chips/types.ts):
+Add optional `instrumentEditor?: ChipInstrumentEditor` on `[ChipPlugin](../../packages/engine/src/chips/types.ts)`:
 
 ```ts
 export interface ChipInstrumentEditor {
@@ -173,7 +185,7 @@ export interface ChipInstrumentConstraintNote {
 }
 ```
 
-Channel mapping on `types[].previewChannel` replaces the hardcoded switch in [`instChannelId`](../../packages/app-core/src/editor/codelens-preview.ts) (`pulse2→2`, `wave`/`triangle→3`, `noise→4`, `dmc→5`, else `1`, clamped to `plugin.channels`).
+Channel mapping on `types[].previewChannel` replaces the hardcoded switch in `[instChannelId](../../packages/app-core/src/editor/codelens-preview.ts)` (`pulse2→2`, `wave`/`triangle→3`, `noise→4`, `dmc→5`, else `1`, clamped to `plugin.channels`).
 
 Presets are **per-instrument snippets**, not the New Song Wizard’s multi-`inst` blocks in `songWizard.ts`.
 
@@ -202,9 +214,11 @@ Waveform drawing writes `wave=` as a 32-entry array (preferred) or a 32-nibble h
 
 ---
 
+
+
 ## Panel UX (Desktop)
 
-New right-pane tab **Instruments**, same chrome as Help / Visualizer / Copilot ([`tabs.ts`](../../apps/desktop/src/renderer/src/components/shell/tabs.ts) `RightTabId` today is `'channels' | 'help' | 'ai'`).
+New right-pane tab **Instruments**, same chrome as Help / Visualizer / Copilot (`[tabs.ts](../../apps/desktop/src/renderer/src/components/shell/tabs.ts)` `RightTabId` today is `'channels' | 'help' | 'ai'`).
 
 - View menu + Panels dropdown toggle (`group: 'side'`)
 - Feature flag `INSTRUMENT_EDITOR` (Experimental, default **off**), matching Pattern Grid
@@ -249,18 +263,22 @@ Constraint notes from the plugin (AY global envelope, SMS attenuation direction,
 
 ### Selection and list actions
 
-| Action | Behaviour |
-|---|---|
-| Click list row | Load that instrument; reveal its `inst` line in Monaco |
-| Click `inst` line in editor | Select that instrument in the panel |
-| New | Insert a new `inst` line from the default plugin preset for the current type |
-| Duplicate | Copy fields to a unique name (`lead2`, …) and insert after the original |
-| Rename | Rewrite the definition name and offer to update `channel … inst` / inline `inst` references (v1: definition only + warning if still referenced) |
-| Delete | Remove the `inst` line; warn if still referenced |
+
+| Action                      | Behaviour                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Click list row              | Load that instrument; reveal its `inst` line in Monaco                                                                                          |
+| Click `inst` line in editor | Select that instrument in the panel                                                                                                             |
+| New                         | Insert a new `inst` line from the default plugin preset for the current type                                                                    |
+| Duplicate                   | Copy fields to a unique name (`lead2`, …) and insert after the original                                                                         |
+| Rename                      | Rewrite the definition name and offer to update `channel … inst` / inline `inst` references (v1: definition only + warning if still referenced) |
+| Delete                      | Remove the `inst` line; warn if still referenced                                                                                                |
+
 
 Imported instruments (`import "local:…"` / remote) are listed read-only in v1, with a “copy into song” action. Editing an imported definition would not persist in the `.ins` file.
 
 ---
+
+
 
 ## Visual waveforms
 
@@ -284,9 +302,11 @@ Chips without `waveform` in the schema hide this section entirely (NES, SMS, Spe
 
 ---
 
+
+
 ## Instrument macros
 
-Macros already use `[v0,v1,…|loopPoint]` with `loopPoint = -1` meaning one-shot / hold last value ([`parseMacro`](../../packages/engine/src/audio) / chip backends). The graph editor is a visual view of that same string.
+Macros already use `[v0,v1,…|loopPoint]` with `loopPoint = -1` meaning one-shot / hold last value (`[parseMacro](../../packages/engine/src/audio)` / chip backends). The graph editor is a visual view of that same string.
 
 Per macro row:
 
@@ -298,17 +318,21 @@ Per macro row:
 
 Supported in v1 via schema (not a host hardcode):
 
-| Field | Typical use |
-|---|---|
-| `vol_env` | Volume / attenuation sequence |
-| `arp_env` | Semitone offsets |
-| `duty_env` | Duty index 0–3 |
-| `pitch_env` | Pitch offsets in semitones |
-| `noise_rate_env` | SMS noise clock (chip extra) |
 
-Game Boy `subpat` is **read-only in v1**: if `subpat=` is set, show the name and a link to the `subpat` block, and disable overlapping macro graphs with a note that native subpattern wins ([`gameboy-uge-instrument-subpatterns.md`](complete/gameboy-uge-instrument-subpatterns.md)). A tracker-style subpattern row editor is Phase 2.
+| Field            | Typical use                   |
+| ---------------- | ----------------------------- |
+| `vol_env`        | Volume / attenuation sequence |
+| `arp_env`        | Semitone offsets              |
+| `duty_env`       | Duty index 0–3                |
+| `pitch_env`      | Pitch offsets in semitones    |
+| `noise_rate_env` | SMS noise clock (chip extra)  |
+
+
+Game Boy `subpat` is **read-only in v1**: if `subpat=` is set, show the name and a link to the `subpat` block, and disable overlapping macro graphs with a note that native subpattern wins (`[gameboy-uge-instrument-subpatterns.md](complete/gameboy-uge-instrument-subpatterns.md)`). A tracker-style subpattern row editor is Phase 2.
 
 ---
+
+
 
 ## Templates and copy-from
 
@@ -319,32 +343,38 @@ Two sources:
 
 Applying a template overwrites editable fields of the **selected** instrument (or fills a New instrument). It does not replace the whole song’s wizard instrument block.
 
-New Song Wizard templates remain a separate onboarding path ([`new-song-wizard.md`](complete/new-song-wizard.md)).
+New Song Wizard templates remain a separate onboarding path (`[new-song-wizard.md](complete/new-song-wizard.md)`).
 
 ---
+
+
 
 ## Preview, mini keyboard, and MIDI
 
-Preview must use the same engine path as CodeLens ([`startInstNotePreview`](../../packages/app-core/src/editor/codelens-preview.ts)): a one-note AST on the plugin-declared preview channel, current `insts` table, hold/decay timeout.
+Preview must use the same engine path as CodeLens (`[startInstNotePreview](../../packages/app-core/src/editor/codelens-preview.ts)`): a one-note AST on the plugin-declared preview channel, current `insts` table, hold/decay timeout.
 
-| Input | Behaviour |
-|---|---|
-| Mini-keyboard click/hold | Note-on for that pitch; note-off on release (or timeout if the chip has no sustain) |
-| Computer-key mapping | Same notes as the virtual-keyboard proposal |
-| MIDI note-on / note-off | Same preview when MIDI input is enabled ([`midi-step-entry-controller.ts`](../../apps/desktop/src/renderer/src/lib/midi-step-entry-controller.ts)) |
-| Play-while-drawing | Retrigger last preview pitch (default C4) |
+
+| Input                    | Behaviour                                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mini-keyboard click/hold | Note-on for that pitch; note-off on release (or timeout if the chip has no sustain)                                                                |
+| Computer-key mapping     | Same notes as the virtual-keyboard proposal                                                                                                        |
+| MIDI note-on / note-off  | Same preview when MIDI input is enabled (`[midi-step-entry-controller.ts](../../apps/desktop/src/renderer/src/lib/midi-step-entry-controller.ts)`) |
+| Play-while-drawing       | Retrigger last preview pitch (default C4)                                                                                                          |
+
 
 Active key highlighting is shared across mouse, computer keys, and MIDI. MIDI step-entry (inserting tokens into `pat` lines) is unchanged; when the Instruments tab is focused, MIDI prefers **audition** over step entry unless Record is armed.
 
-This panel is the first ship vehicle for the mini keyboard described in [`virtual-piano-keyboard.md`](virtual-piano-keyboard.md). Scale-aware key styling may reuse scale-awareness data but is optional for v1.
+This panel is the first ship vehicle for the mini keyboard described in `[virtual-piano-keyboard.md](virtual-piano-keyboard.md)`. Scale-aware key styling may reuse scale-awareness data but is optional for v1.
 
 ---
+
+
 
 ## Source round-trip
 
 `.bax` text remains the source of truth. The panel is a structured editor over one `inst` statement.
 
-- Parser already stores `props.__loc` on each instrument ([`parseInstRhs`](../../packages/engine/src/parser/peggy/index.ts)).
+- Parser already stores `props.__loc` on each instrument (`[parseInstRhs](../../packages/engine/src/parser/peggy/index.ts)`).
 - Writeback replaces that line (or the statement range) in Monaco.
 - Preserve trailing comments on the same line.
 - Pretty-print: human `env=12,down` rather than JSON objects when equivalent; arrays as `[0,1,2,…]`; macros as `[15,12,8,4]` or `[0,4,7|0]`.
@@ -356,29 +386,39 @@ Imported instruments: copy-into-song inserts a new local `inst` line; the import
 
 ---
 
+
+
 ## Chip capability matrix
 
-| Chip | Waveform | Macros | Notable fields | Plugin notes |
-|---|---|---|---|---|
-| Game Boy | Yes — 32×4-bit `wave=` | `vol_env`, `pitch_env`, `duty_env`, `arp_env` | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave volume is 0/25/50/100 selector |
-| NES | No | `vol_env`, `duty_env`, `arp_env`, `pitch_env` | duty, env, sweep_*, DMC `sample` | Triangle: warn that volume macros do not apply; DMC uses sample picker |
-| SMS | No | `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env` | vol (attenuation), noise_mode, noise_rate, gg_pan | `instrumentVolumeRange.isAttenuation` |
-| Spectrum / AY | No | `vol_env` (hardware, global), `arp_env`, `pitch_env` | vol, tone, tone_mix, noise_rate, env_bass | Constraint: one `vol_env` / `env_bass` at a time |
-| SID (proposed) | Optional pulse-width visual later | Schema-ready | waveform, pw, ADSR | Plugin fills schema when the chip lands |
-| SNES (proposed) | No wavetable draw; BRR sample field | `vol_env`, `pitch_env` if declared | adsr, vol_l/r, brr_sample | Sample widget + ADSR fields; no host special-case |
+
+| Chip            | Waveform                            | Macros                                               | Notable fields                                                                       | Plugin notes                                                           |
+| --------------- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Game Boy        | Yes — 32×4-bit `wave=`              | `vol_env`, `pitch_env`, `duty_env`, `arp_env`        | duty, env, sweep (pulse1), volume (wave), width, `uge_note`, `subpat` (read-only v1) | Wave volume is 0/25/50/100 selector                                    |
+| NES             | No                                  | `vol_env`, `duty_env`, `arp_env`, `pitch_env`        | duty, env, sweep_*, DMC `sample`                                                     | Triangle: warn that volume macros do not apply; DMC uses sample picker |
+| SMS             | No                                  | `vol_env`, `arp_env`, `pitch_env`, `noise_rate_env`  | vol (attenuation), noise_mode, noise_rate, gg_pan                                    | `instrumentVolumeRange.isAttenuation`                                  |
+| Spectrum / AY   | No                                  | `vol_env` (hardware, global), `arp_env`, `pitch_env` | vol, tone, tone_mix, noise_rate, env_bass                                            | Constraint: one `vol_env` / `env_bass` at a time                       |
+| SID (proposed)  | Optional pulse-width visual later   | Schema-ready                                         | waveform, pw, ADSR                                                                   | Plugin fills schema when the chip lands                                |
+| SNES (proposed) | No wavetable draw; BRR sample field | `vol_env`, `pitch_env` if declared                   | adsr, vol_l/r, brr_sample                                                            | Sample widget + ADSR fields; no host special-case                      |
+
 
 SID and SNES must not require Desktop code changes beyond generic widgets once they provide a schema.
 
 ---
 
+
+
 ## Implementation Plan
+
+
 
 ### AST / engine changes
 
-- Extend [`packages/engine/src/chips/types.ts`](../../packages/engine/src/chips/types.ts) with `ChipInstrumentEditor` and `instrumentEditor?` on `ChipPlugin`.
+- Extend `[packages/engine/src/chips/types.ts](../../packages/engine/src/chips/types.ts)` with `ChipInstrumentEditor` and `instrumentEditor?` on `ChipPlugin`.
 - Export the types from `@beatbax/engine`.
 - No new `InstrumentNode` fields for v1.
 - Optional: public `serializeInstrument(name, node, options)` used by writeback and tests (today serialization is only covered indirectly).
+
+
 
 ### Parser changes
 
@@ -388,20 +428,26 @@ None required for v1. Keep `__loc`. If statement-range writeback needs end locat
 
 - Game Boy first: full schema (types, fields, macros, waveform, presets).
 - Then NES, SMS, Spectrum-128.
-- Update [`docs/contributing/creating-plugins.md`](../contributing/creating-plugins.md) and the plugin starter template.
+- Update `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)` and the plugin starter template.
+
+
 
 ### Desktop UI
 
-| Area | Files / notes |
-|---|---|
-| Right tab | [`tabs.ts`](../../apps/desktop/src/renderer/src/components/shell/tabs.ts) — add `'instruments'` to `RightTabId` / `RIGHT_TAB_ORDER` |
-| Panels menu | [`panels-menu.ts`](../../apps/desktop/src/renderer/src/components/shell/panels-menu.ts) — side-group entry |
-| View menu | [`menu-bar.ts`](../../apps/desktop/src/renderer/src/components/shell/menu-bar.ts) — `PANEL_CHECK_IDS` + feature flag |
-| Feature flag | [`feature-flags.ts`](../../packages/app-core/src/utils/feature-flags.ts), [`settings/features.tsx`](../../apps/desktop/src/renderer/src/components/settings/features.tsx), settings store |
-| Panel component | New `apps/desktop/src/renderer/src/components/panels/DesktopInstrumentEditor.tsx` (native React, same mount pattern as Help / Pattern Grid) |
-| Preview | Reuse `startInstNotePreview`; teach `instChannelId` to read `instrumentEditor.types` |
-| MIDI | When Instruments tab focused, route note-on/off to preview; Record-armed still does step entry |
-| CodeLens | Optional **Edit** command that shows the tab and selects the instrument |
+
+| Area            | Files / notes                                                                                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Right tab       | `[tabs.ts](../../apps/desktop/src/renderer/src/components/shell/tabs.ts)` — add `'instruments'` to `RightTabId` / `RIGHT_TAB_ORDER`                                                       |
+| Panels menu     | `[panels-menu.ts](../../apps/desktop/src/renderer/src/components/shell/panels-menu.ts)` — side-group entry                                                                                |
+| View menu       | `[menu-bar.ts](../../apps/desktop/src/renderer/src/components/shell/menu-bar.ts)` — `PANEL_CHECK_IDS` + feature flag                                                                      |
+| Feature flag    | `[feature-flags.ts](../../packages/app-core/src/utils/feature-flags.ts)`, `[settings/features.tsx](../../apps/desktop/src/renderer/src/components/settings/features.tsx)`, settings store |
+| Panel component | New `apps/desktop/src/renderer/src/components/panels/DesktopInstrumentEditor.tsx` (native React, same mount pattern as Help / Pattern Grid)                                               |
+| Preview         | Reuse `startInstNotePreview`; teach `instChannelId` to read `instrumentEditor.types`                                                                                                      |
+| MIDI            | When Instruments tab focused, route note-on/off to preview; Record-armed still does step entry                                                                                            |
+| CodeLens        | Optional **Edit** command that shows the tab and selects the instrument                                                                                                                   |
+
+
+
 
 ### CLI / Web UI / Export
 
@@ -416,7 +462,11 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 
 ---
 
+
+
 ## Testing Strategy
+
+
 
 ### Unit tests
 
@@ -426,6 +476,8 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 - Macro graph model: loop marker, empty-omits-field, signed pitch.
 - Waveform: hex paste, 16-value tile to 32, clamp 0–15.
 - `previewChannel` mapping vs current `instChannelId` behaviour for GB/NES/AY/SMS.
+
+
 
 ### Integration / e2e
 
@@ -438,6 +490,8 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 
 ---
 
+
+
 ## Migration Path
 
 - Feature flag off by default: no change for existing users.
@@ -446,6 +500,8 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 - Once GB/NES/SMS/Spectrum ship schemas, `CHIP_INSTRUMENT_META` can later be generated from the same schema (follow-up) so autocomplete and the panel cannot drift.
 
 ---
+
+
 
 ## Implementation Checklist
 
@@ -462,6 +518,8 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 
 ---
 
+
+
 ## Future Enhancements
 
 - Web UI port of the same host widgets.
@@ -471,9 +529,11 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 - Rename that rewrites all `inst` references.
 - In-place editing of `.ins` libraries.
 - Generate `CHIP_INSTRUMENT_META` from `instrumentEditor` so hover/complete stay in sync.
-- Scale-aware mini-keyboard styling ([`virtual-piano-keyboard.md`](virtual-piano-keyboard.md)).
+- Scale-aware mini-keyboard styling (`[virtual-piano-keyboard.md](virtual-piano-keyboard.md)`).
 
 ---
+
+
 
 ## Non-goals (v1)
 
@@ -487,34 +547,42 @@ No CLI or export changes. Web UI is out of scope for v1 (document as follow-up).
 
 ---
 
+
+
 ## Open Questions
 
 1. Rename v1: definition-only + warning, or also rewrite `channel` / inline references?
+
 >  definition-only + warning
-2. Should play-while-drawing be on by default (hUGE does) or behind a toggle?
+>
+> 1. Should play-while-drawing be on by default (hUGE does) or behind a toggle?
 >  on by default with a toggle
-3. After all first-party chips ship schemas, should `CHIP_INSTRUMENT_META` be deleted in the same milestone or a follow-up?
-> follow-up
-4. Hold-to-play vs fixed 2 s CodeLens timeout for the mini keyboard — prefer hold-to-play when the chip can sustain.
-> hold-to-play with the existing 2 s safety timeout.
+> 2. After all first-party chips ship schemas, should `CHIP_INSTRUMENT_META` be deleted in the same milestone or a follow-up?
+>   > follow-up
+> 3. Hold-to-play vs fixed 2 s CodeLens timeout for the mini keyboard — prefer hold-to-play when the chip can sustain.
+>   > hold-to-play with the existing 2 s safety timeout.
 
 ---
+
+
 
 ## References
 
 - [hUGETracker Waves](https://superdisk.github.io/hUGETracker/hUGETracker/tabs/waves.html)
 - [hUGETracker Subpatterns](https://superdisk.github.io/hUGETracker/hUGETracker/subpatterns.html)
-- [`docs/grammar/instruments.md`](../grammar/instruments.md)
-- [`docs/features/complete/gameboy-instrument-macros-policy.md`](complete/gameboy-instrument-macros-policy.md)
-- [`docs/features/complete/gameboy-uge-instrument-subpatterns.md`](complete/gameboy-uge-instrument-subpatterns.md)
-- [`docs/features/complete/plugin-system.md`](complete/plugin-system.md)
-- [`docs/features/complete/web-midi-step-entry.md`](complete/web-midi-step-entry.md)
-- [`docs/features/virtual-piano-keyboard.md`](virtual-piano-keyboard.md)
-- [`docs/features/complete/new-song-wizard.md`](complete/new-song-wizard.md)
-- [`docs/contributing/creating-plugins.md`](../contributing/creating-plugins.md)
-- Tracking issue draft: [`.github/ISSUES/instrument-editor-panel.md`](../../.github/ISSUES/instrument-editor-panel.md)
+- `[docs/grammar/instruments.md](../grammar/instruments.md)`
+- `[docs/features/complete/gameboy-instrument-macros-policy.md](complete/gameboy-instrument-macros-policy.md)`
+- `[docs/features/complete/gameboy-uge-instrument-subpatterns.md](complete/gameboy-uge-instrument-subpatterns.md)`
+- `[docs/features/complete/plugin-system.md](complete/plugin-system.md)`
+- `[docs/features/complete/web-midi-step-entry.md](complete/web-midi-step-entry.md)`
+- `[docs/features/virtual-piano-keyboard.md](virtual-piano-keyboard.md)`
+- `[docs/features/complete/new-song-wizard.md](complete/new-song-wizard.md)`
+- `[docs/contributing/creating-plugins.md](../contributing/creating-plugins.md)`
+- Tracking issue draft: `[.github/ISSUES/instrument-editor-panel.md](../../.github/ISSUES/instrument-editor-panel.md)`
 
 ---
+
+
 
 ## Additional Notes
 
