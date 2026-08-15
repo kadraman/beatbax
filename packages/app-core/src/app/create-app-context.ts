@@ -21,6 +21,7 @@ import {
   type ClientProfile,
 } from '../client-profile.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
+import { omitIssuesForImportedInstruments } from '../import/omit-imported-inst-diagnostics.js';
 
 export interface ParsePipelineHooks {
   /** Called when validation errors/warnings are published after a parse pass. */
@@ -125,6 +126,14 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
       }
 
       if ((ast as any).imports?.length > 0) {
+        const resolvedInsts = (resolvedAst as any).insts ?? {};
+        const keptErrors = omitIssuesForImportedInstruments(errors, resolvedInsts);
+        const keptWarnings = omitIssuesForImportedInstruments(warnings, resolvedInsts);
+        errors.length = 0;
+        errors.push(...keptErrors);
+        warnings.length = 0;
+        warnings.push(...keptWarnings);
+
         for (const e of getSongValidationIssues(resolvedAst as any)) {
           const message = e.message;
           if (!warnings.some(w => w.message === message)) {
