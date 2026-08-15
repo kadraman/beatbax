@@ -28,7 +28,9 @@ import "local:lib/gameboy-common.ins"  # ✅ Correct
 import "lib/gameboy-common.ins"        # ❌ Error: Missing prefix
 ```
 
-**Browser Security:** Local imports are only supported in the CLI (Node.js environment). If a `.bax` file containing `local:` imports is loaded in the browser, an error will be displayed:
+**Desktop:** Local `local:` imports are supported in BeatBax Desktop. They resolve relative to the **saved** `.bax` file (for example `import "local:lib/adventure.ins"` loads `lib/adventure.ins` next to the song). Save the song to disk first — untitled buffers have no folder to resolve against.
+
+**Web browser:** Local imports are not supported in the web-lite client. If a `.bax` file containing `local:` imports is loaded in the browser, an error will be displayed:
 
 ```
 🛑 Local imports are not supported in the browser for security reasons.
@@ -72,7 +74,8 @@ overrides as errors.
 
 - **Path Resolution**: Uses Node.js `path.resolve()` with cross-platform support (posix for tests)
 - **CLI Integration**: All commands (play, verify, export) resolve imports with filename context
-- **Browser Support**: Local imports are NOT supported in browser; use remote imports instead
+- **Desktop Support**: Local imports resolve via Electron file IPC relative to the on-disk song path
+- **Browser Support**: Local imports are NOT supported in the web-lite client; use remote imports instead
 - **Cycle Detection**: Import graphs are validated; circular imports throw errors
 - **File Caching**: Each imported file is parsed once per resolution session
 - **Testing**: 18 tests covering parser, resolver, and end-to-end scenarios

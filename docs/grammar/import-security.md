@@ -7,9 +7,9 @@ This document describes the security measures implemented in BeatBax's import re
 When BeatBax processes `import` statements in `.bax` and `.ins` files, it validates all import paths to ensure they cannot access files outside the intended project directories. This prevents malicious files from reading sensitive system files or escaping the project sandbox.
 
 **As of February 2026**, BeatBax requires explicit import prefixes to clarify import intentions and enhance security:
-- `local:` prefix for local file system imports (CLI only)
-- `https://` or `github:` for remote imports (CLI and browser)
-- Browser environments block all local imports for security
+- `local:` prefix for local file system imports (CLI and **BeatBax Desktop**)
+- `https://` or `github:` for remote imports (CLI, Desktop, and web)
+- The web-lite browser client blocks local imports for security; Desktop resolves them through main-process file IPC relative to the saved song path
 
 ## Security Measures
 
@@ -18,7 +18,7 @@ When BeatBax processes `import` statements in `.bax` and `.ins` files, it valida
 All imports must use explicit prefixes to indicate their source:
 
 ```
-// ✅ VALID - Local file import (CLI only)
+// ✅ VALID - Local file import (CLI and BeatBax Desktop)
 import "local:lib/common.ins"
 import "local:instruments/drums.ins"
 
@@ -37,24 +37,22 @@ This requirement ensures:
 - Enables browser security (see Browser Security section below)
 - Makes code more auditable and secure
 
-### 2. Browser Security
+### 2. Browser vs Desktop
 
-When running in a browser environment, BeatBax automatically blocks local file imports:
+The **web-lite** client blocks local file imports (no filesystem access). **BeatBax Desktop** allows them: the renderer asks the Electron main process to read `.ins` files relative to the saved song path.
 
 ```
-// In browser - BLOCKED with security error
+// Web-lite - BLOCKED with security error
 import "local:lib/common.ins"
 // Error: Local imports are not supported in the browser for security reasons.
-//        Import "local:lib/common.ins" cannot be loaded.
-//        Use remote imports (https:// or github:) instead, or run in CLI for local file access.
 
-// In browser - ALLOWED
+// Desktop - ALLOWED when the song is saved to disk
+import "local:lib/common.ins"
+
+// Remote imports - ALLOWED in web-lite and Desktop
 import "https://example.com/instruments/drums.ins"
 import "github:kadraman/beatbax-instruments/main/melodic.ins"
 ```
-
-**Browser Detection:**
-The engine uses `typeof window !== 'undefined'` to detect browser contexts and enforce this restriction automatically. This prevents browser-based attacks that could attempt to read local file system contents.
 
 **CLI Warnings:**
 When using `--browser` flag with songs containing local imports, the CLI displays a warning:
