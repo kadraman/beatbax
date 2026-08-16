@@ -54,6 +54,23 @@ describe('buildMultiPlaySource', () => {
     expect(lines.every(l => !/^channel 2 =>/.test(l))).toBe(true);
   });
 
+  it('preserves import lines so synthetic play can merge kits', () => {
+    const src = [
+      'chip gameboy',
+      'import "local:lib/kit.ins"',
+      'pat melody = C4',
+      'seq main = melody',
+      'channel 1 => inst gb_lead seq main',
+      'play',
+    ].join('\n');
+    const { source } = buildMultiPlaySource(
+      [{ name: 'main', kind: 'seq' }],
+      src,
+    );
+    expect(source).toMatch(/import "local:lib\/kit.ins"/);
+    expect(source).toMatch(/channel 1 => inst gb_lead seq main/);
+  });
+
   it('ends with a play directive', () => {
     const { source } = buildMultiPlaySource(
       [{ name: 'main', kind: 'seq' }],
@@ -601,6 +618,25 @@ describe('setupCommandPalette — enhanced commands', () => {
     expect(src).toMatch(/pat __preview__ = C4 E4 G4 C5/);
     expect(src).toMatch(/channel 1 =>/);
     expect(src).toMatch(/play/);
+  });
+
+  it('previewPattern: keeps import lines and uses the channel instrument when no inst is declared', () => {
+    currentSource = [
+      'chip gameboy',
+      'import "local:lib/kit.ins"',
+      'pat melody = C4 E4 G4 C5',
+      'seq main = melody',
+      'channel 1 => inst gb_lead seq main',
+      'play',
+    ].join('\n');
+    currentWord = 'melody';
+    const run = registeredActions.get('beatbax.previewPattern');
+    run!();
+    expect(playRawCalls).toHaveLength(1);
+    const src = playRawCalls[0][0];
+    expect(src).toMatch(/import "local:lib\/kit.ins"/);
+    expect(src).toMatch(/channel 1 => inst gb_lead seq __preview__/);
+    expect(src).not.toMatch(/inst _tmp/);
   });
 
   it('previewPattern: adds canonical stepsPerBar default when timing is missing', () => {

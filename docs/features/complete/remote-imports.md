@@ -232,7 +232,7 @@ When resolving an import statement:
 
 1. **Remote imports cannot have nested imports**: For security, remote `.ins` files cannot import other files
 2. **CORS required**: Remote servers must set appropriate `Access-Control-Allow-Origin` headers
-3. **Content validation**: All remote content is parsed and validated as proper `.ins` files
+3. **Content validation**: All remote content is parsed and validated as proper `.ins` files (`inst`, `subpat`, and `effect` only — no nested `import`, `pat`, `chip`, or `bpm`)
 4. **Size limits**: Prevents loading excessively large files
 5. **Timeout protection**: Network requests have configurable timeouts
 

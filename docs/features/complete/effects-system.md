@@ -151,6 +151,7 @@ seq t = b:wobble
 ```
 
 - Parameterized presets (e.g. `wobble(6)`) are not currently supported. If you need parameterization, request it and the grammar/resolver can be extended.
+- Shared kits: `effect` presets may live in an imported `.ins` file (same last-wins merge as `inst`). Songs then use `<drift>` without copying the `effect` line. A song-local `effect drift = …` still overrides the kit. See [instrument-imports.md](./instrument-imports.md).
 
 ## Hardware Mapping
 

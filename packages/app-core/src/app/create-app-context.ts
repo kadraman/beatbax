@@ -127,8 +127,9 @@ export function createAppContext(options: CreateAppContextOptions = {}): AppCont
 
       if ((ast as any).imports?.length > 0) {
         const resolvedInsts = (resolvedAst as any).insts ?? {};
-        const keptErrors = omitIssuesForImportedInstruments(errors, resolvedInsts);
-        const keptWarnings = omitIssuesForImportedInstruments(warnings, resolvedInsts);
+        const resolvedEffects = (resolvedAst as any).effects ?? {};
+        const keptErrors = omitIssuesForImportedInstruments(errors, resolvedInsts, resolvedEffects);
+        const keptWarnings = omitIssuesForImportedInstruments(warnings, resolvedInsts, resolvedEffects);
         errors.length = 0;
         errors.push(...keptErrors);
         warnings.length = 0;
