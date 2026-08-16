@@ -25,8 +25,9 @@ describe('createDocumentFileWatcher', () => {
   });
 
   it('rejects relative paths', () => {
-    watcher = createDocumentFileWatcher();
-    expect(() => watcher.watch('song.bax')).toThrow('Expected an absolute file path.');
+    const instance = createDocumentFileWatcher();
+    watcher = instance;
+    expect(() => instance.watch('song.bax')).toThrow('Expected an absolute file path.');
   });
 
   it('does not emit change for markSelfWrite', async () => {
@@ -47,6 +48,35 @@ describe('createDocumentFileWatcher', () => {
     await delay(250);
 
     expect(events.filter((event) => event.type === 'change' && event.content?.includes('bpm 120'))).toEqual([]);
+  });
+
+  it('does not suppress external changes when markSelfWrite is for another path', async () => {
+    const events: DesktopDocumentChangedPayload[] = [];
+    watcher = createDocumentFileWatcher({
+      debounceMs: 40,
+      selfWriteWindowMs: 800,
+      onChange: (payload) => events.push(payload),
+    });
+    const filePath = path.join(tempDir, 'song.bax');
+    const exportPath = path.join(tempDir, 'song.uge');
+    writeFileSync(filePath, 'chip gameboy\n', 'utf8');
+    writeFileSync(exportPath, 'export', 'utf8');
+    watcher.watch(filePath);
+    await delay(120);
+
+    watcher.markSelfWrite(exportPath);
+    writeFileSync(exportPath, 'export-updated', 'utf8');
+    writeFileSync(filePath, 'chip gameboy\n; external\n', 'utf8');
+
+    const deadline = Date.now() + 2_000;
+    while (
+      !events.some((event) => event.type === 'change' && event.content?.includes('; external'))
+      && Date.now() < deadline
+    ) {
+      await delay(40);
+    }
+
+    expect(events.some((event) => event.type === 'change' && event.content?.includes('; external'))).toBe(true);
   });
 
   it('emits change for an external write', async () => {

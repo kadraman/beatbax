@@ -2,6 +2,7 @@ import { watch as fsWatch, watchFile, unwatchFile, type FSWatcher } from 'node:f
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import {
+  filePathsMatch,
   isSelfWriteEcho,
   shouldHandleDirectoryWatchEvent
 } from '../shared/file-watcher-logic'
@@ -229,12 +230,14 @@ export function createDocumentFileWatcher(
     },
 
     markSelfWrite(filePath: string): void {
-      if (!path.isAbsolute(filePath)) return
+      if (!path.isAbsolute(filePath) || !watchedPath) return
       const resolved = path.resolve(filePath)
+      if (!filePathsMatch(watchedPath, resolved)) return
       ignoreUntilMs = Date.now() + selfWriteWindowMs
       void fs
         .readFile(resolved, 'utf8')
         .then((content) => {
+          if (!watchedPath || !filePathsMatch(watchedPath, resolved)) return
           lastSelfWriteContent = content
           ignoreUntilMs = Date.now() + selfWriteWindowMs
         })

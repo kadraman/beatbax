@@ -216,15 +216,6 @@ export default function App(): React.JSX.Element {
       editorDirty.set(false);
     }
     void workspaceRef.current?.refreshRecentFiles();
-
-    const api = window.electronAPI;
-    if (api?.watchDocument) {
-      if (filePath && isAbsoluteFilePath(filePath)) {
-        void api.watchDocument(filePath);
-      } else {
-        void api.unwatchDocument();
-      }
-    }
   }, [appContext.eventBus, requestAutoPlayAfterParse, runParse, stopPlayback, syncDocumentStatus]);
 
   const decodePayload = useCallback((payload: { path: string; name: string; data: Uint8Array }) => {
