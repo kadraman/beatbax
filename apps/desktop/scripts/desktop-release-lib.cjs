@@ -136,7 +136,8 @@ function resolveDesktopReleaseIdentity({ pkg, env = {}, sha = '' } = {}) {
   const version =
     env.BEATBAX_DESKTOP_VERSION ||
     (dev && resolvedSha ? `${packageVersion}-dev.${resolvedSha}` : packageVersion);
-  const tag = env.BEATBAX_DESKTOP_TAG || (dev ? 'desktop-dev' : `desktop-v${packageVersion}`);
+  const defaultTagVersion = env.BEATBAX_DESKTOP_VERSION || packageVersion;
+  const tag = env.BEATBAX_DESKTOP_TAG || (dev ? 'desktop-dev' : `desktop-v${defaultTagVersion}`);
   return { version, tag, dev, shortSha: resolvedSha };
 }
 
