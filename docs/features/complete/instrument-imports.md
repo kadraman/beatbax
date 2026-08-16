@@ -74,8 +74,8 @@ overrides as errors.
 
 - **Path Resolution**: Uses Node.js `path.resolve()` with cross-platform support (posix for tests)
 - **CLI Integration**: All commands (play, verify, export) resolve imports with filename context
-- **Desktop Support**: Local imports resolve via Electron file IPC relative to the on-disk song path
-- **Browser Support**: Local imports are NOT supported in the web-lite client; use remote imports instead
+- **Desktop Support**: Local imports resolve via Electron file IPC relative to the on-disk song path. Parse, Play, and CodeLens ▶ Preview merge kits. **Desktop Export does not yet** — [`ExportManager`](../../../packages/app-core/src/export/export-manager.ts) still validates the unmerged AST ([#171](https://github.com/kadraman/beatbax/issues/171), [`desktop-export-imported-instruments.md`](../desktop-export-imported-instruments.md)).
+- **Browser Support**: Local imports are NOT supported in the web-lite client; use remote imports instead. Web-lite has no Export menu; the shared `ExportManager` gap still applies if export is re-enabled.
 - **Cycle Detection**: Import graphs are validated; circular imports throw errors
 - **File Caching**: Each imported file is parsed once per resolution session
 - **Testing**: 18 tests covering parser, resolver, and end-to-end scenarios
@@ -123,8 +123,13 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
 
 ### Export Changes
 
-- No changes to export formats are required; imports are compile-time only and
+- No changes to export **formats** are required; imports are compile-time only and
   merge into the existing instrument table used by the resolver and exporter.
+- **CLI** export already merges `import` before validation.
+- **Desktop/web `ExportManager`** still skips that merge as of 2026-08-16. Kit-only
+  songs fail validation (`undefined instrument`) before any exporter plugin runs.
+  Spec: [`desktop-export-imported-instruments.md`](../desktop-export-imported-instruments.md)
+  ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ### Documentation Updates
 
@@ -333,6 +338,8 @@ All tests pass. See `packages/engine/tests/` for implementation.
 - ✅ Emit warnings for overrides; strict mode support
 - ✅ CLI integration (all commands support imports)
 - ✅ Browser playback import resolution
+- ✅ Desktop parse / Play / CodeLens preview merge imports ([#170](https://github.com/kadraman/beatbax/issues/170), [#176](https://github.com/kadraman/beatbax/pull/176))
+- ⬜ Desktop/web `ExportManager` import merge ([#171](https://github.com/kadraman/beatbax/issues/171))
 - ✅ Add unit and integration tests (18 tests total)
 - ✅ Update docs tutorial, `README.md`, and documentation
 

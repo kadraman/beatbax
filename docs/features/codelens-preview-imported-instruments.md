@@ -1,6 +1,6 @@
 ---
 title: "CodeLens preview with imported instruments"
-status: proposed
+status: implemented
 authors: ["kadraman"]
 created: 2026-08-16
 related:
@@ -8,16 +8,17 @@ related:
   - docs/features/complete/remote-imports.md
   - docs/features/complete/editor-interactive-features.md
   - docs/features/complete/enhanced-command-palette-commands.md
-  - .github/ISSUES/codelens-preview-imported-instruments.md
-  - .github/ISSUES/desktop-local-imports.md
-  - .github/ISSUES/desktop-export-imported-instruments.md
+  - docs/features/desktop-export-imported-instruments.md
+issue: "https://github.com/kadraman/beatbax/issues/175"
 ---
 
 ## Summary
 
-CodeLens ▶ Preview on `pat`, `seq`, and `effect` lines is silent when the song's instruments come from `import` (for example `import "local:lib/gameboy-common.ins"`). Whole-song Play works. Inline `inst` in the same `.bax` works.
+CodeLens ▶ Preview on `pat`, `seq`, and `effect` lines was silent when the song's instruments came from `import` (for example `import "local:lib/gameboy-common.ins"`). Whole-song Play worked. Inline `inst` in the same `.bax` worked.
 
-Merge imports in the preview path the same way Play and the parse pipeline already do, then resolve and play. Keep re-parsing on each click so live edits are heard.
+**Shipped in [#176](https://github.com/kadraman/beatbax/pull/176).** Preview now merges imports the same way Play and the parse pipeline do, then resolves and plays. Clicks still re-parse so live edits are heard.
+
+Desktop Export of the same kit songs is still open: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ## Problem Statement
 
@@ -104,7 +105,7 @@ None.
 
 ### CLI Changes
 
-None. CLI play / verify already resolve imports.
+None. CLI play / verify already resolve imports. CLI export also merges imports; Desktop/web `ExportManager` does not — see [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ### Web UI / Desktop Changes
 
@@ -115,11 +116,11 @@ Desktop `local:` continues to use Electron FS injection via `buildImportResolver
 
 ### Export Changes
 
-None. ExportManager skipping imports is a separate bug: [`.github/ISSUES/desktop-export-imported-instruments.md`](../../.github/ISSUES/desktop-export-imported-instruments.md).
+None. ExportManager skipping imports is a separate bug: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ### Documentation Updates
 
-This spec. After implementation, move to `docs/features/complete/` and note the preview path in [`instrument-imports.md`](complete/instrument-imports.md).
+This spec. Preview shipped in [#176](https://github.com/kadraman/beatbax/pull/176). After the remaining export gap lands, move this file to `docs/features/complete/` and note the preview path in [`instrument-imports.md`](complete/instrument-imports.md).
 
 ## Testing Strategy
 
@@ -138,13 +139,13 @@ No song-format change. Songs that already import kits start previewing without a
 
 ## Implementation Checklist
 
-- [ ] `parseAndResolveForPreview` merges imports with `buildImportResolverOptions()`.
-- [ ] All CodeLens preview / loop / effect / inst-note / MIDI-audition triggers use the merged AST.
-- [ ] `ensureAudioCtxReady()` still runs before any `await`.
-- [ ] Import failure and “no instrument to preview” emit `preview:error` (Output panel), not a silent no-op.
-- [ ] `KEEP_LINES_RE` retains `import` lines; pattern Alt+P uses channel inst when there is no inline `inst`.
-- [ ] Desktop `local:` preview uses the saved document path; web-lite still blocks `local:`.
-- [ ] Unit tests + `@beatbax/app-core` patch changeset.
+- [x] `parseAndResolveForPreview` merges imports with `buildImportResolverOptions()`.
+- [x] All CodeLens preview / loop / effect / inst-note / MIDI-audition triggers use the merged AST.
+- [x] `ensureAudioCtxReady()` still runs before any `await`.
+- [x] Import failure and “no instrument to preview” emit `preview:error` (Output panel), not a silent no-op.
+- [x] `KEEP_LINES_RE` retains `import` lines; pattern Alt+P uses channel inst when there is no inline `inst`.
+- [x] Desktop `local:` preview uses the saved document path; web-lite still blocks `local:`.
+- [x] Unit tests + `@beatbax/app-core` patch changeset.
 
 ## Future Enhancements
 
@@ -158,9 +159,9 @@ None for v1. Preview stays click-to-reparse; do not snapshot `latestResolvedAst`
 
 - [`docs/features/complete/instrument-imports.md`](complete/instrument-imports.md)
 - [`docs/features/complete/editor-interactive-features.md`](complete/editor-interactive-features.md)
-- [`.github/ISSUES/codelens-preview-imported-instruments.md`](../../.github/ISSUES/codelens-preview-imported-instruments.md)
-- [`.github/ISSUES/desktop-local-imports.md`](../../.github/ISSUES/desktop-local-imports.md) (parse / diagnostics)
-- [`.github/ISSUES/desktop-export-imported-instruments.md`](../../.github/ISSUES/desktop-export-imported-instruments.md) (export path)
+- Preview shipped in [#176](https://github.com/kadraman/beatbax/pull/176) (Fixes [#175](https://github.com/kadraman/beatbax/issues/175)).
+- Parse / diagnostics: [#170](https://github.com/kadraman/beatbax/issues/170)
+- Export path still open: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171))
 
 ## Additional Notes
 
