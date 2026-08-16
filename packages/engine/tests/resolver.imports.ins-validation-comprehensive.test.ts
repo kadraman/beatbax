@@ -104,9 +104,65 @@ describe('.ins File Validation - Comprehensive', () => {
       ).rejects.toThrow('bpm');
     });
 
-    // NOTE: time, stepsPerBar, and ticksPerStep directives are parsed but not currently
-    // added to the AST by the parser - they're silently ignored. If they're ever added to
-    // the AST, validation will need to be updated to reject them in .ins files.
+    test('rejects time directive', async () => {
+      const mockFileSystem = createMockFileSystem(`time 4\ninst test type=pulse1 duty=50 env=12,down`);
+
+      const ast: AST = {
+        imports: [{ source: 'local:lib/invalid.ins' }],
+        insts: {},
+        pats: {},
+        seqs: {},
+        channels: [],
+      };
+
+      await expect(
+        resolveImports(ast, {
+          baseFilePath: '/test/main.bax',
+          readFile: (path: string) => mockFileSystem[path] || '',
+          fileExists: (path: string) => path in mockFileSystem,
+        })
+      ).rejects.toThrow(/Found:.*\btime\b/);
+    });
+
+    test('rejects stepsPerBar directive', async () => {
+      const mockFileSystem = createMockFileSystem(`stepsPerBar 4\ninst test type=pulse1 duty=50 env=12,down`);
+
+      const ast: AST = {
+        imports: [{ source: 'local:lib/invalid.ins' }],
+        insts: {},
+        pats: {},
+        seqs: {},
+        channels: [],
+      };
+
+      await expect(
+        resolveImports(ast, {
+          baseFilePath: '/test/main.bax',
+          readFile: (path: string) => mockFileSystem[path] || '',
+          fileExists: (path: string) => path in mockFileSystem,
+        })
+      ).rejects.toThrow(/Found: stepsPerBar/);
+    });
+
+    test('rejects chipRegion qualifier', async () => {
+      const mockFileSystem = createMockFileSystem(`chip sms pal\ninst test type=pulse1`);
+
+      const ast: AST = {
+        imports: [{ source: 'local:lib/invalid.ins' }],
+        insts: {},
+        pats: {},
+        seqs: {},
+        channels: [],
+      };
+
+      await expect(
+        resolveImports(ast, {
+          baseFilePath: '/test/main.bax',
+          readFile: (path: string) => mockFileSystem[path] || '',
+          fileExists: (path: string) => path in mockFileSystem,
+        })
+      ).rejects.toThrow(/chipRegion/);
+    });
 
     test('rejects volume directive', async () => {
       const mockFileSystem = createMockFileSystem(`volume 0.8\ninst test type=pulse1 duty=50 env=12,down`);
@@ -126,6 +182,26 @@ describe('.ins File Validation - Comprehensive', () => {
           fileExists: (path: string) => path in mockFileSystem,
         })
       ).rejects.toThrow('volume');
+    });
+
+    test('rejects scale directive as a named disallowed directive', async () => {
+      const mockFileSystem = createMockFileSystem(`scale C major warn\ninst test type=pulse1 duty=50 env=12,down`);
+
+      const ast: AST = {
+        imports: [{ source: 'local:lib/invalid.ins' }],
+        insts: {},
+        pats: {},
+        seqs: {},
+        channels: [],
+      };
+
+      await expect(
+        resolveImports(ast, {
+          baseFilePath: '/test/main.bax',
+          readFile: (path: string) => mockFileSystem[path] || '',
+          fileExists: (path: string) => path in mockFileSystem,
+        })
+      ).rejects.toThrow(/Found: scale/);
     });
   });
 

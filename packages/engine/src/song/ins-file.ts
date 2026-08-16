@@ -3,7 +3,7 @@
  * and binding `subpat=` names onto instrument `subpatRows`.
  */
 
-import type { InstMap, SubPatternDef } from '../parser/ast.js';
+import type { AST, InstMap, SubPatternDef } from '../parser/ast.js';
 
 export type SubPatternMap = Record<string, SubPatternDef>;
 
@@ -30,6 +30,7 @@ export const INS_AST_ALLOWED_KEYS = new Set([
   'time',
   'stepsPerBar',
   'volume',
+  'scale',
   'metadata',
   'effects',
   'patternEvents',
@@ -37,6 +38,25 @@ export const INS_AST_ALLOWED_KEYS = new Set([
   'subpatterns',
   'diagnostics',
 ]);
+
+/** Song-level scalar AST fields that must not appear in .ins files. */
+export const INS_AST_DISALLOWED_SCALARS = [
+  'chip',
+  'chipRegion',
+  'bpm',
+  'time',
+  'stepsPerBar',
+  'volume',
+  'scale',
+] as const;
+
+export function collectDisallowedInsScalars(ast: AST): string[] {
+  const disallowed: string[] = [];
+  for (const key of INS_AST_DISALLOWED_SCALARS) {
+    if (ast[key] !== undefined) disallowed.push(key);
+  }
+  return disallowed;
+}
 
 export function mergeSubpatterns(
   base: SubPatternMap,

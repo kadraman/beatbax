@@ -14,6 +14,7 @@ import {
   INS_AST_ALLOWED_KEYS,
   ImportBundle,
   bindSubpatRows,
+  collectDisallowedInsScalars,
   emptyImportBundle,
   mergeSubpatterns,
 } from './ins-file.js';
@@ -235,9 +236,7 @@ function validateInsFile(ast: AST, filePath: string): void {
   if (ast.play !== undefined) disallowed.push('play');
 
   // Top-level scalar directives (should not be in .ins files)
-  if (ast.chip !== undefined) disallowed.push('chip');
-  if (ast.bpm !== undefined) disallowed.push('bpm');
-  if (ast.volume !== undefined) disallowed.push('volume');
+  disallowed.push(...collectDisallowedInsScalars(ast));
 
   // Metadata
   if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
