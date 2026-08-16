@@ -159,6 +159,21 @@ describe('resolveDesktopReleaseIdentity', () => {
       tag: 'desktop-dev',
     });
   });
+
+  it('keeps stable tag based on package version when version override is set', () => {
+    expect(
+      resolveDesktopReleaseIdentity({
+        pkg,
+        env: {
+          BEATBAX_DESKTOP_VERSION: '0.2.0-dev.custom',
+        },
+      }),
+    ).toMatchObject({
+      version: '0.2.0-dev.custom',
+      tag: 'desktop-v0.2.0',
+      dev: false,
+    });
+  });
 });
 
 describe('electron-builder overlay', () => {
