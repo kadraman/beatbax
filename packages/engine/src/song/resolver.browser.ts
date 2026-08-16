@@ -643,7 +643,8 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     chipRegion: ast.chipRegion,
     volume: ast.volume,
     play: ast.play,
-    metadata: ast.metadata
+    metadata: ast.metadata,
+    subpatterns: ast.subpatterns,
   } as unknown as SongModel;
 }
 

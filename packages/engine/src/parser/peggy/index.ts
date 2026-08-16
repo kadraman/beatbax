@@ -1092,8 +1092,9 @@ export function parseWithPeggy(source: string): ParseResult {
     if (!name) continue;
     const def = subpatterns[name];
     if (!def) {
+      const level = imports.length > 0 ? 'warning' : 'error';
       diag(
-        'error',
+        level,
         'parser',
         `Instrument '${instName}': subpat='${name}' is not defined.`,
         p.__loc,
@@ -1155,7 +1156,7 @@ export function parseWithPeggy(source: string): ParseResult {
         diag('error', 'parser', `Instrument '${instName}': unknown type '${type}'. Valid types: ${VALID_INST_TYPES.join(', ')}.`, instLoc);
       }
       for (const key of Object.keys(p)) {
-        if (key === '__loc') continue;
+        if (key === '__loc' || key === 'subpatRows') continue;
         const bare = key.includes(':') ? key.split(':').pop()! : key;
         if (!allowedProps.has(bare.toLowerCase())) {
           diag('warning', 'parser', `Instrument '${instName}': unknown property '${key}'.`, instLoc);

@@ -29,6 +29,16 @@ describe('Remote .ins File Validation - Comprehensive', () => {
       ).rejects.toThrow(/chip/);
     });
 
+    test('rejects chipRegion qualifier', async () => {
+      const cache = new RemoteInstrumentCache({
+        fetchFn: async () => new Response('chip sms pal\ninst test type=pulse1'),
+      });
+
+      await expect(
+        cache.fetch('https://example.com/test.ins')
+      ).rejects.toThrow(/chipRegion/);
+    });
+
     test('rejects bpm directive', async () => {
       const cache = new RemoteInstrumentCache({
         fetchFn: async () => new Response('bpm 140\ninst test type=pulse1'),
@@ -47,6 +57,36 @@ describe('Remote .ins File Validation - Comprehensive', () => {
       await expect(
         cache.fetch('https://example.com/test.ins')
       ).rejects.toThrow(/volume/);
+    });
+
+    test('rejects time directive', async () => {
+      const cache = new RemoteInstrumentCache({
+        fetchFn: async () => new Response('time 4\ninst test type=pulse1'),
+      });
+
+      await expect(
+        cache.fetch('https://example.com/test.ins')
+      ).rejects.toThrow(/Found:.*\btime\b/);
+    });
+
+    test('rejects stepsPerBar directive', async () => {
+      const cache = new RemoteInstrumentCache({
+        fetchFn: async () => new Response('stepsPerBar 4\ninst test type=pulse1'),
+      });
+
+      await expect(
+        cache.fetch('https://example.com/test.ins')
+      ).rejects.toThrow(/Found: stepsPerBar/);
+    });
+
+    test('rejects scale directive as a named disallowed directive', async () => {
+      const cache = new RemoteInstrumentCache({
+        fetchFn: async () => new Response('scale C major warn\ninst test type=pulse1'),
+      });
+
+      await expect(
+        cache.fetch('https://example.com/test.ins')
+      ).rejects.toThrow(/Found: scale/);
     });
 
     test('rejects pattern definitions', async () => {
