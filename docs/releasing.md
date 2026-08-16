@@ -59,7 +59,7 @@ Example: `desktop-v0.1.0`, `desktop-v0.2.0`
 
 1. Ensure `main` is green (CI + desktop validate job).
 
-2. Optionally edit `apps/desktop/build/release-notes.body.txt` with curated highlights. CI prepends that file to GitHub’s auto-generated notes (PR titles since the previous `desktop-v*` tag) and writes a new section into `apps/desktop/CHANGELOG.md` on `main`.
+2. Optionally edit `apps/desktop/build/release-notes.body.txt` with curated highlights. CI merges that file with GitHub’s auto-generated notes (PR titles since the previous `desktop-v*` tag) into the GitHub Release body and writes a new section into `apps/desktop/CHANGELOG.md` on `main`.
 
 3. Create and push an annotated tag on the commit to release:
 
@@ -121,7 +121,7 @@ The package job verifies macOS artifacts with `codesign` / `spctl` when the cert
 
 Desktop release assets always include `SHA256SUMS`. When GPG secrets are configured, `.deb` packages are signed before hashing, then `SHA256SUMS.asc` and `beatbax-release.asc` are attached. Details: [desktop-release-checksums.md](desktop-release-checksums.md).
 
-`generate-install-docs.cjs` runs during `desktop:dist` / the CI package job and bundles `README.txt` plus `RELEASE-NOTES.txt`. Curated installer notes still come from `apps/desktop/build/release-notes.body.txt` (optional). GitHub Release notes and `apps/desktop/CHANGELOG.md` are generated from pull request titles; pass `previous_tag` as the last `desktop-v*` tag so npm package tags are not used as the comparison base.
+`generate-install-docs.cjs` runs during `desktop:dist` / the CI package job and bundles `README.txt` plus `RELEASE-NOTES.txt`. Curated installer notes still come from `apps/desktop/build/release-notes.body.txt` (optional). GitHub Release notes merge that curated file with pull-request titles from GitHub’s generate-notes API (comparison base: last `desktop-v*` tag, so npm package tags are not used).
 
 Windows SmartScreen workaround for users: [desktop-windows-signing-setup.md](desktop-windows-signing-setup.md).
 
