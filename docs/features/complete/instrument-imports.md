@@ -63,7 +63,7 @@ import "local:relative/path/to/instruments.ins"
 
 **The `local:` prefix is required for all local file imports.** This ensures explicit intent and enables security enforcement in browser environments.
 
-`.ins` files contain only `inst` declarations and optional `import` lines.
+`.ins` files contain `inst` declarations, optional `import` lines, and optional native `subpat` tables. Named subpatterns merge into the song so a `.bax` can use `subpat=library_name` without copying the block.
 Imports resolve relative to the importing file first, then fall back to configured
 search paths. Imports are processed recursively with cycle detection and file
 caching. When names conflict, later definitions overwrite earlier ones (last-wins);
@@ -113,8 +113,9 @@ later definitions win.
 
 - Recognize `import` as a top-level directive and emit `ImportNode` during
   parsing.
-- When parsing `.ins` files, validate that only `inst` and `import` nodes are
-  present; report a parse-time error for other node kinds.
+- When parsing `.ins` files, validate that only `inst`, `import`, and `subpat`
+  nodes are present; report a parse-time error for other node kinds. Named
+  `subpat` tables merge into the song AST so local instruments can reference them.
 
 Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
 
