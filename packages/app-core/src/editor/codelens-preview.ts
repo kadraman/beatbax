@@ -22,10 +22,11 @@
 
 import * as monaco from 'monaco-editor';
 import { parse, parseWithPeggy } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song';
+import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
+import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 
 // ---------------------------------------------------------------------------
 // Instrument resolution
@@ -104,6 +105,40 @@ export function parseSourceForPreview(source: string): any | null {
   const hasChip = Boolean(ast?.chip);
   if (hasInsts || hasChip) return ast;
   return null;
+}
+
+/**
+ * Parse the buffer for a CodeLens preview click, then merge `import` kits.
+ * Desktop/web `resolveSong` cannot call `resolveImportsSync` (browser bundle);
+ * Play already uses this async merge — preview must too.
+ */
+export async function parseAndResolveForPreview(
+  source: string,
+  eventBus: Pick<EventBus, 'emit'>,
+  options?: { tolerateErrors?: boolean },
+): Promise<any | null> {
+  let ast: any | null;
+  if (options?.tolerateErrors) {
+    ast = parseSourceForPreview(source);
+  } else {
+    try {
+      ast = parse(source);
+    } catch {
+      return null;
+    }
+  }
+  if (!ast) return null;
+
+  if (Array.isArray(ast.imports) && ast.imports.length > 0) {
+    try {
+      ast = await resolveImports(ast, buildImportResolverOptions());
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      eventBus.emit('preview:error', { message: `Import failed: ${message}` });
+      return null;
+    }
+  }
+  return ast;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +371,7 @@ async function startInstNotePreview(
  * pulse1 > pulse2 > wave > noise (prefer melodic channels).
  * For sweep effects, pulse1 is required (hardware sweep lives on ch1 only).
  */
-function resolveEffectPreviewInstrument(ast: any, preferType?: string): string | null {
+export function resolveEffectPreviewInstrument(ast: any, preferType?: string): string | null {
   const insts = Object.entries(ast.insts ?? {}) as [string, any][];
   const order = preferType
     ? [preferType, 'pulse1', 'pulse2', 'wave', 'noise'].filter((v, i, a) => a.indexOf(v) === i)
@@ -691,17 +726,29 @@ export function setupCodeLensPreview(
     notifyChange();
   }
 
+  function failPreview(message: string): void {
+    eventBus.emit('preview:error', { message });
+  }
+
+  async function astForPreview(tolerateErrors = false): Promise<any | null> {
+    return parseAndResolveForPreview(getSource(), eventBus, { tolerateErrors });
+  }
+
   // ── Wire module-level command bridges to this instance ──────────────────
   _previewTrigger = async (patternName: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     if (previewState?.key === `pat:${patternName}`) { stopPreview(); return; }
     stopPreview();
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = await astForPreview();
+    if (!rawAst) return;
     const state = await startPatternPreview(patternName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
+    if (!state) {
+      failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
@@ -709,13 +756,17 @@ export function setupCodeLensPreview(
   _instNotePreviewTrigger = async (instName: string, note: string) => {
     ensureAudioCtxReady(); // synchronous — must stay before any await
     stopPreview(); // always stop current note and restart (allows re-clicking same note)
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = await astForPreview();
+    if (!rawAst) return;
 
     // Detect browser-incompatible local: DMC sample references before attempting
     // playback — the DMC backend blocks local: in browser contexts for security,
     // so the preview would start but be completely silent with no user feedback.
     const instDef = rawAst.insts?.[instName];
+    if (!instDef) {
+      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
+      return;
+    }
     if (
       instDef?.type?.toLowerCase() === 'dmc' &&
       typeof instDef.dmc_sample === 'string' &&
@@ -732,19 +783,26 @@ export function setupCodeLensPreview(
       previewState = null;
       notifyChange();
     });
+    if (!state) {
+      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
 
   _stepEntryAuditionTrigger = async (lineText: string, note: string) => {
-    const rawAst = parseSourceForPreview(getSource());
+    ensureAudioCtxReady(); // synchronous — must stay before any await
+    stopPreview();
+
+    const rawAst = await astForPreview(true);
     if (!rawAst) return;
 
     const instName = resolveAuditionInstrumentForLine(lineText, rawAst);
-    if (!instName) return;
-
-    ensureAudioCtxReady(); // synchronous — must stay before any await
-    stopPreview();
+    if (!instName) {
+      failPreview('Preview unavailable: no instrument found for this line.');
+      return;
+    }
 
     const instDef = rawAst.insts?.[instName];
     if (
@@ -763,6 +821,10 @@ export function setupCodeLensPreview(
       previewState = null;
       notifyChange();
     });
+    if (!state) {
+      failPreview(`Preview unavailable: instrument '${instName}' is not defined.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
@@ -778,8 +840,8 @@ export function setupCodeLensPreview(
     // Each iteration re-parses the source so live edits are picked up.
     async function playNext(): Promise<void> {
       if (cancelled) return;
-      let rawAst: any;
-      try { rawAst = parse(getSource()); } catch { return; }
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled) return;
       // One-shot guard prevents double-fire if both timer and onComplete fire.
       let fired = false;
       const onIterationDone = () => {
@@ -788,7 +850,12 @@ export function setupCodeLensPreview(
         void playNext();
       };
       const state = await startPatternPreview(patternName, rawAst, onIterationDone);
-      if (!state || cancelled) return;
+      if (!state || cancelled) {
+        if (!state && !cancelled) {
+          failPreview(`Preview unavailable: no instrument found for pattern '${patternName}'.`);
+        }
+        return;
+      }
       state.key = `loop:${patternName}`;
       state.cancelLoop = cancel;
       previewState = state;
@@ -802,12 +869,16 @@ export function setupCodeLensPreview(
     ensureAudioCtxReady();
     if (previewState?.key === `seq:${seqName}`) { stopPreview(); return; }
     stopPreview();
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = await astForPreview();
+    if (!rawAst) return;
     const state = await startSeqPreview(seqName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
+    if (!state) {
+      failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
@@ -822,8 +893,8 @@ export function setupCodeLensPreview(
 
     async function playNext(): Promise<void> {
       if (cancelled) return;
-      let rawAst: any;
-      try { rawAst = parse(getSource()); } catch { return; }
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled) return;
       let fired = false;
       const onIterationDone = () => {
         if (fired || cancelled) return;
@@ -831,7 +902,12 @@ export function setupCodeLensPreview(
         void playNext();
       };
       const state = await startSeqPreview(seqName, rawAst, onIterationDone);
-      if (!state || cancelled) return;
+      if (!state || cancelled) {
+        if (!state && !cancelled) {
+          failPreview(`Preview unavailable: no instrument found for sequence '${seqName}'.`);
+        }
+        return;
+      }
       state.key = `seq-loop:${seqName}`;
       state.cancelLoop = cancel;
       previewState = state;
@@ -845,12 +921,16 @@ export function setupCodeLensPreview(
     ensureAudioCtxReady();
     if (previewState?.key === `effect:${effectName}`) { stopPreview(); return; }
     stopPreview();
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = await astForPreview();
+    if (!rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     });
+    if (!state) {
+      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
@@ -859,12 +939,16 @@ export function setupCodeLensPreview(
     ensureAudioCtxReady();
     if (previewState?.key === `effect-slow:${effectName}`) { stopPreview(); return; }
     stopPreview();
-    let rawAst: any;
-    try { rawAst = parse(getSource()); } catch { return; }
+    const rawAst = await astForPreview();
+    if (!rawAst) return;
     const state = await startEffectPreview(effectName, rawAst, () => {
       previewState = null;
       notifyChange();
     }, { stepsOverride: 16, keyPrefix: 'effect-slow' });
+    if (!state) {
+      failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
+      return;
+    }
     previewState = state;
     notifyChange();
   };
@@ -879,8 +963,8 @@ export function setupCodeLensPreview(
 
     async function playNext(): Promise<void> {
       if (cancelled) return;
-      let rawAst: any;
-      try { rawAst = parse(getSource()); } catch { return; }
+      const rawAst = await astForPreview();
+      if (!rawAst || cancelled) return;
       let fired = false;
       const onIterationDone = () => {
         if (fired || cancelled) return;
@@ -888,7 +972,12 @@ export function setupCodeLensPreview(
         void playNext();
       };
       const state = await startEffectPreview(effectName, rawAst, onIterationDone);
-      if (!state || cancelled) return;
+      if (!state || cancelled) {
+        if (!state && !cancelled) {
+          failPreview(`Preview unavailable: no instrument found for effect '${effectName}'.`);
+        }
+        return;
+      }
       state.key = `effect-loop:${effectName}`;
       state.cancelLoop = cancel;
       previewState = state;

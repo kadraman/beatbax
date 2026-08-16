@@ -11,10 +11,10 @@ import {
   RemoteImportSecurityOptions,
 } from './urlUtils.js';
 import {
-  INS_AST_ALLOWED_KEYS,
+  INS_REMOTE_ALLOWED_DECLARATIONS,
   ImportBundle,
   bindSubpatRows,
-  collectDisallowedInsScalars,
+  collectDisallowedInsFileNodes,
 } from '../song/ins-file.js';
 
 export interface RemoteImportProgress {
@@ -33,6 +33,7 @@ export interface RemoteImportOptions extends RemoteImportSecurityOptions {
 interface CacheEntry {
   instruments: InstMap;
   subpatterns: ImportBundle['subpatterns'];
+  effects: ImportBundle['effects'];
   fetchedAt: number;
   url: string;
 }
@@ -62,14 +63,18 @@ export class RemoteInstrumentCache {
     return (await this.fetchBundle(url)).insts;
   }
 
-  /** Fetch instruments and named `subpat` tables from a remote .ins file. */
+  /** Fetch instruments, named `subpat` tables, and `effect` presets from a remote .ins file. */
   async fetchBundle(url: string): Promise<ImportBundle> {
     const normalizedUrl = normalizeRemoteUrl(url);
     validateRemoteUrl(normalizedUrl, this.options);
 
     const cached = this.cache.get(normalizedUrl);
     if (cached) {
-      return { insts: cached.instruments, subpatterns: cached.subpatterns };
+      return {
+        insts: cached.instruments,
+        subpatterns: cached.subpatterns,
+        effects: cached.effects ?? {},
+      };
     }
 
     const bundle = await this.fetchFromNetwork(normalizedUrl);
@@ -77,6 +82,7 @@ export class RemoteInstrumentCache {
     this.cache.set(normalizedUrl, {
       instruments: bundle.insts,
       subpatterns: bundle.subpatterns,
+      effects: bundle.effects,
       fetchedAt: Date.now(),
       url: normalizedUrl,
     });
@@ -152,8 +158,9 @@ export class RemoteInstrumentCache {
 
       const insts = ast.insts || {};
       const subpatterns = ast.subpatterns || {};
+      const effects = ast.effects || {};
       bindSubpatRows(insts, subpatterns);
-      return { insts, subpatterns };
+      return { insts, subpatterns, effects };
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw new Error(
@@ -171,52 +178,10 @@ export class RemoteInstrumentCache {
    * Remote .ins files may NOT contain import directives for security reasons.
    */
   private validateInsFile(ast: any, url: string): void {
-    // Remote .ins files should only contain instrument definitions
-    // Check for disallowed nodes
-    const disallowed: string[] = [];
-
-    // Import directives are explicitly forbidden in remote .ins files
-    if (ast.imports && ast.imports.length > 0) {
-      disallowed.push('imports (nested imports are not allowed in remote .ins files)');
-    }
-
-    // Playback/structure directives
-    if (Object.keys(ast.pats || {}).length > 0) disallowed.push('patterns');
-    if (Object.keys(ast.seqs || {}).length > 0) disallowed.push('sequences');
-    if ((ast.channels || []).length > 0) disallowed.push('channels');
-    if (ast.play !== undefined) disallowed.push('play');
-
-    // Top-level scalar directives (should not be in .ins files)
-    disallowed.push(...collectDisallowedInsScalars(ast));
-
-    // Metadata
-    if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
-      disallowed.push('metadata');
-    }
-
-    // Effect definitions
-    if (ast.effects && Object.keys(ast.effects).length > 0) disallowed.push('effects');
-
-    // Pattern events and structured patterns
-    if (ast.patternEvents && Object.keys(ast.patternEvents).length > 0) {
-      disallowed.push('patternEvents');
-    }
-    if (ast.sequenceItems && Object.keys(ast.sequenceItems).length > 0) {
-      disallowed.push('sequenceItems');
-    }
-
-    // Check for any other non-standard properties that might be added
-    const allowedKeys = INS_AST_ALLOWED_KEYS;
-
-    for (const key of Object.keys(ast)) {
-      if (!allowedKeys.has(key) && key !== 'insts') {
-        disallowed.push(`unknown property '${key}'`);
-      }
-    }
-
+    const disallowed = collectDisallowedInsFileNodes(ast, { nestedImportsAllowed: false });
     if (disallowed.length > 0) {
       throw new Error(
-        `Invalid remote .ins file "${url}": remote .ins files may only contain "inst" and "subpat" declarations. ` +
+        `Invalid remote .ins file "${url}": remote .ins files may only contain ${INS_REMOTE_ALLOWED_DECLARATIONS} declarations. ` +
         `Found: ${disallowed.join(', ')}`
       );
     }

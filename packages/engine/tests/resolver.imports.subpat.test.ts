@@ -118,7 +118,7 @@ pat melody = C5 E5 G5
         readFile: fs.readFile,
         fileExists: fs.fileExists,
       }),
-    ).rejects.toThrow(/inst", "import", and "subpat"/);
+    ).rejects.toThrow(/inst", "import", "subpat", and "effect"/);
   });
 
   test('accepts a remote .ins file that contains native subpat', async () => {

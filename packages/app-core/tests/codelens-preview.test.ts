@@ -1,12 +1,32 @@
+const mockParse: jest.Mock = jest.fn(() => ({
+  pats: {},
+  patsOrder: [],
+  insts: {},
+  seqs: {},
+  channels: [],
+  bpm: 120,
+}));
 const mockParseWithPeggy = jest.fn();
+const mockResolveImports: jest.Mock = jest.fn(async (ast: any) => ast);
 
 jest.mock('@beatbax/engine/parser', () => ({
-  parse: (source?: string) => ({ pats: {}, patsOrder: [], insts: {}, seqs: {}, channels: [], bpm: 120 }),
+  parse: (...args: any[]) => mockParse(...args),
   parseWithPeggy: (...args: unknown[]) => mockParseWithPeggy(...args),
 }));
 
+jest.mock('@beatbax/engine/song', () => ({
+  resolveSong: jest.fn((ast: any) => ast),
+  resolveImports: (ast: any, options?: any) => mockResolveImports(ast, options),
+}));
+
 import { EventBus } from '../src/utils/event-bus';
-import { resolveAuditionInstrumentForLine, parseSourceForPreview, setupCodeLensPreview } from '../src/editor/codelens-preview';
+import {
+  resolveAuditionInstrumentForLine,
+  parseSourceForPreview,
+  parseAndResolveForPreview,
+  resolveEffectPreviewInstrument,
+  setupCodeLensPreview,
+} from '../src/editor/codelens-preview';
 import * as monaco from 'monaco-editor';
 
 describe('CodeLens Preview provider', () => {
@@ -129,5 +149,55 @@ describe('CodeLens Preview provider', () => {
       ast: { pats: {}, insts: {}, channels: [] },
     });
     expect(parseSourceForPreview('pat test =')).toBeNull();
+  });
+
+  it('parseAndResolveForPreview merges imported instruments before preview lookup', async () => {
+    mockParse.mockReturnValue({
+      imports: [{ source: 'local:lib/kit.ins' }],
+      insts: {},
+      pats: { melody: ['C5'] },
+      seqs: { main: ['melody'] },
+      channels: [{ id: 1, inst: 'gb_lead', seqSpecTokens: ['main'] }],
+    });
+    mockResolveImports.mockResolvedValue({
+      imports: [],
+      insts: { gb_lead: { type: 'pulse1' }, kick: { type: 'noise' } },
+      pats: { melody: ['C5'] },
+      seqs: { main: ['melody'] },
+      channels: [{ id: 1, inst: 'gb_lead', seqSpecTokens: ['main'] }],
+    });
+
+    const ast = await parseAndResolveForPreview('import "local:lib/kit.ins"\n', eventBus);
+    expect(mockResolveImports).toHaveBeenCalled();
+    expect(ast.insts.gb_lead).toEqual({ type: 'pulse1' });
+    expect(resolveAuditionInstrumentForLine('pat melody = C5', ast)).toBe('gb_lead');
+    expect(resolveEffectPreviewInstrument(ast)).toBe('gb_lead');
+    expect(resolveEffectPreviewInstrument(ast, 'noise')).toBe('kick');
+  });
+
+  it('parseAndResolveForPreview skips resolveImports when the song has no imports', async () => {
+    mockParse.mockReturnValue({
+      imports: [],
+      insts: { lead: { type: 'pulse1' } },
+    });
+
+    const ast = await parseAndResolveForPreview('inst lead type=pulse1', eventBus);
+    expect(mockResolveImports).not.toHaveBeenCalled();
+    expect(ast.insts.lead).toEqual({ type: 'pulse1' });
+  });
+
+  it('parseAndResolveForPreview emits preview:error when import merge fails', async () => {
+    mockParse.mockReturnValue({
+      imports: [{ source: 'local:missing.ins' }],
+      insts: {},
+    });
+    mockResolveImports.mockRejectedValue(new Error('file not found'));
+
+    const messages: string[] = [];
+    eventBus.on('preview:error', ({ message }) => { messages.push(message); });
+
+    const ast = await parseAndResolveForPreview('import "local:missing.ins"\n', eventBus);
+    expect(ast).toBeNull();
+    expect(messages[0]).toMatch(/Import failed: file not found/);
   });
 });

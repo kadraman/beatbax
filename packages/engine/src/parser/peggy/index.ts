@@ -1306,9 +1306,9 @@ export function parseWithPeggy(source: string): ParseResult {
     };
     const validateEffectBodies = (patName: string, bodies: string[] | undefined, loc: any): void => {
       if (!bodies || bodies.length === 0) return;
-      // Skip when the chip is unknown (rules fall back to Game Boy and could
-      // misfire) or when imports may supply the definition.
-      if (!chipIsKnown || imports.length > 0) return;
+      // Skip when the chip is unknown (rules fall back to Game Boy and could misfire).
+      // Imported `effect` presets are filtered after resolveImports (same as instruments).
+      if (!chipIsKnown) return;
       for (const body of bodies) {
         for (const head of unknownEffectTypes(body)) {
           diag('warning', 'parser', `Pattern '${patName}': effect '${head}' is not defined and will be ignored — add an 'effect ${head} = ...' definition, or use a built-in inline effect such as <vib:3,5>.`, loc);
