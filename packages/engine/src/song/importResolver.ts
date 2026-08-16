@@ -11,11 +11,12 @@ import * as fs from 'fs';
 import { isRemoteImport, isLocalImport, extractLocalPath } from '../import/urlUtils.js';
 import { RemoteInstrumentCache, RemoteImportOptions } from '../import/remoteCache.js';
 import {
-  INS_AST_ALLOWED_KEYS,
+  INS_FILE_ALLOWED_DECLARATIONS,
   ImportBundle,
   bindSubpatRows,
-  collectDisallowedInsScalars,
+  collectDisallowedInsFileNodes,
   emptyImportBundle,
+  mergeEffects,
   mergeSubpatterns,
 } from './ins-file.js';
 
@@ -226,46 +227,10 @@ function resolveImportPath(
  * Validate that an AST contains only allowed node types for .ins files.
  */
 function validateInsFile(ast: AST, filePath: string): void {
-  // .ins files may contain inst, import, and native subpat declarations
-  const disallowed: string[] = [];
-
-  // Playback/structure directives
-  if (Object.keys(ast.pats || {}).length > 0) disallowed.push('patterns');
-  if (Object.keys(ast.seqs || {}).length > 0) disallowed.push('sequences');
-  if ((ast.channels || []).length > 0) disallowed.push('channels');
-  if (ast.play !== undefined) disallowed.push('play');
-
-  // Top-level scalar directives (should not be in .ins files)
-  disallowed.push(...collectDisallowedInsScalars(ast));
-
-  // Metadata
-  if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
-    disallowed.push('metadata');
-  }
-
-  // Effect definitions
-  if (ast.effects && Object.keys(ast.effects).length > 0) disallowed.push('effects');
-
-  // Pattern events and structured patterns
-  if (ast.patternEvents && Object.keys(ast.patternEvents).length > 0) {
-    disallowed.push('patternEvents');
-  }
-  if (ast.sequenceItems && Object.keys(ast.sequenceItems).length > 0) {
-    disallowed.push('sequenceItems');
-  }
-
-  // Check for any other non-standard properties that might be added
-  const allowedKeys = INS_AST_ALLOWED_KEYS;
-
-  for (const key of Object.keys(ast)) {
-    if (!allowedKeys.has(key) && key !== 'insts' && key !== 'imports') {
-      disallowed.push(`unknown property '${key}'`);
-    }
-  }
-
+  const disallowed = collectDisallowedInsFileNodes(ast, { nestedImportsAllowed: true });
   if (disallowed.length > 0) {
     throw new Error(
-      `Invalid .ins file "${filePath}": .ins files may only contain "inst", "import", and "subpat" declarations. ` +
+      `Invalid .ins file "${filePath}": .ins files may only contain ${INS_FILE_ALLOWED_DECLARATIONS} declarations. ` +
       `Found: ${disallowed.join(', ')}`
     );
   }
@@ -437,7 +402,11 @@ function finishInsBundle(
     mergeOpts(ctx),
   );
   bindSubpatRows(insts, subpatterns);
-  return { insts, subpatterns };
+  return {
+    insts,
+    subpatterns,
+    effects: mergeEffects(nested.effects, ast.effects || {}, sourcePath, mergeOpts(ctx)),
+  };
 }
 
 /**
@@ -464,6 +433,7 @@ async function processImports(
         imp.source,
         mergeOpts(ctx),
       ),
+      effects: mergeEffects(merged.effects, imported.effects || {}, imp.source, mergeOpts(ctx)),
     };
   }
 
@@ -502,10 +472,18 @@ export async function resolveImports(
   );
   bindSubpatRows(finalInsts, finalSubpats);
 
+  const finalEffects = mergeEffects(
+    imported.effects,
+    ast.effects || {},
+    options.baseFilePath || '<main>',
+    mergeOpts(ctx),
+  );
+
   return {
     ...ast,
     insts: finalInsts,
     subpatterns: Object.keys(finalSubpats).length ? finalSubpats : ast.subpatterns,
+    effects: Object.keys(finalEffects).length ? finalEffects : ast.effects,
     imports: [],
   };
 }
@@ -549,10 +527,18 @@ export function resolveImportsSync(
   );
   bindSubpatRows(finalInsts, finalSubpats);
 
+  const finalEffects = mergeEffects(
+    imported.effects,
+    ast.effects || {},
+    options.baseFilePath || '<main>',
+    mergeOpts(ctx),
+  );
+
   return {
     ...ast,
     insts: finalInsts,
     subpatterns: Object.keys(finalSubpats).length ? finalSubpats : ast.subpatterns,
+    effects: Object.keys(finalEffects).length ? finalEffects : ast.effects,
     imports: [],
   };
 }
@@ -587,6 +573,7 @@ function processImportsSync(
         imp.source,
         mergeOpts(ctx),
       ),
+      effects: mergeEffects(merged.effects, imported.effects || {}, imp.source, mergeOpts(ctx)),
     };
   }
 

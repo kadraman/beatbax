@@ -1,6 +1,6 @@
 /**
  * Comprehensive tests for .ins file validation.
- * Ensures ONLY inst, import, and native subpat declarations are allowed.
+ * Ensures ONLY inst, import, native subpat, and named effect declarations are allowed.
  */
 
 import { resolveImports } from '../src/song/importResolver';
@@ -309,30 +309,27 @@ describe('.ins File Validation - Comprehensive', () => {
       ).rejects.toThrow('metadata');
     });
 
-    test('rejects effect definitions', async () => {
-      // Note: Effect definitions don't exist as top-level directives in the current parser.
-      // This test verifies that if they did exist, they would be rejected in .ins files.
-      // For now, we'll use a mock scenario where effects are present in the AST.
+    test('accepts effect definitions', async () => {
       const mockFileSystem = {
-        '/test/lib/invalid.ins': 'inst test type=pulse1 duty=50 env=12,down',
-        '/test/main.bax': 'import "local:lib/invalid.ins"',
+        '/test/lib/valid.ins': 'inst test type=pulse1 duty=50 env=12,down\neffect drift = vib:3,4\n',
+        '/test/main.bax': 'import "local:lib/valid.ins"',
       };
-      
+
       const ast: AST = {
-        imports: [{ source: 'local:lib/invalid.ins' }],
+        imports: [{ source: 'local:lib/valid.ins' }],
         insts: {},
         pats: {},
         seqs: {},
         channels: [],
       };
 
-      // Since we can't easily create a parseable file with effects that triggers validation,
-      // we'll skip this test for now and rely on the validation logic being correct.
-      // The validation function checks for ast.effects, which would be set by the parser
-      // if effect definitions were supported.
-      
-      // This test is effectively testing the validation function's structure, not a real scenario.
-      expect(true).toBe(true); // Placeholder
+      const result = await resolveImports(ast, {
+        baseFilePath: '/test/main.bax',
+        readFile: (path: string) => mockFileSystem[path as keyof typeof mockFileSystem] || '',
+        fileExists: (path: string) => path in mockFileSystem,
+      });
+
+      expect(result.effects?.drift).toBe('vib:3,4');
     });
   });
 

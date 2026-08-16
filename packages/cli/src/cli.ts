@@ -125,12 +125,17 @@ async function validateSource(src: string, filename?: string): Promise<Validatio
   // Filter out instrument-reference diagnostics for names that are now defined
   // in the resolved AST (i.e. they were supplied by an import).
   const resolvedInsts: Record<string, unknown> = ast.insts ?? {};
+  const resolvedEffects: Record<string, unknown> = ast.effects ?? {};
   for (const d of (ast.diagnostics ?? [])) {
-    // Suppress instrument-reference issues that are resolved post-import.
+    // Suppress instrument/effect-reference issues that are resolved post-import.
     const instMatch = typeof d.message === 'string'
       ? d.message.match(/instrument '([^']+)' is not defined/)
       : null;
     if (instMatch && resolvedInsts[instMatch[1]]) continue;
+    const effectMatch = typeof d.message === 'string'
+      ? d.message.match(/effect '([^']+)' is not defined/)
+      : null;
+    if (effectMatch && resolvedEffects[effectMatch[1]]) continue;
 
     const issue: ValidationIssue = { message: d.message, loc: d.loc, component: d.component };
     if (d.level === 'error') errors.push(issue); else warnings.push(issue);

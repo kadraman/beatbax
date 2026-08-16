@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented comprehensive validation for `.ins` (instrument-library) import files to enforce the rule that **`.ins` files may only contain `inst`, `import`, and native `subpat` declarations**.
+Implemented comprehensive validation for `.ins` (instrument-library) import files to enforce the rule that **`.ins` files may only contain `inst`, `import`, native `subpat`, and named `effect` declarations**.
 
 ## Changes Made
 
@@ -28,9 +28,6 @@ The `validateInsFile` function now checks **all** AST properties and rejects:
 
 #### Metadata Directives:
 - `metadata` (song/metadata - only rejected if non-empty object)
-
-#### Effect Definitions:
-- `effects` (effect presets)
 
 #### Structured Pattern Data:
 - `patternEvents` (parsed pattern event lists)
@@ -86,7 +83,7 @@ This allows .ins files with no metadata directives to pass validation.
 8. ✅ Song metadata (`song name "..."`)
 
 ### Special Cases (3 tests):
-9. ✅ Effect definitions (placeholder test - parser doesn't support standalone effect directives)
+9. ✅ Effect definitions (accepted and merged onto the song AST)
 10. ✅ Multiple disallowed directives
 11. ✅ Empty .ins files
 
@@ -104,7 +101,7 @@ This comprehensive validation strengthens the security boundary for `.ins` files
 
 2. **Prevents Metadata Pollution:** Song metadata can only be set in the main `.bax` file, not in imports.
 
-3. **Prevents Effect Override:** Effect presets cannot be defined in `.ins` files, preventing imported files from modifying effect behavior.
+3. **Named effect libraries:** Effect presets may be defined in `.ins` files and merge last-wins (a song-local `effect` of the same name still wins). Chip/bpm/pat/play remain rejected.
 
 4. **Clear Error Messages:** When validation fails, users get a specific list of disallowed directives found in the file.
 
@@ -122,7 +119,7 @@ pat melody = C5 E5 G5
 
 **Error:**
 ```
-Invalid .ins file "lib/invalid.ins": .ins files may only contain "inst", "import", and "subpat" declarations. 
+Invalid .ins file "lib/invalid.ins": .ins files may only contain "inst", "import", "subpat", and "effect" declarations. 
 Found: chip, bpm, patterns
 ```
 
@@ -139,9 +136,10 @@ subpat kick_body =
 inst kick type=noise env=15,down subpat=kick_body
 inst snare type=noise env=12,down
 inst hat type=noise env=8,down
+effect drift = vib:3,4
 ```
 
-**Result:** ✅ Accepted - contains `import`, `inst`, and `subpat` declarations
+**Result:** ✅ Accepted - contains `import`, `inst`, `subpat`, and `effect` declarations
 
 ---
 
@@ -173,4 +171,4 @@ inst hat type=noise env=8,down
 
 ## Conclusion
 
-The comprehensive .ins validation implementation successfully enforces the "instruments, imports, and subpatterns only" rule across all AST properties, providing strong security guarantees and clear error messages when validation fails.
+The comprehensive .ins validation implementation successfully enforces the "instruments, imports, subpatterns, and effect presets only" rule across all AST properties, providing strong security guarantees and clear error messages when validation fails.
