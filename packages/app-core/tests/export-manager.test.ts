@@ -1,3 +1,28 @@
+const mockParse: jest.Mock = jest.fn(() => ({
+  pats: {},
+  patsOrder: [],
+  insts: {},
+  seqs: {},
+  channels: [],
+  bpm: 120,
+}));
+const mockResolveImports: jest.Mock = jest.fn(async (ast: any) => ast);
+const mockResolveSong: jest.Mock = jest.fn((ast: any) => ({
+  ast,
+  insts: ast?.insts ?? {},
+  channels: ast?.channels ?? [],
+  chip: ast?.chip,
+}));
+
+jest.mock('@beatbax/engine/parser', () => ({
+  parse: (...args: any[]) => mockParse(...args),
+}));
+
+jest.mock('@beatbax/engine/song', () => ({
+  resolveSong: (...args: any[]) => mockResolveSong(...args),
+  resolveImports: (ast: any, options?: any) => mockResolveImports(ast, options),
+}));
+
 jest.mock('@beatbax/engine/export', () => ({
   normalizeExporterResult: (result: unknown) => {
     if (result === undefined || result === null) return null;
@@ -37,6 +62,47 @@ jest.mock('../src/plugins/browser-exporter-registry.js', () => ({
 
 import { ExportManager } from '../src/export/export-manager';
 import { EventBus } from '../src/utils/event-bus';
+import { storage, StorageKey } from '../src/utils/local-storage';
+
+const KIT_SOURCE = `
+chip gameboy
+import "local:lib/kit.ins"
+bpm 120
+pat melody = C5 E5 G5 C6
+channel 1 => inst gb_lead pat melody
+`;
+
+const INLINE_SOURCE = `
+chip gameboy
+bpm 120
+inst lead type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+pat melody = C5 E5 G5 C6
+channel 1 => inst lead pat melody
+`;
+
+function unmergedKitAst() {
+  return {
+    chip: 'gameboy',
+    imports: [{ source: 'local:lib/kit.ins' }],
+    insts: {},
+    pats: { melody: ['C5', 'E5', 'G5', 'C6'] },
+    seqs: {},
+    channels: [{ id: 1, inst: 'gb_lead' }],
+    bpm: 120,
+  };
+}
+
+function mergedKitAst() {
+  return {
+    chip: 'gameboy',
+    imports: [],
+    insts: { gb_lead: { type: 'pulse1' }, kick: { type: 'noise' } },
+    pats: { melody: ['C5', 'E5', 'G5', 'C6'] },
+    seqs: {},
+    channels: [{ id: 1, inst: 'gb_lead' }],
+    bpm: 120,
+  };
+}
 
 function setupDownloadMocks() {
   const revokeObjectURL = jest.fn();
@@ -52,6 +118,26 @@ describe('ExportManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete (window as typeof window & { electronAPI?: unknown }).electronAPI;
+    storage.remove(StorageKey.LAST_DOCUMENT_PATH);
+    mockParse.mockImplementation(() => ({
+      pats: {},
+      patsOrder: [],
+      insts: {},
+      seqs: {},
+      channels: [],
+      bpm: 120,
+    }));
+    mockResolveImports.mockImplementation(async (ast: any) => ast);
+    mockResolveSong.mockImplementation((ast: any) => ({
+      ast,
+      insts: ast?.insts ?? {},
+      channels: ast?.channels ?? [],
+      chip: ast?.chip,
+    }));
+  });
+
+  afterEach(() => {
+    storage.remove(StorageKey.LAST_DOCUMENT_PATH);
   });
 
   test('prefers open document stem over song metadata for download name', async () => {
@@ -199,5 +285,129 @@ channel 1 => inst lead pat melody
       format: 'uge',
       filename: 'desktop-test.uge',
     });
+  });
+
+  test('merges imported instruments before default validation and plugin export', async () => {
+    setupDownloadMocks();
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockResolvedValue(mergedKitAst());
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(true);
+    expect(mockResolveImports).toHaveBeenCalledTimes(1);
+    expect(mockResolveSong).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imports: [],
+        insts: expect.objectContaining({ gb_lead: { type: 'pulse1' } }),
+      }),
+      expect.anything(),
+    );
+    expect(mockUgeExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        insts: expect.objectContaining({ gb_lead: { type: 'pulse1' }, kick: { type: 'noise' } }),
+      }),
+      expect.objectContaining({ onWarn: expect.any(Function) }),
+    );
+  });
+
+  test('does not call resolveImports when the song has no import lines', async () => {
+    setupDownloadMocks();
+    mockParse.mockReturnValue({
+      chip: 'gameboy',
+      imports: [],
+      insts: { lead: { type: 'pulse1' } },
+      pats: { melody: ['C5'] },
+      channels: [{ id: 1, inst: 'lead' }],
+      bpm: 120,
+    });
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(INLINE_SOURCE, 'uge', { filename: 'inline.bax' });
+
+    expect(result.success).toBe(true);
+    expect(mockResolveImports).not.toHaveBeenCalled();
+  });
+
+  test('emits export:error with the import message when kit merge fails', async () => {
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockRejectedValue(new Error('file not found'));
+    const eventBus = new EventBus();
+    const exportError = jest.fn();
+    eventBus.on('export:error', exportError);
+    const manager = new ExportManager(eventBus);
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toMatch(/Import failed: file not found/);
+    expect(result.error?.message).not.toMatch(/undefined instrument/);
+    expect(exportError).toHaveBeenCalledWith({
+      format: 'uge',
+      error: expect.objectContaining({ message: expect.stringMatching(/Import failed: file not found/) }),
+    });
+    expect(mockUgeExport).not.toHaveBeenCalled();
+  });
+
+  test('still errors when a channel inst is missing after import merge', async () => {
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockResolvedValue({
+      ...mergedKitAst(),
+      insts: { kick: { type: 'noise' } },
+    });
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toMatch(/undefined instrument 'gb_lead'/);
+    expect(mockUgeExport).not.toHaveBeenCalled();
+  });
+
+  test('passes LAST_DOCUMENT_PATH through buildImportResolverOptions on desktop', async () => {
+    setupDownloadMocks();
+    storage.set(StorageKey.LAST_DOCUMENT_PATH, 'C:\\music\\song.bax');
+    const existsSync = jest.fn().mockReturnValue(true);
+    const readFileSync = jest.fn().mockReturnValue('inst gb_lead type=pulse1');
+    (window as typeof window & { electronAPI: unknown }).electronAPI = {
+      readFileSync,
+      existsSync,
+    };
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockResolvedValue(mergedKitAst());
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(true);
+    expect(mockResolveImports).toHaveBeenCalledWith(
+      expect.objectContaining({ imports: [{ source: 'local:lib/kit.ins' }] }),
+      expect.objectContaining({
+        baseFilePath: 'C:\\music\\song.bax',
+        readFile: expect.any(Function),
+        fileExists: expect.any(Function),
+        onWarn: expect.any(Function),
+      }),
+    );
+  });
+
+  test('includes resolveImports override warnings on the export result', async () => {
+    setupDownloadMocks();
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockImplementation(async (ast: any, options?: { onWarn?: (message: string) => void }) => {
+      options?.onWarn?.('Instrument "gb_lead" from "local:lib/kit.ins" overrides previously defined instrument');
+      options?.onWarn?.('Effect "drift" from "local:lib/kit.ins" overrides previously defined effect');
+      return mergedKitAst();
+    });
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(true);
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      'Instrument "gb_lead" from "local:lib/kit.ins" overrides previously defined instrument',
+      'Effect "drift" from "local:lib/kit.ins" overrides previously defined effect',
+    ]));
   });
 });
