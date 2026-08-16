@@ -8,7 +8,7 @@ related:
   - docs/features/complete/remote-imports.md
   - docs/features/complete/editor-interactive-features.md
   - docs/features/complete/enhanced-command-palette-commands.md
-  - docs/features/desktop-export-imported-instruments.md
+  - docs/features/complete/desktop-export-imported-instruments.md
 issue: "https://github.com/kadraman/beatbax/issues/175"
 ---
 
@@ -18,7 +18,7 @@ CodeLens ▶ Preview on `pat`, `seq`, and `effect` lines was silent when the son
 
 **Shipped in [#176](https://github.com/kadraman/beatbax/pull/176).** Preview now merges imports the same way Play and the parse pipeline do, then resolves and plays. Clicks still re-parse so live edits are heard.
 
-Desktop Export of the same kit songs is still open: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
+Desktop Export of kit songs now merges imports the same way: [`desktop-export-imported-instruments.md`](complete/desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ## Problem Statement
 
@@ -105,7 +105,7 @@ None.
 
 ### CLI Changes
 
-None. CLI play / verify already resolve imports. CLI export also merges imports; Desktop/web `ExportManager` does not — see [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
+None. CLI play / verify already resolve imports. CLI export also merges imports. Desktop/web `ExportManager` now merges imports too — see [`desktop-export-imported-instruments.md`](complete/desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ### Web UI / Desktop Changes
 
@@ -116,11 +116,11 @@ Desktop `local:` continues to use Electron FS injection via `buildImportResolver
 
 ### Export Changes
 
-None. ExportManager skipping imports is a separate bug: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
+None. ExportManager now merges imports before validate/resolve: [`desktop-export-imported-instruments.md`](complete/desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171)).
 
 ### Documentation Updates
 
-This spec. Preview shipped in [#176](https://github.com/kadraman/beatbax/pull/176). After the remaining export gap lands, move this file to `docs/features/complete/` and note the preview path in [`instrument-imports.md`](complete/instrument-imports.md).
+This spec. Preview shipped in [#176](https://github.com/kadraman/beatbax/pull/176). Export of imported kits shipped in [`desktop-export-imported-instruments.md`](complete/desktop-export-imported-instruments.md). After housekeeping, move this file to `docs/features/complete/` and note the preview path in [`instrument-imports.md`](complete/instrument-imports.md).
 
 ## Testing Strategy
 
@@ -161,7 +161,7 @@ None for v1. Preview stays click-to-reparse; do not snapshot `latestResolvedAst`
 - [`docs/features/complete/editor-interactive-features.md`](complete/editor-interactive-features.md)
 - Preview shipped in [#176](https://github.com/kadraman/beatbax/pull/176) (Fixes [#175](https://github.com/kadraman/beatbax/issues/175)).
 - Parse / diagnostics: [#170](https://github.com/kadraman/beatbax/issues/170)
-- Export path still open: [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171))
+- Export path: [`desktop-export-imported-instruments.md`](complete/desktop-export-imported-instruments.md) ([#171](https://github.com/kadraman/beatbax/issues/171))
 
 ## Additional Notes
 
