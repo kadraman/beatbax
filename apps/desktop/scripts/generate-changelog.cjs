@@ -149,6 +149,9 @@ async function main() {
     const changelogPath =
       options.changelog || path.join(desktopRoot, 'CHANGELOG.md');
     const existing = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf8') : '';
+    if (!/^desktop-v\d/.test(tagName)) {
+      throw new Error(`--prepend requires a stable desktop-v* tag (got ${tagName || '(empty)'})`);
+    }
     const version = versionFromDesktopTag(tagName);
     const result = prependChangelogSection(existing, { version, date, body });
     if (!result.changed) {
