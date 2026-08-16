@@ -3,56 +3,60 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {
+  azureSigningConfigured,
+  buildElectronBuilderOverlay,
+  needsBuilderOverlay,
+  resolveDesktopReleaseIdentity,
+} = require('./desktop-release-lib.cjs');
 
 /**
  * Runs electron-builder, optionally enabling Azure Trusted Signing on Windows
  * when all required env vars are present (CI soft-fail when secrets are absent).
+ * Development releases stamp extraMetadata.version and BeatBax-dev-* artifact names.
  */
 const desktopRoot = path.resolve(__dirname, '..');
 const builderCli = path.resolve(desktopRoot, '../../node_modules/electron-builder/cli.js');
 const baseConfigPath = path.join(desktopRoot, 'electron-builder.yml');
-
-function azureSigningConfigured() {
-  return Boolean(
-    process.env.AZURE_TENANT_ID &&
-      process.env.AZURE_CLIENT_ID &&
-      process.env.AZURE_CLIENT_SECRET &&
-      process.env.AZURE_TRUSTED_SIGNING_ENDPOINT &&
-      process.env.AZURE_TRUSTED_SIGNING_ACCOUNT &&
-      process.env.AZURE_TRUSTED_SIGNING_PROFILE &&
-      process.env.AZURE_TRUSTED_SIGNING_PUBLISHER,
-  );
-}
-
-/** YAML single-quoted scalar — keeps Windows backslashes literal (unlike double quotes). */
-function yamlString(value) {
-  return `'${String(value).replace(/'/g, "''")}'`;
-}
+const pkg = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
   args.push('--publish', 'never');
 }
 
+const identity = resolveDesktopReleaseIdentity({ pkg, env: process.env });
+const azure = process.platform === 'win32' && azureSigningConfigured(process.env);
+const overlayNeeded = needsBuilderOverlay({
+  version: identity.version,
+  pkgVersion: pkg.version,
+  devRelease: identity.dev,
+  azure,
+});
+
 let tempDir = null;
 
 try {
-  if (process.platform === 'win32' && azureSigningConfigured()) {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatbax-eb-azure-'));
-    const azureConfigPath = path.join(tempDir, 'electron-builder.azure.yml');
-    const config = [
-      `extends: ${yamlString(baseConfigPath)}`,
-      'win:',
-      '  azureSignOptions:',
-      `    endpoint: ${yamlString(process.env.AZURE_TRUSTED_SIGNING_ENDPOINT)}`,
-      `    codeSigningAccountName: ${yamlString(process.env.AZURE_TRUSTED_SIGNING_ACCOUNT)}`,
-      `    certificateProfileName: ${yamlString(process.env.AZURE_TRUSTED_SIGNING_PROFILE)}`,
-      `    publisherName: ${yamlString(process.env.AZURE_TRUSTED_SIGNING_PUBLISHER)}`,
-      '',
-    ].join('\n');
-    fs.writeFileSync(azureConfigPath, config, 'utf8');
-    console.log('Azure Trusted Signing credentials detected; enabling Authenticode signing');
-    args.unshift('--config', azureConfigPath);
+  if (overlayNeeded) {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatbax-eb-'));
+    const overlayPath = path.join(tempDir, 'electron-builder.overlay.yml');
+    const overlay = buildElectronBuilderOverlay({
+      baseConfigPath,
+      version: identity.version,
+      devRelease: identity.dev,
+      azure,
+      env: process.env,
+    });
+    fs.writeFileSync(overlayPath, overlay, 'utf8');
+    if (azure) {
+      console.log('Azure Trusted Signing credentials detected; enabling Authenticode signing');
+    }
+    if (identity.dev) {
+      console.log(`Development release overlay: version=${identity.version} artifacts=BeatBax-dev-*`);
+    } else if (identity.version !== pkg.version) {
+      console.log(`Version overlay: ${identity.version}`);
+    }
+    args.unshift('--config', overlayPath);
   } else if (process.platform === 'win32') {
     console.log('Azure Trusted Signing credentials not configured; building unsigned Windows artifacts');
   }

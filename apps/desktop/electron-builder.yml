@@ -18,7 +18,7 @@ files:
   - '!tests/*'
   - '!playwright.config.ts'
   - '!jest.config.cjs'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,README.md,CHANGELOG.md}'
   - '!{.env,.env.*,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:

@@ -33,7 +33,7 @@ Canonical release steps: [docs/releasing.md](../releasing.md).
 | Playwright e2e (`npm run desktop:test` / CI e2e) | Primary | | |
 | `npm run desktop:dist` (optional local package) | Primary | | |
 | Desktop CI validate job | Linux (ubuntu-latest) | | Via `desktop-build.yaml` on `main` |
-| Desktop CI package matrix | ubuntu / windows / macos | | After `desktop-v*` tag (or manual workflow run) |
+| Desktop CI package matrix | ubuntu / windows / macos | | After `desktop-v*` tag, a Development `main` push, or manual workflow run |
 
 ### E2E coverage reference (Playwright)
 
