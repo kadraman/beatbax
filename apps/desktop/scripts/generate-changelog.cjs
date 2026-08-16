@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   fetchGitHubReleaseNotes,
+  mergeReleaseNotes,
   parseGitHubRepo,
   prependChangelogSection,
   previousDesktopTag,
@@ -18,10 +19,12 @@ function parseArgs(argv) {
     notesOnly: false,
     prepend: false,
     printPrevious: false,
+    strict: false,
     tag: '',
     previous: '',
     target: '',
     changelog: '',
+    curated: '',
     out: '',
     date: '',
   };
@@ -33,6 +36,8 @@ function parseArgs(argv) {
       options.prepend = true;
     } else if (arg === '--print-previous') {
       options.printPrevious = true;
+    } else if (arg === '--strict') {
+      options.strict = true;
     } else if (arg === '--tag') {
       options.tag = argv[(index += 1)] || '';
     } else if (arg === '--previous') {
@@ -41,6 +46,8 @@ function parseArgs(argv) {
       options.target = argv[(index += 1)] || '';
     } else if (arg === '--changelog') {
       options.changelog = argv[(index += 1)] || '';
+    } else if (arg === '--curated') {
+      options.curated = argv[(index += 1)] || '';
     } else if (arg === '--out') {
       options.out = argv[(index += 1)] || '';
     } else if (arg === '--date') {
@@ -71,6 +78,20 @@ function listDesktopTags() {
   return output ? output.split(/\r?\n/).filter(Boolean) : [];
 }
 
+function readOptionalFile(filePath) {
+  if (!filePath) {
+    return '';
+  }
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return '';
+    }
+    throw error;
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv);
   const env = process.env;
@@ -95,9 +116,9 @@ async function main() {
   const target = options.target || env.GITHUB_SHA || '';
   const date = options.date || new Date().toISOString().slice(0, 10);
 
-  let body;
+  let generated;
   try {
-    body = await fetchGitHubReleaseNotes({
+    generated = await fetchGitHubReleaseNotes({
       repo,
       token,
       tagName,
@@ -105,20 +126,22 @@ async function main() {
       targetCommitish: target,
     });
   } catch (error) {
-    if (!options.notesOnly || options.prepend) {
+    if (options.strict || !options.notesOnly || options.prepend) {
       throw error;
     }
     console.warn(`generate-changelog: ${error.message}`);
-    body = `Development build from ${target || 'main'}. See GitHub for pull requests since ${previous || 'the last stable desktop tag'}.`;
+    generated = `Development build from ${target || 'main'}. See GitHub for pull requests since ${previous || 'the last stable desktop tag'}.`;
   }
+
+  const body = mergeReleaseNotes(readOptionalFile(options.curated), generated);
 
   if (options.notesOnly) {
     if (options.out) {
       fs.mkdirSync(path.dirname(path.resolve(options.out)), { recursive: true });
-      fs.writeFileSync(options.out, `${body.trimEnd()}\n`);
+      fs.writeFileSync(options.out, body || '\n');
       console.log(`Wrote ${options.out}`);
     } else {
-      process.stdout.write(`${body.trimEnd()}\n`);
+      process.stdout.write(body);
     }
   }
 
@@ -126,6 +149,9 @@ async function main() {
     const changelogPath =
       options.changelog || path.join(desktopRoot, 'CHANGELOG.md');
     const existing = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf8') : '';
+    if (!/^desktop-v\d/.test(tagName)) {
+      throw new Error(`--prepend requires a stable desktop-v* tag (got ${tagName || '(empty)'})`);
+    }
     const version = versionFromDesktopTag(tagName);
     const result = prependChangelogSection(existing, { version, date, body });
     if (!result.changed) {

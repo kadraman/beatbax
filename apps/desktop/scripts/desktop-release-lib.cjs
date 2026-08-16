@@ -191,6 +191,21 @@ function needsBuilderOverlay({ version, pkgVersion, devRelease, azure } = {}) {
   return Boolean(devRelease || azure || (version && version !== pkgVersion));
 }
 
+function mergeReleaseNotes(curated, generated) {
+  const curatedText = String(curated || '').trim();
+  const generatedText = String(generated || '').trim();
+  if (curatedText && generatedText) {
+    return `${curatedText}\n\n${generatedText}\n`;
+  }
+  if (curatedText) {
+    return `${curatedText}\n`;
+  }
+  if (generatedText) {
+    return `${generatedText}\n`;
+  }
+  return '';
+}
+
 function formatChangelogSection({ version, date, body }) {
   return `## ${version} — ${date}\n\n${String(body || '').trim()}\n`;
 }
@@ -288,6 +303,7 @@ module.exports = {
   isDesktopRelatedPath,
   isStableDesktopTag,
   isTruthyEnv,
+  mergeReleaseNotes,
   needsBuilderOverlay,
   normalizeRepoPath,
   parseGitHubRepo,
