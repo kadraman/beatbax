@@ -3,7 +3,7 @@
  */
 
 import { parse } from '@beatbax/engine/parser';
-import { resolveSong } from '@beatbax/engine/song';
+import { resolveImports, resolveSong } from '@beatbax/engine/song';
 import { chipRegistry } from '@beatbax/engine/chips';
 import { createLogger } from '@beatbax/engine/util/logger';
 import { normalizeExporterResult } from '@beatbax/engine/export';
@@ -11,6 +11,7 @@ import { exporterRegistry } from '../plugins/browser-exporter-registry.js';
 
 import type { EventBus } from '../utils/event-bus.js';
 import { exportStatus, exportFormat as exportFormatAtom } from '../stores/ui.store.js';
+import { buildImportResolverOptions } from '../import/import-resolver-options.js';
 import { validateForExport } from './export-validator.js';
 import { collectPcmWavExportWarnings } from './pcm-export-warnings.js';
 import {
@@ -89,14 +90,31 @@ export class ExportManager {
     exportFormatAtom.set(format);
 
     try {
-      // Parse source
-      const ast = parse(source);
+      // Re-parse the buffer on each export so unsaved edits are included.
+      // Do not snapshot latestResolvedAst from parse:success.
+      let ast: any = parse(source);
       // Prefer the open document name (e.g. ay_synth_channels.bax → ay_synth_channels.uge)
       // so export names match the file on disk. Fall back to song metadata when untitled.
       if (!options.filename?.trim()) {
-        const metadataName = String((ast as any)?.metadata?.name ?? '').trim();
+        const metadataName = String(ast?.metadata?.name ?? '').trim();
         if (metadataName) {
           baseFilename = sanitizeFilename(metadataName.toLowerCase());
+        }
+      }
+
+      // Merge import kits before validate/resolve. Desktop/web resolveSong uses
+      // the browser bundle, where resolveImportsSync always throws.
+      if (Array.isArray(ast.imports) && ast.imports.length > 0) {
+        try {
+          ast = await resolveImports(ast, buildImportResolverOptions({
+            onWarn: (message: string) => {
+              warnings.push(message);
+              log.debug('Import warning:', message);
+            },
+          }));
+        } catch (importErr: unknown) {
+          const message = importErr instanceof Error ? importErr.message : String(importErr);
+          throw new Error(`Import failed: ${message}`);
         }
       }
 
@@ -115,7 +133,7 @@ export class ExportManager {
       }
 
       // Resolve song
-      const resolved = resolveSong(ast as any, {
+      const resolved = resolveSong(ast, {
         onWarn: (w: any) => {
           const msg = typeof w === 'string' ? w : (w.message || String(w));
           warnings.push(msg);
