@@ -97,7 +97,7 @@ npm run cli -- export json songs/song.bax output.json
 npm run cli -- export uge songs/song.bax output.uge
 ```
 
-Desktop Play and CodeLens preview merge remote kits the same way. **Desktop Export does not yet** — `ExportManager` still validates the unmerged AST ([#171](https://github.com/kadraman/beatbax/issues/171), [`desktop-export-imported-instruments.md`](../desktop-export-imported-instruments.md)).
+Desktop Play, CodeLens preview, and Desktop Export merge remote kits the same way ([#171](https://github.com/kadraman/beatbax/issues/171), [`desktop-export-imported-instruments.md`](desktop-export-imported-instruments.md)).
 
 ### Programmatic Usage
 
