@@ -1,5 +1,19 @@
 # @beatbax/cli
 
+## 0.4.16
+
+### Patch Changes
+
+- 3c26451: Allow named `effect` presets in imported `.ins` kits (last-wins, same as instruments).
+
+  `.ins` files may now contain `effect drift = vib:3,4` alongside `inst` / `import` / `subpat`. Resolve merges them onto the song AST so `<drift>` works without copying the lines into every `.bax`. Song-local presets still override the kit. Parser/CLI/Desktop drop false "effect is not defined" diagnostics after a successful import.
+
+- Updated dependencies [9a4419d]
+- Updated dependencies [3c26451]
+- Updated dependencies [4c0a40d]
+- Updated dependencies [3b55606]
+  - @beatbax/engine@0.23.0
+
 ## 0.4.15
 
 ### Patch Changes

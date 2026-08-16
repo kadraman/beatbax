@@ -1,5 +1,27 @@
 # @beatbax/engine
 
+## 0.23.0
+
+### Minor Changes
+
+- 3c26451: Allow named `effect` presets in imported `.ins` kits (last-wins, same as instruments).
+
+  `.ins` files may now contain `effect drift = vib:3,4` alongside `inst` / `import` / `subpat`. Resolve merges them onto the song AST so `<drift>` works without copying the lines into every `.bax`. Song-local presets still override the kit. Parser/CLI/Desktop drop false "effect is not defined" diagnostics after a successful import.
+
+- 4c0a40d: Allow native `subpat` tables in `.ins` imports and merge them into the song.
+
+  Instrument libraries may declare `subpat name = …` next to `inst` / `import`. Named tables merge on import (last-wins), then `subpat=` is bound onto `subpatRows`, so a `.bax` can attach a library name (`subpat=bass_pluck`) without copying the block. `chip` / `pat` / `bpm` and other song directives in `.ins` files are still rejected. Missing `subpat=` is a parse warning when the file has imports, and an error otherwise.
+
+### Patch Changes
+
+- 9a4419d: Allow Desktop (browser-bundled) songs to load `local:` instrument imports.
+
+  The browser import resolver previously always rejected `local:` for security. Desktop has Electron file IPC, so the resolver now accepts injected `readFile`/`fileExists` (or `window.electronAPI`) and resolves paths relative to the saved `.bax` file, with the same traversal and absolute-path checks as the CLI. Web-lite clients without a filesystem still block local imports.
+
+- 3b55606: Stop UGE export from inserting E00 note-cuts on the last row of every 64-row pattern.
+
+  Notes that fill through a pattern boundary now keep ringing when the next event (the following order, or a `play auto repeat` wrap on a full-length song) is another note or sustain. Padded short patterns and one-shots without `repeat` still auto-cut so empty tail rows do not ring. Authored `.` rests are unchanged.
+
 ## 0.22.2
 
 ### Patch Changes
