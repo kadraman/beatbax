@@ -6,6 +6,13 @@ on:
       - 'apps/desktop/**'
       - 'packages/app-core/**'
       - 'packages/engine/**'
+      - 'packages/ui-tokens/**'
+      - 'packages/plugins/**'
+      - 'songs/**'
+      - 'apps/web-ui/public/**'
+      - 'apps/web-ui/src/utils/browser-path.ts'
+      - 'scripts/link-local-engine.cjs'
+      - 'scripts/link-local-plugins.cjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-build.yaml'
@@ -25,11 +32,46 @@ on:
         type: boolean
         default: false
 
+# Cancel superseded development builds on main; never cancel desktop-v* tag runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
+
 jobs:
+  detect:
+    name: Detect desktop changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      package_dev: ${{ steps.detect.outputs.package_dev }}
+      previous_tag: ${{ steps.detect.outputs.previous_tag }}
+      desktop_version: ${{ steps.detect.outputs.desktop_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Detect desktop-related path changes
+        id: detect
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: node apps/desktop/scripts/detect-desktop-changes.cjs
+
   validate:
     name: Validate desktop shell
-    # Always on PR/push/tag; on manual runs unless skip_validate is checked.
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_validate != true }}
+    needs: detect
+    # Always on PR/tag; on main only when desktop-related files changed;
+    # on manual runs unless skip_validate is checked.
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.skip_validate != true)
+      && (
+        github.event_name != 'push'
+        || github.ref != 'refs/heads/main'
+        || needs.detect.outputs.package_dev == 'true'
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,17 +107,25 @@ jobs:
 
   package:
     name: Package desktop (${{ matrix.os }})
-    needs: validate
+    needs: [validate, detect]
     permissions:
       contents: read
-    # Manual "Run workflow" with build_installers, or a desktop-v* tag.
-    # `always()` + validate success/skipped so skip_validate still packages.
+    # Manual "Run workflow" with build_installers, a desktop-v* tag, or a
+    # desktop-related push to main. `always()` + validate success/skipped so
+    # skip_validate still packages.
     if: >-
       always()
+      && !cancelled()
       && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+      && needs.detect.result == 'success'
       && (
         (github.event_name == 'workflow_dispatch' && inputs.build_installers)
         || startsWith(github.ref, 'refs/tags/desktop-v')
+        || (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.detect.outputs.package_dev == 'true'
+        )
       )
     strategy:
       matrix:
@@ -83,6 +133,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CI: true
+      BEATBAX_DEV_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '' }}
+      BEATBAX_DESKTOP_VERSION: ${{ needs.detect.outputs.desktop_version }}
+      BEATBAX_DESKTOP_TAG: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'desktop-dev' || '' }}
+      BEATBAX_PREVIOUS_DESKTOP_TAG: ${{ needs.detect.outputs.previous_tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -99,6 +153,12 @@ jobs:
 
       - name: Build shared packages
         run: npm run build-all
+
+      - name: Generate development release notes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node apps/desktop/scripts/generate-changelog.cjs --notes-only --out apps/desktop/build/release-notes.body.txt
 
       - name: Setup codesign certificate
         if: runner.os == 'macOS'
@@ -206,6 +266,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve previous desktop tag
+        id: prev
+        run: node apps/desktop/scripts/generate-changelog.cjs --print-previous --tag "${{ github.ref_name }}"
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -216,88 +286,7 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
-        run: |
-          set -euo pipefail
-          mkdir -p release-flat
-          find release-artifacts -type f \( \
-            -name 'BeatBax-*.exe' -o \
-            -name 'BeatBax-*.dmg' -o \
-            -name 'BeatBax-*.zip' -o \
-            -name 'BeatBax-*.AppImage' -o \
-            -name 'BeatBax-*.deb' \
-          \) -exec cp -n {} release-flat/ \;
-          cd release-flat
-
-          if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
-            echo "GPG_PRIVATE_KEY not configured; publishing unsigned SHA256SUMS only"
-            sha256sum BeatBax-* | tee SHA256SUMS
-            exit 0
-          fi
-
-          sudo apt-get update
-          # dpkg-sig is not packaged on Ubuntu 24.04 (noble). Prefer it when
-          # available; otherwise skip embedded .deb signatures and still publish
-          # SHA256SUMS + detach signature (primary integrity path).
-          DEB_SIGN_TOOL=""
-          if sudo apt-get install -y dpkg-sig; then
-            DEB_SIGN_TOOL="dpkg-sig"
-          else
-            echo "Warning: dpkg-sig unavailable on this runner; skipping embedded .deb signatures"
-          fi
-
-          export GNUPGHOME="$(mktemp -d)"
-          chmod 700 "$GNUPGHOME"
-          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
-
-          PASS_FILE=""
-          GPG_OPTS=(--batch --yes --pinentry-mode loopback)
-          GPG_OPTS_STR="--batch --yes --pinentry-mode loopback"
-          if [ -n "${GPG_PASSPHRASE:-}" ]; then
-            PASS_FILE="$(mktemp)"
-            printf '%s' "$GPG_PASSPHRASE" > "$PASS_FILE"
-            chmod 600 "$PASS_FILE"
-            GPG_OPTS+=(--passphrase-file "$PASS_FILE")
-            GPG_OPTS_STR="$GPG_OPTS_STR --passphrase-file $PASS_FILE"
-          fi
-
-          # 1) Sign .deb packages first (changes file hashes).
-          shopt -s nullglob
-          deb_files=(BeatBax-*.deb)
-          if [ ${#deb_files[@]} -gt 0 ] && [ "$DEB_SIGN_TOOL" = "dpkg-sig" ]; then
-            for deb in "${deb_files[@]}"; do
-              if [ -n "${GPG_KEY_ID:-}" ]; then
-                dpkg-sig --sign builder -k "$GPG_KEY_ID" \
-                  --gpg-options "$GPG_OPTS_STR" \
-                  "$deb"
-              else
-                dpkg-sig --sign builder \
-                  --gpg-options "$GPG_OPTS_STR" \
-                  "$deb"
-              fi
-              echo "Signed $deb with dpkg-sig"
-            done
-          elif [ ${#deb_files[@]} -gt 0 ]; then
-            echo "Skipping embedded .deb signatures (dpkg-sig not installed)"
-          else
-            echo "No .deb artifacts to sign"
-          fi
-
-          # 2) Checksums include signed .deb files.
-          sha256sum BeatBax-* | tee SHA256SUMS
-
-          # 3) Detach-sign the checksum file.
-          if [ -n "${GPG_KEY_ID:-}" ]; then
-            gpg "${GPG_OPTS[@]}" --detach-sign --armor -u "$GPG_KEY_ID" -o SHA256SUMS.asc SHA256SUMS
-            gpg --armor --export "$GPG_KEY_ID" > beatbax-release.asc
-          else
-            gpg "${GPG_OPTS[@]}" --detach-sign --armor -o SHA256SUMS.asc SHA256SUMS
-            gpg --armor --export > beatbax-release.asc
-          fi
-          echo "Wrote SHA256SUMS.asc and beatbax-release.asc"
-
-          if [ -n "$PASS_FILE" ]; then
-            rm -f "$PASS_FILE"
-          fi
+        run: bash .github/scripts/flatten-and-sign-desktop-release.sh
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
@@ -311,6 +300,91 @@ jobs:
             release-flat/SHA256SUMS
             release-flat/SHA256SUMS.asc
             release-flat/beatbax-release.asc
+          body_path: apps/desktop/build/release-notes.body.txt
           overwrite_assets: true
           generate_release_notes: true
+          previous_tag: ${{ steps.prev.outputs.tag }}
+          fail_on_unmatched_files: false
+
+      - name: Prepend GitHub notes to CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          node apps/desktop/scripts/generate-changelog.cjs --prepend --tag "$TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/CHANGELOG.md
+          if git diff --staged --quiet; then
+            echo "CHANGELOG.md unchanged"
+            exit 0
+          fi
+          git commit -m "docs(desktop): changelog for ${TAG} [skip ci]"
+          git push origin main
+
+  release-dev:
+    name: Publish development release
+    needs: [package, detect]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Flatten artifacts, sign integrity, create SHA256SUMS
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: bash .github/scripts/flatten-and-sign-desktop-release.sh
+
+      - name: Delete previous Development pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view desktop-dev >/dev/null 2>&1; then
+            gh release delete desktop-dev --yes --cleanup-tag
+          else
+            echo "No existing desktop-dev release"
+          fi
+
+      - name: Publish Development pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-dev
+          name: Development
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: 'false'
+          generate_release_notes: true
+          previous_tag: ${{ needs.detect.outputs.previous_tag }}
+          body: |
+            > **Development build** of BeatBax Desktop from `main` (rolling pre-release).
+            > This is **not** the latest stable release. Testers should prefer a `desktop-v*` tag for production use.
+            >
+            > Version: `${{ needs.detect.outputs.desktop_version }}`
+            > Commit: `${{ github.sha }}`
+            >
+            > Windows installers are unsigned; SmartScreen may warn. Verify downloads with `SHA256SUMS`.
+            > Keep GitHub Immutable Releases **off** for this repository — this channel deletes and recreates the `desktop-dev` tag each run.
+          files: |
+            release-flat/BeatBax-*.exe
+            release-flat/BeatBax-*.dmg
+            release-flat/BeatBax-*.zip
+            release-flat/BeatBax-*.AppImage
+            release-flat/BeatBax-*.deb
+            release-flat/SHA256SUMS
+            release-flat/SHA256SUMS.asc
+            release-flat/beatbax-release.asc
           fail_on_unmatched_files: false

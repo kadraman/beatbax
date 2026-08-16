@@ -36,6 +36,6 @@ License
 Releasing
 
 - npm packages: see [docs/releasing.md](docs/releasing.md) (`changeset` → `version-packages` → `release`).
-- Desktop installers: tag `desktop-v*` and push; see [docs/releasing.md](docs/releasing.md).
+- Desktop installers: tag `desktop-v*` for a stable GitHub Release, or merge desktop-related changes to `main` for the rolling Development pre-release; see [docs/releasing.md](docs/releasing.md).
 
 Thanks — we appreciate your help improving BeatBax!

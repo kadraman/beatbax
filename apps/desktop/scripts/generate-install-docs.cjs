@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { resolveDesktopReleaseIdentity } = require('./desktop-release-lib.cjs');
 
 const desktopRoot = path.resolve(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'));
 const buildDir = path.join(desktopRoot, 'build');
+const identity = resolveDesktopReleaseIdentity({ pkg, env: process.env });
 
 const repositoryUrl = (pkg.repository?.url || 'https://github.com/kadraman/beatbax.git').replace(
   /\.git$/,
@@ -11,8 +13,8 @@ const repositoryUrl = (pkg.repository?.url || 'https://github.com/kadraman/beatb
 );
 
 const sharedReplacements = {
-  '{{VERSION}}': pkg.version,
-  '{{DESKTOP_TAG}}': `desktop-v${pkg.version}`,
+  '{{VERSION}}': identity.version,
+  '{{DESKTOP_TAG}}': identity.tag,
   '{{BUILD_DATE}}': new Date().toISOString().slice(0, 10),
   '{{COPYRIGHT_YEAR}}': String(new Date().getFullYear()),
   '{{HOMEPAGE}}': pkg.homepage || repositoryUrl,
@@ -34,7 +36,8 @@ function renderTemplate(templateName, outputName, extraReplacements = {}) {
   console.log(`Wrote ${outputPath}`);
 }
 
-const releaseNotesBodyPath = path.join(buildDir, 'release-notes.body.txt');
+const releaseNotesBodyPath =
+  process.env.BEATBAX_RELEASE_NOTES_FILE || path.join(buildDir, 'release-notes.body.txt');
 const releaseNotesBody = fs.existsSync(releaseNotesBodyPath)
   ? fs.readFileSync(releaseNotesBodyPath, 'utf8').trimEnd()
   : '  (No release notes provided for this build.)';
@@ -44,4 +47,4 @@ renderTemplate('RELEASE-NOTES.template.txt', 'RELEASE-NOTES.txt', {
   '{{RELEASE_NOTES_BODY}}': releaseNotesBody,
 });
 
-console.log(`Generated install docs for BeatBax Desktop v${pkg.version}`);
+console.log(`Generated install docs for BeatBax Desktop v${identity.version} (${identity.tag})`);

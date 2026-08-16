@@ -2,7 +2,12 @@
 
 BeatBax Desktop is the Electron + React **desktop-full** client — the primary full-featured BeatBax IDE.
 
-Download installers from [itch.io](https://kadraman.itch.io/beatbax) (preferred) or [GitHub Releases](https://github.com/kadraman/beatbax/releases) (tags `desktop-v*`).
+Download installers from [itch.io](https://kadraman.itch.io/beatbax) (preferred) or [GitHub Releases](https://github.com/kadraman/beatbax/releases):
+
+- **Stable:** tags `desktop-v*` (GitHub Latest)
+- **Development:** rolling pre-release [`desktop-dev`](https://github.com/kadraman/beatbax/releases/tag/desktop-dev), published when desktop-related files land on `main`
+
+Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ## Scripts
 
@@ -43,24 +48,34 @@ Remaining post-MVP work (auto-update, power features): [desktop-client-enhanceme
 
 ## Releasing
 
-Desktop installers are published via git tags and CI — not npm.
+Desktop installers are published via CI — not npm. See [docs/releasing.md](../../docs/releasing.md).
 
-Before tagging, update `apps/desktop/package.json` version (if needed) and edit
-`apps/desktop/build/release-notes.body.txt` with bullet points for that release.
-`npm run desktop:dist` generates `README.txt` and `RELEASE-NOTES.txt` from the
-templates and bundles both next to the application.
+**Stable:** bump `apps/desktop/package.json` version if needed, optionally edit
+`apps/desktop/build/release-notes.body.txt`, then tag:
 
 ```powershell
 git tag -a desktop-v0.2.0 -m "BeatBax Desktop v0.2.0"
 git push origin desktop-v0.2.0
 ```
 
-The [Desktop: Build](https://github.com/kadraman/beatbax/actions/workflows/desktop-build.yaml) workflow validates, packages on all three OSes, and publishes installer assets to GitHub Releases.
+CI packages all three OSes, publishes the GitHub Release, and prepends GitHub’s
+auto-generated notes (PR titles since the previous `desktop-v*` tag) to
+[CHANGELOG.md](CHANGELOG.md).
 
-Full details: [docs/releasing.md](../../docs/releasing.md).
+**Development:** a path-filtered push to `main` overwrites the
+[`desktop-dev`](https://github.com/kadraman/beatbax/releases/tag/desktop-dev)
+pre-release (`BeatBax-dev-*` artifacts, version `<semver>-dev.<sha>`). It does
+not replace Latest. Keep GitHub Immutable Releases off so the rolling tag can
+be recreated.
+
+`npm run desktop:dist` generates `README.txt` and `RELEASE-NOTES.txt` from the
+templates and bundles both next to the application.
+
+The [Desktop: Build](https://github.com/kadraman/beatbax/actions/workflows/desktop-build.yaml) workflow validates, packages on all three OSes, and publishes installer assets.
 
 ## Related docs
 
 - [docs/features/complete/desktop-first-client-split.md](../../docs/features/complete/desktop-first-client-split.md) — completed master plan
 - [docs/features/complete/electron-desktop-client.md](../../docs/features/complete/electron-desktop-client.md) — IPC and packaging reference
 - [docs/qa/desktop-release-qa.md](../../docs/qa/desktop-release-qa.md) — QA sign-off
+- [CHANGELOG.md](CHANGELOG.md) — stable desktop release notes
