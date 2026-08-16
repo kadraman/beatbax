@@ -291,7 +291,7 @@ let lastExportFormat: ExportFormat = 'json';
  * Includes `#` and `//` comment prefixes and blank lines so the generated
  * source is well-formed and human-readable when inspected.
  */
-const KEEP_LINES_RE = /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
+const KEEP_LINES_RE = /^\s*(?:(?:inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume|import)\b|#|\/\/|$)/;
 
 // ---------------------------------------------------------------------------
 // Helper: toast notification
@@ -857,14 +857,18 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       }
       if (!body) { showToast(`Pattern '${name}' not found`); return; }
 
-      // Find first declared instrument for preview.  When no instrument is
-      // declared in the source, synthesise a minimal fallback using the first
-      // channel-agnostic type (pulse1); the fallback name '_tmp' avoids
-      // clashing with any user-defined instruments.
+      // Prefer an inline inst declaration; otherwise borrow the first channel's
+      // imported (or declared) instrument so songs that only `import` a kit work.
       let inst: string | null = null;
       for (const line of lines) {
         const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (m) { inst = m[1]; break; }
+      }
+      if (!inst) {
+        for (const line of lines) {
+          const m = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
+          if (m) { inst = m[1]; break; }
+        }
       }
       const useFallbackInst = inst === null;
       const instName = inst ?? '_tmp';
@@ -1942,7 +1946,7 @@ export function buildMultiPlaySource(
   // Lines to preserve verbatim (everything except channel/play directives).
   // The keyword alternatives use \b; comment-only and blank-line alternatives
   // do not end with a word character so they must be matched without \b.
-  const KEEP_RE = /^\s*(?:(inst|effect|pat|seq|bpm|time|chip|ticksPerStep|stepsPerBar|volume)\b|#|\/\/|$)/;
+  const KEEP_RE = KEEP_LINES_RE;
   const baseLines = fullLines.filter(l => KEEP_RE.test(l));
 
   // Build a map: seq-name → inst-name from the original channel assignments.

@@ -63,7 +63,7 @@ import "local:relative/path/to/instruments.ins"
 
 **The `local:` prefix is required for all local file imports.** This ensures explicit intent and enables security enforcement in browser environments.
 
-`.ins` files contain `inst` declarations, optional `import` lines, and optional native `subpat` tables. Named subpatterns merge into the song so a `.bax` can use `subpat=library_name` without copying the block.
+`.ins` files contain `inst` declarations, optional `import` lines, optional native `subpat` tables, and optional named `effect` presets. Named subpatterns and effect presets merge into the song so a `.bax` can use `subpat=library_name` and `<drift>` without copying the blocks.
 Imports resolve relative to the importing file first, then fall back to configured
 search paths. Imports are processed recursively with cycle detection and file
 caching. When names conflict, later definitions overwrite earlier ones (last-wins);
@@ -87,6 +87,7 @@ overrides as errors.
 ```
 inst lead  type=pulse1 duty=50 env=12,down
 inst bass  type=pulse2 duty=25 env=10,down
+effect drift = vib:3,4
 ```
 
 `song.bax`:
@@ -97,12 +98,12 @@ import "local:common.ins"
 bpm 128
 inst lead type=pulse1 duty=30 env=8,up
 
-pat melody = C5 E5 G5 C6
+pat melody = C5<drift> E5 G5 C6
 channel 1 => seq melody inst lead
 ```
 
 The local `inst lead` in `song.bax` overrides `common.ins`'s `lead` because
-later definitions win.
+later definitions win. The same last-wins rule applies to named `effect` presets.
 
 ## Implementation Plan
 ### AST Changes
@@ -113,9 +114,10 @@ later definitions win.
 
 - Recognize `import` as a top-level directive and emit `ImportNode` during
   parsing.
-- When parsing `.ins` files, validate that only `inst`, `import`, and `subpat`
-  nodes are present; report a parse-time error for other node kinds. Named
-  `subpat` tables merge into the song AST so local instruments can reference them.
+- When parsing `.ins` files, validate that only `inst`, `import`, `subpat`,
+  and `effect` nodes are present; report a parse-time error for other node kinds. Named
+  `subpat` tables and `effect` presets merge into the song AST so local patterns can
+  reference them.
 
 Only make updates to the default parser (Peggy grammar) - do not make any updates to legacy parser.
 
@@ -133,7 +135,7 @@ Only make updates to the default parser (Peggy grammar) - do not make any update
 ## Testing Strategy
 ### Unit Tests
 
-- Parser: accept `import` lines and reject non-`inst` nodes inside `.ins`.
+- Parser: accept `import` lines and reject song-level nodes (`pat`, `chip`, `bpm`, …) inside `.ins`. `inst`, nested `import`, `subpat`, and `effect` are allowed.
 ## Usage
 
 ### CLI Commands
