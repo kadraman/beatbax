@@ -3,6 +3,7 @@ import { MidiStepEntryService } from '@beatbax/app-core/input/midi-step-entry';
 import {
   settingAutoSave,
   settingAutoSaveDelay,
+  settingFileReload,
   settingBeatDecorations,
   settingCodeLens,
   settingDefaultBpm,
@@ -41,6 +42,7 @@ function midiController(): any {
 export function EditorSettingsSection(): React.JSX.Element {
   const autoSave = useStoreValue(settingAutoSave);
   const autoSaveDelay = useStoreValue(settingAutoSaveDelay);
+  const fileReload = useStoreValue(settingFileReload);
   const wordWrap = useStoreValue(settingWordWrap);
   const codeLens = useStoreValue(settingCodeLens);
   const beatDecorations = useStoreValue(settingBeatDecorations);
@@ -117,6 +119,21 @@ export function EditorSettingsSection(): React.JSX.Element {
       />
       <NoteText>
         Debounce interval before edits trigger a parse and potential disk save. Only applies when auto-save is enabled.
+      </NoteText>
+
+      <SelectField
+        label="When the open file changes on disk"
+        onChange={(value) => settingFileReload.set(value as typeof fileReload)}
+        options={[
+          { value: 'reloadIfUnmodified', label: 'Reload if unmodified (ask if unsaved)' },
+          { value: 'alwaysAsk', label: 'Always ask' },
+          { value: 'alwaysReload', label: 'Always reload (discard unsaved edits)' },
+          { value: 'off', label: 'Ignore external changes' },
+        ]}
+        value={fileReload}
+      />
+      <NoteText>
+        BeatBax saves are ignored so auto-save does not look like an external edit.
       </NoteText>
 
       <ToggleRow
@@ -333,6 +350,7 @@ export function commitDefaultSongArtist(value: string): void {
 export function resetEditorDefaults(): void {
   settingAutoSave.set(true);
   settingAutoSaveDelay.set(1000);
+  settingFileReload.set('reloadIfUnmodified');
   settingWordWrap.set(false);
   settingFoldComments.set(false);
   settingCodeLens.set(true);

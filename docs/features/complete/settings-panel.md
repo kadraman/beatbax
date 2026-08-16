@@ -97,6 +97,8 @@ On narrow screens (< 600 px) the sidebar collapses into a horizontal tab strip a
 | Setting | Type | Default | Storage key |
 |---|---|---|---|
 | Auto-save | Toggle | `true` | `beatbax:editor.autoSave` |
+| Auto-save delay | Number (100–5000 ms) | `1000` | `beatbax:editor.autoSaveDelay` |
+| When the open file changes on disk | Select: `reloadIfUnmodified` \| `alwaysAsk` \| `alwaysReload` \| `off` | `reloadIfUnmodified` | `beatbax:editor.fileReload` (desktop) |
 | Word wrap | Toggle | `false` | `beatbax:editor.wordWrap` |
 | Show CodeLens previews | Toggle | `true` | `beatbax:editor.codelens` |
 | Show beat decorations | Toggle | `true` | `beatbax:editor.beatDecorations` |

@@ -40,6 +40,8 @@ export const StorageKey = {
   AUTO_SAVE: 'editor.autoSave',
   /** Auto-save debounce delay in milliseconds (desktop). */
   AUTO_SAVE_DELAY: 'editor.autoSaveDelay',
+  /** When the open file changes on disk (desktop). */
+  FILE_RELOAD: 'editor.fileReload',
   /** Word wrap enabled flag (boolean). */
   WORD_WRAP: 'editor.wordWrap',
   /** Fold all block comments enabled flag (boolean). */
