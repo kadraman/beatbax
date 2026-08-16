@@ -8,7 +8,7 @@ BeatBax exporters follow a **payload-first** contract: shared logic builds downl
 |-------|----------------|
 | **Engine payload builders** | Pure functions that return `string`, `Uint8Array`, or `ArrayBuffer` |
 | **`ExporterPlugin`** | Calls builders when `outputPath` is omitted; writes to disk when `outputPath` is set (CLI/Node) |
-| **`ExportManager` (app-core)** | Resolves song, validates, calls plugins without `outputPath`, downloads/saves returned payloads |
+| **`ExportManager` (app-core)** | Parses, should merge `import` kits, validates, resolves, calls plugins without `outputPath`, downloads/saves returned payloads |
 | **CLI** | Calls plugins with `outputPath`, or uses `writeExportPayload()` for returned data |
 
 Built-in formats (JSON, MIDI, UGE, WAV) and third-party plugins (VGM, FamiTracker text, etc.) all use the same plugin path in the UI.
@@ -53,13 +53,17 @@ Helpers:
 ## UI export flow (desktop)
 
 1. User chooses format from toolbar/menu.
-2. `ExportManager.export()` parses and resolves the song.
-3. `exportViaPlugin()` loads the format from `exporterRegistry` (built-in engine plugins + optional plugins such as VGM).
-4. Plugin returns payload bytes/text without `outputPath`.
-5. `downloadBinary()` / `downloadText()` triggers browser download (web) or native save dialog (desktop).
-6. `export:success` fires after the save/download completes; Output panel is shown.
+2. `ExportManager.export()` parses the editor buffer.
+3. **Required:** if the AST has `import` lines, `await resolveImports(..., buildImportResolverOptions())` so kit `inst` / `effect` / `subpat` names exist before validation. CLI export already does this; **Desktop `ExportManager` does not yet** ([#171](https://github.com/kadraman/beatbax/issues/171), [`desktop-export-imported-instruments.md`](../features/desktop-export-imported-instruments.md)).
+4. `validateForExport()` then `resolveSong()` on the **merged** AST (`imports` cleared). Desktop/web use the browser engine bundle, so `resolveSong` must not see leftover `import` lines (`resolveImportsSync` throws).
+5. `exportViaPlugin()` loads the format from `exporterRegistry` (built-in engine plugins + optional plugins such as VGM).
+6. Plugin returns payload bytes/text without `outputPath`.
+7. `downloadBinary()` / `downloadText()` triggers browser download (web) or native save dialog (desktop).
+8. `export:success` fires after the save/download completes; Output panel is shown.
 
 WAV exports pass `sampleRate` from user audio settings. PCM export warnings are collected before the plugin runs.
+
+Web-lite does not expose an Export menu (`capabilities.export === false`). The same `ExportManager` is the shared implementation.
 
 ## CLI export flow
 
@@ -85,4 +89,6 @@ beatbax list-exporters --chip gameboy
 - [UGE export guide](./uge-export-guide.md)
 - [WAV export guide](./wav-export-guide.md)
 - [Exporter plugin system](../features/complete/exporter_plugin_system.md)
-- [Exporter buffer return cleanup](../features/exporter-buffer-return-cleanup.md) — implementation history
+- [Exporter buffer return cleanup](../features/complete/exporter-buffer-return-cleanup.md) — implementation history
+- [Desktop export with imported instruments](../features/desktop-export-imported-instruments.md) — open `ExportManager` import-merge gap ([#171](https://github.com/kadraman/beatbax/issues/171))
+- [Instrument imports](../features/complete/instrument-imports.md)
