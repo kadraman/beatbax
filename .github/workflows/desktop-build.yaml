@@ -288,6 +288,17 @@ jobs:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: bash .github/scripts/flatten-and-sign-desktop-release.sh
 
+      - name: Generate merged GitHub release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          node apps/desktop/scripts/generate-changelog.cjs
+          --notes-only --strict
+          --tag "${{ github.ref_name }}"
+          --previous "${{ steps.prev.outputs.tag }}"
+          --curated apps/desktop/build/release-notes.body.txt
+          --out apps/desktop/build/release-notes.merged.txt
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
@@ -300,10 +311,8 @@ jobs:
             release-flat/SHA256SUMS
             release-flat/SHA256SUMS.asc
             release-flat/beatbax-release.asc
-          body_path: apps/desktop/build/release-notes.body.txt
+          body_path: apps/desktop/build/release-notes.merged.txt
           overwrite_assets: true
-          generate_release_notes: true
-          previous_tag: ${{ steps.prev.outputs.tag }}
           fail_on_unmatched_files: false
 
       - name: Prepend GitHub notes to CHANGELOG.md
@@ -359,6 +368,24 @@ jobs:
             echo "No existing desktop-dev release"
           fi
 
+      - name: Generate merged development release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p apps/desktop/build
+          cat > apps/desktop/build/release-notes.curated.txt <<'EOF'
+          > **Development build** of BeatBax Desktop from `main` (rolling pre-release).
+          > This is **not** the latest stable release. Testers should prefer a `desktop-v*` tag for production use.
+          >
+          > Version: `${{ needs.detect.outputs.desktop_version }}`
+          > Commit: `${{ github.sha }}`
+          >
+          > Windows installers are unsigned; SmartScreen may warn. Verify downloads with `SHA256SUMS`.
+          > Keep GitHub Immutable Releases **off** for this repository — this channel deletes and recreates the `desktop-dev` tag each run.
+          EOF
+          node apps/desktop/scripts/generate-changelog.cjs --notes-only --strict --tag desktop-dev --previous "${{ needs.detect.outputs.previous_tag }}" --target "${{ github.sha }}" --curated apps/desktop/build/release-notes.curated.txt --out apps/desktop/build/release-notes.merged.txt
+
       - name: Publish Development pre-release
         uses: softprops/action-gh-release@v2
         with:
@@ -367,17 +394,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: 'false'
-          generate_release_notes: true
-          previous_tag: ${{ needs.detect.outputs.previous_tag }}
-          body: |
-            > **Development build** of BeatBax Desktop from `main` (rolling pre-release).
-            > This is **not** the latest stable release. Testers should prefer a `desktop-v*` tag for production use.
-            >
-            > Version: `${{ needs.detect.outputs.desktop_version }}`
-            > Commit: `${{ github.sha }}`
-            >
-            > Windows installers are unsigned; SmartScreen may warn. Verify downloads with `SHA256SUMS`.
-            > Keep GitHub Immutable Releases **off** for this repository — this channel deletes and recreates the `desktop-dev` tag each run.
+          body_path: apps/desktop/build/release-notes.merged.txt
           files: |
             release-flat/BeatBax-*.exe
             release-flat/BeatBax-*.dmg

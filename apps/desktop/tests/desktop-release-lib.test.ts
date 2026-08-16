@@ -11,6 +11,7 @@ const {
   compareDesktopTags,
   fetchGitHubReleaseNotes,
   isDesktopRelatedPath,
+  mergeReleaseNotes,
   needsBuilderOverlay,
   prependChangelogSection,
   previousDesktopTag,
@@ -23,6 +24,7 @@ const {
   compareDesktopTags: (left: string, right: string) => number;
   fetchGitHubReleaseNotes: (input: Record<string, unknown>) => Promise<string>;
   isDesktopRelatedPath: (filePath: string) => boolean;
+  mergeReleaseNotes: (curated: string, generated: string) => string;
   needsBuilderOverlay: (input: Record<string, unknown>) => boolean;
   prependChangelogSection: (
     existing: string,
@@ -251,5 +253,21 @@ describe('fetchGitHubReleaseNotes', () => {
       target_commitish: 'abc123',
     });
     expect(request.headers.Authorization).toBe('Bearer secret');
+  });
+});
+
+describe('mergeReleaseNotes', () => {
+  it('prepends curated notes to generated notes', () => {
+    expect(mergeReleaseNotes('Highlights', "## What's Changed\n* Foo")).toBe(
+      "Highlights\n\n## What's Changed\n* Foo\n",
+    );
+  });
+
+  it('returns generated notes when curated is empty', () => {
+    expect(mergeReleaseNotes('  ', '## PRs')).toBe('## PRs\n');
+  });
+
+  it('returns curated notes when generated is empty', () => {
+    expect(mergeReleaseNotes('Highlights', '')).toBe('Highlights\n');
   });
 });
