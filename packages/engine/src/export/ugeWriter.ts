@@ -954,6 +954,29 @@ function resolveInstrumentIndex(
 }
 
 /**
+ * True when a note that ends at `targetRow` should keep ringing: another
+ * non-rest follows in this channel, or a looping full-length song wraps to a
+ * non-rest at events[0]. Padded tails (length not a multiple of 64) never wrap.
+ */
+function channelContinuesAfterNote(
+    events: ChannelEvent[],
+    targetRow: number,
+    loops: boolean,
+): boolean {
+    for (let j = targetRow + 1; j < events.length; j++) {
+        const laterEvent = events[j];
+        if (laterEvent && laterEvent.type !== 'rest') {
+            return true;
+        }
+    }
+    if (loops && events.length > 0 && events.length % PATTERN_ROWS === 0) {
+        const first = events[0];
+        return Boolean(first && first.type !== 'rest');
+    }
+    return false;
+}
+
+/**
  * Convert beatbax channel events to UGE pattern cells
  * Returns patterns (64-row chunks) for a single channel
  */
@@ -968,6 +991,7 @@ function eventsToPatterns(
     songBpm?: number,
     desiredVibMap?: Map<number, number>,
     warnedFlatNoteConversions?: Set<string>,
+    loops: boolean = false,
 ): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
     const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
 
@@ -1086,8 +1110,9 @@ function eventsToPatterns(
 
                 // Mark cut rows if:
                 // 1. The note has an explicit cut effect, OR
-                // 2. The note is followed only by rests/empty cells until pattern boundary
-                //    (to prevent bleeding into next pattern)
+                // 2. The channel does not continue after this note (pad / true end).
+                //    Do not auto-cut when the next event is in the following 64-row
+                //    pattern, or when a looping full-length song wraps to a non-rest.
                 let hasExplicitCut = false;
                 let cutParam: number | undefined = undefined;
                 if (Array.isArray(noteEvent.effects) && noteEvent.effects.length > 0) {
@@ -1112,24 +1137,12 @@ function eventsToPatterns(
 
                 const targetRow = i + sustainCount; // last sustain or same note row
 
-                // Check if this note is followed only by rests until the next pattern boundary
-                // (to prevent note bleed across pattern loops)
+                // Auto-cut only when the note would otherwise ring into pad rows
+                // or true end-of-channel silence. Authored rests still get E00
+                // via the rest-after-note path; look past 64-row boundaries.
                 let needsAutoCut = false;
-                if (!hasExplicitCut) {
-                    const patternBoundary = Math.ceil((targetRow + 1) / PATTERN_ROWS) * PATTERN_ROWS;
-                    let hasNonRestAfter = false;
-                    for (let j = targetRow + 1; j < patternBoundary && j < events.length; j++) {
-                        const laterEvent = events[j];
-                        if (laterEvent && (laterEvent as any).type !== 'rest') {
-                            hasNonRestAfter = true;
-                            break;
-                        }
-                    }
-                    // If no non-rest events until pattern boundary OR end of channel, add auto-cut to prevent bleed
-                    // Also add auto-cut if this is the very last event in the channel
-                    if (!hasNonRestAfter) {
-                        needsAutoCut = true;
-                    }
+                if (!hasExplicitCut && !channelContinuesAfterNote(events, targetRow, loops)) {
+                    needsAutoCut = true;
                 }
 
                 // Add to endCutRows/cutParamMap if explicit cut or auto-cut needed
@@ -1738,7 +1751,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) log.debug(`Channel ${ch + 1} has ${chEvents.length} events`);
         // share `desiredVibMap` across channels so later passes can inspect desired vib rows
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions);
+        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions, Boolean(song.play?.repeat));
         channelPatterns.push(patterns);
 
         // Check if this channel has retrigger effects
