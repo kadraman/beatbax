@@ -10,6 +10,12 @@ import {
   validateRemoteUrl,
   RemoteImportSecurityOptions,
 } from './urlUtils.js';
+import {
+  INS_AST_ALLOWED_KEYS,
+  ImportBundle,
+  bindSubpatRows,
+  collectDisallowedInsScalars,
+} from '../song/ins-file.js';
 
 export interface RemoteImportProgress {
   url: string;
@@ -26,6 +32,7 @@ export interface RemoteImportOptions extends RemoteImportSecurityOptions {
 
 interface CacheEntry {
   instruments: InstMap;
+  subpatterns: ImportBundle['subpatterns'];
   fetchedAt: number;
   url: string;
 }
@@ -52,33 +59,35 @@ export class RemoteInstrumentCache {
    * Returns cached result if available.
    */
   async fetch(url: string): Promise<InstMap> {
-    // Normalize and validate URL
+    return (await this.fetchBundle(url)).insts;
+  }
+
+  /** Fetch instruments and named `subpat` tables from a remote .ins file. */
+  async fetchBundle(url: string): Promise<ImportBundle> {
     const normalizedUrl = normalizeRemoteUrl(url);
     validateRemoteUrl(normalizedUrl, this.options);
 
-    // Check cache
     const cached = this.cache.get(normalizedUrl);
     if (cached) {
-      return cached.instruments;
+      return { insts: cached.instruments, subpatterns: cached.subpatterns };
     }
 
-    // Fetch from network
-    const instruments = await this.fetchFromNetwork(normalizedUrl);
+    const bundle = await this.fetchFromNetwork(normalizedUrl);
 
-    // Cache the result
     this.cache.set(normalizedUrl, {
-      instruments,
+      instruments: bundle.insts,
+      subpatterns: bundle.subpatterns,
       fetchedAt: Date.now(),
       url: normalizedUrl,
     });
 
-    return instruments;
+    return bundle;
   }
 
   /**
    * Fetch a remote file from the network.
    */
-  private async fetchFromNetwork(url: string): Promise<InstMap> {
+  private async fetchFromNetwork(url: string): Promise<ImportBundle> {
     const fetchFn = this.options.fetchFn || fetch;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
@@ -141,7 +150,10 @@ export class RemoteInstrumentCache {
       // Validate that it's a valid .ins file
       this.validateInsFile(ast, url);
 
-      return ast.insts || {};
+      const insts = ast.insts || {};
+      const subpatterns = ast.subpatterns || {};
+      bindSubpatRows(insts, subpatterns);
+      return { insts, subpatterns };
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw new Error(
@@ -175,9 +187,7 @@ export class RemoteInstrumentCache {
     if (ast.play !== undefined) disallowed.push('play');
 
     // Top-level scalar directives (should not be in .ins files)
-    if (ast.chip !== undefined) disallowed.push('chip');
-    if (ast.bpm !== undefined) disallowed.push('bpm');
-    if (ast.volume !== undefined) disallowed.push('volume');
+    disallowed.push(...collectDisallowedInsScalars(ast));
 
     // Metadata
     if (ast.metadata !== undefined && Object.keys(ast.metadata).length > 0) {
@@ -196,10 +206,7 @@ export class RemoteInstrumentCache {
     }
 
     // Check for any other non-standard properties that might be added
-    const allowedKeys = new Set([
-      'insts', 'imports', 'pats', 'seqs', 'channels', 'play',
-      'chip', 'chipRegion', 'bpm', 'time', 'stepsPerBar', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
-    ]);
+    const allowedKeys = INS_AST_ALLOWED_KEYS;
 
     for (const key of Object.keys(ast)) {
       if (!allowedKeys.has(key) && key !== 'insts') {
@@ -209,7 +216,7 @@ export class RemoteInstrumentCache {
 
     if (disallowed.length > 0) {
       throw new Error(
-        `Invalid remote .ins file "${url}": remote .ins files may only contain "inst" declarations. ` +
+        `Invalid remote .ins file "${url}": remote .ins files may only contain "inst" and "subpat" declarations. ` +
         `Found: ${disallowed.join(', ')}`
       );
     }
