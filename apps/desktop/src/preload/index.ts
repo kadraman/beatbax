@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  DesktopDocumentChangedPayload,
   DesktopFilePayload,
   DesktopOpenFileOptions,
   DesktopRemoteAssetRequest,
@@ -81,7 +82,16 @@ const electronAPI: ElectronAPI = {
   onFileOpened: (callback: (payload: DesktopFilePayload) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopFilePayload) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.FILE_OPENED, listener);
+    ipcRenderer.send(IPC_CHANNELS.FILE_OPENED_REQUEST);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.FILE_OPENED, listener);
+  },
+  watchDocument: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.WATCH_DOCUMENT, filePath),
+  unwatchDocument: () => ipcRenderer.invoke(IPC_CHANNELS.UNWATCH_DOCUMENT),
+  onDocumentChanged: (callback: (payload: DesktopDocumentChangedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: DesktopDocumentChangedPayload) =>
+      callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.DOCUMENT_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.DOCUMENT_CHANGED, listener);
   },
   refreshNativeMenu: () => {
     ipcRenderer.send(IPC_CHANNELS.MENU_REFRESH_REQUEST);

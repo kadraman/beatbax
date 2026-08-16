@@ -5,12 +5,14 @@ import path from 'node:path'
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc'
 import type {
+  DesktopDocumentChangedPayload,
   DesktopFilePayload,
   DesktopOpenFileOptions,
   DesktopRemoteAssetRequest,
   DesktopSaveFileOptions
 } from '../shared/electron-api'
 import { resolveBundledSongFile, resolveExampleSongsOpenDir } from './path-utils'
+import { createDocumentFileWatcher, type DocumentFileWatcher } from './file-watcher'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -286,6 +288,11 @@ export interface DesktopIpcHandlersOptions {
 }
 
 let desktopIpcHandlersRegistered = false
+let documentFileWatcher: DocumentFileWatcher | null = null
+
+function noteDocumentSelfWrite(filePath: string): void {
+  documentFileWatcher?.markSelfWrite(filePath)
+}
 
 function requireMainWindow(getWindow: () => BrowserWindow | null): BrowserWindow {
   const window = getWindow()
@@ -807,7 +814,9 @@ async function persistFile(
   const safePath = assertAbsoluteFilePath(destination)
   const payload = toFileBuffer(data)
   await fs.mkdir(path.dirname(safePath), { recursive: true })
+  noteDocumentSelfWrite(safePath)
   await fs.writeFile(safePath, payload)
+  noteDocumentSelfWrite(safePath)
   return safePath
 }
 
@@ -823,6 +832,25 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
   desktopIpcHandlersRegistered = true
 
   const { getWindow, recentFilesPath, onRecentFilesChanged } = options
+
+  documentFileWatcher = createDocumentFileWatcher({
+    onChange: (payload: DesktopDocumentChangedPayload) => {
+      const window = getWindow()
+      if (!window || window.isDestroyed()) return
+      window.webContents.send(IPC_CHANNELS.DOCUMENT_CHANGED, payload)
+    }
+  })
+
+  let watchOpChain: Promise<void> = Promise.resolve()
+  const enqueueWatchOp = (op: () => void): Promise<void> => {
+    const next = watchOpChain.then(() => {
+      op()
+    })
+    watchOpChain = next.catch((error) => {
+      console.error('desktop document watch op failed', error)
+    })
+    return next
+  }
 
   ipcMain.handle(
     IPC_CHANNELS.OPEN_FILE,
@@ -881,7 +909,13 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
       return
     }
     fs.mkdir(path.dirname(safePath), { recursive: true })
-      .then(() => fs.writeFile(safePath, payload))
+      .then(() => {
+        noteDocumentSelfWrite(safePath)
+        return fs.writeFile(safePath, payload)
+      })
+      .then(() => {
+        noteDocumentSelfWrite(safePath)
+      })
       .catch((error) => {
         console.error('desktop writeFileSync failed', error)
       })
@@ -987,6 +1021,24 @@ export function registerDesktopIpcHandlers(options: DesktopIpcHandlersOptions): 
     return {
       maximized: window ? !window.isDestroyed() && window.isMaximized() : false
     }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.WATCH_DOCUMENT, async (_event, filePath: string) => {
+    const watcher = documentFileWatcher
+    if (!watcher) return
+    await enqueueWatchOp(() => {
+      try {
+        watcher.watch(assertAbsoluteFilePath(typeof filePath === 'string' ? filePath : ''))
+      } catch (error) {
+        console.error('desktop watchDocument failed', error)
+      }
+    })
+  })
+
+  ipcMain.handle(IPC_CHANNELS.UNWATCH_DOCUMENT, async () => {
+    await enqueueWatchOp(() => {
+      documentFileWatcher?.unwatch()
+    })
   })
 }
 

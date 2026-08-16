@@ -17,6 +17,15 @@ export interface DesktopFilePayload {
   data: Uint8Array;
 }
 
+export type DesktopDocumentChangeType = 'change' | 'unlink';
+
+export interface DesktopDocumentChangedPayload {
+  path: string;
+  type: DesktopDocumentChangeType;
+  /** UTF-8 text when `type` is `change`. */
+  content?: string;
+}
+
 export interface DesktopRemoteAssetRequest {
   url: string;
   timeoutMs?: number;
@@ -125,5 +134,8 @@ export interface ElectronAPI {
   onWindowStateChanged(callback: (state: DesktopWindowState) => void): () => void;
   onMenuAction(callback: (action: MenuAction) => void): () => void;
   onFileOpened(callback: (payload: DesktopFilePayload) => void): () => void;
+  watchDocument(filePath: string): Promise<void>;
+  unwatchDocument(): Promise<void>;
+  onDocumentChanged(callback: (payload: DesktopDocumentChangedPayload) => void): () => void;
   refreshNativeMenu(): void;
 }

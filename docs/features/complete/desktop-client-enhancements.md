@@ -30,7 +30,7 @@ This document continues to track remaining polish: **auto-update**, desktop powe
 |------------|--------|-------|
 | Distribution hardening | 🟨 | macOS signing+notarization shipped; Windows intentionally unsigned; `SHA256SUMS` (+ optional GPG) on releases; auto-update still open |
 | Native React UI | ✅ | Phase 5b complete — shipped in desktop **v0.2.0** |
-| Desktop power features | ⬜ | Tray, multi-window, file watcher |
+| Desktop power features | 🟨 | File watcher shipped; tray, multi-window still open |
 | Export / audio polish | 🟨 | Secure NES DMC remote sample loading shipped (main-process IPC); native WAV path still pending |
 | Test / QA expansion | 🟨 | Reusable release checklist in [desktop-release-qa.md](../qa/desktop-release-qa.md); macOS/Linux interactive QA and broader e2e still pending |
 
@@ -54,7 +54,7 @@ Automated e2e covers startup load, JSON export, playback, and save-in-place. Nat
 
 #### Missing power-user features
 
-No system tray, global hotkey, multi-window editing, external file watcher, or offline CoPilot routing — all listed as future enhancements in the original Electron plan.
+No system tray, global hotkey, multi-window editing, or offline CoPilot routing — remaining Phase 5c items. External file watcher for the open `.bax` is implemented.
 
 ---
 
@@ -123,7 +123,7 @@ Optional shared styling: `packages/ui-tokens/` (extracted).
 | **System tray** | Minimize-to-tray; quick play/stop from tray menu |
 | **Global shortcut** | Toggle app window (e.g. `Ctrl+Shift+B`) via `globalShortcut` in main process |
 | **Multi-window** | Open multiple `.bax` files in separate `BrowserWindow` instances; shared or per-window `AppContext` |
-| **File watcher** | `fs.watch` on open document path; prompt to reload when changed externally |
+| **File watcher** | `fs.watch` on the open document directory; VS Code-style reload when the `.bax` changes externally. See [desktop-external-file-reload.md](./desktop-external-file-reload.md) |
 | **Offline CoPilot** | Route Chat panel to local Ollama when no internet; settings toggle |
 
 ### 4. Export and audio polish (lower priority)
@@ -184,7 +184,7 @@ Historical steps (all done):
 
 1. System tray + global shortcut (main process only).
 2. Multi-window architecture spike — decide shared vs per-window state.
-3. File watcher with reload prompt.
+3. ~~File watcher with reload prompt.~~ **Done** — hybrid reload + Settings → Editor control ([desktop-external-file-reload.md](./desktop-external-file-reload.md)).
 4. Ollama routing in CoPilot (optional BYOK extension).
 
 **Deliverable:** Power-user workflows without leaving the desktop app.
@@ -278,7 +278,7 @@ The web-UI panel bridge migration is **complete** as of v0.2.0; remaining workst
 - [ ] System tray with play/stop
 - [ ] Global keyboard shortcut to toggle window
 - [ ] Multi-window support
-- [ ] External file watcher with reload prompt
+- [x] External file watcher with reload prompt
 - [ ] Offline CoPilot via Ollama routing
 
 ### 5d — Export / audio
@@ -294,6 +294,7 @@ The web-UI panel bridge migration is **complete** as of v0.2.0; remaining workst
 - [ ] Linux interactive QA sign-off (per release / spot check)
 - [ ] `.bax` double-click verification (Windows + macOS)
 - [x] Playwright: platform-appropriate menu chrome (native menu on darwin)
+- [x] Playwright: reload editor when the open `.bax` is written on disk
 
 ---
 

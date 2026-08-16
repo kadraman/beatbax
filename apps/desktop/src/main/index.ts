@@ -14,12 +14,13 @@ import {
   resolveMacExampleSongsDir,
 } from './path-utils';
 import { IPC_CHANNELS } from '../shared/ipc';
-import type { MenuAction } from '../shared/electron-api';
+import type { DesktopFilePayload, MenuAction } from '../shared/electron-api';
 
 let mainWindow: BrowserWindow | null = null;
 let windowCreation: Promise<void> | null = null;
 let pendingStartupMenuAction: MenuAction | null = null;
 let pendingOpenPaths: string[] = [];
+let lastOpenedPayload: DesktopFilePayload | null = null;
 let detachWindowStateEvents: (() => void) | null = null;
 
 const isMac = process.platform === 'darwin';
@@ -112,7 +113,16 @@ async function sendOpenedFile(filePath: string): Promise<void> {
   try {
     const payload = await openRecentFile(window, filePath);
     await addRecentFileEntry(recentFilesPath, payload.path);
-    window.webContents.send(IPC_CHANNELS.FILE_OPENED, payload);
+    lastOpenedPayload = {
+      path: payload.path,
+      name: payload.name,
+      data: Uint8Array.from(payload.data),
+    };
+    window.webContents.send(IPC_CHANNELS.FILE_OPENED, {
+      path: payload.path,
+      name: payload.name,
+      data: Uint8Array.from(payload.data),
+    });
     await refreshMenu();
   } catch (error) {
     console.error('Failed to open desktop file', error);
@@ -162,6 +172,7 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
 
@@ -253,8 +264,19 @@ app.whenReady().then(async () => {
     },
   });
 
-  ipcMain.on(IPC_CHANNELS.FILE_OPENED_REQUEST, (_event, filePath: string) => {
-    void sendOpenedFile(filePath);
+  ipcMain.on(IPC_CHANNELS.FILE_OPENED_REQUEST, (_event, filePath?: string) => {
+    if (typeof filePath === 'string' && filePath.trim()) {
+      void sendOpenedFile(filePath);
+      return;
+    }
+    const window = getMainWindow();
+    if (window && lastOpenedPayload) {
+      window.webContents.send(IPC_CHANNELS.FILE_OPENED, {
+        path: lastOpenedPayload.path,
+        name: lastOpenedPayload.name,
+        data: Uint8Array.from(lastOpenedPayload.data),
+      });
+    }
   });
 
   ipcMain.on(IPC_CHANNELS.MENU_REFRESH_REQUEST, () => {

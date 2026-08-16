@@ -72,6 +72,10 @@ export const settingVizBgImage         = stringAtom<string>(StorageKey.VIZ_BG_IM
 
 export const settingAutoSave        = boolAtom(StorageKey.AUTO_SAVE,         true);
 export const settingAutoSaveDelay   = numberAtom(StorageKey.AUTO_SAVE_DELAY, 1000);
+export const settingFileReload      = stringAtom<'reloadIfUnmodified' | 'alwaysAsk' | 'alwaysReload' | 'off'>(
+  StorageKey.FILE_RELOAD,
+  'reloadIfUnmodified',
+);
 export const settingWordWrap        = boolAtom(StorageKey.WORD_WRAP,         false);
 
 /** Editor debounce delay when auto-save is enabled; 0 when disabled. */
@@ -163,6 +167,7 @@ export const SECTION_KEYS: Record<string, string[]> = {
   editor: [
     StorageKey.AUTO_SAVE,
     StorageKey.AUTO_SAVE_DELAY,
+    StorageKey.FILE_RELOAD,
     StorageKey.WORD_WRAP,
     StorageKey.FOLD_COMMENTS,
     StorageKey.CODELENS,
