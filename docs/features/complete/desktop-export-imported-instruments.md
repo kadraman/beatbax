@@ -87,7 +87,7 @@ flowchart LR
 
 Reuse the Play/parse/CodeLens import path inside `ExportManager`. Do **not** snapshot `latestResolvedAst` from `parse:success` as the export source — re-parse the buffer so unsaved edits are exported.
 
-1. After `parse(source)`, if `ast.imports?.length`, `await resolveImports(ast, buildImportResolverOptions())` (same helper as [`create-app-context.ts`](../../../packages/app-core/src/app/create-app-context.ts), playback, and [`parseAndResolveForPreview`](../../../packages/app-core/src/editor/codelens-preview.ts)).
+1. After `parse(source)`, if `ast.imports?.length`, `await resolveImports(ast, buildImportResolverOptions({ onWarn }))` (same helper as [`create-app-context.ts`](../../../packages/app-core/src/app/create-app-context.ts), playback, and [`parseAndResolveForPreview`](../../../packages/app-core/src/editor/codelens-preview.ts)). Import override warnings (instrument / effect / subpat last-wins) go into `ExportResult.warnings`, same as resolver and plugin warnings.
 2. On import failure, fail the export with that message (`export:error` / Problems), not a generic “undefined instrument” list.
 3. Run `validateForExport` on the **merged** AST (`insts` / `effects` / `subpatterns` populated, `imports` cleared).
 4. Call `resolveSong` on that merged AST so the browser bundle does not enter `resolveImportsSync`.
@@ -166,6 +166,7 @@ No song-format change. Songs that already import kits start exporting from Deskt
 - [x] `ExportManager.export()` merges imports with `buildImportResolverOptions()` before validate/resolve.
 - [x] `validateForExport` and `resolveSong` run on the merged AST (`imports` cleared).
 - [x] Import failure surfaces as `export:error` with the import message.
+- [x] Import override warnings are collected on `ExportResult.warnings`.
 - [x] Default `validate: true` still errors on instruments that are missing after merge.
 - [x] Desktop `local:` export uses the saved document path; web-lite still blocks `local:`.
 - [x] Unit tests + `@beatbax/app-core` patch changeset.
