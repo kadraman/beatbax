@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented comprehensive validation for `.ins` (instrument-only) import files to enforce the rule that **`.ins` files may only contain `inst` and `import` declarations**.
+Implemented comprehensive validation for `.ins` (instrument-library) import files to enforce the rule that **`.ins` files may only contain `inst`, `import`, and native `subpat` declarations**.
 
 ## Changes Made
 
@@ -122,7 +122,7 @@ pat melody = C5 E5 G5
 
 **Error:**
 ```
-Invalid .ins file "lib/invalid.ins": .ins files may only contain "inst" and "import" declarations. 
+Invalid .ins file "lib/invalid.ins": .ins files may only contain "inst", "import", and "subpat" declarations. 
 Found: chip, bpm, patterns
 ```
 
@@ -131,12 +131,17 @@ Found: chip, bpm, patterns
 # Drum instruments library
 import "local:lib/shared.ins"
 
-inst kick type=noise env=15,down
+subpat kick_body =
+  .
+  +0 vol:10
+  halt
+
+inst kick type=noise env=15,down subpat=kick_body
 inst snare type=noise env=12,down
 inst hat type=noise env=8,down
 ```
 
-**Result:** ✅ Accepted - contains only `import` and `inst` declarations
+**Result:** ✅ Accepted - contains `import`, `inst`, and `subpat` declarations
 
 ---
 
@@ -168,4 +173,4 @@ inst hat type=noise env=8,down
 
 ## Conclusion
 
-The comprehensive .ins validation implementation successfully enforces the "instruments and imports only" rule across all AST properties, providing strong security guarantees and clear error messages when validation fails.
+The comprehensive .ins validation implementation successfully enforces the "instruments, imports, and subpatterns only" rule across all AST properties, providing strong security guarantees and clear error messages when validation fails.

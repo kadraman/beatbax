@@ -11,6 +11,13 @@ import { parse } from '../parser/index.js';
 import { isRemoteImport, isLocalImport } from '../import/urlUtils.js';
 import { resolveLocalImportPath } from '../import/localImportPath.js';
 import { RemoteInstrumentCache, RemoteImportOptions } from '../import/remoteCache.js';
+import {
+  INS_AST_ALLOWED_KEYS,
+  ImportBundle,
+  bindSubpatRows,
+  emptyImportBundle,
+  mergeSubpatterns,
+} from './ins-file.js';
 
 export interface ImportResolverOptions {
   /** Base file path of the importing .bax/.ins (Desktop: on-disk song path). */
@@ -34,7 +41,7 @@ export interface ImportResolverOptions {
 
 interface ImportContext {
   importStack: string[];
-  cache: Record<string, InstMap>;
+  cache: Record<string, ImportBundle>;
   options: ImportResolverOptions;
   remoteCache?: RemoteInstrumentCache;
 }
@@ -69,7 +76,7 @@ function localFs(options: ImportResolverOptions): {
  * Validate that an AST contains only allowed node types for .ins files.
  */
 function validateInsFile(ast: AST, source: string): void {
-  // .ins files should only contain instrument definitions and imports
+  // .ins files may contain inst, import, and native subpat declarations
   const disallowed: string[] = [];
   
   // Playback/structure directives
@@ -100,10 +107,7 @@ function validateInsFile(ast: AST, source: string): void {
   }
   
   // Check for any other non-standard properties that might be added
-  const allowedKeys = new Set([
-    'insts', 'imports', 'pats', 'seqs', 'channels', 'play',
-    'chip', 'chipRegion', 'bpm', 'time', 'stepsPerBar', 'volume', 'metadata', 'effects', 'patternEvents', 'sequenceItems'
-  ]);
+  const allowedKeys = INS_AST_ALLOWED_KEYS;
   
   for (const key of Object.keys(ast)) {
     if (!allowedKeys.has(key) && key !== 'insts' && key !== 'imports') {
@@ -113,7 +117,7 @@ function validateInsFile(ast: AST, source: string): void {
 
   if (disallowed.length > 0) {
     throw new Error(
-      `Invalid .ins file "${source}": .ins files may only contain "inst" and "import" declarations. ` +
+      `Invalid .ins file "${source}": .ins files may only contain "inst", "import", and "subpat" declarations. ` +
       `Found: ${disallowed.join(', ')}`
     );
   }
@@ -125,7 +129,7 @@ function validateInsFile(ast: AST, source: string): void {
 async function loadRemoteImportFile(
   url: string,
   ctx: ImportContext
-): Promise<InstMap> {
+): Promise<ImportBundle> {
   // Check for import cycles
   if (ctx.importStack.includes(url)) {
     const cycle = [...ctx.importStack, url].join(' -> ');
@@ -142,8 +146,7 @@ async function loadRemoteImportFile(
 
   try {
     // Fetch from remote cache (handles caching internally)
-    const instruments = await ctx.remoteCache.fetch(url);
-    return instruments;
+    return await ctx.remoteCache.fetchBundle(url);
   } finally {
     // Remove from import stack
     ctx.importStack.pop();
@@ -154,7 +157,7 @@ async function loadLocalImportFile(
   importSource: string,
   ctx: ImportContext,
   fs: { readFile: (filePath: string) => string; fileExists: (filePath: string) => boolean },
-): Promise<InstMap> {
+): Promise<ImportBundle> {
   if (!ctx.options.baseFilePath && !(ctx.options.searchPaths && ctx.options.searchPaths.length > 0)) {
     throw new Error(
       `Local import "${importSource}" cannot be resolved because the song has not been saved to disk. ` +
@@ -207,15 +210,18 @@ async function loadLocalImportFile(
       ...ctx,
       options: { ...ctx.options, baseFilePath: absolutePath },
     };
-    const mergedInsts = await processImports(ast, nestedCtx);
-    const finalInsts = mergeInstruments(
-      mergedInsts,
-      ast.insts || {},
+    const nested = await processImports(ast, nestedCtx);
+    const insts = mergeInstruments(nested.insts, ast.insts || {}, absolutePath, ctx);
+    const subpatterns = mergeSubpatterns(
+      nested.subpatterns,
+      ast.subpatterns || {},
       absolutePath,
-      ctx,
+      { strictMode: ctx.options.strictMode, onWarn: ctx.options.onWarn },
     );
-    ctx.cache[absolutePath] = finalInsts;
-    return finalInsts;
+    bindSubpatRows(insts, subpatterns);
+    const bundle = { insts, subpatterns };
+    ctx.cache[absolutePath] = bundle;
+    return bundle;
   } finally {
     ctx.importStack.pop();
   }
@@ -227,7 +233,7 @@ async function loadLocalImportFile(
 async function loadImportFile(
   importSource: string,
   ctx: ImportContext
-): Promise<InstMap> {
+): Promise<ImportBundle> {
   if (isLocalImport(importSource)) {
     const fs = localFs(ctx.options);
     if (!fs) {
@@ -284,21 +290,27 @@ function mergeInstruments(
 async function processImports(
   ast: AST,
   ctx: ImportContext
-): Promise<InstMap> {
-  let mergedInsts: InstMap = {};
+): Promise<ImportBundle> {
+  let merged = emptyImportBundle();
 
   if (!ast.imports || ast.imports.length === 0) {
-    return mergedInsts;
+    return merged;
   }
 
   for (const imp of ast.imports) {
-    const importedInsts = await loadImportFile(imp.source, ctx);
-
-    // Merge imported instruments (later imports override earlier ones)
-    mergedInsts = mergeInstruments(mergedInsts, importedInsts, imp.source, ctx);
+    const imported = await loadImportFile(imp.source, ctx);
+    merged = {
+      insts: mergeInstruments(merged.insts, imported.insts, imp.source, ctx),
+      subpatterns: mergeSubpatterns(
+        merged.subpatterns,
+        imported.subpatterns,
+        imp.source,
+        { strictMode: ctx.options.strictMode, onWarn: ctx.options.onWarn },
+      ),
+    };
   }
 
-  return mergedInsts;
+  return merged;
 }
 
 /**
@@ -318,21 +330,26 @@ export async function resolveImports(
   };
 
   // Process imports
-  const importedInsts = await processImports(ast, ctx);
-
-  // Merge imported instruments with local instruments (local overrides imported)
+  const imported = await processImports(ast, ctx);
   const finalInsts = mergeInstruments(
-    importedInsts,
+    imported.insts,
     ast.insts || {},
     options.baseFilePath || '<main>',
     ctx
   );
+  const finalSubpats = mergeSubpatterns(
+    imported.subpatterns,
+    ast.subpatterns || {},
+    options.baseFilePath || '<main>',
+    { strictMode: ctx.options.strictMode, onWarn: ctx.options.onWarn },
+  );
+  bindSubpatRows(finalInsts, finalSubpats);
 
-  // Return new AST with merged instruments and cleared imports
   return {
     ...ast,
     insts: finalInsts,
-    imports: [], // Clear imports to prevent double-resolution
+    subpatterns: Object.keys(finalSubpats).length ? finalSubpats : ast.subpatterns,
+    imports: [],
   };
 }
 

@@ -1,6 +1,6 @@
 /**
  * Comprehensive tests for .ins file validation.
- * Ensures ONLY inst and import declarations are allowed.
+ * Ensures ONLY inst, import, and native subpat declarations are allowed.
  */
 
 import { resolveImports } from '../src/song/importResolver';
