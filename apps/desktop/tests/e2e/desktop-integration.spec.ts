@@ -2,7 +2,7 @@ import { test, expect, _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 
@@ -15,7 +15,10 @@ const trainersJourneyPath = path.resolve(appRoot, '..', '..', 'songs', 'gameboy'
 async function launchDesktopApp(extraArgs: string[] = []) {
   const consoleErrors: string[] = [];
   const electronApp = await electron.launch({
-    args: [appRoot, ...extraArgs],
+    args: [
+      appRoot,
+      ...extraArgs,
+    ],
     cwd: appRoot,
     env: {
       ...process.env,
@@ -646,6 +649,45 @@ test('saves edits back to an opened .bax file', async () => {
   await expect(page.locator('#output-pane').getByText('Saved save-test.bax')).toBeVisible({ timeout: 15_000 });
 
   expect(readFileSync(songPath, 'utf8')).toContain(marker);
+
+  await electronApp.close();
+  rmSync(tempDir, { recursive: true, force: true });
+});
+
+test('reloads the editor when the open .bax changes on disk', async () => {
+  test.setTimeout(60_000);
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-e2e-reload-'));
+  const songPath = path.join(tempDir, 'reload-test.bax');
+  const original = readFileSync(sampleSongPath, 'utf8');
+  writeFileSync(songPath, original, 'utf8');
+
+  const { electronApp, page } = await launchDesktopApp([songPath]);
+  await expect(page.locator('.status-document-name')).toHaveText('reload-test.bax', { timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => {
+    const editor = (window as unknown as {
+      __beatbax_editor?: { getValue?: () => string };
+    }).__beatbax_editor;
+    return editor?.getValue?.() ?? '';
+  }), { timeout: 15_000 }).toContain('chip');
+
+  await page.evaluate(() => {
+    const win = window as unknown as {
+      __beatbax_setAutoSave?: (enabled: boolean) => void;
+    };
+    win.__beatbax_setAutoSave?.(false);
+  });
+  await page.waitForTimeout(500);
+
+  const marker = `// external-reload-${Date.now()}`;
+  writeFileSync(songPath, `${original}\n${marker}\n`, 'utf8');
+  utimesSync(songPath, new Date(), new Date());
+
+  await expect.poll(() => page.evaluate(() => {
+    const editor = (window as unknown as {
+      __beatbax_editor?: { getValue?: () => string };
+    }).__beatbax_editor;
+    return editor?.getValue?.() ?? '';
+  }), { timeout: 15_000 }).toContain(marker);
 
   await electronApp.close();
   rmSync(tempDir, { recursive: true, force: true });

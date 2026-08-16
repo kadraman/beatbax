@@ -31,4 +31,7 @@ export const IPC_CHANNELS = {
   WINDOW_STATE_CHANGED: 'desktop:window-state-changed',
   WINDOW_TOGGLE_DEVTOOLS: 'desktop:window-toggle-devtools',
   MENU_REFRESH_REQUEST: 'desktop:menu-refresh-request',
+  WATCH_DOCUMENT: 'desktop:watch-document',
+  UNWATCH_DOCUMENT: 'desktop:unwatch-document',
+  DOCUMENT_CHANGED: 'desktop:document-changed',
 } as const;

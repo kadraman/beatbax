@@ -2,16 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createAppContext, type ParsePipelineHooks, isParseSuccessValid } from '@beatbax/app-core';
 import type { BeatBaxEditor } from '@beatbax/app-core/editor';
 import { editorContent, editorDirty, documentSaveState } from '@beatbax/app-core/stores/editor.store';
-import { settingAutoSave, settingDefaultBpm } from '@beatbax/app-core/stores/settings.store';
-import type { MenuAction } from '../../shared/electron-api';
+import { getEffectiveAutoSaveDelay, settingAutoSave, settingDefaultBpm, settingFileReload } from '@beatbax/app-core/stores/settings.store';
+import type { DesktopDocumentChangedPayload, MenuAction } from '../../shared/electron-api';
+import { decideFileReload, editorTextEqualsDisk } from '../../shared/file-reload-policy';
+import { filePathsMatch } from '../../shared/file-watcher-logic';
 import { DesktopWorkspaceShell, mapMenuActionToExport } from './components/DesktopWorkspaceShell';
 import { DesktopTitleBar } from './components/DesktopTitleBar';
 import { useStoreValue } from './hooks/useStoreValue';
 import { getInitialContent, getStarterSong } from './lib/bootstrap';
-import { autoSaveDocumentToDisk, saveDocumentToDisk } from './lib/desktop-document-save';
+import { autoSaveDocumentToDisk, isAbsoluteFilePath, saveDocumentToDisk } from './lib/desktop-document-save';
 import { canAutoSaveToDisk } from './lib/auto-save-policy';
 import { clearPersistedDocumentSession, persistDocumentSession, readPersistedDocument } from './lib/desktop-session';
 import { readStartupMenuAction, shouldRestorePersistedSession } from './lib/desktop-startup';
+import { dismissFileReloadBanner, showFileReloadBanner } from './lib/file-reload-banner';
 import type { DesktopWorkspaceHandle } from './lib/desktop-workspace';
 
 interface OpenDocument {
@@ -64,6 +67,8 @@ export default function App(): React.JSX.Element {
   const pendingAutoPlayRef = useRef<PendingAutoPlay | null>(null);
   const lastParsedAstRef = useRef<unknown>(null);
   const handleMenuActionRef = useRef<(action: MenuAction) => void>(() => {});
+  const dismissedDiskContentRef = useRef<string | null>(null);
+  const dismissedUnlinkRef = useRef(false);
 
   const syncDocumentStatus = useCallback((doc: OpenDocument) => {
     workspaceRef.current?.statusBar?.setDocumentInfo({
@@ -80,6 +85,43 @@ export default function App(): React.JSX.Element {
   const runParse = useCallback((content: string) => {
     workspaceRef.current?.runParse(content);
   }, []);
+
+  const applyDiskContent = useCallback((content: string) => {
+    dismissedDiskContentRef.current = null;
+    dismissedUnlinkRef.current = false;
+    dismissFileReloadBanner();
+
+    const editor = editorRef.current;
+    if (!editor) {
+      pendingEditorContentRef.current = content;
+      editorContent.set(content);
+      editorDirty.set(false);
+      return;
+    }
+
+    const monacoEditor = editor.editor;
+    const position = monacoEditor.getPosition();
+    const scrollTop = monacoEditor.getScrollTop();
+    editor.setAutoSaveDelay(Math.max(getEffectiveAutoSaveDelay(), 1));
+    editor.setValue(content);
+    editor.cancelPendingChangeNotification();
+    editor.setAutoSaveDelay(getEffectiveAutoSaveDelay());
+    editorContent.set(content);
+    editorDirty.set(false);
+
+    const model = monacoEditor.getModel();
+    if (position && model) {
+      const line = Math.min(position.lineNumber, model.getLineCount());
+      const column = Math.min(position.column, model.getLineMaxColumn(line));
+      monacoEditor.setPosition({ lineNumber: line, column });
+      monacoEditor.setScrollTop(scrollTop);
+    }
+
+    runParse(content);
+    window.setTimeout(() => {
+      workspaceRef.current?.statusBar?.setStatus('Reloaded from disk');
+    }, 300);
+  }, [runParse]);
 
   const requestAutoPlayAfterParse = useCallback((content: string) => {
     pendingAutoPlayRef.current = { content };
@@ -132,9 +174,16 @@ export default function App(): React.JSX.Element {
     if (pendingEditorContentRef.current !== null) {
       const content = pendingEditorContentRef.current;
       pendingEditorContentRef.current = null;
+      editor.setAutoSaveDelay(Math.max(getEffectiveAutoSaveDelay(), 1));
       editor.setValue(content);
+      editor.cancelPendingChangeNotification();
+      editor.setAutoSaveDelay(getEffectiveAutoSaveDelay());
       editorContent.set(content);
+      editorDirty.set(false);
       runParse(content);
+    } else {
+      editor.cancelPendingChangeNotification();
+      editorDirty.set(false);
     }
     tryPendingAutoPlay();
   }, [runParse, tryPendingAutoPlay]);
@@ -142,6 +191,9 @@ export default function App(): React.JSX.Element {
   const loadDocument = useCallback((name: string, content: string, filePath: string | null) => {
     stopPlayback();
     requestAutoPlayAfterParse(content);
+    dismissedDiskContentRef.current = null;
+    dismissedUnlinkRef.current = false;
+    dismissFileReloadBanner();
     const nextDoc = { path: filePath, name };
     setDocumentState(nextDoc);
     persistDocumentSession(filePath, name);
@@ -150,7 +202,10 @@ export default function App(): React.JSX.Element {
     appContext.eventBus.emit('song:loaded', { filename: name, content });
 
     if (editorRef.current) {
+      editorRef.current.setAutoSaveDelay(Math.max(getEffectiveAutoSaveDelay(), 1));
       editorRef.current.setValue(content);
+      editorRef.current.cancelPendingChangeNotification();
+      editorRef.current.setAutoSaveDelay(getEffectiveAutoSaveDelay());
       editorContent.set(content);
       editorDirty.set(false);
       runParse(content);
@@ -161,6 +216,15 @@ export default function App(): React.JSX.Element {
       editorDirty.set(false);
     }
     void workspaceRef.current?.refreshRecentFiles();
+
+    const api = window.electronAPI;
+    if (api?.watchDocument) {
+      if (filePath && isAbsoluteFilePath(filePath)) {
+        void api.watchDocument(filePath);
+      } else {
+        void api.unwatchDocument();
+      }
+    }
   }, [appContext.eventBus, requestAutoPlayAfterParse, runParse, stopPlayback, syncDocumentStatus]);
 
   const decodePayload = useCallback((payload: { path: string; name: string; data: Uint8Array }) => {
@@ -291,6 +355,111 @@ export default function App(): React.JSX.Element {
       cleanupMenu();
       cleanupFileOpen();
     };
+  }, []);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.watchDocument) return;
+    const filePath = documentState.path;
+    if (!filePath || !isAbsoluteFilePath(filePath)) {
+      void api.unwatchDocument();
+      dismissFileReloadBanner();
+      return;
+    }
+    void api.watchDocument(filePath);
+  }, [documentState.path]);
+
+  useEffect(() => {
+    return () => {
+      void window.electronAPI?.unwatchDocument?.();
+    };
+  }, []);
+
+  const handleDiskEvent = useCallback((payload: DesktopDocumentChangedPayload) => {
+    const api = window.electronAPI;
+    const currentPath = documentStateRef.current.path;
+    if (!currentPath || !filePathsMatch(currentPath, payload.path)) return;
+
+    let eventType = payload.type;
+    let diskContent = payload.content;
+    if (eventType !== 'unlink' && diskContent === undefined) {
+      try {
+        diskContent = api?.readFileSync(payload.path, 'utf-8');
+      } catch {
+        eventType = 'unlink';
+      }
+    }
+
+    if (eventType === 'unlink') {
+      if (decideFileReload(settingFileReload.get(), editorDirty.get()) === 'ignore') return;
+      if (dismissedUnlinkRef.current) return;
+      const host = workspaceRef.current?.editorPane;
+      if (!host) return;
+      showFileReloadBanner({
+        host,
+        mode: 'deleted',
+        onKeep: () => {
+          dismissedUnlinkRef.current = true;
+        },
+      });
+      return;
+    }
+
+    if (diskContent === undefined) return;
+
+    const editorText = editorRef.current?.getValue() ?? editorContent.get();
+    if (editorTextEqualsDisk(editorText, diskContent)) return;
+    if (dismissedDiskContentRef.current && editorTextEqualsDisk(dismissedDiskContentRef.current, diskContent)) return;
+
+    const decision = decideFileReload(settingFileReload.get(), editorDirty.get());
+    if (decision === 'ignore') return;
+    if (decision === 'apply') {
+      applyDiskContent(diskContent);
+      return;
+    }
+
+    const host = workspaceRef.current?.editorPane;
+    if (!host) return;
+    showFileReloadBanner({
+      host,
+      mode: 'conflict',
+      onReload: () => applyDiskContent(diskContent),
+      onKeep: () => {
+        dismissedDiskContentRef.current = diskContent;
+      },
+    });
+  }, [applyDiskContent]);
+
+  const handleDiskEventRef = useRef(handleDiskEvent);
+  handleDiskEventRef.current = handleDiskEvent;
+
+  useEffect(() => {
+    const win = window as unknown as {
+      __beatbax_setFileReload?: (policy: string) => void;
+      __beatbax_setAutoSave?: (enabled: boolean) => void;
+    };
+    win.__beatbax_setFileReload = (policy) => {
+      settingFileReload.set(policy as 'reloadIfUnmodified' | 'alwaysAsk' | 'alwaysReload' | 'off');
+    };
+    win.__beatbax_setAutoSave = (enabled) => {
+      settingAutoSave.set(enabled);
+    };
+    return () => {
+      delete win.__beatbax_setFileReload;
+      delete win.__beatbax_setAutoSave;
+    };
+  }, []);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.onDocumentChanged) return;
+    return api.onDocumentChanged((payload) => {
+      try {
+        handleDiskEventRef.current(payload);
+      } catch (error) {
+        console.error('desktop disk event failed', error);
+      }
+    });
   }, []);
 
   useEffect(() => {
