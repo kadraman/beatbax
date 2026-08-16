@@ -387,7 +387,27 @@ channel 1 => inst lead pat melody
         baseFilePath: 'C:\\music\\song.bax',
         readFile: expect.any(Function),
         fileExists: expect.any(Function),
+        onWarn: expect.any(Function),
       }),
     );
+  });
+
+  test('includes resolveImports override warnings on the export result', async () => {
+    setupDownloadMocks();
+    mockParse.mockReturnValue(unmergedKitAst());
+    mockResolveImports.mockImplementation(async (ast: any, options?: { onWarn?: (message: string) => void }) => {
+      options?.onWarn?.('Instrument "gb_lead" from "local:lib/kit.ins" overrides previously defined instrument');
+      options?.onWarn?.('Effect "drift" from "local:lib/kit.ins" overrides previously defined effect');
+      return mergedKitAst();
+    });
+    const manager = new ExportManager(new EventBus());
+
+    const result = await manager.export(KIT_SOURCE, 'uge', { filename: 'kit-song.bax' });
+
+    expect(result.success).toBe(true);
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      'Instrument "gb_lead" from "local:lib/kit.ins" overrides previously defined instrument',
+      'Effect "drift" from "local:lib/kit.ins" overrides previously defined effect',
+    ]));
   });
 });

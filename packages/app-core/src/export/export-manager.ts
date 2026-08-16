@@ -106,7 +106,12 @@ export class ExportManager {
       // the browser bundle, where resolveImportsSync always throws.
       if (Array.isArray(ast.imports) && ast.imports.length > 0) {
         try {
-          ast = await resolveImports(ast, buildImportResolverOptions());
+          ast = await resolveImports(ast, buildImportResolverOptions({
+            onWarn: (message: string) => {
+              warnings.push(message);
+              log.debug('Import warning:', message);
+            },
+          }));
         } catch (importErr: unknown) {
           const message = importErr instanceof Error ? importErr.message : String(importErr);
           throw new Error(`Import failed: ${message}`);
