@@ -151,6 +151,7 @@ This spec. After implementation:
   - `resolveImports` is called with options from `buildImportResolverOptions` (desktop path when `LAST_DOCUMENT_PATH` is set).
 - Song with no `import` lines: `resolveImports` is not called.
 - Import merge failure: `success: false`, `export:error`, message includes the import error (not “undefined instrument”).
+- Import override `onWarn` callbacks appear on `result.warnings`.
 - Existing filename / save-dialog tests stay green.
 
 ### Integration Tests
