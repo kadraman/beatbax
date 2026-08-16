@@ -5081,6 +5081,18 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   color: #333;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
+[data-theme=light] .bb-file-reload-banner {
+  background: #ffffff;
+  border-color: #ccc;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+[data-theme=light] .bb-file-reload-banner-keep {
+  background: #f3f3f3;
+  color: #333;
+  border-color: #ccc;
+}
+[data-theme=light] .bb-file-reload-banner-keep:hover { background: #e8e8e8; }
 [data-theme=light] .bb-chat-markdown code {
   background: #eef0f2;
   border-color: #d0d7de;
@@ -7174,3 +7186,48 @@ body.bb-viz-wide-mode .desktop-title-bar__drag {
   align-items: center;
   gap: 2px;
 }
+
+.bb-file-reload-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 51;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: 'Segoe UI', sans-serif;
+  color: #d4d4d4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: all;
+}
+.bb-file-reload-banner-label {
+  white-space: nowrap;
+}
+.bb-file-reload-banner-reload {
+  padding: 3px 10px;
+  font-size: 11px;
+  background: #16825d;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.bb-file-reload-banner-reload:hover { background: #1a9c70; }
+.bb-file-reload-banner-keep {
+  padding: 3px 10px;
+  font-size: 11px;
+  background: #3c3c3c;
+  color: #d4d4d4;
+  border: 1px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.bb-file-reload-banner-keep:hover { background: #4a4a4a; }
+

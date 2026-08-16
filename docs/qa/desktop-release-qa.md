@@ -45,6 +45,7 @@ Confirm these remain covered (or note gaps):
 - Play/stop on starter song without console errors
 - Loop and live transport controls wired
 - Save (e.g. Ctrl/Cmd+S) writes edits back to the opened file
+- Open `.bax` reloads in the editor when another process writes the file (clean buffer)
 
 ## Manual validation (primary platform)
 
@@ -58,6 +59,7 @@ Confirm these remain covered (or note gaps):
 | IDE panels: Settings, Copilot, Help, Output/Problems | | Native React desktop shell |
 | IDE panels: channel mixer, song visualizer, pattern grid | | |
 | Autosave toggle / debounce and save-state feedback | | |
+| External `.bax` reload (edit in another editor, BeatBax picks it up) | | Settings → Editor: When the open file changes on disk |
 | Toolbar / transport click and hover reliability | | Unmute, clear solo, performance mode, visualizer |
 | Shared keyboard shortcuts (menus, toolbar, Help, editor) | | Include macOS label check when on macOS |
 | Copilot smoke (panel, Settings AI, Ask prompt) | | See [copilot-test-scenarios.md](../copilot-test-scenarios.md) |

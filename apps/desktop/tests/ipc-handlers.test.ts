@@ -49,6 +49,10 @@ describe('ipc handlers path validation', () => {
     expect(() => assertAbsoluteFilePath('../song.bax')).toThrow('Expected an absolute file path.');
   });
 
+  it('rejects relative paths used by desktop:watch-document', () => {
+    expect(() => assertAbsoluteFilePath('reload-test.bax')).toThrow('Expected an absolute file path.');
+  });
+
   it('rejects path traversal segments', () => {
     const traversalPath = `${path.dirname(os.tmpdir())}${path.sep}..${path.sep}song.bax`;
     expect(() => assertAbsoluteFilePath(traversalPath)).toThrow('Path traversal is not allowed.');
