@@ -190,4 +190,4 @@ None for v1. Export stays click-to-reparse; do not snapshot `latestResolvedAst` 
 
 ## Additional Notes
 
-Patch changeset on `@beatbax/app-core`: ExportManager merges `import` kits (instruments, effects, subpatterns) before validation and plugin export.
+Patch `@beatbax/app-core` so that `ExportManager` merges `import` kits (instruments, effects, subpatterns) before validation and plugin export.
