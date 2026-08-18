@@ -188,7 +188,7 @@ Game Boy instrument programs (`pitch_env` / `vol_env` / `duty_env` / `arp_env` /
 
 | BeatBax | UGE Effect | Notes |
 |---------|------------|-------|
-| `vib` | Vibrato (4xy) | Exported with tuned depth/rate mapping; use `--verbose` to see effect counts |
+| `vib` | Instrument `1xx`/`2xx` subpattern (pattern-row fallback) | Tick-rate pitch slides; not `4xy` (hUGE 4xy is a square trill). Use `--verbose` to see effect counts |
 | `port` | Tone portamento (3xx) / slide (1xx/2xx) | Map to tone portamento for target slides |
 | `arp` | Arpeggio (0xy) | Direct mapping for up to 2 offsets; expand for more |
 | `volSlide` | Volume slide (effect column) | Set volume per row or per tick |
@@ -469,16 +469,13 @@ Reference: hUGETracker effect reference: https://github.com/SuperDisk/hUGETracke
   - Fallbacks & strict mode: Provide a `--strict-gb` or similar flag to treat non-enum numeric pans as errors rather than silently snapping. Document and warn for any precision loss or unsupported per-note semantics.
 
 - Vibrato (`vib`)
-  - hUGETracker mapping: `4xy` (Vibrato) — `x` is the **waveform selector** (0-15, selects which internal vibrato waveform hUGETracker uses), `y` is the **depth** (0-15, vibrato amplitude). The vibrato speed/rate is controlled by hUGETracker's internal LFO timing, not encoded in the effect parameter.
+  - hUGETracker mapping: **not** `4xy`. hUGEDriver `4xy` is a one-sided square trill. BeatBax `vib` lowers to repeating `1xx`/`2xx` portamento in a cloned instrument subpattern (tick rate), or on pattern rows when a clone is not possible.
   - Parameters (BeatBax `vib`):
-    - `depth` (1st param, required): vibrato amplitude (0-15 after quantization) → mapped to `y` nibble in `4xy`.
-    - `rate` (2nd param, required): vibrato speed in Hz-like units. **Note:** This controls BeatBax playback timing but is NOT exported to UGE (hUGETracker's LFO speed is internal).
-    - `waveform` (3rd param, optional): LFO shape selector. Can be a **name** or **number** (0-15). Mapped to `x` nibble in `4xy` for hUGETracker waveform selection. Default: `none` (0).
-      - **Official hUGETracker waveform names (0-F):** `none` (0), `square` (1), `triangle` (2), `sawUp` (3), `sawDown` (4), `stepped` (5), `gated` (6), `gatedSlow` (7), `pulsedExtreme` (8), `hybridTrillStep` (9), `hybridTriangleStep` (10), `hybridSawUpStep` (11), `longStepSawDown` (12), `hybridStepLongPause` (13), `slowPulse` (14), `subtlePulse` (15)
-      - **Common aliases (backward compat):** `sine`/`sin` → 2 (triangle - smoothest waveform, closest to sine), `tri` → 2, `sqr`/`pulse` → 1, `saw`/`sawtooth` → 3, `ramp` → 4, `noise`/`random` → 5
-      - **Note:** hUGETracker has no true sine wave; `sine` maps to `triangle` which provides smooth, musical vibrato
-      - Unknown names default to `none` (0)
-    - `durationRows` (4th param, optional): length in pattern *rows* for which vibrato is active. Normalized to seconds as `fx.durationSec` for audio backends.
+    - `depth` (1st param, required): peak period-register offset (0-15) → 1xx/2xx magnitude.
+    - `rate` (2nd param, required): LFO speed in Hz. Used to size the 1xx/2xx cycle on export (and BeatBax preview).
+    - `waveform` (3rd param, optional): `sine`/`triangle` (bipolar triangle), `saw`/`sawup`, `sawdown`, `square`. Default: triangle (sine aliases to triangle).
+    - `durationRows` (4th param, optional): length in pattern rows; omitted = loop for the whole note.
+    - `delayRows` (5th param, optional): empty ticks/rows before the LFO starts.
   - Language examples:
 
 ```bax
@@ -494,20 +491,15 @@ pat vib_demo = C4<vib:3,6> D4<vib:4,8,sine,4> E4<vib:2,5,triangle,8>
     - Headless/PCM renderer: `src/audio/pcmRenderer.ts` applies the same `fx.durationSec` window when synthesizing per-sample frequency modulation so rendered WAVs match live playback.
 
   - UGE/hUGETracker export behavior:
-    - BeatBax maps `waveform` (3rd param) to tracker waveform nibble `x` (0..15) and `depth` (1st param) to nibble `y` (0..15). The exporter emits `4xy` on BOTH the note row and the first sustain row.
-    - **Updated behavior (v0.1.0+):** Vibrato now appears on the note row itself (providing immediate modulation from note trigger) AND continues on the subsequent sustain row. This provides more immediate vibrato effect and matches user expectations for expressive modulation.
-    - Because tracker effects are only active on the row they are written to, the UGE exporter repeats the `4xy` vibrato effect on the first sustain row to ensure continuity.
-    - When `durationRows` (4th param) is present, the exporter uses that to compute the global row where vibrato should stop; this is also used to drive the deterministic note-cut injection described below.
-    - Previous behavior note: Earlier versions applied vibrato only to sustain rows (starting one row after the note). This has been changed to provide immediate modulation.
-
-  - Fallbacks:
-    - If the BeatBax vibrato requires higher resolution (complex shapes or sub-tick timing) than the tracker can express, the exporter will either approximate with repeated `4xy` rows, expand into finer-grained pitch steps, or recommend baking the effect into the instrument/sample for faithful reproduction.
+    - Clone the note's instrument (when a UGE slot is free and it has no existing tick program) and write a looping `1xx`/`2xx` subpattern at tick rate. The pattern cell is a normal note that selects the clone.
+    - Fallback: alternating `1xx`/`2xx` on the note's pattern rows, with delay/duration honoured, when a clone is not possible.
+    - Do not emit `4xy` — hUGEDriver's vibrato opcode is a square trill, not a sine LFO.
 
   - Implementation references:
     - Resolver: `src/song/resolver.ts` — row→seconds normalization; `fx.durationSec` field.
     - WebAudio vibrato: `src/effects/index.ts`.
     - PCM renderer vibrato: `src/audio/pcmRenderer.ts`.
-    - UGE writer mapping & note-cut injection: `packages/engine/dist/export/ugeWriter.js` (and runtime copy in `node_modules/@beatbax/engine/dist/export/ugeWriter.js`).
+    - UGE writer mapping: `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/export/ugeVibrato.ts`.
 
   - Testing & demo:
     - Example/demo song: `songs/features/effect_demo.bax` includes `vib` usages and is used by the test harness and CLI export verification.
@@ -1262,7 +1254,7 @@ pat vibrato_melody = C4<wobble>:4 E4<subtle>:4
 
 **Hardware Mapping:**
 - **Game Boy:** Software effect via AudioParam frequency modulation with chip-specific frame rate (60 Hz)
-- **UGE Export:** Maps to `4xy` effect (x=waveform, y=depth). Vibrato appears on both note row and first sustain row.
+- **UGE Export:** Cloned instrument subpattern of `1xx`/`2xx` (pattern-row `1xx`/`2xx` fallback). Not `4xy`.
 - **MIDI Export:** Maps to Modulation CC #1 + pitch bend approximation
 
 **Calibration:** Vibrato depth calibrated to match hUGEDriver exports within ~10.68 cents difference (175.70 cents vs 186.38 cents reference).

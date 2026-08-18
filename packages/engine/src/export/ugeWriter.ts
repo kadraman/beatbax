@@ -21,11 +21,24 @@ import { hugeTrackerNoteToIndex } from '../chips/gameboy/noiseNote.js';
 import {
     encodeTickProgramToUgeRows,
     lowerGameBoyInstrumentProgram,
+    type TickProgram,
     type UgeSubpatternCell,
 } from '../chips/gameboy/instrumentProgram.js';
 import { warn } from '../util/diag.js';
 import { createLogger } from '../util/logger.js';
 import { normalizeArpOffsets } from '../util/arpOffsets.js';
+import {
+    buildVibratoTickProgram,
+    isVibratoSlideEffect,
+    parseVibratoSpec,
+    planPatternVibratoRows,
+    uniqueVibratoCloneName,
+    ugeTicksPerRow,
+    vibratoCloneLookupKey,
+    vibratoLosesToOtherEffects,
+    type PatternVibCell,
+    type VibratoSpec,
+} from './ugeVibrato.js';
 
 const log = createLogger('export:uge');
 
@@ -56,58 +69,10 @@ enum InstrumentType {
     NOISE = 2,
 }
 
-// Vibrato depth scaling applied when encoding 4xy for UGE export.
-// Some trackers and synths use different depth units; tune this to match hUGE.
-const VIB_DEPTH_SCALE = 1.0;
-
-// Map waveform names to hUGETracker waveform selector values (0-15)
-// Official hUGETracker vibrato waveform names:
-// 0=none, 1=square, 2=triangle, 3=sawUp, 4=sawDown, 5=stepped, 6=gated, 7=gatedSlow,
-// 8=pulsedExtreme, 9=hybridTrillStep, A=hybridTriangleStep, B=hybridSawUpStep,
-// C=longStepSawDown, D=hybridStepLongPause, E=slowPulse, F=subtlePulse
-function mapWaveformName(value: string | number): number {
-    if (typeof value === 'number') return value;
-
-    const name = String(value).toLowerCase().trim();
-    const waveformMap: Record<string, number> = {
-        // Official hUGETracker waveform names (0-F)
-        'none': 0,
-        'square': 1,
-        'triangle': 2,
-        'sawup': 3,
-        'sawdown': 4,
-        'stepped': 5,
-        'gated': 6,
-        'gatedslow': 7,
-        'pulsedextreme': 8,
-        'hybridtrillstep': 9,
-        'hybridtrianglestep': 10,
-        'hybridsawupstep': 11,
-        'longstepsawdown': 12,
-        'hybridsteplongpause': 13,
-        'slowpulse': 14,
-        'subtlepulse': 15,
-
-        // Common aliases for backward compatibility
-        'sine': 2,         // Maps to triangle (closest smooth waveform to sine)
-        'sin': 2,
-        'tri': 2,          // Short for triangle
-        'sqr': 1,          // Short for square
-        'pulse': 1,        // Alias for square
-        'saw': 3,          // Default to sawUp
-        'sawtooth': 3,
-        'ramp': 4,         // Ramp down (sawDown)
-        'noise': 5,        // Maps to stepped (choppy)
-        'random': 5,
-    };
-
-    return waveformMap[name] ?? 0; // Default to none (0) if unknown
-}
-
-function encodeVibParam(waveform: number, depth: number): number {
-    const d = Math.max(0, Math.min(15, Math.round(depth * VIB_DEPTH_SCALE)));
-    const w = Math.max(0, Math.min(15, Math.round(waveform)));
-    return ((w & 0xf) << 4) | (d & 0xf);
+function instrumentHasTickProgram(inst: Record<string, unknown> | null | undefined, name: string): boolean {
+    if (!inst) return false;
+    const program = lowerGameBoyInstrumentProgram(inst, { name });
+    return program.enabled && program.errors.length === 0;
 }
 
 // ============================================================================
@@ -131,6 +96,7 @@ interface EffectRequest {
     priority: number;
     isGlobal: boolean; // True for effects like panning (8xx) that affect all channels
     startRow?: number; // Row offset from note trigger where the effect begins (0 = note row, default)
+    vibSpec?: VibratoSpec;
 }
 
 interface EffectHandler {
@@ -156,60 +122,39 @@ interface EffectHandler {
     apply(cell: UGECell, request: EffectRequest): boolean;
 }
 
-// Vibrato effect handler (4xy)
+// Vibrato: hUGE 4xy is a square trill, so we lower to 1xx/2xx (instrument
+// subpattern clone, or pattern-row fallback). See ugeVibrato.ts.
 const VibratoHandler: EffectHandler = {
     type: 'vib',
     priority: 10,
 
     parse(fx: any, noteEvent: NoteEvent, sustainCount: number, tickSeconds: number): EffectRequest | null {
-        const name = fx.type || fx;
-        if (String(name).toLowerCase() !== 'vib') return null;
+        const spec = parseVibratoSpec(fx);
+        if (!spec) return null;
 
-        const params = fx.params || (Array.isArray(fx) ? fx : []);
-        const depthRaw = params.length > 0 ? Number(params[0]) : 0;
-        // Default to triangle (2) if waveform is missing, empty, or falsy
-        const waveformParam = (params.length > 2 && params[2]) ? params[2] : 2;
-        const waveformRaw = mapWaveformName(waveformParam); // 3rd param: waveform name or number
-
-        // Parse duration from 4th param or durationSec
-        let durationRows = sustainCount + 1; // Default: full note length
-        if (params && params.length > 3 && Number.isFinite(Number(params[3]))) {
-            durationRows = Math.max(1, Math.round(Number(params[3])));
-        } else if ((fx as any).paramsStr && typeof (fx as any).paramsStr === 'string') {
-            const rawParts = (fx as any).paramsStr.split(',').map((s: string) => s.trim());
-            if (rawParts.length > 3) {
-                const p3 = Number(rawParts[3]);
-                if (Number.isFinite(p3)) durationRows = Math.max(1, Math.round(p3));
-            }
-        } else if ((fx as any).durationSec && Number.isFinite((fx as any).durationSec)) {
-            durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
-        }
-
-        // Parse delay from 5th param (params[4]) in rows
-        let delayRows = 0;
-        if (params && params.length > 4 && Number.isFinite(Number(params[4]))) {
-            delayRows = Math.max(0, Math.round(Number(params[4])));
-        } else if ((fx as any).delaySec && Number.isFinite((fx as any).delaySec)) {
+        let delayRows = spec.delayRows;
+        if (delayRows === 0 && (fx as any).delaySec && Number.isFinite((fx as any).delaySec) && tickSeconds > 0) {
             delayRows = Math.max(0, Math.round((fx as any).delaySec / tickSeconds));
         }
-        // Clamp delayRows: must start before the note ends
         delayRows = Math.min(delayRows, sustainCount);
 
-        const depth = Math.max(0, Math.min(15, Math.round(depthRaw)));
-        const waveform = Math.max(0, Math.min(15, Math.round(waveformRaw)));
-        const param = encodeVibParam(waveform, depth);
-
-        // Effective active rows: min(requested duration, rows remaining after delay)
+        let durationRows = sustainCount + 1;
+        if (spec.durationRows !== undefined) {
+            durationRows = spec.durationRows;
+        } else if ((fx as any).durationSec && Number.isFinite((fx as any).durationSec) && tickSeconds > 0) {
+            durationRows = Math.max(1, Math.round(((fx as any).durationSec) / tickSeconds));
+        }
         const effectiveDuration = Math.max(1, Math.min(durationRows, sustainCount + 1 - delayRows));
 
         return {
             type: 'vib',
-            code: 4,
-            param: param & 0xff,
+            code: 1,
+            param: 1,
             duration: effectiveDuration,
             priority: this.priority,
             isGlobal: false,
             startRow: delayRows,
+            vibSpec: { ...spec, delayRows, durationRows: spec.durationRows },
         };
     },
 
@@ -976,6 +921,110 @@ function channelContinuesAfterNote(
     return false;
 }
 
+interface VibratoCloneAllocation {
+    syntheticInsts: Record<string, any>;
+    cloneNames: Map<string, string>;
+    cloneBase: Map<string, string>;
+    programs: Map<string, TickProgram>;
+    warnings: string[];
+}
+
+function instExportBucket(type: string | undefined): 'duty' | 'wave' | 'noise' | null {
+    const t = String(type || '').toLowerCase();
+    if (t === 'pulse1' || t === 'pulse2' || t === 'duty') return 'duty';
+    if (t === 'wave') return 'wave';
+    if (t === 'noise') return 'noise';
+    return null;
+}
+
+/**
+ * Clone instruments that have note-level `vib` into extra UGE slots whose
+ * subpatterns run 1xx/2xx at tick rate. Notes keep a clean pattern cell.
+ */
+function allocateVibratoClones(
+    song: SongModel,
+    dutyInsts: string[],
+    waveInsts: string[],
+    noiseInsts: string[],
+    ticksPerRow: number,
+): VibratoCloneAllocation {
+    const syntheticInsts: Record<string, any> = {};
+    const cloneNames = new Map<string, string>();
+    const cloneBase = new Map<string, string>();
+    const programs = new Map<string, TickProgram>();
+    const warnings: string[] = [];
+    const taken = new Set<string>([...dutyInsts, ...waveInsts, ...noiseInsts]);
+    const skippedProgram = new Set<string>();
+    const skippedFull = new Set<string>();
+
+    const lists: Record<'duty' | 'wave' | 'noise', string[]> = {
+        duty: dutyInsts,
+        wave: waveInsts,
+        noise: noiseInsts,
+    };
+    const caps: Record<'duty' | 'wave' | 'noise', number> = {
+        duty: NUM_DUTY_INSTRUMENTS,
+        wave: NUM_WAVE_INSTRUMENTS,
+        noise: NUM_NOISE_INSTRUMENTS,
+    };
+
+    const tryClone = (baseName: string, spec: VibratoSpec) => {
+        const key = vibratoCloneLookupKey(baseName, spec);
+        if (cloneNames.has(key)) return;
+        const inst = (song.insts as any)?.[baseName];
+        if (!inst) return;
+        const bucket = instExportBucket(inst.type);
+        if (!bucket) return;
+        if (instrumentHasTickProgram(inst, baseName)) {
+            if (!skippedProgram.has(baseName)) {
+                skippedProgram.add(baseName);
+                warnings.push(
+                    `Vibrato on '${baseName}' cannot use an instrument subpattern because that instrument already has a tick program; exporting as pattern 1xx/2xx.`,
+                );
+            }
+            return;
+        }
+        if (lists[bucket].length >= caps[bucket]) {
+            if (!skippedFull.has(bucket)) {
+                skippedFull.add(bucket);
+                warnings.push(
+                    `UGE ${bucket} instrument slots are full; remaining vibrato notes export as pattern 1xx/2xx.`,
+                );
+            }
+            return;
+        }
+        const cloneName = uniqueVibratoCloneName(baseName, spec, taken);
+        taken.add(cloneName);
+        lists[bucket].push(cloneName);
+        syntheticInsts[cloneName] = { ...inst };
+        cloneNames.set(key, cloneName);
+        cloneBase.set(cloneName, baseName);
+        programs.set(cloneName, buildVibratoTickProgram(spec, ticksPerRow));
+    };
+
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const chModel = song.channels && song.channels.find((c) => c.id === ch + 1);
+        const events = (chModel && chModel.events) || [];
+        let hasSeenNote = false;
+        for (const ev of events) {
+            if (!ev || (ev as any).type !== 'note') {
+                if (ev && (ev as any).type === 'named') hasSeenNote = true;
+                continue;
+            }
+            const note = ev as NoteEvent;
+            if (vibratoLosesToOtherEffects(note.effects, hasSeenNote)) {
+                hasSeenNote = true;
+                continue;
+            }
+            const spec = (note.effects || []).map((fx) => parseVibratoSpec(fx)).find((s) => s);
+            if (spec && note.instrument) tryClone(note.instrument, spec);
+            hasSeenNote = true;
+        }
+    }
+
+    return { syntheticInsts, cloneNames, cloneBase, programs, warnings };
+}
+
 /**
  * Convert beatbax channel events to UGE pattern cells
  * Returns patterns (64-row chunks) for a single channel
@@ -992,6 +1041,8 @@ function eventsToPatterns(
     desiredVibMap?: Map<number, number>,
     warnedFlatNoteConversions?: Set<string>,
     loops: boolean = false,
+    vibClones?: Map<string, string>,
+    ticksPerRow: number = 7,
 ): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
     const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
 
@@ -1011,10 +1062,9 @@ function eventsToPatterns(
     const endCutRows = new Set<number>();
     // Map of target global row -> cut parameter (ticks) to write as ECx
     const cutParamMap: Map<number, number> = new Map();
-    // Track active per-channel vibrato so we can repeat it on sustain rows.
-    // `remainingRows` is optional; if present it counts sustain rows left AFTER the first apply row.
-    // `pendingRows` counts sustain rows to skip before starting to apply the effect (onset delay).
-    let activeVib: { code: number; param: number; remainingRows?: number; pendingRows?: number } | null = null;
+    // Track active per-channel vibrato so we can repeat 1xx/2xx on sustain rows
+    // when an instrument clone was not available.
+    let activeVib: { cells: Array<PatternVibCell | null>; index: number } | null = null;
     // Track active per-channel arpeggio so we can repeat it on sustain rows.
     let activeArp: { code: number; param: number; remainingRows?: number } | null = null;
     // Map of note globalRow -> desired durationRows (including the note row)
@@ -1056,12 +1106,11 @@ function eventsToPatterns(
             let effCode = 0;
             let effParam = 0;
             if (activeVib) {
-                // If still in delay phase, skip this sustain row.
-                if (typeof activeVib.pendingRows === 'number' && activeVib.pendingRows > 0) {
-                    // skip — no effect
-                } else if (typeof activeVib.remainingRows === 'undefined' || activeVib.remainingRows > 0) {
-                    effCode = activeVib.code;
-                    effParam = activeVib.param;
+                activeVib.index += 1;
+                const planned = activeVib.cells[activeVib.index];
+                if (planned) {
+                    effCode = planned.code;
+                    effParam = planned.param;
                 }
             } else if (activeArp) {
                 // If remainingRows is undefined, arp continues for full note (until note ends).
@@ -1077,17 +1126,8 @@ function eventsToPatterns(
                 effectParam: effParam,
                 pan: currentPan,
             };
-            // Decrement pendingRows (delay) or remainingRows (active duration)
-            if (activeVib) {
-                if (typeof activeVib.pendingRows === 'number' && activeVib.pendingRows > 0) {
-                    activeVib.pendingRows = Math.max(0, activeVib.pendingRows - 1);
-                } else if (typeof activeVib.remainingRows === 'number') {
-                    activeVib.remainingRows = Math.max(0, activeVib.remainingRows - 1);
-                    if (activeVib.remainingRows === 0) {
-                        // Once expired, clear activeVib so further sustains don't repeat it
-                        activeVib = null;
-                    }
-                }
+            if (activeVib && activeVib.index >= activeVib.cells.length - 1) {
+                activeVib = null;
             }
             if (activeArp && typeof activeArp.remainingRows === 'number') {
                 activeArp.remainingRows = Math.max(0, activeArp.remainingRows - 1);
@@ -1266,28 +1306,32 @@ function eventsToPatterns(
             if (winningEffect && winningEffect.type !== 'cut') {
                 // For vibrato, handle optional onset delay (startRow > 0)
                 if (winningEffect.type === 'vib') {
-                    const startRow = winningEffect.startRow ?? 0;
-                    const effectiveDuration = winningEffect.duration; // already clamped in parse()
-
-                    if (startRow === 0) {
-                        // Immediate: apply to note row, then continue on sustain rows
-                        const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
-                        if (handler) handler.apply(cell, winningEffect);
-                        activeVib = {
-                            code: winningEffect.code,
-                            param: winningEffect.param,
-                            remainingRows: Math.max(0, effectiveDuration - 1),
-                        };
-                    } else {
-                        // Delayed: skip note row, start applying after `startRow - 1` sustain rows
-                        activeVib = {
-                            code: winningEffect.code,
-                            param: winningEffect.param,
-                            pendingRows: startRow - 1,
-                            remainingRows: effectiveDuration,
-                        };
+                    const spec = winningEffect.vibSpec;
+                    const cloneKey = spec && noteEvent.instrument
+                        ? vibratoCloneLookupKey(noteEvent.instrument, spec)
+                        : '';
+                    const cloneName = cloneKey && vibClones ? vibClones.get(cloneKey) : undefined;
+                    if (cloneName) {
+                        cell.instrument = resolveInstrumentIndex(
+                            cloneName,
+                            noteEvent.instProps,
+                            instruments,
+                            channelType,
+                            dutyInsts,
+                            waveInsts,
+                            noiseInsts,
+                        );
+                        activeVib = null;
+                    } else if (spec) {
+                        const planned = planPatternVibratoRows(spec, sustainCount + 1, ticksPerRow);
+                        const first = planned[0];
+                        if (first) {
+                            cell.effectCode = first.code;
+                            cell.effectParam = first.param;
+                        }
+                        activeVib = { cells: planned, index: 0 };
+                        desiredVibMap.set(i, (winningEffect.startRow ?? 0) + winningEffect.duration);
                     }
-                    desiredVibMap.set(i, startRow + effectiveDuration); // last vib row = i + startRow + effectiveDuration - 1
                 } else if (winningEffect.type === 'arp') {
                     // Apply arpeggio to note row AND all sustain rows (arpeggio lasts for full note duration)
                     const handler = EFFECT_HANDLERS.find(h => h.type === winningEffect.type);
@@ -1582,6 +1626,11 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     if (opts && opts.debug) log.debug(`Discovered instruments: duty=${dutyInsts.length} wave=${waveInsts.length} noise=${noiseInsts.length}`);
     if (opts && opts.debug) log.debug(`Wave instrument names: ${JSON.stringify(waveInsts)}`);
 
+    const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
+    const ticksPerRow = ugeTicksPerRow(bpm);
+    const vibAllocation = allocateVibratoClones(song, dutyInsts, waveInsts, noiseInsts, ticksPerRow);
+    const exportInsts: Record<string, any> = { ...((song.insts as any) || {}), ...vibAllocation.syntheticInsts };
+
     if (verbose) {
         log.info('Processing instruments...');
         if (dutyInsts.length > 0 || waveInsts.length > 0 || noiseInsts.length > 0) {
@@ -1590,6 +1639,9 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             if (waveInsts.length > 0) log.info(`    - Wave: ${waveInsts.length}/15 slots (${waveInsts.join(', ')})`);
             if (noiseInsts.length > 0) log.info(`    - Noise: ${noiseInsts.length}/15 slots (${noiseInsts.join(', ')})`);
         }
+        if (vibAllocation.cloneNames.size > 0) {
+            log.info(`  Vibrato instrument clones: ${vibAllocation.cloneNames.size}`);
+        }
     }
 
     // ====== Instruments Section ======
@@ -1597,7 +1649,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     for (let i = 0; i < NUM_DUTY_INSTRUMENTS; i++) {
         if (i < dutyInsts.length) {
             const name = dutyInsts[i];
-            const inst = (song.insts as any)[name];
+            const inst = exportInsts[name];
             const dutyVal = parseFloat(inst.duty || '50');
             let dutyCycle = 2; // 50%
             if (dutyVal <= 12.5) dutyCycle = 0;
@@ -1626,7 +1678,10 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             const freqSweepDir = sweep ? (sweep.direction === 'up' ? 0 : 1) : 0;
             const freqSweepShift = sweep ? sweep.shift : 0;
 
-            const subpattern = subpatternFromInstrument(inst, name);
+            const vibProgram = vibAllocation.programs.get(name);
+            const subpattern = vibProgram
+                ? { enabled: true, cells: encodeTickProgramToUgeRows(vibProgram) }
+                : subpatternFromInstrument(inst, name);
             writeDutyInstrument(w, name, dutyCycle, initialVol, sweepDir, sweepChange, lengthEnabled, length, freqSweepTime, freqSweepDir, freqSweepShift, subpattern);
         } else {
             writeDutyInstrument(w, `DUTY_${i}`, 2, 15, 1, 0);
@@ -1637,14 +1692,19 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     for (let i = 0; i < NUM_WAVE_INSTRUMENTS; i++) {
         if (i < waveInsts.length) {
             const name = waveInsts[i];
-            const inst = (song.insts as any)[name];
-            // Wave index mapping: use the slot index i
+            const inst = exportInsts[name];
+            const baseName = vibAllocation.cloneBase.get(name);
+            const waveIndex = baseName ? Math.max(0, waveInsts.indexOf(baseName)) : i;
+            // Wave index mapping: use the slot index i (clones reuse the base table)
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
             const ugeVolume = mapWaveVolumeToUGE(inst.volume ?? inst.vol ?? 100);
             if (opts && opts.debug) log.debug(`Wave instrument '${name}' -> volume (beatbax)=${inst.volume ?? inst.vol ?? 'undefined'} ugeValue=${ugeVolume}`);
-            const subpattern = subpatternFromInstrument(inst, name);
-            writeWaveInstrument(w, name, i, ugeVolume, lengthEnabled, length, subpattern);
+            const vibProgram = vibAllocation.programs.get(name);
+            const subpattern = vibProgram
+                ? { enabled: true, cells: encodeTickProgramToUgeRows(vibProgram) }
+                : subpatternFromInstrument(inst, name);
+            writeWaveInstrument(w, name, waveIndex, ugeVolume, lengthEnabled, length, subpattern);
         } else {
             // Default placeholder: use default 100% mapping
             writeWaveInstrument(w, `WAVE_${i}`, 0, mapWaveVolumeToUGE(100));
@@ -1655,7 +1715,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     for (let i = 0; i < NUM_NOISE_INSTRUMENTS; i++) {
         if (i < noiseInsts.length) {
             const name = noiseInsts[i];
-            const inst = (song.insts as any)[name];
+            const inst = exportInsts[name];
             const env = parseEnvelope(inst.env);
             const initialVol = env.mode === 'gb' ? (env.initial ?? 15) : 15;
             // Map direction: 'flat' means no sweep (period=0), up=0, down=1
@@ -1675,7 +1735,10 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             const noiseMode = width === 7 ? 1 : 0; // 0=15-bit, 1=7-bit
             const length = inst.length ? Number(inst.length) : 0;
             const lengthEnabled = inst.length ? true : false;
-            const subpattern = subpatternFromInstrument(inst, name);
+            const vibProgram = vibAllocation.programs.get(name);
+            const subpattern = vibProgram
+                ? { enabled: true, cells: encodeTickProgramToUgeRows(vibProgram) }
+                : subpatternFromInstrument(inst, name);
             writeNoiseInstrument(w, name, initialVol, sweepDir, sweepChange, noiseMode, lengthEnabled, length, subpattern);
         } else {
             writeNoiseInstrument(w, `NOISE_${i}`);
@@ -1751,7 +1814,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
         const chEvents = (chModel && chModel.events) || [];
         if (opts && opts.debug) log.debug(`Channel ${ch + 1} has ${chEvents.length} events`);
         // share `desiredVibMap` across channels so later passes can inspect desired vib rows
-        const patterns = eventsToPatterns(chEvents, (song.insts as any) || {}, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions, Boolean(song.play?.repeat));
+        const patterns = eventsToPatterns(chEvents, exportInsts, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions, Boolean(song.play?.repeat), vibAllocation.cloneNames, ticksPerRow);
         channelPatterns.push(patterns);
 
         // Check if this channel has retrigger effects
@@ -1794,6 +1857,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     if (hasTremEffectsInSong) {
         emitWarn('Tremolo effects cannot be exported to UGE — they will not be included in the UGE file.');
     }
+    for (const msg of vibAllocation.warnings) emitWarn(msg);
 
     // ====== Unified Post-Processing Pass ======
     // Single pass to handle: explicit note cuts, vibrato duration enforcement, and effect conflicts
@@ -1842,19 +1906,19 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
                 }
             }
 
-            // 2. Enforce vibrato duration (trim any effects beyond requested duration)
+            // 2. Enforce fallback vibrato duration (trim 1xx/2xx/4xy beyond requested duration)
             const desiredDuration = desiredVibMap.get(i);
-            if (typeof desiredDuration === 'number' && desiredDuration > 0) {
+            const vibFx = noteEvent.effects?.find((fx: any) => String((fx as any).type || fx).toLowerCase() === 'vib');
+            if (vibFx && !vibratoLosesToOtherEffects(noteEvent.effects, true)) {
                 vibCount++;
-                // Last row that should have vibrato is i + desiredDuration - 1
-
-                // Clear any vibrato effects beyond the desired duration
+            }
+            if (typeof desiredDuration === 'number' && desiredDuration > 0) {
                 for (let rowOffset = desiredDuration; rowOffset <= sustainCount; rowOffset++) {
                     const globalRow = i + rowOffset;
                     const patIdx = Math.floor(globalRow / PATTERN_ROWS);
                     const rowIdx = globalRow % PATTERN_ROWS;
 
-                    if (patterns[patIdx] && patterns[patIdx][rowIdx] && patterns[patIdx][rowIdx].effectCode === 4) {
+                    if (patterns[patIdx] && patterns[patIdx][rowIdx] && isVibratoSlideEffect(patterns[patIdx][rowIdx].effectCode)) {
                         patterns[patIdx][rowIdx].effectCode = 0;
                         patterns[patIdx][rowIdx].effectParam = 0;
                     }
@@ -1935,7 +1999,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
                     const pats = channelPatterns[chCheck] || [];
                     const p = (orderIdx < pats.length) ? pats[orderIdx] : blankPatternWithPan;
                     const c = p[row];
-                    if (c && c.effectCode === 4) { anyVibOnRow = true; break; }
+                    if (c && isVibratoSlideEffect(c.effectCode)) { anyVibOnRow = true; break; }
                 }
                 if (anyVibOnRow) {
                     continue; // Skip NR51 when vibrato already present
@@ -1986,15 +2050,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     }
 
     // ====== Song Patterns Section ======
-    // Calculate ticks per row from BPM
-    // hUGETracker uses a Game Boy timer-based system where lower ticks = faster tempo
-    // Formula: BPM = 896 / ticksPerRow (derived from hUGETracker behavior)
-    // Examples: 4 ticks/row ≈ 224 BPM, 7 ticks/row ≈ 128 BPM, 8 ticks/row ≈ 112 BPM
-    // Note: Due to integer tick constraints, exact BPM matching is not always possible
-    // Default: 128 BPM (7 ticks/row) provides exact timing alignment
-    const bpm = (song && typeof song.bpm === 'number') ? song.bpm : 128;
-    const ticksPerRow = Math.max(1, Math.round(896 / bpm));
-
+    // ticksPerRow was computed up front so vibrato clones share the song tempo.
     if (verbose) {
         const actualBpm = Math.round(896 / ticksPerRow);
         log.info(`  Tempo: ${bpm} BPM (${ticksPerRow} ticks/row in UGE${actualBpm !== bpm ? `, actual: ~${actualBpm} BPM` : ''})`);
@@ -2027,9 +2083,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     const blankPatternIndex = allPatterns.length;
     allPatterns.push({ channelIndex: -1, patternIndex: -1, cells: blankPatternCells });
 
-    // FINAL ENFORCEMENT PASS: ensure vibrato (4xy) appears for exactly the
-    // requested number of rows (note + dr - 1) per-note. This operates on
-    // `allPatterns` which are the final pattern buffers to be serialized.
+    // FINAL ENFORCEMENT PASS: pattern-row 1xx/2xx fallback (skip cloned notes).
     try {
         if (opts && opts.debug) {
             try { log.debug('[DEBUG] finalEnforcement start', { nr51Writes: Array.from(nr51Writes.entries()), desiredVibMap: Array.from(desiredVibMap.entries()) }); } catch(e) {}
@@ -2037,118 +2091,57 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
         for (let ch = 0; ch < NUM_CHANNELS; ch++) {
             const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
             const chEvents = (chModel && chModel.events) || [];
+            let hasSeenNote = false;
             for (let i = 0; i < chEvents.length; i++) {
                 const ev = chEvents[i];
-                if (!ev || (ev as any).type !== 'note') continue;
+                if (!ev || (ev as any).type !== 'note') {
+                    if (ev && (ev as any).type === 'named') hasSeenNote = true;
+                    continue;
+                }
                 const noteEvent = ev as NoteEvent;
-                // find vib effect on this note
-                let vibFx: any = null;
-                if (Array.isArray(noteEvent.effects)) {
-                    for (const fx of noteEvent.effects) {
-                        if (!fx) continue;
-                        if (String((fx as any).type || fx).toLowerCase() === 'vib') { vibFx = fx; break; }
-                    }
+                const spec = parseVibratoSpec((noteEvent.effects || []).find((fx: any) => String((fx as any).type || fx).toLowerCase() === 'vib'));
+                if (!spec || vibratoLosesToOtherEffects(noteEvent.effects, hasSeenNote)) {
+                    hasSeenNote = true;
+                    continue;
                 }
-                if (!vibFx) continue;                // parse requested duration (rows) from positional param, paramsStr, or durationSec
-                let dr: number | undefined = undefined;
-                const params = vibFx.params || [];
-                if (params && params.length > 3 && Number.isFinite(Number(params[3]))) {
-                    dr = Number(params[3]);
-                } else if (vibFx.paramsStr && typeof vibFx.paramsStr === 'string') {
-                    const parts = vibFx.paramsStr.split(',').map((s: string) => s.trim());
-                    if (parts.length > 3) {
-                        const p3 = Number(parts[3]); if (Number.isFinite(p3)) dr = p3;
-                    }
-                } else if (vibFx.durationSec && Number.isFinite(vibFx.durationSec)) {
-                    const bpmForTicks = (typeof song.bpm === 'number' && Number.isFinite(song.bpm)) ? song.bpm : 128;
-                    const tickSeconds = (60 / bpmForTicks) / 4;
-                    dr = Math.max(0, Math.round(vibFx.durationSec / tickSeconds));
+                hasSeenNote = true;
+                if (noteEvent.instrument) {
+                    const cloneName = vibAllocation.cloneNames.get(vibratoCloneLookupKey(noteEvent.instrument, spec));
+                    if (cloneName) continue;
                 }
-                if (typeof dr === 'undefined' || dr <= 0) continue;
 
-                // compute sustainCount
                 let sustainCount = 0;
                 for (let k = i + 1; k < chEvents.length; k++) {
                     const ne = chEvents[k]; if (ne && (ne as any).type === 'sustain') sustainCount++; else break;
                 }
 
-                // determine vib param
-                const depthRaw = params.length > 0 ? Number(params[0]) : 0;
-                // Default to triangle (2) if waveform is missing, empty, or falsy
-                const waveformParam = (params.length > 2 && params[2]) ? params[2] : 2;
-                const waveformRaw = mapWaveformName(waveformParam); // 3rd param: waveform name or number
-                const depth = Number.isFinite(depthRaw) ? Math.max(0, Math.min(15, Math.round(depthRaw))) : 0;
-                const waveform = Number.isFinite(waveformRaw) ? Math.max(0, Math.min(15, Math.round(waveformRaw))) : 0;
-                const param = encodeVibParam(waveform, depth);
-
-                // Parse onset delay from params[4] (rows) or delaySec fallback
-                let delayRowsEnforce = 0;
-                if (params && params.length > 4 && Number.isFinite(Number(params[4]))) {
-                    delayRowsEnforce = Math.max(0, Math.round(Number(params[4])));
-                } else if (vibFx.delaySec && Number.isFinite(vibFx.delaySec)) {
-                    const bpmForTicksD = (typeof song.bpm === 'number' && Number.isFinite(song.bpm)) ? song.bpm : 128;
-                    const tickSecondsD = (60 / bpmForTicksD) / 4;
-                    delayRowsEnforce = Math.max(0, Math.round(vibFx.delaySec / tickSecondsD));
-                }
-                // Clamp delay: cannot exceed note duration
-                delayRowsEnforce = Math.min(delayRowsEnforce, sustainCount);
-
+                const planned = planPatternVibratoRows(spec, sustainCount + 1, ticksPerRow);
                 const globalStart = i;
-                const delayedStart = globalStart + delayRowsEnforce; // first row that should have 4xy
-                const allowedEnd = delayedStart + dr - 1; // inclusive (dr rows of active vibrato)
-                const actualEnd = globalStart + sustainCount; // inclusive
+                const actualEnd = globalStart + sustainCount;
 
-                // if NR51 explicit and non-default on note row, we will preserve it
-                const notePatIdx = Math.floor(globalStart / PATTERN_ROWS);
-                const noteRowIdx = globalStart % PATTERN_ROWS;
-                const noteCell = (allPatterns.find(p => p.channelIndex === ch && p.patternIndex === notePatIdx) || { cells: [] }).cells[noteRowIdx];
-                const nrInfo = nr51Writes.get(globalStart);
-                const nrWasExplicit = nrInfo ? nrInfo.explicit : false;
-                const nrValue = nrInfo ? nrInfo.value : null;
-                const nrIsDefault = (nrValue === 0xFF);
-                const preserveNoteNR51 = !!noteCell && noteCell.effectCode === 8 && nrWasExplicit && !nrIsDefault;
-                if (opts && opts.debug) {
-                    try { log.debug('[DEBUG] finalEnforce note check', { ch, globalStart, delayRowsEnforce, delayedStart, nrInfo, noteCellEffect: noteCell && noteCell.effectCode, preserveNoteNR51, allPatternsNoteCell: (allPatterns.find(p=>p.channelIndex===ch && p.patternIndex===Math.floor(globalStart/PATTERN_ROWS))||{cells:[]}).cells[globalStart%PATTERN_ROWS] }); } catch (e) {}
-                }
-
-                // Clear 4xy from the note row and any delay rows (rows before vibrato should start)
-                for (let g = globalStart; g < delayedStart; g++) {
-                    const patIdx = Math.floor(g / PATTERN_ROWS);
-                    const rowIdx = g % PATTERN_ROWS;
-                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
-                    if (!patObj) continue;
-                    const cell = patObj.cells[rowIdx];
-                    if (cell && cell.effectCode === 4) {
-                        cell.effectCode = 0;
-                        cell.effectParam = 0;
-                    }
-                }
-
-                // Enforce: for rows [delayedStart .. min(allowedEnd, actualEnd)] set 4xy=param
-                for (let g = delayedStart; g <= Math.min(allowedEnd, actualEnd); g++) {
+                for (let k = 0; k < planned.length; k++) {
+                    const g = globalStart + k;
+                    if (g > actualEnd) break;
                     const patIdx = Math.floor(g / PATTERN_ROWS);
                     const rowIdx = g % PATTERN_ROWS;
                     const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
                     if (!patObj) continue;
                     const cell = patObj.cells[rowIdx];
                     if (!cell) continue;
-                    // Only apply if no conflicting effect already set (e.g., panning on note row)
-                    if (cell.effectCode === 0 || cell.effectCode === 4) {
-                        cell.effectCode = 4;
-                        cell.effectParam = param & 0xff;
+                    const nrInfo = nr51Writes.get(g);
+                    const preserveNR51 = cell.effectCode === 8 && nrInfo?.explicit && nrInfo.value !== 0xFF;
+                    if (preserveNR51) continue;
+                    const slide = planned[k];
+                    if (!slide) {
+                        if (isVibratoSlideEffect(cell.effectCode)) {
+                            cell.effectCode = 0;
+                            cell.effectParam = 0;
+                        }
+                        continue;
                     }
-                }
-
-                // clear any 4xy beyond allowedEnd up to actualEnd
-                for (let g = Math.max(allowedEnd + 1, globalStart + 1); g <= actualEnd; g++) {
-                    const patIdx = Math.floor(g / PATTERN_ROWS);
-                    const rowIdx = g % PATTERN_ROWS;
-                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
-                    if (!patObj) continue;
-                    const cell = patObj.cells[rowIdx];
-                    if (!cell) continue;
-                    if (cell.effectCode === 4) {
-                        cell.effectCode = 0; cell.effectParam = 0;
+                    if (cell.effectCode === 0 || isVibratoSlideEffect(cell.effectCode)) {
+                        cell.effectCode = slide.code;
+                        cell.effectParam = slide.param;
                     }
                 }
             }

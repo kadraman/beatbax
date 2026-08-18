@@ -20,6 +20,11 @@ import {
 import { buildGmHoverMarkdown, parseGmAtPosition } from './gm-programs.js';
 import { buildNoteHoverMarkdown, parseNoteAtPosition } from './inst-note-hover.js';
 import { buildInstPropertyHover, buildInstPropertyKeywordHover } from './inst-property-hover.js';
+import {
+  buildInstrumentHoverMarkdown,
+  buildSubpatternHoverMarkdown,
+  type SubPatternRowLike,
+} from './subpat-format.js';
 
 let latestAST: any = null;
 /** AST with import instruments merged (when imports resolve successfully). */
@@ -1398,7 +1403,7 @@ export function registerBeatBaxLanguage(): void {
           '',
           'Example: `C4<vib:4,6,sine,4,1>` — depth 4, rate 6 Hz, sine, 4 rows, 1-row onset delay',
           '',
-          '**Export:** JSON ✓  MIDI ✓ (CC1)  UGE ✓ (4xy, delay via row omission)  Audio ✓',
+          '**Export:** JSON ✓  MIDI ✓ (CC1)  UGE ✓ (1xx/2xx instrument subpattern; pattern-row fallback)  Audio ✓',
         ].join('\n\n'),
         port: [
           '**Portamento** — slides pitch from the previous note to the current one.',
@@ -1544,27 +1549,22 @@ export function registerBeatBaxLanguage(): void {
         return null;
       }
 
-      if (latestAST?.insts && latestAST.insts[word.word]) {
-        const inst = latestAST.insts[word.word] as Record<string, unknown>;
-        const props: string[] = [];
-        const skip = new Set(['__loc', 'loc']);
+      const insts = (latestResolvedAst?.insts ?? latestAST?.insts) as Record<string, Record<string, unknown>> | undefined;
+      if (insts && insts[word.word]) {
+        const md = buildInstrumentHoverMarkdown(word.word, insts[word.word]);
+        const contents = [{ value: md.title }, { value: md.propsFence }];
+        if (md.subpatFence) contents.push({ value: md.subpatFence });
+        return { contents };
+      }
 
-        for (const [key, value] of Object.entries(inst)) {
-          if (skip.has(key) || value === undefined || value === null) continue;
-          if (Array.isArray(value)) {
-            props.push(`${key}=[${value.join(',')}]`);
-          } else if (typeof value === 'object') {
-            props.push(`${key}=${JSON.stringify(value)}`);
-          } else {
-            props.push(`${key}=${value}`);
-          }
-        }
-
+      const subpatterns = (latestResolvedAst?.subpatterns ?? latestAST?.subpatterns) as
+        | Record<string, { rows?: unknown[] }>
+        | undefined;
+      const subpatDef = subpatterns?.[word.word];
+      if (subpatDef && Array.isArray(subpatDef.rows) && subpatDef.rows.length > 0) {
+        const md = buildSubpatternHoverMarkdown(word.word, subpatDef.rows as SubPatternRowLike[]);
         return {
-          contents: [
-            { value: `**Instrument**: \`${word.word}\`` },
-            { value: '```beatbax\n' + props.join(' ') + '\n```' },
-          ],
+          contents: [{ value: md.title }, { value: md.fence }],
         };
       }
 

@@ -25,6 +25,12 @@ export const MAX_UGE_SUBPATTERN_ROWS = 64;
  */
 export const HUGE_SUBPAT_OFFSET_ZERO_NOTE = 36;
 
+/** hUGE effect: Portamento up (1xx) — pitch up, period register increases. */
+export const HUGE_EFFECT_PORTA_UP = 1;
+
+/** hUGE effect: Portamento down (2xx). */
+export const HUGE_EFFECT_PORTA_DOWN = 2;
+
 /** hUGE effect: Set volume (Cxy). */
 export const HUGE_EFFECT_SET_VOLUME = 0x0c;
 
@@ -116,6 +122,27 @@ export function dutyIndexToFraction(dutyIndex: number): number {
 export function tickRowDutyFraction(row: TickRow | null | undefined): number | null {
   if (!row?.effect || row.effect.code !== HUGE_EFFECT_CHANGE_TIMBRE) return null;
   return dutyIndexToFraction(timbreParamToDutyIndex(row.effect.param));
+}
+
+/** True when the program writes pulse duty (preview must bake a buffer). */
+export function tickProgramHasDutyMotion(program: TickProgram): boolean {
+  return program.rows.some((r) => tickRowDutyFraction(r) !== null);
+}
+
+/**
+ * Apply one-tick hUGE 1xx/2xx to a GB period register.
+ * Empty rows do not latch: the caller keeps `reg` unchanged when there is no 1/2 effect.
+ */
+export function applyPortamentoToRegister(
+  reg: number,
+  row: TickRow | null | undefined,
+): number {
+  const code = row?.effect?.code;
+  const param = row?.effect?.param ?? 0;
+  if (!Number.isFinite(param) || param <= 0) return reg;
+  if (code === HUGE_EFFECT_PORTA_UP) return clampInt(reg + param, 0, 2047);
+  if (code === HUGE_EFFECT_PORTA_DOWN) return clampInt(reg - param, 0, 2047);
+  return reg;
 }
 
 /**

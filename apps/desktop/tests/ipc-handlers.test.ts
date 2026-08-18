@@ -2,7 +2,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import {
   assertAbsoluteFilePath,
   assertRemoteAssetUrl,
@@ -14,6 +14,7 @@ import {
   mergeRecentFiles,
   normalizeRemoteAssetHost,
   persistFile,
+  chooseOpenFile,
   readDesktopRemoteAssetAllowlist,
   readFileSyncSafe,
   toFileBuffer,
@@ -33,7 +34,7 @@ jest.mock('electron', () => ({
 }));
 
 const { dialog, app } = jest.requireMock<{
-  dialog: { showSaveDialog: jest.Mock };
+  dialog: { showSaveDialog: jest.Mock; showOpenDialog: jest.Mock };
   app: { addRecentDocument: jest.Mock; clearRecentDocuments: jest.Mock; getPath: jest.Mock };
 }>('electron');
 
@@ -141,6 +142,10 @@ describe('persistFile', () => {
   beforeEach(() => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-save-'));
     dialog.showSaveDialog.mockReset();
+    app.getPath.mockImplementation((name: string) => {
+      if (name === 'userData') return tempDir;
+      return os.tmpdir();
+    });
   });
 
   afterEach(() => {
@@ -178,6 +183,61 @@ describe('persistFile', () => {
         ],
       }),
     );
+  });
+
+  it('puts a bare Save filename in the last Open/Save folder', async () => {
+    const lastDir = path.join(tempDir, 'pack');
+    mkdirSync(lastDir);
+    writeFileSync(
+      path.join(tempDir, 'last-file-dialog.json'),
+      JSON.stringify({ version: 1, directory: lastDir }),
+    );
+    const target = path.join(lastDir, 'untitled.bax');
+    dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: target });
+
+    await persistFile({} as never, { defaultPath: 'untitled.bax', showDialog: true }, Buffer.from('chip gameboy\n'));
+
+    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ defaultPath: target }),
+    );
+  });
+});
+
+describe('chooseOpenFile last-folder', () => {
+  let tempDir = '';
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'beatbax-open-'));
+    dialog.showOpenDialog.mockReset();
+    app.getPath.mockImplementation((name: string) => {
+      if (name === 'userData') return tempDir;
+      if (name === 'documents') return tempDir;
+      return os.tmpdir();
+    });
+  });
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('starts the next Open dialog in the folder of the last chosen file', async () => {
+    const firstDir = path.join(tempDir, 'first');
+    const secondDir = path.join(tempDir, 'second');
+    mkdirSync(firstDir);
+    mkdirSync(secondDir);
+    const firstSong = path.join(firstDir, 'a.bax');
+    const secondSong = path.join(secondDir, 'b.bax');
+    writeFileSync(firstSong, 'chip gameboy\n');
+    writeFileSync(secondSong, 'chip gameboy\n');
+
+    dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [firstSong] });
+    await chooseOpenFile({} as never, {});
+
+    dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [secondSong] });
+    await chooseOpenFile({} as never, {});
+
+    expect(dialog.showOpenDialog.mock.calls[1][1].defaultPath).toBe(firstDir);
   });
 });
 

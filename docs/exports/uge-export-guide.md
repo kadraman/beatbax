@@ -239,7 +239,7 @@ See [Export architecture](./export-architecture.md) for JSON, MIDI, and WAV buil
 BeatBax supports the following effects with UGE export:
 
 - **Panning** (`pan`, `gb:pan`) → NR51 terminal bits via `8xx` Set-Panning effect
-- **Vibrato** (`vib`) → `4xy` effect (x=rate, y=depth)
+- **Vibrato** (`vib`) → instrument subpattern of `1xx`/`2xx` (tick-rate pitch slides). Pattern-row `1xx`/`2xx` if the instrument already has a program or the 15-slot table is full. Not `4xy` (that is a square trill in hUGEDriver).
 - **Portamento** (`port`) → `3xx` Tone Portamento effect
 - **Pitch Bend** (`bend`) → `3xx` Tone Portamento effect (approximation with warnings)
 - **Arpeggio** (`arp`) → `0xy` effect (see detailed mapping below)
@@ -373,23 +373,18 @@ Preview and UGE export share one tick program (`lowerGameBoyInstrumentProgram`).
 
 ### Vibrato (vib) mapping
 
-When exporting BeatBax songs for Game Boy, the BeatBax `vib` effect is conservatively mapped into hUGETracker's compact `4xy` vibrato effect so the exported `.uge` behaves sensibly in tracker/driver toolchains.
+hUGETracker's `4xy` effect is a one-sided square trill (the speed nibble is AND-masked with a global counter, then depth is added to the period). That is not BeatBax's sine/triangle LFO, so export does **not** write `4xy`.
 
-- **Mapping rule:** BeatBax vibrato rate → `x` (rate nibble), depth → `y` (depth nibble) using a tuned scale factor. Export uses `VIB_DEPTH_SCALE = 4.0` to convert BeatBax depth units into the `y` nibble.
-- **Placement:** The exporter places the `4xy` command on the same pattern row where the originating note occurs. The original Game Boy NR51 routing is preserved when possible.
-- **Renderer parity:** The offline renderer in the engine (`packages/engine/src/audio/pcmRenderer.ts`) has a Game-Boy-specific emulation mode that reproduces hUGEDriver-style vibrato (mask-activated register offsets) for better audible parity with exported `.uge` playback.
-- **Tuned constants:** The engine's calibration sweep identified a practical best-fit set used in source builds: `vibDepthScale=4.0`, `regBaseFactor=0.04`, `regUnit=1`.
-- **Calibration tools:** Re-run or inspect the calibration and measurement tools in `scripts/compare_vib.cjs` and `scripts/auto_calibrate_vib.mjs` if you need to refine parity for specific material.
+- **Preferred:** clone the note's instrument into a free UGE slot and attach a looping subpattern of `1xx` / `2xx` at tick rate (~60 Hz). Depth, rate, waveform, delay, and optional duration from `vib:depth,rate,shape,duration,delay` are all used. The pattern cell stays a normal note (the clone is selected in the instrument column).
+- **Fallback:** if that instrument already has a `pitch_env` / `subpat` program, or the 15-slot table is full, write alternating `1xx`/`2xx` on the note's pattern rows instead and emit a warning.
+- **Rate:** used to size the 1xx/2xx cycle. (hUGE `4xy` cannot encode BeatBax LFO Hz.)
+- **Named presets** such as `effect drift = vib:5,4,sine` follow the same path.
 
-Example: export and analyze a song with vibrato
+Example:
 
 ```bash
-# export UGE then render WAV for analysis (example)
-npm run cli -- export uge songs/features/effect_demo.bax tmp/effect_demo.uge
-node scripts/auto_calibrate_vib.mjs songs/features/effect_demo.bax tmp/auto_cal --sampleRate 44100
+npm run cli -- export uge packs/gb-adventure-pack/src/journeys_end.bax tmp/journeys_end.uge
 ```
-
-See `packages/engine/src/export/ugeWriter.ts` and `packages/engine/src/audio/pcmRenderer.ts` for implementation details.
 
 ## Validation
 
