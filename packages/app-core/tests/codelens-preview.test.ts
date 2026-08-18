@@ -115,6 +115,28 @@ describe('CodeLens Preview provider', () => {
     expect(resolveAuditionInstrumentForLine('pat melody = C4 D4', ast)).toBe('lead');
   });
 
+  it('resolves step-entry audition instrument from a nested seq tree', () => {
+    const ast = {
+      insts: {
+        adv_lead: { type: 'pulse1' },
+        adv_wave_dark: { type: 'wave' },
+      },
+      seqs: {
+        mel: ['deep_a'],
+        deep_w: ['wave_i'],
+        wave: ['deep_w'],
+      },
+      channels: [
+        { id: 1, inst: 'adv_lead', seqSpecTokens: ['mel'] },
+        { id: 3, inst: 'adv_wave_dark', seqSpecTokens: ['wave'] },
+      ],
+    };
+
+    expect(resolveAuditionInstrumentForLine('pat wave_i = E3:2 . B3:2', ast)).toBe(
+      'adv_wave_dark',
+    );
+  });
+
   it('resolves step-entry audition instrument directly from an inst line', () => {
     const ast = {
       insts: {

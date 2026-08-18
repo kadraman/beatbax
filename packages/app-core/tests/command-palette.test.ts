@@ -639,6 +639,29 @@ describe('setupCommandPalette — enhanced commands', () => {
     expect(src).not.toMatch(/inst _tmp/);
   });
 
+  it('previewPattern: nested seq uses the wave channel instrument, not pulse 1', () => {
+    currentSource = [
+      'chip gameboy',
+      'import "local:lib/adventure.ins"',
+      'pat wave_i = E3:2 . . . . . . B3:2 . . . . . .',
+      'seq deep_w = wave_i',
+      'seq wave = deep_w',
+      'seq mel = deep_a',
+      'pat deep_a = E4:8',
+      'channel 1 => inst adv_lead seq mel lock=scale',
+      'channel 3 => inst adv_wave_dark seq wave lock=scale',
+      'play',
+    ].join('\n');
+    currentWord = 'wave_i';
+    const run = registeredActions.get('beatbax.previewPattern');
+    run!();
+    expect(playRawCalls).toHaveLength(1);
+    const src = playRawCalls[0][0];
+    expect(src).toMatch(/channel 3 => inst adv_wave_dark seq __preview__/);
+    expect(src).not.toMatch(/channel 1 => inst adv_lead seq __preview__/);
+    expect(src).not.toMatch(/inst _tmp/);
+  });
+
   it('previewPattern: adds canonical stepsPerBar default when timing is missing', () => {
     currentSource = BASE_SOURCE.replace(/^time 4\n/m, '');
     currentWord = 'melody';

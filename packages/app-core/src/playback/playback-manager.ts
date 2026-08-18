@@ -56,6 +56,8 @@ export interface PlaybackPosition {
   currentInstrument: string | null;
   currentPattern: string | null;
   sourceSequence: string | null;
+  /** Outer-to-inner seq path when nested seqs are playing, e.g. `['mel', 'deep']`. */
+  sourceSeqPath?: string[] | null;
   barNumber: number | null;
   progress: number; // 0.0 to 1.0
 }
@@ -89,12 +91,13 @@ export class PlaybackManager {
   // Track playback position per channel
   private playbackPosition: Map<number, PlaybackPosition> = new Map();
   private channelEvents: Map<number, any[]> = new Map(); // channelId → full event array
-  // Maps channelId → (noteEventIndex → { seq, pat })
+  // Maps channelId → (noteEventIndex → { seq, seqPath, pat })
   // Built post-resolution by counting ONLY note/named events, matching the Player's eventIndex counter.
-  private channelMetaIndex: Map<number, Map<number, { seq: string | null; pat: string | null }>> = new Map();
+  private channelMetaIndex: Map<number, Map<number, { seq: string | null; seqPath: string[] | null; pat: string | null }>> = new Map();
   // Parallel note/named-only event arrays so eventIndex (note-only counter) maps correctly for instrument display.
   private channelNoteEvents: Map<number, any[]> = new Map();
   private _lastKnownSeq: Map<number, string> = new Map();
+  private _lastKnownSeqPath: Map<number, string[]> = new Map();
   private _lastKnownPat: Map<number, string> = new Map();
   private _perChannelAnalyserEnabled: boolean = false;
 
@@ -501,6 +504,7 @@ export class PlaybackManager {
       this.channelMetaIndex.clear();
       this.channelNoteEvents.clear();
       this._lastKnownSeq.clear();
+      this._lastKnownSeqPath.clear();
       this._lastKnownPat.clear();
 
       this.eventBus.emit('playback:stopped', undefined);
@@ -693,13 +697,15 @@ export class PlaybackManager {
           // must iterate only those to keep the mapping aligned.
           // Also build channelNoteEvents: the note/named-only event list so that eventIndex
           // (a note-only counter) maps correctly when looking up instrument names.
-          const metaMap = new Map<number, { seq: string | null; pat: string | null }>();
+          const metaMap = new Map<number, { seq: string | null; seqPath: string[] | null; pat: string | null }>();
           const noteEvents: any[] = [];
           let noteIdx = 0;
           for (const ev of channel.events) {
             if (ev.type === 'note' || ev.type === 'named') {
+              const path = (ev as any).sourceSeqPath;
               metaMap.set(noteIdx++, {
                 seq: (ev as any).sourceSequence || null,
+                seqPath: Array.isArray(path) && path.length ? path : null,
                 pat: (ev as any).sourcePattern || null,
               });
               noteEvents.push(ev);
@@ -721,12 +727,18 @@ export class PlaybackManager {
       // Look up metadata using the note-only index (matches Player's scheduleToken counter exactly)
       const meta = this.channelMetaIndex.get(channelId)?.get(eventIndex);
       const rawSeq = meta?.seq ?? null;
+      const rawPath = meta?.seqPath ?? null;
       const rawPat = meta?.pat ?? null;
 
       // Update last-known fallbacks so glyphs persist between callbacks
       if (rawSeq) this._lastKnownSeq.set(channelId, rawSeq);
+      if (rawPath && rawPath.length) this._lastKnownSeqPath.set(channelId, rawPath);
+      else if (rawSeq) this._lastKnownSeqPath.set(channelId, [rawSeq]);
       if (rawPat) this._lastKnownPat.set(channelId, rawPat);
       const sequenceName = rawSeq || this._lastKnownSeq.get(channelId) || null;
+      const sequencePath = (rawPath && rawPath.length ? rawPath : null)
+        || this._lastKnownSeqPath.get(channelId)
+        || (sequenceName ? [sequenceName] : null);
       const patternName  = rawPat || this._lastKnownPat.get(channelId) || null;
 
       // currentInstrument: read from the note/named-only events list so that eventIndex
@@ -741,7 +753,8 @@ export class PlaybackManager {
         totalEvents,
         currentInstrument: approxEvent?.instrument || null,
         currentPattern: patternName, // Use the pattern name we extracted
-        sourceSequence: sequenceName, // Use the sequence name we extracted
+        sourceSequence: sequenceName, // Innermost named sequence
+        sourceSeqPath: sequencePath,
         barNumber: null, // Not needed when showing pattern names
         progress: totalEvents > 0 ? eventIndex / totalEvents : 0,
       };

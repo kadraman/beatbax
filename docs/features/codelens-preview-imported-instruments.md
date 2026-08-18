@@ -151,6 +151,8 @@ No song-format change. Songs that already import kits start previewing without a
 
 Imported instruments have no `inst` lines in the `.bax`, so they still will not get C3–C7 CodeLens note buttons. Adding lenses from the resolved AST (read-only kit names) is a separate UI change.
 
+Nested form seqs (`channel 3 => seq wave` / `seq wave = deep_w` / `seq deep_w = wave_i`) must be walked all the way to the leaf pattern. A one-level lookup falls back to the first kit inst and previews cave bass as pulse 1.
+
 ## Open Questions
 
 None for v1. Preview stays click-to-reparse; do not snapshot `latestResolvedAst` for playback.

@@ -16,6 +16,7 @@
 
 import * as monaco from 'monaco-editor';
 import { KeyCode, KeyMod } from 'monaco-editor';
+import { findChannelForNamedItemInSource } from './preview-channel-resolve.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -857,21 +858,22 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       }
       if (!body) { showToast(`Pattern '${name}' not found`); return; }
 
-      // Prefer an inline inst declaration; otherwise borrow the first channel's
-      // imported (or declared) instrument so songs that only `import` a kit work.
-      let inst: string | null = null;
-      for (const line of lines) {
-        const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
-        if (m) { inst = m[1]; break; }
-      }
+      // Prefer an inline `inst` in the pattern body; otherwise the channel
+      // whose seq tree contains this pattern (nested forms included). Taking
+      // the first `channel N => inst` in the file previews cave bass as
+      // pulse 1 `adv_lead`, which cannot play a wave table.
+      const inlineInst = body.match(/(?:^|\s)inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
+      const found = findChannelForNamedItemInSource(source, name);
+      let inst: string | null = inlineInst?.[1] ?? found?.inst ?? null;
       if (!inst) {
         for (const line of lines) {
-          const m = line.match(/^\s*channel\s+\d+\s*=>\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
+          const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
           if (m) { inst = m[1]; break; }
         }
       }
       const useFallbackInst = inst === null;
       const instName = inst ?? '_tmp';
+      const channelId = found?.id ?? 1;
 
       // Build a minimal working preview source.  Preserve all inst/pat/seq
       // definitions from the original source so the pattern can reference them.
@@ -891,7 +893,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         ...baseLines,
         ...(useFallbackInst ? [`inst _tmp type=pulse1 duty=50 env=12,down`] : []),
         `pat __preview__ = ${body}`,
-        `channel 1 => inst ${instName} seq __preview__`,
+        `channel ${channelId} => inst ${instName} seq __preview__`,
         'play',
       ].join('\n');
       onPlayRaw?.(synthetic);
@@ -919,12 +921,10 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       }
       if (!seqBody) { showToast(`Sequence '${name}' not found`); return; }
 
-      // Find instrument from existing channel assignment or first declared inst
-      let instName: string | null = null;
-      for (const line of lines) {
-        const m = line.match(new RegExp(`^\\s*channel\\s+\\d+\\s*=>\\s*inst\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+seq\\s+${escapeRegex(name)}`));
-        if (m) { instName = m[1]; break; }
-      }
+      // Channel whose seq tree contains this seq (nested forms included),
+      // then a same-file `inst` line, then `_tmp`.
+      const found = findChannelForNamedItemInSource(source, name);
+      let instName: string | null = found?.inst ?? null;
       if (!instName) {
         for (const line of lines) {
           const m = line.match(/^\s*inst\s+([A-Za-z_][A-Za-z0-9_]*)/);
@@ -932,6 +932,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
         }
       }
       const inst = instName ?? '_tmp';
+      const channelId = found?.id ?? 1;
 
       const bpm = extractBpm(source);
       const chipMatch = source.match(/^\s*chip\s+([A-Za-z0-9_-]+)/im);
@@ -940,7 +941,7 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
       // Preserve all inst/pat definitions so the seq body can reference them
       const baseLines = source.split('\n').filter(l => KEEP_LINES_RE.test(l));
       const newLines = [...baseLines];
-      newLines.push(`channel 1 => inst ${inst} seq ${name}`);
+      newLines.push(`channel ${channelId} => inst ${inst} seq ${name}`);
       newLines.push('play');
       onPlayRaw?.(newLines.join('\n'));
     },

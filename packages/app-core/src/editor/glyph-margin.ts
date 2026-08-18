@@ -4,10 +4,11 @@
  * Two independent features share the glyph margin:
  *
  * 1. Playback position cursor
- *    A ▶ glyph (pulsing) tracks the `pat` line AND the `seq` line that is
+ *    A ▶ glyph (pulsing) tracks the `pat` line AND the `seq` line(s) that are
  *    currently playing in real-time.  The `pat` glyph (teal) marks the
  *    individual pattern; the `seq` glyph (amber, phase-offset pulse) marks
- *    the enclosing sequence.  Both update on every
+ *    each enclosing named sequence (nested seqs light the inner section and
+ *    the outer form).  Both update on every
  *    `playback:position-changed` event and clear on `playback:stopped`.
  *
  * 2. Channel mute / solo indicator
@@ -171,7 +172,27 @@ export function setupGlyphMargin(
 
   // Which pattern/sequence is currently playing per channel
   const activePatterns  = new Map<number, string>(); // channelId → patternName
-  const activeSequences = new Map<number, string>(); // channelId → sequenceName
+  const activeSequences = new Map<number, string[]>(); // channelId → outer-to-inner seq path
+
+  function sameSeqNames(a: string[] | undefined, b: string[] | undefined): boolean {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  function seqNamesFromPosition(position: any): string[] | null {
+    if (Array.isArray(position.sourceSeqPath) && position.sourceSeqPath.length > 0) {
+      const path = position.sourceSeqPath.filter((n: unknown) => typeof n === 'string' && n.length > 0);
+      return path.length > 0 ? path : null;
+    }
+    if (typeof position.sourceSequence === 'string' && position.sourceSequence) {
+      return [position.sourceSequence];
+    }
+    return null;
+  }
 
   // Raw position data per channel — used with chunkInfo to resolve sections.
   const activePositions = new Map<number, { eventIndex: number; totalEvents: number }>();
@@ -274,10 +295,17 @@ export function setupGlyphMargin(
     };
 
     const playingSeqLines = new Set<number>();
-    for (const [channelId, seqName] of activeSequences.entries()) {
-      const resolved = resolveSeqName(channelId, seqName);
-      const ln = seqLineMap.get(resolved);
-      if (ln !== undefined) playingSeqLines.add(ln);
+    for (const [channelId, seqNames] of activeSequences.entries()) {
+      const names = new Set(seqNames.filter(Boolean));
+      const chunks = previewChunkInfo[channelId];
+      if (chunks && chunks.length > 1) {
+        const fallback = seqNames[seqNames.length - 1] || seqNames[0] || '';
+        if (fallback) names.add(resolveSeqName(channelId, fallback));
+      }
+      for (const name of names) {
+        const ln = seqLineMap.get(name);
+        if (ln !== undefined) playingSeqLines.add(ln);
+      }
     }
     for (const ln of playingSeqLines) {
       // Skip if a pat glyph is already on this line (pat takes priority)
@@ -381,14 +409,14 @@ export function setupGlyphMargin(
         }
       }
 
-      if (position && 'sourceSequence' in position) {
-        const next: string | null = position.sourceSequence;
+      if (position && ('sourceSequence' in position || 'sourceSeqPath' in position)) {
+        const next = seqNamesFromPosition(position);
         if (next == null) {
           if (activeSequences.has(channelId)) {
             activeSequences.delete(channelId);
             changed = true;
           }
-        } else if (activeSequences.get(channelId) !== next) {
+        } else if (!sameSeqNames(activeSequences.get(channelId), next)) {
           activeSequences.set(channelId, next);
           changed = true;
         }

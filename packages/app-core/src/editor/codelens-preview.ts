@@ -7,7 +7,7 @@
  *
  * Pattern instrument resolution priority:
  *   1. First inline `inst` token inside the pattern's own event list
- *   2. First channel whose seq/pat references this pattern (borrows its inst)
+ *   2. Channel whose seq tree contains this pattern (nested seqs included)
  *   3. Fallback: the first declared instrument in the file
  *
  * Instrument preview plays a fixed ascending scale: C3 C4 C5 C6 C7, choosing
@@ -27,6 +27,7 @@ import { Player } from '@beatbax/engine/audio/playback';
 import { chipRegistry } from '@beatbax/engine/chips';
 import type { EventBus } from '../utils/event-bus.js';
 import { buildImportResolverOptions } from '../import/import-resolver-options.js';
+import { findChannelForNamedItem } from './preview-channel-resolve.js';
 
 // ---------------------------------------------------------------------------
 // Instrument resolution
@@ -39,43 +40,11 @@ function resolvePreviewInstrument(patternName: string, ast: any): string | null 
     if (ev.kind === 'inline-inst' && ev.name) return ev.name as string;
   }
 
-  // 2. First channel that references this pattern (directly or via a named seq)
-  for (const ch of (ast.channels ?? []) as any[]) {
-    if (!ch.inst) continue;
-
-    // Prefer parser-provided `seqSpecTokens` which preserve the original
-    // sequence/pattern references. These are the most reliable source for
-    // determining whether this channel references `patternName`.
-    const seqSpec: string[] | undefined = (ch as any).seqSpecTokens;
-    if (Array.isArray(seqSpec) && ast.seqs) {
-      for (const seqToken of seqSpec) {
-        const seqName = (seqToken || '').split(':')[0].trim();
-        const seqItems: any[] = ast.seqs[seqName] ?? [];
-        const refsPattern = seqItems.some((item: any) => {
-          const name = typeof item === 'string' ? item.split(':')[0].trim() : (item?.name ?? '');
-          return name === patternName;
-        });
-        if (refsPattern) return ch.inst as string;
-      }
-    }
-
-    // If the parser left a raw string in `pat` (e.g. a single pattern/seq
-    // reference), check that too. Do NOT rely on `Array.isArray(ch.pat)` as
-    // the parser often normalizes that into expanded token arrays.
-    if (typeof ch.pat === 'string' && ast.seqs) {
-      if (ch.pat.split(':')[0].trim() === patternName) return ch.inst as string;
-      const seqTokens = ch.pat.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
-      for (const seqToken of seqTokens) {
-        const seqName = seqToken.split(':')[0].trim();
-        const seqItems: any[] = ast.seqs[seqName] ?? [];
-        const refsPattern = seqItems.some((item: any) => {
-          const name = typeof item === 'string' ? item.split(':')[0].trim() : (item?.name ?? '');
-          return name === patternName;
-        });
-        if (refsPattern) return ch.inst as string;
-      }
-    }
-  }
+  // 2. Channel whose seq tree contains this pattern (walk nested seqs).
+  //    One-level lookup misses `channel 3 => seq wave` / `seq wave = deep_w` /
+  //    `seq deep_w = wave_i` and falls back to the first kit inst (pulse 1).
+  const found = findChannelForNamedItem(ast, patternName);
+  if (found) return found.inst;
 
   // 3. Fallback: first declared instrument in the file
   const first = Object.keys(ast.insts ?? {})[0];
@@ -187,10 +156,16 @@ async function startPatternPreview(
   const instName = resolvePreviewInstrument(patternName, rawAst);
   if (!instName) return null;
 
+  // Prefer the song channel that actually plays this pattern so a wave bass
+  // preview hits channel 3, not pulse 1. Fall back to type→channel when the
+  // pattern is only referenced inline (DCM) or not wired to a channel yet.
+  const found = findChannelForNamedItem(rawAst, patternName);
+  const channelId = found?.id ?? instChannelId(instName, rawAst);
+
   // Minimal single-channel AST so the resolver only expands this one pattern
   const previewAst = {
     ...rawAst,
-    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: patternName }],
+    channels: [{ id: channelId, inst: instName, pat: patternName }],
     play: { auto: false },
   };
 
@@ -234,30 +209,10 @@ async function startPatternPreview(
 // ---------------------------------------------------------------------------
 
 function resolveSeqInstrument(seqName: string, ast: any): string | null {
-  // 1. First channel that directly references this sequence. Channels may
-  // expose the raw RHS as `seqSpecTokens` (array) or as `pat` (string) when
-  // the parser didn't create a dedicated `seq` property — check both.
-  for (const ch of (ast.channels ?? []) as any[]) {
-    if (!ch.inst) continue;
+  const found = findChannelForNamedItem(ast, seqName);
+  if (found) return found.inst;
 
-    const seqSpec: string[] | undefined = (ch as any).seqSpecTokens;
-    if (Array.isArray(seqSpec)) {
-      for (const token of seqSpec) {
-        const name = (token || '').split(':')[0].trim();
-        if (name === seqName) return ch.inst as string;
-      }
-    }
-
-    if (typeof ch.pat === 'string') {
-      const tokens = ch.pat.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
-      for (const token of tokens) {
-        const name = token.split(':')[0].trim();
-        if (name === seqName) return ch.inst as string;
-      }
-    }
-  }
-
-  // 2. Fallback: first declared instrument
+  // Fallback: first declared instrument
   const first = Object.keys(ast.insts ?? {})[0];
   return first ?? null;
 }
@@ -270,9 +225,10 @@ async function startSeqPreview(
   const instName = resolveSeqInstrument(seqName, rawAst);
   if (!instName) return null;
 
+  const found = findChannelForNamedItem(rawAst, seqName);
   const previewAst = {
     ...rawAst,
-    channels: [{ id: instChannelId(instName, rawAst), inst: instName, pat: seqName }],
+    channels: [{ id: found?.id ?? instChannelId(instName, rawAst), inst: instName, pat: seqName }],
     play: { auto: false },
   };
 
