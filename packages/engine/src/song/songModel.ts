@@ -26,7 +26,8 @@ export interface NoteEvent {
   legato?: boolean; // true if note should not retrigger envelope (portamento/legato)
   // Playback position tracking metadata
   sourcePattern?: string; // Original pattern name (e.g., "melody")
-  sourceSequence?: string; // Original sequence name (e.g., "main")
+  sourceSequence?: string; // Innermost named sequence (e.g., "deep")
+  sourceSeqPath?: string[]; // Outer-to-inner seq path (e.g., ["mel", "deep"])
   patternIndex?: number; // Which repetition of this pattern (0-based)
   barNumber?: number; // Estimated bar number in song
 }
@@ -47,7 +48,8 @@ export interface NamedInstrumentEvent {
   defaultNote?: string; // Optional default note from instrument definition (e.g., 'C7')
   // Playback position tracking metadata
   sourcePattern?: string; // Original pattern name (e.g., "melody")
-  sourceSequence?: string; // Original sequence name (e.g., "main")
+  sourceSequence?: string; // Innermost named sequence (e.g., "deep")
+  sourceSeqPath?: string[]; // Outer-to-inner seq path (e.g., ["mel", "deep"])
   patternIndex?: number; // Which repetition of this pattern (0-based)
   barNumber?: number; // Estimated bar number in song
 }

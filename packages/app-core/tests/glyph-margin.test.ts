@@ -148,6 +148,88 @@ describe('GlyphMargin', () => {
     expect(seqGlyph.options.glyphMarginClassName).toBe('bb-glyph--seq-playing');
   });
 
+  it('shows seq glyphs on nested seq lines from sourceSeqPath', () => {
+    const nestedSrc = [
+      'pat deep_a = C4',
+      'pat land = E4',
+      'seq deep = deep_a',
+      'seq mel = deep land',
+      'channel 1 => seq mel',
+    ].join('\n');
+    const nestedLines = nestedSrc.split('\n');
+    const nestedEditor = {
+      ...mockEditor,
+      getModel: jest.fn(() => ({
+        getLineCount: () => nestedLines.length,
+        getLineContent: (n: number) => nestedLines[n - 1],
+      })),
+    };
+
+    setupGlyphMargin(nestedEditor as any, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+    deltaDecorations.mockClear();
+
+    eventBus.emit('playback:position-changed', {
+      channelId: 1,
+      position: {
+        currentPattern: 'deep_a',
+        sourceSequence: 'deep',
+        sourceSeqPath: ['mel', 'deep'],
+      },
+    });
+
+    const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
+    const decors: any[] = lastCall[1];
+
+    // pat deep_a → line 1 (teal); seq deep → line 3; seq mel → line 4
+    expect(decors.find((d) => d.range.startLineNumber === 1)?.options.glyphMarginClassName)
+      .toBe('bb-glyph--playing');
+    expect(decors.find((d) => d.range.startLineNumber === 3)?.options.glyphMarginClassName)
+      .toBe('bb-glyph--seq-playing');
+    expect(decors.find((d) => d.range.startLineNumber === 4)?.options.glyphMarginClassName)
+      .toBe('bb-glyph--seq-playing');
+  });
+
+  it('does not mark an inner seq when the path is only the outer form seq', () => {
+    const nestedSrc = [
+      'pat deep_a = C4',
+      'pat land = E4',
+      'seq deep = deep_a',
+      'seq mel = deep land',
+      'channel 1 => seq mel',
+    ].join('\n');
+    const nestedLines = nestedSrc.split('\n');
+    const nestedEditor = {
+      ...mockEditor,
+      getModel: jest.fn(() => ({
+        getLineCount: () => nestedLines.length,
+        getLineContent: (n: number) => nestedLines[n - 1],
+      })),
+    };
+
+    setupGlyphMargin(nestedEditor as any, eventBus as any);
+    eventBus.emit('parse:success', { ast: {} });
+    deltaDecorations.mockClear();
+
+    eventBus.emit('playback:position-changed', {
+      channelId: 1,
+      position: {
+        currentPattern: 'land',
+        sourceSequence: 'mel',
+        sourceSeqPath: ['mel'],
+      },
+    });
+
+    const lastCall = deltaDecorations.mock.calls[deltaDecorations.mock.calls.length - 1];
+    const decors: any[] = lastCall[1];
+
+    expect(decors.find((d) => d.range.startLineNumber === 2)?.options.glyphMarginClassName)
+      .toBe('bb-glyph--playing');
+    expect(decors.find((d) => d.range.startLineNumber === 3)).toBeUndefined();
+    expect(decors.find((d) => d.range.startLineNumber === 4)?.options.glyphMarginClassName)
+      .toBe('bb-glyph--seq-playing');
+  });
+
   it('shows both pat and seq glyphs simultaneously', () => {
     setupGlyphMargin(mockEditor, eventBus as any);
     eventBus.emit('parse:success', { ast: {} });

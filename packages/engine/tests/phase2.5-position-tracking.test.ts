@@ -103,6 +103,49 @@ channel 4 => seq main
         expect(eventWithMeta.barNumber).toBeDefined();
       });
     });
+
+    it('tags innermost nested sequence and the full seq path', () => {
+      const script = `
+chip gameboy
+bpm 120
+
+inst lead type=pulse1 duty=50
+
+pat deep_a = C4:2
+pat land = E4:2
+
+seq deep = deep_a
+seq mel = deep land
+
+channel 1 => inst lead seq mel
+      `.trim();
+
+      const ast = parse(script);
+      const ism = resolveSong(ast);
+      const channel = ism.channels.find(ch => ch.id === 1);
+      expect(channel).toBeDefined();
+
+      const notes = channel!.events.filter(e => e.type === 'note') as any[];
+      const deepNote = notes.find(e => String(e.token).startsWith('C4'));
+      const landNote = notes.find(e => String(e.token).startsWith('E4'));
+
+      expect(deepNote).toBeDefined();
+      expect(deepNote.sourceSequence).toBe('deep');
+      expect(deepNote.sourceSeqPath).toEqual(['mel', 'deep']);
+      expect(deepNote.sourcePattern).toBe('deep_a');
+
+      expect(landNote).toBeDefined();
+      expect(landNote.sourceSequence).toBe('mel');
+      expect(landNote.sourceSeqPath).toEqual(['mel']);
+      expect(landNote.sourcePattern).toBe('land');
+
+      const deepEvents = channel!.events.filter((e: any) => e.sourcePattern === 'deep_a');
+      expect(deepEvents.length).toBeGreaterThan(1);
+      for (const ev of deepEvents) {
+        expect((ev as any).sourceSequence).toBe('deep');
+        expect((ev as any).sourceSeqPath).toEqual(['mel', 'deep']);
+      }
+    });
   });
 
   describe('Player position tracking', () => {
