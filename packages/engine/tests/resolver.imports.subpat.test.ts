@@ -88,11 +88,11 @@ inst extra type=noise gb:width=7 uge_note=C-6 subpat=kick_body
 `);
     expect(hasErrors).toBe(false);
     expect(ast.insts.extra.subpatRows).toBeUndefined();
-    expect(
-      (ast.diagnostics ?? []).some(
-        (d) => d.level === 'warning' && /subpat='kick_body' is not defined/.test(d.message),
-      ),
-    ).toBe(true);
+    const subpatDiags = (ast.diagnostics ?? []).filter((d) => /subpat/.test(d.message));
+    expect(subpatDiags).toHaveLength(1);
+    expect(subpatDiags[0].level).toBe('warning');
+    expect(subpatDiags[0].message).toMatch(/subpat='kick_body' is not defined/);
+    expect(subpatDiags.some((d) => /was not resolved/.test(d.message))).toBe(false);
   });
 
   test('still rejects chip, bpm, and pat in a .ins file', async () => {

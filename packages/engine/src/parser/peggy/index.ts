@@ -1132,7 +1132,13 @@ export function parseWithPeggy(source: string): ParseResult {
     if (activePlugin) {
       // Delegate fully to the plugin — it knows its own valid types and properties
       const errors = activePlugin.validateInstrument(p as any);
+      const subpatName = typeof p.subpat === 'string' ? String(p.subpat).trim() : '';
+      const subpatMayComeFromImport = imports.length > 0 && !!subpatName && !subpatterns[subpatName];
       for (const e of errors) {
+        // Parser already warned that subpat= is not in this file. Plugin "not resolved"
+        // errors are the same fact before import bind; drop the duplicates. After
+        // resolveImports, CLI/Desktop omit the leftover warning if the table bound.
+        if (subpatMayComeFromImport && e.field === 'subpat') continue;
         // Type errors are hard errors; property errors are warnings (keep parity with GB behaviour)
         const level = e.field === 'type' ? 'error' : 'warning';
         diag(level, 'parser', `Instrument '${instName}': ${e.message}`, instLoc);

@@ -2,15 +2,19 @@
  * Game Boy pulse preview must honor duty_env / arp_env via the shared tick program.
  */
 
+import { fillPulseBufferFromProgram, playPulse, PULSE_OUTPUT_GAIN } from '../../src/chips/gameboy/pulse';
 import {
+  applyPortamentoToRegister,
   applyTickOffsetToFreq,
   dutyIndexToFraction,
+  HUGE_EFFECT_PORTA_DOWN,
+  HUGE_EFFECT_PORTA_UP,
   lowerGameBoyInstrumentProgram,
+  tickProgramHasDutyMotion,
   tickRowAtTime,
   tickRowDutyFraction,
   HUGE_TICK_SEC,
 } from '../../src/chips/gameboy/instrumentProgram';
-import { fillPulseBufferFromProgram, PULSE_OUTPUT_GAIN } from '../../src/chips/gameboy/pulse';
 import { parse } from '../../src/parser/index';
 import { resolveSong } from '../../src/song/resolver';
 import { renderSongToPCM } from '../../src/audio/pcmRenderer';
@@ -145,4 +149,117 @@ describe('GB pulse tick-program playback', () => {
     // Held env=12 should land near 12/15 × PULSE_OUTPUT_GAIN
     expect(wahCli).toBeCloseTo((12 / 15) * PULSE_OUTPUT_GAIN, 2);
   });
+
+  test('1xx/2xx adjust the period register and do not count as duty motion', () => {
+    expect(applyPortamentoToRegister(1000, { offset: null, effect: { code: HUGE_EFFECT_PORTA_UP, param: 5 } })).toBe(1005);
+    expect(applyPortamentoToRegister(1000, { offset: null, effect: { code: HUGE_EFFECT_PORTA_DOWN, param: 3 } })).toBe(997);
+    expect(applyPortamentoToRegister(1000, { offset: null })).toBe(1000);
+    const prog = lowerNativeOrFx();
+    expect(tickProgramHasDutyMotion(prog)).toBe(false);
+  });
+
+  test('1xx porta changes rendered frequency vs a static pulse', () => {
+    const prog = {
+      enabled: true,
+      rows: [
+        { offset: null, effect: { code: HUGE_EFFECT_PORTA_UP, param: 40 } },
+        { offset: null, jump: 1 },
+      ],
+      errors: [] as string[],
+      warnings: [] as string[],
+    };
+    const moving = new Float32Array(4096);
+    const staticBuf = new Float32Array(4096);
+    fillPulseBufferFromProgram(moving, 22050, 440, 0.75, prog, false);
+    fillPulseBufferFromProgram(
+      staticBuf,
+      22050,
+      440,
+      0.75,
+      { enabled: false, rows: [], errors: [], warnings: [] },
+      false,
+    );
+    let diff = 0;
+    for (let i = 0; i < moving.length; i++) diff += Math.abs(moving[i] - staticBuf[i]);
+    expect(diff).toBeGreaterThan(10);
+  });
+
+  test('playPulse keeps PeriodicWave for 1xx-only subpats (not a raw-square buffer)', () => {
+    const { ctx } = makePulsePreviewCtx();
+    playPulse(ctx, 587, 0.75, 0, 0.5, {
+      env: { level: 11, direction: 'flat', period: 0, format: 'gb' },
+      subpatRows: [
+        { empty: true },
+        { empty: true },
+        { fx: { code: 1, param: 1 } },
+        { empty: true },
+        { jump: 3 },
+      ],
+    });
+    expect(ctx.createPeriodicWave).toHaveBeenCalled();
+    expect(ctx.createOscillator).toHaveBeenCalled();
+    expect(ctx.createBufferSource).not.toHaveBeenCalled();
+    const osc = ctx.createOscillator.mock.results[0].value;
+    expect(osc.frequency.setValueAtTime.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  test('playPulse still bakes a buffer when duty_env changes', () => {
+    const { ctx } = makePulsePreviewCtx();
+    playPulse(ctx, 440, 0.5, 0, 0.1, {
+      env: { level: 12, direction: 'flat', period: 0, format: 'gb' },
+      duty_env: '[2,2,0,0|0]',
+    });
+    expect(ctx.createBufferSource).toHaveBeenCalled();
+    expect(ctx.createOscillator).not.toHaveBeenCalled();
+  });
 });
+
+function lowerNativeOrFx() {
+  return lowerGameBoyInstrumentProgram({
+    subpatRows: [
+      { empty: true },
+      { fx: { code: 1, param: 1 } },
+      { jump: 2 },
+    ],
+  });
+}
+
+function makePulsePreviewCtx() {
+  const gainParam = {
+    setValueAtTime: jest.fn(),
+    linearRampToValueAtTime: jest.fn(),
+    exponentialRampToValueAtTime: jest.fn(),
+    setTargetAtTime: jest.fn(),
+    cancelScheduledValues: jest.fn(),
+    value: 1,
+  };
+  const ctx: any = {
+    sampleRate: 44100,
+    destination: {},
+    createPeriodicWave: jest.fn(() => ({})),
+    createOscillator: jest.fn(() => ({
+      setPeriodicWave: jest.fn(),
+      frequency: {
+        setValueAtTime: jest.fn(),
+        linearRampToValueAtTime: jest.fn(),
+      },
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+    createBuffer: jest.fn((_ch: number, len: number) => ({
+      getChannelData: jest.fn(() => new Float32Array(len)),
+    })),
+    createBufferSource: jest.fn(() => ({
+      buffer: null,
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+    createGain: jest.fn(() => ({
+      gain: gainParam,
+      connect: jest.fn(),
+    })),
+  };
+  return { ctx, gainParam };
+}

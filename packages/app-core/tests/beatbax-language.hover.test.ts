@@ -1,5 +1,6 @@
 import * as monaco from 'monaco-editor';
 import { registerBeatBaxLanguage } from '../src/editor/beatbax-language';
+import { eventBus } from '../src/utils/event-bus';
 
 describe('BeatBax Monaco hover provider', () => {
   beforeEach(() => {
@@ -227,5 +228,51 @@ describe('BeatBax Monaco hover provider', () => {
     });
     expect(clampHover?.contents[0].value).toContain('Clamp');
     expect(clampHover?.contents[0].value).toContain('cut');
+  });
+
+  test('instrument hover shows subpat source instead of [object Object] rows', () => {
+    const hoverProvider = getHoverProvider();
+    eventBus.emit('parse:success', {
+      ast: { chip: 'gameboy', insts: {} },
+      resolvedAst: {
+        chip: 'gameboy',
+        insts: {
+          adv_lead_drift: {
+            type: 'pulse1',
+            duty: 50,
+            subpat: 'melody_drift',
+            subpatRows: [
+              { empty: true },
+              { empty: false, offset: null, fx: { code: 1, param: 1 } },
+              { empty: false, offset: null, jump: 4 },
+            ],
+          },
+        },
+        subpatterns: {
+          melody_drift: {
+            name: 'melody_drift',
+            rows: [
+              { empty: true },
+              { empty: false, offset: null, fx: { code: 1, param: 1 } },
+            ],
+          },
+        },
+      },
+    });
+
+    const line = 'pat deep_a = inst adv_lead_drift E4:8 .:8';
+    const model = makeMultilineModel([line]);
+    const hover = hoverProvider.provideHover(model, {
+      lineNumber: 1,
+      column: line.indexOf('adv_lead_drift') + 2,
+    });
+
+    const text = (hover?.contents ?? []).map((c: { value: string }) => c.value).join('\n');
+    expect(text).toContain('**Instrument**: `adv_lead_drift`');
+    expect(text).toContain('subpat=melody_drift');
+    expect(text).toContain('fx:1,1');
+    expect(text).toContain('jump:4');
+    expect(text).not.toContain('[object Object]');
+    expect(text).not.toContain('subpatRows=');
   });
 });

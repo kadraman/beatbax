@@ -1,8 +1,10 @@
 import { freqFromRegister, registerFromFreq, GB_CLOCK } from './periodTables.js';
 import {
+  applyPortamentoToRegister,
   applyTickOffsetToFreq,
   createTickProgramCursor,
   lowerGameBoyInstrumentProgram,
+  tickProgramHasDutyMotion,
   tickRowDutyFraction,
   tickRowVolume,
   type TickProgram,
@@ -157,7 +159,7 @@ function applySweep(
 
 /**
  * Render a pulse into a buffer while advancing a Game Boy tick program
- * (arp_env / pitch_env offsets, duty_env → 9xx, vol_env → Cxy).
+ * (arp_env / pitch_env offsets, duty_env → 9xx, vol_env → Cxy, 1xx/2xx).
  */
 export function fillPulseBufferFromProgram(
   data: Float32Array,
@@ -172,19 +174,30 @@ export function fillPulseBufferFromProgram(
   let currentOffset: number | null = 0;
   let lastTick = -1;
   let volScale = 1;
-  let effFreq = applyTickOffsetToFreq(baseFreq, 0);
+  let periodReg = registerFromFreq(baseFreq);
+  let effFreq = freqFromRegister(periodReg);
   const cursor = createTickProgramCursor(program);
+
+  const applyRow = (row: NonNullable<ReturnType<typeof cursor.rowAt>>) => {
+    const d = tickRowDutyFraction(row);
+    if (d !== null) duty = d;
+    const off = row.offset === undefined ? null : row.offset;
+    if (off !== null && off !== currentOffset) {
+      currentOffset = off;
+      periodReg = registerFromFreq(applyTickOffsetToFreq(baseFreq, currentOffset));
+    }
+    periodReg = applyPortamentoToRegister(periodReg, row);
+    effFreq = freqFromRegister(periodReg);
+    if (useProgramVolume) {
+      const v = tickRowVolume(row);
+      if (v !== null) volScale = v / 15;
+    }
+  };
 
   const r0 = cursor.rowAt(0);
   if (r0) {
-    const d0 = tickRowDutyFraction(r0);
-    if (d0 !== null) duty = d0;
-    currentOffset = r0.offset === undefined ? 0 : r0.offset;
-    effFreq = applyTickOffsetToFreq(baseFreq, currentOffset);
-    if (useProgramVolume) {
-      const v0 = tickRowVolume(r0);
-      if (v0 !== null) volScale = v0 / 15;
-    }
+    applyRow(r0);
+    lastTick = 0;
   }
 
   for (let i = 0; i < data.length; i++) {
@@ -193,19 +206,7 @@ export function fillPulseBufferFromProgram(
     if (tick !== lastTick) {
       lastTick = tick;
       const row = cursor.rowAt(tick);
-      if (row) {
-        const d = tickRowDutyFraction(row);
-        if (d !== null) duty = d;
-        const off = row.offset === undefined ? null : row.offset;
-        if (off !== currentOffset) {
-          currentOffset = off;
-          effFreq = applyTickOffsetToFreq(baseFreq, currentOffset);
-        }
-        if (useProgramVolume) {
-          const v = tickRowVolume(row);
-          if (v !== null) volScale = v / 15;
-        }
-      }
+      if (row) applyRow(row);
     }
 
     let sample = 0;
@@ -218,14 +219,52 @@ export function fillPulseBufferFromProgram(
   }
 }
 
+/**
+ * Drive OscillatorNode.frequency from a tick program that does not change duty.
+ * 1xx/2xx accumulate on the period register; empty rows hold the last period.
+ */
+function scheduleTickProgramPitch(
+  freqParam: AudioParam,
+  program: TickProgram,
+  start: number,
+  dur: number,
+  baseFreq: number,
+): void {
+  const cursor = createTickProgramCursor(program);
+  const ticks = Math.max(1, Math.ceil(dur * 60) + 1);
+  let offset: number | null = 0;
+  let periodReg = registerFromFreq(baseFreq);
+  let lastFreq = Number.NaN;
+  for (let tick = 0; tick < ticks; tick++) {
+    const row = cursor.rowAt(tick);
+    if (row) {
+      if (row.offset !== null && row.offset !== undefined) {
+        offset = row.offset;
+        periodReg = registerFromFreq(applyTickOffsetToFreq(baseFreq, offset));
+      }
+      periodReg = applyPortamentoToRegister(periodReg, row);
+    }
+    const f = freqFromRegister(periodReg);
+    if (f !== lastFreq) {
+      try {
+        freqParam.setValueAtTime(f, start + tick / 60);
+      } catch (_) {}
+      lastFreq = f;
+    }
+  }
+}
+
 export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, start: number, dur: number, inst: any, scheduler?: any, destination?: AudioNode) {
   const program = lowerGameBoyInstrumentProgram(inst ?? {});
   const useProgram = program.enabled;
   const useProgramVolume = useProgram && program.rows.some((r) => tickRowVolume(r) !== null);
+  const bakeDuty = useProgram && tickProgramHasDutyMotion(program);
+  const bakeProgram = bakeDuty || useProgramVolume;
 
-  // Tick programs need per-frame duty/pitch — OscillatorNode PeriodicWave can't
-  // automate duty, so bake into a buffer (same approach as noise programs).
-  if (useProgram) {
+  // Naive ±1 squares alias and sound shrill vs PeriodicWave. Only bake when
+  // duty or program volume actually changes; 1xx/2xx and pitch offsets ride
+  // the oscillator.
+  if (bakeProgram) {
     const sr = ctx.sampleRate;
     const len = Math.max(1, Math.ceil(dur * sr));
     const buf = ctx.createBuffer(1, len, sr);
@@ -301,14 +340,21 @@ export function playPulse(ctx: BaseAudioContext, freq: number, duty: number, sta
     osc.frequency.setValueAtTime(aligned, start);
     // Store the base frequency for effects to use (since .value is not reliable before start time)
     (osc as any)._baseFreq = aligned;
+    if (useProgram) {
+      scheduleTickProgramPitch(osc.frequency, program, start, dur, aligned);
+    }
   } catch (e) {
     osc.frequency.setValueAtTime(freq, start);
     (osc as any)._baseFreq = freq;
+    if (useProgram) {
+      scheduleTickProgramPitch(osc.frequency, program, start, dur, freq);
+    }
   }
 
-  // Apply sweep if present (Game Boy pulse1 only)
+  // Apply sweep if present (Game Boy pulse1 only). Skip when a tick program
+  // already owns pitch (1xx/2xx / offsets).
   const sweep = parseSweep(inst && inst.sweep);
-  if (sweep && sweep.time > 0) {
+  if (!useProgram && sweep && sweep.time > 0) {
     applySweep(osc.frequency, freq, start, dur, sweep);
   }
 

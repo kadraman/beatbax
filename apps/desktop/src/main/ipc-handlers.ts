@@ -13,6 +13,11 @@ import type {
 } from '../shared/electron-api'
 import { resolveBundledSongFile, resolveExampleSongsOpenDir } from './path-utils'
 import { createDocumentFileWatcher, type DocumentFileWatcher } from './file-watcher'
+import {
+  rememberLastFileDialogDirectory,
+  resolveOpenDialogDefaultPath,
+  resolveSaveDialogDefaultPath,
+} from './last-file-dialog'
 
 const TEXT_FILE_FILTERS = [
   { name: 'BeatBax Songs', extensions: ['bax', 'uge', 'txt'] },
@@ -753,19 +758,8 @@ export async function addRecentFileEntry(
   const recentFiles = mergeRecentFiles(await readRecentFiles(recentFilesPath), safePath)
   await writeRecentFiles(recentFilesPath, recentFiles)
   app.addRecentDocument(safePath)
+  await rememberLastFileDialogDirectory(safePath)
   return recentFiles
-}
-
-function defaultOpenDialogPath(explicit?: string): string | undefined {
-  if (explicit?.trim()) return explicit
-  // macOS Open panels treat .app packages as opaque, so defaulting into
-  // Contents/Resources/songs only shows "Contents". Use the Documents copy
-  // populated on packaged startup instead.
-  return (
-    resolveExampleSongsOpenDir(__dirname, app.isPackaged, {
-      documentsPath: app.getPath('documents'),
-    }) ?? undefined
-  )
 }
 
 async function chooseOpenFile(
@@ -774,13 +768,22 @@ async function chooseOpenFile(
 ): Promise<DesktopFilePayload | null> {
   const result = await dialog.showOpenDialog(browserWindow, {
     title: options?.title ?? 'Open BeatBax Song',
-    defaultPath: defaultOpenDialogPath(options?.defaultPath),
+    // First launch: bundled songs (macOS packaged uses ~/Documents/BeatBax/Examples
+    // because NSOpenPanel cannot see inside the .app). Later launches: last Open/Save folder.
+    defaultPath: await resolveOpenDialogDefaultPath(
+      options?.defaultPath,
+      resolveExampleSongsOpenDir(__dirname, app.isPackaged, {
+        documentsPath: app.getPath('documents'),
+      })
+    ),
     properties: ['openFile'],
     filters: TEXT_FILE_FILTERS
   })
 
   const selectedPath = result.canceled ? null : result.filePaths[0]
-  return selectedPath ? readFilePayload(selectedPath) : null
+  if (!selectedPath) return null
+  await rememberLastFileDialogDirectory(selectedPath)
+  return readFilePayload(selectedPath)
 }
 
 /** Load a bundled example by virtual path (`/songs/gameboy/foo.bax`). */
@@ -800,7 +803,7 @@ async function persistFile(
   if (options.showDialog !== false || !destination) {
     const result = await dialog.showSaveDialog(browserWindow, {
       title: options.title ?? 'Save BeatBax Song',
-      defaultPath: destination || undefined,
+      defaultPath: await resolveSaveDialogDefaultPath(destination || undefined),
       filters: saveDialogFilters(options)
     })
 
@@ -817,6 +820,7 @@ async function persistFile(
   noteDocumentSelfWrite(safePath)
   await fs.writeFile(safePath, payload)
   noteDocumentSelfWrite(safePath)
+  await rememberLastFileDialogDirectory(safePath)
   return safePath
 }
 
