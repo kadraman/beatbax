@@ -224,7 +224,7 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
 3. **Effect Support**: Add support for GB effects in pattern cells
    - Arpeggio (0xy)
    - Portamento (1xx, 2xx)
-   - Vibrato (4xy)
+   - Vibrato (1xx/2xx subpattern)
    - Set Volume (Cxx)
    - etc.
 
