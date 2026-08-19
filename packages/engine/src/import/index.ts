@@ -11,6 +11,7 @@ export {
   getUGEDetailedJSON,
   InstrumentType,
   ChannelType,
+  subpatternFromNoiseMacro,
   type SubPatternCell,
   type DutyInstrument,
   type WaveInstrument,
@@ -20,6 +21,20 @@ export {
   type Pattern,
   type UGESong,
 } from './uge/uge.reader.js';
+
+export {
+  extractUgeInstrumentLibrary,
+  extractInstrumentsFromUGE,
+  formatGameBoyIns,
+  formatGameBoyInstrumentsDemo,
+  sanitizeIdent,
+  createNameAllocator,
+  emptyExtractionResult,
+  formatSubpatternBlock,
+  type ExtractedInstrument,
+  type ExtractionResult,
+  type InstrumentKind,
+} from './uge/ugeInstrumentsToBax.js';
 
 // Remote import utilities
 export {

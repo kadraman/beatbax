@@ -1,8 +1,8 @@
 /**
- * UGE Reader - Parses hUGETracker .uge files (v5/v6)
+ * UGE Reader - Parses hUGETracker .uge files (v1–v6)
  *
- * Based on the hUGETracker UGE format specification.
- * Supports versions 5 and 6 of the UGE format.
+ * Layout follows GB Studio `loadUGESong` / hUGETracker Pascal packed records.
+ * BeatBax-exported v6 files round-trip through the same field order.
  *
  * Usage:
  *   import { readUGEFile, parseUGE } from './uge.reader.js';
@@ -178,67 +178,123 @@ class BinaryReader {
     skip(bytes: number): void {
         this.offset += bytes;
     }
+
+    readI8(ctx: string = 'i8'): number {
+        const u = this.readU8(ctx);
+        return u > 0x7f ? u - 0x100 : u;
+    }
+
+    remaining(): number {
+        return this.buffer.length - this.offset;
+    }
 }
 
 // ============================================================================
 // Parsing Functions
 // ============================================================================
 
-function parseSubPatternRows(reader: BinaryReader, version: number, ctx: string): SubPatternCell[] {
+const EMPTY_SUBPATTERN_NOTE = 90;
+const INSTRUMENT_SLOTS = 15;
+
+function emptySubpatternRows(): SubPatternCell[] {
+    return Array.from({ length: 64 }, () => ({
+        note: EMPTY_SUBPATTERN_NOTE,
+        jump: 0,
+        effectCode: 0,
+        effectParam: 0,
+    }));
+}
+
+/** hUGETracker UpgradeSong / GB Studio `subpatternFromNoiseMacro`. */
+export function subpatternFromNoiseMacro(noiseMacro: number[], ticksPerRow: number): SubPatternCell[] {
+    const rows = emptySubpatternRows();
+    for (let j = 0; j < noiseMacro.length; j++) {
+        const dest = j + 1;
+        if (dest >= rows.length) break;
+        rows[dest].note = noiseMacro[j] + 36;
+    }
+    const wrapPoint = Math.min(Math.max(1, ticksPerRow), 7);
+    rows[wrapPoint - 1].jump = wrapPoint;
+    return rows;
+}
+
+function parseSubPatternRows(reader: BinaryReader, ctx: string): SubPatternCell[] {
     const rows: SubPatternCell[] = [];
     for (let r = 0; r < 64; r++) {
         const note = reader.readU32(`${ctx}.row[${r}].note`);
-        const unused = reader.readU32(`${ctx}.row[${r}].unused`);
+        reader.readU32(`${ctx}.row[${r}].unused`);
         const jump = reader.readU32(`${ctx}.row[${r}].jump`);
         const effectCode = reader.readU32(`${ctx}.row[${r}].effectCode`);
         const effectParam = reader.readU8(`${ctx}.row[${r}].effectParam`);
         rows.push({ note, jump, effectCode, effectParam });
     }
-    // v4-v5 have 6 additional unused bytes after rows
-    if (version >= 4 && version < 6) {
-        reader.skip(6);
-    }
     return rows;
 }
 
-function parseDutyInstrument(reader: BinaryReader, version: number, idx: number): DutyInstrument {
-    const baseOffset = reader.getOffset();
-    const instType = reader.readU32(`duty[${idx}].type`);
+interface ParsedInstrumentRecord {
+    idx: number;
+    type: number;
+    name: string;
+    length: number;
+    lengthEnabled: boolean;
+    initialVolume: number;
+    volumeSweepDir: number;
+    volumeSweepChange: number;
+    freqSweepTime: number;
+    sweepEnabled: number;
+    freqSweepShift: number;
+    dutyCycle: number;
+    volume: number;
+    waveIndex: number;
+    noiseMode: number;
+    subpatternEnabled: boolean;
+    rows?: SubPatternCell[];
+    noiseMacro: number[];
+}
 
-    if (instType !== 0) {
-        throw new Error(`Expected duty instrument type 0 at offset ${baseOffset}, got ${instType}`);
-    }
+/**
+ * Every instrument type shares the same packed record layout (hUGETracker TInstrument).
+ * GB Studio `loadUGESong` reads this uniformly, then buckets by `type`.
+ */
+function parseInstrumentRecord(reader: BinaryReader, version: number, idx: number): ParsedInstrumentRecord {
+    const type = reader.readU32(`inst[${idx}].type`);
+    const name = reader.readShortString(`inst[${idx}].name`);
+    const length = reader.readU32(`inst[${idx}].length`);
+    const lengthEnabled = reader.readBool(`inst[${idx}].lengthEnabled`);
+    let initialVolume = reader.readU8(`inst[${idx}].initialVolume`);
+    if (initialVolume > 15) initialVolume = 15;
+    const volumeSweepDir = reader.readU32(`inst[${idx}].volumeSweepDir`);
+    const volumeSweepChange = reader.readU8(`inst[${idx}].volumeSweepChange`);
+    const freqSweepTime = reader.readU32(`inst[${idx}].freqSweepTime`);
+    const sweepEnabled = reader.readU32(`inst[${idx}].sweepDir`);
+    const freqSweepShift = reader.readU32(`inst[${idx}].freqSweepShift`);
+    const dutyCycle = reader.readU8(`inst[${idx}].dutyCycle`);
+    const volume = reader.readU32(`inst[${idx}].waveOutputLevel`);
+    const waveIndex = reader.readU32(`inst[${idx}].waveIndex`);
 
-    const name = reader.readShortString(`duty[${idx}].name`);
-    const length = reader.readU32(`duty[${idx}].length`);
-    const lengthEnabled = reader.readBool(`duty[${idx}].lengthEnabled`);
-    const initialVolume = reader.readU8(`duty[${idx}].initialVolume`);
-    const volumeSweepDir = reader.readU32(`duty[${idx}].volumeSweepDir`);
-    const volumeSweepChange = reader.readU8(`duty[${idx}].volumeSweepChange`);
-    const freqSweepTime = reader.readU32(`duty[${idx}].freqSweepTime`);
-    const sweepEnabled = reader.readU32(`duty[${idx}].sweepEnabled`);
-    const freqSweepShift = reader.readU32(`duty[${idx}].freqSweepShift`);
-    const dutyCycle = reader.readU8(`duty[${idx}].dutyCycle`);
-
-    // Three unused u32s
-    reader.readU32(`duty[${idx}].unused_a`);
-    reader.readU32(`duty[${idx}].unused_b`);
-    reader.readU32(`duty[${idx}].counter_step`);
-
-    let subpatternEnabled: boolean | undefined;
+    let noiseMode = 0;
+    let subpatternEnabled = false;
     let rows: SubPatternCell[] | undefined;
+    const noiseMacro: number[] = [];
 
-    if (version < 6) {
-        // v5 has additional unused fields and always includes rows
-        rows = parseSubPatternRows(reader, version, `duty[${idx}]`);
+    if (version >= 6) {
+        noiseMode = reader.readU32(`inst[${idx}].noiseMode`);
+        subpatternEnabled = reader.readBool(`inst[${idx}].subpatternEnabled`);
+        rows = parseSubPatternRows(reader, `inst[${idx}]`);
     } else {
-        // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
-        subpatternEnabled = reader.readBool(`duty[${idx}].subpatternEnabled`);
-        rows = parseSubPatternRows(reader, version, `duty[${idx}]`);
+        reader.readU32(`inst[${idx}].unused_pre_mode`);
+        noiseMode = reader.readU32(`inst[${idx}].noiseMode`);
+        reader.readU32(`inst[${idx}].unused_post_mode`);
+        if (version >= 4) {
+            for (let m = 0; m < 6; m++) {
+                noiseMacro.push(reader.readI8(`inst[${idx}].noiseMacro[${m}]`));
+            }
+        }
     }
 
     return {
-        type: InstrumentType.DUTY,
+        idx,
+        type,
         name,
         length,
         lengthEnabled,
@@ -249,108 +305,52 @@ function parseDutyInstrument(reader: BinaryReader, version: number, idx: number)
         sweepEnabled,
         freqSweepShift,
         dutyCycle,
-        subpatternEnabled,
-        rows
-    };
-}
-
-function parseWaveInstrument(reader: BinaryReader, version: number, idx: number): WaveInstrument {
-    const baseOffset = reader.getOffset();
-    const instType = reader.readU32(`wave[${idx}].type`);
-
-    if (instType !== 1) {
-        throw new Error(`Expected wave instrument type 1 at offset ${baseOffset}, got ${instType}`);
-    }
-
-    const name = reader.readShortString(`wave[${idx}].name`);
-    const length = reader.readU32(`wave[${idx}].length`);
-    const lengthEnabled = reader.readBool(`wave[${idx}].lengthEnabled`);
-
-    // Skip unused fields
-    reader.readU8(`wave[${idx}].unused1_u8`);
-    reader.readU32(`wave[${idx}].unused2_u32`);
-    reader.readU8(`wave[${idx}].unused3_u8`);
-    reader.readU32(`wave[${idx}].unused4_u32`);
-    reader.readU32(`wave[${idx}].unused5_u32`);
-    reader.readU32(`wave[${idx}].unused6_u32`);
-    reader.readU8(`wave[${idx}].unused7_u8`);
-
-    const volume = reader.readU32(`wave[${idx}].volume`);
-    const waveIndex = reader.readU32(`wave[${idx}].waveIndex`);
-    reader.readU32(`wave[${idx}].counter_step`);
-
-    let subpatternEnabled: boolean | undefined;
-    let rows: SubPatternCell[] | undefined;
-
-    if (version < 6) {
-        // v5 has additional unused fields and always includes rows
-        rows = parseSubPatternRows(reader, version, `wave[${idx}]`);
-    } else {
-        // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
-        subpatternEnabled = reader.readBool(`wave[${idx}].subpatternEnabled`);
-        rows = parseSubPatternRows(reader, version, `wave[${idx}]`);
-    }
-
-    return {
-        type: InstrumentType.WAVE,
-        name,
-        length,
-        lengthEnabled,
         volume,
         waveIndex,
+        noiseMode,
         subpatternEnabled,
-        rows
+        rows,
+        noiseMacro,
     };
 }
 
-function parseNoiseInstrument(reader: BinaryReader, version: number, idx: number): NoiseInstrument {
-    const baseOffset = reader.getOffset();
-    const instType = reader.readU32(`noise[${idx}].type`);
+function emptyDuty(): DutyInstrument {
+    return {
+        type: InstrumentType.DUTY,
+        name: '',
+        length: 0,
+        lengthEnabled: false,
+        initialVolume: 15,
+        volumeSweepDir: 1,
+        volumeSweepChange: 0,
+        freqSweepTime: 0,
+        sweepEnabled: 0,
+        freqSweepShift: 0,
+        dutyCycle: 2,
+    };
+}
 
-    if (instType !== 2) {
-        throw new Error(`Expected noise instrument type 2 at offset ${baseOffset}, got ${instType}`);
-    }
+function emptyWave(): WaveInstrument {
+    return {
+        type: InstrumentType.WAVE,
+        name: '',
+        length: 0,
+        lengthEnabled: false,
+        volume: 1,
+        waveIndex: 0,
+    };
+}
 
-    const name = reader.readShortString(`noise[${idx}].name`);
-    const length = reader.readU32(`noise[${idx}].length`);
-    const lengthEnabled = reader.readBool(`noise[${idx}].lengthEnabled`);
-    const initialVolume = reader.readU8(`noise[${idx}].initialVolume`);
-    const volumeSweepDir = reader.readU32(`noise[${idx}].volumeSweepDir`);
-    const volumeSweepChange = reader.readU8(`noise[${idx}].volumeSweepChange`);
-
-    // Skip unused fields
-    reader.readU32(`noise[${idx}].unused_a`);
-    reader.readU32(`noise[${idx}].unused_b`);
-    reader.readU32(`noise[${idx}].unused_c`);
-    reader.readU8(`noise[${idx}].unused_d`);
-    reader.readU32(`noise[${idx}].unused_e`);
-    reader.readU32(`noise[${idx}].unused_f`);
-    reader.readU32(`noise[${idx}].noise_mode`);
-
-    let noiseMode: number | undefined;
-    let subpatternEnabled: boolean | undefined;
-    let rows: SubPatternCell[] | undefined;
-
-    if (version < 6) {
-        // v5 has additional unused fields and always includes rows
-        rows = parseSubPatternRows(reader, version, `noise[${idx}]`);
-    } else {
-        // v6: subpattern flag, then 64 rows × 17 bytes (always present in binary)
-        subpatternEnabled = reader.readBool(`noise[${idx}].subpatternEnabled`);
-        rows = parseSubPatternRows(reader, version, `noise[${idx}]`);
-    }
-
+function emptyNoise(): NoiseInstrument {
     return {
         type: InstrumentType.NOISE,
-        name,
-        length,
-        lengthEnabled,
-        initialVolume,
-        volumeSweepDir,
-        volumeSweepChange,
-        noiseMode,
-        subpatternEnabled,
-        rows
+        name: '',
+        length: 0,
+        lengthEnabled: false,
+        initialVolume: 15,
+        volumeSweepDir: 1,
+        volumeSweepChange: 0,
+        noiseMode: 0,
     };
 }
 
@@ -362,10 +362,10 @@ function parseWavetables(reader: BinaryReader, version: number): number[][] {
             nibbles.push(reader.readU8(`wavetable[${w}].nibble[${i}]`));
         }
         waves.push(nibbles);
-    }
-    // v<3 has an off-by-one filler byte
-    if (version < 3) {
-        reader.readU8('wavetable.off_by_one_filler');
+        // v<3 TWaveV1 is 33 bytes (off-by-one) per table
+        if (version < 3) {
+            reader.readU8(`wavetable[${w}].off_by_one_filler`);
+        }
     }
     return waves;
 }
@@ -387,17 +387,22 @@ function parsePatterns(reader: BinaryReader, version: number): {
     }
 
     const numPatterns = reader.readU32('patterns.numPatterns');
-    const patterns: Pattern[] = [];
+    const patternsById: Map<number, Pattern> = new Map();
 
     for (let p = 0; p < numPatterns; p++) {
-        const index = reader.readU32(`pattern[${p}].index`);
+        let index: number;
+        if (version >= 5) {
+            index = reader.readU32(`pattern[${p}].index`);
+        } else {
+            index = p;
+        }
         const rows: PatternCell[] = [];
 
         for (let r = 0; r < 64; r++) {
             const note = reader.readU32(`pattern[${p}].row[${r}].note`);
             const instrument = reader.readU32(`pattern[${p}].row[${r}].instrument`);
 
-            // v6 has an unused u32 field
+            // v6 has an unused u32 field (TCellV2 volume)
             if (version >= 6) {
                 reader.readU32(`pattern[${p}].row[${r}].unused_v6`);
             }
@@ -408,8 +413,12 @@ function parsePatterns(reader: BinaryReader, version: number): {
             rows.push({ note, instrument, effectCode, effectParam });
         }
 
-        patterns.push({ index, rows });
+        // v5 files saved by old GB Studio could repeat sequential ids; store at p then.
+        const storeIndex = (version === 5 && patternsById.has(index)) ? p : index;
+        patternsById.set(storeIndex, { index: storeIndex, rows });
     }
+
+    const patterns = [...patternsById.values()];
 
     return { initialTicksPerRow, timerTempoEnabled, timerTempoDivider, patterns };
 }
@@ -443,11 +452,16 @@ function parseOrders(reader: BinaryReader): Orders {
     };
 }
 
-function parseRoutines(reader: BinaryReader): string[] {
-    const routines: string[] = [];
-    for (let i = 0; i < 16; i++) {
-        const code = reader.readString(`routine[${i}]`);
-        routines.push(code);
+function parseRoutines(reader: BinaryReader, version: number): string[] {
+    const routines: string[] = Array.from({ length: 16 }, () => '');
+    if (version < 2) return routines;
+    try {
+        for (let i = 0; i < 16; i++) {
+            if (reader.remaining() < 4) break;
+            routines[i] = reader.readString(`routine[${i}]`);
+        }
+    } catch {
+        // Native files sometimes omit or truncate routines; instruments already parsed.
     }
     return routines;
 }
@@ -457,50 +471,96 @@ function parseRoutines(reader: BinaryReader): string[] {
 // ============================================================================
 
 /**
- * Parse a UGE file from a Buffer
+ * Parse a UGE file from a Buffer (hUGETracker v1–v6).
  */
 export function parseUGE(data: Buffer): UGESong {
     const reader = new BinaryReader(data);
 
-    // Read header
     const version = reader.readU32('header.version');
 
-    // Validate version
-    if (version < 5 || version > 6) {
-        throw new Error(`Unsupported UGE version ${version}. This parser supports only v5 or v6 files.`);
+    if (version < 0 || version > 6) {
+        throw new Error(`Unsupported UGE version ${version}. This parser supports v1–v6 files.`);
     }
 
     const name = reader.readShortString('header.name');
     const artist = reader.readShortString('header.artist');
     const comment = reader.readShortString('header.comment');
 
-    // Parse instruments
-    const dutyInstruments: DutyInstrument[] = [];
-    for (let i = 0; i < 15; i++) {
-        dutyInstruments.push(parseDutyInstrument(reader, version, i));
+    const instrumentCount = version < 3 ? 15 : 45;
+    const records: ParsedInstrumentRecord[] = [];
+    for (let i = 0; i < instrumentCount; i++) {
+        records.push(parseInstrumentRecord(reader, version, i));
     }
 
-    const waveInstruments: WaveInstrument[] = [];
-    for (let i = 0; i < 15; i++) {
-        waveInstruments.push(parseWaveInstrument(reader, version, i));
+    const dutyInstruments: DutyInstrument[] = Array.from({ length: INSTRUMENT_SLOTS }, emptyDuty);
+    const waveInstruments: WaveInstrument[] = Array.from({ length: INSTRUMENT_SLOTS }, emptyWave);
+    const noiseInstruments: NoiseInstrument[] = Array.from({ length: INSTRUMENT_SLOTS }, emptyNoise);
+
+    for (const rec of records) {
+        const slot = rec.idx % INSTRUMENT_SLOTS;
+        if (rec.type === InstrumentType.DUTY) {
+            dutyInstruments[slot] = {
+                type: InstrumentType.DUTY,
+                name: rec.name,
+                length: rec.length,
+                lengthEnabled: rec.lengthEnabled,
+                initialVolume: rec.initialVolume,
+                volumeSweepDir: rec.volumeSweepDir,
+                volumeSweepChange: rec.volumeSweepChange,
+                freqSweepTime: rec.freqSweepTime,
+                sweepEnabled: rec.sweepEnabled,
+                freqSweepShift: rec.freqSweepShift,
+                dutyCycle: rec.dutyCycle,
+                subpatternEnabled: rec.subpatternEnabled,
+                rows: rec.rows,
+            };
+        } else if (rec.type === InstrumentType.WAVE) {
+            waveInstruments[slot] = {
+                type: InstrumentType.WAVE,
+                name: rec.name,
+                length: rec.length,
+                lengthEnabled: rec.lengthEnabled,
+                volume: rec.volume,
+                waveIndex: rec.waveIndex,
+                subpatternEnabled: rec.subpatternEnabled,
+                rows: rec.rows,
+            };
+        } else if (rec.type === InstrumentType.NOISE) {
+            noiseInstruments[slot] = {
+                type: InstrumentType.NOISE,
+                name: rec.name,
+                length: rec.length,
+                lengthEnabled: rec.lengthEnabled,
+                initialVolume: rec.initialVolume,
+                volumeSweepDir: rec.volumeSweepDir,
+                volumeSweepChange: rec.volumeSweepChange,
+                noiseMode: rec.noiseMode,
+                subpatternEnabled: rec.subpatternEnabled,
+                rows: rec.rows,
+            };
+        } else {
+            throw new Error(`Invalid instrument type ${rec.type} [${rec.idx}, "${rec.name}"]`);
+        }
     }
 
-    const noiseInstruments: NoiseInstrument[] = [];
-    for (let i = 0; i < 15; i++) {
-        noiseInstruments.push(parseNoiseInstrument(reader, version, i));
-    }
-
-    // Parse wavetables
     const wavetables = parseWavetables(reader, version);
 
-    // Parse patterns
     const { initialTicksPerRow, timerTempoEnabled, timerTempoDivider, patterns } = parsePatterns(reader, version);
 
-    // Parse orders
-    const orders = parseOrders(reader);
+    // v4–v5 noise macros → subpattern rows (only when any step is non-zero).
+    if (version >= 4 && version < 6) {
+        for (const rec of records) {
+            if (rec.type !== InstrumentType.NOISE) continue;
+            if (!rec.noiseMacro.some((n) => n !== 0)) continue;
+            const slot = rec.idx % INSTRUMENT_SLOTS;
+            const inst = noiseInstruments[slot];
+            inst.subpatternEnabled = true;
+            inst.rows = subpatternFromNoiseMacro(rec.noiseMacro, initialTicksPerRow);
+        }
+    }
 
-    // Parse routines
-    const routines = parseRoutines(reader);
+    const orders = parseOrders(reader);
+    const routines = parseRoutines(reader, version);
 
     return {
         version,
@@ -714,4 +774,4 @@ export function getUGEDetailedJSON(song: UGESong): string {
     return JSON.stringify(detailed, null, 2);
 }
 
-export default { parseUGE, readUGEFile, midiNoteToUGE, ugeNoteToString, getUGESummary, getUGEDetailedJSON };
+export default { parseUGE, readUGEFile, midiNoteToUGE, ugeNoteToString, getUGESummary, getUGEDetailedJSON, subpatternFromNoiseMacro };
