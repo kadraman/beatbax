@@ -8,6 +8,7 @@ related:
   - docs/features/gameboy-uge-instrument-subpatterns.md
   - docs/features/gameboy-noise-uge-playback-parity.md
   - docs/exports/uge-export-guide.md
+  - docs/features/cli-extract-uge-instruments.md
 issue: https://github.com/kadraman/beatbax/issues/151
 ---
 
@@ -57,6 +58,7 @@ Subpattern emission is especially important: BeatBax already authors and exports
 - Supporting non-UGE tracker formats in this feature.
 - Full round-trip identity of binary UGE files in the first phase.
 - Beautifying generated `.bax` beyond reasonable naming/formatting heuristics.
+- Extracting **only** instruments into a `.ins` kit. That is [`cli-extract-uge-instruments.md`](cli-extract-uge-instruments.md) (`beatbax extract instrument song.uge`). This converter emits a whole song (`.bax`).
 
 ---
 
