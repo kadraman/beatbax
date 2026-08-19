@@ -9,6 +9,7 @@ related:
   - docs/features/gameboy-noise-uge-playback-parity.md
   - docs/exports/uge-export-guide.md
   - docs/features/cli-extract-uge-instruments.md
+  - .github/issues/uge-pattern-reuse.md
 issue: https://github.com/kadraman/beatbax/issues/151
 ---
 
@@ -35,6 +36,8 @@ This limits migration and round-trip workflows:
 - Users with existing `.uge` songs cannot use BeatBax editing/composition features.
 - hUGETracker instrument subpatterns, wavetables, and pattern/order data cannot be converted into readable `.bax`.
 - BeatBax UGE export improvements cannot be validated through round-trip import/export tests.
+
+UGE **export** now reuses order-list IDs for BeatBax `pat`/`seq` ([`.github/issues/uge-pattern-reuse.md`](../../.github/issues/uge-pattern-reuse.md), [`uge-export-guide.md`](../exports/uge-export-guide.md)). Import should emit the same mapping in reverse: one `pat` per unique UGE pattern, one `seq` per channel order list, including shared IDs. Round-trip tests should expect those IDs to survive convert → parse → export.
 
 Subpattern emission is especially important: BeatBax already authors and exports instrument programs via macros / `subpat` ([`gameboy-uge-instrument-subpatterns.md`](gameboy-uge-instrument-subpatterns.md)). The converter must emit that grammar so imported drums keep their character instead of expanding into song-timeline patterns.
 
@@ -322,6 +325,7 @@ Acceptance criteria:
   3. Parse/resolve `.bax`.
   4. Export UGE.
   5. Confirm exported file opens through the UGE reader.
+  6. Confirm repeated UGE pattern IDs in orders are still shared after export (not flattened to unique 64-row copies).
 
 ---
 
