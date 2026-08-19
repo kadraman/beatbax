@@ -41,9 +41,14 @@ Note on Wave instrument volume storage
    - `noteNameToMidiNote()`: Convert note names (C3, C#4, etc.) to MIDI note numbers.
      - **Note Mapping**: Maps MIDI 36 (C2) to hUGETracker index 0 (displayed as C3) to maintain pitch parity with hardware.
    - `resolveInstrumentIndex()`: Map beatbax instrument names to GB instrument indices
-   - `eventsToPatternCells()`: Convert beatbax channel events to UGE pattern cells
-     - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (0xC) to ensure sharp termination.
+   - `eventsToCells()`: Convert beatbax channel events to a linear UGE cell timeline
+     - **Note Cut Logic**: Rests (`.`) are exported with a Note Cut effect (E00) to ensure sharp termination.
      - **Sustain Logic**: Sustains (`_`) are exported as empty cells (Note 90), allowing the previous note to continue.
+     - Song-end auto-cut is skipped when packing 16/32-row BeatBax pats (D01 skips pad rows).
+   - [`ugePatterns.ts`](../../packages/engine/src/export/ugePatterns.ts): group by `sourcePattern` + `patternIndex`, hash-dedupe 64-row frames, write D01 when `L < 64`
+   - Post-process indexes **order entry + row** (`floor(eventIndex / L)`), never “Nth unique chunk”
+   - NR51 `8xx` is written only when the mix **changes**, so a later reuse is not a second pan write
+   - Song-end auto-cut is skipped in structure mode; a reused body must not contain an E00 that only applies when that phrase is last in the song
 
 4. **Payload Builder and Export Wrapper**:
    - `buildUGE(song: SongModel, opts?: { debug?: boolean; strictGb?: boolean; verbose?: boolean; onWarn?: (message: string) => void }): Uint8Array`
@@ -203,9 +208,11 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
 ## Files Modified/Created
 
 1. **Created**:
-   - `packages/engine/src/export/ugeWriter.ts` (441 lines) - Complete UGE v6 writer
-   - `packages/engine/tests/ugeExport.test.ts` (220 lines) - Unit tests
-   - `packages/cli/tests/cli-export-uge.integration.test.ts` (113 lines) - Integration tests
+   - `packages/engine/src/export/ugeWriter.ts` - Complete UGE v6 writer
+   - `packages/engine/src/export/ugePatterns.ts` - Pattern grouping, D01, and order-list hash-dedupe
+   - `packages/engine/tests/ugeExport.test.ts` - Unit tests
+   - `packages/engine/tests/uge.pattern-reuse.test.ts` - `pat`/`seq` order reuse and D01
+   - `packages/cli/tests/cli-export-uge.integration.test.ts` - Integration tests
 
 2. **Modified**:
    - `packages/engine/src/export/index.ts` - Added exportUGE export
@@ -217,9 +224,12 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
    - Currently uses default instruments (0) for all channels
    - Could map beatbax instrument properties (duty, envelope) to actual GB instrument values
 
-2. **Pattern Optimization**: Detect duplicate patterns and reuse them
-   - Current implementation: one pattern per channel
-   - Could reduce file size by identifying identical patterns
+2. **Pattern reuse** (implemented): see [`.github/issues/uge-pattern-reuse.md`](../../.github/issues/uge-pattern-reuse.md)
+   - `eventsToCells` builds a linear timeline; `ugePatterns.ts` groups `sourcePattern` runs (with `patternIndex` so `p p p p` stays four instances)
+   - Shared 16/32/64-row grid → one UGE pattern per unique fingerprint, D01 if `L < 64`
+   - Otherwise 64-row windows are still content-hashed into the order list
+   - NR51, vibrato, and cuts run on **per-order frames** before hashing (order+row indexing). Instance-specific `8xx` / song-end E00 must not be baked into a body that later orders reuse.
+   - Do not share pattern IDs across duty/wave/noise (relative instrument indexes)
 
 3. **Effect Support**: Add support for GB effects in pattern cells
    - Arpeggio (0xy)
@@ -235,6 +245,7 @@ The Python reference implementation (`generate_minimal_uge.py`, 164 lines) serve
 5. **Round-trip Support**: Implement UGE v6 importer
    - Read UGE files back into beatbax ISM
    - Enable edit-export-import workflow
+   - Import should emit `pat` + `seq` from the same order IDs this exporter now writes ([hugetracker-uge-converter.md](../features/hugetracker-uge-converter.md))
 
 ## Compliance & Validation
 
