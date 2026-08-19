@@ -1,0 +1,270 @@
+# Curated Game Boy kit.
+# Import with: import "local:gameboy.ins"
+# Comments describe the sound. Source song is noted under each patch.
+
+# =============================================================================
+# Pulse
+# =============================================================================
+
+# Looping six-step interval riff: one held note fans into a busy chord arpeggio.
+subpat lattice_arp_sub =
+  +8
+  +17
+  +0
+  +20
+  +5
+  +12 jump:1
+inst lattice_arp type=pulse1 duty=50 env=11,down,2 subpat=lattice_arp_sub
+
+# Gated pulse snare: silent, then a hit, a −6 drop, then mute. Drum without noise.
+subpat gate_snare_sub =
+  vol:0
+  +0 vol:15
+  -6 vol:15
+  vol:0
+inst gate_snare type=pulse1 duty=50 env=12,down,1 subpat=gate_snare_sub
+
+# PWM-style wash: long duty/timbre sweep that settles into a looping vibrato.
+subpat pwm_wash_sub =
+  +0 timbre:208
+  +0 vol:4
+  +0 vol:9
+  timbre:192
+  timbre:177
+  timbre:162
+  timbre:148
+  timbre:133
+  timbre:118
+  timbre:104
+  timbre:89
+  timbre:74
+  timbre:60
+  timbre:45
+  timbre:30
+  timbre:16
+  timbre:30
+  timbre:43
+  timbre:57
+  timbre:71
+  timbre:84
+  timbre:98
+  timbre:112
+  timbre:125
+  timbre:139
+  timbre:153
+  timbre:166
+  timbre:180
+  timbre:194
+  timbre:208
+  fx:4,98
+  jump:30
+inst pwm_wash type=pulse1 duty=75 env=7,down,4 subpat=pwm_wash_sub
+
+# Growling bass: volume and timbre steps with pitch FX under a slow decay.
+subpat growl_bass_sub =
+  +0 vol:6
+  timbre:34
+  vol:12
+  timbre:0
+  fx:2,5
+  timbre:34
+  fx:4,99
+  timbre:68
+  fx:4,99
+  jump:9
+inst growl_bass type=pulse1 duty=50 env=12,down,5 subpat=growl_bass_sub
+
+# Shimmering lead: timbre cascade, then 1xx/2xx pitch slides. Bright, restless.
+subpat prism_lead_sub =
+  timbre:160
+  timbre:140
+  timbre:120
+  timbre:100
+  timbre:82
+  timbre:3
+  timbre:40
+  timbre:20
+  timbre:0
+  timbre:80
+  timbre:144
+  .
+  fx:2,4
+  fx:2,4
+  fx:1,4
+  fx:1,4
+  fx:2,64
+  fx:1,64
+inst prism_lead type=pulse1 duty=50 env=7,down,4 subpat=prism_lead_sub
+
+# =============================================================================
+# Wave
+# =============================================================================
+
+# Pipe organ: crowded additive harmonics, churchy and mid-heavy.
+inst pipe_organ type=wave wave="BED9677621378643576447AB74578767" volume=100
+
+# Minor chord stack: one note sounds a minor triad baked into the wavetable.
+inst minor_stack type=wave wave="DC204BE9327A98658648AA7228EC402A" volume=100
+
+# Metallic alloy: irregular, clangy table — bells and scrap, not a geometric wave.
+inst alloy type=wave wave="841161ED57475AADCEA31779DD200347" volume=100
+
+# Punchy wave bass: rounded blip then silence in the table, fat low end.
+inst punch_bass type=wave wave="8ACDEFFFEDB974108ACDEFFF00000000" volume=100
+
+# Gritty block: clipped mid-level squares with a bright burst. Dirty, lo-fi.
+inst grit_block type=wave wave="88888FFF888888800008888880000000" volume=100
+
+# Click lead: attack click, octave hop, then timbre/vol/vibrato motion. Length-capped.
+subpat click_lead_sub =
+  +12 timbre:48
+  +0
+  timbre:112
+  .
+  fx:4,161
+  vol:9
+  fx:4,161
+  timbre:2
+  fx:2,2
+  fx:1,1
+  fx:1,1
+  timbre:3
+  vol:4
+  fx:4,97
+  fx:4,97
+  fx:4,97
+  jump:15
+inst click_lead type=wave wave="13543178EFFFFEBCDDDDDCCBCDEEEEEC" volume=100 length=47 subpat=click_lead_sub
+
+# Woodwind: hollow reed/flute, sparse highs, breathy midtones.
+inst woodwind type=wave wave="8A9843068421000001100000011379FC" volume=100
+
+# Wave snap: mute–hit–drop–mute gate on a square-ish table. Clap or tom.
+subpat wave_snap_sub =
+  vol:0
+  +0 vol:15
+  -6 vol:15
+  vol:0
+inst wave_snap type=wave wave="FFFFFFFFFFFFFFFF0000000000000000" volume=100 subpat=wave_snap_sub
+
+# Swelling saw: slow volume rise on a saw table, then a late loop. Pad swell.
+subpat swell_saw_sub =
+  +12 vol:5
+  .
+  vol:7
+  .
+  vol:5
+  .
+  vol:2
+  .
+  vol:4
+  .
+  vol:3
+  vol:2
+  vol:1
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  .
+  jump:29
+inst swell_saw type=wave wave="000112233445566778899AABBCCDDEEF" volume=50 length=71 subpat=swell_saw_sub
+
+# Hash grain: noisy, non-geometric table. Static pad / FX bed.
+inst hash_grain type=wave wave="D0D6A226A23F00A004583D5385A2145A" volume=100
+
+# =============================================================================
+# Noise
+# =============================================================================
+
+# 7-bit kick: long pitch curve from a click down into a thud. Tight GB bass drum.
+subpat bit_kick_sub =
+  .
+  +29
+  +13
+  +4
+  -6
+  -15
+  -26 halt
+inst bit_kick type=noise gb:width=7 env=14,down,2 length=49 uge_note=C-5 subpat=bit_kick_sub
+
+# Crack snare: body dip then a noisy crack and rattle. 15-bit, D#7.
+subpat crack_snare_sub =
+  .
+  -12
+  +32
+  +7
+  -3
+  +7
+  +22 halt
+inst crack_snare type=noise gb:width=15 env=14,down,1 uge_note=D#7 subpat=crack_snare_sub
+
+# Tight closed hat: very high clock, tiny pitch motion, short length. Chick.
+subpat tight_hat_sub =
+  .
+  -2
+  +0
+  +0
+  +0
+  +0
+  +0 halt
+inst tight_hat type=noise gb:width=15 env=15,down,1 length=50 uge_note=C-8 subpat=tight_hat_sub
+
+# Falling noise: slow descending pitch with a loop. Transition / siren fall, not a drum.
+subpat fall_noise_sub =
+  +0
+  .
+  .
+  .
+  -1
+  .
+  .
+  .
+  -2
+  .
+  .
+  .
+  -3
+  .
+  .
+  .
+  -4
+  .
+  .
+  .
+  -5
+  .
+  .
+  .
+  -6
+  .
+  .
+  .
+  -7
+  .
+  .
+  jump:21
+inst fall_noise type=noise gb:width=15 env=15,down,7 uge_note=A-6 subpat=fall_noise_sub
+
+# Tonal 7-bit noise: pitched, flat envelope, length-capped. Sequence it like a melody.
+subpat tone_noise_sub =
+  .
+  +0
+  +0
+  +0 halt
+  +0
+  +0
+  +0
+inst tone_noise type=noise gb:width=7 env=7,flat,0 length=48 uge_note=E-7 subpat=tone_noise_sub
