@@ -31,7 +31,7 @@ export function isNonSoundingDirectiveToken(token: string): boolean {
   if (typeof token !== 'string') return false;
   if (/^inst\s+\S+$/i.test(token)) return true;
   if (/^pan\(/i.test(token)) return true;
-  if (/^inst\([^,()\s]+\)$/i.test(token)) return true;
+  if (/^inst\([^,()\s]+(?:,\d+)?\)$/i.test(token)) return true;
   return false;
 }
 

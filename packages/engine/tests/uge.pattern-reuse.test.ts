@@ -272,6 +272,25 @@ channel 2 => inst bass seq harm
     expect(orderHasBreak(uge, 0, 15)).toBe(true);
   });
 
+  test('inline inst(name,N) in a 16-row pat still shares order IDs', () => {
+    const warnings: string[] = [];
+    const uge = exportParsed(`
+chip gameboy
+bpm 128
+stepsPerBar 16
+${LEAD}
+inst hat type=pulse1 duty=50 env={"level":10,"direction":"down","period":1,"format":"gb"}
+pat p = C6 C6 inst(hat,2) C6 C6 C6 C6 C6 C6 C6 C6 C6 C6 C6 C6 C6 C6
+seq s = p p p
+channel 1 => inst lead seq s
+`, (msg) => warnings.push(msg));
+
+    expect(warnings.some((w) => /64-row windows/i.test(w))).toBe(false);
+    expect(uge.orders.duty1).toHaveLength(3);
+    expect(uge.orders.duty1[1]).toBe(uge.orders.duty1[2]);
+    expect(orderHasBreak(uge, 0, 15)).toBe(true);
+  });
+
   test('green_pathway exports 16-row orders without a flatten warning', () => {
     const songPath = join(__dirname, '../../../packs/gb-adventure-pack/src/green_pathway.bax');
     if (!existsSync(songPath)) return;
