@@ -1,5 +1,21 @@
 # @beatbax/cli
 
+## 0.4.17
+
+### Patch Changes
+
+- d1a9063: Song-local instruments may keep a kit `subpat=` name after last-wins override.
+
+  The parser no longer stacks plugin "subpat was not resolved" warnings on top of the import-pending "not defined" warning, and CLI drops that leftover once import bind fills `subpatRows`.
+
+- Updated dependencies [d1a9063]
+- Updated dependencies [eb798f1]
+- Updated dependencies [d1a9063]
+- Updated dependencies [69f11a0]
+- Updated dependencies [e272826]
+- Updated dependencies [d1a9063]
+  - @beatbax/engine@0.24.0
+
 ## 0.4.16
 
 ### Patch Changes

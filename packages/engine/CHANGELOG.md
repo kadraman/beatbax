@@ -1,5 +1,35 @@
 # @beatbax/engine
 
+## 0.24.0
+
+### Minor Changes
+
+- 69f11a0: Reuse HugeTracker patterns on UGE export instead of writing a unique 64-row chunk per bar.
+
+  When every channel’s expanded `pat` runs share a length of 16, 32, or 64, the order list repeats pattern IDs (`seq s = p * 4` is one body, four order entries). Shorter pats get D01 so padded rows are not played. Songs that are not on that grid still pack 64-row windows and hash-dedupe identical ones.
+
+- e272826: Parse hUGETracker `.uge` v1–v6 (not only BeatBax-exported v6) and extract instruments to `.ins` source.
+
+  `readUGEFile` / `parseUGE` now follow GB Studio’s instrument, wavetable, and pattern layout: mixed 15-slot banks on v1–v2, typed 45-slot banks from v3, v4–v5 noise macros migrated to subpattern rows, and `noiseMode` on noise instruments. `extractUgeInstrumentLibrary` maps duty/wave/noise slots (plus `subpat`) into BeatBax kit source with sanitized names and clash renaming.
+
+### Patch Changes
+
+- d1a9063: Song-local instruments may keep a kit `subpat=` name after last-wins override.
+
+  The parser no longer stacks plugin "subpat was not resolved" warnings on top of the import-pending "not defined" warning, and CLI drops that leftover once import bind fills `subpatRows`.
+
+- eb798f1: Follow nested sequences in playback metadata so section seqs resolve, not only the form seq.
+
+  `channel => seq mel` with `seq mel = deep land …` used to tag every event as `mel`. Events now carry the innermost seq (`deep`) plus the outer-to-inner path (`mel → deep`).
+
+- d1a9063: Keep Game Boy pulse preview on the bandlimited oscillator when an instrument subpattern only uses 1xx/2xx pitch slides.
+
+  Baking those notes as raw squares made held pulse instruments with a pitch table sound shrill in the editor compared to the same duty without a table. Duty and volume programs still bake to a buffer; 1xx/2xx now ride the oscillator so preview matches the dry timbre.
+
+- d1a9063: Export BeatBax `vib` to hUGETracker as 1xx/2xx pitch slides instead of 4xy trills.
+
+  hUGE 4xy is a one-sided square period toggle, so named presets sounded harsh in GB Studio. The exporter clones the instrument with a looping tick-rate 1xx/2xx subpattern when a slot is free, and falls back to pattern-row 1xx/2xx when the instrument already has a program or the 15-slot table is full.
+
 ## 0.23.0
 
 ### Minor Changes
