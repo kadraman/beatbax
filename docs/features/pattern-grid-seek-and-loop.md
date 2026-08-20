@@ -7,6 +7,7 @@ updated: 2026-06-22
 related:
   - docs/features/desktop-client-enhancements.md
   - docs/features/complete/daw-channel-mixer.md
+  - docs/features/pattern-combination-preview.md
 ---
 
 ## Summary
