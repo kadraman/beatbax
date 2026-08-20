@@ -43,7 +43,7 @@ play auto repeat
     expect(isE00(duty1Row(uge, 1, 63))).toBe(false);
   });
 
-  test('still E00s the last sounding row of a short pattern padded to 64', () => {
+  test('16-row patterns emit D01 so padded rows are not played', () => {
     const uge = exportParsed(`
 chip gameboy
 bpm 128
@@ -53,13 +53,31 @@ pat p = C5:16
 channel 1 => inst lead pat p
 `);
 
-    expect(isE00(duty1Row(uge, 0, 15))).toBe(true);
+    const breakCell = duty1Row(uge, 0, 15);
+    expect(breakCell.effectCode).toBe(0xD);
+    expect(breakCell.effectParam).toBe(0x01);
     const padRow = duty1Row(uge, 0, 16);
     expect(padRow.note).toBe(90);
     expect(padRow.effectCode).toBe(0);
   });
 
-  test('E00s row 63 of a full 64-row one-shot with no repeat', () => {
+  test('E00s the last sounding row of a short flatten pattern padded to 64', () => {
+    const uge = exportParsed(`
+chip gameboy
+bpm 128
+stepsPerBar 8
+${LEAD}
+pat p = C5:8
+channel 1 => inst lead pat p
+`);
+
+    expect(isE00(duty1Row(uge, 0, 7))).toBe(true);
+    const padRow = duty1Row(uge, 0, 8);
+    expect(padRow.note).toBe(90);
+    expect(padRow.effectCode).toBe(0);
+  });
+
+  test('reused 16-row one-shot uses four order entries of the same pattern', () => {
     const uge = exportParsed(`
 chip gameboy
 bpm 128
@@ -70,7 +88,10 @@ seq s = p p p p
 channel 1 => inst lead seq s
 `);
 
-    expect(isE00(duty1Row(uge, 0, 63))).toBe(true);
+    expect(uge.orders.duty1).toHaveLength(4);
+    expect(new Set(uge.orders.duty1).size).toBe(1);
+    expect(duty1Row(uge, 0, 15).effectCode).toBe(0xD);
+    expect(isE00(duty1Row(uge, 0, 63))).toBe(false);
   });
 
   test('still writes E00 on an authored rest after a note', () => {

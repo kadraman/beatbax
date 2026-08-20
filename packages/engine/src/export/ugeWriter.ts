@@ -39,6 +39,19 @@ import {
     type PatternVibCell,
     type VibratoSpec,
 } from './ugeVibrato.js';
+import {
+    applyPatternBreaks,
+    blankUgePattern,
+    chunkCells,
+    dedupeChannelPatterns,
+    framesFromSourceRuns,
+    groupSourcePatternRuns,
+    padPatternTo64,
+    structureStepLength,
+    UGE_PATTERN_ROWS,
+    type SourceRun,
+    type UgePatternCell,
+} from './ugePatterns.js';
 
 const log = createLogger('export:uge');
 
@@ -49,7 +62,7 @@ const NUM_WAVE_INSTRUMENTS = 15;
 const NUM_NOISE_INSTRUMENTS = 15;
 const NUM_WAVETABLES = 16;
 const WAVETABLE_SIZE = 32; // 32 nibbles (4-bit values)
-const PATTERN_ROWS = 64;
+const PATTERN_ROWS = UGE_PATTERN_ROWS;
 const NUM_CHANNELS = 4;
 const NUM_ROUTINES = 16;
 const EMPTY_NOTE = 90; // Note value for empty/rest cells
@@ -79,14 +92,7 @@ function instrumentHasTickProgram(inst: Record<string, unknown> | null | undefin
 // Effect Handler System - Extensible architecture for UGE effect conflicts
 // ============================================================================
 
-interface UGECell {
-    note: number;
-    instrument: number;
-    effectCode: number;
-    effectParam: number;
-    pan?: 'L' | 'R' | 'C';
-    volume?: number;
-}
+type UGECell = UgePatternCell;
 
 interface EffectRequest {
     type: string;
@@ -1026,10 +1032,10 @@ function allocateVibratoClones(
 }
 
 /**
- * Convert beatbax channel events to UGE pattern cells
- * Returns patterns (64-row chunks) for a single channel
+ * Convert beatbax channel events to a linear UGE cell timeline (one cell per event).
+ * Song-end auto-cut is optional so structure-aware packing can reuse patterns.
  */
-function eventsToPatterns(
+function eventsToCells(
     events: ChannelEvent[],
     instruments: Record<string, Record<string, string>>,
     channelType: GBChannel,
@@ -1043,11 +1049,9 @@ function eventsToPatterns(
     loops: boolean = false,
     vibClones?: Map<string, string>,
     ticksPerRow: number = 7,
-): Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> {
-    const patterns: Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>> = [];
-
-    // Split events into 64-row patterns
-    let currentPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }> = [];
+    applyStreamAutoCut: boolean = true,
+): { cells: UGECell[]; hasRetrigEffects: boolean; hasEchoEffects: boolean; hasTremEffects: boolean } {
+    const cells: UGECell[] = [];
 
     // Compute engine tick length (seconds per pattern row) from song BPM so
     // we can convert any `durationSec` normalized by the resolver back into
@@ -1179,9 +1183,10 @@ function eventsToPatterns(
 
                 // Auto-cut only when the note would otherwise ring into pad rows
                 // or true end-of-channel silence. Authored rests still get E00
-                // via the rest-after-note path; look past 64-row boundaries.
+                // via the rest-after-note path. Disabled for structure-aware
+                // packing so reused patterns are not poisoned by song-end cuts.
                 let needsAutoCut = false;
-                if (!hasExplicitCut && !channelContinuesAfterNote(events, targetRow, loops)) {
+                if (!hasExplicitCut && applyStreamAutoCut && !channelContinuesAfterNote(events, targetRow, loops)) {
                     needsAutoCut = true;
                 }
 
@@ -1438,64 +1443,10 @@ function eventsToPatterns(
         // Update prevEventType for next iteration
         prevEventType = event && (event as any).type ? (event as any).type : null;
 
-        currentPattern.push(cell);
-
-        // When pattern reaches 64 rows, start a new one
-        if (currentPattern.length >= PATTERN_ROWS) {
-            patterns.push(currentPattern);
-            currentPattern = [];
-        }
+        cells.push(cell);
     }
 
-    // Add final pattern if it has any rows
-    if (currentPattern.length > 0) {
-        // Pad to 64 rows. If padding extends past the last event, the global
-        // event index for padded rows starts at `events.length` — honor
-        // `endCutRows` for these padded rows so explicit cuts at song end are
-        // emitted.
-        const existing = currentPattern.length;
-        const padCount = PATTERN_ROWS - existing;
-        for (let j = 0; j < padCount; j++) {
-            const globalRow = events.length + j; // global event index for this padded row
-            const isCut = endCutRows.has(globalRow);
-            const cell: any = {
-                note: EMPTY_NOTE,
-                instrument: -1, // No instrument on padding rows
-                effectCode: 0,
-                effectParam: 0,
-                pan: 'C',
-            };
-            if (isCut) {
-                cell.effectCode = 0xC;
-                cell.effectParam = 0x00;
-                cell.volume = 0;
-            }
-            currentPattern.push(cell);
-        }
-        patterns.push(currentPattern);
-    }
-
-    // If no patterns, create one empty pattern
-    if (patterns.length === 0) {
-        const emptyPattern: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }> = [];
-        for (let i = 0; i < PATTERN_ROWS; i++) {
-            emptyPattern.push({
-                note: EMPTY_NOTE,
-                instrument: -1, // No instrument on empty pattern rows
-                effectCode: 0,
-                effectParam: 0,
-                pan: 'C',
-            });
-        }
-        patterns.push(emptyPattern);
-    }
-
-    // Store retrigger and echo warning flags on the patterns array for caller to check
-    (patterns as any).__hasRetrigEffects = hasRetrigEffects;
-    (patterns as any).__hasEchoEffects = hasEchoEffects;
-    (patterns as any).__hasTremEffects = hasTremEffects;
-
-    return patterns;
+    return { cells, hasRetrigEffects, hasEchoEffects, hasTremEffects };
 }
 
 /**
@@ -1797,47 +1748,83 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     }
 
     // ====== Build patterns per channel ======
-    const channelPatterns: Array<Array<Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan?: 'L' | 'R' | 'C' }>>> = [];
-
     if (verbose) {
         log.info('Building patterns for 4 channels...');
     }
 
-    // Shared map of desired vibrato durations (globalRow -> rows)
     const desiredVibMap: Map<number, number> = new Map();
     const warnedFlatNoteConversions = new Set<string>();
-    let hasRetrigEffectsInSong = false; // Track if any channel has retrigger effects
+    const loops = Boolean(song.play?.repeat);
 
+    const channelEvents: ChannelEvent[][] = [];
+    const channelRuns: SourceRun[][] = [];
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
-        // Find channel by ID (1-4)
         const chModel = song.channels && song.channels.find(c => c.id === ch + 1);
         const chEvents = (chModel && chModel.events) || [];
+        channelEvents.push(chEvents);
+        channelRuns.push(groupSourcePatternRuns(chEvents));
         if (opts && opts.debug) log.debug(`Channel ${ch + 1} has ${chEvents.length} events`);
-        // share `desiredVibMap` across channels so later passes can inspect desired vib rows
-        const patterns = eventsToPatterns(chEvents, exportInsts, ch as GBChannel, dutyInsts, waveInsts, noiseInsts, strictGb, (song as any).bpm, desiredVibMap, warnedFlatNoteConversions, Boolean(song.play?.repeat), vibAllocation.cloneNames, ticksPerRow);
-        channelPatterns.push(patterns);
-
-        // Check if this channel has retrigger effects
-        if ((patterns as any).__hasRetrigEffects) {
-            hasRetrigEffectsInSong = true;
-        }
     }
 
-    // Check for echo effects
+    const structureStep = structureStepLength(channelRuns);
+    const step = structureStep ?? PATTERN_ROWS;
+    const useStructure = structureStep !== null;
+
+    const emitWarnEarly = (msg: string) => {
+        console.warn(`[WARN] [export] ${msg}`);
+        if (opts.onWarn) opts.onWarn(msg);
+    };
+    if (!useStructure) {
+        const named = channelRuns.flat().filter((run) => run.name && run.length > 0);
+        const reusedName = named.some((run, i) => named.findIndex((other) => other.name === run.name) !== i);
+        const lengths = new Set(named.map((run) => run.length));
+        if (reusedName || (lengths.size > 1 && named.some((run) => run.length >= 16))) {
+            emitWarnEarly('UGE export: BeatBax pattern lengths are not a shared 16/32/64-row grid; packing into 64-row windows. Identical windows still share order IDs.');
+        }
+    } else if (verbose) {
+        log.info(`  Reusing BeatBax patterns (${structureStep}-row runs${structureStep < PATTERN_ROWS ? ', D01 pattern break' : ''})`);
+    }
+
+    const channelCells: UGECell[][] = [];
+    let hasRetrigEffectsInSong = false;
     let hasEchoEffectsInSong = false;
-    for (const patterns of channelPatterns) {
-        if ((patterns as any).__hasEchoEffects) {
-            hasEchoEffectsInSong = true;
-            break;
-        }
+    let hasTremEffectsInSong = false;
+
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const converted = eventsToCells(
+            channelEvents[ch],
+            exportInsts,
+            ch as GBChannel,
+            dutyInsts,
+            waveInsts,
+            noiseInsts,
+            strictGb,
+            (song as any).bpm,
+            desiredVibMap,
+            warnedFlatNoteConversions,
+            loops,
+            vibAllocation.cloneNames,
+            ticksPerRow,
+            !useStructure,
+        );
+        channelCells.push(converted.cells);
+        if (converted.hasRetrigEffects) hasRetrigEffectsInSong = true;
+        if (converted.hasEchoEffects) hasEchoEffectsInSong = true;
+        if (converted.hasTremEffects) hasTremEffectsInSong = true;
     }
 
-    // Check for tremolo effects
-    let hasTremEffectsInSong = false;
-    for (const patterns of channelPatterns) {
-        if ((patterns as any).__hasTremEffects) {
-            hasTremEffectsInSong = true;
-            break;
+    const channelPatterns: UGECell[][][] = [];
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const frames = useStructure
+            ? framesFromSourceRuns(channelCells[ch], channelRuns[ch])
+            : chunkCells(channelCells[ch], PATTERN_ROWS).map((chunk) => padPatternTo64(chunk));
+        channelPatterns.push(frames.length ? frames : [blankUgePattern()]);
+    }
+
+    const orderLen = Math.max(1, ...channelPatterns.map((p) => p.length));
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        while (channelPatterns[ch].length < orderLen) {
+            channelPatterns[ch].push(blankUgePattern());
         }
     }
 
@@ -1897,8 +1884,8 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             if (cutEffect) {
                 const request = NoteCutHandler.parse(cutEffect, noteEvent, sustainCount, 0);
                 if (request) {
-                    const patIdx = Math.floor(lastSustainRow / PATTERN_ROWS);
-                    const rowIdx = lastSustainRow % PATTERN_ROWS;
+                    const patIdx = Math.floor(lastSustainRow / step);
+                    const rowIdx = lastSustainRow % step;
                     if (patterns[patIdx] && patterns[patIdx][rowIdx]) {
                         NoteCutHandler.apply(patterns[patIdx][rowIdx], request);
                         cutCount++;
@@ -1915,8 +1902,8 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
             if (typeof desiredDuration === 'number' && desiredDuration > 0) {
                 for (let rowOffset = desiredDuration; rowOffset <= sustainCount; rowOffset++) {
                     const globalRow = i + rowOffset;
-                    const patIdx = Math.floor(globalRow / PATTERN_ROWS);
-                    const rowIdx = globalRow % PATTERN_ROWS;
+                    const patIdx = Math.floor(globalRow / step);
+                    const rowIdx = globalRow % step;
 
                     if (patterns[patIdx] && patterns[patIdx][rowIdx] && isVibratoSlideEffect(patterns[patIdx][rowIdx].effectCode)) {
                         patterns[patIdx][rowIdx].effectCode = 0;
@@ -1930,17 +1917,11 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     if (verbose) {
         log.info('Applying effects and post-processing...');
 
-        // Pattern statistics
-        let totalRows = 0;
-        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
-            totalRows += channelPatterns[ch].reduce((sum, pat) => sum + pat.length, 0);
-        }
-
         log.info('  Pattern structure:');
         for (let ch = 0; ch < NUM_CHANNELS; ch++) {
             const patterns = channelPatterns[ch];
-            const rowCount = patterns.reduce((sum, pat) => sum + pat.length, 0);
-            log.info(`    - Channel ${ch + 1}: ${patterns.length} pattern${patterns.length !== 1 ? 's' : ''} (${rowCount} rows total)`);
+            const rowCount = patterns.reduce((sum, pat) => sum + Math.min(pat.length, step), 0);
+            log.info(`    - Channel ${ch + 1}: ${patterns.length} order entr${patterns.length !== 1 ? 'ies' : 'y'} (${rowCount} sounding rows)`);
         }
 
         // Effect statistics
@@ -1952,23 +1933,15 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     }
 
     // Inject global per-row NR51 panning effects (write a single 8xx on channel 1 when value changes)
-    // Create a blank pattern for missing channels/patterns
-    const blankPatternWithPan: Array<{ note: number; instrument: number; effectCode: number; effectParam: number; pan: 'L' | 'R' | 'C' }> = [];
-    for (let i = 0; i < PATTERN_ROWS; i++) {
-        blankPatternWithPan.push({ note: EMPTY_NOTE, instrument: 0, effectCode: 0, effectParam: 0, pan: 'C' });
-    }
-
-    // Compute max order length across channels (local variable)
-    const orderLen = Math.max(1, Math.max(...channelPatterns.map(p => p.length)));
+    const blankPatternWithPan = blankUgePattern();
 
     // Keep NR51 state across orders so we don't re-emit the same mix repeatedly
     let lastNr51: number | null = null;
-    // Track which global rows we wrote NR51 to and whether the pan came from
-    // an explicit source in the `.bax` (instrument or inline). Key = globalRow
-    // (orderIdx*PATTERN_ROWS + row)
+    // Key = event index (orderIdx * step + row)
     const nr51Writes: Map<number, { value: number; explicit: boolean }> = new Map();
     for (let orderIdx = 0; orderIdx < orderLen; orderIdx++) {
         for (let row = 0; row < PATTERN_ROWS; row++) {
+            if (row >= step) continue;
             let nr51Value = 0;
             let hasNoteOn = false;
             for (let ch = 0; ch < NUM_CHANNELS; ch++) {
@@ -2014,7 +1987,7 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
                 const targetCell = channelPatterns[0][orderIdx][row];
                 // Determine whether this NR51 change is driven by any explicit pan
                 // present in the source `.bax` for the channels at this global row.
-                const globalRow = orderIdx * PATTERN_ROWS + row;
+                const globalRow = orderIdx * step + row;
                 let anyExplicit = false;
                     for (let ch2 = 0; ch2 < NUM_CHANNELS; ch2++) {
                     const chModel = song.channels && song.channels.find((c: any) => c.id === ch2 + 1);
@@ -2060,30 +2033,8 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     w.writeBool(false); // Timer based tempo enabled (v6)
     w.writeU32(0); // Timer based tempo divider (v6)
 
-    // Count total patterns across all channels
-    const allPatterns: Array<{ channelIndex: number; patternIndex: number; cells: Array<{ note: number; instrument: number; effectCode: number; effectParam: number }> }> = [];
-    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
-        const patterns = channelPatterns[ch];
-        for (let pi = 0; pi < patterns.length; pi++) {
-            allPatterns.push({
-                channelIndex: ch,
-                patternIndex: pi,
-                cells: patterns[pi],
-            });
-        }
-    }
-
-    // (debug forced E08 removed)
-
-    // Add a blank pattern for padding shorter channels
-    const blankPatternCells = [];
-    for (let i = 0; i < PATTERN_ROWS; i++) {
-        blankPatternCells.push({ note: EMPTY_NOTE, instrument: 0, effectCode: 0, effectParam: 0 });
-    }
-    const blankPatternIndex = allPatterns.length;
-    allPatterns.push({ channelIndex: -1, patternIndex: -1, cells: blankPatternCells });
-
     // FINAL ENFORCEMENT PASS: pattern-row 1xx/2xx fallback (skip cloned notes).
+    // Runs on per-order frames before hash-dedupe so indexing is order+row.
     try {
         if (opts && opts.debug) {
             try { log.debug('[DEBUG] finalEnforcement start', { nr51Writes: Array.from(nr51Writes.entries()), desiredVibMap: Array.from(desiredVibMap.entries()) }); } catch(e) {}
@@ -2122,11 +2073,11 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
                 for (let k = 0; k < planned.length; k++) {
                     const g = globalStart + k;
                     if (g > actualEnd) break;
-                    const patIdx = Math.floor(g / PATTERN_ROWS);
-                    const rowIdx = g % PATTERN_ROWS;
-                    const patObj = allPatterns.find(p => p.channelIndex === ch && p.patternIndex === patIdx);
-                    if (!patObj) continue;
-                    const cell = patObj.cells[rowIdx];
+                    const patIdx = Math.floor(g / step);
+                    const rowIdx = g % step;
+                    const frame = channelPatterns[ch]?.[patIdx];
+                    if (!frame) continue;
+                    const cell = frame[rowIdx];
                     if (!cell) continue;
                     const nrInfo = nr51Writes.get(g);
                     const preserveNR51 = cell.effectCode === 8 && nrInfo?.explicit && nrInfo.value !== 0xFF;
@@ -2152,9 +2103,34 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
         }
     }
 
+    if (useStructure && step < PATTERN_ROWS) {
+        applyPatternBreaks(channelPatterns, step - 1, (orderIdx) => {
+            emitWarn(`UGE export: D01 pattern break overwrote an effect at order ${orderIdx} channel 1 row ${step - 1}.`);
+        });
+    }
+
     // NOTE: vib->cut heuristic removed. We rely on per-note post-process above
     // that injects a single extended `E0x` at the computed end-of-note row
-    // (patterns[patIdx][rowIdx]) so cuts are deterministic and occur only once.
+    // so cuts are deterministic and occur only once.
+
+    const allPatterns: Array<{ channelIndex: number; patternIndex: number; cells: UGECell[] }> = [];
+    const channelOrders: number[][] = [];
+    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+        const { unique, order } = dedupeChannelPatterns(channelPatterns[ch]);
+        const offset = allPatterns.length;
+        for (let pi = 0; pi < unique.length; pi++) {
+            allPatterns.push({ channelIndex: ch, patternIndex: pi, cells: unique[pi] });
+        }
+        channelOrders.push(order.map((i) => offset + i));
+    }
+
+    if (verbose) {
+        log.info('  Unique UGE patterns after reuse:');
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const uniqueCount = new Set(channelOrders[ch]).size;
+            log.info(`    - Channel ${ch + 1}: ${uniqueCount} unique / ${channelOrders[ch].length} order entries`);
+        }
+    }
 
     // Write number of patterns
     // Debug: inspect patterns before serialization
@@ -2294,42 +2270,17 @@ export function buildUGE(song: SongModel, opts: { debug?: boolean; strictGb?: bo
     }
 
     // ====== Song Orders Section ======
-    // Find max order length across all channels
-    let maxOrderLength = 0;
-    for (let ch = 0; ch < NUM_CHANNELS; ch++) {
-        maxOrderLength = Math.max(maxOrderLength, channelPatterns[ch].length);
-    }
-    // Ensure at least one order row exists
-    maxOrderLength = Math.max(1, maxOrderLength);
+    const maxOrderLength = Math.max(1, ...channelOrders.map((o) => o.length));
 
     // Write order lists for 4 channels (Duty1, Duty2, Wave, Noise)
     for (let ch = 0; ch < NUM_CHANNELS; ch++) {
-        const patterns = channelPatterns[ch];
+        const order = channelOrders[ch] || [];
 
         // Write order length + 1 (off-by-one per UGE spec)
         w.writeU32(maxOrderLength + 1);
 
-        // Write order indices
-        let patternIndexOffset = 0;
-        for (let prevCh = 0; prevCh < ch; prevCh++) {
-            patternIndexOffset += channelPatterns[prevCh].length;
-        }
-
-        //if (ch === 3) {
-        //    if (opts && opts.debug) console.log(`[DEBUG] Channel 4 order list: length=${maxOrderLength}, patternIndexOffset=${patternIndexOffset}`);
-        //}
-
         for (let i = 0; i < maxOrderLength; i++) {
-            if (i < patterns.length) {
-                const patIdx = patternIndexOffset + i;
-                //if (ch === 3) {
-                //    if (opts && opts.debug) console.log(`[DEBUG] Channel 4 order[${i}] = pattern ${patIdx}`);
-                //}
-                w.writeU32(patIdx);
-            } else {
-                // Pad with the blank pattern
-                w.writeU32(blankPatternIndex);
-            }
+            w.writeU32(i < order.length ? order[i] : order[0] ?? 0);
         }
 
         // Write off-by-one filler
