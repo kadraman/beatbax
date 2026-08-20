@@ -11,7 +11,7 @@ import {
 import { expandRefToTokens } from '../expand/refExpander.js';
 import { splitTopLevel } from '../expand/splitTopLevel.js';
 import { resolveImports, resolveImportsSync } from './importResolver.js';
-import { buildTokenSourceMeta } from './tokenSourceMeta.js';
+import { buildTokenSourceMeta, soundingTokenCount } from './tokenSourceMeta.js';
 import { isRemoteImport } from '../import/urlUtils.js';
 import { createLogger } from '../util/logger.js';
 
@@ -248,6 +248,8 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
     const tokenSeqNames: string[] = [];
     const tokenSeqPaths: string[][] = [];
     const tokenPatNames: string[] = [];
+    const tokenPatternIndex: number[] = [];
+    let nextPatternInstance = 0;
     if (typeof ch.pat !== 'string') {
       log.debug(`Channel ${ch.id}: ch.pat is not a string (type: ${typeof ch.pat})`);
     }
@@ -295,8 +297,10 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         for (let r = 0; r < repeat; r++) {
           const toks = expandRefToTokens(itemRef, expandedSeqs, pats, ast.effects as any, ch.loc);
           outTokens.push(...toks);
+          const soundingCount = soundingTokenCount(toks);
 
-          // Build per-token source metadata for this batch of tokens
+          // Build per-token source metadata for sounding steps only (`inst`/`pan` directives
+          // are not timeline rows; counting them skews UGE 16/32/64-row grouping).
           const itemBase = splitTopLevel(itemRef, ':')[0].trim();
           if (expandedSeqs[itemBase]) {
             // Named sequence — tag with innermost seq + full path, and infer per-token pattern names
@@ -306,27 +310,36 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
               : Array.isArray(rawSeqDef) && rawSeqDef.length > 0 && typeof rawSeqDef[0] !== 'string'
                 ? materializeSequenceItems(rawSeqDef as SequenceItem[])
                 : (rawSeqDef as string[]);
-            const sourceMeta = buildTokenSourceMeta(seqItemStrings, toks.length, pats, seqs, itemBase);
-            for (let mi = 0; mi < toks.length; mi++) {
+            const sourceMeta = buildTokenSourceMeta(seqItemStrings, soundingCount, pats, seqs, itemBase);
+            let batchMax = 0;
+            for (let mi = 0; mi < soundingCount; mi++) {
               const meta = sourceMeta[mi];
               tokenSeqNames.push(meta?.seqName || itemBase);
               tokenSeqPaths.push(meta?.seqPath?.length ? meta.seqPath : [itemBase]);
               tokenPatNames.push(meta?.patBase || '');
+              const idx = (meta?.patternIndex ?? 0) + nextPatternInstance;
+              tokenPatternIndex.push(idx);
+              batchMax = Math.max(batchMax, meta?.patternIndex ?? 0);
             }
+            nextPatternInstance += batchMax + 1;
           } else if (pats[itemBase]) {
             // Direct pattern reference
-            for (let mi = 0; mi < toks.length; mi++) {
+            for (let mi = 0; mi < soundingCount; mi++) {
               tokenSeqNames.push('');
               tokenSeqPaths.push([]);
               tokenPatNames.push(itemBase);
+              tokenPatternIndex.push(nextPatternInstance);
             }
+            nextPatternInstance += 1;
           } else {
             // Unknown ref — no metadata
-            for (let mi = 0; mi < toks.length; mi++) {
+            for (let mi = 0; mi < soundingCount; mi++) {
               tokenSeqNames.push('');
               tokenSeqPaths.push([]);
               tokenPatNames.push('');
+              tokenPatternIndex.push(nextPatternInstance);
             }
+            nextPatternInstance += 1;
           }
         }
       }
@@ -357,9 +370,11 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
       const seqName = tokenSeqNames[tokenIndex];
       const seqPath = tokenSeqPaths[tokenIndex];
       const patName = tokenPatNames[tokenIndex];
+      const patIndex = tokenPatternIndex[tokenIndex];
       if (seqName) (event as any).sourceSequence = seqName;
       if (seqPath && seqPath.length) (event as any).sourceSeqPath = seqPath;
       if (patName) (event as any).sourcePattern = patName;
+      if (typeof patIndex === 'number') (event as any).patternIndex = patIndex;
       if (event.type === 'note' || event.type === 'named') {
         (event as any).barNumber = calculateBarNumber(tokenIndex);
       }
@@ -370,6 +385,13 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
       if (!name) return undefined;
       return name in insts ? name : name; // keep string name; consumer can map to insts
     }
+
+    // Directive tokens (`inst …`, `pan(…)`) do not emit events. Keep sourcePattern
+    // aligned with sounding steps so `:inst()` / `:pan()` on a seq do not steal a
+    // row from the first pat (UGE 16/32/64-row grouping depends on this).
+    let sourceMetaIndex = 0;
+    const stamp = (event: ChannelEvent) => attachMetadata(event, sourceMetaIndex);
+    const commitSourceToken = () => { sourceMetaIndex += 1; };
 
     for (let ti = 0; ti < tokens.length; ti++) {
       const token = tokens[ti];
@@ -405,8 +427,9 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
               const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
               const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
               if (insts[name]?.note) (evWithProps as NamedInstrumentEvent).defaultNote = insts[name].note as string;
-              chModel.events.push(attachMetadata(evWithProps, ti));
+              chModel.events.push(stamp(evWithProps));
             }
+            commitSourceToken();
             continue;
           }
           // Otherwise behave as temporary override
@@ -448,18 +471,21 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           const ev: ChannelEvent = { type: 'named', token: name, instrument: name };
           const evWithProps = applyInstrumentToEvent(insts, ev) as ChannelEvent;
           if (insts[name]?.note) (evWithProps as NamedInstrumentEvent).defaultNote = insts[name].note as string;
-          chModel.events.push(attachMetadata(evWithProps, ti));
+          chModel.events.push(stamp(evWithProps));
         }
+        commitSourceToken();
         continue;
       }
 
       if (token === '.' || token === 'rest' || token === 'R') {
-        chModel.events.push(attachMetadata({ type: 'rest' } as ChannelEvent, ti));
+        chModel.events.push(stamp({ type: 'rest' } as ChannelEvent));
+        commitSourceToken();
         continue;
       }
 
       if (token === '_' || token === '-' || token === 'sustain') {
-        chModel.events.push(attachMetadata({ type: 'sustain' } as ChannelEvent, ti));
+        chModel.events.push(stamp({ type: 'sustain' } as ChannelEvent));
+        commitSourceToken();
         continue;
       }
 
@@ -472,7 +498,8 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
         if (inst.note) {
           (ev as NamedInstrumentEvent).defaultNote = inst.note as string;
         }
-        chModel.events.push(attachMetadata(ev, ti));
+        chModel.events.push(stamp(ev));
+        commitSourceToken();
         // Named instrument tokens are one-shot hits (like hit(name)) and must NOT
         // update currentInstName. Doing so would cause every note following a percussion
         // hit (e.g. wavekick in a bass pattern) to inherit that instrument instead of
@@ -537,7 +564,8 @@ function resolveSongInternal(ast: AST, opts?: { filename?: string; searchPaths?:
           }
         }
 
-        chModel.events.push(attachMetadata(ev, ti));
+        chModel.events.push(stamp(ev));
+        commitSourceToken();
         if (tempRemaining > 0) {
           tempRemaining -= 1;
           if (tempRemaining <= 0) { tempInstName = undefined; tempRemaining = 0; }

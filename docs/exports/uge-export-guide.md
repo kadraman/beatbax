@@ -92,7 +92,7 @@ Debug output includes:
 Open the exported `.uge` file in hUGETracker:
 - File size will be approximately 64-70KB
 - Contains 15 duty, 15 wave, and 15 noise instruments
-- Patterns mapped from BeatBax channels
+- BeatBax `pat` / `seq` map to HugeTracker patterns and per-channel order lists when pattern lengths align (see below)
 - Ready for Game Boy development workflow
 
 ### 4. Compile for Game Boy
@@ -113,6 +113,23 @@ BeatBax channels map to Game Boy APU channels:
 - Channel 2 → Pulse 2 (duty-cycle square wave)
 - Channel 3 → Wave (32-sample wavetable)
 - Channel 4 → Noise (LFSR-based noise)
+
+### Patterns and orders
+
+hUGETracker patterns are always **64 rows**. BeatBax `pat` names are not stored in the `.uge` file, but the exporter reuses order-list IDs so a repeated phrase is one pattern you can edit once.
+
+When every channel’s expanded pattern runs share a length of **16, 32, or 64** (typical `stepsPerBar 16` songs):
+
+- Each BeatBax `pat` instance becomes one order entry.
+- Identical cell content shares one pattern ID (`seq s = p p p p` → four order rows, one unique pattern).
+- For 16- or 32-row pats, export writes **D01** (pattern break) so HugeTracker does not play the padded rest rows. Dxx is **song-global** in hUGEDriver: keep all four channels on the same bar length.
+- D01 starts the next order at row 0 (the parameter is off-by-one; `D00` does not jump).
+
+If lengths do not form that grid (mixed 16 and 18, or 8-row pats), export packs the timeline into 64-row windows and still **deduplicates identical windows**. A warning is emitted when named pats were repeated but could not be mapped 1:1.
+
+**Authoring convention** for songs you will edit in HugeTracker: keep expanded `pat` lengths at 16, 32, or 64, and keep the four channels the same length. Seq modifiers such as `:oct` or `:slow` produce a different pattern body (same as a transformed copy in a tracker).
+
+Instrument **subpatterns** (`subpat` / macros) are a separate 64-row program on each instrument. They do not replace song-level pattern reuse.
 
 ### Instrument Mapping
 BeatBax instruments are converted to UGE instruments based on type:
@@ -417,9 +434,10 @@ Failure: Error message displayed
 - Custom instrument mapping may be needed for complex songs
 
 ### Pattern Length Issues
-- UGE patterns have fixed 64-row length
-- Shorter BeatBax patterns are padded with rests
-- Longer patterns are truncated
+- UGE patterns have a fixed 64-row length in the file
+- BeatBax pats shorter than 64 are padded with rests; when all channels share 16 or 32 rows, **D01** skips those pad rows
+- Longer pats are **split** across multiple 64-row patterns (not silently truncated)
+- Repeated identical 64-row windows share one pattern ID in the order list
 
 ## File Format Reference
 

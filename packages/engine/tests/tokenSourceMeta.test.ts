@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { buildTokenSourceMeta, getLeafPats } from '../src/song/tokenSourceMeta';
+import { buildTokenSourceMeta, getLeafPats, isNonSoundingDirectiveToken, soundingTokenCount } from '../src/song/tokenSourceMeta';
 
 describe('tokenSourceMeta', () => {
   const pats: Record<string, string[]> = {
@@ -31,8 +31,27 @@ describe('tokenSourceMeta', () => {
     const meta = buildTokenSourceMeta(['deep', 'land'], 4, pats, seqs, 'mel');
     expect(meta.map(m => m.seqName)).toEqual(['deep', 'deep', 'mel', 'mel']);
     expect(meta.map(m => m.patBase)).toEqual(['deep_a', 'deep_b', 'land', 'land']);
+    expect(meta.map(m => m.patternIndex)).toEqual([0, 1, 2, 2]);
     expect(meta[0].seqPath).toEqual(['mel', 'deep']);
     expect(meta[2].seqPath).toEqual(['mel']);
+  });
+
+  it('counts sounding tokens only, ignoring inst directives', () => {
+    const patsWithInst: Record<string, string[]> = {
+      a: ['inst lead', 'C4', '_', '_', '_'],
+    };
+    expect(getLeafPats('a', {}, patsWithInst, ['s'])).toEqual([
+      { patBase: 'a', count: 4, seqPath: ['s'] },
+    ]);
+  });
+
+  it('treats inst(name) and inst(name,N) as non-sounding directives', () => {
+    expect(isNonSoundingDirectiveToken('inst(bass)')).toBe(true);
+    expect(isNonSoundingDirectiveToken('inst(hat,2)')).toBe(true);
+    expect(soundingTokenCount(['C6', 'C6', 'inst(hat,2)', 'C6', 'C6'])).toBe(4);
+    expect(getLeafPats('a', {}, { a: ['C6', 'C6', 'inst(hat,2)', 'C6', 'C6'] }, ['s'])).toEqual([
+      { patBase: 'a', count: 4, seqPath: ['s'] },
+    ]);
   });
 
   it('walks three nested sequence levels', () => {
