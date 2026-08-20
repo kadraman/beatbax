@@ -14,6 +14,8 @@ export type TokenSourceMeta = {
   seqName: string;
   /** Outer-to-inner sequence path, e.g. `['mel', 'deep']`. */
   seqPath: string[];
+  /** 0-based instance of this pattern in the expanded seq (consecutive repeats stay distinct). */
+  patternIndex: number;
 };
 
 function seqItemsToStrings(rawSeqDef: unknown): string[] {
@@ -22,6 +24,19 @@ function seqItemsToStrings(rawSeqDef: unknown): string[] {
     return materializeSequenceItems(rawSeqDef as SequenceItem[]);
   }
   return rawSeqDef as string[];
+}
+
+/** Tokens that change instrument/pan without occupying a timeline row. */
+export function isNonSoundingDirectiveToken(token: string): boolean {
+  if (typeof token !== 'string') return false;
+  if (/^inst\s+\S+$/i.test(token)) return true;
+  if (/^pan\(/i.test(token)) return true;
+  if (/^inst\([^,()\s]+(?:,\d+)?\)$/i.test(token)) return true;
+  return false;
+}
+
+export function soundingTokenCount(tokens: string[]): number {
+  return tokens.filter((t) => !isNonSoundingDirectiveToken(t)).length;
 }
 
 /**
@@ -63,7 +78,7 @@ export function getLeafPats(
   }
 
   if (pats[base]) {
-    children = [{ patBase: base, count: pats[base].length, seqPath }];
+    children = [{ patBase: base, count: soundingTokenCount(pats[base]), seqPath }];
   } else if (seqs[base]) {
     visited.add(base);
     const nextPath = [...seqPath, base];
@@ -90,12 +105,13 @@ export function getLeafPats(
   return out;
 }
 
-function leafToMeta(leaf: TokenSourceLeaf, outerSeqName: string): TokenSourceMeta {
+function leafToMeta(leaf: TokenSourceLeaf, outerSeqName: string, patternIndex: number): TokenSourceMeta {
   const seqPath = leaf.seqPath.length > 0 ? leaf.seqPath : [outerSeqName];
   return {
     patBase: leaf.patBase,
     seqName: seqPath[seqPath.length - 1] || outerSeqName,
     seqPath,
+    patternIndex,
   };
 }
 
@@ -128,6 +144,7 @@ export function buildTokenSourceMeta(
   const fallback = leafToMeta(
     { patBase: '', count: 1, seqPath: [outerSeqName] },
     outerSeqName,
+    0,
   );
 
   if (rawTotal === 0) return Array(totalTokens).fill(fallback);
@@ -138,7 +155,7 @@ export function buildTokenSourceMeta(
     const scaledCount = isLast
       ? (totalTokens - result.length)
       : Math.round((leaves[i].count / rawTotal) * totalTokens);
-    const meta = leafToMeta(leaves[i], outerSeqName);
+    const meta = leafToMeta(leaves[i], outerSeqName, i);
     for (let j = 0; j < scaledCount; j++) result.push(meta);
   }
 
