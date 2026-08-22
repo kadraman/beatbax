@@ -2,13 +2,14 @@
 
 import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 import type { AISettings } from '@beatbax/app-core/stores/chat.store';
-import { buildCopilotContext, buildSongStructureSummary } from '../src/renderer/src/lib/copilot-context';
+import { buildCopilotContext, buildSongStructureSummary, detectChip } from '../src/renderer/src/lib/copilot-context';
 
 const defaultSettings: AISettings = {
   endpoint: 'https://api.openai.com/v1',
   apiKey: 'test-key',
   model: 'gpt-4.1',
   maxContextChars: 3000,
+  contextWindowTokens: 128000,
 };
 
 const sampleSong = [
@@ -107,6 +108,8 @@ describe('buildCopilotContext', () => {
 
     expect(context).toContain('Valid edit example');
     expect(context).toContain('melody_var_vib');
+    expect(context).toContain('explaining what you changed and why');
+    expect(context).not.toContain('output only the song source');
     expect(context).not.toContain('[SONG STRUCTURE]');
   });
 
@@ -135,5 +138,62 @@ describe('buildCopilotContext', () => {
     );
 
     expect(context).toContain('error   line 3, col 5: unexpected token');
+  });
+
+  it('injects Game Boy chip reference with wave volume loudness rules', () => {
+    const gbSong = ['chip gameboy', sampleSong].join('\n');
+    const context = buildCopilotContext(
+      defaultSettings,
+      'ask',
+      () => gbSong,
+      () => [],
+    );
+
+    expect(context).toContain('[CHIP REFERENCE — gameboy]');
+    expect(context).toContain('volume=<0|25|50|100>');
+    expect(context).toContain('type=wave');
+    expect(context).toContain('[INSTRUMENT LOUDNESS]');
+    expect(context).toContain('volume=0|25|50|100');
+    expect(context).toContain('export or hit metadata');
+  });
+
+  it('resolves chip gb alias to gameboy', () => {
+    expect(detectChip('chip gb\nbpm 120')).toBe('gameboy');
+    expect(detectChip('inst lead type=pulse1')).toBe('gameboy');
+  });
+
+  it('injects NES-specific chip reference', () => {
+    const nesSong = [
+      'chip nes',
+      'inst lead type=pulse1 duty=50 vol=10',
+      'pat melody = C5:4',
+      'channel 1 => inst lead pat melody',
+      'play',
+    ].join('\n');
+    const context = buildCopilotContext(
+      defaultSettings,
+      'ask',
+      () => nesSong,
+      () => [],
+    );
+
+    expect(context).toContain('[CHIP REFERENCE — nes]');
+    expect(context).toContain('NES/FAMICOM');
+    expect(context).toContain('type=triangle');
+    expect(context).not.toContain('volume=<0|25|50|100>');
+  });
+
+  it('uses a generic chip fallback for unknown chips without crashing', () => {
+    const context = buildCopilotContext(
+      defaultSettings,
+      'ask',
+      () => 'chip not-a-real-chip\nplay',
+      () => [],
+    );
+
+    expect(context).toContain('[CHIP REFERENCE — not-a-real-chip]');
+    expect(context).toContain('No chip-specific hardware reference');
+    expect(context).toContain('[BEATBAX SYNTAX REFERENCE]');
+    expect(context).toContain('[INSTRUMENT LOUDNESS]');
   });
 });
