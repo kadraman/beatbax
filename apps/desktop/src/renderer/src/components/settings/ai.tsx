@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
-import { chatMode, chatSettings, updateChatSettings } from '@beatbax/app-core/stores/chat.store';
+import { chatMode, chatSettings, updateChatSettings, AI_CONTEXT_CHAR_PRESETS, MIN_CONTEXT_WINDOW_TOKENS, MAX_CONTEXT_WINDOW_TOKENS, clampContextWindowTokens, clearChatPromptHistory } from '@beatbax/app-core/stores/chat.store';
 import {
   AI_PROVIDER_OPTIONS,
   AI_PROVIDERS,
   CUSTOM_MODEL_VALUE,
+  defaultContextWindowTokens,
   filterChatModels,
   getModelsForProvider,
   getProviderByEndpoint,
   mergeModelLists,
   type AIProviderKey,
 } from '@beatbax/app-core/stores/ai-models';
-import { AI_CONTEXT_CHAR_PRESETS } from '@beatbax/app-core/stores/chat.store';
 import { isLocalAiEndpoint } from '../../lib/ai-endpoint';
 import { useStoreValue } from '../../hooks/useStoreValue';
 import { NoteText, PresetRangeField, RadioGroup, SectionHeading, SelectField, TextField } from './form';
@@ -26,6 +26,7 @@ interface ChatSettingsPatch {
   endpoint?: string;
   model?: string;
   maxContextChars?: number;
+  contextWindowTokens?: number;
 }
 
 interface SecureAIKeyStore {
@@ -142,6 +143,7 @@ function saveChatSettings(patch: ChatSettingsPatch): void {
     endpoint: chatSettings.get().endpoint,
     model: chatSettings.get().model,
     maxContextChars: chatSettings.get().maxContextChars,
+    contextWindowTokens: chatSettings.get().contextWindowTokens,
     ...patch,
   });
 }
@@ -408,6 +410,46 @@ function ModelField({
   );
 }
 
+function ContextWindowField({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = (): void => {
+    const next = clampContextWindowTokens(Number(draft), value);
+    setDraft(String(next));
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <div className="bb-settings-row">
+      <label className="bb-settings-label" htmlFor="bb-ai-ctx-window">Model token window</label>
+      <input
+        className="bb-settings-number"
+        id="bb-ai-ctx-window"
+        max={MAX_CONTEXT_WINDOW_TOKENS}
+        min={MIN_CONTEXT_WINDOW_TOKENS}
+        onBlur={commit}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.currentTarget.blur();
+          }
+        }}
+        type="number"
+        value={draft}
+      />
+    </div>
+  );
+}
+
 export function AISettingsSection(): React.JSX.Element {
   const settings = useStoreValue(chatSettings);
   const mode = useStoreValue(chatMode);
@@ -427,8 +469,9 @@ export function AISettingsSection(): React.JSX.Element {
         onChange={(value) => {
           const selected = AI_PROVIDERS[value as AIProviderKey];
           if (!selected || value === 'custom') return;
-          saveChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel });
-          updateChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel });
+          const contextWindowTokens = defaultContextWindowTokens(selected.endpoint, selected.defaultModel);
+          saveChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel, contextWindowTokens });
+          updateChatSettings({ endpoint: selected.endpoint, model: selected.defaultModel, contextWindowTokens });
         }}
         options={AI_PROVIDER_OPTIONS}
         value={providerKey}
@@ -458,17 +501,41 @@ export function AISettingsSection(): React.JSX.Element {
         value={mode}
       />
       <PresetRangeField
+        description="How much of the open song is pasted into Ask questions. Characters, not model tokens. Edit always sends the full song and ignores this slider."
         id="bb-ai-max-ctx"
-        label="Ask mode context limit"
+        label="Ask song excerpt"
         onChange={(value) => {
           saveChatSettings({ maxContextChars: value });
           updateChatSettings({ maxContextChars: value });
         }}
         presets={AI_CONTEXT_CHAR_PRESETS}
         value={settings.maxContextChars}
+        valueText={`${settings.maxContextChars.toLocaleString()} chars`}
+        valueTitle={`${settings.maxContextChars.toLocaleString()} characters of the song in Ask mode`}
+      />
+      <ContextWindowField
+        onChange={(value) => {
+          saveChatSettings({ contextWindowTokens: value });
+          updateChatSettings({ contextWindowTokens: value });
+        }}
+        value={settings.contextWindowTokens}
       />
       <NoteText>
-        Ask mode only — longer songs are truncated past this limit. Edit mode always sends the full song and uses more tokens.
+        The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. OpenAI defaults to 128k; for Ollama set it to the same <code>num_ctx</code> you configured. Separate from the Ask song excerpt above.
+      </NoteText>
+      <div className="bb-settings-row">
+        <span className="bb-settings-label">Prompt recall</span>
+        <button
+          className="bb-settings-btn-secondary"
+          onClick={() => clearChatPromptHistory()}
+          title="Forget prompts recalled with ↑/↓ in the Copilot input. Chat sessions are unchanged."
+          type="button"
+        >
+          Clear ↑/↓ prompts
+        </button>
+      </div>
+      <NoteText>
+        Copilot remembers submitted prompts for the input field (separate from chat sessions). Use New chat or delete a session in the Copilot header to manage conversations.
       </NoteText>
     </div>
   );
@@ -481,5 +548,6 @@ export function resetAIDefaults(): void {
     endpoint: AI_PROVIDERS.openai.endpoint,
     model: AI_PROVIDERS.openai.defaultModel,
     maxContextChars: 12000,
+    contextWindowTokens: defaultContextWindowTokens(AI_PROVIDERS.openai.endpoint, AI_PROVIDERS.openai.defaultModel),
   });
 }

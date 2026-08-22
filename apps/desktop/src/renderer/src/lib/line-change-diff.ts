@@ -30,7 +30,7 @@ export function countAIChangeDiff(diff: AIChangeDiff): {
 } {
   const added = diff.added.length;
   const removed = diff.removed.reduce((n, a) => n + a.removed.length, 0);
-  const modified = diff.modified.length;
+  const modified = diff.modified.reduce((n, block) => n + block.newLines.length, 0);
   return { added, removed, modified, total: added + removed + modified };
 }
 
