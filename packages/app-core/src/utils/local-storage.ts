@@ -92,14 +92,18 @@ export const StorageKey = {
   FEATURE_HOT_RELOAD: 'feature.hotReload',
   /** Song Visualizer feature flag (boolean). */
   FEATURE_SONG_VISUALIZER: 'feature.songVisualizer',
-  /** AI Copilot connection settings (JSON: endpoint, model, maxContextChars). API keys are not stored here. */
+  /** AI Copilot connection settings (JSON: endpoint, model, maxContextChars, contextWindowTokens). API keys are not stored here. */
   CHAT_SETTINGS: 'ai.settings',
   /** AI Copilot interaction mode ('edit' | 'ask'). */
   CHAT_MODE: 'ai.mode',
-  /** AI Copilot persisted message history (JSON array). */
+  /** AI Copilot persisted message history (JSON array). Mirrors the active session. */
   CHAT_HISTORY: 'ai.chatHistory',
   /** AI Copilot submitted prompt history (JSON array). */
   CHAT_PROMPT_HISTORY: 'ai.promptHistory',
+  /** AI Copilot session list (JSON array of CopilotSession). */
+  CHAT_SESSIONS: 'ai.sessions',
+  /** Active Copilot session id. */
+  CHAT_ACTIVE_SESSION: 'ai.activeSessionId',
   /** Last active right-pane tab ('channels' | 'help' | 'ai'). */
   ACTIVE_RIGHT_TAB: 'ui.activeRightTab',
   /** Toolbar visible state (boolean). */

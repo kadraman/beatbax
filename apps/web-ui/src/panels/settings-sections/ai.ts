@@ -10,11 +10,12 @@ import { storage, StorageKey } from '@beatbax/app-core/utils/local-storage';
 import {
   AI_PROVIDERS,
   AI_PROVIDER_OPTIONS,
+  defaultContextWindowTokens,
   getDefaultAIModel,
   getProviderByEndpoint,
   type AIProviderKey,
 } from '@beatbax/app-core/stores/ai-models';
-import { updateChatSettings, chatMode, chatSettings } from '@beatbax/app-core/stores/chat.store';
+import { updateChatSettings, chatMode, chatSettings, MAX_CONTEXT_WINDOW_TOKENS, MIN_CONTEXT_WINDOW_TOKENS, clearChatPromptHistory } from '@beatbax/app-core/stores/chat.store';
 import { sectionHeading, radioGroup, noteText } from './general';
 
 interface ChatSettings {
@@ -22,6 +23,7 @@ interface ChatSettings {
   endpoint?: string;
   model?: string;
   maxContextChars?: number;
+  contextWindowTokens?: number;
 }
 
 function loadChatSettings(): ChatSettings {
@@ -190,8 +192,8 @@ export function buildAISection(): HTMLElement {
     if (!config || key === 'custom') return; // custom: leave inputs as-is
     endpointInput.value = config.endpoint;
     modelInput.value = config.defaultModel;
-    saveChatSettings({ endpoint: config.endpoint, model: config.defaultModel });
-    updateChatSettings({ endpoint: config.endpoint, model: config.defaultModel });
+    saveChatSettings({ endpoint: config.endpoint, model: config.defaultModel, contextWindowTokens: defaultContextWindowTokens(config.endpoint, config.defaultModel) });
+    updateChatSettings({ endpoint: config.endpoint, model: config.defaultModel, contextWindowTokens: defaultContextWindowTokens(config.endpoint, config.defaultModel) });
   });
 
   el.appendChild(sectionHeading('Behaviour'));
@@ -216,7 +218,7 @@ export function buildAISection(): HTMLElement {
   ctxRow.className = 'bb-settings-row';
   const ctxLabel = document.createElement('label');
   ctxLabel.className = 'bb-settings-label';
-  ctxLabel.textContent = 'Max editor characters sent to AI';
+  ctxLabel.textContent = 'Ask song excerpt (characters)';
   const ctxInput = document.createElement('input');
   ctxInput.type = 'number';
   ctxInput.className = 'bb-settings-number';
@@ -231,7 +233,45 @@ export function buildAISection(): HTMLElement {
   });
   ctxRow.append(ctxLabel, ctxInput);
   el.appendChild(ctxRow);
-  el.appendChild(noteText('Larger values give the AI more of your song but may increase latency and token cost.'));
+  el.appendChild(noteText('How much of the open song is pasted into Ask questions. Characters, not model tokens. Edit always sends the full song and ignores this setting.'));
+
+  const windowRow = document.createElement('div');
+  windowRow.className = 'bb-settings-row';
+  const windowLabel = document.createElement('label');
+  windowLabel.className = 'bb-settings-label';
+  windowLabel.textContent = 'Model token window';
+  const windowInput = document.createElement('input');
+  windowInput.type = 'number';
+  windowInput.className = 'bb-settings-number';
+  windowInput.min = String(MIN_CONTEXT_WINDOW_TOKENS);
+  windowInput.max = String(MAX_CONTEXT_WINDOW_TOKENS);
+  windowInput.value = String(chatSettings.get().contextWindowTokens);
+  windowLabel.setAttribute('for', windowInput.id = 'bb-ai-ctx-window');
+  windowInput.addEventListener('change', () => {
+    const v = Number(windowInput.value);
+    saveChatSettings({ contextWindowTokens: v });
+    updateChatSettings({ contextWindowTokens: v });
+  });
+  windowRow.append(windowLabel, windowInput);
+  el.appendChild(windowRow);
+  el.appendChild(noteText('The model’s maximum tokens in Ask and Edit — this is what the Copilot footer percentage uses. For Ollama, match this to num_ctx. Separate from the Ask song excerpt above.'));
+
+  const recallRow = document.createElement('div');
+  recallRow.className = 'bb-settings-row';
+  const recallLabel = document.createElement('span');
+  recallLabel.className = 'bb-settings-label';
+  recallLabel.textContent = 'Prompt recall';
+  const recallBtn = document.createElement('button');
+  recallBtn.type = 'button';
+  recallBtn.className = 'bb-settings-btn-secondary';
+  recallBtn.textContent = 'Clear ↑/↓ prompts';
+  recallBtn.title = 'Forget prompts recalled with ↑/↓ in the Copilot input. Chat sessions are unchanged.';
+  recallBtn.addEventListener('click', () => {
+    clearChatPromptHistory();
+  });
+  recallRow.append(recallLabel, recallBtn);
+  el.appendChild(recallRow);
+  el.appendChild(noteText('Copilot remembers submitted prompts for the input field (separate from chat sessions).'));
 
   return el;
 }
@@ -419,5 +459,6 @@ export function resetAIDefaults(): void {
     endpoint: AI_PROVIDERS.openai.endpoint,
     model: getDefaultAIModel(),
     maxContextChars: 12000,
+    contextWindowTokens: defaultContextWindowTokens(AI_PROVIDERS.openai.endpoint, getDefaultAIModel()),
   });
 }

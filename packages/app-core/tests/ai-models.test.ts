@@ -1,6 +1,7 @@
 import {
   AI_PROVIDERS,
   CUSTOM_MODEL_VALUE,
+  defaultContextWindowTokens,
   filterChatModels,
   getDefaultAIModel,
   getProviderByEndpoint,
@@ -66,5 +67,12 @@ describe('ai-models', () => {
       ['gpt-4.1', 'gpt-4o', 'gpt-5.5'],
     );
     expect(result).toEqual(['gpt-5.5', 'gpt-4.1', 'gpt-4o']);
+  });
+
+  it('defaults context windows per provider', () => {
+    expect(defaultContextWindowTokens('https://api.openai.com/v1', 'gpt-5.4-mini')).toBe(128000);
+    expect(defaultContextWindowTokens('https://api.openai.com/v1', 'o3')).toBe(200000);
+    expect(defaultContextWindowTokens('http://localhost:11434/v1', 'qwen2.5-coder:7b')).toBe(16384);
+    expect(defaultContextWindowTokens('http://localhost:1234/v1', 'local-model')).toBe(16384);
   });
 });
