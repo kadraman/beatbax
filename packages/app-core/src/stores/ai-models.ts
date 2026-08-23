@@ -78,6 +78,25 @@ export function getDefaultAIModel(): string {
   return AI_PROVIDERS.openai.defaultModel;
 }
 
+/**
+ * Default model context-window sizes (tokens) for the Copilot meter.
+ * Local providers default to the documented Ollama minimum (`num_ctx` 16k).
+ */
+export const DEFAULT_CONTEXT_WINDOW_TOKENS: Record<AIProviderKey, number> = {
+  openai: 128000,
+  groq: 131072,
+  ollama: 16384,
+  lmstudio: 16384,
+  custom: 16384,
+};
+
+/** Resolve a context-window size for the current endpoint/model. */
+export function defaultContextWindowTokens(endpoint: string, model = ''): number {
+  const key = getProviderByEndpoint(endpoint);
+  if (key === 'openai' && /\bo3\b/i.test(model)) return 200000;
+  return DEFAULT_CONTEXT_WINDOW_TOKENS[key];
+}
+
 /** Map a stored endpoint URL to a provider preset key. */
 export function getProviderByEndpoint(endpoint: string): AIProviderKey {
   const trimmed = endpoint.trim();

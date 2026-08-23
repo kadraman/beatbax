@@ -101,6 +101,18 @@ export interface AIChatCompletionRequest {
   maxTokens?: number;
 }
 
+/** OpenAI-compatible `usage` object, normalised to camelCase. */
+export interface AIChatCompletionUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export interface AIChatCompletionResult {
+  content: string;
+  usage?: AIChatCompletionUsage;
+}
+
 export interface ElectronAPI {
   openFile(options?: DesktopOpenFileOptions): Promise<DesktopFilePayload | null>;
   /** Load a packaged example song by virtual path (`/songs/gameboy/foo.bax`). */
@@ -120,7 +132,7 @@ export interface ElectronAPI {
   clearAIAPIKey(): Promise<void>;
   validateAIAPIKey(endpoint: string, apiKey: string): Promise<AIAPIKeyValidationResult>;
   listAIModels(endpoint: string, apiKey: string): Promise<AIModelListResult>;
-  createAIChatCompletion(request: AIChatCompletionRequest): Promise<string>;
+  createAIChatCompletion(request: AIChatCompletionRequest): Promise<AIChatCompletionResult>;
   cancelAIChatCompletion(): Promise<void>;
   openRecentFile(filePath: string): void;
   openExternal(url: string): Promise<void>;

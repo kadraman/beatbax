@@ -1,5 +1,6 @@
 import type { Diagnostic } from '@beatbax/app-core/editor/diagnostics';
 import type { AISettings, ChatMode } from '@beatbax/app-core/stores/chat.store';
+import { chipRegistry } from '@beatbax/engine/chips';
 
 const MAX_EDITOR_CHARS = 3000;
 
@@ -103,6 +104,34 @@ export function buildSongStructureSummary(content: string): string {
   return lines.join('\n');
 }
 
+const GENERIC_CHIP_FALLBACK = [
+  'No chip-specific hardware reference is available for this chip.',
+  'Follow BeatBax syntax below and prefer fields already used in [EDITOR CONTENT].',
+].join('\n');
+
+const INSTRUMENT_LOUDNESS_GUIDE = [
+  'Playback loudness by instrument type:',
+  '- `type=wave`: `volume=0|25|50|100` (default `100`). Example: `inst pad type=wave wave=[...] volume=50`.',
+  '- `type=pulse1|pulse2|noise`: `env=` initial level 0–15, or `env=gb:<level>,<dir>,<period>`.',
+  '- For "make X quieter/louder": change only that instrument\'s loudness field above; leave patterns and channels unchanged.',
+  '- Never replace `wave=[...]` tables with `...` placeholders — preserve the full 32-value array.',
+  'Internal: `gm=` / `note=` / `uge_note=` are export or hit metadata — not playback volume. Use the fields above for mix level; do not suggest changing export metadata unless the user asks about MIDI/UGE export.',
+].join('\n');
+
+/** Detect the canonical chip id from song source (`chip gb` / `chip dmg` → `gameboy`). */
+export function detectChip(source: string): string {
+  const m = source.match(/^\s*chip\s+(\S+)/m);
+  const raw = (m?.[1] ?? 'gameboy').toLowerCase();
+  return chipRegistry.resolve(raw);
+}
+
+/** Chip-plugin Copilot hardware/style block, or a generic fallback. */
+export function buildLanguageRef(chip: string): string {
+  const prompt = chipRegistry.get(chip)?.uiContributions?.copilotSystemPrompt;
+  if (prompt) return prompt.trim();
+  return GENERIC_CHIP_FALLBACK;
+}
+
 function buildSyntaxGuide(mode: ChatMode): string {
   const rules = [
     'BeatBax syntax constraints:',
@@ -149,6 +178,8 @@ function buildAskModeHint(): string {
     'block if helpful, then tell them to switch to Edit mode (Ask/Edit toggle above the input).',
     'When suggesting effects, prefer built-in parametric syntax such as `C5<vib:3,5>` or show a short `effect preset = ...`',
     'definition together with `C5<preset>`; never use `<preset>` without its definition.',
+    'When answering loudness or mix questions, name the correct playback field (`volume=` for wave, `env=` for pulse/noise).',
+    'Do not mention unrelated instrument fields (e.g. `gm=` for MIDI export) unless the user asked about them.',
     'Format prose with Markdown: short paragraphs, `##` headings, **bold** key terms, `-` bullet lists, and tables when comparing channels.',
   ].join(' ');
 }
@@ -161,6 +192,7 @@ export function buildCopilotContext(
   getDiagnostics: () => Diagnostic[],
 ): string {
   const editorContent = getEditorContent();
+  const chip = detectChip(editorContent);
   const maxChars = settings.maxContextChars || MAX_EDITOR_CHARS;
   // In edit mode the model must rewrite the whole song, so never truncate —
   // a partial song produces unsafe/valid edits. Ask mode keeps the limit.
@@ -174,9 +206,10 @@ export function buildCopilotContext(
     : '  No current errors or warnings.';
   const modeHint = mode === 'edit'
     ? [
-        'You are in EDIT mode. Return ONLY the full updated song as a single fenced code block.',
-        'Begin your reply with ```bax on its own line and end with ``` on its own line, with nothing before or after it.',
-        'Do NOT use Markdown headings, prose, or explanation — output only the song source.',
+        'You are in EDIT mode. Return the full updated song as a single fenced ```bax code block (entire song from chip through play).',
+        'After the closing fence, write 2–4 sentences explaining what you changed and why — the user sees this above the change list.',
+        'In that explanation, wrap BeatBax tokens and names in backticks (e.g. `E5:4`, `E5<leadTrem>:4`, `pat drums`).',
+        'Do not put prose, Markdown headings, or commentary inside the code fence. Do not repeat the song in the explanation.',
         'NEVER return only the changed `pat` or `seq` line — always return the entire song from chip through play.',
         'The returned song must parse as valid BeatBax. If diagnostics are present, fix them instead of adding new features.',
         'Invalid syntax (e.g. `|` bar separators in patterns) is rejected before apply; you may be asked to repair parse errors automatically.',
@@ -218,6 +251,12 @@ export function buildCopilotContext(
   }
 
   sections.push(
+    `[CHIP REFERENCE — ${chip}]`,
+    buildLanguageRef(chip),
+    '',
+    '[INSTRUMENT LOUDNESS]',
+    INSTRUMENT_LOUDNESS_GUIDE,
+    '',
     '[BEATBAX SYNTAX REFERENCE]',
     buildSyntaxGuide(mode),
     '',

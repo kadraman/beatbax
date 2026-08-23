@@ -51,10 +51,12 @@ Copilot connection and chat state use `@beatbax/app-core` (`chat.store.ts`) with
 
 | Storage key | Contents |
 |---|---|
-| `beatbax:ai.settings` | JSON: `endpoint`, `model`, `maxContextChars` — **API key is not stored here** |
+| `beatbax:ai.settings` | JSON: `endpoint`, `model`, `maxContextChars`, `contextWindowTokens` — **API key is not stored here** |
 | `beatbax:ai.mode` | Interaction mode: `edit` or `ask` |
-| `beatbax:ai.chatHistory` | Persisted conversation (capped) |
-| `beatbax:ai.promptHistory` | Submitted-prompt recall list |
+| `beatbax:ai.chatHistory` | Active session transcript (capped at 50 messages; mirrors the active session) |
+| `beatbax:ai.sessions` | Copilot session list (migrated from a single `chatHistory` on first launch of this feature) |
+| `beatbax:ai.activeSessionId` | Current session id |
+| `beatbax:ai.promptHistory` | Submitted-prompt recall list (↑/↓ in the input — not chat sessions) |
 
 On startup, legacy `bb-ai-settings` in `localStorage` is **removed** if present (older builds stored endpoint, model, and API key together under that key).
 
@@ -84,7 +86,7 @@ The BeatBax language has a non-trivial surface area: instruments, patterns, sequ
 
 A **Copilot panel** in the desktop app’s right-side stack (alongside Channel Mixer, Pattern Grid, etc.). It renders a conversation thread with a text input. The user can ask questions or request code generation in two modes:
 
-- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block that is automatically applied to the editor. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard.
+- **Edit mode** — the AI outputs a complete updated song in a ` ```bax ``` ` block (applied to the editor) plus a short what/why explanation after the fence. Parse-error self-correction runs up to **2** times; incomplete-song repair runs up to **2** additional times. Replies that would wipe most of the song (snippet-only responses) are blocked by the apply guard.
 - **Ask mode** — the AI answers questions and can include code snippets, but does not auto-apply anything.
 
 The mode toggle is persisted under `beatbax:ai.mode` (`chatMode` in app-core).
@@ -111,7 +113,7 @@ Undefined effect references in this song (will be ignored): leadVib — add an e
 
 [EDITOR CONTENT]
 ```bax
-<current Monaco model value; not truncated in Edit mode; Ask mode respects maxContextChars>
+<current Monaco model value; not truncated in Edit mode; Ask mode respects the Ask song excerpt (`maxContextChars`)>
 ```
 
 [DIAGNOSTICS]
@@ -122,7 +124,21 @@ Undefined effect references in this song (will be ignored): leadVib — add an e
   No current errors or warnings.
 ```
 
-The last 10 messages from the conversation history are included before the current user message to maintain coherent multi-turn context.
+The last 10 messages from the **active session** are included before the current user message. Oversized prior **Edit** replies (full fenced `.bax` songs) are replaced with a short stub (change summary + line counts) so they do not dominate the window — the live song is always in `[EDITOR CONTENT]`. If packed history still exceeds a soft ~2.5k-token budget, the oldest turns are dropped. Use **New chat** when switching songs or when the footer context meter is high/full.
+
+The Copilot header has a session switcher and a **+** New chat button. Delete a session from the menu to discard a thread. **Clear ↑/↓ prompts** in Settings → AI only forgets input recall (not chat sessions).
+
+---
+
+### Context meter and token usage
+
+The footer meter estimates the **next** request as instructions + song + packed history + current draft + reserved completion (8192 Edit / 2048 Ask), using chars/4 until the provider returns `usage`. Fill levels: OK, high (~70%), full (~90%+). Hover the meter for a VS Code-style popup (stacked bar + token rows). An empty chat is not 0% — the system prompt (including the song) and reserved reply space are always counted.
+
+Set **Settings → AI → Model token window** to the model’s real token limit (Ask and Edit). OpenAI defaults to 128k (200k for `o3`); Ollama/LM Studio default to 16k — match this to `num_ctx`.
+
+**Settings → AI → Ask song excerpt** is a separate **character** cap on how much of the open song is pasted into **Ask** questions. Edit always sends the full song and ignores that slider. It is not the footer percentage.
+
+OpenAI-compatible `/chat/completions` responses include `usage.prompt_tokens` / `completion_tokens` when the provider supports it. IPC returns `{ content, usage? }`. Last-turn usage is shown on the assistant message (`1.2k → 800`); session totals appear in the session switcher. Missing `usage` (some local servers) falls back to the estimate.
 
 ---
 
@@ -194,7 +210,7 @@ A `buildLanguageRef(chip: string)` function generates a chip-aware language refe
 
 Additional rules appended in Edit mode:
 
-- Output entire updated song in a single ` ```bax ``` ` block, then 1–3 sentence description only
+- Output the entire updated song in a single ` ```bax ``` ` block, then **2–4 sentences** explaining what changed and why. That explanation is shown on the applied card; the per-definition change list is collapsed behind **N changes**. Do not put prose inside the fence.
 - **Creating a new song**: triggered by "create", "write", "make", "compose", "generate" — outputs a complete fresh song, discards editor content
 - **Editing an existing song**: define separate patterns per channel per section; one sequence per channel per section; never mix channels into one sequence; always append new section sequences to channel lines (BEFORE/AFTER example shown)
 - **Longer songs — section-based structure**: named section groups of 4 sequences each, channels referencing all sections in order (graveyard_shift.bax pattern)
@@ -285,18 +301,19 @@ The renderer sends chat requests through the **Electron main process** (`createA
 | Remote, Edit mode (`maxTokens` > 2048) | 2 minutes |
 | Remote, Ask mode | 1 minute |
 
-Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI).
+Token limits: **8192** for Edit mode, **2048** for Ask mode. OpenAI endpoints use `max_completion_tokens`; other providers use `max_tokens`. The API key is only included when non-empty (Ollama/LM Studio do not require one). Requests can be cancelled via the abort controller (stop button in the UI). Successful responses parse optional OpenAI-compatible `usage` and return `{ content, usage? }` (not a bare string).
 
 ```typescript
 // Renderer (DesktopCopilotPanel.tsx)
 const maxTokens = activeMode === 'edit' ? 8192 : 2048;
-const response = await window.electronAPI.createAIChatCompletion({
+const result = await window.electronAPI.createAIChatCompletion({
   endpoint: settings.endpoint,
   apiKey: settings.apiKey,
   model: settings.model,
   messages,
   maxTokens,
 });
+// result.content — assistant text; result.usage — prompt/completion tokens when provided
 
 // Main process routes to `${endpoint}/chat/completions` with appropriate timeout.
 ```
@@ -307,12 +324,15 @@ const response = await window.electronAPI.createAIChatCompletion({
 
 | File | Status | Notes |
 |---|---|---|
-| `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx` | ✅ Complete | Copilot UI, apply guard, self-correction, snippet merge |
+| `apps/desktop/src/renderer/src/components/panels/DesktopCopilotPanel.tsx` | ✅ Complete | Copilot UI, sessions, context meter, apply guard, self-correction |
 | `apps/desktop/src/renderer/src/lib/copilot-context.ts` | ✅ Complete | System prompt assembly (Edit / Ask) |
+| `apps/desktop/src/renderer/src/lib/copilot-token-budget.ts` | ✅ Complete | Token estimate + context meter math |
+| `apps/desktop/src/renderer/src/lib/copilot-history-pack.ts` | ✅ Complete | Last-10 packing; stub oversized Edit songs |
+| `apps/desktop/src/shared/ai-chat-completion.ts` | ✅ Complete | Parse OpenAI-compatible `usage` from `/chat/completions` |
 | `apps/desktop/src/renderer/src/lib/copilot-apply-guard.ts` | ✅ Complete | Blocks incomplete Edit-mode replies |
-| `apps/desktop/src/renderer/src/components/settings/ai.tsx` | ✅ Complete | Settings → AI (provider, model, mode, context limit) |
-| `apps/desktop/src/main/ipc-handlers.ts` | ✅ Complete | Chat completions, secure API key, model list |
-| `packages/app-core/src/stores/chat.store.ts` | ✅ Complete | Settings, history, mode persistence (`beatbax:ai.*`) |
+| `apps/desktop/src/renderer/src/components/settings/ai.tsx` | ✅ Complete | Settings → AI (provider, model, mode, Ask char limit, context window) |
+| `apps/desktop/src/main/ipc-handlers.ts` | ✅ Complete | Chat completions (`content` + `usage`), secure API key, model list |
+| `packages/app-core/src/stores/chat.store.ts` | ✅ Complete | Settings, sessions, history, mode persistence (`beatbax:ai.*`) |
 | `packages/app-core/src/stores/ai-models.ts` | ✅ Complete | Shared provider presets and curated models |
 | `apps/web-ui/src/panels/settings-sections/ai.ts` | ✅ Partial | Settings UI only when AI feature flag enabled; no Copilot panel |
 

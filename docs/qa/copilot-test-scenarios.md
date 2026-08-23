@@ -3,7 +3,7 @@ title: "CoPilot Test Scenarios"
 status: active
 authors: ["kadraman"]
 created: 2026-06-21
-updated: 2026-07-11
+updated: 2026-08-22
 related:
   - docs/features/complete/ai-chatbot-assistant.md
   - docs/features/copilot-local-ollama.md
@@ -53,8 +53,11 @@ Track manual passes and automation separately. Update this table when a scenario
 | 21 | Ollama Edit with adequate context | Not tested | — | — | Requires Ollama + `qwen2.5-coder:7b`, `num_ctx` ≥ 16k |
 | 22 | Ollama snippet blocked | Not tested | — | — | Low `num_ctx` or tiny model |
 | 23 | Local request timeout / warm-up | Not tested | — | — | First request after Ollama restart |
+| 24 | Wave instrument quieter (`volume=` not `gm=`) | Not tested | — | — | Requires chip reference in Copilot context |
+| 25 | New chat / session switch | Not tested | — | — | Header **+** New chat; session menu switches/deletes; previous transcript restored on switch |
+| 26 | Context meter + token usage | Not tested | — | — | Footer %; last-turn `prompt → completion` when provider returns `usage` |
 
-**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly (syntax reference, durations, truncation rules). Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
+**Automated (partial):** `apps/desktop/tests/copilot-context.test.ts` — prompt assembly. `copilot-token-budget.test.ts` / `copilot-history-pack.test.ts` / `ai-chat-completion.test.ts` — meter math, Edit-history stubs, `usage` parsing. `packages/app-core/tests/chat-store-sessions.test.ts` — multi-session store. Light e2e in `desktop-integration.spec.ts` — Copilot panel mount/startup only.
 
 ---
 
@@ -226,6 +229,28 @@ Expected behavior:
 - Does not reorder sections or rewrite the full composition unnecessarily.
 - Preserves metadata, patterns, sequences, channels, and play directive.
 
+### 24. Wave instrument quieter (`volume=` not `gm=`)
+
+Setup: open a Game Boy song with a wave instrument that includes `gm=` (for example `dancefloor_pulse_gameboy.bax` / `inst arp_gb type=wave wave=[...] gm=82`).
+
+Prompt (Ask, then Edit):
+
+```text
+The arp_gb instrument is too loud and dominates the mix how do i make it a bit quieter.
+```
+
+Expected behavior:
+
+- Suggests lowering the wave instrument **`volume=`** field (`volume=50` or `volume=25`; default is `100`).
+- Does **not** change `gm=` — that is MIDI-export program metadata, not playback loudness.
+- Preserves the full `wave=[...]` table (never replaces it with `...` placeholders).
+- In Edit mode, only the `inst arp_gb ...` line changes aside from incidental whitespace.
+
+Context / validation checks:
+
+- Copilot system prompt includes `[CHIP REFERENCE — gameboy]` with `type=wave ... volume=<0|25|50|100>`.
+- Copilot system prompt includes `[INSTRUMENT LOUDNESS]` stating that `gm=` must not be used to change mix level.
+
 ---
 
 ## Repair Scenarios
@@ -250,7 +275,7 @@ Expected behavior:
 - Removes invalid commas from pattern tokens.
 - Does not add new musical material.
 - Returns a valid full song in edit mode.
-- Applied confirmation shows what was fixed, e.g. `Fixed N editor error(s): …` and `Removed pattern \`bad\` — \`pat bad = C5, D5, E5\``.
+- Applied confirmation shows a short what/why summary. Line-level diffs are behind a collapsed **N changes** disclosure.
 - Editor banner reports removals separately (e.g. `AI: 3 removed lines`); deleted lines are highlighted at their anchor with inline `− …` hints, and ↑/↓ navigates between removal anchors as well as added lines.
 - In-place fixes (e.g. removing commas on one line) show as `AI: 1 line changed` with a yellow highlight and inline `was: − …` hint — not `1 added, 1 removed`.
 
@@ -427,6 +452,27 @@ After an edit-mode apply with line highlights, the editor banner offers **Keep**
 - **Discard** updates it to `↩ Discarded`, labels the summary as reverted changes, and restores the pre-edit song.
 - Edits with no line diff skip the banner and show `✓ Kept in editor` immediately.
 - Ctrl+Z does not update the Copilot transcript automatically.
+
+### 25. New Chat / Session Switch
+
+Expected behavior:
+
+- **New chat** starts an empty transcript without deleting the previous session.
+- The session menu lists chats by title (first user prompt) and can switch back to the earlier transcript.
+- Delete a session from the menu to discard it. There is no separate **Clear chat** button.
+- **Clear ↑/↓ prompts** in Settings → AI does not delete chats.
+- Switching songs does not auto-create a session; start **New chat** when you want a clean thread.
+
+### 26. Context Meter and Token Usage
+
+Expected behavior:
+
+- The footer meter shows an estimated fill % for the next request (system + history + draft + reserved completion).
+- Hover (or click) the footer meter for a compact popup: Instructions + song / Chat / This message / Room for reply. **This message** is the composer draft, or the last sent question if the box is empty. Hint “Start a new chat” when high or full.
+- After a cloud/OpenAI-compatible reply, the assistant message shows `prompt → completion` when `usage` is present.
+- Settings → AI **Model token window** matches the meter denominator. For Ollama, set it equal to `num_ctx`.
+- Settings → AI **Ask song excerpt** only truncates the song in Ask; Edit still sends the full song. The footer % is the token window, not this character slider.
+- High/full meter suggests starting a new chat.
 
 ---
 
