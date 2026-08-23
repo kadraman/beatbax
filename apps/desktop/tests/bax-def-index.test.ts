@@ -5,6 +5,7 @@ import { resolve } from 'path';
 import {
   collectBaxDefs,
   collectSemanticChangeLines,
+  insertDefinitionLine,
   tryMergeChangedDefinitions,
 } from '../src/renderer/src/lib/bax-def-index';
 import { computeLineChangeDiff, countAIChangeDiff } from '../src/renderer/src/lib/line-change-diff';
@@ -71,5 +72,37 @@ describe('tryMergeChangedDefinitions', () => {
   it('collectBaxDefs tracks 1-based line numbers', () => {
     const defs = collectBaxDefs('chip gameboy\npat p = C5\nplay');
     expect(defs.get('pattern:p')?.lineNumber).toBe(2);
+  });
+});
+
+describe('insertDefinitionLine', () => {
+  const patternDef = {
+    kind: 'pattern' as const,
+    name: 'drums',
+    body: 'kick . . .',
+    line: 'pat drums = kick . . .',
+    lineNumber: 2,
+  };
+
+  it('inserts before play when re-adding the last definition of a kind', () => {
+    const content = 'chip gameboy\nplay auto\n';
+    expect(insertDefinitionLine(content, patternDef)).toBe(
+      'chip gameboy\npat drums = kick . . .\nplay auto\n',
+    );
+  });
+
+  it('inserts after the last same-kind definition but still before play', () => {
+    const content = 'pat a = C4\npat b = D4\nplay auto\n';
+    const def = { ...patternDef, name: 'c', body: 'E4', line: 'pat c = E4' };
+    expect(insertDefinitionLine(content, def)).toBe(
+      'pat a = C4\npat b = D4\npat c = E4\nplay auto\n',
+    );
+  });
+
+  it('appends at end when no play directive is present', () => {
+    const content = 'chip gameboy\nbpm 120';
+    expect(insertDefinitionLine(content, patternDef)).toBe(
+      'chip gameboy\nbpm 120\npat drums = kick . . .',
+    );
   });
 });

@@ -88,6 +88,12 @@ export function insertDefinitionLine(content: string, def: BaxDef): string {
       break;
     }
   }
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^\s*play\b/i.test(lines[i])) {
+      insertAt = Math.min(insertAt, i);
+      break;
+    }
+  }
   lines.splice(insertAt, 0, def.line);
   return lines.join('\n');
 }

@@ -40,6 +40,14 @@ describe('revertCopilotEditChange', () => {
     const reverted = revertCopilotEditChange(edited, updated, baseline);
     expect(reverted).toBe(baseline);
   });
+
+  it('reverts a removed pattern before play', () => {
+    const baseline = 'pat drum_intro = kick . . .\nplay auto\n';
+    const edited = 'play auto\n';
+    const removed = collectCopilotEditChanges(baseline, edited)[0];
+    const reverted = revertCopilotEditChange(edited, removed, baseline);
+    expect(reverted).toBe(baseline);
+  });
 });
 
 describe('resolveCopilotChangeLineNumber', () => {

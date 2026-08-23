@@ -109,7 +109,10 @@ export function revertCopilotEditChange(
 }
 
 /** Refresh scroll targets after the editor content changes during review. */
-export function refreshCopilotEditChangeLines(content: string, changes: CopilotEditChange[]): CopilotEditChange[] {
+export function refreshCopilotEditChangeLines<T extends CopilotEditChange>(
+  content: string,
+  changes: T[],
+): T[] {
   const defs = collectBaxDefs(content);
   return changes.map((change) => {
     const def = defs.get(change.id);

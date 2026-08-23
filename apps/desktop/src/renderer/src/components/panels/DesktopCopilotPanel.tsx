@@ -727,6 +727,7 @@ function CopilotEditSummary({
   const stats = formatEditStats(message);
   const keptCount = details.filter((item) => item.reviewStatus === 'kept').length;
   const discardedCount = details.filter((item) => item.reviewStatus === 'discarded').length;
+  const [changesOpen, setChangesOpen] = useState(() => !message.applyExplanation);
 
   let badgeText = '✓ Applied to editor';
   let badgeClass = 'bb-chat-applied-badge';
@@ -751,7 +752,11 @@ function CopilotEditSummary({
           />
         ) : null}
         {details.length > 0 ? (
-          <details className="bb-copilot-edit-summary__fold" defaultOpen={!message.applyExplanation}>
+          <details
+            className="bb-copilot-edit-summary__fold"
+            onToggle={(event) => setChangesOpen(event.currentTarget.open)}
+            open={changesOpen}
+          >
             <summary>
               {details.length} change{details.length === 1 ? '' : 's'}
             </summary>
