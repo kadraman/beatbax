@@ -3,7 +3,7 @@
 **Recent changes and best practices for plugin developers:**
 
 - The `instrumentVolumeRange` field was added to the `ChipPlugin` interface (2026-04-18). This allows plugins to specify the integer range for instrument volume/envelope fields, and whether the scale is attenuation-based (e.g., Genesis YM2612). The web UI and Channel Mixer now use this for correct scale display.
-- **Version import:** Plugins must NOT import the version from package.json directly. Instead, create a `src/version.ts` file that exports a version constant, and import that in your plugin entry point. This avoids ESM import assertion errors in Node.js v22+.
+- **Version import:** Plugins must NOT import the version from package.json directly. Instead, create a `src/version.ts` file that exports a version constant, and import that in your plugin entry point. This avoids ESM import assertion errors in Node.js v22+. Keep it synced with `package.json` using the repo script `npm run sync-versions` (run automatically during `npm run version-packages`).
 - **Runtime boundary:** For browser-targeted plugin runtime code, prefer explicit browser-safe runtime subpaths (for example `@beatbax/engine/chips`, `@beatbax/engine/util/music`, `@beatbax/engine/parser`) and use root `@beatbax/engine` primarily for type-only imports. Do **not** import `@beatbax/engine/node` from browser-targeted plugin runtime modules.
 - The `ChipRegistry` API now includes `listCanonical()` (returns only canonical plugin names) and `aliasesFor(canonical)` (returns all aliases for a chip). The CLI and web UI use these for correct chip/plugin listing and alias handling.
 - The web UI Plugins panel now groups chips as Built-in (always-on, e.g. Game Boy) and Optional (toggleable plugins), showing version info from the plugin’s `version` field.
@@ -223,7 +223,7 @@ export class MyPulseBackend implements ChipChannelBackend {
 Create a dedicated `src/version.ts` that exports the version as a plain constant. This is required to avoid the Node.js v22+ `ERR_IMPORT_ATTRIBUTE_MISSING` error that occurs when importing JSON with `import { version } from '../package.json'` (ESM JSON imports need a `with { type: 'json' }` assertion that TypeScript doesn't emit):
 
 ```typescript
-// src/version.ts — keep in sync with package.json manually or via a build script
+// src/version.ts — keep in sync with package.json via `npm run sync-versions`
 export const version = '0.1.0';
 ```
 
