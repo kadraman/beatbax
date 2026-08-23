@@ -422,6 +422,8 @@ import { version } from '../../version.js';
 
 Both `packages/engine/src/version.ts` and `packages/plugins/chip-nes/src/version.ts` follow this pattern. When bumping the package version, update `package.json` **and** the corresponding `version.ts`.
 
+The repository now provides automatic syncing via `npm run sync-versions` (also run by `npm run version-packages`), so release bumps do not require manual edits to `src/version.ts` files.
+
 ## ChipPlugin Interface Additions
 
 **`instrumentVolumeRange`** (optional field on `ChipPlugin`, added 2026-04-18):
