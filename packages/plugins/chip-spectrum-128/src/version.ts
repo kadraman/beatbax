@@ -1,2 +1,2 @@
-/** Auto-generated version string for @beatbax/plugin-chip-spectrum-128. */
-export const version = '0.1.0';
+/** Auto-kept in sync with packages/plugins/chip-spectrum-128/package.json. */
+export const version = '0.2.4';
