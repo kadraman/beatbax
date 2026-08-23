@@ -196,6 +196,11 @@ export function setupDesktopEditor(options: DesktopEditorSetupOptions): DesktopE
         bottomTabs.show('output');
         playbackManager.play(src);
       },
+      ...(capabilities.copilot ? {
+        onAddSelectionToCopilot: (payload) => {
+          eventBus.emit('copilot:add-selection', payload);
+        },
+      } : {}),
     });
     cleanups.push(() => paletteDisposable.dispose());
   }

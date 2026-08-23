@@ -59,6 +59,8 @@ Rough budget for `songs/sample.bax`:
 | **16,384** | **Recommended minimum** — comfortable for `sample.bax`, one repair round, light history |
 | **32,768** | Better for long Copilot threads or songs **>200 lines**; slower, more KV cache |
 
+Set the same value in **Settings → AI → Model token window** so the Copilot footer meter matches Ollama. When the meter is high or full, start a **New chat** rather than stacking more Edit turns (prior full-song replies are stubbed, but the system prompt + live song + reserved 8k completion still dominate). The **Ask song excerpt** slider is unrelated — it only truncates the song pasted into Ask questions.
+
 ### Setting context in Ollama
 
 **Environment variable (session):**
@@ -90,7 +92,7 @@ Restart Ollama after changing context length.
 
 ### Tips for local models
 
-- **Clear Copilot chat** before a large Edit (saves context for the song).
+- Use **New chat** before a large Edit so the window is spent on the song, not old turns.
 - Prefer **Ask** for explanations; switch to **Edit** only when ready to apply.
 - If edits keep failing, raise `num_ctx` to **32k** or use a cloud model for that session.
 

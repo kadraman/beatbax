@@ -85,6 +85,14 @@ export interface BeatBaxEvents {
     autoSubmit?: boolean;
   };
 
+  /** Prefill Copilot chat with the current editor selection (does not auto-submit). */
+  'copilot:add-selection': {
+    text: string;
+    startLine: number;
+    endLine: number;
+    fileName?: string;
+  };
+
   /**
    * Emitted by command-palette when >MAX_CHANNELS seqs are merged into fewer
    * channels.  Each channel that received a merged seq gets an ordered list of

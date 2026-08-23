@@ -232,6 +232,8 @@ export function PresetRangeField({
   onChange,
   presets,
   value,
+  valueText,
+  valueTitle,
 }: {
   description?: ReactNode;
   id?: string;
@@ -239,11 +241,15 @@ export function PresetRangeField({
   onChange: (value: number) => void;
   presets: ReadonlyArray<{ value: number; label: string }>;
   value: number;
+  valueText?: string;
+  valueTitle?: string;
 }): React.JSX.Element {
   const fieldId = id ?? `bb-preset-range-${label.replace(/\s+/g, '-').toLowerCase()}`;
   const index = presets.findIndex((preset) => preset.value === value);
   const safeIndex = index >= 0 ? index : 0;
   const current = presets[safeIndex] ?? presets[0];
+  const displayValue = valueText ?? current.label;
+  const displayTitle = valueTitle ?? `${current.value.toLocaleString()} characters`;
 
   return (
     <div className="bb-settings-preset-range">
@@ -264,11 +270,8 @@ export function PresetRangeField({
             type="range"
             value={safeIndex}
           />
-          <span
-            className="bb-settings-range-value"
-            title={`${current.value.toLocaleString()} characters`}
-          >
-            {current.label}
+          <span className="bb-settings-range-value" title={displayTitle}>
+            {displayValue}
           </span>
         </div>
         <div aria-hidden="true" className="bb-settings-preset-ticks">

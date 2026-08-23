@@ -807,4 +807,62 @@ describe('setupCommandPalette — enhanced commands', () => {
   it('showSyntaxHelp: registered', () => {
     expect(registeredActions.has('beatbax.showSyntaxHelp')).toBe(true);
   });
+
+  it('addSelectionToCopilot: not registered unless a callback is provided', () => {
+    expect(registeredActions.has('beatbax.addSelectionToCopilot')).toBe(false);
+  });
+});
+
+describe('setupCommandPalette — addSelectionToCopilot', () => {
+  it('registers a context-menu action gated on editorHasSelection', () => {
+    const descriptors = new Map<string, any>();
+    const onAddSelectionToCopilot = jest.fn();
+    const mockEditor: any = {
+      addAction: jest.fn((descriptor: any) => {
+        descriptors.set(descriptor.id, descriptor);
+        return { dispose: jest.fn() };
+      }),
+      getDomNode: jest.fn(() => document.createElement('div')),
+      getSelection: jest.fn(() => ({
+        isEmpty: () => false,
+        startLineNumber: 143,
+        endLineNumber: 143,
+        startColumn: 1,
+        endColumn: 40,
+      })),
+      getModel: jest.fn(() => ({
+        getLineContent: jest.fn((line: number) => (
+          line === 143 ? 'inst arp_gb type=wave wave=[8,9] gm=82' : ''
+        )),
+        getValueInRange: jest.fn(() => 'arp_gb'),
+      })),
+      trigger: jest.fn(),
+      executeEdits: jest.fn(),
+      focus: jest.fn(),
+    };
+
+    setupCommandPalette({
+      editor: mockEditor,
+      getSource: () => '',
+      onExport: jest.fn(),
+      onVerify: jest.fn(),
+      onToggleMute: jest.fn(),
+      onToggleSolo: jest.fn(),
+      onAddSelectionToCopilot,
+    });
+
+    const action = descriptors.get('beatbax.addSelectionToCopilot');
+    expect(action).toBeDefined();
+    expect(action.label).toBe('BeatBax: Add Selection to Copilot');
+    expect(action.precondition).toBe('editorHasSelection');
+    expect(action.contextMenuGroupId).toBe('9_beatbax');
+    expect(action.contextMenuOrder).toBe(0);
+
+    action.run();
+    expect(onAddSelectionToCopilot).toHaveBeenCalledWith({
+      text: 'inst arp_gb type=wave wave=[8,9] gm=82',
+      startLine: 143,
+      endLine: 143,
+    });
+  });
 });

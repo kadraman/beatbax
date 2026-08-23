@@ -67,6 +67,12 @@ export interface CommandPaletteOptions {
    * clipboard export is unavailable for the chosen format/context.
    */
   onExportData?: (format: ExportFormat) => Promise<string | null>;
+
+  /**
+   * Optional: send the current editor selection to Copilot chat (desktop only).
+   * When omitted the context-menu action is not registered.
+   */
+  onAddSelectionToCopilot?: (payload: { text: string; startLine: number; endLine: number }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -510,7 +516,7 @@ function escapeRegex(str: string): string {
  * Returns a disposable that removes all registered actions.
  */
 export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDisposable {
-  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw, onExportData } = opts;
+  const { editor, getSource, onExport, onVerify, onToggleMute, onToggleSolo, onPlayRaw, onExportData, onAddSelectionToCopilot } = opts;
 
   const disposables: monaco.IDisposable[] = [];
 
@@ -611,6 +617,36 @@ export function setupCommandPalette(opts: CommandPaletteOptions): monaco.IDispos
   });
 
   // ── BeatBax: Edit — play selection ────────────────────────────────────────
+
+  if (onAddSelectionToCopilot) {
+    reg({
+      id: 'beatbax.addSelectionToCopilot',
+      label: 'BeatBax: Add Selection to Copilot',
+      keybindings: [],
+      contextMenuGroupId: '9_beatbax',
+      contextMenuOrder: 0,
+      precondition: 'editorHasSelection',
+      run: () => {
+        const selection = editor.getSelection();
+        if (!selection || selection.isEmpty()) return;
+        const model = editor.getModel();
+        if (!model) return;
+        const startLine = Math.min(selection.startLineNumber, selection.endLineNumber);
+        const endLine = Math.max(selection.startLineNumber, selection.endLineNumber);
+        const lineTexts: string[] = [];
+        for (let line = startLine; line <= endLine; line += 1) {
+          lineTexts.push(model.getLineContent(line));
+        }
+        const fullLineText = lineTexts.join('\n');
+        if (!fullLineText.trim()) return;
+        onAddSelectionToCopilot({
+          text: fullLineText,
+          startLine,
+          endLine,
+        });
+      },
+    });
+  }
 
   reg({
     id: 'beatbax.playSelection',

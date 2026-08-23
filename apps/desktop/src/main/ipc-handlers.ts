@@ -9,8 +9,11 @@ import type {
   DesktopFilePayload,
   DesktopOpenFileOptions,
   DesktopRemoteAssetRequest,
-  DesktopSaveFileOptions
+  DesktopSaveFileOptions,
+  AIChatCompletionRequest,
+  AIChatCompletionResult,
 } from '../shared/electron-api'
+import { parseAIChatCompletionResponse } from '../shared/ai-chat-completion'
 import { resolveBundledSongFile, resolveExampleSongsOpenDir } from './path-utils'
 import { createDocumentFileWatcher, type DocumentFileWatcher } from './file-watcher'
 import {
@@ -245,20 +248,6 @@ interface AIModelListResult {
   ok: boolean
   models: string[]
   message?: string
-}
-
-interface AIChatCompletionMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-interface AIChatCompletionRequest {
-  endpoint: string
-  apiKey: string
-  model: string
-  messages: AIChatCompletionMessage[]
-  temperature?: number
-  maxTokens?: number
 }
 
 let e2eMemoryAIAPIKey = ''
@@ -663,7 +652,7 @@ function cancelAIChatCompletion(): void {
   activeAIChatAbort.abort()
 }
 
-async function createAIChatCompletion(request: unknown): Promise<string> {
+async function createAIChatCompletion(request: unknown): Promise<AIChatCompletionResult> {
   // A new request supersedes any still-running one.
   if (activeAIChatAbort) {
     aiChatUserCancelled = true
@@ -708,7 +697,7 @@ async function createAIChatCompletion(request: unknown): Promise<string> {
       })
       if (response.ok) {
         const data = await response.json()
-        return data?.choices?.[0]?.message?.content ?? '(no response)'
+        return parseAIChatCompletionResponse(data)
       }
 
       const text = await response.text().catch(() => '')
