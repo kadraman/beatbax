@@ -3,9 +3,11 @@ title: "Song Timing Pattern Grid Inspector"
 status: proposed
 authors: ["kadraman"]
 created: 2026-06-28
+updated: 2026-08-24
+issue: https://github.com/kadraman/beatbax/issues/191
 related:
   - docs/features/pattern-grid-seek-and-loop.md
-issue: ""
+  - docs/features/pattern-combination-preview.md
 ---
 
 ## Summary
@@ -31,6 +33,8 @@ These problems are hard to spot in source because the relevant information is di
 
 ---
 
+
+
 ## Goals
 
 1. Show resolved channel lengths and highlight mismatches.
@@ -42,6 +46,8 @@ These problems are hard to spot in source because the relevant information is di
 
 ---
 
+
+
 ## Non-Goals
 
 - Full tracker editing in the first implementation.
@@ -52,7 +58,11 @@ These problems are hard to spot in source because the relevant information is di
 
 ---
 
+
+
 ## User Experience
+
+
 
 ### Timing Overview
 
@@ -90,6 +100,8 @@ Useful block metadata:
 - Length in steps and bars.
 - Export pattern/order index when inspecting UGE output.
 
+
+
 ### Inline Diagnostics
 
 Overlay warnings directly on blocks or rows:
@@ -101,6 +113,8 @@ Overlay warnings directly on blocks or rows:
 - `build_perc` has hats/snares but no kick/downbeat anchor.
 - `phrase_c`: `port:16` on 2-step notes may be too slow for UGE.
 - `Eb5` will export as `D#5` in hUGETracker.
+
+
 
 ### Step Drilldown
 
@@ -124,6 +138,8 @@ For drum-focused inspection, named hits can use per-instrument labels and colors
 - Hat: yellow markers on offbeats/subdivisions.
 
 ---
+
+
 
 ## How Pattern Grid Can Help
 
@@ -168,7 +184,11 @@ The seek/loop feature and this inspector can share the same global step coordina
 
 ---
 
+
+
 ## Diagnostic Rules
+
+
 
 ### Phase 1 - Structural Timing
 
@@ -176,6 +196,8 @@ The seek/loop feature and this inspector can share the same global step coordina
 - `pattern-non-bar-length`: pattern length is not a multiple of `stepsPerBar`.
 - `sequence-section-mismatch`: grouped section sequences resolve to different lengths across channels.
 - `empty-channel-tail`: one or more channels are silent while others continue.
+
+
 
 ### Phase 2 - Percussion Grid
 
@@ -196,16 +218,22 @@ These rules should be configurable or shown as warnings, not hard errors. Many g
 
 ---
 
+
+
 ## Implementation Plan
+
+
 
 ### Engine / App-Core
 
 1. Add a resolver-side timeline extraction helper.
-   - Input: parsed AST and resolved `SongModel`.
-   - Output: channel lengths, pattern/sequence blocks, event rows, and source references where possible.
+  - Input: parsed AST and resolved `SongModel`.
+  - Output: channel lengths, pattern/sequence blocks, event rows, and source references where possible.
 2. Add timing diagnostics that run after resolution.
 3. Expose diagnostics through existing editor/app-core validation plumbing.
 4. Add optional exporter-readiness diagnostics for UGE.
+
+
 
 ### UI
 
@@ -214,11 +242,13 @@ These rules should be configurable or shown as warnings, not hard errors. Many g
 3. Add bar/step ruler using `stepsPerBar` or default 16-step bars.
 4. Overlay diagnostic badges on affected blocks.
 5. Add a block details panel with:
-   - source `pat` / `seq`,
-   - length,
-   - step table,
-   - diagnostics,
-   - quick links to source.
+  - source `pat` / `seq`,
+  - length,
+  - step table,
+  - diagnostics,
+  - quick links to source.
+
+
 
 ### Tests
 
@@ -233,6 +263,8 @@ Add focused fixtures for:
 
 ---
 
+
+
 ## Acceptance Criteria
 
 - Users can see all resolved channel lengths without exporting or asking an assistant.
@@ -244,6 +276,8 @@ Add focused fixtures for:
 
 ---
 
+
+
 ## Open Questions
 
 1. Should percussion timing heuristics be chip-specific, configurable per song, or only opt-in?
@@ -251,3 +285,4 @@ Add focused fixtures for:
 3. Should UGE readiness diagnostics live in the exporter, app-core, or a shared diagnostics module?
 4. Should quick fixes be offered, such as "pad pattern to 16 steps" or "align snare to beats 2/4"?
 5. Should the Pattern Grid show source pattern blocks or exported tracker pattern blocks by default?
+

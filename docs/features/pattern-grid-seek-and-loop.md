@@ -3,11 +3,13 @@ title: "Pattern Grid Seek And Loop Playback"
 status: proposed
 authors: ["kadraman"]
 created: 2026-06-22
-updated: 2026-06-22
+updated: 2026-08-24
+issue: https://github.com/kadraman/beatbax/issues/190
 related:
   - docs/features/desktop-client-enhancements.md
   - docs/features/complete/daw-channel-mixer.md
   - docs/features/pattern-combination-preview.md
+  - docs/features/song-timing-pattern-grid-inspector.md
 ---
 
 ## Summary
@@ -28,6 +30,8 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 
 ---
 
+
+
 ## Non-Goals
 
 - Full audio scrubbing while dragging.
@@ -38,7 +42,11 @@ The Pattern Grid already provides a compact per-channel overview and a global pl
 
 ---
 
+
+
 ## User Experience
+
+
 
 ### Set Start Position
 
@@ -56,6 +64,8 @@ Recommended initial snapping:
 - Snap to pattern block boundaries.
 - If bar metadata is available, optionally snap to bar boundaries.
 - Later, allow a modifier key such as `Alt` for finer step-level placement.
+
+
 
 ### Loop Range
 
@@ -77,7 +87,11 @@ Recommended initial snapping:
 
 ---
 
+
+
 ## Proposed Design
+
+
 
 ### Playback Model
 
@@ -98,6 +112,8 @@ Recommended app-core concepts:
 - `playbackStartStep`: pending start step when stopped.
 - `playbackLoopRange`: optional `{ startStep, endStep }`.
 - `playbackRangeMode`: `off | pending-start | loop`.
+
+
 
 ### Pattern Grid Mapping
 
@@ -137,7 +153,11 @@ State that must be preserved at a start offset:
 
 ---
 
+
+
 ## Implementation Phases
+
+
 
 ### Phase 1 - UI Range Selection Only
 
@@ -159,6 +179,8 @@ Acceptance criteria:
 - Stop still resets normal playback playhead to the beginning.
 - No change to current audio scheduling yet.
 
+
+
 ### Phase 2 - Pattern-Boundary Start Playback
 
 Add playback from a selected pattern boundary.
@@ -177,6 +199,8 @@ Acceptance criteria:
 - Pause/resume preserves the selected playback position.
 - Existing full-song Play remains unchanged.
 
+
+
 ### Phase 3 - Pattern-Boundary Loop Playback
 
 Add loop-region playback using pattern boundaries.
@@ -194,6 +218,8 @@ Acceptance criteria:
 - Loop boundary transitions do not emit stale end-of-song positions.
 - Clearing the loop returns Play to normal whole-song behavior.
 - Loop state is not confused with `play auto repeat`.
+
+
 
 ### Phase 4 - Step-Accurate Seek And Loop
 
@@ -215,6 +241,8 @@ Acceptance criteria:
 
 ---
 
+
+
 ## Risks And Open Questions
 
 - **Inline instrument state:** Seeking after `inst` tokens requires reconstructing the active instrument at the start offset.
@@ -231,6 +259,8 @@ Recommended defaults:
 - Clear loop on file load unless the range can be safely mapped to the new song.
 
 ---
+
+
 
 ## Test Plan
 
@@ -251,6 +281,8 @@ Automated coverage:
 - Range loop does not advance past `endStep` before jumping back.
 
 ---
+
+
 
 ## Suggested First Slice
 

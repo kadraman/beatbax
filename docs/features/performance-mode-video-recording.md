@@ -3,7 +3,8 @@ title: "Performance Mode Video Recording"
 status: proposed
 authors: ["kadraman"]
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-08-24
+issue: https://github.com/kadraman/beatbax/issues/192
 related:
   - docs/features/complete/channel-visualizer.md
   - docs/features/complete/per-channel-analyser.md
@@ -25,6 +26,8 @@ Screen recording works poorly here: performance-mode chrome (play/stop/exit) wou
 
 ---
 
+
+
 ## Goals
 
 1. Record performance mode on **desktop only** to MP4 (H.264 + AAC) by default, with WebM as an alternate.
@@ -38,6 +41,8 @@ Screen recording works poorly here: performance-mode chrome (play/stop/exit) wou
 
 ---
 
+
+
 ## Non-Goals (v1)
 
 - Web-ui recording or web Settings section for recording.
@@ -50,7 +55,11 @@ Screen recording works poorly here: performance-mode chrome (play/stop/exit) wou
 
 ---
 
+
+
 ## User Experience
+
+
 
 ### Entry from normal Song Visualizer (primary)
 
@@ -84,28 +93,36 @@ Shown when Song Visualizer is enabled (same gating pattern as visualizer backgro
 
 Defaults are chosen for a straightforward **YouTube upload** (MP4 H.264 + AAC, 1080p30, higher bitrates). Users can lower quality for smaller files or switch to WebM when preferred.
 
-| Setting | Options | Default |
-|--------|---------|---------|
-| Format | `mp4` (H.264 + AAC), `webm` (VP9 + Opus) | `mp4` |
-| Resolution | `window` (visualizer size, even dims, capped), `720p`, `1080p` | `1080p` |
-| Frame rate | `24`, `30`, `60` | `30` |
-| Video quality | `low` / `medium` / `high` (bitrate mapped from res) | `high` (~8 Mbps at 1080p30; matches YouTube’s SDR recommendation band) |
-| Audio quality | `128` / `192` / `256` kbps | `256` (highest preset; YouTube recommends up to ~384 kbps stereo AAC) |
-| Title card | on / off | on |
-| Channel HUD in video | on / off (titles / chip / instrument / pattern) | on |
-| Save location | `ask`, `last-folder`, `fixed-folder` | `ask` |
-| Fixed folder path | directory (when `fixed-folder`) | empty until picked |
-| Filename stem | template; supports `{name}` | `{name}-performance` |
+
+| Setting              | Options                                                        | Default                                                                |
+| -------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Format               | `mp4` (H.264 + AAC), `webm` (VP9 + Opus)                       | `mp4`                                                                  |
+| Resolution           | `window` (visualizer size, even dims, capped), `720p`, `1080p` | `1080p`                                                                |
+| Frame rate           | `24`, `30`, `60`                                               | `30`                                                                   |
+| Video quality        | `low` / `medium` / `high` (bitrate mapped from res)            | `high` (~8 Mbps at 1080p30; matches YouTube’s SDR recommendation band) |
+| Audio quality        | `128` / `192` / `256` kbps                                     | `256` (highest preset; YouTube recommends up to ~384 kbps stereo AAC)  |
+| Title card           | on / off                                                       | on                                                                     |
+| Channel HUD in video | on / off (titles / chip / instrument / pattern)                | on                                                                     |
+| Save location        | `ask`, `last-folder`, `fixed-folder`                           | `ask`                                                                  |
+| Fixed folder path    | directory (when `fixed-folder`)                                | empty until picked                                                     |
+| Filename stem        | template; supports `{name}`                                    | `{name}-performance`                                                   |
+
+
+
 
 #### Save location behavior
 
-- **`ask`:** save dialog every time with `.mp4` / `.webm` filter and suggested filename.
-- **`last-folder`:** same dialog; `defaultPath` uses last successful directory; remember dir after save.
-- **`fixed-folder`:** user picks a folder once; on stop, write `{stem}-{timestamp}.{ext}` with no dialog (`showDialog: false`). If path missing, fall back to `ask`.
+- `ask`**:** save dialog every time with `.mp4` / `.webm` filter and suggested filename.
+- `last-folder`**:** same dialog; `defaultPath` uses last successful directory; remember dir after save.
+- `fixed-folder`**:** user picks a folder once; on stop, write `{stem}-{timestamp}.{ext}` with no dialog (`showDialog: false`). If path missing, fall back to `ask`.
 
 ---
 
+
+
 ## Proposed Design
+
+
 
 ### Architecture
 
@@ -147,6 +164,8 @@ Omit toolbar, mute/solo, and cursor. Even dimensions required for H.264; clamp `
 - Timing: fade in ~0.6s → hold → fade out ~0.8s over a subtle dark scrim.
 - Baked into the composite so it appears in the file (not a live DOM toast).
 
+
+
 ### Audio tap
 
 Live graph today: voices → `masterGain` → limiter → `destination`. Public API exposes `getMasterGain()` but not a post-limiter node.
@@ -156,26 +175,32 @@ Live graph today: voices → `masterGain` → limiter → `destination`. Public 
 - Feed PCM into `AudioEncoder` (`mp4a.40.2` for MP4, Opus for WebM) with timestamps aligned to video.
 - Mute/solo/master during the take are captured as played.
 
+
+
 ### Codec / format mapping
 
-| Format | Video | Audio | Muxer |
-|--------|-------|-------|-------|
-| `mp4` | `avc1…` (H.264) | `mp4a.40.2` (AAC) | `mp4-muxer` |
-| `webm` | `vp09…` (VP9) | Opus | `webm-muxer` |
+
+| Format | Video           | Audio             | Muxer        |
+| ------ | --------------- | ----------------- | ------------ |
+| `mp4`  | `avc1…` (H.264) | `mp4a.40.2` (AAC) | `mp4-muxer`  |
+| `webm` | `vp09…` (VP9)   | Opus              | `webm-muxer` |
+
 
 Feature-detect at record start; on failure show a clear error and point the user at Settings → format.
 
 ### Code organization
 
-| Piece | Location |
-|--------|----------|
-| Settings keys + atoms | `packages/app-core/src/utils/local-storage.ts`, `packages/app-core/src/stores/settings.store.ts` |
-| Settings UI | `apps/desktop/src/renderer/src/components/settings/general.tsx` |
-| Compositor + encode/mux | `apps/desktop/src/renderer/src/lib/performance-recorder/` |
-| Toolbar wiring | `apps/desktop/src/renderer/src/components/panels/DesktopSongVisualizer.tsx` |
-| Deps | `mp4-muxer`, `webm-muxer` on `apps/desktop/package.json` |
-| Output node | `packages/engine/src/audio/playback.ts` (+ thin `PlaybackManager` helper if useful) |
-| Save / folder pick | Desktop IPC / preload (`mp4`/`webm` filters, `openDirectory`) |
+
+| Piece                   | Location                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Settings keys + atoms   | `packages/app-core/src/utils/local-storage.ts`, `packages/app-core/src/stores/settings.store.ts` |
+| Settings UI             | `apps/desktop/src/renderer/src/components/settings/general.tsx`                                  |
+| Compositor + encode/mux | `apps/desktop/src/renderer/src/lib/performance-recorder/`                                        |
+| Toolbar wiring          | `apps/desktop/src/renderer/src/components/panels/DesktopSongVisualizer.tsx`                      |
+| Deps                    | `mp4-muxer`, `webm-muxer` on `apps/desktop/package.json`                                         |
+| Output node             | `packages/engine/src/audio/playback.ts` (+ thin `PlaybackManager` helper if useful)              |
+| Save / folder pick      | Desktop IPC / preload (`mp4`/`webm` filters, `openDirectory`)                                    |
+
 
 Keep WebCodecs/mux logic **desktop-only**. Settings atoms may live in app-core (unused on web).
 
@@ -188,17 +213,25 @@ Keep WebCodecs/mux logic **desktop-only**. Settings atoms may live in app-core (
 
 ---
 
+
+
 ## Implementation Plan
+
+
 
 ### Engine
 
 1. Expose post-limiter (or master) output node for recording taps without breaking the speaker path.
 2. Ensure reconnect / dispose of the player does not leave dangling `MediaStreamDestination` connections.
 
+
+
 ### App-core
 
 1. Add `StorageKey`s for all Performance recording settings (format, resolution, fps, qualities, title card, HUD, save mode, fixed folder, last folder, filename stem).
 2. Add matching settings atoms (same pattern as `settingVizBgEffect`).
+
+
 
 ### Desktop
 
@@ -208,10 +241,14 @@ Keep WebCodecs/mux logic **desktop-only**. Settings atoms may live in app-core (
 4. Extend save IPC for `.mp4` / `.webm` filters and directory picker for fixed-folder mode.
 5. On exit performance while recording: finalize and run configured save path.
 
+
+
 ### Documentation
 
 1. This feature doc (proposed → implemented when shipped).
 2. Brief user-facing note in desktop help / release notes when complete.
+
+
 
 ### Out of scope for this implementation pass
 
@@ -219,7 +256,11 @@ Web clients, offline render pipeline, end cards, custom title text editor.
 
 ---
 
+
+
 ## Testing Strategy
+
+
 
 ### Manual
 
@@ -232,6 +273,8 @@ Web clients, offline render pipeline, end cards, custom title text editor.
 - Exit performance while recording respects save mode.
 - Unsupported codec path shows a Settings-oriented error.
 
+
+
 ### Automated (light)
 
 - Unit tests for even-dimension clamping, resolution mapping, filename `{name}` expansion, title-card opacity timeline helpers if extracted.
@@ -239,11 +282,15 @@ Web clients, offline render pipeline, end cards, custom title text editor.
 
 ---
 
+
+
 ## Migration Path
 
 No migration. New settings default as in the table above. Existing songs need no AST changes; metadata already supports `name` / `artist`.
 
 ---
+
+
 
 ## Implementation Checklist
 
@@ -264,6 +311,8 @@ No migration. New settings default as in the table above. Existing songs need no
 
 ---
 
+
+
 ## Future Enhancements
 
 - Web-ui recording (WASM ffmpeg or limited MediaRecorder fallbacks).
@@ -276,6 +325,8 @@ No migration. New settings default as in the table above. Existing songs need no
 
 ---
 
+
+
 ## Open Questions
 
 1. Should a toolbar title-card toggle ship in v1, or Settings-only?
@@ -285,6 +336,8 @@ No migration. New settings default as in the table above. Existing songs need no
 
 ---
 
+
+
 ## References
 
 - Song Visualizer / performance mode: `docs/features/complete/channel-visualizer.md`
@@ -292,10 +345,12 @@ No migration. New settings default as in the table above. Existing songs need no
 - Web visualizer (parity reference, no record UI): `apps/web-ui/src/panels/song-visualizer.ts`
 - Live player: `packages/engine/src/audio/playback.ts`
 - Existing audio export (WAV offline, not live video): `docs/features/complete/cli-audio-export.md`
-- WebCodecs: https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API
+- WebCodecs: [https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)
 - `mp4-muxer` / `webm-muxer` (Vanilagy) for packaging encoded chunks
 
 ---
+
+
 
 ## Additional Notes
 
