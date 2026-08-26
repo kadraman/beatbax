@@ -1,5 +1,25 @@
 # @beatbax/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 2b8b79f: Add `beatbax extract instrument` to turn hUGETracker `.uge` files into a BeatBax `.ins` kit.
+
+  The command infers UGE from the path (or `--from uge`), merges files/directories with clash renaming, and writes a valid `.ins` (optional trailing `output.ins` / `--out`, plus `--stdout`, `--summary`, `--demo`, `--type`, and `--strict`). Engine extract helpers now accept `kinds` and `kitFileName` so `--type` and `--demo` use the real kit basename without pulling Node `path` into the browser-safe root entry.
+
+### Patch Changes
+
+- Updated dependencies [bd3aeb2]
+- Updated dependencies [2b8b79f]
+- Updated dependencies [bd3aeb2]
+- Updated dependencies [bd3aeb2]
+- Updated dependencies [bd3aeb2]
+  - @beatbax/plugin-chip-sms@0.3.5
+  - @beatbax/engine@0.24.1
+  - @beatbax/plugin-exporter-famitracker@0.2.4
+  - @beatbax/plugin-exporter-vgm@0.1.5
+
 ## 0.4.17
 
 ### Patch Changes
