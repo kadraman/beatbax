@@ -77,6 +77,8 @@ Read and parse a UGE file from disk.
 const song = readUGEFile('path/to/song.uge');
 ```
 
+To turn those instruments into a BeatBax `.ins` kit, use `extractUgeInstrumentLibrary` (or the CLI: `beatbax extract instrument song.uge`). That path writes `inst` / `subpat` only — full song conversion is a separate feature.
+
 #### `parseUGE(buffer: ArrayBuffer): UGESong`
 Parse a UGE file from an ArrayBuffer.
 

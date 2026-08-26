@@ -1,9 +1,11 @@
 ---
 title: "CLI extract: instruments from tracker files → .ins kit"
-status: proposed
+status: complete
 authors: ["kadraman"]
 created: 2026-08-19
-issue: ".github/ISSUES/cli-extract-uge-instruments.md"
+updated: 2026-08-26
+implemented: 2026-08-26
+issue: https://github.com/kadraman/beatbax/issues/185
 related:
   - docs/features/hugetracker-uge-converter.md
   - docs/features/complete/instrument-imports.md
@@ -25,7 +27,7 @@ beatbax extract instrument song.uge kit.ins
 beatbax extract instrument songs/chiptune/uge --out gameboy.ins --demo gameboy-instruments-demo.bax
 ```
 
-This is **not** full song import. Patterns, orders, and effects stay on [`hugetracker-uge-converter.md`](hugetracker-uge-converter.md) (`beatbax convert uge` → `.bax`). Extract is the reusable-kit half of that workflow: pull patches out of existing tracker songs and `import "local:….ins"` them into new BeatBax compositions.
+This is **not** full song import. Patterns, orders, and effects stay on [`hugetracker-uge-converter.md`](../hugetracker-uge-converter.md) (`beatbax convert uge` → `.bax`). Extract is the reusable-kit half of that workflow: pull patches out of existing tracker songs and `import "local:….ins"` them into new BeatBax compositions.
 
 The UGE conversion core already exists in `@beatbax/engine`. This feature is the product CLI, docs, and tests around it.
 
@@ -45,9 +47,9 @@ What already exists:
 |---|---|
 | Parse `.uge` v1–v6 | Implemented (`uge.reader.ts`, `beatbax inspect file.uge`) |
 | Map duty / wave / noise + `subpat` → `.ins` source | Implemented (`ugeInstrumentsToBax.ts`) |
-| Repo one-shot for the Game Boy library | `scripts/extract-gb-uge-instruments.ts` (hardcoded paths) |
+| Repo one-shot for the Game Boy library | Thin wrapper: `scripts/extract-gb-uge-instruments.ts` calls the CLI |
 | Full UGE → song `.bax` | Proposed only (`beatbax convert uge`) |
-| Public `beatbax extract instrument` | **Missing** |
+| Public `beatbax extract instrument` | **Shipped** |
 
 `inspect` is read-only (summary / JSON). The one-shot script is a development helper: it cannot be invoked as `beatbax extract …`, does not accept arbitrary files, and is not covered by CLI integration tests.
 
@@ -59,7 +61,7 @@ Without a CLI, users who install `@beatbax/cli` have no way to produce a `.ins` 
 
 ### Summary
 
-Add a Commander parent command `extract` on `@beatbax/cli`, with a first subcommand `instrument` (alias `instruments`). v1 dispatches to `extractUgeInstrumentLibrary` when the input is a UGE file or a directory of them.
+Add a Commander parent command `extract` on `@beatbax/cli`, with a first subcommand `instrument`. v1 dispatches to `extractUgeInstrumentLibrary` when the input is a UGE file or a directory of them.
 
 Keep conversion in the engine. The CLI only:
 
@@ -201,8 +203,8 @@ Alias: `instruments`.
 | `--out <path>` | Kit path (same as the optional positional output) |
 | `--from <format>` | Source format (`uge` in v1). Default: infer from extension |
 | `--stdout` | Print kit to stdout; do not write a file |
-| `--summary` | Print counts / renames only; do not write kit |
-| `--demo [path]` | Write a tour `.bax` (default: `{kitStem}-demo.bax` next to the kit) |
+| `--summary` | Print counts / renames only; do not write kit (incompatible with `--demo`) |
+| `--demo [path]` | Write a tour `.bax` (default: `{kitStem}-demo.bax` next to the kit). Requires writing a kit file — cannot combine with `--summary` or `--stdout` |
 | `--type <list>` | Comma-separated `pulse`, `wave`, `noise` (default: all) |
 | `--strict` | Non-zero exit if any input file fails to parse or is an unknown type |
 
@@ -217,7 +219,7 @@ Alias: `instruments`.
 
 ### Mapping (already implemented, UGE)
 
-Reuse [`ugeInstrumentsToBax.ts`](../../packages/engine/src/import/uge/ugeInstrumentsToBax.ts). Do not fork a second mapper in the CLI.
+Reuse [`ugeInstrumentsToBax.ts`](../../../packages/engine/src/import/uge/ugeInstrumentsToBax.ts). Do not fork a second mapper in the CLI.
 
 Include a slot if it is used on that type’s order/patterns, has a non-empty subpattern/macro, or has a non-empty non-placeholder name. Skip unused empty slots, BeatBax placeholders (`DUTY_n` / `WAVE_n` / `NOISE_n`), and unused hUGETracker starter names (`Duty 50%`, `Sawtooth wave`, …).
 
@@ -256,10 +258,8 @@ No new convert-to-song code here.
 
 ### CLI Changes
 
-- `packages/cli/src/cli.ts`: parent `extract` (reusable assets from external files) + subcommand `instrument` (alias `instruments`).
-- Small `detectInstrumentSource(path, from?)` helper: extension map `{ '.uge': 'uge' }`, then `--from`.
-- Mirror `inspect` / `convert wav2dmc` style: `ensureFileExists`, path resolve, mkdir for output dir, concise `[OK]` / summary lines.
-- Do not import the repo script. Call engine functions.
+- `packages/cli/src/cli.ts`: parent `extract` (reusable assets from external files) + subcommand `instrument`.
+- Usage shows optional `[output.ins]`; `--out` is the explicit flag form of the same path.
 
 Replace the hardcoded one-shot **or** keep it as a thin wrapper that execs:
 
@@ -282,9 +282,9 @@ None.
 ### Documentation Updates
 
 - `packages/cli/README.md` — new Extract section next to Inspect / Convert.
-- This feature doc → `docs/features/complete/` when shipped.
-- Cross-link from [`hugetracker-uge-converter.md`](hugetracker-uge-converter.md) so `extract instrument` vs `convert uge` stays obvious.
-- Short note in [`docs/api/uge-reader.md`](../api/uge-reader.md).
+- This feature doc (shipped).
+- Cross-link from [`hugetracker-uge-converter.md`](../hugetracker-uge-converter.md) so `extract instrument` vs `convert uge` stays obvious.
+- Short note in [`docs/api/uge-reader.md`](../../api/uge-reader.md).
 
 ---
 
@@ -320,15 +320,15 @@ Add `packages/cli/tests/extract-instrument.integration.test.ts` (same pattern as
 
 ## Implementation Checklist
 
-- [ ] `extract` parent + `instrument` subcommand (alias `instruments`) in `packages/cli/src/cli.ts`
-- [ ] Format detection from extension; `--from uge` override
-- [ ] Default / `--out` / `--stdout` / `--summary` / `--demo` / `--type` / `--strict`
-- [ ] Directory and multi-file merge using `extractUgeInstrumentLibrary`
-- [ ] Demo `import` line uses the real kit basename
-- [ ] CLI integration tests with committed UGE fixtures
-- [ ] `packages/cli/README.md` examples
-- [ ] Cross-link from the full UGE→`.bax` converter spec
-- [ ] Decide: delete or slim `scripts/extract-gb-uge-instruments.ts`
+- [x] `extract` parent + `instrument` subcommand in `packages/cli/src/cli.ts`
+- [x] Format detection from extension; `--from uge` override
+- [x] Default / `--out` / `--stdout` / `--summary` / `--demo` / `--type` / `--strict`
+- [x] Directory and multi-file merge using `extractUgeInstrumentLibrary`
+- [x] Demo `import` line uses the real kit basename
+- [x] CLI integration tests with committed UGE fixtures
+- [x] `packages/cli/README.md` examples
+- [x] Cross-link from the full UGE→`.bax` converter spec
+- [x] Decide: delete or slim `scripts/extract-gb-uge-instruments.ts`
 
 ---
 
@@ -348,7 +348,7 @@ Add `packages/cli/tests/extract-instrument.integration.test.ts` (same pattern as
 1. **Default include policy** — keep today’s “named or used or subpat” (yes). `--used-only` can be a later flag if kits are still noisy.
 2. **Overwrite vs refuse** — v1 overwrite of `--out` is fine; print the path. `--merge` later.
 3. **Recursive directories** — v1 non-recursive. `--recursive` later if needed.
-4. **Singular vs plural** — ship `instrument` as the canonical verb; accept `instruments` as an alias.
+4. **Singular vs plural** — ship only `instrument`. A plural alias made Commander print `instrument|instruments` in help and was more confusing than helpful.
 
 ---
 
@@ -357,10 +357,10 @@ Add `packages/cli/tests/extract-instrument.integration.test.ts` (same pattern as
 - Engine: `packages/engine/src/import/uge/uge.reader.ts`, `ugeInstrumentsToBax.ts`
 - Prototype: `scripts/extract-gb-uge-instruments.ts`
 - CLI patterns: `packages/cli/src/cli.ts` (`inspect`, `convert wav2dmc`)
-- `.ins` rules: `packages/engine/src/song/ins-file.ts`, [`complete/instrument-imports.md`](complete/instrument-imports.md)
-- Import paths: [`docs/grammar/import-security.md`](../grammar/import-security.md)
-- Sibling: [`hugetracker-uge-converter.md`](hugetracker-uge-converter.md) (issue #151)
-- Issue draft: [`.github/ISSUES/cli-extract-uge-instruments.md`](../../.github/ISSUES/cli-extract-uge-instruments.md)
+- `.ins` rules: `packages/engine/src/song/ins-file.ts`, [`instrument-imports.md`](instrument-imports.md)
+- Import paths: [`docs/grammar/import-security.md`](../../grammar/import-security.md)
+- Sibling: [`hugetracker-uge-converter.md`](../hugetracker-uge-converter.md) (issue #151)
+- Issue: https://github.com/kadraman/beatbax/issues/185
 
 ---
 

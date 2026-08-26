@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import { Command, Argument } from 'commander';
-import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry, getSongValidationIssues } from '@beatbax/engine';
+import { readUGEFile, getUGESummary, chipRegistry, exporterRegistry, getSongValidationIssues, extractUgeInstrumentLibrary } from '@beatbax/engine';
+import {
+  defaultDemoPath,
+  defaultKitPathForInputs,
+  detectInstrumentSource,
+  expandExtractInputs,
+  parseInstrumentKinds,
+  peelKitOutputArgument,
+} from './extract-instrument.js';
 import { playFile } from '@beatbax/engine/node';
 import type { ChipPlugin, ExporterPlugin } from '@beatbax/engine';
 import * as engineImports from '@beatbax/engine/import';
@@ -685,6 +693,155 @@ program
       const globalOpts = program.opts();
       console.error('Failed to inspect file:', extractErrorMessage(err, globalOpts && globalOpts.debug));
       process.exitCode = 2;
+    }
+  });
+
+const extractCmd = program
+  .command('extract')
+  .description('Extract reusable assets from tracker files');
+
+extractCmd
+  .command('instrument')
+  .description('Extract instruments from tracker files into a BeatBax .ins kit (v1: hUGETracker .uge)')
+  .usage('[options] <inputs...> [output.ins]')
+  .argument(
+    '<inputs...>',
+    'UGE file(s) and/or directories of *.uge. Optional trailing output.ins writes the kit there (same as --out)',
+  )
+  .option('-o, --out <path>', 'Write the .ins kit to this path (overrides a trailing .ins argument)')
+  .option('--from <format>', 'Source format (v1: uge). Default: infer from extension')
+  .option('--stdout', 'Print kit to stdout; do not write a kit file')
+  .option('--summary', 'Print counts and renames only; do not write a kit (incompatible with --demo)')
+  .option('--demo [path]', 'Write a tour .bax that imports the kit (requires writing a kit file; default: {kitStem}-demo.bax)')
+  .option('--type <list>', 'Comma-separated kinds: pulse,wave,noise (default: all)')
+  .option('--strict', 'Exit non-zero if any input fails to parse or is an unknown type')
+  .action((rawInputs: string[], options) => {
+    const globalOpts = program.opts();
+    configureLoggerFromCLI(options, globalOpts);
+    const strict = options.strict === true || globalOpts?.strict === true;
+    const toStdout = options.stdout === true;
+    const summaryOnly = options.summary === true;
+
+    if (!rawInputs || rawInputs.length === 0) {
+      failCommand('Error: at least one input file or directory is required');
+    }
+
+    const fromRaw = options.from === undefined ? undefined : String(options.from);
+    if (fromRaw !== undefined) {
+      if (detectInstrumentSource('forced.bin', fromRaw) === 'unknown') {
+        failCommand(`Error: unknown --from '${fromRaw}'; v1 supports uge (hint: --from uge)`);
+      }
+    }
+
+    let kinds;
+    try {
+      kinds = parseInstrumentKinds(options.type);
+    } catch (err: any) {
+      failCommand(`Error: ${err.message ?? err}`);
+    }
+
+    const peeled = peelKitOutputArgument(rawInputs, options.out);
+    const expanded = expandExtractInputs(peeled.inputs, fromRaw);
+
+    if (expanded.missing.length > 0) {
+      console.error(`Error: File not found: ${expanded.missing[0]}`);
+      process.exit(1);
+    }
+    if (expanded.notFileOrDir.length > 0) {
+      failCommand(`Error: not a file or directory: ${expanded.notFileOrDir[0]}`);
+    }
+    if (expanded.emptyDirs.length > 0) {
+      failCommand(`Error: no .uge files in directory: ${expanded.emptyDirs[0]}`);
+    }
+
+    if (expanded.skippedUnknown.length > 0) {
+      for (const skipped of expanded.skippedUnknown) {
+        console.error(`Warning: unknown instrument source '${skipped}' (hint: --from uge)`);
+      }
+      if (strict || expanded.sources.length === 0) {
+        failCommand('Error: unknown instrument source; expected .uge or --from uge');
+      }
+    }
+
+    if (expanded.sources.length === 0) {
+      failCommand('Error: no instrument source files to extract');
+    }
+
+    const kitPathExplicit = peeled.kitOut ? resolvePath(peeled.kitOut) : undefined;
+    const kitPathDefault = defaultKitPathForInputs(peeled.inputs);
+    const kitPath = kitPathExplicit ?? kitPathDefault;
+    const writeKit = !toStdout && !summaryOnly;
+    const demoOpt = options.demo;
+    const wantDemo = demoOpt !== undefined && demoOpt !== false;
+    if (wantDemo && !writeKit) {
+      failCommand('Error: --demo requires writing a kit file (cannot combine with --summary or --stdout)');
+    }
+    if (writeKit && !kitPath) {
+      failCommand('Error: several files or a directory require --out (or a trailing .ins path)');
+    }
+    if (wantDemo && !kitPath && typeof demoOpt !== 'string') {
+      failCommand('Error: --demo needs --out (or a single input file) to name the kit import');
+    }
+
+    const parsed: { label: string; song: ReturnType<typeof readUGEFile> }[] = [];
+    const failed: { file: string; error: string }[] = [];
+    for (const source of expanded.sources) {
+      try {
+        parsed.push({ label: source.label, song: readUGEFile(source.path) });
+      } catch (err: any) {
+        failed.push({ file: source.label, error: extractErrorMessage(err) });
+      }
+    }
+
+    if (failed.length > 0) {
+      for (const f of failed) {
+        console.error(`Failed to parse ${f.file}: ${f.error}`);
+      }
+      if (strict || parsed.length === 0) {
+        process.exit(2);
+      }
+    }
+
+    const kitFileName = kitPath ? basename(kitPath) : 'kit.ins';
+    const { result, kit, demo } = extractUgeInstrumentLibrary(parsed, { kinds, kitFileName });
+
+    const printSummary = () => {
+      const attempted = parsed.length + failed.length;
+      console.log(`Parsed ${parsed.length}/${attempted} UGE file${attempted === 1 ? '' : 's'}`);
+      if (failed.length) {
+        console.log('Failed:');
+        for (const f of failed) console.log(`  ${f.file}: ${f.error}`);
+      }
+      console.log(`Pulse: ${result.pulse.length}`);
+      console.log(`Wave:  ${result.wave.length}`);
+      console.log(`Noise: ${result.noise.length}`);
+      console.log(`Renames: ${result.renames.length}`);
+      for (const r of result.renames) {
+        console.log(`  ${JSON.stringify(r.from)} → ${r.to} (${r.source})`);
+      }
+    };
+
+    if (summaryOnly) {
+      printSummary();
+    } else if (toStdout) {
+      process.stdout.write(kit.endsWith('\n') ? kit : `${kit}\n`);
+    } else if (kitPath) {
+      const outDir = dirname(kitPath);
+      if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+      writeFileSync(kitPath, kit, 'utf8');
+      printSummary();
+      console.log(`[OK] Wrote ${kitPath}`);
+    }
+
+    if (wantDemo) {
+      const demoPath = typeof demoOpt === 'string' && demoOpt.length > 0
+        ? resolvePath(demoOpt)
+        : defaultDemoPath(kitPath ?? kitFileName);
+      const demoDir = dirname(demoPath);
+      if (!existsSync(demoDir)) mkdirSync(demoDir, { recursive: true });
+      writeFileSync(demoPath, demo, 'utf8');
+      if (!toStdout) console.log(`[OK] Wrote ${demoPath}`);
+      else console.error(`[OK] Wrote ${demoPath}`);
     }
   });
 
